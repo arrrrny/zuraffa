@@ -30,13 +30,13 @@ missing integration: each sub-issue works alone, the combined flow breaks).
 
 1. **Given** a feature whose `specs/<f>/tdd/fixtures/` holds the three committed `realize-diff.v1` contract cases AND the #832 registry artifacts (`manifest.json` with `schema: 1` and `mock-cert.Login.json` with `schema: 1`) written by `zfa mock certify Login --feature <f>`, **When** the user runs `zfa tdd realize-mock Login --against=firestore`, **Then** the gate exits 0 with verdict `certified`, runs all three real cases, prints `skipped manifest.json (schema 1)` and `skipped mock-cert.Login.json (schema 1)`, and the receipt carries the 3 method records — no runner-error, no hand removal of registry files.
    **Type**: acceptance
-2. **Given** a fixtures directory holding a foreign JSON document whose `schema` is any non-`realize-diff.v1` value (a string such as `world-v2`, a number such as `1`, or absent/unparseable JSON), **When** realize-mock's fixture scan reads the document, **Then** the scan skips it and logs `skipped <name> (schema <x>)` where `<name>` is the file basename and `<x>` is the document's schema value rendered verbatim (or `unknown` when absent or the file is not parseable JSON) — the scan never fails on a foreign document.
+2. **Given** a fixtures directory holding a foreign JSON document whose `schema` is any non-`realize-diff.v1` value (a string such as `world-v2`, a number such as `1`, an absent schema, or unparseable JSON whose bytes do not carry the `realize-diff.v1` stamp), **When** realize-mock's fixture scan reads the document, **Then** the scan skips it and logs `skipped <name> (schema <x>)` where `<name>` is the file basename and `<x>` is the document's schema value rendered verbatim, capped at 60 characters (or `unknown` when absent or the file is not parseable JSON) — the scan never fails on a foreign document.
    **Type**: acceptance
 3. **Given** a fixtures directory whose every `.json` document is foreign (no `realize-diff.v1` case remains after skipping), **When** realize-mock runs, **Then** it fails with `result=blocked` (exit 1) naming that no `realize-diff.v1` contract cases remain after the foreign documents were skipped — an empty surface is never certified.
    **Type**: acceptance
 4. **Given** a feature with only `realize-diff.v1` fixtures (no #832 artifacts anywhere in the directory), **When** realize-mock runs, **Then** the behavior is unchanged: no `skipped` lines, the same per-method differential, the same receipt and verdict as before this change (backward compatibility).
    **Type**: acceptance
-5. **Given** a document that IS stamped `schema: "realize-diff.v1"` but is malformed (missing `input` or `input.op`), **When** the scan classifies it, **Then** the scan still fails closed with the existing "fix the fixture before certifying" validation — the skip path is reserved for foreign documents, and a broken contract case of the gate's own schema remains a hard error.
+5. **Given** a document that IS stamped `schema: "realize-diff.v1"` but is malformed — missing `input`, an `input` that is not an object, missing `input.op`, or raw bytes that carry the stamp yet do not decode to a JSON object (a truncated or corrupted case) — **When** the scan classifies it, **Then** the scan still fails closed with `result=runner-error` and a "fix the fixture before certifying" validation, writing no receipt: the skip path is reserved for foreign documents, and a broken contract case of the gate's own schema remains a hard error that can never silently shrink the certified surface.
    **Type**: acceptance
 
 ## Functional Requirements
@@ -47,22 +47,28 @@ missing integration: each sub-issue works alone, the combined flow breaks).
   exact string `realize-diff.v1`.
 - **FR-002**: For every scanned document whose schema is not the exact
   string `realize-diff.v1` (different value, absent, non-object JSON, or
-  unparseable JSON), the scan MUST skip the document and log
+  unparseable JSON) and whose raw bytes do not carry the `realize-diff.v1`
+  stamp, the scan MUST skip the document and log
   `skipped <name> (schema <x>)` where `<name>` is the file basename (with
   extension) and `<x>` is the schema value rendered (`1` for the #832
   artifacts, the string verbatim for string schemas, `unknown` when
-  absent or unparseable). A skipped document MUST produce no method
-  record, no receipt row, and no failure.
+  absent or unparseable). The rendered value is capped at 60 characters.
+  A skipped document MUST produce no method record, no receipt row, and
+  no failure.
 - **FR-003**: `manifest.json` and `mock-cert.*.json` (the #832 registry
   artifacts, both `schema: 1`) MUST be skipped without error — the
   combined `mock certify --feature` + `tdd realize-mock` flow (issues
   #1001 x #1009) completes end-to-end without hand-removing registry
   files.
-- **FR-004**: A document stamped `realize-diff.v1` that is malformed
-  (missing `input` or `input.op`) MUST still fail closed with the
-  existing validation message ("fix the fixture before certifying") —
-  skip applies to foreign documents only, never to a broken case of the
-  gate's own schema.
+- **FR-004**: A document that carries the `realize-diff.v1` stamp but is
+  malformed MUST fail closed with `result=runner-error` (exit 1), no
+  receipt written, and a validation message ending "fix the fixture
+  before certifying" — malformed means missing `input`, an `input` that
+  is not an object, missing `input.op`, or raw bytes that carry the stamp
+  yet do not decode to a JSON object (a truncated case). Skip applies to
+  foreign documents only, never to a broken case of the gate's own
+  schema, so a corrupted case can never silently shrink the certified
+  surface.
 - **FR-005**: When every scanned document was skipped (zero contract
   cases remain), realize-mock MUST fail with `result=blocked` (exit 1)
   and a message naming the skip — it MUST NOT certify zero methods and
@@ -93,6 +99,12 @@ missing integration: each sub-issue works alone, the combined flow breaks).
 - SC-5: A `realize-diff.v1`-stamped document missing `input.op` still
   fails with the existing validation message (AC-5) — the fail-closed
   contract survives.
+- SC-6: A `realize-diff.v1`-stamped document whose `input` key is absent
+  or is not an object fails closed with `result=runner-error` and the
+  "carries no input map" message, and a truncated document whose bytes
+  still carry the stamp fails closed as corrupt (never `skipped …
+  (schema unknown)`, never `certified`); neither writes a receipt for the
+  reduced surface (AC-5).
 
 ## Out of Scope
 

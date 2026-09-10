@@ -83,9 +83,24 @@ must be written and certified red BEFORE its implementation task.
       collision, capture the transcript into the PR body
       (certify + realize-mock e2e demo).
 
+## Phase 5 — Fail-closed completeness (review fix round)
+
+- [x] T010 [behavior: A5a] [behavior: A5b] [behavior: A5c] RED first:
+      close the three remaining fail-closed holes. An unparseable
+      document whose raw bytes carry the `realize-diff.v1` stamp is a
+      corrupt contract case, not a foreign file, and MUST fail closed
+      (`result=runner-error`, no receipt) instead of being skipped —
+      otherwise a truncated case silently shrinks the certified surface.
+      RED-then-green pins: A5a (no `input` key), A5b (`input` is not an
+      object) assert the reworded "carries no input map" message; A5c (a
+      truncated stamped document) asserts the corrupt-case message and
+      that no `skipped … (schema unknown)` line is printed. Traces AC-5 /
+      SC-6.
+
 ## Dependencies
 
 - T002 depends on T001 (red first).
 - T005 depends on T003's fixtures (skip path proven) and T004's red.
 - T006/T007 are independent pins (can run any time after T002).
 - T008 aggregates; T009 is the final acceptance demo.
+- T010 depends on T002 (the schema scan it hardens).

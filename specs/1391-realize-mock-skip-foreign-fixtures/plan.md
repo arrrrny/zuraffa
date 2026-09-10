@@ -87,8 +87,8 @@
 ## Implementation Notes
 
 - The renderer for `<x>`: JSON-encode the schema value (safe on decoded
-  JSON), cap the length, `unknown` for null/absent — total function, no
-  throw paths.
+  JSON), render it at most 60 characters like `_preview`, `unknown` for
+  null/absent — total function, no throw paths.
 - The skip log uses the file basename WITH extension (`manifest.json`,
   not `manifest`) — the name a user sees in the directory.
 - Tests inject the tier-1 suite runner and tier-2 provider factory (the

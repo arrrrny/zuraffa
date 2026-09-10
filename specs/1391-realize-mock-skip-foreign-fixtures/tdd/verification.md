@@ -101,3 +101,29 @@ The registry files stay in place; no hand removal; the gate certifies.
   and the era-tagged log format are untouched (verified by the 16
   pre-existing realize-mock tests passing unchanged).
 - One PR per issue; conventional-commit subject `fix(1391):`.
+
+## Review fix round (PR #1477 review findings)
+
+Verdict for this round: **PASSED**. The reviewer's major finding was that
+an unparseable document was skipped as `schema unknown` even when it was a
+corrupt case of the gate's OWN schema — so a truncated `realize-diff.v1`
+case silently shrank the certified surface while the gate still printed
+`result=certified`. Reproduced as A5c (see `tdd/cycle-log.md`, red cycle
+`… (red — review fix round)`): `skipped truncated.json (schema unknown)` /
+`methods=1 mismatch=0 result=certified` / `Expected: <1> Actual: <0>`.
+
+| Item | Thread | Verdict |
+| --- | --- | --- |
+| Corrupt-but-stamped case fails closed | `realize_mock_command.dart:361-367` (major) | applied — the scan keeps the raw text and fails `runnerError` when the document does not decode AND the bytes carry the `realize-diff.v1` stamp |
+| False fail-closed message reworded | `realize_mock_command.dart:375-377` (minor) | applied — "is stamped realize-diff.v1 but carries no input map" |
+| AC-5 fail-closed coverage | `bug_1391_…_test.dart:310-321` (minor) | applied — A5a (no `input` key), A5b (`input` not an object), A5c (truncated stamped case) |
+| `_schemaLabel` length cap | `plan.md:89-90` (nitpick) | applied — capped at 60 characters like `_preview`; the plan note now names the cap |
+| Unreachable blanket `catch` | `realize_mock_command.dart:870-878` (nitpick) | applied — narrowed to `on JsonUnsupportedObjectError` |
+
+Evidence: 10/10 in the #1391 suite, **26/26** across the three
+realize-mock suites, `dart analyze` clean on both changed `.dart` files,
+`dart format --set-exit-if-changed` 0 changed. A2c (unparseable JSON
+WITHOUT the stamp → `skipped broken.json (schema unknown)`, certified)
+stays green, so the foreign-file path is unchanged. `spec.md` (AC-2,
+AC-5, FR-002, FR-004, SC-6) and `tasks.md` (T010) were updated to match
+the shipped behavior.

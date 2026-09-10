@@ -342,9 +342,10 @@ class RealizeMockCommand extends Command<void> {
     final mismatches = <RealizeMockMethodRecord>[];
     for (final file in fixtureFiles) {
       final caseId = p.basenameWithoutExtension(file.path);
+      final raw = await file.readAsString();
       Map<String, dynamic>? fixture;
       try {
-        final decoded = jsonDecode(await file.readAsString());
+        final decoded = jsonDecode(raw);
         if (decoded is Map<String, dynamic>) fixture = decoded;
       } on FormatException {
         fixture = null;
@@ -353,13 +354,30 @@ class RealizeMockCommand extends Command<void> {
       // Issue #1391: classify by schema — a document is a contract case
       // iff it is stamped realize-diff.v1. Anything else (the #832
       // registry artifacts with their schema 1, a schema-less document,
-      // unparseable JSON) is a foreign document here: skip it with a
-      // visible log line instead of failing the gate. Skipping is for
-      // FOREIGN documents only — a document stamped realize-diff.v1
-      // that is malformed (input/input.op missing) still fails closed
-      // in the checks below.
+      // unparseable JSON without the stamp) is a foreign document here:
+      // skip it with a visible log line instead of failing the gate.
+      // Skipping is for FOREIGN documents only — a document stamped
+      // realize-diff.v1 that is malformed (unparseable, or
+      // input/input.op missing) still fails closed.
       final schema = fixture?['schema'];
       if (schema != 'realize-diff.v1') {
+        // A document that will not decode but still carries the gate's
+        // OWN stamp is a corrupt contract case, not a foreign file: the
+        // records guard below would otherwise certify whatever is left.
+        if (fixture == null && raw.contains('realize-diff.v1')) {
+          _fail(
+            'zfa tdd realize-mock: fixture $caseId is not parseable JSON '
+            'but is stamped realize-diff.v1 — the contract case is '
+            'corrupt; fix the fixture before certifying.',
+            entity: entity,
+            against: against,
+            feature: feature,
+            methods: records.length,
+            mismatch: mismatches.length,
+            outcome: RealizeMockOutcome.runnerError,
+          );
+          return;
+        }
         print(
           '   skipped ${p.basename(file.path)} '
           '(schema ${_schemaLabel(schema)})',
@@ -367,14 +385,15 @@ class RealizeMockCommand extends Command<void> {
         continue;
       }
       // The schema stamp implies a decoded document: a null fixture has
-      // a null schema and was skipped above (non-null promotion).
+      // a null schema and was skipped (or failed closed) above
+      // (non-null promotion).
       final doc = fixture!;
       final input = doc['input'];
       if (input is! Map<String, dynamic>) {
         _fail(
-          'zfa tdd realize-mock: fixture $caseId is not a '
-          'realize-diff.v1 document (schema, input.op missing) — fix the '
-          'fixture before certifying.',
+          'zfa tdd realize-mock: fixture $caseId is stamped '
+          'realize-diff.v1 but carries no input map — fix the fixture '
+          'before certifying.',
           entity: entity,
           against: against,
           feature: feature,
@@ -864,15 +883,22 @@ class RealizeMockCommand extends Command<void> {
   /// Issue #1391: the schema value as the skip log renders it — the
   /// decoded JSON value verbatim (`1` for the #832 registry artifacts,
   /// the string verbatim for string schemas), or `unknown` when the
-  /// document carries no schema or was not parseable. Total: no throw
-  /// paths (a decoded JSON value is always encodable; the catch is a
-  /// belt-and-braces guard for the same contract).
+  /// document carries no schema or was not parseable. The rendered label
+  /// is capped like [_preview] so a pathologically long schema cannot
+  /// print an unbounded line. Total: a decoded JSON value is always
+  /// encodable; `on JsonUnsupportedObjectError` is the explicit guard
+  /// for that contract without a blanket catch that would also swallow
+  /// `Error`s.
   static String _schemaLabel(Object? schema) {
     if (schema == null) return 'unknown';
-    if (schema is String) return schema;
+    final label = schema is String ? schema : _encodeSchema(schema);
+    return label.length > 60 ? '${label.substring(0, 57)}...' : label;
+  }
+
+  static String _encodeSchema(Object? schema) {
     try {
       return jsonEncode(schema);
-    } catch (_) {
+    } on JsonUnsupportedObjectError {
       return '$schema';
     }
   }

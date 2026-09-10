@@ -15,8 +15,10 @@
 //   A3  a foreign-only fixtures dir fails BLOCKED, never runner-error,
 //       and never certifies an empty surface (AC-3),
 //   A4  a pure realize-diff.v1 directory behaves unchanged (AC-4),
-//   A5  a realize-diff.v1-stamped case missing input.op still fails
-//       closed (AC-5).
+//   A5  a realize-diff.v1-stamped case that is malformed — missing
+//       input.op (A5), no input map (A5a), non-object input (A5b), or
+//       unparseable bytes that still carry the stamp (A5c) — fails
+//       closed and never certifies the reduced surface (AC-5).
 library;
 
 import 'dart:async';
@@ -207,7 +209,8 @@ void main() {
     expect(out, contains('result=certified'));
     expect(out, contains('methods=3 mismatch=0'));
     expect(out, isNot(contains('runner-error')));
-    expect(out, isNot(contains('not a realize-diff.v1 document')));
+    expect(out, isNot(contains('carries no input map')));
+    expect(out, isNot(contains('is not parseable JSON')));
 
     // The foreign files stay visible: skipped, with their schema.
     expect(out, contains('skipped manifest.json (schema 1)'));
@@ -320,5 +323,67 @@ void main() {
     expect(exitCode, 1, reason: 'out: $out');
     expect(out, contains('carries no input.op'));
     expect(out, contains('result=runner-error'));
+  });
+
+  test('A5a (fail-closed pin): a realize-diff.v1-stamped case with no input '
+      'map fails closed — no receipt for the reduced surface', () async {
+    await writeGetByIdCase();
+    await writeRaw('no-input.json', <String, dynamic>{
+      'schema': 'realize-diff.v1',
+      'id': 'no-input',
+    });
+
+    final out = await runRealizeMock(against: 'firestore');
+
+    expect(exitCode, 1, reason: 'out: $out');
+    expect(
+      out,
+      contains('is stamped realize-diff.v1 but carries no input map'),
+    );
+    expect(out, contains('result=runner-error'));
+    expect(out, isNot(contains('result=certified')));
+    expect(File(receiptPath()).existsSync(), isFalse);
+  });
+
+  test('A5b (fail-closed pin): a realize-diff.v1-stamped case whose input is '
+      'not an object fails closed', () async {
+    await writeGetByIdCase();
+    await writeRaw('bad-input.json', <String, dynamic>{
+      'schema': 'realize-diff.v1',
+      'id': 'bad-input',
+      'input': 'not-an-object',
+    });
+
+    final out = await runRealizeMock(against: 'firestore');
+
+    expect(exitCode, 1, reason: 'out: $out');
+    expect(
+      out,
+      contains('is stamped realize-diff.v1 but carries no input map'),
+    );
+    expect(out, contains('result=runner-error'));
+    expect(File(receiptPath()).existsSync(), isFalse);
+  });
+
+  test('A5c (fail-closed pin): a truncated fixture that still carries the '
+      'realize-diff.v1 stamp is a corrupt case, not a foreign file — it '
+      'fails closed instead of silently shrinking the surface', () async {
+    await writeGetByIdCase();
+    await writeRaw(
+      'truncated.json',
+      '{"schema":"realize-diff.v1","input":{"op":"getById"',
+    );
+
+    final out = await runRealizeMock(against: 'firestore');
+
+    expect(exitCode, 1, reason: 'out: $out');
+    expect(
+      out,
+      contains('is not parseable JSON but is stamped realize-diff.v1'),
+    );
+    expect(out, contains('result=runner-error'));
+    expect(out, isNot(contains('result=certified')));
+    expect(out, isNot(contains('skipped truncated.json')));
+    expect(File(receiptPath()).existsSync(), isFalse);
   });
 }
