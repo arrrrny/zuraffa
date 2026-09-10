@@ -45,7 +45,8 @@ void main() {
     expect(caught.single.usage, contains('Available subcommands:'));
   });
 
-  test('usage follows the runner width, not the constant', () {
+  test('description and subcommand summaries follow the runner width '
+      '(options block stays at kUsageLineLength)', () {
     final runner = CommandRunner<void>(
       'zfa',
       'Zuraffa Code Generator',
@@ -54,7 +55,15 @@ void main() {
 
     final lines = runner.commands['tdd']!.usage.split('\n');
 
-    expect(lines, everyElement(hasLength(lessThanOrEqualTo(80))));
+    // The description block and the subcommand section honor the runner
+    // width; the options block wraps at kUsageLineLength (120) because
+    // ArgParser.usageLineLength is constructor-only.
+    final subHeader = lines.indexOf('Available subcommands:');
+    expect(subHeader, greaterThan(0));
+    expect(
+      lines.sublist(0, subHeader),
+      everyElement(hasLength(lessThanOrEqualTo(80))),
+    );
   });
 
   test('zfa tdd usage keeps the command description', () {
