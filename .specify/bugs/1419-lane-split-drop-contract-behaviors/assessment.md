@@ -78,6 +78,26 @@ drift, declared-id clobber, SKIN-declared contract id accepted).
 
 ## Hard constraints honored
 
-- ONLY `plan_command.dart` changed (plus the new bug test file).
+- ONLY `plan_command.dart` changed in the assessment-time plan (plus the
+  new bug test file); the review round added `lane_split.dart` — see the
+  note below.
 - Core engine cycle, gen pipeline, verify gate, spec-parser: untouched.
 - One PR per bug: `fix/1419-lane-split-drop-contract-behaviors`.
+
+## Review round (post-assessment revision)
+
+The automated review of the fix PR proved the same silent-drop class was
+still reachable through `zfa tdd split` — `SplitCommand` routes
+`BehaviorKind.contract` rows CORE and calls the same `renderEnginePlan`,
+which owned no contract section, so the migrated `04-ENGINE.md` omitted
+the rows its own meta-index and receipt classified. Remediation point 1
+("the plan writes the contract-loop section itself") was therefore
+revised: the section now lives in the shared renderer —
+`renderContractLoopSection` in `lane_split.dart`, called from
+`renderEnginePlan` over the `BehaviorKind.contract` rows it already
+receives, and from the legacy `_render` path. The `skinRows` spread of
+the contract rows was dropped: `_resolveLanes` refuses every non-CORE
+declaration of a derived contract id, so it was unreachable.
+
+`fix.md` records the final shape; the remediation section above is the
+plan as of assessment time.

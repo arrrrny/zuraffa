@@ -23,6 +23,11 @@
 //    pure Dart, so it rides the engine).
 // 5. The meta-index counts the contract ids in the CORE lane's resolved
 //    list — the lane-coverage accounting sees them.
+// 6. The #1309 stale-split regeneration (no `## Lanes`, a receipt)
+//    writes the same engine-side contract rows the Lanes path does.
+// 7. `zfa tdd split` — which calls the same engine renderer — migrates a
+//    legacy list's contract row into 04-ENGINE.md instead of writing an
+//    engine plan that contradicts its own meta-index and receipt.
 //
 // RED phase: recorded against the unfixed tree — the engine plan omits
 // the contract section, the reader resolves no contract rows, the
@@ -30,6 +35,7 @@
 // exits 0.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -166,6 +172,61 @@ Lanes:
 ```
 ''';
 
+/// The #1309 stale-split shape: `## Layer Contracts` and NO `## Lanes`,
+/// plus a `tdd/split-receipt.json` — `zfa tdd plan` regenerates the lane
+/// plans through the split kind heuristic (`_heuristicLaneResolution`),
+/// which must carry the derived contract rows too.
+const String contractNoLanesSpec = '''
+**Template Version**: `zuraffa-1.0`
+
+## Acceptance Scenarios
+
+1. **Given** the transport **When** an outbound message is sent **Then** the message is delivered to the channel
+   **Type**: acceptance
+
+## Functional Requirements
+
+- **FR-001**: The system shall send outbound messages through the transport.
+
+## Layer Contracts
+
+**Entities**:
+- `MessageTransport`: `send(OutboundMessage) -> Message`
+''';
+
+/// A legacy single-file list whose rows the one-shot `zfa tdd split`
+/// migrates — including the contract row the split's own meta-index and
+/// receipt classify CORE.
+const String legacyListWithContract =
+    '''
+# Test List: $feature
+
+## Outer loop: acceptance behaviors
+
+One per acceptance criterion in `spec.md`.
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| A1 | the message is delivered to the channel | AC-1 | PENDING |
+
+## Inner loop: unit behaviors
+
+One per functional requirement in `spec.md`.
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| U1 | sends outbound messages through the transport | FR-001 | PENDING |
+
+## Contract loop: contract behaviors
+
+One per declared entity method, controller method and usecase in
+`spec.md` Layer Contracts (issue #1007).
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| contract:A1 | MessageTransport.send(OutboundMessage) -> Message (entity method contract) | MessageTransport.send | BLOCKED |
+''';
+
 /// A legacy single-file list carrying a BLOCKED contract row — the
 /// recorded state the split plan must keep (spec 1007 BLOCKED
 /// semantics survive the split).
@@ -182,6 +243,32 @@ One per declared entity method, controller method and usecase in
 | -- | -------- | ------ | ----- |
 | contract:A1 | MessageTransport.send(OutboundMessage) -> Message (entity method contract) | MessageTransport.send | BLOCKED |
 ''';
+
+/// The loop-section titles whose tables carry behavior rows — the
+/// sections `rowIds` scopes its extraction to.
+const List<String> _behaviorSectionTitles = [
+  'Outer loop:',
+  'Inner loop:',
+  'Native loop:',
+  'Contract loop:',
+];
+
+/// The concatenated bodies of [md]'s behavior sections. A `## ` heading
+/// outside [_behaviorSectionTitles] (`## Key entities`,
+/// `## External dependencies`, `## Layer contracts`,
+/// `## Routing provenance`) carries declarations, not behaviors.
+String _behaviorSections(String md) {
+  final buf = StringBuffer();
+  var inBehaviorSection = false;
+  for (final line in md.split('\n')) {
+    if (line.startsWith('## ')) {
+      final title = line.substring(3);
+      inBehaviorSection = _behaviorSectionTitles.any(title.startsWith);
+    }
+    if (inBehaviorSection) buf.writeln(line);
+  }
+  return buf.toString();
+}
 
 void main() {
   late Directory tmpDir;
@@ -207,11 +294,19 @@ void main() {
   File laneFile(String name) => File(p.join(tddDir, name));
 
   /// The behavior data-row ids of [md]: first cell of every table data
-  /// row (the `contract:A<n>` ids carry a colon).
-  Set<String> rowIds(String md) => RegExp(
-    r'^\| ([A-Za-z][A-Za-z0-9:-]*) \|',
-    multiLine: true,
-  ).allMatches(md).map((m) => m.group(1)!).where((id) => id != 'id').toSet();
+  /// row inside the BEHAVIOR sections (the `contract:A<n>` ids carry a
+  /// colon). The declaration tables (`## Key entities`,
+  /// `## External dependencies`, `## Layer contracts`) are skipped —
+  /// their headers (`entity`, `dependency`) are not behaviors, and
+  /// counting them would turn this fixture red the moment the spec
+  /// grows a declaration section (a change unrelated to the contract
+  /// under test).
+  Set<String> rowIds(String md) =>
+      RegExp(r'^\| ([A-Za-z][A-Za-z0-9:-]*) \|', multiLine: true)
+          .allMatches(_behaviorSections(md))
+          .map((m) => m.group(1)!)
+          .where((id) => id != 'id')
+          .toSet();
 
   group('Bug #1419 — derived contract rows land in the engine plan', () {
     test('the engine plan carries the contract-loop section with the '
@@ -444,6 +539,94 @@ void main() {
             'the reconcile keeps the recorded state — a failing '
             'contract test is BLOCKED (never RED), and the split plan '
             'must carry the same semantics the legacy path wrote',
+      );
+    });
+  });
+
+  group('Bug #1419 — the stale-split regeneration carries the contract '
+      'rows', () {
+    test('a receipt-bearing feature with no `## Lanes` regenerates the '
+        'contract rows into the engine plan (A-1419-8)', () async {
+      await seedSpec(contractNoLanesSpec);
+      await laneFile('split-receipt.json').writeAsString(
+        const JsonEncoder.withIndent('  ').convert({
+          'feature': feature,
+          'split_at': '2026-09-10T00:00:00.000Z',
+          'source': 'tdd/test-list.md',
+          'rows': 3,
+        }),
+      );
+      final out = await CliRunner(
+        exitOnCompletion: false,
+      ).runCapturing(planArgs());
+
+      expect(exitCode, 0, reason: 'plan succeeded — out:\n$out');
+      final engine = laneFile('04-ENGINE.md').readAsStringSync();
+      expect(
+        engine,
+        contains(
+          '| contract:A1 | MessageTransport.send(OutboundMessage) -> '
+          'Message (entity method contract) | MessageTransport.send | '
+          'PENDING |',
+        ),
+        reason:
+            'the split kind heuristic (`_heuristicLaneResolution`, the '
+            'issue #1309 regeneration) writes the same engine-side '
+            'contract rows the declared-Lanes path does',
+      );
+      final meta = laneFile('test-list.md').readAsStringSync();
+      final coreMetaRow = meta
+          .split('\n')
+          .firstWhere(
+            (l) => l.toLowerCase().startsWith('| core |'),
+            orElse: () => '',
+          );
+      expect(
+        coreMetaRow,
+        contains('contract:A1'),
+        reason:
+            'the regenerated meta-index counts the contract id in CORE — '
+            'declaring over a dropped row is the silent-drop lie',
+      );
+    });
+  });
+
+  group('Bug #1419 — the shared renderer closes the `zfa tdd split` '
+      'path', () {
+    test('a migrated legacy list keeps its contract row in the engine '
+        'plan (A-1419-9)', () async {
+      await seedSpec(contractLanesSpec);
+      await laneFile('test-list.md').writeAsString(legacyListWithContract);
+      final out = await CliRunner(
+        exitOnCompletion: false,
+      ).runCapturing(['tdd', 'split', '--project', tmpDir.path, feature]);
+
+      expect(exitCode, 0, reason: 'split succeeded — out:\n$out');
+      final engine = laneFile('04-ENGINE.md').readAsStringSync();
+      expect(
+        engine,
+        contains(
+          '| contract:A1 | MessageTransport.send(OutboundMessage) -> '
+          'Message (entity method contract) | MessageTransport.send | '
+          'BLOCKED |',
+        ),
+        reason:
+            '`zfa tdd split` calls the same engine renderer as plan — a '
+            'caller-side contract section left this path writing an '
+            'engine plan that omitted the row its own meta-index and '
+            'receipt classified',
+      );
+      final meta = laneFile('test-list.md').readAsStringSync();
+      final coreMetaRow = meta
+          .split('\n')
+          .firstWhere(
+            (l) => l.toLowerCase().startsWith('| core |'),
+            orElse: () => '',
+          );
+      expect(
+        coreMetaRow,
+        contains('contract:A1'),
+        reason: 'the meta-index declares the row the artifact must carry',
       );
     });
   });

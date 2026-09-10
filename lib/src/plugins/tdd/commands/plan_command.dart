@@ -900,7 +900,9 @@ class PlanCommand extends Command<void> {
       // the legacy single-file path renders them (the contract loop);
       // this path dropped them silently (exit 0, no refusal, no
       // coverage-gate failure — the worst failure class for an
-      // honesty-first toolchain).
+      // honesty-first toolchain). They are engine-side by construction
+      // (`_resolveLanes` refuses every non-CORE declaration), so only
+      // the engine row list carries them.
       final contractRows = _contractLaneRows(contractBehaviors, laneResult);
       final engineRows = <LaneRow>[
         for (final b in expressible)
@@ -925,7 +927,6 @@ class PlanCommand extends Command<void> {
             contractTraces,
           ),
         ..._ffiLaneRows(preservedFfi, laneResult),
-        ...contractRows,
         ...laneResult.handRows,
       ].where((r) => r.lane.destinedForSkin).toList();
       final adaptiveSlots = lanes
@@ -943,25 +944,18 @@ class PlanCommand extends Command<void> {
         if (lane.destinedForSkin) skinProvenance[id] = lines;
       });
 
-      // Issue #1419: the engine plan's contract loop — the same title,
-      // intro, and 4-column rows the legacy single-file path writes, so
-      // TestListReader resolves the rows with contract kind and the
-      // spec-1007 BLOCKED semantics unchanged. The shared engine
-      // renderer (lane_split.dart) owns no contract section; plan
-      // writes this one so the rows the route log already claims reach
-      // the artifact.
-      final engineMd =
-          renderEnginePlan(
-            feature: feature,
-            rows: engineRows,
-            entities: entities,
-            dependencies: dependencies,
-            layerContracts: layerContracts,
-            provenance: engineProvenance,
-          ) +
-          _contractLoopSection(
-            engineRows.where((r) => r.kind == BehaviorKind.contract).toList(),
-          );
+      // Issue #1419: the engine plan's contract loop is written by the
+      // shared renderer (`renderEnginePlan`), not here — `zfa tdd split`
+      // calls the same renderer, and a caller-side copy let the two
+      // diverge on the rows this plan's route log already claims.
+      final engineMd = renderEnginePlan(
+        feature: feature,
+        rows: engineRows,
+        entities: entities,
+        dependencies: dependencies,
+        layerContracts: layerContracts,
+        provenance: engineProvenance,
+      );
       final skinMd = renderSkinPlan(
         feature: feature,
         rows: skinRows,
@@ -1311,27 +1305,23 @@ class PlanCommand extends Command<void> {
     // failing contract test is BLOCKED (never RED) — the row's state
     // column carries BLOCKED until the implementation satisfies the
     // declared contract.
+    //
+    // Issue #1419: the section is written by the SHARED helper the
+    // lane-split engine renderer calls — one writer, so the legacy
+    // single-file plan and `04-ENGINE.md` cannot drift apart.
     if (contractBehaviors.isNotEmpty) {
-      buf
-        ..writeln()
-        ..writeln('## Contract loop: contract behaviors')
-        ..writeln()
-        ..writeln(
-          'One per declared entity method, controller method and usecase '
-          'in `spec.md` Layer Contracts (issue #1007). A contract test '
-          'proves the implementation satisfies the DECLARED contract — '
-          'a failing contract test is BLOCKED (never RED) and blocks the '
-          'cycle from proceeding to GREEN.',
-        )
-        ..writeln()
-        ..writeln('| id | behavior | traces | state |')
-        ..writeln('| -- | -------- | ------ | ----- |');
-      for (final b in contractBehaviors) {
-        buf.writeln(
-          '| ${b.id} | ${_escapeCell(b.description)} | ${b.sourceCriterion} | '
-          '${b.state.name.toUpperCase()} |',
-        );
-      }
+      buf.writeln();
+      renderContractLoopSection(buf, [
+        for (final b in contractBehaviors)
+          LaneRow(
+            id: b.id,
+            description: b.description,
+            traces: b.sourceCriterion,
+            state: b.state.name.toUpperCase(),
+            kind: b.kind,
+            lane: Lane.core,
+          ),
+      ]);
     }
     // Bug #829: the spec's Key Entities, extracted for the loop's
     // entity orchestration (run phase 0 + the make entity pipeline).
@@ -2019,8 +2009,9 @@ class PlanCommand extends Command<void> {
       // log claims its lane — the silent-drop class. Refuse (the gate
       // below exits 2 writing no artifacts) instead. Home sets mirror the
       // section filters in lane_split.dart's renderers; contract rows are
-      // not in this loop's behavior set (issue #1419 owns that path —
-      // they count into the classification below, CORE by default).
+      // not in this loop's behavior set — they are derived from `##
+      // Layer Contracts` and counted by the contract block below
+      // (issue #1419), CORE by default.
       final engineWithoutHome =
           lane.destinedForEngine && !_engineLaneKinds.contains(b.kind);
       final skinWithoutHome =
@@ -2458,38 +2449,6 @@ class PlanCommand extends Command<void> {
         lane: laneResult.classification[b.id] ?? Lane.core,
       ),
   ];
-
-  /// Issue #1419: the contract-loop section the ENGINE lane plan
-  /// carries — the same title, intro, and row shape the legacy
-  /// single-file path writes (`_render`), so the reader resolves the
-  /// rows with contract kind and the BLOCKED semantics of spec 1007
-  /// unchanged. Empty when the plan derives no contract behaviors (the
-  /// section is omitted, never rendered vacant).
-  String _contractLoopSection(List<LaneRow> rows) {
-    if (rows.isEmpty) return '';
-    final buf = StringBuffer()
-      ..writeln()
-      ..writeln('## Contract loop: contract behaviors')
-      ..writeln()
-      ..writeln(
-        'One per declared entity method, controller method and usecase '
-        'in `spec.md` Layer Contracts (issue #1007). A contract test '
-        'proves the implementation satisfies the DECLARED contract — '
-        'a failing contract test is BLOCKED (never RED) and blocks the '
-        'cycle from proceeding to GREEN.',
-      )
-      ..writeln()
-      ..writeln('| id | behavior | traces | state |')
-      ..writeln('| -- | -------- | ------ | ----- |');
-    for (final row in rows) {
-      buf.writeln(
-        '| ${row.id} | ${_escapeCell(row.description)} | ${row.traces} | '
-        '${row.state} |',
-      );
-    }
-    buf.writeln();
-    return buf.toString();
-  }
 }
 
 /// The plan-time lane resolution (issue #1000) — see

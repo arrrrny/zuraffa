@@ -106,16 +106,65 @@ belongs to master, not to this PR.
 
 ## 5. Honest scope statement
 
-- PROVED: the three remediation points (split-path rows, lane-coverage
+- PROVED: the three remediation points (engine rows, lane-coverage
   counting + refusals, hand-row consult), the BLOCKED-semantics
-  preservation, the noFlutter guard for contract rows, no regression in
-  the 14 targeted suites.
+  preservation, the noFlutter guard for contract rows, the shared
+  renderer closing the `zfa tdd split` path, and no regression in the
+  targeted suites.
 - NOT RUN (and not claimed): the full test suite (heavy baseline,
-  out of scope for cloud disks), the `slow`/`integration`/`property`
-  tiers, `zfa tdd split`'s own contract-row migration gap (pre-existing
-  on master, flagged as a follow-up in fix.md, NOT fixed here — one PR
-  per bug).
+  out of scope for cloud disks) and the `slow`/`integration`/`property`
+  tiers.
 - Unrelated pre-existing failures observed: none in the targeted
   suites. The only load failures during the sweep were this operator's
   wrong test paths (files live in `test/plugins/tdd/`, not
   `test/plugins/tdd/commands/`), corrected above.
+
+## 6. Review-fix round (follow-up commit)
+
+Re-verification after the review findings (the contract-loop section
+hoisted into the shared `lane_split.dart` renderer, the unreachable
+`skinRows` spread dropped, and A-1419-8/A-1419-9 added).
+
+- **Toolchain**: Dart 3.13.2 (stable) on macos_x64
+
+```
+dart analyze lib/src/plugins/tdd/commands/plan_command.dart \
+             lib/src/plugins/tdd/services/lane_split.dart \
+             test/plugins/tdd/commands/bug_1419_lane_split_contract_rows_test.dart
+→ No issues found!
+
+dart test test/plugins/tdd/commands/bug_1419_lane_split_contract_rows_test.dart
+→ 00:01 +9: All tests passed!
+```
+
+RED evidence for the new split-path behavior (A-1419-9 run with `lib/`
+reverted to the previous commit — the reviewer's finding 1 reproduced):
+
+```
+Expected: contains '| contract:A1 | ... | BLOCKED |'
+  Actual: '# Engine Plan: 004-login-ui (CORE + BOTH)\n'
+→ 00:00 +0 -1: Some tests failed.
+```
+
+Regression re-run on the review-fix commit (two batches, `-j 2`):
+
+```
+dart test -j 2 plan_lanes_1000 contract_kind_1007 contract_blocked_e2e_1007 \
+  bug_1432_platform_lane_rows lane_split_platform_rows issue_1309_stale_lane_plans \
+  bug_1366_plan_writes_split_receipt bug_1365_split_skin_contract_parity \
+  split_command_1000 plan_skin_contract_1004 plan_skin_contract
+→ +71 -1, the one failure `issue_1309 … the receipt records spec_hash and
+  spec_mtime at split time` (split exited 1 under batch load). REPRODUCED
+  identically with `lib/` reverted to the previous commit — pre-existing
+  batch-load flakiness in that suite, not a regression from this change;
+  it passes standalone and in a serial batch.
+
+dart test -j 2 plan_traces_cell_1310 bug_1141_{ledger_wiring,view_audit} \
+  spec_template_lanes_1000 plan_unbound_traces_1319 bug_1261 bug_1318 \
+  plan_command_pipe_escape_1401 bug_937_reader_sections bug_919_reader \
+  behavior_kind_trace bug_1381_entity_table_2col
+→ 00:35 +90: All tests passed!
+
+dart test test/plugins/tdd/commands/bug_1320_declared_assertion_reachable_test.dart
+→ 00:25 +8: All tests passed!   (standalone, per the review's timeout note)
+```
