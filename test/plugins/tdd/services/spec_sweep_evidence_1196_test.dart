@@ -24,12 +24,28 @@ import 'package:zuraffa/src/plugins/tdd/services/spec_corpus_sweeper.dart';
 import '../../../helpers/project_root.dart' as pr;
 
 Future<void> main() async {
+  // The corpus is no longer shipped in-repo (removed from git): with no
+  // committed sweep evidence there is nothing to audit — skip the suite
+  // (visibly, with a reason) until the corpus is regenerated.
+  final root = await pr.findProjectRoot();
+  final corpusMissing = !Directory(
+    p.join(root, 'corpus', 'zik_zak'),
+  ).existsSync();
+  const corpusSkip =
+      'corpus/zik_zak is not shipped in-repo (removed from git) — '
+      'regenerate the evidence with '
+      '`dart run tool/sweep_zikzak_corpus.dart --plan` to re-enable';
+
   late final Directory corpusRoot;
   late final Map<String, dynamic> evidence;
 
   setUpAll(() async {
     final root = await pr.findProjectRoot();
     corpusRoot = Directory(p.join(root, 'corpus', 'zik_zak'));
+    // The corpus is not shipped in-repo: the group below skips every
+    // test, so no evidence read is attempted (a throw here would fail
+    // the suite instead of skipping it).
+    if (!corpusRoot.existsSync()) return;
     evidence =
         jsonDecode(
               File(p.join(corpusRoot.path, 'sweep.json')).readAsStringSync(),
@@ -37,95 +53,97 @@ Future<void> main() async {
             as Map<String, dynamic>;
   });
 
-  test('the committed evidence is the zikzak-sweep.v1 schema over 120', () {
-    expect(evidence['schema'], 'zikzak-sweep.v1');
-    expect(evidence['specs'], 120);
-    expect(evidence['corpus'], 'corpus/zik_zak');
-  });
+  group('issue #1196 sweep evidence (committed corpus)', () {
+    test('the committed evidence is the zikzak-sweep.v1 schema over 120', () {
+      expect(evidence['schema'], 'zikzak-sweep.v1');
+      expect(evidence['specs'], 120);
+      expect(evidence['corpus'], 'corpus/zik_zak');
+    });
 
-  test('the parse half of the evidence matches a fresh sweep', () async {
-    final sweep = await const SpecCorpusSweeper().sweep(corpusRoot);
-    final parse = evidence['parse'] as Map<String, dynamic>;
-    expect(
-      parse['clean'],
-      sweep.cleanCount,
-      reason:
-          'committed evidence is stale — regenerate with '
-          '`dart run tool/sweep_zikzak_corpus.dart --plan`',
-    );
-    expect(parse['refused'], sweep.refusedCount);
-    expect(parse['crashed'], sweep.crashedCount);
-    expect(parse['crashed'], 0, reason: 'the hardened parser never crashes');
-    // The per-spec outcomes agree row for row.
-    final rows = evidence['specRows'] as List<dynamic>;
-    final byFeature = {
-      for (final row in rows.cast<Map<String, dynamic>>())
-        row['feature'] as String: row['parse'] as String,
-    };
-    for (final r in sweep.records) {
+    test('the parse half of the evidence matches a fresh sweep', () async {
+      final sweep = await const SpecCorpusSweeper().sweep(corpusRoot);
+      final parse = evidence['parse'] as Map<String, dynamic>;
       expect(
-        byFeature[r.feature],
-        r.outcome.name,
+        parse['clean'],
+        sweep.cleanCount,
         reason:
-            '${r.feature}: committed outcome drifted from the fresh '
-            'sweep — regenerate the evidence',
+            'committed evidence is stale — regenerate with '
+            '`dart run tool/sweep_zikzak_corpus.dart --plan`',
       );
-    }
-  });
-
-  test('the plan half of the evidence is internally consistent', () {
-    final plan = evidence['plan'] as Map<String, dynamic>;
-    final rows = evidence['planRows'] as List<dynamic>;
-    final clean = plan['clean'] as int;
-    final refused = plan['refused'] as int;
-    expect(clean + refused, 120, reason: 'every spec planned or refused');
-    expect(rows.length, 120);
-
-    var declared = 0;
-    var fallback = 0;
-    var cleanRows = 0;
-    for (final row in rows.cast<Map<String, dynamic>>()) {
-      final exit = row['planExit'] as int;
-      if (exit == 0) cleanRows++;
-      declared += row['declaredRoutes'] as int;
-      fallback += row['fallbackRoutes'] as int;
-      // A spec that never planned wrote no route lines.
-      if (exit != 0) {
+      expect(parse['refused'], sweep.refusedCount);
+      expect(parse['crashed'], sweep.crashedCount);
+      expect(parse['crashed'], 0, reason: 'the hardened parser never crashes');
+      // The per-spec outcomes agree row for row.
+      final rows = evidence['specRows'] as List<dynamic>;
+      final byFeature = {
+        for (final row in rows.cast<Map<String, dynamic>>())
+          row['feature'] as String: row['parse'] as String,
+      };
+      for (final r in sweep.records) {
         expect(
-          row['declaredRoutes'],
-          0,
-          reason: '${row['feature']}: refused plan must not route',
-        );
-        expect(
-          row['fallbackRoutes'],
-          0,
-          reason: '${row['feature']}: refused plan must not route',
+          byFeature[r.feature],
+          r.outcome.name,
+          reason:
+              '${r.feature}: committed outcome drifted from the fresh '
+              'sweep — regenerate the evidence',
         );
       }
-    }
-    expect(cleanRows, clean);
-    expect(declared, plan['declaredRoutes']);
-    expect(fallback, plan['fallbackRoutes']);
-    // The #1186 tracker: the fallback window is COUNTED, and the
-    // number can only shrink honestly from here.
-    expect(
-      fallback,
-      greaterThanOrEqualTo(0),
-      reason: 'fallback routes are tracked (issue #1186: shrink to zero)',
-    );
-  });
+    });
 
-  test('the headline numbers are the issue #1196 coverage tracker', () {
-    final plan = evidence['plan'] as Map<String, dynamic>;
-    final parse = evidence['parse'] as Map<String, dynamic>;
-    // The honest headline: X of 120 plan cleanly; Y behaviors route
-    // via the labeled fallback (see #1186 — shrinks toward zero).
-    expect(
-      plan['fallbackRoutes'],
-      isA<int>(),
-      reason: 'tracked: ${plan['fallbackRoutes']} fallback behaviors',
-    );
-    expect(parse['crashed'], 0);
-    expect(plan['clean'], isA<int>());
-  });
+    test('the plan half of the evidence is internally consistent', () {
+      final plan = evidence['plan'] as Map<String, dynamic>;
+      final rows = evidence['planRows'] as List<dynamic>;
+      final clean = plan['clean'] as int;
+      final refused = plan['refused'] as int;
+      expect(clean + refused, 120, reason: 'every spec planned or refused');
+      expect(rows.length, 120);
+
+      var declared = 0;
+      var fallback = 0;
+      var cleanRows = 0;
+      for (final row in rows.cast<Map<String, dynamic>>()) {
+        final exit = row['planExit'] as int;
+        if (exit == 0) cleanRows++;
+        declared += row['declaredRoutes'] as int;
+        fallback += row['fallbackRoutes'] as int;
+        // A spec that never planned wrote no route lines.
+        if (exit != 0) {
+          expect(
+            row['declaredRoutes'],
+            0,
+            reason: '${row['feature']}: refused plan must not route',
+          );
+          expect(
+            row['fallbackRoutes'],
+            0,
+            reason: '${row['feature']}: refused plan must not route',
+          );
+        }
+      }
+      expect(cleanRows, clean);
+      expect(declared, plan['declaredRoutes']);
+      expect(fallback, plan['fallbackRoutes']);
+      // The #1186 tracker: the fallback window is COUNTED, and the
+      // number can only shrink honestly from here.
+      expect(
+        fallback,
+        greaterThanOrEqualTo(0),
+        reason: 'fallback routes are tracked (issue #1186: shrink to zero)',
+      );
+    });
+
+    test('the headline numbers are the issue #1196 coverage tracker', () {
+      final plan = evidence['plan'] as Map<String, dynamic>;
+      final parse = evidence['parse'] as Map<String, dynamic>;
+      // The honest headline: X of 120 plan cleanly; Y behaviors route
+      // via the labeled fallback (see #1186 — shrinks toward zero).
+      expect(
+        plan['fallbackRoutes'],
+        isA<int>(),
+        reason: 'tracked: ${plan['fallbackRoutes']} fallback behaviors',
+      );
+      expect(parse['crashed'], 0);
+      expect(plan['clean'], isA<int>());
+    });
+  }, skip: corpusMissing ? corpusSkip : null);
 }

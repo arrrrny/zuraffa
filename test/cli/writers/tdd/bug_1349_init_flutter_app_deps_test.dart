@@ -20,6 +20,16 @@
 //     init flow is unchanged: pure-Dart app modules import `zuraffa`,
 //     which the project already declares);
 //   - malformed pubspecs fail LOUDLY as writer failures, not crashes.
+//
+// PR #1461 note: the app-deps self-heal lives in
+// `PubspecAppDependenciesPatcher` (extracted from InitCommand, same as
+// the dev/skin patchers). The empty-inline and non-map fixture shapes
+// are pinned DIRECTLY at the writer level: the tightened YAML-based
+// Flutter detection (issue #1458) only routes genuine Flutter projects
+// through init, and a genuine Flutter project cannot have an empty
+// inline or non-map `dependencies:` value. The init-level routing
+// (isFlutter → patcher runs → 'writer(s) failed' envelope) stays pinned
+// by the init-driven tests below.
 library;
 
 import 'dart:io';
@@ -27,6 +37,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/cli/writers/tdd/pubspec_app_dependencies_patcher.dart';
 
 const String kFlutterBarrelConstraint = 'zuraffa_flutter: ^6.0.0';
 const String kGetItConstraint = 'get_it: ^9.2.1';
@@ -218,17 +229,19 @@ dev_dependencies:
     test(
       'empty inline dependencies mapping is expanded without duplication',
       () async {
+        // Writer-level (PR #1461): an empty inline `dependencies: {}` is
+        // only reachable here, at the patcher — init's YAML-based Flutter
+        // detection (issue #1458) never routes such a pubspec to the
+        // app-deps self-heal.
         await File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsString('''
 name: bug1349_init_fixture
-description: flutter fixture
 environment:
   sdk: ^3.11.0
 dependencies: {}
 ''');
 
-        final out = await runInit();
+        await const PubspecAppDependenciesPatcher().ensure(tmpDir.path);
 
-        expect(exitCode, 0, reason: out);
         final pubspec = readPubspec();
         expect(
           RegExp(r'^dependencies:', multiLine: true).allMatches(pubspec).length,
@@ -244,19 +257,27 @@ dependencies: {}
     test(
       'malformed dependencies value is reported as a writer failure',
       () async {
+        // Writer-level (PR #1461): the non-map refusal is pinned on the
+        // patcher; the init-level 'writer(s) failed' envelope for the
+        // app-deps pass is pinned by 'non-empty inline flow mapping is
+        // refused loudly' below.
         await File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsString('''
 name: bug1349_init_fixture
-description: flutter fixture
 environment:
   sdk: ^3.11.0
 dependencies: invalid
 ''');
 
-        final out = await runInit();
-
-        expect(exitCode, isNot(0), reason: out);
-        expect(out, contains('writer(s) failed'));
-        expect(out, isNot(contains('_TypeError')));
+        expect(
+          () => const PubspecAppDependenciesPatcher().ensure(tmpDir.path),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.message,
+              'message',
+              contains('non-map dependencies value'),
+            ),
+          ),
+        );
       },
     );
 
@@ -272,6 +293,7 @@ dependencies: {flutter: {sdk: flutter}}
 
       expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('writer(s) failed'));
+      expect(out, contains('pubspec_app_dependencies_patcher'));
       expect(out, contains('not supported by'));
     });
   });

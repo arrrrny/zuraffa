@@ -19,6 +19,12 @@
 //   - `--skin` on a PURE DART project is a loud misfire (zuraffa_ui is a
 //     Flutter SDK package — silently corrupting the pubspec with an
 //     unresolvable dependency is the dishonest outcome).
+//
+// PR #1461 note: the empty-inline and non-map fixture shapes are pinned
+// DIRECTLY on `PubspecSkinDependencyPatcher` — the tightened YAML-based
+// Flutter detection (issue #1458) never routes such pubspecs through
+// init's --skin lane. The init-level routing stays pinned by the
+// init-driven tests below.
 library;
 
 import 'dart:io';
@@ -26,6 +32,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/cli/writers/tdd/pubspec_skin_dependency_patcher.dart';
 
 const String kCertifiedConstraint = 'zuraffa_ui: ^0.1.0';
 
@@ -126,17 +133,19 @@ dependencies:
     test(
       'empty inline dependencies mapping is converted without duplication',
       () async {
+        // Writer-level (PR #1461): an empty inline `dependencies: {}` is
+        // only reachable here, at the patcher — init's YAML-based Flutter
+        // detection (issue #1458) never routes such a pubspec to the
+        // --skin lane.
         await File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsString('''
 name: bug1260_init_fixture
-description: flutter fixture
 environment:
   sdk: ^3.11.0
 dependencies: {}
 ''');
 
-        final out = await runInit(extra: ['--skin']);
+        await const PubspecSkinDependencyPatcher().ensure(tmpDir.path);
 
-        expect(exitCode, 0, reason: out);
         final pubspec = readPubspec();
         expect(
           RegExp(r'^dependencies:', multiLine: true).allMatches(pubspec).length,
@@ -151,21 +160,27 @@ dependencies: {}
     test(
       'malformed dependencies value is reported as a writer failure',
       () async {
+        // Writer-level (PR #1461): the non-map refusal is pinned on the
+        // patcher; the init-level 'writer(s) failed' envelope for the
+        // --skin pass is pinned by 'non-empty inline dependencies
+        // mapping remains a writer failure' below.
         await File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsString('''
 name: bug1260_init_fixture
-description: flutter fixture
 environment:
   sdk: ^3.11.0
 dependencies: invalid
 ''');
 
-        final out = await runInit(extra: ['--skin']);
-
-        expect(exitCode, isNot(0), reason: out);
-        expect(out, contains('pubspec_skin_dependency_patcher'));
-        expect(out, contains('non-map dependencies value'));
-        expect(out, contains('writer(s) failed'));
-        expect(out, isNot(contains('_TypeError')));
+        expect(
+          () => const PubspecSkinDependencyPatcher().ensure(tmpDir.path),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.message,
+              'message',
+              contains('non-map dependencies value'),
+            ),
+          ),
+        );
       },
     );
 
@@ -183,6 +198,7 @@ dependencies: {flutter: any}
         final out = await runInit(extra: ['--skin']);
 
         expect(exitCode, isNot(0), reason: out);
+        expect(out, contains('pubspec_skin_dependency_patcher'));
         expect(out, contains('Inline `dependencies: {...}` mappings'));
         final pubspec = readPubspec();
         expect(pubspec, contains('dependencies: {flutter: any}'));
