@@ -1,4 +1,4 @@
-// Pins the wrapped `zfa tdd` usage contract (review of #1460, issue #1452).
+// Pins the wrapped `zfa tdd` usage contract (issue #1452).
 //
 // Pure-Dart: no package:flutter import.
 

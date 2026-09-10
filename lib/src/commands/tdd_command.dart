@@ -77,6 +77,9 @@ class TddCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  // Options block wraps at kUsageLineLength even when the runner width
+  // differs — ArgParser.usageLineLength is constructor-only, so only the
+  // description/summary wrapping in this class follows the runner.
   final ArgParser _argParser = ArgParser(usageLineLength: kUsageLineLength);
 
   @override
