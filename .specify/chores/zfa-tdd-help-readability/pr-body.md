@@ -1,4 +1,4 @@
-Added `usageLineLength: 120` to the `_CrashSafeCommandRunner` constructor call, enabling line wrapping for all CLI help text. This ensures command descriptions are wrapped at a consistent column width, preserving column alignment and improving readability.
+Added `usageLineLength: 120` to the `_CrashSafeCommandRunner` constructor call, enabling line wrapping for the runner-level help and `TddCommand`'s usage output. This ensures command descriptions are wrapped at a consistent column width, preserving column alignment and improving readability. Branch-command subcommand help (e.g. `zfa spec`, `zfa feature`) is not covered by this change.
 
 ## Changes
 
