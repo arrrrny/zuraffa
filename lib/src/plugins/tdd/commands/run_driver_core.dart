@@ -363,7 +363,7 @@ class RunDriverCore {
         lane: lane,
         message:
             'test list at '
-            '${p.relative(p.join(featureDir, 'tdd', 'test-list.md'), from: projectRoot).replaceAll(r'\', '/')} '
+            '${TddFeaturePaths.displayDir(cwd: projectRoot, dir: p.join(featureDir, 'tdd', 'test-list.md'))} '
             'has no behaviors',
       );
     }
@@ -2504,17 +2504,6 @@ class _StepFailure {
 /// The outcome of driving one behavior through its step window: the
 /// updated run state plus, when the run must stop, the [_Stop] report.
 typedef _DriveResult = ({RunState state, _Stop? stop, bool refactorBlocked});
-
-/// Strip a leading `specs/` prefix from a user-supplied feature reference
-/// (shared by every driver command: run, run-engine, run-skin, status).
-String stripSpecsPrefix(String feature) {
-  if (feature.startsWith('specs/') || feature.startsWith('specs\\')) {
-    final stripped = feature.substring('specs/'.length);
-    if (stripped.isEmpty) return feature;
-    return stripped;
-  }
-  return feature;
-}
 
 /// Reference check for the positional feature argument: it lands in a
 /// filesystem path, so accept exactly the shapes [TddFeaturePaths]

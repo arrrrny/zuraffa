@@ -789,9 +789,10 @@ class DoctorCommand extends Command<void> {
   }
 
   /// The path relative to the project root, POSIX separators (the display
-  /// and verdict form for scanned artifacts).
+  /// and verdict form for scanned artifacts) — the shared
+  /// [TddFeaturePaths.displayDir] idiom, so every command renders one way.
   String _displayPath(String cwd, String absolute) =>
-      p.relative(absolute, from: cwd).replaceAll(r'\', '/');
+      TddFeaturePaths.displayDir(cwd: cwd, dir: absolute);
 
   /// The machine-readable JSON verdict (bug #840) — the LAST stdout line.
   void _printVerdict({

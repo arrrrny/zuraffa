@@ -274,7 +274,10 @@ class MakeCommand extends Command<void> {
     // NAME labels the summary lines; the canonical REFERENCE is what a
     // spawned child (`zfa tdd view ... --feature`) must resolve back.
     final resolvedFeature = featureFlag != null && featureFlag.isNotEmpty
-        ? TddFeaturePaths.resolve(projectRoot: cwd, featureRef: featureFlag)
+        ? TddFeaturePaths.resolveWithPin(
+            projectRoot: cwd,
+            featureRef: featureFlag,
+          )
         : null;
     final featureRef = resolvedFeature?.ref ?? featureFlag;
     final featureLabel = resolvedFeature?.name ?? featureFlag;
@@ -597,7 +600,7 @@ class MakeCommand extends Command<void> {
       );
       print(
         '   authored red certified (assertion) — red evidence appended to '
-        '${_displayDir(cwd, target.featureDir)}/tdd/cycle-log.md',
+        '${TddFeaturePaths.displayDir(cwd: cwd, dir: target.featureDir)}/tdd/cycle-log.md',
       );
       try {
         await NuanceReceipts(
@@ -614,7 +617,7 @@ class MakeCommand extends Command<void> {
           recordedBy: 'zfa tdd make --author',
         );
         print(
-          '   hand-delta receipt recorded in ${_displayDir(cwd, target.featureDir)}/'
+          '   hand-delta receipt recorded in ${TddFeaturePaths.displayDir(cwd: cwd, dir: target.featureDir)}/'
           'tdd/provenance-ledger.json',
         );
       } on NuanceReceiptException catch (e) {
@@ -1578,7 +1581,7 @@ class MakeCommand extends Command<void> {
       files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
     );
     print(
-      '   green evidence appended to ${_displayDir(cwd, target.featureDir)}/tdd/'
+      '   green evidence appended to ${TddFeaturePaths.displayDir(cwd: cwd, dir: target.featureDir)}/tdd/'
       'cycle-log.md',
     );
     _printSummary(
@@ -1722,8 +1725,10 @@ class MakeCommand extends Command<void> {
     required String featureName,
     // Issue #1471: the canonical reference a spawned child re-resolves —
     // for a bug directory this is `.specify/bugs/<slug>`, never the plain
-    // slug (which would resolve to `specs/<slug>`).
-    required String? featureRef,
+    // slug (which would resolve to `specs/<slug>`). Non-nullable: the only
+    // call site passes `featureRef ?? target.featureName`, and
+    // `target.featureName` is itself non-nullable.
+    required String featureRef,
     required BehaviorSummary summary,
   }) async {
     // Issue #939 — the widget lane: a widget-kind target's make path is
@@ -1757,7 +1762,7 @@ class MakeCommand extends Command<void> {
               // Issue #1471: hand the child the reference that resolves to
               // the REAL feature directory (a plain name for a specs
               // feature, `.specify/bugs/<slug>` for a bug directory).
-              featureRef ?? summary.feature,
+              featureRef,
             ],
             purpose:
                 'generate the minimal view for behavior '
@@ -2442,7 +2447,7 @@ class MakeCommand extends Command<void> {
     // Issue #1471: the label is the canonical NAME, never the raw
     // `.specify/bugs/<slug>` reference.
     final featureLabel = featureFlag != null && featureFlag.isNotEmpty
-        ? TddFeaturePaths.resolve(
+        ? TddFeaturePaths.resolveWithPin(
             projectRoot: cwd,
             featureRef: featureFlag,
           ).name
@@ -2559,7 +2564,7 @@ class MakeCommand extends Command<void> {
       // (`.specify/bugs/<slug>`) outside `specs/` — resolve it through the
       // shared resolver so the registry is read from the REAL directory and
       // the entry is labelled with the canonical name (a plain basename).
-      final resolved = TddFeaturePaths.resolve(
+      final resolved = TddFeaturePaths.resolveWithPin(
         projectRoot: cwd,
         featureRef: featureFlag,
       );
@@ -2647,7 +2652,7 @@ class MakeCommand extends Command<void> {
       // (`.specify/bugs/<slug>`) is scanned at its real location.
       dirs = [
         Directory(
-          TddFeaturePaths.resolve(
+          TddFeaturePaths.resolveWithPin(
             projectRoot: cwd,
             featureRef: featureFlag,
           ).dir,
@@ -2787,12 +2792,6 @@ class MakeCommand extends Command<void> {
       ..feature = feature == 'unknown' ? null : feature;
   }
 }
-
-/// The REAL relative location of [featureDir] from [cwd] (issue #1471) —
-/// the path a user-facing message must name, never a fabricated
-/// `specs/<name>` that a bug directory does not have.
-String _displayDir(String cwd, String featureDir) =>
-    p.relative(featureDir, from: cwd).replaceAll(r'\', '/');
 
 /// `--feature` lands in a filesystem path: accept exactly the shapes
 /// [TddFeaturePaths] resolves (a plain segment, `specs/<name>`,

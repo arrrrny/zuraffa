@@ -453,7 +453,7 @@ class VerifyRedCommand extends Command<void> {
       );
       print(
         '   re-certified: green evidence appended to '
-        '${_displayDir(cwd, target.featureDir)}/tdd/cycle-log.md (issue #1162) — '
+        '${TddFeaturePaths.displayDir(cwd: cwd, dir: target.featureDir)}/tdd/cycle-log.md (issue #1162) — '
         'the new subject hash is bound to the passing transcript',
       );
       // Issue #969 T003: the re-certified evidence becomes
@@ -553,7 +553,7 @@ class VerifyRedCommand extends Command<void> {
         ),
       );
       print(
-        '   red evidence appended to ${_displayDir(cwd, target.featureDir)}/tdd/'
+        '   red evidence appended to ${TddFeaturePaths.displayDir(cwd: cwd, dir: target.featureDir)}/tdd/'
         'cycle-log.md',
       );
       // Issue #969 T003: the red evidence becomes self-certifying.
@@ -731,7 +731,7 @@ class VerifyRedCommand extends Command<void> {
       // (`.specify/bugs/<slug>`) outside `specs/` — resolve it through the
       // shared resolver so the registry is read from the REAL directory and
       // the entry is labelled with the canonical name (a plain basename).
-      final resolved = TddFeaturePaths.resolve(
+      final resolved = TddFeaturePaths.resolveWithPin(
         projectRoot: cwd,
         featureRef: featureFlag,
       );
@@ -798,7 +798,7 @@ class VerifyRedCommand extends Command<void> {
       // (`.specify/bugs/<slug>`) is scanned at its real location.
       dirs = [
         Directory(
-          TddFeaturePaths.resolve(
+          TddFeaturePaths.resolveWithPin(
             projectRoot: cwd,
             featureRef: featureFlag,
           ).dir,
@@ -1106,7 +1106,7 @@ class VerifyRedCommand extends Command<void> {
           ),
         );
         print(
-          '   red evidence appended to ${_displayDir(cwd, target.featureDir)}/tdd/'
+          '   red evidence appended to ${TddFeaturePaths.displayDir(cwd: cwd, dir: target.featureDir)}/tdd/'
           'cycle-log.md (${record.behaviorId})',
         );
         // Issue #969 T003: the batched red evidence becomes
@@ -1304,19 +1304,16 @@ class VerifyRedCommand extends Command<void> {
   }
 }
 
-/// The REAL relative location of [featureDir] from [cwd] (issue #1471) —
-/// the path a user-facing message must name, never a fabricated
-/// `specs/<name>` that a bug directory does not have.
-String _displayDir(String cwd, String featureDir) =>
-    p.relative(featureDir, from: cwd).replaceAll(r'\', '/');
-
 /// The canonical feature NAME a `--feature` reference labels: `specs/<name>`
 /// and `.specify/bugs/<slug>` both collapse to their basename, matching the
 /// registry entries this command scans (issue #1471). Null when no reference
 /// was given.
 String? _resolvedFeatureName(String cwd, String? featureFlag) =>
     featureFlag != null && featureFlag.isNotEmpty
-    ? TddFeaturePaths.resolve(projectRoot: cwd, featureRef: featureFlag).name
+    ? TddFeaturePaths.resolveWithPin(
+        projectRoot: cwd,
+        featureRef: featureFlag,
+      ).name
     : null;
 
 /// `--feature` lands in a filesystem path: accept exactly the shapes

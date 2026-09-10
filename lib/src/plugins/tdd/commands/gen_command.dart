@@ -415,7 +415,10 @@ class GenCommand extends Command<void> {
     // the scan below and the per-row `_generate` re-resolution (which
     // receives the tuple's reference) agree on the same directory.
     final scopedFeature = featureFlag != null && featureFlag.isNotEmpty
-        ? TddFeaturePaths.resolve(projectRoot: cwd, featureRef: featureFlag)
+        ? TddFeaturePaths.resolveWithPin(
+            projectRoot: cwd,
+            featureRef: featureFlag,
+          )
         : null;
     // Issue #1471: the batch verdict/messages label the canonical NAME — a
     // bug reference labels as its slug, never the raw `.specify/bugs/...`.
@@ -718,14 +721,18 @@ class GenCommand extends Command<void> {
     // reference to the feature's plan artifacts must name the directory
     // that really exists. `specs/<name>` for a plain name keeps the path
     // this command always printed.
-    final featureDisplay = p
-        .relative(featureDir, from: cwd)
-        .replaceAll(r'\', '/');
+    final featureDisplay = TddFeaturePaths.displayDir(
+      cwd: cwd,
+      dir: featureDir,
+    );
     // The canonical reference a spawned child (`zfa tdd fake ... --feature`)
     // must resolve back to this same directory; a plain name is its own
     // reference, a bug directory keeps `.specify/bugs/<slug>`.
     final featureRef = featureFlag != null && featureFlag.isNotEmpty
-        ? TddFeaturePaths.resolve(projectRoot: cwd, featureRef: featureFlag).ref
+        ? TddFeaturePaths.resolveWithPin(
+            projectRoot: cwd,
+            featureRef: featureFlag,
+          ).ref
         : featureName;
 
     // Bug #830: effective subject kind — the --kind override wins over
@@ -1580,9 +1587,10 @@ class GenCommand extends Command<void> {
     // Issue #1471: the REAL relative location of the feature directory —
     // the runtime path the generated test loads the scenario from, and
     // the location the refusal messages must name.
-    final featureDisplay = p
-        .relative(featureDir, from: cwd)
-        .replaceAll(r'\', '/');
+    final featureDisplay = TddFeaturePaths.displayDir(
+      cwd: cwd,
+      dir: featureDir,
+    );
     final scenarioDisplay = p.join(
       featureDisplay,
       'tdd',
@@ -1877,10 +1885,10 @@ class GenCommand extends Command<void> {
     if (featureFlag != null && featureFlag.isNotEmpty) {
       // Issue #1471: the reference may name a bug directory
       // (`.specify/bugs/<slug>`) that lives OUTSIDE `specs/`, so resolve it
-      // through the shared resolver instead of hardcoding
+      // through the shared resolver (pin included) instead of hardcoding
       // `<cwd>/specs/<ref>`. The returned featureName is the resolved NAME
       // (a plain basename) — artifact namespacing stays single-segment.
-      final resolved = TddFeaturePaths.resolve(
+      final resolved = TddFeaturePaths.resolveWithPin(
         projectRoot: cwd,
         featureRef: featureFlag,
       );

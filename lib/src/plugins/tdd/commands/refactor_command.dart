@@ -253,7 +253,7 @@ class RefactorCommand extends Command<void> {
         // Issue #1471: the reference may name a bug directory
         // (`.specify/bugs/<slug>`) outside `specs/` — resolve through the
         // shared resolver so artifacts land beside the real spec.
-        final resolved = TddFeaturePaths.resolve(
+        final resolved = TddFeaturePaths.resolveWithPin(
           projectRoot: cwd,
           featureRef: featureFlag,
         );
@@ -264,9 +264,10 @@ class RefactorCommand extends Command<void> {
         featureDir = p.join(cwd, 'specs', featureName);
       }
       // Issue #1471: the REAL relative location for user-facing messages.
-      final featureDisplay = p
-          .relative(featureDir, from: cwd)
-          .replaceAll(r'\', '/');
+      final featureDisplay = TddFeaturePaths.displayDir(
+        cwd: cwd,
+        dir: featureDir,
+      );
 
       // 2. Preflight (FR-001, FR-002) — load the profile suite template.
       final runner = const SingleTestRunner();
@@ -946,9 +947,10 @@ class RefactorCommand extends Command<void> {
   }) async {
     // Issue #1471: name the REAL directory in the warning, not a
     // fabricated `specs/<name>` path.
-    final featureDisplay = p
-        .relative(featureDir, from: cwd)
-        .replaceAll(r'\', '/');
+    final featureDisplay = TddFeaturePaths.displayDir(
+      cwd: cwd,
+      dir: featureDir,
+    );
     try {
       await CycleLog(featureDir).append(
         CycleLogEntry(

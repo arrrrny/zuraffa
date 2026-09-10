@@ -1062,7 +1062,7 @@ $layoutStubs''';
     String? featureFlag,
   ) async {
     if (featureFlag != null && featureFlag.isNotEmpty) {
-      final resolved = TddFeaturePaths.resolve(
+      final resolved = TddFeaturePaths.resolveWithPin(
         projectRoot: cwd,
         featureRef: featureFlag,
       );

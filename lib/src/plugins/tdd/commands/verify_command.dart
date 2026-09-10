@@ -172,9 +172,10 @@ class VerifyCommand extends Command<void> {
       throw StateError('zfa tdd verify: feature not specified');
     }
     final featureDir = resolved?.dir ?? p.join(cwd, 'specs', featureName);
-    final verificationRelPath = p
-        .relative(p.join(featureDir, 'tdd', 'verification.md'), from: cwd)
-        .replaceAll(r'\', '/');
+    final verificationRelPath = TddFeaturePaths.displayDir(
+      cwd: cwd,
+      dir: p.join(featureDir, 'tdd', 'verification.md'),
+    );
 
     // Drift gate (bug #846): when the plan artifact carries a
     // traceability hash, the spec contract must be unchanged — a spec
@@ -482,9 +483,17 @@ class _TraceabilityDrift {
 /// `--feature` lands in a filesystem path: accept exactly the shapes
 /// [TddFeaturePaths] resolves (a plain segment, `specs/<name>`,
 /// `.specify/bugs/<slug>`, or an absolute path) and refuse the rest —
-/// `.`, `..`, a traversal shape, or a trailing separator (issue #1471),
-/// so a value like `../../etc` can never create or append to a file
-/// outside the feature directory.
+/// `.`, `..`, a traversal shape, a nested shape below the feature level,
+/// or a trailing separator (issue #1471). A RELATIVE reference therefore
+/// can never create or append to a file outside the feature directory: a
+/// value like `../../etc` is refused, and every accepted relative shape
+/// resolves under the project root.
+///
+/// An ABSOLUTE reference is accepted deliberately (documented shape 4):
+/// the caller explicitly named that directory, exactly as `plan` has
+/// allowed since issue #1182. It is the one shape that may name a
+/// directory outside the project root, and it does so by explicit
+/// request, not by a smuggled relative traversal.
 void _validateFeatureSegment(String feature) {
   if (TddFeaturePaths.isSupportedRef(feature) &&
       !feature.endsWith('/') &&

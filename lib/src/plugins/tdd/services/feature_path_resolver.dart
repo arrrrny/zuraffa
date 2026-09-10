@@ -13,8 +13,8 @@
 ///  1. `<name>`                → `<root>/specs/<name>` — the legacy
 ///     shape, unchanged for every plain feature name (no separator).
 ///  2. `specs/<name>`          → `<root>/specs/<name>` — the canonical
-///     path format the docs and error messages show; matches run's
-///     `stripSpecsPrefix` semantics.
+///     path format the docs and error messages show (and the same
+///     directory every command's pre-#1471 `specs/`-prefix strip named).
 ///  3. `.specify/bugs/<slug>`  → `<root>/.specify/bugs/<slug>` — the bug
 ///     extension's `feature_directory` pin; no symlink bridge needed
 ///     (issue #1182).
@@ -97,7 +97,14 @@ abstract final class TddFeaturePaths {
       );
     }
 
-    final normalized = p.normalize(featureRef);
+    // Issue #1471 review: unify the separators ONCE, before any path is
+    // built. `p.normalize` keeps a backslash literal on POSIX, so
+    // `isSupportedRef` accepting `specs\foo` while `resolve` built
+    // `<root>/specs\foo` (and NAMED the feature `specs\foo`, which
+    // namespaces `test/tdd/<name>/…`, the run summary and every receipt)
+    // was an inconsistency between the gate and the resolution. `dir`,
+    // `name` and `ref` now all come from this one string.
+    final normalized = p.normalize(featureRef).replaceAll(r'\', '/');
 
     // 2. Absolute path: used as-is (normalized). The basename is the
     //    canonical name.
@@ -109,12 +116,11 @@ abstract final class TddFeaturePaths {
       );
     }
 
-    // 3. Documented relative shapes: `specs/<name>` (run's
-    //    stripSpecsPrefix semantics, backslash-aware for parity) and the
-    //    bug extension's `.specify/bugs/<slug>` pin (issue #1182).
-    final unified = normalized.replaceAll(r'\', '/');
-    final isSpecsRef = unified == 'specs' || unified.startsWith('specs/');
-    final isBugRef = unified.startsWith('.specify/bugs/');
+    // 3. Documented relative shapes: `specs/<name>` (the canonical path
+    //    format, backslash-aware for parity) and the bug extension's
+    //    `.specify/bugs/<slug>` pin (issue #1182).
+    final isSpecsRef = normalized == 'specs' || normalized.startsWith('specs/');
+    final isBugRef = normalized.startsWith('.specify/bugs/');
     if (isSpecsRef || isBugRef) {
       return ResolvedFeatureDir(
         dir: p.join(projectRoot, normalized),
@@ -137,10 +143,18 @@ abstract final class TddFeaturePaths {
   /// resolver supports — the shared gate for the per-command validators
   /// (issue #1471): a plain segment, `specs/<name>`, `.specify/bugs/<slug>`
   /// or an absolute path. Everything else stays refused: empty, `.`, `..`,
-  /// a relative shape whose segments could escape the project root, and a
+  /// a relative shape whose segments could escape the project root, a
   /// reference with a trailing separator (`specs/`, `specs/.`) that names
-  /// the specs ROOT rather than a feature. Teaching the commands the
-  /// bug-directory shape therefore opens no traversal hole.
+  /// the specs ROOT rather than a feature, and a NESTED shape
+  /// (`specs/a/b`, `.specify/bugs/a/b`) that names a directory below the
+  /// feature level. Teaching the commands the bug-directory shape therefore
+  /// opens no traversal hole.
+  ///
+  /// The absolute shape stays supported (documented shape 4, and `plan`
+  /// accepted it since issue #1182): an explicit absolute `--feature`
+  /// deliberately names its own directory. The boundary the other shapes
+  /// enforce is containment *of a relative reference* — see the note on
+  /// `verify_command.dart`'s validator.
   static bool isSupportedRef(String featureRef) {
     if (featureRef.isEmpty) return false;
     final hasSeparator = featureRef.contains('/') || featureRef.contains(r'\');
@@ -154,10 +168,29 @@ abstract final class TddFeaturePaths {
     // run_command_path_format_test.dart's "bare specs/" case).
     if (featureRef.endsWith('/') || featureRef.endsWith(r'\')) return false;
     final unified = p.normalize(featureRef).replaceAll(r'\', '/');
-    // `specs` alone is only reachable through a normalizing shape such as
-    // `specs/.` — the same specs root, so it is refused with `specs/`.
-    return unified.startsWith('specs/') || unified.startsWith('.specify/bugs/');
+    // Exactly ONE segment must follow a supported prefix: `specs/a/b` and
+    // `.specify/bugs/a/b` name something BELOW the feature level and are
+    // not documented shapes. (`specs` alone is only reachable through a
+    // normalizing shape such as `specs/.` — the specs root, refused.)
+    const specsPrefix = 'specs/';
+    if (unified.startsWith(specsPrefix)) {
+      final name = unified.substring(specsPrefix.length);
+      return name.isNotEmpty && !name.contains('/');
+    }
+    const bugPrefix = '.specify/bugs/';
+    if (unified.startsWith(bugPrefix)) {
+      final slug = unified.substring(bugPrefix.length);
+      return slug.isNotEmpty && !slug.contains('/');
+    }
+    return false;
   }
+
+  /// The REAL relative location of [dir] from [cwd], with POSIX separators
+  /// (issue #1471) — the path user-facing messages must name, never a
+  /// fabricated `specs/<name>` that a bug directory does not have. One
+  /// helper so every command in the family displays the same string.
+  static String displayDir({required String cwd, required String dir}) =>
+      p.relative(dir, from: cwd).replaceAll(r'\', '/');
 
   /// The bug extension's feature pin (issue #1471): the directory named by
   /// `.specify/feature.json`'s `feature_directory`. Null when the pin file
