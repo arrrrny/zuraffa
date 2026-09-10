@@ -224,7 +224,9 @@ int subject_u_001() {
 
       expect(exitCode, isNot(0), reason: out);
       expect(out, contains('outcome=runner-error'));
-      expect(out, contains(fx.subjectPathOf('U-001')));
+      // The registry records the portable project-relative form
+      // (issue #1397), and the error names that recorded artifact.
+      expect(out, contains('lib/u_001_subject.dart'));
     });
 
     test(
@@ -330,7 +332,9 @@ int subject_u_001() {
 
       expect(exitCode, isNot(0), reason: out);
       expect(out, contains('outcome=runner-error'));
-      expect(out, contains(fx.subjectPathOf('A-001')));
+      // The registry records the portable project-relative form
+      // (issue #1397), and the error names that recorded artifact.
+      expect(out, contains('lib/a_001_subject.dart'));
       expect(out, contains('zfa tdd gen'));
     });
 

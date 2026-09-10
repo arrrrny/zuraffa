@@ -147,25 +147,25 @@ void main() {
     test(
       'maps behavior ids to the kinds parsed from their test files',
       () async {
-        final a3 = await writeTest(
-          'test/tdd/1376-kind-trace/a3_test.dart',
-          '// scenario-assertions: presence("t.auth.signIn")\nvoid main() {}',
-        );
-        final a4 = await writeTest(
-          'test/tdd/1376-kind-trace/a4_test.dart',
-          '// scenario-assertions: route-outcome("deal_list")\nvoid main() {}',
-        );
         await registry.register(
           sampleRecord(
             behaviorId: 'A3',
-            testPath: p.relative(a3.path, from: tmpDir.path),
+            testPath: 'test/tdd/1376-kind-trace/a3_test.dart',
           ),
         );
         await registry.register(
           sampleRecord(
             behaviorId: 'A4',
-            testPath: p.relative(a4.path, from: tmpDir.path),
+            testPath: 'test/tdd/1376-kind-trace/a4_test.dart',
           ),
+        );
+        await writeTest(
+          'test/tdd/1376-kind-trace/a3_test.dart',
+          '// scenario-assertions: presence("t.auth.signIn")\nvoid main() {}',
+        );
+        await writeTest(
+          'test/tdd/1376-kind-trace/a4_test.dart',
+          '// scenario-assertions: route-outcome("deal_list")\nvoid main() {}',
         );
 
         final result = await BehaviorKindTrace.trace(
@@ -202,15 +202,15 @@ void main() {
     });
 
     test('a header-less test file lands the behavior in not-traced', () async {
-      final a6 = await writeTest(
-        'test/tdd/1376-kind-trace/a6_test.dart',
-        'void main() {}',
-      );
       await registry.register(
         sampleRecord(
           behaviorId: 'A6',
-          testPath: p.relative(a6.path, from: tmpDir.path),
+          testPath: 'test/tdd/1376-kind-trace/a6_test.dart',
         ),
+      );
+      await writeTest(
+        'test/tdd/1376-kind-trace/a6_test.dart',
+        'void main() {}',
       );
       final result = await BehaviorKindTrace.trace(
         featureDir: featureDir,
@@ -222,15 +222,15 @@ void main() {
 
     test('an unknown kind token lands the behavior in not-traced with the '
         'raw token preserved', () async {
-      final a7 = await writeTest(
-        'test/tdd/1376-kind-trace/a7_test.dart',
-        '// scenario-assertions: golden("login_view"), presence("hi")\nvoid main() {}',
-      );
       await registry.register(
         sampleRecord(
           behaviorId: 'A7',
-          testPath: p.relative(a7.path, from: tmpDir.path),
+          testPath: 'test/tdd/1376-kind-trace/a7_test.dart',
         ),
+      );
+      await writeTest(
+        'test/tdd/1376-kind-trace/a7_test.dart',
+        '// scenario-assertions: golden("login_view"), presence("hi")\nvoid main() {}',
       );
       final result = await BehaviorKindTrace.trace(
         featureDir: featureDir,
@@ -249,6 +249,65 @@ void main() {
         addTearDown(() => tmpDir.deleteSync(recursive: true));
         final featureDir = '${tmpDir.path}/specs/1376-verify-kind-trace';
         final registry = ArtifactRegistry(featureDir: featureDir);
+        // Register all artifacts first (registry contract: neither the test
+        // nor the subject file may exist on disk before registration), then
+        // materialize the files.
+        await registry.register(
+          ArtifactRecord(
+            behaviorId: 'A3',
+            feature: '1376-verify-kind-trace',
+            sourceCriterion: 'AC-3',
+            testPath: 'test/tdd/1376-kind-trace/a3_test.dart',
+            subjectPath: p.join(
+              'lib',
+              'tdd',
+              '1376-kind-trace',
+              'a3_subject.dart',
+            ),
+            runnableTestName: 'a3',
+            testOwnership: Ownership.created,
+            subjectOwnership: Ownership.created,
+            createdAt: '2026-09-09T00:00:00Z',
+          ),
+        );
+        await registry.register(
+          ArtifactRecord(
+            behaviorId: 'A4',
+            feature: '1376-verify-kind-trace',
+            sourceCriterion: 'AC-4',
+            testPath: 'test/tdd/1376-kind-trace/a4_test.dart',
+            subjectPath: p.join(
+              'lib',
+              'tdd',
+              '1376-kind-trace',
+              'a4_subject.dart',
+            ),
+            runnableTestName: 'a4',
+            testOwnership: Ownership.created,
+            subjectOwnership: Ownership.created,
+            createdAt: '2026-09-09T00:00:00Z',
+          ),
+        );
+        await registry.register(
+          ArtifactRecord(
+            behaviorId: 'A5',
+            feature: '1376-verify-kind-trace',
+            sourceCriterion: 'AC-5',
+            // A5's test file is intentionally never written — it is the
+            // not-traced bucket case.
+            testPath: 'test/tdd/1376-kind-trace/a5_test.dart',
+            subjectPath: p.join(
+              'lib',
+              'tdd',
+              '1376-kind-trace',
+              'a5_subject.dart',
+            ),
+            runnableTestName: 'a5',
+            testOwnership: Ownership.created,
+            subjectOwnership: Ownership.created,
+            createdAt: '2026-09-09T00:00:00Z',
+          ),
+        );
         final a3 = File(
           p.join(tmpDir.path, 'test', 'tdd', '1376-kind-trace', 'a3_test.dart'),
         );
@@ -276,63 +335,6 @@ void main() {
           await subjectFile.create(recursive: true);
           await subjectFile.writeAsString('library;');
         }
-        await registry.register(
-          ArtifactRecord(
-            behaviorId: 'A3',
-            feature: '1376-verify-kind-trace',
-            sourceCriterion: 'AC-3',
-            testPath: p.relative(a3.path, from: tmpDir.path),
-            subjectPath: p.join(
-              'lib',
-              'tdd',
-              '1376-kind-trace',
-              'a3_subject.dart',
-            ),
-            runnableTestName: 'a3',
-            testOwnership: Ownership.created,
-            subjectOwnership: Ownership.created,
-            createdAt: '2026-09-09T00:00:00Z',
-          ),
-        );
-        final missing = File(
-          p.join(tmpDir.path, 'test', 'tdd', '1376-kind-trace', 'a5_test.dart'),
-        );
-        await registry.register(
-          ArtifactRecord(
-            behaviorId: 'A4',
-            feature: '1376-verify-kind-trace',
-            sourceCriterion: 'AC-4',
-            testPath: p.relative(a4.path, from: tmpDir.path),
-            subjectPath: p.join(
-              'lib',
-              'tdd',
-              '1376-kind-trace',
-              'a4_subject.dart',
-            ),
-            runnableTestName: 'a4',
-            testOwnership: Ownership.created,
-            subjectOwnership: Ownership.created,
-            createdAt: '2026-09-09T00:00:00Z',
-          ),
-        );
-        await registry.register(
-          ArtifactRecord(
-            behaviorId: 'A5',
-            feature: '1376-verify-kind-trace',
-            sourceCriterion: 'AC-5',
-            testPath: p.relative(missing.path, from: tmpDir.path),
-            subjectPath: p.join(
-              'lib',
-              'tdd',
-              '1376-kind-trace',
-              'a5_subject.dart',
-            ),
-            runnableTestName: 'a5',
-            testOwnership: Ownership.created,
-            subjectOwnership: Ownership.created,
-            createdAt: '2026-09-09T00:00:00Z',
-          ),
-        );
 
         final auditor = MutationAuditor(
           featureDir: featureDir,
