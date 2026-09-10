@@ -1,21 +1,41 @@
 #!/usr/bin/env bash
 # Sync behaviors from test-list.md to tasks.md
+#
+# Contract: specs/1444-spec-kit-boundary-scripts/contracts/sync-behaviors-to-tasks.md
+#   sync-behaviors-to-tasks.sh <test-list-path> <tasks-path> [--json]
 
 set -euo pipefail
 
-# Parse command line arguments
 JSON_MODE=false
+TEST_LIST_ARG=""
+TASKS_ARG=""
 
-for arg in "$@"; do
-    case "$arg" in
-        --json) JSON_MODE=true ;;
-        --help|-h)
-            echo "Usage: $0 [--json]"
-            echo "  --json    Output results in JSON format"
-            echo "  --help    Show this help message"
-            exit 0
+usage() {
+    cat <<'EOF'
+Usage: sync-behaviors-to-tasks.sh <test-list-path> <tasks-path> [--json]
+
+  <test-list-path>  Path to test-list.md containing behavior definitions
+  <tasks-path>      Path to tasks.md to update with behavior markers
+  --json            Output results in JSON format
+  --help, -h        Show this help message
+EOF
+}
+
+pos_count=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --json) JSON_MODE=true; shift ;;
+        --help|-h) usage; exit 0 ;;
+        -*) echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
+        *)
+            pos_count=$((pos_count + 1))
+            case "$pos_count" in
+                1) TEST_LIST_ARG="$1" ;;
+                2) TASKS_ARG="$1" ;;
+                *) echo "ERROR: Too many arguments (expected <test-list-path> <tasks-path>)" >&2; exit 1 ;;
+            esac
+            shift
             ;;
-        *) echo "ERROR: Unknown option '$arg'" >&2; exit 1 ;;
     esac
 done
 
@@ -23,99 +43,150 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
-# Get feature paths
-_paths_output=$(get_feature_paths) || { echo "ERROR: Failed to resolve feature paths" >&2; exit 1; }
-eval "$_paths_output"
-unset _paths_output
-
-# Define file paths
-TEST_LIST="$FEATURE_DIR/tdd/test-list.md"
-TASKS_FILE="$FEATURE_DIR/tasks.md"
-
-# Validate required files
-if [[ ! -f "$TEST_LIST" ]]; then
-    if $JSON_MODE; then
-        echo '{"error":"test-list.md not found","status":"missing"}'
-    else
-        echo "ERROR: test-list.md not found in $FEATURE_DIR/tdd/" >&2
+# Unset positional arguments fall back to the feature directory resolved from
+# SPECIFY_FEATURE_DIRECTORY / .specify/feature.json.
+if [[ -z "$TEST_LIST_ARG" || -z "$TASKS_ARG" ]]; then
+    if ! _paths_output=$(get_feature_paths); then
+        echo "ERROR: Failed to resolve feature paths" >&2
+        exit 1
     fi
-    exit 1
+    eval "$_paths_output"
+    unset _paths_output
+    if [[ -z "$TEST_LIST_ARG" ]]; then
+        TEST_LIST_ARG="$FEATURE_DIR/tdd/test-list.md"
+    fi
+    if [[ -z "$TASKS_ARG" ]]; then
+        TASKS_ARG="$FEATURE_DIR/tasks.md"
+    fi
 fi
 
-if [[ ! -f "$TASKS_FILE" ]]; then
-    if $JSON_MODE; then
-        echo '{"error":"tasks.md not found","status":"missing"}'
-    else
-        echo "ERROR: tasks.md not found in $FEATURE_DIR" >&2
-    fi
-    exit 1
-fi
+json_escape() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
 
-# Extract behavior IDs from test-list.md (three-tier parser cascade)
-extract_behavior_ids() {
+trim() {
+    local s="$1"
+    s="${s#"${s%%[![:space:]]*}"}"
+    s="${s%"${s##*[![:space:]]}"}"
+    printf '%s' "$s"
+}
+
+# Report a fatal error in the requested format and exit non-zero.
+fail() {
+    local message="$1"
+    if $JSON_MODE; then
+        echo "{\"status\":\"error\",\"error\":\"$(json_escape "$message")\",\"behaviors_added\":0}"
+    fi
+    echo "ERROR: $message" >&2
+    exit "${2:-1}"
+}
+
+[[ -f "$TEST_LIST_ARG" ]] || fail "test-list.md not found: $TEST_LIST_ARG"
+[[ -f "$TASKS_ARG" ]] || fail "tasks.md not found: $TASKS_ARG"
+
+# ---------------------------------------------------------------------------
+# Parse behavior definitions from test-list.md
+# ---------------------------------------------------------------------------
+parse_behaviors() {
     local file="$1"
-    local ids=()
-
-    # Try jq first (not applicable for markdown, skip)
-    # Try python3 next
     if command -v python3 >/dev/null 2>&1; then
-        readarray -t ids < <(python3 -c "
-import re, sys
-with open('$file', 'r') as f:
-    content = f.read()
-    # Match **A1**: or **U1**: patterns
-    matches = re.findall(r'^\*\*([AU]\d+)\*\*:', content, re.MULTILINE)
-    for match in matches:
-        print(match)
-" 2>/dev/null || true)
+        python3 - "$file" <<'PY'
+import re
+import sys
+
+path = sys.argv[1]
+candidate = re.compile(r"^\s*[-*]?\s*\*\*([A-Za-z][A-Za-z0-9]*[0-9]+)\*\*\s*:\s*(.*)$")
+with open(path, "r", encoding="utf-8") as handle:
+    for lineno, raw in enumerate(handle, start=1):
+        match = candidate.match(raw.rstrip("\n"))
+        if not match:
+            continue
+        behavior_id, description = match.group(1), match.group(2).strip()
+        print("%s\t%d\t%s" % (behavior_id, lineno, description))
+PY
+        return 0
     fi
 
-    # Fallback to grep/sed
-    if [[ ${#ids[@]} -eq 0 ]]; then
-        readarray -t ids < <(grep -E '^\*\*[AU][0-9]+\*\*:' "$file" | sed -E 's/^\*\*([AU][0-9]+)\*\*:.*/\1/' || true)
+    # Fallback: grep/sed (line numbers preserved so duplicates report real lines).
+    grep -nE '^[[:space:]]*[-*]?[[:space:]]*\*\*[A-Za-z][A-Za-z0-9]*[0-9]+\*\*[[:space:]]*:' "$file" \
+        | sed -E 's/^([0-9]+):[[:space:]]*[-*]?[[:space:]]*\*\*([A-Za-z][A-Za-z0-9]*[0-9]+)\*\*[[:space:]]*:[[:space:]]*/\2\t\1\t/' \
+        || true
+    return 0
+}
+
+BEHAVIOR_IDS=()
+BEHAVIOR_DESCS=()
+BEHAVIOR_LINES=()
+
+while IFS=$'\t' read -r raw_id raw_line raw_desc; do
+    [[ -n "${raw_id:-}" ]] || continue
+    behavior_id="$(trim "$raw_id")"
+    description="$(trim "${raw_desc:-}")"
+
+    if [[ ! "$behavior_id" =~ ^[A-Z]+[0-9]+$ ]]; then
+        echo "WARNING: Skipping invalid behavior ID '$behavior_id' at line $raw_line" >&2
+        continue
+    fi
+    if [[ -z "$description" ]]; then
+        echo "WARNING: Skipping behavior '$behavior_id' at line $raw_line: missing description" >&2
+        continue
     fi
 
-    printf '%s\n' "${ids[@]}"
-}
+    # Duplicate IDs are ambiguous — which definition is canonical?
+    dup_line=""
+    index=0
+    for known in ${BEHAVIOR_IDS[@]+"${BEHAVIOR_IDS[@]}"}; do
+        if [[ "$known" == "$behavior_id" ]]; then
+            dup_line="${BEHAVIOR_LINES[$index]}"
+            break
+        fi
+        index=$((index + 1))
+    done
+    if [[ -n "$dup_line" ]]; then
+        fail "Duplicate behavior ID '$behavior_id' found in test-list.md at lines $dup_line and $raw_line" 2
+    fi
 
-# Get existing behavior markers from tasks.md
-get_existing_markers() {
-    grep -o '\[behavior: [AU][0-9]\+\]' "$TASKS_FILE" | sed 's/\[behavior: \(.*\)\]/\1/' || true
-}
+    BEHAVIOR_IDS+=("$behavior_id")
+    BEHAVIOR_DESCS+=("$description")
+    BEHAVIOR_LINES+=("$raw_line")
+done < <(parse_behaviors "$TEST_LIST_ARG")
 
-# Extract behavior IDs
-behavior_ids=($(extract_behavior_ids "$TEST_LIST"))
+behavior_count=${#BEHAVIOR_IDS[@]}
 
-# Check if test-list is empty
-if [[ ${#behavior_ids[@]} -eq 0 ]]; then
+if [[ $behavior_count -eq 0 ]]; then
     if $JSON_MODE; then
         echo '{"status":"success","message":"No behaviors found in test-list.md","behaviors_added":0}'
     else
-        echo "No behaviors found in test-list.md"
+        echo "No behaviors found in test-list.md. Nothing to sync."
     fi
     exit 0
 fi
 
-# Get existing markers
-existing_markers=($(get_existing_markers))
+# ---------------------------------------------------------------------------
+# Existing markers in tasks.md
+# ---------------------------------------------------------------------------
+marker_exists() {
+    grep -qF "[behavior: $1]" "$TASKS_ARG"
+}
 
-# Find behaviors that need to be added
-behaviors_to_add=()
-for id in "${behavior_ids[@]}"; do
-    found=false
-    for existing in "${existing_markers[@]}"; do
-        if [[ "$id" == "$existing" ]]; then
-            found=true
-            break
-        fi
-    done
-    if [[ "$found" == false ]]; then
-        behaviors_to_add+=("$id")
+MISSING_IDS=()
+MISSING_DESCS=()
+for ((i = 0; i < behavior_count; i++)); do
+    if marker_exists "${BEHAVIOR_IDS[$i]}"; then
+        continue
     fi
+    MISSING_IDS+=("${BEHAVIOR_IDS[$i]}")
+    MISSING_DESCS+=("${BEHAVIOR_DESCS[$i]}")
 done
 
-# If no new behaviors, exit successfully
-if [[ ${#behaviors_to_add[@]} -eq 0 ]]; then
+missing_count=${#MISSING_IDS[@]}
+if [[ $missing_count -eq 0 ]]; then
     if $JSON_MODE; then
         echo '{"status":"success","message":"All behaviors already present","behaviors_added":0}'
     else
@@ -124,47 +195,209 @@ if [[ ${#behaviors_to_add[@]} -eq 0 ]]; then
     exit 0
 fi
 
-# Insert behavior markers into tasks.md
-# Strategy: Find a good insertion point (after first ## Phase header) and insert tasks
-TEMP_FILE=$(mktemp)
+# ---------------------------------------------------------------------------
+# Insertion strategy: one section per behavior category
+# ---------------------------------------------------------------------------
+section_key_for_id() {
+    case "$1" in
+        A*) printf 'A' ;;
+        U*) printf 'U' ;;
+        C*) printf 'C' ;;
+        *) printf 'OTHER' ;;
+    esac
+}
+
+section_title_for_key() {
+    case "$1" in
+        A) printf 'Acceptance Behaviors' ;;
+        U) printf 'Unit Behaviors' ;;
+        C) printf 'Characterization Behaviors' ;;
+        *) printf 'Behavior Markers' ;;
+    esac
+}
+
+PENDING_A=""
+PENDING_U=""
+PENDING_C=""
+PENDING_OTHER=""
+pending_for_key() {
+    case "$1" in
+        A) printf '%s' "$PENDING_A" ;;
+        U) printf '%s' "$PENDING_U" ;;
+        C) printf '%s' "$PENDING_C" ;;
+        *) printf '%s' "$PENDING_OTHER" ;;
+    esac
+}
+
+added_ids=()
+for ((i = 0; i < missing_count; i++)); do
+    behavior_id="${MISSING_IDS[$i]}"
+    description="${MISSING_DESCS[$i]}"
+    key="$(section_key_for_id "$behavior_id")"
+    task_line="- [ ] $description [behavior: $behavior_id]"
+    case "$key" in
+        A) PENDING_A="${PENDING_A}${task_line}"$'\n' ;;
+        U) PENDING_U="${PENDING_U}${task_line}"$'\n' ;;
+        C) PENDING_C="${PENDING_C}${task_line}"$'\n' ;;
+        *) PENDING_OTHER="${PENDING_OTHER}${task_line}"$'\n' ;;
+    esac
+    added_ids+=("$behavior_id")
+done
+
+lines=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+    lines+=("$line")
+done < "$TASKS_ARG"
+line_count=${#lines[@]}
+
+TEMP_FILE="$(mktemp)"
 trap 'rm -f "$TEMP_FILE"' EXIT
 
-# Find insertion point: after the first phase header
-insertion_done=false
-while IFS= read -r line; do
-    echo "$line" >> "$TEMP_FILE"
+insert_after_A=-1
+insert_after_U=-1
+insert_after_C=-1
+insert_after_OTHER=-1
 
-    # Insert after first phase header that contains tasks
-    if [[ ! "$insertion_done" == true ]] && echo "$line" | grep -qE '^## Phase'; then
-        # Read ahead to find where to insert (after the task list starts)
-        echo "" >> "$TEMP_FILE"
-        for behavior_id in "${behaviors_to_add[@]}"; do
-            echo "- [ ] Implement behavior $behavior_id [behavior: $behavior_id]" >> "$TEMP_FILE"
-        done
-        insertion_done=true
+# Find, per existing section, the index of its last content line.
+i=0
+while [[ $i -lt $line_count ]]; do
+    line="${lines[$i]}"
+    if [[ "$line" == "## "* ]]; then
+        title="$(trim "${line#\#\#}")"
+        key=""
+        case "$title" in
+            "Acceptance Behaviors") key="A" ;;
+            "Unit Behaviors") key="U" ;;
+            "Characterization Behaviors") key="C" ;;
+            "Behavior Markers") key="OTHER" ;;
+        esac
+        if [[ -n "$key" ]]; then
+            end=$((i + 1))
+            while [[ $end -lt $line_count && "${lines[$end]}" != "## "* ]]; do
+                end=$((end + 1))
+            done
+            last=$i
+            j=$((i + 1))
+            while [[ $j -lt $end ]]; do
+                if [[ -n "$(trim "${lines[$j]}")" ]]; then
+                    last=$j
+                fi
+                j=$((j + 1))
+            done
+            case "$key" in
+                A) insert_after_A=$last ;;
+                U) insert_after_U=$last ;;
+                C) insert_after_C=$last ;;
+                *) insert_after_OTHER=$last ;;
+            esac
+            i=$end
+            continue
+        fi
     fi
-done < "$TASKS_FILE"
+    i=$((i + 1))
+done
 
-# Atomic write: move temp to original
-mv "$TEMP_FILE" "$TASKS_FILE"
+spliced_A=false
+spliced_U=false
+spliced_C=false
+spliced_OTHER=false
 
-# Output results
+emit_pending() {
+    local key="$1"
+    local pending
+    pending="$(pending_for_key "$key")"
+    [[ -n "$pending" ]] || return 0
+    while IFS= read -r pending_line; do
+        printf '%s\n' "$pending_line" >> "$TEMP_FILE"
+    done <<< "$(printf '%s' "$pending")"
+}
+
+i=0
+while [[ $i -lt $line_count ]]; do
+    printf '%s\n' "${lines[$i]}" >> "$TEMP_FILE"
+
+    if [[ $insert_after_A -eq $i ]]; then emit_pending A; spliced_A=true; fi
+    if [[ $insert_after_U -eq $i ]]; then emit_pending U; spliced_U=true; fi
+    if [[ $insert_after_C -eq $i ]]; then emit_pending C; spliced_C=true; fi
+    if [[ $insert_after_OTHER -eq $i ]]; then emit_pending OTHER; spliced_OTHER=true; fi
+
+    i=$((i + 1))
+done
+
+# Sections that did not exist yet are created at the end of the file.
+for key in A U C OTHER; do
+    spliced=false
+    case "$key" in
+        A) spliced=$spliced_A ;;
+        U) spliced=$spliced_U ;;
+        C) spliced=$spliced_C ;;
+        *) spliced=$spliced_OTHER ;;
+    esac
+    [[ "$spliced" == false ]] || continue
+
+    pending="$(pending_for_key "$key")"
+    [[ -n "$pending" ]] || continue
+
+    if [[ -s "$TEMP_FILE" ]]; then
+        printf '\n' >> "$TEMP_FILE"
+    fi
+    printf '## %s\n\n' "$(section_title_for_key "$key")" >> "$TEMP_FILE"
+    emit_pending "$key"
+done
+
+# Atomically replace tasks.md while preserving its permission bits (`mktemp`
+# creates 0600, and `mv` would otherwise make tasks.md owner-only).
+file_mode() {
+    local mode=""
+    if mode=$(stat -f '%Lp' "$1" 2>/dev/null) && [[ "$mode" =~ ^[0-7]{3,4}$ ]]; then
+        printf '%s' "$mode"
+    elif mode=$(stat -c '%a' "$1" 2>/dev/null) && [[ "$mode" =~ ^[0-7]{3,4}$ ]]; then
+        printf '%s' "$mode"
+    fi
+}
+
+original_mode="$(file_mode "$TASKS_ARG")"
+if [[ -n "$original_mode" ]]; then
+    chmod "$original_mode" "$TEMP_FILE"
+fi
+mv "$TEMP_FILE" "$TASKS_ARG"
+trap - EXIT
+
+# Verify the markers really landed — never report success for a no-op write.
+written=0
+for id in ${added_ids[@]+"${added_ids[@]}"}; do
+    if marker_exists "$id"; then
+        written=$((written + 1))
+    fi
+done
+
+if [[ $written -ne $missing_count ]]; then
+    fail "Wrote $written of $missing_count behavior markers to $TASKS_ARG"
+fi
+
+# ---------------------------------------------------------------------------
+# Output
+# ---------------------------------------------------------------------------
 if $JSON_MODE; then
     if command -v jq >/dev/null 2>&1; then
-        behaviors_json=$(printf '%s\n' "${behaviors_to_add[@]}" | jq -R . | jq -s .)
+        behaviors_json="$(printf '%s\n' ${added_ids[@]+"${added_ids[@]}"} | jq -R . | jq -s .)"
         jq -cn \
             --arg status "success" \
-            --arg count "${#behaviors_to_add[@]}" \
+            --argjson count "$missing_count" \
             --argjson behaviors "$behaviors_json" \
-            '{status:$status,behaviors_added:($count|tonumber),behaviors:$behaviors}'
+            '{status:$status,behaviors_added:$count,behaviors:$behaviors}'
     else
-        behaviors_json=$(printf '"%s",' "${behaviors_to_add[@]}")
-        behaviors_json="[${behaviors_json%,}]"
-        echo "{\"status\":\"success\",\"behaviors_added\":${#behaviors_to_add[@]},\"behaviors\":$behaviors_json}"
+        behaviors_json=""
+        for id in ${added_ids[@]+"${added_ids[@]}"}; do
+            [[ -n "$behaviors_json" ]] && behaviors_json="${behaviors_json},"
+            behaviors_json="${behaviors_json}\"$(json_escape "$id")\""
+        done
+        printf '{"status":"success","behaviors_added":%d,"behaviors":[%s]}\n' \
+            "$missing_count" "$behaviors_json"
     fi
 else
-    echo "Successfully added ${#behaviors_to_add[@]} behavior marker(s) to tasks.md:"
-    for id in "${behaviors_to_add[@]}"; do
+    echo "Successfully added $missing_count behavior marker(s) to tasks.md:"
+    for id in ${added_ids[@]+"${added_ids[@]}"}; do
         echo "  - $id"
     done
 fi

@@ -12,7 +12,7 @@ FEATURE_DIR="$REPO_ROOT/specs/1444-spec-kit-boundary-scripts"
 TOTAL_TESTS=0
 PASSED_TESTS=0
 FAILED_TESTS=0
-declare -a FAILED_TEST_IDS
+declare -a FAILED_TEST_IDS=()
 
 # Colors
 RED='\033[0;31m'

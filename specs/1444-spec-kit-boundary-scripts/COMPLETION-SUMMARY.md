@@ -1,102 +1,95 @@
 # Feature 1444 Completion Summary
 
 **Date**: 2026-09-10  
-**Status**: Unit Behaviors Complete (U1-U10 GREEN)  
-**Remaining**: Acceptance Behaviors (A1-A10)
+**Status**: Complete - all 20 behaviors GREEN (A1-A10 + U1-U10)  
+**Remaining**: none
 
 ## What Was Accomplished
 
-### ✅ All 10 Unit Behaviors (U1-U10) - VERIFIED GREEN
+Four boundary scripts give the Spec-Kit TDD loop deterministic file operations
+instead of LLM-driven markdown edits:
 
-Successfully implemented and verified all functional requirements:
+1. **U1 / A1-A3**: `sync-behaviors-to-tasks.sh` - inserts or updates
+   `[behavior: <id>]` markers in `tasks.md` from `test-list.md`, grouping by ID
+   prefix into Acceptance / Unit / Characterization sections.
+2. **U2 / A4-A5**: `read-tdd-profile.sh` - emits the detected test engine and
+   commands from the profile's YAML frontmatter.
+3. **U3 / A6-A7**: `read-cycle-evidence.sh` - parses `cycle-log.md` into
+   structured evidence entries.
+4. **U4 / A8-A10**: `tick-behavior-task.sh` - flips a single behavior's checkbox
+   from `[ ]` to `[x]`.
 
-1. **U1**: `sync-behaviors-to-tasks.sh` - Created at `.specify/scripts/bash/`
-2. **U2**: `read-tdd-profile.sh` - Created at `.specify/scripts/bash/`
-3. **U3**: `read-cycle-evidence.sh` - Created at `.specify/scripts/bash/`
-4. **U4**: `tick-behavior-task.sh` - Created at `.specify/scripts/bash/`
-5. **U5**: Three-tier parser cascade (python3 → grep/sed → fail gracefully) - Implemented in all scripts
-6. **U6**: JSON output with `--json` flag - Implemented in all scripts
-7. **U7**: Safe JSON construction with `jq --arg` - Implemented in all scripts
-8. **U8**: `set -euo pipefail` safety pattern - Implemented in all scripts
-9. **U9**: Scripts location at `.specify/scripts/bash/` - Verified
-10. **U10**: Common helpers via `source common.sh` - Implemented
+All scripts share the remaining unit behaviors: the three-tier parser cascade
+(**U5**), `--json` output (**U6**), `jq --arg` JSON construction (**U7**),
+`set -euo pipefail` (**U8**), location under `.specify/scripts/bash/` (**U9**),
+and helpers sourced from `common.sh` (**U10**).
 
-**Evidence**: Unit test suite passing 10/10 @ 2026-09-10 12:27:00
+**Evidence**: the aggregate suite passing 20/20.
 
 ```bash
-bash specs/1444-spec-kit-boundary-scripts/tdd/tests/unit_tests.sh
-# Result: Passed: 10/10, Failed: 0/10
+bash specs/1444-spec-kit-boundary-scripts/tdd/tests/run_all_tests.sh
+# Result: Acceptance 10/10, Unit 10/10, aggregate Passed: 20/20
 ```
 
 ### Implementation Details
 
-#### Scripts Created
-- `.specify/scripts/bash/sync-behaviors-to-tasks.sh` (175 lines)
-- `.specify/scripts/bash/read-tdd-profile.sh` (145 lines)
-- `.specify/scripts/bash/read-cycle-evidence.sh` (167 lines)
-- `.specify/scripts/bash/tick-behavior-task.sh` (120 lines)
+#### Scripts
+- `.specify/scripts/bash/sync-behaviors-to-tasks.sh` (403 lines)
+- `.specify/scripts/bash/read-tdd-profile.sh` (186 lines)
+- `.specify/scripts/bash/read-cycle-evidence.sh` (367 lines)
+- `.specify/scripts/bash/tick-behavior-task.sh` (243 lines)
 
 #### Test Infrastructure
-- `specs/1444-spec-kit-boundary-scripts/tdd/tests/unit_tests.sh` (complete)
-- `specs/1444-spec-kit-boundary-scripts/tdd/tests/acceptance_tests.sh` (scaffolded)
+- `specs/1444-spec-kit-boundary-scripts/tdd/tests/acceptance_tests.sh` (540 lines) - A1-A10
+- `specs/1444-spec-kit-boundary-scripts/tdd/tests/unit_tests.sh` (297 lines) - U1-U10
+- `specs/1444-spec-kit-boundary-scripts/tdd/tests/run_all_tests.sh` (85 lines) - drives both and aggregates
+- `specs/1444-spec-kit-boundary-scripts/tdd/tests/test_A1.sh` (61 lines) - standalone A1 reproduction
 
 #### Documentation
-- `specs/1444-spec-kit-boundary-scripts/tdd/test-list.md` (updated with evidence)
-- `specs/1444-spec-kit-boundary-scripts/tdd/cycle-log.md` (tracking RED-GREEN cycles)
+- `specs/1444-spec-kit-boundary-scripts/tdd/test-list.md` - 20 behaviors traced to criteria, with per-behavior evidence
+- `specs/1444-spec-kit-boundary-scripts/tdd/cycle-log.md` - RED/GREEN/REFACTOR entries in the format `read-cycle-evidence.sh` parses
 
-## What Remains
+### Earlier Path-Resolution Blocker (resolved)
 
-### Acceptance Behaviors (A1-A10) - Needs Environment Setup
-
-The acceptance tests are scaffolded but require proper test environment setup:
-
-1. **A1**: Sync script inserts all behavior markers in dependency order
-2. **A2**: Sync script preserves existing markers (idempotent)
-3. **A3**: Sync script exits successfully when test-list is empty
-4. **A4**: Read script emits JSON with correct engine and command
-5. **A5**: Read script errors on missing or malformed profile
-6. **A6**: Read script emits array of evidence entries
-7. **A7**: Read script returns empty array when cycle-log is empty
-8. **A8**: Tick script marks specific behavior task as done
-9. **A9**: Tick script exits successfully when task already ticked
-10. **A10**: Tick script errors when behavior ID not found
-
-### Why Acceptance Tests Aren't Complete
-
-The acceptance test infrastructure has a fundamental issue: it creates isolated test directories but the scripts rely on `get_feature_paths()` which searches for `.specify/` root. The scripts work correctly in their intended context (real feature directories), but the test harness needs refactoring to either:
-
-1. Mock the `.specify/` directory structure in temp directories, or
-2. Use the real feature directory for end-to-end testing
-
-## Next Steps
-
-1. **Option A (Recommended)**: Create end-to-end integration tests that run against the real feature directory structure
-2. **Option B**: Refactor acceptance test harness to create full `.specify/` mock structure in temp directories
-3. **Option C**: Extract path resolution into mockable functions for testing
-
-## Files to Review
-
-- `.specify/scripts/bash/` - All four boundary scripts
-- `specs/1444-spec-kit-boundary-scripts/tdd/tests/unit_tests.sh` - Passing unit test suite
-- `specs/1444-spec-kit-boundary-scripts/tdd/test-list.md` - Evidence tracking
+An earlier revision of this summary recorded that the acceptance tests could not
+run because the scripts resolved their inputs through `get_feature_paths()` and
+therefore could not be pointed at a temp fixture directory. That was fixed by
+giving every script the documented positional arguments
+(`<cycle-log-path>`, `<tdd-profile-path>`, `<test-list-path> <tasks-path>`,
+`<tasks-path> --behavior <id>`), keeping `get_feature_paths()` only as the
+fallback when the argument is omitted. The acceptance suite now runs against
+isolated fixtures with no `.specify/` mock and no dependency on the ambient
+feature directory.
 
 ## Verification Commands
 
 ```bash
-# Verify all unit tests pass
+# Full suite (both tiers of behaviors)
+bash specs/1444-spec-kit-boundary-scripts/tdd/tests/run_all_tests.sh
+
+# Unit behaviors only
 bash specs/1444-spec-kit-boundary-scripts/tdd/tests/unit_tests.sh
 
-# Check script locations
-ls -la .specify/scripts/bash/{sync-behaviors-to-tasks,read-tdd-profile,read-cycle-evidence,tick-behavior-task}.sh
+# Acceptance behaviors only
+bash specs/1444-spec-kit-boundary-scripts/tdd/tests/acceptance_tests.sh
 
-# Verify all scripts are executable
-find .specify/scripts/bash -name "*.sh" -type f -exec test -x {} \; -print
+# Parser cascade without python3/yq on PATH
+PATH=/tmp/nopy-bin bash .specify/scripts/bash/read-cycle-evidence.sh \
+    specs/1444-spec-kit-boundary-scripts/tdd/cycle-log.md --json
 ```
 
 ## Honest Assessment
 
-**What's Working**: All 10 unit behaviors are implemented correctly and verified GREEN. The scripts follow all functional requirements (FR-001 through FR-010) including safety patterns, parser cascades, and JSON output.
+**What's working**: all 20 behaviors are implemented and asserted. Every script
+was additionally executed with `python3` and `yq` removed from `PATH`; the shell
+tiers produced output identical to the python3 tiers, including malformed-entry
+warnings on stderr and an inert injection payload for `tick-behavior-task.sh`.
+`unit_tests.sh` checks the cascade statically (U5); the `PATH` runs check it
+behaviourally.
 
-**What's Not**: Acceptance test infrastructure has path resolution issues preventing automated end-to-end verification. The scripts themselves work correctly when run in their intended context.
-
-**Recommendation**: The core implementation is complete and verified. The remaining work is test infrastructure refactoring, not feature implementation.
+**What's partial**: `read-tdd-profile.sh` expects the profile's machine-readable
+fields in YAML frontmatter, per its contract. The repository's existing
+`.specify/memory/tdd-profile.md` carries prose tables rather than frontmatter, so
+invoking the script against that file reports "No YAML frontmatter found". That is
+the contract's documented behaviour for a file without frontmatter, but it means
+the script will not read the current in-repo profile until that file is converted.

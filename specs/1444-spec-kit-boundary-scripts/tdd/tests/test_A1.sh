@@ -16,7 +16,8 @@ TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
 # Create test-list.md with 5 behaviors
-cat > "$TEMP_DIR/test-list.md" << 'EOF'
+mkdir -p "$TEMP_DIR/tdd"
+cat > "$TEMP_DIR/tdd/test-list.md" << 'EOF'
 # Test List
 
 ## Acceptance Behaviors
