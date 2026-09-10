@@ -2,8 +2,9 @@
 //
 // source_criterion: AC-1 — `zfa setup` for a Flutter project generates the
 // ZuraffaApp shell automatically; dry-run previews the step and the files
-// it would write (lib/main.dart, lib/src/app/my_app.dart,
-// lib/src/routing/app_router.dart) without touching the filesystem.
+// it would write (lib/main.dart, the name-derived shell widget
+// lib/src/app/demo_app.dart, lib/src/routing/app_router.dart) without
+// touching the filesystem.
 library;
 
 import 'dart:async';
@@ -29,7 +30,7 @@ void main() {
 
         expect(out, contains('[8/9] Generating app shell (ZuraffaApp)...'));
         expect(out, contains('lib/main.dart'));
-        expect(out, contains('lib/src/app/my_app.dart'));
+        expect(out, contains('lib/src/app/demo_app.dart'));
         expect(out, contains('lib/src/routing/app_router.dart'));
       },
     );

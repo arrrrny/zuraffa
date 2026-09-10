@@ -167,7 +167,7 @@ List<GoRoute> getAllRoutes() => [];
 
       final mainFile = File(p.join(workspace.path, 'lib', 'main.dart'));
       final myAppFile = File(
-        p.join(workspace.path, 'lib', 'src', 'app', 'my_app.dart'),
+        p.join(workspace.path, 'lib', 'src', 'app', 'my_test_app.dart'),
       );
       final appRouterFile = File(
         p.join(workspace.path, 'lib', 'src', 'routing', 'app_router.dart'),
@@ -177,7 +177,7 @@ List<GoRoute> getAllRoutes() => [];
       expect(
         myAppFile.existsSync(),
         isTrue,
-        reason: 'lib/src/app/my_app.dart missing',
+        reason: 'lib/src/app/my_test_app.dart missing',
       );
       expect(
         appRouterFile.existsSync(),
@@ -198,11 +198,11 @@ List<GoRoute> getAllRoutes() => [];
       );
       expect(
         mainSrc,
-        contains("import 'package:my_test_app/src/app/my_app.dart';"),
+        contains("import 'package:my_test_app/src/app/my_test_app.dart';"),
       );
 
       final myAppSrc = myAppFile.readAsStringSync();
-      expect(myAppSrc, contains('class MyApp extends StatelessWidget'));
+      expect(myAppSrc, contains('class MyTestApp extends StatelessWidget'));
       expect(myAppSrc, contains('MaterialApp.router('));
       expect(myAppSrc, contains('routerConfig: appRouter'));
 
@@ -243,10 +243,10 @@ List<GoRoute> getAllRoutes() => [];
         // Glue files land under lib/custom, not lib/src.
         expect(
           File(
-            p.join(workspace.path, 'lib', 'custom', 'app', 'my_app.dart'),
+            p.join(workspace.path, 'lib', 'custom', 'app', 'my_test_app.dart'),
           ).existsSync(),
           isTrue,
-          reason: 'my_app.dart should land under lib/custom',
+          reason: 'my_test_app.dart should land under lib/custom',
         );
         expect(
           File(
@@ -263,7 +263,7 @@ List<GoRoute> getAllRoutes() => [];
         );
         expect(
           File(
-            p.join(workspace.path, 'lib', 'src', 'app', 'my_app.dart'),
+            p.join(workspace.path, 'lib', 'src', 'app', 'my_test_app.dart'),
           ).existsSync(),
           isFalse,
           reason: 'nothing should be written under lib/src',
@@ -276,7 +276,7 @@ List<GoRoute> getAllRoutes() => [];
         ).readAsStringSync();
         expect(
           mainSrc,
-          contains("import 'package:my_test_app/custom/app/my_app.dart';"),
+          contains("import 'package:my_test_app/custom/app/my_test_app.dart';"),
         );
         expect(
           mainSrc,
@@ -305,7 +305,7 @@ List<GoRoute> getAllRoutes() => [];
       );
       expect(
         File(
-          p.join(workspace.path, 'lib', 'src', 'app', 'my_app.dart'),
+          p.join(workspace.path, 'lib', 'src', 'app', 'my_test_app.dart'),
         ).existsSync(),
         isFalse,
       );
@@ -328,7 +328,7 @@ List<GoRoute> getAllRoutes() => [];
       ], workingDirectory: zfaProjectRoot);
 
       final myAppFile = File(
-        p.join(workspace.path, 'lib', 'src', 'app', 'my_app.dart'),
+        p.join(workspace.path, 'lib', 'src', 'app', 'my_test_app.dart'),
       );
       expect(myAppFile.existsSync(), isTrue);
       expect(myAppFile.readAsStringSync(), contains("title: 'Hello World'"));
@@ -380,7 +380,7 @@ List<GoRoute> getAllRoutes() => [];
       // The glue files should still be generated.
       expect(
         File(
-          p.join(workspace.path, 'lib', 'src', 'app', 'my_app.dart'),
+          p.join(workspace.path, 'lib', 'src', 'app', 'my_test_app.dart'),
         ).existsSync(),
         isTrue,
       );
@@ -430,7 +430,7 @@ List<GoRoute> getAllRoutes() => [];
       );
       expect(
         File(
-          p.join(workspace.path, 'lib', 'src', 'app', 'my_app.dart'),
+          p.join(workspace.path, 'lib', 'src', 'app', 'my_test_app.dart'),
         ).existsSync(),
         isFalse,
       );

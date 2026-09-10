@@ -2,6 +2,7 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../utils/string_utils.dart';
 
 /// Emitter for the zfa app-shell glue files.
 ///
@@ -10,21 +11,25 @@ import '../../../core/builder/shared/spec_library.dart';
 /// into a runnable Flutter app:
 ///
 ///  * `lib/main.dart` — `void main()` → `setupDependencies(...)` →
-///    `runApp(const MyApp())`. The call mirrors the generated DI's
+///    `runApp(const <widgetName>())`. The call mirrors the generated DI's
 ///    `setupDependencies` signature: `setupDependencies(GetIt instance)`
 ///    for the canonical GetIt-based DI emitted by `zfa di`, or
 ///    `setupDependencies()` for a no-arg custom entrypoint. When the DI is
 ///    asynchronous, main becomes `async` and `await`s the call; the canonical
 ///    synchronous DI is called without `await`. See issue #370.
-///  * `<outputDir>/app/my_app.dart` — `MyApp` widget that builds a
-///    `MaterialApp.router` configured with [appRouter].
+///  * `<outputDir>/app/<shellFileName>.dart` — the `<widgetName>` widget
+///    that builds a `MaterialApp.router` configured with [appRouter]. The
+///    file stem and class name derive from the target package name
+///    (issue #1465) via [shellWidgetNameFor] / [shellFileStemFor]; the
+///    defaults keep the legacy `my_app.dart` / `MyApp` identity for
+///    `my_app`-named projects.
 ///  * `<outputDir>/routing/app_router.dart` — `final GoRouter appRouter =
 ///    GoRouter(routes: getAllRoutes());`.
 ///
 /// When `xray: true` is passed (issue #360), `main.dart` additionally
 /// starts the X-Ray bridge server in debug mode and invokes
 /// `registerAllXRayDecks()` (from the barrel at
-/// `<outputDir>/xray/xray_decks.dart`), and `my_app.dart` wraps
+/// `<outputDir>/xray/xray_decks.dart`), and the shell file wraps
 /// `MaterialApp.router` in an `XRayScope(viewId: 'App', ...)`. The
 /// barrel file is emitted by [buildXRayDecksBarrel] so the import always
 /// resolves.
@@ -69,8 +74,13 @@ class MainApp extends StatelessWidget {
   ///
   /// [appName] is the Dart package name (from `pubspec.yaml`); used to
   /// import the generated DI barrel at
-  /// `package:<appName>/<outputDir>/di/index.dart` (and the MyApp widget
-  /// at `package:<appName>/<outputDir>/app/my_app.dart`).
+  /// `package:<appName>/<outputDir>/di/index.dart` (and the shell widget
+  /// at `package:<appName>/<outputDir>/app/<shellFileName>.dart`).
+  /// [shellFileName] is the shell file stem (issue #1465: derived from the
+  /// package name by the command; the default keeps the legacy
+  /// `my_app.dart`) and [shellWidgetName] the class it declares — main
+  /// imports one and `runApp`s the other, so the two generators can never
+  /// disagree.
   /// [outputDir] is the project-root-relative directory the `app/` and
   /// `routing/` glue files were written to (default `lib/src`); the
   /// entrypoint always lands at `lib/main.dart`, so the package imports
@@ -99,6 +109,8 @@ class MainApp extends StatelessWidget {
   /// generators can never disagree again. See issue #370.
   String buildMain({
     required String appName,
+    String shellWidgetName = 'MyApp',
+    String shellFileName = 'my_app',
     bool mockHint = false,
     String outputDir = 'lib/src',
     bool diTakesGetIt = false,
@@ -111,8 +123,8 @@ class MainApp extends StatelessWidget {
     // "lib/custom" -> "custom", "lib" -> "").
     final importBase = _packageImportBase(outputDir);
     final myAppImport = importBase.isEmpty
-        ? 'package:$appName/app/my_app.dart'
-        : 'package:$appName/$importBase/app/my_app.dart';
+        ? 'package:$appName/app/$shellFileName.dart'
+        : 'package:$appName/$importBase/app/$shellFileName.dart';
     final diImport = importBase.isEmpty
         ? 'package:$appName/di/index.dart'
         : 'package:$appName/$importBase/di/index.dart';
@@ -188,7 +200,9 @@ class MainApp extends StatelessWidget {
       );
     }
     bodyStatements.add(
-      refer('runApp').call([CodeExpression(Code('const MyApp()'))]).statement,
+      refer(
+        'runApp',
+      ).call([CodeExpression(Code('const $shellWidgetName()'))]).statement,
     );
 
     final main = Method((m) {
@@ -263,13 +277,18 @@ Future<void> _startXRayBridge() async {
     return emittedCode;
   }
 
-  /// Builds `lib/src/app/my_app.dart`.
+  /// Builds `<outputDir>/app/<shellFileName>.dart`.
   ///
-  /// Emits a `MyApp` StatelessWidget that returns a `MaterialApp.router`
-  /// bound to [appRouter]. The optional [title] is used as the
-  /// MaterialApp title. The default theme is the framework light theme
-  /// — generated apps are expected to layer their own theme on top, but
-  /// the shell must compile and render out of the box.
+  /// Emits a `[widgetName]` StatelessWidget that returns a
+  /// `MaterialApp.router` bound to [appRouter]. The optional [title] is
+  /// used as the MaterialApp title. The default theme is the framework
+  /// light theme — generated apps are expected to layer their own theme on
+  /// top, but the shell must compile and render out of the box.
+  ///
+  /// [widgetName] is the emitted class name (issue #1465: derived from the
+  /// package name by the command via [shellWidgetNameFor]; the default
+  /// keeps the legacy `MyApp` literal so `my_app`-named projects — and
+  /// every existing consumer of the old output — get identical bytes).
   ///
   /// When [xray] is true (issue #360), the `MaterialApp.router` is
   /// wrapped in `XRayScope(viewId: 'App', child: ...)` so the bridge
@@ -291,11 +310,13 @@ Future<void> _startXRayBridge() async {
   /// command).
   String buildMyApp({
     String? title,
+    String widgetName = 'MyApp',
     bool xray = false,
     bool skinAudit = false,
     bool zuraffaApp = false,
   }) {
-    // No direct go_router import: MyApp never references a go_router
+    // No direct go_router import: the shell widget never references a
+    // go_router
     // symbol (MaterialApp.router comes from material.dart; appRouter
     // arrives via ../routing/app_router.dart, which imports the
     // zuraffa_flutter barrel — issue #1284: zuraffa_flutter re-exports
@@ -404,7 +425,7 @@ Future<void> _startXRayBridge() async {
 
     final myApp = Class(
       (c) => c
-        ..name = 'MyApp'
+        ..name = widgetName
         ..extend = refer('StatelessWidget')
         ..constructors.add(
           Constructor(
@@ -757,6 +778,22 @@ Future<void> _startXRayBridge() async {
     ).firstMatch(pubspecContent);
     return m?.group(1);
   }
+
+  /// Derives the shell widget class name from the Dart package name
+  /// (issue #1465): `zik_zak` → `ZikZakApp`, `xyx` → `XyxApp`. A name whose
+  /// PascalCase form already ends in `App` is used as-is, so `my_app` →
+  /// `MyApp` — the derivation collapses to the legacy literal and existing
+  /// `my_app` projects keep byte-identical output.
+  static String shellWidgetNameFor(String appName) {
+    final pascal = StringUtils.convertToPascalCase(appName);
+    return pascal.endsWith('App') ? pascal : '${pascal}App';
+  }
+
+  /// Derives the shell file stem from the Dart package name (issue #1465):
+  /// `zik_zak` → `zik_zak.dart`. Package names are already snake_case Dart
+  /// identifiers, so the stem is the name itself; `my_app` maps to the
+  /// legacy `my_app.dart`.
+  static String shellFileStemFor(String appName) => appName;
 
   /// Returns true when [content] is the untouched `flutter create --empty`
   /// Hello-World boilerplate (`MainApp` rendering 'Hello World!').

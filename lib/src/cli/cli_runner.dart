@@ -814,7 +814,7 @@ MODULAR COMMANDS:
   view <Name>         Generate View/Presenter/Controller
   di <Name>           Generate dependency injection
   test <Name>         Generate unit tests
-  app shell           Generate app shell (main.dart + MyApp + app_router.dart)
+  app shell           Generate app shell (main.dart + shell widget + app_router.dart)
 
 OPTIONS:
   -v, --version       Print version

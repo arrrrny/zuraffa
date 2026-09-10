@@ -523,8 +523,9 @@ class SetupCommand extends Command<void> {
     }
   }
 
-  /// Generates the app shell files (main.dart, my_app.dart, app_router.dart)
-  /// using ZuraffaApp as the root widget for Flutter projects.
+  /// Generates the app shell files (main.dart, the name-derived shell
+  /// widget, app_router.dart) using ZuraffaApp as the root widget for
+  /// Flutter projects.
   ///
   /// This is the same generation path as `zfa app shell --zuraffa-app`,
   /// invoked automatically during setup so the generated app is runnable
@@ -593,6 +594,13 @@ class SetupCommand extends Command<void> {
         ? false
         : AppShellBuilder.setupDependenciesIsAsync(diIndexContent);
 
+    // Derive the shell identity from the app name (issue #1465): the file
+    // stem and widget class follow the project (`zik_zak` →
+    // `zik_zak.dart` / `ZikZakApp`), collapsing to the legacy
+    // `my_app.dart` / `MyApp` for a project actually named `my_app`.
+    final shellStem = AppShellBuilder.shellFileStemFor(appName);
+    final shellWidget = AppShellBuilder.shellWidgetNameFor(appName);
+
     final outputDir = path.join(projectRoot, 'lib', 'src');
     // buildMain derives the emitted package: imports from [outputDir]
     // relative to lib/ (AppShellBuilder._packageImportBase), so it must
@@ -607,15 +615,21 @@ class SetupCommand extends Command<void> {
     final appRouterContent = builder.buildAppRouter();
     files.add((path: appRouterPath, content: appRouterContent));
 
-    // 2. my_app.dart (ZuraffaApp shell)
-    final myAppPath = path.join(outputDir, 'app', 'my_app.dart');
-    final myAppContent = builder.buildMyApp(title: appName, zuraffaApp: true);
+    // 2. the shell widget (<name>.dart, ZuraffaApp shell)
+    final myAppPath = path.join(outputDir, 'app', '$shellStem.dart');
+    final myAppContent = builder.buildMyApp(
+      title: appName,
+      widgetName: shellWidget,
+      zuraffaApp: true,
+    );
     files.add((path: myAppPath, content: myAppContent));
 
     // 3. main.dart
     final mainPath = path.join(projectRoot, 'lib', 'main.dart');
     final mainContent = builder.buildMain(
       appName: appName,
+      shellWidgetName: shellWidget,
+      shellFileName: shellStem,
       outputDir: packageOutputDir,
       diTakesGetIt: diTakesGetIt,
       diIsAsync: diIsAsync,
