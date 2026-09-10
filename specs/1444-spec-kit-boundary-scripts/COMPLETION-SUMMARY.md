@@ -87,9 +87,18 @@ warnings on stderr and an inert injection payload for `tick-behavior-task.sh`.
 `unit_tests.sh` checks the cascade statically (U5); the `PATH` runs check it
 behaviourally.
 
-**What's partial**: `read-tdd-profile.sh` expects the profile's machine-readable
-fields in YAML frontmatter, per its contract. The repository's existing
-`.specify/memory/tdd-profile.md` carries prose tables rather than frontmatter, so
-invoking the script against that file reports "No YAML frontmatter found". That is
-the contract's documented behaviour for a file without frontmatter, but it means
-the script will not read the current in-repo profile until that file is converted.
+**What's partial**: `read-tdd-profile.sh` reads the flat frontmatter its contract
+specifies (`engine`, `test_command`, optional `verify_command`/`plan_command`).
+The repository's `.specify/memory/tdd-profile.md` is owned by the `tdd` extension
+and uses a different, nested schema — `ecosystems:` / `default:` / `stacks:` with
+per-stack `runner`, `single`, `file`, `suite`, `coverage`, as documented in
+`.specify/extensions/tdd/templates/tdd-stack-profile.md:95-130` — and today
+carries no frontmatter at all. Pointing the script at it therefore reports
+"No YAML frontmatter found", which is the contract's documented behaviour for a
+file without frontmatter.
+
+That file was deliberately **not** rewritten here: adding the flat keys would
+conflict with the extension's nested schema and break `zfa tdd` /
+`/speckit.tdd.setup`, which read the same path. The schema mismatch between this
+PR's contract and the extension's profile format needs a decision by the
+maintainer — either reconcile the two schemas, or give this script its own file.
