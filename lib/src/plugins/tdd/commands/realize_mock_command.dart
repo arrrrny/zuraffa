@@ -282,6 +282,13 @@ class RealizeMockCommand extends Command<void> {
     // `input.op`), optionally carrying a recorded Tier-1 oracle
     // (`mockOutput`) and `seed` records pre-loaded into the Tier-2
     // store before the invocation.
+    //
+    // Issue #1391: the directory also holds the #832 registry
+    // artifacts `mock certify --feature` writes by design (issue
+    // #1001: manifest.json, mock-cert.*.json — both schema 1). The
+    // scan classifies by schema: a document is a contract case iff it
+    // is stamped realize-diff.v1; every other document is skipped
+    // (visibly) instead of crashing the differential gate.
     // ---------------------------------------------------------------
     final fixturesDir = Directory(
       resolved.fixturesDir ?? p.join(featureDir, 'tdd', 'fixtures'),
@@ -342,8 +349,28 @@ class RealizeMockCommand extends Command<void> {
       } on FormatException {
         fixture = null;
       }
-      final input = fixture?['input'];
-      if (fixture == null || input is! Map<String, dynamic>) {
+
+      // Issue #1391: classify by schema — a document is a contract case
+      // iff it is stamped realize-diff.v1. Anything else (the #832
+      // registry artifacts with their schema 1, a schema-less document,
+      // unparseable JSON) is a foreign document here: skip it with a
+      // visible log line instead of failing the gate. Skipping is for
+      // FOREIGN documents only — a document stamped realize-diff.v1
+      // that is malformed (input/input.op missing) still fails closed
+      // in the checks below.
+      final schema = fixture?['schema'];
+      if (schema != 'realize-diff.v1') {
+        print(
+          '   skipped ${p.basename(file.path)} '
+          '(schema ${_schemaLabel(schema)})',
+        );
+        continue;
+      }
+      // The schema stamp implies a decoded document: a null fixture has
+      // a null schema and was skipped above (non-null promotion).
+      final doc = fixture!;
+      final input = doc['input'];
+      if (input is! Map<String, dynamic>) {
         _fail(
           'zfa tdd realize-mock: fixture $caseId is not a '
           'realize-diff.v1 document (schema, input.op missing) — fix the '
@@ -378,7 +405,7 @@ class RealizeMockCommand extends Command<void> {
 
       // Tier 1: the recorded oracle, else the driver protocol.
       Object? tier1Result;
-      final recorded = fixture['mockOutput'];
+      final recorded = doc['mockOutput'];
       if (recorded is Map<String, dynamic>) {
         tier1Result = recorded;
       } else {
@@ -401,7 +428,7 @@ class RealizeMockCommand extends Command<void> {
 
       // Tier 2: a fresh Firestore-shaped provider, seeded per case.
       final provider = _tier2ProviderFactory()(entity);
-      final seed = fixture['seed'];
+      final seed = doc['seed'];
       if (seed is List) {
         final seedRecords = <Map<String, dynamic>>[];
         for (final entry in seed) {
@@ -451,6 +478,28 @@ class RealizeMockCommand extends Command<void> {
         '   method ${op.padRight(24)} tier1=${_preview(tier1Result)} '
         'tier2=${_preview(tier2Result)} diff=$diff',
       );
+    }
+
+    // ---------------------------------------------------------------
+    // Issue #1391: every scanned document was skipped as foreign — no
+    // contract cases remain. An empty surface is never certified: fail
+    // BLOCKED naming the skip (never the pre-fix runner-error crash,
+    // never a zero-method certification).
+    // ---------------------------------------------------------------
+    if (records.isEmpty) {
+      _fail(
+        'zfa tdd realize-mock: specs/<feature>/tdd/fixtures/ holds no '
+        'realize-diff.v1 contract cases — no realize-diff.v1 contract '
+        'cases remain after skipping ${fixtureFiles.length} foreign '
+        'document(s). An empty surface is never certified.',
+        entity: entity,
+        against: against,
+        feature: feature,
+        methods: 0,
+        mismatch: 0,
+        outcome: RealizeMockOutcome.blocked,
+      );
+      return;
     }
 
     // ---------------------------------------------------------------
@@ -810,6 +859,22 @@ class RealizeMockCommand extends Command<void> {
   static String _preview(Object? value) {
     final encoded = jsonEncode(value);
     return encoded.length > 60 ? '${encoded.substring(0, 57)}...' : encoded;
+  }
+
+  /// Issue #1391: the schema value as the skip log renders it — the
+  /// decoded JSON value verbatim (`1` for the #832 registry artifacts,
+  /// the string verbatim for string schemas), or `unknown` when the
+  /// document carries no schema or was not parseable. Total: no throw
+  /// paths (a decoded JSON value is always encodable; the catch is a
+  /// belt-and-braces guard for the same contract).
+  static String _schemaLabel(Object? schema) {
+    if (schema == null) return 'unknown';
+    if (schema is String) return schema;
+    try {
+      return jsonEncode(schema);
+    } catch (_) {
+      return '$schema';
+    }
   }
 
   /// Canonical JSON shape for comparison: map keys sorted recursively so
