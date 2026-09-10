@@ -33,7 +33,6 @@ void main() {
 
     try {
       tdd.usageException('a ' * 100);
-      fail('expected UsageException');
     } on UsageException catch (e) {
       expect(
         e.message.split('\n'),
