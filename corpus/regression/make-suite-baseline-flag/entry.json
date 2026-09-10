@@ -1,0 +1,11 @@
+{
+  "name": "make-suite-baseline-flag",
+  "incident": 751,
+  "description": "Bug #751/#752: the run driver passed --suite-baseline to the zfa tdd make subprocess, but make did not accept the flag — every U*:make aborted with \"Could not find an option named '--suite-baseline'\". The gen -> verify-red -> make sequence on a green cached baseline must complete; a ref whose make rejects the flag records failed.",
+  "steps": [
+    { "argv": ["tdd", "gen", "U1", "--feature", "u2-flow"] },
+    { "argv": ["tdd", "verify-red", "U1", "--feature", "u2-flow"] },
+    { "argv": ["tdd", "make", "U1", "--feature", "u2-flow", "--suite-baseline", "specs/u2-flow/tdd/run-baseline.json"] }
+  ],
+  "artifactRoots": ["test/tdd", "lib/tdd"]
+}
