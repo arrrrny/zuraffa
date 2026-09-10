@@ -149,7 +149,7 @@ void main() {
     expect(exitCode, isNot(0), reason: 'gen must fail loudly: $out');
     expect(
       out,
-      anyOf(contains('Expected node content'), contains('line 4, column 1')),
+      allOf(contains('pubspec.yaml at'), contains('is not valid YAML')),
       reason: 'the failure must point at the malformed pubspec: $out',
     );
     expect(
@@ -171,7 +171,7 @@ void main() {
     expect(exitCode, isNot(0), reason: 'init must fail loudly: $out');
     expect(
       out,
-      anyOf(contains('Expected node content'), contains('line 4, column 1')),
+      allOf(contains('pubspec.yaml at'), contains('is not valid YAML')),
       reason: 'the failure must point at the malformed pubspec: $out',
     );
     expect(
@@ -199,7 +199,9 @@ void main() {
       expect(exitCode, isNot(0), reason: 'gen must fail loudly: $out');
       expect(
         out,
-        contains('pubspec.yaml dependencies must be a YAML mapping'),
+        contains(
+          "pubspec.yaml at ${p.join(fx.root.path, 'pubspec.yaml')} has a non-map dependencies value",
+        ),
         reason: 'the failure must name the invalid dependencies shape: $out',
       );
     },
@@ -218,7 +220,9 @@ void main() {
       expect(exitCode, isNot(0), reason: 'init must fail loudly: $out');
       expect(
         out,
-        contains('pubspec.yaml dependencies must be a YAML mapping'),
+        contains(
+          "pubspec.yaml at ${p.join(fx.root.path, 'pubspec.yaml')} has a non-map dependencies value",
+        ),
         reason: 'the failure must name the invalid dependencies shape: $out',
       );
     },

@@ -1474,13 +1474,20 @@ class GenCommand extends Command<void> {
   static Future<bool> _isFlutterProject(String cwd) async {
     final pubspec = File(p.join(cwd, 'pubspec.yaml'));
     if (!await pubspec.exists()) return false;
-    final doc = loadYaml(await pubspec.readAsString());
+    dynamic doc;
+    try {
+      doc = loadYaml(await pubspec.readAsString());
+    } on YamlException catch (e) {
+      throw FormatException(
+        'pubspec.yaml at ${pubspec.path} is not valid YAML: $e',
+      );
+    }
     if (doc is! YamlMap) return false;
     final dependencies = doc['dependencies'];
     if (dependencies == null) return false;
     if (dependencies is! YamlMap) {
-      throw const FormatException(
-        'pubspec.yaml dependencies must be a YAML mapping.',
+      throw FormatException(
+        'pubspec.yaml at ${pubspec.path} has a non-map dependencies value',
       );
     }
     return dependencies.containsKey('flutter');
