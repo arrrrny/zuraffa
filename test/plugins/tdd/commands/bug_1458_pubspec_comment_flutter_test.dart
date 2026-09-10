@@ -27,6 +27,12 @@ dev_dependencies:
   test: ^1.25.0
 ''';
 
+const malformedPubspec = '''
+name: tdd_fixture
+dependencies:
+  flutter: [
+''';
+
 const reproSpec = '''
 **Template Version**: `zuraffa-1.0`
 
@@ -120,6 +126,55 @@ void main() {
       reason:
           'the comment-only `flutter: sdk: flutter` mention must not flip '
           'init to the Flutter runner (issue #1458):\n$smoke',
+    );
+  });
+
+  test('gen fails loudly on malformed pubspec.yaml instead of silently '
+      'taking the pure-Dart lane', () async {
+    await CliRunner(
+      exitOnCompletion: false,
+    ).runCapturing(['tdd', 'plan', '1458-repro', '--project', fx.root.path]);
+    await File(
+      p.join(fx.root.path, 'pubspec.yaml'),
+    ).writeAsString(malformedPubspec);
+
+    final out = await CliRunner(
+      exitOnCompletion: false,
+    ).runCapturing(['tdd', 'gen', 'U1', '--project', fx.root.path]);
+    expect(exitCode, isNot(0), reason: 'gen must fail loudly: $out');
+    expect(
+      out,
+      anyOf(contains('Expected node content'), contains('line 4, column 1')),
+      reason: 'the failure must point at the malformed pubspec: $out',
+    );
+    expect(
+      File(fx.artifactsPath).existsSync(),
+      isFalse,
+      reason: 'gen must stop before writing artifact records on a bad pubspec.',
+    );
+  });
+
+  test('init fails loudly on malformed pubspec.yaml instead of silently '
+      'taking the pure-Dart lane', () async {
+    await File(
+      p.join(fx.root.path, 'pubspec.yaml'),
+    ).writeAsString(malformedPubspec);
+
+    final out = await CliRunner(
+      exitOnCompletion: false,
+    ).runCapturing(['tdd', 'init', '--project', fx.root.path]);
+    expect(exitCode, isNot(0), reason: 'init must fail loudly: $out');
+    expect(
+      out,
+      anyOf(contains('Expected node content'), contains('line 4, column 1')),
+      reason: 'the failure must point at the malformed pubspec: $out',
+    );
+    expect(
+      File(
+        p.join(fx.root.path, 'test', 'bootstrap_smoke_test.dart'),
+      ).existsSync(),
+      isFalse,
+      reason: 'init must stop before writing the smoke test on a bad pubspec.',
     );
   });
 }

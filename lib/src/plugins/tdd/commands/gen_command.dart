@@ -76,6 +76,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 
 import '../models/channel_scenario.dart';
 import '../models/verdict_envelope.dart';
@@ -104,7 +105,6 @@ import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
 import '../services/widget_scaffold.dart';
 import '../../../config/zfa_config.dart';
-import '../../../core/dependencies/dependency_wirer.dart';
 import '../../../core/project/project_root.dart';
 
 class GenCommand extends Command<void> {
@@ -1467,18 +1467,21 @@ class GenCommand extends Command<void> {
   /// Whether the host project runs on the Flutter test runner (issue
   /// #1351): a pubspec with a `flutter:` dependency means the plain
   /// `test` package is not resolvable and generated tests must import
-  /// `flutter_test`. Delegates to the single YAML-parsed helper
-  /// [DependencyWirer.isFlutterProject] instead of substring-matching to
-  /// avoid false positives from "flutter" appearing in comments
-  /// (issue #1458).
+  /// `flutter_test`. Parses the pubspec YAML and checks the
+  /// `dependencies: flutter:` key directly instead of substring-matching,
+  /// which avoids false positives from "flutter" appearing in comments
+  /// (issue #1458) while still surfacing malformed pubspecs to the caller.
   static Future<bool> _isFlutterProject(String cwd) async {
     final pubspec = File(p.join(cwd, 'pubspec.yaml'));
     if (!await pubspec.exists()) return false;
-    try {
-      return DependencyWirer.isFlutterProject(await pubspec.readAsString());
-    } catch (_) {
-      return false;
+    final doc = loadYaml(await pubspec.readAsString());
+    if (doc is! YamlMap) return false;
+    final dependencies = doc['dependencies'];
+    if (dependencies == null) return false;
+    if (dependencies is! YamlMap) {
+      throw StateError('pubspec.yaml dependencies must be a YAML mapping.');
     }
+    return dependencies.containsKey('flutter');
   }
 
   /// Resolves the widget template's app shell (issue #912 defect 2):

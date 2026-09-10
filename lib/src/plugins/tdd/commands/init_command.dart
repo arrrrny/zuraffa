@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 
 import '../../../cli/writers/tdd/app_module_writer.dart';
 import '../../../cli/writers/tdd/dart_test_yaml_writer.dart';
@@ -15,7 +16,6 @@ import '../../../cli/writers/tdd/smoke_test_writer.dart';
 import '../../../cli/writers/tdd/tdd_profile_writer.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
-import '../../../core/dependencies/dependency_wirer.dart';
 import '../../../core/project/project_root.dart';
 
 class InitCommand extends Command<void> {
@@ -281,11 +281,14 @@ class InitCommand extends Command<void> {
   Future<bool> _isFlutterProject(String cwd) async {
     final pubspec = File('$cwd/pubspec.yaml');
     if (!await pubspec.exists()) return false;
-    try {
-      return DependencyWirer.isFlutterProject(await pubspec.readAsString());
-    } catch (_) {
-      return false;
+    final doc = loadYaml(await pubspec.readAsString());
+    if (doc is! YamlMap) return false;
+    final dependencies = doc['dependencies'];
+    if (dependencies == null) return false;
+    if (dependencies is! YamlMap) {
+      throw StateError('pubspec.yaml dependencies must be a YAML mapping.');
     }
+    return dependencies.containsKey('flutter');
   }
 
   String _deriveAppName(String cwd) {
