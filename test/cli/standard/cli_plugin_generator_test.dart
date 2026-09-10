@@ -13,12 +13,19 @@ import 'package:zuraffa/zuraffa.dart';
 import 'package:zuraffa/src/plugins/cli/cli_plugin.dart'
     show CliGeneratorPlugin;
 
+import '../../helpers/project_root.dart';
+
 void main() {
   group('CliGeneratorPlugin', () {
     late CliGeneratorPlugin plugin;
+    late String projectRoot;
 
-    setUp(() {
+    setUp(() async {
       plugin = CliGeneratorPlugin(outputDir: 'lib/src');
+      // Anchor temp-project path dependencies to the real repository root.
+      // Directory.current is process-global and can be contaminated by other
+      // tests running in parallel (issue #506).
+      projectRoot = await findProjectRoot();
     });
 
     group('plugin metadata (FR-010, FR-011)', () {
@@ -162,15 +169,13 @@ void main() {
     // deprecated — it writes real files, proven below.
     group('disk write (issue #1022)', () {
       late Directory tmpDir;
-      late String previousDir;
 
       setUp(() async {
         tmpDir = await Directory.systemTemp.createTemp('cli_plugin_test_');
-        previousDir = Directory.current.path;
       });
 
       tearDown(() async {
-        Directory.current = previousDir;
+        Directory.current = projectRoot;
         if (await tmpDir.exists()) await tmpDir.delete(recursive: true);
       });
 
@@ -201,7 +206,6 @@ void main() {
 
           // Point the temp project at zuraffa so dart analyze can resolve
           // the generated import `package:zuraffa/zuraffa.dart`.
-          final projectRoot = previousDir;
           await File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsString('''
 name: cli_analyze_stub
 environment:
