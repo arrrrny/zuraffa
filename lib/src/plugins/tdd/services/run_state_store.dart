@@ -213,8 +213,20 @@ RunState _validated(String raw, String path, String expectedFeature) {
       final state = BehaviorState.values
           .where((s) => s.name == value)
           .firstOrNull;
-      if (state == null) corrupt('unknown behavior state "$value"');
-      states[key as String] = state;
+      if (state != null) {
+        states[key as String] = state;
+      } else {
+        // spec 1468: forward-compatibility — a newer zfa binary may write
+        // a state name this binary does not know. Degrade the entry to
+        // pending (with a warning naming the state and the behavior)
+        // instead of failing the whole load; known states keep their
+        // value and resumability survives binary version skew.
+        stderr.writeln(
+          '[run-state] unknown state "$value" for behavior "$key" '
+          '→ degraded to pending',
+        );
+        states[key as String] = BehaviorState.pending;
+      }
     }
   }
   final inFlightStep = map['in_flight_step'];
