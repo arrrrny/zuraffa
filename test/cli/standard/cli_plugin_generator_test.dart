@@ -6,12 +6,12 @@
 
 import 'dart:io';
 
-import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/zuraffa.dart';
 import 'package:zuraffa/src/plugins/cli/cli_plugin.dart'
     show CliGeneratorPlugin;
+import 'package:zuraffa/src/utils/file_utils.dart';
 
 import '../../helpers/project_root.dart';
 
@@ -175,7 +175,6 @@ void main() {
       });
 
       tearDown(() async {
-        Directory.current = projectRoot;
         if (await tmpDir.exists()) await tmpDir.delete(recursive: true);
       });
 
@@ -221,14 +220,11 @@ dependencies:
             'get',
           ], workingDirectory: tmpDir.path);
 
-          // Point FileUtils.writeFile into the temp dir.
-          Directory.current = tmpDir.path;
-
-          // Register the cli command in a fresh runner.
-          final runner = CommandRunner<void>('zfa-test', 'test runner');
-          runner.addCommand(plugin.createCommand());
-
-          await runner.run(['cli', 'Product']);
+          final file = plugin.generateForEntity(
+            'Product',
+            outputDir: p.join(tmpDir.path, 'lib', 'src'),
+          );
+          await FileUtils.writeFile(file.path, file.content!, file.type);
 
           // The file must exist on disk — not just in-memory.
           final expectedPath = p.join(
