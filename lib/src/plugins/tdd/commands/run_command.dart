@@ -45,6 +45,7 @@ import '../services/journal.dart';
 import '../services/cycle_log_terminal_receipt.dart';
 import '../services/dependency_override_preflight.dart';
 import '../services/explain_emitter.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/lane_receipts.dart';
 import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
@@ -166,12 +167,24 @@ class RunCommand extends Command<void> {
         invocation,
       );
     }
-    final feature = stripSpecsPrefix(rest.first);
-    validateFeatureSegment(feature, invocation);
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
         ? projectFlag
         : ProjectRoot.find(anchorDir: 'specs');
+    final rawRef = rest.first;
+    validateFeatureSegment(rawRef, invocation);
+    // Issue #1471: resolve the reference once — the bug extension's
+    // `.specify/feature.json` pin included — and carry all three forms:
+    // [feature] (the NAME) labels the receipts and the summary line,
+    // [featureDir] is every path, [featureRef] is the canonical reference
+    // the lanes hand their spawned children.
+    final resolved = TddFeaturePaths.resolveWithPin(
+      projectRoot: projectRoot,
+      featureRef: rawRef,
+    );
+    final feature = resolved.name;
+    final featureDir = resolved.dir;
+    final featureRef = resolved.ref;
     final zfaBin = argResults?['zfa-bin'] as String?;
 
     // -----------------------------------------------------------------
@@ -192,7 +205,7 @@ class RunCommand extends Command<void> {
       }
       print('$kOverrideFixLine `zfa tdd run`');
       await _journalMeta(
-        featureDir: p.join(projectRoot, 'specs', feature),
+        featureDir: featureDir,
         feature: feature,
         startedAt: journalStartedAt,
         gateState: 'preflight_red',
@@ -304,7 +317,7 @@ class RunCommand extends Command<void> {
     // -----------------------------------------------------------------
     final gate = await RunEngineCommand.checkFeature(
       projectRoot: projectRoot,
-      featureDir: p.join(projectRoot, 'specs', feature),
+      featureDir: featureDir,
     );
     // The gate's mock accounting rides the engine entry (the status
     // verdict's `mocks c/t` segment — spec 1113).
@@ -326,7 +339,7 @@ class RunCommand extends Command<void> {
       // Spec 1113: the preflight refusal is journaled preflight_red —
       // zero steps spawned, the refused entity named as the violation.
       await _journalMeta(
-        featureDir: p.join(projectRoot, 'specs', feature),
+        featureDir: featureDir,
         feature: feature,
         startedAt: journalStartedAt,
         gateState: 'preflight_red',
@@ -367,7 +380,7 @@ class RunCommand extends Command<void> {
     // (for a legacy feature the engine lane IS the whole test list).
     // -----------------------------------------------------------------
     final engine = await core.drive(
-      feature: feature,
+      featureRef: featureRef,
       projectRoot: projectRoot,
       zfaBin: zfaBin,
       timeout: timeoutOverride,
@@ -387,7 +400,7 @@ class RunCommand extends Command<void> {
       // Spec 1113: the fail-fast meta outcome is journaled red (the
       // honest stop named as the violation).
       await _journalMeta(
-        featureDir: p.join(projectRoot, 'specs', feature),
+        featureDir: featureDir,
         feature: feature,
         startedAt: journalStartedAt,
         gateState: 'red',
@@ -418,7 +431,7 @@ class RunCommand extends Command<void> {
     // engine certified DONE are skipped here, never re-driven.
     // -----------------------------------------------------------------
     final skin = await core.drive(
-      feature: feature,
+      featureRef: featureRef,
       projectRoot: projectRoot,
       zfaBin: zfaBin,
       timeout: timeoutOverride,
@@ -435,7 +448,7 @@ class RunCommand extends Command<void> {
       // meta record covers EVERY terminal outcome, not only the green
       // one.
       await _journalMeta(
-        featureDir: p.join(projectRoot, 'specs', feature),
+        featureDir: featureDir,
         feature: feature,
         startedAt: journalStartedAt,
         gateState: 'red',
@@ -468,15 +481,13 @@ class RunCommand extends Command<void> {
     // (issue #1008) and the structured meta entry (issue #1113) and the
     // final summary line over EVERY behavior.
     // -----------------------------------------------------------------
-    await LaneReceipts(
-      p.join(projectRoot, 'specs', feature),
-    ).appendUnifiedJournalEntry(
+    await LaneReceipts(featureDir).appendUnifiedJournalEntry(
       feature: feature,
       engineVerdict: engine.verdict,
       skinVerdict: skin.verdict,
     );
     await _journalMeta(
-      featureDir: p.join(projectRoot, 'specs', feature),
+      featureDir: featureDir,
       feature: feature,
       startedAt: journalStartedAt,
       gateState: 'green',
@@ -498,6 +509,7 @@ class RunCommand extends Command<void> {
     // summary line stays the run's final stdout line (FR-009/FR-010).
     await CycleLogTerminalReceipt.refreshBestEffort(
       projectRoot: projectRoot,
+      featureDir: featureDir,
       feature: feature,
       command: 'tdd run',
     );

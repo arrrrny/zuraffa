@@ -84,6 +84,7 @@ import '../services/dependency_override_preflight.dart';
 import '../services/subject_shape.dart';
 import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/generation_planner.dart';
 import '../services/journal.dart';
 import '../services/nuance_receipts.dart';
@@ -268,6 +269,19 @@ class MakeCommand extends Command<void> {
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
 
+    // Issue #1471: the --feature reference may name a bug directory
+    // (`.specify/bugs/<slug>`) that lives outside `specs/`. The canonical
+    // NAME labels the summary lines; the canonical REFERENCE is what a
+    // spawned child (`zfa tdd view ... --feature`) must resolve back.
+    final resolvedFeature = featureFlag != null && featureFlag.isNotEmpty
+        ? TddFeaturePaths.resolveWithPin(
+            projectRoot: cwd,
+            featureRef: featureFlag,
+          )
+        : null;
+    final featureRef = resolvedFeature?.ref ?? featureFlag;
+    final featureLabel = resolvedFeature?.name ?? featureFlag;
+
     // -----------------------------------------------------------------
     // Issue #1303 preflight: a stale `dependency_overrides` path entry
     // makes every pipeline step die with a raw version-solving dump
@@ -288,7 +302,7 @@ class MakeCommand extends Command<void> {
       _printSummary(
         behavior: behavior,
         outcome: MakeOutcome.preflightRed,
-        feature: featureFlag ?? 'unknown',
+        feature: featureLabel ?? 'unknown',
       );
       exitCode = 3;
       return;
@@ -329,7 +343,7 @@ class MakeCommand extends Command<void> {
       _printSummary(
         behavior: behaviorId ?? '-',
         outcome: MakeOutcome.runnerError,
-        feature: featureFlag ?? 'unknown',
+        feature: featureLabel ?? 'unknown',
       );
       exitCode = 1;
       return;
@@ -351,7 +365,7 @@ class MakeCommand extends Command<void> {
       _printSummary(
         behavior: behaviorId ?? '-',
         outcome: e.outcome,
-        feature: e.feature ?? featureFlag ?? 'unknown',
+        feature: e.feature ?? featureLabel ?? 'unknown',
       );
       exitCode = 1;
       return;
@@ -586,7 +600,7 @@ class MakeCommand extends Command<void> {
       );
       print(
         '   authored red certified (assertion) — red evidence appended to '
-        'specs/${target.featureName}/tdd/cycle-log.md',
+        '${TddFeaturePaths.displayDir(cwd: cwd, dir: target.featureDir)}/tdd/cycle-log.md',
       );
       try {
         await NuanceReceipts(
@@ -603,7 +617,7 @@ class MakeCommand extends Command<void> {
           recordedBy: 'zfa tdd make --author',
         );
         print(
-          '   hand-delta receipt recorded in specs/${target.featureName}/'
+          '   hand-delta receipt recorded in ${TddFeaturePaths.displayDir(cwd: cwd, dir: target.featureDir)}/'
           'tdd/provenance-ledger.json',
         );
       } on NuanceReceiptException catch (e) {
@@ -1062,6 +1076,7 @@ class MakeCommand extends Command<void> {
           record: record,
           featureDir: target.featureDir,
           featureName: target.featureName,
+          featureRef: featureRef ?? target.featureName,
           summary: summary,
         );
         if (composed == null) {
@@ -1566,7 +1581,7 @@ class MakeCommand extends Command<void> {
       files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
     );
     print(
-      '   green evidence appended to specs/${target.featureName}/tdd/'
+      '   green evidence appended to ${TddFeaturePaths.displayDir(cwd: cwd, dir: target.featureDir)}/tdd/'
       'cycle-log.md',
     );
     _printSummary(
@@ -1708,6 +1723,12 @@ class MakeCommand extends Command<void> {
     required ArtifactRecord record,
     required String featureDir,
     required String featureName,
+    // Issue #1471: the canonical reference a spawned child re-resolves —
+    // for a bug directory this is `.specify/bugs/<slug>`, never the plain
+    // slug (which would resolve to `specs/<slug>`). Non-nullable: the only
+    // call site passes `featureRef ?? target.featureName`, and
+    // `target.featureName` is itself non-nullable.
+    required String featureRef,
     required BehaviorSummary summary,
   }) async {
     // Issue #939 — the widget lane: a widget-kind target's make path is
@@ -1738,7 +1759,10 @@ class MakeCommand extends Command<void> {
               'view',
               summary.behaviorId,
               '--feature',
-              summary.feature,
+              // Issue #1471: hand the child the reference that resolves to
+              // the REAL feature directory (a plain name for a specs
+              // feature, `.specify/bugs/<slug>` for a bug directory).
+              featureRef,
             ],
             purpose:
                 'generate the minimal view for behavior '
@@ -2420,6 +2444,14 @@ class MakeCommand extends Command<void> {
     String? featureFlag,
   ) async {
     final registries = await _scanRegistries(cwd, featureFlag);
+    // Issue #1471: the label is the canonical NAME, never the raw
+    // `.specify/bugs/<slug>` reference.
+    final featureLabel = featureFlag != null && featureFlag.isNotEmpty
+        ? TddFeaturePaths.resolveWithPin(
+            projectRoot: cwd,
+            featureRef: featureFlag,
+          ).name
+        : featureFlag;
 
     if (behaviorId != null) {
       final matches = <_ResolvedTarget>[];
@@ -2449,10 +2481,10 @@ class MakeCommand extends Command<void> {
         throw MakeResolutionError(
           'unknown behavior id "$behaviorId". No matching record in any '
           'specs/<feature>/tdd/artifacts.json'
-          '${featureFlag != null && featureFlag.isNotEmpty ? ' for feature $featureFlag' : ''}. '
+          '${featureLabel != null ? ' for feature $featureLabel' : ''}. '
           'Run `zfa tdd gen $behaviorId` to materialize it.',
           outcome: MakeOutcome.runnerError,
-          feature: featureFlag,
+          feature: featureLabel,
         );
       }
       if (matches.length > 1) {
@@ -2528,10 +2560,18 @@ class MakeCommand extends Command<void> {
     String? featureFlag,
   ) async {
     if (featureFlag != null && featureFlag.isNotEmpty) {
-      final featureDir = p.join(cwd, 'specs', featureFlag);
+      // Issue #1471: the reference may name a bug directory
+      // (`.specify/bugs/<slug>`) outside `specs/` — resolve it through the
+      // shared resolver so the registry is read from the REAL directory and
+      // the entry is labelled with the canonical name (a plain basename).
+      final resolved = TddFeaturePaths.resolveWithPin(
+        projectRoot: cwd,
+        featureRef: featureFlag,
+      );
+      final featureDir = resolved.dir;
       return [
         _RegistryEntry(
-          featureFlag,
+          resolved.name,
           featureDir,
           ArtifactRegistry(featureDir: featureDir),
         ),
@@ -2608,7 +2648,16 @@ class MakeCommand extends Command<void> {
   ) async {
     List<Directory> dirs;
     if (featureFlag != null && featureFlag.isNotEmpty) {
-      dirs = [Directory(p.join(cwd, 'specs', featureFlag))];
+      // Issue #1471: resolve the reference so a bug directory
+      // (`.specify/bugs/<slug>`) is scanned at its real location.
+      dirs = [
+        Directory(
+          TddFeaturePaths.resolveWithPin(
+            projectRoot: cwd,
+            featureRef: featureFlag,
+          ).dir,
+        ),
+      ];
     } else {
       final specsDir = Directory(p.join(cwd, 'specs'));
       if (!await specsDir.exists()) return null;
@@ -2744,19 +2793,21 @@ class MakeCommand extends Command<void> {
   }
 }
 
-/// `--feature` lands in a filesystem path: keep it a single plain
-/// directory segment (mirrors verify_red_command.dart).
+/// `--feature` lands in a filesystem path: accept exactly the shapes
+/// [TddFeaturePaths] resolves (a plain segment, `specs/<name>`,
+/// `.specify/bugs/<slug>`, or an absolute path) and refuse the rest —
+/// `.`, `..`, a traversal shape, or a trailing separator (issue #1471).
 void _validateFeatureSegment(String feature) {
-  if (feature.contains('/') ||
-      feature.contains(r'\') ||
-      feature == '.' ||
-      feature == '..') {
-    throw UsageException(
-      'invalid --feature "$feature": expected a single spec directory name '
-          'such as 047-tdd-make, not a path.',
-      'zfa tdd make [<behavior-id>] [--feature <name>]',
-    );
+  if (TddFeaturePaths.isSupportedRef(feature) &&
+      !feature.endsWith('/') &&
+      !feature.endsWith(r'\')) {
+    return;
   }
+  throw UsageException(
+    'invalid --feature "$feature": expected a single spec directory name '
+        'such as 047-tdd-make, not a path.',
+    'zfa tdd make [<behavior-id>] [--feature <name>]',
+  );
 }
 
 class _RegistryEntry {

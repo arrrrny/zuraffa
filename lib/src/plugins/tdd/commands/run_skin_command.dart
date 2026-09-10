@@ -60,6 +60,7 @@ import '../models/verdict_envelope.dart';
 import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
 import '../services/cycle_log_terminal_receipt.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/journal.dart';
 import '../services/lane_receipts.dart';
 import '../services/red_classifier.dart';
@@ -163,12 +164,24 @@ class RunSkinCommand extends Command<void> {
         invocation,
       );
     }
-    final feature = stripSpecsPrefix(rest.first);
-    validateFeatureSegment(feature, invocation);
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
         ? projectFlag
         : ProjectRoot.find(anchorDir: 'specs');
+    final rawRef = rest.first;
+    validateFeatureSegment(rawRef, invocation);
+    // Issue #1471: resolve the reference once — the bug extension's
+    // `.specify/feature.json` pin included — and carry all three forms:
+    // [feature] (the NAME) labels the receipts and the summary line,
+    // [featureDir] is every path, [featureRef] is the canonical reference
+    // the spawned children resolve.
+    final resolved = TddFeaturePaths.resolveWithPin(
+      projectRoot: projectRoot,
+      featureRef: rawRef,
+    );
+    final feature = resolved.name;
+    final featureDir = resolved.dir;
+    final featureRef = resolved.ref;
     final zfaBin = argResults?['zfa-bin'] as String?;
 
     // Bug #742: the --timeout override for each spawned step command.
@@ -183,8 +196,6 @@ class RunSkinCommand extends Command<void> {
       exitCode = _exitRunnerError;
       return;
     }
-
-    final featureDir = p.join(projectRoot, 'specs', feature);
 
     // -----------------------------------------------------------------
     // The engine gate (issue #1008): the skin lane requires a green
@@ -265,7 +276,7 @@ class RunSkinCommand extends Command<void> {
       driver.onStepEvent = (event) => print(event.toNdjsonLine());
     }
     final outcome = await driver.drive(
-      feature: feature,
+      featureRef: featureRef,
       projectRoot: projectRoot,
       zfaBin: zfaBin,
       timeout: timeoutOverride,
@@ -282,6 +293,7 @@ class RunSkinCommand extends Command<void> {
     if (outcome.result == 'complete') {
       await CycleLogTerminalReceipt.refreshBestEffort(
         projectRoot: projectRoot,
+        featureDir: featureDir,
         feature: feature,
         command: 'tdd $label',
       );
