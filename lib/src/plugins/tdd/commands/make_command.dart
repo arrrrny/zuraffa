@@ -2034,8 +2034,8 @@ class MakeCommand extends Command<void> {
     // over a rewritten certified subject and appends a `refresh` entry
     // re-binding the certified shape to the post-rewrite bytes. Accept the
     // drift the loop itself produced: the behavior's LAST refresh entry
-    // matching the CURRENT subject, newer than the certified basis entry
-    // (ISO-8601; unparseable or missing timestamps fail closed — the
+    // matching the CURRENT subject, not older than the certified basis
+    // entry (ISO-8601; unparseable or missing timestamps fail closed — the
     // refusal stands), proves the current shape is the re-proved one. An
     // out-of-band edit after the refresh changes the hash and keeps the
     // refusal, so the guard never widens beyond the loop's own rewrite.
@@ -2051,7 +2051,7 @@ class MakeCommand extends Command<void> {
       );
       if (refreshedAt != null &&
           basisAt != null &&
-          refreshedAt.isAfter(basisAt)) {
+          !refreshedAt.isBefore(basisAt)) {
         print(
           '   subject drift accepted (issue #1430): the current subject '
           "shape is the one the loop's refactor pass re-proved green "

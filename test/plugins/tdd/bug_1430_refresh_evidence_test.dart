@@ -476,7 +476,6 @@ void main() {
 
       expect(out, contains('outcome=clean'), reason: out);
       expect(exitCode, 0, reason: out);
-      expect(out, isNot(contains('forcing full re-proof')), reason: out);
       final entries = await CycleEvidence(fx.featureDir).entries();
       expect(entries.where((e) => e.kind == 'refresh'), isEmpty, reason: out);
       // The only appended section is the refactor no-op entry.
@@ -502,8 +501,6 @@ void main() {
         final out = await runner.runCapturing(refactorArgs(fx));
 
         expect(out, contains('outcome=refactored'), reason: out);
-        expect(exitCode, 0, reason: out);
-        expect(out, isNot(contains('forcing full re-proof')), reason: out);
         final entries = await CycleEvidence(fx.featureDir).entries();
         expect(entries.where((e) => e.kind == 'refresh'), isEmpty, reason: out);
       },

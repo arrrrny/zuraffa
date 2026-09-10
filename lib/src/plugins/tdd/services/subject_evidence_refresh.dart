@@ -109,7 +109,12 @@ class SubjectEvidenceRefresh {
 
   /// Append one `refresh` cycle-log entry per candidate. The caller gates
   /// on a GREEN re-proof whose scope covered every candidate's test (the
-  /// forced full re-proof) — a failed re-proof must never reach here.
+  /// scoped covering-test mapping sends each changed registered subject to
+  /// its own paired test; every other green path is the full suite) — a
+  /// failed re-proof must never reach here. Each entry's hash is
+  /// re-derived from disk at append time so the evidence is
+  /// self-consistent by construction; a candidate whose subject vanished
+  /// or whose hash no longer differs from the certified one is skipped.
   /// Returns the appended count.
   static Future<int> reconcile({
     required String projectRoot,
@@ -121,6 +126,12 @@ class SubjectEvidenceRefresh {
     final log = CycleLog(p.join(projectRoot, 'specs', featureName));
     var appended = 0;
     for (final candidate in candidates) {
+      final file = File(candidate.subjectPath);
+      if (!await file.exists()) continue;
+      final currentHash = crypto.sha256
+          .convert(await file.readAsBytes())
+          .toString();
+      if (currentHash == candidate.certifiedHash) continue;
       await log.append(
         CycleLogEntry(
           behaviorId: candidate.behaviorId,
@@ -131,13 +142,13 @@ class SubjectEvidenceRefresh {
               'refresh (issue #1430): the pass rewrote '
               '${candidate.subjectPath} (hash '
               '${candidate.certifiedHash.substring(0, 8)}… → '
-              '${candidate.currentHash.substring(0, 8)}…); the re-proof '
+              '${currentHash.substring(0, 8)}…); the re-proof '
               'above proved the suite green over the new shape — the '
               'certified evidence re-binds to it.',
           sourceCriterion: candidate.sourceCriterion,
           testPath: 'test/',
           timestamp: DateTime.now().toUtc().toIso8601String(),
-          subjectHash: candidate.currentHash,
+          subjectHash: currentHash,
         ),
       );
       appended++;
