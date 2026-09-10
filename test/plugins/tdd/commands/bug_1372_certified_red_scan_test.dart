@@ -78,13 +78,13 @@ void main() {
     expect(
       output,
       isNot(contains('has no certified-red evidence')),
-      reason: 'a later certified red is not shadowed by an earlier '
+      reason:
+          'a later certified red is not shadowed by an earlier '
           'error section (the issue #1372 signature)',
     );
   });
 
-  test('B2: [red] alone — make proceeds (baseline shape unchanged)',
-      () async {
+  test('B2: [red] alone — make proceeds (baseline shape unchanged)', () async {
     await seedCycleLog(['red']);
 
     final (code, output) = await runMake();

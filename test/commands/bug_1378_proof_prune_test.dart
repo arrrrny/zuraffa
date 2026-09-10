@@ -66,7 +66,10 @@ void main() {
         generatorVersion: version,
         input: const {},
         files: [
-          entryFor('../../../../tmp/issue_359_shell_ASCBZU/lib/src/routing/app_shell.dart', 'dead'),
+          entryFor(
+            '../../../../tmp/issue_359_shell_ASCBZU/lib/src/routing/app_shell.dart',
+            'dead',
+          ),
         ],
       ),
       fileName: 'route-shell-App-2026-09-09T06-30-49.320974Z.json',
@@ -103,19 +106,19 @@ void main() {
   }
 
   bool deadReceiptExists() => File(
-        p.join(
-          store().directory.path,
-          'route-shell-App-2026-09-09T06-30-49.320974Z.json',
-        ),
-      ).existsSync();
+    p.join(
+      store().directory.path,
+      'route-shell-App-2026-09-09T06-30-49.320974Z.json',
+    ),
+  ).existsSync();
 
   test('B1: dry run lists the dead receipt and deletes nothing', () async {
     await seedDeadReceipt();
 
-    final result = await runZfaSource(
-      ['proof', 'prune'],
-      workingDirectory: workspace.path,
-    );
+    final result = await runZfaSource([
+      'proof',
+      'prune',
+    ], workingDirectory: workspace.path);
 
     expect(result.exitCode, 0, reason: result.stdout);
     expect(result.stdout, contains('route-shell-App-2026-09-09T06-30-49'));
@@ -123,15 +126,15 @@ void main() {
     expect(deadReceiptExists(), isTrue, reason: 'dry run deletes nothing');
   });
 
-  test('B2: --apply deletes the dead receipt and keeps the live one',
-      () async {
+  test('B2: --apply deletes the dead receipt and keeps the live one', () async {
     await seedDeadReceipt();
     await seedLiveReceipt();
 
-    final result = await runZfaSource(
-      ['proof', 'prune', '--apply'],
-      workingDirectory: workspace.path,
-    );
+    final result = await runZfaSource([
+      'proof',
+      'prune',
+      '--apply',
+    ], workingDirectory: workspace.path);
 
     expect(result.exitCode, 0, reason: result.stdout);
     expect(deadReceiptExists(), isFalse, reason: result.stdout);
@@ -168,21 +171,26 @@ void main() {
             bytes: bytes.length,
             snapshot: null,
           ),
-          entryFor('../../../../tmp/issue_359_shell_ASCBZU/lib/src/domain/product_dto.dart', 'dead-half'),
+          entryFor(
+            '../../../../tmp/issue_359_shell_ASCBZU/lib/src/domain/product_dto.dart',
+            'dead-half',
+          ),
         ],
       ),
       fileName: 'entity-create-Product.json',
     );
 
-    final result = await runZfaSource(
-      ['proof', 'prune', '--apply'],
-      workingDirectory: workspace.path,
-    );
+    final result = await runZfaSource([
+      'proof',
+      'prune',
+      '--apply',
+    ], workingDirectory: workspace.path);
 
     expect(result.exitCode, 0, reason: result.stdout);
     expect(
-      File(p.join(store().directory.path, 'entity-create-Product.json'))
-          .existsSync(),
+      File(
+        p.join(store().directory.path, 'entity-create-Product.json'),
+      ).existsSync(),
       isTrue,
       reason: 'a partial receipt is kept, never pruned',
     );
@@ -190,10 +198,11 @@ void main() {
   });
 
   test('B4: no receipts at all is an honest no-op', () async {
-    final result = await runZfaSource(
-      ['proof', 'prune', '--apply'],
-      workingDirectory: workspace.path,
-    );
+    final result = await runZfaSource([
+      'proof',
+      'prune',
+      '--apply',
+    ], workingDirectory: workspace.path);
     expect(result.exitCode, 0, reason: result.stdout);
     expect(result.stdout, contains('no receipts'));
   });

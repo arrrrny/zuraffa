@@ -164,23 +164,20 @@ dev_dependencies: {lints: ^5.0.0}
         );
       });
 
-      test(
-        'flutterDevDependencies EXCLUDES plain test (issue #1370: the '
-        'constraint is unresolvable in the Flutter consumer graph; #1351 '
-        'emits flutter_test imports on Flutter hosts)',
-        () {
-          expect(
-            PubspecDevDependenciesPatcher.flutterDevDependencies
-                .containsKey('test'),
-            isFalse,
-          );
-          expect(
-            PubspecDevDependenciesPatcher
-                .flutterDevDependencies['flutter_test'],
-            'sdk: flutter',
-          );
-        },
-      );
+      test('flutterDevDependencies EXCLUDES plain test (issue #1370: the '
+          'constraint is unresolvable in the Flutter consumer graph; #1351 '
+          'emits flutter_test imports on Flutter hosts)', () {
+        expect(
+          PubspecDevDependenciesPatcher.flutterDevDependencies.containsKey(
+            'test',
+          ),
+          isFalse,
+        );
+        expect(
+          PubspecDevDependenciesPatcher.flutterDevDependencies['flutter_test'],
+          'sdk: flutter',
+        );
+      });
 
       test(
         'dart-mode ensure adds test (and no flutter_test) to a Dart project',
