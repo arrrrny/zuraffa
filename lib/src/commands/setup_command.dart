@@ -184,10 +184,12 @@ class SetupCommand extends Command<void> {
     final autoVerify = argResults!['auto-verify'] as bool;
     final tddExample = argResults!['tdd-example'] as bool;
     final specsDir = argResults!['specs'] as String?;
-    // With --specs the corpus import becomes step 7 of 9 (after branding
-    // step 5a and the TDD baseline, before the app shell step 8); without
-    // it the flow has 8 steps.
-    final totalSteps = specsDir != null && specsDir.isNotEmpty ? 9 : 8;
+    // The corpus import is step 7 of 9 (after branding step 5a and the
+    // TDD baseline, before the app shell step 8). When --specs is
+    // omitted the step still prints — as a skip, matching the other
+    // optional steps — so the numbering stays contiguous and the summary
+    // is always step 9.
+    final totalSteps = 9;
 
     if (specsDir != null && specsDir.isNotEmpty) {
       const CorpusImporter().validateSource(specsDir);
@@ -360,6 +362,8 @@ class SetupCommand extends Command<void> {
         print('   $line');
       }
       print('   ${result.summaryLine}');
+    } else {
+      print('\n[7/$totalSteps] Skipping corpus import (no --specs).');
     }
 
     // 8. Generate app shell (ZuraffaApp for Flutter, skip for pure Dart).
@@ -369,7 +373,6 @@ class SetupCommand extends Command<void> {
         projectRoot: appName,
         appName: appName,
         dryRun: dryRun,
-        verbose: verbose,
       );
     } else {
       print('\n[8/$totalSteps] Skipping app shell (pure-Dart project).');
@@ -530,12 +533,14 @@ class SetupCommand extends Command<void> {
     required String projectRoot,
     required String appName,
     required bool dryRun,
-    required bool verbose,
   }) async {
     final builder = const AppShellBuilder();
     final fs = const DefaultFileSystem();
 
-    // Detect project flavor for the core barrel import.
+    // Detect project flavor for the core barrel import. Dry-run caveat:
+    // the project directory does not exist yet, so detectProjectFlavor
+    // walks up to ancestor pubspecs — the preview's coreImport can then
+    // reflect an ancestor's flavor. Cosmetic: dry-run output only.
     final flavor = await detectProjectFlavor(projectRoot, fs);
     final coreImport = flavor == ProjectFlavor.flutter
         ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
@@ -589,6 +594,12 @@ class SetupCommand extends Command<void> {
         : AppShellBuilder.setupDependenciesIsAsync(diIndexContent);
 
     final outputDir = path.join(projectRoot, 'lib', 'src');
+    // buildMain derives the emitted package: imports from [outputDir]
+    // relative to lib/ (AppShellBuilder._packageImportBase), so it must
+    // receive the lib/-relative dir — not the project-root-prefixed
+    // write path, which would emit package:$appName/../$appName/lib/src/
+    // and produce an entrypoint that does not compile.
+    final packageOutputDir = path.join('lib', 'src');
     final files = <({String path, String content})>[];
 
     // 1. app_router.dart
@@ -605,7 +616,7 @@ class SetupCommand extends Command<void> {
     final mainPath = path.join(projectRoot, 'lib', 'main.dart');
     final mainContent = builder.buildMain(
       appName: appName,
-      outputDir: outputDir,
+      outputDir: packageOutputDir,
       diTakesGetIt: diTakesGetIt,
       diIsAsync: diIsAsync,
       coreImport: coreImport,
