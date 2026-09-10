@@ -1544,6 +1544,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         functionName: functionName,
         registrationCalls: registrationCalls,
         revert: false,
+        coreImport: _coreImport,
       );
     } else {
       final directives = importPaths.map(Directive.import).toList();
@@ -1670,6 +1671,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         registrationCalls: registrationCalls,
         revert: false,
         isMainIndex: true,
+        coreImport: _coreImport,
       );
     } else {
       final directives = [
@@ -1708,8 +1710,21 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required List<String> registrationCalls,
     bool revert = false,
     bool isMainIndex = false,
+    String? coreImport,
   }) {
     var content = existingContent;
+
+    // Migrate previous core-barrel import to the detected _coreImport so
+    // a Flutter project that previously generated with the pure-Dart barrel
+    // doesn't end up with both imports (causing ambiguous_export).
+    if (!revert && coreImport != null) {
+      content = content.replaceAllMapped(
+        RegExp(
+          r"import\s+'package:zuraffa(?:_flutter)?/zuraffa(?:_flutter)?\.dart';",
+        ),
+        (m) => "import '$coreImport';",
+      );
+    }
 
     for (final exportPath in exportPaths) {
       final request = AppendRequest.export(
@@ -1915,6 +1930,23 @@ void resetDependencies(GetIt getIt) {
     }
 
     if (await fileSystem.exists(serviceLocatorPath) && !options.force) {
+      // Migrate: if the existing service_locator uses a different core
+      // barrel than the detected project flavor, regenerate it so all
+      // generated artifacts reference the correct package.
+      final existingContent = await fileSystem.read(serviceLocatorPath);
+      if (!existingContent.contains(_coreImport)) {
+        final content = serviceLocatorBuilder.build(coreImport: _coreImport);
+        return FileUtils.writeFile(
+          serviceLocatorPath,
+          content,
+          'di_service_locator',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          revert: false,
+          fileSystem: fileSystem,
+        );
+      }
       // Spec 0974 (issue #974, order 4): a shared artifact kept from a
       // previous run must be REPORTED as skipped, not silently dropped
       // from the run's file list — capabilities surface it as a
