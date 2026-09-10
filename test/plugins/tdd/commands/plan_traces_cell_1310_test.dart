@@ -139,9 +139,7 @@ String? unitRowOf(String rendered, String id) => rendered
 /// through it.
 Future<String> genSubjectOf(TddFixture fx, String id) async {
   final record = await fx.registryRecordOf(id);
-  return File(
-    fixturePath(fx, record['subject_path'] as String),
-  ).readAsString();
+  return File(fixturePath(fx, record['subject_path'] as String)).readAsString();
 }
 
 Future<String> genTestOf(TddFixture fx, String id) async {
@@ -149,7 +147,8 @@ Future<String> genTestOf(TddFixture fx, String id) async {
   return File(fixturePath(fx, record['test_path'] as String)).readAsString();
 }
 
-String fixturePath(TddFixture fx, String recordedPath) => p.isAbsolute(recordedPath)
+String fixturePath(TddFixture fx, String recordedPath) =>
+    p.isAbsolute(recordedPath)
     ? recordedPath
     : p.join(fx.root.path, recordedPath);
 

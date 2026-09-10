@@ -150,6 +150,14 @@ const untracedSpec = '''
 1. **Given** a response **When** the header is read **Then** the content type is exposed.
 ''';
 
+/// Anchor a registry-recorded artifact path against the fixture root:
+/// post-#1397 records carry the canonical project-relative POSIX form,
+/// which must never be read relative to the process CWD.
+String fixturePath(TddFixture fx, String recordedPath) =>
+    p.isAbsolute(recordedPath)
+    ? recordedPath
+    : p.join(fx.root.path, recordedPath);
+
 /// Plan [specMd] into a temp project and return stdout plus the raw
 /// test-list content (and the 04-ENGINE content when the lane split
 /// produced one).
@@ -379,7 +387,7 @@ void main() {
       expect(exitCode, 0, reason: 'the first gen must succeed: $first');
       final recordBefore = await fx.registryRecordOf('U1');
       final testBefore = await File(
-        recordBefore['test_path'] as String,
+        fixturePath(fx, recordBefore['test_path'] as String),
       ).readAsString();
       expect(
         contentIsVacuousGreen(testBefore),
@@ -419,7 +427,7 @@ void main() {
             'remediation 3):\n$second',
       );
       final testAfter = await File(
-        recordBefore['test_path'] as String,
+        fixturePath(fx, recordBefore['test_path'] as String),
       ).readAsString();
       expect(
         testAfter,
@@ -490,7 +498,9 @@ void main() {
       // regenerated test asserts the DECLARED outcome, so make must
       // certify green (the vacuous-green refusal never fires).
       final record = await fx.registryRecordOf('U1');
-      final subjectFile = File(record['subject_path'] as String);
+      final subjectFile = File(
+        fixturePath(fx, record['subject_path'] as String),
+      );
       final subject = await subjectFile.readAsString();
       await subjectFile.writeAsString(
         subject.replaceFirst(
