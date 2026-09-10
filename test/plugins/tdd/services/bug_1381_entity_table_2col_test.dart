@@ -36,14 +36,40 @@ const threeColumnSpec = '''
 ''';
 
 void main() {
-  test('B1: the pre-#919 2-column Key Entities table extracts entities',
-      () {
+  test('B1: the pre-#919 2-column Key Entities table extracts entities', () {
     final entities = const SpecParser().parseKeyEntities(twoColumnSpec);
     expect(entities, hasLength(1), reason: entities.toString());
     expect(entities.single.name, 'Login');
     expect(
       entities.single.fields.map((f) => f.name),
       containsAll(['id', 'username', 'token']),
+    );
+  });
+
+  test('B2b: mixed grammars under one section parse both tables', () {
+    const mixed = '''
+## Key Entities
+
+| Entity | Fields | Purpose |
+| ------ | ------ | ------- |
+| Login | `id: String` | the session identity |
+
+| Entity | Fields |
+| ------ | ------ |
+| Token | `value: String` |
+''';
+    final entities = const SpecParser().parseKeyEntities(mixed);
+    expect(entities, hasLength(2), reason: entities.toString());
+    expect(
+      entities[0].purpose,
+      'the session identity',
+      reason: 'the 3-column table keeps its purpose',
+    );
+    expect(entities[1].name, 'Token');
+    expect(
+      entities[1].purpose,
+      '',
+      reason: 'the 2-column table has no purpose column',
     );
   });
 
