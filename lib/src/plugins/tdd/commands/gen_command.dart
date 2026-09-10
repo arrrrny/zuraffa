@@ -1482,7 +1482,11 @@ class GenCommand extends Command<void> {
         'pubspec.yaml at ${pubspec.path} is not valid YAML: $e',
       );
     }
-    if (doc is! YamlMap) return false;
+    if (doc is! YamlMap) {
+      throw FormatException(
+        'pubspec.yaml at ${pubspec.path} did not parse to a Map',
+      );
+    }
     final dependencies = doc['dependencies'];
     if (dependencies == null) return false;
     if (dependencies is! YamlMap) {

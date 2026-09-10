@@ -38,6 +38,10 @@ name: tdd_fixture
 dependencies: []
 ''';
 
+const nonMapPubspec = '''
+[]
+''';
+
 const reproSpec = '''
 **Template Version**: `zuraffa-1.0`
 
@@ -227,4 +231,43 @@ void main() {
       );
     },
   );
+
+  test('gen fails loudly when pubspec.yaml does not parse to a map', () async {
+    await CliRunner(
+      exitOnCompletion: false,
+    ).runCapturing(['tdd', 'plan', '1458-repro', '--project', fx.root.path]);
+    await File(
+      p.join(fx.root.path, 'pubspec.yaml'),
+    ).writeAsString(nonMapPubspec);
+
+    final out = await CliRunner(
+      exitOnCompletion: false,
+    ).runCapturing(['tdd', 'gen', 'U1', '--project', fx.root.path]);
+    expect(exitCode, isNot(0), reason: 'gen must fail loudly: $out');
+    expect(
+      out,
+      contains(
+        "pubspec.yaml at ${p.join(fx.root.path, 'pubspec.yaml')} did not parse to a Map",
+      ),
+      reason: 'the failure must name the invalid top-level pubspec shape: $out',
+    );
+  });
+
+  test('init fails loudly when pubspec.yaml does not parse to a map', () async {
+    await File(
+      p.join(fx.root.path, 'pubspec.yaml'),
+    ).writeAsString(nonMapPubspec);
+
+    final out = await CliRunner(
+      exitOnCompletion: false,
+    ).runCapturing(['tdd', 'init', '--project', fx.root.path]);
+    expect(exitCode, isNot(0), reason: 'init must fail loudly: $out');
+    expect(
+      out,
+      contains(
+        "pubspec.yaml at ${p.join(fx.root.path, 'pubspec.yaml')} did not parse to a Map",
+      ),
+      reason: 'the failure must name the invalid top-level pubspec shape: $out',
+    );
+  });
 }
