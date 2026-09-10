@@ -406,11 +406,20 @@ class StepRunner {
                   // compose/make phase-2 and re-certified from the
                   // pipeline's actual output (green evidence appended by
                   // make itself).
+                  // `born-green` is the issue #1411 hand-first
+                  // transition — the designed hand step (real outcome
+                  // assertion, marker removed, subject
+                  // hand-implemented) completed BEFORE the first red
+                  // certification, certified green by the explicit
+                  // `--born-green` make flag from an honestly re-run
+                  // passing target test (green evidence appended by
+                  // make itself in the existing format).
                   outcome == 'green' ||
                       outcome == 'skipped' ||
                       outcome == 'green-with-failed-build' ||
                       outcome == 'adopted' ||
-                      outcome == 'adopted-placeholder'
+                      outcome == 'adopted-placeholder' ||
+                      outcome == 'born-green'
                 : outcome == 'clean' || outcome == 'refactored');
         return StepResult(
           step: step,
