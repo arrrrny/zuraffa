@@ -1,0 +1,11 @@
+{
+  "name": "u2-flow",
+  "incident": 744,
+  "description": "Bug #744 (fixed in #748): zfa tdd gen hung on the SECOND behavior — an unbounded awaited stage held the command until SIGKILL. A generator ref that lost the #742-style flow budget records hang on gen U2 while a healthy ref records complete, so the differential fails naming the exact step pair.",
+  "steps": [
+    { "argv": ["tdd", "gen", "U1", "--feature", "u2-flow"] },
+    { "argv": ["tdd", "gen", "U2", "--feature", "u2-flow"] },
+    { "argv": ["dart", "test", "test/tdd"] }
+  ],
+  "artifactRoots": ["test/tdd", "lib/tdd"]
+}
