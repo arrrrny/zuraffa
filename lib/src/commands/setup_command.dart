@@ -598,8 +598,7 @@ class SetupCommand extends Command<void> {
     // stem and widget class follow the project (`zik_zak` →
     // `zik_zak.dart` / `ZikZakApp`), collapsing to the legacy
     // `my_app.dart` / `MyApp` for a project actually named `my_app`.
-    final shellStem = AppShellBuilder.shellFileStemFor(appName);
-    final shellWidget = AppShellBuilder.shellWidgetNameFor(appName);
+    final naming = AppShellNaming.fromAppName(appName);
 
     final outputDir = path.join(projectRoot, 'lib', 'src');
     // buildMain derives the emitted package: imports from [outputDir]
@@ -616,10 +615,10 @@ class SetupCommand extends Command<void> {
     files.add((path: appRouterPath, content: appRouterContent));
 
     // 2. the shell widget (<name>.dart, ZuraffaApp shell)
-    final myAppPath = path.join(outputDir, 'app', '$shellStem.dart');
+    final myAppPath = path.join(outputDir, 'app', '${naming.stem}.dart');
     final myAppContent = builder.buildMyApp(
       title: appName,
-      widgetName: shellWidget,
+      naming: naming,
       zuraffaApp: true,
     );
     files.add((path: myAppPath, content: myAppContent));
@@ -628,8 +627,7 @@ class SetupCommand extends Command<void> {
     final mainPath = path.join(projectRoot, 'lib', 'main.dart');
     final mainContent = builder.buildMain(
       appName: appName,
-      shellWidgetName: shellWidget,
-      shellFileName: shellStem,
+      naming: naming,
       outputDir: packageOutputDir,
       diTakesGetIt: diTakesGetIt,
       diIsAsync: diIsAsync,

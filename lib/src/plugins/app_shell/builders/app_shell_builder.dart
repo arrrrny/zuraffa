@@ -4,6 +4,34 @@ import 'package:path/path.dart' as p;
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../utils/string_utils.dart';
 
+/// The app shell's derived identity (issue #1465): the file stem and the
+/// widget class the emitted `app/<stem>.dart` declares.
+///
+/// Threaded through [AppShellBuilder.buildMyApp] /
+/// [AppShellBuilder.buildMain] as one value so a call site cannot pass a
+/// stem and a class that disagree — that mismatch would emit a `main.dart`
+/// importing a file the shell builder never wrote.
+class AppShellNaming {
+  const AppShellNaming({required this.stem, required this.widgetClass});
+
+  /// Derives the identity from the Dart package [appName]: `zik_zak` →
+  /// `zik_zak.dart` / `ZikZakApp`.
+  factory AppShellNaming.fromAppName(String appName) => AppShellNaming(
+    stem: AppShellBuilder.shellFileStemFor(appName),
+    widgetClass: AppShellBuilder.shellWidgetNameFor(appName),
+  );
+
+  /// The legacy identity (`my_app.dart` / `MyApp`). The builder defaults
+  /// keep every existing consumer of the old output byte-identical.
+  static const legacy = AppShellNaming(stem: 'my_app', widgetClass: 'MyApp');
+
+  /// The shell file stem: `zik_zak` → `zik_zak` (`app/zik_zak.dart`).
+  final String stem;
+
+  /// The class the shell file declares: `zik_zak` → `ZikZakApp`.
+  final String widgetClass;
+}
+
 /// Emitter for the zfa app-shell glue files.
 ///
 /// Produces three Dart sources that wire the generated DI tree
@@ -11,16 +39,16 @@ import '../../../utils/string_utils.dart';
 /// into a runnable Flutter app:
 ///
 ///  * `lib/main.dart` — `void main()` → `setupDependencies(...)` →
-///    `runApp(const <widgetName>())`. The call mirrors the generated DI's
+///    `runApp(const <naming.widgetClass>())`. The call mirrors the generated DI's
 ///    `setupDependencies` signature: `setupDependencies(GetIt instance)`
 ///    for the canonical GetIt-based DI emitted by `zfa di`, or
 ///    `setupDependencies()` for a no-arg custom entrypoint. When the DI is
 ///    asynchronous, main becomes `async` and `await`s the call; the canonical
 ///    synchronous DI is called without `await`. See issue #370.
-///  * `<outputDir>/app/<shellFileName>.dart` — the `<widgetName>` widget
-///    that builds a `MaterialApp.router` configured with [appRouter]. The
-///    file stem and class name derive from the target package name
-///    (issue #1465) via [shellWidgetNameFor] / [shellFileStemFor]; the
+///  * `<outputDir>/app/<naming.stem>.dart` — the `<naming.widgetClass>`
+///    widget that builds a `MaterialApp.router` configured with
+///    [appRouter]. The file stem and class name derive from the target
+///    package name (issue #1465) via [AppShellNaming.fromAppName]; the
 ///    defaults keep the legacy `my_app.dart` / `MyApp` identity for
 ///    `my_app`-named projects.
 ///  * `<outputDir>/routing/app_router.dart` — `final GoRouter appRouter =
@@ -75,12 +103,11 @@ class MainApp extends StatelessWidget {
   /// [appName] is the Dart package name (from `pubspec.yaml`); used to
   /// import the generated DI barrel at
   /// `package:<appName>/<outputDir>/di/index.dart` (and the shell widget
-  /// at `package:<appName>/<outputDir>/app/<shellFileName>.dart`).
-  /// [shellFileName] is the shell file stem (issue #1465: derived from the
-  /// package name by the command; the default keeps the legacy
-  /// `my_app.dart`) and [shellWidgetName] the class it declares — main
-  /// imports one and `runApp`s the other, so the two generators can never
-  /// disagree.
+  /// at `package:<appName>/<outputDir>/app/<naming.stem>.dart`).
+  /// [naming] is the shell identity (issue #1465: derived from the package
+  /// name via [AppShellNaming.fromAppName]; the default keeps the legacy
+  /// `my_app.dart` / `MyApp`) — main imports the stem and `runApp`s the
+  /// class, so the two generators can never disagree.
   /// [outputDir] is the project-root-relative directory the `app/` and
   /// `routing/` glue files were written to (default `lib/src`); the
   /// entrypoint always lands at `lib/main.dart`, so the package imports
@@ -109,8 +136,7 @@ class MainApp extends StatelessWidget {
   /// generators can never disagree again. See issue #370.
   String buildMain({
     required String appName,
-    String shellWidgetName = 'MyApp',
-    String shellFileName = 'my_app',
+    AppShellNaming naming = AppShellNaming.legacy,
     bool mockHint = false,
     String outputDir = 'lib/src',
     bool diTakesGetIt = false,
@@ -123,8 +149,8 @@ class MainApp extends StatelessWidget {
     // "lib/custom" -> "custom", "lib" -> "").
     final importBase = _packageImportBase(outputDir);
     final myAppImport = importBase.isEmpty
-        ? 'package:$appName/app/$shellFileName.dart'
-        : 'package:$appName/$importBase/app/$shellFileName.dart';
+        ? 'package:$appName/app/${naming.stem}.dart'
+        : 'package:$appName/$importBase/app/${naming.stem}.dart';
     final diImport = importBase.isEmpty
         ? 'package:$appName/di/index.dart'
         : 'package:$appName/$importBase/di/index.dart';
@@ -202,7 +228,7 @@ class MainApp extends StatelessWidget {
     bodyStatements.add(
       refer(
         'runApp',
-      ).call([CodeExpression(Code('const $shellWidgetName()'))]).statement,
+      ).call([CodeExpression(Code('const ${naming.widgetClass}()'))]).statement,
     );
 
     final main = Method((m) {
@@ -277,18 +303,22 @@ Future<void> _startXRayBridge() async {
     return emittedCode;
   }
 
-  /// Builds `<outputDir>/app/<shellFileName>.dart`.
+  /// Builds `<outputDir>/app/<naming.stem>.dart`.
   ///
-  /// Emits a `[widgetName]` StatelessWidget that returns a
+  /// Emits a `[AppShellNaming.widgetClass]` StatelessWidget that returns a
   /// `MaterialApp.router` bound to [appRouter]. The optional [title] is
   /// used as the MaterialApp title. The default theme is the framework
   /// light theme — generated apps are expected to layer their own theme on
   /// top, but the shell must compile and render out of the box.
   ///
-  /// [widgetName] is the emitted class name (issue #1465: derived from the
-  /// package name by the command via [shellWidgetNameFor]; the default
-  /// keeps the legacy `MyApp` literal so `my_app`-named projects — and
-  /// every existing consumer of the old output — get identical bytes).
+  /// [naming] is the shell identity (issue #1465: derived from the package
+  /// name via [AppShellNaming.fromAppName]; the default keeps the legacy
+  /// `MyApp` literal so `my_app`-named projects — and every existing
+  /// consumer of the old output — get identical bytes). Deriving the class
+  /// name is collision-aware: a name whose PascalCase form equals a symbol
+  /// the emitted file already imports (`material` → `MaterialApp`,
+  /// `zuraffa` → `ZuraffaApp`) takes a `ShellApp` suffix instead, so the
+  /// declared class can never shadow the import it builds with.
   ///
   /// When [xray] is true (issue #360), the `MaterialApp.router` is
   /// wrapped in `XRayScope(viewId: 'App', child: ...)` so the bridge
@@ -310,7 +340,7 @@ Future<void> _startXRayBridge() async {
   /// command).
   String buildMyApp({
     String? title,
-    String widgetName = 'MyApp',
+    AppShellNaming naming = AppShellNaming.legacy,
     bool xray = false,
     bool skinAudit = false,
     bool zuraffaApp = false,
@@ -425,7 +455,7 @@ Future<void> _startXRayBridge() async {
 
     final myApp = Class(
       (c) => c
-        ..name = widgetName
+        ..name = naming.widgetClass
         ..extend = refer('StatelessWidget')
         ..constructors.add(
           Constructor(
@@ -779,14 +809,32 @@ Future<void> _startXRayBridge() async {
     return m?.group(1);
   }
 
+  /// Symbols the emitted shell file already imports. A generated class name
+  /// equal to one of these would shadow the import it needs — Dart resolves
+  /// the local declaration first — and the shell would stop compiling:
+  /// `material` → `class MaterialApp` shadows `flutter/material.dart`'s
+  /// `MaterialApp.router`, and `zuraffa` → `class ZuraffaApp` shadows the
+  /// certified shell `ZuraffaApp` from `zuraffa_ui` (the identity `zfa
+  /// setup` always emits, since it passes `zuraffaApp: true`).
+  static const shellWidgetReservedNames = <String>{'MaterialApp', 'ZuraffaApp'};
+
   /// Derives the shell widget class name from the Dart package name
   /// (issue #1465): `zik_zak` → `ZikZakApp`, `xyx` → `XyxApp`. A name whose
   /// PascalCase form already ends in `App` is used as-is, so `my_app` →
   /// `MyApp` — the derivation collapses to the legacy literal and existing
   /// `my_app` projects keep byte-identical output.
+  ///
+  /// The derivation is collision-aware: a name that would declare a symbol
+  /// the emitted file already imports ([shellWidgetReservedNames]) takes a
+  /// `ShellApp` suffix instead — `material` → `MaterialShellApp`, `zuraffa`
+  /// → `ZuraffaShellApp` — so the wrapper never shadows the very class it
+  /// builds.
   static String shellWidgetNameFor(String appName) {
     final pascal = StringUtils.convertToPascalCase(appName);
-    return pascal.endsWith('App') ? pascal : '${pascal}App';
+    final candidate = pascal.endsWith('App') ? pascal : '${pascal}App';
+    if (!shellWidgetReservedNames.contains(candidate)) return candidate;
+    final base = candidate.substring(0, candidate.length - 'App'.length);
+    return '${base}ShellApp';
   }
 
   /// Derives the shell file stem from the Dart package name (issue #1465):

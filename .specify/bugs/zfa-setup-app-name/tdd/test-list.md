@@ -6,14 +6,14 @@ One per acceptance criterion in `spec.md`.
 
 | id | behavior | traces | state |
 | -- | -------- | ------ | ----- |
-| A1 | the shell is emitted at `lib/src/app/zik_zak.dart` declaring `class ZikZakApp extends StatelessWidget`, and the command exits 0. | AC-1 | PENDING |
-| A2 | it imports `package:zik_zak/src/app/zik_zak.dart` and calls `runApp(const ZikZakApp());`. | AC-2 | PENDING |
-| A3 | the shell is emitted at `lib/src/app/xyx.dart` declaring `class XyxApp`, and `main.dart` imports `package:xyx/src/app/xyx.dart` and calls `runApp(const XyxApp());`. | AC-3 | PENDING |
-| A4 | the file is `lib/src/app/my_app.dart` and the class is `MyApp` (the derivation collapses to the legacy literals). | AC-4 | PENDING |
-| A5 | the shell is emitted at `<outputDir>/app/zik_zak.dart` declaring `class ZikZakApp`, and `main.dart` imports `package:zik_zak/src/app/zik_zak.dart` and calls `runApp(const ZikZakApp());`. | AC-5 | PENDING |
-| A6 | the legacy file is left untouched (never deleted) and an informational notice names it. | AC-6 | PENDING |
-| A7 | `main.dart` calls `runApp(const ZikZakApp());` and the X-Ray wiring/compilation contract is unchanged. | AC-7 | PENDING |
-| A8 | the app-shell, setup, and related regression tests pass (with their pinned expectations updated to the new derived names where the fix changes them). | AC-8 | PENDING |
+| A1 | the shell is emitted at `lib/src/app/zik_zak.dart` declaring `class ZikZakApp extends StatelessWidget`, and the command exits 0. | AC-1 | DONE |
+| A2 | it imports `package:zik_zak/src/app/zik_zak.dart` and calls `runApp(const ZikZakApp());`. | AC-2 | DONE |
+| A3 | the shell is emitted at `lib/src/app/xyx.dart` declaring `class XyxApp`, and `main.dart` imports `package:xyx/src/app/xyx.dart` and calls `runApp(const XyxApp());`. | AC-3 | DONE |
+| A4 | the file is `lib/src/app/my_app.dart` and the class is `MyApp` (the derivation collapses to the legacy literals). | AC-4 | DONE |
+| A5 | the shell is emitted at `<outputDir>/app/zik_zak.dart` declaring `class ZikZakApp`, and `main.dart` imports `package:zik_zak/src/app/zik_zak.dart` and calls `runApp(const ZikZakApp());`. | AC-5 | DONE |
+| A6 | the legacy file is left untouched (never deleted) and an informational notice names it. | AC-6 | DONE |
+| A7 | `main.dart` calls `runApp(const ZikZakApp());` and the X-Ray wiring/compilation contract is unchanged. | AC-7 | DONE |
+| A8 | the app-shell, setup, and related regression tests pass (with their pinned expectations updated to the new derived names where the fix changes them). | AC-8 | DONE |
 
 ## Outer loop: widget behaviors
 

@@ -173,7 +173,7 @@ class AppShellCommand extends Command<void> {
         (argResults!['root'] as String?) ?? ProjectRoot.safeCurrentPath();
 
     // Spec 025 (FR-003): package-mode projects never get an app shell —
-    // main.dart/my_app.dart/app_router.dart are app artifacts. A package
+    // main.dart/the app shell/app_router.dart are app artifacts. A package
     // contributes architecture through its registrar + module instead.
     if (PackageMode.isEnabled(projectRoot)) {
       throw AppShellException(
@@ -263,7 +263,7 @@ class AppShellCommand extends Command<void> {
 
     // #512: the app shell wires a Flutter `MaterialApp.router` entrypoint and
     // depends on zuraffa_flutter. In a pure-Dart target package (pubspec.yaml
-    // without a `flutter:` dependency) emitting main.dart/my_app.dart/app_router.dart
+    // without a `flutter:` dependency) emitting main.dart/the shell/app_router.dart
     // breaks `dart analyze` (Constitution VII: Engine Purity). Skip with a clear
     // warning. (No pubspec found => unknown flavor => preserve historical
     // Flutter generation.)
@@ -383,12 +383,13 @@ class AppShellCommand extends Command<void> {
     // legacy literals. A shell written by an older zfa still lives at the
     // old fixed my_app.dart — never deleted or silently overwritten; the
     // notice below names it so the user can clean it up.
-    final shellStem = AppShellBuilder.shellFileStemFor(appName);
-    final shellWidget = AppShellBuilder.shellWidgetNameFor(appName);
+    final naming = AppShellNaming.fromAppName(appName);
+    final shellStem = naming.stem;
+    final shellWidget = naming.widgetClass;
     final myAppPath = p.join(projectRoot, outputDir, 'app', '$shellStem.dart');
     final myAppContent = _builder.buildMyApp(
       title: title,
-      widgetName: shellWidget,
+      naming: naming,
       xray: xray,
       skinAudit: skinAudit,
       zuraffaApp: zuraffaApp,
@@ -526,8 +527,7 @@ class AppShellCommand extends Command<void> {
         : 'package:zuraffa/zuraffa.dart';
     final mainContent = _builder.buildMain(
       appName: appName,
-      shellWidgetName: shellWidget,
-      shellFileName: shellStem,
+      naming: naming,
       mockHint: mock,
       outputDir: outputDir,
       diTakesGetIt: diTakesGetIt,
@@ -653,7 +653,8 @@ class AppShellCommand extends Command<void> {
       print('\n\u2705 App shell generated.');
       if (xray) {
         print(
-          '   \u{1FA7B} X-Ray bridge wired: server starts in debug mode, MyApp wrapped in XRayScope.',
+          '   \u{1FA7B} X-Ray bridge wired: server starts in debug mode, '
+          '$shellWidget wrapped in XRayScope.',
         );
         print(
           '   Run `zfa xray deck --entity <Entity>` to populate the Control Deck barrel.',

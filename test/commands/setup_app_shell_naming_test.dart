@@ -12,6 +12,11 @@ library;
 //   A5  `zfa app shell` derives the same names from the pubspec name
 //   A6  a legacy my_app.dart survives regeneration untouched + named notice
 //   A7  --xray keeps its wiring contract with the derived class name
+//
+// Plus the follow-up review pins (#1473): a derivation table over the builder
+// helpers — happy paths, the stutter cases the name rule produces, and the
+// reserved-name collisions — and an end-to-end `material` project proving the
+// wrapper never shadows the import the emitted shell builds with.
 
 import 'dart:async';
 import 'dart:io';
@@ -21,6 +26,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/commands/setup_command.dart';
+import 'package:zuraffa/src/plugins/app_shell/builders/app_shell_builder.dart';
 
 void main() {
   group(
@@ -49,6 +55,64 @@ void main() {
         test('xyx previews lib/src/app/xyx.dart', () async {
           final out = await preview('xyx');
           expect(out, contains('lib/src/app/xyx.dart'));
+        });
+      });
+
+      group('derivation table (builder contract)', () {
+        test('package names map to the expected stem / class', () {
+          final cases = <String, ({String stem, String widget})>{
+            // The documented happy paths (spec AC-1..AC-5).
+            'my_app': (stem: 'my_app', widget: 'MyApp'),
+            'zik_zak': (stem: 'zik_zak', widget: 'ZikZakApp'),
+            'xyx': (stem: 'xyx', widget: 'XyxApp'),
+            'my_test_app': (stem: 'my_test_app', widget: 'MyTestApp'),
+            'demo_app': (stem: 'demo_app', widget: 'DemoApp'),
+            // Stutter cases: homely but valid identifiers, pinned as the
+            // current contract (spec Edge Cases only requires a valid
+            // identifier).
+            'app': (stem: 'app', widget: 'App'),
+            'app2': (stem: 'app2', widget: 'App2App'),
+            'myapp': (stem: 'myapp', widget: 'MyappApp'),
+            'a': (stem: 'a', widget: 'AApp'),
+            // Reserved-name collisions (review on #1473): the wrapper class
+            // must never shadow the import it builds with — flutter's
+            // `MaterialApp` and zuraffa_ui's certified `ZuraffaApp`.
+            'material': (stem: 'material', widget: 'MaterialShellApp'),
+            'zuraffa': (stem: 'zuraffa', widget: 'ZuraffaShellApp'),
+            'zuraffa_app': (stem: 'zuraffa_app', widget: 'ZuraffaShellApp'),
+          };
+
+          cases.forEach((name, expected) {
+            final naming = AppShellNaming.fromAppName(name);
+            expect(naming.stem, expected.stem, reason: '$name: file stem');
+            expect(
+              naming.widgetClass,
+              expected.widget,
+              reason: '$name: widget class',
+            );
+            expect(
+              RegExp(r'^[A-Z][A-Za-z0-9_]*$').hasMatch(naming.widgetClass),
+              isTrue,
+              reason: '$name: derives a valid Dart class identifier',
+            );
+          });
+        });
+
+        test('the certified shell does not shadow the imported ZuraffaApp', () {
+          final src = const AppShellBuilder().buildMyApp(
+            naming: AppShellNaming.fromAppName('zuraffa'),
+            zuraffaApp: true,
+          );
+          expect(
+            src,
+            contains('class ZuraffaShellApp extends StatelessWidget'),
+          );
+          expect(src, contains("import 'package:zuraffa_ui/zuraffa_ui.dart';"));
+          expect(
+            src,
+            contains('return ZuraffaApp('),
+            reason: 'the certified shell stays a call, not the local class',
+          );
         });
       });
 
@@ -214,6 +278,27 @@ List<GoRoute> getAllRoutes() => [];
               shell,
               isNot(contains("import 'package:go_router/go_router.dart';")),
             );
+          },
+        );
+
+        test(
+          'a reserved project name never shadows the import it builds with',
+          () async {
+            final runner = await seedProject('material');
+            await runner.runCapturing(['app', 'shell', '--root', tempDir.path]);
+
+            final shell = shellSrc('material');
+            expect(
+              shell,
+              contains('class MaterialShellApp extends StatelessWidget'),
+              reason: 'the wrapper must not redeclare flutter\'s MaterialApp',
+            );
+            expect(
+              shell,
+              contains('MaterialApp.router('),
+              reason: 'the imported MaterialApp stays the one being built',
+            );
+            expect(mainSrc(), contains('runApp(const MaterialShellApp());'));
           },
         );
       });
