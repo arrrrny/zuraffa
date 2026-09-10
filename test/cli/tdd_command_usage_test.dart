@@ -55,13 +55,22 @@ void main() {
 
     final lines = runner.commands['tdd']!.usage.split('\n');
 
-    // The description block and the subcommand section honor the runner
-    // width; the options block wraps at kUsageLineLength (120) because
-    // ArgParser.usageLineLength is constructor-only.
+    // Description wraps at the runner width (80); the options block wraps at
+    // kUsageLineLength (120) — so 120 is the correct bound for this combined
+    // block (ArgParser.usageLineLength is constructor-only).
     final subHeader = lines.indexOf('Available subcommands:');
     expect(subHeader, greaterThan(0));
     expect(
       lines.sublist(0, subHeader),
+      everyElement(hasLength(lessThanOrEqualTo(120))),
+    );
+
+    // The subcommand section (summaries and continuation lines) wraps at the
+    // runner width.
+    final runIndex = lines.indexWhere((line) => line.startsWith('Run '));
+    expect(runIndex, greaterThan(subHeader));
+    expect(
+      lines.sublist(subHeader + 1, runIndex),
       everyElement(hasLength(lessThanOrEqualTo(80))),
     );
   });

@@ -152,6 +152,7 @@ class TddCommand extends Command<void> {
     return 'Usage: $invocation\n'
         '${argParser.usage}\n'
         '$buffer'
+        '\n'
         'Run "${runner?.executableName ?? 'zfa'} help" to see global options.';
   }
 }
