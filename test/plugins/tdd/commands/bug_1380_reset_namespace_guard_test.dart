@@ -22,6 +22,7 @@
 //        deleted (the #1331 behavior unchanged).
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -64,18 +65,9 @@ void main() {
     );
     // Other features' generated files in the SHARED lanes: same bare
     // ids, no registry owning them (the issue's 98-file shape).
-    await seedGeneratedShapedFile(
-      'test/tdd/072-crypto/a1_test.dart',
-      'A1',
-    );
-    await seedGeneratedShapedFile(
-      'test/tdd/073-offline/u1_test.dart',
-      'U1',
-    );
-    await seedGeneratedShapedFile(
-      'lib/tdd/077-reader/a1_subject.dart',
-      'A1',
-    );
+    await seedGeneratedShapedFile('test/tdd/072-crypto/a1_test.dart', 'A1');
+    await seedGeneratedShapedFile('test/tdd/073-offline/u1_test.dart', 'U1');
+    await seedGeneratedShapedFile('lib/tdd/077-reader/a1_subject.dart', 'A1');
   });
 
   tearDown(() {
@@ -96,19 +88,22 @@ void main() {
     expect(exitCode, 0, reason: output);
 
     expect(
-      File(p.join(fx.root.path, 'test/tdd/072-crypto/a1_test.dart'))
-          .existsSync(),
+      File(
+        p.join(fx.root.path, 'test/tdd/072-crypto/a1_test.dart'),
+      ).existsSync(),
       isTrue,
       reason: '072-crypto is another feature\'s namespace — never deleted',
     );
     expect(
-      File(p.join(fx.root.path, 'test/tdd/073-offline/u1_test.dart'))
-          .existsSync(),
+      File(
+        p.join(fx.root.path, 'test/tdd/073-offline/u1_test.dart'),
+      ).existsSync(),
       isTrue,
     );
     expect(
-      File(p.join(fx.root.path, 'lib/tdd/077-reader/a1_subject.dart'))
-          .existsSync(),
+      File(
+        p.join(fx.root.path, 'lib/tdd/077-reader/a1_subject.dart'),
+      ).existsSync(),
       isTrue,
     );
     // The own pair is gone (reset worked).
@@ -116,6 +111,44 @@ void main() {
       File(p.join(fx.testPathOf('A1'))).existsSync(),
       isFalse,
       reason: output,
+    );
+  });
+
+  test('B2b: a poisoned record naming another feature\'s namespace is '
+      'path drift (kept + warned)', () async {
+    // The registry record names a FOREIGN namespace path as this
+    // feature's recorded test — the file exists, so the recorded-path
+    // loop must treat it as path drift (kept), never a delete.
+    final poisoned = File(
+      p.join(fx.root.path, 'test/tdd/072-crypto/a1_test.dart'),
+    );
+    final artifactsFile = File(fx.artifactsPath);
+    final doc =
+        jsonDecode(artifactsFile.readAsStringSync()) as Map<String, dynamic>;
+    final records = (doc['records'] as List).cast<Map<String, dynamic>>();
+    for (final r in records) {
+      if (r['behavior_id'] == 'A1') {
+        r['test_path'] = 'test/tdd/072-crypto/a1_test.dart';
+      }
+    }
+    await artifactsFile.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(doc),
+    );
+
+    final runner = CliRunner(exitOnCompletion: false);
+    final output = await runner.runCapturing([
+      'tdd',
+      'reset',
+      feature,
+      '--project',
+      fx.root.path,
+    ]);
+    expect(exitCode, 0, reason: output);
+    expect(output, contains('path drift'), reason: output);
+    expect(
+      poisoned.existsSync(),
+      isTrue,
+      reason: 'the foreign-namespace file is never deleted',
     );
   });
 
@@ -150,7 +183,10 @@ void main() {
       fx.root.path,
     ]);
     expect(exitCode, 0, reason: output);
-    expect(drifted.existsSync(), isFalse,
-        reason: 'the own-namespace drifted file is recovered and deleted');
+    expect(
+      drifted.existsSync(),
+      isFalse,
+      reason: 'the own-namespace drifted file is recovered and deleted',
+    );
   });
 }

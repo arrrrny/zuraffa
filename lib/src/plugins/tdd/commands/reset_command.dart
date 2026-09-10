@@ -150,6 +150,20 @@ class ResetCommand extends Command<void> {
     // Per dropped record: the recorded paths that did NOT exist at reset
     // time (the path-drift class the old reset kept silent about).
     final pathDrift = <String>[];
+    // Issue #1380: the namespace agreement applies to the RECORDED paths
+    // too — a poisoned/stale record naming another feature's namespace is
+    // path drift (kept + warned), never a delete.
+    String? foreignNamespaceSegment(String normalized) {
+      for (final lane in ['test/tdd', 'lib/tdd']) {
+        final laneAbs = p.join(cwd, lane);
+        if (p.isWithin(laneAbs, normalized)) {
+          final segments = p.relative(normalized, from: laneAbs).split('/');
+          if (segments.length >= 2) return segments.first;
+        }
+      }
+      return null;
+    }
+
     for (final record in records) {
       for (final (role, raw) in [
         ('test', record.testPath),
@@ -157,6 +171,16 @@ class ResetCommand extends Command<void> {
       ]) {
         final normalized = normalizeArtifactPath(cwd, raw);
         if (File(normalized).existsSync()) {
+          final foreignSegment = foreignNamespaceSegment(normalized);
+          if (foreignSegment != null && foreignSegment != feature) {
+            pathDrift.add(
+              '${record.behaviorId}: recorded $role path '
+              '${_displayPath(cwd, normalized)} is in another '
+              'feature\'s namespace ($foreignSegment) — kept, never '
+              'deleted',
+            );
+            continue;
+          }
           if (!ownedExisting.contains(normalized)) {
             ownedExisting.add(normalized);
           }
