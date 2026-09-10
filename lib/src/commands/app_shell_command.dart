@@ -511,6 +511,9 @@ class AppShellCommand extends Command<void> {
         existingMain,
       );
     }
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
     final mainContent = _builder.buildMain(
       appName: appName,
       mockHint: mock,
@@ -518,6 +521,7 @@ class AppShellCommand extends Command<void> {
       diTakesGetIt: diTakesGetIt,
       diIsAsync: diIsAsync,
       xray: xray,
+      coreImport: coreImport,
     );
     emittedSources.add(mainContent);
     files.add(

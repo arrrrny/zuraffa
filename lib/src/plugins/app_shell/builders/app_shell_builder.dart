@@ -104,6 +104,7 @@ class MainApp extends StatelessWidget {
     bool diTakesGetIt = false,
     bool diIsAsync = false,
     bool xray = false,
+    String coreImport = 'package:zuraffa/zuraffa.dart',
   }) {
     // main.dart lives at lib/main.dart, so package: imports must resolve
     // relative to lib/. Map the output dir ("lib/src" -> "src",
@@ -134,12 +135,13 @@ class MainApp extends StatelessWidget {
       ],
     ];
     if (diTakesGetIt) {
-      // `GetIt` is re-exported by `package:zuraffa/zuraffa.dart` (the same
-      // import the DI `service_locator.dart` uses), so generated apps —
-      // which already depend on `zuraffa` for their DI tree — can resolve
-      // it without adding `get_it` as a direct dependency. main.dart needs
+      // `GetIt` is re-exported by the core barrel (the same import the DI
+      // `service_locator.dart` uses), so generated apps can resolve it
+      // without adding `get_it` as a direct dependency. main.dart needs
       // `GetIt` only to pass `GetIt.instance` into `setupDependencies`.
-      directives.add(Directive.import('package:zuraffa/zuraffa.dart'));
+      // For Flutter apps the barrel is `zuraffa_flutter`; for pure Dart
+      // it is `zuraffa` directly.
+      directives.add(Directive.import(coreImport));
     }
 
     // Mirror the generated DI's `setupDependencies` signature: pass

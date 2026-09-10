@@ -17,6 +17,7 @@ import '../../models/generator_config.dart';
 import '../../package/package_mode.dart';
 import '../../skew/skew_contract.dart';
 import '../../utils/file_utils.dart';
+import '../../utils/project_flavor.dart';
 import '../../utils/string_utils.dart';
 import 'builders/package_registrar_builder.dart';
 import 'builders/registration_builder.dart';
@@ -37,6 +38,10 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final ServiceLocatorBuilder serviceLocatorBuilder;
   final PackageRegistrarBuilder packageRegistrarBuilder;
   final FileSystem fileSystem;
+
+  /// Resolved zuraffa barrel import for the target project flavor.
+  /// Set once in [generate] before any sub-generators run.
+  String _coreImport = 'package:zuraffa/zuraffa.dart';
 
   /// Creates a [DiPlugin].
   DiPlugin({
@@ -251,6 +256,12 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final fs = context?.fileSystem ?? fileSystem;
     final files = <GeneratedFile>[];
 
+    // Issue #1454: detect the target project's flavor so Flutter apps get
+    // `package:zuraffa_flutter/zuraffa_flutter.dart` imports while pure
+    // Dart and unknown-flavor projects keep `package:zuraffa/zuraffa.dart`.
+    final flavor = await detectProjectFlavor(config.outputDir, fs);
+    _coreImport = _resolveCoreImport(flavor);
+
     // Spec 025 (FR-010/FR-011): the package-shape marker in the project's
     // build.yaml switches the emission tail from the app locator pair
     // (di/index.dart setupDependencies + service_locator.dart) to the
@@ -436,7 +447,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       functionName: 'register$dataSourceName',
       registeredTypes: [dataSourceName, abstractDataSourceName],
       imports: [
-        'package:zuraffa/zuraffa.dart',
+        _coreImport,
         // Spec 893: real adapters never register under the simulation
         // flavor — mocks are served exclusively in simulation mode.
         'package:zuraffa/simulation.dart',
@@ -478,7 +489,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final diPath = path.join(outputDir, 'di', 'datasources', fileName);
 
     final imports = <String>[
-      'package:zuraffa/zuraffa.dart',
+      _coreImport,
       '../../data/datasources/$baseSnake/${baseSnake}_local_datasource.dart',
     ];
 
@@ -630,7 +641,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       functionName: 'register$dataSourceName',
       registeredTypes: [dataSourceName],
       imports: [
-        'package:zuraffa/zuraffa.dart',
+        _coreImport,
         'package:sqlite3/sqlite3.dart',
         // Spec 893: real adapters never register under the simulation
         // flavor — mocks are served exclusively in simulation mode.
@@ -687,7 +698,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       functionName: 'register$dataSourceName',
       registeredTypes: [dataSourceName],
       imports: [
-        'package:zuraffa/zuraffa.dart',
+        _coreImport,
         '../../data/datasources/$baseSnake/${baseSnake}_mock_datasource.dart',
       ],
       body: Block((b) => b..statements.add(registrationCall.statement)),
@@ -719,7 +730,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final diPath = path.join(outputDir, 'di', 'repositories', fileName);
 
     final imports = <String>[
-      'package:zuraffa/zuraffa.dart',
+      _coreImport,
       '../../domain/repositories/${baseSnake}_repository.dart',
       '../../data/repositories/data_${baseSnake}_repository.dart',
     ];
@@ -882,7 +893,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
         : '../../domain/services/${serviceSnake}_service.dart';
 
-    final imports = ['package:zuraffa/zuraffa.dart', serviceImport];
+    final imports = [_coreImport, serviceImport];
 
     if (config.useMockInDi) {
       final mockProviderImport = config.isEntityBased || config.hasService
@@ -978,7 +989,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$mockProviderName',
       registeredTypes: [mockProviderName],
-      imports: ['package:zuraffa/zuraffa.dart', mockProviderImport],
+      imports: [_coreImport, mockProviderImport],
       body: Block(
         (b) => b
           ..statements.add(
@@ -1034,7 +1045,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$providerName',
       registeredTypes: [providerName],
-      imports: ['package:zuraffa/zuraffa.dart', providerImport],
+      imports: [_coreImport, providerImport],
       body: Block(
         (b) => b
           ..statements.add(
@@ -1089,7 +1100,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final diPath = path.join(outputDir, 'di', 'usecases', fileName);
 
     final imports = {
-      'package:zuraffa/zuraffa.dart',
+      _coreImport,
       '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
     };
 
@@ -1215,7 +1226,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       final diPath = path.join(outputDir, 'di', 'usecases', fileName);
 
       final imports = <String>[
-        'package:zuraffa/zuraffa.dart',
+        _coreImport,
         '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
       ];
 
@@ -1292,7 +1303,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final diPath = path.join(outputDir, 'di', 'usecases', fileName);
 
     final imports = {
-      'package:zuraffa/zuraffa.dart',
+      _coreImport,
       '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
     };
 
@@ -1518,10 +1529,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return null;
     }
 
-    final importPaths = [
-      'package:zuraffa/zuraffa.dart',
-      ...registrations.map((r) => r.fileName),
-    ];
+    final importPaths = [_coreImport, ...registrations.map((r) => r.fileName)];
     final registrationCalls = registrations
         .map((r) => '${r.functionName}(getIt);')
         .toList();
@@ -1536,6 +1544,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         functionName: functionName,
         registrationCalls: registrationCalls,
         revert: false,
+        coreImport: _coreImport,
       );
     } else {
       final directives = importPaths.map(Directive.import).toList();
@@ -1594,7 +1603,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     final exportPaths = <String>[];
-    final importPaths = <String>['package:zuraffa/zuraffa.dart'];
+    final importPaths = <String>[_coreImport];
     final registrationCalls = <String>[];
 
     if (await hasIndex(usecasesDir)) {
@@ -1662,6 +1671,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         registrationCalls: registrationCalls,
         revert: false,
         isMainIndex: true,
+        coreImport: _coreImport,
       );
     } else {
       final directives = [
@@ -1700,8 +1710,21 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required List<String> registrationCalls,
     bool revert = false,
     bool isMainIndex = false,
+    String? coreImport,
   }) {
     var content = existingContent;
+
+    // Migrate previous core-barrel import to the detected _coreImport so
+    // a Flutter project that previously generated with the pure-Dart barrel
+    // doesn't end up with both imports (causing ambiguous_export).
+    if (!revert && coreImport != null) {
+      content = content.replaceAllMapped(
+        RegExp(
+          r"import\s+'package:zuraffa(?:_flutter)?/zuraffa(?:_flutter)?\.dart';",
+        ),
+        (m) => "import '$coreImport';",
+      );
+    }
 
     for (final exportPath in exportPaths) {
       final request = AppendRequest.export(
@@ -1875,6 +1898,7 @@ void resetDependencies(GetIt getIt) {
     final content = packageRegistrarBuilder.build(
       packageName: packageName,
       categories: categories,
+      coreImport: _coreImport,
     );
 
     return FileUtils.writeFile(
@@ -1906,6 +1930,23 @@ void resetDependencies(GetIt getIt) {
     }
 
     if (await fileSystem.exists(serviceLocatorPath) && !options.force) {
+      // Migrate: if the existing service_locator uses a different core
+      // barrel than the detected project flavor, regenerate it so all
+      // generated artifacts reference the correct package.
+      final existingContent = await fileSystem.read(serviceLocatorPath);
+      if (!existingContent.contains(_coreImport)) {
+        final content = serviceLocatorBuilder.build(coreImport: _coreImport);
+        return FileUtils.writeFile(
+          serviceLocatorPath,
+          content,
+          'di_service_locator',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          revert: false,
+          fileSystem: fileSystem,
+        );
+      }
       // Spec 0974 (issue #974, order 4): a shared artifact kept from a
       // previous run must be REPORTED as skipped, not silently dropped
       // from the run's file list — capabilities surface it as a
@@ -1918,7 +1959,7 @@ void resetDependencies(GetIt getIt) {
       );
     }
 
-    final content = serviceLocatorBuilder.build();
+    final content = serviceLocatorBuilder.build(coreImport: _coreImport);
 
     return FileUtils.writeFile(
       serviceLocatorPath,
@@ -1930,5 +1971,20 @@ void resetDependencies(GetIt getIt) {
       revert: false,
       fileSystem: fileSystem,
     );
+  }
+
+  /// Resolves the zuraffa barrel import for the current project flavor.
+  ///
+  /// Flutter apps import `package:zuraffa_flutter/zuraffa_flutter.dart`
+  /// (which re-exports the core); pure Dart and unknown-flavor projects
+  /// keep `package:zuraffa/zuraffa.dart`. Mirrors the pattern established
+  /// by the view, presenter, controller, route, skin, and state plugins
+  /// (issue #512).
+  static String _resolveCoreImport(ProjectFlavor flavor) {
+    return switch (flavor) {
+      ProjectFlavor.flutter => 'package:zuraffa_flutter/zuraffa_flutter.dart',
+      ProjectFlavor.pureDart ||
+      ProjectFlavor.unknown => 'package:zuraffa/zuraffa.dart',
+    };
   }
 }
