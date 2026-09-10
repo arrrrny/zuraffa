@@ -12,8 +12,11 @@ import '../cli/writers/tdd/tdd_example_writer.dart';
 import '../cli/writers/tdd/tdd_profile_writer.dart';
 import '../config/zfa_config.dart';
 import '../core/branding/branding_writer.dart';
+import '../core/context/file_system.dart';
 import '../core/dependencies/dependency_wirer.dart';
+import '../plugins/app_shell/builders/app_shell_builder.dart';
 import '../utils/manifest_writer.dart';
+import '../utils/project_flavor.dart';
 
 /// `zfa setup <name>` — Bootstrap a new Flutter/Dart app with the standard
 /// zuraffa dependency set wired in.
@@ -182,7 +185,7 @@ class SetupCommand extends Command<void> {
     final specsDir = argResults!['specs'] as String?;
     // With --specs the corpus import becomes step 7 of 8 (after branding
     // step 5a and the TDD baseline); without it the flow has 7 steps.
-    final totalSteps = specsDir != null && specsDir.isNotEmpty ? 8 : 7;
+    final totalSteps = specsDir != null && specsDir.isNotEmpty ? 9 : 8;
 
     if (specsDir != null && specsDir.isNotEmpty) {
       const CorpusImporter().validateSource(specsDir);
@@ -357,7 +360,20 @@ class SetupCommand extends Command<void> {
       print('   ${result.summaryLine}');
     }
 
-    // 8. Summary.
+    // 8. Generate app shell (ZuraffaApp for Flutter, skip for pure Dart).
+    if (isFlutter) {
+      print('\n[8/$totalSteps] Generating app shell (ZuraffaApp)...');
+      await _generateAppShell(
+        projectRoot: appName,
+        appName: appName,
+        dryRun: dryRun,
+        verbose: verbose,
+      );
+    } else {
+      print('\n[8/$totalSteps] Skipping app shell (pure-Dart project).');
+    }
+
+    // 9. Summary.
     print('\n[$totalSteps/$totalSteps] Setup complete!');
     if (wireResult != null && !wireResult.isSuccess) {
       print(
@@ -377,9 +393,6 @@ class SetupCommand extends Command<void> {
     );
     print('   zfa make Product --preset=crud --with=vpc,state,di,test');
     print('   zfa build');
-    print(
-      '   zfa app shell      # upgrade the day-zero app module with the generated DI + routes',
-    );
     print('');
     if (isFlutter) {
       print('   Run the app:  flutter run');
@@ -498,6 +511,78 @@ class SetupCommand extends Command<void> {
         print('   ✓ test/tdd_example_test.dart (already present)');
       } else {
         print('   ✓ $examplePath (created, --tdd-example)');
+      }
+    }
+  }
+
+  /// Generates the app shell files (main.dart, my_app.dart, app_router.dart)
+  /// using ZuraffaApp as the root widget for Flutter projects.
+  ///
+  /// This is the same generation path as `zfa app shell --zuraffa-app`,
+  /// invoked automatically during setup so the generated app is runnable
+  /// immediately after `zfa setup` completes.
+  Future<void> _generateAppShell({
+    required String projectRoot,
+    required String appName,
+    required bool dryRun,
+    required bool verbose,
+  }) async {
+    final builder = const AppShellBuilder();
+    final fs = const DefaultFileSystem();
+
+    // Detect project flavor for the core barrel import.
+    final flavor = await detectProjectFlavor(projectRoot, fs);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
+
+    // Check zuraffa_ui dependency (issue #1260).
+    final pubspecFile = File(path.join(projectRoot, 'pubspec.yaml'));
+    if (pubspecFile.existsSync()) {
+      final pubspecContent = pubspecFile.readAsStringSync();
+      final hasZuraffaUi = pubspecContent.contains('zuraffa_ui');
+      if (!hasZuraffaUi) {
+        print(
+          '   ⚠️  zuraffa_ui not in pubspec.yaml — skipping ZuraffaApp shell.\n'
+          '      Run `flutter pub add zuraffa_ui` then `zfa app shell --zuraffa-app`.',
+        );
+        return;
+      }
+    }
+
+    final outputDir = path.join(projectRoot, 'lib', 'src');
+    final files = <({String path, String content})>[];
+
+    // 1. app_router.dart
+    final appRouterPath = path.join(outputDir, 'routing', 'app_router.dart');
+    final appRouterContent = builder.buildAppRouter();
+    files.add((path: appRouterPath, content: appRouterContent));
+
+    // 2. my_app.dart (ZuraffaApp shell)
+    final myAppPath = path.join(outputDir, 'app', 'my_app.dart');
+    final myAppContent = builder.buildMyApp(title: appName, zuraffaApp: true);
+    files.add((path: myAppPath, content: myAppContent));
+
+    // 3. main.dart
+    final mainPath = path.join(projectRoot, 'lib', 'main.dart');
+    final mainContent = builder.buildMain(
+      appName: appName,
+      outputDir: outputDir,
+      diTakesGetIt: true,
+      coreImport: coreImport,
+    );
+    files.add((path: mainPath, content: mainContent));
+
+    for (final file in files) {
+      if (dryRun) {
+        print('   (dry-run) Would write: ${file.path}');
+      } else {
+        final dir = Directory(path.dirname(file.path));
+        if (!dir.existsSync()) {
+          dir.createSync(recursive: true);
+        }
+        File(file.path).writeAsStringSync(file.content);
+        print('   ✓ ${path.relative(file.path, from: projectRoot)}');
       }
     }
   }
