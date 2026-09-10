@@ -37,6 +37,20 @@ void main() {
 
   setUp(() => root = packageRoot());
 
+  // The corpus is no longer shipped in-repo (removed from git): with no
+  // shipped corpus there is nothing to guard — skip the content pins
+  // (visibly, with a reason) until the directory is restored.
+  final corpusMissing = !Directory(
+    p.join(packageRoot().path, 'corpus'),
+  ).existsSync();
+  // Local runs stay forgiving; on CI a missing corpus is a failure, not a
+  // skip — the suite must go loud when the regen tool path drifts or the
+  // directory disappears unexpectedly.
+  final String? corpusSkip = Platform.environment.containsKey('CI')
+      ? null
+      : 'corpus/ is not shipped in-repo (removed from git) — '
+            'restore the directory to re-enable the shipped-corpus pins';
+
   group('shipped regression corpus', () {
     test('exposes the three incident entries and nothing else', () async {
       final entries = await DifferentialCorpus.load(
@@ -125,7 +139,7 @@ void main() {
         }
       },
     );
-  });
+  }, skip: corpusMissing ? corpusSkip : null);
 
   group('generator differential CI gate', () {
     late File workflow;

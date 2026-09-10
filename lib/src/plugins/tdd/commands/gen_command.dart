@@ -76,6 +76,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 
 import '../models/channel_scenario.dart';
 import '../models/verdict_envelope.dart';
@@ -1464,15 +1465,36 @@ class GenCommand extends Command<void> {
   }
 
   /// Whether the host project runs on the Flutter test runner (issue
-  /// #1351): mirrors `InitCommand._isFlutterProject` — a pubspec with a
-  /// flutter dependency means the plain `test` package is not
-  /// resolvable and generated tests must import flutter_test.
+  /// #1351): a pubspec with a `flutter:` dependency means the plain
+  /// `test` package is not resolvable and generated tests must import
+  /// `flutter_test`. Parses the pubspec YAML and checks the
+  /// `dependencies: flutter:` key directly instead of substring-matching,
+  /// which avoids false positives from "flutter" appearing in comments
+  /// (issue #1458) while still surfacing malformed pubspecs to the caller.
   static Future<bool> _isFlutterProject(String cwd) async {
     final pubspec = File(p.join(cwd, 'pubspec.yaml'));
     if (!await pubspec.exists()) return false;
-    final raw = await pubspec.readAsString();
-    return raw.contains('environment:') &&
-        (raw.contains('flutter') || raw.contains('sdk: flutter'));
+    dynamic doc;
+    try {
+      doc = loadYaml(await pubspec.readAsString());
+    } on YamlException catch (e) {
+      throw FormatException(
+        'pubspec.yaml at ${pubspec.path} is not valid YAML: $e',
+      );
+    }
+    if (doc is! YamlMap) {
+      throw FormatException(
+        'pubspec.yaml at ${pubspec.path} did not parse to a Map',
+      );
+    }
+    final dependencies = doc['dependencies'];
+    if (dependencies == null) return false;
+    if (dependencies is! YamlMap) {
+      throw FormatException(
+        'pubspec.yaml at ${pubspec.path} has a non-map dependencies value',
+      );
+    }
+    return dependencies.containsKey('flutter');
   }
 
   /// Resolves the widget template's app shell (issue #912 defect 2):
