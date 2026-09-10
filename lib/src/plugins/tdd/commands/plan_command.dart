@@ -249,6 +249,22 @@ class PlanCommand extends Command<void> {
     // and wire them (run phase 0 + the entity pipeline routing read
     // this section back through TestListReader.readEntities).
     final entities = const SpecParser().parseKeyEntities(specMd);
+    // Issue #1381: a declared-but-unparseable `## Key Entities` section
+    // used to vanish silently — the run-engine cert gate then saw zero
+    // CORE entities and passed trivially. Name the loss.
+    if (entities.isEmpty &&
+        RegExp(
+          r'^\s*##\s*key entities\s*$',
+          caseSensitive: false,
+          multiLine: true,
+        ).hasMatch(specMd)) {
+      print(
+        'zfa tdd plan: WARNING — the spec declares `## Key Entities` but '
+        'no entities were extracted (check the table header grammar: '
+        '`| Entity | Fields | Purpose |`). The engine cert gate will see '
+        'zero CORE entities (issue #1381).',
+      );
+    }
 
     // Bug #919: extract the zuraffa-1.0 template's declared dependencies
     // and layer contracts into the plan artifact, so the mock-first make
