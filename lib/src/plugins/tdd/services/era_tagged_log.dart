@@ -15,6 +15,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import 'cycle_evidence.dart';
+import 'cycle_log_sections.dart';
 import 'realize_state.dart';
 
 /// One era-tagged cycle-log entry: the realization evidence a transition
@@ -130,7 +131,7 @@ class EraTaggedLog {
     if (!await file.exists()) return null;
     final raw = await file.readAsString();
     RealizeEra? last;
-    for (final section in raw.split('\n## ')) {
+    for (final section in splitCycleLogSections(raw)) {
       final behavior = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,

@@ -18,6 +18,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'cycle_log_sections.dart';
+
 /// One parsed cycle-log section: the certified facts the doctor, the
 /// journal replay, and the evidence-chain verifier read. `null` fields
 /// mean the entry did not carry them (legacy schema-0 entries carry no
@@ -180,7 +182,7 @@ class CycleEvidence {
     if (!await file.exists()) return const {};
     final raw = await file.readAsString();
     final ids = <String>{};
-    for (final section in raw.split('\n## ')) {
+    for (final section in splitCycleLogSections(raw)) {
       final behavior = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,
@@ -199,7 +201,7 @@ class CycleEvidence {
 /// skipped (the file header, hand-written prose).
 List<ParsedCycleEntry> parseEntries(String raw) {
   final entries = <ParsedCycleEntry>[];
-  for (final section in raw.split('\n## ')) {
+  for (final section in splitCycleLogSections(raw)) {
     final behavior = RegExp(
       r'^- behavior: (\S+)',
       multiLine: true,

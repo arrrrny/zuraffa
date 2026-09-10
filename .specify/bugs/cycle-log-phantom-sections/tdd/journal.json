@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "feature": "cycle-log-phantom-sections",
+  "entries": [
+    {
+      "feature": "cycle-log-phantom-sections",
+      "cycle": "engine",
+      "phase": "drive",
+      "started_at": "2026-09-10T22:20:06.767282Z",
+      "finished_at": "2026-09-10T22:36:10.945160Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "stopped_at=A1:make",
+        "step_error=A1:make outcome=unexpressible exit=1"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "stopped",
+      "behaviors": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5"
+      ],
+      "counts": {
+        "total": 5,
+        "pending": 0,
+        "red": 5,
+        "green": 0,
+        "done": 0
+      },
+      "stopped_at": "A1:make",
+      "error": {
+        "behavior": "A1",
+        "step": "make",
+        "outcome": "unexpressible",
+        "exit_code": 1,
+        "command": "dart /Users/arrrrny/Developer/zuraffa/bin/zfa.dart tdd make A1 --feature .specify/bugs/cycle-log-phantom-sections --project /Users/arrrrny/Developer/zuraffa --suite-baseline /Users/arrrrny/Developer/zuraffa/.specify/bugs/cycle-log-phantom-sections/tdd/run-baseline.json --timeout 25.0000",
+        "output": "zfa tdd make: behavior A1\n   feature: cycle-log-phantom-sections\n   test: /Users/arrrrny/Developer/zuraffa/test/tdd/cycle-log-phantom-sections/a1_test.dart\n   suite baseline: cached (2026-09-10T22:29:16.141061Z) — 713 pre-existing failure(s) (issue #741)\n   composition fallback disengaged: no green unit subjects to compose against: behavior \"A1\" needs at least one unit-kind behavior with green cycle-log evidence or an entity-wired subject artifact (the `wiredEntityAnchor` implementation anchor `zfa tdd wire` emits — issue #923: a wired unit subject is a valid composition anchor even while its behavior is still a stub). Wire a unit subject with `zfa tdd wire <id> --entity <Name>` or take a unit behavior green before composing against it.\nzfa tdd make: cannot plan a generation for behavior \"A1\". behavior \"A1\" requires an implementation the zuraffa generation pipeline cannot express: no generator surface maps the behavior description \"the in-fence `## ` lines do NOT start\" to a `zfa entity create` / `zfa make` / `zfa build` invocation. File a zuraffa gap per the STOP-ON-ROADBLOCK policy.\nmake: behavior=A1 outcome=unexpressible feature=cycle-log-phantom-sections"
+      }
+    },
+    {
+      "feature": "cycle-log-phantom-sections",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-10T22:20:06.764256Z",
+      "finished_at": "2026-09-10T22:36:10.947154Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane stopped at A1:make",
+        "engine lane result=stopped — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "stopped",
+      "behaviors": [],
+      "stopped_at": null
+    }
+  ]
+}

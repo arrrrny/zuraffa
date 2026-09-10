@@ -1,0 +1,11 @@
+{
+  "feature": "cycle-log-phantom-sections",
+  "behavior_states": {
+    "A1": "red",
+    "A2": "red",
+    "A3": "red",
+    "A4": "red",
+    "A5": "red"
+  },
+  "dropped": []
+}

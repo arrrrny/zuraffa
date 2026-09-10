@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "feature": "cycle-log-phantom-sections",
+  "lane": "engine",
+  "verdict": "red",
+  "result": "stopped",
+  "behaviors": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5"
+  ],
+  "counts": {
+    "total": 5,
+    "pending": 0,
+    "red": 5,
+    "green": 0,
+    "done": 0
+  },
+  "stopped_at": "A1:make",
+  "at": "2026-09-10T22:36:10.944110Z"
+}

@@ -26,6 +26,7 @@ import 'package:path/path.dart' as p;
 
 import 'cycle_evidence.dart';
 import 'cycle_log.dart';
+import 'cycle_log_sections.dart';
 import 'replay_paths.dart';
 
 /// One recorded generation step parsed from a green section's
@@ -124,7 +125,7 @@ class ReplayHistory {
     if (!await file.exists()) return const [];
     final raw = await file.readAsString();
     final behaviors = <String, ReplayBehavior>{};
-    for (final section in raw.split('\n## ')) {
+    for (final section in splitCycleLogSections(raw)) {
       final behaviorMatch = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,
