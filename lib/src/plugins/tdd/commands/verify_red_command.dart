@@ -47,6 +47,7 @@ import '../services/artifact_registry.dart';
 import '../services/contract_blocked_receipt.dart';
 import '../services/cycle_evidence.dart';
 import '../services/cycle_log.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/red_classifier.dart';
 import '../services/runner.dart';
@@ -183,7 +184,7 @@ class VerifyRedCommand extends Command<void> {
         behavior: behaviorId ?? '-',
         classification: 'unresolved',
         certified: false,
-        feature: featureFlag ?? 'unknown',
+        feature: _resolvedFeatureName(cwd, featureFlag) ?? 'unknown',
       );
       exitCode = 1;
       return;
@@ -231,7 +232,8 @@ class VerifyRedCommand extends Command<void> {
         behavior: behaviorId ?? '-',
         classification: 'unresolved',
         certified: false,
-        feature: e.feature ?? featureFlag ?? 'unknown',
+        feature:
+            e.feature ?? _resolvedFeatureName(cwd, featureFlag) ?? 'unknown',
       );
       exitCode = 1;
       return;
@@ -451,7 +453,7 @@ class VerifyRedCommand extends Command<void> {
       );
       print(
         '   re-certified: green evidence appended to '
-        'specs/${target.featureName}/tdd/cycle-log.md (issue #1162) — '
+        '${_displayDir(cwd, target.featureDir)}/tdd/cycle-log.md (issue #1162) — '
         'the new subject hash is bound to the passing transcript',
       );
       // Issue #969 T003: the re-certified evidence becomes
@@ -551,7 +553,7 @@ class VerifyRedCommand extends Command<void> {
         ),
       );
       print(
-        '   red evidence appended to specs/${target.featureName}/tdd/'
+        '   red evidence appended to ${_displayDir(cwd, target.featureDir)}/tdd/'
         'cycle-log.md',
       );
       // Issue #969 T003: the red evidence becomes self-certifying.
@@ -640,6 +642,9 @@ class VerifyRedCommand extends Command<void> {
     String? featureFlag,
   ) async {
     final registries = await _scanRegistries(cwd, featureFlag);
+    // Issue #1471: the label is the canonical NAME, never the raw
+    // `.specify/bugs/<slug>` reference.
+    final featureLabel = _resolvedFeatureName(cwd, featureFlag);
 
     if (behaviorId != null) {
       final matches = <_ResolvedTarget>[];
@@ -669,9 +674,9 @@ class VerifyRedCommand extends Command<void> {
         throw VerifyRedResolutionError(
           'unknown behavior id "$behaviorId". No matching record in any '
           'specs/<feature>/tdd/artifacts.json'
-          '${featureFlag != null && featureFlag.isNotEmpty ? ' for feature $featureFlag' : ''}. '
+          '${featureLabel != null ? ' for feature $featureLabel' : ''}. '
           'Run `zfa tdd gen $behaviorId` to materialize it.',
-          feature: featureFlag,
+          feature: featureLabel,
         );
       }
       if (matches.length > 1) {
@@ -722,10 +727,18 @@ class VerifyRedCommand extends Command<void> {
     String? featureFlag,
   ) async {
     if (featureFlag != null && featureFlag.isNotEmpty) {
-      final featureDir = p.join(cwd, 'specs', featureFlag);
+      // Issue #1471: the reference may name a bug directory
+      // (`.specify/bugs/<slug>`) outside `specs/` — resolve it through the
+      // shared resolver so the registry is read from the REAL directory and
+      // the entry is labelled with the canonical name (a plain basename).
+      final resolved = TddFeaturePaths.resolve(
+        projectRoot: cwd,
+        featureRef: featureFlag,
+      );
+      final featureDir = resolved.dir;
       return [
         _RegistryEntry(
-          featureFlag,
+          resolved.name,
           featureDir,
           ArtifactRegistry(featureDir: featureDir),
         ),
@@ -781,7 +794,16 @@ class VerifyRedCommand extends Command<void> {
   ) async {
     List<Directory> dirs;
     if (featureFlag != null && featureFlag.isNotEmpty) {
-      dirs = [Directory(p.join(cwd, 'specs', featureFlag))];
+      // Issue #1471: resolve the reference so a bug directory
+      // (`.specify/bugs/<slug>`) is scanned at its real location.
+      dirs = [
+        Directory(
+          TddFeaturePaths.resolve(
+            projectRoot: cwd,
+            featureRef: featureFlag,
+          ).dir,
+        ),
+      ];
     } else {
       final specsDir = Directory(p.join(cwd, 'specs'));
       if (!await specsDir.exists()) return null;
@@ -903,9 +925,7 @@ class VerifyRedCommand extends Command<void> {
       }
     }
 
-    final featureLabel = featureFlag != null && featureFlag.isNotEmpty
-        ? featureFlag
-        : 'all';
+    final featureLabel = _resolvedFeatureName(cwd, featureFlag) ?? 'all';
     if (targets.isEmpty) {
       print(
         'zfa tdd verify-red --all: no behavior with gen artifacts lacks '
@@ -1086,7 +1106,7 @@ class VerifyRedCommand extends Command<void> {
           ),
         );
         print(
-          '   red evidence appended to specs/${target.featureName}/tdd/'
+          '   red evidence appended to ${_displayDir(cwd, target.featureDir)}/tdd/'
           'cycle-log.md (${record.behaviorId})',
         );
         // Issue #969 T003: the batched red evidence becomes
@@ -1284,27 +1304,44 @@ class VerifyRedCommand extends Command<void> {
   }
 }
 
-/// `--feature` lands in a filesystem path: keep it a single plain
-/// directory segment (mirrors verify_command.dart).
+/// The REAL relative location of [featureDir] from [cwd] (issue #1471) —
+/// the path a user-facing message must name, never a fabricated
+/// `specs/<name>` that a bug directory does not have.
+String _displayDir(String cwd, String featureDir) =>
+    p.relative(featureDir, from: cwd).replaceAll(r'\', '/');
+
+/// The canonical feature NAME a `--feature` reference labels: `specs/<name>`
+/// and `.specify/bugs/<slug>` both collapse to their basename, matching the
+/// registry entries this command scans (issue #1471). Null when no reference
+/// was given.
+String? _resolvedFeatureName(String cwd, String? featureFlag) =>
+    featureFlag != null && featureFlag.isNotEmpty
+    ? TddFeaturePaths.resolve(projectRoot: cwd, featureRef: featureFlag).name
+    : null;
+
+/// `--feature` lands in a filesystem path: accept exactly the shapes
+/// [TddFeaturePaths] resolves (a plain segment, `specs/<name>`,
+/// `.specify/bugs/<slug>`, or an absolute path) and refuse the rest —
+/// `.`, `..`, a traversal shape, or a trailing separator (issue #1471).
 void _validateFeatureSegment(String feature) {
-  if (feature.contains('/') ||
-      feature.contains(r'\') ||
-      feature == '.' ||
-      feature == '..') {
-    throw UsageException(
-      'invalid --feature "$feature": expected a single spec directory name '
-          'such as 046-tdd-verify-red, not a path.',
-      'zfa tdd verify-red [<behavior-id>] [--feature <name>]',
-    );
+  if (TddFeaturePaths.isSupportedRef(feature) &&
+      !feature.endsWith('/') &&
+      !feature.endsWith(r'\')) {
+    return;
   }
+  throw UsageException(
+    'invalid --feature "$feature": expected a single spec directory name '
+        'such as 046-tdd-verify-red, not a path.',
+    'zfa tdd verify-red [<behavior-id>] [--feature <name>]',
+  );
 }
 
 /// Strip a leading `specs/` prefix from a user-supplied --feature
 /// reference. Lets users paste the path format shown throughout
 /// zuraffa's docs and error messages (`specs/<feature>`) without
 /// triggering the segment check above. The traversal guard on
-/// `_validateFeatureSegment` still rejects `..` and absolute paths
-/// after stripping.
+/// `_validateFeatureSegment` still rejects `..` and other escaping
+/// shapes after stripping.
 String _stripSpecsPrefix(String feature) {
   if (feature.startsWith('specs/') || feature.startsWith('specs\\')) {
     final stripped = feature.substring('specs/'.length);

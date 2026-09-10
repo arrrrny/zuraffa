@@ -60,6 +60,7 @@ import 'package:path/path.dart' as p;
 import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/cycle_evidence.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/generated_shape.dart';
 import '../services/journal.dart';
 import '../services/import_resolution.dart';
@@ -119,20 +120,31 @@ class DoctorCommand extends Command<void> {
     if (rest.isEmpty) {
       usageException('Feature name is required: zfa tdd doctor <feature>');
     }
-    final feature = rest.first;
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
-    final featureDir = p.join(cwd, 'specs', feature);
+    // Issue #1471: resolve the reference once — the bug extension's
+    // `.specify/feature.json` pin included — so a bug feature is diagnosed
+    // in `.specify/bugs/<slug>`, never a fabricated `specs/<slug>`. The
+    // display label names the directory the command actually used.
+    final resolved = TddFeaturePaths.resolveWithPin(
+      projectRoot: cwd,
+      featureRef: rest.first,
+    );
+    final feature = resolved.name;
+    final featureDir = resolved.dir;
+    final featureLabel = p
+        .relative(featureDir, from: cwd)
+        .replaceAll(r'\', '/');
 
     if (!await Directory(featureDir).exists()) {
-      print('zfa tdd doctor: no feature directory at specs/$feature');
+      print('zfa tdd doctor: no feature directory at $featureLabel');
       _printVerdict(
         feature: feature,
         verdict: 'refused',
         prescription: 'none',
-        drifts: ['no feature directory at specs/$feature'],
+        drifts: ['no feature directory at $featureLabel'],
       );
       exitCode = 1;
       return;
@@ -217,7 +229,7 @@ class DoctorCommand extends Command<void> {
       final fix = ownersInvolved.length == 1
           ? 'zfa tdd migrate-paths ${ownersInvolved.first}'
           : 'zfa tdd migrate-paths';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -248,9 +260,9 @@ class DoctorCommand extends Command<void> {
       }
       final ids = unowned.keys.toList()..sort();
       final fix = ids
-          .map((id) => 'zfa tdd gen $id --adopt --feature $feature')
+          .map((id) => 'zfa tdd gen $id --adopt --feature ${resolved.ref}')
           .join(' && ');
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -327,7 +339,7 @@ class DoctorCommand extends Command<void> {
     if (missingFiles.isNotEmpty) {
       drifts.addAll(missingFiles);
       final fix = 'zfa tdd reset $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -363,7 +375,7 @@ class DoctorCommand extends Command<void> {
         );
       }
       final fix = 'zfa tdd migrate-paths $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -416,7 +428,7 @@ class DoctorCommand extends Command<void> {
         );
       }
       final fix = 'zfa tdd run $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -470,7 +482,7 @@ class DoctorCommand extends Command<void> {
     if (formDrifts.isNotEmpty) {
       drifts.addAll(formDrifts);
       final fix = 'zfa tdd migrate-paths $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -540,7 +552,7 @@ class DoctorCommand extends Command<void> {
     if (staleArtifacts.isNotEmpty) {
       staleArtifacts.sort();
       final fix = 'zfa tdd reset $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -598,7 +610,7 @@ class DoctorCommand extends Command<void> {
     if (importDrifts.isNotEmpty) {
       drifts.addAll(importDrifts);
       final fix = 'zfa tdd migrate-paths $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -641,7 +653,7 @@ class DoctorCommand extends Command<void> {
     if (runtimeDrifts.isNotEmpty) {
       drifts.addAll(runtimeDrifts);
       const fix = 'dart pub upgrade zuraffa';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -665,7 +677,7 @@ class DoctorCommand extends Command<void> {
       // A corrupt state file cannot be trusted for claims; reset is the
       // honest recovery for the state half.
       final fix = 'zfa tdd reset $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -721,7 +733,7 @@ class DoctorCommand extends Command<void> {
     }
     if (drifts.isNotEmpty) {
       final fix = 'zfa tdd run $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -741,7 +753,7 @@ class DoctorCommand extends Command<void> {
     }
 
     // ---- 4. Healthy --------------------------------------------------
-    print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+    print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
     print('  stores agree — no drift detected');
     _printVerdict(feature: feature, verdict: 'healthy', prescription: 'none');
     exitCode = 0;

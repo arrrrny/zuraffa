@@ -50,6 +50,7 @@ import '../services/arg_placeholder.dart';
 import '../services/cycle_evidence.dart';
 import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/journal.dart';
 import '../services/lane_plans.dart';
 import '../services/lane_receipts.dart';
@@ -229,7 +230,11 @@ class RunDriverCore {
     );
   }
 
-  /// Drive [feature]'s lane through the two-phase loop.
+  /// Drive [featureRef]'s lane through the two-phase loop. [featureRef] is
+  /// the canonical feature REFERENCE (issue #1471): the caller resolved it
+  /// once (the bug-extension pin included), and this driver resolves it
+  /// again so the lane's paths and its spawned children's `--feature`
+  /// agree on one directory.
   ///
   /// - [lane] null — drive EVERY behavior of the test list (the legacy
   ///   single-run contract; used by the meta driver's pre-split fallback
@@ -242,7 +247,7 @@ class RunDriverCore {
   /// - [announce] prints the `feature X — N behavior(s)` banner (the meta
   ///   driver announces its engine lane and silences the skin lane's).
   Future<RunDriverOutcome> drive({
-    required String feature,
+    required String featureRef,
     required String projectRoot,
     String? zfaBin,
     Duration? timeout,
@@ -253,7 +258,16 @@ class RunDriverCore {
     Map<String, int>? mockCounts,
     String? baselineScope,
   }) async {
-    final featureDir = p.join(projectRoot, 'specs', feature);
+    // Issue #1471: the caller hands the canonical REFERENCE — the parent
+    // resolved it once (pin included) and its child steps must resolve the
+    // same directory. [feature] (the NAME) namespaces artifacts and
+    // labels; [featureDir] is every path.
+    final resolved = TddFeaturePaths.resolve(
+      projectRoot: projectRoot,
+      featureRef: featureRef,
+    );
+    final feature = resolved.name;
+    final featureDir = resolved.dir;
     final receipts = LaneReceipts(featureDir);
     // Spec 1113: the lane's journal entry bounds — the cycle started
     // when the driver began, finished when it records its outcome.
@@ -348,7 +362,9 @@ class RunDriverCore {
         drove: false,
         lane: lane,
         message:
-            'test list at specs/$feature/tdd/test-list.md has no behaviors',
+            'test list at '
+            '${p.relative(p.join(featureDir, 'tdd', 'test-list.md'), from: projectRoot).replaceAll(r'\', '/')} '
+            'has no behaviors',
       );
     }
     final activeIds = allRows.map((r) => r.id).toSet();
@@ -470,6 +486,7 @@ class RunDriverCore {
         laneRows: rows,
         receipts: receipts,
         journalStartedAt: journalStartedAt,
+        projectRoot: projectRoot,
         stoppedAt: null,
         message: null,
       );
@@ -522,6 +539,7 @@ class RunDriverCore {
             laneRows: rows,
             receipts: receipts,
             journalStartedAt: journalStartedAt,
+            projectRoot: projectRoot,
             stoppedAt: stop.stoppedAt,
             message: stop.message,
           );
@@ -651,6 +669,8 @@ class RunDriverCore {
         rows: allRows,
         current: current,
         projectRoot: projectRoot,
+        featureDir: featureDir,
+        featureRef: featureRef,
         activeIds: activeIds,
         store: store,
         evidence: evidence,
@@ -674,6 +694,7 @@ class RunDriverCore {
           laneRows: rows,
           receipts: receipts,
           journalStartedAt: journalStartedAt,
+          projectRoot: projectRoot,
           skippedWidgets: skippedWidgets,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
@@ -703,6 +724,8 @@ class RunDriverCore {
         rows: allRows,
         current: current,
         projectRoot: projectRoot,
+        featureDir: featureDir,
+        featureRef: featureRef,
         activeIds: activeIds,
         store: store,
         evidence: evidence,
@@ -726,6 +749,7 @@ class RunDriverCore {
           laneRows: rows,
           receipts: receipts,
           journalStartedAt: journalStartedAt,
+          projectRoot: projectRoot,
           skippedWidgets: skippedWidgets,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
@@ -766,6 +790,8 @@ class RunDriverCore {
         rows: allRows,
         current: current,
         projectRoot: projectRoot,
+        featureDir: featureDir,
+        featureRef: featureRef,
         activeIds: activeIds,
         store: store,
         evidence: evidence,
@@ -789,6 +815,7 @@ class RunDriverCore {
           laneRows: rows,
           receipts: receipts,
           journalStartedAt: journalStartedAt,
+          projectRoot: projectRoot,
           skippedWidgets: skippedWidgets,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
@@ -850,6 +877,7 @@ class RunDriverCore {
         laneRows: rows,
         receipts: receipts,
         journalStartedAt: journalStartedAt,
+        projectRoot: projectRoot,
         stoppedAt: skippedRefactors.isNotEmpty
             ? '${skippedRefactors.keys.first}:refactor'
             : '${skippedWidgets.keys.first}:gen',
@@ -872,6 +900,7 @@ class RunDriverCore {
         laneRows: rows,
         receipts: receipts,
         journalStartedAt: journalStartedAt,
+        projectRoot: projectRoot,
         stoppedAt: null,
         message: 'internal error — loop finished with non-DONE behaviors',
       );
@@ -886,6 +915,7 @@ class RunDriverCore {
       laneRows: rows,
       receipts: receipts,
       journalStartedAt: journalStartedAt,
+      projectRoot: projectRoot,
       stoppedAt: null,
       message: null,
     );
@@ -928,6 +958,7 @@ class RunDriverCore {
     required List<BehaviorRow> laneRows,
     required LaneReceipts receipts,
     required String journalStartedAt,
+    required String projectRoot,
     Map<String, String> skippedWidgets = const {},
     String? stoppedAt,
     String? message,
@@ -977,7 +1008,11 @@ class RunDriverCore {
         // generated test file).
         final handStepViolation =
             stoppedAt != null && stoppedAt.endsWith(':hand')
-            ? _handStepViolationFor(stoppedAt, receipts.featureDir)
+            ? _handStepViolationFor(
+                stoppedAt,
+                receipts.featureDir,
+                projectRoot: projectRoot,
+              )
             : null;
         // Issue #1329: the journal entry carries the failed step's
         // diagnostic evidence (the structured error object) beside the
@@ -1281,6 +1316,8 @@ class RunDriverCore {
     required List<BehaviorRow> rows,
     required RunState current,
     required String projectRoot,
+    required String featureDir,
+    required String featureRef,
     required Set<String> activeIds,
     required RunStateStore store,
     required CycleEvidence evidence,
@@ -1295,7 +1332,7 @@ class RunDriverCore {
   }) async {
     var updated = current;
     var state = updated.behaviorStates[row.id] ?? BehaviorState.pending;
-    final tx = TddTransaction(p.join(projectRoot, 'specs', feature));
+    final tx = TddTransaction(featureDir);
     // Issue #1324: whether THIS drive saw the verify-red unexpected-green
     // skip — the fresh-test signal of the stale-artifacts contradiction
     // when the following make refuses subject-drift.
@@ -1343,10 +1380,13 @@ class RunDriverCore {
 
       StepResult result;
       try {
+        // Issue #1471: hand the child the canonical REFERENCE (never the
+        // bare name), so a bug-directory feature resolves to the same
+        // directory this run resolved.
         result = await runner.run(
           step: step,
           behaviorId: row.id,
-          feature: feature,
+          feature: featureRef,
           projectRoot: projectRoot,
           suiteBaselinePath: suiteBaselinePath,
         );
@@ -1366,8 +1406,7 @@ class RunDriverCore {
                 'spawned)',
             outputTail: _outputTail(e.message),
           ),
-          projectRoot: projectRoot,
-          feature: feature,
+          featureDir: featureDir,
           criterion: row.traces,
         );
         updated = updated.advance(row.id, state);
@@ -1430,7 +1469,7 @@ class RunDriverCore {
           final adopted = result.outcome == 'adopted';
           final placeholderReDrive = result.outcome == 'adopted-placeholder';
           if (!await _hasEvidence(evidence.greenEvidence, row.id)) {
-            await CycleLog(p.join(projectRoot, 'specs', feature)).append(
+            await CycleLog(featureDir).append(
               CycleLogEntry(
                 behaviorId: row.id,
                 kind: CycleEntryKind.green,
@@ -1797,8 +1836,7 @@ class RunDriverCore {
               command: result.command,
               outputTail: _outputTail(result.output),
             ),
-            projectRoot: projectRoot,
-            feature: feature,
+            featureDir: featureDir,
             criterion: row.traces,
           );
           updated = updated.advance(row.id, state);
@@ -1854,8 +1892,7 @@ class RunDriverCore {
             command: result.command,
             outputTail: _outputTail(result.output),
           ),
-          projectRoot: projectRoot,
-          feature: feature,
+          featureDir: featureDir,
           criterion: row.traces,
         );
         updated = updated.advance(row.id, state);
@@ -2098,20 +2135,16 @@ class RunDriverCore {
   /// vocabulary. Content-keyed because the aggregate outcome carries
   /// only `stoppedAt` — and each arm's stop condition is itself keyed on
   /// the same content, so the dispatch is exact for both.
-  String _handStepViolationFor(String stoppedAt, String featureDir) {
+  /// [projectRoot] is the caller's real project root (issue #1471: the
+  /// `specs`-segment walk-up assumed `<root>/specs/<feature>` and
+  /// mis-resolved a bug directory, `.specify/bugs/<slug>`).
+  String _handStepViolationFor(
+    String stoppedAt,
+    String featureDir, {
+    required String projectRoot,
+  }) {
     final behaviorId = stoppedAt.substring(0, stoppedAt.lastIndexOf(':'));
     final feature = p.basename(featureDir);
-    // The feature directory is `<root>/specs/<feature>` in the standard
-    // layout — walk UP through the `specs` segment to the real project
-    // root (issue #1323: the grandparent, not dirname(featureDir), which
-    // resolved to `<root>/specs` and made `_existingGeneratedTestPath`
-    // probe `<root>/specs/test/...` — a path that never exists, so the
-    // probe always degraded to the fallback join). Non-standard layouts
-    // (featureDir directly under the root) keep the parent walk.
-    final featureParent = p.dirname(featureDir);
-    final projectRoot = p.basename(featureParent) == 'specs'
-        ? p.dirname(featureParent)
-        : featureParent;
     final testPath = _existingGeneratedTestPath(
       projectRoot: projectRoot,
       feature: feature,
@@ -2372,12 +2405,11 @@ class RunDriverCore {
   /// never fatal to the driving that already happened.
   Future<void> _recordStepFailure(
     _StepFailure failure, {
-    required String projectRoot,
-    required String feature,
+    required String featureDir,
     required String criterion,
   }) async {
     try {
-      await CycleLog(p.join(projectRoot, 'specs', feature)).append(
+      await CycleLog(featureDir).append(
         CycleLogEntry(
           behaviorId: failure.behaviorId,
           kind: CycleEntryKind.error,
@@ -2484,18 +2516,20 @@ String stripSpecsPrefix(String feature) {
   return feature;
 }
 
-/// Segment check for the positional feature argument: it lands in a
-/// filesystem path, so keep it a single plain directory segment (mirrors
-/// verify_red_command.dart; shared by every driver command).
+/// Reference check for the positional feature argument: it lands in a
+/// filesystem path, so accept exactly the shapes [TddFeaturePaths]
+/// resolves (a plain segment, `specs/<name>`, `.specify/bugs/<slug>`, or
+/// an absolute path) and refuse the rest — `.`, `..`, a traversal shape,
+/// or a trailing separator (issue #1471). Shared by every driver command.
 void validateFeatureSegment(String feature, String invocation) {
-  if (feature.contains('/') ||
-      feature.contains(r'\') ||
-      feature == '.' ||
-      feature == '..') {
-    throw UsageException(
-      'invalid feature "$feature": expected a single spec directory name '
-      'such as 049-tdd-run, not a path.',
-      invocation,
-    );
+  if (TddFeaturePaths.isSupportedRef(feature) &&
+      !feature.endsWith('/') &&
+      !feature.endsWith(r'\')) {
+    return;
   }
+  throw UsageException(
+    'invalid feature "$feature": expected a single spec directory name '
+    'such as 049-tdd-run, not a path.',
+    invocation,
+  );
 }

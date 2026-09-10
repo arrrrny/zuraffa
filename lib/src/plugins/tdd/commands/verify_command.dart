@@ -33,6 +33,7 @@ import '../../../core/project/receipt_store.dart';
 import '../services/behavior_kind_trace.dart';
 import '../services/mutation_auditor.dart';
 import '../services/explain_emitter.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/receipt_preflight.dart';
 import '../services/requirement_scan.dart';
 import '../services/tdd_timeout.dart';
@@ -118,6 +119,13 @@ class VerifyCommand extends Command<void> {
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
+    // Issue #1471: resolve the --feature reference once — the bug
+    // extension's `.specify/feature.json` pin included — so a bug feature
+    // is audited in `.specify/bugs/<slug>`, never a fabricated
+    // `specs/<slug>`. Null when no --feature was given.
+    final resolved = (feature != null && feature.isNotEmpty)
+        ? TddFeaturePaths.resolveWithPin(projectRoot: cwd, featureRef: feature)
+        : null;
 
     // Bug #742: the --timeout override for the preflight and the mutation
     // run (one uniform deadline for both when given).
@@ -155,9 +163,7 @@ class VerifyCommand extends Command<void> {
     }
 
     // Resolve the feature directory. Treat empty string as absent.
-    final featureName = (feature != null && feature.isNotEmpty)
-        ? feature
-        : _resolveFeatureFromCwd(cwd);
+    final featureName = resolved?.name ?? _resolveFeatureFromCwd(cwd);
     if (featureName == null) {
       stderr.writeln(
         'zfa tdd verify: no --feature specified and no feature directory '
@@ -165,7 +171,10 @@ class VerifyCommand extends Command<void> {
       );
       throw StateError('zfa tdd verify: feature not specified');
     }
-    final featureDir = p.join(cwd, 'specs', featureName);
+    final featureDir = resolved?.dir ?? p.join(cwd, 'specs', featureName);
+    final verificationRelPath = p
+        .relative(p.join(featureDir, 'tdd', 'verification.md'), from: cwd)
+        .replaceAll(r'\', '/');
 
     // Drift gate (bug #846): when the plan artifact carries a
     // traceability hash, the spec contract must be unchanged — a spec
@@ -384,8 +393,7 @@ class VerifyCommand extends Command<void> {
           'timed_out=${report.timedOutCount}, '
           'mutation_was_run=${report.mutationWasRun}'
           '${report.notAssessedReason == null ? '' : ' — not assessed: ${report.notAssessedReason}'}'
-          '. The full report is '
-          '${p.join('specs', featureName, 'tdd', 'verification.md')}.',
+          '. The full report is $verificationRelPath.',
     );
 
     // Bug #837 exit protocol: a quality failure (survived or timed-out
@@ -402,7 +410,7 @@ class VerifyCommand extends Command<void> {
       throw UsageException(
         'mutation audit gate: ${report.gate.label}'
             '${report.notAssessedReason != null ? ' (${report.notAssessedReason})' : ''}',
-        'See specs/$featureName/tdd/verification.md for the full report.',
+        'See $verificationRelPath for the full report.',
       );
     }
   }
@@ -471,20 +479,23 @@ class _TraceabilityDrift {
   final String reason;
 }
 
-/// `--feature` lands in a filesystem path, so it must stay a single plain
-/// directory segment: a value like `../../etc` would otherwise create and
-/// append to a file outside `specs/`.
+/// `--feature` lands in a filesystem path: accept exactly the shapes
+/// [TddFeaturePaths] resolves (a plain segment, `specs/<name>`,
+/// `.specify/bugs/<slug>`, or an absolute path) and refuse the rest —
+/// `.`, `..`, a traversal shape, or a trailing separator (issue #1471),
+/// so a value like `../../etc` can never create or append to a file
+/// outside the feature directory.
 void _validateFeatureSegment(String feature) {
-  if (feature.contains('/') ||
-      feature.contains(r'\') ||
-      feature == '.' ||
-      feature == '..') {
-    throw UsageException(
-      'invalid --feature "$feature": expected a single spec directory name '
-          'such as 044-test-tdd-generation, not a path.',
-      'zfa tdd verify [--feature <name>]',
-    );
+  if (TddFeaturePaths.isSupportedRef(feature) &&
+      !feature.endsWith('/') &&
+      !feature.endsWith(r'\')) {
+    return;
   }
+  throw UsageException(
+    'invalid --feature "$feature": expected a single spec directory name '
+        'such as 044-test-tdd-generation, not a path.',
+    'zfa tdd verify [--feature <name>]',
+  );
 }
 
 /// Try to resolve the feature directory from the cwd. Used when --feature

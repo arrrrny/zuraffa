@@ -64,6 +64,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/pass_registry_tracker.dart';
 import '../services/refactor_passes.dart';
 import '../services/refactor_receipt_refresh.dart';
@@ -233,6 +234,11 @@ class RefactorCommand extends Command<void> {
     RefactorOutcome outcome;
     int applied = 0;
     String featureName = featureFlag ?? 'unknown';
+    // Issue #1471: every artifact path uses the RESOLVED feature directory
+    // (a bug directory lives outside `specs/`); [featureName] stays the
+    // canonical plain basename for labels, cycle-log behavior ids and
+    // receipts.
+    String featureDir = p.join(cwd, 'specs', featureName);
     final commandStartedAt = DateTime.now();
     // Issue #922: how many failures each suite verdict tolerated as
     // pre-existing (recorded in the run baseline) — 0 when the verdict
@@ -244,10 +250,23 @@ class RefactorCommand extends Command<void> {
     try {
       // 1. Resolve feature (for cycle-log destination).
       if (featureFlag != null && featureFlag.isNotEmpty) {
-        featureName = featureFlag;
+        // Issue #1471: the reference may name a bug directory
+        // (`.specify/bugs/<slug>`) outside `specs/` — resolve through the
+        // shared resolver so artifacts land beside the real spec.
+        final resolved = TddFeaturePaths.resolve(
+          projectRoot: cwd,
+          featureRef: featureFlag,
+        );
+        featureName = resolved.name;
+        featureDir = resolved.dir;
       } else {
         featureName = await _inferFeature(cwd) ?? 'default';
+        featureDir = p.join(cwd, 'specs', featureName);
       }
+      // Issue #1471: the REAL relative location for user-facing messages.
+      final featureDisplay = p
+          .relative(featureDir, from: cwd)
+          .replaceAll(r'\', '/');
 
       // 2. Preflight (FR-001, FR-002) — load the profile suite template.
       final runner = const SingleTestRunner();
@@ -480,16 +499,14 @@ class RefactorCommand extends Command<void> {
         final formatPass = passResult.actions
             .where((a) => a.filesChanged.isNotEmpty)
             .lastOrNull;
-        await PassRegistryTracker(
-          featureDir: p.join(cwd, 'specs', featureName),
-        ).record(
+        await PassRegistryTracker(featureDir: featureDir).record(
           changedFiles: libChanged,
           capturedAt: DateTime.now().toUtc().toIso8601String(),
           command: formatPass?.command,
         );
       }
       final artifacts = await ArtifactRegistry(
-        featureDir: p.join(cwd, 'specs', featureName),
+        featureDir: featureDir,
       ).loadAll();
       // Issue #1430: a sanctioned rewrite of a CERTIFIED subject strands
       // its green evidence — the next make's #1036 guard would refuse the
@@ -616,6 +633,7 @@ class RefactorCommand extends Command<void> {
         );
         await _appendReproofDiagnostics(
           cwd: cwd,
+          featureDir: featureDir,
           featureName: featureName,
           reproofCommand: reproofCommand,
           reproof: reproof,
@@ -652,6 +670,7 @@ class RefactorCommand extends Command<void> {
           }
           await _appendReproofDiagnostics(
             cwd: cwd,
+            featureDir: featureDir,
             featureName: featureName,
             reproofCommand: reproofCommand,
             reproof: reproof,
@@ -720,6 +739,7 @@ class RefactorCommand extends Command<void> {
           // tail — so the regression is auditable instead of silent.
           await _appendReproofDiagnostics(
             cwd: cwd,
+            featureDir: featureDir,
             featureName: featureName,
             reproofCommand: reproofCommand,
             reproof: reproof,
@@ -803,7 +823,7 @@ class RefactorCommand extends Command<void> {
         // Clean no-op — no fabricated actions.
         print('   no actions applied — clean no-op.');
         outcome = RefactorOutcome.clean;
-        final log = CycleLog(p.join(cwd, 'specs', featureName));
+        final log = CycleLog(featureDir);
         await log.append(
           CycleLogEntry(
             behaviorId: '$featureName-refactor',
@@ -824,7 +844,7 @@ class RefactorCommand extends Command<void> {
       } else {
         outcome = RefactorOutcome.refactored;
         // Append refactor evidence.
-        final log = CycleLog(p.join(cwd, 'specs', featureName));
+        final log = CycleLog(featureDir);
         await log.append(
           CycleLogEntry(
             behaviorId: '$featureName-refactor',
@@ -848,7 +868,7 @@ class RefactorCommand extends Command<void> {
           ),
         );
         print(
-          '   refactor evidence appended to specs/$featureName/tdd/'
+          '   refactor evidence appended to $featureDisplay/tdd/'
           'cycle-log.md',
         );
         // Issue #1430: the green re-proof above is the witness — re-bind
@@ -915,6 +935,7 @@ class RefactorCommand extends Command<void> {
   /// prints a warning and never masks the primary verdict.
   Future<void> _appendReproofDiagnostics({
     required String cwd,
+    required String featureDir,
     required String featureName,
     required String reproofCommand,
     required SuiteRunRecord reproof,
@@ -923,8 +944,13 @@ class RefactorCommand extends Command<void> {
     FailureClass? classification,
     List<RefactorAction> actions = const [],
   }) async {
+    // Issue #1471: name the REAL directory in the warning, not a
+    // fabricated `specs/<name>` path.
+    final featureDisplay = p
+        .relative(featureDir, from: cwd)
+        .replaceAll(r'\', '/');
     try {
-      await CycleLog(p.join(cwd, 'specs', featureName)).append(
+      await CycleLog(featureDir).append(
         CycleLogEntry(
           behaviorId: '$featureName-refactor',
           kind: CycleEntryKind.refactor,
@@ -945,7 +971,7 @@ class RefactorCommand extends Command<void> {
     } catch (e) {
       print(
         '   WARNING: could not append re-proof diagnostics to '
-        'specs/$featureName/tdd/cycle-log.md: $e',
+        '$featureDisplay/tdd/cycle-log.md: $e',
       );
     }
   }
@@ -1017,17 +1043,19 @@ class RefactorCommand extends Command<void> {
   }
 }
 
-/// `--feature` lands in a filesystem path: keep it a single plain
-/// directory segment (mirrors verify_command.dart).
+/// `--feature` lands in a filesystem path: accept exactly the shapes
+/// [TddFeaturePaths] resolves (a plain segment, `specs/<name>`,
+/// `.specify/bugs/<slug>`, or an absolute path) and refuse the rest —
+/// `.`, `..`, a traversal shape, or a trailing separator (issue #1471).
 void _validateFeatureSegment(String feature) {
-  if (feature.contains('/') ||
-      feature.contains(r'\') ||
-      feature == '.' ||
-      feature == '..') {
-    throw UsageException(
-      'invalid --feature "$feature": expected a single spec directory name '
-          'such as 048-tdd-refactor, not a path.',
-      'zfa tdd refactor [--feature <name>] [--project <path>]',
-    );
+  if (TddFeaturePaths.isSupportedRef(feature) &&
+      !feature.endsWith('/') &&
+      !feature.endsWith(r'\')) {
+    return;
   }
+  throw UsageException(
+    'invalid --feature "$feature": expected a single spec directory name '
+        'such as 048-tdd-refactor, not a path.',
+    'zfa tdd refactor [--feature <name>] [--project <path>]',
+  );
 }
