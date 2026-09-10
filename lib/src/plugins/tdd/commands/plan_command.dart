@@ -20,6 +20,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/lane.dart';
 import '../models/routing.dart';
+import '../services/declared_routing.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/i18n_key_contract.dart';
@@ -33,6 +34,7 @@ import '../services/spec_parser.dart';
 import '../services/platform_layout_contract.dart';
 import '../services/platform_coverage_ledger.dart';
 import '../services/test_list_reader.dart';
+import '../services/unit_contract_shape.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/ui_ledger_projection.dart';
 import '../services/verdict_emitter.dart';
@@ -1092,6 +1094,22 @@ class PlanCommand extends Command<void> {
       return;
     }
 
+    // SPEC 1489 (SC-4): the unit lane's hand-step forecast — how many
+    // unit behaviors will hand-step because their declared contract
+    // returns an entity that does not exist on disk yet. Resolved once,
+    // here, so the test list and the summary line carry the same
+    // numbers; best-effort (the shape's counter never throws past a
+    // per-behavior resolution failure).
+    final unitBehaviorIds = [
+      for (final b in expressible)
+        if (b.kind == BehaviorKind.unit) b.id,
+    ];
+    final seamForecast = await _entityReturnSeamForecast(
+      cwd: repoRoot,
+      featureName: feature,
+      featureDir: featureDir,
+      unitBehaviorIds: unitBehaviorIds,
+    );
     await outFile.writeAsString(
       _render(
         feature,
@@ -1104,6 +1122,7 @@ class PlanCommand extends Command<void> {
         declarations.persistence,
         provenanceLines,
         contractTraces,
+        seamForecast,
       ),
     );
     // Issue #1141: the UI surface ledger artifact (the legacy single-file
@@ -1156,6 +1175,15 @@ class PlanCommand extends Command<void> {
     stdout.writeln(
       'zfa tdd plan: wrote $outFile with $laneList behaviors ($total total).',
     );
+    // SPEC 1489 (SC-4): the forecast rides the summary — the exact
+    // seam-cost wording the test list carries.
+    final seamLine = UnitContractShape.entityReturnSeamCostLine(
+      seams: seamForecast.seams,
+      total: seamForecast.total,
+    );
+    if (seamLine != null) {
+      stdout.writeln('zfa tdd plan: $seamLine');
+    }
     if (entities.isNotEmpty) {
       stdout.writeln(
         'zfa tdd plan: extracted ${entities.length} Key Entity('
@@ -1190,6 +1218,42 @@ class PlanCommand extends Command<void> {
     );
   }
 
+  /// The unit lane's hand-step forecast (SPEC 1489 SC-4): resolves every
+  /// unit behavior's declared contract (the same machinery gen resolves)
+  /// and counts the entity-shaped returns whose entity does not exist on
+  /// disk yet. Best-effort: an unreadable/malformed declaration is
+  /// skipped (gen refuses those later, plan does not fail on them).
+  static Future<({int seams, int total})> _entityReturnSeamForecast({
+    required String cwd,
+    required String featureName,
+    required String featureDir,
+    required List<String> unitBehaviorIds,
+  }) {
+    final total = unitBehaviorIds.length;
+    return Future(() async {
+      final declared = <Signature?>[];
+      for (final id in unitBehaviorIds) {
+        try {
+          declared.add(
+            await DeclaredRouting.declaredSignatureFor(
+              cwd: cwd,
+              featureName: featureName,
+              featureDir: featureDir,
+              behaviorId: id,
+            ),
+          );
+        } on StateError {
+          declared.add(null); // malformed: gen refuses later, plan skips
+        }
+      }
+      final seams = await UnitContractShape.countEntityReturnSeamsResolved(
+        declared: declared,
+        cwd: cwd,
+      );
+      return (seams: seams, total: total);
+    });
+  }
+
   String _render(
     String feature,
     List<Behavior> behaviors,
@@ -1201,6 +1265,7 @@ class PlanCommand extends Command<void> {
     Map<String, PersistenceDeclaration> persistenceDeclarations,
     Map<String, List<String>> provenanceLines,
     Map<String, List<String>> contractTraces,
+    ({int seams, int total})? seamForecast,
   ) {
     final acceptance = behaviors
         .where((b) => b.kind == BehaviorKind.acceptance)
@@ -1273,6 +1338,19 @@ class PlanCommand extends Command<void> {
         '| ${b.id} | ${_escapeCell(_marked(b, persistenceDeclarations))} | '
         '${_escapeCell(_tracesCell(b, contractTraces))} | PENDING |',
       );
+    }
+    // SPEC 1489 (SC-4): the unit lane's hand-step forecast — the seam
+    // cost the run will otherwise discover one behavior at a time.
+    final seamLine = seamForecast == null
+        ? null
+        : UnitContractShape.entityReturnSeamCostLine(
+            seams: seamForecast.seams,
+            total: seamForecast.total,
+          );
+    if (seamLine != null) {
+      buf
+        ..writeln()
+        ..writeln(seamLine);
     }
     // Issue #1007: the CONTRACT lane — one row per declared entity
     // method, controller method and usecase of the spec's Layer

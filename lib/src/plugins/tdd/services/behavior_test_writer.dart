@@ -206,6 +206,13 @@ class BehaviorTestWriter {
       '${b.id} (${b.sourceCriterion})',
     );
     final assertion = _deriveAssertion(b);
+    // SPEC 1489: the paired test imports exactly the return entity when
+    // its assertion references the declared type (the entity-return
+    // scalarOutcome path — `isA<Task>()` cannot compile against an
+    // unimported type). Param entities are NOT imported: the `_argN()`
+    // placeholders own those (spec 991), so no unused imports. Empty for
+    // every legacy shape — the template stays byte-identical.
+    final entityImportLines = _testEntityImportLines();
     return '''
 // GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
 //
@@ -223,7 +230,7 @@ class BehaviorTestWriter {
 library;
 
 import '$_testImport';
-import '$relativeSubjectPath' as subject;
+${entityImportLines}import '$relativeSubjectPath' as subject;
 
 void main() {
   group('$escapedGroupDescription', () {
@@ -233,6 +240,19 @@ void main() {
   });
 }
 ''';
+  }
+
+  /// The entity-import lines the paired unit test emits (SPEC 1489): the
+  /// declared RETURN entity's import, exactly when the test's assertion
+  /// references the declared type — the entity-return `scalarOutcome`
+  /// path. Empty for scalars, for missing entities (the guard path), and
+  /// for every legacy shape.
+  String _testEntityImportLines() {
+    final shape = contractShape;
+    if (shape == null || !shape.scalarOutcome) return '';
+    if (isAssertableScalarType(shape.declaredReturn)) return '';
+    if (shape.returnEntityImports.isEmpty) return '';
+    return "${shape.returnEntityImports.map((uri) => "import '$uri';").join('\n')}\n";
   }
 
   /// Derive the test's assertion from the behavior description. The
