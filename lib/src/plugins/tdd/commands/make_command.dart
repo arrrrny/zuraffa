@@ -70,6 +70,7 @@ import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import '../../../cli/exit_protocol.dart';
 
 import '../models/generation_plan.dart';
 import '../models/red_classification.dart';
@@ -164,6 +165,13 @@ class MakeCommand extends Command<void> {
           'allowed (0.5 = 30 seconds). On timeout the child is killed '
           '(SIGKILL) and the command stops non-zero as runner-error (bug '
           '#742).',
+    );
+    argParser.addOption(
+      'baseline-scope',
+      help:
+          'Issue #1374: scope the LIVE suite baseline to a directory '
+          '(canonically the feature test dir) so the first baseline can '
+          'be produced on constrained agents.',
     );
     argParser.addOption(
       'suite-baseline',
@@ -288,6 +296,22 @@ class MakeCommand extends Command<void> {
 
     final zfaBinFlag = argResults?['zfa-bin'] as String?;
     final suiteBaselineFlag = argResults?['suite-baseline'] as String?;
+    // Issue #1374: the constrained-agent escape hatch for the live
+    // baseline branch below.
+    final baselineScope = argResults?['baseline-scope'] as String?;
+    if (baselineScope != null) {
+      final scopeNorm = p.normalize(baselineScope);
+      if (p.isAbsolute(scopeNorm) ||
+          scopeNorm == '..' ||
+          scopeNorm.startsWith('../')) {
+        print(
+          'zfa tdd make: --baseline-scope must be a directory relative to '
+          'the project root (got "$baselineScope")',
+        );
+        exitCode = ExitProtocol.usage;
+        return;
+      }
+    }
     final suiteBaselinePath =
         suiteBaselineFlag != null && suiteBaselineFlag.isNotEmpty
         ? suiteBaselineFlag
@@ -882,9 +906,14 @@ class MakeCommand extends Command<void> {
           '(issue #741)',
         );
       } else {
-        print('   suite baseline: $suiteTemplate');
+        // Issue #1374: the constrained-agent escape hatch — scope the
+        // baseline suite command to a path.
+        final scopedTemplate = baselineScope == null
+            ? suiteTemplate
+            : '$suiteTemplate $baselineScope';
+        print('   suite baseline: $scopedTemplate');
         final baselineRun = await runner.runSuite(
-          suiteTemplate: suiteTemplate,
+          suiteTemplate: scopedTemplate,
           workingDirectory: cwd,
           // Issue #1159: the --timeout override is ONE uniform deadline
           // (bug #742 contract) — the fallback live baseline included.

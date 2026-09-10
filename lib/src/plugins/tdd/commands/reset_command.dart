@@ -150,6 +150,20 @@ class ResetCommand extends Command<void> {
     // Per dropped record: the recorded paths that did NOT exist at reset
     // time (the path-drift class the old reset kept silent about).
     final pathDrift = <String>[];
+    // Issue #1380: the namespace agreement applies to the RECORDED paths
+    // too — a poisoned/stale record naming another feature's namespace is
+    // path drift (kept + warned), never a delete.
+    String? foreignNamespaceSegment(String normalized) {
+      for (final lane in ['test/tdd', 'lib/tdd']) {
+        final laneAbs = p.join(cwd, lane);
+        if (p.isWithin(laneAbs, normalized)) {
+          final segments = p.relative(normalized, from: laneAbs).split('/');
+          if (segments.length >= 2) return segments.first;
+        }
+      }
+      return null;
+    }
+
     for (final record in records) {
       for (final (role, raw) in [
         ('test', record.testPath),
@@ -157,6 +171,16 @@ class ResetCommand extends Command<void> {
       ]) {
         final normalized = normalizeArtifactPath(cwd, raw);
         if (File(normalized).existsSync()) {
+          final foreignSegment = foreignNamespaceSegment(normalized);
+          if (foreignSegment != null && foreignSegment != feature) {
+            pathDrift.add(
+              '${record.behaviorId}: recorded $role path '
+              '${_displayPath(cwd, normalized)} is in another '
+              'feature\'s namespace ($foreignSegment) — kept, never '
+              'deleted',
+            );
+            continue;
+          }
           if (!ownedExisting.contains(normalized)) {
             ownedExisting.add(normalized);
           }
@@ -370,6 +394,19 @@ class ResetCommand extends Command<void> {
             matchesGeneratedTestShape(content, id) ||
             matchesGeneratedSubjectShape(content, id);
         if (!shaped) continue;
+        // Issue #1380: a bare behavior id (A1, U1, ...) is SHARED across
+        // features — a generated-shape file under ANOTHER feature's
+        // namespace (test/tdd/<other-feature>/…) is foreign even when
+        // its header names a dropped id, and even when no live registry
+        // owns it. The namespace segment after the lane root must equal
+        // the feature being reset; flat (pre-namespaced) candidates keep
+        // the header-match behavior.
+        final laneRelative = p.relative(normalized, from: dir);
+        final segments = laneRelative.split('/');
+        if (segments.length >= 2 && segments.first != feature) {
+          foreignOwnedLookingById.putIfAbsent(id, () => []).add(normalized);
+          continue;
+        }
         final owner = ownersByPath[normalizeArtifactPath(cwd, normalized)];
         if (owner != null && owner != feature) {
           foreignOwnedLookingById.putIfAbsent(id, () => []).add(normalized);

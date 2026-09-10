@@ -17,8 +17,10 @@ literal as the anchor, never a pinned EN literal.
 ## Acceptance Scenarios
 
 1. **Given** valid credentials **When** the user submits the login form **Then** the session starts with the authenticated user
+   **Type**: acceptance
 
 2. **Given** invalid credentials **When** the login attempt fails **Then** the error is reported to the caller
+   **Type**: acceptance
 
 3. **Given** the login view **When** it renders **Then** the app shows 'Sign in'
    **Type**: widget
@@ -38,6 +40,7 @@ literal as the anchor, never a pinned EN literal.
 ## Functional Requirements
 
 - **FR-001**: The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos).
+      traces: adaptive_layouts
 
 ## Lanes
 

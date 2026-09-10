@@ -371,9 +371,25 @@ class SpecParser {
     caseSensitive: false,
   );
 
+  /// Issue #1381: the pre-#919 2-column Key Entities header
+  /// (`| Entity | Fields |`) — bug #919 kept pre-919 artifacts readable
+  /// everywhere else, so the parser accepts this header too instead of
+  /// silently extracting zero entities (which made the run-engine cert
+  /// gate pass trivially).
+  static final RegExp _entityTableHeader2Col = RegExp(
+    r'^\s*\|\s*entity\s*\|\s*fields\s*\|\s*$',
+    caseSensitive: false,
+  );
+
   /// A Key Entities table row: `| Name | `f: T`, `g: U` | purpose |`.
   static final RegExp _entityTableRow = RegExp(
     r'^\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|\s*$',
+  );
+
+  /// A 2-column Key Entities table row: `| Name | `f: T`, `g: U` |`
+  /// (issue #1381 — no Purpose column).
+  static final RegExp _entityTableRow2Col = RegExp(
+    r'^\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*$',
   );
 
   /// A Key Entities table separator row (`| -- | -- | -- |`).
@@ -911,22 +927,33 @@ class SpecParser {
     final entities = <SpecEntity>[];
     var inSection = false;
     var tableMode = false;
+    var tableColumns = 0;
     for (final line in normalizeSpecText(specMd).split('\n')) {
       final trimmed = line.trim();
       if (trimmed.startsWith('#')) {
         inSection = _matchesSectionHeading(trimmed, _keyEntitiesHeading);
         tableMode = false;
+        tableColumns = 0;
         continue;
       }
       if (!inSection) continue;
       if (trimmed.isEmpty) continue;
       if (_entityTableHeader.hasMatch(trimmed)) {
         tableMode = true;
+        tableColumns = 3;
+        continue;
+      }
+      if (_entityTableHeader2Col.hasMatch(trimmed)) {
+        tableMode = true;
+        tableColumns = 2;
         continue;
       }
       if (_tableSeparator.hasMatch(trimmed)) continue;
       if (tableMode) {
-        final m = _entityTableRow.firstMatch(trimmed);
+        final rowRegex = tableColumns == 2
+            ? _entityTableRow2Col
+            : _entityTableRow;
+        final m = rowRegex.firstMatch(trimmed);
         if (m == null) {
           // End of the table — fall through to bullet handling so a
           // mixed section still extracts its bullet-declared entities.
@@ -948,7 +975,7 @@ class SpecParser {
             SpecEntity(
               name: name,
               fields: fields,
-              purpose: (m.group(3) ?? '').trim(),
+              purpose: tableColumns == 3 ? (m.group(3) ?? '').trim() : '',
             ),
           );
           continue;
