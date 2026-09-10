@@ -93,7 +93,7 @@ class TddCommand extends Command<void> {
     printUsage();
   }
 
-  static const int _lineLength = 80;
+  static const int _lineLength = 120;
 
   static String _padRight(String source, int length) =>
       source + ' ' * (length - source.length);
@@ -184,6 +184,7 @@ class TddCommand extends Command<void> {
         buffer.write(' ' * columnStart);
         buffer.write(line);
       }
+      buffer.writeln();
     }
     return 'Usage: $invocation\n'
         '${argParser.usage}\n'
