@@ -64,50 +64,43 @@ void main() {
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
 
-  Future<String> plan() => CliRunner(exitOnCompletion: false).runCapturing([
-        'tdd',
-        'plan',
-        '--project',
-        tmpDir.path,
-        feature,
-      ]);
+  Future<String> plan() => CliRunner(
+    exitOnCompletion: false,
+  ).runCapturing(['tdd', 'plan', '--project', tmpDir.path, feature]);
 
-  Map<String, dynamic> receipt() => jsonDecode(
-        File(p.join(tddDir, 'split-receipt.json')).readAsStringSync(),
-      ) as Map<String, dynamic>;
+  Map<String, dynamic> receipt() =>
+      jsonDecode(File(p.join(tddDir, 'split-receipt.json')).readAsStringSync())
+          as Map<String, dynamic>;
 
-  test('B1: plan without a receipt writes one (source: zfa tdd plan)',
-      () async {
-    expect(
-      File(p.join(tddDir, 'split-receipt.json')).existsSync(),
-      isFalse,
-      reason: 'precondition: no migration record',
-    );
+  test(
+    'B1: plan without a receipt writes one (source: zfa tdd plan)',
+    () async {
+      expect(
+        File(p.join(tddDir, 'split-receipt.json')).existsSync(),
+        isFalse,
+        reason: 'precondition: no migration record',
+      );
 
-    final out = await plan();
-    expect(exitCode, 0, reason: out);
+      final out = await plan();
+      expect(exitCode, 0, reason: out);
 
-    final loaded = receipt();
-    expect(loaded['source'], 'zfa tdd plan');
-    expect(loaded['spec_hash'], isA<String>());
-    expect(loaded['classification'], isA<Map>());
-  });
+      final loaded = receipt();
+      expect(loaded['source'], 'zfa tdd plan');
+      expect(loaded['spec_hash'], isA<String>());
+      expect(loaded['classification'], isA<Map>());
+    },
+  );
 
-  test('B2: the plan-written receipt satisfies the one-shot guard',
-      () async {
+  test('B2: the plan-written receipt satisfies the one-shot guard', () async {
     final planOut = await plan();
     expect(exitCode, 0, reason: planOut);
 
     // The guard that refused the committed fixture in the issue: a
     // meta-index without a receipt. With the plan-written receipt, a
     // plain split resolves honestly instead of dead-ending.
-    final out = await CliRunner(exitOnCompletion: false).runCapturing([
-      'tdd',
-      'split',
-      '--project',
-      tmpDir.path,
-      feature,
-    ]);
+    final out = await CliRunner(
+      exitOnCompletion: false,
+    ).runCapturing(['tdd', 'split', '--project', tmpDir.path, feature]);
     expect(out, isNot(contains('the migration record was lost')));
     expect(out, isNot(contains('Null check operator')));
   });
@@ -128,8 +121,11 @@ void main() {
     expect(exitCode, 0, reason: out);
 
     final loaded = receipt();
-    expect(loaded['custom_marker'], 'keep-me',
-        reason: 'pre-existing receipt fields are preserved by the merge');
+    expect(
+      loaded['custom_marker'],
+      'keep-me',
+      reason: 'pre-existing receipt fields are preserved by the merge',
+    );
     expect(loaded['refreshed_by'], 'zfa tdd plan');
     expect(loaded['spec_hash'], isA<String>());
   });
