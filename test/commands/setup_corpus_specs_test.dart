@@ -46,15 +46,16 @@ void main() {
   }
 
   group('U19 (FR-001): --specs triggers the import step', () {
-    test('the corpus import runs after the TDD baseline step, with 8-step '
+    test('the corpus import runs after the TDD baseline step, with 9-step '
         'numbering when present', () async {
       final out = await runSetup(specs: corpus.root.path);
 
-      // The import step is numbered 7 of 8 and runs after the
-      // TDD-baseline step (6 of 8) and before the summary (8 of 8).
-      final baselineIdx = out.indexOf('[6/8]');
-      final importIdx = out.indexOf('[7/8]');
-      final summaryIdx = out.indexOf('[8/8]');
+      // The import step is numbered 7 of 9 and runs after the
+      // TDD-baseline step (6 of 9) and before the app shell (8 of 9)
+      // and the summary (9 of 9).
+      final baselineIdx = out.indexOf('[6/9]');
+      final importIdx = out.indexOf('[7/9]');
+      final summaryIdx = out.indexOf('[9/9]');
       expect(baselineIdx, greaterThanOrEqualTo(0), reason: out);
       expect(importIdx, greaterThan(baselineIdx), reason: out);
       expect(summaryIdx, greaterThan(importIdx), reason: out);
@@ -64,8 +65,8 @@ void main() {
       // setup --dry-run must not write the corpus into the app).
       expect(out, contains('[dry-run] 001-clean: imported'));
       expect(out, contains('not-ready'));
-      expect(RegExp(r'\[\d+/8\]').allMatches(out), isNotEmpty);
-      expect(RegExp(r'\[\d+/(?!8\d*\])').hasMatch(out), isFalse);
+      expect(RegExp(r'\[\d+/9\]').allMatches(out), isNotEmpty);
+      expect(RegExp(r'\[\d+/(?!9\d*\])').hasMatch(out), isFalse);
     });
 
     test('exposes the --specs option', () {
@@ -75,20 +76,18 @@ void main() {
   });
 
   group('U20 (FR-001): setup without --specs is unchanged', () {
-    test(
-      'no corpus import step, legacy 7-step numbering, no corpus output',
-      () async {
-        final out = await runSetup();
+    test('no corpus import step, 8-step numbering, no corpus output', () async {
+      final out = await runSetup();
 
-        expect(out, contains('[7/7]'));
-        expect(out, isNot(contains('[7/8]')));
-        expect(out, isNot(contains('[8/8]')));
-        expect(out, isNot(contains('Importing spec corpus')));
-        expect(out, isNot(contains('corpus-manifest')));
-        expect(RegExp(r'\[\d+/7\]').allMatches(out), isNotEmpty);
-        expect(RegExp(r'\[\d+/(?!7\d*\])').hasMatch(out), isFalse);
-      },
-    );
+      expect(out, contains('[8/8]'));
+      expect(out, isNot(contains('[7/9]')));
+      expect(out, isNot(contains('[8/9]')));
+      expect(out, isNot(contains('[9/9]')));
+      expect(out, isNot(contains('Importing spec corpus')));
+      expect(out, isNot(contains('corpus-manifest')));
+      expect(RegExp(r'\[\d+/8\]').allMatches(out), isNotEmpty);
+      expect(RegExp(r'\[\d+/(?!8\d*\])').hasMatch(out), isFalse);
+    });
 
     test('rejects an invalid corpus before creating the app', () async {
       final missing = '${workDir.path}/missing-corpus';
