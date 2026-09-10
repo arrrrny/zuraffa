@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
+import 'package:yaml/yaml.dart';
 
 import '../cli/services/corpus_importer.dart';
 import '../cli/writers/tdd/app_module_writer.dart';
@@ -12,8 +13,11 @@ import '../cli/writers/tdd/tdd_example_writer.dart';
 import '../cli/writers/tdd/tdd_profile_writer.dart';
 import '../config/zfa_config.dart';
 import '../core/branding/branding_writer.dart';
+import '../core/context/file_system.dart';
 import '../core/dependencies/dependency_wirer.dart';
+import '../plugins/app_shell/builders/app_shell_builder.dart';
 import '../utils/manifest_writer.dart';
+import '../utils/project_flavor.dart';
 
 /// `zfa setup <name>` — Bootstrap a new Flutter/Dart app with the standard
 /// zuraffa dependency set wired in.
@@ -180,9 +184,12 @@ class SetupCommand extends Command<void> {
     final autoVerify = argResults!['auto-verify'] as bool;
     final tddExample = argResults!['tdd-example'] as bool;
     final specsDir = argResults!['specs'] as String?;
-    // With --specs the corpus import becomes step 7 of 8 (after branding
-    // step 5a and the TDD baseline); without it the flow has 7 steps.
-    final totalSteps = specsDir != null && specsDir.isNotEmpty ? 8 : 7;
+    // The corpus import is step 7 of 9 (after branding step 5a and the
+    // TDD baseline, before the app shell step 8). When --specs is
+    // omitted the step still prints — as a skip, matching the other
+    // optional steps — so the numbering stays contiguous and the summary
+    // is always step 9.
+    final totalSteps = 9;
 
     if (specsDir != null && specsDir.isNotEmpty) {
       const CorpusImporter().validateSource(specsDir);
@@ -355,9 +362,23 @@ class SetupCommand extends Command<void> {
         print('   $line');
       }
       print('   ${result.summaryLine}');
+    } else {
+      print('\n[7/$totalSteps] Skipping corpus import (no --specs).');
     }
 
-    // 8. Summary.
+    // 8. Generate app shell (ZuraffaApp for Flutter, skip for pure Dart).
+    if (isFlutter) {
+      print('\n[8/$totalSteps] Generating app shell (ZuraffaApp)...');
+      await _generateAppShell(
+        projectRoot: appName,
+        appName: appName,
+        dryRun: dryRun,
+      );
+    } else {
+      print('\n[8/$totalSteps] Skipping app shell (pure-Dart project).');
+    }
+
+    // 9. Summary.
     print('\n[$totalSteps/$totalSteps] Setup complete!');
     if (wireResult != null && !wireResult.isSuccess) {
       print(
@@ -378,7 +399,7 @@ class SetupCommand extends Command<void> {
     print('   zfa make Product --preset=crud --with=vpc,state,di,test');
     print('   zfa build');
     print(
-      '   zfa app shell      # upgrade the day-zero app module with the generated DI + routes',
+      '   zfa app shell      # re-run to upgrade the shell after entities/DI change',
     );
     print('');
     if (isFlutter) {
@@ -498,6 +519,144 @@ class SetupCommand extends Command<void> {
         print('   ✓ test/tdd_example_test.dart (already present)');
       } else {
         print('   ✓ $examplePath (created, --tdd-example)');
+      }
+    }
+  }
+
+  /// Generates the app shell files (main.dart, my_app.dart, app_router.dart)
+  /// using ZuraffaApp as the root widget for Flutter projects.
+  ///
+  /// This is the same generation path as `zfa app shell --zuraffa-app`,
+  /// invoked automatically during setup so the generated app is runnable
+  /// immediately after `zfa setup` completes.
+  Future<void> _generateAppShell({
+    required String projectRoot,
+    required String appName,
+    required bool dryRun,
+  }) async {
+    final builder = const AppShellBuilder();
+    final fs = const DefaultFileSystem();
+
+    // Detect project flavor for the core barrel import. Dry-run caveat:
+    // the project directory does not exist yet, so detectProjectFlavor
+    // walks up to ancestor pubspecs — the preview's coreImport can then
+    // reflect an ancestor's flavor. Cosmetic: dry-run output only.
+    final flavor = await detectProjectFlavor(projectRoot, fs);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
+
+    // Check zuraffa_ui dependency (issue #1260). Parsed check — a raw
+    // substring match would false-positive on comments, changelog links,
+    // or `dependency_overrides` entries. When the pubspec doesn't exist
+    // yet (dry-run: the project directory is never created), the check
+    // is skipped and generation proceeds as a dry-run preview only.
+    final pubspecFile = File(path.join(projectRoot, 'pubspec.yaml'));
+    if (pubspecFile.existsSync()) {
+      final pubspecContent = pubspecFile.readAsStringSync();
+      YamlNode? doc;
+      try {
+        doc = loadYaml(pubspecContent);
+      } on YamlException {
+        doc = null;
+      }
+      final dependencies = doc is YamlMap ? doc['dependencies'] : null;
+      final declaresZuraffaUi = dependencies is YamlMap
+          ? dependencies.containsKey('zuraffa_ui')
+          : false;
+      if (!declaresZuraffaUi) {
+        print(
+          '   ⚠️  zuraffa_ui not in pubspec.yaml — skipping ZuraffaApp shell.\n'
+          '      Run `flutter pub add zuraffa_ui` then `zfa app shell --zuraffa-app`.',
+        );
+        return;
+      }
+    }
+
+    // Derive the DI entrypoint signature from the actual DI barrel
+    // (issue #370 parity with `zfa app shell`) instead of hard-coding the
+    // day-zero bootstrap signature — after `zfa di` regenerates a custom
+    // or async entrypoint, a re-run of setup must still emit a main.dart
+    // that matches. First run: step 7's bootstrap barrel declares the
+    // canonical `void setupDependencies(GetIt getIt)`; when the barrel
+    // is absent (dry-run), fall back to that canonical signature.
+    final diIndexFile = File(
+      path.join(projectRoot, 'lib', 'src', 'di', 'index.dart'),
+    );
+    final diIndexContent = diIndexFile.existsSync()
+        ? diIndexFile.readAsStringSync()
+        : '';
+    final diTakesGetIt = diIndexContent.isEmpty
+        ? true
+        : AppShellBuilder.setupDependenciesTakesGetIt(diIndexContent);
+    final diIsAsync = diIndexContent.isEmpty
+        ? false
+        : AppShellBuilder.setupDependenciesIsAsync(diIndexContent);
+
+    final outputDir = path.join(projectRoot, 'lib', 'src');
+    // buildMain derives the emitted package: imports from [outputDir]
+    // relative to lib/ (AppShellBuilder._packageImportBase), so it must
+    // receive the lib/-relative dir — not the project-root-prefixed
+    // write path, which would emit package:$appName/../$appName/lib/src/
+    // and produce an entrypoint that does not compile.
+    final packageOutputDir = path.join('lib', 'src');
+    final files = <({String path, String content})>[];
+
+    // 1. app_router.dart
+    final appRouterPath = path.join(outputDir, 'routing', 'app_router.dart');
+    final appRouterContent = builder.buildAppRouter();
+    files.add((path: appRouterPath, content: appRouterContent));
+
+    // 2. my_app.dart (ZuraffaApp shell)
+    final myAppPath = path.join(outputDir, 'app', 'my_app.dart');
+    final myAppContent = builder.buildMyApp(title: appName, zuraffaApp: true);
+    files.add((path: myAppPath, content: myAppContent));
+
+    // 3. main.dart
+    final mainPath = path.join(projectRoot, 'lib', 'main.dart');
+    final mainContent = builder.buildMain(
+      appName: appName,
+      outputDir: packageOutputDir,
+      diTakesGetIt: diTakesGetIt,
+      diIsAsync: diIsAsync,
+      coreImport: coreImport,
+    );
+    files.add((path: mainPath, content: mainContent));
+
+    for (final file in files) {
+      if (dryRun) {
+        print('   (dry-run) Would write: ${file.path}');
+      } else {
+        final target = File(file.path);
+        final relative = path.relative(file.path, from: projectRoot);
+        if (target.existsSync()) {
+          // main.dart: the untouched flutter-create Hello-World stub is
+          // scaffolder output, not user customization — replace it without
+          // ceremony (issue #626, same rule as `zfa app shell`). Anything
+          // else is skip-if-exists, matching every other setup writer so
+          // re-running setup never clobbers user code or a `zfa app shell`
+          // upgrade.
+          final isStub =
+              file.path == mainPath &&
+              AppShellBuilder.isFlutterCreateHelloWorldStub(
+                target.readAsStringSync(),
+              );
+          if (!isStub) {
+            print('   ✓ $relative (already present)');
+            continue;
+          }
+          target.writeAsStringSync(file.content);
+          print(
+            '   ℹ️  $relative was the flutter-create Hello-World stub — replaced.',
+          );
+          continue;
+        }
+        final dir = Directory(path.dirname(file.path));
+        if (!dir.existsSync()) {
+          dir.createSync(recursive: true);
+        }
+        target.writeAsStringSync(file.content);
+        print('   ✓ $relative');
       }
     }
   }

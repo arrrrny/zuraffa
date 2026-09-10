@@ -366,6 +366,7 @@ Future<void> _startXRayBridge() async {
         : routerHome;
     final certifiedShell = refer('ZuraffaApp').call([], {
       'title': literalString(title ?? 'Zuraffa App'),
+      'debugShowCheckedModeBanner': literalFalse,
       'home': routedHome,
       // #1102 mount point under the certified shell: the chrome wraps the
       // navigator content through ZuraffaApp's builder (preserved inside
