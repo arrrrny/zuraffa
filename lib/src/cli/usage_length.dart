@@ -2,5 +2,5 @@
 ///
 /// Used by the runner-level parser (`usageLineLength` in cli_runner.dart)
 /// and by command-level formatters (e.g. TddCommand's wrapped usage), so the
-/// help surfaces can never drift apart (review of #1460).
+/// help surfaces can never drift apart.
 const int kUsageLineLength = 120;

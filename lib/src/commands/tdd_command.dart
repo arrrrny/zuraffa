@@ -166,8 +166,10 @@ class TddCommand extends Command<void> {
   }
 
   @override
-  Never usageException(String message) =>
-      throw UsageException(message, _formatUsage());
+  Never usageException(String message) => throw UsageException(
+    _wrapTextAsLines(message, length: _lineLength).join('\n'),
+    _formatUsage(),
+  );
 
   @override
   String get usage =>
