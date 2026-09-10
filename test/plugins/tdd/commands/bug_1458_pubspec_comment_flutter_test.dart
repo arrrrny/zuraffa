@@ -33,6 +33,11 @@ dependencies:
   flutter: [
 ''';
 
+const invalidDependenciesShapePubspec = '''
+name: tdd_fixture
+dependencies: []
+''';
+
 const reproSpec = '''
 **Template Version**: `zuraffa-1.0`
 
@@ -177,4 +182,45 @@ void main() {
       reason: 'init must stop before writing the smoke test on a bad pubspec.',
     );
   });
+
+  test(
+    'gen fails loudly when pubspec.yaml dependencies is not a mapping',
+    () async {
+      await CliRunner(
+        exitOnCompletion: false,
+      ).runCapturing(['tdd', 'plan', '1458-repro', '--project', fx.root.path]);
+      await File(
+        p.join(fx.root.path, 'pubspec.yaml'),
+      ).writeAsString(invalidDependenciesShapePubspec);
+
+      final out = await CliRunner(
+        exitOnCompletion: false,
+      ).runCapturing(['tdd', 'gen', 'U1', '--project', fx.root.path]);
+      expect(exitCode, isNot(0), reason: 'gen must fail loudly: $out');
+      expect(
+        out,
+        contains('pubspec.yaml dependencies must be a YAML mapping'),
+        reason: 'the failure must name the invalid dependencies shape: $out',
+      );
+    },
+  );
+
+  test(
+    'init fails loudly when pubspec.yaml dependencies is not a mapping',
+    () async {
+      await File(
+        p.join(fx.root.path, 'pubspec.yaml'),
+      ).writeAsString(invalidDependenciesShapePubspec);
+
+      final out = await CliRunner(
+        exitOnCompletion: false,
+      ).runCapturing(['tdd', 'init', '--project', fx.root.path]);
+      expect(exitCode, isNot(0), reason: 'init must fail loudly: $out');
+      expect(
+        out,
+        contains('pubspec.yaml dependencies must be a YAML mapping'),
+        reason: 'the failure must name the invalid dependencies shape: $out',
+      );
+    },
+  );
 }

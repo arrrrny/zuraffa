@@ -286,7 +286,9 @@ class InitCommand extends Command<void> {
     final dependencies = doc['dependencies'];
     if (dependencies == null) return false;
     if (dependencies is! YamlMap) {
-      throw StateError('pubspec.yaml dependencies must be a YAML mapping.');
+      throw const FormatException(
+        'pubspec.yaml dependencies must be a YAML mapping.',
+      );
     }
     return dependencies.containsKey('flutter');
   }
