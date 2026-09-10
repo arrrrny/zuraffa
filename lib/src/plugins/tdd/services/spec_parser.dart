@@ -918,6 +918,286 @@ class SpecParser {
     return rows;
   }
 
+  /// Issue #1485: the heading that scopes signature-list bullets in a
+  /// contract document — `## Operations`, `### TaskStore Methods`,
+  /// `## REST API` (any level, case-insensitive, the word matched on
+  /// word boundaries anywhere in the heading).
+  static final RegExp _contractOperationsHeading = RegExp(
+    r'^#{1,6}\s+.*\b(?:operations|methods|api)\b.*$',
+    caseSensitive: false,
+  );
+
+  /// Issue #1485: a bullet whose ENTIRE value is one backticked span
+  /// (`` - `count() -> int` ``) — a pure signature declaration.
+  static final RegExp _pureSignatureBullet = RegExp(
+    r'^\s*[-*]\s+`([^`]+)`\s*$',
+  );
+
+  /// Issue #1485: a bullet whose FIRST backticked span may carry trailing
+  /// prose (`` - `count() -> int` — the number of tasks ``). Honored only
+  /// inside an [_contractOperationsHeading] scope.
+  static final RegExp _proseSignatureBullet = RegExp(
+    r'^\s*[-*]\s+`([^`]+)`(.*)$',
+  );
+
+  /// Issue #1485: an operations/method table header's key column —
+  /// `| Operation | … |` or `| Method | … |`.
+  static final RegExp _operationsHeaderCell = RegExp(
+    r'^(?:operation|method)$',
+    caseSensitive: false,
+  );
+
+  /// Issue #1485: the signature column header cell (`| Signature | … |`,
+  /// also as `Method Signature`).
+  static bool _isSignatureHeaderCell(String cell) {
+    final c = cell.toLowerCase().trim();
+    return c == 'signature' || c == 'method signature';
+  }
+
+  /// Parse ONE contract document (`specs/<feature>/contracts/<name>.md`,
+  /// issue #1485) into declared rows: every operation/method table data
+  /// row and every declared signature becomes a
+  /// [ContractRowDecl] of kind [ContractRowKind.function] — an
+  /// operations contract declares callable operations, so a traced
+  /// behavior routes the unit lane and the signature ladder resolves
+  /// its subject shape (#1259 semantics).
+  ///
+  /// Grammar (deliberately narrow — a contract document carries prose,
+  /// CLI tables and examples alongside its declarations):
+  ///
+  /// - Pipe table whose header row's FIRST cell is `Operation` or
+  ///   `Method`: one row per data row, named by the first cell. An
+  ///   optional `Signature` column binds parsed
+  ///   `name(Params) -> Return` signatures to the row.
+  /// - Pipe table whose header row's first cell is `Signature`: the
+  ///   first cell of each data row IS the signature; the row is named
+  ///   by the parsed signature's method.
+  /// - Interface bullets (the Layer Contracts grammar): `` - `Name`:
+  ///   `sig`, `sig` `` — one row with every parsed signature.
+  /// - Pure signature bullets: `` - `sig` `` — one row named by the
+  ///   parsed signature's method. Inside an Operations/Methods/API
+  ///   section a signature bullet may carry trailing prose.
+  ///
+  /// Fenced code blocks are documentation, not declarations (the same
+  /// stance every spec.md walk applies) — blanked before the walk with
+  /// line numbers preserved. Only markdown is parsed: signature cells
+  /// holding plain prose are dropped; a cell SHAPED like a signature
+  /// but failing to parse (`` `(int) ->` ``) is carried in
+  /// [ContractRowDecl.rawSignatures] so the resolver's
+  /// malformed-declaration refusal names it when the row is consulted.
+  /// `specLine` is the 1-based line within the contract file.
+  List<ContractRowDecl> parseContractFileRows(String contractMd) {
+    final rows = <ContractRowDecl>[];
+    final blanked = normalizeSpecText(contractMd).replaceAllMapped(
+      _fencedCodeBlock,
+      (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
+    );
+    final lines = blanked.split('\n');
+    var inOperationsScope = false;
+    // The active table's shape while walking its data rows (null when
+    // no declared-shape table is open): the signature column index, or
+    // -1 for a signature-FIRST table, and a flag for the name source.
+    int? tableSigColumn;
+    var tableSignatureFirst = false;
+    for (var i = 0; i < lines.length; i++) {
+      final trimmed = lines[i].trim();
+      final lineNo = i + 1;
+      if (trimmed.startsWith('#')) {
+        inOperationsScope = _contractOperationsHeading.hasMatch(
+          _decodeEntities(trimmed),
+        );
+        tableSigColumn = null;
+        tableSignatureFirst = false;
+        continue;
+      }
+      if (trimmed.isEmpty) continue;
+      if (trimmed.startsWith('|')) {
+        final cells = _splitCells(trimmed);
+        if (cells.isEmpty) continue;
+        if (tableSigColumn == null && !tableSignatureFirst) {
+          // Header detection: the NEXT line must be the separator row.
+          final next = i + 1 < lines.length ? lines[i + 1].trim() : '';
+          if (!_tableSeparator.hasMatch(next)) continue;
+          final first = cells.first.toLowerCase();
+          if (_operationsHeaderCell.hasMatch(first)) {
+            tableSignatureFirst = false;
+            tableSigColumn = cells.indexWhere(_isSignatureHeaderCell);
+          } else if (_isSignatureHeaderCell(first)) {
+            tableSignatureFirst = true;
+            tableSigColumn = -1;
+          }
+          continue;
+        }
+        // A data row of the open table.
+        if (RegExp(r'^-+$').hasMatch(cells.first)) continue; // separator
+        if (tableSignatureFirst) {
+          final signature = _firstParseableSignature(cells.first);
+          if (signature != null) {
+            rows.add(
+              ContractRowDecl(
+                name: signature.name,
+                kind: ContractRowKind.function,
+                signatures: [signature],
+                specLine: lineNo,
+              ),
+            );
+          }
+          continue;
+        }
+        final signatures = <Signature>[];
+        final rawSignatures = <String>[];
+        if (tableSigColumn != null &&
+            tableSigColumn >= 0 &&
+            cells.length > tableSigColumn) {
+          _collectSignatures(cells[tableSigColumn], signatures, rawSignatures);
+        }
+        rows.add(
+          ContractRowDecl(
+            name: cells.first,
+            kind: ContractRowKind.function,
+            signatures: signatures,
+            rawSignatures: rawSignatures,
+            specLine: lineNo,
+          ),
+        );
+        continue;
+      }
+      // A non-table line closes any open table.
+      tableSigColumn = null;
+      tableSignatureFirst = false;
+      // Interface bullets (the Layer Contracts grammar) declare anywhere
+      // in the document.
+      final interface = _layerContractBullet.firstMatch(trimmed);
+      if (interface != null) {
+        final signatures = <Signature>[];
+        final rawSignatures = <String>[];
+        for (final m in RegExp(r'`([^`]+)`').allMatches(interface.group(2)!)) {
+          _collectSignatures(m.group(1)!, signatures, rawSignatures);
+        }
+        rows.add(
+          ContractRowDecl(
+            name: interface.group(1)!.trim(),
+            kind: ContractRowKind.function,
+            signatures: signatures,
+            rawSignatures: rawSignatures,
+            specLine: lineNo,
+          ),
+        );
+        continue;
+      }
+      // A pure signature bullet declares anywhere in the document.
+      final pure = _pureSignatureBullet.firstMatch(trimmed);
+      if (pure != null) {
+        final signature = Signature.parse(pure.group(1)!.trim());
+        rows.add(
+          ContractRowDecl(
+            name: signature.name,
+            kind: ContractRowKind.function,
+            signatures: [signature],
+            specLine: lineNo,
+          ),
+        );
+        continue;
+      }
+      // Inside an Operations/Methods/API section, a signature bullet
+      // may carry trailing prose (`` - `count() -> int` — the count ``).
+      if (inOperationsScope) {
+        final prose = _proseSignatureBullet.firstMatch(trimmed);
+        if (prose != null) {
+          final signature = _firstParseableSignature(prose.group(1)!.trim());
+          if (signature != null) {
+            rows.add(
+              ContractRowDecl(
+                name: signature.name,
+                kind: ContractRowKind.function,
+                signatures: [signature],
+                specLine: lineNo,
+              ),
+            );
+          }
+        }
+      }
+    }
+    return rows;
+  }
+
+  /// The first signature in [text] that parses as
+  /// `name(Params) -> Return` (backticked spans first, then bare text);
+  /// null when nothing parses. Used where the row NAME comes from the
+  /// signature itself, so an unparseable cell declares no row at all.
+  static Signature? _firstParseableSignature(String text) {
+    final spans = RegExp(r'`([^`]+)`').allMatches(text).map((m) => m.group(1)!);
+    final candidates = [...spans, if (!text.contains('`')) text];
+    for (final span in candidates) {
+      try {
+        return Signature.parse(span.trim());
+      } on FormatException {
+        // Try the next span.
+      }
+    }
+    return null;
+  }
+
+  /// Fill [signatures] and [rawSignatures] from ONE declared-signature
+  /// cell (issue #1485): backticked spans (or bare comma-separated
+  /// spans) that parse become [Signature]s; a span shaped like a
+  /// signature but failing to parse is carried raw so the resolver's
+  /// malformed-declaration refusal names it when consulted; plain prose
+  /// is dropped.
+  static void _collectSignatures(
+    String cell,
+    List<Signature> signatures,
+    List<String> rawSignatures,
+  ) {
+    final matches = RegExp(r'`([^`]+)`').allMatches(cell).toList();
+    final spans = matches.isNotEmpty
+        ? matches.map((m) => m.group(1)!)
+        : cell.split(',').where((s) => s.trim().isNotEmpty);
+    for (final span in spans) {
+      final s = span.trim();
+      if (s.isEmpty) continue;
+      try {
+        signatures.add(Signature.parse(s));
+      } on FormatException {
+        if (s.contains('(') && s.contains('->')) rawSignatures.add(s);
+      }
+    }
+  }
+
+  /// Issue #1485: the declared-row map EVERY command-side consumer
+  /// builds — spec.md sections first (`parseContractRows`), then the
+  /// feature's contract documents (`contracts/*.md`, enumerated by the
+  /// caller — `DeclaredRouting.contractFiles`). A contract-file row that
+  /// collides with a spec.md row name WINS (it is more structured and
+  /// was produced by the planning workflow); every contract row is
+  /// additionally registered under its `<file-stem>.<row>` alias so a
+  /// `traces: <ContractFile>.<Row>` token resolves — the resolver's API
+  /// is unchanged, this only widens the source feeding it. [perFile]
+  /// reports how many rows each contract file declared (keyed by the
+  /// file name as given).
+  static ({Map<String, ContractRowDecl> rows, Map<String, int> perFile})
+  declaredContractRows(
+    String specMd, {
+    List<({String file, String md})> contractFiles = const [],
+  }) {
+    final rows = <String, ContractRowDecl>{
+      for (final r in const SpecParser().parseContractRows(specMd)) r.name: r,
+    };
+    final perFile = <String, int>{};
+    for (final source in contractFiles) {
+      final fileRows = const SpecParser().parseContractFileRows(source.md);
+      perFile[source.file] = fileRows.length;
+      final stem = source.file.endsWith('.md')
+          ? source.file.substring(0, source.file.length - '.md'.length)
+          : source.file;
+      for (final row in fileRows) {
+        rows[row.name] = row; // bare name — the contract-file version wins
+        rows['$stem.${row.name}'] = row; // the file-qualified alias
+      }
+    }
+    return (rows: rows, perFile: perFile);
+  }
+
   /// Extract the entities the spec declares under `Key Entities` (bug
   /// #829 remediation 1: plan must surface them so the loop can create
   /// and wire them). Bug #919: the zuraffa-1.0 template declares

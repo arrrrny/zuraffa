@@ -22,6 +22,7 @@ import '../models/lane.dart';
 import '../models/routing.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/feature_path_resolver.dart';
+import '../services/declared_routing.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/explain_emitter.dart';
 import '../services/lane_split.dart';
@@ -590,14 +591,46 @@ class PlanCommand extends Command<void> {
     final Set<String> unboundTraces;
     try {
       scenarioMarkers = SpecParser.parseScenarioTypeMarkers(specMd);
+      // Issue #1485: the declared rows include the feature's
+      // contracts/*.md rows (enumerated + merged below the gate) — the
+      // planning phase's structured contract documents feed the SAME
+      // routing resolver spec.md sections always fed.
+      final declaredRows = SpecParser.declaredContractRows(
+        specMd,
+        contractFiles: DeclaredRouting.contractFiles(featureDir),
+      );
       declarations = SpecDeclarations(
         scenarios: scenarioMarkers,
-        contractRows: {
-          for (final r in const SpecParser().parseContractRows(specMd))
-            r.name: r,
-        },
+        contractRows: declaredRows.rows,
         persistence: SpecParser.parsePersistenceDeclarations(specMd),
       );
+      // Issue #1485: plan reports what it read — silence about ignored
+      // directories is what makes this expensive to diagnose.
+      final contractsDir = Directory(p.join(featureDir, 'contracts'));
+      if (contractsDir.existsSync()) {
+        final productive =
+            declaredRows.perFile.entries
+                .where((entry) => entry.value > 0)
+                .toList()
+              ..sort((a, b) => a.key.compareTo(b.key));
+        if (productive.isEmpty) {
+          print(
+            'zfa tdd plan: WARNING — '
+            '${TddFeaturePaths.displayDir(cwd: repoRoot, dir: contractsDir.path)} '
+            'exists but no declared rows were extracted (expected '
+            'operation/method tables or `name(Params) -> Return` signature '
+            'lists in *.md files) — traces cannot bind to contract-file '
+            'rows.',
+          );
+        } else {
+          for (final entry in productive) {
+            print(
+              'zfa tdd plan: declared rows: ${entry.value} from '
+              'contracts/${entry.key}',
+            );
+          }
+        }
+      }
       frTraces = SpecParser.parseFrContractTraces(specMd);
       // Issue #1319: a `traces:` line inside an FR block that bound no
       // contract row is the #1308 vacuous-green dead-end in the making
