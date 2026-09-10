@@ -7,10 +7,10 @@ class ServiceLocatorBuilder {
 
   const ServiceLocatorBuilder({this.specLibrary = const SpecLibrary()});
 
-  String build() {
+  String build({String coreImport = 'package:zuraffa/zuraffa.dart'}) {
     final directives = [
-      Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.export('package:zuraffa/zuraffa.dart', show: ['GetIt']),
+      Directive.import(coreImport),
+      Directive.export(coreImport, show: ['GetIt']),
       Directive.export('index.dart', show: ['setupDependencies']),
     ];
 

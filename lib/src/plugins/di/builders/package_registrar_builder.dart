@@ -26,12 +26,13 @@ class PackageRegistrarBuilder {
   String build({
     required String packageName,
     required List<RegistrarCategory> categories,
+    String coreImport = 'package:zuraffa/zuraffa.dart',
   }) {
     final pascal = PackageNames.pascalFor(packageName);
     final functionName = PackageNames.registrarFunctionFor(packageName);
 
     final importPaths = <String>[
-      'package:zuraffa/zuraffa.dart',
+      coreImport,
       ...categories.map((c) => '${c.folder}/index.dart'),
     ];
 
