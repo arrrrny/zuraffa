@@ -506,7 +506,14 @@ class ContractSubjectWriter {
   }
 
   String _render(Behavior b, ContractDeclaration c) {
-    final returnRender = _isRenderableType(c.returnType)
+    // Issue #1443: `void` is NOT renderable for the seam — the paired
+    // test captures the invocation result (`final Object? outcome =
+    // _captured(() => impl(...))`), and a `void`-returning subject makes
+    // that capture a compile error. Render `Object?` like the
+    // entity-return case: the seam still throws UnimplementedError until
+    // implemented, and the honest red compiles.
+    final returnRender =
+        _isRenderableType(c.returnType) && c.returnType.trim() != 'void'
         ? c.returnType
         : 'Object?';
     final params = c.params.isEmpty

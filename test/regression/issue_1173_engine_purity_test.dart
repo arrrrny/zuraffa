@@ -1,3 +1,4 @@
+@Tags(['regression'])
 // Regression guard for BUG-1173 (engine purity / Flutter widget collision):
 // https://github.com/arrrrny/zuraffa/issues/1173
 //
