@@ -436,9 +436,16 @@ class InitCommand extends Command<void> {
   Future<bool> _isFlutterProject(String cwd) async {
     final pubspec = File('$cwd/pubspec.yaml');
     if (!await pubspec.exists()) return false;
-    final raw = await pubspec.readAsString();
-    return raw.contains('environment:') &&
-        (raw.contains('flutter') || raw.contains('sdk: flutter'));
+    try {
+      final raw = await pubspec.readAsString();
+      final doc = loadYaml(raw);
+      if (doc is! YamlMap) return false;
+      final deps = doc['dependencies'];
+      if (deps is! YamlMap) return false;
+      return deps.containsKey('flutter');
+    } catch (_) {
+      return false;
+    }
   }
 
   String _deriveAppName(String cwd) {

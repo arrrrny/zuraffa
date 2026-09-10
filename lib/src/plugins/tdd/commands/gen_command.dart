@@ -76,6 +76,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 
 import '../models/channel_scenario.dart';
 import '../models/verdict_envelope.dart';
@@ -1464,15 +1465,23 @@ class GenCommand extends Command<void> {
   }
 
   /// Whether the host project runs on the Flutter test runner (issue
-  /// #1351): mirrors `InitCommand._isFlutterProject` — a pubspec with a
-  /// flutter dependency means the plain `test` package is not
-  /// resolvable and generated tests must import flutter_test.
+  /// #1351): a pubspec with a `flutter:` dependency means the plain
+  /// `test` package is not resolvable and generated tests must import
+  /// `flutter_test`.  Parses YAML instead of substring-matching to avoid
+  /// false positives from "flutter" appearing in comments (issue #1458).
   static Future<bool> _isFlutterProject(String cwd) async {
     final pubspec = File(p.join(cwd, 'pubspec.yaml'));
     if (!await pubspec.exists()) return false;
-    final raw = await pubspec.readAsString();
-    return raw.contains('environment:') &&
-        (raw.contains('flutter') || raw.contains('sdk: flutter'));
+    try {
+      final raw = await pubspec.readAsString();
+      final doc = loadYaml(raw);
+      if (doc is! YamlMap) return false;
+      final deps = doc['dependencies'];
+      if (deps is! YamlMap) return false;
+      return deps.containsKey('flutter');
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Resolves the widget template's app shell (issue #912 defect 2):
