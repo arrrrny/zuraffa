@@ -31,12 +31,16 @@ void main() {
       .toList();
 
   test('the regression tier exists and is non-trivial', () {
-    expect(tierFiles.length, greaterThan(10),
-        reason: 'the tier is the epic regression corpus');
+    expect(
+      tierFiles.length,
+      greaterThanOrEqualTo(60),
+      reason:
+          'the epic regression corpus is ~64 files — a sudden drop '
+          'means the tier was renamed or excluded en masse',
+    );
   });
 
-  test('B1: every regression-tier file carries the regression tag',
-      () async {
+  test('B1: every regression-tier file carries the regression tag', () async {
     expect(tierFiles, isNotEmpty);
     final untagged = <String>[];
     for (final file in tierFiles) {
@@ -44,17 +48,20 @@ void main() {
       final hasTag = RegExp('@Tags\\([^)]*regression').hasMatch(source);
       if (!hasTag) untagged.add(file.path);
     }
-    expect(untagged, isEmpty,
-        reason: 'files without the regression tag are invisible to '
-            '`dart test --preset=regression` — the #1382 false-green '
-            'class: $untagged');
+    expect(
+      untagged,
+      isEmpty,
+      reason:
+          'files without the regression tag are invisible to '
+          '`dart test --preset=regression` — the #1382 false-green '
+          'class: $untagged',
+    );
   });
 
   test('B2: dart_test.yaml defines the regression preset', () {
     final doc = loadYaml(configFile.readAsStringSync()) as YamlMap;
     final presets = doc['presets'] as YamlMap?;
     expect(presets, isNotNull);
-    expect((presets!['regression'] as YamlMap?)?['include_tags'],
-        'regression');
+    expect((presets!['regression'] as YamlMap?)?['include_tags'], 'regression');
   });
 }
