@@ -50,6 +50,7 @@ import '../services/arg_placeholder.dart';
 import '../services/born_green.dart';
 import '../services/cycle_evidence.dart';
 import '../services/cycle_log.dart';
+import '../services/declared_routing.dart';
 import '../services/entity_lookup.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/journal.dart';
@@ -62,7 +63,9 @@ import '../services/run_state_store.dart';
 import '../services/runner.dart';
 import '../services/step_runner.dart';
 import '../services/suite_guard.dart';
+import '../models/routing.dart';
 import '../services/test_list_reader.dart';
+import '../services/unit_contract_shape.dart';
 import '../services/tdd_timeout.dart';
 import '../services/vacuous_guard.dart';
 import '../services/widget_scaffold.dart' show scaffoldedMarker;
@@ -473,6 +476,28 @@ class RunDriverCore {
     if (announce) {
       print('zfa tdd $label: feature $feature — ${rows.length} behavior(s)');
       if (skipped > 0) print('   $skipped already done — skipping');
+      // SPEC 1489: the unit lane's hand-step forecast — the same seam
+      // cost `zfa tdd plan` surfaced, recomputed against the entity
+      // registry NOW (entities created since planning lift their
+      // behaviors out of the forecast). Output-only: the loop, the
+      // BehaviorState transitions and the two-phase driver semantics
+      // are untouched.
+      final unitRowCount = rows
+          .where((r) => r.kind == BehaviorKind.unit)
+          .length;
+      if (unitRowCount > 0) {
+        final seams = await _entityReturnSeamForecast(
+          projectRoot: projectRoot,
+          featureName: feature,
+          featureDir: featureDir,
+          rows: rows,
+        );
+        final seamLine = UnitContractShape.entityReturnSeamCostLine(
+          seams: seams,
+          total: unitRowCount,
+        );
+        if (seamLine != null) print('   $seamLine');
+      }
     }
     if (rows.isEmpty) {
       // A lane with no behaviors is a vacuous green (issue #1008: legacy
@@ -2411,6 +2436,39 @@ class RunDriverCore {
   // Phase 0 (bug #829) — verbatim, with the failure messages naming the
   // invoking command label.
   // -------------------------------------------------------------------
+
+  /// The unit lane's hand-step forecast (SPEC 1489): how many of the
+  /// lane's unit behaviors have a declared contract returning an entity
+  /// that does not exist on disk yet. Best-effort by contract: any
+  /// resolution failure contributes a silent zero — the forecast is
+  /// observability, never a run stopper, and it never touches the state.
+  Future<int> _entityReturnSeamForecast({
+    required String projectRoot,
+    required String featureName,
+    required String featureDir,
+    required List<BehaviorRow> rows,
+  }) async {
+    final unitRows = rows.where((r) => r.kind == BehaviorKind.unit).toList();
+    if (unitRows.isEmpty) return 0;
+    try {
+      final declared = <Signature?>[
+        for (final row in unitRows)
+          await DeclaredRouting.declaredSignatureFor(
+            cwd: projectRoot,
+            featureName: featureName,
+            featureDir: featureDir,
+            behaviorId: row.id,
+          ),
+      ];
+      final seams = await UnitContractShape.countEntityReturnSeamsResolved(
+        declared: declared,
+        cwd: projectRoot,
+      );
+      return seams;
+    } on Exception {
+      return 0;
+    }
+  }
 
   Future<_Stop?> _runEntityPhaseZero({
     required String projectRoot,
