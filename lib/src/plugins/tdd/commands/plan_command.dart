@@ -899,7 +899,11 @@ class PlanCommand extends Command<void> {
     };
     final laneResult = lanes.isEmpty
         ? (splitReceiptExists
-              ? _heuristicLaneResolution(expressible, preservedFfi)
+              ? _heuristicLaneResolution(
+                  expressible,
+                  preservedFfi,
+                  contractBehaviors,
+                )
               : null)
         : _resolveLanes(
             lanes,
@@ -913,6 +917,12 @@ class PlanCommand extends Command<void> {
             // current ids, then pass the reconciled behavior ids consumed by
             // the lane resolver.
             declaredBehaviorIds: declaredBehaviorIds,
+            // Issue #1419: the derived contract behaviors count into the
+            // lane contract — CORE by default (spec 1007: a contract test
+            // is pure Dart, so it rides the engine), the declared lane
+            // wins, and a non-engine declaration refuses instead of
+            // dropping the row again.
+            contractBehaviors: contractBehaviors,
           );
     if (laneResult != null && laneResult.refusals.isNotEmpty) {
       print(
@@ -1042,6 +1052,15 @@ class PlanCommand extends Command<void> {
       // engine/skin contract, with the legacy filename demoted to the
       // meta-index. TestListReader resolves the rows from the split
       // files, so gen/make/run semantics are unchanged.
+      //
+      // Issue #1419: the derived contract behaviors ride the split —
+      // the legacy single-file path renders them (the contract loop);
+      // this path dropped them silently (exit 0, no refusal, no
+      // coverage-gate failure — the worst failure class for an
+      // honesty-first toolchain). They are engine-side by construction
+      // (`_resolveLanes` refuses every non-CORE declaration), so only
+      // the engine row list carries them.
+      final contractRows = _contractLaneRows(contractBehaviors, laneResult);
       final engineRows = <LaneRow>[
         for (final b in expressible)
           ..._derivedLaneRows(
@@ -1052,6 +1071,7 @@ class PlanCommand extends Command<void> {
             contractTraces,
           ),
         ..._ffiLaneRows(preservedFfi, laneResult),
+        ...contractRows,
         ...laneResult.handRows,
       ].where((r) => r.lane.destinedForEngine).toList();
       final skinRows = <LaneRow>[
@@ -1081,6 +1101,10 @@ class PlanCommand extends Command<void> {
         if (lane.destinedForSkin) skinProvenance[id] = lines;
       });
 
+      // Issue #1419: the engine plan's contract loop is written by the
+      // shared renderer (`renderEnginePlan`), not here — `zfa tdd split`
+      // calls the same renderer, and a caller-side copy let the two
+      // diverge on the rows this plan's route log already claims.
       final engineMd = renderEnginePlan(
         feature: feature,
         rows: engineRows,
@@ -1438,27 +1462,23 @@ class PlanCommand extends Command<void> {
     // failing contract test is BLOCKED (never RED) — the row's state
     // column carries BLOCKED until the implementation satisfies the
     // declared contract.
+    //
+    // Issue #1419: the section is written by the SHARED helper the
+    // lane-split engine renderer calls — one writer, so the legacy
+    // single-file plan and `04-ENGINE.md` cannot drift apart.
     if (contractBehaviors.isNotEmpty) {
-      buf
-        ..writeln()
-        ..writeln('## Contract loop: contract behaviors')
-        ..writeln()
-        ..writeln(
-          'One per declared entity method, controller method and usecase '
-          'in `spec.md` Layer Contracts (issue #1007). A contract test '
-          'proves the implementation satisfies the DECLARED contract — '
-          'a failing contract test is BLOCKED (never RED) and blocks the '
-          'cycle from proceeding to GREEN.',
-        )
-        ..writeln()
-        ..writeln('| id | behavior | traces | state |')
-        ..writeln('| -- | -------- | ------ | ----- |');
-      for (final b in contractBehaviors) {
-        buf.writeln(
-          '| ${b.id} | ${_escapeCell(b.description)} | ${b.sourceCriterion} | '
-          '${b.state.name.toUpperCase()} |',
-        );
-      }
+      buf.writeln();
+      renderContractLoopSection(buf, [
+        for (final b in contractBehaviors)
+          LaneRow(
+            id: b.id,
+            description: b.description,
+            traces: b.sourceCriterion,
+            state: b.state.name.toUpperCase(),
+            kind: b.kind,
+            lane: Lane.core,
+          ),
+      ]);
     }
     // Bug #829: the spec's Key Entities, extracted for the loop's
     // entity orchestration (run phase 0 + the make entity pipeline).
@@ -2082,6 +2102,7 @@ class PlanCommand extends Command<void> {
     List<BehaviorRow> preservedFfi,
     Set<String> goldenIds, {
     Set<String> declaredBehaviorIds = const {},
+    List<Behavior> contractBehaviors = const [],
   }) {
     final classification = <String, Lane>{};
     final annotations = <String, String>{};
@@ -2170,7 +2191,9 @@ class PlanCommand extends Command<void> {
       // log claims its lane — the silent-drop class. Refuse (the gate
       // below exits 2 writing no artifacts) instead. Home sets mirror the
       // section filters in lane_split.dart's renderers; contract rows are
-      // not in this loop's behavior set (open issue #1419 owns that path).
+      // not in this loop's behavior set — they are derived from `##
+      // Layer Contracts` and counted by the contract block below
+      // (issue #1419), CORE by default.
       final engineWithoutHome =
           lane.destinedForEngine && !_engineLaneKinds.contains(b.kind);
       final skinWithoutHome =
@@ -2237,6 +2260,43 @@ class PlanCommand extends Command<void> {
       classification.putIfAbsent(row.id, () => Lane.core);
     }
 
+    // Issue #1419: the derived contract behaviors count into the lane
+    // contract. CORE by default (spec 1007: a contract test is pure
+    // Dart, so it rides the engine); a CORE declaration in `## Lanes`
+    // joins the derived behavior. A non-engine declaration REFUSES —
+    // the SKIN plan renders no contract section, so honoring it would
+    // drop the row from the split artifacts again (the silent-drop
+    // class this fix closes). The engine purity guard applies too: the
+    // contract rows land in 04-ENGINE.md, which is pure Dart by
+    // construction.
+    for (final b in contractBehaviors) {
+      final declared = classification[b.id];
+      if (declared != null && declared != Lane.core) {
+        refusals.add(
+          'lane contract: behavior "${b.id}" (${b.sourceCriterion}) is '
+          'derived from the `## Layer Contracts` section — a contract '
+          'test is pure Dart and rides the ENGINE lane (spec 1007); '
+          'lane ${declared.label} renders no contract section, so the '
+          'row would be dropped from the split plan. '
+          '--> fix: move "${b.id}" to the CORE lane row (contract '
+          'behaviors are engine-side by default — dropping the '
+          'declaration works too).',
+        );
+        continue;
+      }
+      classification.putIfAbsent(b.id, () => Lane.core);
+      final rowText = '${b.description} ${b.sourceCriterion}';
+      if (rowText.contains(_flutterReference)) {
+        refusals.add(
+          'noFlutter guard: behavior "${b.id}" (${b.sourceCriterion}) is '
+          'derived from the `## Layer Contracts` section and rides the '
+          'ENGINE lane, but references $_flutterReference — the engine '
+          'lane is pure Dart. --> fix: drop the $_flutterReference '
+          'reference from the declared contract signature.',
+        );
+      }
+    }
+
     // Hand rows: ids the declarations carry but neither the spec prose
     // nor the prior list derives — the lane's own reservation (the
     // `W1-W4` skin slots), described by the lane annotation when the
@@ -2245,6 +2305,13 @@ class PlanCommand extends Command<void> {
     final derivedIds = {
       ...expressible.map((b) => b.id),
       ...preservedFfi.map((r) => r.id),
+      // Issue #1419: ids already derived as contract behaviors are
+      // consulted BEFORE the hand-row fallthrough — a `contract:A<n>`
+      // declaration in `## Lanes` joins the derived behavior (the
+      // derived description, the `Interface.method` trace, the contract
+      // kind, and the reconciled BLOCKED-capable state) instead of
+      // clobbering it with the anonymous lane-reservation row.
+      ...contractBehaviors.map((b) => b.id),
     };
     for (final id in declaredHandIds.difference(derivedIds).toList()..sort()) {
       final lane = classification[id]!;
@@ -2333,12 +2400,15 @@ class PlanCommand extends Command<void> {
   /// `SplitCommand._heuristic` applies — over the CURRENT spec
   /// derivation: widget/theme rows are SKIN (their gen pair imports
   /// Flutter), everything else CORE; the preserved ffi rows are
-  /// engine-side (the native boundary is engine territory). No hand
-  /// rows and no refusals: with no `## Lanes` declarations there is
-  /// nothing hand-reserved and nothing to refuse.
+  /// engine-side (the native boundary is engine territory) and the
+  /// derived contract behaviors are engine-side too (issue #1419 —
+  /// spec 1007: a contract test is pure Dart). No hand rows and no
+  /// refusals: with no `## Lanes` declarations there is nothing
+  /// hand-reserved and nothing to refuse.
   _LaneResult _heuristicLaneResolution(
     List<Behavior> expressible,
     List<BehaviorRow> preservedFfi,
+    List<Behavior> contractBehaviors,
   ) {
     final classification = <String, Lane>{
       for (final b in expressible)
@@ -2346,6 +2416,10 @@ class PlanCommand extends Command<void> {
             ? Lane.skin
             : Lane.core,
       for (final row in preservedFfi) row.id: Lane.core,
+      // Issue #1419: the derived contract behaviors count into the
+      // heuristic classification too — the stale-split regeneration
+      // writes the same engine-side contract rows the Lanes path does.
+      for (final b in contractBehaviors) b.id: Lane.core,
     };
     return _LaneResult(
       classification: classification,
@@ -2534,6 +2608,27 @@ class PlanCommand extends Command<void> {
         state: row.state.name.toUpperCase(),
         kind: row.kind,
         lane: laneResult.classification[row.id] ?? Lane.core,
+      ),
+  ];
+
+  /// Issue #1419: the derived contract behaviors as lane rows — the
+  /// description, the `Interface.method` trace, the contract kind, and
+  /// the reconciled (BLOCKED-capable) state match the legacy
+  /// single-file path's contract-loop rows byte for byte. The lane is
+  /// the resolver's classification (CORE by default — the resolver
+  /// refuses non-engine declarations, so the rows are engine-destined).
+  List<LaneRow> _contractLaneRows(
+    List<Behavior> contractBehaviors,
+    _LaneResult laneResult,
+  ) => [
+    for (final b in contractBehaviors)
+      LaneRow(
+        id: b.id,
+        description: b.description,
+        traces: b.sourceCriterion,
+        state: b.state.name.toUpperCase(),
+        kind: b.kind,
+        lane: laneResult.classification[b.id] ?? Lane.core,
       ),
   ];
 }
