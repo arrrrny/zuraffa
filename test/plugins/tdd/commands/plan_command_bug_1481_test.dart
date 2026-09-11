@@ -202,7 +202,10 @@ void main() {
         'while the scenario heals to declared', () async {
       final tmp = await _featureDir(_deadEndSpec);
       try {
-        final out = await _plan(tmp);
+        // Issue #1480: this fixture deliberately has no Layer Contracts —
+        // the legacy fallback shape stays reachable via the migration
+        // escape hatch.
+        final out = await _plan(tmp, ['--allow-unit-fallback']);
         expect(exitCode, 0, reason: out);
         // Feature 1484 (issue option 3): the untraced FR is a manual
         // declaration, so the fatal unit fallback class is retired — no
@@ -240,7 +243,10 @@ void main() {
         'not a dead-end row', () async {
       final tmp = await _featureDir(_deadEndSpec);
       try {
-        final out = await _plan(tmp);
+        // Issue #1480: this fixture deliberately has no Layer Contracts —
+        // the legacy fallback shape stays reachable via the migration
+        // escape hatch.
+        final out = await _plan(tmp, ['--allow-unit-fallback']);
         expect(exitCode, 0, reason: out);
         expect(
           out,
@@ -272,7 +278,10 @@ void main() {
 1. **Given** the app **When** the total is requested **Then** the total equals the sum of items.
 ''');
       try {
-        final out = await _plan(tmp);
+        // Issue #1480: this fixture deliberately has no Layer Contracts —
+        // the legacy fallback shape stays reachable via the migration
+        // escape hatch.
+        final out = await _plan(tmp, ['--allow-unit-fallback']);
         expect(exitCode, 0, reason: out);
         expect(
           out,

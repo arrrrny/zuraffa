@@ -60,9 +60,18 @@ void main() {
   });
 
   Future<String> plan() async {
-    final out = await CliRunner(
-      exitOnCompletion: false,
-    ).runCapturing(['tdd', 'plan', '--project', tmpDir.path, feature]);
+    final out = await CliRunner(exitOnCompletion: false).runCapturing([
+      'tdd',
+      'plan',
+      // Issue #1480: the gate refuses declaration-less unit fallbacks;
+      // these fixtures predate the gate — the migration-window flag keeps
+      // the legacy labeled fallback (same pattern as the other
+      // pre-#1480 fixture suites).
+      '--allow-unit-fallback',
+      '--project',
+      tmpDir.path,
+      feature,
+    ]);
     return out;
   }
 

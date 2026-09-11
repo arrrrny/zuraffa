@@ -100,8 +100,9 @@ Lanes:
 /// test-list content (and the 04-ENGINE content when the lane split
 /// produced one).
 Future<({String out, String testList, String engine})> planSpec(
-  String specMd,
-) async {
+  String specMd, {
+  bool allowUnitFallback = false,
+}) async {
   final tmp = Directory.systemTemp.createTempSync('issue_1310_');
   try {
     final featureDir = p.join(tmp.path, 'specs', '1310-repro');
@@ -112,6 +113,10 @@ Future<({String out, String testList, String engine})> planSpec(
       'tdd',
       'plan',
       '1310-repro',
+      // Issue #1480: U3/U7 exercise the criterion-only FALLBACK cell on
+      // purpose — the unit-fallback gate stays out of the way via the
+      // migration escape hatch.
+      if (allowUnitFallback) '--allow-unit-fallback',
       '--project',
       tmp.path,
     ]);
@@ -347,6 +352,7 @@ void main() {
           'tdd',
           'plan',
           '1310-repro',
+          '--allow-unit-fallback',
           '--project',
           tmp.path,
         ]);

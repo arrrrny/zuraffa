@@ -385,6 +385,7 @@ void main() {
         'tdd',
         'plan',
         '1320-repro',
+        '--allow-unit-fallback',
         '--project',
         fx.root.path,
       ]);
@@ -464,6 +465,9 @@ void main() {
         'tdd',
         'plan',
         '1320-repro',
+        // Issue #1480: the untraced shape IS the fixture — the
+        // unit-fallback gate stays out of the way via the escape hatch.
+        '--allow-unit-fallback',
         '--project',
         fx.root.path,
       ]);

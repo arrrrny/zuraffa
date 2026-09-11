@@ -290,7 +290,16 @@ void main() {
   Future<void> seedSpec(String spec) =>
       File(p.join(featureDir, 'spec.md')).writeAsString(spec);
 
-  List<String> planArgs() => ['tdd', 'plan', '--project', tmpDir.path, feature];
+  List<String> planArgs() => [
+    'tdd',
+    'plan',
+    '--project',
+    tmpDir.path,
+    feature,
+    // Issue #1480: derived contract rows are intentionally planned
+    // through the legacy fallback shape.
+    '--allow-unit-fallback',
+  ];
 
   File laneFile(String name) => File(p.join(tddDir, name));
 

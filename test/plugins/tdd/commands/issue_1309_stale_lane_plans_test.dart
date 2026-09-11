@@ -40,6 +40,12 @@ const String feature = '1309-fixture';
 const String fixtureSpec = '''
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Function**:
+- `LoginValidator`: `validate(String) -> bool`
+- `CredentialHasher`: `hash(String) -> String`
+
 ## Acceptance Scenarios
 
 1. **Given** valid credentials **When** the user submits the login form **Then** the session starts with the authenticated user
@@ -58,6 +64,13 @@ const String fixtureSpec = '''
 /// whose behavior must appear in the regenerated lane plans).
 const String editedSpecAddsFr = '''
 **Template Version**: `zuraffa-1.0`
+
+## Layer Contracts
+
+**Function**:
+- `LoginValidator`: `validate(String) -> bool`
+- `CredentialHasher`: `hash(String) -> String`
+- `LoginThrottler`: `allowAttempt(String) -> bool`
 
 ## Acceptance Scenarios
 
@@ -79,6 +92,11 @@ const String editedSpecAddsFr = '''
 /// must disappear from the lane plans).
 const String editedSpecDropsFr = '''
 **Template Version**: `zuraffa-1.0`
+
+## Layer Contracts
+
+**Function**:
+- `LoginValidator`: `validate(String) -> bool`
 
 ## Acceptance Scenarios
 

@@ -1457,7 +1457,16 @@ class SpecParser {
     return null;
   }
 
-  List<Behavior> parse(String feature, String specMd) {
+  /// [contractTracedFrIds] carries the FR ids the feature's
+  /// `contracts/*.md` files bind (issue #1480's decoupled mapping): a
+  /// defaulted FR named there is DECLARED, so the #1484 manual routing
+  /// must keep deriving its unit row. Empty (the default) preserves the
+  /// spec.md-only contract for every other caller.
+  List<Behavior> parse(
+    String feature,
+    String specMd, {
+    Set<String> contractTracedFrIds = const {},
+  }) {
     final md = normalizeSpecText(specMd);
     final acceptance = _extractAcceptance(feature, md);
     if (acceptance.isEmpty) {
@@ -1483,7 +1492,11 @@ class SpecParser {
         '`(manual: owner)`.',
       );
     }
-    final unit = _extractUnit(feature, md);
+    final unit = _extractUnit(
+      feature,
+      md,
+      contractTracedFrIds: contractTracedFrIds,
+    );
     return [...acceptance, ...unit];
   }
 
@@ -1575,7 +1588,11 @@ class SpecParser {
   static bool _carriesPersistentTag(String frText) =>
       frText.replaceAll('**', '').trim().startsWith('[persistent]');
 
-  List<Behavior> _extractUnit(String feature, String specMd) {
+  List<Behavior> _extractUnit(
+    String feature,
+    String specMd, {
+    Set<String> contractTracedFrIds = const {},
+  }) {
     // Feature 1484: the FR→behaviour derivation consults the FR's own
     // declarations. An FR declared `**Type**: manual` — or, by default,
     // an FR with no `traces:` binding — routes to a manual declaration
@@ -1586,10 +1603,18 @@ class SpecParser {
     // row that cannot honestly pass make. FRs WITH a binding derive
     // rows exactly as before (backwards compatible — the marker is
     // opt-in and untraced specs are the only ones that re-route).
+    //
+    // Feature 1484 × issue #1480: a defaulted FR whose trace lives in
+    // the feature's `contracts/*.md` files ([contractTracedFrIds]) is
+    // DECLARED, not defaulted — it keeps its unit row. An explicit
+    // `**Type**: manual` marker always wins (the author's word).
     final routings = parseFrRoutings(specMd);
     final behaviors = <Behavior>[];
     for (final r in routings) {
-      if (r.routesManual) continue;
+      if (r.routesManual &&
+          (r.manualMarker || !contractTracedFrIds.contains(r.frId))) {
+        continue;
+      }
       // Feature 071: a `[persistent]` tag is a routing declaration,
       // not prose — strip it from the description (the persistence
       // map carries the mark; the rendered row stays clean). The tag
@@ -1826,6 +1851,60 @@ class SpecParser {
     for (final r in parseFrRoutings(specMd))
       if (r.routesManual) r.frId,
   };
+
+  /// The criterion-keyed contract-trace scan for the DECOUPLED mapping
+  /// (issue #1480): the spec↔contract mapping may live BESIDE the spec —
+  /// in the feature's `contracts/*.md` files the planning phase already
+  /// writes — instead of requiring hand-authored zuraffa grammar inside
+  /// the spec body. Each `- **FR-xxx**:` bullet in the contracts file
+  /// names the contract rows its FR exercises, either on the same line
+  /// (`- **FR-001**: traces: Row`) or on an indented `traces:`
+  /// continuation line within the FR's block (the #1319 whole-block scan,
+  /// first `traces:` line wins).
+  ///
+  /// Keyed by the FR ID (not by sequential unit position) so the file is
+  /// robust to reordering — the binding FR id is authoring intent the
+  /// file carries literally. A duplicate FR id refuses naming the line.
+  /// Fenced code blocks are documentation, not declarations.
+  static Map<String, List<String>> parseCriterionContractTraces(String md) {
+    final traces = <String, List<String>>{};
+    final blanked = normalizeSpecText(md).replaceAllMapped(
+      _fencedCodeBlock,
+      (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
+    );
+    final lines = blanked.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      final fr = _frLine(lines[i]);
+      if (fr == null) continue;
+      final frId = fr.$1;
+      if (traces.containsKey(frId)) {
+        throw StateError(
+          'contracts file declares FR "$frId" more than once (line '
+          '${i + 1}).\n'
+          '   --> fix: keep exactly one trace declaration per FR id.',
+        );
+      }
+      // Same-line form: `- **FR-001**: traces: Row` — the payload IS the
+      // trace declaration.
+      final inline = RegExp(r'^traces:\s*(.+)$').firstMatch(fr.$2.trim());
+      if (inline != null) {
+        traces[frId] = traceTokens(inline.group(1)!);
+        continue;
+      }
+      // Continuation form: the indented `traces:` line within the FR's
+      // block (until the next FR/requirement header, heading, or
+      // scenario header) — the first one wins, byte-identical to the
+      // spec.md binding contract (#1319).
+      for (var j = i + 1; j < lines.length; j++) {
+        if (_endsFrBlock(lines[j])) break;
+        final t = _tracesLine.firstMatch(lines[j]);
+        if (t == null) continue;
+        traces[frId] = traceTokens(t.group(1)!);
+        break;
+      }
+    }
+    return traces;
+  }
 
   /// The `_persistence` declaration scan (feature 071): FR lines
   /// carrying a `[persistent]` tag, or a `traces:` continuation naming

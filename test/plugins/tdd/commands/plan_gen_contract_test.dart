@@ -28,6 +28,11 @@ void main() {
   List<String> args(List<String> rest) => [
     'tdd',
     ...rest,
+    // Issue #1480: these tests exercise the PLAN/GEN artifact contract on
+    // the legacy fallback shape (the spec declares no contract rows), so
+    // the unit-fallback gate stays out of the way. The gate's own
+    // contract is covered by plan_unit_fallback_fail_fast_1480_test.dart.
+    if (rest.first == 'plan') '--allow-unit-fallback',
     '--project',
     tmpDir.path,
   ];

@@ -46,6 +46,10 @@ $body
       'tdd',
       'plan',
       '1319-repro',
+      // Issue #1480: groups B/C exercise the UNBOUND-trace warning and the
+      // labeled fallback on purpose — the unit-fallback gate stays out of
+      // the way via the migration escape hatch.
+      '--allow-unit-fallback',
       '--project',
       tmp.path,
     ]);

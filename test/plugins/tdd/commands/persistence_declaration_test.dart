@@ -44,7 +44,10 @@ void main() {
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
 
-  Future<String> runPlan(String frBlock) async {
+  Future<String> runPlan(
+    String frBlock, {
+    bool allowUnitFallback = false,
+  }) async {
     await Directory(featureDir).create(recursive: true);
     final body = _header.replaceFirst(
       '## Functional Requirements\n',
@@ -56,6 +59,7 @@ void main() {
       'tdd',
       'plan',
       featureName,
+      if (allowUnitFallback) '--allow-unit-fallback',
       '--project',
       tmpDir.path,
     ]);
@@ -81,6 +85,9 @@ void main() {
   );
 
   test('storage vocabulary WITHOUT a declaration stays unmarked (AC2)', () async {
+    // Issue #1480: this spec plans the legacy fallback shape on purpose —
+    // its very subject is the UNMARKED default — so the unit-fallback
+    // gate stays out of the way via the migration escape hatch.
     final list = await runPlan(
       '- **FR-001**: caches the result for display alongside the query\n'
       '  traces: QueryCache',

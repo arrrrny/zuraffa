@@ -78,9 +78,14 @@ void main() {
 
   test('gen keeps the plain package:test import surface for a pure-Dart '
       'pubspec whose flutter mention is comment-only (issue #1458)', () async {
-    await CliRunner(
-      exitOnCompletion: false,
-    ).runCapturing(['tdd', 'plan', '1458-repro', '--project', fx.root.path]);
+    await CliRunner(exitOnCompletion: false).runCapturing([
+      'tdd',
+      'plan',
+      '1458-repro',
+      '--allow-unit-fallback',
+      '--project',
+      fx.root.path,
+    ]);
     final out = await CliRunner(
       exitOnCompletion: false,
     ).runCapturing(['tdd', 'gen', 'U1', '--project', fx.root.path]);
@@ -141,9 +146,14 @@ void main() {
 
   test('gen fails loudly on malformed pubspec.yaml instead of silently '
       'taking the pure-Dart lane', () async {
-    await CliRunner(
-      exitOnCompletion: false,
-    ).runCapturing(['tdd', 'plan', '1458-repro', '--project', fx.root.path]);
+    await CliRunner(exitOnCompletion: false).runCapturing([
+      'tdd',
+      'plan',
+      '1458-repro',
+      '--allow-unit-fallback',
+      '--project',
+      fx.root.path,
+    ]);
     await File(
       p.join(fx.root.path, 'pubspec.yaml'),
     ).writeAsString(malformedPubspec);
@@ -191,9 +201,14 @@ void main() {
   test(
     'gen fails loudly when pubspec.yaml dependencies is not a mapping',
     () async {
-      await CliRunner(
-        exitOnCompletion: false,
-      ).runCapturing(['tdd', 'plan', '1458-repro', '--project', fx.root.path]);
+      await CliRunner(exitOnCompletion: false).runCapturing([
+        'tdd',
+        'plan',
+        '1458-repro',
+        '--allow-unit-fallback',
+        '--project',
+        fx.root.path,
+      ]);
       await File(
         p.join(fx.root.path, 'pubspec.yaml'),
       ).writeAsString(invalidDependenciesShapePubspec);
@@ -234,9 +249,14 @@ void main() {
   );
 
   test('gen fails loudly when pubspec.yaml does not parse to a map', () async {
-    await CliRunner(
-      exitOnCompletion: false,
-    ).runCapturing(['tdd', 'plan', '1458-repro', '--project', fx.root.path]);
+    await CliRunner(exitOnCompletion: false).runCapturing([
+      'tdd',
+      'plan',
+      '1458-repro',
+      '--allow-unit-fallback',
+      '--project',
+      fx.root.path,
+    ]);
     await File(
       p.join(fx.root.path, 'pubspec.yaml'),
     ).writeAsString(nonMapPubspec);

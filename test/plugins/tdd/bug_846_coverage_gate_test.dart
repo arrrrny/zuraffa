@@ -36,6 +36,10 @@ void main() {
   List<String> args(List<String> rest) => [
     'tdd',
     ...rest,
+    // Issue #1480: the coverage/traceability gates are the subject here —
+    // the fixtures plan the legacy fallback shape on purpose, so the
+    // unit-fallback gate stays out of the way via the escape hatch.
+    if (rest.first == 'plan') '--allow-unit-fallback',
     '--project',
     tmpDir.path,
   ];

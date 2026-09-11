@@ -202,6 +202,9 @@ void main() {
         '080-ui-dashboard',
         '--project',
         tmpDir.path,
+        // Issue #1480: the spec is deliberately minimal — the legacy
+        // fallback shape stays reachable via the migration escape hatch.
+        '--allow-unit-fallback',
       ]);
       final list = await File(
         p.join(specDir.path, 'tdd', 'test-list.md'),
@@ -239,6 +242,9 @@ void main() {
         '002-toggle',
         '--project',
         tmpDir.path,
+        // Issue #1480: the spec is deliberately minimal — the legacy
+        // fallback shape stays reachable via the migration escape hatch.
+        '--allow-unit-fallback',
       ]);
       final list = await File(
         p.join(specDir.path, 'tdd', 'test-list.md'),

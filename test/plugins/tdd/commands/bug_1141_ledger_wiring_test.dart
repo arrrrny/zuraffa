@@ -78,6 +78,10 @@ void main() {
     return runner.runCapturing([
       'tdd',
       'plan',
+      // Issue #1480: this suite's subject is the UI-surface LEDGER, not
+      // the routing gate — the zero-surface variant plans the legacy
+      // fallback shape on purpose.
+      '--allow-unit-fallback',
       '--project',
       tmpDir.path,
       feature,
