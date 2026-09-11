@@ -72,6 +72,15 @@ class BehaviorTestWriter {
   /// returns, or (for entity returns whose type cannot exist yet) the
   /// guard carrying the vacuous-guard marker so `make` refuses green
   /// until a real outcome assertion lands.
+  ///
+  /// Issue #1512 (review): the UNIT lane only. The acceptance lane's
+  /// captured subject is a PARAMETERLESS `void <target>()` scenario
+  /// runner ([SubjectWriter] gen stub, preserved by `tdd wire` / `tdd
+  /// compose`), and `gen_command.dart` never resolves a shape for an
+  /// acceptance row — so an acceptance behavior IGNORES this shape rather
+  /// than emitting a pair production never builds. The acceptance row's
+  /// declared outcome is asserted through the composition lane the planner
+  /// routes to (`generation_planner.dart` branch 3b).
   final UnitContractShape? contractShape;
 
   /// Whether the host project runs on the Flutter test runner
@@ -244,11 +253,19 @@ void main() {
   /// prose heuristics (the #920 "declaration outranks inference"
   /// ordering, now applied to the test half too). The heuristics below
   /// serve undeclared behaviors only.
+  ///
+  /// Issue #1512 (review): the declared shape is a UNIT-lane surface. An
+  /// acceptance behavior never consumes it — its captured subject is a
+  /// parameterless `void` scenario runner that returns nothing, so a
+  /// declared `isA<T>()` outcome assertion would sit on a value the pair
+  /// can never produce. Acceptance rows take the heuristics + the
+  /// fallback guard below, and their declared outcome is asserted through
+  /// the composition lane (`tdd compose`).
   String _deriveAssertion(Behavior b) {
     final target = b.target.isEmpty ? 'subjectUnderTest' : b.target;
     final description = b.description;
     final shape = contractShape;
-    if (shape != null) {
+    if (shape != null && b.kind != BehaviorKind.acceptance) {
       return _declaredAssertion(b, target, shape);
     }
     // Look for "returns N" or "= N".
@@ -296,16 +313,22 @@ void main() {
     // Issue #1512: the UNDECLARED acceptance fallback's guard is the
     // vacuous-green class — the void-safe capture returns null for any
     // non-throwing subject, so an EMPTY body flips it green. Emit the
-    // designed hand-delta seam (the #1259 marker comment naming the exact
-    // remedy) so the vacuity is named on the artifact and the shared
+    // acceptance-lane fallback token naming the lane's actual remedy (the
+    // composition lane) so the gap is named on the artifact and the shared
     // `contentIsVacuousGreen` detector refuses it mechanically — never
-    // silent. The UNIT lane keeps its #1308 two-class dispatch unchanged
-    // (the marker stays ABSENT on the unit fallback path; its gap is the
-    // gen-time warning token instead).
+    // silent. The token is DELIBERATELY not the #1259 `vacuousGuardMarker`:
+    // marker presence is the run driver's traced hand-delta seam
+    // discriminator (`stopped_at=<id>:hand`, `run_driver_core.dart`), and
+    // this fallback is not a traced contract — the marker would reclassify
+    // its honest `stopped_at=<id>:make` gap and prescribe an assertion the
+    // void scenario runner cannot carry (issue #1512 review). The UNIT
+    // lane keeps its #1308 two-class dispatch unchanged (the marker stays
+    // ABSENT on the unit fallback path; its gap is the gen-time warning
+    // token instead).
     final guard = 'expect(result, isNot(isA<UnimplementedError>()));';
     if (b.kind == BehaviorKind.acceptance) {
       return '${_captureInvocation(b, target, null)}\n'
-          '      $vacuousGuardComment\n'
+          '      $acceptanceFallbackGuardComment\n'
           '      $guard';
     }
     return '${_captureInvocation(b, target, null)}\n      $guard';
@@ -368,14 +391,26 @@ void main() {
   /// The capture + arg-helper block for a declared shape. Helpers are
   /// declared BEFORE the capture (local functions must precede use) and
   /// live inside the test closure.
+  ///
+  /// Issue #1512 (review): [shape] is the UNIT-lane contract surface. The
+  /// acceptance lane IGNORES it — `behavior_test_writer.dart`'s public API
+  /// accepts a shape, but `gen_command.dart` resolves one only for
+  /// `BehaviorKind.unit`, and the paired acceptance subject is a
+  /// parameterless `void <target>()` scenario runner ([SubjectWriter] gen
+  /// stub; `tdd wire` / `tdd compose` preserve that signature). Threading
+  /// declared args into it, or returning its (void) result, is a
+  /// `use_of_void_result` + arity compile error against a pair production
+  /// actually builds — so an injected shape is inert here rather than
+  /// emitting an artifact only tests can reach.
   String _captureInvocation(
     Behavior behavior,
     String target,
     UnitContractShape? shape,
   ) {
+    final acceptance = behavior.kind == BehaviorKind.acceptance;
     final helpers = StringBuffer();
     var args = '';
-    if (shape != null) {
+    if (shape != null && !acceptance) {
       final argExprs = <String>[];
       for (var i = 0; i < shape.params.length; i++) {
         final param = shape.params[i];
@@ -393,41 +428,29 @@ void main() {
       }
       args = argExprs.join(', ');
     }
-    // Issue #1512: the acceptance lane threads the DECLARED arguments and
-    // returns the DECLARED result — the same capture surface the unit lane
-    // emits — instead of the vacuous empty-call + `return null;` discard
-    // that made every acceptance green certifiable by an empty body. The
-    // threaded-and-returning form engages when a DECLARED shape supplies a
-    // non-void renderable return (the surface the contract implies). Dart
-    // forbids using a void expression as a value (`use_of_void_result`),
-    // and the acceptance subject's generated lifecycle (gen stub, wire,
-    // compose) keeps a `void` scenario-runner signature, so an undeclared
-    // (or void-declared) acceptance capture stays VOID-SAFE: its declared
-    // args are still threaded when a shape supplies them, and its
-    // guard-only assertion set is named by the #1259 marker seam (see
-    // `_deriveAssertion`).
-    final acceptance = behavior.kind == BehaviorKind.acceptance;
-    final declaredReturn =
-        shape != null &&
-        shape.returnType != 'void' &&
-        isRenderableDartType(shape.returnType);
     // Issue #1035: the UNIT lane's capture initializer is provably
     // non-nullable (the closure returns the subject's value or the
     // caught UnimplementedError — never null), so an explicit `Object?`
     // annotation trips unnecessary_nullable_for_final_variable_declarations
     // in the generated test. Inference types the capture correctly for
     // both the red stub (static return type) and the implemented subject;
-    // the acceptance lane's UNDECLARED / void-declared capture CAN be
-    // null (`return null;`), so it keeps the explicit nullable annotation
-    // its initializer matches.
+    // the acceptance lane's capture IS null (`return null;` — the
+    // parameterless void scenario runner has no value to return), so it
+    // keeps the explicit nullable annotation its initializer matches.
+    //
+    // Issue #1512: the acceptance capture stays the VOID-SAFE, ARGUMENT-FREE
+    // form. `make`'s vacuous-green refusal is unit-scoped by design
+    // (`make_command.dart` step 3c: "acceptance rows keep the legacy skip
+    // transition — the composition lane is deferred by design, FR-009"),
+    // so the guard-only acceptance test is the lane's correct red surface:
+    // the stub throws, the capture returns the error, the guard fails; the
+    // composition lane (`tdd compose`) then implements the subject and the
+    // guard certifies green.
     final String capture;
     final String invocation;
-    if (acceptance && declaredReturn) {
-      capture = 'final result';
-      invocation = 'return subject.$target($args);';
-    } else if (acceptance) {
+    if (acceptance) {
       capture = 'final Object? result';
-      invocation = 'subject.$target($args);\n          return null;';
+      invocation = 'subject.$target();\n          return null;';
     } else {
       capture = 'final result';
       invocation = 'return subject.$target($args);';

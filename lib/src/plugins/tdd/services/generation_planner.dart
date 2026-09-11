@@ -600,16 +600,35 @@ class GenerationPlanner {
     //     made `unexpressible` the DEFAULT for the whole acceptance lane:
     //     every user-scenario row stopped at `make -> unexpressible` and
     //     the cycle could never reach done by construction. The lane HAS
-    //     a real make surface; derive it from the row's own declared
-    //     context (the declaration ladder above already resolves
+    //     a real make surface; derive it from the row's own EXPLICIT prose
+    //     signals (the declaration ladder above already resolves
     //     contract-row traces; what reaches here is the row's scenario
     //     prose):
     //
-    //     - An entity name derivable from the row (the explicit target,
-    //       `entity <Name>`/`create <Name>` prose, or the #758/#873
-    //       capitalized-trace extractor) routes to the SAME
-    //       #609/#610/#758 entity-pipeline contract branch 2 uses for
-    //       acceptance rows: entity create → make → tdd wire → build.
+    //     - An entity name derivable from an EXPLICIT prose signal routes to
+    //       the SAME #609/#610/#758 entity-pipeline contract branch 2 uses
+    //       for acceptance rows: entity create → make → tdd wire → build.
+    //       The signals accepted are the explicit `target` (make resolves
+    //       it from `entity <Name>` prose) and the `entity <Name>` /
+    //       `create <Name>` prose matcher — the same pair branch 2 reads.
+    //       A DECLARED contract trace never reaches here: the declaration
+    //       ladder above resolves declared surfaces first, and make's
+    //       traced-entity resolver (`_tracedEntityFor`) is unit-scoped, so
+    //       this branch sees undeclared scenario prose only.
+    //
+    //       The #758/#873 capitalized-trace EXTRACTOR is deliberately NOT
+    //       consulted here. Branch 2 gates it behind CRUD/use-case prose,
+    //       but this branch sees EVERY acceptance row, and the extractor
+    //       returns the first non-stopword capitalized token ANYWHERE in
+    //       the prose (its own doc calls a false positive benign because
+    //       "the wire step misfire-stops when no such entity file
+    //       exists"). That reasoning does not hold here: this branch's
+    //       FIRST step is `entity create -n <Name>`, which creates the
+    //       entity, so the wire step can no longer misfire — the plan
+    //       would scaffold use-cases/repositories/DI for a fabricated
+    //       entity ("the User signs in." → `entity create -n User`). An
+    //       incidental capitalised word must not mutate the target
+    //       project; such rows compose instead (issue #1512 review).
     //
     //     - Every other acceptance row routes to the spec-052 composition
     //       lane — `tdd compose <id> --feature <f>` + build, the exact
@@ -626,12 +645,7 @@ class GenerationPlanner {
     if (summary.kind == BehaviorKind.acceptance ||
         isAcceptanceBehaviorId(summary.behaviorId)) {
       final derivedName =
-          summary.target ??
-          _extractEntityName(summary.description) ??
-          _extractCapitalizedTrace(
-            summary.description,
-            behaviorId: summary.behaviorId,
-          );
+          summary.target ?? _extractEntityName(summary.description);
       if (derivedName != null) {
         return GenerationPlan(
           behaviorId: summary.behaviorId,

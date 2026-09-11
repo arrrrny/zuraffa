@@ -2,17 +2,25 @@
 //
 // Three pins, one per root cause:
 //
-//   (a) the acceptance capture threads the DECLARED arguments (the shape's
-//       arg expressions reach the call site — never a bare empty call);
-//   (b) the acceptance assertion checks the DECLARED outcome surface
-//       (`isA<T>()` for scalar outcomes; the #1259 vacuous-guard marker seam
-//       whenever the assertion set would be the bare guard — never silent);
-//   (c) the planner returns a real make surface for acceptance rows
-//       (entity pipeline when the row names an entity; the spec-052
+//   (a) the acceptance capture stays the VOID-SAFE, ARGUMENT-FREE form: the
+//       paired subject is a parameterless `void` scenario runner, and an
+//       injected contract shape must NOT thread args or return a value — the
+//       "thread declared args / assert the declared result" composition is
+//       unreachable from `gen` (which resolves a shape only for unit
+//       behaviours) and would be a `use_of_void_result` + arity compile
+//       error against the pair production actually builds;
+//   (b) the acceptance fallback names its gap with the acceptance-lane token
+//       — never the #1259 vacuous-guard marker, whose presence is the run
+//       driver's traced hand-delta (`stopped_at=<id>:hand`) discriminator;
+//   (c) the planner returns a real make surface for acceptance rows (entity
+//       pipeline when an EXPLICIT prose signal names an entity; the spec-052
 //       composition lane otherwise) instead of the default unexpressible.
 //
 // Content-level assertions (the bug_830/bug_912 convention): the emitted
-// artifacts are validated through `write()` / `plan()` into a temp tree.
+// artifacts are validated through `write()` / `plan()` into a temp tree. The
+// slow pin runs the emitted test+subject pair through `dart test` — the
+// compile proof the round-2 review asked for — and the structural pins prove
+// the call site and the paired subject's signature stay arity-compatible.
 library;
 
 import 'dart:io';
@@ -23,6 +31,7 @@ import 'package:zuraffa/src/plugins/tdd/models/behavior.dart';
 import 'package:zuraffa/src/plugins/tdd/models/routing.dart';
 import 'package:zuraffa/src/plugins/tdd/services/behavior_test_writer.dart';
 import 'package:zuraffa/src/plugins/tdd/services/generation_planner.dart';
+import 'package:zuraffa/src/plugins/tdd/services/subject_writer.dart';
 import 'package:zuraffa/src/plugins/tdd/services/unit_contract_shape.dart';
 import 'package:zuraffa/src/plugins/tdd/services/vacuous_guard.dart';
 
@@ -54,107 +63,103 @@ UnitContractShape shapeOf(String declared) =>
     UnitContractShape.of(Signature.parse(declared));
 
 void main() {
-  group('bug #1512 (a): the acceptance capture threads declared args', () {
-    test('a declared scalar contract reaches the call site with its args '
-        'and returns the result — never the empty-call discard', () async {
-      final content = await renderTest(
-        acceptanceBehavior(),
-        shape: shapeOf('start(String session) -> String'),
-      );
-      // The declared arg expression (a scalar String literal) must be
-      // threaded into the invocation — the vacuous empty call is gone.
+  group('bug #1512 (a): the acceptance capture is the void-safe, '
+      'argument-free form', () {
+    test('an undeclared acceptance row emits the parameterless void-safe '
+        'capture — never a threaded call or a returned result', () async {
+      final content = await renderTest(acceptanceBehavior());
       expect(
         content,
-        contains("return subject.subject_a1(r'sample');"),
+        contains('subject.subject_a1();'),
         reason:
-            'the acceptance capture must thread the declared args and '
-            'return the subject result (the unit lane capture surface), '
-            'not `subject.subject_a1(); return null;`',
+            'the paired acceptance subject is a parameterless `void '
+            'subject_a1()` scenario runner (subject_writer.dart) — the call '
+            'site must match its arity',
       );
       expect(
         content,
-        isNot(contains('subject.subject_a1();')),
-        reason: 'the empty call is the vacuous seam (root cause 1)',
+        contains('return null;'),
+        reason:
+            'the void scenario runner has no value to return; the capture '
+            'stays void-safe (`final Object? result`)',
       );
-      expect(
-        content,
-        isNot(contains('return null;')),
-        reason: 'the unconditional `return null;` discards the result',
-      );
+      expect(content, contains('final Object? result'));
+      expect(content, isNot(contains('return subject.')));
     });
 
-    test('a declared entity-return contract threads args and captures the '
-        'result through the renderable degradation (Object?)', () async {
+    test(
+      'a directly-injected scalar shape is inert for acceptance — the '
+      'gen pipeline never supplies one, so it must not thread args',
+      () async {
+        final content = await renderTest(
+          acceptanceBehavior(),
+          shape: shapeOf('start(String session) -> String'),
+        );
+        expect(
+          content,
+          contains('subject.subject_a1();'),
+          reason:
+              'acceptance subjects take no arguments; threading the declared '
+              'args would be an arity compile error against the emitted pair',
+        );
+        expect(content, isNot(contains('return subject.')));
+        expect(content, isNot(contains('r\'sample\'')));
+        expect(content, isNot(contains('_arg0()')));
+        expect(
+          content,
+          isNot(contains('isA<String>()')),
+          reason:
+              'the acceptance capture can never yield a declared non-void '
+              'result, so a declared outcome assertion would sit on null',
+        );
+      },
+    );
+
+    test('a directly-injected entity-return shape is inert too', () async {
       final content = await renderTest(
         acceptanceBehavior(),
         shape: shapeOf('complete(String session) -> Todo'),
       );
-      expect(
-        content,
-        contains("return subject.subject_a1(r'sample');"),
-        reason:
-            'the declared return degrades to Object? (renderable, '
-            'non-void) — the capture can return the subject result',
-      );
+      expect(content, contains('subject.subject_a1();'));
+      expect(content, isNot(contains('return subject.')));
+      expect(content, isNot(contains('_arg0()')));
     });
 
-    test('a declared VOID return keeps the void-safe capture form but '
-        'still threads the declared args', () async {
-      final content = await renderTest(
-        acceptanceBehavior(),
-        shape: shapeOf('start(String session) -> void'),
+    test('the paired subject signature the writer targets is the '
+        'parameterless `void` scenario runner the test calls', () async {
+      final dir = Directory.systemTemp.createTempSync('bug_1512_pair_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final behavior = acceptanceBehavior();
+      final testPath = p.join(dir.path, 'test', 'tdd', 'a1_test.dart');
+      final subjectPath = p.join(dir.path, 'lib', 'tdd', 'a1_subject.dart');
+      await const BehaviorTestWriter().write(
+        behavior: behavior,
+        testPath: testPath,
+        subjectPath: subjectPath,
       );
-      // Args threaded…
+      await const SubjectWriter().write(
+        behavior: behavior,
+        subjectPath: subjectPath,
+      );
+      final subject = File(subjectPath).readAsStringSync();
+      final content = File(testPath).readAsStringSync();
+      expect(
+        subject,
+        contains('void subject_a1() => throw UnimplementedError'),
+        reason: 'the paired subject is a parameterless void scenario runner',
+      );
       expect(
         content,
-        contains("subject.subject_a1(r'sample');"),
-        reason: 'declared args reach the call site even for void returns',
+        contains('subject.subject_a1();'),
+        reason: 'the test call is arity-compatible with the paired subject',
       );
-      // …but the capture stays void-safe: a void expression can never be
-      // returned as a value (use_of_void_result — the pair must compile
-      // against the void scenario-runner subject).
-      expect(content, isNot(contains('return subject.')));
     });
   });
 
-  group('bug #1512 (b): the acceptance assertion checks the declared '
-      'outcome surface', () {
-    test('a declared scalar outcome asserts isA<T>() and the test is '
-        'mechanically non-vacuous', () async {
-      final content = await renderTest(
-        acceptanceBehavior(),
-        shape: shapeOf('start(String session) -> String'),
-      );
-      expect(
-        content,
-        contains('expect(result, isA<String>())'),
-        reason:
-            'the acceptance assertion must sit ON the declared outcome '
-            'surface (the #1259 unit-lane shape), not the bare guard',
-      );
-      expect(
-        contentIsVacuousGreen(content),
-        isFalse,
-        reason: 'an isA<T>() outcome assertion is not the vacuous guard',
-      );
-    });
-
-    test('a declared entity outcome carries the vacuous-guard marker seam '
-        '(the designed hand-delta, never silent vacuity)', () async {
-      final content = await renderTest(
-        acceptanceBehavior(),
-        shape: shapeOf('complete(String session) -> Todo'),
-      );
-      expect(content, contains(vacuousGuardMarker));
-      expect(
-        contentIsVacuousGreen(content),
-        isTrue,
-        reason: 'the marker makes the guard-only assertion set refuse',
-      );
-    });
-
-    test('an UNDECLARED acceptance fallback guard carries the marker seam '
-        'too — an empty body can no longer pass silently', () async {
+  group('bug #1512 (b): the acceptance fallback names its gap without the '
+      'traced hand-delta marker', () {
+    test('an undeclared acceptance fallback carries the acceptance token — '
+        'never the #1259 vacuous-guard marker', () async {
       final content = await renderTest(
         acceptanceBehavior(description: 'the scenario completes.'),
       );
@@ -165,13 +170,34 @@ void main() {
       );
       expect(
         content,
-        contains(vacuousGuardMarker),
-        reason:
-            'the undeclared acceptance guard is the vacuous-green class '
-            '(an empty subject body passes it) — the artifact must name '
-            'the vacuity and the remedy (issue #1512)',
+        contains(acceptanceFallbackGuardToken),
+        reason: 'the acceptance lane names its own fallback gap',
       );
-      expect(contentIsVacuousGreen(content), isTrue);
+      expect(
+        content,
+        isNot(contains(vacuousGuardMarker)),
+        reason:
+            'marker presence is the run driver\'s traced hand-delta '
+            '(`stopped_at=<id>:hand`) discriminator; this fallback is not a '
+            'traced contract and its honest class is `:make`',
+      );
+      expect(contentCarriesVacuousGuardMarker(content), isFalse);
+      expect(
+        contentIsVacuousGreen(content),
+        isTrue,
+        reason:
+            'the guard-only set is still refused by the content backstop — '
+            'the refusal never depended on the marker',
+      );
+    });
+
+    test('the acceptance fallback does not reuse the unit-lane comment '
+        'block', () async {
+      final content = await renderTest(
+        acceptanceBehavior(description: 'the scenario completes.'),
+      );
+      expect(content, contains(acceptanceFallbackGuardToken));
+      expect(content, isNot(contains(vacuousGuardComment)));
     });
   });
 
@@ -216,10 +242,38 @@ void main() {
       expect(plan.steps.last.args, ['build']);
     });
 
-    test('a scenario row whose literals name an entity routes to the '
-        '#758 entity pipeline (entity create → make → wire → build)', () {
+    test('an incidental capitalised word does NOT fabricate an entity — the '
+        'row composes instead', () {
+      final plan = planner.plan(acceptanceSummary('the User signs in.'));
+      expect(
+        plan.isExpressible,
+        isTrue,
+        reason: 'the row still has a real make surface (the compose lane)',
+      );
+      expect(
+        plan.steps.first.args.first,
+        'tdd',
+        reason:
+            'a capitalised word in scenario prose is not a declared entity: '
+            '`entity create -n User` would scaffold use-cases/repositories/DI '
+            'for an entity nobody asked for (issue #1512 review)',
+      );
+      expect(plan.steps, hasLength(2));
+    });
+
+    test('a scenario row that names an entity ONLY by a capitalised word '
+        'composes (no entity pipeline from prose alone)', () {
       final plan = planner.plan(
         acceptanceSummary('the Todo item persists across restarts.'),
+      );
+      expect(plan.steps.first.args.first, 'tdd');
+      expect(plan.steps, hasLength(2));
+    });
+
+    test('an explicit `entity <Name>` prose signal routes to the #758 entity '
+        'pipeline (entity create → make → wire → build)', () {
+      final plan = planner.plan(
+        acceptanceSummary('entity Todo persists across restarts.'),
       );
       expect(plan.isExpressible, isTrue);
       expect(plan.steps, hasLength(4));
@@ -235,6 +289,14 @@ void main() {
         '1512-acceptance-vacuous-composition',
       ]);
       expect(plan.steps.last.args, ['build']);
+    });
+
+    test('an explicit `create <Name>` prose signal routes to the entity '
+        'pipeline too', () {
+      final plan = planner.plan(
+        acceptanceSummary('create Invoice for the order.'),
+      );
+      expect(plan.steps.first.args, ['entity', 'create', '-n', 'Invoice']);
     });
 
     test('an explicit target wins the entity derivation', () {
@@ -302,6 +364,7 @@ void main() {
       expect(content, contains("return subject.subject_u1(r'sample');"));
       expect(content, contains('expect(result, isA<bool>())'));
       expect(content, isNot(contains(vacuousGuardMarker)));
+      expect(content, isNot(contains(acceptanceFallbackGuardToken)));
     });
 
     test('an undeclared unit fallback guard stays UNMARKED (the #1308 '
@@ -334,6 +397,63 @@ void main() {
             'the #1308 two-class dispatch keys on the marker being '
             'ABSENT on the unit fallback path — unchanged',
       );
+      expect(
+        content,
+        isNot(contains(acceptanceFallbackGuardToken)),
+        reason: 'the acceptance token never leaks into the unit lane',
+      );
     });
   });
+
+  test(
+    'the emitted acceptance test+subject pair compiles and fails through an '
+    'assertion (round-2 review: prove the pair, never only its text)',
+    () async {
+      final dir = Directory.systemTemp.createTempSync('bug_1512_compile_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final behavior = acceptanceBehavior();
+      final testPath = p.join(dir.path, 'a1_test.dart');
+      final subjectPath = p.join(dir.path, 'a1_subject.dart');
+      await const BehaviorTestWriter().write(
+        behavior: behavior,
+        testPath: testPath,
+        subjectPath: subjectPath,
+      );
+      await const SubjectWriter().write(
+        behavior: behavior,
+        subjectPath: subjectPath,
+      );
+      await File(p.join(dir.path, 'pubspec.yaml')).writeAsString('''
+name: bug_1512_compile_pair
+environment:
+  sdk: ^3.11.0
+dependencies:
+  test: ^1.25.0
+''');
+      final result = await Process.run('dart', [
+        'test',
+        testPath,
+      ], workingDirectory: dir.path);
+      final combined = '${result.stdout}\n${result.stderr}';
+      // The pair must RUN: a compile error never reaches an assertion.
+      expect(
+        result.exitCode,
+        isNot(0),
+        reason: 'the stub must be honestly red on first run',
+      );
+      expect(
+        combined.toLowerCase(),
+        isNot(contains('compile-time error')),
+        reason: combined,
+      );
+      expect(
+        combined.toLowerCase(),
+        isNot(contains('undefined name')),
+        reason: combined,
+      );
+      expect(combined, allOf(contains('Expected:'), contains('Actual:')));
+    },
+    tags: 'slow',
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
 }
