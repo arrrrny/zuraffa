@@ -52,6 +52,42 @@ const String vacuousGuardFallbackRemedy =
     '(04-ENGINE.md) traces cell to FR-00N, Row.method and re-run '
     'zfa tdd gen (the designed hand-delta seam)';
 
+/// Issue #1483: the vacuous-green fallback remedy, BRANCHED by feature
+/// shape — the stop message must name the seam that EXISTS for the shape
+/// it is talking to.
+///
+/// [vacuousGuardFallbackRemedy] hardcodes the lane plan (a bare
+/// `04-ENGINE.md`) into every shape's advice — but a legacy single-file
+/// feature (no `## Lanes` in its spec, the shape `zfa tdd plan` produces
+/// with no lane split) has NO lane plan pair (`04-ENGINE.md` /
+/// `04-SKIN.md`) and never will: following the advice sends the author
+/// to a file that does not exist while the real seam — the traces cell
+/// of the test list the feature actually carries — sits untouched. The
+/// branches:
+///
+/// * lane-split feature ([lanePlanPath] non-null — the lane plan pair is
+///   on disk) → the lane plan's traces cell, as before;
+/// * legacy single-file feature ([lanePlanPath] null) → the test list's
+///   traces cell (`tdd/test-list.md`).
+///
+/// Both branches print the FULL path of the file to edit (the caller
+/// relativizes against the project root): a bare filename hides the
+/// feature dir, and the feature dir is not obvious from the stop
+/// message. The wording family stays one: the re-plan/re-gen/re-run
+/// advice first, the `FR-00N, Row.method` hand-delta cell, the seam tail
+/// — only the seam noun + path branch.
+String vacuousGuardFallbackRemedyFor({
+  required String? lanePlanPath,
+  required String testListPath,
+}) {
+  final seamPath = lanePlanPath ?? testListPath;
+  final seamNoun = lanePlanPath != null ? 'lane plan' : 'test list';
+  return 'add traces: <ContractRow> to the FR, re-run zfa tdd plan, '
+      're-run zfa tdd gen, re-run zfa tdd run — or hand-edit the '
+      '$seamNoun ($seamPath) traces cell to FR-00N, Row.method and '
+      're-run zfa tdd gen (the designed hand-delta seam)';
+}
+
 /// Issue #1308: the machine-greppable token the gen-time guard-only
 /// warning prints — the unit-lane sibling of [vacuousGuardMarker]. The
 /// fallback path's generated test does NOT carry the marker (it is the
