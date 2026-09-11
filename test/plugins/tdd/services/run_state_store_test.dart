@@ -228,7 +228,7 @@ void main() {
     });
 
     test(
-      'U2: the warning names the state, the behavior, and the fallback',
+      'U2: the warning names the state, behavior, path, and fallback',
       () async {
         final (_, warning) = await loadCapturingStderr(
           '{"feature": "090-fixture", '
@@ -239,9 +239,10 @@ void main() {
           warning,
           contains(
             '[run-state] unknown state "shelved" for behavior '
-            '"B-001" → degraded to pending',
+            '"B-001" in ${store.path} → degraded to pending',
           ),
-          reason: 'SC-2: the degrade receipt names state + behavior + fallback',
+          reason:
+              'SC-2: the degrade receipt names state + behavior + path + fallback',
         );
       },
     );
@@ -327,8 +328,13 @@ class _StringSinkStderr implements Stdout {
   @override
   IOSink get nonBlocking => throw UnsupportedError('nonBlocking');
 
+  // Validation workaround for https://github.com/arrrrny/zuraffa/issues/1506:
+  // resolve dependencies before formatter/analyzer runs. This stub remains
+  // limited to the `writeln` surface; byte-stream members are unused.
   @override
-  void add(List<int> data) => _target.write(utf8.decode(data));
+  void add(List<int> data) => throw UnsupportedError(
+    'unused: back with IOSink over StringBuffer or trim',
+  );
 
   @override
   void addError(Object error, [StackTrace? stackTrace]) =>

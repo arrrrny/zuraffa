@@ -18,7 +18,7 @@
 | Preflight (suite green before audit) | ✅ `dart test test/plugins/tdd/services/run_state_store_test.dart` → 9/9 pass on untouched code (baseline) |
 | Test-first evidence | ✅ red log captured with the fix NOT yet written (`tdd/red-1468.log`, exit 1, `+11 -3`) |
 | Red-phase evidence | ✅ U1/U2/U3 failed for the RIGHT reason: `corrupted run-state.json … (unknown behavior state "shelved"/"archived")` raised at `run_state_store.dart:216` — the pre-fix corrupt branch |
-| Green | ✅ `tdd/green-1468.log` — exit 0, `+14: All tests passed!` (11 pre-existing + 5 new) |
+| Green | ✅ `tdd/green-1468.log` — exit 0, `+14: All tests passed!` (9 pre-existing + 5 new) |
 | Test-smell rubric | ✅ no sleeps/order deps; isolated `Directory.systemTemp` fixtures with `tearDown` deletion; stderr captured via `IOOverrides.runZoned` (repo pattern from `route_explain_test.dart`); exact receipt asserted, no process spawning |
 | Mutation testing (changed file) | ✅ 2/2 mutants killed (M1 corrupt-on-unknown restored → U1/U2/U3 fail; M2 silent degrade, warning dropped → U2/U3 fail) |
 | Acceptance-criteria coverage | ✅ SC-1→U1, SC-2→U2, SC-3→U3, SC-4→U4, SC-5→U5+B1 (see §4) |

@@ -57,6 +57,9 @@ downgraded binary reads the state file, keeps every known state, and resumes.
   root pattern; untouched per the single-point constraint).
 - State machine transitions, run driver logic, `in_flight_step` validation.
 - Any migration or rewrite of existing state files.
+- Preserving an unknown state name after `load()` followed by `save()`: the
+  degraded `pending` value is persisted, so the original newer-binary name is
+  lost (forward compatibility is one-way for this store).
 
 ## References
 
