@@ -42,10 +42,13 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
+import '../services/declared_routing.dart';
 import '../services/entity_lookup.dart';
 import '../services/subject_signature_deriver.dart';
 import '../services/tdd_generation_receipt.dart';
+import '../services/unit_contract_shape.dart';
 import '../services/verdict_emitter.dart';
+import '../models/routing.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
@@ -287,6 +290,7 @@ class WireCommand extends Command<void> {
           'UnimplementedError in an unrecognized shape — refusing to '
           'rewrite a file this command did not generate.',
         );
+        exitCode = 1;
       } else {
         // Idempotent re-run (resumed pipeline): nothing to do.
         print(
@@ -300,20 +304,111 @@ class WireCommand extends Command<void> {
         );
         exitCode = 0;
       }
-      if (_hasExecutableUnimplementedError(raw)) {
-        exitCode = 1;
-      }
       return;
     }
-    final returnType = stub.group(1)!;
+    final stubReturnType = stub.group(1)!.trim();
     final functionName = stub.group(2)!;
+    final stubParams = stub.group(3)!.trim();
+
+    // -------------------------------------------------------------
+    // 4b. Resolve the DECLARED signature the stub was derived from
+    //     (issue #1500). A contract-derived subject (#1259) renders
+    //     non-renderable declared types as `Object?` so the STUB
+    //     compiles (FR-011) — that degradation is stub scaffolding,
+    //     never the wired return. Wire resolves the declared return
+    //     through the SAME machinery gen used (test-list traces →
+    //     spec contract rows → UnitContractShape), falling back to the
+    //     stub's own provenance header when the spec artifacts are
+    //     absent. A MALFORMED declaration refuses (errors-are-an-API),
+    //     matching gen's contract.
+    // -------------------------------------------------------------
+    UnitContractShape? declaredShape;
+    try {
+      final declared = await DeclaredRouting.declaredSignatureFor(
+        cwd: cwd,
+        featureName: resolved.featureName,
+        featureDir: resolved.featureDir,
+        behaviorId: record.behaviorId,
+      );
+      if (declared != null) declaredShape = UnitContractShape.of(declared);
+    } on StateError catch (e) {
+      print('zfa tdd wire: declaration refused — ${e.message}');
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: WireOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+    // Fallback: the SubjectWriter contract stub preserves the declared
+    // signature in its provenance header (`//     create(String title)
+    // -> Task`). When the registry's spec artifacts are pruned but the
+    // stub remains, the header still names the declared shape — the
+    // same source gen derived the stub from, never an invention.
+    declaredShape ??= _declaredShapeFromStubHeader(raw);
+
+    // The declared return wins whenever it is a plausible type token;
+    // the plausibility gate keeps prose-adjacent header text from ever
+    // rendering a non-type into the wired signature.
+    final declaredReturn = declaredShape?.declaredReturn.trim();
+    final derived = deriveSubjectSignature(
+      _descriptionFor(record),
+      forWire: true,
+    );
+    final effectiveReturnType =
+        declaredReturn != null &&
+            declaredReturn.isNotEmpty &&
+            _isPlausibleTypeToken(declaredReturn)
+        ? declaredReturn
+        : (stubReturnType == 'void'
+              ? 'void'
+              : (derived.returnType.isNotEmpty
+                    ? derived.returnType
+                    : stubReturnType));
+
+    // Issue #1500: an entity-shaped declared return binds to the mock
+    // data the pipeline generated one step earlier (`zfa mock create
+    // --name <E>` writes <E>MockData.sample<E>/.sampleList) — never a
+    // `return null as Task;` runtime cast error. A missing mock-data
+    // file is an honest misfire-stop naming the skipped step; the
+    // subject is left untouched.
+    final mockBinding = _mockBindingFor(effectiveReturnType);
+    String? mockImport;
+    String? mockReference;
+    if (mockBinding != null) {
+      final mockFile = await _locateMockDataFile(cwd, mockBinding.entity);
+      if (mockFile == null) {
+        print(
+          'zfa tdd wire: no generated mock data for entity '
+          '"${mockBinding.entity}" found under '
+          '${p.join(cwd, 'lib', 'src', 'data', 'mock')}. Run '
+          '`zfa mock create --name ${mockBinding.entity}` first (the '
+          'pipeline orders the wire step after mock create — the wired '
+          'subject returns an ${mockBinding.entity}MockData sample, '
+          'not a cast null).',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: WireOutcome.runnerError,
+          feature: resolved.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      mockImport = _packageImportFor(cwd, mockFile);
+      mockReference = '${mockBinding.entity}MockData.${mockBinding.accessor}';
+    }
 
     final wired = _renderWired(
       record: record,
-      returnType: returnType,
+      effectiveReturnType: effectiveReturnType,
       functionName: functionName,
+      stubParams: stubParams,
       entityName: entityName,
       entityImport: _packageImportFor(cwd, entityFile),
+      mockImport: mockImport,
+      mockReference: mockReference,
     );
     await subjectFile.writeAsString(wired);
     // Issue #969 T003: the wired subject becomes self-certifying.
@@ -343,9 +438,24 @@ class WireCommand extends Command<void> {
   // Resolution + rendering helpers.
   // -------------------------------------------------------------------
 
+  /// Bug #1500: accepts every stub shape SubjectWriter emits — the
+  /// legacy no-arg `int|void name() => throw UnimplementedError(` AND
+  /// the contract-derived subjects of issue #1259 (`Object?
+  /// subject_u2(String title) => throw ...`): ANY return type (scalar,
+  /// entity, generic, nullable), ANY parameter list.
+  ///
+  /// The match stays pinned to the single-line arrow-throw form: a
+  /// newline may not separate `=>` from `throw` (the FFI harness's
+  /// wrapped seams are a hand-owned shape wire must keep refusing),
+  /// and a block body `void run() {` never matches. Group 3 carries
+  /// the declared parameter list verbatim so the wired signature keeps
+  /// it (issue #1500 expected 5).
   static final RegExp _stubSignature = RegExp(
-    r'^(int|void)\s+([A-Za-z_][A-Za-z0-9_]*)\(\)\s*=>\s*'
-    r'throw UnimplementedError\(',
+    r'^([A-Za-z_][A-Za-z0-9_]*(?:<[^()<>=]*(?:<[^()<>=]*>)?[^()<>=]*>)?' // type base + optional (nested) generics
+    r'[ \t]*\??)' // optional nullability marker
+    r'[ \t]+([A-Za-z_][A-Za-z0-9_]*)' // the subject name
+    r'\(([^)]*)\)' // the declared parameter list, verbatim
+    r'[ \t]*=>[ \t]*throw UnimplementedError\(',
     multiLine: true,
   );
 
@@ -361,6 +471,107 @@ class WireCommand extends Command<void> {
     return false;
   }
 
+  /// The declared shape carried by the stub's own provenance header
+  /// (bug #1500 fallback): the SubjectWriter contract stub preserves
+  /// `//     create(String title) -> Task` — the exact declaration gen
+  /// derived the stub from. Null when no header line parses to a
+  /// signature; prose-adjacent matches are additionally filtered by
+  /// the type-token plausibility gate at the use site.
+  static UnitContractShape? _declaredShapeFromStubHeader(String raw) {
+    for (final line in raw.split('\n')) {
+      final comment = RegExp(r'^\s*//\s*(.+?)\s*$').firstMatch(line);
+      if (comment == null) continue;
+      final text = comment.group(1)!;
+      if (!text.contains(' -> ')) continue;
+      // The header line must be the BARE signature, not prose that
+      // happens to carry an arrow: a bare signature starts with the
+      // method name immediately followed by its parameter list.
+      if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*\s*\(').hasMatch(text)) {
+        continue;
+      }
+      try {
+        return UnitContractShape.of(Signature.parse(text));
+      } on FormatException {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  /// Whether [type] is a plausible Dart type token for the wired
+  /// signature (bug #1500 defense-in-depth): identifiers, one nesting
+  /// level of generics and a nullability marker. Prose fragments
+  /// (`Task works`) never pass, so a drifting header can never render
+  /// a non-type into the wired file.
+  static bool _isPlausibleTypeToken(String type) => RegExp(
+    r'^[A-Za-z_][A-Za-z0-9_]*(<[^()]*(<[^()]*>)?[^()]*>)?[ \t]*\??$',
+  ).hasMatch(type.trim());
+
+  /// The core types that never bind to mock data (bug #1500): scalars,
+  /// dynamic/object tops and DateTime have no `<E>MockData` surface.
+  static const Set<String> _nonEntityBases = {
+    'void',
+    'Never',
+    'dynamic',
+    'Object',
+    'bool',
+    'String',
+    'int',
+    'double',
+    'num',
+    'DateTime',
+  };
+
+  static final RegExp _collectionType = RegExp(r'^(List|Set|Iterable)<(.+)>$');
+
+  /// The MockData binding an entity-shaped declared [returnType] wires
+  /// to (bug #1500): the base entity plus the type-correct accessor —
+  /// `sample<E>` for `E`/`E?`, `sampleList` for `List<E>`/`Iterable<E>`,
+  /// `sampleList.toSet()` for `Set<E>`. Null when the return needs no
+  /// mock data (scalars, Map shapes).
+  static ({String entity, String accessor})? _mockBindingFor(
+    String returnType,
+  ) {
+    var t = returnType.trim();
+    var collection = false;
+    var setShaped = false;
+    while (true) {
+      final m = _collectionType.firstMatch(t);
+      if (m == null) break;
+      if (m.group(1) == 'Set') setShaped = true;
+      t = m.group(2)!.trim();
+      collection = true;
+    }
+    if (t.endsWith('?')) t = t.substring(0, t.length - 1).trim();
+    if (t.startsWith('Map<')) return null;
+    if (_nonEntityBases.contains(t)) return null;
+    if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(t)) return null;
+    final accessor = !collection
+        ? 'sample$t'
+        : setShaped
+        ? 'sampleList.toSet()'
+        : 'sampleList';
+    return (entity: t, accessor: accessor);
+  }
+
+  /// Where `zfa mock create --name <Entity>` wrote the entity's mock
+  /// data: the canonical `<cwd>/lib/src/data/mock/<snake>_mock_data.dart`
+  /// first, then a recursive search fallback (mirrors
+  /// [locateEntityFile]'s leniency). Null when the pipeline's mock
+  /// create step was skipped — the caller misfire-stops naming it.
+  Future<String?> _locateMockDataFile(String cwd, String entityName) async {
+    final snake = toSnakeCase(entityName);
+    final mockRoot = Directory(p.join(cwd, 'lib', 'src', 'data', 'mock'));
+    final canonical = File(p.join(mockRoot.path, '${snake}_mock_data.dart'));
+    if (await canonical.exists()) return canonical.path;
+    if (!await mockRoot.exists()) return null;
+    final target = '${snake}_mock_data.dart';
+    await for (final f in mockRoot.list(recursive: true)) {
+      if (f is File && p.basename(f.path) == target) return f.path;
+    }
+    return null;
+  }
+
   /// The behavior description the record carries — the record's own
   /// parsing contract ([ArtifactRecord.descriptionSegment]), shared with
   /// make/func/compose (bug #871: legacy `<id> — ` echoes stripped).
@@ -369,16 +580,25 @@ class WireCommand extends Command<void> {
 
   String _renderWired({
     required ArtifactRecord record,
-    required String returnType,
+    required String effectiveReturnType,
     required String functionName,
+    required String stubParams,
     required String entityName,
     required String entityImport,
+    String? mockImport,
+    String? mockReference,
   }) {
     final description = _descriptionFor(record);
     final derived = deriveSubjectSignature(description, forWire: true);
-    final effectiveReturnType = returnType == 'void'
-        ? 'void'
-        : (derived.returnType.isNotEmpty ? derived.returnType : returnType);
+    // Bug #1500: a description-derived explicit body is honored only
+    // when its inferred type MATCHES the effective return — the
+    // declared contract outranks prose inference, so a declared
+    // `-> Task` never renders an int literal under a Task signature.
+    final explicitBody =
+        derived.explicitBody != null &&
+            derived.returnType.trim() == effectiveReturnType.trim()
+        ? derived.explicitBody
+        : null;
 
     String body;
     if (effectiveReturnType == 'void') {
@@ -389,14 +609,14 @@ class WireCommand extends Command<void> {
   // ignore: unused_local_variable
   final Type wiredEntityAnchor = $entityName;
 ''';
-    } else if (derived.explicitBody != null) {
+    } else if (explicitBody != null) {
       body =
           '''
   // Implementation anchor: references the generated entity this
   // behavior builds on.
   // ignore: unused_local_variable
   final Type wiredEntityAnchor = $entityName;
-  ${derived.explicitBody}
+  $explicitBody
 ''';
     } else if (effectiveReturnType == 'String') {
       body =
@@ -413,13 +633,15 @@ class WireCommand extends Command<void> {
       // List<String>, Map<String, Object?>, double, etc.) once a future
       // matcher added the type without an explicit body. Route through
       // `_defaultBodyFor` so the literal is type-correct by construction.
+      // Bug #1500: entity-shaped returns carry [mockReference] so the
+      // body binds to the generated MockData sample, never a cast null.
       body =
           '''
   // Implementation anchor: references the generated entity this
   // behavior builds on.
   // ignore: unused_local_variable
   final Type wiredEntityAnchor = $entityName;
-  ${_defaultBodyFor(effectiveReturnType, functionName)}
+  ${_defaultBodyFor(effectiveReturnType, functionName, mockReference: mockReference)}
 ''';
     }
     return '''
@@ -439,17 +661,24 @@ class WireCommand extends Command<void> {
 library;
 
 import '$entityImport';
-
+${mockImport == null ? '' : "import '$mockImport';\n"}
 /// Subject for behavior ${record.behaviorId}, wired to entity
 /// $entityName by the generation pipeline.
-$effectiveReturnType $functionName() {$body}
+$effectiveReturnType $functionName($stubParams) {$body}
 ''';
   }
 
   /// Minimal compilable return for a wired subject whose description
   /// implies [returnType] but yielded no explicit body. Bug #920 review
   /// — the previous `return 0;` was type-wrong for any non-int type.
-  static String _defaultBodyFor(String returnType, String functionName) {
+  /// Bug #1500: an entity-shaped return binds to the MockData sample
+  /// via [mockReference] (`TaskMockData.sampleTask` / `.sampleList`) —
+  /// never a `return null as Task;` runtime cast error.
+  static String _defaultBodyFor(
+    String returnType,
+    String functionName, {
+    String? mockReference,
+  }) {
     switch (returnType) {
       case 'bool':
         return 'return false;';
@@ -464,6 +693,9 @@ $effectiveReturnType $functionName() {$body}
       case 'String':
         return "return '$functionName';";
       default:
+        // Issue #1500: the pipeline generated the value one step
+        // earlier (`zfa mock create`) — bind to it.
+        if (mockReference != null) return 'return $mockReference;';
         // Unknown type — emit a null cast so the stub compiles; the
         // real contract must replace this body in a later cycle.
         return 'return null as $returnType;';
@@ -495,7 +727,7 @@ $effectiveReturnType $functionName() {$body}
     for (final entry in await _scanRegistries(cwd, featureFlag)) {
       final record = await entry.registry.findRecord(behaviorId);
       if (record != null) {
-        matches.add(_Resolved(record, entry.featureName));
+        matches.add(_Resolved(record, entry.featureName, entry.featureDir));
       }
     }
     if (matches.length > 1) {
@@ -515,7 +747,11 @@ $effectiveReturnType $functionName() {$body}
     if (featureFlag != null && featureFlag.isNotEmpty) {
       final featureDir = p.join(cwd, 'specs', featureFlag);
       return [
-        _RegistryEntry(featureFlag, ArtifactRegistry(featureDir: featureDir)),
+        _RegistryEntry(
+          featureFlag,
+          ArtifactRegistry(featureDir: featureDir),
+          featureDir,
+        ),
       ];
     }
     final specsDir = Directory(p.join(cwd, 'specs'));
@@ -530,6 +766,7 @@ $effectiveReturnType $functionName() {$body}
           _RegistryEntry(
             p.basename(dir.path),
             ArtifactRegistry(featureDir: dir.path),
+            dir.path,
           ),
         );
       }
@@ -564,13 +801,19 @@ class _WireResolutionError implements Exception {
 }
 
 class _RegistryEntry {
-  const _RegistryEntry(this.featureName, this.registry);
+  const _RegistryEntry(this.featureName, this.registry, this.featureDir);
   final String featureName;
   final ArtifactRegistry registry;
+
+  /// The feature directory the registry was resolved from — the
+  /// declared-signature source (bug #1500: the same directory gen read
+  /// the test-list/spec pair from).
+  final String featureDir;
 }
 
 class _Resolved {
-  const _Resolved(this.record, this.featureName);
+  const _Resolved(this.record, this.featureName, this.featureDir);
   final ArtifactRecord record;
   final String featureName;
+  final String featureDir;
 }
