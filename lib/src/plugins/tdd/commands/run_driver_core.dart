@@ -47,6 +47,7 @@ import '../models/cycle_entry.dart';
 import '../models/run_state.dart';
 import '../services/artifact_registry.dart';
 import '../services/arg_placeholder.dart';
+import '../services/born_green.dart';
 import '../services/cycle_evidence.dart';
 import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
@@ -1697,6 +1698,107 @@ class RunDriverCore {
               refactorBlocked: false,
             );
           }
+          // Issue #1411: the hand-first born-green catch-22 — the
+          // subject was hand-implemented before the pipeline's first
+          // red certification (the designed hand-step flow, guide §5a
+          // item 1), so verify-red graded the already-passing test
+          // unexpected-green (no evidence) and make refused
+          // not-certified-red. The generic stop is a dead end: no
+          // supported ordering existed. The arm keys on THIS drive's
+          // unexpected-green (the passing-test signature — an in-order
+          // red-first cycle never produces not-certified-red after one,
+          // so the red-first messaging stands untouched) + the
+          // generated test's content state, which picks the hand-off
+          // vocabulary: attested → the exact `--born-green` command;
+          // un-attested → the exact header line AND the command; the
+          // marker still present (the partial hand step) → the
+          // completion + the command. Messaging only: the state advance
+          // and the honest-stop semantics are the generic ones; the
+          // recovery is make's own born-green transition, which
+          // re-verifies the whole gate honestly.
+          if (sawUnexpectedGreen && testPath != null) {
+            final bornContent = _readTestContentFailOpen(testPath);
+            if (bornContent != null) {
+              final attested = contentCarriesHandStepHeader(
+                bornContent,
+                row.id,
+              );
+              final markerPresent = contentCarriesVacuousGuardMarker(
+                bornContent,
+              );
+              final relPath = p
+                  .relative(testPath, from: projectRoot)
+                  .replaceAll('\\', '/');
+              updated = updated.advance(row.id, state);
+              await store.save(updated, activeBehaviorIds: activeIds);
+              await tx.clear();
+              print(
+                'zfa tdd $label: step failed — behavior=${row.id} step=$step '
+                'outcome=${result.outcome}',
+              );
+              _printOutputExcerpt(result.output);
+              if (attested) {
+                print(
+                  '   hand step: ${row.id}:hand — the test carries the '
+                  '${row.id}:hand attestation and the vacuous-guard marker '
+                  'is absent: the designed hand step was completed BEFORE '
+                  'the first red certification (issue #1411) — verify-red '
+                  'saw the test already green (skipped) and make found no '
+                  'certified red (the catch-22).',
+                );
+                print(
+                  '   Certify the born-green hand transition: '
+                  '`zfa tdd make ${row.id} --born-green` — then re-run '
+                  '`zfa tdd $label $feature`.',
+                );
+              } else if (markerPresent) {
+                print(
+                  '   hand step: ${row.id}:hand — the subject was '
+                  'hand-implemented before the first red certification '
+                  '(the hand-first ordering, issue #1411): the guard-only '
+                  'test passes, verify-red saw unexpected-green, and make '
+                  'found no certified red.',
+                );
+                print(
+                  '   Complete the hand step — replace the guard with an '
+                  'assertion on the observable outcome in $relPath, remove '
+                  'the $vacuousGuardMarker marker, add the attestation '
+                  'header (${handStepHeader(row.id)}) — then run '
+                  '`zfa tdd make ${row.id} --born-green`, and re-run '
+                  '`zfa tdd $label $feature`.',
+                );
+              } else {
+                print(
+                  '   hand step: ${row.id}:hand — the subject was '
+                  'hand-implemented before the first red certification '
+                  '(the hand-first ordering, issue #1411): verify-red saw '
+                  'the test already green (skipped) and make found no '
+                  'certified red — the catch-22 with no red-first '
+                  'recovery.',
+                );
+                print(
+                  '   If the designed hand step is complete, add the '
+                  'attestation header line to $relPath:',
+                );
+                print('     ${handStepHeader(row.id)}');
+                print(
+                  '   Then certify the born-green hand transition: '
+                  '`zfa tdd make ${row.id} --born-green` — and re-run '
+                  '`zfa tdd $label $feature`.',
+                );
+              }
+              return (
+                state: updated,
+                stop: (
+                  result: 'stopped',
+                  stoppedAt: '${row.id}:hand',
+                  exitCode: _exitStopped,
+                  message: null,
+                ),
+                refactorBlocked: false,
+              );
+            }
+          }
         }
         if (step == 'make' && result.outcome == 'vacuous-green') {
           final testPath = _existingGeneratedTestPath(
@@ -2116,6 +2218,19 @@ class RunDriverCore {
     }
   }
 
+  /// Issue #1411: the generated test's CURRENT content for the
+  /// born-green hand-off dispatch. Null when the file is missing
+  /// between the path probe and this read, permission-denied, or a
+  /// directory — the arm then stands down (no hand-off can be trusted
+  /// without the content).
+  String? _readTestContentFailOpen(String testPath) {
+    try {
+      return File(testPath).readAsStringSync();
+    } on FileSystemException {
+      return null;
+    }
+  }
+
   /// Issue #1323: the generated test's FIRST (lowest-index) `_argN()`
   /// placeholder helper — the index and declared type the hand-step
   /// remedy names. The content-only probe (the make child already
@@ -2186,6 +2301,20 @@ class RunDriverCore {
               'author concrete scenario finders, then run '
               '`zfa tdd make $behaviorId --author --finders-file '
               '<finders.txt>` (issue #1258)';
+        }
+        // Issue #1411: the born-green hand-first vocabulary — the test
+        // carries the <id>:hand attestation (the designed hand step was
+        // completed before the first red certification); the remedy is
+        // make's born-green transition, which re-verifies the whole
+        // gate honestly.
+        if (contentCarriesHandStepHeader(
+          File(testPath).readAsStringSync(),
+          behaviorId,
+        )) {
+          return 'hand-step=$behaviorId:hand — the hand step was completed '
+              'before the first red certification (issue #1411): certify '
+              'the born-green hand transition with `zfa tdd make '
+              '$behaviorId --born-green`';
         }
       } on FileSystemException {
         // Fall through to the #1308 vocabulary — a record, never a gate.
