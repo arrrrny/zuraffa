@@ -487,12 +487,19 @@ void main() {
   /// `lib/` (#1035 parity — the same rule, the same helper, the unit lane
   /// answers), else the legacy relative shape (non-absolute fixture
   /// paths, no pubspec, subject outside `lib/`).
+  ///
+  /// The package rule only runs for absolute path pairs — the guard the
+  /// unit lane keeps (`behavior_test_writer.dart:440`). A relative
+  /// `testPath` would otherwise walk up from the process CWD and could
+  /// resolve a `package:` URI belonging to whatever package sits there.
   String _subjectImport(String testPath, String subjectPath) {
-    final packageImport = BehaviorTestWriter.packageSubjectImportFor(
-      testPath,
-      subjectPath,
-    );
-    if (packageImport != null) return packageImport;
+    if (p.isAbsolute(subjectPath) && p.isAbsolute(testPath)) {
+      final packageImport = BehaviorTestWriter.packageSubjectImportFor(
+        testPath,
+        subjectPath,
+      );
+      if (packageImport != null) return packageImport;
+    }
     return _relativeSubjectPath(testPath, subjectPath);
   }
 

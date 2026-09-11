@@ -59,29 +59,36 @@ Future<(Directory, String)> _writePair({
   String? subjectUnder,
 }) async {
   final root = await Directory.systemTemp.createTemp('zfa_1513_');
-  if (withPubspec) {
-    await File(p.join(root.path, 'pubspec.yaml')).writeAsString('''
+  try {
+    if (withPubspec) {
+      await File(p.join(root.path, 'pubspec.yaml')).writeAsString('''
 name: $pubspecName
 environment:
   sdk: ^3.11.0
 ''');
+    }
+    final subjectDir = subjectUnder ?? p.join('lib', 'tdd', behavior.feature);
+    final subjectPath = p.join(root.path, subjectDir, 'a1_subject.dart');
+    final testPath = p.join(
+      root.path,
+      'test',
+      'tdd',
+      behavior.feature,
+      'a1_contract_test.dart',
+    );
+    final writer = ContractTestWriter(flutterTest: flutterTest);
+    await writer.write(
+      behavior: behavior,
+      testPath: testPath,
+      subjectPath: subjectPath,
+    );
+    return (root, File(testPath).readAsStringSync());
+  } catch (_) {
+    // The helper owns the directory until it returns it; a post-creation
+    // failure must not leak it (the caller never sees `root` to clean up).
+    if (root.existsSync()) root.deleteSync(recursive: true);
+    rethrow;
   }
-  final subjectDir = subjectUnder ?? p.join('lib', 'tdd', behavior.feature);
-  final subjectPath = p.join(root.path, subjectDir, 'a1_subject.dart');
-  final testPath = p.join(
-    root.path,
-    'test',
-    'tdd',
-    behavior.feature,
-    'a1_contract_test.dart',
-  );
-  final writer = ContractTestWriter(flutterTest: flutterTest);
-  await writer.write(
-    behavior: behavior,
-    testPath: testPath,
-    subjectPath: subjectPath,
-  );
-  return (root, File(testPath).readAsStringSync());
 }
 
 Future<String> _golden() async {
@@ -98,10 +105,10 @@ Future<String> _golden() async {
 }
 
 void main() {
-  late Directory root;
+  Directory? root;
 
   tearDown(() {
-    if (root.existsSync()) root.deleteSync(recursive: true);
+    if (root != null && root!.existsSync()) root!.deleteSync(recursive: true);
   });
 
   group('B1/B2: the parseable contract template honors flutterTest', () {
@@ -199,6 +206,12 @@ void main() {
     test('B5: the subject outside lib/ keeps the relative fallback', () async {
       final (dir, generated) = await _writePair(
         behavior: _contract(parseableContractDescription),
+        // A resolvable pubspec is present, so the relative shape here is
+        // forced by the subject sitting OUTSIDE lib/ — not by a missing
+        // package identity (finding: B5 previously passed for the wrong
+        // reason, withPubspec defaulted to false).
+        withPubspec: true,
+        pubspecName: 'fixture_pkg',
         subjectUnder: p.join('tool', 'seams'),
       );
       root = dir;
@@ -224,19 +237,20 @@ void main() {
     test(
       'B6a: under lib/ with a resolvable pubspec → the package URI',
       () async {
-        root = await Directory.systemTemp.createTemp('zfa_1513_b6_');
+        final dir = await Directory.systemTemp.createTemp('zfa_1513_b6_');
+        root = dir;
         await File(
-          p.join(root.path, 'pubspec.yaml'),
+          p.join(dir.path, 'pubspec.yaml'),
         ).writeAsString('name: fixture_pkg\n');
         final testPath = p.join(
-          root.path,
+          dir.path,
           'test',
           'tdd',
           'f',
           'a1_contract_test.dart',
         );
         final subjectPath = p.join(
-          root.path,
+          dir.path,
           'lib',
           'tdd',
           'f',
@@ -250,10 +264,11 @@ void main() {
     );
 
     test('B6b: no pubspec anywhere → null (caller keeps relative)', () async {
-      root = await Directory.systemTemp.createTemp('zfa_1513_b6_');
-      final testPath = p.join(root.path, 'test', 'tdd', 'f', 'a1_test.dart');
+      final dir = await Directory.systemTemp.createTemp('zfa_1513_b6_');
+      root = dir;
+      final testPath = p.join(dir.path, 'test', 'tdd', 'f', 'a1_test.dart');
       final subjectPath = p.join(
-        root.path,
+        dir.path,
         'lib',
         'tdd',
         'f',
@@ -266,12 +281,13 @@ void main() {
     });
 
     test('B6c: subject outside lib/ → null (caller keeps relative)', () async {
-      root = await Directory.systemTemp.createTemp('zfa_1513_b6_');
+      final dir = await Directory.systemTemp.createTemp('zfa_1513_b6_');
+      root = dir;
       await File(
-        p.join(root.path, 'pubspec.yaml'),
+        p.join(dir.path, 'pubspec.yaml'),
       ).writeAsString('name: fixture_pkg\n');
-      final testPath = p.join(root.path, 'test', 'tdd', 'f', 'a1_test.dart');
-      final subjectPath = p.join(root.path, 'tool', 'seams', 'a1_subject.dart');
+      final testPath = p.join(dir.path, 'test', 'tdd', 'f', 'a1_test.dart');
+      final subjectPath = p.join(dir.path, 'tool', 'seams', 'a1_subject.dart');
       expect(
         BehaviorTestWriter.packageSubjectImportFor(testPath, subjectPath),
         isNull,

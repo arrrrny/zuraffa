@@ -62,3 +62,10 @@ flutter:`, no Flutter SDK needed — detection is YAML-only).
   the same host; a Flutter host regenerating a pure-Dart-era stub now
   correctly reports staleness (regenerated verdict) — that is the intended
   remedial behavior (#1320 precedent), not drift.
+- The staleness mirror is context-seeded: `_regenerateStaleStub` copies the
+  enclosing `pubspec.yaml` into the temp mirror before rendering, so a
+  re-render resolves the SAME `package:` subject import the real `gen`
+  writes. Without it the mirror had no package identity, `packageSubjectImportFor`
+  returned null there, and every re-render permanently downgraded the
+  promoted import back to the relative shape (finding 1 on the #1531 review;
+  pinned by B9).

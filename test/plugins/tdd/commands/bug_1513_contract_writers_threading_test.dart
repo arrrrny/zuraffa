@@ -60,20 +60,23 @@ dev_dependencies:
   test: ^1.25.0
 ''';
 
-Future<String> _genContractA1(TddFixture fx) async {
+Future<String> _genContractA1(TddFixture fx, {int runs = 1}) async {
   await Directory(fx.featureDir).create(recursive: true);
   await File(p.join(fx.featureDir, 'spec.md')).writeAsString(kLoginUiSpec);
   await CliRunner(
     exitOnCompletion: false,
   ).runCapturing(['tdd', 'plan', fx.featureName, '--project', fx.root.path]);
-  final out = await CliRunner(
-    exitOnCompletion: false,
-  ).runCapturing(['tdd', 'gen', 'contract:A1', '--project', fx.root.path]);
-  expect(
-    out,
-    contains('behavior_id: contract:A1'),
-    reason: 'gen must produce the contract behavior: $out',
-  );
+  var out = '';
+  for (var i = 0; i < runs; i++) {
+    out = await CliRunner(
+      exitOnCompletion: false,
+    ).runCapturing(['tdd', 'gen', 'contract:A1', '--project', fx.root.path]);
+    expect(
+      out,
+      contains('behavior_id: contract:A1'),
+      reason: 'gen must produce the contract behavior: $out',
+    );
+  }
   final record = await fx.registryRecordOf('contract:A1');
   final testPath = record['test_path'] as String;
   return File(
@@ -133,6 +136,47 @@ void main() {
             '$generated',
       );
       expect(generated, isNot(contains('flutter_test')));
+    } finally {
+      fx.dispose();
+      exitCode = 0;
+    }
+  });
+
+  test('B9: a second gen keeps the package subject import — the stale-stub '
+      'mirror must not revert it (finding 1)', () async {
+    final fx = await TddFixture.create(featureName: '1513-repro');
+    try {
+      await File(
+        p.join(fx.root.path, 'pubspec.yaml'),
+      ).writeAsString(flutterPubspec);
+      // First gen writes the package-shaped pair; the second run exercises
+      // `_regenerateStaleStub` (the on-disk subject is still an
+      // UnimplementedError stub). Without the mirror's package context the
+      // re-render falls back to the relative shape and rewrites the file.
+      final generated = await _genContractA1(fx, runs: 2);
+      expect(
+        generated,
+        contains("import 'package:tdd_fixture/tdd/1513-repro/"),
+        reason:
+            'the second gen reverted the promoted package import to the '
+            'relative shape — the stale-stub mirror has no package '
+            'identity:\n$generated',
+      );
+      expect(
+        generated,
+        isNot(contains("import '../../../lib/")),
+        reason:
+            'the relative fallback must not survive a re-render:\n'
+            '$generated',
+      );
+      // The #1513 half must remain stable across the re-render too.
+      expect(
+        generated,
+        contains("import 'package:flutter_test/flutter_test.dart';"),
+        reason:
+            'the flutter_test import must survive a re-render:\n'
+            '$generated',
+      );
     } finally {
       fx.dispose();
       exitCode = 0;
