@@ -1,21 +1,49 @@
 {
   "feature": "004-login-ui",
-  "source": "zfa tdd plan",
-  "rows": 9,
+  "split_at": "2026-09-10T22:23:40.453613Z",
+  "source": "tdd/test-list.md",
+  "rows": 10,
+  "spec_hash": "08be092eaf9d8884391bad337538f94ac20b4c426cce1071277d956b49c7f089",
+  "spec_mtime": "2026-09-11T00:27:18.843235Z",
   "classification": {
     "A1": "CORE",
     "A2": "CORE",
-    "U1": "CORE",
-    "W1": "SKIN",
+    "U2": "CORE",
     "A3": "SKIN",
     "A4": "SKIN",
     "A5": "SKIN",
     "A6": "SKIN",
-    "A7": "SKIN"
+    "A7": "SKIN",
+    "W1": "SKIN",
+    "U1": "SKIN"
   },
-  "spec_hash": "67911de0f0fc61da137c436d0e3db87d3fc4d3c2d801da1adecf73a9107849a4",
-  "spec_mtime": "2026-09-09T22:17:07.504964Z",
-  "refreshed_at": "2026-09-09T22:17:07.509684Z",
+  "classification_source": {
+    "A1": "declared",
+    "A2": "declared",
+    "U2": "declared",
+    "A3": "declared",
+    "A4": "declared",
+    "A5": "declared",
+    "A6": "declared",
+    "A7": "declared",
+    "W1": "declared",
+    "U1": "declared"
+  },
+  "adaptive_slots": [
+    "mobile",
+    "ios",
+    "android",
+    "macos"
+  ],
+  "golden_ids": [],
+  "files": [
+    "tdd/04-ENGINE.md",
+    "tdd/04-SKIN.md",
+    "tdd/04-CONTRACT.md",
+    "tdd/test-list.md (meta-index)"
+  ],
+  "engine_flutter_references": 0,
+  "refreshed_at": "2026-09-11T00:27:44.178687Z",
   "refreshed_by": "zfa tdd plan",
-  "refreshed_rows": 9
+  "refreshed_rows": 10
 }
