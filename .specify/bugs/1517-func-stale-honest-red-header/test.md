@@ -11,12 +11,14 @@
 
 The reported symptom is gone. After `zfa tdd func` fills a stub body with
 a dummy, the subject file's header and doc comment claim the
-scaffolded-dummy state (no `honest red`, no `UnimplementedError`, no
-`MINIMAL COMPILABLE` anywhere in the file) while every contract trace
-line survives verbatim, and the still-red scaffold keeps its (still true)
-honest-red claims. The 3-test bug suite passes, the func-surface
-regression suites pass, and the repo's disk-safe chunked fast suite
-passes with zero failures.
+scaffolded-dummy state (no `honest red`, no `MINIMAL COMPILABLE`, and no
+`UnimplementedError` in the non-trace claim prose — a preserved contract
+trace line such as `description:` may still mention the marker) while
+every contract trace line survives verbatim, and the still-red scaffold
+keeps its (still true) honest-red claims. The 3-test bug suite passes
+(now 5 tests after the review round), the func-surface regression suites
+pass, and the repo's disk-safe chunked fast suite passes with zero
+failures.
 
 ## Checks Performed
 
@@ -31,14 +33,19 @@ passes with zero failures.
 | Formatting | `dart format` on both changed files, then re-run of the bug + func suites | pass | Formatted 2 files; 17/17 re-run green after formatting. |
 | Still-red guard | U-1517-3 asserts the honest-red header remains when the scaffold keeps `throw UnimplementedError('implement per declared signature: …')` | pass | Proves the gate doesn't over-strip: claims are rewritten only when they are actually false. |
 | Idempotency / replay | func_convergent U7 asserts the already-implemented re-run leaves the file byte-identical | pass | The rewrite runs only on the fill path, so `zfa replay` fixed-point semantics (spec 0806) are unchanged. |
+| Review round (PR #1523) | `dart test test/plugins/tdd/commands/bug_1517_func_stale_honest_red_header_test.dart` | pass | `+5`: U-1517-1 extended with a no-trailing-whitespace assertion; U-1517-4 (acceptance-scenario variant, fixture rendered by `SubjectWriter`) and U-1517-5 (hand-authored note survives; fallback note inserted) added. |
+| Review round regressions | `dart test` over the func/gen/subject-writer surface (9 files) | pass | 46/46. Writer output verified byte-identical before/after the `StubClaims` extraction (rendered-render diff). |
+| Review round analyzer / format | `dart analyze` on the three changed files; `dart format --set-exit-if-changed lib test` | pass | `No issues found!`; 2556 files, 0 changed. |
 
 ## Residual Risks
 
 - The claim sentences are matched against the exact SubjectWriter
-  templates; if those templates are re-wrapped in the future the
-  replacement would no-op — the safety net (drop any residual
-  claim-marker comment line, trace keys exempt) covers that drift, and
-  `subject_writer_test.dart` in the regression set pins the templates.
+  templates; a wording change there is impossible to miss in production
+  (`func_command` consumes `SubjectWriter`'s own `StubClaims`), and the
+  pattern builder still tolerates re-wrapping. The residual-marker sweep
+  (drop any claim-marker comment line, trace keys exempt) is scoped to
+  the generated header and declaration doc-comment blocks, so it cannot
+  delete a hand-authored note elsewhere in the file.
 - `make_command.dart` has its own fill path with the same class of stale
   prose; explicitly out of scope here (one PR per bug, func surface
   only) and worth its own issue if the maintainers want the same

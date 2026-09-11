@@ -51,6 +51,7 @@ import '../models/routing.dart';
 import '../services/artifact_registry.dart';
 import '../services/declared_routing.dart';
 import '../services/subject_signature_deriver.dart';
+import '../services/subject_writer.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/unit_contract_shape.dart';
 import '../services/verdict_emitter.dart';
@@ -392,40 +393,22 @@ class FuncCommand extends Command<void> {
 
   /// The gen-time honest-red claim sentences SubjectWriter renders into
   /// the unit / acceptance / contract-derived stub headers, and the doc
-  /// comment line every stub carries.
+  /// comment line every stub carries — consumed from the writer's own
+  /// templates ([StubClaims]) so the two sides cannot drift apart.
   static final List<RegExp> _staleHeaderClaims = [
-    _claimPattern(
-      'This is a MINIMAL COMPILABLE STUB. It compiles cleanly (FR-011) but '
-      'does NOT satisfy the behavior described above — the paired test '
-      'will fail on first execution with an assertion-level failure '
-      '(honest red). Replace this stub body with real implementation to '
-      'make the test pass.',
-    ),
-    _claimPattern(
-      'This is a MINIMAL COMPILABLE acceptance-scenario stub. It compiles '
-      'cleanly (FR-011) but does NOT satisfy the behavior described above '
-      '— the paired test will fail on first execution with an '
-      'assertion-level failure (honest red). The acceptance subject '
-      'intentionally does NOT reference any entity/use case/repository '
-      '(FR-004): it stands alone. Replace this stub body with real '
-      'implementation to make the test pass.',
-    ),
-    _claimPattern(
-      'This is a MINIMAL COMPILABLE STUB: it does NOT satisfy the behavior '
-      '— the paired test fails on first execution (honest red). Replace '
-      'this stub body with the real implementation of the declared '
-      'contract to make the test pass.',
-    ),
-    _claimPattern(
-      'Throws [UnimplementedError] until the real implementation lands.',
-    ),
+    _claimPattern(StubClaims.unitHeader),
+    _claimPattern(StubClaims.acceptanceHeader),
+    _claimPattern(StubClaims.contractHeader),
+    _claimPattern(StubClaims.docLine),
   ];
 
-  /// Builds a pattern matching [sentence] even where SubjectWriter wraps
-  /// it across comment lines: a space matches intra-line whitespace OR a
-  /// newline followed by the next line's comment prefix (consumed, so
-  /// replacements must re-supply prefixes).
-  static RegExp _claimPattern(String sentence) {
+  /// Builds a pattern matching [wrapped] even where SubjectWriter wraps
+  /// it across comment lines: the template's own wraps are normalized
+  /// back to spaces, then a space in the sentence matches intra-line
+  /// whitespace OR a newline followed by the next line's comment prefix
+  /// (consumed, so replacements must re-supply prefixes).
+  static RegExp _claimPattern(String wrapped) {
+    final sentence = wrapped.replaceAll(RegExp(r'\r?\n[/]+[ \t]?'), ' ');
     final body = sentence
         .split(' ')
         .map(RegExp.escape)
@@ -437,10 +420,71 @@ class FuncCommand extends Command<void> {
   /// state (issue #1517). Contract traces (behavior_id, source_criterion,
   /// description, declared-signature fence, declared parameters) are
   /// preserved verbatim — the rewrite only touches claim sentences.
+  ///
+  /// Only the generated comment blocks are in scope: the stub header
+  /// (`// GENERATED STUB` through its terminating `library;`) and the
+  /// declaration doc comment. A file-wide rewrite would let the residual
+  /// sweep delete unrelated user-authored comments (review of #1523).
   static String _reconcileHeaderClaimsForDummyBody(String source) {
     var updated = source;
+    // Later regions first so an earlier replacement's changed length
+    // cannot invalidate the remaining offsets.
+    for (final (start, end) in _claimRegions(updated).reversed) {
+      final block = updated.substring(start, end);
+      final reconciled = _reconcileClaimBlock(block);
+      if (reconciled != block) {
+        updated = updated.replaceRange(start, end, reconciled);
+      }
+    }
+    // A subject whose header carried no claim sentences (hand-authored
+    // stub) still gets the state statement — the file must describe the
+    // scaffolded-dummy state even when there was nothing stale to
+    // replace.
+    if (!updated.contains('Scaffolded dummy')) {
+      final library = RegExp(r'^library;', multiLine: true).firstMatch(updated);
+      const note =
+          '// Scaffolded dummy per `zfa tdd func` (issue #1517) — replace\n'
+          '// this dummy body with the real implementation.\n';
+      updated = library == null
+          ? '$note$updated'
+          : updated.replaceRange(library.start, library.start, note);
+    }
+    return updated;
+  }
+
+  /// The generated comment blocks the #1517 rewrite may touch: the stub
+  /// header and the declaration doc comment. Empty when neither is
+  /// present — a hand-authored subject has nothing generated to
+  /// reconcile, and its own comments must survive untouched.
+  static List<(int, int)> _claimRegions(String source) {
+    final regions = <(int, int)>[];
+    final header = RegExp(
+      r'^// GENERATED STUB[\s\S]*?^library;[ \t]*$',
+      multiLine: true,
+    ).firstMatch(source);
+    if (header != null) {
+      regions.add((header.start, header.end));
+    }
+    final docRuns = RegExp(
+      r'^(?:///[^\n]*\n)+',
+      multiLine: true,
+    ).allMatches(source).toList();
+    if (docRuns.isNotEmpty) {
+      // The declaration doc comment is the last `///` run in the stub.
+      final doc = docRuns.last;
+      regions.add((doc.start, doc.end));
+    }
+    return regions;
+  }
+
+  /// Reconciles the claim sentences inside one comment block, then sweeps
+  /// the residual stale markers a re-wrapped (template drift) or
+  /// hand-authored variant may still carry — trace lines are exempt so a
+  /// pathological description can never be torn out of the header.
+  static String _reconcileClaimBlock(String block) {
+    var text = block;
     for (final claim in _staleHeaderClaims) {
-      updated = updated.replaceAllMapped(claim, (m) {
+      text = text.replaceAllMapped(claim, (m) {
         final isDocClaim = m.input
             .substring(m.start, m.end)
             .startsWith('Throws [UnimplementedError]');
@@ -457,16 +501,13 @@ class FuncCommand extends Command<void> {
         }
         // A claim replaced mid-line (the contract-unit sentence starts
         // after "when implementing. ") moves to its own comment line,
-        // prefixed like the line it came from.
-        final prefix = RegExp(r'[/]+[ \t]*').firstMatch(beforeMatch)?.group(0);
-        return prefix == null ? '\n$replacement' : '\n$prefix$replacement';
+        // prefixed like the line it came from. These claims always sit in
+        // comments, so `// ` is the safe default prefix (review of #1523).
+        final prefix =
+            RegExp(r'[/]+[ \t]*').firstMatch(beforeMatch)?.group(0) ?? '// ';
+        return '\n$prefix$replacement';
       });
     }
-    // Safety net: a claim sentence SubjectWriter may re-wrap differently
-    // (template drift) or a hand-authored variant must not survive as a
-    // stale claim. Drop any comment line still carrying one of the
-    // markers — trace lines are exempt so a pathological description
-    // can never be torn out of the header.
     const traceKeys = [
       'behavior_id:',
       'source_criterion:',
@@ -480,7 +521,7 @@ class FuncCommand extends Command<void> {
       'assertion-level failure',
       'UnimplementedError',
     ];
-    updated = updated
+    text = text
         .split('\n')
         .where((line) {
           final trimmed = line.trim();
@@ -489,20 +530,10 @@ class FuncCommand extends Command<void> {
           return !staleMarkers.any(trimmed.contains);
         })
         .join('\n');
-    // A subject whose header carried no claim sentences (hand-authored
-    // stub) still gets the state statement — the file must describe the
-    // scaffolded-dummy state even when there was nothing stale to
-    // replace.
-    if (!updated.contains('Scaffolded dummy')) {
-      final library = RegExp(r'^library;', multiLine: true).firstMatch(updated);
-      const note =
-          '// Scaffolded dummy per `zfa tdd func` (issue #1517) — replace\n'
-          '// this dummy body with the real implementation.\n';
-      updated = library == null
-          ? '$note$updated'
-          : updated.replaceRange(library.start, library.start, note);
-    }
-    return updated;
+    // A mid-line splice leaves the separator's space on the line it
+    // vacated; trim line-end whitespace so the emitted subject stays
+    // `dart format --set-exit-if-changed` clean (review of #1523).
+    return text.replaceAll(RegExp(r'[ \t]+$', multiLine: true), '');
   }
 
   /// The behavior description the record carries — the record's own

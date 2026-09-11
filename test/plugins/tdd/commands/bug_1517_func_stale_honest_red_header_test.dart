@@ -22,6 +22,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/models/behavior.dart';
+import 'package:zuraffa/src/plugins/tdd/services/subject_writer.dart';
 
 import '../helpers/tdd_fixture.dart';
 
@@ -233,6 +235,12 @@ void main() {
       contains('Declared parameters: email: String, password: String'),
       reason: subject,
     );
+    // The mid-line splice vacates the tail of the claim's first line; the
+    // separator's space must not be left behind — `dart format
+    // --set-exit-if-changed` (CI) rewrites exactly such a line.
+    for (final line in subject.split('\n')) {
+      expect(line, line.trimRight(), reason: 'trailing whitespace: >$line<');
+    }
   });
 
   test(
@@ -306,5 +314,88 @@ void main() {
       contains('Throws [UnimplementedError] until the real implementation'),
       reason: subject,
     );
+  });
+
+  test(
+    'U-1517-4: the acceptance-scenario claim variant is reconciled too '
+    '(the fixture is rendered by SubjectWriter, so template drift shows)',
+    () async {
+      const id = 'A1';
+      const description =
+          'The system MUST let an actor complete the checkout scenario.';
+      await fx.seedTestList([
+        (
+          id: id,
+          description: description,
+          traces: 'Checkout.complete',
+          state: 'PENDING',
+          kind: 'acceptance',
+        ),
+      ]);
+      final acceptanceStub = const SubjectWriter().render(
+        Behavior(
+          id: id,
+          feature: fx.featureName,
+          kind: BehaviorKind.acceptance,
+          description: description,
+          sourceCriterion: 'FR-004',
+          target: 'subject_a1',
+        ),
+      );
+      // The fixture really carries the acceptance variant, not the unit one.
+      expect(
+        acceptanceStub,
+        contains('MINIMAL COMPILABLE acceptance-scenario stub'),
+      );
+      await fx.seedCertifiedRed(
+        id: id,
+        description: description,
+        testContent: "import 'package:test/test.dart';\nvoid main() {}\n",
+        subjectContent: acceptanceStub,
+      );
+
+      final out = await runFunc(id);
+
+      expect(exitCode, 0, reason: 'out: $out');
+      final subject = await File(fx.subjectPathOf(id)).readAsString();
+      expect(subject, isNot(contains('honest red')), reason: subject);
+      expect(subject, isNot(contains('UnimplementedError')), reason: subject);
+      expect(subject, isNot(contains('MINIMAL COMPILABLE')), reason: subject);
+      expect(subject.toLowerCase(), contains('dummy'), reason: subject);
+      // Traces survive the rewrite.
+      expect(subject, contains('behavior_id: $id'), reason: subject);
+      expect(
+        subject,
+        contains('// description: $description'),
+        reason: subject,
+      );
+    },
+  );
+
+  test('U-1517-5: a hand-authored stub keeps its own note (only the '
+      'generated header/doc blocks are reconciled) and still gets the '
+      'state statement', () async {
+    const id = 'H1';
+    const description = 'return true when the hand-authored stub is populated';
+    await fx.registerBehavior(id: id, description: description);
+    const userNote =
+        '// TODO: still throws UnimplementedError on the null path.';
+    await File(fx.subjectPathOf(id)).writeAsString('''
+$userNote
+library;
+
+int subject_h1() => throw UnimplementedError('subject_h1 not implemented');
+''');
+
+    final out = await runFunc(id);
+
+    expect(exitCode, 0, reason: 'out: $out');
+    final subject = await File(fx.subjectPathOf(id)).readAsString();
+    expect(subject, contains('return true;'), reason: subject);
+    // The hand-authored line is NOT a generated claim — it must survive.
+    expect(subject, contains(userNote), reason: subject);
+    // There was no generated header to rewrite, so the fallback note
+    // states the scaffolded-dummy state.
+    expect(subject, contains('Scaffolded dummy'), reason: subject);
   });
 }

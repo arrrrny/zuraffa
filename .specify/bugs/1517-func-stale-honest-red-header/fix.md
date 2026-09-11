@@ -29,18 +29,42 @@ the honest-red claims remain true and are preserved.
 
 | File | Change | Notes |
 |------|--------|-------|
-| `lib/src/plugins/tdd/commands/func_command.dart` | modified | `_run` gates on the installed body: `if (!scaffolded.contains('UnimplementedError')) updated = _reconcileHeaderClaimsForDummyBody(updated);` — the rewrite runs ONLY on dummy fills, never on still-red scaffolds. New private statics: `_dummyHeaderClaim` / `_dummyDocClaim` (the scaffolded-dummy claims), `_staleHeaderClaims` (the four gen-time claim sentences SubjectWriter renders: legacy-unit header, acceptance header, contract-derived header, and the `Throws [UnimplementedError]` doc line), `_claimPattern` (matches a claim sentence across SubjectWriter's `// `/`/// ` line wraps), `_reconcileHeaderClaimsForDummyBody` (claim replacement with prefix-aware splicing + a safety net that drops residual claim-marker comment lines + a scaffolded-dummy note for claim-free headers). Body fill logic, test generation, state machine, receipt emission: untouched. |
-| `test/plugins/tdd/commands/bug_1517_func_stale_honest_red_header_test.dart` | added | 3 tests: U-1517-1 (declared bool fill — the issue's exact U2 shape), U-1517-2 (legacy no-arg fill), U-1517-3 (still-red guard). |
+| `lib/src/plugins/tdd/commands/func_command.dart` | modified | `_run` gates on the installed body: `if (!scaffolded.contains('UnimplementedError')) updated = _reconcileHeaderClaimsForDummyBody(updated);` — the rewrite runs ONLY on dummy fills, never on still-red scaffolds. New private statics: `_dummyHeaderClaim` / `_dummyDocClaim` (the scaffolded-dummy claims), `_staleHeaderClaims` (the four gen-time claim sentences, consumed from `SubjectWriter`'s own `StubClaims` templates: legacy-unit header, acceptance header, contract-derived header, and the `Throws [UnimplementedError]` doc line), `_claimPattern` (matches a claim sentence across SubjectWriter's `// `/`/// ` line wraps), `_claimRegions` / `_reconcileClaimBlock` / `_reconcileHeaderClaimsForDummyBody` (scoped claim replacement with prefix-aware splicing, a residual-marker sweep, line-end whitespace trim, and a scaffolded-dummy note for claim-free headers). Body fill logic, test generation, state machine, receipt emission: untouched. |
+| `lib/src/plugins/tdd/services/subject_writer.dart` | modified | The four honest-red claim sentences are hoisted into a shared `StubClaims` holder the templates interpolate; `func_command` consumes the same constants, so the writer and the reconciler cannot drift apart (review of #1523). |
+| `test/plugins/tdd/commands/bug_1517_func_stale_honest_red_header_test.dart` | added | 5 tests: U-1517-1 (declared bool fill — the issue's exact U2 shape), U-1517-2 (legacy no-arg fill), U-1517-3 (still-red guard), U-1517-4 (acceptance-scenario variant, fixture rendered by `SubjectWriter`), U-1517-5 (hand-authored stub: its own note survives, fallback note inserted). |
+
+## Review fixes (PR #1523)
+
+The automated review of #1523 raised four still-valid points, all
+addressed on top of the original fix:
+
+- **Scoped reconciliation.** The rewrite (claim replacement, residual
+  sweep, and fallback insertion) now runs only inside the generated
+  comment blocks — the `// GENERATED STUB` header through its terminating
+  `library;`, plus the declaration doc comment (`_claimRegions`). A
+  hand-authored note elsewhere in the file, e.g.
+  `// TODO: still throws UnimplementedError on the null path.`, is no
+  longer deleted by the file-wide sweep (U-1517-5).
+- **Format-clean splice.** A claim replaced mid-line (the contract-derived
+  sentence) leaves the separator's space on the line it vacated; the
+  block is now trimmed of line-end whitespace so the emitted subject
+  stays `dart format --set-exit-if-changed` clean (asserted in U-1517-1).
+  The bare `\n$replacement` fallback also defaults to a `// ` prefix.
+- **Coverage.** Added the acceptance-scenario fixture (U-1517-4) and the
+  claim-free hand-authored fixture (U-1517-5).
+- **No prose duplication.** The claim sentences moved to
+  `SubjectWriter`'s `StubClaims`; `func_command` consumes them.
 
 ## Contract trace preservation (constraint honored)
 
 The rewrite never touches: `behavior_id:`, `source_criterion:`, the
 description line, the declared-signature fence (`//     <signature>`),
 the `Declared parameters:` line, `// ignore_for_file:`, imports, or any
-code. The safety net explicitly exempts the trace-key lines from its
-claim-marker drop so a pathological description can never be torn out of
-the header. U-1517-1 asserts every trace line byte-for-byte after the
-fill.
+code. The residual-marker sweep runs only inside the generated header and
+declaration doc-comment blocks and explicitly exempts the trace-key lines
+from its claim-marker drop, so a pathological description can never be
+torn out of the header (nor can a hand-authored note elsewhere in the
+file). U-1517-1 asserts every trace line byte-for-byte after the fill.
 
 ## Deviations from Assessment
 
