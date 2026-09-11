@@ -163,6 +163,24 @@ enum MakeOutcome {
   /// #1308 hand-step contract).
   handDeltaRequired('hand-delta-required'),
 
+  /// The born-green hand transition (issue #1411): the DESIGNED hand
+  /// step (real outcome assertion, vacuous-guard marker removed,
+  /// subject hand-implemented) was completed BEFORE the first red
+  /// certification — the hand-first ordering the guide prescribes but
+  /// the red-first pipeline refused (verify-red graded the passing test
+  /// unexpected-green, make found no certified red: the catch-22). The
+  /// explicit `--born-green` flag (the no-prior-red analogue of
+  /// verify-red's `--re-certify`, issue #1162) certifies green from an
+  /// honestly re-run PASSING target test gated on the `U<n>:hand`
+  /// attestation header, the marker absence, and a non-placeholder
+  /// subject (#1036 class). Exit 0, green evidence appended in the
+  /// existing format with an explicitly empty generation block. The
+  /// outcome is EXPLICITLY `born-green`: distinguishable in accounting
+  /// from `skipped` (#694 — certified red existed), `adopted` (#1331),
+  /// and `green` (generated this make). Refuses safe-failure on every
+  /// non-attested shape.
+  bornGreen('born-green'),
+
   /// A plan `build` step failed because the BUILDER package is not in the
   /// dependency graph (issue #1322): build_runner warned `Ignoring
   /// options for unknown builder <key>` and silently generated nothing —
