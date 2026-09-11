@@ -189,9 +189,7 @@ void main() {
     );
     // The spec declares the Layer Contract the behavior traces to: a
     // bool return over two scalar params — the dummy-body case.
-    await File(
-      p.join(fx.featureDir, 'spec.md'),
-    ).writeAsString(
+    await File(p.join(fx.featureDir, 'spec.md')).writeAsString(
       '### Layer Contracts\n\n**Function**:\n'
       '- `LoginValidation`: `isSubmittable(String email, String password) '
       '-> bool`\n',
@@ -202,7 +200,9 @@ void main() {
     expect(exitCode, 0, reason: 'out: $out');
     expect(
       out,
-      contains('func: behavior=U2 outcome=scaffolded feature=${fx.featureName}'),
+      contains(
+        'func: behavior=U2 outcome=scaffolded feature=${fx.featureName}',
+      ),
     );
     final subject = await File(fx.subjectPathOf('U2')).readAsString();
     // The dummy body was installed (the fill step itself — unchanged).
@@ -235,29 +235,35 @@ void main() {
     );
   });
 
-  test('U-1517-2: after func fills a legacy no-arg unit stub the honest-red '
-      'header and doc comment are reconciled to the scaffolded-dummy state',
-      () async {
-    const description = 'return true when the task is fully populated';
-    await fx.registerBehavior(id: 'B-1517', description: description);
-    await File(
-      fx.subjectPathOf('B-1517'),
-    ).writeAsString(legacyUnitStub('B-1517', description));
+  test(
+    'U-1517-2: after func fills a legacy no-arg unit stub the honest-red '
+    'header and doc comment are reconciled to the scaffolded-dummy state',
+    () async {
+      const description = 'return true when the task is fully populated';
+      await fx.registerBehavior(id: 'B-1517', description: description);
+      await File(
+        fx.subjectPathOf('B-1517'),
+      ).writeAsString(legacyUnitStub('B-1517', description));
 
-    final out = await runFunc('B-1517');
+      final out = await runFunc('B-1517');
 
-    expect(exitCode, 0, reason: 'out: $out');
-    final subject = await File(fx.subjectPathOf('B-1517')).readAsString();
-    expect(subject, contains('bool subject_b_1517()'));
-    expect(subject, contains('return true;'));
-    expect(subject, isNot(contains('honest red')), reason: subject);
-    expect(subject, isNot(contains('UnimplementedError')), reason: subject);
-    expect(subject, isNot(contains('MINIMAL COMPILABLE')), reason: subject);
-    expect(subject.toLowerCase(), contains('dummy'), reason: subject);
-    // The header's own traces survive the rewrite.
-    expect(subject, contains('behavior_id: B-1517'), reason: subject);
-    expect(subject, contains('// description: $description'), reason: subject);
-  });
+      expect(exitCode, 0, reason: 'out: $out');
+      final subject = await File(fx.subjectPathOf('B-1517')).readAsString();
+      expect(subject, contains('bool subject_b_1517()'));
+      expect(subject, contains('return true;'));
+      expect(subject, isNot(contains('honest red')), reason: subject);
+      expect(subject, isNot(contains('UnimplementedError')), reason: subject);
+      expect(subject, isNot(contains('MINIMAL COMPILABLE')), reason: subject);
+      expect(subject.toLowerCase(), contains('dummy'), reason: subject);
+      // The header's own traces survive the rewrite.
+      expect(subject, contains('behavior_id: B-1517'), reason: subject);
+      expect(
+        subject,
+        contains('// description: $description'),
+        reason: subject,
+      );
+    },
+  );
 
   test('U-1517-3: a still-red scaffold (non-renderable declared return) '
       'keeps its honest-red claims — they remain true there', () async {
@@ -277,9 +283,7 @@ void main() {
       testContent: "import 'package:test/test.dart';\nvoid main() {}\n",
       subjectContent: contractUnitEntityReturnStub('U3'),
     );
-    await File(
-      p.join(fx.featureDir, 'spec.md'),
-    ).writeAsString(
+    await File(p.join(fx.featureDir, 'spec.md')).writeAsString(
       '### Layer Contracts\n\n**Function**:\n'
       '- `LoginValidation`: `validate(Credentials) -> LoginVerdict`\n',
     );

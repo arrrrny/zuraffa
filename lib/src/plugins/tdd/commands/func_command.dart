@@ -441,27 +441,25 @@ class FuncCommand extends Command<void> {
     var updated = source;
     for (final claim in _staleHeaderClaims) {
       updated = updated.replaceAllMapped(claim, (m) {
-        final isDocClaim = m.input.substring(m.start, m.end).startsWith(
-              'Throws [UnimplementedError]',
-            );
+        final isDocClaim = m.input
+            .substring(m.start, m.end)
+            .startsWith('Throws [UnimplementedError]');
         final replacement = isDocClaim ? _dummyDocClaim : _dummyHeaderClaim;
-        final lineStart =
-            m.start == 0 ? 0 : m.input.lastIndexOf('\n', m.start - 1) + 1;
+        final lineStart = m.start == 0
+            ? 0
+            : m.input.lastIndexOf('\n', m.start - 1) + 1;
         final beforeMatch = m.input.substring(lineStart, m.start);
         // The match starts the line's content (only a comment prefix
         // before it): the prefix stays, the replacement splices in.
-        if (beforeMatch.isEmpty || RegExp(r'^[/]+[ \t]*$').hasMatch(beforeMatch)) {
+        if (beforeMatch.isEmpty ||
+            RegExp(r'^[/]+[ \t]*$').hasMatch(beforeMatch)) {
           return replacement;
         }
         // A claim replaced mid-line (the contract-unit sentence starts
         // after "when implementing. ") moves to its own comment line,
         // prefixed like the line it came from.
-        final prefix = RegExp(r'[/]+[ \t]*')
-            .firstMatch(beforeMatch)
-            ?.group(0);
-        return prefix == null
-            ? '\n$replacement'
-            : '\n$prefix$replacement';
+        final prefix = RegExp(r'[/]+[ \t]*').firstMatch(beforeMatch)?.group(0);
+        return prefix == null ? '\n$replacement' : '\n$prefix$replacement';
       });
     }
     // Safety net: a claim sentence SubjectWriter may re-wrap differently
@@ -496,9 +494,7 @@ class FuncCommand extends Command<void> {
     // scaffolded-dummy state even when there was nothing stale to
     // replace.
     if (!updated.contains('Scaffolded dummy')) {
-      final library = RegExp(r'^library;', multiLine: true).firstMatch(
-            updated,
-          );
+      final library = RegExp(r'^library;', multiLine: true).firstMatch(updated);
       const note =
           '// Scaffolded dummy per `zfa tdd func` (issue #1517) — replace\n'
           '// this dummy body with the real implementation.\n';
