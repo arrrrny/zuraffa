@@ -45,11 +45,16 @@ merge cannot silently drop it again.
    (the evidence scope's gen'd tests import flutter_test per #1351).
 3. The committed evidence is reproduced on its EXACT scope. The evidence
    commit (fb44db98) registers 6 subjects / 6 tests for feature
-   004-login-ui; that audit surface is byte-identical at HEAD (the only
-   lib/ delta since the evidence is `u1_subject.dart`, added AFTER the
-   evidence by #1377 and outside the evidence's scope). The reproduction
-   run must therefore match the committed numbers bit-exactly:
-   killed=48, survived=8, mutation_score=0.8571, mutation_was_run=true.
+   004-login-ui; that audit surface is byte-identical at HEAD, proven by
+   recomputing the evidence's recorded sha256 bindings — all 6
+   `subject_hash` values match, and the only lib/ delta since the
+   evidence is `u1_subject.dart` (added AFTER the evidence by #1377 and
+   outside the evidence's scope; #1377 also appended the `U1` record to
+   the registry, which is why `spec_hash` alone differs — see the binding
+   table in [tdd/verification.md](./tdd/verification.md)). The
+   reproduction run must therefore match the committed numbers
+   bit-exactly: killed=48, survived=8, mutation_score=0.8571,
+   mutation_was_run=true.
 4. The full-lane `zfa tdd verify` gate at HEAD stops at
    `preflight_red` via `test/tdd/004-login-ui/u1_test.dart`
    (`UnimplementedError: subject_u1 not implemented`) — the deliberate

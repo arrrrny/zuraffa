@@ -1,6 +1,6 @@
 # Plan — Spec 1400 restore verify deps in example
 
-**Branch**: `feat/1400-restore-verify-deps-example` | **Date**: 2026-09-11 | **Spec**: [spec.md](./spec.md)
+**Branch**: `feat/1400-restore-verify-deps-example` | **Date**: 2026-09-10 | **Spec**: [spec.md](./spec.md)
 
 ## Technical context
 
@@ -39,13 +39,13 @@ against the restored tree, each claim the issue needs to be true before
 4. **Data pin**: append the #1400 certification to the baseline's
    issue-reference comment chain (comment-only pubspec edit).
 
-## Why plain `test` stays out — empirical proof (2026-09-11)
+## Why plain `test` stays out — empirical proof (2026-09-10)
 
 Re-proving locked decision 2 on Flutter 3.47.3 / Dart 3.13.3: with
 `test: ^1.0.0` inserted into `example/pubspec.yaml` dev_dependencies,
 `flutter pub get` fails with (abridged solver transcript):
 
-```
+```text
 Because every version of zuraffa from path depends on analyzer ^14.0.0
 and test >=1.27.0 <1.29.0 depends on test_api 0.7.8, if zuraffa from
 path and test >=1.27.0 <1.31.2 then test_api 0.7.8 or 0.7.11.

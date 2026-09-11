@@ -38,11 +38,12 @@ dev_dependencies:
   # gen side emits `package:flutter_test/flutter_test.dart` imports on
   # Flutter hosts instead (issue #1351). The coverage + mutation runners
   # stay: `tdd verify` needs them.
-  # Issue #1400 (certification): the merge that dropped this baseline's
-  # TDD dev_dependencies left the committed 004-login-ui verification.md
+  # Issue #1400 (certification): a merge dropped this baseline's TDD
+  # dev_dependencies and left the committed 004-login-ui verification.md
   # evidence unreproducible (`Could not find package 'mutation_test'`).
-  # The pair below is the audit-critical set — re-certified at HEAD by
-  # re-running the evidence's scoped mutation audit against this tree
+  # The pair was restored upstream (#1369, superseded by #1370 for the
+  # `test` clause); this comment certifies it at HEAD by re-running the
+  # evidence's scoped mutation audit against this tree
   # (killed=48, survived=8, score 0.8571, bit-exact vs the committed
   # evidence). Re-adding plain `test` re-breaks resolution (see #1370):
   # specs/1400-restore-verify-deps-example holds the full record.
