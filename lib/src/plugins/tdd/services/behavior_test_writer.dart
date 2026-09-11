@@ -26,6 +26,7 @@ import 'package:path/path.dart' as p;
 import '../models/behavior.dart';
 import 'finder_taxonomy.dart';
 import 'i18n_key_contract.dart';
+import 'lane_split.dart';
 import 'unit_contract_shape.dart';
 import 'vacuous_guard.dart';
 import 'widget_scaffold.dart';
@@ -50,6 +51,8 @@ class BehaviorTestWriter {
     this.i18nExpansion = const [],
     this.contractShape,
     this.flutterTest = false,
+    this.projectRoot,
+    this.featureDir,
   });
 
   final WidgetAppShell widgetShell;
@@ -82,6 +85,24 @@ class BehaviorTestWriter {
   /// group/test/expect API). Defaults to `false` — pure-Dart output is
   /// byte-stable.
   final bool flutterTest;
+
+  /// Issue #1518: the seam context the gen-time guard-only warning
+  /// resolves the hand-delta seam from — the project root the warning's
+  /// paths are relativized against, and the feature dir the lane-plan/
+  /// test-list shape check reads from disk. Gen provides both (it has the
+  /// resolved feature dir — it may be a `.specify/bugs/<slug>` dir, issue
+  /// #1471, so the writer cannot derive it from `behavior.feature`).
+  /// Nullable for the direct-library callers (the old `const
+  /// BehaviorTestWriter()` keeps compiling): with no context the warning
+  /// prescribes the conservative legacy single-file branch — the feature-
+  /// derived canonical `specs/<feature>/tdd/test-list.md` path. BOTH
+  /// fields must be set for the disk resolution; either one missing falls
+  /// back to the conservative branch.
+  final String? projectRoot;
+
+  /// Issue #1518: the feature dir of the behavior being written (see
+  /// [projectRoot]). Nullable — see [projectRoot].
+  final String? featureDir;
 
   /// The test-framework import the non-widget templates emit.
   String get _testImport => flutterTest
@@ -176,12 +197,19 @@ class BehaviorTestWriter {
     // guard will refuse it: the two-cycle driver dead-ends one step later
     // with no actionable guidance unless gen names the gap NOW. The
     // warning is loud (machine-greppable [vacuousGuardWarningToken] + the
-    // shared [vacuousGuardFallbackRemedy]), names the behavior and the
-    // gap, and does NOT fail the step: the test is still emitted, exactly
-    // as before (the generated shape is unchanged — FR-002/#1308). The
-    // traced entity/void path (marker present) stays silent here — its
-    // warning is the marker itself, surfaced by the run driver as the
-    // designed hand-delta seam.
+    // shared branched remedy), names the behavior and the gap, and does
+    // NOT fail the step: the test is still emitted, exactly as before (the
+    // generated shape is unchanged — FR-002/#1308). The traced entity/void
+    // path (marker present) stays silent here — its warning is the marker
+    // itself, surfaced by the run driver as the designed hand-delta seam.
+    // Issue #1518: the remedy line is BRANCHED by feature shape — the
+    // seam is resolved from disk exactly like the run-side
+    // `_vacuousFallbackRemedy` (#1502), through the same
+    // [vacuousGuardFallbackRemedyFor] wording: the pre-#1518 warning
+    // hardcoded the pre-#1483 bare-`04-ENGINE.md` advice, so a legacy
+    // single-file feature's transcript carried the WRONG remedy first
+    // (gen warning → nonexistent lane plan) and the RIGHT remedy second
+    // (the stop → the test-list traces cell).
     if (behavior.kind == BehaviorKind.unit &&
         contractShape == null &&
         contentIsVacuousGreen(content) &&
@@ -195,8 +223,48 @@ class BehaviorTestWriter {
         'vacuous-green (issue #1259) and the run will stop here '
         '(issue #1308).',
       );
-      print('   --> fix: $vacuousGuardFallbackRemedy');
+      print('   --> fix: ${_guardOnlyRemedy(behavior)}');
     }
+  }
+
+  /// Issue #1518: the gen-time guard-only warning's remedy, BRANCHED by
+  /// feature shape — resolved from disk exactly like the run-side
+  /// `_vacuousFallbackRemedy` (issue #1502): the engine plan
+  /// ([LaneSplitFiles.engine]) when it exists, else the skin plan
+  /// ([LaneSplitFiles.skin]), else the test list — the lane plan pair on
+  /// disk is the hand-delta seam; its absence is the legacy single-file
+  /// shape and the seam is the test list itself. Paths are printed
+  /// relative to [projectRoot] — the full path of the file to edit.
+  ///
+  /// Without the seam context (either field null — direct library use,
+  /// e.g. the writer test suites), the conservative legacy single-file
+  /// branch is prescribed: the feature-derived canonical
+  /// `specs/<feature>/tdd/test-list.md`. Messaging only — the warning's
+  /// fire conditions and the generated test shape are unchanged.
+  String _guardOnlyRemedy(Behavior behavior) {
+    final root = projectRoot;
+    final dir = featureDir;
+    if (root != null && dir != null) {
+      final tddDir = p.join(dir, 'tdd');
+      final enginePlan = File(p.join(tddDir, LaneSplitFiles.engine));
+      final skinPlan = File(p.join(tddDir, LaneSplitFiles.skin));
+      final String? lanePlan;
+      if (enginePlan.existsSync()) {
+        lanePlan = p.relative(enginePlan.path, from: root);
+      } else if (skinPlan.existsSync()) {
+        lanePlan = p.relative(skinPlan.path, from: root);
+      } else {
+        lanePlan = null;
+      }
+      return vacuousGuardFallbackRemedyFor(
+        lanePlanPath: lanePlan,
+        testListPath: p.relative(p.join(tddDir, 'test-list.md'), from: root),
+      );
+    }
+    return vacuousGuardFallbackRemedyFor(
+      lanePlanPath: null,
+      testListPath: p.join('specs', behavior.feature, 'tdd', 'test-list.md'),
+    );
   }
 
   String _renderTest(Behavior b, String relativeSubjectPath) {

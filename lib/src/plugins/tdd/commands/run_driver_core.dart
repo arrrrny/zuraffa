@@ -1466,8 +1466,9 @@ class RunDriverCore {
       // miss in the run output — the run captures the gen child's stdout
       // and a successful gen prints none of it, so the warning the writer
       // emitted would be invisible here without the forward. The token
-      // keeps the scan surgical (the writer's warning lines and the fix
-      // line are the only lines that carry it or the remedy).
+      // keeps the scan surgical (issue #1518: the remedy line is the one
+      // that immediately follows the token line — the branched wording is
+      // dynamic, so the token is the only stable key).
       if (step == 'gen' && result.success) {
         _forwardGuardOnlyWarning(result.output);
       }
@@ -2352,15 +2353,15 @@ class RunDriverCore {
   }
 
   /// Issue #1308: forward the gen child's guard-only warning lines into
-  /// the run transcript. The token and the remedy string are the only
-  /// markers the writer's warning lines carry, so the scan stays surgical
-  /// — never a dump of the whole captured output.
+  /// the run transcript. Issue #1518: the writer's remedy is BRANCHED by
+  /// feature shape (dynamic seam paths), so the scan keys on the stable
+  /// two-line shape the writer prints — the warning token line and the
+  /// `--> fix:` line that immediately follows it — via the shared
+  /// [guardOnlyWarningLinesToForward] scanner. The scan stays surgical:
+  /// never a dump of the whole captured output.
   void _forwardGuardOnlyWarning(String output) {
-    for (final line in output.split('\n')) {
-      if (line.contains(vacuousGuardWarningToken) ||
-          line.contains(vacuousGuardFallbackRemedy)) {
-        print(line);
-      }
+    for (final line in guardOnlyWarningLinesToForward(output)) {
+      print(line);
     }
   }
 

@@ -37,8 +37,8 @@ const String vacuousGuardComment =
 /// warning prescribe when the vacuous-green guard fires on a
 /// FALLBACK-ROUTED behavior (no `traces:` line to a declared contract
 /// row, prose heuristics unmatched — the bare-guard fall-through in
-/// `behavior_test_writer.dart`'s `_deriveAssertion`). One shared constant
-/// so gen, the writer, and the run driver never drift on the wording.
+/// `behavior_test_writer.dart`'s `_deriveAssertion`). One shared wording
+/// source so gen, the writer, and the run driver never drift.
 ///
 /// Issue #1320: the remedy ALSO names the designed hand-delta seam —
 /// hand-editing the lane plan's traces cell to the method-qualified
@@ -46,24 +46,18 @@ const String vacuousGuardComment =
 /// exist only as tribal knowledge (plan now writes the method-qualified
 /// cell itself, but the seam stays the escape hatch when a plan refuses
 /// an ambiguous trace or the list is legacy).
-const String vacuousGuardFallbackRemedy =
-    'add traces: <ContractRow> to the FR, re-run zfa tdd plan, '
-    're-run zfa tdd gen, re-run zfa tdd run — or hand-edit the lane plan '
-    '(04-ENGINE.md) traces cell to FR-00N, Row.method and re-run '
-    'zfa tdd gen (the designed hand-delta seam)';
-
-/// Issue #1483: the vacuous-green fallback remedy, BRANCHED by feature
-/// shape — the stop message must name the seam that EXISTS for the shape
-/// it is talking to.
 ///
-/// [vacuousGuardFallbackRemedy] hardcodes the lane plan (a bare
-/// `04-ENGINE.md`) into every shape's advice — but a legacy single-file
-/// feature (no `## Lanes` in its spec, the shape `zfa tdd plan` produces
-/// with no lane split) has NO lane plan pair (`04-ENGINE.md` /
-/// `04-SKIN.md`) and never will: following the advice sends the author
-/// to a file that does not exist while the real seam — the traces cell
-/// of the test list the feature actually carries — sits untouched. The
-/// branches:
+/// Issue #1483: the wording became a FUNCTION, [vacuousGuardFallbackRemedyFor]
+/// — the pre-#1483 form hardcoding the lane plan as a bare `04-ENGINE.md`
+/// (the literal text `hand-edit the lane plan (04-ENGINE.md) traces cell`)
+/// was the lane-split branch only, and sent legacy single-file authors to
+/// a file that never exists. Issue #1518 retires that constant for good:
+/// the branched builder below is the ONE remedy wording source (gen-time
+/// warning, run stop, forwarding contract), and the pin suites (#1320 U8,
+/// #1483 U-1483-1c, #1308 U-1308-1) were migrated to it in the same
+/// change that retired it.
+///
+/// The branches:
 ///
 /// * lane-split feature ([lanePlanPath] non-null — the lane plan pair is
 ///   on disk) → the lane plan's traces cell, as before;
@@ -86,6 +80,31 @@ String vacuousGuardFallbackRemedyFor({
       're-run zfa tdd gen, re-run zfa tdd run — or hand-edit the '
       '$seamNoun ($seamPath) traces cell to FR-00N, Row.method and '
       're-run zfa tdd gen (the designed hand-delta seam)';
+}
+
+/// Issue #1308/#1518: the lines of the gen child's captured output that
+/// the run driver forwards into the run transcript — the guard-only
+/// warning token line ([vacuousGuardWarningToken]) and the `--> fix:`
+/// remedy line that IMMEDIATELY follows it, nothing else (never a dump of
+/// the whole captured output; a stray `--> fix:` line with no token line
+/// before it stays unforwarded).
+///
+/// The remedy line cannot be a text scan key any more: since #1518 the
+/// writer's remedy is BRANCHED by feature shape
+/// ([vacuousGuardFallbackRemedyFor] — the seam path differs per feature),
+/// so the forward keys on the stable two-line shape the writer prints —
+/// the token line first, the remedy line directly after.
+Iterable<String> guardOnlyWarningLinesToForward(String output) sync* {
+  var forwardFix = false;
+  for (final line in output.split('\n')) {
+    if (line.contains(vacuousGuardWarningToken)) {
+      yield line;
+      forwardFix = true;
+    } else if (forwardFix && line.contains('--> fix:')) {
+      yield line;
+      forwardFix = false;
+    }
+  }
 }
 
 /// Issue #1308: the machine-greppable token the gen-time guard-only
