@@ -637,11 +637,6 @@ class PlanCommand extends Command<void> {
           criterionSources[entry.key] = source.file;
         }
       }
-      declarations = SpecDeclarations(
-        scenarios: scenarioMarkers,
-        contractRows: declaredRows.rows,
-        persistence: SpecParser.parsePersistenceDeclarations(specMd),
-      );
       // Issue #1485: plan reports what it read — silence about ignored
       // directories is what makes this expensive to diagnose.
       final contractsDir = Directory(p.join(featureDir, 'contracts'));
@@ -690,11 +685,43 @@ class PlanCommand extends Command<void> {
         }
         frTraces[entry.currentId] = criterion;
       }
+      // Review fix (issue #1480): persistence derives from the MERGED
+      // rows and RESOLVED traces — parsePersistenceDeclarations only sees
+      // spec.md, so an FR whose trace binds from a contracts file lost
+      // the #833 persistence marker (and the unit-fallback exemption
+      // with it) whenever the traced row is a declared storage row.
+      final persistenceDeclarations = <String, PersistenceDeclaration>{
+        ...SpecParser.parsePersistenceDeclarations(specMd),
+      };
+      for (final entry in expressibleEntries) {
+        if (persistenceDeclarations.containsKey(entry.currentId)) continue;
+        final viaStorage = (frTraces[entry.currentId] ?? const <String>[]).any(
+          (t) => declaredRows.rows[t]?.kind == ContractRowKind.storage,
+        );
+        if (viaStorage) {
+          persistenceDeclarations[entry.currentId] = PersistenceDeclaration(
+            behaviorId: entry.currentId,
+            fromTag: false,
+          );
+        }
+      }
+      declarations = SpecDeclarations(
+        scenarios: scenarioMarkers,
+        contractRows: declaredRows.rows,
+        persistence: persistenceDeclarations,
+      );
       // Issue #1480: a criterion trace naming an FR the spec does not
       // declare is a typo in the making — warn loudly (parity with the
       // #1319 unbound-trace warning) instead of binding nothing silently.
+      //
+      // Review fix: the known set is the RECONCILED criteria — building
+      // it from expressibleEntries (post-FFI-exclusion) warned "no FR in
+      // the spec declares it" for an FFI-routed FR the spec DOES
+      // declare, while the merge loop's expressible-only iteration
+      // (correct: FFI rows keep their preservedFfi declared routing)
+      // silently dropped the trace.
       final knownCriteria = {
-        for (final entry in expressibleEntries) entry.behavior.sourceCriterion,
+        for (final entry in reconciledEntries) entry.behavior.sourceCriterion,
       };
       for (final frId in criterionTraces.keys) {
         if (!knownCriteria.contains(frId)) {
