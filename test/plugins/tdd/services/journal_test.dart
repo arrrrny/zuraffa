@@ -191,8 +191,15 @@ void main() {
         // suite already uses (e.g. issue_1173_engine_purity_test).
         final root = await findProjectRoot();
         final source = File(
-          p.join(root, 'lib', 'src', 'plugins', 'tdd', 'services',
-              'journal.dart'),
+          p.join(
+            root,
+            'lib',
+            'src',
+            'plugins',
+            'tdd',
+            'services',
+            'journal.dart',
+          ),
         ).readAsStringSync();
         final unit = parseString(content: source, throwIfDiagnostics: false);
 
@@ -209,14 +216,13 @@ void main() {
 
         // The journal write's tmp file is declared from file.path — never
         // the schema write's tmp ('${schemaFile.path}.tmp').
-        final journalTmps =
-            tmpDecls
-                .where(
-                  (v) =>
-                      v.initializer!.toString().contains("file.path}.tmp'") &&
-                      !v.initializer!.toString().contains('schemaFile'),
-                )
-                .toList();
+        final journalTmps = tmpDecls
+            .where(
+              (v) =>
+                  v.initializer!.toString().contains("file.path}.tmp'") &&
+                  !v.initializer!.toString().contains('schemaFile'),
+            )
+            .toList();
         expect(journalTmps, hasLength(1));
 
         final writes = invocations
@@ -255,7 +261,8 @@ void main() {
             .where((f) => write.offset < f.offset && f.offset < rename.offset)
             .toList();
         expect(inBetween, hasLength(1));
-        expect(inBetween.single.target!.toString(), 'flushToDisk');
+        // Top-level call — no receiver; the invoked name is flushToDisk.
+        expect(inBetween.single.methodName.name, 'flushToDisk');
         expect(
           inBetween.single.argumentList.arguments.single.toString(),
           'tmp',
