@@ -317,10 +317,14 @@ class GenerationPlanner {
                     'entity is reused, never overwritten)',
               ),
               GenerationStepSpec(
-                args: ['mock', 'create', '--name', traced],
+                // Bug #1503: the entity pipeline must request the CERTIFIED
+                // variant (spec 1001) — an engine-planned uncertified mock
+                // dead-ends the next run at the pre-start preflight.
+                args: ['mock', 'create', '--name', traced, '--certify'],
                 purpose:
-                    'generate contract-conforming mock datasource for entity '
-                    '$traced (behavior ${summary.behaviorId})',
+                    'generate contract-conforming certified mock datasource '
+                    'for entity $traced (behavior ${summary.behaviorId}; '
+                    'spec 1001 — bug #1503)',
               ),
               GenerationStepSpec(
                 args: [
@@ -638,10 +642,13 @@ class GenerationPlanner {
                   'idempotent — an existing entity is reused)',
             ),
             GenerationStepSpec(
-              args: ['mock', 'create', '--name', name],
+              // Bug #1503: the declared entity pipeline requests the
+              // CERTIFIED variant too (spec 1001 — bug #1503).
+              args: ['mock', 'create', '--name', name, '--certify'],
               purpose:
-                  'generate contract-conforming mock datasource for entity '
-                  '$name (behavior ${summary.behaviorId})',
+                  'generate contract-conforming certified mock datasource '
+                  'for entity $name (behavior ${summary.behaviorId}; '
+                  'spec 1001 — bug #1503)',
             ),
             GenerationStepSpec(
               args: [

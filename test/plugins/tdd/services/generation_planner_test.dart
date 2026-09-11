@@ -639,7 +639,9 @@ void main() {
       expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
       expect(plan.steps.map((s) => s.args).toList(), [
         ['entity', 'create', '-n', 'User'],
-        ['mock', 'create', '--name', 'User'],
+        // Bug #1503: the engine requests the CERTIFIED variant (spec 1001)
+        // — run #1 leaves a certified mock, run #2's preflight passes.
+        ['mock', 'create', '--name', 'User', '--certify'],
         [
           'tdd',
           'wire',
@@ -803,7 +805,8 @@ void main() {
         expect(defaultPlan.isExpressible, isTrue);
         expect(defaultPlan.steps.map((s) => s.args).toList(), [
           ['entity', 'create', '-n', 'UserPreference'],
-          ['mock', 'create', '--name', 'UserPreference'],
+          // Bug #1503: certified variant (spec 1001).
+          ['mock', 'create', '--name', 'UserPreference', '--certify'],
           [
             'tdd',
             'wire',
