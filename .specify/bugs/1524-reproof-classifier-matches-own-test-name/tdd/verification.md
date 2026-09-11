@@ -86,3 +86,37 @@ alone failed.
   and its test file — `classifyReproofFailure`'s body, the retry loop, the
   refactor command and the state machine are byte-identical
   (`git diff HEAD~1 --stat`: 2 files, +58/−15).
+
+## Review-fixes round (the PR #1532 review findings)
+
+Follow-up to the automated review of PR #1532 at `84df97b2`, which raised
+four findings (0 🔴 · 0 🟠 · 2 🟡 · 1 🔵 · 1 nit). All four are applied:
+
+| # | Where | Finding | Fix |
+|---|-------|---------|-----|
+| 1 🟡 | `reproof_failure_classifier_test.dart:189-194` | The over-filtering guard used `exitCode: 255`, so decision step 4 returned `infraRunner` for ANY transcript; the assertion held even if the signature scan missed the crash line. | Guard now uses `exitCode: 1`, so only step 3 — the scan under test — can produce `infraRunner`. |
+| 2 🟡 | `reproof_failure_classifier.dart:64` | `failed` (generic prose) guarded the bare-sentence alternative, and the lookahead ran only forward while the doc promised same-line co-occurrence. | `failed` dropped from the sentence alternative; the alternative is now order-independent — a crash-specific token before OR after the phrase, matching the doc. |
+| 3 🔵 | `reproof_failure_classifier.dart:46` | `\d{1,2}` capped the reporter minute field at 99, so the progress-line skip stopped applying to runs past 99 minutes — the longest full-suite runs this bug is about. | Widened to `\d+`. |
+| 4 nit | `reproof_failure_classifier_test.dart:169-176` | The red transcript literal was duplicated byte-for-byte between the verdict and the diagnostics test. | Extracted one shared `const poisonTranscript`. |
+
+Check #2's "over-filtering guard … passed on BOTH sides by design" note above
+is **superseded** by finding 1: with `exitCode: 1` the guard now exercises the
+signature scan instead of the exit-255 tier.
+
+### Root cause evidence for finding 3
+
+`test_core` 0.6.20 `lib/src/runner/reporter/expanded.dart` `_timeString`:
+`"${duration.inMinutes.toString().padLeft(2, '0')}:${(duration.inSeconds % 60).toString().padLeft(2, '0')}"`
+— the minute field grows past two digits (`100:22`) and there is no `h:mm:ss`
+variant, so `\d+` is the complete widening (no hours group needed).
+
+### Re-verification (this round, Dart 3.13.2 on macos_x64)
+
+| Check | Command | Result |
+|---|---|---|
+| Focused suite | `dart test test/plugins/tdd/reproof_failure_classifier_test.dart` | PASS — `00:00 +21: All tests passed!` (19 → 21: +2 regression tests for findings 2 and 3) |
+| Analyzer, both files | `dart analyze …` | PASS — `No issues found!` |
+| Format gate, both files | `dart format …` | PASS — `Formatted 2 files (0 changed)` |
+| Refactor consumers | `dart test test/plugins/tdd/bug_922_refactor_preflight_baseline_test.dart test/plugins/tdd/bug_1311_refactor_receipt_refresh_test.dart test/plugins/tdd/corpus_economics/incremental_verify_test.dart` | PASS — `+10: All tests passed!` |
+| #1333 retry-loop contract | `dart test -P regression -j 1 test/plugins/tdd/bug_1333_refactor_reproof_retry_test.dart` | PASS — `+4: All tests passed!` |
+| Broad folder sweep | `dart test test/plugins/tdd` | 3 pre-existing failures in `test/plugins/tdd/commands/` (`bug_993`, `view_command_test` U-V3, `plan_traces_cell_1310` U6) — reproduced on the untouched `84df97b2` head, unrelated to this change; the classifier and its consumers are green. |

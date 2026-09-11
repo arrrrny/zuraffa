@@ -144,41 +144,51 @@ Expected: true
         'signature: "Cannot retrieve length of file" + dart_test.kernel .dill '
         'errno 2';
 
-    test('hasKernelCacheSignature ignores a reporter progress line', () {
-      expect(hasKernelCacheSignature(poisonProgressLine), isFalse);
-    });
-
-    test('a genuine red re-proof with the poison line stays a regression', () {
-      const transcript =
-          '''
+    // The genuine red the poison line is spliced into. Shared by the verdict
+    // test and the diagnostics test so the "diagnostics agree with the
+    // verdict" property cannot silently stop being tested.
+    const poisonTranscript =
+        '''
 $poisonProgressLine
 00:01 +2918 -1: test/some_test.dart: a real regression [E]
   Expected: 2
     Actual: 1
 00:01 +2918 -1: Some tests failed.
 ''';
+
+    test('hasKernelCacheSignature ignores a reporter progress line', () {
+      expect(hasKernelCacheSignature(poisonProgressLine), isFalse);
+    });
+
+    test('a progress line past 99 minutes is still skipped (bug #1524)', () {
+      // The reporter derives the minute field from `Duration.inMinutes`
+      // (test_core `_timeString`), so it grows past two digits; the skip
+      // must not stop applying to the longest full-suite runs.
+      const longRunPoisonLine =
+          '100:22 +2918 ~1: test/plugins/tdd/reproof_failure_classifier_test.dart: '
+          'the issue #1333 signature: "Cannot retrieve length of file" + '
+          'dart_test.kernel .dill errno 2';
+      expect(hasKernelCacheSignature(longRunPoisonLine), isFalse);
+    });
+
+    test('a genuine red re-proof with the poison line stays a regression', () {
       final cls = classifyReproofFailure(
         exitCode: 1,
-        output: transcript,
+        output: poisonTranscript,
         startedProcess: true,
       );
       expect(cls, ReproofFailureClass.regression);
     });
 
     test('kernelCacheSignatureLine finds no signature in a poisoned red', () {
-      const transcript =
-          '''
-$poisonProgressLine
-00:01 +2918 -1: test/some_test.dart: a real regression [E]
-  Expected: 2
-    Actual: 1
-00:01 +2918 -1: Some tests failed.
-''';
-      expect(kernelCacheSignatureLine(transcript), isNull);
+      expect(kernelCacheSignatureLine(poisonTranscript), isNull);
     });
 
     test('the canonical crash line is still infra next to the poison line', () {
       // Progress-line skipping must not swallow genuine crash evidence.
+      // Exit 1 (not 255) so only decision step 3 — the signature scan under
+      // test — can produce infraRunner; with 255 the assertion would hold
+      // for any transcript.
       const transcript =
           '''
 00:00 +2918: loading test/probe_test.dart
@@ -187,7 +197,7 @@ Cannot retrieve length of file: /tmp/dart_test.kernel./probe_test.dart_.dill (er
 $poisonProgressLine
 ''';
       final cls = classifyReproofFailure(
-        exitCode: 255,
+        exitCode: 1,
         output: transcript,
         startedProcess: true,
       );
@@ -203,8 +213,26 @@ $poisonProgressLine
           ),
           isFalse,
         );
+        // `failed` is generic prose, not crash evidence (bug #1524).
+        expect(
+          hasKernelCacheSignature(
+            'the cannot retrieve length of file check failed',
+          ),
+          isFalse,
+        );
       },
     );
+
+    test('bare phrase with crash evidence before it is infra', () {
+      // The sentence alternative requires crash evidence on its line in
+      // either direction, not only after the phrase.
+      expect(
+        hasKernelCacheSignature(
+          'Failed to load (errno 2): cannot retrieve length of file',
+        ),
+        isTrue,
+      );
+    });
   });
 
   group('parseFailingTestNames', () {

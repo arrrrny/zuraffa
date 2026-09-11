@@ -38,12 +38,15 @@ enum ReproofFailureClass {
 /// The `dart test` reporter progress-line grammar (bug #1524): the
 /// per-test status lines the expanded reporter prints —
 /// `mm:ss +N [-M] [~K]: <name>` — plus the summary lines in the same
-/// shape. A progress line is the reporter ECHOING a test name (or any
-/// transcript prose); it is never crash evidence, even when the echoed
-/// name quotes a kernel-cache signature verbatim (the classifier's own
-/// passing test name does exactly that).
+/// shape. The minute field is not capped at two digits: the reporter
+/// builds it from `Duration.inMinutes`, so a run past 99 minutes prints
+/// `100:22`, and the skip must keep applying to exactly those long
+/// full-suite runs. A progress line is the reporter ECHOING a test name
+/// (or any transcript prose); it is never crash evidence, even when the
+/// echoed name quotes a kernel-cache signature verbatim (the classifier's
+/// own passing test name does exactly that).
 final RegExp _reporterProgressLine = RegExp(
-  r'^\s*\d{1,2}:\d{2}\s+(?:[+\-~]\d+\s*)+:',
+  r'^\s*\d+:\d{2}\s+(?:[+\-~]\d+\s*)+:',
 );
 
 /// Whether [line] is a `dart test` reporter progress line (bug #1524):
@@ -53,15 +56,16 @@ bool _isReporterProgressLine(String line) =>
 
 /// The kernel-cache / runner-crash signature grammar (spec 1333): the
 /// observed transient failure phrasing, case-insensitive. The sentence is
-/// the issue's primary signature; `dart_test.kernel` only counts when the
-/// same line also carries crash evidence; a `.dill` path co-occurring with
-/// an ENOENT/errno-2 marker catches the variants the sentence does not
-/// cover. Bug #1524: the bare sentence alternative requires the same
-/// crash evidence co-occurring on its line (a quoted sentence alone, e.g.
-/// inside a test name, proves nothing).
+/// the issue's primary signature; the bare sentence alternative requires
+/// a crash-specific token on the same line — before OR after the phrase,
+/// in either order — so a quoted sentence alone (inside a test name, or
+/// in prose ending in "failed") proves nothing. `dart_test.kernel` only
+/// counts when the same line also carries crash evidence; a `.dill` path
+/// co-occurring with an ENOENT/errno-2 marker catches the variants the
+/// sentence does not cover.
 final RegExp _kernelCacheSignature = RegExp(
-  r'cannot retrieve length of file'
-  r'(?=[^\n]*(?:\.dill|dart_test\.kernel|enoent|errno 2|no such file|failed))'
+  r'(?=[^\n]*cannot retrieve length of file)'
+  r'(?=[^\n]*(?:\.dill|dart_test\.kernel|enoent|errno 2|no such file))'
   r'|dart_test\.kernel[^\n]*(?:enoent|errno 2|no such file|cannot|failed)'
   r'|(?:enoent|errno 2|no such file|cannot|failed)[^\n]*dart_test\.kernel'
   r'|\.dill[^\n]*(?:enoent|errno 2|no such file)'
