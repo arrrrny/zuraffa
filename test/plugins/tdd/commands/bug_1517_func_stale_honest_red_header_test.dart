@@ -176,7 +176,7 @@ void main() {
       (
         id: 'U2',
         description: description,
-        traces: 'LoginValidation.validate',
+        traces: 'LoginValidation.isSubmittable',
         state: 'PENDING',
         kind: 'unit',
       ),

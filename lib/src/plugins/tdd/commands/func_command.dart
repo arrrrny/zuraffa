@@ -32,6 +32,11 @@
 ///      test file is never
 ///      touched (044 ownership contract), and the stub's function NAME
 ///      is preserved so the immutable test keeps compiling against it.
+///      Issue #1517: when the installed body is a DUMMY (not a still-red
+///      scaffold), the gen-time honest-red claims the stub header and doc
+///      comment carry are reconciled to the scaffolded-dummy state — the
+///      file describes the state it actually contains; contract traces
+///      are preserved verbatim.
 ///   4. Is idempotent: a subject with no `UnimplementedError` left is
 ///      reported `already-implemented` and exits 0, so a resumed
 ///      pipeline re-running the step stays green.
@@ -307,7 +312,17 @@ class FuncCommand extends Command<void> {
       functionName: functionName,
       declared: declared,
     );
-    final updated = raw.replaceRange(stub.start, stub.end, scaffolded);
+    var updated = raw.replaceRange(stub.start, stub.end, scaffolded);
+    // Issue #1517: a DUMMY body invalidates the gen-time honest-red
+    // claims the stub header and doc comment carry ("MINIMAL COMPILABLE
+    // STUB ... honest red", "Throws [UnimplementedError] until the real
+    // implementation lands."). The file must describe the state it
+    // actually contains — reconcile the claims. A still-red scaffold (a
+    // non-renderable declared return that keeps UnimplementedError) is
+    // left alone: its claims remain true there.
+    if (!scaffolded.contains('UnimplementedError')) {
+      updated = _reconcileHeaderClaimsForDummyBody(updated);
+    }
     await subjectFile.writeAsString(updated);
     // Issue #969 T003: the scaffolded subject becomes self-certifying.
     await TddGenerationReceipts.writeBestEffort(
@@ -350,6 +365,149 @@ class FuncCommand extends Command<void> {
   static final RegExp _unimplementedThrow = RegExp(
     r'throw[ \t]+(?:const[ \t]+)?UnimplementedError\s*\(',
   );
+
+  // -------------------------------------------------------------------
+  // Issue #1517: header/doc reconciliation for the scaffolded-dummy
+  // state. SubjectWriter bakes honest-red claims into the stub header
+  // ("MINIMAL COMPILABLE STUB ... honest red") and doc comment ("Throws
+  // [UnimplementedError] until the real implementation lands.") —
+  // gen-time-accurate, fill-time-stale: once func installs a dummy body
+  // the paired test compiles and may go green on the dummy alone. When
+  // the body func just installed is a DUMMY, the claims below are
+  // rewritten to the scaffolded-dummy state. The patterns tolerate the
+  // `// `/`/// ` prefixes and the exact line wraps SubjectWriter emits.
+  // -------------------------------------------------------------------
+
+  /// The scaffolded-dummy state claim (the header variant).
+  static const _dummyHeaderClaim =
+      'Scaffolded dummy per `zfa tdd func` (issue #1517): the body below '
+      'is a placeholder that compiles against the signature — the paired '
+      'test may pass on this dummy alone. Replace this dummy body with '
+      'the real implementation.';
+
+  /// The scaffolded-dummy state claim (the doc-comment variant).
+  static const _dummyDocClaim =
+      'Scaffolded dummy per `zfa tdd func` (issue #1517) — replace this '
+      'dummy body with the real implementation.';
+
+  /// The gen-time honest-red claim sentences SubjectWriter renders into
+  /// the unit / acceptance / contract-derived stub headers, and the doc
+  /// comment line every stub carries.
+  static final List<RegExp> _staleHeaderClaims = [
+    _claimPattern(
+      'This is a MINIMAL COMPILABLE STUB. It compiles cleanly (FR-011) but '
+      'does NOT satisfy the behavior described above — the paired test '
+      'will fail on first execution with an assertion-level failure '
+      '(honest red). Replace this stub body with real implementation to '
+      'make the test pass.',
+    ),
+    _claimPattern(
+      'This is a MINIMAL COMPILABLE acceptance-scenario stub. It compiles '
+      'cleanly (FR-011) but does NOT satisfy the behavior described above '
+      '— the paired test will fail on first execution with an '
+      'assertion-level failure (honest red). The acceptance subject '
+      'intentionally does NOT reference any entity/use case/repository '
+      '(FR-004): it stands alone. Replace this stub body with real '
+      'implementation to make the test pass.',
+    ),
+    _claimPattern(
+      'This is a MINIMAL COMPILABLE STUB: it does NOT satisfy the behavior '
+      '— the paired test fails on first execution (honest red). Replace '
+      'this stub body with the real implementation of the declared '
+      'contract to make the test pass.',
+    ),
+    _claimPattern(
+      'Throws [UnimplementedError] until the real implementation lands.',
+    ),
+  ];
+
+  /// Builds a pattern matching [sentence] even where SubjectWriter wraps
+  /// it across comment lines: a space matches intra-line whitespace OR a
+  /// newline followed by the next line's comment prefix (consumed, so
+  /// replacements must re-supply prefixes).
+  static RegExp _claimPattern(String sentence) {
+    final body = sentence
+        .split(' ')
+        .map(RegExp.escape)
+        .join(r'(?:[ \t]+|\r?\n[ \t]*(?://+)[ \t]*)');
+    return RegExp(body);
+  }
+
+  /// Rewrites the gen-time honest-red claims for the scaffolded-dummy
+  /// state (issue #1517). Contract traces (behavior_id, source_criterion,
+  /// description, declared-signature fence, declared parameters) are
+  /// preserved verbatim — the rewrite only touches claim sentences.
+  static String _reconcileHeaderClaimsForDummyBody(String source) {
+    var updated = source;
+    for (final claim in _staleHeaderClaims) {
+      updated = updated.replaceAllMapped(claim, (m) {
+        final isDocClaim = m.input.substring(m.start, m.end).startsWith(
+              'Throws [UnimplementedError]',
+            );
+        final replacement = isDocClaim ? _dummyDocClaim : _dummyHeaderClaim;
+        final lineStart =
+            m.start == 0 ? 0 : m.input.lastIndexOf('\n', m.start - 1) + 1;
+        final beforeMatch = m.input.substring(lineStart, m.start);
+        // The match starts the line's content (only a comment prefix
+        // before it): the prefix stays, the replacement splices in.
+        if (beforeMatch.isEmpty || RegExp(r'^[/]+[ \t]*$').hasMatch(beforeMatch)) {
+          return replacement;
+        }
+        // A claim replaced mid-line (the contract-unit sentence starts
+        // after "when implementing. ") moves to its own comment line,
+        // prefixed like the line it came from.
+        final prefix = RegExp(r'[/]+[ \t]*')
+            .firstMatch(beforeMatch)
+            ?.group(0);
+        return prefix == null
+            ? '\n$replacement'
+            : '\n$prefix$replacement';
+      });
+    }
+    // Safety net: a claim sentence SubjectWriter may re-wrap differently
+    // (template drift) or a hand-authored variant must not survive as a
+    // stale claim. Drop any comment line still carrying one of the
+    // markers — trace lines are exempt so a pathological description
+    // can never be torn out of the header.
+    const traceKeys = [
+      'behavior_id:',
+      'source_criterion:',
+      'description:',
+      'Declared parameters:',
+    ];
+    const staleMarkers = [
+      'honest red',
+      'MINIMAL COMPILABLE',
+      'does NOT satisfy',
+      'assertion-level failure',
+      'UnimplementedError',
+    ];
+    updated = updated
+        .split('\n')
+        .where((line) {
+          final trimmed = line.trim();
+          if (!trimmed.startsWith('//')) return true;
+          if (traceKeys.any(trimmed.contains)) return true;
+          return !staleMarkers.any(trimmed.contains);
+        })
+        .join('\n');
+    // A subject whose header carried no claim sentences (hand-authored
+    // stub) still gets the state statement — the file must describe the
+    // scaffolded-dummy state even when there was nothing stale to
+    // replace.
+    if (!updated.contains('Scaffolded dummy')) {
+      final library = RegExp(r'^library;', multiLine: true).firstMatch(
+            updated,
+          );
+      const note =
+          '// Scaffolded dummy per `zfa tdd func` (issue #1517) — replace\n'
+          '// this dummy body with the real implementation.\n';
+      updated = library == null
+          ? '$note$updated'
+          : updated.replaceRange(library.start, library.start, note);
+    }
+    return updated;
+  }
 
   /// The behavior description the record carries — the record's own
   /// parsing contract ([ArtifactRecord.descriptionSegment]), shared with
