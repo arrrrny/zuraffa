@@ -13,6 +13,13 @@
 // `<file-stem>.<row>` alias so `traces: <ContractFile>.<Row>` resolves.
 library;
 
+// Pool task a2679213-5e06-46eb-89ed-e6aa0ac2bef1 used a direct Git clone
+// (https://github.com/arrrrny/zuraffa/issues/1508) and PATH Dart
+// (https://github.com/arrrrny/zuraffa/issues/1509) because those repository
+// and toolchain routes were unavailable in this execution environment. Direct
+// make-suite paths were skipped by the default selector, so they require the
+// explicit regression preset (https://github.com/arrrrny/zuraffa/issues/1510).
+
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/models/routing.dart';
 import 'package:zuraffa/src/plugins/tdd/services/spec_parser.dart';
@@ -69,6 +76,58 @@ void main() {
       expect(rows[0].name, 'save');
       expect(rows[0].signatures.single.toString(), 'save(Task) -> void');
       expect(rows[1].signatures.single.toString(), 'find(Id) -> Task?');
+    });
+
+    test('an aligned table separator still opens the declared table', () {
+      const md = '''
+| Operation | Input |
+|:----------|:------|
+| Read all  | x     |
+''';
+      final rows = const SpecParser().parseContractFileRows(md);
+      expect(rows, hasLength(1));
+      expect(rows.single.name, 'Read all');
+    });
+
+    test('an empty signature cell does not shift the column index', () {
+      const md = '''
+| Method | Signature                | Notes                  |
+|--------|--------------------------|------------------------|
+| save   |                          | loadAll() -> List<Task> |
+''';
+      final rows = const SpecParser().parseContractFileRows(md);
+      expect(rows, hasLength(1));
+      expect(rows.single.name, 'save');
+      expect(rows.single.signatures, isEmpty);
+      expect(rows.single.rawSignatures, isEmpty);
+    });
+
+    test('a bare multi-parameter signature is kept as one span', () {
+      const md = '''
+| Method | Signature                |
+|--------|--------------------------|
+| save   | save(Task, int) -> void  |
+''';
+      final rows = const SpecParser().parseContractFileRows(md);
+      expect(rows, hasLength(1));
+      expect(rows.single.name, 'save');
+      expect(
+        rows.single.signatures.single.toString(),
+        'save(Task, int) -> void',
+      );
+    });
+
+    test('two pipe tables without a blank line remain separate tables', () {
+      const md = '''
+| Operation | Behaviour |
+|-----------|-----------|
+| A         | first     |
+| Operation | Behaviour |
+|-----------|-----------|
+| B         | second    |
+''';
+      final rows = const SpecParser().parseContractFileRows(md);
+      expect(rows.map((r) => r.name), ['A', 'B']);
     });
 
     test('a signature-first table names rows by the parsed method', () {
@@ -129,6 +188,41 @@ void main() {
         'create(Task) -> Task',
         'getAll() -> List<Task>',
       ]);
+    });
+
+    test('a pure signature bullet accepts CommonMark plus markers', () {
+      const md = '''
+## Operations
+
++ `count() -> int`
+''';
+      final rows = const SpecParser().parseContractFileRows(md);
+      expect(rows, hasLength(1));
+      expect(rows.single.name, 'count');
+    });
+
+    test('a pure non-signature bullet declares nothing', () {
+      const md = '''
+# Contract
+
+Artifacts:
+
+- `x.json`
+- `RoutingResolver`
+''';
+      expect(const SpecParser().parseContractFileRows(md), isEmpty);
+    });
+
+    test('a pure malformed signature bullet carries its raw signature', () {
+      const md = '''
+## Operations
+
+- `(Task, int) ->`
+''';
+      final rows = const SpecParser().parseContractFileRows(md);
+      expect(rows, hasLength(1));
+      expect(rows.single.name, '(Task, int) ->');
+      expect(rows.single.rawSignatures, ['(Task, int) ->']);
     });
 
     test('a pure signature bullet declares a row named by the method', () {

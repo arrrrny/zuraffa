@@ -393,7 +393,7 @@ class SpecParser {
   );
 
   /// A Key Entities table separator row (`| -- | -- | -- |`).
-  static final RegExp _tableSeparator = RegExp(r'^\s*\|\s*[\s\-|]*\|\s*$');
+  static final RegExp _tableSeparator = RegExp(r'^\s*\|[\s\-|:]*\|\s*$');
 
   /// The zuraffa spec template's treaty pin (bug #919): the header marker
   /// `**Template Version**: `x`` that declares which template grammar the
@@ -497,6 +497,12 @@ class SpecParser {
         .map((c) => c.trim())
         .where((c) => c.isNotEmpty)
         .toList();
+  }
+
+  /// Split a pipe row while preserving empty cells' column positions.
+  static List<String> _splitPositionalCells(String line) {
+    final raw = line.split('|').map((c) => c.trim()).toList();
+    return raw.length > 2 ? raw.sublist(1, raw.length - 1) : raw;
   }
 
   /// Extract the declared external dependencies (bug #919): each row of
@@ -930,14 +936,14 @@ class SpecParser {
   /// Issue #1485: a bullet whose ENTIRE value is one backticked span
   /// (`` - `count() -> int` ``) — a pure signature declaration.
   static final RegExp _pureSignatureBullet = RegExp(
-    r'^\s*[-*]\s+`([^`]+)`\s*$',
+    r'^\s*[-*+]\s+`([^`]+)`\s*$',
   );
 
   /// Issue #1485: a bullet whose FIRST backticked span may carry trailing
   /// prose (`` - `count() -> int` — the number of tasks ``). Honored only
   /// inside an [_contractOperationsHeading] scope.
   static final RegExp _proseSignatureBullet = RegExp(
-    r'^\s*[-*]\s+`([^`]+)`(.*)$',
+    r'^\s*[-*+]\s+`([^`]+)`(.*)$',
   );
 
   /// Issue #1485: an operations/method table header's key column —
@@ -1028,8 +1034,28 @@ class SpecParser {
           }
           continue;
         }
-        // A data row of the open table.
-        if (RegExp(r'^-+$').hasMatch(cells.first)) continue; // separator
+        // A data row of the open table. A second table header may follow
+        // immediately without a blank line; treat it as a new table rather
+        // than as a declaration whose name is the header text.
+        final next = i + 1 < lines.length ? lines[i + 1].trim() : '';
+        final first = cells.first.toLowerCase();
+        final startsTable =
+            (_operationsHeaderCell.hasMatch(first) ||
+                _isSignatureHeaderCell(first)) &&
+            _tableSeparator.hasMatch(next);
+        if (startsTable) {
+          tableSigColumn = null;
+          tableSignatureFirst = false;
+          if (_operationsHeaderCell.hasMatch(first)) {
+            tableSignatureFirst = false;
+            tableSigColumn = cells.indexWhere(_isSignatureHeaderCell);
+          } else {
+            tableSignatureFirst = true;
+            tableSigColumn = -1;
+          }
+          continue;
+        }
+        if (RegExp(r'^:?-+:?$').hasMatch(cells.first)) continue; // separator
         if (tableSignatureFirst) {
           final signature = _firstParseableSignature(cells.first);
           if (signature != null) {
@@ -1046,14 +1072,21 @@ class SpecParser {
         }
         final signatures = <Signature>[];
         final rawSignatures = <String>[];
+        final positional = _splitPositionalCells(trimmed);
         if (tableSigColumn != null &&
             tableSigColumn >= 0 &&
-            cells.length > tableSigColumn) {
-          _collectSignatures(cells[tableSigColumn], signatures, rawSignatures);
+            positional.length > tableSigColumn) {
+          _collectSignatures(
+            positional[tableSigColumn],
+            signatures,
+            rawSignatures,
+          );
         }
         rows.add(
           ContractRowDecl(
-            name: cells.first,
+            name: positional.isNotEmpty && positional.first.isNotEmpty
+                ? positional.first
+                : cells.first,
             kind: ContractRowKind.function,
             signatures: signatures,
             rawSignatures: rawSignatures,
@@ -1088,15 +1121,32 @@ class SpecParser {
       // A pure signature bullet declares anywhere in the document.
       final pure = _pureSignatureBullet.firstMatch(trimmed);
       if (pure != null) {
-        final signature = Signature.parse(pure.group(1)!.trim());
-        rows.add(
-          ContractRowDecl(
-            name: signature.name,
-            kind: ContractRowKind.function,
-            signatures: [signature],
-            specLine: lineNo,
-          ),
-        );
+        final text = pure.group(1)!.trim();
+        final signature = _firstParseableSignature(text);
+        if (signature != null) {
+          rows.add(
+            ContractRowDecl(
+              name: signature.name,
+              kind: ContractRowKind.function,
+              signatures: [signature],
+              specLine: lineNo,
+            ),
+          );
+        } else if (text.contains('(') && text.contains('->')) {
+          // Signature-shaped but unparseable: carry raw so the resolver's
+          // malformed-declaration refusal names it when consulted.
+          final name = RegExp(
+            r'^[A-Za-z_][A-Za-z0-9_]*',
+          ).firstMatch(text)?.group(0);
+          rows.add(
+            ContractRowDecl(
+              name: name ?? text,
+              kind: ContractRowKind.function,
+              rawSignatures: [text],
+              specLine: lineNo,
+            ),
+          );
+        }
         continue;
       }
       // Inside an Operations/Methods/API section, a signature bullet
@@ -1152,7 +1202,7 @@ class SpecParser {
     final matches = RegExp(r'`([^`]+)`').allMatches(cell).toList();
     final spans = matches.isNotEmpty
         ? matches.map((m) => m.group(1)!)
-        : cell.split(',').where((s) => s.trim().isNotEmpty);
+        : _splitTopLevelCommas(cell);
     for (final span in spans) {
       final s = span.trim();
       if (s.isEmpty) continue;
@@ -1162,6 +1212,26 @@ class SpecParser {
         if (s.contains('(') && s.contains('->')) rawSignatures.add(s);
       }
     }
+  }
+
+  /// Split a bare signature cell without splitting commas inside a
+  /// parameter list (`save(Task, int) -> void` remains one span).
+  static Iterable<String> _splitTopLevelCommas(String cell) {
+    final out = <String>[];
+    final buf = StringBuffer();
+    var depth = 0;
+    for (final ch in cell.split('')) {
+      if (ch == '(') depth++;
+      if (ch == ')') depth--;
+      if (ch == ',' && depth == 0) {
+        out.add(buf.toString());
+        buf.clear();
+      } else {
+        buf.write(ch);
+      }
+    }
+    out.add(buf.toString());
+    return out.where((s) => s.trim().isNotEmpty);
   }
 
   /// Issue #1485: the declared-row map EVERY command-side consumer
