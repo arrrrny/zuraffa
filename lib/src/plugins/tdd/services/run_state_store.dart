@@ -4,9 +4,10 @@
 /// Contract:
 /// - [save] writes via a temp file + rename, so a crash mid-write leaves
 ///   the previous file intact.
-/// - [load] validates the file's JSON shape and reports corruption with a
-///   message naming the corruption and the recovery path (delete the file
-///   to restart from PENDING, or repair it to valid run-state JSON).
+/// - [load] validates the file's JSON shape; unknown `BehaviorState` names
+///   (from a newer binary) degrade to `pending` with a warning (spec 1468),
+///   and genuine shape violations still raise [RunStateCorruptException];
+///   the recovery path names the file (`$path`).
 /// - [refusalReason] implements the concurrency guard: a non-null
 ///   in-flight marker whose recorded owner pid is alive and is not this
 ///   process means a second run is in flight and must be refused.
@@ -213,8 +214,18 @@ RunState _validated(String raw, String path, String expectedFeature) {
       final state = BehaviorState.values
           .where((s) => s.name == value)
           .firstOrNull;
-      if (state == null) corrupt('unknown behavior state "$value"');
-      states[key as String] = state;
+      // Spec 1468: unknown names from a newer binary degrade to pending
+      // (one-way: the original name is lost once save() writes back).
+      states[key as String] = state ?? BehaviorState.pending;
+      if (state == null) {
+        stderr.writeln(
+          '[run-state] unknown state "$value" for behavior "$key" '
+          'in $path → degraded to pending',
+        );
+        // Degraded `pending` is persisted by the next save() (line 125-143):
+        // once this binary runs, the newer binary's unknown state name is
+        // replaced by `pending` and the original name is lost (one-way).
+      }
     }
   }
   final inFlightStep = map['in_flight_step'];

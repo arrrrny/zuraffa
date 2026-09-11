@@ -6,11 +6,14 @@
 // instead of dead-ending the unit lane at make (vacuous-green).
 //
 // Fix contract:
-//   - rows from contracts/*.md merge with spec.md rows (duplicate row
-//     names across sources REFUSE naming both — never a silent win)
+//   - rows from contracts/*.md merge with spec.md rows (a colliding row
+//     name resolves to the CONTRACT-FILE row — issue #1485's collision
+//     policy, the shared helper every command-side consumer builds)
 //   - criterion-keyed traces (`- **FR-001**: traces: Row`) bind by FR id,
 //     filling behaviors with no inline spec trace
-//   - an FR traced from BOTH spec.md and a contracts file REFUSES
+//   - an FR traced from BOTH spec.md (inline traces:) and a contracts
+//     file REFUSES (double declaration)
+//   - an FR traced from more than one contracts file REFUSES
 //   - a criterion trace naming an unknown FR WARNS (parity with #1319)
 library;
 
@@ -156,7 +159,8 @@ void main() {
     });
 
     test('U5a: a contract row declared in BOTH spec.md and the contracts '
-        'file refuses naming both sources (never a silent win)', () async {
+        'file resolves to the CONTRACT-FILE row (issue #1485 collision '
+        'policy — the shared merge helper every command consumes)', () async {
       final bothRows = '''
 **Template Version**: `zuraffa-1.0`
 
@@ -176,26 +180,57 @@ void main() {
 1. **Given** a template **When** it renders **Then** the string returns.
    **Type**: acceptance
 ''';
+      // The discriminating method: spec.md declares `format`, the
+      // contracts file declares `render` for the same row name. The
+      // routing cell proves WHICH source won the collision.
+      final overridingContracts = _contractsFile
+          .replaceFirst(
+            '- `Formatter`: `format(Template) -> String`',
+            '- `Formatter`: `render(Template) -> String`',
+          )
+          .replaceFirst(
+            '- **FR-001**: traces: Formatter.format',
+            '- **FR-001**: traces: Formatter.render',
+          );
       (tmpDir, featureDir) = await _feature(
         bothRows,
-        contracts: _contractsFile,
+        contracts: overridingContracts,
       );
 
       final out = await _plan(tmpDir);
 
       expect(
         CliRunner.lastDispatchedExitCode,
-        2,
+        0,
         reason:
-            'duplicate declaration across sources refuses (exit 2): '
-            'out was\n$out',
+            'a colliding name resolves to the contract-file row and '
+            'the plan proceeds (issue #1485): out was\n$out',
       );
-      expect(out, contains('Formatter'));
       final testList = File(p.join(featureDir, 'tdd', 'test-list.md'));
+      expect(testList.existsSync(), isTrue, reason: out);
+      final routing = testList.readAsStringSync();
+      // The unit row's traces cell is the discriminator: spec.md declared
+      // `Formatter.format`, the contracts file declared `Formatter.render`
+      // — #1485's collision policy puts the CONTRACT-FILE row in the cell.
+      // (The derived contract behavior further below legitimately carries
+      // spec.md's `Formatter.format` — it derives from the spec's
+      // `## Layer Contracts` prose, not the declared-rows merge.)
+      final u1Line = routing
+          .split('\n')
+          .firstWhere((line) => line.startsWith('| U1 |'));
       expect(
-        testList.existsSync(),
-        isFalse,
-        reason: 'a refused plan writes no artifacts',
+        u1Line,
+        contains('Formatter.render'),
+        reason:
+            'the CONTRACT-FILE row (render) won the collision — '
+            'the U1 row was\n$u1Line',
+      );
+      expect(
+        u1Line,
+        isNot(contains('Formatter.format')),
+        reason:
+            'the spec.md row never surfaces in the U1 row once the '
+            'contract-file row wins',
       );
     });
 

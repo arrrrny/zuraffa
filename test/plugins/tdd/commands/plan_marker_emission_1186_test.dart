@@ -81,9 +81,12 @@ void main() {
         try {
           final out = await _plan(tmp);
           expect(exitCode, 0, reason: out);
-          // This run still labels the fallback honestly (the routing
-          // happened through the classifier)...
-          expect(out, contains('[fallback:'));
+          // Bug #1481: the routing verdict reflects the spec state as of
+          // the END of the invocation — the marker this run wrote is
+          // what routes the scenario, so ONE run is truthful (the
+          // pre-#1481 behavior reported the stale pre-emission fallback).
+          expect(out, contains('[declared: type marker'));
+          expect(out, isNot(contains('[fallback:')));
           // ...and the classified marker is MIGRATED into the spec.
           final spec = await File(
             p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),

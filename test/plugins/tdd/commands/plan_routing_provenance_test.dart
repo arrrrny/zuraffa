@@ -142,7 +142,8 @@ void main() {
     );
 
     test('an undeclared widget scenario prints a labeled fallback line '
-        'with the fix hint', () async {
+        'with the fix hint when the migration is opted out '
+        '(--no-emit-markers: the repairable class, bug #1481)', () async {
       final tmp = Directory.systemTemp.createTempSync('prov_fb_');
       try {
         final featureDir = p.join(tmp.path, 'specs', '071-prov');
@@ -169,9 +170,14 @@ void main() {
           '--allow-unit-fallback',
           '--project',
           tmp.path,
+          // Bug #1481: with the marker migration ON, the scenario heals
+          // in the same run and renders [declared: type marker] (see the
+          // plan_command_bug_1481_test suite). The fallback WINDOW —
+          // and its labeled repairable line — survives the opt-out.
+          '--no-emit-markers',
         ]);
         expect(out, contains('route: A1 -> widget lane'));
-        expect(out, contains('[fallback:'));
+        expect(out, contains('[fallback: repairable'));
         expect(out, contains('**Type**'));
       } finally {
         tmp.deleteSync(recursive: true);
