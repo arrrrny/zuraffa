@@ -16,7 +16,10 @@
 
 A developer drives a skin-lane widget behavior (`W3`) through `zfa tdd make`
 in a rebuild where the project carries a pre-existing analyzer warning left
-by the engine lane (an unused import in `test/tdd/login/u1_test.dart`).
+by the engine lane (an unused import in
+`lib/src/data/datasources/credentials/credentials_mock_datasource.dart` —
+the gate runs `dart analyze lib`, so the pre-existing warning must live
+under `lib/` to reach the gate's verdict).
 The make plan's terminal `build` step runs its analyze stage, the analyzer
 reports **0 errors and 1 warning**, and the build command's gate refuses
 the tree as "does not compile cleanly". Today the make then grades that

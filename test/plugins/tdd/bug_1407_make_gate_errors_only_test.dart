@@ -153,6 +153,11 @@ void main() {
   });
 
   group('issue #1407 — the make gate is errors-only (warnings non-blocking)', () {
+    // SC-004 / A-1407-2 ("match the skin lane's byte-for-byte"): the
+    // skin-lane verdict line captured by A-1407-1, compared against the
+    // unit-lane verdict in U-1407-4 (package:test runs group tests in
+    // declaration order, so A-1407-1 has always run first).
+    var skinLaneVerdict = '';
     test('A-1407-1: a skin-lane widget make refused 0-errors+1-warning '
         'completes green — the warning is logged non-blocking, the outcome '
         'is never a failed-build nor a generation failure', () async {
@@ -207,8 +212,13 @@ void main() {
         contains('warnings are non-blocking (issue #1407'),
         reason: 'out:\n$out',
       );
+      // Capture the FULL verdict line (not just a shared substring) — the
+      // unit lane's U-1407-4 compares it byte-for-byte (SC-004).
+      skinLaneVerdict = out
+          .split('\n')
+          .singleWhere((l) => l.contains('warnings are non-blocking'));
       expect(
-        out,
+        skinLaneVerdict,
         contains('0 error(s), 1 warning(s)'),
         reason: 'the verdict names the counts (out:\n$out)',
       );
@@ -254,7 +264,18 @@ void main() {
         reason: 'out:\n$out',
       );
       expect(out, isNot(contains('green-with-failed-build')));
-      expect(out, contains('warnings are non-blocking (issue #1407'));
+      // The full verdict line, with the counts pinned (the count half the
+      // substring check left unpinned), and the SC-004 byte-for-byte
+      // cross-lane equality against A-1407-1's skin-lane verdict.
+      final verdict = out
+          .split('\n')
+          .singleWhere((l) => l.contains('warnings are non-blocking'));
+      expect(
+        verdict,
+        contains('0 error(s), 1 warning(s)'),
+        reason: 'the verdict names the counts (out:\n$out)',
+      );
+      expect(verdict, equals(skinLaneVerdict));
       final cycleLog = await File(fx.cycleLogPath).readAsString();
       expect(cycleLog, contains('## Cycle: U3 (green)'));
     });

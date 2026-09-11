@@ -56,20 +56,49 @@ green after revert (8/8).
 
 ## Phase 4 — Real-analyze end-to-end proof
 
-A throwaway package with the issue's exact artifact (a pre-existing
-unused import in `test/u1_test.dart`) under a REAL `dart analyze` run:
+A throwaway package (`gate_proof_1407`, `/tmp/1407-gate-proof`) carrying the
+issue's artifact in the gate's ACTUAL scope — the pre-existing unused
+import lives under `lib/`, because the gate runs `dart analyze lib`
+(`lib/src/commands/build_command.dart`, `verifyAnalyzeOrFail`) and a
+`test/`-only warning can never reach its verdict.
+
+Real `dart analyze lib` output in that package:
 
 ```
-warning - test/u1_test.dart:1:8 - Unused import: 'dart:math'. ... - unused_import
+Analyzing lib...
+
+warning - src/foo.dart:1:8 - Unused import: 'dart:math'. Try removing the import directive. - unused_import
+
 1 issue found.
 ```
 
+The REAL gate invoked against the same package
+(`BuildCommand().verifyAnalyzeOrFail(projectRoot: '/tmp/1407-gate-proof')`,
+run from this checkout) printed its own refusal — captured verbatim, not
+hand-composed:
+
+```
+🔎 Running dart analyze on lib/...
+Analyzing lib...
+
+warning - src/foo.dart:1:8 - Unused import: 'dart:math'. Try removing the import directive. - unused_import
+
+1 issue found.
+
+❌ dart analyze reported 0 error(s) and 1 warning(s) — generated code does not compile cleanly.
+   Fix the generator or run with --no-analyze to skip this check.
+```
+
+(gate returned `false`, exit 1 — the refusal this build output produces.)
+
 Production classification (`BuildCommand.countAnalyzerIssues` — the #1035
-single contract): `errors=0 warnings=1 infos=0`,
+single contract) on that captured output: `errors=0 warnings=1 infos=0`,
 `analyzeReportsError=false` → the warnings-only shape; the gate-verdict
-attribution (`dart analyze reported 0 error(s) and 1 warning(s)`) engages
-the #1407 non-blocking arm. **E2E PROOF: PASS** — this is exactly the
-zik_zak_v2 finding the issue reports, now classified non-blocking.
+attribution is the REAL `❌ dart analyze reported 0 error(s) and 1
+warning(s)` line above (not a hand-composed string), which engages the
+#1407 non-blocking arm. **E2E PROOF: PASS** — a `lib/`-scoped pre-existing
+warning under a real `dart analyze lib` run is classified non-blocking,
+and the make proceeds on the behavior's own green receipt.
 
 ## Phase 5 — Acceptance-criteria coverage
 
