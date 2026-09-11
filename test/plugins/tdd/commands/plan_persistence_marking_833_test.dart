@@ -65,6 +65,9 @@ $body
       'tdd',
       'plan',
       featureName,
+      // Issue #1480: the subject here is persistence MARKING on unit
+      // rows — the fixtures plan the legacy fallback shape on purpose.
+      '--allow-unit-fallback',
       '--project',
       tmpDir.path,
     ]);

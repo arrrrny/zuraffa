@@ -1654,6 +1654,60 @@ class SpecParser {
     return unbound;
   }
 
+  /// The criterion-keyed contract-trace scan for the DECOUPLED mapping
+  /// (issue #1480): the spec↔contract mapping may live BESIDE the spec —
+  /// in the feature's `contracts/*.md` files the planning phase already
+  /// writes — instead of requiring hand-authored zuraffa grammar inside
+  /// the spec body. Each `- **FR-xxx**:` bullet in the contracts file
+  /// names the contract rows its FR exercises, either on the same line
+  /// (`- **FR-001**: traces: Row`) or on an indented `traces:`
+  /// continuation line within the FR's block (the #1319 whole-block scan,
+  /// first `traces:` line wins).
+  ///
+  /// Keyed by the FR ID (not by sequential unit position) so the file is
+  /// robust to reordering — the binding FR id is authoring intent the
+  /// file carries literally. A duplicate FR id refuses naming the line.
+  /// Fenced code blocks are documentation, not declarations.
+  static Map<String, List<String>> parseCriterionContractTraces(String md) {
+    final traces = <String, List<String>>{};
+    final blanked = normalizeSpecText(md).replaceAllMapped(
+      _fencedCodeBlock,
+      (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
+    );
+    final lines = blanked.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      final fr = _frLine(lines[i]);
+      if (fr == null) continue;
+      final frId = fr.$1;
+      if (traces.containsKey(frId)) {
+        throw StateError(
+          'contracts file declares FR "$frId" more than once (line '
+          '${i + 1}).\n'
+          '   --> fix: keep exactly one trace declaration per FR id.',
+        );
+      }
+      // Same-line form: `- **FR-001**: traces: Row` — the payload IS the
+      // trace declaration.
+      final inline = RegExp(r'^traces:\s*(.+)$').firstMatch(fr.$2.trim());
+      if (inline != null) {
+        traces[frId] = traceTokens(inline.group(1)!);
+        continue;
+      }
+      // Continuation form: the indented `traces:` line within the FR's
+      // block (until the next FR/requirement header, heading, or
+      // scenario header) — the first one wins, byte-identical to the
+      // spec.md binding contract (#1319).
+      for (var j = i + 1; j < lines.length; j++) {
+        if (_endsFrBlock(lines[j])) break;
+        final t = _tracesLine.firstMatch(lines[j]);
+        if (t == null) continue;
+        traces[frId] = traceTokens(t.group(1)!);
+        break;
+      }
+    }
+    return traces;
+  }
+
   /// The `_persistence` declaration scan (feature 071): FR lines
   /// carrying a `[persistent]` tag, or a `traces:` continuation naming
   /// a declared storage dependency row. Keyed by the document-wide

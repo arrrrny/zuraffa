@@ -366,6 +366,8 @@ void main() {
     test('U6: gen reports verdict=regenerated (not reused) and the pair '
         'gains the declared assertion', () async {
       // 1. The untraced spec plans a criterion-only cell.
+      // Issue #1480: the untraced shape IS the fixture — the
+      // unit-fallback gate stays out of the way via the escape hatch.
       await Directory(fx.featureDir).create(recursive: true);
       await File(p.join(fx.featureDir, 'spec.md')).writeAsString(untracedSpec);
       final runner = CliRunner(exitOnCompletion: false);
@@ -373,6 +375,7 @@ void main() {
         'tdd',
         'plan',
         '1320-repro',
+        '--allow-unit-fallback',
         '--project',
         fx.root.path,
       ]);
@@ -450,6 +453,9 @@ void main() {
         'tdd',
         'plan',
         '1320-repro',
+        // Issue #1480: the untraced shape IS the fixture — the
+        // unit-fallback gate stays out of the way via the escape hatch.
+        '--allow-unit-fallback',
         '--project',
         fx.root.path,
       ]);

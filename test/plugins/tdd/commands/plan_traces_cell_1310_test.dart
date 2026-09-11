@@ -100,8 +100,9 @@ Lanes:
 /// test-list content (and the 04-ENGINE content when the lane split
 /// produced one).
 Future<({String out, String testList, String engine})> planSpec(
-  String specMd,
-) async {
+  String specMd, {
+  bool allowUnitFallback = false,
+}) async {
   final tmp = Directory.systemTemp.createTempSync('issue_1310_');
   try {
     final featureDir = p.join(tmp.path, 'specs', '1310-repro');
@@ -112,6 +113,10 @@ Future<({String out, String testList, String engine})> planSpec(
       'tdd',
       'plan',
       '1310-repro',
+      // Issue #1480: U3/U7 exercise the criterion-only FALLBACK cell on
+      // purpose — the unit-fallback gate stays out of the way via the
+      // migration escape hatch.
+      if (allowUnitFallback) '--allow-unit-fallback',
       '--project',
       tmp.path,
     ]);
@@ -186,7 +191,10 @@ void main() {
 
     test('U3: an FR with no traces continuation keeps the criterion-only '
         'cell (the fallback path, acceptance criterion 4)', () async {
-      final (:out, testList: list, engine: _) = await planSpec(untracedSpec);
+      final (:out, testList: list, engine: _) = await planSpec(
+        untracedSpec,
+        allowUnitFallback: true,
+      );
       expect(exitCode, 0, reason: 'plan must succeed: $out');
       final row = unitRowOf(list, 'U1');
       expect(row, isNotNull, reason: 'the plan must derive U1:\n$list');
@@ -347,6 +355,8 @@ void main() {
           'tdd',
           'plan',
           '1310-repro',
+          // Issue #1480: the legacy criterion-only shape is the subject.
+          '--allow-unit-fallback',
           '--project',
           tmp.path,
         ]);
@@ -359,6 +369,7 @@ void main() {
           'tdd',
           'plan',
           '1310-repro',
+          '--allow-unit-fallback',
           '--project',
           tmp.path,
         ]);

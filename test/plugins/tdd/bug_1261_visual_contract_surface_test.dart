@@ -244,6 +244,7 @@ $lanesExtra
       await runner.runCapturing([
         'tdd',
         'plan',
+        '--allow-unit-fallback',
         feature,
         '--project',
         tmpDir.path,
@@ -305,6 +306,9 @@ $lanesExtra
         await runner.runCapturing([
           'tdd',
           'plan',
+          // Issue #1480: the visual-contract fixture plans the legacy
+          // fallback shape — the migration escape hatch keeps it reachable.
+          '--allow-unit-fallback',
           feature,
           '--project',
           tmpDir.path,
@@ -335,6 +339,7 @@ $lanesExtra
       await runner.runCapturing([
         'tdd',
         'plan',
+        '--allow-unit-fallback',
         feature,
         '--project',
         tmpDir.path,
@@ -428,6 +433,7 @@ $lanesExtra
       final out = await runner.runCapturing([
         'tdd',
         'plan',
+        '--allow-unit-fallback',
         feature,
         '--project',
         tmpDir.path,
@@ -506,6 +512,7 @@ $lanesBody
       final out = await runner.runCapturing([
         'tdd',
         'plan',
+        '--allow-unit-fallback',
         feature,
         '--project',
         tmpDir.path,

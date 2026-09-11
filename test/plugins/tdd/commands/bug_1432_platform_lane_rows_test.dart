@@ -39,9 +39,15 @@ const String platformLanesSpec = '''
 2. **Given** the user submits the login form **When** the fields are valid **Then** the session starts with the authenticated user
    **Type**: acceptance
 
+## Layer Contracts
+
+**Function**:
+- `EnvelopeMapper`: `map(Reply) -> Envelope`
+
 ## Functional Requirements
 
 - **FR-001**: The system shall map platform replies to the typed envelope.
+            traces: EnvelopeMapper
 
 ## Lanes
 
@@ -63,9 +69,15 @@ const String themeLanesSpec = '''
 1. **Given** the dark theme **When** the user enables dark mode **Then** the themed palette applies
    **Type**: theme
 
+## Layer Contracts
+
+**Function**:
+- `PaletteApplier`: `apply(Palette) -> void`
+
 ## Functional Requirements
 
 - **FR-001**: The system shall apply the themed palette.
+            traces: PaletteApplier
 
 ## Lanes
 
