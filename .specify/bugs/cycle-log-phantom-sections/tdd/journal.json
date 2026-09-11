@@ -68,6 +68,198 @@
       "result": "stopped",
       "behaviors": [],
       "stopped_at": null
+    },
+    {
+      "feature": "cycle-log-phantom-sections",
+      "cycle": "engine",
+      "phase": "drive",
+      "started_at": "2026-09-10T23:54:52.863279Z",
+      "finished_at": "2026-09-11T00:19:52.981281Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "stopped_at=A1:refactor",
+        "step_error=A1:refactor outcome=runner-error exit=-1"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5"
+      ],
+      "counts": {
+        "total": 5,
+        "pending": 0,
+        "red": 0,
+        "green": 5,
+        "done": 0
+      },
+      "stopped_at": "A1:refactor",
+      "error": {
+        "behavior": "A1",
+        "step": "refactor",
+        "outcome": "runner-error",
+        "exit_code": -1,
+        "command": "dart /Users/arrrrny/Developer/zuraffa/bin/zfa.dart tdd refactor A1 --feature .specify/bugs/cycle-log-phantom-sections --project /Users/arrrrny/Developer/zuraffa --suite-baseline /Users/arrrrny/Developer/zuraffa/.specify/bugs/cycle-log-phantom-sections/tdd/run-baseline.json --timeout 25.0000",
+        "output": "Subprocess TIMED OUT after 25m00s and was killed (SIGKILL): `dart /Users/arrrrny/Developer/zuraffa/bin/zfa.dart tdd refactor A1 --feature .specify/bugs/cycle-log-phantom-sections --project /Users/arrrrny/Developer/zuraffa --suite-baseline /Users/arrrrny/Developer/zuraffa/.specify/bugs/cycle-log-phantom-sections/tdd/run-baseline.json --timeout 25.0000` (working directory: /Users/arrrrny/Developer/zuraffa)\n   captured output before the kill (tail):\n   zfa tdd refactor: preflight suite\n   command: dart test"
+      }
+    },
+    {
+      "feature": "cycle-log-phantom-sections",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-10T23:54:52.859519Z",
+      "finished_at": "2026-09-11T00:19:52.983143Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane stopped at A1:refactor",
+        "engine lane result=runner-error — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [],
+      "stopped_at": null
+    },
+    {
+      "feature": "cycle-log-phantom-sections",
+      "cycle": "engine",
+      "phase": "drive",
+      "started_at": "2026-09-11T03:00:23.306850Z",
+      "finished_at": "2026-09-11T03:21:35.910821Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "stopped_at=A1:refactor"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "stopped",
+      "behaviors": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5"
+      ],
+      "counts": {
+        "total": 5,
+        "pending": 0,
+        "red": 0,
+        "green": 5,
+        "done": 0
+      },
+      "stopped_at": "A1:refactor"
+    },
+    {
+      "feature": "cycle-log-phantom-sections",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-11T03:00:23.304689Z",
+      "finished_at": "2026-09-11T03:21:35.912111Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane stopped at A1:refactor",
+        "engine lane result=stopped — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "stopped",
+      "behaviors": [],
+      "stopped_at": null
+    },
+    {
+      "feature": "cycle-log-phantom-sections",
+      "cycle": "engine",
+      "phase": "drive",
+      "started_at": "2026-09-11T03:22:53.320883Z",
+      "finished_at": "2026-09-11T05:23:53.001267Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "stopped_at=A1:refactor",
+        "step_error=A1:refactor outcome=runner-error exit=-1"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5"
+      ],
+      "counts": {
+        "total": 5,
+        "pending": 0,
+        "red": 0,
+        "green": 5,
+        "done": 0
+      },
+      "stopped_at": "A1:refactor",
+      "error": {
+        "behavior": "A1",
+        "step": "refactor",
+        "outcome": "runner-error",
+        "exit_code": -1,
+        "command": "dart /Users/arrrrny/Developer/zuraffa/bin/zfa.dart tdd refactor A1 --feature .specify/bugs/cycle-log-phantom-sections --project /Users/arrrrny/Developer/zuraffa --suite-baseline /Users/arrrrny/Developer/zuraffa/.specify/bugs/cycle-log-phantom-sections/tdd/run-baseline.json --timeout 90.0000",
+        "output": "Subprocess TIMED OUT after 90m00s and was killed (SIGKILL): `dart /Users/arrrrny/Developer/zuraffa/bin/zfa.dart tdd refactor A1 --feature .specify/bugs/cycle-log-phantom-sections --project /Users/arrrrny/Developer/zuraffa --suite-baseline /Users/arrrrny/Developer/zuraffa/.specify/bugs/cycle-log-phantom-sections/tdd/run-baseline.json --timeout 90.0000` (working directory: /Users/arrrrny/Developer/zuraffa)\n   captured output before the kill (tail):\n        changed: lib/tdd/1444-setup-zuraffa-app/a2_subject.dart, lib/tdd/1444-setup-zuraffa-app/a5_subject.dart, lib/tdd/1444-setup-zuraffa-app/a7_subject.dart\n   pass: fix\n     command: dart fix --apply lib/\n     exit: 0\n     changed: lib/src/commands/make_command.dart\nzfa tdd refactor: re-proof: full (changed set not fully attributable to registered artifacts — safe fallback)\n   command: dart test\n   re-proof exit: 1\n   infra-level runner failure (exit 1) — clearing the dart test kernel cache and retrying (1/2) [issue #1333]\n   infra signature: 11:22 +2918 ~1: test/plugins/tdd/reproof_failure_classifier_test.dart: ... — infra tier (FR-1 / AS-5) the issue #1333 signature: \"Cannot retrieve length of file\" + dart_test.kernel .dill errno 2"
+      }
+    },
+    {
+      "feature": "cycle-log-phantom-sections",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-11T03:22:53.318650Z",
+      "finished_at": "2026-09-11T05:23:53.002751Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane stopped at A1:refactor",
+        "engine lane result=runner-error — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [],
+      "stopped_at": null
     }
   ]
 }
