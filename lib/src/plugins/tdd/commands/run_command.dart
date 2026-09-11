@@ -46,12 +46,12 @@ import '../services/cycle_log_terminal_receipt.dart';
 import '../services/dependency_override_preflight.dart';
 import '../services/explain_emitter.dart';
 import '../services/feature_path_resolver.dart';
+import '../services/kernel_cache.dart';
 import '../services/lane_receipts.dart';
 import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
-import 'refactor_command.dart' show clearDartTestKernelCache;
 import 'run_driver_core.dart';
 import 'run_engine_command.dart';
 

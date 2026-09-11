@@ -2,24 +2,58 @@
 
 - **Branch**: `fix/1507-tmpdir-kernel-cache-leak`
 - **Files changed (production)**: `lib/src/plugins/tdd/commands/refactor_command.dart`,
-  `lib/src/plugins/tdd/commands/run_command.dart` — nothing else. No test-runner
-  semantics, state machine, or loop logic touched.
+  `lib/src/plugins/tdd/commands/run_command.dart`,
+  `lib/src/plugins/tdd/services/kernel_cache.dart` (new — the shared sweep; see
+  the review-fixes round below). No test-runner semantics, state machine, or
+  loop logic touched.
+
+## Review-fixes round (2026-09-11)
+
+Review findings from `zuraffa-review[bot]` and `coderabbitai[bot]` on PR #1515
+were applied on top of the original fix:
+
+- **F4** — the sweep moved out of `refactor_command.dart` into
+  `lib/src/plugins/tdd/services/kernel_cache.dart`, so `run_command.dart` no
+  longer imports a sibling command module to borrow a free function.
+- **F1 / CR-2** — the liveness probe is now portable: Linux reads
+  `/proc/<pid>/cmdline`, macOS shells to `ps -ww -Ao pid=,args=`; Windows has no
+  portable probe and degrades to the `commandStartedAt` guard. This closes the
+  "on macOS/Windows the guard does not exist, so the new directory deletion is
+  worse than the pre-fix code" gap, and the inaccurate "strictly no worse"
+  claim was removed from `tdd/verification.md` and the PR body.
+- **CR-1** — the shared `<project>/.dart_tool/test/` cache is now only deleted
+  when no other live TDD cycle owns the project. A best-effort per-project
+  marker (`.dart_tool/zfa_tdd_cycle.pid`, pid presence) records the active
+  cycle; a live foreign owner makes the sweep skip the project cache (the
+  per-entry guards still protect concurrent runners' kernels), while an
+  ancestor owner (the `tdd run` parent of a `tdd refactor` step child) is
+  treated as this cycle so the child still clears its own cache.
+- **F2 / CR-3** — the suite's stale-directory fixture uses the portable
+  `touch -t [[CC]YY]MMDDhhmm[.SS]` stamp (the GNU-only `touch -d @<epoch>`
+  silently failed on macOS) and fails loudly on a non-zero exit; the suite is
+  tagged `@TestOn('linux || mac-os')` for the platforms where the argv probe
+  exists.
+- **F3** — the RED evidence was re-captured with all five tests (0 → 5
+  failures), so C5 and C6 each carry red-phase evidence; see
+  `tdd/red-evidence.md`.
+- Nitpicks — the reclaim line is shape-agnostic
+  (`cleared N stale kernel entr(ies), freed X MB`) and `_entrySize` no longer
+  lets a vanished `File` skip its delete.
 
 ## The fix
 
-### 1. `refactor_command.dart` — the sweep itself
+### 1. `services/kernel_cache.dart` — the sweep itself
 
-The private `_clearDartTestKernelCache` method became the public top-level
+The private `_clearDartTestKernelCache` method became the shared top-level
 `Future<void> clearDartTestKernelCache(String projectRoot, {required DateTime
-commandStartedAt})` (top-level so `run_command.dart` can share it; the file is
-already part of the plugin's import cluster, and `run_command.dart` already
-imports a sibling command — `run_engine_command.dart`). Behavior:
+commandStartedAt})` in the plugin's `services/` layer (so both commands share
+one contract without a command→command import). Behavior:
 
 - **Match `Directory` as well as `File`** and delete directories RECURSIVELY —
   the leaked entries are per-invocation directories of dill files. The
   pre-fix `entity is File` branch was dead code.
 - **Reclaimed-size log**: when anything was cleared, one line is printed —
-  `   cleared N stale kernel dir(s), freed X MB` (bytes are summed before
+  `   cleared N stale kernel entr(ies), freed X MB` (bytes are summed before
   deletion: file length for files, a recursive walk for directories; a file
   that vanishes mid-walk only undercounts the report, the delete still runs).
 - **`commandStartedAt` guard preserved** (issue #1333 contract): entries whose
@@ -27,8 +61,16 @@ imports a sibling command — `run_engine_command.dart`). Behavior:
   are left untouched. The pre-fix `entity.lastModified()` reached through type
   promotion became `(await entity.stat()).modified` — `lastModified()` is an
   instance method on `File` only, so the directory match needs `stat()`.
-- **Project cache unchanged**: `<project>/.dart_tool/test/` is still deleted
-  recursively (counted toward N and the freed bytes now).
+- **Project cache ownership guard (new, review finding CR-1)**:
+  `<project>/.dart_tool/test/` is shared by every cycle in a project, so it is
+  deleted only when no other live TDD cycle owns the project. A best-effort
+  pid-presence marker at `<project>/.dart_tool/zfa_tdd_cycle.pid` records the
+  active cycle; a live foreign owner skips the project-cache deletion (with a
+  one-line note) while the per-entry guards below keep protecting concurrent
+  runners' kernels. A stale (dead-pid) marker never blocks the sweep, and an
+  ANCESTOR marker is treated as this cycle (the `tdd run` parent that spawned
+  this `tdd refactor` step child is blocked waiting, not using the cache, so
+  it must not suppress the child's own cycle-start clear).
 - **Liveness guard (new, necessary)**: a kernel entry whose absolute path
   appears in ANY live process's argv is skipped. The dart test runner's own
   frontend-server child holds `--output-dill=<tmp>/dart_test.kernel.<rand>/output.dill`
@@ -41,10 +83,11 @@ imports a sibling command — `run_engine_command.dart`). Behavior:
   on master to exit 255 without this guard; the new sweep made the pre-fix
   accidental protection — files-only matching never touched the live
   directory — disappear). Implementation: on Linux, read
-  `/proc/<pid>/cmdline` and match the absolute kernel-dir path with
-  `_kernelDirInArgv` (handles both bare-path and `--flag=` prefixed argv
-  elements); elsewhere or on any error the set is empty and only the
-  `commandStartedAt` guard applies. Best-effort, never fatal.
+  `/proc/<pid>/cmdline`; on macOS, `ps -ww -Ao pid=,args=`; match the absolute
+  kernel-dir path with the shared `_kernelDirInArgv` regex (handles both
+  bare-path and `--flag=` prefixed argv elements). On Windows or on any error
+  the set is empty and the `commandStartedAt` and ownership guards apply.
+  Best-effort, never fatal.
 
 ### 2. `refactor_command.dart` — call it at cycle start
 
@@ -60,7 +103,7 @@ top-level name.
 
 ### 3. `run_command.dart` — cycle-start sweep (was absent entirely)
 
-- `import 'refactor_command.dart' show clearDartTestKernelCache;`
+- `import '../services/kernel_cache.dart';`
 - `final commandStartedAt = DateTime.now();` captured at the top of `_run`
   (before any lane spawns).
 - The sweep runs right after feature resolution and BEFORE the dependency

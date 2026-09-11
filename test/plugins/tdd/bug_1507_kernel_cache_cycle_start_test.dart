@@ -1,3 +1,4 @@
+@TestOn('linux || mac-os')
 @Tags(['regression'])
 // Bug #1507 — `zfa tdd` leaks `$TMPDIR/dart_test.kernel.*` directories
 // without bound (51 GB / 869 dill files in ~80 minutes on the reporter's
@@ -22,6 +23,19 @@
 //   C4 — entries created or updated after the command start may belong to
 //        a concurrent runner and survive — the commandStartedAt guard is
 //        preserved.
+//   C5 — a kernel directory a live process references in its argv survives
+//        the sweep, then is reclaimed by the next cycle once the holder
+//        exits;
+//   C6 — the project-local `.dart_tool/test/` is left to its active owner
+//        when another live TDD cycle holds the project;
+//   C7 — an ANCESTOR cycle marker never blocks a child cycle's own clear
+//        (`tdd run` spawns `tdd refactor` step children that must still
+//        sweep their own project cache).
+//
+// Platform contract: the argv liveness probe reads `/proc/<pid>/cmdline`
+// on Linux and `ps -ww -Ao pid=,args=` on macOS; Windows has no portable
+// probe, so the suite is tagged for the two platforms where the guard
+// exists (C5 asserts its behavior).
 //
 // Fixture discipline (bug #922/#1333 pattern): the suite template is a
 // counting shell script that never fails; the stale kernel entries are
@@ -40,9 +54,11 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'helpers/tdd_fixture.dart';
 
 /// The reclaim log line the sweep must emit (issue #1507): the cleared
-/// entry count and the freed size in MB.
+/// entry count and the freed size in MB. The count is shape-agnostic
+/// (entries, not just directories) because it also covers plain files and
+/// the project-local cache.
 final RegExp reclaimLine = RegExp(
-  r'cleared (\d+) stale kernel dir\(s\), freed ([\d.]+) MB',
+  r'cleared (\d+) stale kernel entr\(ies\), freed ([\d.]+) MB',
 );
 
 /// The same TMPDIR resolution chain the sweep itself uses
@@ -52,6 +68,14 @@ String get tmpRoot =>
     Platform.environment['TEMP'] ??
     Platform.environment['TMP'] ??
     Directory.systemTemp.path;
+
+/// This process's parent pid — the probe is portable across the suite's
+/// platforms (`ps -o ppid= -p <pid>` works on Linux and macOS).
+int? parentPid() {
+  final result = Process.runSync('ps', ['-o', 'ppid=', '-p', '$pid']);
+  if (result.exitCode != 0) return null;
+  return int.tryParse((result.stdout as String).trim());
+}
 
 void main() {
   late TddFixture fx;
@@ -71,9 +95,20 @@ void main() {
     for (var i = 0; i < files; i++) {
       File(p.join(dir.path, 'probe_$i.dart.dill')).writeAsBytesSync(chunk);
     }
-    final staleEpochSeconds =
-        DateTime.now().millisecondsSinceEpoch ~/ 1000 - 3600;
-    Process.runSync('touch', ['-d', '@$staleEpochSeconds', dir.path]);
+    // Portable backdate — `touch -d @<epoch>` is GNU-only and silently
+    // keeps "now" on macOS/BSD, which would leave the fixture non-stale.
+    // `touch -t [[CC]YY]MMDDhhmm[.SS]` is the one stamp shape both GNU and
+    // BSD accept; a non-zero exit fails the fixture loudly instead of
+    // silently testing a non-stale directory.
+    final stale = DateTime.now().subtract(const Duration(hours: 1));
+    String two(int v) => v.toString().padLeft(2, '0');
+    final stamp =
+        '${stale.year}${two(stale.month)}${two(stale.day)}'
+        '${two(stale.hour)}${two(stale.minute)}.${two(stale.second)}';
+    final touch = Process.runSync('touch', ['-t', stamp, dir.path]);
+    if (touch.exitCode != 0) {
+      fail('could not backdate $stamp on ${dir.path}: ${touch.stderr}');
+    }
     tmpEntries.add(dir);
     return dir;
   }
@@ -383,5 +418,99 @@ exit 0
             'holder is gone — out:\n$out2',
       );
     });
+
+    test('C6 (refactor): the project-local .dart_tool/test/ is left to its '
+        'active owner when another live tdd cycle holds the project', () async {
+      final staleDir = seedStaleKernelDir('owner-dir', files: 1);
+      final probe =
+          File(p.join(fx.root.path, '.dart_tool', 'test', 'probe.kernel'))
+            ..parent.createSync(recursive: true)
+            ..writeAsStringSync('');
+      // A live foreign TDD cycle: its pid owns this project's shared cache.
+      final holder = await Process.start('sleep', ['30']);
+      await File(
+        p.join(fx.root.path, '.dart_tool', 'zfa_tdd_cycle.pid'),
+      ).writeAsString('${holder.pid}');
+      var firstRunRan = false;
+      try {
+        final suite = await writeNeverFailingSuite('ownership-suite');
+        await fx.rewriteProfile(
+          singleTemplate: TddFixture.defaultSingleTemplate,
+          suiteTemplate: suite,
+        );
+        await fx.seedAlreadyCleanLib();
+
+        final out = await runRefactor();
+        firstRunRan = true;
+
+        expect(exitCode, 0, reason: out);
+        expect(
+          probe.existsSync(),
+          isTrue,
+          reason:
+              'the shared project cache belongs to the live owner — a '
+              'second cycle must not delete it (CR-1) — out:\n$out',
+        );
+        expect(
+          staleDir.existsSync(),
+          isFalse,
+          reason:
+              'the ownership guard is scoped to the project cache only: '
+              'the unreferenced stale TMPDIR kernel dir is still swept — '
+              'out:\n$out',
+        );
+      } finally {
+        holder.kill();
+        await holder.exitCode;
+      }
+      expect(firstRunRan, isTrue);
+
+      // Once the owner exited its marker is stale — the next cycle takes
+      // the project cache back and reclaims it.
+      final out2 = await runRefactor();
+      expect(exitCode, 0, reason: out2);
+      expect(
+        probe.existsSync(),
+        isFalse,
+        reason:
+            'a stale owner marker must not block the sweep forever — '
+            'out:\n$out2',
+      );
+    });
+
+    test(
+      'C7 (refactor): an ANCESTOR cycle marker does not block the child '
+      'cycle-start clear (`tdd run` spawns `tdd refactor` step children)',
+      () async {
+        // The parent is blocked waiting on this child — it is not actively
+        // using the cache, so its marker must not suppress the child's clear.
+        final parent = parentPid();
+        expect(parent, isNotNull, reason: 'ps must expose this pid\'s ppid');
+        final probe =
+            File(p.join(fx.root.path, '.dart_tool', 'test', 'probe.kernel'))
+              ..parent.createSync(recursive: true)
+              ..writeAsStringSync('');
+        await File(
+          p.join(fx.root.path, '.dart_tool', 'zfa_tdd_cycle.pid'),
+        ).writeAsString('$parent');
+        final suite = await writeNeverFailingSuite('ancestor-suite');
+        await fx.rewriteProfile(
+          singleTemplate: TddFixture.defaultSingleTemplate,
+          suiteTemplate: suite,
+        );
+        await fx.seedAlreadyCleanLib();
+
+        final out = await runRefactor();
+
+        expect(exitCode, 0, reason: out);
+        expect(
+          probe.existsSync(),
+          isFalse,
+          reason:
+              'an ancestor marker is treated as this cycle, not a foreign '
+              'owner — the project cache is still cleared — out:\n$out',
+        );
+      },
+    );
   }, timeout: const Timeout(Duration(minutes: 4)));
 }
