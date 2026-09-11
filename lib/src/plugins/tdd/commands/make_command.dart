@@ -70,6 +70,7 @@ import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+
 import '../../../cli/exit_protocol.dart';
 
 import '../models/generation_plan.dart';
@@ -95,6 +96,7 @@ import '../services/run_baseline_cache.dart';
 import '../services/skin_authoring.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/runner.dart';
+import '../services/declared_routing.dart';
 import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
 import '../services/suite_guard.dart';
@@ -1982,9 +1984,14 @@ class MakeCommand extends Command<void> {
     }
     return SpecDeclarations(
       scenarios: SpecParser.parseScenarioTypeMarkers(specMd),
-      contractRows: {
-        for (final r in const SpecParser().parseContractRows(specMd)) r.name: r,
-      },
+      // Issue #1485: the declared rows include the feature's
+      // contracts/*.md rows — a trace bound at plan time resolves its
+      // declared signature at gen time (declare once, resolve
+      // everywhere). The resolver's API is unchanged.
+      contractRows: SpecParser.declaredContractRows(
+        specMd,
+        contractFiles: DeclaredRouting.contractFiles(featureDir),
+      ).rows,
       persistence: SpecParser.parsePersistenceDeclarations(specMd),
     );
   }
