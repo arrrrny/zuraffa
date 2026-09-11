@@ -13,7 +13,7 @@ criteria_total: 8
 criteria_covered: 8
 mutation_score: n/a # no mutation tool on this agent; behavior-level assertions assert exact rendered signatures/bodies, and three behaviors assert `dart analyze` exit 0 over the wired subject
 mutants_survived: 0
-suite: bug-1500 21/21 + wire pins 15/15 in one run (05:16 +36: All tests passed!); commands chunk 503 passed; services chunk 855 passed; json/verdict wire pins passed; scenarios chunk fully slow-tagged (excluded by dart_test.yaml); CI-scope dart analyze on changed files exit 0 (No issues found); dart format --set-exit-if-changed exit 0 (captured on macOS, dart 3.13.2 — the earlier +27 line was a Linux capture and did not reproduce on macOS; see the review round)
+suite: bug-1500 21/21 + wire pins 15/15 in one run (05:16 +36: All tests passed!); wire json/verdict pins 43 passed; generation_planner 31 passed; scenarios chunk fully slow-tagged (excluded by dart_test.yaml); CI-scope dart analyze on changed files exit 0 (No issues found); dart format --set-exit-if-changed lib test exit 0 (0 changed). All figures re-captured on macOS / dart 3.13.2 for this fix round — the earlier Linux `+27` line did not reproduce on macOS; see the review round.
 ---
 
 # TDD Verification: wire accepts contract-derived stubs; binds entity returns to MockData (#1500)
@@ -44,10 +44,10 @@ with the legacy no-arg path byte-compatible.
    behaviors U-1500m/n/u/o/p/q/r/s/t.
 3. **No collateral damage**: the pre-existing wire pins
    (`wire_command_test.dart` U-W1–U-W7, U-829a/b, U-920a–e) pass
-   unchanged; the fast tier over the affected plugin surface
-   (tdd/commands, tdd/services, and the wire json/verdict pins) reports
-   zero failures; the scenarios chunk is fully slow-tagged and correctly
-   excluded by `dart_test.yaml`.
+   unchanged; the wire json/verdict pins (43) and
+   `generation_planner_test.dart` (31) pass; the scenarios chunk is fully
+   slow-tagged and correctly excluded by `dart_test.yaml`. (`make_command_test.dart`
+   is likewise fully slow-tagged, so it is outside the fast tier.)
 4. **Static hygiene**: `dart analyze` on every changed Dart file exits 0
    with no issues; `dart format --set-exit-if-changed` reports 0 changed.
 5. **Constraint compliance**: `git diff` touches exactly
