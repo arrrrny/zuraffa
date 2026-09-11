@@ -381,3 +381,100 @@ zfa tdd refactor: re-proof: full (changed set not fully attributable to register
 - prev-hash: b392dcedb127c66a0df2965573dec6ecafd2abd9a2de0afa80da2a04b266acac
 - hash: c3fdf6b56c2a34c9cf9b008fcf0e4fbedb9385d8f73bd3023a7410b535ae1618
 
+## Cycle: cycle-log-phantom-sections-refactor (refactor)
+
+- behavior: cycle-log-phantom-sections-refactor
+- kind: refactor
+- classification: runnerError
+- criterion: FR-3
+- test: test/
+- command: `dart test`
+- exit: 1
+- at: 2026-09-11T09:29:39.836021Z
+- output:
+```
+re-proof verdict: infra-runner-error (exit 1)
+re-proof retries: 2
+re-proof output tail (stdout+stderr, truncated):
+...(truncated)
+  - pubspec_skin_dependency_patcher: Unsupported operation: Inline `dependencies: {...}` mappings are not supported by PubspecSkinDependencyPatcher; use a block-style `dependencies:` section instead.
+
+zfa tdd init: misfire — 1 writer(s) failed. Resolve the failures above and re-run `zfa tdd init`.
+  - pubspec_skin_dependency_patcher: --skin requires a Flutter project: zuraffa_ui (the skin lane's certified vocabulary) is a Flutter SDK package and cannot resolve in a pure-Dart target.
+zfa tdd plan: note: prior test list unreadable, ffi rows not preserved (no test list at /var/folders/8p/30xfytr548l64k4bhtks_4dr0000gn/T/zfa_corpus_app_MZaUiF/specs/001-clean/tdd/test-list.md — run `zfa tdd plan <feature>` first)
+zfa tdd plan: Bad state: spec.md for feature "002-no-scenarios" contains no acceptance scenarios (`Given ... When ... Then ...` blocks) — first content line is spec line 1. Cannot derive a TDD test list from a spec with no acceptance criteria. See FR-012.
+   --> fix: add at least one numbered acceptance scenario (`1. **Given** ... **When** ... **Then** ...`; bold or plain, flat or dotted numbering), or declare the criteria `(manual: owner)`.
+zfa tdd plan: note: prior test list unreadable, ffi rows not preserved (no test list at /var/folders/8p/30xfytr548l64k4bhtks_4dr0000gn/T/dream_cmd_McWMxB/specs/001-favorite-deal/tdd/test-list.md — run `zfa tdd plan <feature>` first)
+zfa tdd plan: note: prior test list unreadable, ffi rows not preserved (no test list at /var/folders/8p/30xfytr548l64k4bhtks_4dr0000gn/T/dream_cmd_n4Zc04/specs/001-favorite-deal/tdd/test-list.md — run `zfa tdd plan <feature>` first)
+zfa tdd plan: note: prior test list unreadable, ffi rows not preserved (no test list at /var/folders/8p/30xfytr548l64k4bhtks_4dr0000gn/T/dream_cmd_7CY8kn/specs/001-favorite-deal/tdd/test-list.md — run `zfa tdd plan <feature>` first)
+```
+actions:
+- action: build
+  command: `/Users/arrrrny/dart-sdk/bin/dart /Users/arrrrny/Developer/zuraffa/bin/zfa.dart build`
+  exit: 0
+  changed: (none)
+- action: format
+  command: `dart format lib/`
+  exit: 0
+  changed: (none)
+- action: fix
+  command: `dart fix --apply lib/`
+  exit: 0
+  changed: (none)
+
+- schema: 1
+- prev-hash: genesis
+- hash: 2bb3615d55ef91eff907a44eba62cb577aec2b3ccd875f873c556b54a7686d16
+
+## Cycle: A1 (error)
+
+- behavior: A1
+- kind: error
+- outcome: runner-error
+- criterion: AC-1
+- test: test/
+- command: `dart /Users/arrrrny/Developer/zuraffa/bin/zfa.dart tdd refactor A1 --feature .specify/bugs/cycle-log-phantom-sections --project /Users/arrrrny/Developer/zuraffa --suite-baseline /Users/arrrrny/Developer/zuraffa/.specify/bugs/cycle-log-phantom-sections/tdd/run-baseline.json --timeout 180.0000`
+- exit: 1
+- at: 2026-09-11T09:29:39.942185Z
+- output:
+```
+zfa tdd refactor: preflight suite
+   command: dart test
+   preflight exit: 1
+   suite baseline: cached (2026-09-11T07:29:50.718976Z) — 4 pre-existing failure(s) excluded from the green verdicts (issue #922)
+   suite is RED but every failure is pre-existing at baseline — 4 tolerated (issue #922):
+   tolerated: test/plugins/tdd/commands/view_command_test.dart: U-V3: a missing subject file is a hard runner-error
+   tolerated: test/plugins/tdd/commands/bug_1388_gen_traces_fingerprint_test.dart: B1: traces drift forces regeneration carrying the new routing
+   tolerated: test/plugins/tdd/wire_command_test.dart: U-W3: a missing subject file is a hard runner-error naming the gen remediation
+   tolerated: test/templates/self_hosting/downstream_compile_gate_test.dart: (setUpAll)
+zfa tdd refactor: applying passes
+   pass: build
+     command: /Users/arrrrny/dart-sdk/bin/dart /Users/arrrrny/Developer/zuraffa/bin/zfa.dart build
+     exit: 0
+     changed: (none)
+   pass: format
+     command: dart format lib/
+     exit: 0
+     changed: (none)
+   pass: fix
+     command: dart fix --apply lib/
+     exit: 0
+     changed: (none)
+zfa tdd refactor: re-proof suite
+   command: dart test
+   re-proof exit: 1
+   infra-level runner failure (exit 1) — clearing the dart test kernel cache and retrying (1/2) [issue #1333]
+   infra signature: 10:22 +2918 ~1: test/plugins/tdd/reproof_failure_classifier_test.dart: ... — infra tier (FR-1 / AS-5) the issue #1333 signature: "Cannot retrieve length of file" + dart_test.kernel .dill errno 2
+   re-proof exit: 1 (retry 1)
+   infra-level runner failure (exit 1) — clearing the dart test kernel cache and retrying (2/2) [issue #1333]
+   infra signature: 11:37 +2918 ~1: test/plugins/tdd/reproof_failure_classifier_test.dart: ... — infra tier (FR-1 / AS-5) the issue #1333 signature: "Cannot retrieve length of file" + dart_test.kernel .dill errno 2
+   re-proof exit: 1 (retry 2)
+   infra-level runner failure persists after 2 retry(ies) — outcome is runner-error, NOT a regression (issue #1333).
+   infra signature: 11:39 +2918 ~1: test/plugins/tdd/reproof_failure_classifier_test.dart: ... — infra tier (FR-1 / AS-5) the issue #1333 signature: "Cannot retrieve length of file" + dart_test.kernel .dill errno 2
+refactor: feature=cycle-log-phantom-sections outcome=runner-error applied=0
+```
+
+- schema: 1
+- prev-hash: c3fdf6b56c2a34c9cf9b008fcf0e4fbedb9385d8f73bd3023a7410b535ae1618
+- hash: c8580731c41490f1c219727b00b666bb180efac5b82372d026e22175bb5e142a
+

@@ -260,6 +260,73 @@
       "result": "runner-error",
       "behaviors": [],
       "stopped_at": null
+    },
+    {
+      "feature": "cycle-log-phantom-sections",
+      "cycle": "engine",
+      "phase": "drive",
+      "started_at": "2026-09-11T07:00:38.949178Z",
+      "finished_at": "2026-09-11T09:29:39.979063Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "stopped_at=A1:refactor",
+        "step_error=A1:refactor outcome=runner-error exit=1"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5"
+      ],
+      "counts": {
+        "total": 5,
+        "pending": 0,
+        "red": 0,
+        "green": 5,
+        "done": 0
+      },
+      "stopped_at": "A1:refactor",
+      "error": {
+        "behavior": "A1",
+        "step": "refactor",
+        "outcome": "runner-error",
+        "exit_code": 1,
+        "command": "dart /Users/arrrrny/Developer/zuraffa/bin/zfa.dart tdd refactor A1 --feature .specify/bugs/cycle-log-phantom-sections --project /Users/arrrrny/Developer/zuraffa --suite-baseline /Users/arrrrny/Developer/zuraffa/.specify/bugs/cycle-log-phantom-sections/tdd/run-baseline.json --timeout 180.0000",
+        "output": "zfa tdd refactor: preflight suite\n   command: dart test\n   preflight exit: 1\n   suite baseline: cached (2026-09-11T07:29:50.718976Z) — 4 pre-existing failure(s) excluded from the green verdicts (issue #922)\n   suite is RED but every failure is pre-existing at baseline — 4 tolerated (issue #922):\n   tolerated: test/plugins/tdd/commands/view_command_test.dart: U-V3: a missing subject file is a hard runner-error\n   tolerated: test/plugins/tdd/commands/bug_1388_gen_traces_fingerprint_test.dart: B1: traces drift forces regeneration carrying the new routing\n   tolerated: test/plugins/tdd/wire_command_test.dart: U-W3: a missing subject file is a hard runner-error naming the gen remediation\n   tolerated: test/templates/self_hosting/downstream_compile_gate_test.dart: (setUpAll)\nzfa tdd refactor: applying passes\n   pass: build\n     command: /Users/arrrrny/dart-sdk/bin/dart /Users/arrrrny/Developer/zuraffa/bin/zfa.dart build\n     exit: 0\n     changed: (none)\n   pass: format\n     command: dart format lib/\n     exit: 0\n     changed: (none)\n   pass: fix\n     command: dart fix --apply lib/\n     exit: 0\n     changed: (none)\nzfa tdd refactor: re-proof suite\n   command: dart test\n   re-proof exit: 1\n   infra-level runner failure (exit 1) — clearing the dart test kernel cache and retrying (1/2) [issue #1333]\n   infra signature: 10:22 +2918 ~1: test/plugins/tdd/reproof_failure_classifier_test.dart: ... — infra tier (FR-1 / AS-5) the issue #1333 signature: \"Cannot retrieve length of file\" + dart_test.kernel .dill errno 2\n   re-proof exit: 1 (retry 1)\n   infra-level runner failure (exit 1) — clearing the dart test kernel cache and retrying (2/2) [issue #1333]\n   infra signature: 11:37 +2918 ~1: test/plugins/tdd/reproof_failure_classifier_test.dart: ... — infra tier (FR-1 / AS-5) the issue #1333 signature: \"Cannot retrieve length of file\" + dart_test.kernel .dill errno 2\n   re-proof exit: 1 (retry 2)\n   infra-level runner failure persists after 2 retry(ies) — outcome is runner-error, NOT a regression (issue #1333).\n   infra signature: 11:39 +2918 ~1: test/plugins/tdd/reproof_failure_classifier_test.dart: ... — infra tier (FR-1 / AS-5) the issue #1333 signature: \"Cannot retrieve length of file\" + dart_test.kernel .dill errno 2\nrefactor: feature=cycle-log-phantom-sections outcome=runner-error applied=0"
+      }
+    },
+    {
+      "feature": "cycle-log-phantom-sections",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-11T07:00:38.947252Z",
+      "finished_at": "2026-09-11T09:29:39.986023Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane stopped at A1:refactor",
+        "engine lane result=runner-error — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [],
+      "stopped_at": null
     }
   ]
 }
