@@ -11,7 +11,7 @@ plus the plan-time id validator. Pure — no filesystem access, deterministic.
 | --- | --- | --- |
 | `strictWId` | `RegExp` (static final) | `^W\d+$` — the only id shape the skin plan's W rows carry. |
 | `sanitizeDeclaredSkinToken` | `static ({String id, String prose})? Function(String)` | Trim the token; if it already matches `^W\d+$` return `(id: token, prose: '')`; else if it starts with `W\d+`, return the leading id plus the prose remainder (surrounding whitespace and orphan parens at the remainder's ends stripped); else return null (not a W-behavior — the validator refuses). |
-| `malformedIdReason` | `static String? Function(String)` | Null when the id matches `^W\d+$`; otherwise the AC-named malformation diagnosis in precedence order: spaces → unmatched paren → no `W\d+` pattern → other non-strict shape. |
+| `malformedIdReason` | `static String? Function(String)` | Null when the id matches `^W\d+$`; otherwise the AC-named malformation diagnosis in precedence order: no `W\d+` pattern → unmatched paren → spaces → other non-strict shape. |
 | `validateSkinPlanWIds` | `static List<String> Function(Iterable<String>)` | One refusal line per non-strict id (token quoted, diagnosis named, fix line appended). Empty list = the table is clean. |
 
 ## Entities (touched)

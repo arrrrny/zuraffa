@@ -23,7 +23,7 @@ implementation lands (red-green-refactor). Test files:
 | U-1405-1 | `sanitizeDeclaredSkinToken` passes an already-strict token through (`W2` → `(W2, '')`) | FR-001 | GREEN |
 | U-1405-2 | `sanitizeDeclaredSkinToken` rescues a leading-id token with an unmatched paren (`W1 (renders the login screen pixel-perfect` → `(W1, 'renders the login screen pixel-perfect')`) and bare prose (`W1 renders the login screen` → `(W1, 'renders the login screen')`) | FR-002 | GREEN |
 | U-1405-3 | `sanitizeDeclaredSkinToken` returns null for mid-token prose (`the W1 button`) and prose-only fragments (`Sign In header and subtitle`) — never guesses ids out of mid-sentence prose | FR-002, FR-003 | GREEN |
-| U-1405-4 | `malformedIdReason` diagnoses the AC classes in precedence order: spaces → unmatched paren → no `W\d+` pattern → non-strict shape; null for `^W\d+$` ids | FR-003 | GREEN |
+| U-1405-4 | `malformedIdReason` diagnoses the AC classes in precedence order: no `W\d+` pattern → unmatched paren → spaces → non-strict shape; null for `^W\d+$` ids | FR-003 | GREEN |
 | U-1405-5 | `validateSkinPlanWIds` returns one refusal line per non-strict id (token quoted, diagnosis named, `--> fix:` remedy appended) and `[]` for clean id lists | FR-003 | GREEN |
 | U-1405-6 | regression guard: the wiring leaves CORE/BOTH declarations byte-identical — a CORE token with an annotation and the BOTH `A3 (acceptance: ...)` form still plan exit 0 with the documented rows | FR-005, FR-006 | GREEN |
 

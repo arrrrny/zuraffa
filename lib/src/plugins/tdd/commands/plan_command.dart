@@ -488,9 +488,9 @@ class PlanCommand extends Command<void> {
         if (m == null) continue;
         // Issue #1401: escaped-pipe-aware split — the reconcile reader
         // must parse the SAME dialect the writer emits (and run reads).
-        final cells = _splitRowUnescapingPipes(
-          m.group(2)!,
-        ).map((c) => c.trim()).toList();
+        final cells = _splitRowUnescapingPipes(m.group(2)!)
+            .map((c) => c.trim())
+            .toList();
         if (cells.length < 3) continue; // id + traces + state minimum
         final id = m.group(1)!;
         final criterion = cells[cells.length - 2].split(',').first.trim();
@@ -976,15 +976,12 @@ class PlanCommand extends Command<void> {
         lanes: metaLanes,
         classification: laneResult.classification,
       );
-      await File(
-        p.join(outDir.path, LaneSplitFiles.engine),
-      ).writeAsString(engineMd);
-      await File(
-        p.join(outDir.path, LaneSplitFiles.skin),
-      ).writeAsString(skinMd);
-      await File(
-        p.join(outDir.path, LaneSplitFiles.contract),
-      ).writeAsString(contractMd);
+      await File(p.join(outDir.path, LaneSplitFiles.engine))
+          .writeAsString(engineMd);
+      await File(p.join(outDir.path, LaneSplitFiles.skin))
+          .writeAsString(skinMd);
+      await File(p.join(outDir.path, LaneSplitFiles.contract))
+          .writeAsString(contractMd);
       await outFile.writeAsString(metaMd);
       for (final line in provenanceLines.values.expand((l) => l)) {
         print('   $line');
@@ -1501,7 +1498,10 @@ class PlanCommand extends Command<void> {
     };
     for (final lane in lanes) {
       if (Lane.parse(lane.lane) != Lane.skin) continue;
-      final widgetInLane = lane.behaviorIds.where(widgetIds.contains).toList();
+      final widgetInLane = lane.behaviorIds
+          .map((t) => SkinPlanAuthor.sanitizeDeclaredSkinToken(t)?.id ?? t)
+          .where(widgetIds.contains)
+          .toList();
       if (widgetInLane.isEmpty) continue;
       if (lane.adaptiveSlots.isEmpty) {
         print(
@@ -1947,7 +1947,7 @@ class PlanCommand extends Command<void> {
             continue;
           }
           id = sanitized.id;
-          if (sanitized.prose.isNotEmpty) annotations[id] ??= sanitized.prose;
+          if (sanitized.prose.isNotEmpty) annotations[id] = sanitized.prose;
         }
         // A later declaration for the same id wins (the last word is
         // the author's current intent).
@@ -1990,6 +1990,10 @@ class PlanCommand extends Command<void> {
           'SKIN lane declares, or use `golden: true`.',
         );
       }
+      final handGoldenIds = {
+        for (final g in goldenIds)
+          SkinPlanAuthor.sanitizeDeclaredSkinToken(g)?.id ?? g,
+      };
       for (final id in lane.goldenIds) {
         // A hand-declared id (no derived kind) is widget-kind by
         // construction (SKIN hand rows render the widget section).
@@ -2113,7 +2117,7 @@ class PlanCommand extends Command<void> {
           lane: lane,
           // Bug #1261: a SKIN lane's golden declaration rides the hand
           // row too (hand SKIN rows are widget-kind by construction).
-          golden: goldenIds.contains(id) && lane != Lane.core,
+          golden: handGoldenIds.contains(id) && lane != Lane.core,
         ),
       );
       classification[id] = lane;
