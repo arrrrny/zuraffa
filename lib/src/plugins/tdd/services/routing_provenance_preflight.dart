@@ -36,7 +36,10 @@
 ///     missing-list error names the real problem);
 ///   - no provenance section → vacuous pass (legacy lists predate the
 ///     artifact — nothing is invented);
-///   - declared/refused `route:` lines → not fallback.
+///   - declared/refused `route:` lines → not fallback;
+///   - lane plans contribute ONLY when `test-list.md` is a lane
+///     meta-index (issue #1000) — a leftover `04-ENGINE.md` beside a
+///     legacy list is ignored, never a false refusal.
 ///
 /// O(1) by construction: file reads only — no subprocess, no spec
 /// re-parse, no re-plan.
@@ -47,6 +50,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/behavior.dart';
+import 'lane_split.dart';
 import 'spec_parser.dart';
 import 'test_list_reader.dart';
 import 'vacuous_guard.dart';
@@ -57,14 +61,13 @@ const String kRoutingPreflightSuggested =
     'Suggested: fix routing in plan, or run `zfa tdd run --force` to '
     'skip preflight.';
 
-/// The FR/AC/SC criterion-token shape — the same class of tokens
-/// `RoutingResolver` skips (they are requirement references, never
-/// contract rows). Used ONLY to name the FR a finding falls back to in
-/// the rendered row line; the routing decision itself is the plan's.
-final RegExp _criterionToken = RegExp(
-  r'^(FR|AC|SC)[-]?\d+',
-  caseSensitive: false,
-);
+/// The `FR<id>` trace shape FR-002 renders (`fallback to FR-001`). The
+/// routing ladder's own token class also admits `AC-`/`SC-`
+/// (`RoutingResolver`), but the refusal line renders ONLY an FR-shaped
+/// token — a row tracing just `AC-1` omits the suffix, exactly as a row
+/// tracing nothing does. Used ONLY to name the FR a finding falls back
+/// to; the routing decision itself is the plan's.
+final RegExp _criterionToken = RegExp(r'^FR[-]?\d+', caseSensitive: false);
 
 /// One unit behavior the routing provenance proves cannot pass make.
 class RoutingProvenanceFinding {
@@ -143,6 +146,13 @@ class RoutingProvenancePreflight {
       rows = await TestListReader(featureDir).read();
     } on TestListReadException {
       return const RoutingProvenancePreflightReport(ok: true, offending: []);
+    } on FileSystemException {
+      // An unreadable list (deleted between the reader's exists check
+      // and this read, permission-denied) fails OPEN like the missing
+      // case — the driver's own missing-list error names the real
+      // problem (house precedent: `run_driver_core.dart`'s
+      // `_testCarriesVacuousGuardMarker`).
+      return const RoutingProvenancePreflightReport(ok: true, offending: []);
     }
     final fallbackById = await _fallbackRoutedIds();
     if (fallbackById.isEmpty) {
@@ -173,19 +183,33 @@ class RoutingProvenancePreflight {
     );
   }
 
-  /// The `route:` provenance lines the plan wrote — merged from
-  /// `tdd/test-list.md` and, when the list is a lane meta-index, the lane
-  /// plans (`04-ENGINE.md` first so a BOTH row's engine copy is the row
-  /// of record, mirroring `TestListReader`). Maps behavior id →
-  /// fallback-routed. Absent section / absent id → NOT fallback (never
-  /// invented).
+  /// The `route:` provenance lines the plan wrote. `tdd/test-list.md`
+  /// carries them for a legacy single-file list; ONLY when that file is
+  /// a lane meta-index (issue #1000) do the lane plans
+  /// (`04-ENGINE.md` then `04-SKIN.md`) contribute too — a leftover lane
+  /// file beside a legacy list must never false-refuse (the fail-open
+  /// boundary above).
+  /// Maps behavior id → fallback-routed. Absent section / absent id →
+  /// NOT fallback (never invented).
   Future<Map<String, bool>> _fallbackRoutedIds() async {
     final map = <String, bool>{};
-    final files = <File>[
-      File(p.join(featureDir, 'tdd', 'test-list.md')),
-      File(p.join(featureDir, 'tdd', '04-ENGINE.md')),
-      File(p.join(featureDir, 'tdd', '04-SKIN.md')),
-    ];
+    final listFile = File(p.join(featureDir, 'tdd', 'test-list.md'));
+    if (!await listFile.exists()) return map;
+    final String listContent;
+    try {
+      listContent = await listFile.readAsString();
+    } on FileSystemException {
+      return map; // unreadable: fail open — the loop names the real error
+    }
+    final files = <File>[listFile];
+    final split = LaneSplitFiles.find(listContent);
+    if (split != null) {
+      // The list IS a meta-index: follow its pointers (mirroring
+      // `TestListReader`) instead of assuming the default file names.
+      files
+        ..add(File(p.join(featureDir, 'tdd', split.engine)))
+        ..add(File(p.join(featureDir, 'tdd', split.skin)));
+    }
     for (final file in files) {
       if (!await file.exists()) continue;
       final String content;
@@ -201,8 +225,15 @@ class RoutingProvenancePreflight {
         if (arrow <= 0) continue;
         final id = line.substring('route: '.length, arrow).trim();
         if (id.isEmpty) continue;
-        // First writer wins (the engine copy of a BOTH row).
-        map.putIfAbsent(id, () => line.contains('[fallback:'));
+        // First writer wins. For a meta-index the list carries no
+        // `route:` lines, so the engine plan (added before the skin
+        // plan) stays the row of record for a BOTH behavior — the
+        // `TestListReader` order. A unit-lane anchor keeps a
+        // differently-laned line for the same id out of the verdict.
+        map.putIfAbsent(
+          id,
+          () => line.contains('-> unit lane') && line.contains('[fallback:'),
+        );
       }
     }
     return map;

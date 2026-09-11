@@ -16,16 +16,16 @@
 //              hand-completed fallback rows are never offending
 //              (FR-001 / FR-006).
 //   U-1482-3 — fail-open boundaries: no/unreadable test list → ok; no
-//              provenance section → ok; declared/refused route lines are
-//              not fallback; zero subprocess spawns — O(1) reads
-//              (FR-005 / SC-4).
+//              provenance section → ok; a leftover lane plan beside a
+//              legacy list → ignored; declared/off-criteria route lines
+//              are not fallback; the gate needs only the plan artifacts
+//              (no toolchain) — O(1) reads (FR-005 / SC-1).
 library;
 
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
-import 'package:zuraffa/src/plugins/tdd/models/behavior.dart';
 import 'package:zuraffa/src/plugins/tdd/services/routing_provenance_preflight.dart';
 import 'package:zuraffa/src/plugins/tdd/services/vacuous_guard.dart';
 
@@ -376,38 +376,174 @@ route: U1 -> unit lane [fallback: legacy description classifier matched — trac
   );
 
   test(
-    'U-1482-3d: the verdict vocabulary renders the suggested remedy line',
-    () {
-      expect(
+    'U-1482-3d: the report and the remedy constant compose the FR-002 refusal block',
+    () async {
+      _seedList(root, '1482-preflight-fixture', _list());
+
+      final report = await gate('1482-preflight-fixture').check();
+      final block = [
+        report.headerLine,
+        ...report.offending.map((f) => f.line),
         kRoutingPreflightSuggested,
-        'Suggested: fix routing in plan, or run `zfa tdd run --force` to '
-        'skip preflight.',
+      ].join('\n');
+
+      // The three-line machine shape FR-002 renders, composed from the
+      // real report (not the constant asserted against a copy of itself).
+      expect(
+        block,
+        'run: preflight failed — 1 unit behaviour(s) cannot pass make:\n'
+        '  U1 — lets the user add a todo with a title '
+        '(no declared contract trace, fallback to FR-001)\n'
+        'Suggested: fix routing in plan, or run `zfa tdd run --force` '
+        'to skip preflight.',
       );
     },
   );
 
   test(
-    'U-1482-3e: O(1) — the gate spawns no subprocess (process reuse is the proof)',
+    'U-1482-3e: O(1) — the gate needs only the plan artifacts (no toolchain, no subprocess)',
     () async {
-      // A structural guarantee rather than a timing one: the service takes
-      // NO runner, NO bin path, and reads only files under featureDir /
-      // projectRoot. The compile-time check is the constructor surface.
-      final gateInstance = gate('1482-preflight-fixture');
-      expect(gateInstance.projectRoot, root.path);
-      expect(
-        gateInstance.featureDir,
-        p.join(root.path, 'specs', '1482-preflight-fixture'),
-      );
+      // A bare root: no pubspec.yaml, no `bin/zfa.dart`, no
+      // tdd-profile.md. A gate that spawned a step or resolved the
+      // project toolchain could not return a finding here — the refusal
+      // is pure file reads (SC-1: under one second, zero spawns).
+      final bare = Directory.systemTemp.createTempSync('zfa_1482_bare_');
+      addTearDown(() => bare.deleteSync(recursive: true));
+      _seedList(bare, '1482-bare', _list());
+
+      final report = await RoutingProvenancePreflight(
+        projectRoot: bare.path,
+        featureDir: p.join(bare.path, 'specs', '1482-bare'),
+      ).check();
+
+      expect(report.offending.map((f) => f.id), ['U1']);
       // And the vacuous predicate it reuses is the #1259 one — no
-      // duplicated assertion logic.
+      // duplicated assertion logic (FR-006).
       expect(
         contentIsVacuousGreen('expect(a, isNot(isA<UnimplementedError>()));'),
         isTrue,
       );
-      expect(
-        BehaviorKind.values.map((k) => k.name),
-        containsAll(['unit', 'acceptance', 'widget', 'contract']),
+    },
+  );
+
+  test(
+    'U-1482-3f: a leftover lane plan beside a LEGACY list is ignored (no false refusal)',
+    () async {
+      // The list is a legacy single-file table (no `## Lane split`), so
+      // its own row is declared. A stale `04-ENGINE.md` left on disk by
+      // an earlier split must not be consulted — the meta-index guard
+      // (issue #1000, the fail-open boundary).
+      _seedList(root, '1482-preflight-fixture', '''
+# Test List: 1482-preflight-fixture
+
+## Inner loop: unit behaviors
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| U1 | formats the stored title | FR-001, Formatter.format | PENDING |
+
+## Routing provenance
+
+route: U1 -> unit lane (func surface) [declared: contract row Formatter.format]
+''');
+      _seedList(root, '1482-preflight-fixture', '''
+# Engine Plan
+
+## Routing provenance
+
+route: U1 -> unit lane [fallback: legacy description classifier matched — trace FR to a declared contract row]
+''', file: '04-ENGINE.md');
+
+      final report = await gate('1482-preflight-fixture').check();
+
+      expect(report.ok, isTrue, reason: report.offending.toString());
+    },
+  );
+
+  test(
+    'U-1482-3g: an unreadable test list fails open (no unhandled read error)',
+    () async {
+      _seedList(root, '1482-preflight-fixture', _list());
+      final listFile = File(
+        p.join(
+          root.path,
+          'specs',
+          '1482-preflight-fixture',
+          'tdd',
+          'test-list.md',
+        ),
       );
+      await Process.run('chmod', ['000', listFile.path]);
+      try {
+        final report = await gate('1482-preflight-fixture').check();
+
+        expect(
+          report.ok,
+          isTrue,
+          reason:
+              'an unreadable list must fail open — the driver names the '
+              'real problem downstream, never an unhandled '
+              'FileSystemException',
+        );
+        expect(report.offending, isEmpty);
+      } finally {
+        await Process.run('chmod', ['644', listFile.path]);
+      }
+    },
+  );
+
+  test(
+    'U-1482-3h: an AC-only trace omits the fallback suffix (FR-002 FR-only shape)',
+    () async {
+      _seedList(root, '1482-preflight-fixture', '''
+# Test List: 1482-preflight-fixture
+
+## Inner loop: unit behaviors
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| U1 | syncs when the network returns | AC-2 | PENDING |
+
+## Routing provenance
+
+route: U1 -> unit lane [fallback: legacy description classifier matched — trace FR to a declared contract row]
+''');
+
+      final report = await gate('1482-preflight-fixture').check();
+
+      // FR-002 renders `fallback to FR<id>` — an AC-shaped trace names no
+      // FR, so the suffix is omitted (the row is still refused).
+      expect(report.offending.single.criterionTraces, isEmpty);
+      expect(
+        report.offending.single.line,
+        '  U1 — syncs when the network returns (no declared contract trace)',
+      );
+    },
+  );
+
+  test(
+    'U-1482-3i: a provenance line off the unit lane is never a fallback',
+    () async {
+      // The gate's contract is the fallback-routed UNIT (FR-001): a
+      // `route:` line naming another lane is not that shape, even for a
+      // unit row id.
+      _seedList(root, '1482-preflight-fixture', '''
+# Test List: 1482-preflight-fixture
+
+## Inner loop: unit behaviors
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| U1 | renders the brand theme | FR-011 | PENDING |
+
+## Routing provenance
+
+route: U1 -> widget lane [fallback: repairable — add `**Type**: widget` to the scenario]
+''');
+
+      final report = await gate('1482-preflight-fixture').check();
+
+      expect(report.ok, isTrue, reason: report.offending.toString());
     },
   );
 }

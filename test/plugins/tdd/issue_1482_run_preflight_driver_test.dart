@@ -1,15 +1,11 @@
 @Tags(['slow'])
 // Issue #1482 — the `zfa tdd run` routing-provenance preflight (driver
 // tier, slow tier). The fast tier (issue_1482_run_preflight_test.dart)
-// covers the service contract; this suite drives the REAL RunCommand
-// in-process through CliRunner over a scripted fake zfa binary:
+// covers the service contract and
+// issue_1482_run_preflight_wiring_test.dart covers the refusal wiring
+// (lifted out of the slow tag so CI runs it); this suite drives the REAL
+// RunCommand in-process through CliRunner over a scripted fake zfa binary:
 //
-//   U-1482-4 — a feature whose routing provenance marks fallback-routed
-//              unit rows refuses BEFORE the first gen: the exact refusal
-//              block (header, one line per offending row, the Suggested
-//              remedy), the all-zero result=stopped summary line, exit 1,
-//              ZERO step spawns, and the preflight_red journal entry
-//              (FR-002 / FR-004 / SC-1).
 //   U-1482-5 — --force bypasses ONLY the routing preflight: the run
 //              proceeds into the engine lane and the existing honest
 //              vacuous-green stop stays byte-identical (FR-003 / SC-2);
@@ -17,7 +13,6 @@
 //              own condition even with --force.
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -149,88 +144,6 @@ route: U2 -> unit lane [fallback: legacy description classifier matched — trac
   }
 
   test(
-    'U-1482-4: the preflight refuses before the first gen and names ALL offending rows at once',
-    () async {
-      const feature = '1482-preflight-refusal';
-      fx = await TddFixture.create(featureName: feature);
-      addTearDown(fx.dispose);
-      await writeFakeZfa();
-      await seedFallbackFeature(feature);
-
-      final out = await drive(feature);
-
-      // The structured refusal block (FR-002) — header, ALL offending
-      // rows at once, the Suggested remedy.
-      expect(
-        out,
-        contains(
-          'run: preflight failed — 2 unit behaviour(s) cannot pass make:',
-        ),
-        reason: out,
-      );
-      expect(
-        out,
-        contains(
-          '  U1 — lets the user add a todo with a title '
-          '(no declared contract trace, fallback to FR-001)',
-        ),
-        reason: out,
-      );
-      expect(
-        out,
-        contains(
-          '  U2 — syncs the queued todos when the network returns '
-          '(no declared contract trace, fallback to FR-002)',
-        ),
-        reason: out,
-      );
-      expect(
-        out,
-        contains(
-          'Suggested: fix routing in plan, or run `zfa tdd run --force` '
-          'to skip preflight.',
-        ),
-        reason: out,
-      );
-      // The summary machine contract survives (FR-004): the all-zero
-      // stopped line is the run's final stdout line.
-      expect(
-        out,
-        contains(
-          'run: feature=$feature result=stopped pending=0 red=0 green=0 done=0',
-        ),
-        reason: out,
-      );
-      expect(
-        out.trim().split('\n').where((l) => l.trim().isNotEmpty).last,
-        contains('result=stopped'),
-        reason: out,
-      );
-      // Exit non-zero (the stopped class).
-      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
-      // ZERO steps spawned (SC-1): no gen, no verify-red, no make.
-      expect(fx.stepInvocations(), isEmpty, reason: out);
-      expect(fx.stepArgvLog(), isEmpty, reason: out);
-      // The refusal is journaled preflight_red at the gate phase with
-      // one violation per offending row (FR-004).
-      final journalFile = File(p.join(fx.featureDir, 'tdd', 'journal.json'));
-      expect(journalFile.existsSync(), isTrue, reason: out);
-      final journal =
-          jsonDecode(journalFile.readAsStringSync()) as Map<String, dynamic>;
-      final entries = (journal['entries'] as List).cast<Map<String, dynamic>>();
-      expect(entries, hasLength(1));
-      final entry = entries.single;
-      expect(entry['gate_state'], 'preflight_red');
-      expect(entry['phase'], 'gate');
-      expect(entry['result'], 'stopped');
-      final violations = (entry['violations'] as List<dynamic>).cast<String>();
-      expect(violations, hasLength(2), reason: violations.join('\n'));
-      expect(violations.first, contains('U1'));
-      expect(violations.last, contains('U2'));
-    },
-  );
-
-  test(
     'U-1482-5: --force bypasses the preflight — the loop drives and the honest vacuous-green stop stays byte-identical',
     () async {
       const feature = '1482-preflight-force';
@@ -316,15 +229,17 @@ route: U1 -> unit lane (func surface) [declared: contract row Formatter.format]
       addTearDown(fx.dispose);
       await writeFakeZfa();
       await seedFallbackFeature(feature);
-      // A stale path override pointing at a directory without a
-      // pubspec.yaml — the #1303 preflight's own condition.
+      // A stale path override pointing at a directory that cannot exist —
+      // absolute so the probe is deterministic (a relative `../../x` can
+      // resolve onto a real directory on some machines). This is the
+      // #1303 preflight's own condition.
       await File(p.join(fx.root.path, 'pubspec.yaml')).writeAsString('''
 name: tdd_fixture
 environment:
   sdk: ^3.11.0
 dependency_overrides:
   some_pkg:
-    path: ../../does-not-exist
+    path: /zfa-1482-no-such-override
 ''');
 
       final out = await drive(feature, extra: const ['--force']);
