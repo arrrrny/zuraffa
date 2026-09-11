@@ -32,8 +32,8 @@ below is from this session.
 
 | id | behavior | class | evidence |
 | -- | -------- | ----- | -------- |
-| T-U1 | unbound FR routes to a manual declaration (warning + destination + both remedies rendered; no unit route line; no fatal fallback class) while the scenario heals to declared in the same invocation | PROVEN | red: `00:00 +5 -3` with `route: U1 -> unit lane [fallback: no declared trace — make will dead-end` never emitted; green: `00:00 +8: All tests passed!` asserting `WARNING: FR-001 derives no unit behaviour`, `recorded as a manual declaration in tdd/traceability.md`, `add a `traces:` line naming a declared contract row`, `add `**Type**: manual` under the FR`, `isNot(contains('route: U1'))`, `isNot(contains('[fallback: no declared trace'))`, plus the preserved A1-heals + spec-marker invariants |
-| T-U2 | every unbound FR announced individually; no dead-end tally for manual-routed FRs | PROVEN | green run asserts `WARNING: FR-001 derives no unit behaviour` AND `WARNING: FR-002 derives no unit behaviour`, `isNot(contains('will dead-end at make'))`; source-search confirms the tally string no longer exists in `plan_command.dart` |
+| T-U1 | unbound FR routes to a manual declaration (warning + destination + both remedies rendered; no unit route line; no fatal fallback class) while the scenario heals to declared in the same invocation | PROVEN | red: `00:00 +5 -3` with `route: U1 -> unit lane [fallback: no declared trace — make will dead-end` never emitted; green: `00:00 +8: All tests passed!` asserting `WARNING: FR-001 derives no unit behaviour`, `recorded as a manual declaration in tdd/traceability.md`, both remedies (`add a `traces:` line naming a declared contract row`, `add `**Type**: manual` under the FR`), the named artifact read back (`tdd/traceability.md` carries `manual (defaulted: no `traces:` binding)`), `isNot(contains('route: U1'))`, `isNot(contains('route: U2'))`, `isNot(contains('[fallback: no declared trace'))`, plus the preserved A1-heals + spec-marker invariants |
+| T-U2 | every unbound FR announced individually; no dead-end tally for manual-routed FRs | PROVEN | green run asserts `WARNING: FR-001 derives no unit behaviour` AND `WARNING: FR-002 derives no unit behaviour`, `isNot(contains('will dead-end at make'))`; source-search confirms the tally string remains in `plan_command.dart` (`_printDeadEndTally`, built from two concatenated literals) but is unreachable from unbound FRs — see the dead-end-coverage gap below |
 | T-U3 | per-FR warning scales to PLURAL unbound FRs (3 FRs → 3 warnings), still no tally | PROVEN | red: `3 behaviors will dead-end at make … (U1, U2, U3)` never emitted (verbatim transcript pinned in red-evidence.md); green: 3 per-FR warnings asserted + tally absence |
 
 ## Red-first evidence
@@ -55,7 +55,7 @@ Full transcript pinned in `tdd/red-evidence.md`.
 - behavior/implementation coupling: the assertions pin the CONTRACT
   (warning block strings and their absence-of-tally counterpart) that
   feature 1484 renders, not internal call structure.
-- magicfixture drift: none — fixtures `_deadEndSpec` and the 3-FR
+- magicfixture drift: none — fixtures `_unboundFrSpec` and the 3-FR
   inline spec are unchanged from the #1481 fix; only expectations
   moved to the post-1484 contract.
 
@@ -80,3 +80,15 @@ Full transcript pinned in `tdd/red-evidence.md`.
 - `bug_1432_platform_lane_rows_test.dart` (+1 -3) is red on PRISTINE
   HEAD (stash-verified) — pre-existing on `feat/1484-fr-manual-exemption`,
   out of scope for #1521; tracked separately so #1504 authors see it.
+
+## Coverage gap (non-environmental, tracked)
+
+- This change closes out the last test that referenced the fatal
+  fallback class, so `plan_command.dart`'s dead-end machinery
+  (`:1996` `if (!repairable) deadEnds.add(...)`, the `:2009` fatal
+  route prefix, `_printDeadEndTally` at `:2028-2036`, and the
+  `dead_end_behaviors` verdict key at `:1183`/`:1364`) now has no test
+  that proves it live and none that proves it dead. Source analysis and
+  three probe fixtures indicate it is unreachable from unbound FRs, but
+  that is not proven. Tracked as #1537 — plan_command.dart changes are
+  out of scope for this test-only PR per its hard constraints.

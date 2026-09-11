@@ -3,7 +3,7 @@
 Derived from `assessment.md` ("Tests to add or update"). The suite is
 `test/plugins/tdd/commands/plan_command_bug_1481_test.dart` (8 tests);
 this bug's red-green loop touches ONLY the three tests in the group
-`#1481: the two fallback classes are distinguishable` that feature
+`#1481: manual routing replaced the fatal unit-fallback class` that feature
 1484 stranded. Test IDs here map 1:1 to the three failing tests from
 the issue.
 
@@ -11,7 +11,7 @@ the issue.
 
 | id | behavior | traces | state |
 | -- | -------- | ------ | ----- |
-| T-U1 | an unbound FR (no surviving `traces:` binding) routes to a manual declaration: `WARNING: FR-001 derives no unit behaviour` rendered, destination named (`recorded as a manual declaration in tdd/traceability.md`), both remedies named (`add a `traces:` line naming a declared contract row`, `add `**Type**: manual` under the FR`), no unit route line (`isNot(contains('route: U1'))`), no fatal fallback class (`isNot(contains('[fallback: no declared trace'))`) — while the scenario heals to `[declared: type marker` in the same invocation and spec.md carries `**Type**: acceptance` | feature-1484 manual routing (plan_command.dart L263–276) | DONE |
+| T-U1 | an unbound FR (no surviving `traces:` binding) routes to a manual declaration: `WARNING: FR-001 derives no unit behaviour` rendered, destination named (`recorded as a manual declaration in tdd/traceability.md`) AND the named artifact read back (`tdd/traceability.md` carries `manual (defaulted: no `traces:` binding)`), both remedies named (`add a `traces:` line naming a declared contract row`, `add `**Type**: manual` under the FR`), no unit route line (`isNot(contains('route: U1'))`, `isNot(contains('route: U2'))`), no fatal fallback class (`isNot(contains('[fallback: no declared trace'))`) — while the scenario heals to `[declared: type marker` in the same invocation and spec.md carries `**Type**: acceptance` | feature-1484 manual routing (plan_command.dart L265–275) | DONE |
 | T-U2 | every unbound FR gets its own manual-declaration warning (FR-001 AND FR-002 both announced) and no dead-end tally is emitted (`isNot(contains('will dead-end at make'))`) — manual-routed FRs never reach make as automated unit behaviours | feature-1484 manual routing | DONE |
 | T-U3 | the per-FR warning scales to PLURAL unbound FRs: a 3-FR fixture yields three warnings (FR-001, FR-002, FR-003) and no dead-end tally | feature-1484 manual routing | DONE |
 

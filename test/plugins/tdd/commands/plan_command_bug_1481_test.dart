@@ -20,10 +20,13 @@
 //   2. the mutation is announced: `wrote N `**Type**` marker(s) into
 //      spec.md` (and the stale "Re-run `zfa tdd plan`" advice is gone —
 //      no re-run is needed);
-//   3. the two fallback classes render differently: `[fallback:
+//   3. the two fallback classes rendered differently: `[fallback:
 //      repairable — ...]` vs `[fallback: no declared trace — make will
 //      dead-end; ...]`, plus a one-line dead-end tally so the author
-//      need not scan every route line.
+//      need not scan every route line. Feature #1484 has since put the
+//      fatal class out of reach for unbound FRs — see the note below;
+//      `_printDeadEndTally` and the class string remain in
+//      `plan_command.dart`, just unrouted from here.
 //
 // Feature #1484 update: the FATAL unit-fallback class no longer exists
 // for unbound FRs — an FR with no surviving `traces:` binding routes to
@@ -63,10 +66,10 @@ const _healableSpec = '''
 1. **Given** the app **When** the total is requested **Then** the total equals the sum of items.
 ''';
 
-/// A spec whose unit lane CANNOT self-heal: FR-002 traces nothing (and
-/// no Layer Contracts section exists to trace to), so U1 stays
-/// fallback-routed forever — the fatal class.
-const _deadEndSpec = '''
+/// A spec whose FRs carry no `traces:` binding (and no Layer Contracts
+/// section exists to trace to): feature #1484 routes them to manual
+/// declarations, so no unit lane row is emitted at all.
+const _unboundFrSpec = '''
 **Template Version**: `zuraffa-1.0`
 
 # Spec: 1481-route
@@ -204,12 +207,12 @@ void main() {
     });
   });
 
-  group('#1481: the two fallback classes are distinguishable', () {
+  group('#1481: manual routing replaced the fatal unit-fallback class', () {
     test(
       'an unbound FR routes to a manual declaration (no unit route '
       'line, no fallback class) while the scenario heals to declared',
       () async {
-        final tmp = await _featureDir(_deadEndSpec);
+        final tmp = await _featureDir(_unboundFrSpec);
         try {
           final out = await _plan(tmp);
           expect(exitCode, 0, reason: out);
@@ -225,6 +228,16 @@ void main() {
             out,
             contains('recorded as a manual declaration in tdd/traceability.md'),
             reason: 'the routing destination is named: $out',
+          );
+          // The warning names a durable artifact — assert the artifact,
+          // not just the promise (same contract as the test-list.md
+          // agreement test above).
+          expect(
+            await File(
+              p.join(tmp.path, 'specs', '1481-route', 'tdd', 'traceability.md'),
+            ).readAsString(),
+            contains('manual (defaulted: no `traces:` binding)'),
+            reason: 'the manual declaration is recorded, not just announced',
           );
           expect(
             out,
@@ -242,6 +255,11 @@ void main() {
             out,
             isNot(contains('route: U1')),
             reason: 'the manual-routed FR has no unit route line: $out',
+          );
+          expect(
+            out,
+            isNot(contains('route: U2')),
+            reason: 'neither unbound FR has a unit route line: $out',
           );
           expect(
             out,
@@ -265,7 +283,7 @@ void main() {
 
     test('every unbound FR gets its own manual-declaration warning (no '
         'dead-end tally for manual-routed FRs)', () async {
-      final tmp = await _featureDir(_deadEndSpec);
+      final tmp = await _featureDir(_unboundFrSpec);
       try {
         final out = await _plan(tmp);
         expect(exitCode, 0, reason: out);

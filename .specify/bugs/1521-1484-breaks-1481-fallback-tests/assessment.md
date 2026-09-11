@@ -44,11 +44,14 @@ touched by `903240d5`) still assert that pre-1484 behavior. The
 follow-up commit `b34adae2` re-bound five *other* fixtures stranded by
 the same flip but missed this test file.
 
-Verified in-source: the string `will dead-end at make` no longer
-exists anywhere in `plan_command.dart`, while the manual-routing
-warning block (`WARNING: ${r.frId} derives no unit behaviour — …` /
-`--> fix: add a `traces:` line naming a declared contract row …`)
-lives at `plan_command.dart` lines 263–276.
+Verified in-source: the string `will dead-end at make` is no longer
+reachable from unbound FRs — though it does still exist in
+`plan_command.dart` (`_printDeadEndTally`, lines 2031–2035, built from
+two concatenated literals, so a naive grep misses it; the
+`no declared trace — make will dead-end` prefix at :2009 likewise),
+while the manual-routing warning block (`WARNING: ${r.frId} derives no
+unit behaviour — …` / `--> fix: add a `traces:` line naming a declared
+contract row …`) lives at `plan_command.dart` lines 265–275.
 
 ## Remediation decision (issue options a vs b)
 

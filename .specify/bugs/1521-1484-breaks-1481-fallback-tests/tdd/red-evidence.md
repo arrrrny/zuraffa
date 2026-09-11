@@ -42,8 +42,11 @@ Key observations recorded from the red run:
   feature 1484 removes the unit-lane row entirely; only the per-FR
   manual-declaration warnings remain.
 - The old tally string `will dead-end at make` is absent from the
-  output AND from `plan_command.dart` (verified by source search) —
-  the class the tests assert is structurally unreachable.
+  output but NOT from `plan_command.dart` — it is still live code
+  (`_printDeadEndTally`, built from two concatenated literals at
+  `:2031-2035`, which is why a naive grep misses it), simply
+  unreachable from unbound FRs; the class the tests assert is
+  structurally unreachable.
 - The acceptance scenario still heals in the same invocation
   (`route: A1 -> acceptance lane [declared: type marker, spec line 14]`)
   — the #1481 one-invocation-truth invariant is intact; only the

@@ -15,15 +15,16 @@ Issue option (a): update the #1481 dead-end-tally expectations to match
 feature 1484's manual routing. The three failing tests asserted the
 pre-1484 fatal unit-fallback class (`[fallback: no declared trace —
 make will dead-end]` + the `N behaviors will dead-end at make` tally),
-which feature 1484 deliberately removed for unbound FRs — they now
-route to manual declarations with a per-FR warning and remedy line
-(`plan_command.dart` lines 263–276).
+which feature 1484 deliberately put out of reach for unbound FRs —
+they now route to manual declarations with a per-FR warning and remedy
+line (`plan_command.dart` lines 265–275).
 
 ## What changed
 
-All three edits are in the group `#1481: the two fallback classes are
-distinguishable`; the library doc comment gained a short feature-1484
-note so the file's own contract documentation stays truthful.
+All three edits are in the group `#1481: manual routing replaced the
+fatal unit-fallback class`; the library doc comment gained a short
+feature-1484 note so the file's own contract documentation stays
+truthful.
 
 1. **T-U1** (was `a unit fallback renders the FATAL class …` → now
    `an unbound FR routes to a manual declaration (no unit route line,
@@ -34,7 +35,10 @@ note so the file's own contract documentation stays truthful.
      naming a declared contract row`, `add `**Type**: manual` under
      the FR`);
    - asserts the retired class is gone: `isNot(contains('route:
-     U1'))` and `isNot(contains('[fallback: no declared trace'))`;
+     U1'))`, `isNot(contains('route: U2'))` and
+     `isNot(contains('[fallback: no declared trace'))`;
+   - reads back the artifact the warning names: `tdd/traceability.md`
+     carries `manual (defaulted: no `traces:` binding)`;
    - keeps the #1481 invariants: A1 still heals to
      `[declared: type marker` in the same invocation and the spec on
      disk still carries `**Type**: acceptance`.
