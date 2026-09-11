@@ -38,7 +38,22 @@ A semantic split across the two halves of the TDD pipeline:
 Standalone `mock create` is unchanged (opt-in as before); no gate, no
 preflight, no mock-command change.
 
-## Verification (actual run — see tdd/verification.md)
+## Review-fix round (PR #1514 findings)
+
+- Finding 1: both arms now emit
+  `['entity', 'create', '-n', <E>, '--build']` — the certify step's
+  sandbox needs the entity's build_runner outputs on disk (a missing
+  `part` target fails the import-closure copy), and `entity create` does
+  not build by default.
+- Finding 3: U-1503c became a table-driven invariant over the planner's
+  arm shapes instead of a third copy of the two literal plans.
+- Finding 4: the TDD records moved from the new root `tdd/` into
+  `./tdd/`, and the broken cross-reference was fixed.
+- Finding 2 (per-behaviour certification cost): not applied — it requires
+  a digest-keyed short-circuit in the spec-1001 certification path, a
+  behaviour change the review itself scoped out of this PR.
+
+## Verification (actual run — see ./tdd/verification.md)
 
 - RED: 3 failed / 1 passed, failing on the missing `--certify` verbatim.
 - GREEN: new suite 4/4; chunked related suites 35 + 18 + 13 + 17 = 83

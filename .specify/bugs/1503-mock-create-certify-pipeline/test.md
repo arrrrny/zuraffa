@@ -4,7 +4,7 @@
 - **Tested**: 2026-09-11
 - **Assessment**: ./assessment.md
 - **Fix**: ./fix.md
-- **TDD verification**: ../../tdd/verification.md (fresh from this session's run)
+- **TDD verification**: ./tdd/verification.md (fresh from this session's run — the record lives under the bug directory, matching the other bug records; review finding 4)
 - **Result**: verified
 
 ## Summary
@@ -16,6 +16,17 @@ arm), so run #1 leaves a certified mock on disk and run #2's spec-1001
 pre-start preflight passes instead of refusing forever. The gate, the
 preflight logic, and the `mock create` command are untouched; standalone
 `mock create` stays opt-in.
+
+Review-fix round: both arms' `entity create` step now also carries
+`--build`, so the certify step is never asked to certify an UNBUILT
+entity — the certification sandbox refuses a dangling `part` target, and
+`entity create` does not build by default (review finding 1). U-1503c was
+rewritten from a third copy of the two literal plans into a table-driven
+invariant over the planner's arm shapes (review finding 3), and the TDD
+artifacts moved out of the new root `tdd/` into this bug directory
+(review finding 4). Finding 2 (per-behaviour certification cost) is an
+explicitly non-blocking suggestion whose implementation is a behaviour
+change in the spec-1001 certification path — left out of this PR.
 
 ## Checks Performed
 
@@ -30,6 +41,11 @@ preflight logic, and the `mock create` command are untouched; standalone
 | Static analysis | `dart analyze` over the 3 changed dart files | pass | No issues found! (re-checked after formatting) |
 | Formatting | `dart format` on changed files | pass | 1 file reformatted (new test), re-verified 4/4 green. |
 | Disk housekeeping | `rm -rf .dart_tool/test/`, kernel artifacts removed | pass | 8.2G free at delivery. |
+| Review-fix: built entity (finding 1) | new suite U-1503a/U-1503b/U-1503c | pass | both certify arms are preceded by `entity create -n <E> --build`; the certify sandbox refuses a dangling `part` target. |
+| Review-fix: arm-table invariant (finding 3) | new suite U-1503c | pass | one fixture per planner arm/surface; non-vacuity pin proves the table reaches both mock-emitting arms. |
+| Review-fix: artifact location (finding 4) | `git mv tdd/*.md .specify/bugs/1503-mock-create-certify-pipeline/tdd/` | pass | root `tdd/` removed; cross-references fixed (`./tdd/verification.md`). |
+| Review-fix: revision pin (finding 5) | `tdd/verification.md` header | pass | numbers now tied to fix commit `14019033` (base `c5d9bd1b`), with the review-fix re-run recorded separately. |
+| Review-fix: re-run | `dart analyze` + 4 chunked `dart test` groups + `dart format --set-exit-if-changed` over the 4 changed dart files | pass | No issues found; 35 + 18 + 13 + 17 = 83 passed, 0 failed; format exit 0. |
 
 ## Residual Risks
 
