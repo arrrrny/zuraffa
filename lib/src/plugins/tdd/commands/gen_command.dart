@@ -1496,8 +1496,14 @@ class GenCommand extends Command<void> {
       );
     }
     if (behavior.kind == BehaviorKind.contract) {
+      // Issue #1513: the contract lane honors the host runner like the
+      // unit/acceptance lanes do (#1351) — a `const ContractTestWriter()`
+      // here hardcoded `package:test`, dead at `verify-red` on Flutter
+      // hosts (`Couldn't resolve the package 'test'`). The stale-stub
+      // re-render path inherits the fix: it threads the same flag into
+      // this dispatch.
       return (
-        writeTest: const ContractTestWriter().write,
+        writeTest: ContractTestWriter(flutterTest: flutterTest).write,
         writeSubject: const ContractSubjectWriter().write,
       );
     }

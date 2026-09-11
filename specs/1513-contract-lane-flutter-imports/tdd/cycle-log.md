@@ -24,4 +24,29 @@
   - `behavior_test_writer.dart`: `_packageSubjectImport` → public static
     `packageSubjectImportFor` (instance call site updated, behavior equal).
   - `gen_command.dart`: `_writersFor` contract branch threads `flutterTest`.
-- **Result**: pending green run.
+- **GREEN** (all suites run after the fix):
+  - `dart test test/plugins/tdd/services/bug_1513_contract_lane_flutter_imports_test.dart`
+    → `+10: All tests passed!` (B1–B6, B8; B8 compares byte-for-byte against
+      the committed pre-fix golden
+      `test/fixtures/baseline_outputs/bug_1513_contract_default_render.txt`
+      — the pure-Dart default is unchanged).
+  - `dart test test/plugins/tdd/commands/bug_1513_contract_writers_threading_test.dart`
+    → `+2: All tests passed!` (B7a flutter fixture emits flutter_test +
+      package subject URI; B7b pure-Dart fixture keeps package:test).
+  - Neighbors (consumers of the touched surfaces):
+    `contract_kind_1007_test.dart` (the relative-import pin — its fixture
+    has no pubspec, the promoted helper returns null, the relative fallback
+    keeps it green), `bug_1443_void_contract_seam_test.dart`,
+    `bug_1363_contract_stub_dup_args_test.dart`,
+    `bug_1458_pubspec_comment_flutter_test.dart` → `+29: All tests passed!`;
+    `gen_command_test.dart`, `gen_namespacing_827_test.dart`,
+    `bug_912_widget_shell_and_finders_test.dart` → `+8: All tests passed!`.
+  - `dart analyze` on the three changed lib files + the two new test files →
+    `No issues found!`; `dart format` applied (3 files reformatted).
+- **Mutation sampling** (rubric fallback, no CI mutation gate):
+  - M1 — threading removed (`ContractTestWriter(flutterTest: flutterTest)`
+    → `const ContractTestWriter()` in `_writersFor`): B7a RED → **killed**.
+  - M2 — default drift is covered by B8's byte-for-byte golden (any change
+    to the default render surface fails SC-5 immediately).
+- **Refactor**: none needed — the fix is the promotion itself (one source of
+  truth); templates interpolate shared getters, no duplication left.
