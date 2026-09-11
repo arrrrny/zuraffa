@@ -133,6 +133,74 @@ Expected: true
     );
   });
 
+  group('classifyReproofFailure — poison test-name progress line (bug #1524)', () {
+    // The progress line `dart test` prints for the classifier's OWN passing
+    // test above (the group + test name quote the issue #1333 signature).
+    // Every full-suite re-proof transcript contains it — it must never be
+    // crash evidence for a genuinely red re-proof.
+    const poisonProgressLine =
+        '10:22 +2918 ~1: test/plugins/tdd/reproof_failure_classifier_test.dart: '
+        'classifyReproofFailure — infra tier (FR-1 / AS-5) the issue #1333 '
+        'signature: "Cannot retrieve length of file" + dart_test.kernel .dill '
+        'errno 2';
+
+    test('hasKernelCacheSignature ignores a reporter progress line', () {
+      expect(hasKernelCacheSignature(poisonProgressLine), isFalse);
+    });
+
+    test('a genuine red re-proof with the poison line stays a regression', () {
+      const transcript = '''
+$poisonProgressLine
+00:01 +2918 -1: test/some_test.dart: a real regression [E]
+  Expected: 2
+    Actual: 1
+00:01 +2918 -1: Some tests failed.
+''';
+      final cls = classifyReproofFailure(
+        exitCode: 1,
+        output: transcript,
+        startedProcess: true,
+      );
+      expect(cls, ReproofFailureClass.regression);
+    });
+
+    test('kernelCacheSignatureLine finds no signature in a poisoned red', () {
+      const transcript = '''
+$poisonProgressLine
+00:01 +2918 -1: test/some_test.dart: a real regression [E]
+  Expected: 2
+    Actual: 1
+00:01 +2918 -1: Some tests failed.
+''';
+      expect(kernelCacheSignatureLine(transcript), isNull);
+    });
+
+    test('the canonical crash line is still infra next to the poison line', () {
+      // Progress-line skipping must not swallow genuine crash evidence.
+      const transcript = '''
+00:00 +2918: loading test/probe_test.dart
+Failed to load "test/probe_test.dart":
+Cannot retrieve length of file: /tmp/dart_test.kernel./probe_test.dart_.dill (errno 2)
+$poisonProgressLine
+''';
+      final cls = classifyReproofFailure(
+        exitCode: 255,
+        output: transcript,
+        startedProcess: true,
+      );
+      expect(cls, ReproofFailureClass.infraRunner);
+    });
+
+    test('bare phrase without crash evidence on the same line is not infra', () {
+      expect(
+        hasKernelCacheSignature(
+          'a quoted log says: cannot retrieve length of file — nothing else',
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('parseFailingTestNames', () {
     test('extracts sorted de-duped names from [E] lines', () {
       const transcript = '''
