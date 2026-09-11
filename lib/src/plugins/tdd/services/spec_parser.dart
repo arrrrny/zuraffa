@@ -342,6 +342,10 @@ class SpecParser {
     );
     final lines = blanked.split('\n');
     var inScenario = false;
+    // Feature 1484: whether the walk is inside an FR block — an FR
+    // header through the next [_endsFrBlock] boundary. Only there does
+    // `**Type**: manual` carry the FR-side exemption meaning.
+    var inFrBlock = false;
     var scenarioLine = 0;
     var aIdx = 0;
     for (var i = 0; i < lines.length; i++) {
@@ -350,7 +354,16 @@ class SpecParser {
       if (_scenarioHeader.hasMatch(line)) {
         aIdx += 1;
         inScenario = true;
+        inFrBlock = false;
         scenarioLine = lineNo;
+        continue;
+      }
+      if (_frLine(line) != null) {
+        // An FR header opens its block (the boundary the FR routing
+        // walk uses); the block's continuation lines are FR-owned. The
+        // scenario state is untouched — an FR bullet inside an open
+        // scenario block reads exactly as it did before.
+        inFrBlock = true;
         continue;
       }
       // Any markdown heading that is not a scenario header ends the
@@ -358,6 +371,7 @@ class SpecParser {
       // belongs to no numbered scenario (round-2 review fix 5).
       if (line.trimLeft().startsWith('#')) {
         inScenario = false;
+        inFrBlock = false;
         continue;
       }
       final m = _typeMarkerLine.firstMatch(line);
@@ -366,10 +380,12 @@ class SpecParser {
         // Feature 1484: `**Type**: manual` outside any numbered
         // scenario block is the FR-side manual exemption — an FR block
         // continuation line the FR routing walk ([parseFrRoutings])
-        // owns, never a misplaced scenario marker. Any OTHER kind
-        // outside a scenario block stays the misplaced-marker refusal
-        // (round-2 review fix 5).
-        if (m.group(1)!.toLowerCase() == 'manual') continue;
+        // owns, never a misplaced scenario marker. The exemption is
+        // gated by FR-block ownership: outside an FR block it stays the
+        // misplaced-marker refusal. Any OTHER kind outside a scenario
+        // block stays the misplaced-marker refusal too (round-2 review
+        // fix 5).
+        if (inFrBlock && m.group(1)!.toLowerCase() == 'manual') continue;
         throw StateError(
           'spec line $lineNo carries a `**Type**` marker outside any '
           'numbered scenario block.\n'
@@ -1756,6 +1772,13 @@ class SpecParser {
       var manualMarker = false;
       int? markerLine;
       var typeMarkerSeen = false;
+      // Issue #1484 (review fix): the FIRST `traces:` line of the block
+      // binds, even when its tokens all drop as signature-shaped. The
+      // old `tokens.isEmpty` guard let a LATER `traces:` line overwrite
+      // that first (empty) binding — while [parseFrContractTraces] keeps
+      // it — so plan could derive a unit row whose traceability binding
+      // was empty.
+      var traceSeen = false;
       var tokens = const <String>[];
       for (var j = i + 1; j < lines.length; j++) {
         if (_endsFrBlock(lines[j])) break;
@@ -1772,9 +1795,12 @@ class SpecParser {
           }
           continue;
         }
-        if (tokens.isEmpty) {
+        if (!traceSeen) {
           final t = _tracesLine.firstMatch(lines[j]);
-          if (t != null) tokens = traceTokens(t.group(1)!);
+          if (t != null) {
+            traceSeen = true;
+            tokens = traceTokens(t.group(1)!);
+          }
         }
       }
       routings.add(

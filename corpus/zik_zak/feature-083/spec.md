@@ -2,6 +2,12 @@
 
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Domain**:
+- `FormValidator`: `validate(Map<String, dynamic>) -> bool`
+- `TicketSubmitter`: `submit(Ticket) -> void`
+
 ## Functional Requirements
 
 - **FR-001**: The system MUST validate the 083 form before submit.

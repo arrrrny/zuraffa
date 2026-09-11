@@ -263,8 +263,9 @@ class PlanCommand extends Command<void> {
       if (r.manualMarker) continue;
       print(
         'zfa tdd plan: WARNING: ${r.frId} derives no unit behaviour — no '
-        '`traces:` binding and no `**Type**: manual` marker; recorded as '
-        'a manual declaration in tdd/traceability.md.',
+        'surviving `traces:` binding (a traces line whose tokens are all '
+        'signature-shaped counts as unbound) and no `**Type**: manual` '
+        'marker; recorded as a manual declaration in tdd/traceability.md.',
       );
       print(
         '  --> fix: add a `traces:` line naming a declared contract row '

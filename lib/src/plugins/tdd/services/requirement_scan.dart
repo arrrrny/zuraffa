@@ -112,6 +112,17 @@ class RequirementScanner {
   /// The inline non-automatable declaration: `(manual: <owner>)`.
   static final RegExp _manualMarker = RegExp(r'\(manual:\s*([^)]*)\)');
 
+  /// Fenced code blocks (```` ``` ```` … ```` ``` ````) — the exact
+  /// pattern `SpecParser` walks with: a spec's "how to write a spec"
+  /// example is documentation, not a declaration. Blanking mirrors the
+  /// parser's walks so a fenced FR example neither becomes a statement
+  /// the gate demands a row for nor is derivable from inside the fence
+  /// (feature 1484 review fix).
+  static final RegExp _fencedCodeBlock = RegExp(
+    r'^[ \t]*```[^\r\n]*(?:\r?\n|$)[\s\S]*?^[ \t]*```[ \t]*\r?$',
+    multiLine: true,
+  );
+
   /// Scan [specMd] into requirement statements.
   ///
   /// Acceptance scenarios numbered `1. **Given**` are statements too:
@@ -125,7 +136,15 @@ class RequirementScanner {
     final seen = <String, RequirementStatement>{};
     final duplicates = <RequirementStatement>[];
     var scenarioIndex = 0;
-    final lines = specMd.split('\n');
+    // Fenced code blocks are documentation, not declarations (the same
+    // doctrine the parser's walks apply): each fenced span is blanked to
+    // equivalent newlines so every surviving statement's 1-based line
+    // number stays accurate.
+    final blanked = specMd.replaceAllMapped(
+      _fencedCodeBlock,
+      (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
+    );
+    final lines = blanked.split('\n');
 
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i].trim();
@@ -294,7 +313,9 @@ class SpecContractHash {
 /// render `manual` in the main table (never GAP), appear under a
 /// dedicated `## manual:` section with their full text, and count in
 /// the machine block's `manual:`/`fr-manual:` totals. Only ids the scan
-/// actually carries as functional statements are counted.
+/// actually carries as functional statements are counted, and an FR
+/// that also carries the inline `(manual: <owner>)` signal counts once
+/// (the acceptance-side total) instead of doubling.
 class TraceabilityMatrix {
   const TraceabilityMatrix();
 
@@ -311,9 +332,17 @@ class TraceabilityMatrix {
     }
     // Feature 1484: FR manual declarations are covered manual
     // declarations — they count in the machine block alongside the
-    // acceptance-side `(manual:)` statements (bug #846).
+    // acceptance-side `(manual:)` statements (bug #846). An FR that
+    // ALSO carries the inline `(manual: <owner>)` signal is already
+    // counted by [acManualCount] and rendered by the main table's
+    // status cell, so it is excluded here — counting it twice deflated
+    // `automated:` (review fix).
     final frManualIds = frManualTags.keys
-        .where((id) => scan.statements.any((s) => s.id == id && s.isFunctional))
+        .where(
+          (id) => scan.statements.any(
+            (s) => s.id == id && s.isFunctional && !s.isManual,
+          ),
+        )
         .toSet();
     final acManualCount = scan.statements.where((s) => s.isManual).length;
     final manualTotal = acManualCount + frManualIds.length;

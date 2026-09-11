@@ -2,6 +2,11 @@
 
 # Spec: 116
 
+## Layer Contracts
+
+**Domain**:
+- `LaneShipper`: `ship(String) -> void`
+
 ## Functional Requirements
 
 - **FR-001**: The system MUST ship the 116 lane.

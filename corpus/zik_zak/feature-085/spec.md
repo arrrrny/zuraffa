@@ -2,6 +2,12 @@
 
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Domain**:
+- `FormValidator`: `validate(Map<String, dynamic>) -> bool`
+- `SessionSubmitter`: `submit(Session) -> void`
+
 ## Functional Requirements
 
 - **FR-001**: The system MUST validate the 085 form before submit.

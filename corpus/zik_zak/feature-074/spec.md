@@ -2,6 +2,12 @@
 
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Domain**:
+- `Guardado`: `guardar(Profile) -> void`
+- `Restaurador`: `restaurar() -> List<Profile>`
+
 ## Funktionale Anforderungen
 
 - **FR-001**: El sistema DEBE guardar el estado de 074.

@@ -2,6 +2,12 @@
 
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Domain**:
+- `Total`: `compute(List<Report>) -> num`
+- `Counter`: `count(List<Report>) -> int`
+
 ## Functional Requirements
 
 - **FR-001**: The system MUST compute the 096 total.

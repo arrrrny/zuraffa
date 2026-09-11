@@ -106,6 +106,18 @@ void main() {
           isNot(contains('U1')),
           reason: 'the unbound FR derives no unit row:\n$list',
         );
+        // Review fix: the 1484 defaulted-FR warning must not claim the
+        // block has NO `traces:` line — it has one whose token was
+        // dropped as signature-shaped (the warning just above says so).
+        // Two adjacent, contradicting warnings send the author looking
+        // in the wrong place.
+        expect(
+          out,
+          contains(
+            'zfa tdd plan: WARNING: FR-001 derives no unit behaviour — no '
+            'surviving `traces:` binding',
+          ),
+        );
         expect(
           out,
           isNot(contains('[fallback:')),

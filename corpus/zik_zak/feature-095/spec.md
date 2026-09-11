@@ -2,6 +2,12 @@
 
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Domain**:
+- `Total`: `compute(List<Ticket>) -> num`
+- `Counter`: `count(List<Ticket>) -> int`
+
 ## Functional Requirements
 
 - **FR-001**: The system MUST compute the 095 total.

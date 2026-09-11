@@ -2,6 +2,12 @@
 
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Domain**:
+- `Guardado`: `guardar(Notification) -> void`
+- `Restaurador`: `restaurar() -> List<Notification>`
+
 ## Exigences Fonctionnelles
 
 - **FR-001**: El sistema DEBE guardar el estado de 069.

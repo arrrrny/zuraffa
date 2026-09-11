@@ -2,6 +2,12 @@
 
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Domain**:
+- `Guardado`: `guardar(Message) -> void`
+- `Restaurador`: `restaurar() -> List<Message>`
+
 ## Funktionale Anforderungen
 
 - **FR-001**: El sistema DEBE guardar el estado de 068.

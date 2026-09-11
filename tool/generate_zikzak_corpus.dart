@@ -378,6 +378,12 @@ String nestedAcBody(String title, int index, {String eol = '\n'}) {
   w('');
   w(kPin);
   w('');
+  w('## Layer Contracts');
+  w('');
+  w('**Domain**:');
+  w('- `FormValidator`: `validate(Map<String, dynamic>) -> bool`');
+  w('- `${entity}Submitter`: `submit($entity) -> void`');
+  w('');
   w('## Functional Requirements');
   w('');
   w('- **FR-001**: The system MUST validate the $title form before submit.');
@@ -417,6 +423,12 @@ String inlineProseBody(String title, int index, {String eol = '\n'}) {
   w('# Spec: $title');
   w('');
   w(kPin);
+  w('');
+  w('## Layer Contracts');
+  w('');
+  w('**Domain**:');
+  w('- `Total`: `compute(List<$entity>) -> num`');
+  w('- `Counter`: `count(List<$entity>) -> int`');
   w('');
   w('## Functional Requirements');
   w('');
@@ -534,6 +546,12 @@ String nonEnglishBody(String title, int index, {String eol = '\n'}) {
   w('# Especificación: $title');
   w('');
   w(kPin);
+  w('');
+  w('## Layer Contracts');
+  w('');
+  w('**Domain**:');
+  w('- `Guardado`: `guardar($entity) -> void`');
+  w('- `Restaurador`: `restaurar() -> List<$entity>`');
   w('');
   w(headings.$1);
   w('');
@@ -678,6 +696,11 @@ String _manualBody(String slug, String title, int index) {
 $kPin
 
 # Spec: $title
+
+## Layer Contracts
+
+**Domain**:
+- `LaneShipper`: `ship(String) -> void`
 
 ## Functional Requirements
 

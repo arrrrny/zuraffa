@@ -159,6 +159,32 @@ void main() {
       expect(routings[0].routesManual, isTrue);
       expect(routings[1].routesManual, isFalse);
     });
+
+    test('the FIRST traces: line wins even when its tokens all drop '
+        '(review fix)', () {
+      // A signature-only first binding is EMPTY — and stays empty: the
+      // binding scan (parseFrContractTraces) already keeps it, so the
+      // routing walk must not let a later `traces:` line silently
+      // overwrite it and derive a unit row with no traceability
+      // binding.
+      const twoTraces = '''
+- **FR-001**: The system MUST compute the total.
+  traces: `compute(x)`
+  traces: Formatter
+''';
+      expect(
+        SpecParser.parseFrContractTraces(twoTraces)['U1'],
+        isEmpty,
+        reason: 'the first `traces:` line binds (emptily)',
+      );
+      final r = SpecParser.parseFrRoutings(twoTraces).single;
+      expect(
+        r.traceTokens,
+        isEmpty,
+        reason: 'the routing walk reads the SAME first line',
+      );
+      expect(r.routesManual, isTrue);
+    });
   });
 
   group('unit derivation (feature 1484 routing)', () {
@@ -245,6 +271,58 @@ void main() {
       );
       expect(gaps, isEmpty);
     });
+
+    test('an FR-formatted line inside a fenced example is never a '
+        'statement (review fix)', () {
+      // The parser's FR walk blanks fenced code blocks ("documentation,
+      // not declarations"); the scanner must agree, or a fenced example
+      // becomes a requirement the gate demands a row for — with a
+      // remedy (`add traces:` / `**Type**: manual`) that the same fence
+      // doctrine blanks, so the refusal dead-ends on its own advice.
+      const fenced = '''
+# Spec: 1484-probe
+
+## Layer Contracts
+
+**Function**:
+- `Formatter`: `format(Template) -> String`
+
+## Functional Requirements
+
+- **FR-001**: The system MUST compute the total.
+  traces: Formatter
+
+```markdown
+- **FR-002**: The system MUST render documentation only.
+```
+
+## Acceptance Scenarios
+
+1. **Given** the app **When** it starts **Then** the total equals 42.
+''';
+      final scan = const RequirementScanner().scan(fenced);
+      expect(
+        scan.statements.map((s) => s.id),
+        isNot(contains('FR-002')),
+        reason: 'fenced documentation is not a declaration',
+      );
+      final fr1 = scan.statements.singleWhere((s) => s.id == 'FR-001');
+      expect(
+        fenced.split('\n')[fr1.lineNo - 1],
+        contains('FR-001'),
+        reason: 'blanking the fence preserves every spec line number',
+      );
+      final behaviors = const SpecParser().parse('1484-probe', fenced);
+      expect(
+        const CoverageGate().evaluate(
+          scan,
+          behaviors,
+          manualFrIds: SpecParser.manualFrCriterionIds(fenced),
+        ),
+        isEmpty,
+        reason: 'no gap for the fenced id — plan must not exit 2 on docs',
+      );
+    });
   });
 
   group('traceability matrix (feature 1484 manual section)', () {
@@ -297,6 +375,41 @@ void main() {
       );
       expect(md, isNot(contains('## manual:')));
       expect(md, contains('fr-manual: 0'));
+    });
+
+    test('an FR carrying an inline (manual:) AND the FR manual routing '
+        'counts once (review fix)', () {
+      // The id is already in the acceptance-side `(manual:)` total and
+      // its owner renders in the main table — counting it again as an
+      // FR-manual declaration deflated `automated:`.
+      const overlap = '''
+# Spec: 1484-probe
+
+## Functional Requirements
+
+- **FR-001**: The system MUST rotate the signing key. (manual: qa)
+  **Type**: manual
+- **FR-002**: The system MUST compute the total.
+  traces: Formatter
+''';
+      final scan = const RequirementScanner().scan(overlap);
+      final md = const TraceabilityMatrix().render(
+        feature: '1484-probe',
+        scan: scan,
+        behaviors: const [],
+        frManualTags: const {'FR-001': '**Type**: manual'},
+      );
+      expect(md, contains('statements: 2'));
+      expect(md, contains('manual: 1'));
+      expect(md, contains('fr-manual: 0'));
+      expect(md, contains('automated: 1'));
+      expect(
+        md,
+        isNot(contains('## manual:')),
+        reason: 'the (manual:) FR is not repeated in the manual section',
+      );
+      final row = md.split('\n').firstWhere((l) => l.startsWith('| FR-001 '));
+      expect(row, contains('manual (owner: qa)'));
     });
   });
 }
