@@ -38,6 +38,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/journal.dart';
 import '../tdd_plugin.dart';
 import 'run_driver_core.dart';
@@ -85,19 +86,27 @@ class ProveCommand extends Command<void> {
         invocation,
       );
     }
-    final feature = stripSpecsPrefix(rest.first);
-    validateFeatureSegment(feature, invocation);
+    validateFeatureSegment(rest.first, invocation);
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
         ? projectFlag
         : ProjectRoot.find(anchorDir: 'specs');
 
-    final featureDir = p.join(projectRoot, 'specs', feature);
+    // Issue #1471: resolve the positional reference through the shared
+    // resolver (pin included) so a bug directory
+    // (`.specify/bugs/<slug>`) is walked where it really lives instead of
+    // a fabricated `specs/<slug>`.
+    final resolved = TddFeaturePaths.resolveWithPin(
+      projectRoot: projectRoot,
+      featureRef: rest.first,
+    );
+    final feature = resolved.name;
+    final featureDir = resolved.dir;
     if (!await Directory(featureDir).exists()) {
       print(
         'zfa tdd $label: no feature directory at '
-        '${p.relative(featureDir, from: projectRoot)} (project root: '
-        '$projectRoot)',
+        '${TddFeaturePaths.displayDir(cwd: projectRoot, dir: featureDir)} '
+        '(project root: $projectRoot)',
       );
       exitCode = _exitRunnerError;
       return;
@@ -107,6 +116,7 @@ class ProveCommand extends Command<void> {
     final journal = await const JournalReader().read(
       feature: feature,
       projectRoot: projectRoot,
+      featureDir: featureDir,
     );
     final lastProve = journal.lastProve;
     final baseline = lastProve?.fingerprints;

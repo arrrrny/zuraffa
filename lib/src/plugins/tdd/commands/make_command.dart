@@ -70,6 +70,7 @@ import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+
 import '../../../cli/exit_protocol.dart';
 
 import '../models/generation_plan.dart';
@@ -77,6 +78,7 @@ import '../models/red_classification.dart';
 import '../models/routing.dart';
 import '../services/artifact_registry.dart';
 import '../services/arg_placeholder.dart';
+import '../services/born_green.dart';
 import '../services/composition_planner.dart';
 import '../services/composition_targets.dart';
 import '../services/cycle_evidence.dart';
@@ -84,6 +86,7 @@ import '../services/dependency_override_preflight.dart';
 import '../services/subject_shape.dart';
 import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/generation_planner.dart';
 import '../services/journal.dart';
 import '../services/nuance_receipts.dart';
@@ -93,6 +96,7 @@ import '../services/run_baseline_cache.dart';
 import '../services/skin_authoring.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/runner.dart';
+import '../services/declared_routing.dart';
 import '../services/spec_parser.dart';
 import '../services/test_list_reader.dart';
 import '../services/suite_guard.dart';
@@ -220,6 +224,22 @@ class MakeCommand extends Command<void> {
           '--author; the file must not carry the scaffold marker and must '
           'contain at least one expect/expectLater call.',
     );
+    argParser.addFlag(
+      'born-green',
+      help:
+          'The issue #1411 born-green hand transition — the no-prior-red '
+          'analogue of verify-red\'s --re-certify (issue #1162): certify '
+          'green for a behavior whose DESIGNED hand step (real outcome '
+          'assertion, vacuous-guard marker removed, subject '
+          'hand-implemented) was completed BEFORE the first red '
+          'certification. Requires the target test to PASS an honest '
+          're-run, the vacuous-guard marker to be absent, the '
+          '`<id>:hand` attestation header to be present, and a '
+          'non-placeholder subject; refuses safe-failure otherwise. '
+          'Inert when certified red already exists (the red-first '
+          'ordering owns the behavior).',
+      negatable: false,
+    );
   }
 
   final TddPlugin plugin;
@@ -240,7 +260,7 @@ class MakeCommand extends Command<void> {
   String get invocation =>
       'zfa tdd make [<behavior-id>] [--feature <name>] '
       '[--project <path>] [--zfa-bin <path>] '
-      '[--author --finders-file <path>]';
+      '[--author --finders-file <path>] [--born-green]';
 
   @override
   Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
@@ -268,6 +288,19 @@ class MakeCommand extends Command<void> {
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
 
+    // Issue #1471: the --feature reference may name a bug directory
+    // (`.specify/bugs/<slug>`) that lives outside `specs/`. The canonical
+    // NAME labels the summary lines; the canonical REFERENCE is what a
+    // spawned child (`zfa tdd view ... --feature`) must resolve back.
+    final resolvedFeature = featureFlag != null && featureFlag.isNotEmpty
+        ? TddFeaturePaths.resolveWithPin(
+            projectRoot: cwd,
+            featureRef: featureFlag,
+          )
+        : null;
+    final featureRef = resolvedFeature?.ref ?? featureFlag;
+    final featureLabel = resolvedFeature?.name ?? featureFlag;
+
     // -----------------------------------------------------------------
     // Issue #1303 preflight: a stale `dependency_overrides` path entry
     // makes every pipeline step die with a raw version-solving dump
@@ -288,7 +321,7 @@ class MakeCommand extends Command<void> {
       _printSummary(
         behavior: behavior,
         outcome: MakeOutcome.preflightRed,
-        feature: featureFlag ?? 'unknown',
+        feature: featureLabel ?? 'unknown',
       );
       exitCode = 3;
       return;
@@ -329,7 +362,7 @@ class MakeCommand extends Command<void> {
       _printSummary(
         behavior: behaviorId ?? '-',
         outcome: MakeOutcome.runnerError,
-        feature: featureFlag ?? 'unknown',
+        feature: featureLabel ?? 'unknown',
       );
       exitCode = 1;
       return;
@@ -351,7 +384,7 @@ class MakeCommand extends Command<void> {
       _printSummary(
         behavior: behaviorId ?? '-',
         outcome: e.outcome,
-        feature: e.feature ?? featureFlag ?? 'unknown',
+        feature: e.feature ?? featureLabel ?? 'unknown',
       );
       exitCode = 1;
       return;
@@ -373,8 +406,14 @@ class MakeCommand extends Command<void> {
     //    cycle-log BEFORE any generation — so the refusal defers to the
     //    authoring block for exactly that shape (and only that shape:
     //    the block itself re-checks the marker).
+    //    Issue #1411: under --born-green the refusal defers to the
+    //    born-green transition block — the hand-first ordering's
+    //    explicit recovery — and the plain refusal OFFERS the exact
+    //    `--born-green` command when the attested hand-first shape
+    //    (marker absent + header present) is on disk.
     // ---------------------------------------------------------------
     final authorMode = argResults?['author'] as bool? ?? false;
+    final bornGreenFlag = argResults?['born-green'] as bool? ?? false;
     final findersFileFlag = argResults?['finders-file'] as String?;
     final authorTestFile = File(testPath);
     final testIsScaffolded =
@@ -384,12 +423,42 @@ class MakeCommand extends Command<void> {
       target.featureDir,
       record.behaviorId,
     );
-    if (!certifiedRed && !(authorMode && testIsScaffolded)) {
+    // Issue #1411: the hand-first shape probe over the CURRENT test
+    // bytes — captured once (null when the file is missing/unreadable)
+    // and shared by the offer below and the transition block.
+    String? handFirstTestContent;
+    if (!certifiedRed && authorTestFile.existsSync()) {
+      try {
+        handFirstTestContent = await authorTestFile.readAsString();
+      } on FileSystemException {
+        handFirstTestContent = null;
+      }
+    }
+    final handFirstAttested =
+        handFirstTestContent != null &&
+        !contentCarriesVacuousGuardMarker(handFirstTestContent) &&
+        contentCarriesHandStepHeader(handFirstTestContent, record.behaviorId);
+    if (!certifiedRed && !(authorMode && testIsScaffolded) && !bornGreenFlag) {
       print(
         'zfa tdd make: behavior "${record.behaviorId}" has no certified-red '
         'evidence in cycle-log.md. Run `zfa tdd verify-red '
         '${record.behaviorId}` first.',
       );
+      // Issue #1411: the born-green OFFER. The refusal keeps its
+      // original first line (the red-first remedy stands for the
+      // red-first ordering); the offer names the exact recovery command
+      // when the attested hand-first shape is on disk (compare issue
+      // #1373's UX gap).
+      if (handFirstAttested) {
+        print(
+          '   born-green hand transition (issue #1411): the test carries '
+          'the ${record.behaviorId}:hand attestation and the vacuous-guard '
+          'marker is absent — if the designed hand step was completed '
+          'before the first red certification (the target test passes '
+          'now), certify green with:',
+        );
+        print('   --> zfa tdd make ${record.behaviorId} --born-green');
+      }
       _printSummary(
         behavior: record.behaviorId,
         outcome: MakeOutcome.notCertifiedRed,
@@ -586,7 +655,7 @@ class MakeCommand extends Command<void> {
       );
       print(
         '   authored red certified (assertion) — red evidence appended to '
-        'specs/${target.featureName}/tdd/cycle-log.md',
+        '${TddFeaturePaths.displayDir(cwd: cwd, dir: target.featureDir)}/tdd/cycle-log.md',
       );
       try {
         await NuanceReceipts(
@@ -603,7 +672,7 @@ class MakeCommand extends Command<void> {
           recordedBy: 'zfa tdd make --author',
         );
         print(
-          '   hand-delta receipt recorded in specs/${target.featureName}/'
+          '   hand-delta receipt recorded in ${TddFeaturePaths.displayDir(cwd: cwd, dir: target.featureDir)}/'
           'tdd/provenance-ledger.json',
         );
       } on NuanceReceiptException catch (e) {
@@ -648,6 +717,248 @@ class MakeCommand extends Command<void> {
         feature: target.featureName,
       );
       exitCode = 1;
+      return;
+    }
+
+    // ---------------------------------------------------------------
+    // 3b'. Issue #1411: the born-green hand transition — the
+    //      no-prior-red analogue of verify-red's --re-certify (issue
+    //      #1162). The designed hand step (guide §5a item 1: replace
+    //      the vacuous-guard test with real assertions, hand-implement
+    //      the subject) may be completed BEFORE the pipeline's first
+    //      pass, leaving NO certified red: verify-red grades the
+    //      already-passing test unexpected-green and the red-first gate
+    //      above refuses — the catch-22 with no supported ordering.
+    //      The EXPLICIT --born-green flag certifies green from an
+    //      honestly re-run PASSING target test, gated safe-failure-first
+    //      on the full hand-first shape:
+    //        (a) the test is not vacuous (the vacuous-guard marker is
+    //            absent and a real assertion set remains) — the hand
+    //            step's test side is DONE;
+    //        (b) the test carries the `U<n>:hand` attestation header —
+    //            the machine-greppable sibling of the scaffolded /
+    //            vacuous-guard markers;
+    //        (c) the subject is NOT a born-green placeholder (the
+    //            #1036 class: a throwing stub or vacuous scaffold whose
+    //            paired test passes proves nothing);
+    //        (d) the target test PASSES the honest re-run.
+    //      Every failed check refuses with the exact remedy (never a
+    //      silent pass); success appends green evidence in the EXISTING
+    //      format (the #694/#741 skip pattern: empty generation block,
+    //      honest zero suite numbers, subject-hash bound) and exits 0
+    //      with the EXPLICIT `born-green` outcome.
+    //      With certified red present the flag is INERT — the red-first
+    //      ordering owns the behavior unchanged (US2.AC1) — and the
+    //      --author flow owns the scaffolded shape above, so the block
+    //      requires !authorMode (the authoring block falls through on
+    //      success with a stale `certifiedRed` local).
+    // ---------------------------------------------------------------
+    if (bornGreenFlag && !certifiedRed && !authorMode) {
+      final bornTestContent = handFirstTestContent;
+      // (a) The vacuity gate: the marker-present (or assertion-free)
+      //     test is the hand step's INPUT shape, not its end state.
+      if (bornTestContent == null || contentIsVacuousGreen(bornTestContent)) {
+        print(
+          'zfa tdd make: behavior "${record.behaviorId}" --born-green '
+          'refused: the test is VACUOUS-GREEN — the assertion set is '
+          'still the UnimplementedError guard (the $vacuousGuardMarker '
+          'marker is present), so the designed hand step is not complete '
+          '(issue #1411).',
+        );
+        print(
+          '   --> fix: replace the guard with an assertion on the '
+          'observable outcome, remove the marker, add the attestation '
+          'header, then re-run `zfa tdd make ${record.behaviorId} '
+          '--born-green`.',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.vacuousGreen,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      // (b) The attestation gate: the header is the hand author's
+      //     machine-readable signature that THIS file went through the
+      //     designed hand step — without it --born-green would be a
+      //     blanket skip-red escape for every never-red behavior.
+      if (!contentCarriesHandStepHeader(bornTestContent, record.behaviorId)) {
+        print(
+          'zfa tdd make: behavior "${record.behaviorId}" --born-green '
+          'refused: the test does not carry the <id>:hand attestation '
+          'header (issue #1411) — the born-green transition certifies '
+          'only the DESIGNED hand step (real outcome assertion, marker '
+          'removed, subject hand-implemented).',
+        );
+        print('   --> fix: add the attestation header line to the test file');
+        print('       ${handStepHeader(record.behaviorId)}');
+        print(
+          '       then re-run `zfa tdd make ${record.behaviorId} '
+          '--born-green`.',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.notCertifiedRed,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      // (c) The #1036 subject gate: a passing test against a throwing
+      //     stub or vacuous scaffold is the born-green vacuity — the
+      //     exact class the skip transition refuses.
+      final subjectPath = p.isAbsolute(record.subjectPath)
+          ? record.subjectPath
+          : p.join(cwd, record.subjectPath);
+      String? bornSubjectContent;
+      try {
+        bornSubjectContent = await File(subjectPath).readAsString();
+      } on FileSystemException {
+        bornSubjectContent = null;
+      }
+      if (bornSubjectContent != null &&
+          subjectIsBornGreenPlaceholder(bornSubjectContent)) {
+        print(
+          'zfa tdd make: behavior "${record.behaviorId}" --born-green '
+          'refused: the subject is still a born-green PLACEHOLDER (a '
+          'throwing stub or vacuous scaffold — the issue #1036 class): '
+          'the passing test proves nothing about the behavior.',
+        );
+        print(
+          '   --> fix: hand-implement the subject\'s real body, then '
+          're-run `zfa tdd make ${record.behaviorId} --born-green`.',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.vacuousGreen,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      // (d) The honest evidence run: the transition certifies from the
+      //     passing transcript, never from the driver's report.
+      final bornRun = await _runTargetTest(
+        runner: runner,
+        singleTemplate: singleTemplate,
+        fileTemplate: fileTemplate,
+        testPath: testPath,
+        testName: testName,
+        workingDirectory: cwd,
+        timeout: timeoutOverride,
+      );
+      if (bornRun.timedOut) {
+        // Bug #742: the killed-child contract — runner-error, never a
+        // silent pass.
+        print(
+          'zfa tdd make: behavior "${record.behaviorId}" — the born-green '
+          'evidence run timed out: ${bornRun.output}',
+        );
+        print(
+          '   re-run with a larger --timeout <minutes> if this step '
+          'legitimately needs longer.',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.runnerError,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      if (singleTemplate.contains('--plain-name') && _noTestsRan(bornRun)) {
+        // Issue #1402: the zero-match guard — no signal, no
+        // certification.
+        print(
+          'zfa tdd make: behavior "${record.behaviorId}" — the born-green '
+          'evidence run ran zero tests; the transition cannot be '
+          'certified from this transcript.',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.runnerError,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      if (!bornRun.startedProcess || bornRun.exitCode != 0) {
+        // The honest red-first remedy: a failing test is exactly what
+        // verify-red certifies — the born-green transition never
+        // replaces an earnable red.
+        print(
+          'zfa tdd make: behavior "${record.behaviorId}" --born-green '
+          'refused: the target test FAILS — the born-green hand '
+          'transition certifies a genuinely passing test (issue '
+          '#1411).',
+        );
+        print(
+          '   --> fix: certify red honestly with `zfa tdd verify-red '
+          '${record.behaviorId}` (the red-first ordering), then re-run '
+          'make.',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.notCertifiedRed,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+      print(
+        '   born-green hand transition (issue #1411): the target test '
+        'passes, the vacuous-guard marker is absent, and the '
+        '${record.behaviorId}:hand attestation is present with no prior '
+        'red evidence — certifying green from the passing transcript.',
+      );
+      final bornLog = CycleLog(target.featureDir);
+      await bornLog.append(
+        CycleLogEntry(
+          behaviorId: record.behaviorId,
+          kind: CycleEntryKind.green,
+          runnerCommand: bornRun.command,
+          exitCode: bornRun.exitCode,
+          capturedOutput:
+              'issue #1411 born-green hand transition — the designed hand '
+              'step was completed before the first red certification '
+              '(hand-first ordering); the passing transcript below is the '
+              'green evidence bound to the current subject shape.\n'
+              '${bornRun.output}',
+          redEvidence:
+              'issue #1411 born-green hand transition — no prior red '
+              'evidence exists (the hand step preceded the first '
+              'certification); green certified from the passing target '
+              'test with the vacuous-guard marker absent and the '
+              '${record.behaviorId}:hand attestation header present',
+          subjectHash: await _subjectHashAt(cwd, record),
+          sourceCriterion: record.sourceCriterion,
+          testPath: record.testPath,
+          timestamp: DateTime.now().toUtc().toIso8601String(),
+          generationSteps: const [],
+          suiteBaselineFailures: 0,
+          suiteGuardFailures: 0,
+          suiteNewFailures: const [],
+        ),
+      );
+      // Issue #969 T003: the green evidence becomes self-certifying.
+      await TddGenerationReceipts.writeBestEffort(
+        projectRoot: cwd,
+        command: 'tdd make --born-green',
+        target: record.behaviorId,
+        feature: target.featureName,
+        files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
+      );
+      print(
+        '   green evidence appended to specs/${target.featureName}/tdd/'
+        'cycle-log.md',
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: MakeOutcome.bornGreen,
+        feature: target.featureName,
+      );
+      exitCode = 0;
       return;
     }
 
@@ -1062,6 +1373,7 @@ class MakeCommand extends Command<void> {
           record: record,
           featureDir: target.featureDir,
           featureName: target.featureName,
+          featureRef: featureRef ?? target.featureName,
           summary: summary,
         );
         if (composed == null) {
@@ -1224,6 +1536,40 @@ class MakeCommand extends Command<void> {
           exitCode = 1;
           return;
         }
+        // Issue #1407 — the make's analyze gate is ERRORS-ONLY. The plan's
+        // terminal `build` step runs `zfa build`, whose analyze stage
+        // (issues #395/#1035) refuses the tree on errors OR warnings; a
+        // pre-existing engine-lane warning (0 errors + N warnings) then
+        // failed the skin lane's make while the engine lane's own green
+        // receipt had accepted the same warning — cross-lane warning
+        // coupling, and 0 errors means the tree compiles. When the failed
+        // step IS the plan's terminal build step (the same per-behavior
+        // precondition the #737 guard uses) and its output proves the
+        // refusal was the gate's own verdict with 0 error(s) and >=1
+        // warning(s) (cross-checked through the shared
+        // `BuildCommand.countAnalyzerIssues` parser — the single #1035
+        // line-format contract), the warnings are LOGGED as non-blocking
+        // findings and the make PROCEEDS through its normal flow: the
+        // post-generation target test and the suite guard decide the
+        // outcome, never the warning. A build verdict carrying analyzer
+        // errors never reaches this arm — the #942 refusal below keeps
+        // the honest `generation-error` stop byte-identically. A project
+        // that relies on warnings being blocking opts back in via the
+        // TDD profile's machine-readable Keys block
+        // (`analyze-gate: warnings-blocking`), which skips this arm and
+        // restores the pre-#1407 grading unchanged. The dart analyze
+        // invocation, the build command, and the pipeline runner are
+        // untouched — this is only how the make interprets the verdict.
+        final warningsOnlyGateRefusal =
+            failed != null &&
+            idx == effectivePlan.steps.length - 1 &&
+            effectivePlan.steps[idx].args.isNotEmpty &&
+            effectivePlan.steps[idx].args.first == 'build' &&
+            !(await _profileWarningsBlocking(cwd)) &&
+            _isWarningsOnlyBuildGateRefusal(failed.output);
+        if (warningsOnlyGateRefusal) {
+          _logWarningsOnlyGateRefusal(failed.output);
+        }
         // Issue #737: the plan's terminal `build` step validates the
         // WHOLE project (build_runner + analyze over the full tree), so
         // it can exit non-zero for reasons this behavior's generation
@@ -1238,16 +1584,18 @@ class MakeCommand extends Command<void> {
         // the behavior's own test must pass right now. Anything else
         // keeps the honest `generation-error` stop (safe-failure,
         // never a silent pass).
-        final toleratedRun = await _toleratedTerminalBuildFailure(
-          runner: runner,
-          plan: effectivePlan,
-          result: pipelineResult,
-          singleTemplate: singleTemplate,
-          fileTemplate: fileTemplate,
-          testPath: testPath,
-          testName: testName,
-          workingDirectory: cwd,
-        );
+        final toleratedRun = warningsOnlyGateRefusal
+            ? null
+            : await _toleratedTerminalBuildFailure(
+                runner: runner,
+                plan: effectivePlan,
+                result: pipelineResult,
+                singleTemplate: singleTemplate,
+                fileTemplate: fileTemplate,
+                testPath: testPath,
+                testName: testName,
+                workingDirectory: cwd,
+              );
         if (toleratedRun != null) {
           print(
             '   terminal build step failed: `${failed!.command}` '
@@ -1261,7 +1609,7 @@ class MakeCommand extends Command<void> {
           );
           postRun = toleratedRun;
           buildStepTolerated = true;
-        } else {
+        } else if (!warningsOnlyGateRefusal) {
           // Issue #1322: a failed BUILD step whose output carries the
           // missing-builder-dependency class is corrupt project state, not
           // generation noise — grade it with the distinct outcome naming
@@ -1566,7 +1914,7 @@ class MakeCommand extends Command<void> {
       files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
     );
     print(
-      '   green evidence appended to specs/${target.featureName}/tdd/'
+      '   green evidence appended to ${TddFeaturePaths.displayDir(cwd: cwd, dir: target.featureDir)}/tdd/'
       'cycle-log.md',
     );
     _printSummary(
@@ -1672,9 +2020,14 @@ class MakeCommand extends Command<void> {
     }
     return SpecDeclarations(
       scenarios: SpecParser.parseScenarioTypeMarkers(specMd),
-      contractRows: {
-        for (final r in const SpecParser().parseContractRows(specMd)) r.name: r,
-      },
+      // Issue #1485: the declared rows include the feature's
+      // contracts/*.md rows — a trace bound at plan time resolves its
+      // declared signature at gen time (declare once, resolve
+      // everywhere). The resolver's API is unchanged.
+      contractRows: SpecParser.declaredContractRows(
+        specMd,
+        contractFiles: DeclaredRouting.contractFiles(featureDir),
+      ).rows,
       persistence: SpecParser.parsePersistenceDeclarations(specMd),
     );
   }
@@ -1708,6 +2061,12 @@ class MakeCommand extends Command<void> {
     required ArtifactRecord record,
     required String featureDir,
     required String featureName,
+    // Issue #1471: the canonical reference a spawned child re-resolves —
+    // for a bug directory this is `.specify/bugs/<slug>`, never the plain
+    // slug (which would resolve to `specs/<slug>`). Non-nullable: the only
+    // call site passes `featureRef ?? target.featureName`, and
+    // `target.featureName` is itself non-nullable.
+    required String featureRef,
     required BehaviorSummary summary,
   }) async {
     // Issue #939 — the widget lane: a widget-kind target's make path is
@@ -1738,7 +2097,10 @@ class MakeCommand extends Command<void> {
               'view',
               summary.behaviorId,
               '--feature',
-              summary.feature,
+              // Issue #1471: hand the child the reference that resolves to
+              // the REAL feature directory (a plain name for a specs
+              // feature, `.specify/bugs/<slug>` for a bug directory).
+              featureRef,
             ],
             purpose:
                 'generate the minimal view for behavior '
@@ -1858,6 +2220,130 @@ class MakeCommand extends Command<void> {
     );
     if (!run.startedProcess || run.exitCode != 0) return null;
     return run;
+  }
+
+  // -------------------------------------------------------------------
+  // Errors-only analyze gate (issue #1407): helpers for the make's
+  // interpretation of the terminal build step's analyze verdict.
+  // -------------------------------------------------------------------
+
+  /// The build command's analyze-gate refusal verdict (issue #1407). The
+  /// message has exactly ONE writer — the build command's post-build
+  /// analyze gate (issues #395/#1035):
+  /// `❌ dart analyze reported <E> error(s) and <W> warning(s) — generated
+  /// code does not compile cleanly.` — and carries the counts the gate
+  /// decided on. Reading the verdict from the gate's own line is what
+  /// keeps this an interpretation fix: the dart analyze invocation, the
+  /// build command, and everything the analyzer reports are unchanged.
+  static final RegExp _analyzeGateRefusalPattern = RegExp(
+    r'dart analyze reported (\d+) error\(s\) and (\d+) warning\(s\)',
+  );
+
+  /// Issue #1407: whether [buildOutput] is the build command's
+  /// analyze-gate refusal on WARNINGS ONLY — 0 error(s) and at least one
+  /// warning — i.e. the tree compiles (0 errors) and the build step
+  /// failed only because the #1035 gate treats warnings as fatal.
+  ///
+  /// Requires BOTH of:
+  ///
+  ///   - the gate's own refusal message naming 0 errors (the single
+  ///     writer documented on [_analyzeGateRefusalPattern]). A build
+  ///     failure without that message is some other failure class
+  ///     (build_runner, DDA routes, post-build verifiers) and keeps the
+  ///     existing #737/#942/#1322 grading unchanged;
+  ///   - the shared analyzer line-format parser
+  ///     ([BuildCommand.countAnalyzerIssues], the #1035 single contract)
+  ///     finds NO `error -` lines in the raw output. If the gate message
+  ///     and the parser disagree, the honest stop stands (safe-failure,
+  ///     never a silent pass).
+  static bool _isWarningsOnlyBuildGateRefusal(String buildOutput) {
+    final match = _analyzeGateRefusalPattern.firstMatch(buildOutput);
+    if (match == null) return false;
+    final errors = int.tryParse(match.group(1)!) ?? -1;
+    final warnings = int.tryParse(match.group(2)!) ?? -1;
+    if (errors != 0 || warnings < 1) return false;
+    return !BuildCommand.analyzeReportsError(buildOutput);
+  }
+
+  /// Issue #1407 (FR-002): log the warnings-only gate refusal — the
+  /// verdict line naming the counts and the errors-only policy, then the
+  /// analyzer `warning -` lines. A voluminous verdict logs a capped
+  /// sample plus a remainder count so the transcript stays readable.
+  static void _logWarningsOnlyGateRefusal(String buildOutput) {
+    final match = _analyzeGateRefusalPattern.firstMatch(buildOutput)!;
+    final warnings = int.parse(match.group(2)!);
+    print(
+      '   analyze gate: 0 error(s), $warnings warning(s) — warnings are '
+      'non-blocking (issue #1407, errors-only gate): the make proceeds.',
+    );
+    final warningLines = RegExp(
+      r'^\s*warning\s*-\s.*$',
+      multiLine: true,
+    ).allMatches(buildOutput).map((m) => m.group(0)!.trim()).toList();
+    const maxLogged = 10;
+    for (final line in warningLines.take(maxLogged)) {
+      print('   $line');
+    }
+    final remainder = warningLines.length - maxLogged;
+    if (remainder > 0) {
+      print('   ... $remainder more warning(s)');
+    }
+  }
+
+  /// Issue #1407 (FR-005): whether the project opted into the LEGACY
+  /// warnings-blocking strictness via the TDD profile's machine-readable
+  /// Keys block (`analyze-gate: warnings-blocking`). The default — absent
+  /// key, an explicit `analyze-gate: errors-only`, an unrecognized value,
+  /// or a missing/unreadable profile — is errors-only (fail-open to the
+  /// fix, never to the legacy refusal). Resolution order mirrors
+  /// [SingleTestRunner.loadSingleTemplate]: the Keys block first, then
+  /// the legacy frontmatter block.
+  Future<bool> _profileWarningsBlocking(String workingDirectory) async {
+    final file = File(
+      p.join(workingDirectory, SingleTestRunner.defaultProfilePath),
+    );
+    if (!await file.exists()) return false;
+    final String raw;
+    try {
+      raw = await file.readAsString();
+    } catch (_) {
+      return false;
+    }
+    String? value;
+    final keysBlock = RegExp(
+      r'##\s*Keys \(machine-readable\)\s*\n+```ya?ml\n(.*?)```',
+      dotAll: true,
+    ).firstMatch(raw);
+    if (keysBlock != null) {
+      value = _profileGateValue(keysBlock.group(1)!);
+    }
+    value ??= () {
+      final frontmatter = RegExp(
+        r'^---\n([\s\S]*?)\n---',
+        dotAll: true,
+      ).firstMatch(raw);
+      return frontmatter == null
+          ? null
+          : _profileGateValue(frontmatter.group(1)!);
+    }();
+    return value?.trim().toLowerCase() == 'warnings-blocking';
+  }
+
+  /// The `analyze-gate:` scalar in one profile yaml block, or null when
+  /// the block does not carry the key. Quoted scalars are unwrapped —
+  /// the same three-group shape [SingleTestRunner] uses for every
+  /// profile value (the profile canonically quotes its keys).
+  static String? _profileGateValue(String block) {
+    final match = RegExp(
+      r'''^\s*analyze-gate:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))''',
+      multiLine: true,
+    ).firstMatch(block);
+    if (match == null) return null;
+    for (var i = 1; i <= match.groupCount; i++) {
+      final g = match.group(i);
+      if (g != null && g.isNotEmpty) return g;
+    }
+    return null;
   }
 
   /// The issue #1402 targeted remedy (the issue's minimum expected fix):
@@ -2420,6 +2906,14 @@ class MakeCommand extends Command<void> {
     String? featureFlag,
   ) async {
     final registries = await _scanRegistries(cwd, featureFlag);
+    // Issue #1471: the label is the canonical NAME, never the raw
+    // `.specify/bugs/<slug>` reference.
+    final featureLabel = featureFlag != null && featureFlag.isNotEmpty
+        ? TddFeaturePaths.resolveWithPin(
+            projectRoot: cwd,
+            featureRef: featureFlag,
+          ).name
+        : featureFlag;
 
     if (behaviorId != null) {
       final matches = <_ResolvedTarget>[];
@@ -2449,10 +2943,10 @@ class MakeCommand extends Command<void> {
         throw MakeResolutionError(
           'unknown behavior id "$behaviorId". No matching record in any '
           'specs/<feature>/tdd/artifacts.json'
-          '${featureFlag != null && featureFlag.isNotEmpty ? ' for feature $featureFlag' : ''}. '
+          '${featureLabel != null ? ' for feature $featureLabel' : ''}. '
           'Run `zfa tdd gen $behaviorId` to materialize it.',
           outcome: MakeOutcome.runnerError,
-          feature: featureFlag,
+          feature: featureLabel,
         );
       }
       if (matches.length > 1) {
@@ -2528,10 +3022,18 @@ class MakeCommand extends Command<void> {
     String? featureFlag,
   ) async {
     if (featureFlag != null && featureFlag.isNotEmpty) {
-      final featureDir = p.join(cwd, 'specs', featureFlag);
+      // Issue #1471: the reference may name a bug directory
+      // (`.specify/bugs/<slug>`) outside `specs/` — resolve it through the
+      // shared resolver so the registry is read from the REAL directory and
+      // the entry is labelled with the canonical name (a plain basename).
+      final resolved = TddFeaturePaths.resolveWithPin(
+        projectRoot: cwd,
+        featureRef: featureFlag,
+      );
+      final featureDir = resolved.dir;
       return [
         _RegistryEntry(
-          featureFlag,
+          resolved.name,
           featureDir,
           ArtifactRegistry(featureDir: featureDir),
         ),
@@ -2608,7 +3110,16 @@ class MakeCommand extends Command<void> {
   ) async {
     List<Directory> dirs;
     if (featureFlag != null && featureFlag.isNotEmpty) {
-      dirs = [Directory(p.join(cwd, 'specs', featureFlag))];
+      // Issue #1471: resolve the reference so a bug directory
+      // (`.specify/bugs/<slug>`) is scanned at its real location.
+      dirs = [
+        Directory(
+          TddFeaturePaths.resolveWithPin(
+            projectRoot: cwd,
+            featureRef: featureFlag,
+          ).dir,
+        ),
+      ];
     } else {
       final specsDir = Directory(p.join(cwd, 'specs'));
       if (!await specsDir.exists()) return null;
@@ -2744,19 +3255,21 @@ class MakeCommand extends Command<void> {
   }
 }
 
-/// `--feature` lands in a filesystem path: keep it a single plain
-/// directory segment (mirrors verify_red_command.dart).
+/// `--feature` lands in a filesystem path: accept exactly the shapes
+/// [TddFeaturePaths] resolves (a plain segment, `specs/<name>`,
+/// `.specify/bugs/<slug>`, or an absolute path) and refuse the rest —
+/// `.`, `..`, a traversal shape, or a trailing separator (issue #1471).
 void _validateFeatureSegment(String feature) {
-  if (feature.contains('/') ||
-      feature.contains(r'\') ||
-      feature == '.' ||
-      feature == '..') {
-    throw UsageException(
-      'invalid --feature "$feature": expected a single spec directory name '
-          'such as 047-tdd-make, not a path.',
-      'zfa tdd make [<behavior-id>] [--feature <name>]',
-    );
+  if (TddFeaturePaths.isSupportedRef(feature) &&
+      !feature.endsWith('/') &&
+      !feature.endsWith(r'\')) {
+    return;
   }
+  throw UsageException(
+    'invalid --feature "$feature": expected a single spec directory name '
+        'such as 047-tdd-make, not a path.',
+    'zfa tdd make [<behavior-id>] [--feature <name>]',
+  );
 }
 
 class _RegistryEntry {

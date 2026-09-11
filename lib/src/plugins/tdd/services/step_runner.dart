@@ -255,6 +255,11 @@ class StepRunner {
   /// Run one step for [behaviorId] and map the sub-process result onto the
   /// step's contract. A spawn failure yields a `runner-error` StepResult,
   /// never a crash (U17).
+  ///
+  /// [feature] is the canonical feature REFERENCE the child resolves (issue
+  /// #1471): the driver hands the same reference it resolved, so a bug
+  /// feature (`.specify/bugs/<slug>`) resolves to the identical directory
+  /// in the child. For a plain feature name the reference IS the name.
   Future<StepResult> run({
     required String step,
     required String behaviorId,
@@ -406,11 +411,20 @@ class StepRunner {
                   // compose/make phase-2 and re-certified from the
                   // pipeline's actual output (green evidence appended by
                   // make itself).
+                  // `born-green` is the issue #1411 hand-first
+                  // transition — the designed hand step (real outcome
+                  // assertion, marker removed, subject
+                  // hand-implemented) completed BEFORE the first red
+                  // certification, certified green by the explicit
+                  // `--born-green` make flag from an honestly re-run
+                  // passing target test (green evidence appended by
+                  // make itself in the existing format).
                   outcome == 'green' ||
                       outcome == 'skipped' ||
                       outcome == 'green-with-failed-build' ||
                       outcome == 'adopted' ||
-                      outcome == 'adopted-placeholder'
+                      outcome == 'adopted-placeholder' ||
+                      outcome == 'born-green'
                 : outcome == 'clean' || outcome == 'refactored');
         return StepResult(
           step: step,
