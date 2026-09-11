@@ -91,6 +91,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: the dashboard exposes a pure view-model contract.
+  traces: Contract
 ''');
       expect(behaviors, hasLength(2));
       // A-behavior: UI intent -> widget. U-behavior: untouched -> unit.
@@ -128,6 +129,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: the login page exposes a loading indicator contract.
+  traces: Contract
 ''');
       expect(behaviors, hasLength(4));
       expect(behaviors[0].id, 'A1');

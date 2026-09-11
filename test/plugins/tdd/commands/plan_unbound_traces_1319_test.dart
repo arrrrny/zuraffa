@@ -101,15 +101,32 @@ void main() {
               'the lone inline signature token is dropped: nothing '
               'bound, and the fallback must not be silent',
         );
+        // Feature 1484: an unbound FR routes MANUAL — no unit row at
+        // all (stronger than the old fallback+warning: the dead-end
+        // row the provenance warning used to ride is never derived),
+        // so the durable provenance warning has no row to attach to.
         expect(
           list,
-          contains(
-            'WARNING: traces: line found in FR-001 but was not bound to a '
-            'contract row — check indentation',
-          ),
-          reason: 'the warning lands in the durable provenance artifact too',
+          isNot(contains('U1')),
+          reason: 'the unbound FR derives no unit row:\n$list',
         );
-        expect(out, contains('[fallback:'));
+        // Review fix: the 1484 defaulted-FR warning must not claim the
+        // block has NO `traces:` line — it has one whose token was
+        // dropped as signature-shaped (the warning just above says so).
+        // Two adjacent, contradicting warnings send the author looking
+        // in the wrong place.
+        expect(
+          out,
+          contains(
+            'zfa tdd plan: WARNING: FR-001 derives no unit behaviour — no '
+            'surviving `traces:` binding',
+          ),
+        );
+        expect(
+          out,
+          isNot(contains('[fallback:')),
+          reason: 'the fallback lane is collapsed under 1484',
+        );
       },
     );
 

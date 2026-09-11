@@ -1,18 +1,20 @@
-// Bug #1480 (fix lever 2) — `zfa tdd plan` fails fast when any unit
-// behavior would fallback-route. The unit lane can NEVER self-heal (a
-// contract row name is authoring intent no classifier can invent —
+// Bug #1480 (fix lever 2) originally made `zfa tdd plan` fail fast when a
+// unit behavior would fallback-route: the unit lane can never self-heal
+// (a contract row name is authoring intent no classifier can invent —
 // doc/BREAKING_CHANGES.md:62-73), so a fallback-routed unit behavior
-// dead-ends at make (vacuous-green) only ~28 minutes into `zfa tdd run`.
-// The asymmetry with the acceptance lane (whose fallback the #1186
-// one-time marker migration heals) is exactly why the unit case refuses
-// at plan time.
+// dead-ended at make (vacuous-green) only ~28 minutes into `zfa tdd run`.
 //
-// Fix contract:
-//   - default: plan refuses (exit 1, class `unit-fallback-refused`),
-//     names every offending `U<n> (FR-xxx)`, writes NO artifacts, and
-//     never mutates the spec (no marker emission)
-//   - `--allow-unit-fallback` restores the legacy labeled-fallback plan
-//     (the migration escape hatch)
+// Feature 1484 (issue option 3) SUPERSEDES that gate: an FR with no
+// surviving `traces:` binding is recorded as a manual declaration, so the
+// fallback-routed unit row is never derived and there is nothing left to
+// refuse. The gate and its `--allow-unit-fallback` escape hatch remain
+// accepted (the migration window), but the default contract these tests
+// pin is now the manual routing.
+//
+// Contract:
+//   - default: an untraced FR routes to a manual declaration (exit 0, a
+//     `FR-xxx derives no unit behaviour` warning naming the two remedies)
+//   - `--allow-unit-fallback` is inert — there is no fallback lane to restore
 //   - a spec whose FRs all carry declared traces is unaffected
 library;
 
@@ -93,9 +95,14 @@ void main() {
     CliRunner.lastDispatchedExitCode = 0;
   });
 
-  group('bug #1480 — plan fails fast on unit-lane fallback', () {
-    test('A2: an all-fallback spec REFUSES at plan time (exit 1) naming each '
-        'U<n> (FR-xxx) — no 28-minute dead-end', () async {
+  group('bug #1480 — unit-lane fallback is retired by feature 1484', () {
+    // Feature 1484 (issue option 3) supersedes the #1480 fail-fast gate:
+    // an FR with no surviving `traces:` binding is recorded as a manual
+    // declaration, so a fallback-routed unit row is never derived and
+    // the gate has nothing left to refuse. These tests pin the new
+    // contract over the same fixtures the fail-fast gate used.
+    test('A2: an all-untraced spec plans green — every FR routes to a '
+        'manual declaration, no unit row, no refusal', () async {
       (tmpDir, featureDir) = await _feature(_allFallbackSpec);
       final specBefore = File(p.join(featureDir, 'spec.md')).readAsStringSync();
 
@@ -103,42 +110,39 @@ void main() {
 
       expect(
         CliRunner.lastDispatchedExitCode,
-        1,
+        0,
         reason:
-            'the plan must refuse instead of exiting 0 into a guaranteed '
-            'make dead-end (issue #1480): out was\n$out',
+            'the manual routing replaces the refusal (issue #1484): '
+            'out was\n$out',
       );
-      expect(out, contains('unit-fallback-refused'));
-      expect(out, contains('U1'));
-      expect(out, contains('FR-001'));
-      expect(out, contains('U2'));
-      expect(out, contains('FR-002'));
+      expect(out, isNot(contains('unit-fallback-refused')));
+      expect(out, contains('FR-001 derives no unit behaviour'));
+      expect(out, contains('FR-002 derives no unit behaviour'));
       final testList = File(p.join(featureDir, 'tdd', 'test-list.md'));
+      expect(testList.existsSync(), isTrue, reason: out);
       expect(
-        testList.existsSync(),
-        isFalse,
-        reason: 'a refused plan writes no artifacts',
+        testList.readAsStringSync(),
+        isNot(contains('[fallback:')),
+        reason: 'no fallback-routed unit row is derived under 1484',
       );
       expect(
         File(p.join(featureDir, 'spec.md')).readAsStringSync(),
         specBefore,
-        reason: 'a refused plan never mutates the spec (no marker emission)',
+        reason: 'the manual routing never mutates the spec',
       );
     });
 
-    test('A2b: the refusal names the three outs (declare traces inline, map '
-        'them in contracts/*.md, or --allow-unit-fallback)', () async {
+    test('A2b: the defaulted-FR warning names the two remedies', () async {
       (tmpDir, featureDir) = await _feature(_allFallbackSpec);
 
       final out = await _plan(tmpDir);
 
       expect(out, contains('traces:'));
-      expect(out, contains('contracts/'));
-      expect(out, contains('--allow-unit-fallback'));
+      expect(out, contains('**Type**: manual'));
     });
 
-    test('U2b: --allow-unit-fallback restores the legacy labeled-fallback '
-        'plan (migration escape hatch, exit 0)', () async {
+    test('U2b: --allow-unit-fallback is inert — the manual routing stands '
+        '(exit 0, no fallback rows)', () async {
       (tmpDir, featureDir) = await _feature(_allFallbackSpec);
 
       final out = await _plan(tmpDir, ['--allow-unit-fallback']);
@@ -146,18 +150,18 @@ void main() {
       expect(
         CliRunner.lastDispatchedExitCode,
         0,
-        reason: 'the escape hatch keeps the legacy behavior: out was\n$out',
+        reason: 'the flag still parses: out was\n$out',
       );
       final testList = File(p.join(featureDir, 'tdd', 'test-list.md'));
       expect(testList.existsSync(), isTrue, reason: out);
       expect(
         testList.readAsStringSync(),
-        contains('[fallback:'),
-        reason: 'the legacy plan keeps its labeled fallback rows',
+        isNot(contains('[fallback:')),
+        reason: 'there is no fallback lane left to restore under 1484',
       );
     });
 
-    test('U2c: a fully-traced spec plans green — the gate is silent', () async {
+    test('U2c: a fully-traced spec plans green — no manual routing', () async {
       (tmpDir, featureDir) = await _feature(_tracedSpec);
 
       final out = await _plan(tmpDir);
@@ -174,8 +178,8 @@ void main() {
       expect(routing, isNot(contains('[fallback:')));
     });
 
-    test('U2d: a PARTIALLY traced spec refuses naming only the untraced '
-        'behavior', () async {
+    test('U2d: a partially untraced spec routes only the untraced FR to '
+        'manual', () async {
       final partial = _tracedSpec.replaceFirst(
         '- **FR-002**: the system logs every security event\n'
             '            traces: Validator.validate\n',
@@ -185,11 +189,11 @@ void main() {
 
       final out = await _plan(tmpDir);
 
-      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
-      expect(out, contains('FR-002'));
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
+      expect(out, contains('FR-002 derives no unit behaviour'));
       expect(
         out,
-        isNot(contains('FR-001)')),
+        isNot(contains('FR-001 derives no unit behaviour')),
         reason: 'the traced FR-001 is not implicated',
       );
     });

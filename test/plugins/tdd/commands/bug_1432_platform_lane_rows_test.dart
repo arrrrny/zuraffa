@@ -41,13 +41,13 @@ const String platformLanesSpec = '''
 
 ## Layer Contracts
 
-**Function**:
-- `EnvelopeMapper`: `map(Reply) -> Envelope`
+**Presentation**:
+- `PlatformEnvelope`: `map(Reply) -> Envelope`
 
 ## Functional Requirements
 
 - **FR-001**: The system shall map platform replies to the typed envelope.
-            traces: EnvelopeMapper
+            traces: PlatformEnvelope
 
 ## Lanes
 

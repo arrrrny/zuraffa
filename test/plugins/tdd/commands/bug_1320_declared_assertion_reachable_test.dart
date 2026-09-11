@@ -131,7 +131,14 @@ const multiMethodAmbiguousSpec = '''
 
 /// A spec with NO traces continuation — the fallback shape whose gen
 /// pair is the stale guard-only candidate for U6/U7.
-const untracedSpec = '''
+///
+/// Feature 1484: an untraced FR routes manual (no row), so the
+/// criterion-only cell comes from the self-trace token instead —
+/// `traces: FR-001` binds (a non-empty token derives the row) and the
+/// self-duplicate filter drops it from the rendered cell. The gen pair
+/// is still the guard-only candidate: no contract token, no declared
+/// signature.
+const selfTracedSpec = '''
 **Template Version**: `zuraffa-1.0`
 
 # Spec: 1320-repro
@@ -144,6 +151,7 @@ const untracedSpec = '''
 ## Functional Requirements
 
 - **FR-001**: System MUST expose the response content type
+            traces: FR-001
 
 ## Acceptance Scenarios
 
@@ -365,11 +373,13 @@ void main() {
 
     test('U6: gen reports verdict=regenerated (not reused) and the pair '
         'gains the declared assertion', () async {
-      // 1. The untraced spec plans a criterion-only cell.
-      // Issue #1480: the untraced shape IS the fixture — the
-      // unit-fallback gate stays out of the way via the escape hatch.
+      // 1. The self-traced spec plans a criterion-only cell (the
+      //    self-token is dropped from the cell — feature 1484 keeps the
+      //    row, the fallback lane is gone).
       await Directory(fx.featureDir).create(recursive: true);
-      await File(p.join(fx.featureDir, 'spec.md')).writeAsString(untracedSpec);
+      await File(
+        p.join(fx.featureDir, 'spec.md'),
+      ).writeAsString(selfTracedSpec);
       final runner = CliRunner(exitOnCompletion: false);
       await runner.runCapturing([
         'tdd',
@@ -447,7 +457,9 @@ void main() {
     test('U7: the regenerated pair runs gen→verify-red→make green — the '
         'vacuous-green dead-end is unreachable', () async {
       await Directory(fx.featureDir).create(recursive: true);
-      await File(p.join(fx.featureDir, 'spec.md')).writeAsString(untracedSpec);
+      await File(
+        p.join(fx.featureDir, 'spec.md'),
+      ).writeAsString(selfTracedSpec);
       final runner = CliRunner(exitOnCompletion: false);
       await runner.runCapturing([
         'tdd',

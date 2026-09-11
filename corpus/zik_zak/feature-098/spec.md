@@ -2,10 +2,18 @@
 
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Domain**:
+- `Total`: `compute(List<Profile>) -> num`
+- `Counter`: `count(List<Profile>) -> int`
+
 ## Functional Requirements
 
 - **FR-001**: The system MUST compute the 098 total.
+  traces: Total
 - **FR-002**: The system MUST show the Profile count.
+  traces: Counter
 
 ## Scenarios
 
