@@ -255,6 +255,11 @@ class StepRunner {
   /// Run one step for [behaviorId] and map the sub-process result onto the
   /// step's contract. A spawn failure yields a `runner-error` StepResult,
   /// never a crash (U17).
+  ///
+  /// [feature] is the canonical feature REFERENCE the child resolves (issue
+  /// #1471): the driver hands the same reference it resolved, so a bug
+  /// feature (`.specify/bugs/<slug>`) resolves to the identical directory
+  /// in the child. For a plain feature name the reference IS the name.
   Future<StepResult> run({
     required String step,
     required String behaviorId,

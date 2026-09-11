@@ -76,6 +76,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/behavior_test_writer.dart' show BehaviorTestWriter;
+import '../services/feature_path_resolver.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
@@ -326,7 +327,7 @@ class ViewCommand extends Command<void> {
     // Declared source 2 — the Presentation layer contract (the
     // zuraffa-1.0 template's `### Layer Contracts → **Presentation**`
     // section, written by plan into the test list).
-    final featureDir = p.join(normalizedCwd, 'specs', resolved.featureName);
+    final featureDir = resolved.featureDir;
     final components = await _presentationComponents(featureDir);
     if (components.isEmpty) {
       print(
@@ -540,7 +541,7 @@ class ViewCommand extends Command<void> {
     // ledger so `zfa proof check` recognises it.
     try {
       final receipts = NuanceReceipts(
-        featureDir: p.join(normalizedCwd, 'specs', resolved.featureName),
+        featureDir: resolved.featureDir,
         projectRoot: normalizedCwd,
       );
       await receipts.record(
@@ -1043,7 +1044,7 @@ $layoutStubs''';
     for (final entry in await _scanRegistries(cwd, featureFlag)) {
       final record = await entry.registry.findRecord(behaviorId);
       if (record != null) {
-        matches.add(_Resolved(record, entry.featureName));
+        matches.add(_Resolved(record, entry.featureName, entry.featureDir));
       }
     }
     if (matches.length > 1) {
@@ -1061,9 +1062,16 @@ $layoutStubs''';
     String? featureFlag,
   ) async {
     if (featureFlag != null && featureFlag.isNotEmpty) {
-      final featureDir = p.join(cwd, 'specs', featureFlag);
+      final resolved = TddFeaturePaths.resolveWithPin(
+        projectRoot: cwd,
+        featureRef: featureFlag,
+      );
       return [
-        _RegistryEntry(featureFlag, ArtifactRegistry(featureDir: featureDir)),
+        _RegistryEntry(
+          resolved.name,
+          resolved.dir,
+          ArtifactRegistry(featureDir: resolved.dir),
+        ),
       ];
     }
     final specsDir = Directory(p.join(cwd, 'specs'));
@@ -1077,6 +1085,7 @@ $layoutStubs''';
         entries.add(
           _RegistryEntry(
             p.basename(dir.path),
+            dir.path,
             ArtifactRegistry(featureDir: dir.path),
           ),
         );
@@ -1112,13 +1121,15 @@ class _ViewResolutionError implements Exception {
 }
 
 class _RegistryEntry {
-  const _RegistryEntry(this.featureName, this.registry);
+  const _RegistryEntry(this.featureName, this.featureDir, this.registry);
   final String featureName;
+  final String featureDir;
   final ArtifactRegistry registry;
 }
 
 class _Resolved {
-  const _Resolved(this.record, this.featureName);
+  const _Resolved(this.record, this.featureName, this.featureDir);
   final ArtifactRecord record;
   final String featureName;
+  final String featureDir;
 }

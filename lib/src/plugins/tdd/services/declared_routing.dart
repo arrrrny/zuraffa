@@ -29,15 +29,19 @@ class DeclaredRouting {
   /// malformed spec declaration throws [StateError]: the caller
   /// surfaces the `--> fix:` message and a non-zero exit instead of a
   /// silent prose fallback.
+  /// [featureDir] is the already-resolved feature directory (bug
+  /// features live under `.specify/bugs/<slug>`, not `specs/<name>`).
+  /// When omitted, the legacy `specs/<featureName>` path is used.
   static Future<Signature?> declaredSignatureFor({
     required String cwd,
     required String featureName,
     required String behaviorId,
+    String? featureDir,
   }) async {
-    final featureDir = p.join(cwd, 'specs', featureName);
+    final resolvedDir = featureDir ?? p.join(cwd, 'specs', featureName);
     final List<BehaviorRow> rows;
     try {
-      rows = await TestListReader(featureDir).read();
+      rows = await TestListReader(resolvedDir).read();
     } on TestListReadException {
       return null; // unreadable list: legacy inference, the fallback window
     }
@@ -50,7 +54,7 @@ class DeclaredRouting {
         ? const <String>[]
         : SpecParser.traceTokens(row.traces);
     if (traces.isEmpty) return null;
-    final specFile = File(p.join(featureDir, 'spec.md'));
+    final specFile = File(p.join(resolvedDir, 'spec.md'));
     if (!specFile.existsSync()) return null;
     final String specMd;
     try {

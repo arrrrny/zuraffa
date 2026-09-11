@@ -84,6 +84,7 @@ import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/behavior_test_writer.dart';
 import '../services/contract_test_writer.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/generated_shape.dart';
 import '../services/i18n_key_contract.dart';
@@ -409,11 +410,25 @@ class GenCommand extends Command<void> {
     final specsDir = Directory('$cwd/specs');
     final targets = <(String, String, String)>[];
 
+    // Issue #1471: the --feature reference may name a bug directory
+    // (`.specify/bugs/<slug>`) — resolve it through the shared resolver so
+    // the scan below and the per-row `_generate` re-resolution (which
+    // receives the tuple's reference) agree on the same directory.
+    final scopedFeature = featureFlag != null && featureFlag.isNotEmpty
+        ? TddFeaturePaths.resolveWithPin(
+            projectRoot: cwd,
+            featureRef: featureFlag,
+          )
+        : null;
+    // Issue #1471: the batch verdict/messages label the canonical NAME — a
+    // bug reference labels as its slug, never the raw `.specify/bugs/...`.
+    final scopedFeatureName = scopedFeature?.name ?? featureFlag;
+
     var readable = true;
-    if (featureFlag != null && featureFlag.isNotEmpty) {
+    if (scopedFeature != null) {
       readable = await _tryReadTestList(
-        '$cwd/specs/$featureFlag',
-        featureFlag,
+        scopedFeature.dir,
+        scopedFeature.ref,
         targets,
       );
     } else {
@@ -436,7 +451,7 @@ class GenCommand extends Command<void> {
     }
     if (!readable) {
       _printBatchVerdict(
-        feature: featureFlag,
+        feature: scopedFeatureName,
         behaviors: targets.length,
         verdict: 'stopped',
         stoppedAt: null,
@@ -449,11 +464,11 @@ class GenCommand extends Command<void> {
     if (targets.isEmpty) {
       print(
         'zfa tdd gen --all: no behaviors found'
-        '${featureFlag != null && featureFlag.isNotEmpty ? " for feature $featureFlag" : " in any test list"}'
+        '${featureFlag != null && featureFlag.isNotEmpty ? " for feature $scopedFeatureName" : " in any test list"}'
         ' — nothing to generate.',
       );
       _printBatchVerdict(
-        feature: featureFlag,
+        feature: scopedFeatureName,
         behaviors: 0,
         verdict: 'empty',
         stoppedAt: null,
@@ -465,14 +480,14 @@ class GenCommand extends Command<void> {
     final featureCount = targets.map((t) => t.$2).toSet().length;
     print(
       'zfa tdd gen --all: ${targets.length} behavior(s) '
-      '${featureFlag != null && featureFlag.isNotEmpty ? "for feature $featureFlag" : "across $featureCount feature(s)"} '
+      '${featureFlag != null && featureFlag.isNotEmpty ? "for feature $scopedFeatureName" : "across $featureCount feature(s)"} '
       '(spec 069 T002 batch)',
     );
 
     final counts = <String, int>{};
     String? stoppedAt;
     var driven = 0;
-    for (final (_, featureName, id) in targets) {
+    for (final (_, featureRef, id) in targets) {
       final before = exitCode;
       String? verdictToken;
       // The deadline is PER ROW: the budget is one gen flow's budget, so
@@ -488,7 +503,7 @@ class GenCommand extends Command<void> {
           adopt: adopt,
           kindOverride: kindOverride,
           golden: golden,
-          featureFlag: featureName,
+          featureFlag: featureRef,
           cwd: cwd,
           widgetShell: widgetShell,
           i18nExpansion: i18nExpansion,
@@ -551,7 +566,7 @@ class GenCommand extends Command<void> {
         ? 'planned'
         : 'empty';
     _printBatchVerdict(
-      feature: featureFlag,
+      feature: scopedFeatureName,
       behaviors: driven,
       verdict: batchVerdict,
       stoppedAt: stoppedAt,
@@ -563,17 +578,19 @@ class GenCommand extends Command<void> {
   }
 
   /// Collect every test-list row of [featureDir] into [targets]
-  /// ((featureDir, featureName, id) tuples). Returns false — the honest
-  /// stop signal — when the list is unreadable/malformed.
+  /// ((featureDir, featureRef, id) tuples). [featureRef] is the canonical
+  /// reference the per-row `_generate` re-resolves (issue #1471).
+  /// Returns false — the honest stop signal — when the list is
+  /// unreadable/malformed.
   Future<bool> _tryReadTestList(
     String featureDir,
-    String featureName,
+    String featureRef,
     List<(String, String, String)> targets,
   ) async {
     final reader = TestListReader(featureDir);
     try {
       for (final row in await reader.read()) {
-        targets.add((featureDir, featureName, row.id));
+        targets.add((featureDir, featureRef, row.id));
       }
       return true;
     } on TestListReadException catch (e) {
@@ -698,6 +715,26 @@ class GenCommand extends Command<void> {
       throw StateError('zfa tdd gen: unknown behavior id "$behaviorId"');
     }
 
+    // Issue #1471: the feature directory may be a bug directory
+    // (`.specify/bugs/<slug>`). Artifact namespacing stays on [featureName]
+    // (a plain basename — never a path), while every DISPLAY/receipt
+    // reference to the feature's plan artifacts must name the directory
+    // that really exists. `specs/<name>` for a plain name keeps the path
+    // this command always printed.
+    final featureDisplay = TddFeaturePaths.displayDir(
+      cwd: cwd,
+      dir: featureDir,
+    );
+    // The canonical reference a spawned child (`zfa tdd fake ... --feature`)
+    // must resolve back to this same directory; a plain name is its own
+    // reference, a bug directory keeps `.specify/bugs/<slug>`.
+    final featureRef = featureFlag != null && featureFlag.isNotEmpty
+        ? TddFeaturePaths.resolveWithPin(
+            projectRoot: cwd,
+            featureRef: featureFlag,
+          ).ref
+        : featureName;
+
     // Bug #830: effective subject kind — the --kind override wins over
     // the test-list row's kind. --golden is widget-only: a golden hook
     // in a plain-function/scenario-runner test is meaningless, so it is
@@ -808,6 +845,7 @@ class GenCommand extends Command<void> {
           DeclaredRouting.declaredSignatureFor(
             cwd: cwd,
             featureName: featureName,
+            featureDir: featureDir,
             behaviorId: behavior.id,
           ),
           'resolve declared contract',
@@ -911,6 +949,7 @@ class GenCommand extends Command<void> {
         cwd: cwd,
         featureDir: featureDir,
         featureName: featureName,
+        featureRef: featureRef,
         snakeId: snakeId,
         behaviorId: behavior.id,
       );
@@ -933,6 +972,7 @@ class GenCommand extends Command<void> {
         verdict: 'refused',
         reason: 'malformed i18n key contract (issue #965)',
         featureName: featureName,
+        featureDisplay: featureDisplay,
         kind: effectiveBehavior.kind.name,
       );
       exitCode = 1;
@@ -1309,6 +1349,7 @@ class GenCommand extends Command<void> {
       adopted: adoptedPaths,
       created: createdPaths,
       featureName: featureName,
+      featureDisplay: featureDisplay,
       goldenTestPath: goldenPaths?.laneTestPath,
       goldenFixturesDir: goldenPaths?.fixturesDir,
     );
@@ -1333,6 +1374,10 @@ class GenCommand extends Command<void> {
     List<String> adopted = const [],
     List<String> created = const [],
     String? featureName,
+    // Issue #1471: the feature's display reference (the real directory,
+    // `specs/<name>` or `.specify/bugs/<slug>`) for the audit-log path —
+    // [featureName] stays the namespacing label.
+    String? featureDisplay,
     // Bug #830: the effective subject kind and whether a golden baseline
     // hook was requested — additive fields, the recovery tooling parses
     // only the keys it knows.
@@ -1362,10 +1407,9 @@ class GenCommand extends Command<void> {
       if (golden) _verdict.details['golden'] = true;
       if (adopted.isNotEmpty) _verdict.details['adopted'] = adopted;
       if (created.isNotEmpty) _verdict.details['created'] = created;
-      if (adopted.isNotEmpty && featureName != null) {
+      if (adopted.isNotEmpty && featureDisplay != null) {
         _verdict.details['audit_log'] = p.join(
-          'specs',
-          featureName,
+          featureDisplay,
           'tdd',
           'audit.log',
         );
@@ -1394,8 +1438,8 @@ class GenCommand extends Command<void> {
         if (golden) 'golden': true,
         if (adopted.isNotEmpty) 'adopted': adopted,
         if (created.isNotEmpty) 'created': created,
-        if (adopted.isNotEmpty && featureName != null)
-          'audit_log': p.join('specs', featureName, 'tdd', 'audit.log'),
+        if (adopted.isNotEmpty && featureDisplay != null)
+          'audit_log': p.join(featureDisplay, 'tdd', 'audit.log'),
         'golden_test': ?goldenTestPath,
         'golden_fixtures': ?goldenFixturesDir,
       },
@@ -1536,9 +1580,23 @@ class GenCommand extends Command<void> {
     required String cwd,
     required String featureDir,
     required String featureName,
+    required String featureRef,
     required String snakeId,
     required String behaviorId,
   }) {
+    // Issue #1471: the REAL relative location of the feature directory —
+    // the runtime path the generated test loads the scenario from, and
+    // the location the refusal messages must name.
+    final featureDisplay = TddFeaturePaths.displayDir(
+      cwd: cwd,
+      dir: featureDir,
+    );
+    final scenarioDisplay = p.join(
+      featureDisplay,
+      'tdd',
+      'scenarios',
+      '$snakeId.json',
+    );
     final scenarioPath = p.join(
       featureDir,
       'tdd',
@@ -1547,25 +1605,18 @@ class GenCommand extends Command<void> {
     );
     final scenarioFile = File(scenarioPath);
     if (!scenarioFile.existsSync()) {
-      final scenarioRef = p.join(
-        'specs',
-        featureName,
-        'tdd',
-        'scenarios',
-        '$snakeId.json',
-      );
       stderr.writeln(
         'zfa tdd gen: platform behavior "$behaviorId" has no committed '
-        'scenario at $scenarioRef. Generate the scenario + certified fake '
+        'scenario at $scenarioDisplay. Generate the scenario + certified fake '
         'with `zfa tdd fake <channel> --behavior $behaviorId --feature '
-        '$featureName`, commit the scenario as intent, then re-run gen '
+        '$featureRef`, commit the scenario as intent, then re-run gen '
         '(issue #831 — fakes replay committed intent, they are not '
         'agent-written).',
       );
       throw StateError(
         'zfa tdd gen: platform behavior "$behaviorId" has no committed '
         'scenario — run `zfa tdd fake <channel> --behavior $behaviorId '
-        '--feature $featureName` first (issue #831)',
+        '--feature $featureRef` first (issue #831)',
       );
     }
     final ChannelScenario scenario;
@@ -1591,26 +1642,20 @@ class GenCommand extends Command<void> {
         'zfa tdd gen: platform behavior "$behaviorId" has a committed '
         'scenario but no certified fake at test/tdd/$featureName/fakes/'
         '${snakeId}_fake.dart. Re-run `zfa tdd fake <channel> --behavior '
-        '$behaviorId --feature $featureName` to regenerate it (issue '
+        '$behaviorId --feature $featureRef` to regenerate it (issue '
         '#831).',
       );
       throw StateError(
         'zfa tdd gen: platform behavior "$behaviorId" has no certified '
         'fake — run `zfa tdd fake <channel> --behavior $behaviorId '
-        '--feature $featureName` first (issue #831)',
+        '--feature $featureRef` first (issue #831)',
       );
     }
     return PlatformHarnessContext(
       scenario: scenario,
       slug: snakeId,
       fakeImport: 'fakes/${snakeId}_fake.dart',
-      scenarioRef: p.join(
-        'specs',
-        featureName,
-        'tdd',
-        'scenarios',
-        '$snakeId.json',
-      ),
+      scenarioRef: scenarioDisplay,
     );
   }
 
@@ -1837,19 +1882,27 @@ class GenCommand extends Command<void> {
     String behaviorId,
     String? featureFlag,
   ) async {
-    final specsDir = Directory('$cwd/specs');
-    if (!await specsDir.exists()) return (null, '', '');
-
     if (featureFlag != null && featureFlag.isNotEmpty) {
-      // Only scan the specified feature.
-      final featureDir = '$cwd/specs/$featureFlag';
+      // Issue #1471: the reference may name a bug directory
+      // (`.specify/bugs/<slug>`) that lives OUTSIDE `specs/`, so resolve it
+      // through the shared resolver (pin included) instead of hardcoding
+      // `<cwd>/specs/<ref>`. The returned featureName is the resolved NAME
+      // (a plain basename) — artifact namespacing stays single-segment.
+      final resolved = TddFeaturePaths.resolveWithPin(
+        projectRoot: cwd,
+        featureRef: featureFlag,
+      );
+      final featureDir = resolved.dir;
       final testListFile = File('$featureDir/tdd/test-list.md');
       if (await testListFile.exists()) {
-        final behavior = await _findRow(featureDir, featureFlag, behaviorId);
-        if (behavior != null) return (behavior, featureDir, featureFlag);
+        final behavior = await _findRow(featureDir, resolved.name, behaviorId);
+        if (behavior != null) return (behavior, featureDir, resolved.name);
       }
       return (null, '', '');
     }
+
+    final specsDir = Directory('$cwd/specs');
+    if (!await specsDir.exists()) return (null, '', '');
 
     // No --feature given: scan all feature dirs and reject ambiguous IDs.
     final matches = <(Behavior, String, String)>[];
@@ -1945,13 +1998,13 @@ class GenCommand extends Command<void> {
   /// The feature name lands inside the artifact path (bug #827): keep it a
   /// single plain directory segment (mirrors compose/make/verify-red's
   /// `--feature` validation) so a hostile or malformed feature name cannot
-  /// escape the `test/tdd/<feature-slug>/` namespace.
+  /// escape the `test/tdd/<feature-slug>/` namespace. Issue #1471: the gate
+  /// is the shared resolver's supported-shape check, so the check stays in
+  /// lockstep with `TddFeaturePaths` — the name handed here is always the
+  /// resolver's plain basename, so the message below is reachable only for
+  /// a truly unsupported reference.
   void _validateFeatureSegment(String feature) {
-    if (feature.contains('/') ||
-        feature.contains(r'\') ||
-        feature == '.' ||
-        feature == '..' ||
-        feature.isEmpty) {
+    if (!TddFeaturePaths.isSupportedRef(feature)) {
       throw StateError(
         'zfa tdd gen: invalid feature "$feature": expected a single spec '
         'directory name such as 044-test-tdd-generation, not a path.',
@@ -1970,15 +2023,36 @@ class GenCommand extends Command<void> {
   ///    normalization must stay inside `<projectRoot>/specs` — the
   ///    parser never walks above the project root and never reads a
   ///    sibling directory (`example/specs/`, `.worktrees/`, `corpus/`).
+  ///    Issue #1471: the bug extension's `.specify/bugs/<slug>` pin is the
+  ///    exception — its test list lives OUTSIDE `specs/`, so containment is
+  ///    checked against the PROJECT ROOT instead.
   /// 2. SEGMENT SHAPE (the house contract): a path-shaped reference that
   ///    stays inside the root (`specs/001-login-ui`) is still rejected —
   ///    a feature reference is ONE spec directory name, the same
   ///    contract verify/make/refactor/compose/verify-red and the run
-  ///    driver already enforce.
+  ///    driver already enforce. The bug pin shape above is the sole
+  ///    exemption.
   static String? testListScopeRejection(String projectRoot, String featureRef) {
-    final specsRoot = p.normalize(p.join(projectRoot, 'specs'));
-    final resolved = p.normalize(p.join(projectRoot, 'specs', featureRef));
-    if (resolved != specsRoot && !resolved.startsWith('$specsRoot/')) {
+    // Issue #1471: a bug feature's canonical reference is its REAL
+    // directory (`.specify/bugs/<slug>`), which the shared resolver maps to
+    // that same directory. Only this pin shape is exempt from the
+    // single-segment contract, and its containment is checked against the
+    // PROJECT ROOT (the bug tree), not `<root>/specs`.
+    final isBugRef =
+        featureRef.startsWith('.specify/bugs/') &&
+        TddFeaturePaths.isSupportedRef(featureRef);
+    final boundary = isBugRef
+        ? p.normalize(projectRoot)
+        : p.normalize(p.join(projectRoot, 'specs'));
+    final resolved = isBugRef
+        ? p.normalize(
+            TddFeaturePaths.resolve(
+              projectRoot: projectRoot,
+              featureRef: featureRef,
+            ).dir,
+          )
+        : p.normalize(p.join(projectRoot, 'specs', featureRef));
+    if (resolved != boundary && !resolved.startsWith('$boundary/')) {
       return '--feature "$featureRef" resolves outside the project root '
           '($projectRoot): $resolved — the test list is read strictly '
           'from <project>/specs/<feature>/tdd/test-list.md, never a '
@@ -1990,7 +2064,7 @@ class GenCommand extends Command<void> {
         featureRef == '.' ||
         featureRef == '..' ||
         featureRef.isEmpty;
-    if (pathShaped) {
+    if (!isBugRef && pathShaped) {
       return 'invalid --feature "$featureRef": expected a single spec '
           'directory name such as 001-login-ui, not a path.';
     }

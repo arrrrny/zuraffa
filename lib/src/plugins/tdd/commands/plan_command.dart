@@ -488,9 +488,9 @@ class PlanCommand extends Command<void> {
         if (m == null) continue;
         // Issue #1401: escaped-pipe-aware split — the reconcile reader
         // must parse the SAME dialect the writer emits (and run reads).
-        final cells = _splitRowUnescapingPipes(m.group(2)!)
-            .map((c) => c.trim())
-            .toList();
+        final cells = _splitRowUnescapingPipes(
+          m.group(2)!,
+        ).map((c) => c.trim()).toList();
         if (cells.length < 3) continue; // id + traces + state minimum
         final id = m.group(1)!;
         final criterion = cells[cells.length - 2].split(',').first.trim();
@@ -682,7 +682,10 @@ class PlanCommand extends Command<void> {
       exitCode = 2;
       return;
     }
-    final provenanceLines = provenance.lines;
+    var provenanceLines = provenance.lines;
+    // Bug #1481: the dead-end ids ride the provenance — recomputed
+    // alongside the lines when the marker migration re-derives them.
+    var deadEndIds = provenance.deadEnds;
     // Strict gate (feature 071): a refusal writes no artifact.
     if (strict && provenanceLines.containsKey('__refused__')) {
       for (final line in provenanceLines.remove('__refused__')!) {
@@ -743,7 +746,11 @@ class PlanCommand extends Command<void> {
     };
     final laneResult = lanes.isEmpty
         ? (splitReceiptExists
-              ? _heuristicLaneResolution(expressible, preservedFfi)
+              ? _heuristicLaneResolution(
+                  expressible,
+                  preservedFfi,
+                  contractBehaviors,
+                )
               : null)
         : _resolveLanes(
             lanes,
@@ -757,6 +764,12 @@ class PlanCommand extends Command<void> {
             // current ids, then pass the reconciled behavior ids consumed by
             // the lane resolver.
             declaredBehaviorIds: declaredBehaviorIds,
+            // Issue #1419: the derived contract behaviors count into the
+            // lane contract — CORE by default (spec 1007: a contract test
+            // is pure Dart, so it rides the engine), the declared lane
+            // wins, and a non-engine declaration refuses instead of
+            // dropping the row again.
+            contractBehaviors: contractBehaviors,
           );
     if (laneResult != null && laneResult.refusals.isNotEmpty) {
       print(
@@ -829,16 +842,70 @@ class PlanCommand extends Command<void> {
         ? const SpecMarkerEmitter().emit(specMd, provenance.fallbackKinds)
         : null;
 
+    // Bug #1481: the routing verdict must reflect the spec state as of
+    // the END of this invocation. The emitter above is a one-shot
+    // MIGRATION: when it wrote markers, the provenance computed from the
+    // pre-emission parse is stale exactly when it reports — the fallback
+    // lines would tell the author to add markers THIS RUN just wrote.
+    // Re-derive the provenance from the migrated content so a single
+    // invocation is truthful (the repaired behaviors render
+    // `[declared: type marker, spec line N]`, matching what a second run
+    // would report). The re-derivation walks the expressible + preserved
+    // rows only, so the contract-lane lines recorded before this point
+    // are merged back; the re-parse runs BEFORE any artifact is written
+    // and refuses cleanly if the migrated content ever failed to parse.
+    if (markerEmission != null && markerEmission.migrated) {
+      try {
+        final postMarkers = SpecParser.parseScenarioTypeMarkers(
+          markerEmission.content,
+        );
+        final postProvenance = _provenanceLines(
+          expressibleEntries,
+          preservedFfi,
+          SpecDeclarations(
+            scenarios: postMarkers,
+            contractRows: declarations.contractRows,
+            persistence: declarations.persistence,
+          ),
+          frTraces,
+          postMarkers,
+          unboundTraces: unboundTraces,
+          strict: strict,
+        );
+        for (final entry in provenanceLines.entries) {
+          postProvenance.lines.putIfAbsent(entry.key, () => entry.value);
+        }
+        provenanceLines = postProvenance.lines;
+        deadEndIds = postProvenance.deadEnds;
+      } on StateError catch (e) {
+        print('zfa tdd plan: marker migration refused — ${e.message}');
+        print('  no artifacts were written.');
+        _verdict
+          ..outcome = VerdictOutcome.fail
+          ..exitClass = 'marker-migration-refused'
+          ..fix =
+              'fix the malformed declaration named above, then re-run '
+              'zfa tdd plan'
+          ..details['reason'] = e.message;
+        exitCode = 2;
+        return;
+      }
+    }
+
     Future<void> persistMarkerEmission() async {
       final emission = markerEmission;
       if (emission == null || !emission.migrated) return;
       await specFile.writeAsString(emission.content);
+      // Bug #1481: the mutation is announced, and the stale "Re-run
+      // `zfa tdd plan`" advice is retired — the routing verdicts printed
+      // by this invocation were re-derived from the migrated content, so
+      // ONE run is sufficient and truthful.
       print(
-        'zfa tdd plan: emitted ${emission.emitted.length} `**Type**` '
-        'marker(s) into the spec — one-time routing migration (issue '
+        'zfa tdd plan: wrote ${emission.emitted.length} `**Type**` '
+        'marker(s) into spec.md (one-time routing migration, issue '
         '#1186) for ${emission.emitted.keys.join(', ')} (spec: '
-        '$specPath). Re-run `zfa tdd plan`; the migrated scenarios now '
-        'carry their declared lane.',
+        '$specPath) — the route verdicts in this invocation already '
+        'reflect the migrated spec.',
       );
       _verdict.details['markers_emitted'] = emission.emitted.length;
     }
@@ -886,6 +953,15 @@ class PlanCommand extends Command<void> {
       // engine/skin contract, with the legacy filename demoted to the
       // meta-index. TestListReader resolves the rows from the split
       // files, so gen/make/run semantics are unchanged.
+      //
+      // Issue #1419: the derived contract behaviors ride the split —
+      // the legacy single-file path renders them (the contract loop);
+      // this path dropped them silently (exit 0, no refusal, no
+      // coverage-gate failure — the worst failure class for an
+      // honesty-first toolchain). They are engine-side by construction
+      // (`_resolveLanes` refuses every non-CORE declaration), so only
+      // the engine row list carries them.
+      final contractRows = _contractLaneRows(contractBehaviors, laneResult);
       final engineRows = <LaneRow>[
         for (final b in expressible)
           ..._derivedLaneRows(
@@ -896,6 +972,7 @@ class PlanCommand extends Command<void> {
             contractTraces,
           ),
         ..._ffiLaneRows(preservedFfi, laneResult),
+        ...contractRows,
         ...laneResult.handRows,
       ].where((r) => r.lane.destinedForEngine).toList();
       final skinRows = <LaneRow>[
@@ -925,6 +1002,10 @@ class PlanCommand extends Command<void> {
         if (lane.destinedForSkin) skinProvenance[id] = lines;
       });
 
+      // Issue #1419: the engine plan's contract loop is written by the
+      // shared renderer (`renderEnginePlan`), not here — `zfa tdd split`
+      // calls the same renderer, and a caller-side copy let the two
+      // diverge on the rows this plan's route log already claims.
       final engineMd = renderEnginePlan(
         feature: feature,
         rows: engineRows,
@@ -976,16 +1057,23 @@ class PlanCommand extends Command<void> {
         lanes: metaLanes,
         classification: laneResult.classification,
       );
-      await File(p.join(outDir.path, LaneSplitFiles.engine))
-          .writeAsString(engineMd);
-      await File(p.join(outDir.path, LaneSplitFiles.skin))
-          .writeAsString(skinMd);
-      await File(p.join(outDir.path, LaneSplitFiles.contract))
-          .writeAsString(contractMd);
+      await File(
+        p.join(outDir.path, LaneSplitFiles.engine),
+      ).writeAsString(engineMd);
+      await File(
+        p.join(outDir.path, LaneSplitFiles.skin),
+      ).writeAsString(skinMd);
+      await File(
+        p.join(outDir.path, LaneSplitFiles.contract),
+      ).writeAsString(contractMd);
       await outFile.writeAsString(metaMd);
       for (final line in provenanceLines.values.expand((l) => l)) {
         print('   $line');
       }
+      // Bug #1481: the fatal-class tally rides the route lines in both
+      // render paths — the author learns the plan will dead-end without
+      // scanning every line.
+      _printDeadEndTally(deadEndIds);
       stdout.writeln(
         'zfa tdd plan: wrote ${p.join(outDir.path, LaneSplitFiles.engine)} '
         '(${engineRows.where((r) => r.lane == Lane.core).length} CORE '
@@ -1016,6 +1104,9 @@ class PlanCommand extends Command<void> {
         layoutSlots: layoutSlots,
       );
       await persistMarkerEmission();
+      // Bug #1481 (finding 2): the dead-end count is machine-readable in
+      // BOTH render paths — lane-split and legacy single-file.
+      _verdict.details['dead_end_behaviors'] = deadEndIds.length;
       // Issue #1309: refresh only after every generated artifact and
       // marker emission succeeded. Hash and mtime come from the final
       // on-disk spec, so marker migration cannot make the repaired
@@ -1137,6 +1228,8 @@ class PlanCommand extends Command<void> {
       // tdd command suites assert on (runCapturing intercepts print).
       print('   $line');
     }
+    // Bug #1481: the fatal-class tally (see the lane path above).
+    _printDeadEndTally(deadEndIds);
 
     final aCount = expressible
         .where((b) => b.kind == BehaviorKind.acceptance)
@@ -1165,7 +1258,10 @@ class PlanCommand extends Command<void> {
       ..details['unit'] = uCount
       ..details['ffi'] = fCount
       ..details['behaviors'] = total
-      ..details['test_list'] = outFile.path;
+      ..details['test_list'] = outFile.path
+      // Bug #1481: the dead-end count is machine-readable too — the
+      // tally line names the ids, the envelope carries the number.
+      ..details['dead_end_behaviors'] = deadEndIds.length;
     // Issue #1125: the plan's explain block — the sections reuse the
     // receipt record the verb just wrote (TddGenerationReceipts) and the
     // artifacts the summary line names, never fresh facts.
@@ -1279,27 +1375,23 @@ class PlanCommand extends Command<void> {
     // failing contract test is BLOCKED (never RED) — the row's state
     // column carries BLOCKED until the implementation satisfies the
     // declared contract.
+    //
+    // Issue #1419: the section is written by the SHARED helper the
+    // lane-split engine renderer calls — one writer, so the legacy
+    // single-file plan and `04-ENGINE.md` cannot drift apart.
     if (contractBehaviors.isNotEmpty) {
-      buf
-        ..writeln()
-        ..writeln('## Contract loop: contract behaviors')
-        ..writeln()
-        ..writeln(
-          'One per declared entity method, controller method and usecase '
-          'in `spec.md` Layer Contracts (issue #1007). A contract test '
-          'proves the implementation satisfies the DECLARED contract — '
-          'a failing contract test is BLOCKED (never RED) and blocks the '
-          'cycle from proceeding to GREEN.',
-        )
-        ..writeln()
-        ..writeln('| id | behavior | traces | state |')
-        ..writeln('| -- | -------- | ------ | ----- |');
-      for (final b in contractBehaviors) {
-        buf.writeln(
-          '| ${b.id} | ${_escapeCell(b.description)} | ${b.sourceCriterion} | '
-          '${b.state.name.toUpperCase()} |',
-        );
-      }
+      buf.writeln();
+      renderContractLoopSection(buf, [
+        for (final b in contractBehaviors)
+          LaneRow(
+            id: b.id,
+            description: b.description,
+            traces: b.sourceCriterion,
+            state: b.state.name.toUpperCase(),
+            kind: b.kind,
+            lane: Lane.core,
+          ),
+      ]);
     }
     // Bug #829: the spec's Key Entities, extracted for the loop's
     // entity orchestration (run phase 0 + the make entity pipeline).
@@ -1648,7 +1740,17 @@ class PlanCommand extends Command<void> {
   /// emittable ones (`**Type**` markers) into the spec post-derivation
   /// — the one-time migration that makes the per-run fallback noise (and
   /// the strict gate's refusal on speckit-authored specs) disappear.
-  ({Map<String, List<String>> lines, Map<String, BehaviorKind> fallbackKinds})
+  ///
+  /// Bug #1481: the two fallback classes are reported separately —
+  /// `deadEnds` names every behavior whose fallback is the FATAL class
+  /// (a unit behavior with no declared contract trace: the classifier
+  /// cannot invent the row name, so `zfa tdd make` will dead-end on it),
+  /// distinct from the repairable scenario-classified fallbacks.
+  ({
+    Map<String, List<String>> lines,
+    Map<String, BehaviorKind> fallbackKinds,
+    List<String> deadEnds,
+  })
   _provenanceLines(
     List<({Behavior behavior, String currentId})> behaviors,
     List<BehaviorRow> preservedFfi,
@@ -1661,6 +1763,7 @@ class PlanCommand extends Command<void> {
     const resolver = RoutingResolver();
     final lines = <String, List<String>>{};
     final fallbackKinds = <String, BehaviorKind>{};
+    final deadEnds = <String>[];
     String lane(BehaviorKind kind) => switch (kind) {
       BehaviorKind.acceptance => 'acceptance lane',
       BehaviorKind.widget => 'widget lane',
@@ -1727,11 +1830,20 @@ class PlanCommand extends Command<void> {
         continue;
       }
       // RoutingUndeclared — the labeled legacy fallback.
-      final hint = decision == BehaviorKind.widget
-          ? 'add `**Type**: widget` to the scenario'
-          : decision == BehaviorKind.acceptance
-          ? 'add `**Type**: acceptance` to the scenario'
+      // Bug #1481: the two fallback classes RENDER differently — a
+      // scenario-classified fallback is repairable (the classifier can
+      // derive the `**Type**` marker, and plan emits it this very run
+      // unless --no-emit-markers), while a unit fallback is a missing
+      // CONTRACT TRACE no classifier can invent: make will dead-end on
+      // it. Identical prefixes hid a transient self-healing condition
+      // behind a permanently fatal one.
+      final repairable =
+          decision == BehaviorKind.acceptance ||
+          decision == BehaviorKind.widget;
+      final hint = repairable
+          ? 'add `**Type**: ${decision.name}` to the scenario'
           : 'trace FR to a declared contract row';
+      if (!repairable) deadEnds.add(b.id);
       fallbackKinds[currentId] = decision;
       // Issue #1319: when the FR the behavior derives from carries a
       // `traces:` line that bound nothing, the fallback is NOT silent —
@@ -1744,7 +1856,8 @@ class PlanCommand extends Command<void> {
           : null;
       record(b.id, [
         'route: ${b.id} -> ${lane(decision)} '
-            '[fallback: legacy description classifier matched — $hint]',
+            '[fallback: ${repairable ? 'repairable' : 'no declared trace — make will dead-end'} — '
+            '${repairable ? 'legacy description classifier matched, ' : ''}$hint]',
         ?unboundTraceWarning,
       ]);
     }
@@ -1754,7 +1867,22 @@ class PlanCommand extends Command<void> {
             '[declared: native loop section]',
       ]);
     }
-    return (lines: lines, fallbackKinds: fallbackKinds);
+    return (lines: lines, fallbackKinds: fallbackKinds, deadEnds: deadEnds);
+  }
+
+  /// Bug #1481: the one-line dead-end tally — the author must not scan
+  /// every `route:` line to learn the plan will dead-end at the first
+  /// unit `make`. Prints nothing when every behavior carries a declared
+  /// trace (the common case after the marker migration has healed the
+  /// scenario lane).
+  void _printDeadEndTally(List<String> deadEndIds) {
+    if (deadEndIds.isEmpty) return;
+    final n = deadEndIds.length;
+    print(
+      'zfa tdd plan: $n behavior${n == 1 ? '' : 's'} will dead-end at '
+      'make — no declared contract trace (${deadEndIds.join(', ')}). '
+      'Trace each FR to a declared contract row.',
+    );
   }
 
   /// Bug #833: the plan MARKS the behavior persistence-kind — the
@@ -1901,18 +2029,27 @@ class PlanCommand extends Command<void> {
     List<BehaviorRow> preservedFfi,
     Set<String> goldenIds, {
     Set<String> declaredBehaviorIds = const {},
+    List<Behavior> contractBehaviors = const [],
   }) {
     final classification = <String, Lane>{};
     final annotations = <String, String>{};
     final refusals = <String>[];
-    // The spec-derived behavior ids (plus preserved ffi rows) — the ids
-    // the derivation algorithm produced. A SKIN declaration naming one of
-    // these is a ROUTING declaration (the example spec's `W1, A3..A7`
-    // form) and keeps the derived id's grammar; only the hand-declared
-    // W-slot tokens go through the strict author contract below.
+    // The spec-derived behavior ids (plus preserved ffi rows and the
+    // ids derived as contract behaviors) — the ids the derivation
+    // algorithm produced. A SKIN declaration naming one of these is a
+    // ROUTING declaration (the example spec's `W1, A3..A7` form) and
+    // keeps the derived id's grammar; only the hand-declared W-slot
+    // tokens go through the strict author contract below.
     final derivedIds = {
       ...expressible.map((b) => b.id),
       ...preservedFfi.map((r) => r.id),
+      // Issue #1419: ids already derived as contract behaviors are
+      // consulted BEFORE the hand-row fallthrough — a `contract:A<n>`
+      // declaration in `## Lanes` joins the derived behavior (the
+      // derived description, the `Interface.method` trace, the contract
+      // kind, and the reconciled BLOCKED-capable state) instead of
+      // clobbering it with the anonymous lane-reservation row.
+      ...contractBehaviors.map((b) => b.id),
     };
 
     // Unknown lane names: the grammar is CORE/SKIN/BOTH.
@@ -1966,6 +2103,10 @@ class PlanCommand extends Command<void> {
     // guard applies to the engine boundary (declarations win, inert
     // declarations are never silently carried).
     final derivedKinds = {for (final b in expressible) b.id: b.kind};
+    final handGoldenIds = {
+      for (final g in goldenIds)
+        SkinPlanAuthor.sanitizeDeclaredSkinToken(g)?.id ?? g,
+    };
     for (final lane in lanes) {
       final parsed = Lane.parse(lane.lane);
       if (parsed == null || lane.goldenIds.isEmpty) continue;
@@ -1990,10 +2131,6 @@ class PlanCommand extends Command<void> {
           'SKIN lane declares, or use `golden: true`.',
         );
       }
-      final handGoldenIds = {
-        for (final g in goldenIds)
-          SkinPlanAuthor.sanitizeDeclaredSkinToken(g)?.id ?? g,
-      };
       for (final id in lane.goldenIds) {
         // A hand-declared id (no derived kind) is widget-kind by
         // construction (SKIN hand rows render the widget section).
@@ -2025,7 +2162,9 @@ class PlanCommand extends Command<void> {
       // log claims its lane — the silent-drop class. Refuse (the gate
       // below exits 2 writing no artifacts) instead. Home sets mirror the
       // section filters in lane_split.dart's renderers; contract rows are
-      // not in this loop's behavior set (open issue #1419 owns that path).
+      // not in this loop's behavior set — they are derived from `##
+      // Layer Contracts` and counted by the contract block below
+      // (issue #1419), CORE by default.
       final engineWithoutHome =
           lane.destinedForEngine && !_engineLaneKinds.contains(b.kind);
       final skinWithoutHome =
@@ -2090,6 +2229,43 @@ class PlanCommand extends Command<void> {
     // territory) unless a lane declares otherwise.
     for (final row in preservedFfi) {
       classification.putIfAbsent(row.id, () => Lane.core);
+    }
+
+    // Issue #1419: the derived contract behaviors count into the lane
+    // contract. CORE by default (spec 1007: a contract test is pure
+    // Dart, so it rides the engine); a CORE declaration in `## Lanes`
+    // joins the derived behavior. A non-engine declaration REFUSES —
+    // the SKIN plan renders no contract section, so honoring it would
+    // drop the row from the split artifacts again (the silent-drop
+    // class this fix closes). The engine purity guard applies too: the
+    // contract rows land in 04-ENGINE.md, which is pure Dart by
+    // construction.
+    for (final b in contractBehaviors) {
+      final declared = classification[b.id];
+      if (declared != null && declared != Lane.core) {
+        refusals.add(
+          'lane contract: behavior "${b.id}" (${b.sourceCriterion}) is '
+          'derived from the `## Layer Contracts` section — a contract '
+          'test is pure Dart and rides the ENGINE lane (spec 1007); '
+          'lane ${declared.label} renders no contract section, so the '
+          'row would be dropped from the split plan. '
+          '--> fix: move "${b.id}" to the CORE lane row (contract '
+          'behaviors are engine-side by default — dropping the '
+          'declaration works too).',
+        );
+        continue;
+      }
+      classification.putIfAbsent(b.id, () => Lane.core);
+      final rowText = '${b.description} ${b.sourceCriterion}';
+      if (rowText.contains(_flutterReference)) {
+        refusals.add(
+          'noFlutter guard: behavior "${b.id}" (${b.sourceCriterion}) is '
+          'derived from the `## Layer Contracts` section and rides the '
+          'ENGINE lane, but references $_flutterReference — the engine '
+          'lane is pure Dart. --> fix: drop the $_flutterReference '
+          'reference from the declared contract signature.',
+        );
+      }
     }
 
     // Hand rows: ids the declarations carry but neither the spec prose
@@ -2184,12 +2360,15 @@ class PlanCommand extends Command<void> {
   /// `SplitCommand._heuristic` applies — over the CURRENT spec
   /// derivation: widget/theme rows are SKIN (their gen pair imports
   /// Flutter), everything else CORE; the preserved ffi rows are
-  /// engine-side (the native boundary is engine territory). No hand
-  /// rows and no refusals: with no `## Lanes` declarations there is
-  /// nothing hand-reserved and nothing to refuse.
+  /// engine-side (the native boundary is engine territory) and the
+  /// derived contract behaviors are engine-side too (issue #1419 —
+  /// spec 1007: a contract test is pure Dart). No hand rows and no
+  /// refusals: with no `## Lanes` declarations there is nothing
+  /// hand-reserved and nothing to refuse.
   _LaneResult _heuristicLaneResolution(
     List<Behavior> expressible,
     List<BehaviorRow> preservedFfi,
+    List<Behavior> contractBehaviors,
   ) {
     final classification = <String, Lane>{
       for (final b in expressible)
@@ -2197,6 +2376,10 @@ class PlanCommand extends Command<void> {
             ? Lane.skin
             : Lane.core,
       for (final row in preservedFfi) row.id: Lane.core,
+      // Issue #1419: the derived contract behaviors count into the
+      // heuristic classification too — the stale-split regeneration
+      // writes the same engine-side contract rows the Lanes path does.
+      for (final b in contractBehaviors) b.id: Lane.core,
     };
     return _LaneResult(
       classification: classification,
@@ -2385,6 +2568,27 @@ class PlanCommand extends Command<void> {
         state: row.state.name.toUpperCase(),
         kind: row.kind,
         lane: laneResult.classification[row.id] ?? Lane.core,
+      ),
+  ];
+
+  /// Issue #1419: the derived contract behaviors as lane rows — the
+  /// description, the `Interface.method` trace, the contract kind, and
+  /// the reconciled (BLOCKED-capable) state match the legacy
+  /// single-file path's contract-loop rows byte for byte. The lane is
+  /// the resolver's classification (CORE by default — the resolver
+  /// refuses non-engine declarations, so the rows are engine-destined).
+  List<LaneRow> _contractLaneRows(
+    List<Behavior> contractBehaviors,
+    _LaneResult laneResult,
+  ) => [
+    for (final b in contractBehaviors)
+      LaneRow(
+        id: b.id,
+        description: b.description,
+        traces: b.sourceCriterion,
+        state: b.state.name.toUpperCase(),
+        kind: b.kind,
+        lane: laneResult.classification[b.id] ?? Lane.core,
       ),
   ];
 }
