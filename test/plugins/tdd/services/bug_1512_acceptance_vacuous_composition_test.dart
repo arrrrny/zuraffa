@@ -44,11 +44,9 @@ Future<String> renderTest(Behavior behavior, {UnitContractShape? shape}) async {
   addTearDown(() => dir.deleteSync(recursive: true));
   final testPath = p.join(dir.path, 'test', 'tdd', 'a1_test.dart');
   final subjectPath = p.join(dir.path, 'lib', 'tdd', 'a1_subject.dart');
-  await BehaviorTestWriter(contractShape: shape).write(
-    behavior: behavior,
-    testPath: testPath,
-    subjectPath: subjectPath,
-  );
+  await BehaviorTestWriter(
+    contractShape: shape,
+  ).write(behavior: behavior, testPath: testPath, subjectPath: subjectPath);
   return File(testPath).readAsString();
 }
 
@@ -148,8 +146,11 @@ void main() {
         shape: shapeOf('complete(String session) -> Todo'),
       );
       expect(content, contains(vacuousGuardMarker));
-      expect(contentIsVacuousGreen(content), isTrue,
-          reason: 'the marker makes the guard-only assertion set refuse');
+      expect(
+        contentIsVacuousGreen(content),
+        isTrue,
+        reason: 'the marker makes the guard-only assertion set refuse',
+      );
     });
 
     test('an UNDECLARED acceptance fallback guard carries the marker seam '
@@ -238,10 +239,7 @@ void main() {
 
     test('an explicit target wins the entity derivation', () {
       final plan = planner.plan(
-        acceptanceSummary(
-          'the scenario completes.',
-          target: 'Invoice',
-        ),
+        acceptanceSummary('the scenario completes.', target: 'Invoice'),
       );
       expect(plan.isExpressible, isTrue);
       expect(plan.steps.first.args, ['entity', 'create', '-n', 'Invoice']);
@@ -250,9 +248,7 @@ void main() {
     test('the honest #758 refusal stays: CRUD prose with no named entity '
         'is still the actionable unexpressible stop', () {
       final plan = planner.plan(
-        acceptanceSummary(
-          'the repository service persists the scenario.',
-        ),
+        acceptanceSummary('the repository service persists the scenario.'),
       );
       expect(plan.isExpressible, isFalse);
       expect(
@@ -275,10 +271,7 @@ void main() {
         ),
       );
       expect(plan.isExpressible, isFalse);
-      expect(
-        plan.unexpressibleReason,
-        contains('no generator surface maps'),
-      );
+      expect(plan.unexpressibleReason, contains('no generator surface maps'));
     });
   });
 

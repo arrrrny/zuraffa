@@ -293,8 +293,22 @@ void main() {
       // Unknown exception types and UnimplementedError fall through to the
       // generic assertion to avoid either an unimported type or a green stub.
     }
-    return '${_captureInvocation(b, target, null)}\n'
-        '      expect(result, isNot(isA<UnimplementedError>()));';
+    // Issue #1512: the UNDECLARED acceptance fallback's guard is the
+    // vacuous-green class — the void-safe capture returns null for any
+    // non-throwing subject, so an EMPTY body flips it green. Emit the
+    // designed hand-delta seam (the #1259 marker comment naming the exact
+    // remedy) so the vacuity is named on the artifact and the shared
+    // `contentIsVacuousGreen` detector refuses it mechanically — never
+    // silent. The UNIT lane keeps its #1308 two-class dispatch unchanged
+    // (the marker stays ABSENT on the unit fallback path; its gap is the
+    // gen-time warning token instead).
+    final guard = 'expect(result, isNot(isA<UnimplementedError>()));';
+    if (b.kind == BehaviorKind.acceptance) {
+      return '${_captureInvocation(b, target, null)}\n'
+          '      $vacuousGuardComment\n'
+          '      $guard';
+    }
+    return '${_captureInvocation(b, target, null)}\n      $guard';
   }
 
   /// The contract-derived assertion surface (issue #1259).
@@ -379,20 +393,45 @@ void main() {
       }
       args = argExprs.join(', ');
     }
+    // Issue #1512: the acceptance lane threads the DECLARED arguments and
+    // returns the DECLARED result — the same capture surface the unit lane
+    // emits — instead of the vacuous empty-call + `return null;` discard
+    // that made every acceptance green certifiable by an empty body. The
+    // threaded-and-returning form engages when a DECLARED shape supplies a
+    // non-void renderable return (the surface the contract implies). Dart
+    // forbids using a void expression as a value (`use_of_void_result`),
+    // and the acceptance subject's generated lifecycle (gen stub, wire,
+    // compose) keeps a `void` scenario-runner signature, so an undeclared
+    // (or void-declared) acceptance capture stays VOID-SAFE: its declared
+    // args are still threaded when a shape supplies them, and its
+    // guard-only assertion set is named by the #1259 marker seam (see
+    // `_deriveAssertion`).
+    final acceptance = behavior.kind == BehaviorKind.acceptance;
+    final declaredReturn =
+        shape != null &&
+        shape.returnType != 'void' &&
+        isRenderableDartType(shape.returnType);
     // Issue #1035: the UNIT lane's capture initializer is provably
     // non-nullable (the closure returns the subject's value or the
     // caught UnimplementedError — never null), so an explicit `Object?`
     // annotation trips unnecessary_nullable_for_final_variable_declarations
     // in the generated test. Inference types the capture correctly for
     // both the red stub (static return type) and the implemented subject;
-    // the acceptance lane's capture CAN be null (`return null;`), so it
-    // keeps the explicit nullable annotation its initializer matches.
-    final capture = behavior.kind == BehaviorKind.acceptance
-        ? 'final Object? result'
-        : 'final result';
-    final invocation = behavior.kind == BehaviorKind.acceptance
-        ? 'subject.$target();\n          return null;'
-        : 'return subject.$target($args);';
+    // the acceptance lane's UNDECLARED / void-declared capture CAN be
+    // null (`return null;`), so it keeps the explicit nullable annotation
+    // its initializer matches.
+    final String capture;
+    final String invocation;
+    if (acceptance && declaredReturn) {
+      capture = 'final result';
+      invocation = 'return subject.$target($args);';
+    } else if (acceptance) {
+      capture = 'final Object? result';
+      invocation = 'subject.$target($args);\n          return null;';
+    } else {
+      capture = 'final result';
+      invocation = 'return subject.$target($args);';
+    }
     return '''$helpers$capture = (() {
         try {
           $invocation
