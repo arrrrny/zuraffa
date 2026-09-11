@@ -245,14 +245,17 @@ void main() {
   /// The entity-import lines the paired unit test emits (SPEC 1489): the
   /// declared RETURN entity's import, exactly when the test's assertion
   /// references the declared type — the entity-return `scalarOutcome`
-  /// path. Empty for scalars, for missing entities (the guard path), and
-  /// for every legacy shape.
+  /// path. The block is terminated by a blank separator line so it stays
+  /// visually distinct from the subject import (same idiom as the stub's
+  /// `importBlock` in subject_writer.dart). Empty for scalars, for missing
+  /// entities (the guard path), and for every legacy shape — the template
+  /// stays byte-identical.
   String _testEntityImportLines() {
     final shape = contractShape;
     if (shape == null || !shape.scalarOutcome) return '';
     if (isAssertableScalarType(shape.declaredReturn)) return '';
     if (shape.returnEntityImports.isEmpty) return '';
-    return "${shape.returnEntityImports.map((uri) => "import '$uri';").join('\n')}\n";
+    return "${shape.returnEntityImports.map((uri) => "import '$uri';").join('\n')}\n\n";
   }
 
   /// Derive the test's assertion from the behavior description. The
