@@ -81,3 +81,18 @@ New step 4b in `_run`, riding the SAME declared-intent machinery gen uses
   by U-W1/U-920/U-1500h (byte-identical render for the no-arg shape).
 - The `already-wired` / `unrecognized shape` classification (#829) is
   unchanged; U-W2/U-W5/U-829a/U-829b/U-1500i/U-1500j all stay green.
+
+## 5. Review round — pull/1516 findings (same file)
+
+| Finding | Resolution |
+| ------- | ---------- |
+| 🟠 The mock binding keyed off the DECLARED return entity, but the plan's `mock create` runs for the TRACED (`--entity`) entity — a permanent dead-end | The hard-stop now applies only when `mockBinding.entity == entityName` (the entity the plan creates). On a mismatch the declared entity's OWN mock data is bound when it exists; otherwise wire degrades to the stub's renderable shape instead of naming a step the plan never runs. |
+| 🟠 The declared return's class was never imported → the wired subject did not compile | When the declared base differs from `--entity`, its entity file is resolved with `locateEntityFile` and imported (`package:`); if the class is not a generated entity, the return degrades to the stub's shape (never an undefined class). |
+| 🟡 `num`/`DateTime` were refused a mock but had no literal → `return null as <T>;` | `_defaultBodyFor` gains `case 'num': return 0;` and `case 'DateTime': return DateTime.now();`. |
+| 🟡 The new refusal/fallback branches were untested | U-1500m/n/u/o/p/q/r/s/t pin the mismatch resolution, `Set`/`Iterable`/nullable-collection accessors, the plausibility-gate rejection, the `num`/`DateTime` literals, and the malformed-declaration refusal. |
+| 🟡 The fixture hand-copied `SubjectWriter`; nothing compiled the output | `contractStub` now renders through `SubjectWriter(contractShape: UnitContractShape.of(Signature.parse(...)))`; U-1500m/n/u run `dart analyze` over the wired subject and expect exit 0. |
+| 🔵 `deriveSubjectSignature` computed twice per run | Hoisted — the `DerivedSignature` is computed once and passed to `_renderWired`. |
+| 🔵 Nullable collections were not bound (`List<Task>?` → `return null as List<Task>?;`) | `_mockBindingFor` strips the nullability marker before the collection unwrap, so `List<Task>?` binds to `sampleList`. |
+| 🔵 No staleness note on the stub-header fallback | Documented in `_declaredShapeFromStubHeader`'s doc comment (the header outranks the spec only when the spec artifacts are absent). |
+| 🔵 `case 'String'` in `_defaultBodyFor` is unreachable | Kept deliberately: `_defaultBodyFor` stays self-contained for its own callers rather than depending on `_renderWired`'s earlier `String` branch. |
+| ⚠️ The stated `+27` evidence did not reproduce on macOS (`+26 -1`, U-W3) | Fixed: the missing-subject case canonicalizes through its nearest existing ancestor (`_canonicalizeMissingPath`), so a symlinked temp root no longer misreads the project's own path as outside the root. U-W3 is green on macOS now. |

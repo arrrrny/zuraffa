@@ -27,6 +27,12 @@
 //   5. The wired signature keeps the declared parameters.
 //   6. Legacy no-arg stubs keep wiring byte-compatibly.
 //
+// pull/1516 review round: the mock binding is keyed to the plan's own
+// entity (`--entity`), the declared return's class is imported when it
+// differs, unsupported scalar returns get real literals, and the fixture
+// is rendered by the real `SubjectWriter` (never a hand-copied
+// template).
+//
 // Test map:
 //   U-1500a — contract-derived stub, entity return: wired to the
 //             declared type + TaskMockData.sampleTask + both imports.
@@ -44,6 +50,25 @@
 //   U-1500k — the stub's provenance header resolves the declared return
 //             when the spec artifacts are absent (header fallback).
 //   U-1500l — the declared return wins over description inference.
+//   U-1500m — a declared return entity DIFFERENT from --entity is
+//             imported and bound to its OWN mock data when present;
+//             `dart analyze` over the wired subject is clean (review
+//             findings 1, 2, 5).
+//   U-1500n — the declared entity's mock data is absent: falls back to
+//             the stub's renderable shape — no dead-end, no crashing
+//             cast (review finding 1).
+//   U-1500u — a declared return entity that is not a generated entity
+//             falls back to the stub's renderable shape (never an
+//             undefined class).
+//   U-1500o — declared Set<Task> binds to `sampleList.toSet()`.
+//   U-1500p — declared Iterable<Task> binds to `sampleList`.
+//   U-1500q — declared nullable `List<Task>?` binds too (no null cast).
+//   U-1500r — a prose-adjacent header return is rejected by the
+//             plausibility gate (description-derived type wins).
+//   U-1500s — declared `num`/`DateTime` returns get type-correct
+//             literals, never `return null as <T>;`.
+//   U-1500t — a malformed declared signature is refused (errors are an
+//             API; never a silent prose fallback).
 library;
 
 import 'dart:io';
@@ -51,6 +76,10 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/models/behavior.dart';
+import 'package:zuraffa/src/plugins/tdd/models/routing.dart';
+import 'package:zuraffa/src/plugins/tdd/services/subject_writer.dart';
+import 'package:zuraffa/src/plugins/tdd/services/unit_contract_shape.dart';
 
 import 'helpers/tdd_fixture.dart';
 
@@ -66,86 +95,85 @@ const todoStoreSpec = '''
 - `TaskStore`: `create(String title) -> Task`, `readAll() -> List<Task>`, `find(int id) -> Task?`, `label(Task task) -> String`, `isDone(Task task) -> bool`, `count() -> int`
 ''';
 
-/// The contract-derived stub SubjectWriter emits for [signature] with a
-/// [renderedReturn]/[renderedParams] pair (issue #1259 degradation):
-/// non-renderable declared types render as `Object?`, the declared
-/// signature survives in the provenance header.
+/// The contract-derived stub the REAL producer emits for
+/// [declaredSignature] — `SubjectWriter` rendered through the same
+/// [UnitContractShape] gen uses (pull/1516 review finding 5: the fixture
+/// must track the producer, never a hand-copied template pinned to
+/// today's header format).
 String contractStub(
   String id, {
   required String declaredSignature,
-  required String renderedReturn,
-  required String renderedParams,
+  String description = 'the behavior under test',
 }) {
   final symbol = 'subject_${id.toLowerCase().replaceAll('-', '_')}';
-  return '''
-// GENERATED STUB — `zfa tdd gen $id` (spec 044-test-tdd-generation
-// + issue #1259 contract derivation).
-//
-// behavior_id: $id
-// source_criterion: FR-007
-// description: the behavior under test
-//
-// CONTRACT-DERIVED SUBJECT (issue #1259): the signature below is
-// derived from the spec's declared Layer Contract:
-//
-//     $declaredSignature
-//
-// The declared request and result types are preserved above. A
-// non-renderable declared type (an entity that does not exist yet)
-// renders as `Object?` so the stub compiles cleanly (FR-011); replace
-// it with the declared type when implementing.
-//
-// The subject name is derived from the behavior id and is deliberately
-// snake_cased — the generator KNOWS the name it emits, so the lint its
-// shape provably trips is suppressed here rather than renaming the
-// contract surface (issue #1035).
-// ignore_for_file: non_constant_identifier_names
-library;
+  return SubjectWriter(
+    contractShape: UnitContractShape.of(Signature.parse(declaredSignature)),
+  ).render(_behaviorFor(id, symbol, description));
+}
 
-/// Subject for behavior $id — declared contract:
-/// `$declaredSignature`.
-///
-/// Throws [UnimplementedError] until the real implementation lands.
-$renderedReturn $symbol($renderedParams) => throw UnimplementedError('$symbol not implemented: $declaredSignature');
-''';
+Behavior _behaviorFor(String id, String symbol, String description) => Behavior(
+  id: id,
+  feature: '090-tdd-fixture',
+  kind: BehaviorKind.unit,
+  description: description,
+  sourceCriterion: 'FR-007',
+  target: symbol,
+);
+
+/// The snake_case directory/file name a zfa entity uses for [name].
+String snakeName(String name) => name
+    .replaceAllMapped(
+      RegExp(r'([a-z0-9])([A-Z])'),
+      (m) => '${m.group(1)}_${m.group(2)}',
+    )
+    .toLowerCase();
+
+/// The entity file a `zfa entity create -n <Name>` step lays out
+/// (entities/<snake>/<snake>.dart). Self-contained (no imports) so a
+/// wired subject that imports it can be `dart analyze`d cleanly.
+Future<void> seedEntity(TddFixture fx, String name) async {
+  final snake = snakeName(name);
+  final entity = File(
+    '${fx.root.path}/lib/src/domain/entities/$snake/$snake.dart',
+  );
+  await entity.create(recursive: true);
+  await entity.writeAsString('''
+/// $name entity
+class $name {
+  const $name();
+}
+''');
 }
 
 /// The entity file `zfa entity create -n Task` lays out
 /// (entities/<snake>/<snake>.dart).
-Future<void> seedTaskEntity(TddFixture fx) async {
-  final entity = File('${fx.root.path}/lib/src/domain/entities/task/task.dart');
-  await entity.create(recursive: true);
-  await entity.writeAsString('''
-// Auto-generated by Zorphy
-import 'package:zorphy_annotation/zorphy_annotation.dart';
+Future<void> seedTaskEntity(TddFixture fx) => seedEntity(fx, 'Task');
 
-part 'task.zorphy.dart';
-
-/// Task entity
-@Zorphy(generateJson: true)
-abstract class \$Task {}
-''');
-}
-
-/// The mock-data file `zfa mock create --name Task` writes
-/// (data/mock/task_mock_data.dart: `TaskMockData.sampleTask`/
+/// The mock-data file `zfa mock create --name <Name>` writes
+/// (data/mock/<snake>_mock_data.dart: `<Name>MockData.sample<Name>`/
 /// `.sampleList`).
-Future<void> seedTaskMockData(TddFixture fx) async {
-  final mock = File('${fx.root.path}/lib/src/data/mock/task_mock_data.dart');
+Future<void> seedMockData(TddFixture fx, String name) async {
+  final snake = snakeName(name);
+  final mock = File(
+    '${fx.root.path}/lib/src/data/mock/${snake}_mock_data.dart',
+  );
   await mock.create(recursive: true);
   await mock.writeAsString('''
-// Generated by zfa for: Task
-import 'package:tdd_fixture/src/domain/entities/task/task.dart';
+// Generated by zfa for: $name
+import 'package:tdd_fixture/src/domain/entities/$snake/$snake.dart';
 
-/// Mock data for Task
-class TaskMockData {
-  static final List<Task> tasks = <Task>[];
-  static Task get sampleTask => tasks.first;
-  static List<Task> get sampleList => tasks;
-  static List<Task> get emptyList => <Task>[];
+/// Mock data for $name
+class ${name}MockData {
+  static final List<$name> items = <$name>[];
+  static $name get sample$name => items.first;
+  static List<$name> get sampleList => items;
+  static List<$name> get emptyList => <$name>[];
 }
 ''');
 }
+
+/// The mock-data file `zfa mock create --name Task` writes.
+Future<void> seedTaskMockData(TddFixture fx) => seedMockData(fx, 'Task');
 
 void main() {
   late TddFixture fx;
@@ -236,12 +264,7 @@ void main() {
           description: 'create a task with a title',
         );
         await File(fx.subjectPathOf('U2')).writeAsString(
-          contractStub(
-            'U2',
-            declaredSignature: 'create(String title) -> Task',
-            renderedReturn: 'Object?',
-            renderedParams: 'String title',
-          ),
+          contractStub('U2', declaredSignature: 'create(String title) -> Task'),
         );
         await seedTaskEntity(fx);
         await seedTaskMockData(fx);
@@ -285,12 +308,7 @@ void main() {
           description: 'create a task with a title',
         );
         await File(fx.subjectPathOf('U2')).writeAsString(
-          contractStub(
-            'U2',
-            declaredSignature: 'create(String title) -> Task',
-            renderedReturn: 'Object?',
-            renderedParams: 'String title',
-          ),
+          contractStub('U2', declaredSignature: 'create(String title) -> Task'),
         );
         await seedTaskEntity(fx);
         // NO mock data file — the pipeline step was skipped.
@@ -323,12 +341,7 @@ void main() {
         description: 'read all the persisted tasks',
       );
       await File(fx.subjectPathOf('U3')).writeAsString(
-        contractStub(
-          'U3',
-          declaredSignature: 'readAll() -> List<Task>',
-          renderedReturn: 'Object?',
-          renderedParams: '',
-        ),
+        contractStub('U3', declaredSignature: 'readAll() -> List<Task>'),
       );
       await seedTaskEntity(fx);
       await seedTaskMockData(fx);
@@ -357,12 +370,7 @@ void main() {
           description: 'find a task by its id',
         );
         await File(fx.subjectPathOf('U4')).writeAsString(
-          contractStub(
-            'U4',
-            declaredSignature: 'find(int id) -> Task?',
-            renderedReturn: 'Object?',
-            renderedParams: 'int id',
-          ),
+          contractStub('U4', declaredSignature: 'find(int id) -> Task?'),
         );
         await seedTaskEntity(fx);
         await seedTaskMockData(fx);
@@ -385,12 +393,7 @@ void main() {
         description: 'label the task for display',
       );
       await File(fx.subjectPathOf('U5')).writeAsString(
-        contractStub(
-          'U5',
-          declaredSignature: 'label(Task task) -> String',
-          renderedReturn: 'String',
-          renderedParams: 'Object? task',
-        ),
+        contractStub('U5', declaredSignature: 'label(Task task) -> String'),
       );
       await seedTaskEntity(fx);
 
@@ -412,12 +415,7 @@ void main() {
         description: 'report whether the task is done',
       );
       await File(fx.subjectPathOf('U6')).writeAsString(
-        contractStub(
-          'U6',
-          declaredSignature: 'isDone(Task task) -> bool',
-          renderedReturn: 'bool',
-          renderedParams: 'Object? task',
-        ),
+        contractStub('U6', declaredSignature: 'isDone(Task task) -> bool'),
       );
       await seedTaskEntity(fx);
 
@@ -437,14 +435,9 @@ void main() {
         id: 'U7',
         description: 'count the persisted tasks',
       );
-      await File(fx.subjectPathOf('U7')).writeAsString(
-        contractStub(
-          'U7',
-          declaredSignature: 'count() -> int',
-          renderedReturn: 'int',
-          renderedParams: '',
-        ),
-      );
+      await File(
+        fx.subjectPathOf('U7'),
+      ).writeAsString(contractStub('U7', declaredSignature: 'count() -> int'));
       await seedTaskEntity(fx);
 
       final out = await runWire(id: 'U7');
@@ -574,12 +567,7 @@ class Weird {
         description: 'create a task with a title',
       );
       await File(fx.subjectPathOf('U2')).writeAsString(
-        contractStub(
-          'U2',
-          declaredSignature: 'create(String title) -> Task',
-          renderedReturn: 'Object?',
-          renderedParams: 'String title',
-        ),
+        contractStub('U2', declaredSignature: 'create(String title) -> Task'),
       );
       await seedTaskEntity(fx);
       await seedTaskMockData(fx);
@@ -604,12 +592,7 @@ class Weird {
           description: 'render returns a non-empty string for the task',
         );
         await File(fx.subjectPathOf('U2')).writeAsString(
-          contractStub(
-            'U2',
-            declaredSignature: 'create(String title) -> Task',
-            renderedReturn: 'Object?',
-            renderedParams: 'String title',
-          ),
+          contractStub('U2', declaredSignature: 'create(String title) -> Task'),
         );
         await seedTaskEntity(fx);
         await seedTaskMockData(fx);
@@ -623,5 +606,391 @@ class Weird {
         expect(subject, contains('return TaskMockData.sampleTask;'));
       },
     );
+
+    // -----------------------------------------------------------------
+    // pull/1516 review fixes.
+    // -----------------------------------------------------------------
+
+    /// Seed a declared feature from an explicit Layer Contracts
+    /// [contract] block plus one test-list entry per behavior in [rows].
+    Future<void> seedContractFeature({
+      required String contract,
+      required List<({String id, String description, String traces})> rows,
+    }) async {
+      await fx.seedTestList([
+        for (final r in rows)
+          (
+            id: r.id,
+            description: r.description,
+            traces: r.traces,
+            state: 'PENDING',
+            kind: 'unit',
+          ),
+      ]);
+      await Directory(fx.featureDir).create(recursive: true);
+      await File(
+        p.join(fx.featureDir, 'spec.md'),
+      ).writeAsString('# Todo Feature\n\n### Layer Contracts\n\n$contract\n');
+    }
+
+    /// `dart analyze <relative>` inside the fixture package.
+    Future<ProcessResult> analyze(String relative) => Process.run('dart', [
+      'analyze',
+      relative,
+    ], workingDirectory: fx.root.path);
+
+    test('U-1500m: a declared return entity that differs from --entity is '
+        'imported and bound to its OWN mock data when that exists '
+        '(findings 1+2) — and the wired subject compiles', () async {
+      await seedContractFeature(
+        contract:
+            '**Domain**:\n'
+            '- `OrderStore`: `execute(String title) -> Order`',
+        rows: [
+          (
+            id: 'U2',
+            description: 'execute an order with a title',
+            traces: 'OrderStore.execute',
+          ),
+        ],
+      );
+      await fx.registerBehavior(
+        id: 'U2',
+        description: 'execute an order with a title',
+      );
+      await File(fx.subjectPathOf('U2')).writeAsString(
+        contractStub('U2', declaredSignature: 'execute(String title) -> Order'),
+      );
+      await seedTaskEntity(fx);
+      await seedEntity(fx, 'Order');
+      await seedMockData(fx, 'Order');
+
+      final out = await runWire(id: 'U2');
+
+      expect(exitCode, 0, reason: 'out: $out');
+      final subject = await File(fx.subjectPathOf('U2')).readAsString();
+      // The declared shape is kept, and its own class is imported —
+      // Dart imports are not transitive (finding 2).
+      expect(subject, contains('Order subject_u2(String title) {'));
+      expect(
+        subject,
+        contains(
+          "import 'package:tdd_fixture/src/domain/entities/order/"
+          "order.dart';",
+        ),
+      );
+      expect(subject, contains('final Type wiredEntityAnchor = Task;'));
+      // Bound to the DECLARED entity's own mock data, never the
+      // plan's (Task) — and never a dead-end (finding 1).
+      expect(subject, contains('return OrderMockData.sampleOrder;'));
+      expect(subject, isNot(contains('TaskMockData')));
+      expect(subject, isNot(contains('UnimplementedError')));
+      expect(subject, isNot(contains('return null as')));
+      final result = await analyze('lib/u2_subject.dart');
+      expect(
+        result.exitCode,
+        0,
+        reason: 'dart analyze out: ${result.stdout}${result.stderr}',
+      );
+    });
+
+    test('U-1500n: a declared return entity whose mock data the plan never '
+        'creates falls back to the stub\'s renderable shape — no dead-end, '
+        'no crashing cast (finding 1)', () async {
+      await seedContractFeature(
+        contract:
+            '**Domain**:\n'
+            '- `OrderStore`: `execute(String title) -> Order`',
+        rows: [
+          (
+            id: 'U2',
+            description: 'execute an order with a title',
+            traces: 'OrderStore.execute',
+          ),
+        ],
+      );
+      await fx.registerBehavior(
+        id: 'U2',
+        description: 'execute an order with a title',
+      );
+      await File(fx.subjectPathOf('U2')).writeAsString(
+        contractStub('U2', declaredSignature: 'execute(String title) -> Order'),
+      );
+      await seedTaskEntity(fx);
+      await seedEntity(fx, 'Order');
+      // NO order mock data: the plan's `mock create` runs for the
+      // TRACED entity (Task) alone — binding a mock the plan never
+      // creates used to hard-stop the pipeline forever.
+
+      final out = await runWire(id: 'U2');
+
+      expect(exitCode, 0, reason: 'out: $out');
+      final subject = await File(fx.subjectPathOf('U2')).readAsString();
+      // Degraded to the stub's own renderable shape: the declared class
+      // is not referenced, so it is not imported (an unused import is
+      // itself an analyzer warning).
+      expect(subject, contains('Object? subject_u2(String title) {'));
+      expect(subject, isNot(contains('Order subject_u2')));
+      expect(subject, isNot(contains('entities/order/order.dart')));
+      expect(subject, isNot(contains('MockData')));
+      expect(subject, isNot(contains('return null as Order')));
+      expect(subject, isNot(contains('UnimplementedError')));
+      final result = await analyze('lib/u2_subject.dart');
+      expect(
+        result.exitCode,
+        0,
+        reason: 'dart analyze out: ${result.stdout}${result.stderr}',
+      );
+    });
+
+    test('U-1500u: a declared return entity that is not a generated entity '
+        'falls back to the stub\'s renderable shape — never an undefined '
+        'class', () async {
+      await seedContractFeature(
+        contract:
+            '**Domain**:\n'
+            '- `OrderStore`: `execute(String title) -> Order`',
+        rows: [
+          (
+            id: 'U2',
+            description: 'execute an order with a title',
+            traces: 'OrderStore.execute',
+          ),
+        ],
+      );
+      await fx.registerBehavior(
+        id: 'U2',
+        description: 'execute an order with a title',
+      );
+      await File(fx.subjectPathOf('U2')).writeAsString(
+        contractStub('U2', declaredSignature: 'execute(String title) -> Order'),
+      );
+      await seedTaskEntity(fx);
+      // NO order entity file: the declared token cannot be imported.
+
+      final out = await runWire(id: 'U2');
+
+      expect(exitCode, 0, reason: 'out: $out');
+      final subject = await File(fx.subjectPathOf('U2')).readAsString();
+      expect(subject, contains('Object? subject_u2(String title) {'));
+      expect(subject, isNot(contains('Order subject_u2')));
+      expect(subject, isNot(contains('entities/order/order.dart')));
+      expect(subject, isNot(contains('UnimplementedError')));
+      final result = await analyze('lib/u2_subject.dart');
+      expect(
+        result.exitCode,
+        0,
+        reason: 'dart analyze out: ${result.stdout}${result.stderr}',
+      );
+    });
+
+    test('U-1500o: a declared Set<Task> return binds to sampleList.toSet() '
+        '(finding 4)', () async {
+      await seedContractFeature(
+        contract: '**Domain**:\n- `TaskStore`: `readAllSet() -> Set<Task>`',
+        rows: [
+          (
+            id: 'U2',
+            description: 'read all the distinct tasks',
+            traces: 'TaskStore.readAllSet',
+          ),
+        ],
+      );
+      await fx.registerBehavior(
+        id: 'U2',
+        description: 'read all the distinct tasks',
+      );
+      await File(fx.subjectPathOf('U2')).writeAsString(
+        contractStub('U2', declaredSignature: 'readAllSet() -> Set<Task>'),
+      );
+      await seedTaskEntity(fx);
+      await seedTaskMockData(fx);
+
+      final out = await runWire(id: 'U2');
+
+      expect(exitCode, 0, reason: 'out: $out');
+      final subject = await File(fx.subjectPathOf('U2')).readAsString();
+      expect(subject, contains('Set<Task> subject_u2() {'));
+      expect(subject, contains('return TaskMockData.sampleList.toSet();'));
+      expect(subject, isNot(contains('return null as')));
+    });
+
+    test('U-1500p: a declared Iterable<Task> return binds to sampleList '
+        '(finding 4)', () async {
+      await seedContractFeature(
+        contract:
+            '**Domain**:\n'
+            '- `TaskStore`: `stream() -> Iterable<Task>`',
+        rows: [
+          (
+            id: 'U2',
+            description: 'stream every persisted task',
+            traces: 'TaskStore.stream',
+          ),
+        ],
+      );
+      await fx.registerBehavior(
+        id: 'U2',
+        description: 'stream every persisted task',
+      );
+      await File(fx.subjectPathOf('U2')).writeAsString(
+        contractStub('U2', declaredSignature: 'stream() -> Iterable<Task>'),
+      );
+      await seedTaskEntity(fx);
+      await seedTaskMockData(fx);
+
+      final out = await runWire(id: 'U2');
+
+      expect(exitCode, 0, reason: 'out: $out');
+      final subject = await File(fx.subjectPathOf('U2')).readAsString();
+      expect(subject, contains('Iterable<Task> subject_u2() {'));
+      expect(subject, contains('return TaskMockData.sampleList;'));
+      expect(subject, isNot(contains('return null as')));
+    });
+
+    test('U-1500q: a declared nullable collection (List<Task>?) binds too — '
+        'no crashing null cast', () async {
+      await seedContractFeature(
+        contract:
+            '**Domain**:\n'
+            '- `TaskStore`: `readAllMaybe() -> List<Task>?`',
+        rows: [
+          (
+            id: 'U2',
+            description: 'read all the persisted tasks when known',
+            traces: 'TaskStore.readAllMaybe',
+          ),
+        ],
+      );
+      await fx.registerBehavior(
+        id: 'U2',
+        description: 'read all the persisted tasks when known',
+      );
+      await File(fx.subjectPathOf('U2')).writeAsString(
+        contractStub('U2', declaredSignature: 'readAllMaybe() -> List<Task>?'),
+      );
+      await seedTaskEntity(fx);
+      await seedTaskMockData(fx);
+
+      final out = await runWire(id: 'U2');
+
+      expect(exitCode, 0, reason: 'out: $out');
+      final subject = await File(fx.subjectPathOf('U2')).readAsString();
+      expect(subject, contains('List<Task>? subject_u2() {'));
+      expect(subject, contains('return TaskMockData.sampleList;'));
+      expect(subject, isNot(contains('return null as')));
+    });
+
+    test(
+      'U-1500r: a prose-adjacent header return is rejected by the '
+      'plausibility gate — the description-derived type wins (finding 4)',
+      () async {
+        await fx.registerBehavior(
+          id: 'U2',
+          description: 'render returns a non-empty string for the task',
+        );
+        await File(fx.subjectPathOf('U2')).writeAsString(
+          contractStub(
+            'U2',
+            declaredSignature: 'create(String title) -> Whatever works',
+          ),
+        );
+        await seedTaskEntity(fx);
+
+        final out = await runWire(id: 'U2');
+
+        expect(exitCode, 0, reason: 'out: $out');
+        final subject = await File(fx.subjectPathOf('U2')).readAsString();
+        expect(subject, contains('String subject_u2(String title) {'));
+        expect(subject, isNot(contains('Whatever works')));
+        expect(subject, isNot(contains('return null as')));
+      },
+    );
+
+    test('U-1500s: declared `num`/`DateTime` returns get type-correct '
+        'literals, never the crashing cast (finding 3)', () async {
+      await seedContractFeature(
+        contract:
+            '**Domain**:\n'
+            '- `TaskStore`: `count() -> num`, `now() -> DateTime`',
+        rows: [
+          (
+            id: 'U2',
+            description: 'count the persisted tasks',
+            traces: 'TaskStore.count',
+          ),
+          (
+            id: 'U3',
+            description: 'stamp when the tasks were read',
+            traces: 'TaskStore.now',
+          ),
+        ],
+      );
+      await fx.registerBehavior(
+        id: 'U2',
+        description: 'count the persisted tasks',
+      );
+      await fx.registerBehavior(
+        id: 'U3',
+        description: 'stamp when the tasks were read',
+      );
+      await File(
+        fx.subjectPathOf('U2'),
+      ).writeAsString(contractStub('U2', declaredSignature: 'count() -> num'));
+      await File(fx.subjectPathOf('U3')).writeAsString(
+        contractStub('U3', declaredSignature: 'now() -> DateTime'),
+      );
+      await seedTaskEntity(fx);
+
+      final out2 = await runWire(id: 'U2');
+      expect(exitCode, 0, reason: 'out: $out2');
+      final subject2 = await File(fx.subjectPathOf('U2')).readAsString();
+      expect(subject2, contains('num subject_u2() {'));
+      expect(subject2, contains('return 0;'));
+      expect(subject2, isNot(contains('return null as')));
+
+      final out3 = await runWire(id: 'U3');
+      expect(exitCode, 0, reason: 'out: $out3');
+      final subject3 = await File(fx.subjectPathOf('U3')).readAsString();
+      expect(subject3, contains('DateTime subject_u3() {'));
+      expect(subject3, contains('return DateTime.now();'));
+      expect(subject3, isNot(contains('return null as')));
+    });
+
+    test('U-1500t: a malformed declared signature is refused — the '
+        'declaration error is an API, never a silent prose fallback '
+        '(finding 4)', () async {
+      await seedContractFeature(
+        contract: '**Function**:\n- `TaskStore`: `execute( -> num`',
+        rows: [
+          (
+            id: 'U2',
+            description: 'execute the declared store method',
+            traces: 'TaskStore.execute',
+          ),
+        ],
+      );
+      await fx.registerBehavior(
+        id: 'U2',
+        description: 'execute the declared store method',
+      );
+      await File(fx.subjectPathOf('U2')).writeAsString(
+        contractStub('U2', declaredSignature: 'create(String title) -> Task'),
+      );
+      await seedTaskEntity(fx);
+
+      final out = await runWire(id: 'U2');
+
+      expect(exitCode, isNot(0));
+      expect(out, contains('declaration refused'));
+      expect(out, contains('malformed signature'));
+      expect(out, contains('outcome=runner-error'));
+      final subject = await File(fx.subjectPathOf('U2')).readAsString();
+      expect(
+        subject,
+        contains('UnimplementedError'),
+        reason: 'a refused declaration never rewrites the subject',
+      );
+    });
   });
 }

@@ -212,7 +212,13 @@ class WireCommand extends Command<void> {
     try {
       canonicalSubject = await File(subjectPath).resolveSymbolicLinks();
     } on FileSystemException {
-      canonicalSubject = subjectPath;
+      // A missing subject file (the U-W3 artifact case) has nothing to
+      // resolve: canonicalize through its nearest EXISTING ancestor and
+      // re-append the remaining segments. Taking the raw path here made
+      // a symlinked temp root (`/var/folders` → `/private/var/folders`
+      // on macOS) read the project's own recorded path as "outside the
+      // project root" — the wrong refusal branch (pull/1516 review).
+      canonicalSubject = await _canonicalizeMissingPath(subjectPath);
     }
     if (!p.equals(canonicalRoot, canonicalSubject) &&
         !p.isWithin(canonicalRoot, canonicalSubject)) {
@@ -356,7 +362,7 @@ class WireCommand extends Command<void> {
       _descriptionFor(record),
       forWire: true,
     );
-    final effectiveReturnType =
+    var effectiveReturnType =
         declaredReturn != null &&
             declaredReturn.isNotEmpty &&
             _isPlausibleTypeToken(declaredReturn)
@@ -373,40 +379,82 @@ class WireCommand extends Command<void> {
     // `return null as Task;` runtime cast error. A missing mock-data
     // file is an honest misfire-stop naming the skipped step; the
     // subject is left untouched.
+    //
+    // Review finding 1 (pull/1516): the plan's `mock create` runs for
+    // the entity it passed to `--entity` (the TRACED entity), never for
+    // the declared return's entity. Hard-stopping on a mock the plan
+    // will never create dead-ended the pipeline permanently (the
+    // remediation named a step the plan does not run).
+    //
+    // Review finding 2 (pull/1516): the declared return's own class must
+    // be imported when it differs from `--entity` — Dart imports are not
+    // transitive, so an unimported declared token left the wired subject
+    // uncompilable (the exact failure class #1500 set out to remove).
+    //
+    // The mismatch resolution therefore is: bind the declared entity's
+    // OWN mock data when it exists (importing the declared class too),
+    // otherwise fall back to the stub's renderable shape — a mismatch
+    // never emits `return null as <Declared>;`, which `dart analyze`
+    // flags as `cast_from_null_always_fails` (the crashing-cast class
+    // review finding 3 names).
     final mockBinding = _mockBindingFor(effectiveReturnType);
     String? mockImport;
     String? mockReference;
+    String? declaredEntityImport;
     if (mockBinding != null) {
       final mockFile = await _locateMockDataFile(cwd, mockBinding.entity);
-      if (mockFile == null) {
-        print(
-          'zfa tdd wire: no generated mock data for entity '
-          '"${mockBinding.entity}" found under '
-          '${p.join(cwd, 'lib', 'src', 'data', 'mock')}. Run '
-          '`zfa mock create --name ${mockBinding.entity}` first (the '
-          'pipeline orders the wire step after mock create — the wired '
-          'subject returns an ${mockBinding.entity}MockData sample, '
-          'not a cast null).',
+      if (mockBinding.entity == entityName) {
+        if (mockFile == null) {
+          print(
+            'zfa tdd wire: no generated mock data for entity '
+            '"${mockBinding.entity}" found under '
+            '${p.join(cwd, 'lib', 'src', 'data', 'mock')}. Run '
+            '`zfa mock create --name ${mockBinding.entity}` first (the '
+            'pipeline orders the wire step after mock create — the wired '
+            'subject returns an ${mockBinding.entity}MockData sample, '
+            'not a cast null).',
+          );
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: WireOutcome.runnerError,
+            feature: resolved.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
+        mockImport = _packageImportFor(cwd, mockFile);
+        mockReference = '${mockBinding.entity}MockData.${mockBinding.accessor}';
+      } else {
+        final declaredEntityFile = await locateEntityFile(
+          cwd,
+          mockBinding.entity,
         );
-        _printSummary(
-          behavior: record.behaviorId,
-          outcome: WireOutcome.runnerError,
-          feature: resolved.featureName,
-        );
-        exitCode = 1;
-        return;
+        if (declaredEntityFile == null || mockFile == null) {
+          // The declared return names a class the pipeline did not
+          // generate (a repository/usecase type, or an entity the plan
+          // never created), or one whose mock data the plan never
+          // creates: keep the stub's own renderable shape (FR-011) — the
+          // same degradation the subject stub carried — rather than
+          // render an undefined class or a cast that always throws.
+          effectiveReturnType = stubReturnType;
+        } else {
+          declaredEntityImport = _packageImportFor(cwd, declaredEntityFile);
+          mockImport = _packageImportFor(cwd, mockFile);
+          mockReference =
+              '${mockBinding.entity}MockData.${mockBinding.accessor}';
+        }
       }
-      mockImport = _packageImportFor(cwd, mockFile);
-      mockReference = '${mockBinding.entity}MockData.${mockBinding.accessor}';
     }
 
     final wired = _renderWired(
       record: record,
+      derived: derived,
       effectiveReturnType: effectiveReturnType,
       functionName: functionName,
       stubParams: stubParams,
       entityName: entityName,
       entityImport: _packageImportFor(cwd, entityFile),
+      declaredEntityImport: declaredEntityImport,
       mockImport: mockImport,
       mockReference: mockReference,
     );
@@ -477,6 +525,13 @@ class WireCommand extends Command<void> {
   /// derived the stub from. Null when no header line parses to a
   /// signature; prose-adjacent matches are additionally filtered by
   /// the type-token plausibility gate at the use site.
+  ///
+  /// Tradeoff (pull/1516 review): a STALE stub's header outranks the
+  /// current spec — there is no staleness comparison here, unlike gen's
+  /// `SubjectWriter.render` diffing (bug #683). This path is a fallback
+  /// only reached when the spec artifacts are absent/unreadable, so the
+  /// drift window is a pruned-artifacts run; the next `zfa tdd gen`
+  /// rewrites the header from the current declaration.
   static UnitContractShape? _declaredShapeFromStubHeader(String raw) {
     for (final line in raw.split('\n')) {
       final comment = RegExp(r'^\s*//\s*(.+?)\s*$').firstMatch(line);
@@ -529,10 +584,17 @@ class WireCommand extends Command<void> {
   /// `sample<E>` for `E`/`E?`, `sampleList` for `List<E>`/`Iterable<E>`,
   /// `sampleList.toSet()` for `Set<E>`. Null when the return needs no
   /// mock data (scalars, Map shapes).
+  ///
+  /// Review finding (pull/1516): the nullability marker is stripped
+  /// BEFORE the collection unwrap, so a nullable collection
+  /// (`List<Task>?`) binds too — a non-null `sampleList` is a valid
+  /// `List<Task>?`, whereas the previous order left it unbound and
+  /// rendered `return null as List<Task>?;`.
   static ({String entity, String accessor})? _mockBindingFor(
     String returnType,
   ) {
     var t = returnType.trim();
+    if (t.endsWith('?')) t = t.substring(0, t.length - 1).trim();
     var collection = false;
     var setShaped = false;
     while (true) {
@@ -542,7 +604,6 @@ class WireCommand extends Command<void> {
       t = m.group(2)!.trim();
       collection = true;
     }
-    if (t.endsWith('?')) t = t.substring(0, t.length - 1).trim();
     if (t.startsWith('Map<')) return null;
     if (_nonEntityBases.contains(t)) return null;
     if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(t)) return null;
@@ -580,16 +641,17 @@ class WireCommand extends Command<void> {
 
   String _renderWired({
     required ArtifactRecord record,
+    required DerivedSignature derived,
     required String effectiveReturnType,
     required String functionName,
     required String stubParams,
     required String entityName,
     required String entityImport,
+    String? declaredEntityImport,
     String? mockImport,
     String? mockReference,
   }) {
     final description = _descriptionFor(record);
-    final derived = deriveSubjectSignature(description, forWire: true);
     // Bug #1500: a description-derived explicit body is honored only
     // when its inferred type MATCHES the effective return — the
     // declared contract outranks prose inference, so a declared
@@ -661,7 +723,7 @@ class WireCommand extends Command<void> {
 library;
 
 import '$entityImport';
-${mockImport == null ? '' : "import '$mockImport';\n"}
+${declaredEntityImport == null ? '' : "import '$declaredEntityImport';\n"}${mockImport == null ? '' : "import '$mockImport';\n"}
 /// Subject for behavior ${record.behaviorId}, wired to entity
 /// $entityName by the generation pipeline.
 $effectiveReturnType $functionName($stubParams) {$body}
@@ -690,6 +752,17 @@ $effectiveReturnType $functionName($stubParams) {$body}
         return 'return const <String, Object?>{};';
       case 'int':
         return 'return 0;';
+      case 'num':
+        // Review finding 3 (pull/1516): `num` is refused a mock binding
+        // (no `<E>MockData` surface) but previously fell through to
+        // `return null as num;` — a runtime TypeError. An int literal IS
+        // a num.
+        return 'return 0;';
+      case 'DateTime':
+        // Review finding 3 (pull/1516): `DateTime` is likewise refused a
+        // mock binding; `DateTime.now()` is the compiling literal (no
+        // import — dart:core).
+        return 'return DateTime.now();';
       case 'String':
         return "return '$functionName';";
       default:
@@ -716,6 +789,28 @@ $effectiveReturnType $functionName($stubParams) {$body}
     }
     final rel = p.relative(entityFile, from: p.join(cwd, 'lib'));
     return 'package:$pkg/$rel';
+  }
+
+  /// Canonicalize [path] when the file itself does not exist yet: walk up
+  /// to the nearest EXISTING ancestor, resolve THAT through symlinks, and
+  /// re-append the remaining (missing) segments. Returns [path] unchanged
+  /// when no ancestor resolves (pull/1516 review: a symlinked temp root
+  /// must not make the project's own recorded subject path compare as
+  /// outside the project root).
+  static Future<String> _canonicalizeMissingPath(String path) async {
+    var dir = Directory(p.dirname(path));
+    final tail = <String>[p.basename(path)];
+    while (true) {
+      try {
+        final resolved = await dir.resolveSymbolicLinks();
+        return p.joinAll([resolved, ...tail.reversed]);
+      } on FileSystemException {
+        final parent = dir.parent;
+        if (parent.path == dir.path) return path;
+        tail.add(p.basename(dir.path));
+        dir = parent;
+      }
+    }
   }
 
   Future<_Resolved?> _resolve(
