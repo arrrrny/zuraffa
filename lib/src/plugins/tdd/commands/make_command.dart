@@ -1536,6 +1536,40 @@ class MakeCommand extends Command<void> {
           exitCode = 1;
           return;
         }
+        // Issue #1407 — the make's analyze gate is ERRORS-ONLY. The plan's
+        // terminal `build` step runs `zfa build`, whose analyze stage
+        // (issues #395/#1035) refuses the tree on errors OR warnings; a
+        // pre-existing engine-lane warning (0 errors + N warnings) then
+        // failed the skin lane's make while the engine lane's own green
+        // receipt had accepted the same warning — cross-lane warning
+        // coupling, and 0 errors means the tree compiles. When the failed
+        // step IS the plan's terminal build step (the same per-behavior
+        // precondition the #737 guard uses) and its output proves the
+        // refusal was the gate's own verdict with 0 error(s) and >=1
+        // warning(s) (cross-checked through the shared
+        // `BuildCommand.countAnalyzerIssues` parser — the single #1035
+        // line-format contract), the warnings are LOGGED as non-blocking
+        // findings and the make PROCEEDS through its normal flow: the
+        // post-generation target test and the suite guard decide the
+        // outcome, never the warning. A build verdict carrying analyzer
+        // errors never reaches this arm — the #942 refusal below keeps
+        // the honest `generation-error` stop byte-identically. A project
+        // that relies on warnings being blocking opts back in via the
+        // TDD profile's machine-readable Keys block
+        // (`analyze-gate: warnings-blocking`), which skips this arm and
+        // restores the pre-#1407 grading unchanged. The dart analyze
+        // invocation, the build command, and the pipeline runner are
+        // untouched — this is only how the make interprets the verdict.
+        final warningsOnlyGateRefusal =
+            failed != null &&
+            idx == effectivePlan.steps.length - 1 &&
+            effectivePlan.steps[idx].args.isNotEmpty &&
+            effectivePlan.steps[idx].args.first == 'build' &&
+            !(await _profileWarningsBlocking(cwd)) &&
+            _isWarningsOnlyBuildGateRefusal(failed.output);
+        if (warningsOnlyGateRefusal) {
+          _logWarningsOnlyGateRefusal(failed.output);
+        }
         // Issue #737: the plan's terminal `build` step validates the
         // WHOLE project (build_runner + analyze over the full tree), so
         // it can exit non-zero for reasons this behavior's generation
@@ -1550,16 +1584,18 @@ class MakeCommand extends Command<void> {
         // the behavior's own test must pass right now. Anything else
         // keeps the honest `generation-error` stop (safe-failure,
         // never a silent pass).
-        final toleratedRun = await _toleratedTerminalBuildFailure(
-          runner: runner,
-          plan: effectivePlan,
-          result: pipelineResult,
-          singleTemplate: singleTemplate,
-          fileTemplate: fileTemplate,
-          testPath: testPath,
-          testName: testName,
-          workingDirectory: cwd,
-        );
+        final toleratedRun = warningsOnlyGateRefusal
+            ? null
+            : await _toleratedTerminalBuildFailure(
+                runner: runner,
+                plan: effectivePlan,
+                result: pipelineResult,
+                singleTemplate: singleTemplate,
+                fileTemplate: fileTemplate,
+                testPath: testPath,
+                testName: testName,
+                workingDirectory: cwd,
+              );
         if (toleratedRun != null) {
           print(
             '   terminal build step failed: `${failed!.command}` '
@@ -1573,7 +1609,7 @@ class MakeCommand extends Command<void> {
           );
           postRun = toleratedRun;
           buildStepTolerated = true;
-        } else {
+        } else if (!warningsOnlyGateRefusal) {
           // Issue #1322: a failed BUILD step whose output carries the
           // missing-builder-dependency class is corrupt project state, not
           // generation noise — grade it with the distinct outcome naming
@@ -2184,6 +2220,130 @@ class MakeCommand extends Command<void> {
     );
     if (!run.startedProcess || run.exitCode != 0) return null;
     return run;
+  }
+
+  // -------------------------------------------------------------------
+  // Errors-only analyze gate (issue #1407): helpers for the make's
+  // interpretation of the terminal build step's analyze verdict.
+  // -------------------------------------------------------------------
+
+  /// The build command's analyze-gate refusal verdict (issue #1407). The
+  /// message has exactly ONE writer — the build command's post-build
+  /// analyze gate (issues #395/#1035):
+  /// `❌ dart analyze reported <E> error(s) and <W> warning(s) — generated
+  /// code does not compile cleanly.` — and carries the counts the gate
+  /// decided on. Reading the verdict from the gate's own line is what
+  /// keeps this an interpretation fix: the dart analyze invocation, the
+  /// build command, and everything the analyzer reports are unchanged.
+  static final RegExp _analyzeGateRefusalPattern = RegExp(
+    r'dart analyze reported (\d+) error\(s\) and (\d+) warning\(s\)',
+  );
+
+  /// Issue #1407: whether [buildOutput] is the build command's
+  /// analyze-gate refusal on WARNINGS ONLY — 0 error(s) and at least one
+  /// warning — i.e. the tree compiles (0 errors) and the build step
+  /// failed only because the #1035 gate treats warnings as fatal.
+  ///
+  /// Requires BOTH of:
+  ///
+  ///   - the gate's own refusal message naming 0 errors (the single
+  ///     writer documented on [_analyzeGateRefusalPattern]). A build
+  ///     failure without that message is some other failure class
+  ///     (build_runner, DDA routes, post-build verifiers) and keeps the
+  ///     existing #737/#942/#1322 grading unchanged;
+  ///   - the shared analyzer line-format parser
+  ///     ([BuildCommand.countAnalyzerIssues], the #1035 single contract)
+  ///     finds NO `error -` lines in the raw output. If the gate message
+  ///     and the parser disagree, the honest stop stands (safe-failure,
+  ///     never a silent pass).
+  static bool _isWarningsOnlyBuildGateRefusal(String buildOutput) {
+    final match = _analyzeGateRefusalPattern.firstMatch(buildOutput);
+    if (match == null) return false;
+    final errors = int.tryParse(match.group(1)!) ?? -1;
+    final warnings = int.tryParse(match.group(2)!) ?? -1;
+    if (errors != 0 || warnings < 1) return false;
+    return !BuildCommand.analyzeReportsError(buildOutput);
+  }
+
+  /// Issue #1407 (FR-002): log the warnings-only gate refusal — the
+  /// verdict line naming the counts and the errors-only policy, then the
+  /// analyzer `warning -` lines. A voluminous verdict logs a capped
+  /// sample plus a remainder count so the transcript stays readable.
+  static void _logWarningsOnlyGateRefusal(String buildOutput) {
+    final match = _analyzeGateRefusalPattern.firstMatch(buildOutput)!;
+    final warnings = int.parse(match.group(2)!);
+    print(
+      '   analyze gate: 0 error(s), $warnings warning(s) — warnings are '
+      'non-blocking (issue #1407, errors-only gate): the make proceeds.',
+    );
+    final warningLines = RegExp(
+      r'^\s*warning\s*-\s.*$',
+      multiLine: true,
+    ).allMatches(buildOutput).map((m) => m.group(0)!.trim()).toList();
+    const maxLogged = 10;
+    for (final line in warningLines.take(maxLogged)) {
+      print('   $line');
+    }
+    final remainder = warningLines.length - maxLogged;
+    if (remainder > 0) {
+      print('   ... $remainder more warning(s)');
+    }
+  }
+
+  /// Issue #1407 (FR-005): whether the project opted into the LEGACY
+  /// warnings-blocking strictness via the TDD profile's machine-readable
+  /// Keys block (`analyze-gate: warnings-blocking`). The default — absent
+  /// key, an explicit `analyze-gate: errors-only`, an unrecognized value,
+  /// or a missing/unreadable profile — is errors-only (fail-open to the
+  /// fix, never to the legacy refusal). Resolution order mirrors
+  /// [SingleTestRunner.loadSingleTemplate]: the Keys block first, then
+  /// the legacy frontmatter block.
+  Future<bool> _profileWarningsBlocking(String workingDirectory) async {
+    final file = File(
+      p.join(workingDirectory, SingleTestRunner.defaultProfilePath),
+    );
+    if (!await file.exists()) return false;
+    final String raw;
+    try {
+      raw = await file.readAsString();
+    } catch (_) {
+      return false;
+    }
+    String? value;
+    final keysBlock = RegExp(
+      r'##\s*Keys \(machine-readable\)\s*\n+```ya?ml\n(.*?)```',
+      dotAll: true,
+    ).firstMatch(raw);
+    if (keysBlock != null) {
+      value = _profileGateValue(keysBlock.group(1)!);
+    }
+    value ??= () {
+      final frontmatter = RegExp(
+        r'^---\n([\s\S]*?)\n---',
+        dotAll: true,
+      ).firstMatch(raw);
+      return frontmatter == null
+          ? null
+          : _profileGateValue(frontmatter.group(1)!);
+    }();
+    return value?.trim().toLowerCase() == 'warnings-blocking';
+  }
+
+  /// The `analyze-gate:` scalar in one profile yaml block, or null when
+  /// the block does not carry the key. Quoted scalars are unwrapped —
+  /// the same three-group shape [SingleTestRunner] uses for every
+  /// profile value (the profile canonically quotes its keys).
+  static String? _profileGateValue(String block) {
+    final match = RegExp(
+      r'''^\s*analyze-gate:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))''',
+      multiLine: true,
+    ).firstMatch(block);
+    if (match == null) return null;
+    for (var i = 1; i <= match.groupCount; i++) {
+      final g = match.group(i);
+      if (g != null && g.isNotEmpty) return g;
+    }
+    return null;
   }
 
   /// The issue #1402 targeted remedy (the issue's minimum expected fix):
