@@ -93,6 +93,7 @@ const String declaredCoreContractSpec = '''
 ## Functional Requirements
 
 - **FR-001**: The system shall send outbound messages through the transport.
+  traces: MessageTransport
 
 ## Layer Contracts
 

@@ -494,6 +494,7 @@ $lanesExtra
 ## Functional Requirements
 
 - **FR-001**: the login skin renders the gradient sign-in button.
+  traces: Contract
 
 ## Lanes
 
