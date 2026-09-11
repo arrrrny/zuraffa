@@ -1079,6 +1079,9 @@ class PlanCommand extends Command<void> {
         layoutSlots: layoutSlots,
       );
       await persistMarkerEmission();
+      // Bug #1481 (finding 2): the dead-end count is machine-readable in
+      // BOTH render paths — lane-split and legacy single-file.
+      _verdict.details['dead_end_behaviors'] = deadEndIds.length;
       // Issue #1309: refresh only after every generated artifact and
       // marker emission succeeded. Hash and mtime come from the final
       // on-disk spec, so marker migration cannot make the repaired
