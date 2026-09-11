@@ -21,6 +21,34 @@ import 'test_list_reader.dart';
 class DeclaredRouting {
   const DeclaredRouting._();
 
+  /// Issue #1485: the feature's contract documents — every `*.md` file
+  /// under `<featureDir>/contracts/`, sorted by file name (the
+  /// multi-file collision policy is deterministic last-wins). A feature
+  /// with no `contracts/` directory yields an empty list: the
+  /// declared-row source reads exactly what it read before. Only
+  /// markdown is enumerated — code files inside contracts/ are never
+  /// parsed — and an unreadable file contributes nothing (the plan's
+  /// zero-rows warning names the directory).
+  static List<({String file, String md})> contractFiles(String featureDir) {
+    final dir = Directory(p.join(featureDir, 'contracts'));
+    if (!dir.existsSync()) return const [];
+    final files = <({String file, String md})>[];
+    for (final entity in dir.listSync()) {
+      if (entity is! File) continue;
+      if (!entity.path.endsWith('.md')) continue;
+      try {
+        files.add((
+          file: p.basename(entity.path),
+          md: entity.readAsStringSync(),
+        ));
+      } on FileSystemException {
+        continue; // unreadable: contributes nothing, never crashes plan
+      }
+    }
+    files.sort((a, b) => a.file.compareTo(b.file));
+    return files;
+  }
+
   /// The declared signature for [behaviorId], resolved from the
   /// feature's test-list trace cell against the spec's contract rows.
   /// Null when the behavior is undeclared or any artifact is missing
@@ -62,11 +90,16 @@ class DeclaredRouting {
     } on FileSystemException {
       return null; // unreadable spec: legacy inference, the fallback window
     }
-    // Malformed declarations (StateError) propagate on purpose.
+    // Malformed declarations (StateError) propagate on purpose. Issue
+    // #1485: the declared rows include the feature's contracts/*.md
+    // rows — a trace bound at plan time resolves its declared signature
+    // at gen time from the SAME merged source (declare once, resolve
+    // everywhere).
     final declarations = SpecDeclarations(
-      contractRows: {
-        for (final r in const SpecParser().parseContractRows(specMd)) r.name: r,
-      },
+      contractRows: SpecParser.declaredContractRows(
+        specMd,
+        contractFiles: contractFiles(resolvedDir),
+      ).rows,
     );
     final result = const RoutingResolver().resolve(
       row: RoutingRow(behaviorId: behaviorId, traces: traces),
