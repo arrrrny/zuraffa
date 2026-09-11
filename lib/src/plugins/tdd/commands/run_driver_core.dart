@@ -56,7 +56,6 @@ import '../services/feature_path_resolver.dart';
 import '../services/journal.dart';
 import '../services/lane_plans.dart';
 import '../services/lane_receipts.dart';
-import '../services/lane_split.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/corpus_baseline_cache.dart';
 import '../services/run_state_store.dart';
@@ -2365,35 +2364,28 @@ class RunDriverCore {
     }
   }
 
-  /// Issue #1483: the #1308 fallback remedy, branched by feature shape.
-  /// The lane plan pair on disk (`tdd/04-ENGINE.md`, else `tdd/04-SKIN.md`)
-  /// is the hand-delta seam; their absence is the legacy single-file shape
-  /// and the seam is the test list itself. Paths are printed relative to
-  /// [projectRoot] — the full path of the file to edit. Messaging only:
-  /// no detection, stop, or loop change.
+  /// Issue #1483: the #1308 fallback remedy, branched by feature shape —
+  /// through the ONE shared [lanePlanSeamPath] resolver the gen-time
+  /// writer warning also uses (issue #1518), so the RULE that picks the
+  /// seam path cannot drift between the two sides. The lane plan pair on
+  /// disk (`tdd/04-ENGINE.md`, else `tdd/04-SKIN.md`) is the hand-delta
+  /// seam; their absence is the legacy single-file shape and the seam is
+  /// the test list itself. Paths are printed relative to [projectRoot] —
+  /// the full path of the file to edit. Messaging only: no detection,
+  /// stop, or loop change.
   String _vacuousFallbackRemedy({
     required String projectRoot,
     required String featureDir,
-  }) {
-    final tddDir = p.join(featureDir, 'tdd');
-    final enginePlan = File(p.join(tddDir, LaneSplitFiles.engine));
-    final skinPlan = File(p.join(tddDir, LaneSplitFiles.skin));
-    final String? lanePlan;
-    if (enginePlan.existsSync()) {
-      lanePlan = p.relative(enginePlan.path, from: projectRoot);
-    } else if (skinPlan.existsSync()) {
-      lanePlan = p.relative(skinPlan.path, from: projectRoot);
-    } else {
-      lanePlan = null;
-    }
-    return vacuousGuardFallbackRemedyFor(
-      lanePlanPath: lanePlan,
-      testListPath: p.relative(
-        p.join(tddDir, 'test-list.md'),
-        from: projectRoot,
-      ),
-    );
-  }
+  }) => vacuousGuardFallbackRemedyFor(
+    lanePlanPath: lanePlanSeamPath(
+      projectRoot: projectRoot,
+      featureDir: featureDir,
+    ),
+    testListPath: p.relative(
+      p.join(featureDir, 'tdd', 'test-list.md'),
+      from: projectRoot,
+    ),
+  );
 
   BehaviorState _maxState(BehaviorState a, BehaviorState b) =>
       a.index >= b.index ? a : b;

@@ -26,7 +26,6 @@ import 'package:path/path.dart' as p;
 import '../models/behavior.dart';
 import 'finder_taxonomy.dart';
 import 'i18n_key_contract.dart';
-import 'lane_split.dart';
 import 'unit_contract_shape.dart';
 import 'vacuous_guard.dart';
 import 'widget_scaffold.dart';
@@ -229,12 +228,13 @@ class BehaviorTestWriter {
 
   /// Issue #1518: the gen-time guard-only warning's remedy, BRANCHED by
   /// feature shape — resolved from disk exactly like the run-side
-  /// `_vacuousFallbackRemedy` (issue #1502): the engine plan
-  /// ([LaneSplitFiles.engine]) when it exists, else the skin plan
-  /// ([LaneSplitFiles.skin]), else the test list — the lane plan pair on
-  /// disk is the hand-delta seam; its absence is the legacy single-file
-  /// shape and the seam is the test list itself. Paths are printed
-  /// relative to [projectRoot] — the full path of the file to edit.
+  /// `_vacuousFallbackRemedy` (issue #1502), through the ONE shared
+  /// [lanePlanSeamPath] resolver so the rule that picks the seam cannot
+  /// drift between the two sides again (the engine plan when it exists,
+  /// else the skin plan, else the test list — the lane plan pair on disk
+  /// is the hand-delta seam; its absence is the legacy single-file shape
+  /// and the seam is the test list itself). Paths are printed relative to
+  /// [projectRoot] — the full path of the file to edit.
   ///
   /// Without the seam context (either field null — direct library use,
   /// e.g. the writer test suites), the conservative legacy single-file
@@ -245,20 +245,12 @@ class BehaviorTestWriter {
     final root = projectRoot;
     final dir = featureDir;
     if (root != null && dir != null) {
-      final tddDir = p.join(dir, 'tdd');
-      final enginePlan = File(p.join(tddDir, LaneSplitFiles.engine));
-      final skinPlan = File(p.join(tddDir, LaneSplitFiles.skin));
-      final String? lanePlan;
-      if (enginePlan.existsSync()) {
-        lanePlan = p.relative(enginePlan.path, from: root);
-      } else if (skinPlan.existsSync()) {
-        lanePlan = p.relative(skinPlan.path, from: root);
-      } else {
-        lanePlan = null;
-      }
       return vacuousGuardFallbackRemedyFor(
-        lanePlanPath: lanePlan,
-        testListPath: p.relative(p.join(tddDir, 'test-list.md'), from: root),
+        lanePlanPath: lanePlanSeamPath(projectRoot: root, featureDir: dir),
+        testListPath: p.relative(
+          p.join(dir, 'tdd', 'test-list.md'),
+          from: root,
+        ),
       );
     }
     return vacuousGuardFallbackRemedyFor(

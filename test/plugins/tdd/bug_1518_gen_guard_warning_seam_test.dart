@@ -36,7 +36,8 @@
 //   U-1518-5 — the forwarding scanner round-trips the writer's REAL
 //            printed warning (token line + branched fix line), handles a
 //            two-behavior double warning, and leaves a stray `--> fix:`
-//            line unforwarded.
+//            line — including one that is NOT the line directly after the
+//            token line — unforwarded.
 library;
 
 import 'dart:async';
@@ -260,5 +261,25 @@ void main() {
       'step finished',
     ].join('\n');
     expect(guardOnlyWarningLinesToForward(stray), isEmpty);
+
+    // The fix line is anchored to the line DIRECTLY after the token line:
+    // a NON-adjacent `--> fix:` line (an unrelated later step's remedy —
+    // `--> fix:` is a shared convention across the codebase) stays
+    // unforwarded even though a token line precedes it.
+    final interleaved = [
+      'zfa tdd gen: WARNING [$vacuousGuardWarningToken] behavior "U1" — x',
+      'some unrelated gen output line',
+      '   --> fix: something else entirely',
+    ].join('\n');
+    final interleavedForwarded = guardOnlyWarningLinesToForward(
+      interleaved,
+    ).toList();
+    expect(interleavedForwarded, hasLength(1), reason: interleaved);
+    expect(interleavedForwarded.single, contains(vacuousGuardWarningToken));
+    expect(
+      interleavedForwarded.single,
+      isNot(contains('--> fix:')),
+      reason: interleaved,
+    );
   });
 }

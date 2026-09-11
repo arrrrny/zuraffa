@@ -15,10 +15,10 @@
     legacy single-file feature that file does not exist. ADDS: the seam
     context (`projectRoot`, `featureDir`) on the constructor (nullable —
     `const BehaviorTestWriter()` keeps compiling), the private
-    `_guardOnlyRemedy` resolving the seam from disk exactly like the
-    run-side `_vacuousFallbackRemedy` (`LaneSplitFiles.engine` →
+    `_guardOnlyRemedy` resolving the seam from disk through the shared
+    `lanePlanSeamPath` resolver (`LaneSplitFiles.engine` →
     `LaneSplitFiles.skin` → test list, relativized against the project
-    root) through the shared `vacuousGuardFallbackRemedyFor` builder, and
+    root) and the `vacuousGuardFallbackRemedyFor` wording, and
     the conservative feature-derived test-list branch for the no-context
     direct-library case.
   - `lib/src/plugins/tdd/commands/run_driver_core.dart` —
@@ -26,19 +26,24 @@
     output for lines containing `vacuousGuardWarningToken` OR
     `vacuousGuardFallbackRemedy`. The second key dies with the constant
     (the branched remedy text is dynamic). ADDS: the token-anchored scan —
-    forward the token line AND the `--> fix:` remedy line that immediately
-    follows it — via the shared pure scanner
-    `guardOnlyWarningLinesToForward` (below). The forward CALL SITE, the
-    stop arm, and `_vacuousFallbackRemedy` are untouched.
+    forward the token line AND the `--> fix:` remedy line directly after it
+    — via the shared pure scanner `guardOnlyWarningLinesToForward` (below).
+    `_vacuousFallbackRemedy` now delegates its seam probe to the same
+    shared `lanePlanSeamPath` resolver (D6); its printed output is
+    byte-unchanged.
   - `lib/src/plugins/tdd/services/vacuous_guard.dart` —
     `vacuousGuardFallbackRemedyFor` (issue #1483) is the branched wording
     builder — now the ONE remedy source. RETIRES:
     `vacuousGuardFallbackRemedy` (the pre-#1483 bare-`04-ENGINE.md`
     constant, its doc history folded into the branched builder's doc).
-    ADDS: `guardOnlyWarningLinesToForward(String output)` — the pure
-    forwarding scanner (token line + the `--> fix:` line that immediately
-    follows; nothing else), so the writer→forwarder wording contract is
-    testable as a round trip without spawning the driver.
+    ADDS: `lanePlanSeamPath({projectRoot, featureDir})` — the ONE
+    seam-resolution rule (engine plan → skin plan → null) shared by the
+    writer and the run driver, so the rule that picks the seam path cannot
+    drift (D6); and `guardOnlyWarningLinesToForward(String output)` — the
+    pure forwarding scanner (the token line, then the `--> fix:` line on
+    the line DIRECTLY after it; nothing else), so the writer→forwarder
+    wording contract is testable as a round trip without spawning the
+    driver.
   - `lib/src/plugins/tdd/commands/gen_command.dart` — `_writersFor`
     constructs `BehaviorTestWriter(...)` for the real write (~line 1505)
     and the staleness mirror renders through the same dispatch. ADDS:
@@ -69,6 +74,10 @@
     prints the branched warning, the fake make refuses vacuous-green, and
     the transcript must carry TWO AGREEING `--> fix:` lines (the issue's
     exact bug scenario, inverted into the acceptance proof).
+  - `test/plugins/tdd/commands/bug_1518_gen_command_seam_test.dart` (fast) —
+    the REAL `GenCommand` (review fix): G-1518-1 (legacy single-file) and
+    G-1518-2 (lane-split + a reused second run reaching the staleness
+    mirror) pin the gen-threaded seam context end to end (FR-004/T4).
 
 ## Key decisions
 
@@ -102,12 +111,22 @@
   disk-resolved branch — a NEW contradictory pair inside one gen output.
   Threading the context through `_regenerateStaleStub` keeps one wording
   per transcript.
-- **D5 — the run side is untouched.** `_vacuousFallbackRemedy` (the #1502
-  code) already branches correctly and is pinned by the #1483 driver
-  suites; the forwarding call site is unchanged. Only the scan body
-  changes, and U-1308-4 (the fake's old-shape token+fix lines) still
+- **D5 — the run side's OBSERVABLE behavior is untouched.** `_vacuousFallbackRemedy`
+  (the #1502 code) already branches correctly and is pinned by the #1483 driver
+  suites; the forwarding call site and the stop arm are unchanged. Only the scan
+  body changes, and U-1308-4 (the fake's old-shape token+fix lines) still
   forwards — the scan is shape-compatible with both the old fake output
   and the new writer output.
+- **D6 — ONE seam-resolution rule, shared (review fix).** #1518 exists
+  because two copies of one thing (the wording) drifted; leaving the
+  engine→skin→test-list path PROBE duplicated between the writer and the
+  run driver would preserve the same drift mechanism for the next seam
+  change (a new lane-plan filename, a `04-CONTRACT.md` preference, a
+  `.specify/bugs/<slug>` layout). `lanePlanSeamPath` in `vacuous_guard.dart`
+  is the single resolver; `_guardOnlyRemedy` and `_vacuousFallbackRemedy`
+  both call it. The scanner's adjacency contract is likewise enforced, not
+  just documented: the fix line is accepted only on the line directly after
+  the token line (`--> fix:` is a shared convention across the codebase).
 
 ## Risks / notes
 

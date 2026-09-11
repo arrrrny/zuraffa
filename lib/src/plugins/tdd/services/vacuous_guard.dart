@@ -17,6 +17,12 @@
 /// description.
 library;
 
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+
+import 'lane_split.dart';
+
 /// The machine-readable marker the gen test template emits when its
 /// assertion set is the UnimplementedError guard only — the unit-lane
 /// counterpart of the widget lane's `zfa:tdd: scaffolded` marker.
@@ -82,6 +88,35 @@ String vacuousGuardFallbackRemedyFor({
       're-run zfa tdd gen (the designed hand-delta seam)';
 }
 
+/// Issue #1518: the lane-plan seam path for [featureDir] under
+/// [projectRoot], or null when no lane plan pair is on disk (the test
+/// list is the seam). The engine plan ([LaneSplitFiles.engine]) wins when
+/// it exists, else the orphan skin plan ([LaneSplitFiles.skin]).
+///
+/// ONE resolver shared by the gen-time writer warning
+/// (`behavior_test_writer._guardOnlyRemedy`) and the run-side stop remedy
+/// (`run_driver_core._vacuousFallbackRemedy`, issue #1502) so the RULE
+/// that picks the seam path cannot drift into the "two contradictory
+/// `--> fix:` lines in one transcript" symptom #1518 removes — the
+/// wording was single-sourced in #1483, and this closes the same gap for
+/// the path probe (a new lane-plan filename, a `04-CONTRACT.md`
+/// preference, a `.specify/bugs/<slug>` layout) that would otherwise have
+/// to be made twice.
+///
+/// The returned path is project-root-relative — the full path of the file
+/// to edit (a bare filename hides the feature dir).
+String? lanePlanSeamPath({
+  required String projectRoot,
+  required String featureDir,
+}) {
+  final tddDir = p.join(featureDir, 'tdd');
+  for (final name in [LaneSplitFiles.engine, LaneSplitFiles.skin]) {
+    final plan = File(p.join(tddDir, name));
+    if (plan.existsSync()) return p.relative(plan.path, from: projectRoot);
+  }
+  return null;
+}
+
 /// Issue #1308/#1518: the lines of the gen child's captured output that
 /// the run driver forwards into the run transcript — the guard-only
 /// warning token line ([vacuousGuardWarningToken]) and the `--> fix:`
@@ -93,16 +128,23 @@ String vacuousGuardFallbackRemedyFor({
 /// writer's remedy is BRANCHED by feature shape
 /// ([vacuousGuardFallbackRemedyFor] — the seam path differs per feature),
 /// so the forward keys on the stable two-line shape the writer prints —
-/// the token line first, the remedy line directly after.
+/// the token line first, the remedy line directly after. The fix line is
+/// accepted ONLY on the line directly after the token line: `--> fix:` is
+/// a shared convention across the codebase, so a loose window would
+/// forward an unrelated later line.
 Iterable<String> guardOnlyWarningLinesToForward(String output) sync* {
-  var forwardFix = false;
+  var expectFix = false;
   for (final line in output.split('\n')) {
+    if (expectFix) {
+      expectFix = false;
+      if (line.contains('--> fix:')) {
+        yield line;
+        continue;
+      }
+    }
     if (line.contains(vacuousGuardWarningToken)) {
       yield line;
-      forwardFix = true;
-    } else if (forwardFix && line.contains('--> fix:')) {
-      yield line;
-      forwardFix = false;
+      expectFix = true;
     }
   }
 }
