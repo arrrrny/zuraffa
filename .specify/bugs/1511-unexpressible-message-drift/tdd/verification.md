@@ -65,9 +65,9 @@ folders counted as SKIP):
 ```
 chunks with verdict: 103
   PASSED : 98   (incl. test/plugins/tdd/commands — 518 tests, the changed file's chunk)
-  SKIPPED: 15   (no fast-tier tests in folder: test/benchmark, test/integration, test/core/proof, test/plugins/tdd/scenarios, test/tdd/077-make-engine-preset, …)
+  SKIPPED: 5    (no fast-tier tests in folder: test/benchmark, test/core/proof, test/integration, test/plugins/tdd/scenarios, test/tdd/077-make-engine-preset)
   FAILED : 0
-Final line: ALL CHUNKS PASSED
+Final line: OK: all chunks passed.
 ```
 
 Result: **no new failures**; every chunk has exactly one verdict (programmatic

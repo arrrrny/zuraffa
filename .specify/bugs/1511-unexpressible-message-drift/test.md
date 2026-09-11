@@ -33,5 +33,5 @@
 ## Evidence
 
 - RED capture: `red-evidence.md` (this directory).
-- GREEN + fresh verification run: `tdd/verification.md` (repo root).
-- Full fast-suite chunked re-run (no new failures): recorded in `tdd/verification.md`.
+- GREEN + fresh verification run: `.specify/bugs/1511-unexpressible-message-drift/tdd/verification.md`.
+- Full fast-suite chunked re-run (no new failures): recorded in `.specify/bugs/1511-unexpressible-message-drift/tdd/verification.md`.

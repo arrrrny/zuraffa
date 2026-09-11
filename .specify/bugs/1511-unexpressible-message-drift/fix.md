@@ -61,4 +61,4 @@ incidental prefix, and keep the honest non-zero misfire contract.
   only `M test/plugins/tdd/make_command_test.dart`).
 - `dart analyze test/plugins/tdd/make_command_test.dart` → `No issues found!`
 - `dart format --output=none --set-exit-if-changed` on the changed file → 0 changed.
-- Red → green evidence recorded in `red-evidence.md` / `tdd/verification.md`.
+- Red → green evidence recorded in `red-evidence.md` / `.specify/bugs/1511-unexpressible-message-drift/tdd/verification.md`.

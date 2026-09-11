@@ -18,4 +18,4 @@
 - No new test added, none removed, none renamed away from the `bug 657:` filter
   prefix (both tests still match `-n "bug 657"`).
 - Suite-level check: full fast suite re-run chunked after the fix — zero failed
-  chunks (see `tdd/verification.md`).
+  chunks (see `.specify/bugs/1511-unexpressible-message-drift/tdd/verification.md`).
