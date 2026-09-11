@@ -37,9 +37,15 @@ void main() {
 
 1. **Given** a seeded spec with piped prose **When** the operator runs `todo filter <all|active|completed>` **Then** the visible list shows only the selected bucket
 
+## Layer Contracts
+
+**Function**:
+- `TodoFilter`: `filter(String) -> List<String>`
+
 ## Functional Requirements
 
 - **FR-001**: The CLI MUST expose todo filter <all|active|completed> selection on the command line.
+            traces: TodoFilter
 ''';
 
   setUp(() => tmpDir = Directory.systemTemp.createTempSync('bug_1401_'));

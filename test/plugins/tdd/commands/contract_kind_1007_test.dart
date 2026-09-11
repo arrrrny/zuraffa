@@ -60,6 +60,7 @@ const String kLoginUiSpec = '''
 ## Functional Requirements
 
 - **FR-001**: The login form validates the email before submitting.
+            traces: User.validateEmail
 
 ## Acceptance Scenarios
 
@@ -257,6 +258,10 @@ void main() {
           'tdd',
           'plan',
           '004-login-ui',
+          // Issue #1480: this spec's very subject is the pre-1007
+          // no-contracts shape — the unit-fallback gate stays out of the
+          // way via the migration escape hatch.
+          '--allow-unit-fallback',
           '--project',
           tmp.path,
         ]);

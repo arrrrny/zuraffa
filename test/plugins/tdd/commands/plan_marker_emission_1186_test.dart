@@ -152,9 +152,15 @@ void main() {
 
 # Spec: 1186-prov
 
+## Layer Contracts
+
+**Function**:
+- `Total`: `compute() -> int`
+
 ## Functional Requirements
 
 - **FR-001**: returns 42 when invoked with no args
+            traces: Total
 
 ## Acceptance Scenarios
 
@@ -179,9 +185,15 @@ void main() {
 
 # Spec: 1186-prov
 
+## Layer Contracts
+
+**Function**:
+- `Total`: `compute() -> int`
+
 ## Functional Requirements
 
 - **FR-001**: returns 42 when invoked with no args
+            traces: Total
 
 ## Acceptance Scenarios
 
@@ -217,9 +229,15 @@ void main() {
 
 # Spec: 1186-prov
 
+## Layer Contracts
+
+**Function**:
+- `Total`: `compute() -> int`
+
 ## Functional Requirements
 
 - **FR-001**: returns 42 when invoked with no args
+            traces: Total
 
 ## Acceptance Scenarios
 
@@ -263,9 +281,15 @@ void main() {
 
 # Spec: 1186-prov
 
+## Layer Contracts
+
+**Function**:
+- `Total`: `compute() -> int`
+
 ## Functional Requirements
 
 - **FR-001**: returns 42 when invoked with no args
+            traces: Total
 
 ## Acceptance Scenarios
 
@@ -355,9 +379,15 @@ Skin Contract:
 
 # Spec: 1186-prov
 
+## Layer Contracts
+
+**Function**:
+- `Total`: `compute() -> int`
+
 ## Functional Requirements
 
 - **FR-001**: returns 42 when invoked with no args
+            traces: Total
 
 ## Acceptance Scenarios
 
@@ -422,9 +452,15 @@ How to write a scenario:
 
 # Spec: 1186-prov
 
+## Layer Contracts
+
+**Function**:
+- `Total`: `compute() -> int`
+
 ## Functional Requirements
 
 - **FR-001**: returns 42 when invoked with no args
+            traces: Total
 
 ## Acceptance Scenarios
 

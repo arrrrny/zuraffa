@@ -45,9 +45,14 @@ void main() {
     tmpDir.path,
   ];
 
-  Future<String> runPlan() async {
+  Future<String> runPlan({bool allowUnitFallback = false}) async {
     final runner = CliRunner(exitOnCompletion: false);
-    return runner.runCapturing(planArgs());
+    return runner.runCapturing([
+      ...planArgs(),
+      // Issue #1480: legacy-shape fixtures (the lint/gate subjects below)
+      // keep the labeled fallback via the migration escape hatch.
+      if (allowUnitFallback) '--allow-unit-fallback',
+    ]);
   }
 
   Future<String> readTestList() =>
@@ -335,7 +340,7 @@ $kMinimalAcceptance
 - **FR-001**: The system MUST return the saved size for a brand
 ''');
 
-      final out = await runPlan();
+      final out = await runPlan(allowUnitFallback: true);
       expect(takeDispatchedExitCode(), 0, reason: out);
     },
   );

@@ -54,6 +54,10 @@ $body
       'tdd',
       'plan',
       '071-prov',
+      // Issue #1480: provenance tests exercise the labeled fallback lines
+      // on purpose — the unit-fallback gate stays out of the way via the
+      // migration escape hatch.
+      '--allow-unit-fallback',
       '--project',
       tmp.path,
     ]);
@@ -161,6 +165,8 @@ void main() {
           'tdd',
           'plan',
           '071-prov',
+          // Issue #1480: the labeled fallback line is the subject.
+          '--allow-unit-fallback',
           '--project',
           tmp.path,
         ]);
