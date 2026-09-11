@@ -5,7 +5,9 @@
 ## Functional Requirements
 
 - **FR-001**: The system MUST compute the 094 total.
+  traces: Total
 - **FR-002**: The system MUST show the Coupon count.
+  traces: Counter
 
 ## Scenarios
 

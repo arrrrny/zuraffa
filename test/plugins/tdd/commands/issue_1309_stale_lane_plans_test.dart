@@ -49,7 +49,9 @@ const String fixtureSpec = '''
 ## Functional Requirements
 
 - **FR-001**: The system shall validate the email format through the login validator.
+  traces: LoginValidator
 - **FR-002**: The system shall hash the password with the credential hasher.
+  traces: CredentialHasher
 ''';
 
 /// The spec with a third functional requirement (the post-split edit
@@ -66,8 +68,11 @@ const String editedSpecAddsFr = '''
 ## Functional Requirements
 
 - **FR-001**: The system shall validate the email format through the login validator.
+  traces: LoginValidator
 - **FR-002**: The system shall hash the password with the credential hasher.
+  traces: CredentialHasher
 - **FR-003**: The system shall rate-limit repeated failures through the login throttler.
+  traces: LoginThrottler
 ''';
 
 /// The spec with FR-002 deleted (the post-split edit whose ghost row
@@ -84,6 +89,7 @@ const String editedSpecDropsFr = '''
 ## Functional Requirements
 
 - **FR-001**: The system shall validate the email format through the login validator.
+  traces: LoginValidator
 ''';
 
 /// A legacy plan: acceptance + widget + unit rows in the single-file

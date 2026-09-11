@@ -66,12 +66,13 @@ void main() {
     'a [persistent] tag marks the behavior (no storage words needed)',
     () async {
       final list = await runPlan(
-        '- **FR-001**: [persistent] the cart survives an app restart',
+        '- **FR-001**: [persistent] the cart survives an app restart\n'
+        '  traces: CartStore',
       );
       expect(
         list,
         contains(
-          '| U1 | the cart survives an app restart [persistence] | FR-001 | PENDING |',
+          '| U1 | the cart survives an app restart [persistence] | FR-001, CartStore | PENDING |',
         ),
         reason: 'tag stripped from the description; the mark is appended',
       );
@@ -81,12 +82,13 @@ void main() {
 
   test('storage vocabulary WITHOUT a declaration stays unmarked (AC2)', () async {
     final list = await runPlan(
-      '- **FR-001**: caches the result for display alongside the query',
+      '- **FR-001**: caches the result for display alongside the query\n'
+      '  traces: QueryCache',
     );
     expect(
       list,
       contains(
-        '| U1 | caches the result for display alongside the query | FR-001 | PENDING |',
+        '| U1 | caches the result for display alongside the query | FR-001, QueryCache | PENDING |',
       ),
     );
   });

@@ -5,7 +5,9 @@
 ## Functional Requirements
 
 - **FR-001**: The system MUST compute the 095 total.
+  traces: Total
 - **FR-002**: The system MUST show the Ticket count.
+  traces: Counter
 
 ## Scenarios
 

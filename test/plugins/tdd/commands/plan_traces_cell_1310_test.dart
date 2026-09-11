@@ -184,23 +184,17 @@ void main() {
       );
     });
 
-    test('U3: an FR with no traces continuation keeps the criterion-only '
-        'cell (the fallback path, acceptance criterion 4)', () async {
+    test('U3 (1484): an FR with no traces continuation routes manual — '
+        'no unit row, no invented contract names', () async {
       final (:out, testList: list, engine: _) = await planSpec(untracedSpec);
       expect(exitCode, 0, reason: 'plan must succeed: $out');
-      final row = unitRowOf(list, 'U1');
-      expect(row, isNotNull, reason: 'the plan must derive U1:\n$list');
+      // Feature 1484: the fallback lane is gone — an unbound FR is a
+      // manual declaration in the traceability matrix, never a unit row
+      // (the dead-end class the fallback used to manufacture).
       expect(
-        row,
-        contains('| FR-001 |'),
-        reason: 'the criterion-only fallback cell is preserved:\n$list',
-      );
-      expect(
-        row,
-        isNot(contains('TodoRepository')),
-        reason:
-            'no contract names may be invented without a traces '
-            'continuation:\n$list',
+        unitRowOf(list, 'U1'),
+        isNull,
+        reason: 'the untraced FR must not derive a unit row:\n$list',
       );
     });
 
@@ -303,8 +297,10 @@ void main() {
       try {
         final featureDir = p.join(tmp.path, 'specs', '1310-repro');
         await Directory(featureDir).create(recursive: true);
-        final specFile = File(p.join(featureDir, 'spec.md'));
-        const twoFrs = '''
+        // The spec is TRACED (feature 1484: only traced FRs derive unit
+        // rows) — the PRIOR list is the legacy criterion-only dialect,
+        // hand-written to pin the reconcile read's legacy acceptance.
+        const tracedSpec = '''
 **Template Version**: `zuraffa-1.0`
 
 # Spec: 1310-repro
@@ -317,44 +313,36 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: System MUST let the user add a todo with a title
+            traces: TodoRepository.create
 - **FR-002**: System MUST let the user complete a todo
+            traces: TodoRepository.create
 
 ## Acceptance Scenarios
 
 1. **Given** the todo list **When** the user adds a todo **Then** the todo appears in the list.
 ''';
-        const oneFr = '''
-**Template Version**: `zuraffa-1.0`
+        const legacyPriorList = '''
+# Test List: 1310-repro
 
-# Spec: 1310-repro
+## Outer loop: acceptance behaviors
 
-### Layer Contracts
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| A1 | the todo appears in the list. | AC-1 | PENDING |
 
-**Domain**:
-- `TodoRepository`: `create(String title) -> bool`
+## Inner loop: unit behaviors
 
-## Functional Requirements
-
-- **FR-002**: System MUST let the user complete a todo
-
-## Acceptance Scenarios
-
-1. **Given** the todo list **When** the user adds a todo **Then** the todo appears in the list.
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| U1 | add a todo with a title | FR-001 | PENDING |
+| U2 | complete a todo | FR-002 | PENDING |
 ''';
-        await specFile.writeAsString(twoFrs);
-        final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing([
-          'tdd',
-          'plan',
-          '1310-repro',
-          '--project',
-          tmp.path,
-        ]);
+        final specFile = File(p.join(featureDir, 'spec.md'));
+        await specFile.writeAsString(tracedSpec);
         final listFile = File(p.join(featureDir, 'tdd', 'test-list.md'));
-        final firstList = await listFile.readAsString();
-        expect(unitRowOf(firstList, 'U2'), isNotNull, reason: firstList);
-
-        await specFile.writeAsString(oneFr);
+        await listFile.parent.create(recursive: true);
+        await listFile.writeAsString(legacyPriorList);
+        final runner = CliRunner(exitOnCompletion: false);
         await runner.runCapturing([
           'tdd',
           'plan',
@@ -370,6 +358,7 @@ void main() {
               'the legacy criterion-only reconciliation path is unchanged:\n'
               '$reList',
         );
+        expect(unitRowOf(reList, 'U1'), isNotNull, reason: reList);
       } finally {
         tmp.deleteSync(recursive: true);
       }

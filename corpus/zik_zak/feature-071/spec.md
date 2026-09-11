@@ -5,7 +5,9 @@
 ## Funktionale Anforderungen
 
 - **FR-001**: El sistema DEBE guardar el estado de 071.
+  traces: Guardado
 - **FR-002**: El sistema DEBE restaurar la lista de Tickets.
+  traces: Restaurador
 
 ## Akzeptanzszenarien
 

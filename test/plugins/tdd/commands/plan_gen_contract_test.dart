@@ -45,6 +45,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: returns 42 when invoked with no args
+  traces: Calculator
 
 ## Acceptance Scenarios
 
@@ -250,6 +251,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: The system shall persist a User with a name and an email.
+  traces: UserStore
 
 ## Acceptance Scenarios
 

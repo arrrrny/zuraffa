@@ -50,7 +50,11 @@ const Map<String, (int, int, int, int, int)> shapeFacts = {
   // shape => (behaviors, acceptance, units, layerContracts, lanes)
   'modern': (5, 3, 2, 2, 3),
   'modern-no-lanes': (5, 3, 2, 2, 0),
-  'modern-undeclared': (5, 3, 2, 2, 3),
+  // Feature 1484: the dedicated no-declaration shape — its FRs carry
+  // no `traces:` binding and no `**Type**: manual` marker, so they
+  // route to manual declarations: no unit rows, nothing dropped
+  // (behaviors = 3 acceptance only).
+  'modern-undeclared': (3, 3, 0, 2, 3),
   'legacy-002': (3, 3, 0, 0, 0),
   'crlf': (5, 3, 2, 2, 3),
   'html-entities': (3, 1, 2, 1, 0),

@@ -5,7 +5,9 @@
 ## Exigences Fonctionnelles
 
 - **FR-001**: El sistema DEBE guardar el estado de 069.
+  traces: Guardado
 - **FR-002**: El sistema DEBE restaurar la lista de Notifications.
+  traces: Restaurador
 
 ## Scénarios d'Acceptation
 

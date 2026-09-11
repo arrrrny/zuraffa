@@ -203,7 +203,10 @@ void main() {
           '--strict-routing',
         ]);
         expect(exitCode, 1);
-        expect(out, contains('U1'));
+        // Feature 1484: the untraced FR routes manual (no row), so the
+        // undeclared behavior strict refuses is the unmarked acceptance
+        // scenario A1 — the strict gate contract is unchanged.
+        expect(out, contains('A1'));
         expect(out, contains('--> fix:'));
         expect(out, isNot(contains('[fallback:')));
         expect(

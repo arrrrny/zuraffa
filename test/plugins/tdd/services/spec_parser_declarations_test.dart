@@ -177,6 +177,7 @@ void main() {
         'keeps the description clean', () {
       const spec = '''
 - **FR-001**: **[persistent]** The cart survives an app restart.
+  traces: CartStore
 - **FR-002**: The totals equal the sum of the items.
 ''';
       final persistence = SpecParser.parsePersistenceDeclarations(spec);

@@ -33,11 +33,17 @@ const String lanesSpec = '''
 ## Functional Requirements
 
 - **FR-001**: The system shall validate the email format through the login validator.
+  traces: LoginValidator
 - **FR-002**: The system shall hash the password with the credential hasher.
+  traces: CredentialHasher
 - **FR-003**: The system shall start a session and persist the auth token through the session repository.
+  traces: SessionRepository
 - **FR-004**: The system shall read the current session through the session repository.
+  traces: SessionRepository
 - **FR-005**: The system shall reject an expired session.
+  traces: SessionRepository
 - **FR-006**: The system shall resolve the deal_list route for the completed session.
+  traces: RouteResolver
 
 ## Lanes
 

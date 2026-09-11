@@ -188,7 +188,19 @@ class CoverageGate {
   const CoverageGate();
 
   /// Returns every gap. An empty list = complete coverage.
-  List<CoverageGap> evaluate(RequirementScan scan, List<Behavior> behaviors) {
+  ///
+  /// Feature 1484: the manualFrIds argument carries the FR ids routed to a manual
+  /// declaration — an explicit `**Type**: manual` marker, or (the 1484
+  /// default) an FR with no `traces:` binding. Manual FRs count toward
+  /// coverage as manual declarations, never as missing behaviours (the
+  /// acceptance-side `(manual:)` accounting from #846, extended to
+  /// FRs). The default (empty set) preserves the legacy contract for
+  /// callers that have not adopted the 1484 routing.
+  List<CoverageGap> evaluate(
+    RequirementScan scan,
+    List<Behavior> behaviors, {
+    Set<String> manualFrIds = const {},
+  }) {
     final tracedIds = behaviors.map((b) => b.sourceCriterion).toSet();
     final gaps = <CoverageGap>[];
     final duplicateGaps = <CoverageGap>[];
@@ -209,6 +221,9 @@ class CoverageGate {
       final wellFormed = digits.length == 3;
       if (statement.isFunctional) {
         if (tracedIds.contains(id)) continue;
+        // Feature 1484: a manually-declared FR is a covered manual
+        // declaration — tracked in the matrix, never a unit row.
+        if (manualFrIds.contains(id)) continue;
         gaps.add(
           CoverageGap(
             statement,
@@ -272,6 +287,14 @@ class SpecContractHash {
 /// Renders `specs/<feature>/tdd/traceability.md` — the plan artifact
 /// that carries the behavior <-> FR/AC matrix and its hash (the
 /// completeness proof verify/corpus re-check).
+///
+/// Feature 1484: [frManualTags] maps each manually-declared FR id to
+/// its tag phrase (`**Type**: manual` for an explicit declaration,
+/// `defaulted: no `traces:` binding` for the 1484 default). Manual FRs
+/// render `manual` in the main table (never GAP), appear under a
+/// dedicated `## manual:` section with their full text, and count in
+/// the machine block's `manual:`/`fr-manual:` totals. Only ids the scan
+/// actually carries as functional statements are counted.
 class TraceabilityMatrix {
   const TraceabilityMatrix();
 
@@ -279,13 +302,21 @@ class TraceabilityMatrix {
     required String feature,
     required RequirementScan scan,
     required List<Behavior> behaviors,
+    Map<String, String> frManualTags = const {},
   }) {
     final hash = SpecContractHash.compute(scan);
     final byCriterion = <String, List<Behavior>>{};
     for (final b in behaviors) {
       byCriterion.putIfAbsent(b.sourceCriterion, () => []).add(b);
     }
-    final manualCount = scan.statements.where((s) => s.isManual).length;
+    // Feature 1484: FR manual declarations are covered manual
+    // declarations — they count in the machine block alongside the
+    // acceptance-side `(manual:)` statements (bug #846).
+    final frManualIds = frManualTags.keys
+        .where((id) => scan.statements.any((s) => s.id == id && s.isFunctional))
+        .toSet();
+    final acManualCount = scan.statements.where((s) => s.isManual).length;
+    final manualTotal = acManualCount + frManualIds.length;
 
     final buf = StringBuffer()
       ..writeln('# Traceability: $feature')
@@ -300,8 +331,9 @@ class TraceabilityMatrix {
       ..writeln('<!-- tdd:traceability')
       ..writeln('spec-hash: sha256:$hash')
       ..writeln('statements: ${scan.statements.length}')
-      ..writeln('automated: ${scan.statements.length - manualCount}')
-      ..writeln('manual: $manualCount')
+      ..writeln('automated: ${scan.statements.length - manualTotal}')
+      ..writeln('manual: $manualTotal')
+      ..writeln('fr-manual: ${frManualIds.length}')
       ..writeln('open-gaps: 0')
       ..writeln('-->')
       ..writeln()
@@ -309,11 +341,15 @@ class TraceabilityMatrix {
       ..writeln('| --- | --- | --- | --- | --- |');
     for (final statement in scan.statements) {
       final rows = byCriterion[statement.id] ?? const <Behavior>[];
-      final behaviorCell = rows.isEmpty || statement.isManual
+      final frManual =
+          statement.isFunctional && frManualIds.contains(statement.id);
+      final behaviorCell = rows.isEmpty || statement.isManual || frManual
           ? '—'
           : rows.map((b) => b.id).join(', ');
       final status = statement.isManual
           ? 'manual (owner: ${statement.manualOwner})'
+          : frManual
+          ? 'manual (${frManualTags[statement.id]})'
           : rows.isEmpty
           ? 'GAP'
           : 'automated';
@@ -321,6 +357,32 @@ class TraceabilityMatrix {
         '| ${statement.id} | ${statement.lineNo} | '
         '${_escapeCell(statement.line)} | $behaviorCell | $status |',
       );
+    }
+    // Feature 1484: the manual: section — manually-declared FRs are
+    // tracked, not hidden. Full text + manual: tag, matching the
+    // acceptance-side manual concept from bug #846.
+    if (frManualIds.isNotEmpty) {
+      buf
+        ..writeln()
+        ..writeln('## manual:')
+        ..writeln()
+        ..writeln(
+          'FRs declared manual (feature 1484) — tracked here with their '
+          'full text, never unit behaviour rows. The acceptance-side '
+          '`(manual:)` concept from bug #846, extended to FRs via the '
+          '`**Type**: manual` marker.',
+        )
+        ..writeln()
+        ..writeln('| requirement | line | statement | tag |')
+        ..writeln('| --- | --- | --- | --- |');
+      for (final statement in scan.statements) {
+        if (!frManualIds.contains(statement.id)) continue;
+        buf.writeln(
+          '| ${statement.id} | ${statement.lineNo} | '
+          '${_escapeCell(statement.line)} | '
+          'manual (${frManualTags[statement.id]}) |',
+        );
+      }
     }
     buf.writeln();
     return buf.toString();

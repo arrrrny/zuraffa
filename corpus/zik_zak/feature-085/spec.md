@@ -5,7 +5,9 @@
 ## Functional Requirements
 
 - **FR-001**: The system MUST validate the 085 form before submit.
+  traces: FormValidator
 - **FR-002**: The system MUST submit the validated Session.
+  traces: SessionSubmitter
 
 ## Scenarios
 

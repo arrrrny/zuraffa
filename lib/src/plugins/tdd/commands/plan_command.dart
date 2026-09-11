@@ -245,6 +245,40 @@ class PlanCommand extends Command<void> {
       throw StateError('zfa tdd plan: cannot derive behaviors');
     }
 
+    // Feature 1484: the FR manual routing — parsed once, consulted by
+    // the coverage gate, the warning pass, and the traceability matrix.
+    // An FR declared `**Type**: manual` — or, by default, an FR with no
+    // `traces:` binding — routes to a manual declaration in
+    // tdd/traceability.md instead of a unit behaviour row, so the run
+    // loop never sees a row that cannot honestly pass make. Defaulted
+    // FRs warn with the two remedies; explicitly-declared ones stay
+    // silent (the author already declared the exemption).
+    final frRoutings = SpecParser.parseFrRoutings(specMd);
+    final manualFrRoutings = frRoutings
+        .where((r) => r.routesManual)
+        .toList(growable: false);
+    for (final r in manualFrRoutings) {
+      if (r.manualMarker) continue;
+      print(
+        'zfa tdd plan: WARNING: ${r.frId} derives no unit behaviour — no '
+        '`traces:` binding and no `**Type**: manual` marker; recorded as '
+        'a manual declaration in tdd/traceability.md.',
+      );
+      print(
+        '  --> fix: add a `traces:` line naming a declared contract row '
+        'to derive an automated unit behaviour, or add `**Type**: manual` '
+        'under the FR to declare the exemption explicitly.',
+      );
+    }
+    final manualFrIds = {for (final r in manualFrRoutings) r.frId};
+    final frManualTags = {
+      for (final r in manualFrRoutings)
+        r.frId: r.manualMarker
+            ? '**Type**: manual'
+            : 'defaulted: no `traces:` binding',
+    };
+    _verdict.details['fr_manual'] = manualFrIds.length;
+
     // Bug #829: extract the spec's Key Entities so the loop can create
     // and wire them (run phase 0 + the entity pipeline routing read
     // this section back through TestListReader.readEntities).
@@ -323,7 +357,11 @@ class PlanCommand extends Command<void> {
     // map to a behavior row or to a valid `(manual: owner)` declaration.
     // Any gap = exit 2, no artifacts, offending line + fix instruction.
     final scan = const RequirementScanner().scan(specMd);
-    final gaps = const CoverageGate().evaluate(scan, behaviors);
+    final gaps = const CoverageGate().evaluate(
+      scan,
+      behaviors,
+      manualFrIds: manualFrIds,
+    );
     if (gaps.isNotEmpty) {
       print(
         'zfa tdd plan: coverage gate FAILED — ${gaps.length} requirement '
@@ -865,6 +903,7 @@ class PlanCommand extends Command<void> {
       feature: feature,
       scan: scan,
       behaviors: reconciled,
+      frManualTags: frManualTags,
     );
     await File(p.join(outDir.path, 'traceability.md')).writeAsString(matrix);
 
