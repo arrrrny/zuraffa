@@ -12,6 +12,7 @@ frozen by the issue's hard constraints).
 | U1 | A legacy single-file feature's vacuous-green stop names the TEST LIST's traces cell with the full path (`specs/<feature>/tdd/test-list.md`) and NEVER the nonexistent `04-ENGINE.md`; `stopped_at=<id>:make` preserved | FR-1483-1 | DONE |
 | U2 | A lane-split feature's vacuous-green stop still names the LANE PLAN's traces cell (`specs/<feature>/tdd/04-ENGINE.md`), with the full path; `stopped_at=<id>:make` preserved | FR-1483-2 | DONE |
 | U3 | The remedy vocabulary branches by shape and keeps the #1308/#1320 wording family verbatim (re-plan advice, `FR-00N, Row.method` cell, hand-delta seam tail); the pre-#1483 shared constant stays byte-identical | FR-1483-3 | DONE |
+| U4 | A run-skin over an ORPHAN `04-SKIN.md` (engine plan absent from disk, a green `04-engine-receipt.json` on disk) has its vacuous-green stop name the SKIN plan's traces cell (`specs/<feature>/tdd/04-SKIN.md`) with the full path; `stopped_at=<id>:make` preserved | FR-1483-4 | DONE |
 
 ## Notes
 
@@ -24,3 +25,6 @@ frozen by the issue's hard constraints).
 - RED evidence: U1 and U2 failed on the unfixed tree for the right reason
   (the printed remedy named `04-ENGINE.md` bare); U3 failed at compile
   (the branch function did not exist). See `verification.md`.
+- U4 was added in the PR #1502 review-fixes round (the reviewer's
+  missing-branch finding, review comment on `run_driver_core.dart`); it
+  is a green-phase addition, not part of the original red → green above.

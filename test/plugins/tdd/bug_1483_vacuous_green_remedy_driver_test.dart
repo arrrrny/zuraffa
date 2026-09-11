@@ -31,6 +31,14 @@
 //   U-1483-3 (driver) — a lane-split feature's vacuous-green stop
 //            names `specs/<feature>/tdd/04-ENGINE.md` (the plan pair is
 //            the seam there); `stopped_at=U1:make` preserved.
+//   U-1483-4 (driver) — a run-skin over an ORPHAN `tdd/04-SKIN.md`
+//            (engine plan absent, green engine receipt on disk) names
+//            `specs/<feature>/tdd/04-SKIN.md` — the skin plan is the
+//            seam there; `stopped_at=U1:make` preserved. (The meta-run
+//            shapes cannot reach this branch: a meta-index list missing
+//            a plan file runner-errors in the lane-split reader, and
+//            the meta run drives nothing when the engine pass is
+//            empty.)
 @Tags(['slow'])
 library;
 
@@ -125,12 +133,13 @@ esac
     }
 
     /// Drive `zfa tdd run <feature>` against the fake binary and return
-    /// the captured output.
-    Future<String> drive(String feature) async {
+    /// the captured output. [command] selects the driver entrypoint
+    /// (`run` = the meta two-cycle run, `run-skin` = the SKIN lane).
+    Future<String> drive(String feature, {String command = 'run'}) async {
       final runner = CliRunner(exitOnCompletion: false);
       return runner.runCapturing([
         'tdd',
-        'run',
+        command,
         feature,
         '--project',
         fx.root.path,
@@ -261,6 +270,80 @@ The skin lane (issue #1000): Flutter allowed.
         ),
         reason: out,
       );
+      expect(remedyLine(out), isNot(contains('test-list.md')), reason: out);
+    });
+
+    test('U-1483-4: SKIN-ONLY pair — the run-skin stop names the SKIN plan '
+        'traces cell (full path), never the absent 04-ENGINE.md', () async {
+      const feature = '1483-skin-only-seam';
+      fx = await TddFixture.create(featureName: feature);
+      addTearDown(fx.dispose);
+      await writeBug1483FakeZfa();
+      // The SKIN branch of the seam resolution: the engine plan is
+      // ABSENT from disk while the skin plan EXISTS and carries the
+      // behavior. Two prior shapes cannot reach this branch — a
+      // meta-index test list missing a plan file runner-errors in the
+      // lane-split reader before any step spawns (test_list_reader.dart),
+      // and the meta run routes plan-file features into lane passes
+      // where an empty engine pass drives nothing — so the reachable
+      // state is the direct `zfa tdd run-skin` over the orphan plan,
+      // gated open by a persisted GREEN engine receipt (issue #1008:
+      // the skin lane requires the engine certified; the receipt
+      // outlives a deleted 04-ENGINE.md).
+      await seedVacuousStop(feature);
+      await Directory(p.join(fx.featureDir, 'tdd')).create(recursive: true);
+      // The orphan skin plan: U1's row lives HERE (the skin bucket's
+      // ids resolve from this file), the engine plan does not exist.
+      await File(p.join(fx.featureDir, 'tdd', '04-SKIN.md')).writeAsString('''
+# Skin Plan: $feature (SKIN + BOTH)
+
+The skin lane (issue #1000): Flutter allowed.
+
+## Inner loop: unit behaviors
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| U1 | lets the user add a todo with a title | FR-001 | PENDING |
+''');
+      // The green engine receipt (schema 1, lane_receipts.dart) that
+      // opens the engine gate with the engine plan file gone.
+      await File(
+        p.join(fx.featureDir, 'tdd', '04-engine-receipt.json'),
+      ).writeAsString('''
+{
+  "schema": 1,
+  "feature": "$feature",
+  "lane": "engine",
+  "verdict": "green",
+  "result": "complete",
+  "behaviors": [],
+  "counts": {"total": 0, "pending": 0, "red": 0, "green": 0, "done": 0},
+  "stopped_at": null,
+  "at": "2026-09-01T00:00:00.000Z"
+}
+''');
+      expect(
+        File(p.join(fx.featureDir, 'tdd', '04-ENGINE.md')).existsSync(),
+        isFalse,
+        reason: 'the seam under test is the skin plan ONLY',
+      );
+
+      final out = await drive(feature, command: 'run-skin');
+
+      // The stop machine contract is unchanged on the skin-only shape.
+      expect(out, contains('stopped_at=U1:make'), reason: out);
+      expect(out, isNot(contains('stopped_at=U1:hand')), reason: out);
+      // The skin plan IS the seam here — named with the full path.
+      expect(
+        remedyLine(out),
+        contains(
+          'hand-edit the lane plan '
+          '(${p.join('specs', feature, 'tdd', '04-SKIN.md')}) '
+          'traces cell',
+        ),
+        reason: out,
+      );
+      expect(remedyLine(out), isNot(contains('04-ENGINE')), reason: out);
       expect(remedyLine(out), isNot(contains('test-list.md')), reason: out);
     });
   });

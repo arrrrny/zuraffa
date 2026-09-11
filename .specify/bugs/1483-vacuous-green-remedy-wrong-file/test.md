@@ -52,7 +52,7 @@ GREEN (after the fix) — same commands:
 | Regression — #1259 / run semantics (slow) | `dart test -P all -j 1 test/plugins/tdd/bug_1259_vacuous_green_test.dart test/plugins/tdd/run_command_test.dart test/plugins/tdd/two_cycle_run_commands_test.dart` | 3 fail (pre-existing) | bug_1259 U4/U5/U6 — **identical with the entire change set stashed** (A/B against pristine HEAD). Unrelated: gen's Layer-Contracts signature derivation. run_command + two_cycle: all green. |
 | Regression — plan/split lane suites (fast) | `dart test test/plugins/tdd/commands/plan_traces_cell_1310_test.dart test/plugins/tdd/commands/bug_1377_fixture_traces_pin_test.dart test/plugins/tdd/bug_1261_visual_contract_surface_test.dart test/plugins/tdd/commands/plan_lanes_1000_test.dart test/plugins/tdd/commands/split_command_1000_test.dart test/plugins/tdd/commands/issue_1309_stale_lane_plans_test.dart test/plugins/tdd/commands/bug_1432_platform_lane_rows_test.dart test/plugins/tdd/bug_1318_noflutter_event_prose_test.dart` | pass | 75/75 — the plan/split surfaces that own the lane-plan wording. |
 | Regression — placeholder re-drive (slow) | `dart test -P all -j 1 test/plugins/tdd/bug_1345_placeholder_re_drive_test.dart` | 1 fail (pre-existing) | B1+B2 — fails identically on pristine HEAD (stashed A/B). |
-| Full chunked fast suite | `tools/run_tests_chunked.sh` chunk list (105 chunks), resumable per-chunk runner, kernel caches cleared between chunks | pass | 94/105 chunks PASS. The 11 non-passing chunks are ALL environmental, none related to this change: 5 chunks contain only `slow`-tagged tests (`test/benchmark`, `test/core/proof`, `test/integration`, `test/plugins/tdd/scenarios`, `test/tdd/077-make-engine-preset` — "No tests match the requested tag selectors", exit 1) and 4 need the Flutter SDK (`test/plugins/controller`, `test/plugins/presenter`, `test/plugins/view`, `test/templates` — `flutter pub get`: No such file or directory; no Flutter SDK on this agent). `test/commands` passes on a full window (280s). |
+| Full chunked fast suite | `tools/run_tests_chunked.sh` chunk list (105 chunks), resumable per-chunk runner, kernel caches cleared between chunks | pass (per-chunk; the 2026-09-10 aggregate retracted) | The original `94/105` did not reconcile with its enumeration (94 + the 9-10 listed non-passing chunks ≠ 105) and no log survives — retracted in the PR #1502 review-fixes round. Fresh re-verification (2026-09-11, dev machine, Dart 3.13.2): the 5 all-slow chunks (`test/benchmark`, `test/core/proof`, `test/integration`, `test/plugins/tdd/scenarios`, `test/tdd/077-make-engine-preset`) exit 79 with `No tests match the requested tag selectors: exclude slow \|\| flutter`; the 4 Flutter-SDK chunks (`test/plugins/controller`, `test/plugins/presenter`, `test/plugins/view`, `test/templates`) are GREEN where the SDK exists (absent on the 2026-09-10 agent) — `test/templates` flung a tearDownAll flake on the first probe, `05:32 +44: All tests passed!` on the re-run. `test/commands` was not re-run (23+ min kernel compile on a loaded machine; the original 280s full-window pass stands un-reverified). A full 105-chunk re-run was attempted and abandoned on load grounds. |
 | Formatting | `dart format` on the four touched files, then `--output=none --set-exit-if-changed` | pass | 0 changed. Repo-wide check flags two PRE-EXISTING unformatted files (`example/test/tdd/004-login-ui/u1_test.dart`, `tool/generate_openwiki_cli_docs.dart`) — not touched by this fix (minimal-diff constraint). |
 
 ## Before / after (the stop message)
@@ -83,8 +83,10 @@ Lane-split feature (remedy preserved, now with the full path):
   still prints the pre-#1483 lane-plan wording for single-file features.
   The issue scopes the fix to `vacuous_guard.dart` / run driver; the
   writer is a different surface and the #1320 suite pins the shared
-  constant it prints. Flagged for a follow-up if the lane-split wording
-  should branch there too.
-- The chunked-suite Flutter-SDK chunks and all-slow chunks fail for
-  environment reasons unrelated to this fix; they pass on CI machines
-  with the Flutter SDK installed (dart_test.yaml documents the tiers).
+  constant it prints. Follow-up filed: #1518 (migrate the #1320 byte-pin
+  in the same change).
+- The chunked-suite all-slow chunks are selector skips (no fast-tier tests
+  in the folder) and the Flutter-SDK chunks pass wherever the SDK is
+  installed — both re-verified on 2026-09-11 (check #9 in
+  `tdd/verification.md`); neither touches this fix (dart_test.yaml
+  documents the tiers).
