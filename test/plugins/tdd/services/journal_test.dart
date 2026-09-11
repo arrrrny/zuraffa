@@ -187,8 +187,13 @@ void main() {
         //
         // flushToDisk is a top-level function over dart:io files and is
         // not injectable, so the discipline is enforced syntactically on
-        // JournalWriter.append — the same source-level-guard approach the
-        // suite already uses (e.g. issue_1173_engine_purity_test).
+        // JournalWriter — the same source-level-guard approach the suite
+        // already uses (e.g. issue_1173_engine_purity_test).
+        //
+        // Invariant encoded here: the journal write fsync's its tmp file
+        // before the rename. Collection spans every JournalWriter method
+        // (not just append()) so extracting the write into a private
+        // helper preserves the invariant and keeps this guard green.
         final root = await findProjectRoot();
         final source = File(
           p.join(
@@ -206,13 +211,17 @@ void main() {
         final writer = unit.unit.declarations
             .whereType<ClassDeclaration>()
             .firstWhere((c) => c.namePart.typeName.lexeme == 'JournalWriter');
-        final append = writer.body.members
-            .whereType<MethodDeclaration>()
-            .firstWhere((m) => m.name.lexeme == 'append');
 
         final invocations = <MethodInvocation>[];
         final tmpDecls = <VariableDeclaration>[];
-        append.accept(_JournalWriteCollector(invocations, tmpDecls));
+        for (final method
+            in writer.body.members.whereType<MethodDeclaration>()) {
+          method.accept(_JournalWriteCollector(invocations, tmpDecls));
+        }
+        // Order by source position so the last write/rename pair is the
+        // journal write regardless of how the methods are laid out.
+        invocations.sort((a, b) => a.offset.compareTo(b.offset));
+        tmpDecls.sort((a, b) => a.offset.compareTo(b.offset));
 
         // The journal write's tmp file is declared from file.path — never
         // the schema write's tmp ('${schemaFile.path}.tmp').
@@ -235,20 +244,20 @@ void main() {
             .where((i) => i.methodName.name == 'rename')
             .toList();
 
-        // RED discriminator: append must fsync the tmp file at all.
+        // RED discriminator: the journal write must fsync the tmp file.
         expect(
           flushes,
           isNotEmpty,
           reason:
-              'JournalWriter.append never fsync\'s the tmp file before the '
+              'JournalWriter never fsync\'s the tmp file before the '
               'rename — the #828 crash-safe write discipline '
               '(writeAsString → flushToDisk → rename) is missing for '
               'journal.json (bug #1469).',
         );
 
-        // The journal write is the final writeAsString/rename pair in
-        // append() (the schema write precedes it), and it renames over
-        // journal.json (file.path) — not the schema file.
+        // The journal write is the final writeAsString/rename pair among
+        // JournalWriter's writes (the schema write precedes it), and it
+        // renames over journal.json (file.path) — not the schema file.
         final write = writes.last;
         final rename = renames.last;
         expect(rename.target!.toString(), 'tmp');
