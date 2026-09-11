@@ -54,6 +54,7 @@ import '../services/feature_path_resolver.dart';
 import '../services/journal.dart';
 import '../services/lane_plans.dart';
 import '../services/lane_receipts.dart';
+import '../services/lane_split.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/corpus_baseline_cache.dart';
 import '../services/run_state_store.dart';
@@ -1743,7 +1744,17 @@ class RunDriverCore {
             'assertion and make refuses it vacuous-green (issue #1259, '
             '#1308).',
           );
-          print('   --> fix: $vacuousGuardFallbackRemedy');
+          // Issue #1483: name the seam that EXISTS for the feature shape
+          // the message is talking to — the lane plan's traces cell only
+          // when the lane plan pair is actually on disk; the legacy
+          // single-file feature (no `## Lanes`, no plan pair) hand-edits
+          // the TEST LIST's traces cell instead (04-ENGINE.md does not
+          // exist there and never will). The full path is printed (the
+          // feature dir is not obvious from a bare filename). Messaging
+          // only — the detection, the stop and the loop are untouched.
+          print(
+            '   --> fix: ${_vacuousFallbackRemedy(projectRoot: projectRoot, featureDir: featureDir)}',
+          );
           return (
             state: updated,
             stop: (
@@ -2197,6 +2208,36 @@ class RunDriverCore {
         print(line);
       }
     }
+  }
+
+  /// Issue #1483: the #1308 fallback remedy, branched by feature shape.
+  /// The lane plan pair on disk (`tdd/04-ENGINE.md`, else `tdd/04-SKIN.md`)
+  /// is the hand-delta seam; their absence is the legacy single-file shape
+  /// and the seam is the test list itself. Paths are printed relative to
+  /// [projectRoot] — the full path of the file to edit. Messaging only:
+  /// no detection, stop, or loop change.
+  String _vacuousFallbackRemedy({
+    required String projectRoot,
+    required String featureDir,
+  }) {
+    final tddDir = p.join(featureDir, 'tdd');
+    final enginePlan = File(p.join(tddDir, LaneSplitFiles.engine));
+    final skinPlan = File(p.join(tddDir, LaneSplitFiles.skin));
+    final String? lanePlan;
+    if (enginePlan.existsSync()) {
+      lanePlan = p.relative(enginePlan.path, from: projectRoot);
+    } else if (skinPlan.existsSync()) {
+      lanePlan = p.relative(skinPlan.path, from: projectRoot);
+    } else {
+      lanePlan = null;
+    }
+    return vacuousGuardFallbackRemedyFor(
+      lanePlanPath: lanePlan,
+      testListPath: p.relative(
+        p.join(tddDir, 'test-list.md'),
+        from: projectRoot,
+      ),
+    );
   }
 
   BehaviorState _maxState(BehaviorState a, BehaviorState b) =>
