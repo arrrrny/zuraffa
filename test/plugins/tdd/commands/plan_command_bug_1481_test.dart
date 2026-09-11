@@ -202,7 +202,10 @@ void main() {
         'make will dead-end) while the scenario heals to declared', () async {
       final tmp = await _featureDir(_deadEndSpec);
       try {
-        final out = await _plan(tmp);
+        // Issue #1480: this fixture deliberately has no Layer Contracts —
+        // the legacy fallback shape stays reachable via the migration
+        // escape hatch.
+        final out = await _plan(tmp, ['--allow-unit-fallback']);
         expect(exitCode, 0, reason: out);
         expect(
           out,
@@ -235,7 +238,10 @@ void main() {
         'scanning 42 route lines)', () async {
       final tmp = await _featureDir(_deadEndSpec);
       try {
-        final out = await _plan(tmp);
+        // Issue #1480: this fixture deliberately has no Layer Contracts —
+        // the legacy fallback shape stays reachable via the migration
+        // escape hatch.
+        final out = await _plan(tmp, ['--allow-unit-fallback']);
         expect(exitCode, 0, reason: out);
         expect(
           out,
@@ -267,7 +273,10 @@ void main() {
 1. **Given** the app **When** the total is requested **Then** the total equals the sum of items.
 ''');
       try {
-        final out = await _plan(tmp);
+        // Issue #1480: this fixture deliberately has no Layer Contracts —
+        // the legacy fallback shape stays reachable via the migration
+        // escape hatch.
+        final out = await _plan(tmp, ['--allow-unit-fallback']);
         expect(exitCode, 0, reason: out);
         expect(
           out,
