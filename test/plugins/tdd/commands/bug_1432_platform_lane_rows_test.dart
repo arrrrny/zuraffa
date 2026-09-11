@@ -39,9 +39,15 @@ const String platformLanesSpec = '''
 2. **Given** the user submits the login form **When** the fields are valid **Then** the session starts with the authenticated user
    **Type**: acceptance
 
+## Layer Contracts
+
+**Presentation**:
+- `PlatformEnvelope`: `map(Reply) -> Envelope`
+
 ## Functional Requirements
 
 - **FR-001**: The system shall map platform replies to the typed envelope.
+            traces: PlatformEnvelope
 
 ## Lanes
 

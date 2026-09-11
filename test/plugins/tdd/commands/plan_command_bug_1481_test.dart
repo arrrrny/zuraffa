@@ -197,25 +197,30 @@ void main() {
     });
   });
 
-  group('#1481: the two fallback classes are distinguishable', () {
-    test('a unit fallback renders the FATAL class (no declared trace, '
-        'make will dead-end) while the scenario heals to declared', () async {
+  group('#1481/#1484: the routing classes are distinguishable', () {
+    test('an untraced FR routes MANUAL (1484) — no unit fallback row — '
+        'while the scenario heals to declared', () async {
       final tmp = await _featureDir(_deadEndSpec);
       try {
         final out = await _plan(tmp);
         expect(exitCode, 0, reason: out);
+        // Feature 1484 (issue option 3): the untraced FR is a manual
+        // declaration, so the fatal unit fallback class is retired — no
+        // unit row, no `[fallback:` line.
         expect(
           out,
-          contains(
-            'route: U1 -> unit lane [fallback: no declared trace — '
-            'make will dead-end',
-          ),
-          reason: 'the fatal class must be unmistakable: $out',
+          contains('FR-001 derives no unit behaviour'),
+          reason: 'the defaulted-FR exemption is announced: $out',
         );
         expect(
           out,
-          contains('trace FR to a declared contract row'),
-          reason: 'the fatal class still names the remedy',
+          isNot(contains('[fallback:')),
+          reason: 'the fallback lane is collapsed under 1484: $out',
+        );
+        expect(
+          out,
+          isNot(contains('route: U1 -> unit lane')),
+          reason: 'the untraced FR must not derive a unit row: $out',
         );
         // The acceptance scenario healed in the same invocation.
         expect(
@@ -231,26 +236,26 @@ void main() {
       }
     });
 
-    test('a single summary line tallies the dead-end behaviors (no '
-        'scanning 42 route lines)', () async {
+    test('no dead-end tally — an untraced FR is a manual declaration, '
+        'not a dead-end row', () async {
       final tmp = await _featureDir(_deadEndSpec);
       try {
         final out = await _plan(tmp);
         expect(exitCode, 0, reason: out);
         expect(
           out,
-          contains(
-            '2 behaviors will dead-end at make — no declared contract '
-            'trace (U1, U2)',
-          ),
-          reason: 'the tally names the dead-ending ids: $out',
+          isNot(contains('will dead-end at make')),
+          reason: 'there is no dead-end row to tally under 1484: $out',
         );
+        // Both FRs are recorded as manual declarations instead.
+        expect(out, contains('FR-001 derives no unit behaviour'));
+        expect(out, contains('FR-002 derives no unit behaviour'));
       } finally {
         tmp.deleteSync(recursive: true);
       }
     });
 
-    test('the tally counts PLURAL dead-ends correctly', () async {
+    test('every untraced FR routes manual (the plural case)', () async {
       final tmp = await _featureDir('''
 **Template Version**: `zuraffa-1.0`
 
@@ -271,12 +276,16 @@ void main() {
         expect(exitCode, 0, reason: out);
         expect(
           out,
-          contains(
-            '3 behaviors will dead-end at make — no declared contract '
-            'trace (U1, U2, U3)',
-          ),
-          reason: out,
+          isNot(contains('will dead-end at make')),
+          reason: 'there is no dead-end row to tally under 1484: $out',
         );
+        for (final fr in ['FR-001', 'FR-002', 'FR-003']) {
+          expect(
+            out,
+            contains('$fr derives no unit behaviour'),
+            reason: 'each untraced FR is a manual declaration: $out',
+          );
+        }
       } finally {
         tmp.deleteSync(recursive: true);
       }
