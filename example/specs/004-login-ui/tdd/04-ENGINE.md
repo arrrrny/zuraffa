@@ -17,7 +17,7 @@ One per functional requirement in `spec.md`.
 
 | id | behavior | traces | state |
 | -- | -------- | ------ | ----- |
-| U1 | The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos). | FR-001, adaptive_layouts | PENDING |
+| U2 | The system shall gate form submission on the credential verdict: a credential pair is submittable only when the email is well-formed and the password satisfies the declared policy. | FR-002, LoginValidation.isSubmittable | PENDING |
 
 ## Layer contracts
 
@@ -26,13 +26,17 @@ One per functional requirement in `spec.md`.
 - `LoginView`: `key: auth.signIn -> 'Sign in'`, `key: auth.error -> 'Sign in failed'`, `key: auth.working -> 'Signing in…'`
 - `LoginForm`: `ShadInput`, `key: auth.signIn -> 'Sign in'`, `key: auth.email -> 'Email'`, `key: auth.password -> 'Password'`, `key: auth.sessionStarted -> 'Session started'`
 - `adaptive_layouts`: `mobile`, `macos`
+### Function
+
+- `LoginValidation`: `isSubmittable(String email, String password) -> bool`
 
 ## Routing provenance
 
 Per-behavior routing decisions (issue #951): what each decision consulted — a declared marker/contract row, or the labeled legacy fallback to migrate.
 
-route: A1 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
-route: A2 -> acceptance lane [fallback: legacy description classifier matched — add `**Type**: acceptance` to the scenario]
-route: U1 -> unit lane (view generation) [declared: contract row: adaptive_layouts, spec line 94]
+route: A1 -> acceptance lane [declared: type marker, spec line 20]
+route: A2 -> acceptance lane [declared: type marker, spec line 23]
+route: U2 -> unit lane (func surface) [declared: contract row: LoginValidation, spec line 69]
+route: contract:A1 -> contract lane [declared: LoginValidation]
 
 

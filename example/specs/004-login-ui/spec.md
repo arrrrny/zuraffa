@@ -42,15 +42,18 @@ literal as the anchor, never a pinned EN literal.
 - **FR-001**: The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos).
       traces: adaptive_layouts
 
+- **FR-002**: The system shall gate form submission on the credential verdict: a credential pair is submittable only when the email is well-formed and the password satisfies the declared policy.
+      traces: LoginValidation.isSubmittable
+
 ## Lanes
 
 ```yaml
 Lanes:
   - lane: CORE
-    behaviors: [A1, A2, U1]
+    behaviors: [A1, A2, U2]
     flutter_allowed: false
   - lane: SKIN
-    behaviors: [W1, A3, A4, A5, A6, A7]
+    behaviors: [W1, U1, A3, A4, A5, A6, A7]
     flutter_allowed: true
     adaptive_slots: [mobile, ios, android, macos]
 ```
@@ -60,6 +63,10 @@ Lanes:
 **Presentation**:
 
 - `LoginView`: `key: auth.signIn -> 'Sign in'`, `key: auth.error -> 'Sign in failed'`, `key: auth.working -> 'Signing in…'`
+
+**Function**:
+
+- `LoginValidation`: `isSubmittable(String email, String password) -> bool`
 
 ## Skin Contract
 
