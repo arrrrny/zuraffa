@@ -149,7 +149,8 @@ Expected: true
     });
 
     test('a genuine red re-proof with the poison line stays a regression', () {
-      const transcript = '''
+      const transcript =
+          '''
 $poisonProgressLine
 00:01 +2918 -1: test/some_test.dart: a real regression [E]
   Expected: 2
@@ -165,7 +166,8 @@ $poisonProgressLine
     });
 
     test('kernelCacheSignatureLine finds no signature in a poisoned red', () {
-      const transcript = '''
+      const transcript =
+          '''
 $poisonProgressLine
 00:01 +2918 -1: test/some_test.dart: a real regression [E]
   Expected: 2
@@ -177,7 +179,8 @@ $poisonProgressLine
 
     test('the canonical crash line is still infra next to the poison line', () {
       // Progress-line skipping must not swallow genuine crash evidence.
-      const transcript = '''
+      const transcript =
+          '''
 00:00 +2918: loading test/probe_test.dart
 Failed to load "test/probe_test.dart":
 Cannot retrieve length of file: /tmp/dart_test.kernel./probe_test.dart_.dill (errno 2)
@@ -191,14 +194,17 @@ $poisonProgressLine
       expect(cls, ReproofFailureClass.infraRunner);
     });
 
-    test('bare phrase without crash evidence on the same line is not infra', () {
-      expect(
-        hasKernelCacheSignature(
-          'a quoted log says: cannot retrieve length of file — nothing else',
-        ),
-        isFalse,
-      );
-    });
+    test(
+      'bare phrase without crash evidence on the same line is not infra',
+      () {
+        expect(
+          hasKernelCacheSignature(
+            'a quoted log says: cannot retrieve length of file — nothing else',
+          ),
+          isFalse,
+        );
+      },
+    );
   });
 
   group('parseFailingTestNames', () {

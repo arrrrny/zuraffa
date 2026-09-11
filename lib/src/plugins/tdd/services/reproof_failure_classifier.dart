@@ -12,6 +12,9 @@
 ///   1. process failed to start                        -> infraRunner
 ///   2. per-command timeout (bug #742 tier)            -> infraRunner
 ///   3. kernel-cache signature in the transcript       -> infraRunner
+///      (bug #1524: `dart test` reporter progress lines are skipped
+///      BEFORE the scan — a progress line quoting a signature, e.g. a
+///      passing test's own name, is never crash evidence)
 ///   4. exit 255 (dart test VM/runner crash)           -> infraRunner
 ///   5. anything else (exit 1 with `[E]` names,
 ///      unparseable reds, other non-zero exits)        -> regression
@@ -32,13 +35,33 @@ enum ReproofFailureClass {
   regression,
 }
 
+/// The `dart test` reporter progress-line grammar (bug #1524): the
+/// per-test status lines the expanded reporter prints —
+/// `mm:ss +N [-M] [~K]: <name>` — plus the summary lines in the same
+/// shape. A progress line is the reporter ECHOING a test name (or any
+/// transcript prose); it is never crash evidence, even when the echoed
+/// name quotes a kernel-cache signature verbatim (the classifier's own
+/// passing test name does exactly that).
+final RegExp _reporterProgressLine = RegExp(
+  r'^\s*\d{1,2}:\d{2}\s+(?:[+\-~]\d+\s*)+:',
+);
+
+/// Whether [line] is a `dart test` reporter progress line (bug #1524):
+/// a `mm:ss +N [-M] [~K]: ...` status line, never crash evidence.
+bool _isReporterProgressLine(String line) =>
+    _reporterProgressLine.hasMatch(line);
+
 /// The kernel-cache / runner-crash signature grammar (spec 1333): the
 /// observed transient failure phrasing, case-insensitive. The sentence is
 /// the issue's primary signature; `dart_test.kernel` only counts when the
 /// same line also carries crash evidence; a `.dill` path co-occurring with
-/// an ENOENT/errno-2 marker catches the variants the sentence does not cover.
+/// an ENOENT/errno-2 marker catches the variants the sentence does not
+/// cover. Bug #1524: the bare sentence alternative requires the same
+/// crash evidence co-occurring on its line (a quoted sentence alone, e.g.
+/// inside a test name, proves nothing).
 final RegExp _kernelCacheSignature = RegExp(
   r'cannot retrieve length of file'
+  r'(?=[^\n]*(?:\.dill|dart_test\.kernel|enoent|errno 2|no such file|failed))'
   r'|dart_test\.kernel[^\n]*(?:enoent|errno 2|no such file|cannot|failed)'
   r'|(?:enoent|errno 2|no such file|cannot|failed)[^\n]*dart_test\.kernel'
   r'|\.dill[^\n]*(?:enoent|errno 2|no such file)'
@@ -48,13 +71,27 @@ final RegExp _kernelCacheSignature = RegExp(
 
 /// Whether a re-proof transcript carries a kernel-cache / runner-crash
 /// signature (FR-1).
-bool hasKernelCacheSignature(String output) =>
-    _kernelCacheSignature.hasMatch(output);
+///
+/// Bug #1524: reporter progress lines are skipped BEFORE the scan. Every
+/// full-suite transcript contains the classifier's own passing test names
+/// as progress lines, and one of them quotes this signature verbatim —
+/// matching it hijacked every genuine red re-proof into the infra retry
+/// loop. All alternatives are line-local, so scanning non-progress lines
+/// one at a time is equivalent to matching the whole transcript.
+bool hasKernelCacheSignature(String output) {
+  for (final line in output.split('\n')) {
+    if (_isReporterProgressLine(line)) continue;
+    if (_kernelCacheSignature.hasMatch(line)) return true;
+  }
+  return false;
+}
 
 /// The first transcript line carrying a kernel-cache / runner-crash
-/// signature (for diagnostics), or null.
+/// signature (for diagnostics), or null. Reporter progress lines are
+/// skipped first (bug #1524) — see [hasKernelCacheSignature].
 String? kernelCacheSignatureLine(String output) {
   for (final line in output.split('\n')) {
+    if (_isReporterProgressLine(line)) continue;
     if (_kernelCacheSignature.hasMatch(line)) {
       return line.trim();
     }
