@@ -7,14 +7,14 @@
 //
 // This test asserts the observable behavior described above. It is
 // "honest red" on first execution: the paired subject at
-// `../../../lib/tdd/004-login-ui/u1_subject.dart` is unimplemented, so the test fails through an
+// `package:example/tdd/004-login-ui/u1_subject.dart` is unimplemented, so the test fails through an
 // assertion (not an uncaught error, compile/load error, skip, or
 // placeholder). Replace the subject's
 // stub body with real implementation to make this test pass.
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import '../../../lib/tdd/004-login-ui/u1_subject.dart' as subject;
+import 'package:example/tdd/004-login-ui/u1_subject.dart' as subject;
 
 void main() {
   group('U1 (FR-001, adaptive_layouts)', () {

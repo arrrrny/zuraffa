@@ -13,11 +13,12 @@
 // The declared request and result types are preserved above. A
 // non-renderable declared type (an entity that does not exist yet)
 // renders as `Object?` so the stub compiles cleanly (FR-011); replace
-// it with the declared type when implementing. This is a MINIMAL
-// COMPILABLE STUB: it does NOT satisfy the behavior — the paired test
-// fails on first execution (honest red). Replace this stub body with
-// the real implementation of the declared contract to make the test
-// pass.
+// it with the declared type when implementing. This is a SCAFFOLDED
+// DUMMY: the `tdd func` fill placed the designed bool dummy
+// (`return true;`) in the body, so the paired test compiles and passes
+// on the return type alone — the body does NOT yet satisfy the declared
+// behavior. Replace this body with the real implementation of the
+// declared contract to make the test meaningful.
 // Declared parameters: email: String, password: String
 //
 // The subject name is derived from the behavior id and is deliberately
@@ -30,7 +31,9 @@ library;
 /// Subject for behavior U2 — declared contract:
 /// `isSubmittable(String email, String password) -> bool`.
 ///
-/// Throws [UnimplementedError] until the real implementation lands.
+/// Scaffolded dummy (`return true;`) per the `tdd func` bool fill — the
+/// real verdict implementation replaces this body per the declared
+/// contract `isSubmittable(String email, String password) -> bool`.
 bool subject_u2(String email, String password) {
   return true;
 }
