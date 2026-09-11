@@ -18,15 +18,18 @@ import 'package:example/tdd/004-login-ui/u1_subject.dart' as subject;
 
 void main() {
   group('U1 (FR-001, adaptive_layouts)', () {
-    test('U1 — The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos).', () {
-      final result = (() {
-        try {
-          return subject.subject_u1();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U1 — The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos).',
+      () {
+        final result = (() {
+          try {
+            return subject.subject_u1();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }
