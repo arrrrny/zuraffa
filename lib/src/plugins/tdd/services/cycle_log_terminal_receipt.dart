@@ -2,7 +2,7 @@
 /// receipt (issue #1327).
 ///
 /// The run driver's post-make phases append evidence to
-/// `specs/<f>/tdd/cycle-log.md` AFTER the last `tdd make` receipt covering
+/// `<feature dir>/tdd/cycle-log.md` AFTER the last `tdd make` receipt covering
 /// the log was written: the refactor step appends its evidence (the #1311
 /// refresh covers only the pass registry's `lib/` mutations, never the
 /// log) and the meta run appends the unified two-cycle journal entry.
@@ -36,8 +36,8 @@ import 'package:path/path.dart' as p;
 import 'tdd_generation_receipt.dart';
 
 class CycleLogTerminalReceipt {
-  /// Appends ONE terminal proof.v1 receipt covering
-  /// `specs/<feature>/tdd/cycle-log.md`, re-hashed from the log's CURRENT
+  /// Appends ONE terminal proof.v1 receipt covering the feature's
+  /// `tdd/cycle-log.md`, re-hashed from the log's CURRENT
   /// (final) on-disk bytes — never copied from an older receipt (honest
   /// provenance). [command] names the driving invocation (`tdd
   /// run`, `tdd run-engine`, `tdd run-skin`) so the receipt's repro line
@@ -49,8 +49,13 @@ class CycleLogTerminalReceipt {
   /// already drove — the loss stays fail-visible through
   /// `zfa proof check`. A missing log file writes nothing (there is
   /// nothing to cover).
+  ///
+  /// [featureDir] is the directory the run actually used (issue #1471: a
+  /// bug feature lives in `.specify/bugs/<slug>`, never `specs/<slug>`);
+  /// [feature] is the NAME the receipt fields carry.
   static Future<void> refreshBestEffort({
     required String projectRoot,
+    required String featureDir,
     required String feature,
     required String command,
   }) async {
@@ -60,10 +65,7 @@ class CycleLogTerminalReceipt {
         command: command,
         target: feature,
         feature: feature,
-        files: {
-          p.join(projectRoot, 'specs', feature, 'tdd', 'cycle-log.md'):
-              'update',
-        },
+        files: {p.join(featureDir, 'tdd', 'cycle-log.md'): 'update'},
         input: {'sanctioned': true, 'terminal': true},
       );
     } catch (e) {
