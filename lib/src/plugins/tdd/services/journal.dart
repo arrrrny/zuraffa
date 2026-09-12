@@ -43,6 +43,7 @@ import 'package:path/path.dart' as p;
 import 'artifact_registry.dart';
 import 'cycle_evidence.dart';
 import 'lane_receipts.dart';
+import 'run_state_store.dart' show flushToDisk;
 
 /// Raised when a journal that EXISTS cannot be read (corrupt JSON, wrong
 /// shape): honest failure, never a silent empty stream. A journal that
@@ -719,6 +720,11 @@ class JournalWriter {
     const encoder = JsonEncoder.withIndent('  ');
     final tmp = File('${file.path}.tmp');
     await tmp.writeAsString('${encoder.convert(journal)}\n');
+    // Bug #828 gave run_state_store and artifact_registry the crash-safe
+    // write discipline; bug #1469 extends it here: fsync the tmp file
+    // before the rename, so a power loss between writeAsString and rename
+    // cannot leave a truncated journal.json behind.
+    await flushToDisk(tmp);
     await tmp.rename(file.path);
   }
 }

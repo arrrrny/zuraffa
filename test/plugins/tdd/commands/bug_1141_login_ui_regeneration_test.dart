@@ -46,6 +46,7 @@ String keyedLoginSpec({required String signInCopy}) =>
 ## Functional Requirements
 
 - **FR-001**: The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos).
+            traces: LoginForm
 
 ## Lanes
 

@@ -2,10 +2,18 @@
 
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Domain**:
+- `Guardado`: `guardar(Session) -> void`
+- `Restaurador`: `restaurar() -> List<Session>`
+
 ## Requisitos Funcionales
 
 - **FR-001**: El sistema DEBE guardar el estado de 073.
+  traces: Guardado
 - **FR-002**: El sistema DEBE restaurar la lista de Sessions.
+  traces: Restaurador
 
 ## Escenarios de Aceptación
 
