@@ -20,10 +20,20 @@
 //   2. the mutation is announced: `wrote N `**Type**` marker(s) into
 //      spec.md` (and the stale "Re-run `zfa tdd plan`" advice is gone —
 //      no re-run is needed);
-//   3. the two fallback classes render differently: `[fallback:
+//   3. the two fallback classes rendered differently: `[fallback:
 //      repairable — ...]` vs `[fallback: no declared trace — make will
 //      dead-end; ...]`, plus a one-line dead-end tally so the author
-//      need not scan every route line.
+//      need not scan every route line. Feature #1484 has since put the
+//      fatal class out of reach for unbound FRs — see the note below;
+//      `_printDeadEndTally` and the class string remain in
+//      `plan_command.dart`, just unrouted from here.
+//
+// Feature #1484 update: the FATAL unit-fallback class no longer exists
+// for unbound FRs — an FR with no surviving `traces:` binding routes to
+// a manual declaration (with its own per-FR warning) instead of a unit
+// route line, so the group below asserts the post-1484 contract: the
+// manual-declaration warnings are rendered, no unit route line is
+// emitted, and the dead-end tally is gone for manual-routed FRs.
 library;
 
 import 'dart:io';
@@ -56,10 +66,10 @@ const _healableSpec = '''
 1. **Given** the app **When** the total is requested **Then** the total equals the sum of items.
 ''';
 
-/// A spec whose unit lane CANNOT self-heal: FR-002 traces nothing (and
-/// no Layer Contracts section exists to trace to), so U1 stays
-/// fallback-routed forever — the fatal class.
-const _deadEndSpec = '''
+/// A spec whose FRs carry no `traces:` binding (and no Layer Contracts
+/// section exists to trace to): feature #1484 routes them to manual
+/// declarations, so no unit lane row is emitted at all.
+const _unboundFrSpec = '''
 **Template Version**: `zuraffa-1.0`
 
 # Spec: 1481-route
@@ -197,71 +207,112 @@ void main() {
     });
   });
 
-  group('#1481/#1484: the routing classes are distinguishable', () {
-    test('an untraced FR routes MANUAL (1484) — no unit fallback row — '
-        'while the scenario heals to declared', () async {
-      final tmp = await _featureDir(_deadEndSpec);
-      try {
-        // Issue #1480: this fixture deliberately has no Layer Contracts —
-        // the legacy fallback shape stays reachable via the migration
-        // escape hatch.
-        final out = await _plan(tmp, ['--allow-unit-fallback']);
-        expect(exitCode, 0, reason: out);
-        // Feature 1484 (issue option 3): the untraced FR is a manual
-        // declaration, so the fatal unit fallback class is retired — no
-        // unit row, no `[fallback:` line.
-        expect(
-          out,
-          contains('FR-001 derives no unit behaviour'),
-          reason: 'the defaulted-FR exemption is announced: $out',
-        );
-        expect(
-          out,
-          isNot(contains('[fallback:')),
-          reason: 'the fallback lane is collapsed under 1484: $out',
-        );
-        expect(
-          out,
-          isNot(contains('route: U1 -> unit lane')),
-          reason: 'the untraced FR must not derive a unit row: $out',
-        );
-        // The acceptance scenario healed in the same invocation.
-        expect(
-          out,
-          contains('route: A1 -> acceptance lane [declared: type marker'),
-        );
-        expect(
-          await _specFile(tmp).readAsString(),
-          contains('**Type**: acceptance'),
-        );
-      } finally {
-        tmp.deleteSync(recursive: true);
-      }
-    });
+  group('#1481: manual routing replaced the fatal unit-fallback class', () {
+    test(
+      'an unbound FR routes to a manual declaration (no unit route '
+      'line, no fallback class) while the scenario heals to declared',
+      () async {
+        final tmp = await _featureDir(_unboundFrSpec);
+        try {
+          final out = await _plan(tmp);
+          expect(exitCode, 0, reason: out);
+          // Feature 1484: an FR with no surviving `traces:` binding is
+          // announced as a manual declaration — the pre-1484 fatal unit
+          // fallback class is gone for unbound FRs.
+          expect(
+            out,
+            contains('WARNING: FR-001 derives no unit behaviour'),
+            reason: 'the unbound FR is announced: $out',
+          );
+          expect(
+            out,
+            contains('recorded as a manual declaration in tdd/traceability.md'),
+            reason: 'the routing destination is named: $out',
+          );
+          // The warning names a durable artifact — assert the artifact,
+          // not just the promise (same contract as the test-list.md
+          // agreement test above).
+          expect(
+            await File(
+              p.join(tmp.path, 'specs', '1481-route', 'tdd', 'traceability.md'),
+            ).readAsString(),
+            contains('manual (defaulted: no `traces:` binding)'),
+            reason: 'the manual declaration is recorded, not just announced',
+          );
+          expect(
+            out,
+            contains('add a `traces:` line naming a declared contract row'),
+            reason: 'the warning names the automated-route remedy',
+          );
+          expect(
+            out,
+            contains('add `**Type**: manual` under the FR'),
+            reason: 'the warning names the explicit-exemption remedy',
+          );
+          // No unit route line is emitted — manual declarations never
+          // render as unit-lane rows.
+          expect(
+            out,
+            isNot(contains('route: U1')),
+            reason: 'the manual-routed FR has no unit route line: $out',
+          );
+          expect(
+            out,
+            isNot(contains('route: U2')),
+            reason: 'neither unbound FR has a unit route line: $out',
+          );
+          expect(
+            out,
+            isNot(contains('[fallback: no declared trace')),
+            reason: 'the fatal fallback class is retired for unbound FRs',
+          );
+          // The acceptance scenario healed in the same invocation.
+          expect(
+            out,
+            contains('route: A1 -> acceptance lane [declared: type marker'),
+          );
+          expect(
+            await _specFile(tmp).readAsString(),
+            contains('**Type**: acceptance'),
+          );
+        } finally {
+          tmp.deleteSync(recursive: true);
+        }
+      },
+    );
 
-    test('no dead-end tally — an untraced FR is a manual declaration, '
-        'not a dead-end row', () async {
-      final tmp = await _featureDir(_deadEndSpec);
+    test('every unbound FR gets its own manual-declaration warning (no '
+        'dead-end tally for manual-routed FRs)', () async {
+      final tmp = await _featureDir(_unboundFrSpec);
       try {
-        // Issue #1480: this fixture deliberately has no Layer Contracts —
-        // the legacy fallback shape stays reachable via the migration
-        // escape hatch.
-        final out = await _plan(tmp, ['--allow-unit-fallback']);
+        final out = await _plan(tmp);
         expect(exitCode, 0, reason: out);
+        // Feature 1484: each unbound FR is announced individually —
+        // manual-routed FRs never reach make as automated unit
+        // behaviours, so the dead-end tally no longer applies.
+        expect(
+          out,
+          contains('WARNING: FR-001 derives no unit behaviour'),
+          reason: 'the first unbound FR is announced: $out',
+        );
+        expect(
+          out,
+          contains('WARNING: FR-002 derives no unit behaviour'),
+          reason: 'the second unbound FR is announced: $out',
+        );
         expect(
           out,
           isNot(contains('will dead-end at make')),
-          reason: 'there is no dead-end row to tally under 1484: $out',
+          reason:
+              'no dead-end tally when every unit gap routes to a '
+              'manual declaration: $out',
         );
-        // Both FRs are recorded as manual declarations instead.
-        expect(out, contains('FR-001 derives no unit behaviour'));
-        expect(out, contains('FR-002 derives no unit behaviour'));
       } finally {
         tmp.deleteSync(recursive: true);
       }
     });
 
-    test('every untraced FR routes manual (the plural case)', () async {
+    test('the per-FR warning scales to PLURAL unbound FRs correctly', () async {
       final tmp = await _featureDir('''
 **Template Version**: `zuraffa-1.0`
 
@@ -278,23 +329,27 @@ void main() {
 1. **Given** the app **When** the total is requested **Then** the total equals the sum of items.
 ''');
       try {
-        // Issue #1480: this fixture deliberately has no Layer Contracts —
-        // the legacy fallback shape stays reachable via the migration
-        // escape hatch.
-        final out = await _plan(tmp, ['--allow-unit-fallback']);
+        final out = await _plan(tmp);
         expect(exitCode, 0, reason: out);
+        // Feature 1484: one manual-declaration warning per unbound FR,
+        // no dead-end tally (manual-routed FRs never dead-end at make —
+        // they are exempt from the automated unit lane).
         expect(
           out,
-          isNot(contains('will dead-end at make')),
-          reason: 'there is no dead-end row to tally under 1484: $out',
+          contains('WARNING: FR-001 derives no unit behaviour'),
+          reason: out,
         );
-        for (final fr in ['FR-001', 'FR-002', 'FR-003']) {
-          expect(
-            out,
-            contains('$fr derives no unit behaviour'),
-            reason: 'each untraced FR is a manual declaration: $out',
-          );
-        }
+        expect(
+          out,
+          contains('WARNING: FR-002 derives no unit behaviour'),
+          reason: out,
+        );
+        expect(
+          out,
+          contains('WARNING: FR-003 derives no unit behaviour'),
+          reason: out,
+        );
+        expect(out, isNot(contains('will dead-end at make')), reason: out);
       } finally {
         tmp.deleteSync(recursive: true);
       }
