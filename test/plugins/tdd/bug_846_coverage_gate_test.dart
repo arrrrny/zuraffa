@@ -142,6 +142,7 @@ void main() {
 - **FR-001**: The system MUST return 42 when invoked with no args
 
 | FR-002 | The system MUST log every invocation |
+  traces: Contract
 ''');
 
       final out = await runPlan();
@@ -217,6 +218,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: The system MUST return 42 when invoked with no args
+  traces: Contract
 ''');
 
       final out = await runPlan();

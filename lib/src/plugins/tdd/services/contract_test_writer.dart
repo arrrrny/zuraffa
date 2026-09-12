@@ -310,7 +310,23 @@ String _representativeArg(String type, int index) {
 /// Writes the contract test half of a `gen` pair for contract-kind
 /// behaviors (issue #1007).
 class ContractTestWriter {
-  const ContractTestWriter();
+  const ContractTestWriter({this.flutterTest = false});
+
+  /// Whether the host project runs on the Flutter test runner
+  /// (`flutter_test`) instead of plain `dart test` (issue #1513, the
+  /// contract lane of the #1349/#1351 family): on Flutter projects the
+  /// plain `test` package is not resolvable — every generated contract
+  /// test stopped at `verify-red` with `Couldn't resolve the package
+  /// 'test'`. When true, both templates import
+  /// `package:flutter_test/flutter_test.dart` (which re-exports the same
+  /// group/test/expect API). Defaults to `false` — the pure-Dart output
+  /// is byte-stable.
+  final bool flutterTest;
+
+  /// The test-framework import both contract templates emit.
+  String get _testImport => flutterTest
+      ? "package:flutter_test/flutter_test.dart"
+      : "package:test/test.dart";
 
   Future<void> write({
     required Behavior behavior,
@@ -321,25 +337,15 @@ class ContractTestWriter {
     final file = File(testPath);
     await file.parent.create(recursive: true);
     final declaration = ContractDeclaration.parse(behavior.description);
+    final subjectImport = _subjectImport(testPath, subjectPath);
     await file.writeAsString(
       declaration == null
-          ? _renderUnparseable(
-              behavior,
-              _relativeSubjectPath(testPath, subjectPath),
-            )
-          : _render(
-              behavior,
-              declaration,
-              _relativeSubjectPath(testPath, subjectPath),
-            ),
+          ? _renderUnparseable(behavior, subjectImport)
+          : _render(behavior, declaration, subjectImport),
     );
   }
 
-  String _render(
-    Behavior b,
-    ContractDeclaration c,
-    String relativeSubjectPath,
-  ) {
+  String _render(Behavior b, ContractDeclaration c, String subjectImport) {
     final escapedDescription = BehaviorTestWriter.escapeDartString(
       b.description,
     );
@@ -370,7 +376,7 @@ class ContractTestWriter {
 // description: ${b.description}
 //
 // CONTRACT TEST (issue #1007): this is NOT an implementation test — it
-// proves the implementation at `$relativeSubjectPath`
+// proves the implementation at `$subjectImport`
 // satisfies the DECLARED contract above. The body enumerates the
 // contract's cases; every case must hold for the contract to be
 // satisfied. While the method is deliberately unimplemented the test
@@ -379,8 +385,8 @@ class ContractTestWriter {
 // to GREEN until the implementation satisfies the contract.
 library;
 
-import 'package:test/test.dart';
-import '$relativeSubjectPath' as subject;
+import '$_testImport';
+import '$subjectImport' as subject;
 
 void main() {
   group('$escapedGroupDescription', () {
@@ -440,7 +446,7 @@ Object? _arg${entry.key}() =>
   /// The refusal-shaped test for a contract row whose description lost
   /// the structured shape: a single failing assertion naming the drift
   /// (format drift is surfaced, not papered over — house pattern).
-  String _renderUnparseable(Behavior b, String relativeSubjectPath) {
+  String _renderUnparseable(Behavior b, String subjectImport) {
     final escapedDescription = BehaviorTestWriter.escapeDartString(
       b.description,
     );
@@ -458,8 +464,8 @@ Object? _arg${entry.key}() =>
 // (`zfa tdd plan <feature>`) or hand-corrected to the shape.
 library;
 
-import 'package:test/test.dart';
-import '$relativeSubjectPath' as subject;
+import '$_testImport';
+import '$subjectImport' as subject;
 
 void main() {
   group('${BehaviorTestWriter.escapeDartString('${b.id} (${b.sourceCriterion})')}', () {
@@ -474,6 +480,27 @@ void main() {
   });
 }
 ''';
+  }
+
+  /// The subject import the contract test emits (issue #1513): a
+  /// `package:` URI when the subject sits under the enclosing project's
+  /// `lib/` (#1035 parity — the same rule, the same helper, the unit lane
+  /// answers), else the legacy relative shape (non-absolute fixture
+  /// paths, no pubspec, subject outside `lib/`).
+  ///
+  /// The package rule only runs for absolute path pairs — the guard the
+  /// unit lane keeps (`behavior_test_writer.dart:440`). A relative
+  /// `testPath` would otherwise walk up from the process CWD and could
+  /// resolve a `package:` URI belonging to whatever package sits there.
+  String _subjectImport(String testPath, String subjectPath) {
+    if (p.isAbsolute(subjectPath) && p.isAbsolute(testPath)) {
+      final packageImport = BehaviorTestWriter.packageSubjectImportFor(
+        testPath,
+        subjectPath,
+      );
+      if (packageImport != null) return packageImport;
+    }
+    return _relativeSubjectPath(testPath, subjectPath);
   }
 
   String _relativeSubjectPath(String testPath, String subjectPath) {

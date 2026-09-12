@@ -87,6 +87,68 @@ class SpecEntity {
   String toString() => 'SpecEntity(name: $name, fields: $fields)';
 }
 
+/// One FR's declaration-level routing facts (feature 1484): what the
+/// FR's block DECLARES, and nothing else — the FR id, the
+/// document-wide unit id the FR consumes ([_extractUnit] walks the same
+/// numbering), the 1-based spec line of the FR header, whether the
+/// block carries the `**Type**: manual` exemption marker (and where),
+/// and the contract tokens the block's first `traces:` line binds.
+///
+/// Issue #1484: every FR unconditionally derived a unit behaviour row,
+/// so inherently non-unit FRs (UI appearance, non-functional
+/// constraints, whole-app properties) manufactured unit rows that could
+/// never pass `make` — permanently blocking `zfa tdd run` with no
+/// opt-out. #846 gave acceptance criteria the `(manual:)` hatch; 1484
+/// extends the same concept to FRs.
+class FrRouting {
+  final String frId;
+  final String unitId;
+  final int specLine;
+
+  /// Whether the FR's block declares the `**Type**: manual` exemption —
+  /// the same marker grammar the scenario-side `**Type**` declaration
+  /// uses, constrained to the `manual` kind.
+  final bool manualMarker;
+
+  /// The 1-based spec line of the marker line, when declared.
+  final int? markerLine;
+
+  /// The contract tokens the block's first `traces:` line binds
+  /// (signature-shaped tokens dropped, the [traceTokens] filter).
+  final List<String> traceTokens;
+
+  /// The FR prose after the id colon, raw (the `**` strip and the
+  /// `[persistent]` tag handling stay [_extractUnit]'s business).
+  final String rawText;
+
+  const FrRouting({
+    required this.frId,
+    required this.unitId,
+    required this.specLine,
+    required this.rawText,
+    this.manualMarker = false,
+    this.markerLine,
+    this.traceTokens = const [],
+  });
+
+  /// Whether the block binds a contract trace — a `traces:` line whose
+  /// tokens survive the filter. An EMPTY list is the unbound state
+  /// #1319 warns about.
+  bool get traced => traceTokens.isNotEmpty;
+
+  /// The 1484 routing: an FR declared `**Type**: manual` — or, by
+  /// default, an FR with no `traces:` binding — is a manual
+  /// declaration, never a unit behaviour row. The explicit declaration
+  /// outranks the trace (a marker plus a contradictory binding stays
+  /// manual: the author's word wins).
+  bool get routesManual => manualMarker || !traced;
+
+  @override
+  String toString() =>
+      'FrRouting($frId/$unitId, line $specLine, '
+      'manual: $manualMarker, traces: $traceTokens)';
+}
+
 class SpecParser {
   const SpecParser();
 
@@ -280,6 +342,10 @@ class SpecParser {
     );
     final lines = blanked.split('\n');
     var inScenario = false;
+    // Feature 1484: whether the walk is inside an FR block — an FR
+    // header through the next [_endsFrBlock] boundary. Only there does
+    // `**Type**: manual` carry the FR-side exemption meaning.
+    var inFrBlock = false;
     var scenarioLine = 0;
     var aIdx = 0;
     for (var i = 0; i < lines.length; i++) {
@@ -288,7 +354,16 @@ class SpecParser {
       if (_scenarioHeader.hasMatch(line)) {
         aIdx += 1;
         inScenario = true;
+        inFrBlock = false;
         scenarioLine = lineNo;
+        continue;
+      }
+      if (_frLine(line) != null) {
+        // An FR header opens its block (the boundary the FR routing
+        // walk uses); the block's continuation lines are FR-owned. The
+        // scenario state is untouched — an FR bullet inside an open
+        // scenario block reads exactly as it did before.
+        inFrBlock = true;
         continue;
       }
       // Any markdown heading that is not a scenario header ends the
@@ -296,11 +371,21 @@ class SpecParser {
       // belongs to no numbered scenario (round-2 review fix 5).
       if (line.trimLeft().startsWith('#')) {
         inScenario = false;
+        inFrBlock = false;
         continue;
       }
       final m = _typeMarkerLine.firstMatch(line);
       if (m == null) continue;
       if (!inScenario) {
+        // Feature 1484: `**Type**: manual` outside any numbered
+        // scenario block is the FR-side manual exemption — an FR block
+        // continuation line the FR routing walk ([parseFrRoutings])
+        // owns, never a misplaced scenario marker. The exemption is
+        // gated by FR-block ownership: outside an FR block it stays the
+        // misplaced-marker refusal. Any OTHER kind outside a scenario
+        // block stays the misplaced-marker refusal too (round-2 review
+        // fix 5).
+        if (inFrBlock && m.group(1)!.toLowerCase() == 'manual') continue;
         throw StateError(
           'spec line $lineNo carries a `**Type**` marker outside any '
           'numbered scenario block.\n'
@@ -1372,7 +1457,16 @@ class SpecParser {
     return null;
   }
 
-  List<Behavior> parse(String feature, String specMd) {
+  /// [contractTracedFrIds] carries the FR ids the feature's
+  /// `contracts/*.md` files bind (issue #1480's decoupled mapping): a
+  /// defaulted FR named there is DECLARED, so the #1484 manual routing
+  /// must keep deriving its unit row. Empty (the default) preserves the
+  /// spec.md-only contract for every other caller.
+  List<Behavior> parse(
+    String feature,
+    String specMd, {
+    Set<String> contractTracedFrIds = const {},
+  }) {
     final md = normalizeSpecText(specMd);
     final acceptance = _extractAcceptance(feature, md);
     if (acceptance.isEmpty) {
@@ -1398,7 +1492,11 @@ class SpecParser {
         '`(manual: owner)`.',
       );
     }
-    final unit = _extractUnit(feature, md);
+    final unit = _extractUnit(
+      feature,
+      md,
+      contractTracedFrIds: contractTracedFrIds,
+    );
     return [...acceptance, ...unit];
   }
 
@@ -1490,39 +1588,54 @@ class SpecParser {
   static bool _carriesPersistentTag(String frText) =>
       frText.replaceAll('**', '').trim().startsWith('[persistent]');
 
-  List<Behavior> _extractUnit(String feature, String specMd) {
+  List<Behavior> _extractUnit(
+    String feature,
+    String specMd, {
+    Set<String> contractTracedFrIds = const {},
+  }) {
+    // Feature 1484: the FR→behaviour derivation consults the FR's own
+    // declarations. An FR declared `**Type**: manual` — or, by default,
+    // an FR with no `traces:` binding — routes to a manual declaration
+    // in the traceability matrix instead of a unit behaviour row: it
+    // consumes its document-wide unit id (alignment with the
+    // requirement scan and the trace walks, the #846 manual-scenario
+    // precedent) but emits NO row, so the run loop never sees a unit
+    // row that cannot honestly pass make. FRs WITH a binding derive
+    // rows exactly as before (backwards compatible — the marker is
+    // opt-in and untraced specs are the only ones that re-route).
+    //
+    // Feature 1484 × issue #1480: a defaulted FR whose trace lives in
+    // the feature's `contracts/*.md` files ([contractTracedFrIds]) is
+    // DECLARED, not defaulted — it keeps its unit row. An explicit
+    // `**Type**: manual` marker always wins (the author's word).
+    final routings = parseFrRoutings(specMd);
     final behaviors = <Behavior>[];
-    var uIdx = 0;
-    for (final line in specMd.split('\n')) {
-      // Issue #1196: FR declarations arrive as strict bullets OR
-      // FR-table rows — both count in document order so the U ids stay
-      // aligned with the requirement scan and the trace walks.
-      final m = _frLine(line);
-      if (m != null) {
-        uIdx += 1;
-        final frId = m.$1;
-        // Feature 071: a `[persistent]` tag is a routing declaration,
-        // not prose — strip it from the description (the persistence
-        // map carries the mark; the rendered row stays clean). The tag
-        // is detected on the RAW text before the `**` strip, so a
-        // bold-wrapped tag is honored too (round-2 review fix 6).
-        final rawDesc = m.$2;
-        final tagged = _carriesPersistentTag(rawDesc);
-        var desc = rawDesc.replaceAll('**', '').trim();
-        if (tagged) {
-          desc = desc.substring('[persistent]'.length).trim();
-        }
-        behaviors.add(
-          Behavior(
-            id: 'U$uIdx',
-            feature: feature,
-            kind: BehaviorKind.unit,
-            description: desc,
-            sourceCriterion: frId,
-            target: '',
-          ),
-        );
+    for (final r in routings) {
+      if (r.routesManual &&
+          (r.manualMarker || !contractTracedFrIds.contains(r.frId))) {
+        continue;
       }
+      // Feature 071: a `[persistent]` tag is a routing declaration,
+      // not prose — strip it from the description (the persistence
+      // map carries the mark; the rendered row stays clean). The tag
+      // is detected on the RAW text before the `**` strip, so a
+      // bold-wrapped tag is honored too (round-2 review fix 6).
+      final rawDesc = r.rawText;
+      final tagged = _carriesPersistentTag(rawDesc);
+      var desc = rawDesc.replaceAll('**', '').trim();
+      if (tagged) {
+        desc = desc.substring('[persistent]'.length).trim();
+      }
+      behaviors.add(
+        Behavior(
+          id: r.unitId,
+          feature: feature,
+          kind: BehaviorKind.unit,
+          description: desc,
+          sourceCriterion: r.frId,
+          target: '',
+        ),
+      );
     }
     return behaviors;
   }
@@ -1653,6 +1766,91 @@ class SpecParser {
     }
     return unbound;
   }
+
+  /// The FR routing walk (feature 1484): one [FrRouting] per FR, in
+  /// document order, keyed by nothing — the unit id travels with the
+  /// record. The walk consumes the ENTIRE FR block exactly like
+  /// [parseFrContractTraces] (#1319): fenced code blocks are blanked
+  /// (documentation, not declarations), [_frLine] recognises the bullet
+  /// AND FR-table grammars, and the block runs to the next
+  /// FR/requirement header, heading, or scenario header. Within a
+  /// block the FIRST `**Type**:` line decides the marker flag (the
+  /// scenario-side value-lowering convention; only `manual` exempts an
+  /// FR) and the FIRST `traces:` line binds (first-wins, byte-identical
+  /// to the single-line pre-#1319 behavior).
+  ///
+  /// Manual FRs consume their document-wide unit id but emit no row —
+  /// the #846 manual-scenario precedent, so the requirement scan, the
+  /// trace walks, and the derived rows stay id-aligned.
+  static List<FrRouting> parseFrRoutings(String specMd) {
+    final routings = <FrRouting>[];
+    final blanked = normalizeSpecText(specMd).replaceAllMapped(
+      _fencedCodeBlock,
+      (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
+    );
+    final lines = blanked.split('\n');
+    var uIdx = 0;
+    for (var i = 0; i < lines.length; i++) {
+      final fr = _frLine(lines[i]);
+      if (fr == null) continue;
+      uIdx += 1;
+      var manualMarker = false;
+      int? markerLine;
+      var typeMarkerSeen = false;
+      // Issue #1484 (review fix): the FIRST `traces:` line of the block
+      // binds, even when its tokens all drop as signature-shaped. The
+      // old `tokens.isEmpty` guard let a LATER `traces:` line overwrite
+      // that first (empty) binding — while [parseFrContractTraces] keeps
+      // it — so plan could derive a unit row whose traceability binding
+      // was empty.
+      var traceSeen = false;
+      var tokens = const <String>[];
+      for (var j = i + 1; j < lines.length; j++) {
+        if (_endsFrBlock(lines[j])) break;
+        final m = _typeMarkerLine.firstMatch(lines[j]);
+        if (m != null && !typeMarkerSeen) {
+          // The FIRST `**Type**:` line of the block decides; only the
+          // `manual` kind exempts an FR (other kinds are scenario
+          // vocabulary, meaningless here — the walk keeps looking for
+          // a traces: line).
+          typeMarkerSeen = true;
+          if (m.group(1)!.toLowerCase() == 'manual') {
+            manualMarker = true;
+            markerLine = j + 1;
+          }
+          continue;
+        }
+        if (!traceSeen) {
+          final t = _tracesLine.firstMatch(lines[j]);
+          if (t != null) {
+            traceSeen = true;
+            tokens = traceTokens(t.group(1)!);
+          }
+        }
+      }
+      routings.add(
+        FrRouting(
+          frId: fr.$1,
+          unitId: 'U$uIdx',
+          specLine: i + 1,
+          manualMarker: manualMarker,
+          markerLine: markerLine,
+          traceTokens: tokens,
+          rawText: fr.$2,
+        ),
+      );
+    }
+    return routings;
+  }
+
+  /// The FR ids routed to a manual declaration (feature 1484) — the set
+  /// the coverage gate counts as covered manual declarations instead of
+  /// missing behaviours. Explicit `**Type**: manual` markers and the
+  /// no-binding default both land here.
+  static Set<String> manualFrCriterionIds(String specMd) => {
+    for (final r in parseFrRoutings(specMd))
+      if (r.routesManual) r.frId,
+  };
 
   /// The criterion-keyed contract-trace scan for the DECOUPLED mapping
   /// (issue #1480): the spec↔contract mapping may live BESIDE the spec —

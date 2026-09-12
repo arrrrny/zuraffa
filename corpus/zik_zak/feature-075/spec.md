@@ -20,9 +20,11 @@ Requirements are declared as a table; variants are continuation rows.
 | ID | Requirement | Variants |
 | -- | -- | -- |
 | FR-001 | The system MUST list Wallet rows for 075. | — |
+  traces: `WalletRepo`
 | | variant: offline — the cached list renders. | v1 |
 | | variant: empty — the placeholder renders. | v2 |
 | FR-002 | The system MUST refresh the 075 list on pull. | — |
+  traces: `WalletRepo`
 
 ## Acceptance Scenarios
 

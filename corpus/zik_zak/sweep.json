@@ -10,8 +10,8 @@
   "plan": {
     "clean": 98,
     "refused": 22,
-    "declaredRoutes": 410,
-    "fallbackRoutes": 199,
+    "declaredRoutes": 580,
+    "fallbackRoutes": 56,
     "exitClasses": {
       "exit0": 98,
       "exit3": 14,
@@ -192,73 +192,73 @@
       "feature": "feature-029",
       "shape": "modern-undeclared",
       "parse": "clean",
-      "behaviors": 5
+      "behaviors": 3
     },
     {
       "feature": "feature-030",
       "shape": "modern-undeclared",
       "parse": "clean",
-      "behaviors": 5
+      "behaviors": 3
     },
     {
       "feature": "feature-031",
       "shape": "modern-undeclared",
       "parse": "clean",
-      "behaviors": 5
+      "behaviors": 3
     },
     {
       "feature": "feature-032",
       "shape": "modern-undeclared",
       "parse": "clean",
-      "behaviors": 5
+      "behaviors": 3
     },
     {
       "feature": "feature-033",
       "shape": "modern-undeclared",
       "parse": "clean",
-      "behaviors": 5
+      "behaviors": 3
     },
     {
       "feature": "feature-034",
       "shape": "modern-undeclared",
       "parse": "clean",
-      "behaviors": 5
+      "behaviors": 3
     },
     {
       "feature": "feature-035",
       "shape": "modern-undeclared",
       "parse": "clean",
-      "behaviors": 5
+      "behaviors": 3
     },
     {
       "feature": "feature-036",
       "shape": "modern-undeclared",
       "parse": "clean",
-      "behaviors": 5
+      "behaviors": 3
     },
     {
       "feature": "feature-037",
       "shape": "modern-undeclared",
       "parse": "clean",
-      "behaviors": 5
+      "behaviors": 3
     },
     {
       "feature": "feature-038",
       "shape": "modern-undeclared",
       "parse": "clean",
-      "behaviors": 5
+      "behaviors": 3
     },
     {
       "feature": "feature-039",
       "shape": "modern-undeclared",
       "parse": "clean",
-      "behaviors": 5
+      "behaviors": 3
     },
     {
       "feature": "feature-040",
       "shape": "modern-undeclared",
       "parse": "clean",
-      "behaviors": 5
+      "behaviors": 3
     },
     {
       "feature": "feature-041",
@@ -942,85 +942,85 @@
       "feature": "feature-029",
       "shape": "modern-undeclared",
       "planExit": 0,
-      "declaredRoutes": 3,
-      "fallbackRoutes": 5
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-030",
       "shape": "modern-undeclared",
       "planExit": 0,
-      "declaredRoutes": 3,
-      "fallbackRoutes": 5
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-031",
       "shape": "modern-undeclared",
       "planExit": 0,
-      "declaredRoutes": 3,
-      "fallbackRoutes": 5
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-032",
       "shape": "modern-undeclared",
       "planExit": 0,
-      "declaredRoutes": 3,
-      "fallbackRoutes": 5
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-033",
       "shape": "modern-undeclared",
       "planExit": 0,
-      "declaredRoutes": 3,
-      "fallbackRoutes": 5
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-034",
       "shape": "modern-undeclared",
       "planExit": 0,
-      "declaredRoutes": 3,
-      "fallbackRoutes": 5
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-035",
       "shape": "modern-undeclared",
       "planExit": 0,
-      "declaredRoutes": 3,
-      "fallbackRoutes": 5
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-036",
       "shape": "modern-undeclared",
       "planExit": 0,
-      "declaredRoutes": 3,
-      "fallbackRoutes": 5
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-037",
       "shape": "modern-undeclared",
       "planExit": 0,
-      "declaredRoutes": 3,
-      "fallbackRoutes": 5
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-038",
       "shape": "modern-undeclared",
       "planExit": 0,
-      "declaredRoutes": 3,
-      "fallbackRoutes": 5
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-039",
       "shape": "modern-undeclared",
       "planExit": 0,
-      "declaredRoutes": 3,
-      "fallbackRoutes": 5
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-040",
       "shape": "modern-undeclared",
       "planExit": 0,
-      "declaredRoutes": 3,
-      "fallbackRoutes": 5
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-041",
@@ -1152,281 +1152,281 @@
       "feature": "feature-059",
       "shape": "html-entities",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-060",
       "shape": "html-entities",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-061",
       "shape": "html-entities",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-062",
       "shape": "html-entities",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-063",
       "shape": "html-entities",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-064",
       "shape": "html-entities",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-065",
       "shape": "html-entities",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-066",
       "shape": "html-entities",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-067",
       "shape": "non-english",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-068",
       "shape": "non-english",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-069",
       "shape": "non-english",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-070",
       "shape": "non-english",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-071",
       "shape": "non-english",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-072",
       "shape": "non-english",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-073",
       "shape": "non-english",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-074",
       "shape": "non-english",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 6,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-075",
       "shape": "fr-table",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-076",
       "shape": "fr-table",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-077",
       "shape": "fr-table",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-078",
       "shape": "fr-table",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-079",
       "shape": "fr-table",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-080",
       "shape": "fr-table",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-081",
       "shape": "fr-table",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-082",
       "shape": "fr-table",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 2
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-083",
       "shape": "nested-ac",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 6
+      "declaredRoutes": 4,
+      "fallbackRoutes": 4
     },
     {
       "feature": "feature-084",
       "shape": "nested-ac",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 6
+      "declaredRoutes": 4,
+      "fallbackRoutes": 4
     },
     {
       "feature": "feature-085",
       "shape": "nested-ac",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 6
+      "declaredRoutes": 4,
+      "fallbackRoutes": 4
     },
     {
       "feature": "feature-086",
       "shape": "nested-ac",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 6
+      "declaredRoutes": 4,
+      "fallbackRoutes": 4
     },
     {
       "feature": "feature-087",
       "shape": "nested-ac",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 6
+      "declaredRoutes": 4,
+      "fallbackRoutes": 4
     },
     {
       "feature": "feature-088",
       "shape": "nested-ac",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 6
+      "declaredRoutes": 4,
+      "fallbackRoutes": 4
     },
     {
       "feature": "feature-089",
       "shape": "nested-ac",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 6
+      "declaredRoutes": 4,
+      "fallbackRoutes": 4
     },
     {
       "feature": "feature-090",
       "shape": "nested-ac",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 6
+      "declaredRoutes": 4,
+      "fallbackRoutes": 4
     },
     {
       "feature": "feature-091",
       "shape": "inline-prose",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 5
+      "declaredRoutes": 4,
+      "fallbackRoutes": 3
     },
     {
       "feature": "feature-092",
       "shape": "inline-prose",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 5
+      "declaredRoutes": 4,
+      "fallbackRoutes": 3
     },
     {
       "feature": "feature-093",
       "shape": "inline-prose",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 5
+      "declaredRoutes": 4,
+      "fallbackRoutes": 3
     },
     {
       "feature": "feature-094",
       "shape": "inline-prose",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 5
+      "declaredRoutes": 4,
+      "fallbackRoutes": 3
     },
     {
       "feature": "feature-095",
       "shape": "inline-prose",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 5
+      "declaredRoutes": 4,
+      "fallbackRoutes": 3
     },
     {
       "feature": "feature-096",
       "shape": "inline-prose",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 5
+      "declaredRoutes": 4,
+      "fallbackRoutes": 3
     },
     {
       "feature": "feature-097",
       "shape": "inline-prose",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 5
+      "declaredRoutes": 4,
+      "fallbackRoutes": 3
     },
     {
       "feature": "feature-098",
       "shape": "inline-prose",
       "planExit": 0,
-      "declaredRoutes": 0,
-      "fallbackRoutes": 5
+      "declaredRoutes": 4,
+      "fallbackRoutes": 3
     },
     {
       "feature": "feature-099",
@@ -1551,8 +1551,8 @@
       "feature": "feature-116",
       "shape": "manual",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 1
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-117",
@@ -1565,8 +1565,8 @@
       "feature": "feature-118",
       "shape": "manual",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 1
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     },
     {
       "feature": "feature-119",
@@ -1579,8 +1579,8 @@
       "feature": "feature-120",
       "shape": "manual",
       "planExit": 0,
-      "declaredRoutes": 2,
-      "fallbackRoutes": 1
+      "declaredRoutes": 4,
+      "fallbackRoutes": 0
     }
   ]
 }

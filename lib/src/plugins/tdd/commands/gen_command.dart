@@ -1169,6 +1169,10 @@ class GenCommand extends Command<void> {
         i18nExpansion: i18nExpansion,
         contractShape: contractShape,
         flutterTest: flutterTest,
+        // Issue #1518: the guard-only warning's branched remedy needs the
+        // seam context (real write path).
+        projectRoot: cwd,
+        featureDir: featureDir,
       );
       try {
         if (!adoptTest) {
@@ -1311,6 +1315,12 @@ class GenCommand extends Command<void> {
         contractShape: contractShape,
         bounded: bounded,
         flutterTest: flutterTest,
+        // Issue #1518: the staleness mirror renders through the same
+        // writers and PRINTS the same warning — it gets the same seam
+        // context so one gen output never carries two different
+        // remedies.
+        projectRoot: cwd,
+        featureDir: featureDir,
       );
     }
 
@@ -1480,6 +1490,8 @@ class GenCommand extends Command<void> {
     List<String> i18nExpansion = const [],
     UnitContractShape? contractShape,
     bool flutterTest = false,
+    String? projectRoot,
+    String? featureDir,
   }) {
     if (behavior.kind == BehaviorKind.theme) {
       return (
@@ -1496,8 +1508,14 @@ class GenCommand extends Command<void> {
       );
     }
     if (behavior.kind == BehaviorKind.contract) {
+      // Issue #1513: the contract lane honors the host runner like the
+      // unit/acceptance lanes do (#1351) — a `const ContractTestWriter()`
+      // here hardcoded `package:test`, dead at `verify-red` on Flutter
+      // hosts (`Couldn't resolve the package 'test'`). The stale-stub
+      // re-render path inherits the fix: it threads the same flag into
+      // this dispatch.
       return (
-        writeTest: const ContractTestWriter().write,
+        writeTest: ContractTestWriter(flutterTest: flutterTest).write,
         writeSubject: const ContractSubjectWriter().write,
       );
     }
@@ -1512,6 +1530,12 @@ class GenCommand extends Command<void> {
         // plain-function pair (unit lane); every other lane keeps its
         // own subject contract.
         contractShape: contractShape,
+        // Issue #1518: the seam context the gen-time guard-only
+        // warning's branched remedy resolves the hand-delta seam from
+        // (the real write AND the staleness mirror print the SAME
+        // wording).
+        projectRoot: projectRoot,
+        featureDir: featureDir,
       ).write,
       writeSubject: SubjectWriter(contractShape: contractShape).write,
     );
@@ -1548,6 +1572,22 @@ class GenCommand extends Command<void> {
       );
     }
     return dependencies.containsKey('flutter');
+  }
+
+  /// The enclosing project's `pubspec.yaml` for [fromPath], or null when no
+  /// ancestor carries one (fixture trees). The stale-stub mirror seeds its
+  /// root with this file so the render there resolves the same `package:`
+  /// subject import the real `gen` writes (issue #1513 follow-up).
+  static File? _enclosingPubspec(String fromPath) {
+    var dir = p.dirname(fromPath);
+    for (var i = 0; i < 24; i++) {
+      final candidate = File(p.join(dir, 'pubspec.yaml'));
+      if (candidate.existsSync()) return candidate;
+      final parent = p.dirname(dir);
+      if (parent == dir) break;
+      dir = parent;
+    }
+    return null;
   }
 
   /// Resolves the widget template's app shell (issue #912 defect 2):
@@ -1739,6 +1779,8 @@ class GenCommand extends Command<void> {
     List<String> i18nExpansion = const [],
     UnitContractShape? contractShape,
     bool flutterTest = false,
+    String? projectRoot,
+    String? featureDir,
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
     // seams are the implementer's wiring point — partial wiring (the
@@ -1775,6 +1817,21 @@ class GenCommand extends Command<void> {
     // THIS binary would really write for the behavior's kind.
     final mirror = await Directory.systemTemp.createTemp('zfa_gen_stale_');
     try {
+      // Issue #1513 follow-up: the mirror needs the target project's
+      // package identity, or `packageSubjectImportFor` returns null inside
+      // it (no pubspec in any ancestor) and every stale re-render downgrades
+      // a `package:` subject import back to the lint-hostile relative shape
+      // — permanently, since the reverted file then matches the mirror.
+      // The mirror reproduces the real `test/tdd/<feature>/` +
+      // `lib/tdd/<feature>/` layout, so seeding its root with the enclosing
+      // pubspec makes the byte-compare context-consistent.
+      final enclosingPubspec = _enclosingPubspec(testPath);
+      if (enclosingPubspec != null) {
+        await bounded(
+          enclosingPubspec.copy(p.join(mirror.path, 'pubspec.yaml')),
+          'staleness: seed mirror pubspec',
+        );
+      }
       final writers = _writersFor(
         behavior,
         platformContext: platformContext,
@@ -1784,6 +1841,10 @@ class GenCommand extends Command<void> {
         i18nExpansion: i18nExpansion,
         contractShape: contractShape,
         flutterTest: flutterTest,
+        // Issue #1518: the mirror's warning prints the SAME branched
+        // remedy as the real write (one wording per gen output).
+        projectRoot: projectRoot,
+        featureDir: featureDir,
       );
       final mirroredTest = p.join(
         mirror.path,

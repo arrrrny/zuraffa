@@ -9,9 +9,14 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:analyzer/dart/analysis/utilities.dart';
+import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/services/journal.dart';
+
+import '../../../helpers/project_root.dart';
 
 void main() {
   late Directory tmp;
@@ -170,6 +175,109 @@ void main() {
       expect(refs.engine, 'tdd/04-engine-receipt.json');
       expect(refs.skin, isNull);
     });
+
+    test(
+      'U2.5: the journal write is fsync\'d before the rename (bug #1469)',
+      () async {
+        // Bug #828 gave every committed TDD store the crash-safe write
+        // discipline — writeAsString → flushToDisk(tmp) → rename — but
+        // missed journal.json (bug #1469): a power loss between the
+        // writeAsString and the rename could leave a truncated journal,
+        // breaking the unified audit trail.
+        //
+        // flushToDisk is a top-level function over dart:io files and is
+        // not injectable, so the discipline is enforced syntactically on
+        // JournalWriter — the same source-level-guard approach the suite
+        // already uses (e.g. issue_1173_engine_purity_test).
+        //
+        // Invariant encoded here: the journal write fsync's its tmp file
+        // before the rename. Collection spans every JournalWriter method
+        // (not just append()) so extracting the write into a private
+        // helper preserves the invariant and keeps this guard green.
+        final root = await findProjectRoot();
+        final source = File(
+          p.join(
+            root,
+            'lib',
+            'src',
+            'plugins',
+            'tdd',
+            'services',
+            'journal.dart',
+          ),
+        ).readAsStringSync();
+        final unit = parseString(content: source, throwIfDiagnostics: false);
+
+        final writer = unit.unit.declarations
+            .whereType<ClassDeclaration>()
+            .firstWhere((c) => c.namePart.typeName.lexeme == 'JournalWriter');
+
+        final invocations = <MethodInvocation>[];
+        final tmpDecls = <VariableDeclaration>[];
+        for (final method
+            in writer.body.members.whereType<MethodDeclaration>()) {
+          method.accept(_JournalWriteCollector(invocations, tmpDecls));
+        }
+        // Order by source position so the last write/rename pair is the
+        // journal write regardless of how the methods are laid out.
+        invocations.sort((a, b) => a.offset.compareTo(b.offset));
+        tmpDecls.sort((a, b) => a.offset.compareTo(b.offset));
+
+        // The journal write's tmp file is declared from file.path — never
+        // the schema write's tmp ('${schemaFile.path}.tmp').
+        final journalTmps = tmpDecls
+            .where(
+              (v) =>
+                  v.initializer!.toString().contains("file.path}.tmp'") &&
+                  !v.initializer!.toString().contains('schemaFile'),
+            )
+            .toList();
+        expect(journalTmps, hasLength(1));
+
+        final writes = invocations
+            .where((i) => i.methodName.name == 'writeAsString')
+            .toList();
+        final flushes = invocations
+            .where((i) => i.methodName.name == 'flushToDisk')
+            .toList();
+        final renames = invocations
+            .where((i) => i.methodName.name == 'rename')
+            .toList();
+
+        // RED discriminator: the journal write must fsync the tmp file.
+        expect(
+          flushes,
+          isNotEmpty,
+          reason:
+              'JournalWriter never fsync\'s the tmp file before the '
+              'rename — the #828 crash-safe write discipline '
+              '(writeAsString → flushToDisk → rename) is missing for '
+              'journal.json (bug #1469).',
+        );
+
+        // The journal write is the final writeAsString/rename pair among
+        // JournalWriter's writes (the schema write precedes it), and it
+        // renames over journal.json (file.path) — not the schema file.
+        final write = writes.last;
+        final rename = renames.last;
+        expect(rename.target!.toString(), 'tmp');
+        expect(rename.argumentList.arguments.single.toString(), 'file.path');
+        expect(write.offset, greaterThan(journalTmps.single.offset));
+
+        // Exactly one flushToDisk(tmp) sits between the journal
+        // writeAsString and its rename, targeting the journal tmp.
+        final inBetween = flushes
+            .where((f) => write.offset < f.offset && f.offset < rename.offset)
+            .toList();
+        expect(inBetween, hasLength(1));
+        // Top-level call — no receiver; the invoked name is flushToDisk.
+        expect(inBetween.single.methodName.name, 'flushToDisk');
+        expect(
+          inBetween.single.argumentList.arguments.single.toString(),
+          'tmp',
+        );
+      },
+    );
   });
 
   group('JournalReader (U3)', () {
@@ -469,6 +577,32 @@ class JournalEntryFields {
     'violations',
     'refs',
   ];
+}
+
+/// AST collector for the U2.5 crash-safety guard: gathers every method
+/// invocation inside [JournalWriter.append] plus every `tmp` variable
+/// declaration initialized from a `*.tmp'` path literal, so the test can
+/// assert the write → flushToDisk → rename ordering on the journal write.
+class _JournalWriteCollector extends RecursiveAstVisitor<void> {
+  _JournalWriteCollector(this.invocations, this.tmpDecls);
+
+  final List<MethodInvocation> invocations;
+  final List<VariableDeclaration> tmpDecls;
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    invocations.add(node);
+    node.visitChildren(this);
+  }
+
+  @override
+  void visitVariableDeclaration(VariableDeclaration node) {
+    final init = node.initializer;
+    if (init != null && init.toString().contains(".tmp'")) {
+      tmpDecls.add(node);
+    }
+    node.visitChildren(this);
+  }
 }
 
 extension on JournalEntry {

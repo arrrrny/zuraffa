@@ -935,9 +935,9 @@ void main() {
       expect(fx.checksumTestAndLib(), equals(beforeChecksums));
     });
 
-    test('bug 657: an unexpressible make names the verb and the stub path '
-        'with the manual-implementation hint ("implement manually at '
-        '<stub_path>, then re-run")', () async {
+    test('bug 657: an unexpressible make phrases the refusal in behavior '
+        'terms — it names the behavior, quotes the full description, and '
+        'cites the STOP-ON-ROADBLOCK policy', () async {
       await fx.seedCertifiedRed(
         id: 'B-042',
         description: 'provision bespoke DSL syntax with no generator surface',
@@ -949,13 +949,20 @@ void main() {
         makeArgs(fx, id: 'B-042', zfaBin: zfaBin),
       );
       expect(exitCode, isNot(0), reason: out);
-      // The actionable remediation line from bug #657: which verb has no
-      // generator, where the manual implementation lands, and that the
-      // run resumes afterwards.
-      expect(out, contains("no generator for 'provision'"));
-      expect(out, contains('implement manually at'));
-      expect(out, contains(fx.subjectPathOf('B-042')));
-      expect(out, contains('then re-run'));
+      // The behavior-phrased refusal (SC-005): the planner names the
+      // behavior, quotes the exact description it cannot map to a
+      // generator surface, and cites the STOP-ON-ROADBLOCK policy —
+      // the drifted "no generator for '<verb>'" wording and the
+      // manual-implementation hint are gone.
+      expect(out, contains('no generator surface maps the behavior'));
+      expect(
+        out,
+        contains(
+          'description "provision bespoke DSL syntax with no generator '
+          'surface"',
+        ),
+      );
+      expect(out, contains('STOP-ON-ROADBLOCK policy'));
       // The outcome/exit contract is unchanged (honest non-zero misfire).
       expect(
         out,

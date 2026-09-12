@@ -53,6 +53,7 @@ import '../services/cycle_log_terminal_receipt.dart';
 import '../services/dependency_override_preflight.dart';
 import '../services/explain_emitter.dart';
 import '../services/feature_path_resolver.dart';
+import '../services/kernel_cache.dart';
 import '../services/lane_receipts.dart';
 import '../services/routing_provenance_preflight.dart';
 import '../services/tdd_timeout.dart';
@@ -178,6 +179,10 @@ class RunCommand extends Command<void> {
     // Spec 1113: the meta entry's bounds — the meta cycle started when
     // the command began, finishes at its terminal outcome.
     final journalStartedAt = DateTime.now().toUtc().toIso8601String();
+    // Issue #1507: the cycle's start instant, captured BEFORE any lane
+    // spawns — the kernel sweep below preserves TMPDIR entries younger
+    // than this (they may belong to a concurrent runner).
+    final commandStartedAt = DateTime.now();
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       throw UsageException(
@@ -205,6 +210,22 @@ class RunCommand extends Command<void> {
     final featureDir = resolved.dir;
     final featureRef = resolved.ref;
     final zfaBin = argResults?['zfa-bin'] as String?;
+
+    // -----------------------------------------------------------------
+    // Issue #1507: the kernel sweep is a start-of-cycle obligation — the
+    // meta run's lanes spawn one dart test invocation per step, each
+    // leaking a `$TMPDIR/dart_test.kernel.*` directory (51 GB / 869 dill
+    // files in ~80 minutes on the reporter's machine), and this command
+    // had NO cleanup path of its own. Sweeping HERE — before the
+    // preflight gates and any lane step spawns — keeps a long TDD loop's
+    // temp usage roughly flat; entries younger than [commandStartedAt]
+    // are preserved for concurrent runners. Shared with `tdd refactor`
+    // (which sweeps at its own cycle start and on the infra-retry path).
+    // -----------------------------------------------------------------
+    await clearDartTestKernelCache(
+      projectRoot,
+      commandStartedAt: commandStartedAt,
+    );
 
     // -----------------------------------------------------------------
     // Issue #1303 preflight: a stale `dependency_overrides` path entry

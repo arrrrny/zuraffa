@@ -45,7 +45,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: The CLI MUST expose todo filter <all|active|completed> selection on the command line.
-            traces: TodoFilter
+  traces: TodoFilter
 ''';
 
   setUp(() => tmpDir = Directory.systemTemp.createTempSync('bug_1401_'));

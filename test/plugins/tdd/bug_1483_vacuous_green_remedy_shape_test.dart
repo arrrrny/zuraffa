@@ -6,8 +6,11 @@
 // 04-ENGINE.md and there never will be — the real seam is the traces
 // cell of `tdd/test-list.md`. `vacuousGuardFallbackRemedyFor` branches
 // the remedy by feature shape and carries the FULL path of the file to
-// edit; the pre-#1483 shared constant stays byte-identical (the writer,
-// the run driver's forwarding scan and the #1320 suite pin it).
+// edit. Issue #1518: the pre-#1483 shared constant is RETIRED (its last
+// consumers — the writer's gen-time warning and the run driver's
+// forwarding scan — moved to the branched builder), and this suite's
+// byte-pin (U-1483-1c) migrated to the branched outputs in the same
+// change.
 //
 // Test map:
 //   U-1483-1a — the single-file shape names the test list's traces cell
@@ -15,7 +18,8 @@
 //            verbatim.
 //   U-1483-1b — the lane-split shape names the lane plan's traces cell
 //            (full path), never the test list.
-//   U-1483-1c — the pre-#1483 shared constant is unchanged.
+//   U-1483-1c — the branched wording is pinned byte-exactly (both
+//            branches; the writer, the forwarding scan and #1320 pin it).
 //
 // The driver-level suites (the REAL stop message over the REAL
 // RunDriverCore) live in bug_1483_vacuous_green_remedy_driver_test.dart
@@ -81,14 +85,32 @@ void main() {
     expect(remedy, endsWith('(the designed hand-delta seam)'), reason: remedy);
   });
 
-  test('U-1483-1c: the pre-#1483 shared constant is unchanged (the '
-      'writer, the forwarding scan and #1320 pin it)', () {
+  test('U-1483-1c: the branched remedy wording is pinned byte-exactly, both '
+      'branches (the #1518 retirement of the pre-#1483 constant migrated '
+      'this pin in the same change)', () {
+    // The legacy single-file branch (the test list is the seam).
     expect(
-      vacuousGuardFallbackRemedy,
+      vacuousGuardFallbackRemedyFor(
+        lanePlanPath: null,
+        testListPath: p.join('specs', '001-todo-app', 'tdd', 'test-list.md'),
+      ),
+      'add traces: <ContractRow> to the FR, re-run zfa tdd plan, '
+      're-run zfa tdd gen, re-run zfa tdd run — or hand-edit the test list '
+      '(${p.join('specs', '001-todo-app', 'tdd', 'test-list.md')}) traces '
+      'cell to FR-00N, Row.method and re-run zfa tdd gen (the designed '
+      'hand-delta seam)',
+    );
+    // The lane-split branch (the lane plan is the seam).
+    expect(
+      vacuousGuardFallbackRemedyFor(
+        lanePlanPath: p.join('specs', '1008-two-cycle', 'tdd', '04-ENGINE.md'),
+        testListPath: p.join('specs', '1008-two-cycle', 'tdd', 'test-list.md'),
+      ),
       'add traces: <ContractRow> to the FR, re-run zfa tdd plan, '
       're-run zfa tdd gen, re-run zfa tdd run — or hand-edit the lane plan '
-      '(04-ENGINE.md) traces cell to FR-00N, Row.method and re-run '
-      'zfa tdd gen (the designed hand-delta seam)',
+      '(${p.join('specs', '1008-two-cycle', 'tdd', '04-ENGINE.md')}) traces '
+      'cell to FR-00N, Row.method and re-run zfa tdd gen (the designed '
+      'hand-delta seam)',
     );
   });
 }

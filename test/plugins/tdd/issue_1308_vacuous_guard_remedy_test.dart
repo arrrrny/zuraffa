@@ -19,11 +19,15 @@
 //
 // Test map:
 //   U-1308-1 — the shared remedy vocabulary exists with the exact strings
-//              (one source in vacuous_guard.dart; FR-005).
+//              (one source in vacuous_guard.dart; FR-005). Issue #1518:
+//              the remedy wording is the BRANCHED builder — the
+//              pre-#1483 bare-`04-ENGINE.md` constant is retired and this
+//              pin migrated to the branched outputs in the same change.
 //   U-1308-2 — the writer prints the loud guard-only warning after writing
 //              a fallback guard-only unit test: token + behavior id +
 //              remedy; the file is still written, byte-identical content
-//              (FR-002).
+//              (FR-002). Issue #1518: the printed remedy is the branched
+//              no-context branch (the feature-derived test-list path).
 //   U-1308-3 — NO fallback warning for the guarded paths: scalar declared
 //              contract (typed assertion), prose-matched description
 //              (`returns N`), traced entity/void contract (the marker
@@ -81,13 +85,30 @@ void main() {
   test('U-1308-1: the shared remedy vocabulary carries the exact strings', () {
     // The exact remedy the acceptance criteria pin — gen's warning and the
     // run driver's stop message share ONE source (FR-005). Issue #1320:
-    // the remedy also names the designed hand-delta seam.
+    // the remedy also names the designed hand-delta seam. Issue #1518:
+    // the pre-#1483 bare-`04-ENGINE.md` constant is retired — the pin
+    // migrated to the BRANCHED builder, byte-exact on both branches.
     expect(
-      vacuousGuardFallbackRemedy,
+      vacuousGuardFallbackRemedyFor(
+        lanePlanPath: null,
+        testListPath: p.join('specs', 'feat', 'tdd', 'test-list.md'),
+      ),
+      'add traces: <ContractRow> to the FR, re-run zfa tdd plan, '
+      're-run zfa tdd gen, re-run zfa tdd run — or hand-edit the test list '
+      '(${p.join('specs', 'feat', 'tdd', 'test-list.md')}) traces cell to '
+      'FR-00N, Row.method and re-run zfa tdd gen (the designed '
+      'hand-delta seam)',
+    );
+    expect(
+      vacuousGuardFallbackRemedyFor(
+        lanePlanPath: p.join('specs', 'feat', 'tdd', '04-ENGINE.md'),
+        testListPath: p.join('specs', 'feat', 'tdd', 'test-list.md'),
+      ),
       'add traces: <ContractRow> to the FR, re-run zfa tdd plan, '
       're-run zfa tdd gen, re-run zfa tdd run — or hand-edit the lane plan '
-      '(04-ENGINE.md) traces cell to FR-00N, Row.method and re-run '
-      'zfa tdd gen (the designed hand-delta seam)',
+      '(${p.join('specs', 'feat', 'tdd', '04-ENGINE.md')}) traces cell to '
+      'FR-00N, Row.method and re-run zfa tdd gen (the designed '
+      'hand-delta seam)',
     );
     // The machine-greppable warning token: distinct from the marker (the
     // fallback path's test does NOT carry the marker), greppable by the
@@ -144,10 +165,22 @@ void main() {
       expect(contentCarriesVacuousGuardMarker(content), isFalse);
 
       // The loud warning: the machine token, the behavior id, the gap, the
-      // exact remedy — impossible to miss.
+      // exact remedy — impossible to miss. Issue #1518: the remedy is the
+      // branched wording; with no seam context (direct writer use) it is
+      // the conservative feature-derived test-list branch — never the
+      // pre-#1518 bare 04-ENGINE.md advice.
       expect(printed, contains(vacuousGuardWarningToken), reason: printed);
-      expect(printed, contains('U2'));
-      expect(printed, contains(vacuousGuardFallbackRemedy), reason: printed);
+      expect(printed, contains('U2'), reason: printed);
+      expect(
+        printed,
+        contains(
+          'hand-edit the test list '
+          '(${p.join('specs', '1308-vacuous-guard-remedy', 'tdd', 'test-list.md')}) '
+          'traces cell',
+        ),
+        reason: printed,
+      );
+      expect(printed, isNot(contains('04-ENGINE')), reason: printed);
     },
   );
 
