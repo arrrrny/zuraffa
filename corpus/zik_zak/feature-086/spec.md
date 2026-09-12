@@ -2,10 +2,18 @@
 
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Domain**:
+- `FormValidator`: `validate(Map<String, dynamic>) -> bool`
+- `ProfileSubmitter`: `submit(Profile) -> void`
+
 ## Functional Requirements
 
 - **FR-001**: The system MUST validate the 086 form before submit.
+  traces: FormValidator
 - **FR-002**: The system MUST submit the validated Profile.
+  traces: ProfileSubmitter
 
 ## Scenarios
 

@@ -87,6 +87,68 @@ class SpecEntity {
   String toString() => 'SpecEntity(name: $name, fields: $fields)';
 }
 
+/// One FR's declaration-level routing facts (feature 1484): what the
+/// FR's block DECLARES, and nothing else — the FR id, the
+/// document-wide unit id the FR consumes ([_extractUnit] walks the same
+/// numbering), the 1-based spec line of the FR header, whether the
+/// block carries the `**Type**: manual` exemption marker (and where),
+/// and the contract tokens the block's first `traces:` line binds.
+///
+/// Issue #1484: every FR unconditionally derived a unit behaviour row,
+/// so inherently non-unit FRs (UI appearance, non-functional
+/// constraints, whole-app properties) manufactured unit rows that could
+/// never pass `make` — permanently blocking `zfa tdd run` with no
+/// opt-out. #846 gave acceptance criteria the `(manual:)` hatch; 1484
+/// extends the same concept to FRs.
+class FrRouting {
+  final String frId;
+  final String unitId;
+  final int specLine;
+
+  /// Whether the FR's block declares the `**Type**: manual` exemption —
+  /// the same marker grammar the scenario-side `**Type**` declaration
+  /// uses, constrained to the `manual` kind.
+  final bool manualMarker;
+
+  /// The 1-based spec line of the marker line, when declared.
+  final int? markerLine;
+
+  /// The contract tokens the block's first `traces:` line binds
+  /// (signature-shaped tokens dropped, the [traceTokens] filter).
+  final List<String> traceTokens;
+
+  /// The FR prose after the id colon, raw (the `**` strip and the
+  /// `[persistent]` tag handling stay [_extractUnit]'s business).
+  final String rawText;
+
+  const FrRouting({
+    required this.frId,
+    required this.unitId,
+    required this.specLine,
+    required this.rawText,
+    this.manualMarker = false,
+    this.markerLine,
+    this.traceTokens = const [],
+  });
+
+  /// Whether the block binds a contract trace — a `traces:` line whose
+  /// tokens survive the filter. An EMPTY list is the unbound state
+  /// #1319 warns about.
+  bool get traced => traceTokens.isNotEmpty;
+
+  /// The 1484 routing: an FR declared `**Type**: manual` — or, by
+  /// default, an FR with no `traces:` binding — is a manual
+  /// declaration, never a unit behaviour row. The explicit declaration
+  /// outranks the trace (a marker plus a contradictory binding stays
+  /// manual: the author's word wins).
+  bool get routesManual => manualMarker || !traced;
+
+  @override
+  String toString() =>
+      'FrRouting($frId/$unitId, line $specLine, '
+      'manual: $manualMarker, traces: $traceTokens)';
+}
+
 class SpecParser {
   const SpecParser();
 
@@ -280,6 +342,10 @@ class SpecParser {
     );
     final lines = blanked.split('\n');
     var inScenario = false;
+    // Feature 1484: whether the walk is inside an FR block — an FR
+    // header through the next [_endsFrBlock] boundary. Only there does
+    // `**Type**: manual` carry the FR-side exemption meaning.
+    var inFrBlock = false;
     var scenarioLine = 0;
     var aIdx = 0;
     for (var i = 0; i < lines.length; i++) {
@@ -288,7 +354,16 @@ class SpecParser {
       if (_scenarioHeader.hasMatch(line)) {
         aIdx += 1;
         inScenario = true;
+        inFrBlock = false;
         scenarioLine = lineNo;
+        continue;
+      }
+      if (_frLine(line) != null) {
+        // An FR header opens its block (the boundary the FR routing
+        // walk uses); the block's continuation lines are FR-owned. The
+        // scenario state is untouched — an FR bullet inside an open
+        // scenario block reads exactly as it did before.
+        inFrBlock = true;
         continue;
       }
       // Any markdown heading that is not a scenario header ends the
@@ -296,11 +371,21 @@ class SpecParser {
       // belongs to no numbered scenario (round-2 review fix 5).
       if (line.trimLeft().startsWith('#')) {
         inScenario = false;
+        inFrBlock = false;
         continue;
       }
       final m = _typeMarkerLine.firstMatch(line);
       if (m == null) continue;
       if (!inScenario) {
+        // Feature 1484: `**Type**: manual` outside any numbered
+        // scenario block is the FR-side manual exemption — an FR block
+        // continuation line the FR routing walk ([parseFrRoutings])
+        // owns, never a misplaced scenario marker. The exemption is
+        // gated by FR-block ownership: outside an FR block it stays the
+        // misplaced-marker refusal. Any OTHER kind outside a scenario
+        // block stays the misplaced-marker refusal too (round-2 review
+        // fix 5).
+        if (inFrBlock && m.group(1)!.toLowerCase() == 'manual') continue;
         throw StateError(
           'spec line $lineNo carries a `**Type**` marker outside any '
           'numbered scenario block.\n'
@@ -393,7 +478,7 @@ class SpecParser {
   );
 
   /// A Key Entities table separator row (`| -- | -- | -- |`).
-  static final RegExp _tableSeparator = RegExp(r'^\s*\|\s*[\s\-|]*\|\s*$');
+  static final RegExp _tableSeparator = RegExp(r'^\s*\|[\s\-|:]*\|\s*$');
 
   /// The zuraffa spec template's treaty pin (bug #919): the header marker
   /// `**Template Version**: `x`` that declares which template grammar the
@@ -497,6 +582,12 @@ class SpecParser {
         .map((c) => c.trim())
         .where((c) => c.isNotEmpty)
         .toList();
+  }
+
+  /// Split a pipe row while preserving empty cells' column positions.
+  static List<String> _splitPositionalCells(String line) {
+    final raw = line.split('|').map((c) => c.trim()).toList();
+    return raw.length > 2 ? raw.sublist(1, raw.length - 1) : raw;
   }
 
   /// Extract the declared external dependencies (bug #919): each row of
@@ -918,6 +1009,350 @@ class SpecParser {
     return rows;
   }
 
+  /// Issue #1485: the heading that scopes signature-list bullets in a
+  /// contract document — `## Operations`, `### TaskStore Methods`,
+  /// `## REST API` (any level, case-insensitive, the word matched on
+  /// word boundaries anywhere in the heading).
+  static final RegExp _contractOperationsHeading = RegExp(
+    r'^#{1,6}\s+.*\b(?:operations|methods|api)\b.*$',
+    caseSensitive: false,
+  );
+
+  /// Issue #1485: a bullet whose ENTIRE value is one backticked span
+  /// (`` - `count() -> int` ``) — a pure signature declaration.
+  static final RegExp _pureSignatureBullet = RegExp(
+    r'^\s*[-*+]\s+`([^`]+)`\s*$',
+  );
+
+  /// Issue #1485: a bullet whose FIRST backticked span may carry trailing
+  /// prose (`` - `count() -> int` — the number of tasks ``). Honored only
+  /// inside an [_contractOperationsHeading] scope.
+  static final RegExp _proseSignatureBullet = RegExp(
+    r'^\s*[-*+]\s+`([^`]+)`(.*)$',
+  );
+
+  /// Issue #1485: an operations/method table header's key column —
+  /// `| Operation | … |` or `| Method | … |`.
+  static final RegExp _operationsHeaderCell = RegExp(
+    r'^(?:operation|method)$',
+    caseSensitive: false,
+  );
+
+  /// Issue #1485: the signature column header cell (`| Signature | … |`,
+  /// also as `Method Signature`).
+  static bool _isSignatureHeaderCell(String cell) {
+    final c = cell.toLowerCase().trim();
+    return c == 'signature' || c == 'method signature';
+  }
+
+  /// Parse ONE contract document (`specs/<feature>/contracts/<name>.md`,
+  /// issue #1485) into declared rows: every operation/method table data
+  /// row and every declared signature becomes a
+  /// [ContractRowDecl] of kind [ContractRowKind.function] — an
+  /// operations contract declares callable operations, so a traced
+  /// behavior routes the unit lane and the signature ladder resolves
+  /// its subject shape (#1259 semantics).
+  ///
+  /// Grammar (deliberately narrow — a contract document carries prose,
+  /// CLI tables and examples alongside its declarations):
+  ///
+  /// - Pipe table whose header row's FIRST cell is `Operation` or
+  ///   `Method`: one row per data row, named by the first cell. An
+  ///   optional `Signature` column binds parsed
+  ///   `name(Params) -> Return` signatures to the row.
+  /// - Pipe table whose header row's first cell is `Signature`: the
+  ///   first cell of each data row IS the signature; the row is named
+  ///   by the parsed signature's method.
+  /// - Interface bullets (the Layer Contracts grammar): `` - `Name`:
+  ///   `sig`, `sig` `` — one row with every parsed signature.
+  /// - Pure signature bullets: `` - `sig` `` — one row named by the
+  ///   parsed signature's method. Inside an Operations/Methods/API
+  ///   section a signature bullet may carry trailing prose.
+  ///
+  /// Fenced code blocks are documentation, not declarations (the same
+  /// stance every spec.md walk applies) — blanked before the walk with
+  /// line numbers preserved. Only markdown is parsed: signature cells
+  /// holding plain prose are dropped; a cell SHAPED like a signature
+  /// but failing to parse (`` `(int) ->` ``) is carried in
+  /// [ContractRowDecl.rawSignatures] so the resolver's
+  /// malformed-declaration refusal names it when the row is consulted.
+  /// `specLine` is the 1-based line within the contract file.
+  List<ContractRowDecl> parseContractFileRows(String contractMd) {
+    final rows = <ContractRowDecl>[];
+    final blanked = normalizeSpecText(contractMd).replaceAllMapped(
+      _fencedCodeBlock,
+      (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
+    );
+    final lines = blanked.split('\n');
+    var inOperationsScope = false;
+    // The active table's shape while walking its data rows (null when
+    // no declared-shape table is open): the signature column index, or
+    // -1 for a signature-FIRST table, and a flag for the name source.
+    int? tableSigColumn;
+    var tableSignatureFirst = false;
+    for (var i = 0; i < lines.length; i++) {
+      final trimmed = lines[i].trim();
+      final lineNo = i + 1;
+      if (trimmed.startsWith('#')) {
+        inOperationsScope = _contractOperationsHeading.hasMatch(
+          _decodeEntities(trimmed),
+        );
+        tableSigColumn = null;
+        tableSignatureFirst = false;
+        continue;
+      }
+      if (trimmed.isEmpty) continue;
+      if (trimmed.startsWith('|')) {
+        final cells = _splitCells(trimmed);
+        if (cells.isEmpty) continue;
+        if (tableSigColumn == null && !tableSignatureFirst) {
+          // Header detection: the NEXT line must be the separator row.
+          final next = i + 1 < lines.length ? lines[i + 1].trim() : '';
+          if (!_tableSeparator.hasMatch(next)) continue;
+          final first = cells.first.toLowerCase();
+          if (_operationsHeaderCell.hasMatch(first)) {
+            tableSignatureFirst = false;
+            tableSigColumn = cells.indexWhere(_isSignatureHeaderCell);
+          } else if (_isSignatureHeaderCell(first)) {
+            tableSignatureFirst = true;
+            tableSigColumn = -1;
+          }
+          continue;
+        }
+        // A data row of the open table. A second table header may follow
+        // immediately without a blank line; treat it as a new table rather
+        // than as a declaration whose name is the header text.
+        final next = i + 1 < lines.length ? lines[i + 1].trim() : '';
+        final first = cells.first.toLowerCase();
+        final startsTable =
+            (_operationsHeaderCell.hasMatch(first) ||
+                _isSignatureHeaderCell(first)) &&
+            _tableSeparator.hasMatch(next);
+        if (startsTable) {
+          tableSigColumn = null;
+          tableSignatureFirst = false;
+          if (_operationsHeaderCell.hasMatch(first)) {
+            tableSignatureFirst = false;
+            tableSigColumn = cells.indexWhere(_isSignatureHeaderCell);
+          } else {
+            tableSignatureFirst = true;
+            tableSigColumn = -1;
+          }
+          continue;
+        }
+        if (RegExp(r'^:?-+:?$').hasMatch(cells.first)) continue; // separator
+        if (tableSignatureFirst) {
+          final signature = _firstParseableSignature(cells.first);
+          if (signature != null) {
+            rows.add(
+              ContractRowDecl(
+                name: signature.name,
+                kind: ContractRowKind.function,
+                signatures: [signature],
+                specLine: lineNo,
+              ),
+            );
+          }
+          continue;
+        }
+        final signatures = <Signature>[];
+        final rawSignatures = <String>[];
+        final positional = _splitPositionalCells(trimmed);
+        if (tableSigColumn != null &&
+            tableSigColumn >= 0 &&
+            positional.length > tableSigColumn) {
+          _collectSignatures(
+            positional[tableSigColumn],
+            signatures,
+            rawSignatures,
+          );
+        }
+        rows.add(
+          ContractRowDecl(
+            name: positional.isNotEmpty && positional.first.isNotEmpty
+                ? positional.first
+                : cells.first,
+            kind: ContractRowKind.function,
+            signatures: signatures,
+            rawSignatures: rawSignatures,
+            specLine: lineNo,
+          ),
+        );
+        continue;
+      }
+      // A non-table line closes any open table.
+      tableSigColumn = null;
+      tableSignatureFirst = false;
+      // Interface bullets (the Layer Contracts grammar) declare anywhere
+      // in the document.
+      final interface = _layerContractBullet.firstMatch(trimmed);
+      if (interface != null) {
+        final signatures = <Signature>[];
+        final rawSignatures = <String>[];
+        for (final m in RegExp(r'`([^`]+)`').allMatches(interface.group(2)!)) {
+          _collectSignatures(m.group(1)!, signatures, rawSignatures);
+        }
+        rows.add(
+          ContractRowDecl(
+            name: interface.group(1)!.trim(),
+            kind: ContractRowKind.function,
+            signatures: signatures,
+            rawSignatures: rawSignatures,
+            specLine: lineNo,
+          ),
+        );
+        continue;
+      }
+      // A pure signature bullet declares anywhere in the document.
+      final pure = _pureSignatureBullet.firstMatch(trimmed);
+      if (pure != null) {
+        final text = pure.group(1)!.trim();
+        final signature = _firstParseableSignature(text);
+        if (signature != null) {
+          rows.add(
+            ContractRowDecl(
+              name: signature.name,
+              kind: ContractRowKind.function,
+              signatures: [signature],
+              specLine: lineNo,
+            ),
+          );
+        } else if (text.contains('(') && text.contains('->')) {
+          // Signature-shaped but unparseable: carry raw so the resolver's
+          // malformed-declaration refusal names it when consulted.
+          final name = RegExp(
+            r'^[A-Za-z_][A-Za-z0-9_]*',
+          ).firstMatch(text)?.group(0);
+          rows.add(
+            ContractRowDecl(
+              name: name ?? text,
+              kind: ContractRowKind.function,
+              rawSignatures: [text],
+              specLine: lineNo,
+            ),
+          );
+        }
+        continue;
+      }
+      // Inside an Operations/Methods/API section, a signature bullet
+      // may carry trailing prose (`` - `count() -> int` — the count ``).
+      if (inOperationsScope) {
+        final prose = _proseSignatureBullet.firstMatch(trimmed);
+        if (prose != null) {
+          final signature = _firstParseableSignature(prose.group(1)!.trim());
+          if (signature != null) {
+            rows.add(
+              ContractRowDecl(
+                name: signature.name,
+                kind: ContractRowKind.function,
+                signatures: [signature],
+                specLine: lineNo,
+              ),
+            );
+          }
+        }
+      }
+    }
+    return rows;
+  }
+
+  /// The first signature in [text] that parses as
+  /// `name(Params) -> Return` (backticked spans first, then bare text);
+  /// null when nothing parses. Used where the row NAME comes from the
+  /// signature itself, so an unparseable cell declares no row at all.
+  static Signature? _firstParseableSignature(String text) {
+    final spans = RegExp(r'`([^`]+)`').allMatches(text).map((m) => m.group(1)!);
+    final candidates = [...spans, if (!text.contains('`')) text];
+    for (final span in candidates) {
+      try {
+        return Signature.parse(span.trim());
+      } on FormatException {
+        // Try the next span.
+      }
+    }
+    return null;
+  }
+
+  /// Fill [signatures] and [rawSignatures] from ONE declared-signature
+  /// cell (issue #1485): backticked spans (or bare comma-separated
+  /// spans) that parse become [Signature]s; a span shaped like a
+  /// signature but failing to parse is carried raw so the resolver's
+  /// malformed-declaration refusal names it when consulted; plain prose
+  /// is dropped.
+  static void _collectSignatures(
+    String cell,
+    List<Signature> signatures,
+    List<String> rawSignatures,
+  ) {
+    final matches = RegExp(r'`([^`]+)`').allMatches(cell).toList();
+    final spans = matches.isNotEmpty
+        ? matches.map((m) => m.group(1)!)
+        : _splitTopLevelCommas(cell);
+    for (final span in spans) {
+      final s = span.trim();
+      if (s.isEmpty) continue;
+      try {
+        signatures.add(Signature.parse(s));
+      } on FormatException {
+        if (s.contains('(') && s.contains('->')) rawSignatures.add(s);
+      }
+    }
+  }
+
+  /// Split a bare signature cell without splitting commas inside a
+  /// parameter list (`save(Task, int) -> void` remains one span).
+  static Iterable<String> _splitTopLevelCommas(String cell) {
+    final out = <String>[];
+    final buf = StringBuffer();
+    var depth = 0;
+    for (final ch in cell.split('')) {
+      if (ch == '(') depth++;
+      if (ch == ')') depth--;
+      if (ch == ',' && depth == 0) {
+        out.add(buf.toString());
+        buf.clear();
+      } else {
+        buf.write(ch);
+      }
+    }
+    out.add(buf.toString());
+    return out.where((s) => s.trim().isNotEmpty);
+  }
+
+  /// Issue #1485: the declared-row map EVERY command-side consumer
+  /// builds — spec.md sections first (`parseContractRows`), then the
+  /// feature's contract documents (`contracts/*.md`, enumerated by the
+  /// caller — `DeclaredRouting.contractFiles`). A contract-file row that
+  /// collides with a spec.md row name WINS (it is more structured and
+  /// was produced by the planning workflow); every contract row is
+  /// additionally registered under its `<file-stem>.<row>` alias so a
+  /// `traces: <ContractFile>.<Row>` token resolves — the resolver's API
+  /// is unchanged, this only widens the source feeding it. [perFile]
+  /// reports how many rows each contract file declared (keyed by the
+  /// file name as given).
+  static ({Map<String, ContractRowDecl> rows, Map<String, int> perFile})
+  declaredContractRows(
+    String specMd, {
+    List<({String file, String md})> contractFiles = const [],
+  }) {
+    final rows = <String, ContractRowDecl>{
+      for (final r in const SpecParser().parseContractRows(specMd)) r.name: r,
+    };
+    final perFile = <String, int>{};
+    for (final source in contractFiles) {
+      final fileRows = const SpecParser().parseContractFileRows(source.md);
+      perFile[source.file] = fileRows.length;
+      final stem = source.file.endsWith('.md')
+          ? source.file.substring(0, source.file.length - '.md'.length)
+          : source.file;
+      for (final row in fileRows) {
+        rows[row.name] = row; // bare name — the contract-file version wins
+        rows['$stem.${row.name}'] = row; // the file-qualified alias
+      }
+    }
+    return (rows: rows, perFile: perFile);
+  }
+
   /// Extract the entities the spec declares under `Key Entities` (bug
   /// #829 remediation 1: plan must surface them so the loop can create
   /// and wire them). Bug #919: the zuraffa-1.0 template declares
@@ -1022,7 +1457,16 @@ class SpecParser {
     return null;
   }
 
-  List<Behavior> parse(String feature, String specMd) {
+  /// [contractTracedFrIds] carries the FR ids the feature's
+  /// `contracts/*.md` files bind (issue #1480's decoupled mapping): a
+  /// defaulted FR named there is DECLARED, so the #1484 manual routing
+  /// must keep deriving its unit row. Empty (the default) preserves the
+  /// spec.md-only contract for every other caller.
+  List<Behavior> parse(
+    String feature,
+    String specMd, {
+    Set<String> contractTracedFrIds = const {},
+  }) {
     final md = normalizeSpecText(specMd);
     final acceptance = _extractAcceptance(feature, md);
     if (acceptance.isEmpty) {
@@ -1048,7 +1492,11 @@ class SpecParser {
         '`(manual: owner)`.',
       );
     }
-    final unit = _extractUnit(feature, md);
+    final unit = _extractUnit(
+      feature,
+      md,
+      contractTracedFrIds: contractTracedFrIds,
+    );
     return [...acceptance, ...unit];
   }
 
@@ -1140,39 +1588,54 @@ class SpecParser {
   static bool _carriesPersistentTag(String frText) =>
       frText.replaceAll('**', '').trim().startsWith('[persistent]');
 
-  List<Behavior> _extractUnit(String feature, String specMd) {
+  List<Behavior> _extractUnit(
+    String feature,
+    String specMd, {
+    Set<String> contractTracedFrIds = const {},
+  }) {
+    // Feature 1484: the FR→behaviour derivation consults the FR's own
+    // declarations. An FR declared `**Type**: manual` — or, by default,
+    // an FR with no `traces:` binding — routes to a manual declaration
+    // in the traceability matrix instead of a unit behaviour row: it
+    // consumes its document-wide unit id (alignment with the
+    // requirement scan and the trace walks, the #846 manual-scenario
+    // precedent) but emits NO row, so the run loop never sees a unit
+    // row that cannot honestly pass make. FRs WITH a binding derive
+    // rows exactly as before (backwards compatible — the marker is
+    // opt-in and untraced specs are the only ones that re-route).
+    //
+    // Feature 1484 × issue #1480: a defaulted FR whose trace lives in
+    // the feature's `contracts/*.md` files ([contractTracedFrIds]) is
+    // DECLARED, not defaulted — it keeps its unit row. An explicit
+    // `**Type**: manual` marker always wins (the author's word).
+    final routings = parseFrRoutings(specMd);
     final behaviors = <Behavior>[];
-    var uIdx = 0;
-    for (final line in specMd.split('\n')) {
-      // Issue #1196: FR declarations arrive as strict bullets OR
-      // FR-table rows — both count in document order so the U ids stay
-      // aligned with the requirement scan and the trace walks.
-      final m = _frLine(line);
-      if (m != null) {
-        uIdx += 1;
-        final frId = m.$1;
-        // Feature 071: a `[persistent]` tag is a routing declaration,
-        // not prose — strip it from the description (the persistence
-        // map carries the mark; the rendered row stays clean). The tag
-        // is detected on the RAW text before the `**` strip, so a
-        // bold-wrapped tag is honored too (round-2 review fix 6).
-        final rawDesc = m.$2;
-        final tagged = _carriesPersistentTag(rawDesc);
-        var desc = rawDesc.replaceAll('**', '').trim();
-        if (tagged) {
-          desc = desc.substring('[persistent]'.length).trim();
-        }
-        behaviors.add(
-          Behavior(
-            id: 'U$uIdx',
-            feature: feature,
-            kind: BehaviorKind.unit,
-            description: desc,
-            sourceCriterion: frId,
-            target: '',
-          ),
-        );
+    for (final r in routings) {
+      if (r.routesManual &&
+          (r.manualMarker || !contractTracedFrIds.contains(r.frId))) {
+        continue;
       }
+      // Feature 071: a `[persistent]` tag is a routing declaration,
+      // not prose — strip it from the description (the persistence
+      // map carries the mark; the rendered row stays clean). The tag
+      // is detected on the RAW text before the `**` strip, so a
+      // bold-wrapped tag is honored too (round-2 review fix 6).
+      final rawDesc = r.rawText;
+      final tagged = _carriesPersistentTag(rawDesc);
+      var desc = rawDesc.replaceAll('**', '').trim();
+      if (tagged) {
+        desc = desc.substring('[persistent]'.length).trim();
+      }
+      behaviors.add(
+        Behavior(
+          id: r.unitId,
+          feature: feature,
+          kind: BehaviorKind.unit,
+          description: desc,
+          sourceCriterion: r.frId,
+          target: '',
+        ),
+      );
     }
     return behaviors;
   }
@@ -1302,6 +1765,145 @@ class SpecParser {
       }
     }
     return unbound;
+  }
+
+  /// The FR routing walk (feature 1484): one [FrRouting] per FR, in
+  /// document order, keyed by nothing — the unit id travels with the
+  /// record. The walk consumes the ENTIRE FR block exactly like
+  /// [parseFrContractTraces] (#1319): fenced code blocks are blanked
+  /// (documentation, not declarations), [_frLine] recognises the bullet
+  /// AND FR-table grammars, and the block runs to the next
+  /// FR/requirement header, heading, or scenario header. Within a
+  /// block the FIRST `**Type**:` line decides the marker flag (the
+  /// scenario-side value-lowering convention; only `manual` exempts an
+  /// FR) and the FIRST `traces:` line binds (first-wins, byte-identical
+  /// to the single-line pre-#1319 behavior).
+  ///
+  /// Manual FRs consume their document-wide unit id but emit no row —
+  /// the #846 manual-scenario precedent, so the requirement scan, the
+  /// trace walks, and the derived rows stay id-aligned.
+  static List<FrRouting> parseFrRoutings(String specMd) {
+    final routings = <FrRouting>[];
+    final blanked = normalizeSpecText(specMd).replaceAllMapped(
+      _fencedCodeBlock,
+      (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
+    );
+    final lines = blanked.split('\n');
+    var uIdx = 0;
+    for (var i = 0; i < lines.length; i++) {
+      final fr = _frLine(lines[i]);
+      if (fr == null) continue;
+      uIdx += 1;
+      var manualMarker = false;
+      int? markerLine;
+      var typeMarkerSeen = false;
+      // Issue #1484 (review fix): the FIRST `traces:` line of the block
+      // binds, even when its tokens all drop as signature-shaped. The
+      // old `tokens.isEmpty` guard let a LATER `traces:` line overwrite
+      // that first (empty) binding — while [parseFrContractTraces] keeps
+      // it — so plan could derive a unit row whose traceability binding
+      // was empty.
+      var traceSeen = false;
+      var tokens = const <String>[];
+      for (var j = i + 1; j < lines.length; j++) {
+        if (_endsFrBlock(lines[j])) break;
+        final m = _typeMarkerLine.firstMatch(lines[j]);
+        if (m != null && !typeMarkerSeen) {
+          // The FIRST `**Type**:` line of the block decides; only the
+          // `manual` kind exempts an FR (other kinds are scenario
+          // vocabulary, meaningless here — the walk keeps looking for
+          // a traces: line).
+          typeMarkerSeen = true;
+          if (m.group(1)!.toLowerCase() == 'manual') {
+            manualMarker = true;
+            markerLine = j + 1;
+          }
+          continue;
+        }
+        if (!traceSeen) {
+          final t = _tracesLine.firstMatch(lines[j]);
+          if (t != null) {
+            traceSeen = true;
+            tokens = traceTokens(t.group(1)!);
+          }
+        }
+      }
+      routings.add(
+        FrRouting(
+          frId: fr.$1,
+          unitId: 'U$uIdx',
+          specLine: i + 1,
+          manualMarker: manualMarker,
+          markerLine: markerLine,
+          traceTokens: tokens,
+          rawText: fr.$2,
+        ),
+      );
+    }
+    return routings;
+  }
+
+  /// The FR ids routed to a manual declaration (feature 1484) — the set
+  /// the coverage gate counts as covered manual declarations instead of
+  /// missing behaviours. Explicit `**Type**: manual` markers and the
+  /// no-binding default both land here.
+  static Set<String> manualFrCriterionIds(String specMd) => {
+    for (final r in parseFrRoutings(specMd))
+      if (r.routesManual) r.frId,
+  };
+
+  /// The criterion-keyed contract-trace scan for the DECOUPLED mapping
+  /// (issue #1480): the spec↔contract mapping may live BESIDE the spec —
+  /// in the feature's `contracts/*.md` files the planning phase already
+  /// writes — instead of requiring hand-authored zuraffa grammar inside
+  /// the spec body. Each `- **FR-xxx**:` bullet in the contracts file
+  /// names the contract rows its FR exercises, either on the same line
+  /// (`- **FR-001**: traces: Row`) or on an indented `traces:`
+  /// continuation line within the FR's block (the #1319 whole-block scan,
+  /// first `traces:` line wins).
+  ///
+  /// Keyed by the FR ID (not by sequential unit position) so the file is
+  /// robust to reordering — the binding FR id is authoring intent the
+  /// file carries literally. A duplicate FR id refuses naming the line.
+  /// Fenced code blocks are documentation, not declarations.
+  static Map<String, List<String>> parseCriterionContractTraces(String md) {
+    final traces = <String, List<String>>{};
+    final blanked = normalizeSpecText(md).replaceAllMapped(
+      _fencedCodeBlock,
+      (m) => '\n' * '\n'.allMatches(m.group(0)!).length,
+    );
+    final lines = blanked.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      final fr = _frLine(lines[i]);
+      if (fr == null) continue;
+      final frId = fr.$1;
+      if (traces.containsKey(frId)) {
+        throw StateError(
+          'contracts file declares FR "$frId" more than once (line '
+          '${i + 1}).\n'
+          '   --> fix: keep exactly one trace declaration per FR id.',
+        );
+      }
+      // Same-line form: `- **FR-001**: traces: Row` — the payload IS the
+      // trace declaration.
+      final inline = RegExp(r'^traces:\s*(.+)$').firstMatch(fr.$2.trim());
+      if (inline != null) {
+        traces[frId] = traceTokens(inline.group(1)!);
+        continue;
+      }
+      // Continuation form: the indented `traces:` line within the FR's
+      // block (until the next FR/requirement header, heading, or
+      // scenario header) — the first one wins, byte-identical to the
+      // spec.md binding contract (#1319).
+      for (var j = i + 1; j < lines.length; j++) {
+        if (_endsFrBlock(lines[j])) break;
+        final t = _tracesLine.firstMatch(lines[j]);
+        if (t == null) continue;
+        traces[frId] = traceTokens(t.group(1)!);
+        break;
+      }
+    }
+    return traces;
   }
 
   /// The `_persistence` declaration scan (feature 071): FR lines

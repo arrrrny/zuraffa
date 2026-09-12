@@ -40,6 +40,12 @@ const String feature = '1309-fixture';
 const String fixtureSpec = '''
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Function**:
+- `LoginValidator`: `validate(String) -> bool`
+- `CredentialHasher`: `hash(String) -> String`
+
 ## Acceptance Scenarios
 
 1. **Given** valid credentials **When** the user submits the login form **Then** the session starts with the authenticated user
@@ -49,7 +55,9 @@ const String fixtureSpec = '''
 ## Functional Requirements
 
 - **FR-001**: The system shall validate the email format through the login validator.
+  traces: LoginValidator
 - **FR-002**: The system shall hash the password with the credential hasher.
+  traces: CredentialHasher
 ''';
 
 /// The spec with a third functional requirement (the post-split edit
@@ -57,6 +65,13 @@ const String fixtureSpec = '''
 const String editedSpecAddsFr = '''
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Function**:
+- `LoginValidator`: `validate(String) -> bool`
+- `CredentialHasher`: `hash(String) -> String`
+- `LoginThrottler`: `allowAttempt(String) -> bool`
+
 ## Acceptance Scenarios
 
 1. **Given** valid credentials **When** the user submits the login form **Then** the session starts with the authenticated user
@@ -66,8 +81,11 @@ const String editedSpecAddsFr = '''
 ## Functional Requirements
 
 - **FR-001**: The system shall validate the email format through the login validator.
+  traces: LoginValidator
 - **FR-002**: The system shall hash the password with the credential hasher.
+  traces: CredentialHasher
 - **FR-003**: The system shall rate-limit repeated failures through the login throttler.
+  traces: LoginThrottler
 ''';
 
 /// The spec with FR-002 deleted (the post-split edit whose ghost row
@@ -75,6 +93,11 @@ const String editedSpecAddsFr = '''
 const String editedSpecDropsFr = '''
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Function**:
+- `LoginValidator`: `validate(String) -> bool`
+
 ## Acceptance Scenarios
 
 1. **Given** valid credentials **When** the user submits the login form **Then** the session starts with the authenticated user
@@ -84,6 +107,7 @@ const String editedSpecDropsFr = '''
 ## Functional Requirements
 
 - **FR-001**: The system shall validate the email format through the login validator.
+  traces: LoginValidator
 ''';
 
 /// A legacy plan: acceptance + widget + unit rows in the single-file

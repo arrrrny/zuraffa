@@ -22,7 +22,9 @@
 ## Functional Requirements
 
 - **FR-001**: The system MUST escape the &quot;quoted&quot; label.
+  traces: `ReportRepo`
 - **FR-002**: The system MUST reject values with &lt;script&gt; content.
+  traces: `ReportRepo`
 
 ## Acceptance Scenarios
 

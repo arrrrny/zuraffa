@@ -196,8 +196,15 @@ class IngestCommand extends Command<void> {
     }
 
     // ---- Gate 3: the coverage gate (bug #846) ----
+    // Feature 1484: FRs routed to a manual declaration (an explicit
+    // `**Type**: manual` marker, or the no-binding default) count as
+    // covered manual declarations — the same accounting plan applies.
     final scan = const RequirementScanner().scan(specMd);
-    final gaps = const CoverageGate().evaluate(scan, behaviors);
+    final gaps = const CoverageGate().evaluate(
+      scan,
+      behaviors,
+      manualFrIds: SpecParser.manualFrCriterionIds(specMd),
+    );
     if (gaps.isNotEmpty) {
       emit(
         '$label: coverage gate FAILED — ${gaps.length} requirement '

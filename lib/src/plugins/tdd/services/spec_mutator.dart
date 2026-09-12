@@ -666,7 +666,13 @@ SpecGateCheck validateSpecContract({
     return SpecGateCheck(accepted: false, refusal: 'parser gate: ${e.message}');
   }
   final scan = const RequirementScanner().scan(specMd);
-  final gaps = const CoverageGate().evaluate(scan, behaviors);
+  // Feature 1484: FRs routed to a manual declaration count as covered
+  // manual declarations — the same accounting plan applies.
+  final gaps = const CoverageGate().evaluate(
+    scan,
+    behaviors,
+    manualFrIds: SpecParser.manualFrCriterionIds(specMd),
+  );
   if (gaps.isNotEmpty) {
     final first = gaps.first;
     return SpecGateCheck(

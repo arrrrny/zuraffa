@@ -13,6 +13,7 @@ import '../../../cli/writers/tdd/pubspec_app_dependencies_patcher.dart';
 import '../../../cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
 import '../../../cli/writers/tdd/pubspec_skin_dependency_patcher.dart';
 import '../../../cli/writers/tdd/smoke_test_writer.dart';
+import '../../../cli/writers/tdd/spec_template_writer.dart';
 import '../../../cli/writers/tdd/tdd_profile_writer.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
@@ -124,6 +125,39 @@ class InitCommand extends Command<void> {
     } on StateError catch (e) {
       stdout.writeln('   ✗ dart_test.yaml: $e');
       failures.add('dart_test_yaml_writer: $e');
+    }
+
+    // Issue #1480: the wiring verb propagates the AUTHORING grammar —
+    // the spec template a spec-kit project actually receives must carry
+    // the zuraffa-1.0 sections (`## Layer Contracts`, `traces:`) or every
+    // spec-kit-authored spec dead-ends the unit lane. Absent → install;
+    // grammarless (stock spec-kit scaffold) → replace with a loud
+    // notice; already pinned to a known zuraffa version → untouched.
+    try {
+      final result = await const SpecTemplateWriter().write(cwd);
+      if (result == null) {
+        stdout.writeln(
+          '   ✓ .specify/templates/spec-template.md (already current)',
+        );
+      } else {
+        switch (result.action) {
+          case SpecTemplateWriteAction.created:
+            stdout.writeln(
+              '   ✓ .specify/templates/spec-template.md (created: the '
+              'zuraffa-1.0 authoring grammar)',
+            );
+          case SpecTemplateWriteAction.replaced:
+            stdout.writeln(
+              '   ✓ .specify/templates/spec-template.md (REPLACED: the '
+              'previous template pinned no zuraffa template version and '
+              'carried none of the authoring grammar — specs authored '
+              'from it dead-ended the unit lane; issue #1480)',
+            );
+        }
+      }
+    } on StateError catch (e) {
+      stdout.writeln('   ✗ .specify/templates/spec-template.md: $e');
+      failures.add('spec_template_writer: $e');
     }
 
     final appName = _deriveAppName(cwd);
