@@ -35,6 +35,50 @@ import 'dart:io';
 import '../models/behavior.dart';
 import 'unit_contract_shape.dart';
 
+/// The gen-time honest-red claim sentences the stub header and doc
+/// comment carry (issue #1517).
+///
+/// Single source of truth for both ends of the claim's life: the writer
+/// templates below render them, and `func_command`'s dummy-fill step
+/// consumes them to rewrite the claims once a dummy body makes them
+/// stale — so the two sides cannot drift apart (review of #1523).
+///
+/// The wraps and `// `/`/// ` comment prefixes are baked in exactly as
+/// the templates emit them; the reconciler normalizes them back to
+/// spaces before building its wrap-tolerant pattern.
+class StubClaims {
+  const StubClaims._();
+
+  /// The legacy/undeclared unit stub's honest-red header claim.
+  static const unitHeader =
+      'This is a MINIMAL COMPILABLE STUB. It compiles cleanly (FR-011) but\n'
+      '// does NOT satisfy the behavior described above — the paired test will\n'
+      '// fail on first execution with an assertion-level failure (honest red).\n'
+      '// Replace this stub body with real implementation to make the test pass.';
+
+  /// The acceptance-scenario stub's honest-red header claim.
+  static const acceptanceHeader =
+      'This is a MINIMAL COMPILABLE acceptance-scenario stub. It compiles\n'
+      '// cleanly (FR-011) but does NOT satisfy the behavior described above —\n'
+      '// the paired test will fail on first execution with an assertion-level\n'
+      '// failure (honest red). The acceptance subject intentionally does NOT\n'
+      '// reference any entity/use case/repository (FR-004): it stands alone.\n'
+      '// Replace this stub body with real implementation to make the test pass.';
+
+  /// The contract-derived unit stub's honest-red header claim — emitted
+  /// mid-line, after `when implementing. `.
+  static const contractHeader =
+      'This is a MINIMAL\n'
+      '// COMPILABLE STUB: it does NOT satisfy the behavior — the paired test\n'
+      '// fails on first execution (honest red). Replace this stub body with\n'
+      '// the real implementation of the declared contract to make the test\n'
+      '// pass.';
+
+  /// The doc-comment line every stub carries until implemented.
+  static const docLine =
+      'Throws [UnimplementedError] until the real implementation lands.';
+}
+
 /// Writes a minimal compilable Dart subject file for a behavior.
 class SubjectWriter {
   const SubjectWriter({this.contractShape});
@@ -87,10 +131,7 @@ class SubjectWriter {
 // source_criterion: ${b.sourceCriterion}
 // description: ${b.description}
 //
-// This is a MINIMAL COMPILABLE STUB. It compiles cleanly (FR-011) but
-// does NOT satisfy the behavior described above — the paired test will
-// fail on first execution with an assertion-level failure (honest red).
-// Replace this stub body with real implementation to make the test pass.
+// ${StubClaims.unitHeader}
 //
 // The subject name is derived from the behavior id (`subject_u1`) and is
 // deliberately snake_cased — the generator KNOWS the name it emits, so
@@ -101,7 +142,7 @@ library;
 
 /// Subject for behavior ${b.id}.
 ///
-/// Throws [UnimplementedError] until the real implementation lands.
+/// ${StubClaims.docLine}
 int $target() => throw UnimplementedError('$target not implemented');
 ''';
     }
@@ -155,12 +196,7 @@ Widget $target() => const SizedBox.shrink();
 // source_criterion: ${b.sourceCriterion}
 // description: ${b.description}
 //
-// This is a MINIMAL COMPILABLE acceptance-scenario stub. It compiles
-// cleanly (FR-011) but does NOT satisfy the behavior described above —
-// the paired test will fail on first execution with an assertion-level
-// failure (honest red). The acceptance subject intentionally does NOT
-// reference any entity/use case/repository (FR-004): it stands alone.
-// Replace this stub body with real implementation to make the test pass.
+// ${StubClaims.acceptanceHeader}
 //
 // The subject name is derived from the behavior id (`subject_a1`) and is
 // deliberately snake_cased — the generator KNOWS the name it emits, so
@@ -171,7 +207,7 @@ library;
 
 /// Scenario runner for behavior ${b.id}.
 ///
-/// Throws [UnimplementedError] until the real implementation lands.
+/// ${StubClaims.docLine}
 void $target() => throw UnimplementedError('$target not implemented');
 ''';
   }
@@ -229,11 +265,7 @@ void $target() => throw UnimplementedError('$target not implemented');
 //
 //     ${shape.declaredSignature}
 //
-${degradationDocs}This is a MINIMAL
-// COMPILABLE STUB: it does NOT satisfy the behavior — the paired test
-// fails on first execution (honest red). Replace this stub body with
-// the real implementation of the declared contract to make the test
-// pass.$paramDocs
+$degradationDocs${StubClaims.contractHeader}$paramDocs
 //
 // The subject name is derived from the behavior id and is deliberately
 // snake_cased — the generator KNOWS the name it emits, so the lint its
@@ -244,7 +276,7 @@ library;
 $importBlock/// Subject for behavior ${b.id} — declared contract:
 /// `${shape.declaredSignature}`.
 ///
-/// Throws [UnimplementedError] until the real implementation lands.
+/// ${StubClaims.docLine}
 ${shape.returnType} $target($params) => throw UnimplementedError('$target not implemented: ${shape.declaredSignature}');
 ''';
   }
