@@ -1169,6 +1169,10 @@ class GenCommand extends Command<void> {
         i18nExpansion: i18nExpansion,
         contractShape: contractShape,
         flutterTest: flutterTest,
+        // Issue #1518: the guard-only warning's branched remedy needs the
+        // seam context (real write path).
+        projectRoot: cwd,
+        featureDir: featureDir,
       );
       try {
         if (!adoptTest) {
@@ -1311,6 +1315,12 @@ class GenCommand extends Command<void> {
         contractShape: contractShape,
         bounded: bounded,
         flutterTest: flutterTest,
+        // Issue #1518: the staleness mirror renders through the same
+        // writers and PRINTS the same warning — it gets the same seam
+        // context so one gen output never carries two different
+        // remedies.
+        projectRoot: cwd,
+        featureDir: featureDir,
       );
     }
 
@@ -1480,6 +1490,8 @@ class GenCommand extends Command<void> {
     List<String> i18nExpansion = const [],
     UnitContractShape? contractShape,
     bool flutterTest = false,
+    String? projectRoot,
+    String? featureDir,
   }) {
     if (behavior.kind == BehaviorKind.theme) {
       return (
@@ -1518,6 +1530,12 @@ class GenCommand extends Command<void> {
         // plain-function pair (unit lane); every other lane keeps its
         // own subject contract.
         contractShape: contractShape,
+        // Issue #1518: the seam context the gen-time guard-only
+        // warning's branched remedy resolves the hand-delta seam from
+        // (the real write AND the staleness mirror print the SAME
+        // wording).
+        projectRoot: projectRoot,
+        featureDir: featureDir,
       ).write,
       writeSubject: SubjectWriter(contractShape: contractShape).write,
     );
@@ -1761,6 +1779,8 @@ class GenCommand extends Command<void> {
     List<String> i18nExpansion = const [],
     UnitContractShape? contractShape,
     bool flutterTest = false,
+    String? projectRoot,
+    String? featureDir,
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
     // seams are the implementer's wiring point — partial wiring (the
@@ -1821,6 +1841,10 @@ class GenCommand extends Command<void> {
         i18nExpansion: i18nExpansion,
         contractShape: contractShape,
         flutterTest: flutterTest,
+        // Issue #1518: the mirror's warning prints the SAME branched
+        // remedy as the real write (one wording per gen output).
+        projectRoot: projectRoot,
+        featureDir: featureDir,
       );
       final mirroredTest = p.join(
         mirror.path,

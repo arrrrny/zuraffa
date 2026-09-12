@@ -50,6 +50,7 @@ const reproSpec = '''
 ## Functional Requirements
 
 - **FR-001**: System MUST let the user add a todo with a title
+  traces: TodoRepository
 
 ## Acceptance Scenarios
 

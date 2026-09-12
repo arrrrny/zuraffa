@@ -50,6 +50,8 @@ class BehaviorTestWriter {
     this.i18nExpansion = const [],
     this.contractShape,
     this.flutterTest = false,
+    this.projectRoot,
+    this.featureDir,
   });
 
   final WidgetAppShell widgetShell;
@@ -72,6 +74,15 @@ class BehaviorTestWriter {
   /// returns, or (for entity returns whose type cannot exist yet) the
   /// guard carrying the vacuous-guard marker so `make` refuses green
   /// until a real outcome assertion lands.
+  ///
+  /// Issue #1512 (review): the UNIT lane only. The acceptance lane's
+  /// captured subject is a PARAMETERLESS `void <target>()` scenario
+  /// runner ([SubjectWriter] gen stub, preserved by `tdd wire` / `tdd
+  /// compose`), and `gen_command.dart` never resolves a shape for an
+  /// acceptance row — so an acceptance behavior IGNORES this shape rather
+  /// than emitting a pair production never builds. The acceptance row's
+  /// declared outcome is asserted through the composition lane the planner
+  /// routes to (`generation_planner.dart` branch 3b).
   final UnitContractShape? contractShape;
 
   /// Whether the host project runs on the Flutter test runner
@@ -82,6 +93,24 @@ class BehaviorTestWriter {
   /// group/test/expect API). Defaults to `false` — pure-Dart output is
   /// byte-stable.
   final bool flutterTest;
+
+  /// Issue #1518: the seam context the gen-time guard-only warning
+  /// resolves the hand-delta seam from — the project root the warning's
+  /// paths are relativized against, and the feature dir the lane-plan/
+  /// test-list shape check reads from disk. Gen provides both (it has the
+  /// resolved feature dir — it may be a `.specify/bugs/<slug>` dir, issue
+  /// #1471, so the writer cannot derive it from `behavior.feature`).
+  /// Nullable for the direct-library callers (the old `const
+  /// BehaviorTestWriter()` keeps compiling): with no context the warning
+  /// prescribes the conservative legacy single-file branch — the feature-
+  /// derived canonical `specs/<feature>/tdd/test-list.md` path. BOTH
+  /// fields must be set for the disk resolution; either one missing falls
+  /// back to the conservative branch.
+  final String? projectRoot;
+
+  /// Issue #1518: the feature dir of the behavior being written (see
+  /// [projectRoot]). Nullable — see [projectRoot].
+  final String? featureDir;
 
   /// The test-framework import the non-widget templates emit.
   String get _testImport => flutterTest
@@ -176,12 +205,19 @@ class BehaviorTestWriter {
     // guard will refuse it: the two-cycle driver dead-ends one step later
     // with no actionable guidance unless gen names the gap NOW. The
     // warning is loud (machine-greppable [vacuousGuardWarningToken] + the
-    // shared [vacuousGuardFallbackRemedy]), names the behavior and the
-    // gap, and does NOT fail the step: the test is still emitted, exactly
-    // as before (the generated shape is unchanged — FR-002/#1308). The
-    // traced entity/void path (marker present) stays silent here — its
-    // warning is the marker itself, surfaced by the run driver as the
-    // designed hand-delta seam.
+    // shared branched remedy), names the behavior and the gap, and does
+    // NOT fail the step: the test is still emitted, exactly as before (the
+    // generated shape is unchanged — FR-002/#1308). The traced entity/void
+    // path (marker present) stays silent here — its warning is the marker
+    // itself, surfaced by the run driver as the designed hand-delta seam.
+    // Issue #1518: the remedy line is BRANCHED by feature shape — the
+    // seam is resolved from disk exactly like the run-side
+    // `_vacuousFallbackRemedy` (#1502), through the same
+    // [vacuousGuardFallbackRemedyFor] wording: the pre-#1518 warning
+    // hardcoded the pre-#1483 bare-`04-ENGINE.md` advice, so a legacy
+    // single-file feature's transcript carried the WRONG remedy first
+    // (gen warning → nonexistent lane plan) and the RIGHT remedy second
+    // (the stop → the test-list traces cell).
     if (behavior.kind == BehaviorKind.unit &&
         contractShape == null &&
         contentIsVacuousGreen(content) &&
@@ -195,8 +231,41 @@ class BehaviorTestWriter {
         'vacuous-green (issue #1259) and the run will stop here '
         '(issue #1308).',
       );
-      print('   --> fix: $vacuousGuardFallbackRemedy');
+      print('   --> fix: ${_guardOnlyRemedy(behavior)}');
     }
+  }
+
+  /// Issue #1518: the gen-time guard-only warning's remedy, BRANCHED by
+  /// feature shape — resolved from disk exactly like the run-side
+  /// `_vacuousFallbackRemedy` (issue #1502), through the ONE shared
+  /// [lanePlanSeamPath] resolver so the rule that picks the seam cannot
+  /// drift between the two sides again (the engine plan when it exists,
+  /// else the skin plan, else the test list — the lane plan pair on disk
+  /// is the hand-delta seam; its absence is the legacy single-file shape
+  /// and the seam is the test list itself). Paths are printed relative to
+  /// [projectRoot] — the full path of the file to edit.
+  ///
+  /// Without the seam context (either field null — direct library use,
+  /// e.g. the writer test suites), the conservative legacy single-file
+  /// branch is prescribed: the feature-derived canonical
+  /// `specs/<feature>/tdd/test-list.md`. Messaging only — the warning's
+  /// fire conditions and the generated test shape are unchanged.
+  String _guardOnlyRemedy(Behavior behavior) {
+    final root = projectRoot;
+    final dir = featureDir;
+    if (root != null && dir != null) {
+      return vacuousGuardFallbackRemedyFor(
+        lanePlanPath: lanePlanSeamPath(projectRoot: root, featureDir: dir),
+        testListPath: p.relative(
+          p.join(dir, 'tdd', 'test-list.md'),
+          from: root,
+        ),
+      );
+    }
+    return vacuousGuardFallbackRemedyFor(
+      lanePlanPath: null,
+      testListPath: p.join('specs', behavior.feature, 'tdd', 'test-list.md'),
+    );
   }
 
   String _renderTest(Behavior b, String relativeSubjectPath) {
@@ -267,11 +336,19 @@ void main() {
   /// prose heuristics (the #920 "declaration outranks inference"
   /// ordering, now applied to the test half too). The heuristics below
   /// serve undeclared behaviors only.
+  ///
+  /// Issue #1512 (review): the declared shape is a UNIT-lane surface. An
+  /// acceptance behavior never consumes it — its captured subject is a
+  /// parameterless `void` scenario runner that returns nothing, so a
+  /// declared `isA<T>()` outcome assertion would sit on a value the pair
+  /// can never produce. Acceptance rows take the heuristics + the
+  /// fallback guard below, and their declared outcome is asserted through
+  /// the composition lane (`tdd compose`).
   String _deriveAssertion(Behavior b) {
     final target = b.target.isEmpty ? 'subjectUnderTest' : b.target;
     final description = b.description;
     final shape = contractShape;
-    if (shape != null) {
+    if (shape != null && b.kind != BehaviorKind.acceptance) {
       return _declaredAssertion(b, target, shape);
     }
     // Look for "returns N" or "= N".
@@ -316,8 +393,28 @@ void main() {
       // Unknown exception types and UnimplementedError fall through to the
       // generic assertion to avoid either an unimported type or a green stub.
     }
-    return '${_captureInvocation(b, target, null)}\n'
-        '      expect(result, isNot(isA<UnimplementedError>()));';
+    // Issue #1512: the UNDECLARED acceptance fallback's guard is the
+    // vacuous-green class — the void-safe capture returns null for any
+    // non-throwing subject, so an EMPTY body flips it green. Emit the
+    // acceptance-lane fallback token naming the lane's actual remedy (the
+    // composition lane) so the gap is named on the artifact and the shared
+    // `contentIsVacuousGreen` detector refuses it mechanically — never
+    // silent. The token is DELIBERATELY not the #1259 `vacuousGuardMarker`:
+    // marker presence is the run driver's traced hand-delta seam
+    // discriminator (`stopped_at=<id>:hand`, `run_driver_core.dart`), and
+    // this fallback is not a traced contract — the marker would reclassify
+    // its honest `stopped_at=<id>:make` gap and prescribe an assertion the
+    // void scenario runner cannot carry (issue #1512 review). The UNIT
+    // lane keeps its #1308 two-class dispatch unchanged (the marker stays
+    // ABSENT on the unit fallback path; its gap is the gen-time warning
+    // token instead).
+    final guard = 'expect(result, isNot(isA<UnimplementedError>()));';
+    if (b.kind == BehaviorKind.acceptance) {
+      return '${_captureInvocation(b, target, null)}\n'
+          '      $acceptanceFallbackGuardComment\n'
+          '      $guard';
+    }
+    return '${_captureInvocation(b, target, null)}\n      $guard';
   }
 
   /// The contract-derived assertion surface (issue #1259).
@@ -377,14 +474,26 @@ void main() {
   /// The capture + arg-helper block for a declared shape. Helpers are
   /// declared BEFORE the capture (local functions must precede use) and
   /// live inside the test closure.
+  ///
+  /// Issue #1512 (review): [shape] is the UNIT-lane contract surface. The
+  /// acceptance lane IGNORES it — `behavior_test_writer.dart`'s public API
+  /// accepts a shape, but `gen_command.dart` resolves one only for
+  /// `BehaviorKind.unit`, and the paired acceptance subject is a
+  /// parameterless `void <target>()` scenario runner ([SubjectWriter] gen
+  /// stub; `tdd wire` / `tdd compose` preserve that signature). Threading
+  /// declared args into it, or returning its (void) result, is a
+  /// `use_of_void_result` + arity compile error against a pair production
+  /// actually builds — so an injected shape is inert here rather than
+  /// emitting an artifact only tests can reach.
   String _captureInvocation(
     Behavior behavior,
     String target,
     UnitContractShape? shape,
   ) {
+    final acceptance = behavior.kind == BehaviorKind.acceptance;
     final helpers = StringBuffer();
     var args = '';
-    if (shape != null) {
+    if (shape != null && !acceptance) {
       final argExprs = <String>[];
       for (var i = 0; i < shape.params.length; i++) {
         final param = shape.params[i];
@@ -408,14 +517,27 @@ void main() {
     // annotation trips unnecessary_nullable_for_final_variable_declarations
     // in the generated test. Inference types the capture correctly for
     // both the red stub (static return type) and the implemented subject;
-    // the acceptance lane's capture CAN be null (`return null;`), so it
+    // the acceptance lane's capture IS null (`return null;` — the
+    // parameterless void scenario runner has no value to return), so it
     // keeps the explicit nullable annotation its initializer matches.
-    final capture = behavior.kind == BehaviorKind.acceptance
-        ? 'final Object? result'
-        : 'final result';
-    final invocation = behavior.kind == BehaviorKind.acceptance
-        ? 'subject.$target();\n          return null;'
-        : 'return subject.$target($args);';
+    //
+    // Issue #1512: the acceptance capture stays the VOID-SAFE, ARGUMENT-FREE
+    // form. `make`'s vacuous-green refusal is unit-scoped by design
+    // (`make_command.dart` step 3c: "acceptance rows keep the legacy skip
+    // transition — the composition lane is deferred by design, FR-009"),
+    // so the guard-only acceptance test is the lane's correct red surface:
+    // the stub throws, the capture returns the error, the guard fails; the
+    // composition lane (`tdd compose`) then implements the subject and the
+    // guard certifies green.
+    final String capture;
+    final String invocation;
+    if (acceptance) {
+      capture = 'final Object? result';
+      invocation = 'subject.$target();\n          return null;';
+    } else {
+      capture = 'final result';
+      invocation = 'return subject.$target($args);';
+    }
     return '''$helpers$capture = (() {
         try {
           $invocation

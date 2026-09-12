@@ -39,9 +39,9 @@ const String keyedSpec = '''
 ## Functional Requirements
 
 - **FR-001**: The system shall show 'Welcome back' above the credential form.
-            traces: LoginSection
+  traces: AuthRepository
 - **FR-002**: The system shall disable 'Continue' until the form is valid.
-            traces: LoginSection
+  traces: AuthRepository
 
 ## Layer Contracts
 

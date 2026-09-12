@@ -608,6 +608,130 @@ class GenerationPlanner {
       return _functionSurfacePlan(summary, verb);
     }
 
+    // 3b. Acceptance composition surface (issue #1512): an acceptance row
+    //     that names no CRUD/use-case prose (branch 2) and no
+    //     function-intent verb (branch 3) used to fall through to the
+    //     generic misfire below — "no generator surface maps …" — which
+    //     made `unexpressible` the DEFAULT for the whole acceptance lane:
+    //     every user-scenario row stopped at `make -> unexpressible` and
+    //     the cycle could never reach done by construction. The lane HAS
+    //     a real make surface; derive it from the row's own EXPLICIT prose
+    //     signals (the declaration ladder above already resolves
+    //     contract-row traces; what reaches here is the row's scenario
+    //     prose):
+    //
+    //     - An entity name derivable from an EXPLICIT prose signal routes to
+    //       the SAME #609/#610/#758 entity-pipeline contract branch 2 uses
+    //       for acceptance rows: entity create → make → tdd wire → build.
+    //       The signals accepted are the explicit `target` (make resolves
+    //       it from `entity <Name>` prose) and the `entity <Name>` /
+    //       `create <Name>` prose matcher — the same pair branch 2 reads.
+    //       A DECLARED contract trace never reaches here: the declaration
+    //       ladder above resolves declared surfaces first, and make's
+    //       traced-entity resolver (`_tracedEntityFor`) is unit-scoped, so
+    //       this branch sees undeclared scenario prose only.
+    //
+    //       The #758/#873 capitalized-trace EXTRACTOR is deliberately NOT
+    //       consulted here. Branch 2 gates it behind CRUD/use-case prose,
+    //       but this branch sees EVERY acceptance row, and the extractor
+    //       returns the first non-stopword capitalized token ANYWHERE in
+    //       the prose (its own doc calls a false positive benign because
+    //       "the wire step misfire-stops when no such entity file
+    //       exists"). That reasoning does not hold here: this branch's
+    //       FIRST step is `entity create -n <Name>`, which creates the
+    //       entity, so the wire step can no longer misfire — the plan
+    //       would scaffold use-cases/repositories/DI for a fabricated
+    //       entity ("the User signs in." → `entity create -n User`). An
+    //       incidental capitalised word must not mutate the target
+    //       project; such rows compose instead (issue #1512 review).
+    //
+    //     - Every other acceptance row routes to the spec-052 composition
+    //       lane — `tdd compose <id> --feature <f>` + build, the exact
+    //       argv CompositionPlanner emits through make's #642 fallback —
+    //       the issue's sanctioned "compose the existing unit-level
+    //       generated pieces" surface. The compose command fail-closes
+    //       with the actionable `no-green-units` stop when the feature
+    //       holds no composable anchors, so the loop terminates honestly
+    //       instead of re-driving the row every run.
+    //
+    //     `unexpressible` becomes rare and honest for acceptance rows:
+    //     only the #758 refusal (branch 2's CRUD-prose-with-no-entity,
+    //     which names the remedy) keeps it.
+    if (summary.kind == BehaviorKind.acceptance ||
+        isAcceptanceBehaviorId(summary.behaviorId)) {
+      final derivedName =
+          summary.target ?? _extractEntityName(summary.description);
+      if (derivedName != null) {
+        return GenerationPlan(
+          behaviorId: summary.behaviorId,
+          feature: summary.feature,
+          sourceCriterion: summary.sourceCriterion,
+          steps: [
+            GenerationStepSpec(
+              // Bug #609: the real CLI requires `-n/--name`.
+              args: ['entity', 'create', '-n', derivedName],
+              purpose:
+                  'ensure entity $derivedName exists for behavior '
+                  '${summary.behaviorId} (idempotent — an existing entity '
+                  'is reused, never overwritten)',
+            ),
+            GenerationStepSpec(
+              args: ['make', derivedName],
+              purpose:
+                  'generate the use-cases/repositories/DI for entity '
+                  '$derivedName (behavior ${summary.behaviorId})',
+            ),
+            GenerationStepSpec(
+              // The #610 wire contract: implement the acceptance subject
+              // against the scaffolds `make` just generated. Bug #877:
+              // propagate --feature (the same ambiguity class as the
+              // func/entity wire spawns).
+              args: [
+                'tdd',
+                'wire',
+                summary.behaviorId,
+                '--entity',
+                derivedName,
+                '--feature',
+                summary.feature,
+              ],
+              purpose:
+                  'wire subject of behavior ${summary.behaviorId} to '
+                  'entity $derivedName',
+            ),
+            GenerationStepSpec(
+              args: ['build'],
+              purpose:
+                  'build generated code for behavior ${summary.behaviorId}',
+            ),
+          ],
+        );
+      }
+      return GenerationPlan(
+        behaviorId: summary.behaviorId,
+        feature: summary.feature,
+        sourceCriterion: summary.sourceCriterion,
+        steps: [
+          GenerationStepSpec(
+            args: [
+              'tdd',
+              'compose',
+              summary.behaviorId,
+              '--feature',
+              summary.feature,
+            ],
+            purpose:
+                'compose subject of behavior ${summary.behaviorId} against '
+                "the feature's composable unit subjects (spec 052)",
+          ),
+          GenerationStepSpec(
+            args: ['build'],
+            purpose: 'build composed code for behavior ${summary.behaviorId}',
+          ),
+        ],
+      );
+    }
+
     // 4. Misfire: no pipeline mapping. Phrase the reason in behavior
     //    terms and name the unmet capability (SC-005).
     final reason = _unexpressibleReason(summary);

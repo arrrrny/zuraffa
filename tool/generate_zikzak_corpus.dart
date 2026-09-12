@@ -352,9 +352,11 @@ String frTableBody(String title, int index, {String eol = '\n'}) {
   w('| ID | Requirement | Variants |');
   w('| -- | -- | -- |');
   w('| FR-001 | The system MUST list $entity rows for $title. | — |');
+  w('  traces: `${entity}Repo`');
   w('| | variant: offline — the cached list renders. | v1 |');
   w('| | variant: empty — the placeholder renders. | v2 |');
   w('| FR-002 | The system MUST refresh the $title list on pull. | — |');
+  w('  traces: `${entity}Repo`');
   w('');
   w('## Acceptance Scenarios');
   w('');
@@ -376,10 +378,18 @@ String nestedAcBody(String title, int index, {String eol = '\n'}) {
   w('');
   w(kPin);
   w('');
+  w('## Layer Contracts');
+  w('');
+  w('**Domain**:');
+  w('- `FormValidator`: `validate(Map<String, dynamic>) -> bool`');
+  w('- `${entity}Submitter`: `submit($entity) -> void`');
+  w('');
   w('## Functional Requirements');
   w('');
   w('- **FR-001**: The system MUST validate the $title form before submit.');
+  w('  traces: FormValidator');
   w('- **FR-002**: The system MUST submit the validated $entity.');
+  w('  traces: ${entity}Submitter');
   w('');
   w('## Scenarios');
   w('');
@@ -414,10 +424,18 @@ String inlineProseBody(String title, int index, {String eol = '\n'}) {
   w('');
   w(kPin);
   w('');
+  w('## Layer Contracts');
+  w('');
+  w('**Domain**:');
+  w('- `Total`: `compute(List<$entity>) -> num`');
+  w('- `Counter`: `count(List<$entity>) -> int`');
+  w('');
   w('## Functional Requirements');
   w('');
   w('- **FR-001**: The system MUST compute the $title total.');
+  w('  traces: Total');
   w('- **FR-002**: The system MUST show the $entity count.');
+  w('  traces: Counter');
   w('');
   w('## Scenarios');
   w('');
@@ -499,7 +517,9 @@ String htmlEntityBody(String title, int index, {String eol = '\n'}) {
   w('## Functional Requirements');
   w('');
   w('- **FR-001**: The system MUST escape the &quot;quoted&quot; label.');
+  w('  traces: `${entity}Repo`');
   w('- **FR-002**: The system MUST reject values with &lt;script&gt; content.');
+  w('  traces: `${entity}Repo`');
   w('');
   w('## Acceptance Scenarios');
   w('');
@@ -527,10 +547,18 @@ String nonEnglishBody(String title, int index, {String eol = '\n'}) {
   w('');
   w(kPin);
   w('');
+  w('## Layer Contracts');
+  w('');
+  w('**Domain**:');
+  w('- `Guardado`: `guardar($entity) -> void`');
+  w('- `Restaurador`: `restaurar() -> List<$entity>`');
+  w('');
   w(headings.$1);
   w('');
   w('- **FR-001**: El sistema DEBE guardar el estado de $title.');
+  w('  traces: Guardado');
   w('- **FR-002**: El sistema DEBE restaurar la lista de ${entity}s.');
+  w('  traces: Restaurador');
   w('');
   w(headings.$2);
   w('');
@@ -669,9 +697,15 @@ $kPin
 
 # Spec: $title
 
+## Layer Contracts
+
+**Domain**:
+- `LaneShipper`: `ship(String) -> void`
+
 ## Functional Requirements
 
 - **FR-001**: The system MUST ship the $title lane.
+  traces: LaneShipper
 
 ## Acceptance Scenarios
 

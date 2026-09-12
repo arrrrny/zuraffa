@@ -250,14 +250,18 @@ exit 1
       expect(log, contains('re-proof retries: 0'));
       expect(log, contains('re-proof output tail (stdout+stderr, truncated):'));
       expect(log, contains('probe behavior broke'));
-      // No cache clear fired on the regression path (no retry machinery).
+      // Issue #1507: the cycle-start kernel sweep now clears stale kernel
+      // entries on EVERY path — including the regression path — so the
+      // seeded markers are gone by the time the regression verdict lands.
+      // The regression contract itself is unchanged: no RETRY machinery
+      // fired (counter == 2 above); the sweep is housekeeping, not retry.
       expect(
         File(
           p.join(fx.root.path, '.dart_tool', 'test', 'probe.kernel'),
         ).existsSync(),
-        isTrue,
+        isFalse,
       );
-      expect(tmpKernelMarker('assert').existsSync(), isTrue);
+      expect(tmpKernelMarker('assert').existsSync(), isFalse);
     });
 
     test('B6: a clean green no-op records the re-proof verdict line and '
