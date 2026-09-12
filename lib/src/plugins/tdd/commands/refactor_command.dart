@@ -65,6 +65,7 @@ import 'package:path/path.dart' as p;
 import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
 import '../services/feature_path_resolver.dart';
+import '../services/kernel_cache.dart';
 import '../services/pass_registry_tracker.dart';
 import '../services/refactor_passes.dart';
 import '../services/refactor_receipt_refresh.dart';
@@ -248,6 +249,15 @@ class RefactorCommand extends Command<void> {
     var reproofTolerated = 0;
 
     try {
+      // Issue #1507: the kernel sweep is a start-of-cycle obligation, not
+      // an infra-retry afterthought — a healthy cycle leaks one
+      // `$TMPDIR/dart_test.kernel.*` directory per dart test invocation
+      // just the same (51 GB / 869 dill files in ~80 minutes on the
+      // reporter's machine). Stale entries are swept BEFORE the preflight
+      // suite; entries younger than [commandStartedAt] are preserved for
+      // concurrent runners.
+      await clearDartTestKernelCache(cwd, commandStartedAt: commandStartedAt);
+
       // 1. Resolve feature (for cycle-log destination).
       if (featureFlag != null && featureFlag.isNotEmpty) {
         // Issue #1471: the reference may name a bug directory
@@ -610,10 +620,7 @@ class RefactorCommand extends Command<void> {
         if (signature != null) {
           print('   infra signature: $signature');
         }
-        await _clearDartTestKernelCache(
-          cwd,
-          commandStartedAt: commandStartedAt,
-        );
+        await clearDartTestKernelCache(cwd, commandStartedAt: commandStartedAt);
         reproof = await runner.runSuite(
           suiteTemplate: reproofCommand,
           workingDirectory: cwd,
@@ -975,52 +982,6 @@ class RefactorCommand extends Command<void> {
         '   WARNING: could not append re-proof diagnostics to '
         '$featureDisplay/tdd/cycle-log.md: $e',
       );
-    }
-  }
-
-  /// Clear the dart test incremental kernel cache (spec 1333 FR-2): the
-  /// project's `.dart_tool/test/` directory and stale shared
-  /// `$TMPDIR/dart_test.kernel.*` files. Files created or updated after
-  /// [commandStartedAt] may belong to a concurrent runner and are left
-  /// untouched. Best-effort: a clear failure prints a note and never crashes
-  /// the command; the retry simply re-runs and the classifier grades the next
-  /// attempt from its own transcript.
-  Future<void> _clearDartTestKernelCache(
-    String projectRoot, {
-    required DateTime commandStartedAt,
-  }) async {
-    try {
-      final cacheDir = Directory(p.join(projectRoot, '.dart_tool', 'test'));
-      if (await cacheDir.exists()) {
-        await cacheDir.delete(recursive: true);
-      }
-    } catch (e) {
-      print('   kernel cache clear (project .dart_tool/test/) failed: $e');
-    }
-    final tmpRoot =
-        Platform.environment['TMPDIR'] ??
-        Platform.environment['TEMP'] ??
-        Platform.environment['TMP'] ??
-        Directory.systemTemp.path;
-    try {
-      final tmpDir = Directory(tmpRoot);
-      if (!await tmpDir.exists()) return;
-      await for (final entity in tmpDir.list()) {
-        if (entity is File &&
-            p.basename(entity.path).startsWith('dart_test.kernel.')) {
-          try {
-            final modifiedAt = await entity.lastModified();
-            if (modifiedAt.isBefore(commandStartedAt)) {
-              await entity.delete();
-            }
-          } catch (_) {
-            // A kernel file pinned by a concurrent runner is skipped —
-            // the next suite run re-derives it.
-          }
-        }
-      }
-    } catch (e) {
-      print('   kernel cache clear (TMPDIR) failed: $e');
     }
   }
 

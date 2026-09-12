@@ -1,0 +1,348 @@
+/// Kernel-cache housekeeping shared by the TDD driving commands
+/// (`tdd refactor` and `tdd run`) — spec 1333 FR-2; issue #1507.
+///
+/// Lives in the plugin's `services/` layer (not on either command) because
+/// the sweep is a shared contract between the two commands, not a
+/// refactor-specific helper (issue #1507 review finding F4).
+library;
+
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+
+/// Clear the dart test incremental kernel cache (spec 1333 FR-2; issue
+/// #1507): the project's `.dart_tool/test/` directory and stale shared
+/// `$TMPDIR/dart_test.kernel.*` entries — BOTH files and directories.
+/// The leaked entries are per-invocation DIRECTORIES full of dill files,
+/// so the pre-#1507 `entity is File` match never fired (dead code) and a
+/// long TDD loop leaked 51 GB in ~80 minutes; directory entries are now
+/// deleted recursively.
+///
+/// Three guards keep live runners safe:
+///
+/// 1. Issue #1507 commandStartedAt guard — entries created or updated
+///    after [commandStartedAt] may belong to a concurrent runner and are
+///    left untouched.
+/// 2. Liveness guard — a kernel entry whose path appears in ANY live
+///    process's argv (the dart test runner's own frontend-server child
+///    holds `--output-dill=<tmp>/dart_test.kernel.<rand>/output.dill` for
+///    the whole invocation) is skipped. Without it, sweeping at cycle
+///    start inside a process that is itself nested under a live `dart
+///    test` (the repo's own in-process test fleet) deletes the outer
+///    runner's kernel mid-run and its loader crashes at close with a
+///    PathNotFoundException copying the incremental dill back. The probe
+///    reads `/proc/<pid>/cmdline` on Linux and `ps -ww -Ao pid=,args=` on
+///    macOS; on any other platform it degrades to the commandStartedAt
+///    guard alone.
+/// 3. Project-cycle ownership guard (issue #1507 review finding CR-1) —
+///    `.dart_tool/test/` is shared by every cycle in a project, so it is
+///    only deleted when no other live TDD cycle owns the project (see
+///    [_foreignCycleActive]). The kernel entries above stay protected by
+///    the stricter per-entry guards, so they are swept regardless.
+///
+/// Best-effort overall: a clear failure prints a note and never crashes
+/// the command; the caller simply re-runs and the classifier grades the
+/// next attempt from its own transcript. When anything was cleared, one
+/// reclaim line is printed:
+/// `cleared N stale kernel entr(ies), freed X MB`.
+Future<void> clearDartTestKernelCache(
+  String projectRoot, {
+  required DateTime commandStartedAt,
+}) async {
+  var cleared = 0;
+  var freedBytes = 0;
+  final liveKernelDirs = _liveKernelDirRefs();
+  // A foreign live cycle owns this project's shared test cache — leave it
+  // alone (finding CR-1). Read BEFORE marking ourselves so a live owner's
+  // marker is never overwritten.
+  final foreignCycle = _foreignCycleActive(projectRoot);
+  _markCycleActive(projectRoot);
+
+  try {
+    final cacheDir = Directory(p.join(projectRoot, '.dart_tool', 'test'));
+    if (await cacheDir.exists()) {
+      if (foreignCycle) {
+        print(
+          '   kernel cache: another live tdd cycle owns this project — '
+          'project-local .dart_tool/test/ left untouched',
+        );
+      } else {
+        freedBytes += await _entrySize(cacheDir);
+        await cacheDir.delete(recursive: true);
+        cleared++;
+      }
+    }
+  } catch (e) {
+    print('   kernel cache clear (project .dart_tool/test/) failed: $e');
+  }
+  final tmpRoot =
+      Platform.environment['TMPDIR'] ??
+      Platform.environment['TEMP'] ??
+      Platform.environment['TMP'] ??
+      Directory.systemTemp.path;
+  try {
+    final tmpDir = Directory(tmpRoot);
+    if (await tmpDir.exists()) {
+      await for (final entity in tmpDir.list()) {
+        if (!p.basename(entity.path).startsWith('dart_test.kernel.')) {
+          continue;
+        }
+        // Issue #1507: the leaked entries are DIRECTORIES too — match
+        // both shapes and delete directories recursively.
+        try {
+          if (liveKernelDirs.contains(p.canonicalize(entity.path))) {
+            // A live dart test runner still holds this kernel (its
+            // frontend-server child references it in argv) — deleting it
+            // would crash that runner's loader at close.
+            continue;
+          }
+          // Note: `lastModified()` is an instance method on File only —
+          // the pre-#1507 code reached it through type promotion and
+          // could never stat a directory. FileStat.modified works for
+          // both shapes.
+          final modifiedAt = (await entity.stat()).modified;
+          if (!modifiedAt.isBefore(commandStartedAt)) {
+            // An entry created or updated during this command may be
+            // pinned by a concurrent runner — skipped; the next suite
+            // run re-derives it.
+            continue;
+          }
+          freedBytes += await _entrySize(entity);
+          await (entity is Directory
+              ? entity.delete(recursive: true)
+              : entity.delete());
+          cleared++;
+        } catch (_) {
+          // A kernel entry pinned by a concurrent runner is skipped —
+          // the next suite run re-derives it.
+        }
+      }
+    }
+  } catch (e) {
+    print('   kernel cache clear (TMPDIR) failed: $e');
+  }
+  if (cleared > 0) {
+    print(
+      '   cleared $cleared stale kernel entr(ies), '
+      'freed ${(freedBytes / (1024 * 1024)).toStringAsFixed(1)} MB',
+    );
+  }
+}
+
+/// Best-effort byte total of a kernel cache entry (a file, or a directory
+/// tree of dill files). An entry that vanishes mid-walk only undercounts
+/// the reported size — the delete still runs.
+Future<int> _entrySize(FileSystemEntity entity) async {
+  if (entity is File) {
+    try {
+      return await entity.length();
+    } catch (_) {
+      // The file vanished between listing and stat — undercount, delete
+      // still runs.
+      return 0;
+    }
+  }
+  if (entity is! Directory) return 0;
+  var total = 0;
+  try {
+    await for (final child in entity.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      if (child is File) {
+        try {
+          total += await child.length();
+        } catch (_) {
+          // The child vanished between listing and stat — the size is
+          // undercounted, the delete below still runs.
+        }
+      }
+    }
+  } catch (_) {
+    // An unreadable subtree reports the bytes counted so far.
+  }
+  return total;
+}
+
+/// Matches the absolute kernel-dir path inside an argv element, with or
+/// without a flag prefix: the path starts at a `/` that is not part of a
+/// `flag=` value boundary (`/tmp/dart_test.kernel.<rand>`).
+final RegExp _kernelDirInArgv = RegExp(r'/[^=\s]*dart_test\.kernel\.[^/\s]*');
+
+/// The set of canonicalized `dart_test.kernel.*` directory paths currently
+/// referenced by ANY live process's argv.
+///
+/// The dart test runner's frontend-server child holds
+/// `--output-dill=<tmp>/dart_test.kernel.<rand>/output.dill` for the whole
+/// invocation, so a referenced directory is a LIVE runner's kernel — never
+/// stale garbage — and must survive the sweep. When the sweep runs inside
+/// a process nested under a live `dart test` (the repo's own in-process
+/// test fleet), this is what keeps the outer runner's loader from crashing
+/// at close; in production it additionally protects a concurrent runner's
+/// in-flight kernel beyond what the mtime guard can see.
+///
+/// Linux reads `/proc/<pid>/cmdline`; macOS shells out to
+/// `ps -ww -Ao pid=,args=`. Windows has no portable probe and returns an
+/// empty set (the commandStartedAt guard still applies). Any scan error
+/// degrades to the empty set — best-effort, never fatal.
+Set<String> _liveKernelDirRefs() {
+  try {
+    if (Platform.isLinux) return _liveKernelDirRefsFromProc();
+    if (Platform.isMacOS) return _liveKernelDirRefsFromPs();
+    return <String>{};
+  } catch (_) {
+    return <String>{};
+  }
+}
+
+/// Linux: every `/proc/<pid>/cmdline` (NUL-separated argv) scanned for a
+/// `dart_test.kernel.*` path. An empty set on any error.
+Set<String> _liveKernelDirRefsFromProc() {
+  final live = <String>{};
+  for (final entry in Directory('/proc').listSync()) {
+    final pid = int.tryParse(p.basename(entry.path));
+    if (pid == null) continue;
+    try {
+      final bytes = File(p.join(entry.path, 'cmdline')).readAsBytesSync();
+      // argv is NUL-separated; one element per argument. The element may
+      // be a bare path (`/tmp/dart_test.kernel.X/output.dill`) or carry
+      // a flag prefix (`--output-dill=/tmp/dart_test.kernel.X/...`) —
+      // match the absolute kernel-dir path inside either shape.
+      for (final arg in String.fromCharCodes(bytes).split('\x00')) {
+        for (final match in _kernelDirInArgv.allMatches(arg)) {
+          live.add(p.canonicalize(match.group(0)!));
+        }
+      }
+    } on FileSystemException {
+      // A process that exited (or is not ours to read) mid-scan — skip.
+    }
+  }
+  return live;
+}
+
+/// macOS: `ps -ww -Ao pid=,args=` (unlimited width, pid then full argv on
+/// one line, e.g. `/bin/sh ./runner.sh --output-dill=/tmp/dart_test...`).
+Set<String> _liveKernelDirRefsFromPs() {
+  final live = <String>{};
+  final result = Process.runSync('ps', ['-ww', '-Ao', 'pid=,args=']);
+  if (result.exitCode != 0) return live;
+  for (final line in (result.stdout as String).split('\n')) {
+    final trimmed = line.trimLeft();
+    if (trimmed.isEmpty) continue;
+    final space = trimmed.indexOf(' ');
+    if (space <= 0) continue;
+    // Drop the leading pid; scan the argv tail for a kernel-dir path.
+    for (final match in _kernelDirInArgv.allMatches(
+      trimmed.substring(space + 1),
+    )) {
+      live.add(p.canonicalize(match.group(0)!));
+    }
+  }
+  return live;
+}
+
+/// The per-project cycle marker: a pid file written at cycle start so a
+/// concurrent cycle can tell the project's shared `.dart_tool/test/` is in
+/// active use. Keyed by project root and best-effort (an unwritable
+/// `.dart_tool/` simply degrades to the pre-#1507 unconditional delete).
+String _cycleMarkerPath(String projectRoot) =>
+    p.join(projectRoot, '.dart_tool', 'zfa_tdd_cycle.pid');
+
+/// The pid recorded in [projectRoot]'s cycle marker, or null when absent
+/// or unreadable.
+int? _cycleMarkerOwner(String projectRoot) {
+  try {
+    final file = File(_cycleMarkerPath(projectRoot));
+    if (!file.existsSync()) return null;
+    return int.tryParse(file.readAsStringSync().trim());
+  } on FileSystemException {
+    return null;
+  }
+}
+
+/// True when a live cycle that is NOT this process or one of its ancestors
+/// owns [projectRoot].
+///
+/// Best-effort and non-blocking: it never waits and never fails — a stale
+/// marker (dead pid) or an unreadable one reads as "no owner", so the
+/// sweep proceeds. A pid-presence marker (rather than a held file lock) is
+/// enough here because `zfa` is a one-shot CLI: the holder's liveness is
+/// the hold. False positives can only make the sweep skip the project
+/// cache (safe); false negatives fall back to the pre-#1507 behavior.
+///
+/// Ancestors count as "us": `tdd run` spawns `tdd refactor` step children
+/// (`StepRunner` runs `tdd <step> <id>` as a subprocess), and the parent is
+/// blocked waiting — it is not actively using the cache, so its marker must
+/// not stop the child from clearing its own cache at cycle start.
+bool _foreignCycleActive(String projectRoot) {
+  final owner = _cycleMarkerOwner(projectRoot);
+  return owner != null && _pidAlive(owner) && !_isThisCycle(owner);
+}
+
+/// Record this process as the project's active cycle. A live foreign
+/// owner's marker is left in place so its protection is never lost while
+/// it is still running; an ancestor's marker is adopted (overwritten) so
+/// the deepest active cycle owns the project.
+void _markCycleActive(String projectRoot) {
+  try {
+    final owner = _cycleMarkerOwner(projectRoot);
+    if (owner != null && _pidAlive(owner) && !_isThisCycle(owner)) return;
+    final file = File(_cycleMarkerPath(projectRoot));
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync('$pid');
+  } catch (_) {
+    // Best-effort — without a marker the project cache falls back to the
+    // pre-#1507 unconditional delete.
+  }
+}
+
+/// True when [owner] is this process or one of its ancestors.
+bool _isThisCycle(int owner) => owner == pid || _isAncestor(owner);
+
+/// Walk this process's ppid chain (bounded) looking for [candidate].
+bool _isAncestor(int candidate) {
+  var current = pid;
+  for (var depth = 0; depth < 64; depth++) {
+    final parent = _parentPid(current);
+    if (parent == null || parent <= 1) return false;
+    if (parent == candidate) return true;
+    current = parent;
+  }
+  return false;
+}
+
+/// The parent pid of [pid] — `/proc/<pid>/status` (`PPid:`) on Linux,
+/// `ps -o ppid= -p <pid>` on macOS. Null when unknown (Windows, a dead
+/// process, or any read error).
+int? _parentPid(int pid) {
+  try {
+    if (Platform.isLinux) {
+      final status = File('/proc/$pid/status');
+      if (!status.existsSync()) return null;
+      for (final line in status.readAsLinesSync()) {
+        if (line.startsWith('PPid:')) {
+          return int.tryParse(line.substring(5).trim());
+        }
+      }
+      return null;
+    }
+    if (Platform.isMacOS) {
+      final result = Process.runSync('ps', ['-o', 'ppid=', '-p', '$pid']);
+      if (result.exitCode != 0) return null;
+      return int.tryParse((result.stdout as String).trim());
+    }
+  } catch (_) {
+    // Fall through to null — the guard degrades to pid equality.
+  }
+  return null;
+}
+
+bool _pidAlive(int pid) {
+  try {
+    return Process.runSync('kill', ['-0', pid.toString()]).exitCode == 0;
+  } on Object {
+    // Cannot probe (no kill binary, permissions): assume alive so the
+    // guard errs on the side of state integrity.
+    return true;
+  }
+}
