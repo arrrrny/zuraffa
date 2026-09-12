@@ -15,6 +15,14 @@
 /// the guard fails — honest red), but green must require at least one
 /// assertion on the observable outcome named by the behavior
 /// description.
+///
+/// Issue #1512: this module also carries the ACCEPTANCE lane's two
+/// vocabulary constants ([acceptanceFallbackGuardToken] and
+/// [acceptanceFallbackGuardComment]). The acceptance lane shares the
+/// guard-only shape but NOT the marker discipline: its subject is a
+/// parameterless `void` scenario runner whose declared outcome is
+/// asserted through the composition lane, so its fallback is the
+/// fallback-routed class and must keep the marker absent.
 library;
 
 /// The machine-readable marker the gen test template emits when its
@@ -97,6 +105,37 @@ String vacuousGuardFallbackRemedyFor({
 /// successful gen prints nothing of its captured output otherwise, so
 /// without the forward the warning would be invisible in the run).
 const String vacuousGuardWarningToken = 'zfa:tdd: guard-only';
+
+/// Issue #1512: the acceptance-lane sibling of
+/// [vacuousGuardWarningToken] — the machine-greppable token the
+/// acceptance lane's fallback-routed guard-only test carries.
+///
+/// The acceptance subject is a PARAMETERLESS `void <target>()` scenario
+/// runner ([SubjectWriter] gen stub; `tdd wire` / `tdd compose` preserve
+/// that signature) and its declared outcome is asserted through the
+/// composition lane the planner routes to (`generation_planner.dart`
+/// branch 3b) — so the acceptance fallback is NOT the traced hand-delta
+/// seam and must NOT carry [vacuousGuardMarker]. Marker presence is the
+/// run driver's `stopped_at=<id>:hand` discriminator (issue #1308,
+/// `run_driver_core.dart`), and that classification prescribes an
+/// assertion on the subject's return value which a void scenario runner
+/// cannot carry; the honest class for this row is the fallback-routed
+/// `stopped_at=<id>:make`. The token names the gap on the artifact
+/// without claiming the marker's seam.
+const String acceptanceFallbackGuardToken = 'zfa:tdd: acceptance-guard';
+
+/// The comment block the acceptance fallback's guard-only test emits
+/// alongside [acceptanceFallbackGuardToken], naming the lane's actual
+/// remedy — the spec-052 composition lane — mirroring
+/// [vacuousGuardComment].
+const String acceptanceFallbackGuardComment =
+    '''// $acceptanceFallbackGuardToken (issue #1512): the acceptance lane's
+      // assertion set is the UnimplementedError guard ONLY. The acceptance
+      // subject is a parameterless `void` scenario runner and the declared
+      // outcome is asserted through the composition lane (`zfa tdd compose
+      // <id> --feature <f>`), not in this test — so this is the
+      // fallback-routed gap, NOT the traced hand-delta seam, and the
+      // vacuous-guard marker is deliberately absent.''';
 
 /// Whether [content] carries the machine-readable [vacuousGuardMarker] —
 /// the DESIGNED hand-delta seam the traced entity/void-returning path
