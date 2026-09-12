@@ -7,6 +7,13 @@
 /// chains the two lanes over the SAME shared driver core
 /// ([RunDriverCore] — spec 049 semantics unchanged):
 ///
+/// 0. **Preflights** — three gates run before any step spawns: the
+///    dependency-overrides path gate (#1303), the routing-provenance
+///    preflight (#1482 — a fallback-routed UNIT behavior has no derivable
+///    assertion, so make refuses it vacuous-green; the gate names ALL
+///    offending rows before the first gen, `--force` bypasses it), and
+///    the spec-1001 cert gate (uncertified CORE mocks).
+///
 /// 1. **Engine lane** — CORE + BOTH behaviors (for a legacy feature with
 ///    no lane declarations, that is every behavior: the run is
 ///    byte-compatible with the pre-split driver, plus the receipts). Its
@@ -46,7 +53,9 @@ import '../services/cycle_log_terminal_receipt.dart';
 import '../services/dependency_override_preflight.dart';
 import '../services/explain_emitter.dart';
 import '../services/feature_path_resolver.dart';
+import '../services/kernel_cache.dart';
 import '../services/lane_receipts.dart';
+import '../services/routing_provenance_preflight.dart';
 import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
@@ -114,6 +123,17 @@ class RunCommand extends Command<void> {
           'refusal still stops the run.',
       negatable: false,
     );
+    argParser.addFlag(
+      'force',
+      help:
+          'Bypass the routing-provenance preflight (issue #1482): the run '
+          'starts even when unit behaviors are fallback-routed with no '
+          'derivable assertion — the vacuous-green honest stop remains the '
+          'fallback for conditions the plan could not have known. The '
+          'dependency_overrides gate (#1303) and the cert gate (#1001) '
+          'keep their own semantics.',
+      negatable: false,
+    );
   }
 
   final TddPlugin plugin;
@@ -159,6 +179,10 @@ class RunCommand extends Command<void> {
     // Spec 1113: the meta entry's bounds — the meta cycle started when
     // the command began, finishes at its terminal outcome.
     final journalStartedAt = DateTime.now().toUtc().toIso8601String();
+    // Issue #1507: the cycle's start instant, captured BEFORE any lane
+    // spawns — the kernel sweep below preserves TMPDIR entries younger
+    // than this (they may belong to a concurrent runner).
+    final commandStartedAt = DateTime.now();
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       throw UsageException(
@@ -186,6 +210,22 @@ class RunCommand extends Command<void> {
     final featureDir = resolved.dir;
     final featureRef = resolved.ref;
     final zfaBin = argResults?['zfa-bin'] as String?;
+
+    // -----------------------------------------------------------------
+    // Issue #1507: the kernel sweep is a start-of-cycle obligation — the
+    // meta run's lanes spawn one dart test invocation per step, each
+    // leaking a `$TMPDIR/dart_test.kernel.*` directory (51 GB / 869 dill
+    // files in ~80 minutes on the reporter's machine), and this command
+    // had NO cleanup path of its own. Sweeping HERE — before the
+    // preflight gates and any lane step spawns — keeps a long TDD loop's
+    // temp usage roughly flat; entries younger than [commandStartedAt]
+    // are preserved for concurrent runners. Shared with `tdd refactor`
+    // (which sweeps at its own cycle start and on the infra-retry path).
+    // -----------------------------------------------------------------
+    await clearDartTestKernelCache(
+      projectRoot,
+      commandStartedAt: commandStartedAt,
+    );
 
     // -----------------------------------------------------------------
     // Issue #1303 preflight: a stale `dependency_overrides` path entry
@@ -256,6 +296,94 @@ class RunCommand extends Command<void> {
       );
       exitCode = _exitCorruptState;
       return;
+    }
+
+    // -----------------------------------------------------------------
+    // Issue #1482 preflight: a fallback-routed UNIT behavior (the plan's
+    // routing provenance says so) has no derivable assertion — gen emits
+    // the guard-only test and make refuses it vacuous-green (#1259,
+    // #1308). The precondition is fully known at plan time, so refuse
+    // BEFORE the first gen instead of certifying reds the loop can never
+    // make green (19 reds over 27m41s before the first make stop on the
+    // issue's repro). Every offending row is named at once; --force
+    // bypasses THIS gate only — the honest stop stays the fallback for
+    // conditions unknown at plan time. Zero steps spawn; the refusal is
+    // journaled preflight_red; the summary line keeps the FR-009/FR-010
+    // machine contract with the stopped class (exit 1) — the same stop
+    // the loop would reach at <first-offender>:make, relocated to before
+    // the loop starts.
+    // -----------------------------------------------------------------
+    final force = argResults?['force'] as bool? ?? false;
+    if (!force) {
+      final routingReport = await RoutingProvenancePreflight(
+        projectRoot: projectRoot,
+        featureDir: featureDir,
+      ).check();
+      if (!routingReport.ok) {
+        print(routingReport.headerLine);
+        for (final finding in routingReport.offending) {
+          print(finding.line);
+        }
+        print(kRoutingPreflightSuggested);
+        await _journalMeta(
+          featureDir: featureDir,
+          feature: feature,
+          startedAt: journalStartedAt,
+          gateState: 'preflight_red',
+          phase: 'gate',
+          result: 'stopped',
+          violations: [
+            for (final finding in routingReport.offending)
+              'routing-preflight: unit behavior ${finding.id} is '
+                  'fallback-routed with no derivable assertion — cannot '
+                  'pass make (issue #1482)',
+          ],
+        );
+        print(
+          RunDriverCore.summaryLine(
+            label: label,
+            feature: feature,
+            result: 'stopped',
+            counts: const {
+              'total': 0,
+              'pending': 0,
+              'red': 0,
+              'green': 0,
+              'done': 0,
+            },
+          ),
+        );
+        _verdict
+          ..exitClass = 'stopped'
+          ..outcome = VerdictOutcome.stopped
+          ..details['preflight'] =
+              'routing provenance refused the run (issue #1482)'
+          ..details['offending'] = routingReport.offending
+              .map((f) => f.id)
+              .toList();
+        _verdict.explain = TddExplain(
+          command: 'run',
+          features: [feature],
+          lane:
+              'none — the routing preflight refused before any lane drove '
+              '(preflight red, issue #1482)',
+          fixHints: [
+            'fix routing in plan (add traces: <ContractRow> to the FR, '
+                're-run zfa tdd plan), or re-run with --force to skip the '
+                'preflight',
+          ],
+          summary:
+              'Run stopped at the issue-#1482 preflight: '
+              '${routingReport.offending.length} unit behavior(s) are '
+              'fallback-routed with no derivable assertion — make refuses '
+              'them vacuous-green (issues #1259, #1308), so the loop can '
+              'never make them green. All offending rows are named above. '
+              'No step was spawned and no receipt was written; the '
+              'refusal is journaled preflight_red in tdd/journal.json.',
+        );
+        exitCode = 1;
+        return;
+      }
     }
 
     // Issue #1374: the constrained-agent escape hatch — scope the suite

@@ -91,6 +91,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: the dashboard exposes a pure view-model contract.
+  traces: Contract
 ''');
       expect(behaviors, hasLength(2));
       // A-behavior: UI intent -> widget. U-behavior: untouched -> unit.
@@ -128,6 +129,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: the login page exposes a loading indicator contract.
+  traces: Contract
 ''');
       expect(behaviors, hasLength(4));
       expect(behaviors[0].id, 'A1');
@@ -200,6 +202,9 @@ void main() {
         '080-ui-dashboard',
         '--project',
         tmpDir.path,
+        // Issue #1480: the spec is deliberately minimal — the legacy
+        // fallback shape stays reachable via the migration escape hatch.
+        '--allow-unit-fallback',
       ]);
       final list = await File(
         p.join(specDir.path, 'tdd', 'test-list.md'),
@@ -237,6 +242,9 @@ void main() {
         '002-toggle',
         '--project',
         tmpDir.path,
+        // Issue #1480: the spec is deliberately minimal — the legacy
+        // fallback shape stays reachable via the migration escape hatch.
+        '--allow-unit-fallback',
       ]);
       final list = await File(
         p.join(specDir.path, 'tdd', 'test-list.md'),

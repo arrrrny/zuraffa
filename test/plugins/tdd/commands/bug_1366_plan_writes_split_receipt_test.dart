@@ -30,9 +30,15 @@ const String specWithLanes = '''
 1. **Given** valid credentials **When** the user submits the login form **Then** the session starts with the authenticated user
 2. **Given** invalid credentials **When** the login attempt fails **Then** the error is reported to the caller
 
+## Layer Contracts
+
+**Function**:
+- `LoginValidator`: `validate(String) -> bool`
+
 ## Functional Requirements
 
 - **FR-001**: The system shall validate the email format through the login validator.
+            traces: LoginValidator
 
 ## Lanes
 

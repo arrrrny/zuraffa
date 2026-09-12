@@ -310,17 +310,32 @@ class GenerationPlanner {
             sourceCriterion: summary.sourceCriterion,
             steps: [
               GenerationStepSpec(
-                args: ['entity', 'create', '-n', traced],
+                // Bug #1503 (review finding 1): `--build` makes the entity
+                // a BUILT entity before the certify step below. Without
+                // it, `entity create` (buildByDefault is false —
+                // zfa_config.dart) leaves `part '<snake>.zorphy.dart'`
+                // dangling, and the certification sandbox's import-closure
+                // copy refuses a missing part target
+                // (mock_certification_sandbox.dart `_copyImportClosure` →
+                // `_unresolvedRun` → certified false), so the certify step
+                // would hard-stop the plan at index 1.
+                args: ['entity', 'create', '-n', traced, '--build'],
                 purpose:
-                    'ensure entity $traced exists for behavior '
+                    'ensure entity $traced exists AND is built for behavior '
                     '${summary.behaviorId} (idempotent — an existing '
-                    'entity is reused, never overwritten)',
+                    'entity is reused, never overwritten; the build emits '
+                    'the .zorphy.dart/.g.dart parts the certify sandbox '
+                    'must resolve)',
               ),
               GenerationStepSpec(
-                args: ['mock', 'create', '--name', traced],
+                // Bug #1503: the entity pipeline must request the CERTIFIED
+                // variant (spec 1001) — an engine-planned uncertified mock
+                // dead-ends the next run at the pre-start preflight.
+                args: ['mock', 'create', '--name', traced, '--certify'],
                 purpose:
-                    'generate contract-conforming mock datasource for entity '
-                    '$traced (behavior ${summary.behaviorId})',
+                    'generate contract-conforming certified mock datasource '
+                    'for entity $traced (behavior ${summary.behaviorId}; '
+                    'spec 1001 — bug #1503)',
               ),
               GenerationStepSpec(
                 args: [
@@ -631,17 +646,25 @@ class GenerationPlanner {
           sourceCriterion: summary.sourceCriterion,
           steps: [
             GenerationStepSpec(
-              args: ['entity', 'create', '-n', name],
+              // Bug #1503 (review finding 1): same built-entity
+              // precondition as the traced arm — the certify step's
+              // sandbox needs the entity's build_runner outputs on disk.
+              args: ['entity', 'create', '-n', name, '--build'],
               purpose:
-                  'ensure entity $name exists for behavior '
+                  'ensure entity $name exists AND is built for behavior '
                   '${summary.behaviorId} (declared contract row; '
-                  'idempotent — an existing entity is reused)',
+                  'idempotent — an existing entity is reused; the build '
+                  'emits the .zorphy.dart/.g.dart parts the certify '
+                  'sandbox must resolve)',
             ),
             GenerationStepSpec(
-              args: ['mock', 'create', '--name', name],
+              // Bug #1503: the declared entity pipeline requests the
+              // CERTIFIED variant too (spec 1001 — bug #1503).
+              args: ['mock', 'create', '--name', name, '--certify'],
               purpose:
-                  'generate contract-conforming mock datasource for entity '
-                  '$name (behavior ${summary.behaviorId})',
+                  'generate contract-conforming certified mock datasource '
+                  'for entity $name (behavior ${summary.behaviorId}; '
+                  'spec 1001 — bug #1503)',
             ),
             GenerationStepSpec(
               args: [

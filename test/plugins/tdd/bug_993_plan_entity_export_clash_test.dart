@@ -52,7 +52,11 @@ void main() {
 
   Future<String> runPlan() async {
     final runner = CliRunner(exitOnCompletion: false);
-    return runner.runCapturing(args(['plan', featureName]));
+    // Issue #1480: the entity-clash gate is the subject — the legacy
+    // fallback shape stays reachable via the migration escape hatch.
+    return runner.runCapturing(
+      args(['plan', featureName, '--allow-unit-fallback']),
+    );
   }
 
   setUp(() async {

@@ -49,6 +49,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: list the favorite deals sorted by expiration
+            traces: FavoriteDealRepository
 
 ## Acceptance Scenarios
 

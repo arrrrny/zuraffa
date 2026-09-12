@@ -41,9 +41,15 @@ void main() {
 
 1. **Given** a seeded bug record **When** the operator plans it **Then** the test list is written beside the bug spec
 
+## Layer Contracts
+
+**Function**:
+- `BugPlanner`: `plan(String) -> bool`
+
 ## Functional Requirements
 
 - **FR-001**: The system shall plan a bug feature rooted at .specify/bugs/<slug> without a symlink bridge.
+            traces: BugPlanner
 ''';
 
   setUp(() => tmpDir = Directory.systemTemp.createTempSync('bug_1182_'));

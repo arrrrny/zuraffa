@@ -850,7 +850,16 @@ class GenCommand extends Command<void> {
           ),
           'resolve declared contract',
         );
-        if (declared != null) contractShape = UnitContractShape.of(declared);
+        // SPEC 1489: the shape is resolved against the entity registry —
+        // an entity phase-0 created before gen spawned (or a pre-existing
+        // one) renders with its declared type, import included; entities
+        // that do not exist keep the unconditional Object? degradation.
+        if (declared != null) {
+          contractShape = await UnitContractShape.ofResolved(
+            declared,
+            cwd: cwd,
+          );
+        }
       } on StateError catch (e) {
         stderr.writeln('zfa tdd gen: declaration refused — ${e.message}');
         throw StateError(
