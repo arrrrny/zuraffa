@@ -1,4 +1,4 @@
-## [next]
+## [6.2.3] - 2026-09-11
 
 ### Changed
 - Agent runtime gated behind `package:zuraffa/agent.dart`; no longer
