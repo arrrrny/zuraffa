@@ -14,20 +14,24 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/cycle-log-phantom-sections/a5_subject.dart' as subject;
+import 'package:zuraffa/tdd/cycle-log-phantom-sections/a5_subject.dart'
+    as subject;
 
 void main() {
   group('A5 (AC-5)', () {
-    test('A5 — it yields exactly one entry with the correct behavior id, kind,', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a5();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A5 — it yields exactly one entry with the correct behavior id, kind,',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a5();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }

@@ -14,7 +14,8 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/cycle-log-phantom-sections/a3_subject.dart' as subject;
+import 'package:zuraffa/tdd/cycle-log-phantom-sections/a3_subject.dart'
+    as subject;
 
 void main() {
   group('A3 (AC-3)', () {

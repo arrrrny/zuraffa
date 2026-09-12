@@ -14,20 +14,24 @@
 library;
 
 import 'package:test/test.dart';
-import 'package:zuraffa/tdd/cycle-log-phantom-sections/a2_subject.dart' as subject;
+import 'package:zuraffa/tdd/cycle-log-phantom-sections/a2_subject.dart'
+    as subject;
 
 void main() {
   group('A2 (AC-2)', () {
-    test('A2 — fence state stays synchronized and no `## ` line inside any', () {
-      final Object? result = (() {
-        try {
-          subject.subject_a2();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'A2 — fence state stays synchronized and no `## ` line inside any',
+      () {
+        final Object? result = (() {
+          try {
+            subject.subject_a2();
+            return null;
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+      },
+    );
   });
 }
