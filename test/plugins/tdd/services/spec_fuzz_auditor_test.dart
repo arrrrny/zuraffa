@@ -47,7 +47,9 @@ class _GreeterFixture {
 ### Functional Requirements
 
 - **FR-001**: The greeter MUST return a greeting message.
+  traces: Greeter
 - **FR-002**: The greeter MUST NOT fail when the name is empty.
+  traces: Greeter
 ''';
 
   static const strongSpec = '''
@@ -71,7 +73,9 @@ class _GreeterFixture {
 ### Functional Requirements
 
 - **FR-001**: The greeter MUST return 42 as the greeting code when the name is not empty.
+  traces: Greeter
 - **FR-002**: The greeter MUST return 0 when the name is empty; it MUST NOT return 42 in that case.
+  traces: Greeter
 ''';
 
   /// The gen-shaped generic unit test (no pins — the weak fixture).

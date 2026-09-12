@@ -39,7 +39,9 @@ const String keyedSpec = '''
 ## Functional Requirements
 
 - **FR-001**: The system shall show 'Welcome back' above the credential form.
+  traces: AuthRepository
 - **FR-002**: The system shall disable 'Continue' until the form is valid.
+  traces: AuthRepository
 
 ## Layer Contracts
 
@@ -76,6 +78,10 @@ void main() {
     return runner.runCapturing([
       'tdd',
       'plan',
+      // Issue #1480: this suite's subject is the UI-surface LEDGER, not
+      // the routing gate — the zero-surface variant plans the legacy
+      // fallback shape on purpose.
+      '--allow-unit-fallback',
       '--project',
       tmpDir.path,
       feature,

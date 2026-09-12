@@ -97,10 +97,17 @@ class FixtureCorpus {
       '1. **Given** a calculator with a stored value **When** the user '
       'clears it **Then** the calculator is empty\n'
       '\n'
+      '## Layer Contracts\n'
+      '\n'
+      '**Function**:\n'
+      '- `Calculator`: `add(num, num) -> num`\n'
+      '\n'
       '## Functional Requirements\n'
       '\n'
       '- **FR-001**: adds two numbers and returns the sum\n'
-      '- **FR-002**: clears the stored value on demand\n';
+      '            traces: Calculator\n'
+      '- **FR-002**: clears the stored value on demand\n'
+      '            traces: Calculator\n';
 
   /// A prose-only spec: no Given/When/Then blocks, no bolded FRs. Loop
   /// planning must refuse it; corpus import must still copy it verbatim.

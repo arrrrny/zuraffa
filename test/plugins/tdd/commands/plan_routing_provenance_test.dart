@@ -54,6 +54,10 @@ $body
       'tdd',
       'plan',
       '071-prov',
+      // Issue #1480: provenance tests exercise the labeled fallback lines
+      // on purpose — the unit-fallback gate stays out of the way via the
+      // migration escape hatch.
+      '--allow-unit-fallback',
       '--project',
       tmp.path,
     ]);
@@ -162,6 +166,8 @@ void main() {
           'tdd',
           'plan',
           '071-prov',
+          // Issue #1480: the labeled fallback line is the subject.
+          '--allow-unit-fallback',
           '--project',
           tmp.path,
           // Bug #1481: with the marker migration ON, the scenario heals
@@ -209,7 +215,10 @@ void main() {
           '--strict-routing',
         ]);
         expect(exitCode, 1);
-        expect(out, contains('U1'));
+        // Feature 1484: the untraced FR routes manual (no row), so the
+        // undeclared behavior strict refuses is the unmarked acceptance
+        // scenario A1 — the strict gate contract is unchanged.
+        expect(out, contains('A1'));
         expect(out, contains('--> fix:'));
         expect(out, isNot(contains('[fallback:')));
         expect(
