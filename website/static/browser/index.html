@@ -13,7 +13,7 @@
         <meta property="og:type" content="website" />
         <meta
             property="og:title"
-            content="Zuraffa Browser — Ten browsers. One window."
+            content="Zuraffa Browser — 10 Browsers. One window."
         />
         <meta
             property="og:description"
@@ -1349,6 +1349,83 @@
                 line-height: 1.7;
             }
 
+            /* ---- contact ---- */
+            .contact-card {
+                max-width: 640px;
+                margin: 0 auto;
+                background: var(--bg-2);
+                border: 1px solid var(--border);
+                border-radius: 14px;
+                padding: 2rem;
+                color-scheme: dark;
+            }
+
+            .contact-form {
+                display: grid;
+                gap: 1.1rem;
+            }
+
+            .form-row {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1.1rem;
+            }
+
+            .form-field {
+                display: flex;
+                flex-direction: column;
+                gap: 0.45rem;
+            }
+
+            .form-field label {
+                font-family: var(--font-mono);
+                font-size: 0.66rem;
+                letter-spacing: 0.24em;
+                text-transform: uppercase;
+                color: var(--dim);
+            }
+
+            .form-field input,
+            .form-field select,
+            .form-field textarea {
+                font-family: var(--font-display);
+                font-size: 0.95rem;
+                color: var(--cream);
+                background: var(--bg);
+                border: 1px solid var(--border-strong);
+                border-radius: 8px;
+                padding: 0.75rem 0.9rem;
+                outline: none;
+                transition:
+                    border-color 0.3s ease,
+                    box-shadow 0.3s ease;
+                width: 100%;
+            }
+
+            .form-field input::placeholder,
+            .form-field textarea::placeholder {
+                color: var(--dim-2);
+            }
+
+            .form-field input:focus,
+            .form-field select:focus,
+            .form-field textarea:focus {
+                border-color: var(--mustard);
+                box-shadow: 0 0 0 3px rgba(226, 168, 14, 0.15);
+            }
+
+            .form-field textarea {
+                min-height: 130px;
+                resize: vertical;
+            }
+
+            .contact-form .btn {
+                justify-content: center;
+                width: 100%;
+                border: none;
+                cursor: pointer;
+            }
+
             /* ---- final cta ---- */
             .final {
                 position: relative;
@@ -1613,6 +1690,14 @@
                 .price-card {
                     padding: 1.6rem;
                 }
+
+                .form-row {
+                    grid-template-columns: 1fr;
+                }
+
+                .contact-card {
+                    padding: 1.4rem;
+                }
             }
 
             @media (prefers-reduced-motion: reduce) {
@@ -1651,6 +1736,7 @@
                 <li><a href="#agents">For Agents</a></li>
                 <li><a href="#pricing">Pricing</a></li>
                 <li><a href="#faq">FAQ</a></li>
+                <li><a href="#contact">Contact</a></li>
                 <li>
                     <a
                         class="nav-ext"
@@ -1683,7 +1769,7 @@
                     For macOS · from the makers of Zuraffa
                 </span>
                 <h1 class="hero-title reveal d-1">
-                    Ten browsers.<br />
+                    10 Browsers.<br />
                     <span class="accent">One window.</span>
                 </h1>
                 <p class="hero-tagline reveal d-2">
@@ -2367,6 +2453,105 @@
             </div>
         </section>
 
+        <!-- ======================= CONTACT ======================= -->
+        <section class="section" id="contact">
+            <div class="container">
+                <div class="section-head reveal" style="text-align: center">
+                    <span class="eyebrow">// Contact</span>
+                    <h2 class="section-title" style="margin: 0 auto">
+                        Talk to a human.
+                    </h2>
+                    <p
+                        class="section-sub"
+                        style="margin-left: auto; margin-right: auto"
+                    >
+                        Support, billing, bugs, feature ideas — the inbox goes
+                        straight to the team behind Zuraffa.
+                    </p>
+                </div>
+                <div class="contact-card reveal">
+                    <form
+                        class="contact-form"
+                        action="https://formspree.io/f/mjkoyjwz"
+                        method="POST"
+                    >
+                        <input
+                            type="hidden"
+                            name="_subject"
+                            value="Zuraffa Browser — website contact"
+                        />
+                        <input
+                            type="text"
+                            name="_gotcha"
+                            style="display: none"
+                            tabindex="-1"
+                            autocomplete="off"
+                        />
+                        <div class="form-row">
+                            <div class="form-field">
+                                <label for="c-name">Name</label>
+                                <input
+                                    id="c-name"
+                                    type="text"
+                                    name="name"
+                                    required
+                                    placeholder="Your name"
+                                />
+                            </div>
+                            <div class="form-field">
+                                <label for="c-email">Email</label>
+                                <input
+                                    id="c-email"
+                                    type="email"
+                                    name="email"
+                                    required
+                                    placeholder="you@example.com"
+                                />
+                            </div>
+                        </div>
+                        <div class="form-field">
+                            <label for="c-topic">Topic</label>
+                            <select id="c-topic" name="subject" required>
+                                <option value="" selected disabled>
+                                    Choose a topic
+                                </option>
+                                <option value="support">App support</option>
+                                <option value="billing">
+                                    Billing &amp; licensing
+                                </option>
+                                <option value="bug">Bug report</option>
+                                <option value="feature">
+                                    Feature request
+                                </option>
+                                <option value="agents">
+                                    Agent integrations
+                                </option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="c-message">Message</label>
+                            <textarea
+                                id="c-message"
+                                name="message"
+                                required
+                                placeholder="Tell us what's on your mind…"
+                            ></textarea>
+                        </div>
+                        <button class="btn btn-primary btn-lg" type="submit">
+                            Send message
+                        </button>
+                        <p
+                            class="hero-micro"
+                            style="margin: 0; text-align: center"
+                        >
+                            Goes straight to the team's inbox
+                        </p>
+                    </form>
+                </div>
+            </div>
+        </section>
+
         <!-- ======================= FINAL CTA ======================= -->
         <section class="final" id="download">
             <div class="final-glow"></div>
@@ -2449,6 +2634,7 @@
                             <li><a href="#pricing">Pricing</a></li>
                             <li><a href="#faq">FAQ</a></li>
                             <li><a href="#download">Download</a></li>
+                            <li><a href="#contact">Contact</a></li>
                         </ul>
                     </div>
                     <div class="footer-col">
