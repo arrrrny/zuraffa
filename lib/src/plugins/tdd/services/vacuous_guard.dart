@@ -25,6 +25,12 @@
 /// fallback-routed class and must keep the marker absent.
 library;
 
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+
+import 'lane_split.dart';
+
 /// The machine-readable marker the gen test template emits when its
 /// assertion set is the UnimplementedError guard only — the unit-lane
 /// counterpart of the widget lane's `zfa:tdd: scaffolded` marker.
@@ -45,8 +51,8 @@ const String vacuousGuardComment =
 /// warning prescribe when the vacuous-green guard fires on a
 /// FALLBACK-ROUTED behavior (no `traces:` line to a declared contract
 /// row, prose heuristics unmatched — the bare-guard fall-through in
-/// `behavior_test_writer.dart`'s `_deriveAssertion`). One shared constant
-/// so gen, the writer, and the run driver never drift on the wording.
+/// `behavior_test_writer.dart`'s `_deriveAssertion`). One shared wording
+/// source so gen, the writer, and the run driver never drift.
 ///
 /// Issue #1320: the remedy ALSO names the designed hand-delta seam —
 /// hand-editing the lane plan's traces cell to the method-qualified
@@ -54,24 +60,18 @@ const String vacuousGuardComment =
 /// exist only as tribal knowledge (plan now writes the method-qualified
 /// cell itself, but the seam stays the escape hatch when a plan refuses
 /// an ambiguous trace or the list is legacy).
-const String vacuousGuardFallbackRemedy =
-    'add traces: <ContractRow> to the FR, re-run zfa tdd plan, '
-    're-run zfa tdd gen, re-run zfa tdd run — or hand-edit the lane plan '
-    '(04-ENGINE.md) traces cell to FR-00N, Row.method and re-run '
-    'zfa tdd gen (the designed hand-delta seam)';
-
-/// Issue #1483: the vacuous-green fallback remedy, BRANCHED by feature
-/// shape — the stop message must name the seam that EXISTS for the shape
-/// it is talking to.
 ///
-/// [vacuousGuardFallbackRemedy] hardcodes the lane plan (a bare
-/// `04-ENGINE.md`) into every shape's advice — but a legacy single-file
-/// feature (no `## Lanes` in its spec, the shape `zfa tdd plan` produces
-/// with no lane split) has NO lane plan pair (`04-ENGINE.md` /
-/// `04-SKIN.md`) and never will: following the advice sends the author
-/// to a file that does not exist while the real seam — the traces cell
-/// of the test list the feature actually carries — sits untouched. The
-/// branches:
+/// Issue #1483: the wording became a FUNCTION, [vacuousGuardFallbackRemedyFor]
+/// — the pre-#1483 form hardcoding the lane plan as a bare `04-ENGINE.md`
+/// (the literal text `hand-edit the lane plan (04-ENGINE.md) traces cell`)
+/// was the lane-split branch only, and sent legacy single-file authors to
+/// a file that never exists. Issue #1518 retires that constant for good:
+/// the branched builder below is the ONE remedy wording source (gen-time
+/// warning, run stop, forwarding contract), and the pin suites (#1320 U8,
+/// #1483 U-1483-1c, #1308 U-1308-1) were migrated to it in the same
+/// change that retired it.
+///
+/// The branches:
 ///
 /// * lane-split feature ([lanePlanPath] non-null — the lane plan pair is
 ///   on disk) → the lane plan's traces cell, as before;
@@ -94,6 +94,67 @@ String vacuousGuardFallbackRemedyFor({
       're-run zfa tdd gen, re-run zfa tdd run — or hand-edit the '
       '$seamNoun ($seamPath) traces cell to FR-00N, Row.method and '
       're-run zfa tdd gen (the designed hand-delta seam)';
+}
+
+/// Issue #1518: the lane-plan seam path for [featureDir] under
+/// [projectRoot], or null when no lane plan pair is on disk (the test
+/// list is the seam). The engine plan ([LaneSplitFiles.engine]) wins when
+/// it exists, else the orphan skin plan ([LaneSplitFiles.skin]).
+///
+/// ONE resolver shared by the gen-time writer warning
+/// (`behavior_test_writer._guardOnlyRemedy`) and the run-side stop remedy
+/// (`run_driver_core._vacuousFallbackRemedy`, issue #1502) so the RULE
+/// that picks the seam path cannot drift into the "two contradictory
+/// `--> fix:` lines in one transcript" symptom #1518 removes — the
+/// wording was single-sourced in #1483, and this closes the same gap for
+/// the path probe (a new lane-plan filename, a `04-CONTRACT.md`
+/// preference, a `.specify/bugs/<slug>` layout) that would otherwise have
+/// to be made twice.
+///
+/// The returned path is project-root-relative — the full path of the file
+/// to edit (a bare filename hides the feature dir).
+String? lanePlanSeamPath({
+  required String projectRoot,
+  required String featureDir,
+}) {
+  final tddDir = p.join(featureDir, 'tdd');
+  for (final name in [LaneSplitFiles.engine, LaneSplitFiles.skin]) {
+    final plan = File(p.join(tddDir, name));
+    if (plan.existsSync()) return p.relative(plan.path, from: projectRoot);
+  }
+  return null;
+}
+
+/// Issue #1308/#1518: the lines of the gen child's captured output that
+/// the run driver forwards into the run transcript — the guard-only
+/// warning token line ([vacuousGuardWarningToken]) and the `--> fix:`
+/// remedy line that IMMEDIATELY follows it, nothing else (never a dump of
+/// the whole captured output; a stray `--> fix:` line with no token line
+/// before it stays unforwarded).
+///
+/// The remedy line cannot be a text scan key any more: since #1518 the
+/// writer's remedy is BRANCHED by feature shape
+/// ([vacuousGuardFallbackRemedyFor] — the seam path differs per feature),
+/// so the forward keys on the stable two-line shape the writer prints —
+/// the token line first, the remedy line directly after. The fix line is
+/// accepted ONLY on the line directly after the token line: `--> fix:` is
+/// a shared convention across the codebase, so a loose window would
+/// forward an unrelated later line.
+Iterable<String> guardOnlyWarningLinesToForward(String output) sync* {
+  var expectFix = false;
+  for (final line in output.split('\n')) {
+    if (expectFix) {
+      expectFix = false;
+      if (line.contains('--> fix:')) {
+        yield line;
+        continue;
+      }
+    }
+    if (line.contains(vacuousGuardWarningToken)) {
+      yield line;
+      expectFix = true;
+    }
+  }
 }
 
 /// Issue #1308: the machine-greppable token the gen-time guard-only

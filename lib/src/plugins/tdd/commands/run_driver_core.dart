@@ -56,7 +56,6 @@ import '../services/feature_path_resolver.dart';
 import '../services/journal.dart';
 import '../services/lane_plans.dart';
 import '../services/lane_receipts.dart';
-import '../services/lane_split.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/corpus_baseline_cache.dart';
 import '../services/run_state_store.dart';
@@ -1466,8 +1465,9 @@ class RunDriverCore {
       // miss in the run output — the run captures the gen child's stdout
       // and a successful gen prints none of it, so the warning the writer
       // emitted would be invisible here without the forward. The token
-      // keeps the scan surgical (the writer's warning lines and the fix
-      // line are the only lines that carry it or the remedy).
+      // keeps the scan surgical (issue #1518: the remedy line is the one
+      // that immediately follows the token line — the branched wording is
+      // dynamic, so the token is the only stable key).
       if (step == 'gen' && result.success) {
         _forwardGuardOnlyWarning(result.output);
       }
@@ -2352,47 +2352,40 @@ class RunDriverCore {
   }
 
   /// Issue #1308: forward the gen child's guard-only warning lines into
-  /// the run transcript. The token and the remedy string are the only
-  /// markers the writer's warning lines carry, so the scan stays surgical
-  /// — never a dump of the whole captured output.
+  /// the run transcript. Issue #1518: the writer's remedy is BRANCHED by
+  /// feature shape (dynamic seam paths), so the scan keys on the stable
+  /// two-line shape the writer prints — the warning token line and the
+  /// `--> fix:` line that immediately follows it — via the shared
+  /// [guardOnlyWarningLinesToForward] scanner. The scan stays surgical:
+  /// never a dump of the whole captured output.
   void _forwardGuardOnlyWarning(String output) {
-    for (final line in output.split('\n')) {
-      if (line.contains(vacuousGuardWarningToken) ||
-          line.contains(vacuousGuardFallbackRemedy)) {
-        print(line);
-      }
+    for (final line in guardOnlyWarningLinesToForward(output)) {
+      print(line);
     }
   }
 
-  /// Issue #1483: the #1308 fallback remedy, branched by feature shape.
-  /// The lane plan pair on disk (`tdd/04-ENGINE.md`, else `tdd/04-SKIN.md`)
-  /// is the hand-delta seam; their absence is the legacy single-file shape
-  /// and the seam is the test list itself. Paths are printed relative to
-  /// [projectRoot] — the full path of the file to edit. Messaging only:
-  /// no detection, stop, or loop change.
+  /// Issue #1483: the #1308 fallback remedy, branched by feature shape —
+  /// through the ONE shared [lanePlanSeamPath] resolver the gen-time
+  /// writer warning also uses (issue #1518), so the RULE that picks the
+  /// seam path cannot drift between the two sides. The lane plan pair on
+  /// disk (`tdd/04-ENGINE.md`, else `tdd/04-SKIN.md`) is the hand-delta
+  /// seam; their absence is the legacy single-file shape and the seam is
+  /// the test list itself. Paths are printed relative to [projectRoot] —
+  /// the full path of the file to edit. Messaging only: no detection,
+  /// stop, or loop change.
   String _vacuousFallbackRemedy({
     required String projectRoot,
     required String featureDir,
-  }) {
-    final tddDir = p.join(featureDir, 'tdd');
-    final enginePlan = File(p.join(tddDir, LaneSplitFiles.engine));
-    final skinPlan = File(p.join(tddDir, LaneSplitFiles.skin));
-    final String? lanePlan;
-    if (enginePlan.existsSync()) {
-      lanePlan = p.relative(enginePlan.path, from: projectRoot);
-    } else if (skinPlan.existsSync()) {
-      lanePlan = p.relative(skinPlan.path, from: projectRoot);
-    } else {
-      lanePlan = null;
-    }
-    return vacuousGuardFallbackRemedyFor(
-      lanePlanPath: lanePlan,
-      testListPath: p.relative(
-        p.join(tddDir, 'test-list.md'),
-        from: projectRoot,
-      ),
-    );
-  }
+  }) => vacuousGuardFallbackRemedyFor(
+    lanePlanPath: lanePlanSeamPath(
+      projectRoot: projectRoot,
+      featureDir: featureDir,
+    ),
+    testListPath: p.relative(
+      p.join(featureDir, 'tdd', 'test-list.md'),
+      from: projectRoot,
+    ),
+  );
 
   BehaviorState _maxState(BehaviorState a, BehaviorState b) =>
       a.index >= b.index ? a : b;

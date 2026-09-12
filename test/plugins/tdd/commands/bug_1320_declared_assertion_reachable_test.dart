@@ -546,19 +546,36 @@ void main() {
 
   test('U8: the shared vacuous-green remedy names the hand-delta seam '
       '(issue #1320 remediation 4)', () {
-    expect(
-      vacuousGuardFallbackRemedy,
-      contains('hand-delta seam'),
-      reason:
-          'the fallback-routed vacuous-green stop must name the designed '
-          'hand-delta seam: hand-edit the traces cell to FR-00N, '
-          'Row.method, then re-run',
-    );
-    expect(vacuousGuardFallbackRemedy, contains('Row.method'));
-    expect(
-      vacuousGuardFallbackRemedy,
-      contains('add traces: <ContractRow> to the FR'),
-      reason: 'the spec-level remedy stays the primary path',
-    );
+    // Issue #1518: the pre-#1483 bare-`04-ENGINE.md` constant is retired —
+    // this pin migrates (in the same change) to the BRANCHED builder, and
+    // the wording family holds on BOTH branches: the re-plan/re-gen/re-run
+    // advice, the `FR-00N, Row.method` hand-delta cell, the seam tail.
+    for (final remedy in [
+      // The legacy single-file shape: the test list is the seam.
+      vacuousGuardFallbackRemedyFor(
+        lanePlanPath: null,
+        testListPath: p.join('specs', '1320-repro', 'tdd', 'test-list.md'),
+      ),
+      // The lane-split shape: the lane plan is the seam.
+      vacuousGuardFallbackRemedyFor(
+        lanePlanPath: p.join('specs', '1320-repro', 'tdd', '04-ENGINE.md'),
+        testListPath: p.join('specs', '1320-repro', 'tdd', 'test-list.md'),
+      ),
+    ]) {
+      expect(
+        remedy,
+        contains('hand-delta seam'),
+        reason:
+            'the fallback-routed vacuous-green stop must name the designed '
+            'hand-delta seam: hand-edit the traces cell to FR-00N, '
+            'Row.method, then re-run:\n$remedy',
+      );
+      expect(remedy, contains('Row.method'));
+      expect(
+        remedy,
+        contains('add traces: <ContractRow> to the FR'),
+        reason: 'the spec-level remedy stays the primary path',
+      );
+    }
   });
 }
