@@ -50,16 +50,23 @@ const Map<String, (int, int, int, int, int)> shapeFacts = {
   // shape => (behaviors, acceptance, units, layerContracts, lanes)
   'modern': (5, 3, 2, 2, 3),
   'modern-no-lanes': (5, 3, 2, 2, 0),
-  'modern-undeclared': (5, 3, 2, 2, 3),
+  // Feature 1484: the dedicated no-declaration shape — its FRs carry
+  // no `traces:` binding and no `**Type**: manual` marker, so they
+  // route to manual declarations: no unit rows, nothing dropped
+  // (behaviors = 3 acceptance only).
+  'modern-undeclared': (3, 3, 0, 2, 3),
   'legacy-002': (3, 3, 0, 0, 0),
   'crlf': (5, 3, 2, 2, 3),
   'html-entities': (3, 1, 2, 1, 0),
-  'non-english': (4, 2, 2, 0, 0),
+  // Feature 1484 (review fix): the shapes that emit `traces:` on their
+  // FRs also declare the traced rows, so the routing resolver binds
+  // them instead of refusing `danglingReference`.
+  'non-english': (4, 2, 2, 2, 0),
   'fr-table': (3, 1, 2, 1, 0),
-  'nested-ac': (6, 4, 2, 0, 0),
-  'inline-prose': (5, 3, 2, 0, 0),
+  'nested-ac': (6, 4, 2, 2, 0),
+  'inline-prose': (5, 3, 2, 2, 0),
   'epic-contracts': (2, 1, 1, 2, 0),
-  'manual': (3, 2, 1, 0, 0),
+  'manual': (3, 2, 1, 1, 0),
 };
 
 Future<void> main() async {

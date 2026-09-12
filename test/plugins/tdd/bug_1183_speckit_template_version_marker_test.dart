@@ -210,7 +210,9 @@ void main() {
             .replaceFirst(
               RegExp(r'- \*\*FR-001\*\*[\s\S]*?- \*\*FR-007\*\*[^\n]*'),
               '- **FR-001**: System MUST accept a spec authored from the '
-              'speckit spec template as contract-conformant on the first plan.',
+              'speckit spec template as contract-conformant on the first '
+              'plan.\n'
+              '            traces: Validator',
             )
             .replaceFirst(
               RegExp(

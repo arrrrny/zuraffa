@@ -300,6 +300,9 @@ void main() {
       '--project',
       tmpDir.path,
       feature,
+      // Issue #1480: the noFlutter guard and remedy-ordering fixture
+      // deliberately plans the legacy labeled fallback shape.
+      '--allow-unit-fallback',
     ];
 
     /// The forklift 009-conversation-streaming lane shape: all-CORE,

@@ -58,6 +58,9 @@ void main() {
         'tdd',
         'plan',
         featureName,
+        // Issue #1480: the finder-kind column is the subject — the legacy
+        // fallback shape stays reachable via the migration escape hatch.
+        '--allow-unit-fallback',
         '--project',
         tmpDir.path,
       ]);

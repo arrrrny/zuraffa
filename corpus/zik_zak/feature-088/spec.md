@@ -2,10 +2,18 @@
 
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Domain**:
+- `FormValidator`: `validate(Map<String, dynamic>) -> bool`
+- `OrderSubmitter`: `submit(Order) -> void`
+
 ## Functional Requirements
 
 - **FR-001**: The system MUST validate the 088 form before submit.
+  traces: FormValidator
 - **FR-002**: The system MUST submit the validated Order.
+  traces: OrderSubmitter
 
 ## Scenarios
 

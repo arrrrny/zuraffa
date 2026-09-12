@@ -131,7 +131,14 @@ const multiMethodAmbiguousSpec = '''
 
 /// A spec with NO traces continuation — the fallback shape whose gen
 /// pair is the stale guard-only candidate for U6/U7.
-const untracedSpec = '''
+///
+/// Feature 1484: an untraced FR routes manual (no row), so the
+/// criterion-only cell comes from the self-trace token instead —
+/// `traces: FR-001` binds (a non-empty token derives the row) and the
+/// self-duplicate filter drops it from the rendered cell. The gen pair
+/// is still the guard-only candidate: no contract token, no declared
+/// signature.
+const selfTracedSpec = '''
 **Template Version**: `zuraffa-1.0`
 
 # Spec: 1320-repro
@@ -144,6 +151,7 @@ const untracedSpec = '''
 ## Functional Requirements
 
 - **FR-001**: System MUST expose the response content type
+            traces: FR-001
 
 ## Acceptance Scenarios
 
@@ -365,14 +373,19 @@ void main() {
 
     test('U6: gen reports verdict=regenerated (not reused) and the pair '
         'gains the declared assertion', () async {
-      // 1. The untraced spec plans a criterion-only cell.
+      // 1. The self-traced spec plans a criterion-only cell (the
+      //    self-token is dropped from the cell — feature 1484 keeps the
+      //    row, the fallback lane is gone).
       await Directory(fx.featureDir).create(recursive: true);
-      await File(p.join(fx.featureDir, 'spec.md')).writeAsString(untracedSpec);
+      await File(
+        p.join(fx.featureDir, 'spec.md'),
+      ).writeAsString(selfTracedSpec);
       final runner = CliRunner(exitOnCompletion: false);
       await runner.runCapturing([
         'tdd',
         'plan',
         '1320-repro',
+        '--allow-unit-fallback',
         '--project',
         fx.root.path,
       ]);
@@ -444,12 +457,17 @@ void main() {
     test('U7: the regenerated pair runs gen→verify-red→make green — the '
         'vacuous-green dead-end is unreachable', () async {
       await Directory(fx.featureDir).create(recursive: true);
-      await File(p.join(fx.featureDir, 'spec.md')).writeAsString(untracedSpec);
+      await File(
+        p.join(fx.featureDir, 'spec.md'),
+      ).writeAsString(selfTracedSpec);
       final runner = CliRunner(exitOnCompletion: false);
       await runner.runCapturing([
         'tdd',
         'plan',
         '1320-repro',
+        // Issue #1480: the untraced shape IS the fixture — the
+        // unit-fallback gate stays out of the way via the escape hatch.
+        '--allow-unit-fallback',
         '--project',
         fx.root.path,
       ]);
@@ -528,19 +546,36 @@ void main() {
 
   test('U8: the shared vacuous-green remedy names the hand-delta seam '
       '(issue #1320 remediation 4)', () {
-    expect(
-      vacuousGuardFallbackRemedy,
-      contains('hand-delta seam'),
-      reason:
-          'the fallback-routed vacuous-green stop must name the designed '
-          'hand-delta seam: hand-edit the traces cell to FR-00N, '
-          'Row.method, then re-run',
-    );
-    expect(vacuousGuardFallbackRemedy, contains('Row.method'));
-    expect(
-      vacuousGuardFallbackRemedy,
-      contains('add traces: <ContractRow> to the FR'),
-      reason: 'the spec-level remedy stays the primary path',
-    );
+    // Issue #1518: the pre-#1483 bare-`04-ENGINE.md` constant is retired —
+    // this pin migrates (in the same change) to the BRANCHED builder, and
+    // the wording family holds on BOTH branches: the re-plan/re-gen/re-run
+    // advice, the `FR-00N, Row.method` hand-delta cell, the seam tail.
+    for (final remedy in [
+      // The legacy single-file shape: the test list is the seam.
+      vacuousGuardFallbackRemedyFor(
+        lanePlanPath: null,
+        testListPath: p.join('specs', '1320-repro', 'tdd', 'test-list.md'),
+      ),
+      // The lane-split shape: the lane plan is the seam.
+      vacuousGuardFallbackRemedyFor(
+        lanePlanPath: p.join('specs', '1320-repro', 'tdd', '04-ENGINE.md'),
+        testListPath: p.join('specs', '1320-repro', 'tdd', 'test-list.md'),
+      ),
+    ]) {
+      expect(
+        remedy,
+        contains('hand-delta seam'),
+        reason:
+            'the fallback-routed vacuous-green stop must name the designed '
+            'hand-delta seam: hand-edit the traces cell to FR-00N, '
+            'Row.method, then re-run:\n$remedy',
+      );
+      expect(remedy, contains('Row.method'));
+      expect(
+        remedy,
+        contains('add traces: <ContractRow> to the FR'),
+        reason: 'the spec-level remedy stays the primary path',
+      );
+    }
   });
 }

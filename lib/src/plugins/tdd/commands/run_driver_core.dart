@@ -50,6 +50,7 @@ import '../services/arg_placeholder.dart';
 import '../services/born_green.dart';
 import '../services/cycle_evidence.dart';
 import '../services/cycle_log.dart';
+import '../services/declared_routing.dart';
 import '../services/entity_lookup.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/journal.dart';
@@ -61,7 +62,9 @@ import '../services/run_state_store.dart';
 import '../services/runner.dart';
 import '../services/step_runner.dart';
 import '../services/suite_guard.dart';
+import '../models/routing.dart';
 import '../services/test_list_reader.dart';
+import '../services/unit_contract_shape.dart';
 import '../services/tdd_timeout.dart';
 import '../services/vacuous_guard.dart';
 import '../services/widget_scaffold.dart' show scaffoldedMarker;
@@ -472,6 +475,28 @@ class RunDriverCore {
     if (announce) {
       print('zfa tdd $label: feature $feature — ${rows.length} behavior(s)');
       if (skipped > 0) print('   $skipped already done — skipping');
+      // SPEC 1489: the unit lane's hand-step forecast — the same seam
+      // cost `zfa tdd plan` surfaced, recomputed against the entity
+      // registry NOW (entities created since planning lift their
+      // behaviors out of the forecast). Output-only: the loop, the
+      // BehaviorState transitions and the two-phase driver semantics
+      // are untouched.
+      final unitRowCount = rows
+          .where((r) => r.kind == BehaviorKind.unit)
+          .length;
+      if (unitRowCount > 0) {
+        final seams = await _entityReturnSeamForecast(
+          projectRoot: projectRoot,
+          featureName: feature,
+          featureDir: featureDir,
+          rows: rows,
+        );
+        final seamLine = UnitContractShape.entityReturnSeamCostLine(
+          seams: seams,
+          total: unitRowCount,
+        );
+        if (seamLine != null) print('   $seamLine');
+      }
     }
     if (rows.isEmpty) {
       // A lane with no behaviors is a vacuous green (issue #1008: legacy
@@ -1440,8 +1465,9 @@ class RunDriverCore {
       // miss in the run output — the run captures the gen child's stdout
       // and a successful gen prints none of it, so the warning the writer
       // emitted would be invisible here without the forward. The token
-      // keeps the scan surgical (the writer's warning lines and the fix
-      // line are the only lines that carry it or the remedy).
+      // keeps the scan surgical (issue #1518: the remedy line is the one
+      // that immediately follows the token line — the branched wording is
+      // dynamic, so the token is the only stable key).
       if (step == 'gen' && result.success) {
         _forwardGuardOnlyWarning(result.output);
       }
@@ -1845,7 +1871,17 @@ class RunDriverCore {
             'assertion and make refuses it vacuous-green (issue #1259, '
             '#1308).',
           );
-          print('   --> fix: $vacuousGuardFallbackRemedy');
+          // Issue #1483: name the seam that EXISTS for the feature shape
+          // the message is talking to — the lane plan's traces cell only
+          // when the lane plan pair is actually on disk; the legacy
+          // single-file feature (no `## Lanes`, no plan pair) hand-edits
+          // the TEST LIST's traces cell instead (04-ENGINE.md does not
+          // exist there and never will). The full path is printed (the
+          // feature dir is not obvious from a bare filename). Messaging
+          // only — the detection, the stop and the loop are untouched.
+          print(
+            '   --> fix: ${_vacuousFallbackRemedy(projectRoot: projectRoot, featureDir: featureDir)}',
+          );
           return (
             state: updated,
             stop: (
@@ -2316,17 +2352,40 @@ class RunDriverCore {
   }
 
   /// Issue #1308: forward the gen child's guard-only warning lines into
-  /// the run transcript. The token and the remedy string are the only
-  /// markers the writer's warning lines carry, so the scan stays surgical
-  /// — never a dump of the whole captured output.
+  /// the run transcript. Issue #1518: the writer's remedy is BRANCHED by
+  /// feature shape (dynamic seam paths), so the scan keys on the stable
+  /// two-line shape the writer prints — the warning token line and the
+  /// `--> fix:` line that immediately follows it — via the shared
+  /// [guardOnlyWarningLinesToForward] scanner. The scan stays surgical:
+  /// never a dump of the whole captured output.
   void _forwardGuardOnlyWarning(String output) {
-    for (final line in output.split('\n')) {
-      if (line.contains(vacuousGuardWarningToken) ||
-          line.contains(vacuousGuardFallbackRemedy)) {
-        print(line);
-      }
+    for (final line in guardOnlyWarningLinesToForward(output)) {
+      print(line);
     }
   }
+
+  /// Issue #1483: the #1308 fallback remedy, branched by feature shape —
+  /// through the ONE shared [lanePlanSeamPath] resolver the gen-time
+  /// writer warning also uses (issue #1518), so the RULE that picks the
+  /// seam path cannot drift between the two sides. The lane plan pair on
+  /// disk (`tdd/04-ENGINE.md`, else `tdd/04-SKIN.md`) is the hand-delta
+  /// seam; their absence is the legacy single-file shape and the seam is
+  /// the test list itself. Paths are printed relative to [projectRoot] —
+  /// the full path of the file to edit. Messaging only: no detection,
+  /// stop, or loop change.
+  String _vacuousFallbackRemedy({
+    required String projectRoot,
+    required String featureDir,
+  }) => vacuousGuardFallbackRemedyFor(
+    lanePlanPath: lanePlanSeamPath(
+      projectRoot: projectRoot,
+      featureDir: featureDir,
+    ),
+    testListPath: p.relative(
+      p.join(featureDir, 'tdd', 'test-list.md'),
+      from: projectRoot,
+    ),
+  );
 
   BehaviorState _maxState(BehaviorState a, BehaviorState b) =>
       a.index >= b.index ? a : b;
@@ -2370,6 +2429,39 @@ class RunDriverCore {
   // Phase 0 (bug #829) — verbatim, with the failure messages naming the
   // invoking command label.
   // -------------------------------------------------------------------
+
+  /// The unit lane's hand-step forecast (SPEC 1489): how many of the
+  /// lane's unit behaviors have a declared contract returning an entity
+  /// that does not exist on disk yet. Best-effort by contract: any
+  /// resolution failure contributes a silent zero — the forecast is
+  /// observability, never a run stopper, and it never touches the state.
+  Future<int> _entityReturnSeamForecast({
+    required String projectRoot,
+    required String featureName,
+    required String featureDir,
+    required List<BehaviorRow> rows,
+  }) async {
+    final unitRows = rows.where((r) => r.kind == BehaviorKind.unit).toList();
+    if (unitRows.isEmpty) return 0;
+    try {
+      final declared = <Signature?>[
+        for (final row in unitRows)
+          await DeclaredRouting.declaredSignatureFor(
+            cwd: projectRoot,
+            featureName: featureName,
+            featureDir: featureDir,
+            behaviorId: row.id,
+          ),
+      ];
+      final seams = await UnitContractShape.countEntityReturnSeamsResolved(
+        declared: declared,
+        cwd: projectRoot,
+      );
+      return seams;
+    } on Exception {
+      return 0;
+    }
+  }
 
   Future<_Stop?> _runEntityPhaseZero({
     required String projectRoot,
