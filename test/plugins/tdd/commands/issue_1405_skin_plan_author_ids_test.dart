@@ -81,9 +81,16 @@ void main() {
   /// diagnosis contract.
   Future<String> plan(String spec) async {
     await seedSpec(spec);
-    return CliRunner(
-      exitOnCompletion: false,
-    ).runCapturing(['tdd', 'plan', '--project', tmpDir.path, feature]);
+    return CliRunner(exitOnCompletion: false).runCapturing([
+      // Issue #1480: this legacy fixture plans without contract traces —
+      // the fallback stays reachable via the migration escape hatch.
+      'tdd',
+      'plan',
+      '--project',
+      tmpDir.path,
+      feature,
+      '--allow-unit-fallback',
+    ]);
   }
 
   File laneFile(String name) => File(p.join(tddDir, name));

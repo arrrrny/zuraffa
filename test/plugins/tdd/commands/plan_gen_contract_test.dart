@@ -28,6 +28,11 @@ void main() {
   List<String> args(List<String> rest) => [
     'tdd',
     ...rest,
+    // Issue #1480: these tests exercise the PLAN/GEN artifact contract on
+    // the legacy fallback shape (the spec declares no contract rows), so
+    // the unit-fallback gate stays out of the way. The gate's own
+    // contract is covered by plan_unit_fallback_fail_fast_1480_test.dart.
+    if (rest.first == 'plan') '--allow-unit-fallback',
     '--project',
     tmpDir.path,
   ];
@@ -45,6 +50,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: returns 42 when invoked with no args
+  traces: Calculator
 
 ## Acceptance Scenarios
 
@@ -250,6 +256,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: The system shall persist a User with a name and an email.
+  traces: UserStore
 
 ## Acceptance Scenarios
 

@@ -625,8 +625,8 @@ void main() {
   group('GenerationPlanner — bug 829: entity-traced unit behaviors route '
       'to the entity pipeline', () {
     test('U-829a: a unit behavior traced to a declared entity plans '
-        'entity create -> mock create -> wire -> build — the '
-        'architecture engages with mock-first default', () {
+        'entity create --build -> mock create --certify -> wire -> build '
+        '— the architecture engages with mock-first default', () {
       final plan = planner.plan(
         const BehaviorSummary(
           behaviorId: 'U1',
@@ -638,8 +638,12 @@ void main() {
       );
       expect(plan.isExpressible, isTrue, reason: plan.unexpressibleReason);
       expect(plan.steps.map((s) => s.args).toList(), [
-        ['entity', 'create', '-n', 'User'],
-        ['mock', 'create', '--name', 'User'],
+        // Bug #1503 (review finding 1): `--build` gives the certify step a
+        // built entity (its sandbox resolves the .zorphy.dart parts).
+        ['entity', 'create', '-n', 'User', '--build'],
+        // Bug #1503: the engine requests the CERTIFIED variant (spec 1001)
+        // — run #1 leaves a certified mock, run #2's preflight passes.
+        ['mock', 'create', '--name', 'User', '--certify'],
         [
           'tdd',
           'wire',
@@ -802,8 +806,11 @@ void main() {
         );
         expect(defaultPlan.isExpressible, isTrue);
         expect(defaultPlan.steps.map((s) => s.args).toList(), [
-          ['entity', 'create', '-n', 'UserPreference'],
-          ['mock', 'create', '--name', 'UserPreference'],
+          // Bug #1503 (review finding 1): `--build` gives the certify step
+          // a built entity.
+          ['entity', 'create', '-n', 'UserPreference', '--build'],
+          // Bug #1503: certified variant (spec 1001).
+          ['mock', 'create', '--name', 'UserPreference', '--certify'],
           [
             'tdd',
             'wire',

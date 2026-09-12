@@ -244,6 +244,7 @@ $lanesExtra
       await runner.runCapturing([
         'tdd',
         'plan',
+        '--allow-unit-fallback',
         feature,
         '--project',
         tmpDir.path,
@@ -305,6 +306,9 @@ $lanesExtra
         await runner.runCapturing([
           'tdd',
           'plan',
+          // Issue #1480: the visual-contract fixture plans the legacy
+          // fallback shape — the migration escape hatch keeps it reachable.
+          '--allow-unit-fallback',
           feature,
           '--project',
           tmpDir.path,
@@ -335,6 +339,7 @@ $lanesExtra
       await runner.runCapturing([
         'tdd',
         'plan',
+        '--allow-unit-fallback',
         feature,
         '--project',
         tmpDir.path,
@@ -428,6 +433,7 @@ $lanesExtra
       final out = await runner.runCapturing([
         'tdd',
         'plan',
+        '--allow-unit-fallback',
         feature,
         '--project',
         tmpDir.path,
@@ -494,6 +500,7 @@ $lanesExtra
 ## Functional Requirements
 
 - **FR-001**: the login skin renders the gradient sign-in button.
+  traces: Contract
 
 ## Lanes
 
@@ -506,6 +513,7 @@ $lanesBody
       final out = await runner.runCapturing([
         'tdd',
         'plan',
+        '--allow-unit-fallback',
         feature,
         '--project',
         tmpDir.path,

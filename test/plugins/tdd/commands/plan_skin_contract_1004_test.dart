@@ -37,9 +37,15 @@ const String skinContractSpec = '''
 2. **Given** invalid credentials **When** the login attempt fails **Then** the error is reported to the caller
 3. **Given** a completed login **When** the session is active **Then** the app navigates to deal_list
 
+## Layer Contracts
+
+**Domain**:
+- `LoginView`: `present(LoginSlots) -> LoginState`
+
 ## Functional Requirements
 
 - **FR-001**: The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos).
+            traces: LoginView
 
 ## Lanes
 
