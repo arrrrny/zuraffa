@@ -1508,8 +1508,14 @@ class GenCommand extends Command<void> {
       );
     }
     if (behavior.kind == BehaviorKind.contract) {
+      // Issue #1513: the contract lane honors the host runner like the
+      // unit/acceptance lanes do (#1351) — a `const ContractTestWriter()`
+      // here hardcoded `package:test`, dead at `verify-red` on Flutter
+      // hosts (`Couldn't resolve the package 'test'`). The stale-stub
+      // re-render path inherits the fix: it threads the same flag into
+      // this dispatch.
       return (
-        writeTest: const ContractTestWriter().write,
+        writeTest: ContractTestWriter(flutterTest: flutterTest).write,
         writeSubject: const ContractSubjectWriter().write,
       );
     }
@@ -1566,6 +1572,22 @@ class GenCommand extends Command<void> {
       );
     }
     return dependencies.containsKey('flutter');
+  }
+
+  /// The enclosing project's `pubspec.yaml` for [fromPath], or null when no
+  /// ancestor carries one (fixture trees). The stale-stub mirror seeds its
+  /// root with this file so the render there resolves the same `package:`
+  /// subject import the real `gen` writes (issue #1513 follow-up).
+  static File? _enclosingPubspec(String fromPath) {
+    var dir = p.dirname(fromPath);
+    for (var i = 0; i < 24; i++) {
+      final candidate = File(p.join(dir, 'pubspec.yaml'));
+      if (candidate.existsSync()) return candidate;
+      final parent = p.dirname(dir);
+      if (parent == dir) break;
+      dir = parent;
+    }
+    return null;
   }
 
   /// Resolves the widget template's app shell (issue #912 defect 2):
@@ -1795,6 +1817,21 @@ class GenCommand extends Command<void> {
     // THIS binary would really write for the behavior's kind.
     final mirror = await Directory.systemTemp.createTemp('zfa_gen_stale_');
     try {
+      // Issue #1513 follow-up: the mirror needs the target project's
+      // package identity, or `packageSubjectImportFor` returns null inside
+      // it (no pubspec in any ancestor) and every stale re-render downgrades
+      // a `package:` subject import back to the lint-hostile relative shape
+      // — permanently, since the reverted file then matches the mirror.
+      // The mirror reproduces the real `test/tdd/<feature>/` +
+      // `lib/tdd/<feature>/` layout, so seeding its root with the enclosing
+      // pubspec makes the byte-compare context-consistent.
+      final enclosingPubspec = _enclosingPubspec(testPath);
+      if (enclosingPubspec != null) {
+        await bounded(
+          enclosingPubspec.copy(p.join(mirror.path, 'pubspec.yaml')),
+          'staleness: seed mirror pubspec',
+        );
+      }
       final writers = _writersFor(
         behavior,
         platformContext: platformContext,

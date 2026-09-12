@@ -560,7 +560,7 @@ void main() {
   /// still resolves — and so is portable.
   String _relativeSubjectPath(String testPath, String subjectPath) {
     if (p.isAbsolute(subjectPath) && p.isAbsolute(testPath)) {
-      final packageImport = _packageSubjectImport(testPath, subjectPath);
+      final packageImport = packageSubjectImportFor(testPath, subjectPath);
       if (packageImport != null) return packageImport;
       // Compute the relative path from testPath's parent to subjectPath.
       final rel = p.relative(subjectPath, from: p.dirname(testPath));
@@ -575,7 +575,12 @@ void main() {
   /// enclosing project's `lib/` and the package name is resolvable from
   /// the nearest `pubspec.yaml` (walked up from the test file's
   /// directory); null otherwise (caller falls back to the relative shape).
-  String? _packageSubjectImport(String testPath, String subjectPath) {
+  ///
+  /// Issue #1513: promoted from the private instance `_packageSubjectImport`
+  /// to a public static so the contract lane answers the same question with
+  /// the same rule — one source of truth for the `package:` subject import
+  /// across every lane that imports a paired seam.
+  static String? packageSubjectImportFor(String testPath, String subjectPath) {
     var dir = p.dirname(testPath);
     String? projectRoot;
     for (var i = 0; i < 24; i++) {

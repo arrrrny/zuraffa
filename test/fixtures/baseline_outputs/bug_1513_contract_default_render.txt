@@ -1,0 +1,59 @@
+// GENERATED TEST — `zfa tdd gen A1` (issue #1007, contract lane).
+//
+// behavior_id: A1
+// source_criterion: AC-1
+// kind: contract
+// description: contract:A1 — Calculator.add(int a, int b) -> int (usecase contract)
+//
+// CONTRACT TEST (issue #1007): this is NOT an implementation test — it
+// proves the implementation at `../../../lib/tdd/033-golden/a1_subject.dart`
+// satisfies the DECLARED contract above. The body enumerates the
+// contract's cases; every case must hold for the contract to be
+// satisfied. While the method is deliberately unimplemented the test
+// fails through an assertion and `zfa tdd verify-red` reports BLOCKED
+// (never RED): a failing contract test blocks the cycle from proceeding
+// to GREEN until the implementation satisfies the contract.
+library;
+
+import 'package:test/test.dart';
+import '../../../lib/tdd/033-golden/a1_subject.dart' as subject;
+
+void main() {
+  group('A1 (AC-1)', () {
+    test('A1 \u2014 contract:A1 — Calculator.add(int a, int b) -> int (usecase contract)', () {
+      // Case 1 of 3 — signature: the declared method
+      // `contract:A1 — Calculator.add(int a, int b) -> int` is
+      // exposed by the implementation subject.
+      final impl = subject.add;
+      expect(impl, isNotNull,
+          reason: 'contract:A1 — Calculator.add must be exposed with the declared '
+              'signature `(int a, int b) -> int`');
+
+      // Case 2 of 3 — implementation: invoking the declared
+      // method does not throw UnimplementedError.
+      final Object? outcome = _captured(() => impl(0, 0));
+      expect(outcome, isNot(isA<UnimplementedError>()),
+          reason: 'contract:A1 — Calculator.add is not implemented — the declared '
+              'contract is unsatisfied, so the cycle is BLOCKED and cannot '
+              'proceed to GREEN (issue #1007)');
+      // Case 3 of 3 — return: the invocation satisfies the
+      // declared return type `int`.
+      expect(outcome, isA<int>(),
+          reason: 'contract:A1 — Calculator.add must return the declared type '
+              '`int`');
+    });
+  });
+}
+
+/// Captures an [UnimplementedError] thrown by an unimplemented contract
+/// seam (or a scaffold placeholder argument) as the assertion's actual
+/// value, so the blocked state fails through an assertion (never an
+/// uncaught error).
+Object? _captured(Object? Function() invoke) {
+  try {
+    return invoke();
+  } on UnimplementedError catch (error) {
+    return error;
+  }
+}
+

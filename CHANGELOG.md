@@ -6,6 +6,12 @@
   `import 'package:zuraffa/zuraffa.dart';` for
   `import 'package:zuraffa/agent.dart';` where agent symbols are used.
 
+### Fixed
+- Contract-lane generated tests import `flutter_test` on Flutter hosts and
+  resolve the subject through a `package:` URI under `lib/`; the stale-stub
+  re-render keeps the package import instead of reverting to the relative
+  shape (#1513)
+
 ## [6.2.2] - 2026-09-08
 
 ### Added
