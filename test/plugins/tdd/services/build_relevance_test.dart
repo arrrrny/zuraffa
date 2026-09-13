@@ -18,10 +18,7 @@ import 'package:zuraffa/src/plugins/tdd/services/build_relevance.dart';
 void main() {
   group('canSkipTerminalBuild (U1 — skip shapes)', () {
     test('empty changed set (before == after) skips', () {
-      final fp = {
-        'lib/a.dart': 'h1',
-        'pubspec.yaml': 'cfg',
-      };
+      final fp = {'lib/a.dart': 'h1', 'pubspec.yaml': 'cfg'};
       final skip = BuildRelevance.canSkipTerminalBuild(
         before: fp,
         after: Map.of(fp),
@@ -140,46 +137,49 @@ void main() {
       root.deleteSync(recursive: true);
     });
 
-    test('walks lib/test/bin/tool plus config files with stable POSIX keys',
-        () async {
-      Directory(p.join(root.path, 'lib', 'tdd')).createSync(recursive: true);
-      Directory(p.join(root.path, 'test')).createSync(recursive: true);
-      File(
-        p.join(root.path, 'lib', 'tdd', 'a.dart'),
-      ).writeAsStringSync('int a() => 1;\n');
-      File(
-        p.join(root.path, 'test', 'a_test.dart'),
-      ).writeAsStringSync('void main() {}\n');
-      File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: x\n');
+    test(
+      'walks lib/test/bin/tool plus config files with stable POSIX keys',
+      () async {
+        Directory(p.join(root.path, 'lib', 'tdd')).createSync(recursive: true);
+        Directory(p.join(root.path, 'test')).createSync(recursive: true);
+        File(
+          p.join(root.path, 'lib', 'tdd', 'a.dart'),
+        ).writeAsStringSync('int a() => 1;\n');
+        File(
+          p.join(root.path, 'test', 'a_test.dart'),
+        ).writeAsStringSync('void main() {}\n');
+        File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: x\n');
 
-      final fp = await BuildRelevance.fingerprint(projectRoot: root.path);
-      expect(fp.keys, contains('lib/tdd/a.dart'));
-      expect(fp.keys, contains('test/a_test.dart'));
-      expect(fp.keys, contains('pubspec.yaml'));
-    });
+        final fp = await BuildRelevance.fingerprint(projectRoot: root.path);
+        expect(fp.keys, contains('lib/tdd/a.dart'));
+        expect(fp.keys, contains('test/a_test.dart'));
+        expect(fp.keys, contains('pubspec.yaml'));
+      },
+    );
 
-    test('detects a plain-dart modification between two fingerprints',
-        () async {
-      Directory(p.join(root.path, 'lib')).createSync(recursive: true);
-      final subject = File(p.join(root.path, 'lib', 's.dart'))
-        ..writeAsStringSync('int s() => 0;\n');
-      File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: x\n');
+    test(
+      'detects a plain-dart modification between two fingerprints',
+      () async {
+        Directory(p.join(root.path, 'lib')).createSync(recursive: true);
+        final subject = File(p.join(root.path, 'lib', 's.dart'))
+          ..writeAsStringSync('int s() => 0;\n');
+        File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: x\n');
 
-      final before = await BuildRelevance.fingerprint(projectRoot: root.path);
-      subject.writeAsStringSync('int s() => 42;\n');
-      final after = await BuildRelevance.fingerprint(projectRoot: root.path);
+        final before = await BuildRelevance.fingerprint(projectRoot: root.path);
+        subject.writeAsStringSync('int s() => 42;\n');
+        final after = await BuildRelevance.fingerprint(projectRoot: root.path);
 
-      expect(before['lib/s.dart'], isNot(equals(after['lib/s.dart'])));
-      expect(
-        BuildRelevance.canSkipTerminalBuild(
-          before: before,
-          after: after,
-          readContent: (_) => 'int s() => 42;\n',
-        ),
-        isTrue,
-        reason:
-            'a plain subject rewrite is the reported #1587 skip case',
-      );
-    });
+        expect(before['lib/s.dart'], isNot(equals(after['lib/s.dart'])));
+        expect(
+          BuildRelevance.canSkipTerminalBuild(
+            before: before,
+            after: after,
+            readContent: (_) => 'int s() => 42;\n',
+          ),
+          isTrue,
+          reason: 'a plain subject rewrite is the reported #1587 skip case',
+        );
+      },
+    );
   });
 }

@@ -26,6 +26,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/generation_plan.dart';
+import 'build_relevance.dart';
 import 'tdd_timeout.dart';
 
 /// Resolution-stage failure: the zfa entrypoint could not be resolved
@@ -129,6 +130,19 @@ class PipelineRunner {
   /// tests can pin every tier (source, PATH, compiled snapshot, native
   /// executable) without spawning a real VM. Production callers omit
   /// them and get the real platform values.
+  ///
+  /// Issue #1587: [skipUnchangedBuild] is the build-step SCHEDULING
+  /// seam — when true, the runner fingerprints the project's
+  /// build-relevant tree ([BuildRelevance.fingerprint]) before the
+  /// first step, and before executing a step whose args are exactly
+  /// `['build']` re-evaluates the changed set: when nothing a builder
+  /// consumes changed, the build subprocess is never spawned and a
+  /// synthetic [GenerationStep] (exit 0, the skip note in its output,
+  /// `buildSkipped: true`) is captured for the audit. The decision is
+  /// made once per plan; when the build DOES run (or any earlier build
+  /// step executed), the fingerprint is dropped and execution proceeds
+  /// byte-identically to today. The flag defaults to false — callers
+  /// that do not opt in keep spawning every step unchanged (FR-008).
   Future<PipelineResult> runPlan({
     required GenerationPlan plan,
     required String workingDirectory,
@@ -138,6 +152,7 @@ class PipelineRunner {
     String? scriptPathOverride,
     String? resolvedExecutableOverride,
     String? pathEnvOverride,
+    bool skipUnchangedBuild = false,
   }) async {
     if (!plan.isExpressible) {
       return PipelineResult(
@@ -160,10 +175,44 @@ class PipelineRunner {
 
     final captured = <GenerationStep>[];
     var firstFailure = -1;
+    // Issue #1587: the build-relevant fingerprint captured before the
+    // first step — null once consumed (the decision is made once per
+    // plan) or when the flag is off.
+    Map<String, String>? buildFingerprint;
+    if (skipUnchangedBuild) {
+      buildFingerprint = await BuildRelevance.fingerprint(
+        projectRoot: workingDirectory,
+      );
+    }
     for (var i = 0; i < plan.steps.length; i++) {
       final spec = plan.steps[i];
       final args = [...entrypoint.arguments, ...spec.args];
       final fullCmd = '${entrypoint.displayCommand} ${spec.args.join(' ')}';
+      // Issue #1587: the terminal `build` step's scheduling gate. The
+      // exact `['build']` shape is the planner's build-step contract;
+      // nothing changed builder-consumable → the build would re-derive
+      // identical results, so it is pure per-behavior overhead.
+      if (buildFingerprint != null &&
+          spec.args.length == 1 &&
+          spec.args.first == 'build') {
+        final skip = await BuildRelevance.shouldSkipTerminalBuild(
+          projectRoot: workingDirectory,
+          before: buildFingerprint,
+        );
+        buildFingerprint = null; // decided — never re-evaluated
+        if (skip) {
+          captured.add(
+            GenerationStep(
+              command: fullCmd,
+              exitCode: 0,
+              output: BuildRelevance.skippedBuildNote,
+              purpose: spec.purpose,
+              buildSkipped: true,
+            ),
+          );
+          continue;
+        }
+      }
       final clock = Stopwatch()..start();
       final rssBeforeKb = ProcessInfo.currentRss ~/ 1024;
       try {

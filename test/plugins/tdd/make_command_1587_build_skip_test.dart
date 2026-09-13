@@ -111,7 +111,8 @@ void main() {
       // naming @Zorphy. The gate matches RAW content (the DDA route
       // stage's own content-filter precedent): a comment mentioning a
       // builder annotation refuses the skip — the safe direction.
-      final annotated = '${TddFixture.subjectReturning('U-1587-2', 42)}'
+      final annotated =
+          '${TddFixture.subjectReturning('U-1587-2', 42)}'
           '// @Zorphy annotated surface — builders consume this file.\n';
       final zfaBin = await fx.writeFakeZfaBin(
         logPath: fx.fakeZfaLogPath,

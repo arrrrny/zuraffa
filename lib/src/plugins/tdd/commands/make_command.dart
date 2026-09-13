@@ -1081,16 +1081,43 @@ class MakeCommand extends Command<void> {
     //    verification: the UPDATED test is re-run right here and the
     //    cycle is re-certified red (proceed to generation) or green
     //    (the skip transition) from it.
+    //    Issue #1587: in the COMMON no-drift path the re-run is pure
+    //    redundancy — verify-red just certified the same test against
+    //    the same subject shape seconds earlier. When the certification
+    //    is the behavior's LAST evidence entry, carries a subject hash,
+    //    and the current subject hash matches, the precondition is
+    //    satisfied FROM THE CERTIFICATION (the recorded red verdict
+    //    stands) and the live re-run is skipped. Every other shape —
+    //    hashless legacy entries, a drifted subject, or any green/
+    //    refactor evidence after the red — fails open to the live
+    //    re-run below, so the #694 skip transition, the #1036 drift
+    //    refusal, and the #1323 hand-delta re-certification all keep
+    //    their contracts. The post-generation green-evidence run stays
+    //    live regardless (issue #1587: "only (3) must be live").
     // ---------------------------------------------------------------
-    final driftRun = await _runTargetTest(
-      runner: runner,
-      singleTemplate: singleTemplate,
-      fileTemplate: fileTemplate,
-      testPath: testPath,
-      testName: testName,
-      workingDirectory: cwd,
-      timeout: timeoutOverride,
+    final dedupCertificate = await _driftRunDedupCertificate(
+      cwd: cwd,
+      featureDir: target.featureDir,
+      record: record,
     );
+    final RunRecord driftRun;
+    if (dedupCertificate != null) {
+      print(
+        '   drift check satisfied from the certified red evidence — '
+        'subject hash matches, target test not re-run (issue #1587).',
+      );
+      driftRun = dedupCertificate;
+    } else {
+      driftRun = await _runTargetTest(
+        runner: runner,
+        singleTemplate: singleTemplate,
+        fileTemplate: fileTemplate,
+        testPath: testPath,
+        testName: testName,
+        workingDirectory: cwd,
+        timeout: timeoutOverride,
+      );
+    }
     if (driftRun.timedOut) {
       // Bug #742: the drift-check child outlived the deadline and was
       // killed — misfire-stop naming behavior, step, and command.
@@ -1530,6 +1557,13 @@ class MakeCommand extends Command<void> {
           zfaBinOverride: zfaBinFlag,
           feature: target.featureName,
           timeout: timeoutOverride,
+          // Issue #1587: schedule the terminal `build` step — skip the
+          // whole-project build_runner + analyze child when the plan's
+          // generation wrote nothing a builder consumes. The build
+          // command, the analyze gate, and every downstream failed-build
+          // guard (#737/#942/#1407) are untouched: a REAL build runs
+          // exactly as before whenever anything builder-facing changed.
+          skipUnchangedBuild: true,
         );
       } on PipelineResolutionError catch (e) {
         print('zfa tdd make: ${e.message}');
@@ -1540,6 +1574,12 @@ class MakeCommand extends Command<void> {
         );
         exitCode = 1;
         return;
+      }
+      // Issue #1587: surface the scheduling decisions — each skipped
+      // terminal build names itself in the run log (the synthetic audit
+      // step's output carries the note verbatim).
+      for (final step in pipelineResult.steps) {
+        if (step.buildSkipped) print('   ${step.output}');
       }
 
       // Misfire-stop on generation failure (FR-004, US4.AC2) — with the
@@ -2865,6 +2905,55 @@ class MakeCommand extends Command<void> {
     final subjectFile = File(subjectPath);
     if (!await subjectFile.exists()) return null;
     return sha256.convert(await subjectFile.readAsBytes()).toString();
+  }
+
+  /// The issue #1587 drift-check dedup: the make precondition satisfied
+  /// from the verify-red certification.
+  ///
+  /// Eligible ONLY when every condition holds (anything else returns
+  /// null — the caller runs the live drift check, the fail-open
+  /// contract):
+  ///   - the behavior's LAST cycle-log entry is a `red` entry — a
+  ///     green/refactor after it means the behavior moved on, and the
+  ///     #694 skip transition / #1036 drift refusal own those shapes;
+  ///   - the entry carries a 64-hex `subject-hash` (legacy hashless
+  ///     entries fail open, the pre-#1587 behavior stands);
+  ///   - the recorded exit is 1 (a certified red — verify-red's own
+  ///     classification already proved an honest assertion failure, so
+  ///     the #742 timeout and #1402 zero-match misfire shapes can never
+  ///     be deduped into);
+  ///   - the CURRENT subject file's sha256 equals the recorded hash —
+  ///     the subject the certification exercised is byte-identical to
+  ///     the one generation is about to consume.
+  ///
+  /// The returned [RunRecord] carries the certification's recorded
+  /// command and the certified-red verdict (exit 1, not started-process
+  /// shaped evidence is never fabricated — `startedProcess` is true and
+  /// `timedOut` false so the #742/#1402 misfire guards pass through).
+  /// The record NEVER becomes green evidence: the post-generation
+  /// target-test run stays live (issue #1587 FR-006).
+  Future<RunRecord?> _driftRunDedupCertificate({
+    required String cwd,
+    required String featureDir,
+    required ArtifactRecord record,
+  }) async {
+    final entries = await CycleEvidence(featureDir).entries();
+    ParsedCycleEntry? last;
+    for (final entry in entries) {
+      if (entry.behaviorId == record.behaviorId) last = entry;
+    }
+    if (last == null || last.kind != 'red') return null;
+    final hash = last.subjectHash;
+    if (hash == null || hash.length != 64) return null;
+    if ((last.exit ?? 0) != 1) return null;
+    final currentHash = await _subjectHashAt(cwd, record);
+    if (currentHash == null || currentHash != hash) return null;
+    return RunRecord(
+      command: last.command ?? 'certified red evidence ($featureDir)',
+      exitCode: 1,
+      output: '',
+      startedProcess: true,
+    );
   }
 
   /// Issue #1323 (spec 991 FR-001): the two-signal `_argN()` placeholder

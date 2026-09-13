@@ -35,9 +35,7 @@ Future<void> seedHashedRedEvidence(
   String behaviorId,
   String subjectHash,
 ) async {
-  await File(
-    fx.cycleLogPath,
-  ).writeAsString('''
+  await File(fx.cycleLogPath).writeAsString('''
 ## Cycle: $behaviorId (red)
 
 - behavior: $behaviorId
@@ -147,43 +145,40 @@ void main() {
       expect(out, contains('target test exit: 0'));
     });
 
-    test('a drifted subject (hash mismatch) runs the live drift check',
-        () async {
-      await fx.seedCertifiedRed(
-        id: 'U-1587-6',
-        description: _description,
-        testContent: TddFixture.subjectDrivenTest('U-1587-6', _description),
-      );
-      // Certify a hash that does NOT match the on-disk subject — the
-      // hand-edited/drifted shape: the dedup must refuse.
-      await seedHashedRedEvidence(
-        fx,
-        'U-1587-6',
-        'a' * 64,
-      );
-      final zfaBin = await fx.writeFakeZfaBin(
-        logPath: fx.fakeZfaLogPath,
-        sideEffectByArgv: {
-          'tdd func': fx.overwriteSubjectCommands(
-            'U-1587-6',
-            TddFixture.subjectReturning('U-1587-6', 42),
-          ),
-        },
-      );
+    test(
+      'a drifted subject (hash mismatch) runs the live drift check',
+      () async {
+        await fx.seedCertifiedRed(
+          id: 'U-1587-6',
+          description: _description,
+          testContent: TddFixture.subjectDrivenTest('U-1587-6', _description),
+        );
+        // Certify a hash that does NOT match the on-disk subject — the
+        // hand-edited/drifted shape: the dedup must refuse.
+        await seedHashedRedEvidence(fx, 'U-1587-6', 'a' * 64);
+        final zfaBin = await fx.writeFakeZfaBin(
+          logPath: fx.fakeZfaLogPath,
+          sideEffectByArgv: {
+            'tdd func': fx.overwriteSubjectCommands(
+              'U-1587-6',
+              TddFixture.subjectReturning('U-1587-6', 42),
+            ),
+          },
+        );
 
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(
-        makeArgs(fx, id: 'U-1587-6', zfaBin: zfaBin),
-      );
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(
+          makeArgs(fx, id: 'U-1587-6', zfaBin: zfaBin),
+        );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
-      expect(out, isNot(contains('drift check satisfied')));
-    });
+        expect(exitCode, 0, reason: 'out:\n$out');
+        expect(out, isNot(contains('drift check satisfied')));
+      },
+    );
   });
 
   group('A5 — a green entry after the last red keeps the live drift', () {
-    test('the #694 skip transition stays outcome=skipped (no dedup)',
-        () async {
+    test('the #694 skip transition stays outcome=skipped (no dedup)', () async {
       // Already-made behavior: implemented subject + passing test, red
       // evidence followed by a GREEN entry.
       await fx.seedCertifiedRed(

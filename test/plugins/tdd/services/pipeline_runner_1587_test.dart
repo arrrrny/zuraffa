@@ -60,8 +60,7 @@ void main() {
     expect(log.single, contains('tdd func B-1587-1'));
   });
 
-  test('U3 (FR-001): an annotated dart write → the build step RUNS',
-      () async {
+  test('U3 (FR-001): an annotated dart write → the build step RUNS', () async {
     final logPath = fx.fakeZfaLogPath;
     final subjectPath = fx.subjectPathOf('B-1587-2');
     final subject = File(subjectPath);
@@ -92,23 +91,25 @@ void main() {
     expect(log.where((l) => l.contains('build')), isNotEmpty);
   });
 
-  test('U8 (FR-008): the flag defaults to OFF — build spawns unchanged',
-      () async {
-    final logPath = fx.fakeZfaLogPath;
-    final zfaBin = await fx.writeFakeZfaBin(logPath: logPath);
+  test(
+    'U8 (FR-008): the flag defaults to OFF — build spawns unchanged',
+    () async {
+      final logPath = fx.fakeZfaLogPath;
+      final zfaBin = await fx.writeFakeZfaBin(logPath: logPath);
 
-    const runner = PipelineRunner();
-    final result = await runner.runPlan(
-      plan: planOf('B-1587-3'),
-      workingDirectory: fx.root.path,
-      zfaBinOverride: zfaBin,
-    );
+      const runner = PipelineRunner();
+      final result = await runner.runPlan(
+        plan: planOf('B-1587-3'),
+        workingDirectory: fx.root.path,
+        zfaBinOverride: zfaBin,
+      );
 
-    expect(result.completed, isTrue);
-    expect(result.steps, hasLength(2));
-    expect(result.steps.last.buildSkipped, isFalse);
-    final log = await fx.readFakeZfaLog();
-    expect(log, hasLength(2));
-    expect(log.last, contains('build'));
-  });
+      expect(result.completed, isTrue);
+      expect(result.steps, hasLength(2));
+      expect(result.steps.last.buildSkipped, isFalse);
+      final log = await fx.readFakeZfaLog();
+      expect(log, hasLength(2));
+      expect(log.last, contains('build'));
+    },
+  );
 }
