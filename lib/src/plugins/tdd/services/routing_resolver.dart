@@ -255,11 +255,15 @@ class RoutingResolver {
                   '(${surfaceRow.kind.name}, '
                   'priority ${surfaceRow.priority.label})'
             : 'contract row: ${surfaceRow.name}';
+        // Issue #1498: the route line must name the COMPUTED surface —
+        // a surface that is about to be dropped for a missing entity
+        // name (the #1498 discard) has to be visible in the provenance.
+        final surfaceDetail = '$detail — surface: ${surface.name}';
         provenance.add(
           ProvenanceLine(
             aspect: RoutingAspect.surface,
             source: RoutingSource.declared,
-            detail: detail,
+            detail: surfaceDetail,
             specLine: surfaceRow.specLine,
           ),
         );
@@ -319,6 +323,71 @@ class RoutingResolver {
             detail:
                 'contract row: ${declaredSignatureRow.name}.${signature.name}',
             specLine: declaredSignatureRow.specLine,
+          ),
+        );
+      }
+    }
+
+    // ---- entity from the domain/data row's own declared return type --
+    // Issue #1498: a DOMAIN/DATA row resolves surface: entityPipeline,
+    // but `entityName` used to be populated only from a Key Entities
+    // row — the row's own declared return type (already parsed into
+    // `signature` by the #1259 remediation) was never read, so the plan
+    // builder discarded the computed surface and the behavior fell
+    // through to the legacy keyword branches (the #1489 vacuous-func
+    // lane). The declaration outranks inference (#920): mine the
+    // declared return type — the remaining non-scalar identifier IS the
+    // declared entity, from the row itself, never prose, never
+    // Key-Entities-only.
+    if (surface == GenerationSurface.entityPipeline &&
+        entityName == null &&
+        surfaceRow != null &&
+        (surfaceRow.kind == ContractRowKind.domain ||
+            surfaceRow.kind == ContractRowKind.data)) {
+      final mined = signature == null
+          ? null
+          : _entityFromDeclaredReturn(signature.returnType);
+      if (mined != null) {
+        // When the spec declares its Key Entities, the mined name must
+        // name one of them — an entity-shaped return naming an
+        // undeclared entity is a dangling declaration: refuse (the 071
+        // contract — name the row and the fix, never guess). When the
+        // spec declares no Key Entities rows, the domain row's own
+        // return type is the only entity declaration there is and it is
+        // served ("not from Key Entities only").
+        final declaredEntities = declarations.contractRows.values
+            .where((r) => r.kind == ContractRowKind.entity)
+            .toList();
+        final declared = declaredEntities
+            .where((r) => r.name == mined)
+            .firstOrNull;
+        if (declaredEntities.isNotEmpty && declared == null) {
+          return RoutingFailure(
+            code: RoutingFailureCode.danglingReference,
+            message:
+                'behavior "${row.behaviorId}" traces to '
+                '${surfaceRow.kind.name} row "${surfaceRow.name}" whose '
+                'declared return type "${signature!.returnType}" names '
+                'the entity "$mined", which is no declared Key Entities '
+                'row — surface: entityPipeline (dropped: no entity '
+                'name).\n'
+                '   --> fix: declare $mined under Key Entities, or '
+                'correct the declared return type at '
+                '${surfaceRow.specLine ?? 'the row'}.',
+          );
+        }
+        entityName = mined;
+        provenance.add(
+          ProvenanceLine(
+            aspect: RoutingAspect.entity,
+            source: RoutingSource.declared,
+            // Author-readable and line-addressable: the row, the FULL
+            // declared signature (`TaskStore.create(String title) ->
+            // Task`) and the mined entity.
+            detail:
+                'declared return type of ${surfaceRow.name}.${signature!} '
+                '(entity: $mined)',
+            specLine: surfaceRow.specLine,
           ),
         );
       }
@@ -428,6 +497,52 @@ class RoutingResolver {
     ContractRowKind.channel => BehaviorKind.platform,
     ContractRowKind.storage => null,
   };
+
+  /// The containers the #1498 miner unwraps from a declared return type
+  /// (the issue's list: Future/List/Set/Iterable).
+  static const _unwrapContainers = {'Future', 'List', 'Set', 'Iterable'};
+
+  /// The renderable scalars plus the core Dart value types — the
+  /// declared-return shapes that are NOT entity declarations. Mirrors
+  /// the `UnitContractShape` renderable-scalar vocabulary (the func
+  /// lane serves exactly these with a typed outcome; #1310 lineage).
+  static const _nonEntityReturns = {
+    'void',
+    'Never',
+    'bool',
+    'String',
+    'int',
+    'double',
+    'num',
+    'dynamic',
+    'Object',
+    'DateTime',
+    'Duration',
+  };
+
+  /// Issue #1498: mine the entity a DOMAIN/DATA row's declared return
+  /// type names. Unwrap the `Future`/`List`/`Set`/`Iterable` containers
+  /// (repeatedly, nullability tolerated: `Future<List<Task>?>` →
+  /// `Task`) and return the remaining identifier — or null when the
+  /// declared type names no entity: a scalar (the declared contract IS
+  /// a plain function), a container outside the unwrap list
+  /// (`Map<…>`, `Result<…>`, `Stream<…>`), or a non-identifier token.
+  static String? _entityFromDeclaredReturn(String returnType) {
+    var type = returnType.trim();
+    while (true) {
+      if (type.endsWith('?')) type = type.substring(0, type.length - 1).trim();
+      final m = RegExp(
+        r'^([A-Za-z_][A-Za-z0-9_]*)\s*<\s*(.+)\s*>$',
+      ).firstMatch(type);
+      if (m == null || !_unwrapContainers.contains(m.group(1)!)) break;
+      type = m.group(2)!.trim();
+    }
+    if (_nonEntityReturns.contains(type)) return null;
+    if (type.contains('<') || type.contains(',') || type.contains(' ')) {
+      return null;
+    }
+    return RegExp(r'^[A-Z][A-Za-z0-9_]*$').hasMatch(type) ? type : null;
+  }
 
   /// Resolve the declared signature for a function row. Returns
   /// `(signature, error)` — exactly one is non-null: an error when a

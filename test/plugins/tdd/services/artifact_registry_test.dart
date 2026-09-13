@@ -212,6 +212,76 @@ void main() {
     });
   });
 
+  group('ArtifactRegistry — surgical record drop (issue #1495)', () {
+    test(
+      'dropRecords removes exactly the named records and keeps the rest',
+      () async {
+        await registry.register(
+          sampleRecord(behaviorId: 'B-001', sourceCriterion: 'FR-001'),
+        );
+        await registry.register(
+          sampleRecord(behaviorId: 'B-002', sourceCriterion: 'FR-005'),
+        );
+        await registry.register(
+          sampleRecord(behaviorId: 'B-003', sourceCriterion: 'FR-007'),
+        );
+
+        final dropped = await registry.dropRecords({'B-002'});
+
+        expect(dropped.map((r) => r.behaviorId), ['B-002']);
+        final remaining = (await registry.loadAll())
+            .map((r) => r.behaviorId)
+            .toList();
+        expect(remaining, ['B-001', 'B-003']);
+        // The registry file stays parseable with the same feature label.
+        final raw =
+            jsonDecode(await File(registry.registryPath).readAsString())
+                as Map<String, dynamic>;
+        expect(raw['feature'], '044-test-tdd-generation');
+        expect((raw['records'] as List), hasLength(2));
+      },
+    );
+
+    test('dropRecords drops every named id in one write', () async {
+      await registry.register(
+        sampleRecord(behaviorId: 'B-001', sourceCriterion: 'FR-001'),
+      );
+      await registry.register(
+        sampleRecord(behaviorId: 'B-002', sourceCriterion: 'FR-005'),
+      );
+
+      final dropped = await registry.dropRecords({'B-001', 'B-002'});
+
+      expect(dropped.map((r) => r.behaviorId).toSet(), {'B-001', 'B-002'});
+      expect(await registry.loadAll(), isEmpty);
+    });
+
+    test('dropRecords with an unknown id is a no-op (empty drop)', () async {
+      await registry.register(
+        sampleRecord(behaviorId: 'B-001', sourceCriterion: 'FR-001'),
+      );
+
+      final dropped = await registry.dropRecords({'B-UNKNOWN'});
+
+      expect(dropped, isEmpty);
+      expect(await registry.loadAll(), hasLength(1));
+    });
+
+    test('dropRecords never touches files on disk (registry-only)', () async {
+      final record = sampleRecord();
+      await registry.register(record);
+      final testFile = File(record.testPath);
+      await testFile.parent.create(recursive: true);
+      await testFile.writeAsString('// owned test content');
+      final shaBefore = _sha256(testFile);
+
+      await registry.dropRecords({record.behaviorId});
+
+      expect(_sha256(testFile), shaBefore);
+      expect(await registry.loadAll(), isEmpty);
+    });
+  });
+
   group('ArtifactRegistry — read-back for verify (FR-012)', () {
     test('reads back all records for a feature', () async {
       await registry.register(
