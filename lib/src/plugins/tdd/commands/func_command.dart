@@ -557,7 +557,9 @@ class FuncCommand extends Command<void> {
       // exist yet) render as `Object?` and the scaffold stays red
       // (`UnimplementedError`) instead of a dummy value.
       final shape = UnitContractShape.of(declared);
-      final params = shape.params.map((p) => '${p.type} ${p.name}').join(', ');
+      // SPEC 1536: the ONE shared renderer — named params render in a
+      // trailing `{...}` group; positional rows stay byte-for-byte.
+      final params = UnitContractShape.renderParameterList(shape.params);
       return '''${shape.returnType} $functionName($params) {
   ${_declaredStubBody(shape.returnType, functionName, shape)}
 }''';

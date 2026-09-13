@@ -498,10 +498,13 @@ void main() {
       for (var i = 0; i < shape.params.length; i++) {
         final param = shape.params[i];
         final literal = _scalarLiteral(param.type);
-        if (literal != null) {
-          argExprs.add(literal);
-        } else {
-          argExprs.add('_arg$i()');
+        // SPEC 1536: a named parameter passes a NAMED argument at the
+        // capture site (`level: _arg0()`) — the subject's signature
+        // renders the `{...}` group, so a positional call would not
+        // compile. Positional params keep the legacy argument list.
+        final expression = literal ?? '_arg$i()';
+        argExprs.add(param.named ? '${param.name}: $expression' : expression);
+        if (literal == null) {
           helpers.write(
             "${param.type} _arg$i() => throw UnimplementedError('provide a "
             "representative argument for $target (declared param $i: "
