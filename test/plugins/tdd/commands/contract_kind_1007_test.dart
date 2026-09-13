@@ -320,6 +320,31 @@ void main() {
     setUp(() async {
       tmp = Directory.systemTemp.createTempSync('contract_gen_');
       featureDir = p.join(tmp.path, 'specs', '004-login-ui');
+      // Issue #1528: gen's entry preflight is a SILENT NO-OP when the TDD
+      // profile exists (no writes at all — no pubspec read, no baseline
+      // writes) — seed it so these tests keep pinning gen's own behavior
+      // byte-for-byte in a pubspec-less fixture. The missing-profile
+      // auto-init path is covered by commands/issue_1528_setup_error_test.dart.
+      final memoryDir = Directory(p.join(tmp.path, '.specify', 'memory'));
+      memoryDir.createSync(recursive: true);
+      File(p.join(memoryDir.path, 'tdd-profile.md')).writeAsStringSync('''
+# TDD Profile — fixture
+
+## Commands
+
+- Single test: `dart test {file} --plain-name "{name}"`
+- Full suite: `dart test`
+
+## Keys (machine-readable)
+
+```yaml
+runner: dart
+single: 'dart test {file} --plain-name "{name}"'
+suite: 'dart test'
+file: 'dart test {file}'
+coverage: 'dart test --coverage'
+```
+''');
       await Directory(featureDir).create(recursive: true);
       await File(p.join(featureDir, 'spec.md')).writeAsString(kLoginUiSpec);
       final runner = CliRunner(exitOnCompletion: false);
@@ -439,6 +464,32 @@ void main() {
     setUp(() async {
       tmp = Directory.systemTemp.createTempSync('contract_blocked_');
       featureDir = p.join(tmp.path, 'specs', '004-login-ui');
+      // Issue #1528: verify-red's entry probe is a SILENT NO-OP when the
+      // TDD profile exists (nothing printed, nothing written — the U-1528-6
+      // no-op guarantee) — seed it so this fixture keeps pinning the
+      // blocked-verdict machinery in a pubspec-less project. The
+      // missing-profile setup-error path is covered by
+      // verify_red_command_test.dart's U27 (#1528).
+      final memoryDir = Directory(p.join(tmp.path, '.specify', 'memory'));
+      memoryDir.createSync(recursive: true);
+      File(p.join(memoryDir.path, 'tdd-profile.md')).writeAsStringSync('''
+# TDD Profile — fixture
+
+## Commands
+
+- Single test: `dart test {file} --plain-name "{name}"`
+- Full suite: `dart test`
+
+## Keys (machine-readable)
+
+```yaml
+runner: dart
+single: 'dart test {file} --plain-name "{name}"'
+suite: 'dart test'
+file: 'dart test {file}'
+coverage: 'dart test --coverage'
+```
+''');
       await Directory(featureDir).create(recursive: true);
       await File(p.join(featureDir, 'spec.md')).writeAsString(kLoginUiSpec);
       final runner = CliRunner(exitOnCompletion: false);
