@@ -26,6 +26,7 @@ import 'package:path/path.dart' as p;
 
 import 'cycle_evidence.dart';
 import 'cycle_log.dart';
+import 'cycle_log_sections.dart';
 import 'replay_paths.dart';
 
 /// One recorded generation step parsed from a green section's
@@ -124,15 +125,17 @@ class ReplayHistory {
     if (!await file.exists()) return const [];
     final raw = await file.readAsString();
     final behaviors = <String, ReplayBehavior>{};
-    for (final section in raw.split('\n## ')) {
+    for (final section in splitCycleLogSections(raw)) {
       final behaviorMatch = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,
       ).firstMatch(section);
       if (behaviorMatch == null) continue;
       final id = behaviorMatch.group(1)!;
-      // parseEntries on the single section text (it contains no '\n## ')
-      // reuses the shared field regexes verbatim.
+      // parseEntries on the single section text reuses the shared field
+      // regexes verbatim; the section may still hold in-fence '\n## '
+      // lines as captured output, which the fence-aware split already
+      // resolved, so re-splitting it is a no-op for section boundaries.
       final parsed = parseEntries(section);
       if (parsed.isEmpty) continue;
       final entry = parsed.first;
