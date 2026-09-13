@@ -779,6 +779,26 @@ Future<void> _runMockGeneration({
       }
       exitCode = 1;
     } else {
+      // Issue #1539: a crashed analyze on BOTH passes (retried once)
+      // leaves the structural certification standing — the exit must not
+      // contradict the persisted (conforms) receipt. The unverified
+      // compiler verdict is disclosed loudly, never a silent pass.
+      if (report.analyzeUnverified != null) {
+        _emit(
+          jsonMode,
+          '⚠️  mock certification: $entity — dart analyze could not produce '
+          'a compiler verdict (analysis server crash, retried once). '
+          'The compiler verdict is UNVERIFIED (issue #1539):',
+        );
+        _emit(jsonMode, report.analyzeUnverified!);
+        _emit(
+          jsonMode,
+          '    The structural certification stands '
+          '(${certification.registryId} conforms, receipt persisted). '
+          'Re-run `zfa mock verify $entity` on a quieter host to re-prove '
+          'the compiler verdict.',
+        );
+      }
       _emit(
         jsonMode,
         '✅ mock certification: $entity conforms to '

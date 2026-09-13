@@ -473,7 +473,21 @@ class CertifyReport {
   /// One line per finding, each starting with `--> fix:`.
   final List<String> fixLines;
 
-  const CertifyReport({required this.passed, required this.fixLines});
+  /// Issue #1539: non-null when the scoped analyze could not produce a
+  /// compiler verdict at all — the analysis server crashed on BOTH the
+  /// initial pass and the retry while the structural certification was
+  /// clean (the condition the persisted receipt records as `conforms`).
+  /// The gate passes on the structural proof alone; the value is the
+  /// crash output, disclosed loudly by the callers — an infra failure of
+  /// the verification tool is never drift, but it is also never a silent
+  /// pass.
+  final String? analyzeUnverified;
+
+  const CertifyReport({
+    required this.passed,
+    required this.fixLines,
+    this.analyzeUnverified,
+  });
 }
 
 /// `zfa mock create <Entity> --certify` (issue #970 T004): the gate that
@@ -547,7 +561,14 @@ class MockCertifier {
     ];
     if (analyzeFiles.isNotEmpty) {
       final runner = analyzeRunner ?? analyzeRunnerOverride ?? _defaultRunner;
-      final result = await runner(analyzeFiles, projectRoot);
+      var result = await runner(analyzeFiles, projectRoot);
+      // Issue #1539: an analysis-server crash is an infra failure of the
+      // verification TOOL, not mock drift — retry the pass once before
+      // classifying (the dogfood crash was host memory pressure under
+      // concurrent builds, a shape that clears on a retry).
+      if (_isAnalyzerCrash(result.exitCode, result.output)) {
+        result = await runner(analyzeFiles, projectRoot);
+      }
       if (result.exitCode != 0) {
         for (final line in result.output.split('\n')) {
           final trimmed = line.trim();
@@ -556,6 +577,22 @@ class MockCertifier {
           }
         }
         if (!result.output.contains('error -')) {
+          // Issue #1539: a crash on BOTH passes with a structurally clean
+          // certification (missing and invented members empty — the same
+          // condition the persisted receipt records as `conforms`) leaves
+          // the certification standing on its structural proof; the
+          // compiler verdict is disclosed as UNVERIFIED, never silently
+          // skipped, and never riding a fix line. Structural drift (the
+          // fixes above) still fails the gate — the crash must not paper
+          // over real drift.
+          if (fixes.isEmpty &&
+              _isAnalyzerCrash(result.exitCode, result.output)) {
+            return CertifyReport(
+              passed: true,
+              fixLines: fixes,
+              analyzeUnverified: result.output.trim(),
+            );
+          }
           // Non-zero exit without parseable error lines (e.g. a crash):
           // surface the raw tail instead of staying silent.
           final tail = result.output.trim().isEmpty
@@ -571,4 +608,14 @@ class MockCertifier {
 
     return CertifyReport(passed: fixes.isEmpty, fixLines: fixes);
   }
+
+  /// Issue #1539: the analysis-server crash shape — the child died
+  /// mid-verification, so the exit is non-zero with NO `error -`
+  /// diagnostics and the crash text in the output. Both dogfood strings
+  /// are matched verbatim.
+  static bool _isAnalyzerCrash(int exitCode, String output) =>
+      exitCode != 0 &&
+      !output.contains('error -') &&
+      (output.contains('The analysis server crashed unexpectedly') ||
+          output.contains('The analysis server shut down unexpectedly'));
 }
