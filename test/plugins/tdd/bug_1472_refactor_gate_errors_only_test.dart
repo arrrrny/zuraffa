@@ -99,7 +99,7 @@ const _warningsOnlyBuildOutput =
 /// generated tree does not compile).
 const _errorsBuildOutput =
     '   error - lib/tdd/login/u8_subject.dart:31:8 - Undefined name '
-"'Widget'. - undefined_identifier\n"
+    "'Widget'. - undefined_identifier\n"
     '❌ dart analyze reported 1 error(s) and 0 warning(s) — generated code '
     'does not compile cleanly.';
 
@@ -109,9 +109,7 @@ const _nonGateBuildOutput = 'build_runner crashed: exit 255, seed 4242';
 
 /// Capture `print` output inside [body] (the registry logs the tolerated
 /// verdict through `print`).
-Future<(T, List<String>)> capturePrint<T>(
-  Future<T> Function() body,
-) async {
+Future<(T, List<String>)> capturePrint<T>(Future<T> Function() body) async {
   final lines = <String>[];
   late final T result;
   await runZoned(
@@ -172,7 +170,11 @@ void main() {
 
       final build = result.actions.first;
       expect(build.name, 'build');
-      expect(build.exitCode, 1, reason: 'the true exit code is never rewritten');
+      expect(
+        build.exitCode,
+        1,
+        reason: 'the true exit code is never rewritten',
+      );
       expect(build.output, contains('dart analyze reported 0 error(s)'));
     });
 
@@ -240,30 +242,32 @@ void main() {
       expect(executor.invocations.map((i) => i.passName).toList(), ['build']);
     });
 
-    test('U-1472-6: gate message claims 0 errors but the raw output carries '
-        '`error -` lines — the honest misfire-stop stands (safe-failure)',
-        () async {
-      final project = Directory.systemTemp.createTempSync('z1472_drift_');
-      addTearDown(() => project.deleteSync(recursive: true));
-      await Directory(p.join(project.path, 'lib')).create(recursive: true);
+    test(
+      'U-1472-6: gate message claims 0 errors but the raw output carries '
+      '`error -` lines — the honest misfire-stop stands (safe-failure)',
+      () async {
+        final project = Directory.systemTemp.createTempSync('z1472_drift_');
+        addTearDown(() => project.deleteSync(recursive: true));
+        await Directory(p.join(project.path, 'lib')).create(recursive: true);
 
-      final lyingOutput =
-          '   error - lib/tdd/login/u8_subject.dart:31:8 - Undefined name '
-          "'Widget'. - undefined_identifier\n"
-          '❌ dart analyze reported 0 error(s) and 1 warning(s) — generated '
-          'code does not compile cleanly.';
-      final executor = _FakeExecutor([
-        _ProgrammedOutcome(exitCode: 1, output: lyingOutput),
-        _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
-        _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
-      ]);
-      final passes = RefactorPasses(project.path, executor: executor);
-      final result = await passes.run();
+        final lyingOutput =
+            '   error - lib/tdd/login/u8_subject.dart:31:8 - Undefined name '
+            "'Widget'. - undefined_identifier\n"
+            '❌ dart analyze reported 0 error(s) and 1 warning(s) — generated '
+            'code does not compile cleanly.';
+        final executor = _FakeExecutor([
+          _ProgrammedOutcome(exitCode: 1, output: lyingOutput),
+          _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+          _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+        ]);
+        final passes = RefactorPasses(project.path, executor: executor);
+        final result = await passes.run();
 
-      expect(result.stopped, isTrue, reason: 'never a silent pass on drift');
-      expect(result.failedPass, 'build');
-      expect(executor.invocations.map((i) => i.passName).toList(), ['build']);
-    });
+        expect(result.stopped, isTrue, reason: 'never a silent pass on drift');
+        expect(result.failedPass, 'build');
+        expect(executor.invocations.map((i) => i.passName).toList(), ['build']);
+      },
+    );
 
     test('U-1472-7: warningsBlocking restores the legacy refusal for a '
         'warnings-only output (SC-5 profile opt-in)', () async {
@@ -356,70 +360,77 @@ void main() {
     });
   });
 
-  group('issue #1472 — the build pass is pinned to the driving zfa version', () {
-    /// Install a fake `zfa` on an injected PATH whose `--version` stdout is
-    /// [versionLine] and return (binDir, zfaPath).
-    Future<(Directory, String)> installFakeZfa(String versionLine) async {
-      final binDir = Directory.systemTemp.createTempSync('z1472_pin_');
-      final zfa = File(p.join(binDir.path, 'zfa'));
-      zfa.writeAsStringSync(
-        '#!/usr/bin/env bash\n'
-        "if [[ \"\$*\" == *'--version'* ]]; then\n"
-        "  echo '$versionLine'\n"
-        'fi\n'
-        'exit 0\n',
-      );
-      await Process.run('chmod', ['+x', zfa.path]);
-      return (binDir, zfa.path);
-    }
+  group(
+    'issue #1472 — the build pass is pinned to the driving zfa version',
+    () {
+      /// Install a fake `zfa` on an injected PATH whose `--version` stdout is
+      /// [versionLine] and return (binDir, zfaPath).
+      Future<(Directory, String)> installFakeZfa(String versionLine) async {
+        final binDir = Directory.systemTemp.createTempSync('z1472_pin_');
+        final zfa = File(p.join(binDir.path, 'zfa'));
+        zfa.writeAsStringSync(
+          '#!/usr/bin/env bash\n'
+          "if [[ \"\$*\" == *'--version'* ]]; then\n"
+          "  echo '$versionLine'\n"
+          'fi\n'
+          'exit 0\n',
+        );
+        await Process.run('chmod', ['+x', zfa.path]);
+        return (binDir, zfa.path);
+      }
 
-    test('U-1472-11: a PATH zfa whose version differs from the driving CLI '
+      test(
+        'U-1472-11: a PATH zfa whose version differs from the driving CLI '
         'is NOT used — the build pass pins to the driving entrypoint',
         () async {
-      final (binDir, zfaPath) = await installFakeZfa('zfa v0.0.9');
-      addTearDown(() => binDir.deleteSync(recursive: true));
+          final (binDir, zfaPath) = await installFakeZfa('zfa v0.0.9');
+          addTearDown(() => binDir.deleteSync(recursive: true));
 
-      final specs = await RefactorPasses.defaultPassSpecs(
-        environment: {'PATH': '${binDir.path}:/usr/bin:/bin'},
+          final specs = await RefactorPasses.defaultPassSpecs(
+            environment: {'PATH': '${binDir.path}:/usr/bin:/bin'},
+          );
+
+          final build = specs.first;
+          expect(build.name, 'build');
+          // The stale system zfa is bypassed…
+          expect(build.command, isNot(contains(zfaPath)));
+          // …in favor of the driving CLI's own entrypoint (the running
+          // package's bin/zfa.dart, resolved through the un-suppressed chain).
+          expect(build.command, contains('bin/zfa.dart'));
+          expect(build.command, endsWith(' build'));
+        },
       );
 
-      final build = specs.first;
-      expect(build.name, 'build');
-      // The stale system zfa is bypassed…
-      expect(build.command, isNot(contains(zfaPath)));
-      // …in favor of the driving CLI's own entrypoint (the running
-      // package's bin/zfa.dart, resolved through the un-suppressed chain).
-      expect(build.command, contains('bin/zfa.dart'));
-      expect(build.command, endsWith(' build'));
-    });
+      test('U-1472-12: a PATH zfa reporting the DRIVING version stays the '
+          'build command (bug #717 contract intact)', () async {
+        final (binDir, zfaPath) = await installFakeZfa('zfa v$version');
+        addTearDown(() => binDir.deleteSync(recursive: true));
 
-    test('U-1472-12: a PATH zfa reporting the DRIVING version stays the '
-        'build command (bug #717 contract intact)', () async {
-      final (binDir, zfaPath) = await installFakeZfa('zfa v$version');
-      addTearDown(() => binDir.deleteSync(recursive: true));
+        final specs = await RefactorPasses.defaultPassSpecs(
+          environment: {'PATH': '${binDir.path}:/usr/bin:/bin'},
+        );
 
-      final specs = await RefactorPasses.defaultPassSpecs(
-        environment: {'PATH': '${binDir.path}:/usr/bin:/bin'},
-      );
+        final build = specs.first;
+        expect(build.name, 'build');
+        expect(build.command, '$zfaPath build');
+      });
 
-      final build = specs.first;
-      expect(build.name, 'build');
-      expect(build.command, '$zfaPath build');
-    });
-
-    test('U-1472-13: a PATH zfa with an UNPROVABLE version keeps the #717 '
+      test(
+        'U-1472-13: a PATH zfa with an UNPROVABLE version keeps the #717 '
         'resolution (silence rule — never re-route on unprovable input)',
         () async {
-      final (binDir, zfaPath) = await installFakeZfa('');
-      addTearDown(() => binDir.deleteSync(recursive: true));
+          final (binDir, zfaPath) = await installFakeZfa('');
+          addTearDown(() => binDir.deleteSync(recursive: true));
 
-      final specs = await RefactorPasses.defaultPassSpecs(
-        environment: {'PATH': '${binDir.path}:/usr/bin:/bin'},
+          final specs = await RefactorPasses.defaultPassSpecs(
+            environment: {'PATH': '${binDir.path}:/usr/bin:/bin'},
+          );
+
+          final build = specs.first;
+          expect(build.name, 'build');
+          expect(build.command, '$zfaPath build');
+        },
       );
-
-      final build = specs.first;
-      expect(build.name, 'build');
-      expect(build.command, '$zfaPath build');
-    });
-  });
+    },
+  );
 }

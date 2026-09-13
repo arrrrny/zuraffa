@@ -357,7 +357,8 @@ class RefactorPasses {
       // `analyze-gate: warnings-blocking`, issue #1407's opt-in) skips the
       // arm entirely, restoring the legacy refusal.
       if (outcome.exitCode != 0 || !outcome.startedProcess) {
-        final toleratedWarningsOnlyRefusal = spec.name == 'build' &&
+        final toleratedWarningsOnlyRefusal =
+            spec.name == 'build' &&
             !warningsBlocking &&
             outcome.startedProcess &&
             !outcome.timedOut &&
@@ -552,16 +553,13 @@ final RegExp _zfaVersionLinePattern = RegExp(r'^zfa v(\S+)', multiLine: true);
 Future<String?> _probeZfaVersion(String entrypoint) async {
   try {
     final result = entrypoint.endsWith('.dart')
-        ? await runTimed(
-            Platform.resolvedExecutable,
-            [entrypoint, '--version'],
-            timeout: TddTimeouts.defaultProbe,
-          )
-        : await runTimed(
+        ? await runTimed(Platform.resolvedExecutable, [
             entrypoint,
-            const ['--version'],
-            timeout: TddTimeouts.defaultProbe,
-          );
+            '--version',
+          ], timeout: TddTimeouts.defaultProbe)
+        : await runTimed(entrypoint, const [
+            '--version',
+          ], timeout: TddTimeouts.defaultProbe);
     if (result.exitCode != 0) return null;
     final stdoutText = (result.stdout as String? ?? '').trim();
     if (stdoutText.isEmpty) return null;

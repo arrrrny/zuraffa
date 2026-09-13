@@ -58,8 +58,7 @@ void main() {
   });
 
   test('A-1472-1: a warnings-only build-gate refusal does not deadlock the '
-      'refactor — outcome is clean/refactored, exit 0, fix pass ran',
-      () async {
+      'refactor — outcome is clean/refactored, exit 0, fix pass ran', () async {
     await fx.seedGreenSuite();
     final zfaBin = await fx.writeFakeZfaBin(
       logPath: fx.fakeZfaLogPath,
@@ -121,9 +120,7 @@ void main() {
       'restores the legacy refusal (SC-5 — the #1407 opt-in honored here '
       'too)', () async {
     await fx.seedGreenSuite();
-    final profilePath = File(
-      '${fx.root.path}/.specify/memory/tdd-profile.md',
-    );
+    final profilePath = File('${fx.root.path}/.specify/memory/tdd-profile.md');
     await profilePath.writeAsString(
       (await profilePath.readAsString()).replaceFirst(
         '```yaml',
