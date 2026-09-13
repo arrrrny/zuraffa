@@ -1,11 +1,14 @@
 ---
 name: speckit-bug-issue
-description: File a GitHub issue from a bug assessment (the 'report' phase) and record the issue link
+description: File a GitHub issue from a bug assessment (the 'report' phase) and record
+  the issue link
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: bug:commands/speckit.bug.issue.md
+  author: arrrrny
+  source: extension:bug
 ---
+
+# Bug Issue Skill
 
 # Report Bug (Create Issue)
 

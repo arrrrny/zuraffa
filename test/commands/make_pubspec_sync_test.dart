@@ -118,18 +118,26 @@ class Product {
         ).runCapturing(args());
 
         expect(output, contains('✅ Generation complete'));
-        // Issue #1265: the generated code imports package:zuraffa — the
-        // fixture pubspec declares NOTHING, so the run DECLARES the gap
-        // itself with one mechanical `pub add` (pure-Dart fixture → dart).
+        // Issue #1265: the generated code imports package:test (and
+        // others) — the run DECLARES the hosted gap with one mechanical
+        // `pub add` (pure-Dart fixture → dart). Issue #1530: the CORE
+        // package is ENSURED textually before the add, so the add line
+        // no longer carries `zuraffa`.
         expect(output, contains('Auto-added'));
+        expect(output, contains('Ensured zuraffa'));
         expect(addRunner.invocations, hasLength(1));
         expect(addRunner.invocations.single, startsWith('dart pub add '));
-        expect(addRunner.invocations.single, contains('zuraffa'));
-        // The pubspec now declares what the generated code imports.
+        expect(
+          addRunner.invocations.single.split(' '),
+          isNot(contains('zuraffa')),
+          reason: '#1530: the ensured core package is not re-`pub add`ed',
+        );
+        // The pubspec now declares what the generated code imports —
+        // the core package via the textual ensure, the rest via pub add.
         final pubspec = File(
           path.join(workspace.path, 'pubspec.yaml'),
         ).readAsStringSync();
-        expect(pubspec, contains('zuraffa:'));
+        expect(pubspec, contains('zuraffa: ^6.0.0'));
       },
       timeout: const Timeout(Duration(minutes: 3)),
     );
@@ -178,9 +186,11 @@ dev_dependencies:
         expect(decoded['success'], isTrue);
         // Issue #1265: the run declared the gap itself — reported as
         // auto-added, NOT as missing (nothing left for the user to fix).
+        // Issue #1530: the ensured core package counts as auto-declared
+        // too ("packages the run declared in pubspec.yaml itself").
         expect(
           (decoded['auto_added_pubspec_deps'] as List).cast<String>(),
-          contains('zuraffa'),
+          containsAll(['zuraffa', 'test']),
         );
         expect(decoded['missing_pubspec_deps'], isNull);
       },
@@ -201,11 +211,24 @@ dev_dependencies:
         expect(decoded['success'], isTrue);
         final gap = decoded['missing_pubspec_deps'] as Map<String, dynamic>?;
         expect(gap, isNotNull, reason: 'unhealed gap must be reported in json');
-        expect((gap!['packages'] as List).cast<String>(), contains('zuraffa'));
+        // Issue #1530: the failed add's REMAINING gap is the non-core
+        // package — the core `zuraffa` was ensured textually and rides
+        // auto_added_pubspec_deps instead.
+        final packages = (gap!['packages'] as List).cast<String>();
+        expect(packages, contains('test'));
+        expect(
+          packages,
+          isNot(contains('zuraffa')),
+          reason: 'the ensured core package is declared even offline',
+        );
+        expect(
+          (decoded['auto_added_pubspec_deps'] as List).cast<String>(),
+          contains('zuraffa'),
+        );
         final fix = gap['suggested_fix'] as String?;
         expect(fix, isNotNull);
         expect(fix, contains('pub add'));
-        expect(fix, contains('zuraffa'));
+        expect(fix, contains('test'));
       },
       timeout: const Timeout(Duration(minutes: 3)),
     );
