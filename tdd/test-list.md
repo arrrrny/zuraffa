@@ -1,15 +1,18 @@
-# TDD test list — Bug #1488 acceptance vacuous green
+# TDD test list — Bug 1588 phase-2 refactor batch + parked exempt
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| A-1488-a1 | test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart | acceptance | an acceptance test whose only assertion is the UnimplementedError guard cannot certify green — even when it passes (exit 1, outcome=vacuous-green, no green evidence) | FR-1488, MakeCommand step 3c gate | GREEN |
-| A-1488-a2 | test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart | acceptance | the acceptance test WITH an outcome assertion still certifies green — the refusal keys on the assertion set, not the lane | FR-1488, contentIsVacuousGreen backstop | GREEN |
-| A-1488-a3 | test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart | acceptance | kindless/legacy rows keep the fail-open skip transition — no resolvable kind, no refusal | FR-1488, #1259 fail-open contract | GREEN |
-| U-1488-u1 | test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart | unit | the unit lane refusal is unchanged — a guard-only unit test is still refused (#1259 U1 mirror) | FR-1488, unit-lane scope preserved | GREEN |
-| U-1259-u3i | test/plugins/tdd/bug_1259_vacuous_green_test.dart | acceptance | INVERTED (cites #1488): acceptance rows are IN the vacuous-green refusal scope — the legacy skip pin now refuses | FR-1488, bug_1259 U3 | GREEN |
-| A-1162ei | test/plugins/tdd/bug_1162_bug_subject_green_path_test.dart | acceptance | INVERTED (cites #1488): the unexpressible acceptance make is refused vacuous-green before the composition fallback runs (no compose dispatch) | FR-1488, bug_1162 A-1162e | GREEN |
-| R-1259-u1u2 | test/plugins/tdd/bug_1259_vacuous_green_test.dart | unit | regression guard: the unit-lane U1/U2 pins pass byte-for-byte (refusal + assertion-set keying unchanged) | FR-1488, unit-lane scope preserved | GREEN |
-| R-052-compose | test/plugins/tdd/make_command_test.dart | acceptance | regression guard: spec-052 compose-fallback acceptance greens (A13/U19, A13b) survive — real-assertion fixtures unaffected | FR-1488, spec 052 composition lane | GREEN |
-| R-1345-redrive | test/plugins/tdd/bug_1345_placeholder_re_drive_test.dart | acceptance | regression guard: the tombstoned acceptance placeholder re-drive still re-enters compose (real-assertion fixture; the widened gate does not pre-empt it) | FR-1488, issue #1345 re-entry | GREEN |
-| R-1488-analyze | tool | unit | `dart analyze` on the five changed files reports No issues found | FR-1488, no new warnings | GREEN |
-| R-1488-format | tool | unit | `dart format .` reports 2764 files, 0 changed (tree format-clean) | FR-1488, formatter clean | GREEN |
+| T-1588-exempt-1 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | a parked behavior's red test does not poison the gate — `--exempt-behaviors C1` lets the refactor proceed (exit 0), exclusion named honestly | SC-2, FR-1588-2 | GREEN |
+| T-1588-exempt-2 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | without the flag the refusal stands — the absolute-green contract is preserved for a flag-less standalone refactor | FR-001 (048), FR-1588-2 | GREEN |
+| T-1588-exempt-3 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | unit | the exemption never masks a NON-exempt failure — a second red test outside the exempt set still refuses, failure named | FR-1588-2, U18 (safe failure) | GREEN |
+| T-1588-exempt-4 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | unit | an exempt id with no registered artifact is ignored (fail-open) and does not weaken the gate | FR-1588-2 | GREEN |
+| T-1588-batch-1 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | the second `--pass-batch` invocation of an unchanged tree inherits the gate — zero suite runs, exit 0, ledger recorded, hit named | SC-1, SC-3, FR-1588-1 | GREEN |
+| T-1588-batch-2 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | unit | tree drift invalidates the ledger — the next `--pass-batch` invocation re-runs the full pipeline | FR-1588-1 (safe failure) | GREEN |
+| T-1588-batch-3 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | unit | a flag-less invocation never reads the ledger — the standalone contract keeps the full pipeline | FR-001 (048), FR-1588-1 | GREEN |
+| T-1588-driver-1 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | the phase-2b refactor spawn carries `--pass-batch` and the parked ids as `--exempt-behaviors`; greens reach done, the park stays blocked | SC-1, SC-2, FR-1588-1/2 | GREEN |
+| T-1588-driver-2 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | with no parked behaviors the spawn carries `--pass-batch` and NO `--exempt-behaviors`; per-behavior spawns preserved | FR-1588-1 | GREEN |
+
+Red evidence: recorded before implementation — the RED run of the bug file
+against the un-patched tree scored 1 passed / 8 failed (the 8 new-contract
+assertions; the contract guard T-1588-exempt-2 is expected green both
+ways). See `.specify/bugs/1588-phase2-refactor-batch-and-parked-exempt/test.md`.

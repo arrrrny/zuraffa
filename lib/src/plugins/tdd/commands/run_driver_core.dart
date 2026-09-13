@@ -994,6 +994,10 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
+        // Issue #1588: the phase-2 refactor pass is the batch — every
+        // spawn opts into the pass-batch ledger and hands the lane's
+        // parked BLOCKED ids as exempt from the gate.
+        batchRefactor: true,
       );
       if (result.stop != null) {
         return _finish(
@@ -1579,6 +1583,13 @@ class RunDriverCore {
     required String feature,
     required Set<String> greenEvidenceIds,
     Set<String>? unblockedThisRun,
+
+    /// Issue #1588: the phase-2b refactor pass opts its spawns into the
+    /// feature pass-batch ledger (--pass-batch) and hands the lane's
+    /// parked BLOCKED behavior ids as --exempt-behaviors, so their
+    /// designed red tests cannot poison the refactor gate. Phase-1
+    /// refactors and every other step keep the default (no batch flags).
+    bool batchRefactor = false,
   }) async {
     var updated = current;
     var state = updated.behaviorStates[row.id] ?? BehaviorState.pending;
@@ -1639,6 +1650,9 @@ class RunDriverCore {
           feature: featureRef,
           projectRoot: projectRoot,
           suiteBaselinePath: suiteBaselinePath,
+          extraArgs: step == 'refactor' && batchRefactor
+              ? _refactorBatchArgs(rows, updated)
+              : const [],
         );
       } on StateError catch (e) {
         // Entrypoint resolution failed before any spawn: runner-error.
@@ -2367,6 +2381,25 @@ class RunDriverCore {
     'refactor' => BehaviorState.done,
     _ => throw ArgumentError.value(step, 'step', 'unknown TDD step'),
   };
+
+  /// Issue #1588: the batch context the phase-2b refactor pass hands every
+  /// spawn — `--pass-batch` (the ledger opt-in) plus the lane's parked
+  /// BLOCKED behavior ids as `--exempt-behaviors` (their red tests are the
+  /// designed park state, #1007/#1544, and must not poison the gate the
+  /// baseline cannot know about). Sorted for a stable ledger key and
+  /// stable spawn argv.
+  List<String> _refactorBatchArgs(List<BehaviorRow> rows, RunState state) {
+    final blocked = [
+      for (final r in rows)
+        if ((state.behaviorStates[r.id] ?? BehaviorState.pending) ==
+            BehaviorState.blocked)
+          r.id,
+    ]..sort();
+    return [
+      '--pass-batch',
+      if (blocked.isNotEmpty) ...['--exempt-behaviors', blocked.join(',')],
+    ];
+  }
 
   bool _hasRedBehavior(List<BehaviorRow> rows, RunState state) {
     for (final row in rows) {
