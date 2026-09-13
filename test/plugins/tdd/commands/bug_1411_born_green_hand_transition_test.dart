@@ -285,6 +285,81 @@ void main() {
       expect(out, contains('outcome=vacuous-green'), reason: out);
       expect(out, contains('PLACEHOLDER'), reason: out);
     });
+
+    test(
+      'M-1542-1 (issue #1542): born-green advances run-state.json '
+      'blocked → done — the wedge closes without manual state surgery',
+      () async {
+        // The #1007 wedge state: a prior run parked the contract-lane
+        // behavior at BLOCKED. The born-green transition certifies green
+        // AND advances the state file, so the next run re-enters at
+        // refactor instead of re-stopping at make's flagless
+        // not-certified-red refusal.
+        await fx.registerBehavior(
+          id: 'U1',
+          description: _description,
+          testContent: bornGreenTest(_description, attested: true),
+        );
+        await writeSubject('int u1_value() => 42;\n');
+        await fx.seedRunState(states: {'U1': 'blocked'});
+
+        final out = await drive(bornGreenArgs());
+
+        expect(exitCode, 0, reason: out);
+        expect(out, contains('outcome=born-green'), reason: out);
+        // The advancement is observed (FR-006) and persisted (FR-004).
+        expect(out, contains('U1 blocked -> done'), reason: out);
+        final state =
+            jsonDecode(await File(fx.runStatePath).readAsString())
+                as Map<String, dynamic>;
+        expect(state['behavior_states']['U1'], 'done', reason: out);
+      },
+    );
+
+    test(
+      'M-1542-2 (issue #1542): born-green with NO run-state.json still '
+      'certifies green and writes no state file (make never fabricates '
+      'a run)',
+      () async {
+        await fx.registerBehavior(
+          id: 'U1',
+          description: _description,
+          testContent: bornGreenTest(_description, attested: true),
+        );
+        await writeSubject('int u1_value() => 42;\n');
+        expect(File(fx.runStatePath).existsSync(), isFalse);
+
+        final out = await drive(bornGreenArgs());
+
+        expect(exitCode, 0, reason: out);
+        expect(out, contains('outcome=born-green'), reason: out);
+        expect(File(fx.runStatePath).existsSync(), isFalse, reason: out);
+      },
+    );
+
+    test(
+      'M-1542-3 (issue #1542): born-green leaves a pending run-state '
+      'untouched — only the wedged `blocked` state is advanced (D3)',
+      () async {
+        await fx.registerBehavior(
+          id: 'U1',
+          description: _description,
+          testContent: bornGreenTest(_description, attested: true),
+        );
+        await writeSubject('int u1_value() => 42;\n');
+        await fx.seedRunState(states: {'U1': 'pending'});
+
+        final out = await drive(bornGreenArgs());
+
+        expect(exitCode, 0, reason: out);
+        expect(out, contains('outcome=born-green'), reason: out);
+        expect(out, isNot(contains('blocked -> done')), reason: out);
+        final state =
+            jsonDecode(await File(fx.runStatePath).readAsString())
+                as Map<String, dynamic>;
+        expect(state['behavior_states']['U1'], 'pending', reason: out);
+      },
+    );
   });
 
   group('driver block (fake zfa)', () {
