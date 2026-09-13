@@ -226,8 +226,11 @@ class DoctorCommand extends Command<void> {
           '${entry.value.map((path_) => _displayPath(cwd, path_)).join(', ')}',
         );
       }
+      // Issue #1573: the prescription must name the flag form —
+      // migrate-paths declares only `--feature`, so a positional slug was
+      // silently discarded and the migration swept every registry.
       final fix = ownersInvolved.length == 1
-          ? 'zfa tdd migrate-paths ${ownersInvolved.first}'
+          ? 'zfa tdd migrate-paths --feature ${ownersInvolved.first}'
           : 'zfa tdd migrate-paths';
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
@@ -374,7 +377,12 @@ class DoctorCommand extends Command<void> {
           'registry (the recorded form, not the artifacts, has drifted)',
         );
       }
-      final fix = 'zfa tdd migrate-paths $feature';
+      // Issue #1573: prescribe the canonical REFERENCE (`resolved.ref`),
+      // not the display name — for a bug feature the name alone resolves
+      // to a nonexistent specs/ directory, and migrate-paths could never
+      // reach the bug directory the diagnosis came from (the same
+      // convention the adopt prescription follows).
+      final fix = 'zfa tdd migrate-paths --feature ${resolved.ref}';
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
@@ -461,12 +469,17 @@ class DoctorCommand extends Command<void> {
     // compares resolved paths; the remaining hazard is the recorded form,
     // and the migration rewrites it to the portable project-relative
     // POSIX form without moving any file.
+    // Issue #1573: the drift line prints the RAW recorded value — the
+    // machine-absolute string the registry actually carries, verbatim —
+    // never a display-normalized re-rendering that masks the very form
+    // the drift is about (the operator greps the registry for what the
+    // line shows).
     final formDrifts = <String>[];
     for (final record in records) {
       if (p.isAbsolute(record.testPath)) {
         formDrifts.add(
           '${record.behaviorId}: the recorded test path is '
-          'machine-absolute (${_displayPath(cwd, p.normalize(record.testPath))}) '
+          'machine-absolute (${record.testPath}) '
           '— records must be project-relative to stay portable',
         );
       }
@@ -474,14 +487,15 @@ class DoctorCommand extends Command<void> {
         formDrifts.add(
           '${record.behaviorId}: the recorded subject path is '
           'machine-absolute '
-          '(${_displayPath(cwd, p.normalize(record.subjectPath))}) '
+          '(${record.subjectPath}) '
           '— records must be project-relative to stay portable',
         );
       }
     }
     if (formDrifts.isNotEmpty) {
       drifts.addAll(formDrifts);
-      final fix = 'zfa tdd migrate-paths $feature';
+      // Issue #1573: the canonical reference (see the relocated branch).
+      final fix = 'zfa tdd migrate-paths --feature ${resolved.ref}';
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
@@ -609,7 +623,8 @@ class DoctorCommand extends Command<void> {
     }
     if (importDrifts.isNotEmpty) {
       drifts.addAll(importDrifts);
-      final fix = 'zfa tdd migrate-paths $feature';
+      // Issue #1573: the canonical reference (see the relocated branch).
+      final fix = 'zfa tdd migrate-paths --feature ${resolved.ref}';
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');

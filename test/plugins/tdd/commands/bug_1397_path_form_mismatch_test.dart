@@ -218,13 +218,13 @@ void main() {
         final v = verdict(out);
         expect(v['verdict'], 'drift');
         expect(v['prescription'], 'migrate');
-        expect(v['fix'], contains('zfa tdd migrate-paths $feature'));
+        expect(v['fix'], contains('zfa tdd migrate-paths --feature $feature'));
         expect(
           (v['drifts'] as List).join(' '),
           contains('A1'),
           reason: 'the drift names the offending behavior',
         );
-        expect(fixLine(out), contains('zfa tdd migrate-paths $feature'));
+        expect(fixLine(out), contains('zfa tdd migrate-paths --feature $feature'));
       },
     );
 
@@ -299,7 +299,7 @@ void main() {
               'a relocatable record is form drift — the migration repairs '
               'it; reset would drop the certified behavior',
         );
-        expect(fixLine(out), contains('zfa tdd migrate-paths $feature'));
+        expect(fixLine(out), contains('zfa tdd migrate-paths --feature $feature'));
 
         // The prescription closes the loop: the migration heals the
         // relocated registry and doctor returns healthy.
