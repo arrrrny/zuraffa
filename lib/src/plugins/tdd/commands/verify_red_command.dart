@@ -50,6 +50,7 @@ import '../services/cycle_log.dart';
 import '../services/cycle_log_sections.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/finder_taxonomy.dart';
+import '../services/hand_delta_receipt.dart';
 import '../services/red_classifier.dart';
 import '../services/runner.dart';
 import '../services/tdd_generation_receipt.dart';
@@ -465,6 +466,20 @@ class VerifyRedCommand extends Command<void> {
         target: record.behaviorId,
         feature: target.featureName,
         files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
+      );
+      // Spec 1423: the re-certified hand-delta becomes SELF-CERTIFYING —
+      // the drifted receipted test/subject paths are re-hashed from the
+      // CURRENT bytes (action: update) so the verify proof preflight
+      // validates the certified hand-delta instead of demanding its
+      // destruction via `zfa tdd gen` (issue #1375). Append-only: the gen
+      // receipts stay; latest-wins resolves the certified state.
+      await HandDeltaReceipts.refreshBestEffort(
+        projectRoot: cwd,
+        feature: target.featureName,
+        behaviorId: record.behaviorId,
+        command: 'tdd verify-red --re-certify',
+        transition: 're-certify',
+        artifactPaths: [record.testPath, record.subjectPath],
       );
       _printSummary(
         behavior: record.behaviorId,

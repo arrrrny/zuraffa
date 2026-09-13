@@ -25,12 +25,12 @@
 | E3 | full hand-delta flow: gen receipts → hand edits → `--re-certify` → make skip → `zfa tdd verify` NOT blocked by the proof preflight (audit phase reached, no `failed the proof preflight`) | SC-3 | yes (NOT_ASSESSED exit 3) |
 | E4 | make skip over an UNCHANGED pair appends NO hand-delta receipt (gen receipts still validate) | hard constraint | no (pins the line) |
 | E5 | hand-delta drift present → doctor exits non-zero, does NOT print `stores agree`, drift line names behavior+path, prescribes `--re-certify`, never `zfa tdd gen` | SC-4 | yes |
-| E6 | after the sanctioned transitions complete → doctor prints `stores agree` again | SC-4 (converse) | yes (healing impossible on master) |
+| E6 | after the sanctioned transitions complete → doctor prints `stores agree` again | SC-4 (converse) | no (vacuous pre-fix — converse pin) |
 
 ## Red-green protocol
 
-1. Run T1 suite on master ⇒ S1–S5, E1–E3, E5, E6 RED; E4 green (backward
-   compat line, pinned pre-fix).
+1. Run the E-tier on master ⇒ E1–E3, E5 RED; E4/E6 green (backward-compat
+   and converse pins, recorded in `tdd/verification.md`).
 2. Implement T3 ⇒ S-tier green. T4 ⇒ E1 green. T5 ⇒ E2 green. T6 ⇒ E5/E6
    green, then E3 green end-to-end.
 3. No implementation may make E4 red (the no-op contract is load-bearing).
