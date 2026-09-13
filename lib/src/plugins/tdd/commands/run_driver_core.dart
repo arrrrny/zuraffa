@@ -29,13 +29,18 @@
 /// printing the final summary line or setting the process exit code: the
 /// commands own the summary line and the exit code. Lane runs also write
 /// their receipt here — one code path for the standalone commands and the
-/// meta driver's internal lanes, never duplicated.
+/// meta driver's internal lanes, never duplicated. Issue #1590 carve-out:
+/// the machine-contract lines stay byte-identical; the ADDITIVE liveness
+/// lines (the pre-spawn step-start banner, the tee'd `→ ` child banners,
+/// the elapsed-time heartbeats) are new — see the [RunDriverCore]
+/// statics and the `run_command.dart` library doc.
 ///
 /// Exit codes (unchanged): 0 complete, 1 stopped, 2 runner-error,
 /// 3 corrupt-state, 4 concurrent-run — plus run-skin's engine-gate refusal
 /// (exit 2, handled by the command before the core is invoked).
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -197,12 +202,66 @@ class RunDriverCore {
   /// closes the output. Null (the default): no events, legacy output.
   void Function(StepStreamEvent event)? onStepEvent;
 
+  // Issue #1590 (progress liveness): per-invocation output tuning, set by
+  // [drive] (the same instance-state pattern as the stream context — drive
+  // is non-reentrant on one instance).
+  //
+  // [_verboseChildLines] — `--verbose`: forward EVERY stdout line the step
+  // children print to the run output. Default (false): forward only
+  // banner-shaped lines (`^→ `, the pipeline's sub-step announcements).
+  bool _verboseChildLines = false;
+
+  // [_heartbeat] — the elapsed-time heartbeat cadence for a running step
+  // (`--heartbeat <seconds>`); [Duration.zero] disables, null keeps the
+  // 30s default.
+  Duration? _heartbeat;
+
   // The active invocation's stream context, set by [drive] (the hook is
   // instance-level so the per-behavior helpers can fire it too; drive is
   // non-reentrant on one instance, so no cross-call interference).
   String? _streamCommand;
   String? _streamFeature;
   String? _streamLane;
+
+  /// Issue #1590: forward the step child's stdout lines to the run output.
+  /// Default: banner-shaped lines only (starting with the pipeline banner
+  /// arrow, FR-005); `--verbose` forwards every line verbatim.
+  void _forwardChildLine(String line) {
+    if (_verboseChildLines || line.startsWith('\u2192 ')) print(line);
+  }
+
+  /// Issue #1590: the pre-spawn step announcement (FR-001/FR-007) — the
+  /// pre-#1590 driver printed nothing between the spawn and the
+  /// completion line (273.7s of silence on one make). The hint is static
+  /// per-step knowledge; the SUB-STEP plan is the make child's own
+  /// announcement (the pipeline banners ride the stdout tee). When the
+  /// loaded run-state marks this exact behavior+step as in-flight under a
+  /// foreign pid, the banner names the resume (FR-007).
+  static String stepStartLine(
+    String behavior,
+    String step, {
+    bool resumingInFlight = false,
+    int? ownerPid,
+  }) {
+    final hint = switch (step) {
+      'gen' => 'scaffold test + stub',
+      'verify-red' => 'run target test (expect red)',
+      'make' => 'generation pipeline (sub-steps announced as they start)',
+      'refactor' => 'format + analyze + re-proof',
+      _ => 'running',
+    };
+    final resume = resumingInFlight
+        ? ' (resuming in-flight step from run-state.json, '
+              'owner pid ${ownerPid ?? 'unknown'})'
+        : '';
+    return '[run] $behavior $step \u2014 $hint$resume';
+  }
+
+  /// Issue #1590: the elapsed-time heartbeat line for a running step
+  /// (FR-006); [elapsed] formatted by `formatTddTimeout`.
+  static String heartbeatLine(String behavior, String step, Duration elapsed) {
+    return '[run] $behavior $step \u2026 ${formatTddTimeout(elapsed)} elapsed';
+  }
 
   // Issue #1329: the failed step's diagnostic evidence, staged by the
   // error-outcome recording path and consumed by [_finish] for the lane
@@ -272,6 +331,17 @@ class RunDriverCore {
     /// instead of the shared user TMPDIR (issue #1520). Null (the default)
     /// preserves the inherit-`Platform.environment` behavior.
     Map<String, String>? childEnvironment,
+
+    /// Issue #1590: forward EVERY stdout line the step children print to
+    /// the run output (`--verbose`). Default (false): forward only
+    /// banner-shaped lines (`^→ `, the pipeline's sub-step announcements).
+    bool verbose = false,
+
+    /// Issue #1590: the heartbeat cadence for a running step —
+    /// `[run] <behavior> <step> … <elapsed> elapsed` every [heartbeat]
+    /// while the child runs. Null keeps the 30s default;
+    /// [Duration.zero] disables (`--heartbeat 0`, the parser-strict mode).
+    Duration? heartbeat,
   }) async {
     // Issue #1471: the caller hands the canonical REFERENCE — the parent
     // resolved it once (pin included) and its child steps must resolve the
@@ -293,6 +363,9 @@ class RunDriverCore {
     _streamCommand = label;
     _streamFeature = feature;
     _streamLane = lane;
+    // Issue #1590: publish this invocation's liveness tuning.
+    _verboseChildLines = verbose;
+    _heartbeat = heartbeat ?? const Duration(seconds: 30);
     // Issue #1329: one failure detail per drive — staged by the
     // error-outcome arms below, consumed by _finish.
     _lastStepFailure = null;
@@ -541,11 +614,14 @@ class RunDriverCore {
     // budget may be UPGRADED below (scaled from the measured baseline
     // suite duration) — the runner is rebuilt there when it changes.
     // Spec 1520: it also carries the run's scratch-TMPDIR map for every
-    // step child.
+    // step child. Issue #1590: it also tees the child's stdout lines so
+    // the driver can forward the make child's sub-step banners while the
+    // step runs.
     var runner = StepRunner(
       zfaBin: zfaBin,
       timeout: timeout,
       childEnvironment: childEnvironment,
+      onChildLine: _forwardChildLine,
     );
 
     // Issue #992: --skip-widget turns a widget-lane gen refusal (#938
@@ -782,6 +858,7 @@ class RunDriverCore {
           zfaBin: zfaBin,
           timeout: budget,
           childEnvironment: childEnvironment,
+          onChildLine: _forwardChildLine,
         );
         print(
           '   per-step budget: ${formatBudget(budget)} '
@@ -995,6 +1072,10 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
+        // Issue #1588: the phase-2 refactor pass is the batch — every
+        // spawn opts into the pass-batch ledger and hands the lane's
+        // parked BLOCKED ids as exempt from the gate.
+        batchRefactor: true,
       );
       if (result.stop != null) {
         return _finish(
@@ -1580,6 +1661,13 @@ class RunDriverCore {
     required String feature,
     required Set<String> greenEvidenceIds,
     Set<String>? unblockedThisRun,
+
+    /// Issue #1588: the phase-2b refactor pass opts its spawns into the
+    /// feature pass-batch ledger (--pass-batch) and hands the lane's
+    /// parked BLOCKED behavior ids as --exempt-behaviors, so their
+    /// designed red tests cannot poison the refactor gate. Phase-1
+    /// refactors and every other step keep the default (no batch flags).
+    bool batchRefactor = false,
   }) async {
     var updated = current;
     var state = updated.behaviorStates[row.id] ?? BehaviorState.pending;
@@ -1629,7 +1717,35 @@ class RunDriverCore {
       // Bug #828: write-ahead the intended transition BEFORE the spawn.
       await tx.begin(behavior: row.id, step: step);
 
+      // Issue #1590: announce the step BEFORE the spawn — the pre-#1590
+      // driver printed nothing between the spawn and the completion line
+      // (a single make ran 273.7s in silence). The hint is static
+      // per-step knowledge; the sub-step plan is the make child's own
+      // announcement (the pipeline banners ride the stdout tee). The
+      // loaded state (`current`, pre-markInFlight) names the resumed
+      // in-flight step when it was ours, under a foreign pid.
+      print(
+        stepStartLine(
+          row.id,
+          step,
+          resumingInFlight:
+              current.inFlightBehaviorId == row.id &&
+              current.inFlightStep == step &&
+              current.inFlightOwnerPid != pid,
+          ownerPid: current.inFlightOwnerPid,
+        ),
+      );
+
       StepResult result;
+      final stepClock = Stopwatch()..start();
+      final heartbeatInterval = _heartbeat;
+      final heartbeat =
+          heartbeatInterval != null && heartbeatInterval > Duration.zero
+          ? Timer.periodic(
+              heartbeatInterval,
+              (_) => print(heartbeatLine(row.id, step, stepClock.elapsed)),
+            )
+          : null;
       try {
         // Issue #1471: hand the child the canonical REFERENCE (never the
         // bare name), so a bug-directory feature resolves to the same
@@ -1640,6 +1756,9 @@ class RunDriverCore {
           feature: featureRef,
           projectRoot: projectRoot,
           suiteBaselinePath: suiteBaselinePath,
+          extraArgs: step == 'refactor' && batchRefactor
+              ? _refactorBatchArgs(rows, updated)
+              : const [],
         );
       } on StateError catch (e) {
         // Entrypoint resolution failed before any spawn: runner-error.
@@ -1681,6 +1800,10 @@ class RunDriverCore {
           ),
           refactorBlocked: false,
         );
+      } finally {
+        // Issue #1590: the heartbeat dies the moment the step completes
+        // (or the run stops) — no elapsed lines AFTER the completion line.
+        heartbeat?.cancel();
       }
 
       print('[run] ${row.id} $step -> ${result.outcome}$progressSuffix');
@@ -2368,6 +2491,25 @@ class RunDriverCore {
     'refactor' => BehaviorState.done,
     _ => throw ArgumentError.value(step, 'step', 'unknown TDD step'),
   };
+
+  /// Issue #1588: the batch context the phase-2b refactor pass hands every
+  /// spawn — `--pass-batch` (the ledger opt-in) plus the lane's parked
+  /// BLOCKED behavior ids as `--exempt-behaviors` (their red tests are the
+  /// designed park state, #1007/#1544, and must not poison the gate the
+  /// baseline cannot know about). Sorted for a stable ledger key and
+  /// stable spawn argv.
+  List<String> _refactorBatchArgs(List<BehaviorRow> rows, RunState state) {
+    final blocked = [
+      for (final r in rows)
+        if ((state.behaviorStates[r.id] ?? BehaviorState.pending) ==
+            BehaviorState.blocked)
+          r.id,
+    ]..sort();
+    return [
+      '--pass-batch',
+      if (blocked.isNotEmpty) ...['--exempt-behaviors', blocked.join(',')],
+    ];
+  }
 
   bool _hasRedBehavior(List<BehaviorRow> rows, RunState state) {
     for (final row in rows) {
