@@ -199,6 +199,15 @@ class CycleLogEntry {
           buf.writeln('  - step: ${step.command}');
           buf.writeln('    exit: ${step.exitCode}');
           buf.writeln('    purpose: ${step.purpose}');
+          // Issue #1587: a scheduling-skipped build step is auditable
+          // as such — the subprocess never spawned, so the evidence
+          // says so explicitly (the additive optional-line precedent).
+          if (step.buildSkipped) {
+            buf.writeln(
+              '    note: skipped — no builder-consumable input changed '
+              '(issue #1587)',
+            );
+          }
         }
       }
       final newFailures = suiteNewFailures.isEmpty

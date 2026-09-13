@@ -272,10 +272,20 @@ void main() {
       );
       final log = await fx.readFakeZfaLog();
       expect(log.first, contains('tdd compose A1'));
-      expect(log.last, 'build');
+      // Issue #1587: the compose writes only the plain subject (no
+      // builder-facing annotation), so the plan's terminal `build` step
+      // is scheduling-SKIPPED — the spawn log's last line is the compose
+      // step, and the skipped build is audited in the green evidence.
+      // Plan completion is pinned by the green outcome + evidence
+      // above, not by a build spawn.
+      expect(log.last, contains('tdd compose A1'));
       expect(
         await File(fx.cycleLogPath).readAsString(),
         contains('## Cycle: A1 (green)'),
+      );
+      expect(
+        await File(fx.cycleLogPath).readAsString(),
+        contains('note: skipped'),
       );
     });
   });
