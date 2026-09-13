@@ -4,7 +4,7 @@ loop: inside-out
 profile: .specify/memory/tdd-profile.md
 spec_criteria: 6
 planned_at: 60288f4b
-updated_at: 60288f4b
+updated_at: 339190a0
 suite_baseline: green
 ---
 
@@ -21,12 +21,12 @@ One per acceptance criterion in `spec.md`.
 
 | id | behavior | traces | kind | state | test |
 | -- | -------- | ------ | ---- | ----- | ---- |
-| A1 | `Signature.parse` keeps a `{...}` named group as ONE parameter token with its braces (`{level, onRecord}`), never two brace-dangling positional tokens | AC-1 | example | PENDING | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
-| A2 | the generated subject renders named parameters in a trailing `{...}` group (`void subject_u3({Object? level, Object? onRecord})`), names camelCase-preserved | AC-2 | example | PENDING | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
-| A3 | the paired test passes named arguments (`subject.subject_u3(level: _arg0(), onRecord: _arg1())`) and no generated line carries a dangling `{level` fragment | AC-3 | example | PENDING | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
-| A4 | a names-only group treats each single identifier as a NAME with `Object?` type; a two-word group token keeps the `Type name` split | AC-4 | example | PENDING | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
-| A5 | a stray/unbalanced-brace parameter row refuses with a named remedy (grammar + `--> fix:` + row/spec line) instead of degrading | AC-5 | example | PENDING | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
-| A6 | existing positional rows render byte-identically (subject, names, args) — no existing row breaks | AC-6 | example | PENDING | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
+| A1 | `Signature.parse` keeps a `{...}` named group as ONE parameter token with its braces (`{level, onRecord}`), never two brace-dangling positional tokens | AC-1 | example | DONE    | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
+| A2 | the generated subject renders named parameters in a trailing `{...}` group (`void subject_u3({Object? level, Object? onRecord})`), names camelCase-preserved | AC-2 | example | DONE    | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
+| A3 | the paired test passes named arguments (`subject.subject_u3(level: _arg0(), onRecord: _arg1())`) and no generated line carries a dangling `{level` fragment | AC-3 | example | DONE    | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
+| A4 | a names-only group treats each single identifier as a NAME with `Object?` type; a two-word group token keeps the `Type name` split | AC-4 | example | DONE    | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
+| A5 | a stray/unbalanced-brace parameter row refuses with a named remedy (grammar + `--> fix:` + row/spec line) instead of degrading | AC-5 | example | DONE    | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
+| A6 | existing positional rows render byte-identically (subject, names, args) — no existing row breaks | AC-6 | example | DONE    | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
 
 ## Inner loop: unit behaviors
 
@@ -34,11 +34,11 @@ One per functional requirement in `spec.md`.
 
 | id | behavior | traces | kind | state | test |
 | -- | -------- | ------ | ---- | ----- | ---- |
-| U1 | the parameter text splits at top-level commas only; nested `{}`/`[]` commas never split a token (FR-001) | FR-001 | example | PENDING | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
-| U2 | the shape expands a named-group token into named `UnitContractParam`s; positional tokens keep the legacy single-identifier = TYPE reading (FR-002) | FR-002 | example | PENDING | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
-| U3 | subject writer + `zfa tdd func` scaffold render the grouped form via ONE shared renderer; the test writer emits named args at the capture site (FR-003) | FR-003 | example | PENDING | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
-| U4 | name derivation keeps an already lower-first camelCase identifier verbatim (`onRecord` stays `onRecord`); upper-first type-derived names keep the legacy output (`AuthRequest` → `authrequest`) (FR-004) | FR-004 | example | PENDING | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
-| U5 | a stray-brace token throws [FormatException] naming the supported grammar (positional `name(Type)` pairs, named `{a, b}` groups) with a `--> fix:` remedy; a FUNCTION-layer spec row refuses via `parseContractRows` naming row + spec line (FR-005, FR-006) | FR-005, FR-006 | example | PENDING | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
+| U1 | the parameter text splits at top-level commas only; nested `{}`/`[]` commas never split a token (FR-001) | FR-001 | example | DONE    | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
+| U2 | the shape expands a named-group token into named `UnitContractParam`s; positional tokens keep the legacy single-identifier = TYPE reading (FR-002) | FR-002 | example | DONE    | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
+| U3 | subject writer + `zfa tdd func` scaffold render the grouped form via ONE shared renderer; the test writer emits named args at the capture site (FR-003) | FR-003 | example | DONE    | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
+| U4 | name derivation keeps an already lower-first camelCase identifier verbatim (`onRecord` stays `onRecord`); upper-first type-derived names keep the legacy output (`AuthRequest` → `authrequest`) (FR-004) | FR-004 | example | DONE    | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
+| U5 | a stray-brace token throws [FormatException] naming the supported grammar (positional `name(Type)` pairs, named `{a, b}` groups) with a `--> fix:` remedy; a FUNCTION-layer spec row refuses via `parseContractRows` naming row + spec line (FR-005, FR-006) | FR-005, FR-006 | example | DONE    | `test/plugins/tdd/issue_1536_named_param_syntax_test.dart` |
 
 ## Invariants and edge cases still to place
 
