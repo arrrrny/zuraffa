@@ -1100,7 +1100,12 @@ class MakeCommand extends Command<void> {
       // heals the hosted gap (the same fix path `zfa doctor
       // generated-imports --fix` uses); the ⚠️ diagnostic remains only
       // for what the add could not heal (offline, SDK-provided packages).
-      var pubsyncAutoAdded = const <String>[];
+      // The #1530 ensure's declaration counts as an auto-declared dep
+      // (the JSON contract: "packages the run declared in pubspec.yaml
+      // itself, so agents don't re-run `pub add` for them").
+      var pubsyncAutoAdded = <String>[
+        if (zuraffaEnsured) PubspecZuraffaEnsure.packageName,
+      ];
       final autoAddPackages = (pubsyncGap?.pubAddPackages ?? const <String>[])
           .where(
             (name) =>
@@ -1116,7 +1121,7 @@ class MakeCommand extends Command<void> {
           isFlutter: pubsyncGap.isFlutterProject,
           runner: _processRunner,
         );
-        pubsyncAutoAdded = outcome.added;
+        pubsyncAutoAdded = [...pubsyncAutoAdded, ...outcome.added];
         if (outcome.added.isNotEmpty) {
           for (final line in PubspecGapReporter.successLines(
             added: outcome.added,
