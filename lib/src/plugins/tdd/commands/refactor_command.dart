@@ -111,6 +111,7 @@ import '../services/runner.dart';
 import '../services/scratch_tmpdir.dart';
 import '../services/subject_evidence_refresh.dart';
 import '../services/suite_guard.dart';
+import '../services/tdd_profile_keys.dart';
 import '../services/tdd_timeout.dart';
 import '../services/tree_snapshot.dart';
 import '../services/verdict_emitter.dart';
@@ -754,11 +755,18 @@ class RefactorCommand extends Command<void> {
       // entrypoint resolves through the same tiers make/gen/verify use;
       // --zfa-bin overrides it (bug #689: never the hardcoded
       // bin/zfa.dart, which zfa setup does not create).
+      // Issue #1472: the build gate the registry applies is ERRORS-ONLY
+      // (warnings are the dart fix pass's input) unless this project's
+      // TDD profile opts back into the legacy warnings-blocking
+      // strictness with `analyze-gate: warnings-blocking` — the same
+      // machine-readable key, resolution order, and default the make's
+      // #1407 errors-only gate honors.
       print('zfa tdd refactor: applying passes');
       final passes = RefactorPasses(
         cwd,
         zfaBinOverride: (zfaBin != null && zfaBin.isNotEmpty) ? zfaBin : null,
         passTimeout: timeout,
+        warningsBlocking: await TddProfileKeys.warningsBlocking(cwd),
         environment: scratchEnv,
       );
       final passResult = await passes.run();
@@ -771,11 +779,41 @@ class RefactorCommand extends Command<void> {
         } else {
           print('     changed: (none)');
         }
+        // Spec 1540: surface the tracked-placeholder restore-or-refuse
+        // evidence the pass registry recorded (the full tool output stays
+        // in the action record / cycle log — only the [1540] lines are
+        // stdout-worthy).
+        for (final line in action.output.split('\n')) {
+          if (line.contains('[1540]')) {
+            print('     $line');
+          }
+        }
       }
+      // Spec 1540: computed BEFORE the misfire/refusal branches so the
+      // summary line reports the true applied count on every exit path.
+      applied = passResult.actions
+          .where((a) => a.filesChanged.isNotEmpty)
+          .length;
       if (passResult.stopped) {
         // Misfire-stop (FR-010) — a pass failed. Re-run the suite to
         // determine the resulting safety state.
         print('   pass "${passResult.failedPass}" failed — misfire-stop.');
+        // Spec 1540 (restore-or-refuse): the registry REFUSED because the
+        // build pass deleted a git-tracked generated-name file it could not
+        // restore. Re-proving a broken tree would be dishonest evidence —
+        // hard-stop here with the exact restore remedy, exit non-zero.
+        if (passResult.refusalReason != null) {
+          print('   ${passResult.refusalReason}');
+          print('   Restore the file, then re-run `zfa tdd refactor`.');
+          outcome = RefactorOutcome.runnerError;
+          _printSummary(
+            feature: featureName,
+            outcome: outcome,
+            applied: applied,
+          );
+          exitCode = 1;
+          return;
+        }
         final failedAction = passResult.actions
             .where((a) => a.name == passResult.failedPass)
             .toList();
@@ -789,9 +827,6 @@ class RefactorCommand extends Command<void> {
           );
         }
       }
-      applied = passResult.actions
-          .where((a) => a.filesChanged.isNotEmpty)
-          .length;
 
       // 6. Post-pass immutability + attribution checks (FR-004, FR-005).
       final testAfter = await TreeSnapshot.capture(cwd, trees: const ['test']);
