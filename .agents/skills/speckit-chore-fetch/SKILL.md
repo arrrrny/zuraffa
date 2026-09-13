@@ -1,11 +1,14 @@
 ---
 name: speckit-chore-fetch
-description: Load an existing GitHub issue into the chore workflow and seed a triage draft
+description: Load an existing GitHub issue into the chore workflow and seed a triage
+  draft
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: chore:commands/speckit.chore.fetch.md
+  author: arrrrny
+  source: extension:chore
 ---
+
+# Chore Fetch Skill
 
 # Fetch Chore (Load Existing Issue)
 
