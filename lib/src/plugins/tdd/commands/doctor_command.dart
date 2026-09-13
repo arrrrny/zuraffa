@@ -45,6 +45,15 @@
 ///    unexpected-green → make subject-drift) or fake-completes on the
 ///    stale certification — the same recovery the run driver's stop
 ///    prescribes (`zfa tdd reset <feature>`).
+/// 5a. **hash-chain** — a schema-1 cycle-log entry's recomputed chain
+///    digest no longer matches its recorded `- hash:` link, or its
+///    `- prev-hash:` link does not chain to the previous recorded hash
+///    (bug #828 — the walk restored by #1585 after the #840 rework
+///    dropped it): the certified facts were edited after certification,
+///    so every claim the log backs is untrusted. There is no automatic
+///    remedy — restore the cycle-log from a trusted source, then re-run
+///    `zfa tdd run <feature>` to re-certify. Legacy hash-less entries
+///    stay valid and unverifiable, and are never failed.
 /// 6. **none** — the stores agree; the feature is healthy.
 ///
 /// The same state always produces the same prescription (deterministic:
@@ -64,6 +73,7 @@ import '../../../core/project/receipt_store.dart';
 import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/cycle_evidence.dart';
+import '../services/cycle_log.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/generated_shape.dart';
 import '../services/journal.dart';
@@ -909,11 +919,101 @@ class DoctorCommand extends Command<void> {
       return;
     }
 
+    // ---- 3c. Evidence hash-chain integrity -> RESTORE + RE-CERTIFY ----
+    // Bug #828 (restored by #1585): schema-1 cycle-log entries carry a
+    // tamper-evident hash chain (`- prev-hash:` / `- hash:`), and this
+    // command is the reader that verifies it — without the walk, a
+    // hand-edited entry reads as "stores agree" while the certified
+    // facts no longer match their evidence. Every `prev-hash` must link
+    // the previous recorded hash and every `hash` must equal the
+    // recomputed payload digest (`CycleLog.payloadFromFields`, the
+    // canonical payload both sides share). Legacy hash-less entries stay
+    // valid and unverifiable — reported, never failed.
+    final chainDrifts = _hashChainDrifts(await evidence.entries());
+    if (chainDrifts.isNotEmpty) {
+      drifts.addAll(chainDrifts);
+      final fix =
+          'restore the cycle-log from a trusted source, then re-run '
+          '`zfa tdd run $feature` to re-certify';
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
+      for (final drift in drifts) {
+        print('  drift: $drift');
+      }
+      print(
+        '   --> fix: $fix — the entry was edited or reordered after it was '
+        'certified, so every claim it backs is untrusted; there is no '
+        'automatic remedy, and re-certification re-proves the behaviors '
+        'through the runner',
+      );
+      _printVerdict(
+        feature: feature,
+        verdict: 'drift',
+        prescription: 'resume',
+        fix: fix,
+        drifts: drifts,
+      );
+      exitCode = 1;
+      return;
+    }
+
     // ---- 4. Healthy --------------------------------------------------
     print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
     print('  stores agree — no drift detected');
     _printVerdict(feature: feature, verdict: 'healthy', prescription: 'none');
     exitCode = 0;
+  }
+
+  /// Bug #828: walk each behavior's hashed entries in file order and
+  /// recompute the chain — every `prev-hash` must link the previous
+  /// recorded hash and every `hash` must equal the recomputed payload
+  /// digest. Legacy (hash-less) entries contribute no link and are
+  /// never failed.
+  List<String> _hashChainDrifts(List<ParsedCycleEntry> entries) {
+    final byBehavior = <String, List<ParsedCycleEntry>>{};
+    for (final entry in entries) {
+      if (!entry.isHashed) continue;
+      byBehavior.putIfAbsent(entry.behaviorId, () => []).add(entry);
+    }
+    final drifts = <String>[];
+    final ids = byBehavior.keys.toList()..sort();
+    for (final id in ids) {
+      var prev = CycleLog.genesisHash;
+      for (final entry in byBehavior[id]!) {
+        if (entry.prevHash != prev) {
+          drifts.add(
+            'hash chain broken for "$id" (${entry.kind} entry): prev-hash '
+            '${entry.prevHash} does not link the previous hash $prev',
+          );
+          prev = entry.hash!;
+          continue;
+        }
+        final recomputed = crypto.sha256
+            .convert(
+              utf8.encode(
+                CycleLog.payloadFromFields(
+                  behaviorId: entry.behaviorId,
+                  kind: entry.kind,
+                  exit: (entry.exit ?? 0).toString(),
+                  command: entry.command ?? '',
+                  criterion: entry.criterion ?? '',
+                  test: entry.test ?? '',
+                  timestamp: entry.at ?? '',
+                  prevHash: prev,
+                ),
+              ),
+            )
+            .toString();
+        if (recomputed != entry.hash) {
+          drifts.add(
+            'hash chain broken for "$id" (${entry.kind} entry): recomputed '
+            'hash $recomputed != recorded ${entry.hash} — the entry was '
+            'tampered with after it was certified',
+          );
+        }
+        prev = entry.hash!;
+      }
+    }
+    return drifts;
   }
 
   /// The hand-delta proof-drift scan (spec 1423, SC-4): for every

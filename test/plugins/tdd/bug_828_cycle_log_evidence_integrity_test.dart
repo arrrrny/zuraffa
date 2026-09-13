@@ -44,7 +44,8 @@ void main() {
     return runner.runCapturing([
       'tdd',
       'doctor',
-      '--feature',
+      // Issue #1585: doctor takes the feature POSITIONALLY — it declares
+      // only --json/--repair/--project, so a --feature flag is a usage error.
       feature,
       '--project',
       fx.root.path,
@@ -329,7 +330,14 @@ void main() {
       final out = await doctor();
 
       expect(exitCode, 0, reason: out);
-      expect(out, contains('drifts=0'), reason: out);
+      // Issue #1585: the legacy `doctor: feature=<f> drifts=<n>` summary
+      // line was replaced by the verdict envelope (bug #840 / issue
+      // #969); zero drifts is now the empty `drifts` array on the final
+      // machine-readable line.
+      final verdict =
+          jsonDecode(out.trim().split('\n').last) as Map<String, dynamic>;
+      expect(verdict['verdict'], 'healthy', reason: out);
+      expect(verdict['drifts'], isEmpty, reason: out);
     });
 
     test('bug 828 RED: a pending journal is reported as an interrupted '
@@ -429,6 +437,45 @@ void main() {
       expect(exitCode, 1, reason: out);
       expect(out, contains('--> fix:'), reason: out);
       expect(out.toLowerCase(), contains('hash'), reason: out);
+    });
+
+    test('bug 828 RED: doctor detects a broken prev-hash LINKAGE (the '
+        'reordered/edited trail) and prescribes a fix', () async {
+      // The content arm covers `- hash:`; the linkage arm covers
+      // `- prev-hash:`. This pin isolates the linkage walk: the recorded
+      // prev-hash no longer chains, so the drift must name the linkage
+      // ("does not link") — a walk that only recomputed content digests
+      // would read this trail as healthy.
+      final log = CycleLog(p.dirname(p.dirname(fx.cycleLogPath)));
+      await log.append(
+        CycleLogEntry(
+          behaviorId: 'B-001',
+          kind: CycleEntryKind.red,
+          runnerCommand: 'dart test b_001_test.dart',
+          exitCode: 1,
+          capturedOutput: 'Expected: <2>\n  Actual: <1>',
+          classification: FailureClass.assertionFailure,
+          sourceCriterion: 'FR-001',
+          testPath: 'test/tdd/b_001_test.dart',
+          timestamp: '2026-09-01T00:00:00.000Z',
+        ),
+      );
+      // Tamper: sever the link to the genesis hash — the trail no longer
+      // chains.
+      final file = File(fx.cycleLogPath);
+      await file.writeAsString(
+        (await file.readAsString()).replaceAll(
+          '- prev-hash: ${CycleLog.genesisHash}',
+          '- prev-hash: '
+              '0000000000000000000000000000000000000000000000000000000000000000',
+        ),
+      );
+
+      final out = await doctor();
+
+      expect(exitCode, 1, reason: out);
+      expect(out, contains('--> fix:'), reason: out);
+      expect(out, contains('does not link'), reason: out);
     });
   });
 }
