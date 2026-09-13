@@ -28,3 +28,20 @@
 - Native parity constants recorded from the clean pre-migration clone:
   android 3×.so (2903004/4478336/4953808 B), ios 3×.a (32746784/32675128/32847136 B),
   macos 2×.dylib (3895968/4136208 B) — baked into the B1c pins.
+
+
+## Cycle C2 — GREEN path, and a discovered-fact correction (B4 visitor pin)
+
+- **Discovery (verified against the clean pre-migration worktree)**: the
+  shipped `VisitorBridge` (1.1.0) is a documented stub — `attach()` is empty,
+  "full NativeCallable bridge to the C VTable is in progress", visitors
+  delegate to default conversion. The original B4 derivation ("skip/custom
+  respected") over-reached the shipped behavior; probing that assumed
+  skip-effect produced truncated-output false signals. The pin was corrected
+  to parity: conversion with a visitor completes and renders identically to
+  the default path (FR-003: binding logic preserved as shipped; no new vtable
+  behavior invented during migration).
+- Test list B4 wording updated accordingly (derivation artifact, not spec.md).
+- App package suite: `dart test` → **90 passing, 0 failing** (76 ported legacy
+  + service contract + host FFI proof) on the macOS host through the migrated
+  stack.

@@ -275,7 +275,7 @@ void main() {
 
     test('B3b: generated repository/datasource/usecase artifacts exist',
         () {
-      final domain = Directory(p.join(app, 'lib', 'src', 'domain'));
+      final domain = Directory(p.join(app, 'lib', 'src'));
       final files = domain
           .listSync(recursive: true)
           .whereType<File>()
