@@ -6,7 +6,23 @@ import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 import 'package:zuraffa/src/package/package_scaffold.dart';
 import 'package:zuraffa/src/package/plugin_scaffold.dart';
+import 'package:zuraffa/src/package/pub_dev.dart';
 import 'package:zuraffa/src/version.dart' show version;
+
+/// The published-looking constraint the hermetic scaffolds pin — distinct
+/// from the dev version const, so a regression back to `^$version` shows up
+/// on disk.
+const String publishedConstraintStub = '^6.2.2';
+
+/// A trimmed capture of `https://pub.dev/api/packages/zuraffa` — the fields
+/// the hosted-constraint resolver reads.
+const String capturedPubDevPayload = '''
+{
+  "name": "zuraffa",
+  "latest": {"version": "6.2.2", "pubspec": {"name": "zuraffa"}},
+  "versions": [{"version": "6.2.2"}, {"version": "6.2.1"}]
+}
+''';
 
 /// Behaviors B1–B11 (spec 1601): `PluginScaffold` generates a complete
 /// federated plugin monorepo — app-facing package + platform core + one
@@ -35,10 +51,16 @@ void main() {
     String? zuraffaPath,
     String? zuraffaConstraint,
     Future<String> Function()? zuraffaConstraintResolver,
+    void Function(String message)? warningSink,
     bool dryRun = false,
   }) {
     return PluginScaffold(
-      zuraffaConstraintResolver: zuraffaConstraintResolver,
+      // Default to a stub: this suite must not depend on pub.dev. The
+      // hosted lookup's own lanes are B12d (the payload contract) and
+      // B12e (a resolver built from the captured payload).
+      zuraffaConstraintResolver:
+          zuraffaConstraintResolver ?? () async => publishedConstraintStub,
+      warningSink: warningSink,
     ).create(
       name: name,
       outputParent: tempDir.path,
@@ -446,11 +468,13 @@ void main() {
     });
 
     test(
-      'B12b: resolver failure falls back to the running version const',
+      'B12b: a resolver failure warns loudly and falls back to the const',
       () async {
+        final warnings = <String>[];
         final result = await scaffold(
           zuraffaConstraintResolver: () async =>
               throw const SocketException('offline'),
+          warningSink: warnings.add,
         );
         final spec = pubspecOf(result.rootPath, 'my_plugin');
 
@@ -458,8 +482,19 @@ void main() {
           (spec['dependencies'] as YamlMap)['zuraffa'],
           '^$version',
           reason:
-              'offline scaffolds keep the previous behavior; the gate '
-              'then reports resolution failures loudly',
+              'offline scaffolds keep the previous behavior (the gate then '
+              'reports resolution failures loudly)',
+        );
+        expect(
+          warnings.single,
+          allOf(
+            contains('pub.dev'),
+            contains('^$version'),
+            contains('--zuraffa-constraint'),
+          ),
+          reason:
+              'the fallback constraint is the next unreleased version and '
+              'may not resolve — it must be announced with its escape hatch',
         );
       },
     );
@@ -473,6 +508,66 @@ void main() {
       final spec = pubspecOf(result.rootPath, 'my_plugin');
 
       expect((spec['dependencies'] as YamlMap)['zuraffa'], '^6.2.2');
+    });
+
+    test('B12d: a 200 payload resolves to the published version', () {
+      expect(parsePublishedVersion(200, capturedPubDevPayload), '6.2.2');
+    });
+
+    test('B12d: a non-200 response cannot resolve', () {
+      expect(
+        () => parsePublishedVersion(404, 'Not Found'),
+        throwsA(isA<HttpException>()),
+      );
+      expect(
+        () => parsePublishedVersion(500, capturedPubDevPayload),
+        throwsA(isA<HttpException>()),
+      );
+    });
+
+    test('B12d: a malformed payload cannot resolve', () {
+      expect(
+        () => parsePublishedVersion(200, '{"name":"zuraffa"}'),
+        throwsA(isA<FormatException>()),
+        reason: 'no latest.version means no constraint to stamp',
+      );
+      expect(
+        () => parsePublishedVersion(200, '{"latest":{"version":""}}'),
+        throwsA(isA<FormatException>()),
+        reason: 'an empty version must not become a bare ^ constraint',
+      );
+    });
+
+    test('B12e: the hosted lane stamps the resolved published constraint '
+        'on every package', () async {
+      String? resolvedByLookup;
+      final result = await scaffold(
+        zuraffaConstraintResolver: () async {
+          resolvedByLookup =
+              '^${parsePublishedVersion(200, capturedPubDevPayload)}';
+          return resolvedByLookup!;
+        },
+      );
+      final monorepo = result.rootPath;
+      expect(resolvedByLookup, '^6.2.2');
+
+      // No --zuraffa-path: the hosted constraint is what the generated
+      // pubspecs must carry, in all five family packages.
+      for (final pkg in const [
+        'my_plugin',
+        'my_plugin_platform',
+        'my_plugin_android',
+        'my_plugin_ios',
+        'my_plugin_macos',
+      ]) {
+        expect(
+          (pubspecOf(monorepo, pkg)['dependencies'] as YamlMap)['zuraffa'],
+          resolvedByLookup,
+          reason:
+              '$pkg must stamp what the lookup resolved — not the dev '
+              'version const (issue #1615)',
+        );
+      }
     });
   });
 
@@ -721,16 +816,20 @@ void main() {
       () async {
         final dryDir = await Directory.systemTemp.createTemp('zfa_plugin_dry_');
         try {
-          final dry = await PluginScaffold().create(
-            name: 'my_plugin',
-            outputParent: dryDir.path,
-            platforms: const [
-              PluginPlatform.android,
-              PluginPlatform.ios,
-              PluginPlatform.macos,
-            ],
-            dryRun: true,
-          );
+          final dry =
+              await PluginScaffold(
+                // Stubbed: this suite must not depend on pub.dev.
+                zuraffaConstraintResolver: () async => publishedConstraintStub,
+              ).create(
+                name: 'my_plugin',
+                outputParent: dryDir.path,
+                platforms: const [
+                  PluginPlatform.android,
+                  PluginPlatform.ios,
+                  PluginPlatform.macos,
+                ],
+                dryRun: true,
+              );
           expect(
             Directory(p.join(dryDir.path, 'my_plugin')).existsSync(),
             isFalse,
@@ -743,15 +842,20 @@ void main() {
             'zfa_plugin_real_',
           );
           try {
-            final real = await PluginScaffold().create(
-              name: 'my_plugin',
-              outputParent: realParent.path,
-              platforms: const [
-                PluginPlatform.android,
-                PluginPlatform.ios,
-                PluginPlatform.macos,
-              ],
-            );
+            final real =
+                await PluginScaffold(
+                  // Stubbed: this suite must not depend on pub.dev.
+                  zuraffaConstraintResolver: () async =>
+                      publishedConstraintStub,
+                ).create(
+                  name: 'my_plugin',
+                  outputParent: realParent.path,
+                  platforms: const [
+                    PluginPlatform.android,
+                    PluginPlatform.ios,
+                    PluginPlatform.macos,
+                  ],
+                );
             final realRoot = real.rootPath;
             final realFiles = Directory(realRoot)
                 .listSync(recursive: true)

@@ -37,6 +37,9 @@ void main() {
           'demo_pkg',
           '--output',
           tempDir.path,
+          // Pin the hosted constraint: the CLI keeps this suite off pub.dev.
+          '--zuraffa-constraint',
+          '^6.2.2',
         ]);
         expect(exitCode, 0);
 
@@ -77,10 +80,51 @@ void main() {
         'dry_pkg',
         '--output',
         tempDir.path,
+        '--zuraffa-constraint',
+        '^6.2.2',
         '--dry-run',
       ]);
       expect(exitCode, 0);
       expect(Directory(p.join(tempDir.path, 'dry_pkg')).existsSync(), isFalse);
+    });
+
+    test(
+      'U19e: --zuraffa-constraint is stamped verbatim into the pubspec',
+      () async {
+        final exitCode = await _run(runner, [
+          'package',
+          'create',
+          'pinned_pkg',
+          '--output',
+          tempDir.path,
+          '--zuraffa-constraint',
+          '6.2.2',
+        ]);
+        expect(exitCode, 0);
+
+        final pubspec = File(
+          p.join(tempDir.path, 'pinned_pkg', 'pubspec.yaml'),
+        ).readAsStringSync();
+        expect(
+          pubspec,
+          contains('zuraffa: 6.2.2'),
+          reason:
+              'the value is used as-is — a bare version is an exact pin, '
+              'not ^6.2.2',
+        );
+        expect(pubspec, isNot(contains('zuraffa: ^6.2.2')));
+      },
+    );
+
+    test('U19f: --zuraffa-constraint is offered on both create paths', () {
+      final command = runner.commands['package'] as PackageCommand;
+      for (final subcommand in const ['create', 'create-plugin']) {
+        expect(
+          command.subcommands[subcommand]!.argParser.options,
+          contains('zuraffa-constraint'),
+          reason: '$subcommand must offer the pinned-constraint option',
+        );
+      }
     });
 
     test(

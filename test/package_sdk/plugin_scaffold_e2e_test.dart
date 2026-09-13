@@ -6,6 +6,9 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
+import 'package:zuraffa/src/package/pub_dev.dart';
+import 'package:zuraffa/src/version.dart' show version;
 
 import '../helpers/run_zfa_source.dart';
 
@@ -103,6 +106,82 @@ void main() {
       }
     },
     timeout: const Timeout(Duration(minutes: 8)),
+  );
+
+  test(
+    'B9b: the hosted lane (no --zuraffa-path) stamps a constraint that resolves',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'zfa_plugin_hosted_',
+      );
+
+      try {
+        // Scaffold with no --zuraffa-path: the generated pubspecs declare
+        // the hosted constraint, and the CLI's pub.dev lookup is the one
+        // under test. B9 always passes --zuraffa-path (overrides resolve
+        // locally), which is exactly why #1615 shipped green.
+        final scaffold = await runZfaSource(
+          [
+            'package',
+            'plugin',
+            'hosted_plugin',
+            '--output',
+            tempDir.path,
+            '--no-gate',
+          ],
+          workingDirectory: tempDir.path,
+          timeout: const Duration(seconds: 240),
+        );
+        expect(
+          scaffold.exitCode,
+          0,
+          reason: 'scaffold failed: ${_out(scaffold)}',
+        );
+
+        final appPackage = p.join(
+          tempDir.path,
+          'hosted_plugin',
+          'packages',
+          'hosted_plugin',
+        );
+        final pubspec =
+            loadYaml(
+                  File(p.join(appPackage, 'pubspec.yaml')).readAsStringSync(),
+                )
+                as YamlMap;
+        final constraint = (pubspec['dependencies'] as YamlMap)['zuraffa'];
+
+        expect(
+          constraint,
+          '^${await latestZuraffaVersion()}',
+          reason: 'the stamped constraint must be what pub.dev serves',
+        );
+        expect(
+          constraint,
+          isNot('^$version'),
+          reason:
+              'the dev version const is the next unreleased release — the '
+              'very constraint pub rejects (issue #1615)',
+        );
+
+        // The proof that matters: the constraint resolves on a clean
+        // machine. On the pre-fix code this pub get fails with
+        // "zuraffa ^$version which doesn't match any versions".
+        final pubGet = await _runSupervised(
+          ['dart', 'pub', 'get'],
+          workingDirectory: appPackage,
+          timeout: const Duration(seconds: 180),
+        );
+        expect(
+          pubGet.exitCode,
+          0,
+          reason: 'hosted constraint must resolve: ${_raw(pubGet)}',
+        );
+      } finally {
+        if (tempDir.existsSync()) tempDir.delete(recursive: true);
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 6)),
   );
 }
 

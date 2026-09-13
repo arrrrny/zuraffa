@@ -74,6 +74,15 @@ class _PackageCreateCommand extends Command<void> {
           'published version — for developing packages against a local '
           'zuraffa tree.',
     );
+    argParser.addOption(
+      'zuraffa-constraint',
+      help:
+          'Pin the hosted zuraffa constraint stamped into the generated '
+          'pubspec and module (e.g. ^6.2.2) — the value is stamped '
+          'verbatim, so pass the caret form to allow updates. By default '
+          'it resolves to the latest version published on pub.dev '
+          '(issue #1615).',
+    );
     argParser.addFlag(
       'dry-run',
       negatable: false,
@@ -98,6 +107,7 @@ class _PackageCreateCommand extends Command<void> {
     final outputParent = argResults!['output'] as String;
     final description = argResults!['description'] as String?;
     final zuraffaPath = argResults!['zuraffa-path'] as String?;
+    final zuraffaConstraint = argResults!['zuraffa-constraint'] as String?;
     final dryRun = argResults!['dry-run'] as bool;
 
     print('\nZuraffa package: $name');
@@ -109,6 +119,7 @@ class _PackageCreateCommand extends Command<void> {
         outputParent: outputParent,
         description: description,
         zuraffaPath: zuraffaPath,
+        zuraffaConstraint: zuraffaConstraint,
         dryRun: dryRun,
       );
 
@@ -200,8 +211,9 @@ class _PackageCreatePluginCommand extends Command<void> {
       'zuraffa-constraint',
       help:
           'Pin the hosted zuraffa constraint stamped into the generated '
-          'pubspecs (e.g. ^6.2.2). By default it resolves to the latest '
-          'version published on pub.dev (issue #1615).',
+          'pubspecs (e.g. ^6.2.2) — the value is stamped verbatim, so pass '
+          'the caret form to allow updates. By default it resolves to the '
+          'latest version published on pub.dev (issue #1615).',
     );
     argParser.addFlag(
       'no-gate',
