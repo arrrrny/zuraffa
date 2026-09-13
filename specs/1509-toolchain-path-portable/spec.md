@@ -76,12 +76,15 @@ Reproduction (issue #1509, exit 127):
   is portable to Windows environments too.
 - **FR-005**: The neutral, non-machine-specific candidate list MUST be
   derivable as a pure function of the injected environment and home
-  directory (`candidatePaths`): `FLUTTER_ROOT`-rooted, HOME-derived
-  (`$HOME/flutter`, `$HOME/development/flutter` — existing behavior),
-  the generic `/usr/local/flutter` hint (existing behavior, not a
-  machine-specific path), and `ZURAFFA_TOOLCHAIN_HINTS` entries. The
-  function MUST NOT emit any machine-specific absolute path
-  (`/opt/flutter`, `/home/<user>/...`).
+  directory (`candidatePaths`): every emitted entry MUST be traceable to
+  an injected input (`ZURAFFA_TOOLCHAIN_HINTS`, `FLUTTER_ROOT`, home,
+  the generic `/usr/local/flutter` hint) — the function MUST carry NO
+  constant machine-specific SDK location (the banned
+  `/opt/flutter/bin/dart` literal). With an environment that declares no
+  SDK locations and no home, the list contains only the neutral generic
+  hint. When an environment DECLARES a machine-specific location
+  (e.g. `ZURAFFA_TOOLCHAIN_HINTS=/opt/flutter`), deriving entries from
+  it is correct and required (see acceptance 2).
 - **FR-006**: Existing behavior MUST be preserved for the resolution
   tiers that already work: cached probe (single dart lookup per server
   lifetime), PATH hit returns trimmed stdout, flutter-adjacent dart
