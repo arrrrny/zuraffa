@@ -278,18 +278,33 @@ String? _returnCaseType(String returnType) {
 }
 
 /// The representative argument expression for a declared parameter type.
-/// Complex types get a placeholder helper invocation (`_argN()`) that
+/// Scalar declared types get representative literals; declared types the
+/// seam renders VERBATIM (`List<T>`, `Set<T>`, `Map<K, V>`, `Iterable<T>`,
+/// `Future<T>`, `Stream<T>`) get representative literals too — the
+/// `_argN()` placeholder's `Object?` return does not compile against
+/// those declared parameter types, so the pair would fail to LOAD and
+/// verify-red could never reach the named BLOCKED verdict (issue #1541
+/// review). Complex types and `dynamic`-typed (and empty-typed) declared
+/// params get the scaffold placeholder helper invocation (`_argN()`) that
 /// throws `UnimplementedError` with the exact instruction — the scaffold
 /// fails through an assertion, never an uncaught error, and the author
 /// replaces it with a representative value.
+///
+/// Issue #1541: a `dynamic` declared param no longer resolves to the bare
+/// literal `null`. A bare `null` is not a DECLARED-SHAPE representative —
+/// an argument-validating implementation legitimately rejects it (the
+/// issue's `AgentLog.logger(subsystem as String)` throws for it), and the
+/// rejection used to escape `_captured` as an uncaught runner error. The
+/// `dynamic` param now takes the unit lane's placeholder discipline
+/// (`provide a representative argument`) so the scaffold blocks honestly
+/// until the author supplies a representative value. Nullable complex
+/// types KEEP `null`: their declared shape IS nullable, so `null` is a
+/// legitimate representative argument.
 String _representativeArg(String type, int index) {
   final trimmed = type.trim();
   var base = trimmed;
   if (base.endsWith('?')) base = base.substring(0, base.length - 1).trim();
   switch (base) {
-    case '':
-    case 'dynamic':
-      return 'null';
     case 'String':
       return "'contract-sample'";
     case 'int':
@@ -304,7 +319,50 @@ String _representativeArg(String type, int index) {
   }
   // A nullable complex type accepts null as its representative value.
   if (trimmed.endsWith('?')) return 'null';
+  final literal = _renderableLiteralArg(base, index);
+  if (literal != null) return literal;
+  // Issue #1541: `dynamic` (and the never-emitted empty type) carry NO
+  // declared shape to represent — the placeholder seam asks the author
+  // for a representative argument instead of a bare `null`.
   return '_arg$index()';
+}
+
+/// The representative literal for a declared type [_isRenderableType]
+/// renders verbatim in the seam: `List<T>`/`Iterable<T>` as `<T>[]`,
+/// `Set<T>` as `<T>{}`, `Map<K, V>` as `<K, V>{}`, `Stream<T>` as
+/// `const Stream.empty()`, `Future<T>` as `Future<T>.value(...)` (the
+/// value-less form for `T = void`; a non-literal inner — `dynamic` —
+/// nests the `_argN()` placeholder, caught at invocation as BLOCKED).
+/// Null when the type or its inner shape is not renderable: the seam
+/// parameter is `Object?` then, the `_argN()` placeholder stays
+/// assignable, and a literal naming an unimported inner type would not
+/// compile (issue #1541 review).
+String? _renderableLiteralArg(String base, int index) {
+  final generic = RegExp(
+    r'^(Future|Stream|List|Set|Iterable)<(.+)>$',
+  ).firstMatch(base);
+  if (generic != null) {
+    final inner = generic.group(2)!.trim();
+    if (!_isRenderableType(inner)) return null;
+    return switch (generic.group(1)!) {
+      'List' || 'Iterable' => '<$inner>[]',
+      'Set' => '<$inner>{}',
+      'Stream' => 'const Stream.empty()',
+      'Future' =>
+        inner == 'void'
+            ? 'Future<void>.value()'
+            : 'Future<$inner>.value(${_representativeArg(inner, index)})',
+      _ => null,
+    };
+  }
+  final map = RegExp(r'^Map<\s*([^,>]+)\s*,\s*(.+)>$').firstMatch(base);
+  if (map != null) {
+    final key = map.group(1)!.trim();
+    final value = map.group(2)!.trim();
+    if (!_isRenderableType(key) || !_isRenderableType(value)) return null;
+    return '<$key, $value>{}';
+  }
+  return null;
 }
 
 /// Writes the contract test half of a `gen` pair for contract-kind
@@ -356,8 +414,16 @@ class ContractTestWriter {
     final caseCount = 2 + (returnTypeCase != null ? 1 : 0);
     final placeholderArgs = <int, String>{};
     for (var i = 0; i < c.params.length; i++) {
-      final arg = _representativeArg(c.params[i].type, i);
-      if (arg.startsWith('_arg')) placeholderArgs[i] = c.params[i].type;
+      final paramType = c.params[i].type;
+      final arg = _representativeArg(paramType, i);
+      if (arg.startsWith('_arg')) {
+        placeholderArgs[i] = paramType;
+      } else if (arg.contains('_arg')) {
+        // The nested placeholder shape `Future<T>.value(_argN())`: the
+        // author supplies an INNER-typed representative value there.
+        final inner = RegExp(r'^Future<(.+)>$').firstMatch(paramType.trim());
+        placeholderArgs[i] = inner == null ? paramType : inner.group(1)!.trim();
+      }
     }
     final args = [
       for (var i = 0; i < c.params.length; i++)
@@ -366,6 +432,35 @@ class ContractTestWriter {
     final paramSummary = c.params.isEmpty
         ? 'no parameters'
         : c.params.map((param) => '${param.type} ${param.name}').join(', ');
+    // Issue #1541 review: the rejection signal and the Case 3 guard are
+    // emitted together — a render without a return-type case (non-scalar
+    // returns) has no signal reader, and an unread declaration would leak
+    // an `unused_element` analyzer warning into that scaffold.
+    final rejectionSignal = returnTypeCase == null
+        ? ''
+        : '''
+/// The value the captured invocation THREW (null when it returned
+/// normally). The Case 3 guard reads this SIGNAL — never the outcome's
+/// runtime type, which cannot tell a returned Error/Exception instance
+/// from a thrown raw value.
+Object? _rejection;
+
+''';
+    final rejectionReset = returnTypeCase == null
+        ? ''
+        : '  _rejection = null;\n';
+    final rejectionRecord = returnTypeCase == null
+        ? ''
+        : '    _rejection = error;\n';
+    final rejectionDoc = returnTypeCase == null
+        ? ''
+        : '''
+///
+/// The thrown value is also recorded in `_rejection` (reset per capture)
+/// so the Case 3 guard keys on the SIGNAL: a thrown RAW value — neither
+/// an Error nor an Exception — is surfaced by Case 3 instead of passing
+/// as a return that never happened.
+''';
 
     return '''
 // GENERATED TEST — `zfa tdd gen ${b.id}` (issue #1007, contract lane).
@@ -400,20 +495,41 @@ void main() {
               'signature `($paramSummary) -> ${c.returnType}`');
 
       // Case 2 of $caseCount — implementation: invoking the declared
-      // method does not throw UnimplementedError.
+      // method does not throw UnimplementedError. A captured rejection
+      // (the implementation threw ArgumentError/TypeError/... for the
+      // representative argument) PASSES this case: the seam is
+      // implemented and validating (issue #1541) — the outcome split is
+      // recorded below, never an uncaught error.
       final Object? outcome = _captured(() => impl($args));
       expect(outcome, isNot(isA<UnimplementedError>()),
           reason: '${c.qualifiedMethod} is not implemented — the declared '
               'contract is unsatisfied, so the cycle is BLOCKED and cannot '
               'proceed to GREEN (issue #1007)');
 ${returnTypeCase == null ? '' : '''
-      // Case 3 of $caseCount — return: the invocation satisfies the
-      // declared return type `${c.returnType}`.
-      expect(outcome, isA<$returnTypeCase>(),
-          reason: '${c.qualifiedMethod} must return the declared type '
-              '`${c.returnType}`');
+      // Case 3 of $caseCount — return: when NO rejection was captured the
+      // invocation returned a value, which must satisfy the declared
+      // return type `${c.returnType}`. `_rejection` is the capture SIGNAL
+      // set by `_captured` — never a runtime-type guess over the outcome,
+      // which cannot tell a returned Error/Exception instance from a
+      // thrown raw value. A captured rejection (an ArgumentError, a
+      // TypeError, a domain Error/Exception, ... thrown by an
+      // argument-validating implementation) has no return value to
+      // type-check and the contract is SATISFIED-WITH-REJECTION (issue
+      // #1541).
+      if (_rejection == null) {
+        expect(outcome, isA<$returnTypeCase>(),
+            reason: '${c.qualifiedMethod} must return the declared type '
+                '`${c.returnType}`');
+      } else {
+        expect(_rejection, anyOf(isA<Error>(), isA<Exception>()),
+            reason: '${c.qualifiedMethod} threw a raw value — neither an '
+                'Error nor an Exception. A raw throw is neither a return '
+                'nor a rejection: return the declared type or throw an '
+                'Error/Exception');
+      }
 '''}${placeholderArgs.isEmpty ? '' : '''
-      // SCAFFOLD PLACEHOLDERS — the complex-typed arguments below throw
+      // SCAFFOLD PLACEHOLDERS — the placeholder arguments below (complex-
+      // typed or dynamic-typed declared params, issue #1541) throw
       // UnimplementedError with the exact instruction. Replace each
       // placeholder with a representative value for its declared type so
       // this contract test exercises the real invocation:
@@ -422,15 +538,21 @@ ${placeholderArgs.entries.map((entry) => '      //   _arg${entry.key}() -> a rep
   });
 }
 
-/// Captures an [UnimplementedError] thrown by an unimplemented contract
-/// seam (or a scaffold placeholder argument) as the assertion's actual
-/// value, so the blocked state fails through an assertion (never an
-/// uncaught error).
-Object? _captured(Object? Function() invoke) {
-  try {
+$rejectionSignal/// Captures ANY error the contract seam invocation can throw (issue
+/// #1541) as the assertion's actual value — never an uncaught escape into
+/// the runner transcript (an uncaught error graded `runner-error`, never
+/// a named verdict). The outcome classes stay split at the assertions:
+/// an [UnimplementedError] (the unimplemented seam, or a scaffold
+/// placeholder argument) drives the BLOCKED verdict through the Case 2
+/// assertion; any OTHER captured Error/Exception (`ArgumentError` from an
+/// argument-validating implementation, a `TypeError` from a cast, ...) is
+/// a satisfied-with-rejection — the seam is implemented and rejected the
+/// scaffold's representative argument.
+${rejectionDoc}Object? _captured(Object? Function() invoke) {
+$rejectionReset  try {
     return invoke();
-  } on UnimplementedError catch (error) {
-    return error;
+  } on Object catch (error) {
+$rejectionRecord    return error;
   }
 }
 
