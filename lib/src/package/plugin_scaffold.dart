@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -67,6 +68,61 @@ class PluginScaffold {
   static const String _repoOwner = 'arrrrny';
   static const String _licenseHolder = 'Ahmet TOK';
   static const String _initialVersion = '0.1.0';
+  static const String _pubDevZuraffaUrl =
+      'https://pub.dev/api/packages/zuraffa';
+  static const Duration _pubDevTimeout = Duration(seconds: 5);
+
+  /// Resolves the hosted zuraffa constraint stamped into generated
+  /// pubspecs. Injectable so tests can pin it deterministically.
+  PluginScaffold({Future<String> Function()? zuraffaConstraintResolver})
+    : _zuraffaConstraintResolver =
+          zuraffaConstraintResolver ?? _fetchPublishedZuraffaConstraint;
+
+  final Future<String> Function() _zuraffaConstraintResolver;
+
+  /// Fetches the latest zuraffa version published on pub.dev so generated
+  /// packages declare a hosted constraint that resolves from a clean
+  /// machine. A dev checkout's `version` const is the *next unreleased*
+  /// version (e.g. 6.2.3 while pub.dev latest is 6.2.2), which makes
+  /// `zuraffa: ^<const>` unresolvable and fails the gate's `dart pub get`
+  /// on every generated package (issue #1615). Same pub.dev contract as
+  /// `update_command`.
+  static Future<String> _fetchPublishedZuraffaConstraint() async {
+    final client = HttpClient()..connectionTimeout = _pubDevTimeout;
+    try {
+      final request = await client.getUrl(Uri.parse(_pubDevZuraffaUrl));
+      final response = await request.close().timeout(_pubDevTimeout);
+      if (response.statusCode != 200) {
+        throw HttpException('pub.dev returned HTTP ${response.statusCode}');
+      }
+      final body = await response.transform(utf8.decoder).join();
+      final payload = jsonDecode(body) as Map<String, dynamic>;
+      final latest = payload['latest'];
+      final resolved = (latest is Map) ? latest['version'] : null;
+      if (resolved is! String || resolved.isEmpty) {
+        throw const FormatException(
+          'pub.dev payload carried no latest.version',
+        );
+      }
+      return '^$resolved';
+    } finally {
+      client.close();
+    }
+  }
+
+  /// The hosted zuraffa constraint for generated pubspecs: an explicit
+  /// [zuraffaConstraint] wins, then the pub.dev lookup, then — when pub.dev
+  /// is unreachable — the running CLI's version const (the gate then
+  /// reports resolution failures loudly, and `--zuraffa-constraint` pins
+  /// the release explicitly).
+  Future<String> _resolveZuraffaConstraint(String? zuraffaConstraint) async {
+    if (zuraffaConstraint != null) return zuraffaConstraint;
+    try {
+      return await _zuraffaConstraintResolver();
+    } catch (_) {
+      return '^$version';
+    }
+  }
 
   /// Creates the federated plugin monorepo [name] under [outputParent].
   ///
@@ -80,6 +136,10 @@ class PluginScaffold {
   ///   via `dependency_overrides` while the hosted constraint stays
   ///   declared — dev-only resolution that never leaks into a release
   ///   (FR-006, FR-013).
+  /// - [zuraffaConstraint] pins the hosted zuraffa constraint explicitly
+  ///   (e.g. `^6.2.2`); by default it resolves to the latest version
+  ///   published on pub.dev, falling back to the running CLI's version
+  ///   const when pub.dev is unreachable (issue #1615).
   /// - [dryRun] reports what would be written without touching the disk.
   ///
   /// Throws [PackageScaffoldException] (same contract as `zfa package
@@ -92,6 +152,7 @@ class PluginScaffold {
     String? description,
     String? repository,
     String? zuraffaPath,
+    String? zuraffaConstraint,
     bool dryRun = false,
   }) async {
     if (!_validName.hasMatch(name)) {
@@ -141,8 +202,11 @@ class PluginScaffold {
     );
     // The hosted constraint is always declared; a local checkout resolves
     // through dependency_overrides instead, so dev-only path resolution
-    // never leaks into a publish (FR-006, FR-013).
-    final zuraffaDep = '  zuraffa: ^$version';
+    // never leaks into a publish (FR-006, FR-013). The constraint itself
+    // tracks what pub.dev actually serves — not the CLI's (possibly
+    // pre-release) version const (issue #1615).
+    final zuraffaDep =
+        '  zuraffa: ${await _resolveZuraffaConstraint(zuraffaConstraint)}';
     final zuraffaPathEntry = (zuraffaPath != null)
         ? '  zuraffa:\n    path: $zuraffaPath\n'
         : '';

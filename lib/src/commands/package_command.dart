@@ -196,6 +196,13 @@ class _PackageCreatePluginCommand extends Command<void> {
           'instead of the published version — for developing the plugin '
           'family against a local zuraffa tree.',
     );
+    argParser.addOption(
+      'zuraffa-constraint',
+      help:
+          'Pin the hosted zuraffa constraint stamped into the generated '
+          'pubspecs (e.g. ^6.2.2). By default it resolves to the latest '
+          'version published on pub.dev (issue #1615).',
+    );
     argParser.addFlag(
       'no-gate',
       help:
@@ -230,6 +237,7 @@ class _PackageCreatePluginCommand extends Command<void> {
     final description = argResults!['description'] as String?;
     final repository = argResults!['repo'] as String?;
     final zuraffaPath = argResults!['zuraffa-path'] as String?;
+    final zuraffaConstraint = argResults!['zuraffa-constraint'] as String?;
     final dryRun = argResults!['dry-run'] as bool;
     final runGate = !(argResults!['no-gate'] as bool);
 
@@ -247,6 +255,7 @@ class _PackageCreatePluginCommand extends Command<void> {
         description: description,
         repository: repository,
         zuraffaPath: zuraffaPath,
+        zuraffaConstraint: zuraffaConstraint,
         dryRun: dryRun,
       );
 

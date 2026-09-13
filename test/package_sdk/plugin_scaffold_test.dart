@@ -6,6 +6,7 @@ import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 import 'package:zuraffa/src/package/package_scaffold.dart';
 import 'package:zuraffa/src/package/plugin_scaffold.dart';
+import 'package:zuraffa/src/version.dart' show version;
 
 /// Behaviors B1–B11 (spec 1601): `PluginScaffold` generates a complete
 /// federated plugin monorepo — app-facing package + platform core + one
@@ -32,15 +33,20 @@ void main() {
     String? description,
     String? repo,
     String? zuraffaPath,
+    String? zuraffaConstraint,
+    Future<String> Function()? zuraffaConstraintResolver,
     bool dryRun = false,
   }) {
-    return PluginScaffold().create(
+    return PluginScaffold(
+      zuraffaConstraintResolver: zuraffaConstraintResolver,
+    ).create(
       name: name,
       outputParent: tempDir.path,
       platforms: platforms,
       description: description,
       repository: repo,
       zuraffaPath: zuraffaPath,
+      zuraffaConstraint: zuraffaConstraint,
       dryRun: dryRun,
     );
   }
@@ -440,6 +446,53 @@ void main() {
         }
       },
     );
+  });
+
+  group('PluginScaffold — B12 hosted zuraffa constraint (issue #1615)', () {
+    test('B12a: the constraint resolves to what pub.dev serves', () async {
+      final result = await scaffold(
+        zuraffaConstraintResolver: () async => '^6.2.2',
+      );
+      final spec = pubspecOf(result.rootPath, 'my_plugin');
+
+      expect(
+        (spec['dependencies'] as YamlMap)['zuraffa'],
+        '^6.2.2',
+        reason:
+            'the stamped constraint must be the published one — a dev '
+            'checkout const (e.g. ^6.2.3 pre-release) cannot resolve',
+      );
+    });
+
+    test(
+      'B12b: resolver failure falls back to the running version const',
+      () async {
+        final result = await scaffold(
+          zuraffaConstraintResolver: () async =>
+              throw const SocketException('offline'),
+        );
+        final spec = pubspecOf(result.rootPath, 'my_plugin');
+
+        expect(
+          (spec['dependencies'] as YamlMap)['zuraffa'],
+          '^$version',
+          reason:
+              'offline scaffolds keep the previous behavior; the gate '
+              'then reports resolution failures loudly',
+        );
+      },
+    );
+
+    test('B12c: an explicit constraint beats the resolver', () async {
+      final result = await scaffold(
+        zuraffaConstraint: '^6.2.2',
+        zuraffaConstraintResolver: () async =>
+            throw const SocketException('resolver must not be consulted'),
+      );
+      final spec = pubspecOf(result.rootPath, 'my_plugin');
+
+      expect((spec['dependencies'] as YamlMap)['zuraffa'], '^6.2.2');
+    });
   });
 
   group('PluginScaffold — B6 publish tooling (FR-007 / SC-2)', () {
