@@ -1567,7 +1567,10 @@ class MakeCommand extends Command<void> {
             idx >= 0 &&
             idx < effectivePlan.steps.length &&
             _isCompositionStepArgs(effectivePlan.steps[idx].args) &&
-            _composeOutputReportsNoGreenUnits(failed.output)) {
+            _composeOutputReportsNoGreenUnits(
+              failed.output,
+              record.behaviorId,
+            )) {
           print(
             'zfa tdd make: the composition step reports no composable '
             'unit anchors yet (issue #1551) — the anchor behaviors are '
@@ -2363,16 +2366,24 @@ class MakeCommand extends Command<void> {
   /// Issue #1551: whether the failed composition step's own output
   /// carries the compose command's machine summary line naming the
   /// `no-green-units` outcome (compose_command.dart's fail-closed anchor
-  /// discovery) — the UNMET PRECONDITION verdict, as opposed to any other
-  /// compose failure (a misfire, a missing anchor artifact), which keeps
-  /// the honest `generation-error` grading.
-  static final RegExp _composeNoGreenUnitsSummary = RegExp(
-    r'^compose: behavior=\S+ outcome=no-green-units(?:\s|$)',
+  /// discovery) FOR [behaviorId] — the UNMET PRECONDITION verdict, as
+  /// opposed to any other compose failure (a misfire, a missing anchor
+  /// artifact), which keeps the honest `generation-error` grading.
+  ///
+  /// The summary's `behavior=` field is bound to the behavior being made:
+  /// the verdict must be THIS behavior's own precondition, so a summary
+  /// naming any other behavior is not a match — the classification stays
+  /// exact rather than routing on any no-green-units line in the tail.
+  static RegExp _composeNoGreenUnitsSummaryFor(String behaviorId) => RegExp(
+    '^compose: behavior=${RegExp.escape(behaviorId)} '
+    r'outcome=no-green-units(?:\s|$)',
     multiLine: true,
   );
 
-  static bool _composeOutputReportsNoGreenUnits(String composeOutput) =>
-      _composeNoGreenUnitsSummary.hasMatch(composeOutput);
+  static bool _composeOutputReportsNoGreenUnits(
+    String composeOutput,
+    String behaviorId,
+  ) => _composeNoGreenUnitsSummaryFor(behaviorId).hasMatch(composeOutput);
 
   /// Issue #1407 (FR-005): whether the project opted into the LEGACY
   /// warnings-blocking strictness via the TDD profile's machine-readable

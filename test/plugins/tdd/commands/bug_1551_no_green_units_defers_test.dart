@@ -38,7 +38,21 @@
 //   (3) a compose against GREEN anchors still makes green (the #1512
 //       surface is unbroken — the "must not break" constraint);
 //   (4) the direct `zfa tdd compose` surface keeps its honest
-//       no-green-units stop (unchanged, exit 1, no rewrite).
+//       no-green-units stop (unchanged, exit 1, no rewrite);
+//   (5) the remap's NEGATIVE boundary — the deferral is exclusive to
+//       THIS behavior's `no-green-units` verdict: a compose failure
+//       whose summary names any other outcome, and a `no-green-units`
+//       summary naming a different behavior, both still grade
+//       `generation-error`.
+//
+// Each make-driving pin spawns real `dart test` children inside the
+// fixture (~40-50s per pin against the repo's global 2x ceiling of 60s,
+// dart_test.yaml:49), so the file carries an explicit relaxed ceiling —
+// at the default the pins sit right on the boundary and flake red on a
+// loaded host (pin 3 failed outright at 60s before passing at 4x). 3
+// minutes keeps the helper's 75s child-guard (run_zfa_source.dart, issue
+// #531) comfortably shorter than the enclosing test's ceiling.
+@Timeout(Duration(minutes: 3))
 library;
 
 import 'dart:io';
@@ -288,5 +302,82 @@ void main() {
         expect(await File(fx.subjectPathOf('A1')).readAsString(), stubBefore);
       },
     );
+  });
+
+  group('bug #1551 (5): the remap NEGATIVE boundary — the deferral is '
+      'exclusive to the made behavior\'s own no-green-units verdict', () {
+    test('a compose failure whose summary names another outcome still grades '
+        '`generation-error` (never `unexpressible`)', () async {
+      // A REAL compose outcome other than no-green-units
+      // (compose_command.dart's ComposeOutcome labels): the behavior is
+      // not certified red. This is a genuine compose defect, NOT the
+      // #1551 unmet precondition, so the narrow remap must leave it
+      // graded `generation-error` — broadening
+      // `_composeOutputReportsNoGreenUnits` to any summary line would
+      // silently convert compose defects into phase-2 deferrals.
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        stdoutByArgv: {
+          'tdd compose': [
+            'compose: behavior=A1 outcome=not-certified-red '
+                'feature=${fx.featureName}',
+          ],
+        },
+        exitByArgv: {'tdd compose': 1},
+      );
+
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'A1', zfaBin: zfaBin),
+      );
+
+      expect(
+        out,
+        contains(
+          'make: behavior=A1 outcome=generation-error '
+          'feature=${fx.featureName}',
+        ),
+        reason: out,
+      );
+      expect(
+        out,
+        isNot(contains('outcome=unexpressible')),
+        reason:
+            'the phase-2 deferral is exclusive to the compose '
+            'no-green-units precondition — any other compose failure '
+            'keeps the honest generation-error stop. Output:\n$out',
+      );
+    });
+
+    test('a `no-green-units` summary naming a DIFFERENT behavior still grades '
+        '`generation-error`', () async {
+      // The classification is bound to the behavior being made
+      // (`record.behaviorId`): a no-green-units verdict belonging to
+      // another behavior is not THIS behavior's precondition, so it
+      // must not route the deferral.
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        stdoutByArgv: {
+          'tdd compose': [
+            'compose: behavior=A2 outcome=no-green-units '
+                'feature=${fx.featureName}',
+          ],
+        },
+        exitByArgv: {'tdd compose': 1},
+      );
+
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'A1', zfaBin: zfaBin),
+      );
+
+      expect(
+        out,
+        contains(
+          'make: behavior=A1 outcome=generation-error '
+          'feature=${fx.featureName}',
+        ),
+        reason: out,
+      );
+      expect(out, isNot(contains('outcome=unexpressible')), reason: out);
+    });
   });
 }
