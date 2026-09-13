@@ -242,28 +242,31 @@ void main() {
       expect(
         await cache.read(projectRoot: fx.root.path, fingerprint: after!),
         isNull,
-        reason: 'the cached snapshot must not be served under the new '
+        reason:
+            'the cached snapshot must not be served under the new '
             'fingerprint',
       );
     });
 
-    test('T002: a modified lib/ source flips the fingerprint (#1505)',
-        () async {
-      final libDir = Directory(p.join(fx.root.path, 'lib'));
-      await libDir.create(recursive: true);
-      final subject = File(p.join(libDir.path, 'subject.dart'));
-      await subject.writeAsString('int answer() => 41;\n');
-      final before = await fingerprint();
+    test(
+      'T002: a modified lib/ source flips the fingerprint (#1505)',
+      () async {
+        final libDir = Directory(p.join(fx.root.path, 'lib'));
+        await libDir.create(recursive: true);
+        final subject = File(p.join(libDir.path, 'subject.dart'));
+        await subject.writeAsString('int answer() => 41;\n');
+        final before = await fingerprint();
 
-      await subject.writeAsString('int answer() => 42;\n');
-      final after = await fingerprint();
+        await subject.writeAsString('int answer() => 42;\n');
+        final after = await fingerprint();
 
-      expect(
-        after,
-        isNot(equals(before)),
-        reason: 'a lib/ source change can change test outcomes',
-      );
-    });
+        expect(
+          after,
+          isNot(equals(before)),
+          reason: 'a lib/ source change can change test outcomes',
+        );
+      },
+    );
 
     test('T003: .zfa/ memory/manifest state participates in the '
         'fingerprint (#1505, #1550 family)', () async {
@@ -271,8 +274,9 @@ void main() {
 
       final manifests = Directory(p.join(fx.root.path, '.zfa', 'manifests'));
       await manifests.create(recursive: true);
-      await File(p.join(manifests.path, 'corpus-manifest.json'))
-          .writeAsString('{"features": ["001-todo-app"]}\n');
+      await File(
+        p.join(manifests.path, 'corpus-manifest.json'),
+      ).writeAsString('{"features": ["001-todo-app"]}\n');
       final withManifest = await fingerprint();
       expect(
         withManifest,
@@ -351,7 +355,8 @@ void main() {
       expect(
         after,
         equals(before),
-        reason: 'state a normal run mutates cannot key the cache or the '
+        reason:
+            'state a normal run mutates cannot key the cache or the '
             'next feature would always miss',
       );
       // The snapshot written under `before` still hits.
@@ -556,14 +561,13 @@ void main() {
       expect(out2, isNot(contains('corpus-wide reuse')), reason: out2);
       expect(fx.spyLog('suite'), hasLength(2), reason: out2);
       // And the cache was rewritten under the NEW fingerprint.
-      final cachePath = CorpusBaselineCache.pathFor(
-        projectRoot: fx.root.path,
-      );
+      final cachePath = CorpusBaselineCache.pathFor(projectRoot: fx.root.path);
       final decoded =
           jsonDecode(await File(cachePath).readAsString())
               as Map<String, dynamic>;
-      final current = await const CorpusBaselineCache()
-          .dependencyFingerprint(fx.root.path);
+      final current = await const CorpusBaselineCache().dependencyFingerprint(
+        fx.root.path,
+      );
       expect(decoded['dependency_fingerprint'], current);
     });
 
@@ -572,9 +576,7 @@ void main() {
       // An existing test file BEFORE the first capture: its content is in
       // the fingerprint; only its mtime churns between the runs.
       await Directory(p.join(fx.root.path, 'test')).create(recursive: true);
-      final pinned = File(
-        p.join(fx.root.path, 'test', 'pinned_test.dart'),
-      );
+      final pinned = File(p.join(fx.root.path, 'test', 'pinned_test.dart'));
       await pinned.writeAsString('void main() {}\n');
 
       await seedBehavior(featureA, 'B-001');

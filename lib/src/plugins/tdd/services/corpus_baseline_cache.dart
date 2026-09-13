@@ -207,7 +207,10 @@ class CorpusBaselineCache {
     }
     final entries = <({String relPath, File file})>[];
     try {
-      await for (final entity in dir.list(recursive: true, followLinks: false)) {
+      await for (final entity in dir.list(
+        recursive: true,
+        followLinks: false,
+      )) {
         if (entity is! File) continue;
         entries.add((
           relPath: p
@@ -247,7 +250,10 @@ class CorpusBaselineCache {
   /// are mutated by every normal run; keying them would flip the
   /// fingerprint between features and force a live suite re-run each
   /// time, destroying the spec 069 economics (SC-3).
-  Future<void> _addZfaStateDigest(BytesBuilder builder, String projectRoot) async {
+  Future<void> _addZfaStateDigest(
+    BytesBuilder builder,
+    String projectRoot,
+  ) async {
     builder.add(utf8.encode('\x00zfa-state'));
     // NOTE: there is deliberately NO `.zfa`-directory existence marker
     // here. The cache write itself creates `.zfa/corpus/`, so an
