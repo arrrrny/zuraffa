@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "feature": "1444-setup-zuraffa-app",
+  "lane": "engine",
+  "verdict": "red",
+  "result": "stopped",
+  "behaviors": [
+    "A2",
+    "A5",
+    "A7",
+    "U1",
+    "U2",
+    "U3",
+    "U4",
+    "U5",
+    "U6",
+    "U7",
+    "U8",
+    "U9",
+    "U10",
+    "contract:A1",
+    "contract:A2"
+  ],
+  "counts": {
+    "total": 15,
+    "pending": 15,
+    "red": 0,
+    "green": 0,
+    "done": 0
+  },
+  "stopped_at": "A2:verify-red",
+  "at": "2026-09-10T08:53:28.858296Z"
+}
