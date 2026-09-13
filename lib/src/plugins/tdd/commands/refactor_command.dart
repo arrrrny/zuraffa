@@ -423,11 +423,18 @@ class RefactorCommand extends Command<void> {
       // entrypoint resolves through the same tiers make/gen/verify use;
       // --zfa-bin overrides it (bug #689: never the hardcoded
       // bin/zfa.dart, which zfa setup does not create).
+      // Issue #1472: the build gate the registry applies is ERRORS-ONLY
+      // (warnings are the dart fix pass's input) unless this project's
+      // TDD profile opts back into the legacy warnings-blocking
+      // strictness with `analyze-gate: warnings-blocking` — the same
+      // machine-readable key, resolution order, and default the make's
+      // #1407 errors-only gate honors.
       print('zfa tdd refactor: applying passes');
       final passes = RefactorPasses(
         cwd,
         zfaBinOverride: (zfaBin != null && zfaBin.isNotEmpty) ? zfaBin : null,
         passTimeout: timeout,
+        warningsBlocking: await _profileWarningsBlocking(cwd),
       );
       final passResult = await passes.run();
       for (final action in passResult.actions) {
@@ -1003,6 +1010,63 @@ class RefactorCommand extends Command<void> {
       }
       ..details['applied'] = applied
       ..feature = feature == 'unknown' ? null : feature;
+  }
+
+  /// Issue #1472 (SC-5): whether the project opted into the LEGACY
+  /// warnings-blocking strictness via the TDD profile's machine-readable
+  /// Keys block (`analyze-gate: warnings-blocking`). The default — absent
+  /// key, an explicit `analyze-gate: errors-only`, an unrecognized value,
+  /// or a missing/unreadable profile — is errors-only (fail-open to the
+  /// fix, never to the legacy refusal). Resolution order mirrors the
+  /// make's #1407 reader (the same key, the same default):
+  /// [SingleTestRunner.loadSingleTemplate]'s Keys block first, then the
+  /// legacy frontmatter block.
+  static Future<bool> _profileWarningsBlocking(String workingDirectory) async {
+    final file = File(
+      p.join(workingDirectory, SingleTestRunner.defaultProfilePath),
+    );
+    if (!await file.exists()) return false;
+    final String raw;
+    try {
+      raw = await file.readAsString();
+    } catch (_) {
+      return false;
+    }
+    String? value;
+    final keysBlock = RegExp(
+      r'##\s*Keys \(machine-readable\)\s*\n+```ya?ml\n(.*?)```',
+      dotAll: true,
+    ).firstMatch(raw);
+    if (keysBlock != null) {
+      value = _profileGateScalar(keysBlock.group(1)!);
+    }
+    value ??= () {
+      final frontmatter = RegExp(
+        r'^---\n([\s\S]*?)\n---',
+        dotAll: true,
+      ).firstMatch(raw);
+      return frontmatter == null
+          ? null
+          : _profileGateScalar(frontmatter.group(1)!);
+    }();
+    return value?.trim().toLowerCase() == 'warnings-blocking';
+  }
+
+  /// The `analyze-gate:` scalar in one profile yaml block, or null when
+  /// the block does not carry the key. Quoted scalars are unwrapped —
+  /// the same three-group shape [SingleTestRunner] uses for every
+  /// profile value (the profile canonically quotes its keys).
+  static String? _profileGateScalar(String block) {
+    final match = RegExp(
+      r'''^\s*analyze-gate:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+))''',
+      multiLine: true,
+    ).firstMatch(block);
+    if (match == null) return null;
+    for (var i = 1; i <= match.groupCount; i++) {
+      final g = match.group(i);
+      if (g != null && g.isNotEmpty) return g;
+    }
+    return null;
   }
 }
 
