@@ -57,6 +57,15 @@ class ParsedCycleEntry {
   /// the sha256 of the subject file at certification time.
   final String? subjectHash;
 
+  /// The `- classification:` field of a red entry, when present: the
+  /// failure class the certifying step recorded (`assertionFailure`,
+  /// `compileError`, ...). Issue #1587 review: the make's drift-check
+  /// dedup reads it so a red that certified anything other than an
+  /// honest assertion failure can never satisfy the make's
+  /// pre-generation precondition. Absent for legacy and non-red
+  /// entries — the readers that require it fail open.
+  final String? classification;
+
   /// The `- evidence:` field (issue #959 red entries; the issue #1411
   /// born-green transition's green entry), when present: the free-text
   /// evidence note the certifying step recorded. Issue #1542: the run
@@ -77,6 +86,7 @@ class ParsedCycleEntry {
     this.prevHash,
     this.hash,
     this.subjectHash,
+    this.classification,
     this.evidence,
   });
 
@@ -256,6 +266,9 @@ List<ParsedCycleEntry> parseEntries(String raw) {
     final subjectHash = capture(
       RegExp(r'^- subject-hash: ([0-9a-f]{64})$', multiLine: true),
     );
+    final classification = capture(
+      RegExp(r'^- classification: (\S+)$', multiLine: true),
+    );
     final evidence = capture(RegExp(r'^- evidence: (.+)$', multiLine: true));
     entries.add(
       ParsedCycleEntry(
@@ -270,6 +283,7 @@ List<ParsedCycleEntry> parseEntries(String raw) {
         prevHash: prevHash,
         hash: hash,
         subjectHash: subjectHash,
+        classification: classification,
         evidence: evidence,
       ),
     );

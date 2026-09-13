@@ -116,6 +116,7 @@ class StepRunner {
     StepSpawner? spawner,
     Duration? timeout,
     this.childEnvironment,
+    this.onChildLine,
   }) : timeout = timeout ?? TddTimeouts.defaultStepProcess,
        _spawner =
            spawner ??
@@ -125,6 +126,7 @@ class StepRunner {
                  workingDirectory,
                  timeout ?? TddTimeouts.defaultStepProcess,
                  childEnvironment,
+                 onChildLine,
                ));
 
   /// Explicit entrypoint override (`--zfa-bin`). When null the package
@@ -145,6 +147,18 @@ class StepRunner {
   /// [StepSpawner] fake keeps its own contract (the env rides the REAL
   /// spawn path only).
   final Map<String, String>? childEnvironment;
+
+  /// Issue #1590: the stdout line callback forwarded into `runTimed` by
+  /// the DEFAULT spawner — every complete stdout line the step child
+  /// prints fires this callback AS IT ARRIVES, which is how the driver
+  /// forwards the make child's `→ ` sub-step banners to the run output
+  /// while the step still runs. The captured `StepResult.output` is
+  /// unchanged (the callback observes the stream; it never replaces the
+  /// capture). Null (the default) keeps the pre-#1590 capture path.
+  /// An injected [StepSpawner] fake keeps its own contract — the callback
+  /// rides the REAL spawn path only (the established childEnvironment
+  /// precedent).
+  final void Function(String line)? onChildLine;
 
   /// Resolved entrypoint, cached after the first step so `defaultZfaBin`'s
   /// `Isolate.resolvePackageUri` lookup runs once per run, not once per step
@@ -291,6 +305,7 @@ class StepRunner {
     required String projectRoot,
     String? suiteBaselinePath,
     Set<String> parkedSeamPaths = const {},
+    List<String> extraArgs = const [],
   }) async {
     if (!stepOrder.contains(step)) {
       throw ArgumentError.value(step, 'step', 'unknown TDD step');
@@ -340,6 +355,14 @@ class StepRunner {
         (timeout.inMicroseconds / Duration.microsecondsPerMinute)
             .toStringAsFixed(4),
       ]);
+    }
+    // Issue #1588: driver-passed step flags (the phase-2 refactor pass's
+    // --pass-batch / --exempt-behaviors batch context). Appended verbatim
+    // after the baseline/timeout flags; the default is empty so every
+    // existing call site (gen / verify-red / make / phase-1 refactor)
+    // spawns byte-identical argv as before.
+    if (extraArgs.isNotEmpty) {
+      argv.addAll(extraArgs);
     }
     final command = entry.endsWith('.dart')
         ? ['dart', entry, ...argv]
@@ -545,12 +568,14 @@ class StepRunner {
   /// killed at [timeout] and a [ProcessTimeoutException] propagates to
   /// [run], which maps it to a `runner-error` StepResult. [environment] is
   /// the caller's scratch-TMPDIR map (spec 1520) — merged over the
-  /// inherited environment, null inherits it unchanged.
+  /// inherited environment, null inherits it unchanged. [onChildLine] is
+  /// the issue #1590 stdout line tee (null keeps the plain capture).
   static Future<ProcessResult> _timedDefaultSpawner(
     List<String> command,
     String workingDirectory,
     Duration timeout,
     Map<String, String>? environment,
+    void Function(String line)? onChildLine,
   ) {
     return runTimed(
       command.first,
@@ -558,6 +583,7 @@ class StepRunner {
       workingDirectory: workingDirectory,
       timeout: timeout,
       environment: environment,
+      onStdoutLine: onChildLine,
     );
   }
 }

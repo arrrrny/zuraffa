@@ -261,6 +261,14 @@ class GenerationStep {
   /// observability; never used in decisions.
   final StepTelemetry? telemetry;
 
+  /// Issue #1587: true when the step was SKIPPED by the build-skip
+  /// scheduling gate — the terminal `build` step of a plan whose
+  /// generation wrote nothing a builder consumes. The captured step is
+  /// synthetic (exit 0, [output] carries the skip note): no subprocess
+  /// was spawned, and the audit stays honest about that. Every
+  /// executed step (including a real build) carries the default false.
+  final bool buildSkipped;
+
   const GenerationStep({
     required this.command,
     required this.exitCode,
@@ -269,6 +277,7 @@ class GenerationStep {
     this.timedOut = false,
     this.killClass = GenerationKillClass.none,
     this.telemetry,
+    this.buildSkipped = false,
   });
 
   /// The machine-parseable verdict class for a killed step

@@ -26,6 +26,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/generation_plan.dart';
+import 'build_relevance.dart';
 import 'tdd_timeout.dart';
 
 /// Resolution-stage failure: the zfa entrypoint could not be resolved
@@ -64,6 +65,66 @@ class PipelineResult {
 
 class PipelineRunner {
   const PipelineRunner();
+
+  /// Issue #1590: the sub-step NAME without the banner token or hint
+  /// (FR-003's derivation, shared with make's plan lines). From the
+  /// step's args: `tdd`-prefixed → the subcommand verb (`func`, `wire`,
+  /// `compose`); `build` → `build`; `entity create <Name>` (the name
+  /// rides `-n`/`--name`, the form every planner call site emits;
+  /// positional accepted too) → `entity create <Name>`; `make <Name>` →
+  /// `make <Name>`; `mock create` → `mock create`; anything else → the
+  /// first two args joined.
+  static String nameFor(GenerationStepSpec spec) {
+    final args = spec.args;
+    if (args.isEmpty) return '(empty step)';
+    final head = args.first;
+    if (head == 'tdd' && args.length > 1) return args[1];
+    if (head == 'build') return 'build';
+    if (head == 'entity' && args.length > 1) {
+      // `-n <Name>` / `--name <Name>` first (every generation-planner
+      // call site), then the positional form.
+      for (var i = 2; i < args.length - 1; i++) {
+        if (args[i] == '-n' || args[i] == '--name') {
+          return 'entity ${args[1]} ${args[i + 1]}';
+        }
+      }
+      final positional = args.length > 2 && !args[2].startsWith('-')
+          ? args[2]
+          : '';
+      return 'entity ${args[1]} $positional'.trimRight();
+    }
+    if (head == 'make' && args.length > 1) return 'make ${args[1]}';
+    if (head == 'mock' && args.length > 1) return 'mock ${args[1]}';
+    return args.length > 1 ? '${args[0]} ${args[1]}' : args[0];
+  }
+
+  /// Issue #1590: the `→ ` banner line printed before each sub-step spawn
+  /// (FR-002) — the pipeline was the silent 273.7s window inside a driven
+  /// make. The build step carries the hint the issue asks for; everything
+  /// else is the plain name.
+  static String bannerFor(GenerationStepSpec spec) {
+    final args = spec.args;
+    if (args.isEmpty) return '→ (empty step)';
+    final head = args.first;
+    if (head == 'tdd' && args.length > 1) return '→ ${args[1]}';
+    if (head == 'build') {
+      return '→ build (build_runner + analyze; minutes on first run)';
+    }
+    return '→ ${nameFor(spec)}';
+  }
+
+  /// Issue #1590: make's plan line with the step NAMES (FR-003) — the
+  /// pre-#1590 line carried only a count. [compositionFallback] renders
+  /// the labeled composition variant.
+  static String planSummaryLine(
+    List<GenerationStepSpec> steps, {
+    bool compositionFallback = false,
+  }) {
+    final names = steps.map(nameFor).join(', ');
+    return compositionFallback
+        ? '   plan: composition fallback — ${steps.length} step(s): $names'
+        : '   plan: ${steps.length} step(s): $names';
+  }
 
   /// The default per-step address-space ceiling (bug #826): 2 GiB in KB —
   /// measured generous enough for the analyzer/build pipeline a real
@@ -129,6 +190,19 @@ class PipelineRunner {
   /// tests can pin every tier (source, PATH, compiled snapshot, native
   /// executable) without spawning a real VM. Production callers omit
   /// them and get the real platform values.
+  ///
+  /// Issue #1587: [skipUnchangedBuild] is the build-step SCHEDULING
+  /// seam — when true, the runner fingerprints the project's
+  /// build-relevant tree ([BuildRelevance.fingerprint]) before the
+  /// first step, and before executing a step whose args are exactly
+  /// `['build']` re-evaluates the changed set: when nothing a builder
+  /// consumes changed, the build subprocess is never spawned and a
+  /// synthetic [GenerationStep] (exit 0, the skip note in its output,
+  /// `buildSkipped: true`) is captured for the audit. The decision is
+  /// made once per plan; when the build DOES run (or any earlier build
+  /// step executed), the fingerprint is dropped and execution proceeds
+  /// byte-identically to today. The flag defaults to false — callers
+  /// that do not opt in keep spawning every step unchanged (FR-008).
   Future<PipelineResult> runPlan({
     required GenerationPlan plan,
     required String workingDirectory,
@@ -138,6 +212,7 @@ class PipelineRunner {
     String? scriptPathOverride,
     String? resolvedExecutableOverride,
     String? pathEnvOverride,
+    bool skipUnchangedBuild = false,
   }) async {
     if (!plan.isExpressible) {
       return PipelineResult(
@@ -160,10 +235,58 @@ class PipelineRunner {
 
     final captured = <GenerationStep>[];
     var firstFailure = -1;
+    // Issue #1587: the build-relevant fingerprint captured before the
+    // first step — null once consumed (the decision is made once per
+    // plan) or when the flag is off.
+    Map<String, String>? buildFingerprint;
+    if (skipUnchangedBuild) {
+      try {
+        buildFingerprint = await BuildRelevance.fingerprint(
+          projectRoot: workingDirectory,
+        );
+      } catch (_) {
+        // Fail open (issue #1587 review): an unreadable tree turns the
+        // gate OFF — `null` is the same sentinel the flagless path
+        // leaves — instead of escaping runPlan as an I/O error that the
+        // make's `on PipelineResolutionError` arm cannot grade. The
+        // build then spawns exactly as it did before this change.
+        buildFingerprint = null;
+      }
+    }
     for (var i = 0; i < plan.steps.length; i++) {
       final spec = plan.steps[i];
       final args = [...entrypoint.arguments, ...spec.args];
       final fullCmd = '${entrypoint.displayCommand} ${spec.args.join(' ')}';
+      // Issue #1587: the terminal `build` step's scheduling gate. The
+      // exact `['build']` shape is the planner's build-step contract;
+      // nothing changed builder-consumable → the build would re-derive
+      // identical results, so it is pure per-behavior overhead.
+      if (buildFingerprint != null &&
+          spec.args.length == 1 &&
+          spec.args.first == 'build') {
+        final skip = await BuildRelevance.shouldSkipTerminalBuild(
+          projectRoot: workingDirectory,
+          before: buildFingerprint,
+        );
+        buildFingerprint = null; // decided — never re-evaluated
+        if (skip) {
+          captured.add(
+            GenerationStep(
+              command: fullCmd,
+              exitCode: 0,
+              output: BuildRelevance.skippedBuildNote,
+              purpose: spec.purpose,
+              buildSkipped: true,
+            ),
+          );
+          continue;
+        }
+      }
+      // Issue #1590: announce the sub-step BEFORE the spawn — each step
+      // was previously a silent window (a driven build runs minutes on
+      // first run). Spawned steps only: the misfire-stop paths below
+      // never announce a step they never reached.
+      print(bannerFor(spec));
       final clock = Stopwatch()..start();
       final rssBeforeKb = ProcessInfo.currentRss ~/ 1024;
       try {

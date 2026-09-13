@@ -316,7 +316,11 @@ void main() {
 
     /// Seed the registry file directly with one record whose paths carry
     /// [testPath]/[subjectPath] verbatim (the recorded form).
-    Future<void> seedRegistry(String testPath, String subjectPath) async {
+    Future<void> seedRegistry(
+      String testPath,
+      String subjectPath, {
+      String? genFingerprint,
+    }) async {
       final regFile = File(registry.registryPath);
       await regFile.parent.create(recursive: true);
       await regFile.writeAsString(
@@ -333,6 +337,7 @@ void main() {
               'test_ownership': 'created',
               'subject_ownership': 'created',
               'created_at': '2026-08-29T20:00:00Z',
+              'gen_fingerprint': ?genFingerprint,
             },
           ],
         }),
@@ -348,18 +353,22 @@ void main() {
       }
     }
 
-    ArtifactRecord offering(String testPath, String subjectPath) =>
-        ArtifactRecord(
-          behaviorId: 'B-003',
-          feature: '044-test-tdd-generation',
-          sourceCriterion: 'FR-007',
-          testPath: testPath,
-          subjectPath: subjectPath,
-          runnableTestName: '$testPath::B-003::asserts behavior',
-          testOwnership: Ownership.created,
-          subjectOwnership: Ownership.created,
-          createdAt: '2026-08-29T20:00:00Z',
-        );
+    ArtifactRecord offering(
+      String testPath,
+      String subjectPath, {
+      String? genFingerprint,
+    }) => ArtifactRecord(
+      behaviorId: 'B-003',
+      feature: '044-test-tdd-generation',
+      sourceCriterion: 'FR-007',
+      testPath: testPath,
+      subjectPath: subjectPath,
+      runnableTestName: '$testPath::B-003::asserts behavior',
+      testOwnership: Ownership.created,
+      subjectOwnership: Ownership.created,
+      createdAt: '2026-08-29T20:00:00Z',
+      genFingerprint: genFingerprint,
+    );
 
     test('preflight reuses when the prior record is project-relative and '
         'the caller offers the machine-absolute form (issue #1397)', () async {
@@ -440,6 +449,70 @@ void main() {
         ),
         throwsA(isA<OwnershipConflict>()),
       );
+    });
+
+    group('gen fingerprint survives the path-form copiers (issue #1388)', () {
+      final digest = List.filled(64, 'a').join();
+
+      test('loadAll re-anchors a stale absolute path and keeps the digest '
+          '(_reanchorRecord)', () async {
+        // A registry written on another machine: the absolute paths no
+        // longer resolve, but their lane suffixes do under this project
+        // root, so the reader's reanchor pass rebuilds each record.
+        await seedArtifacts();
+        await seedRegistry(
+          '/stale-sandbox/checkout-a/$relTest',
+          '/stale-sandbox/checkout-a/$relSubject',
+          genFingerprint: digest,
+        );
+
+        final records = await registry.loadAll();
+
+        expect(records, hasLength(1));
+        expect(records.single.testPath, relTest);
+        expect(records.single.subjectPath, relSubject);
+        expect(
+          records.single.genFingerprint,
+          digest,
+          reason:
+              '_reanchorRecord rebuilt the record but dropped '
+              'gen_fingerprint — #1388 reopens',
+        );
+      });
+
+      test('append persists the portable path form and keeps the digest '
+          '(_canonicalize)', () async {
+        await seedArtifacts();
+
+        await registry.append(
+          offering(
+            p.join(tmpDir.path, relTest),
+            p.join(tmpDir.path, relSubject),
+            genFingerprint: digest,
+          ),
+        );
+
+        final raw = await File(registry.registryPath).readAsString();
+        final stored =
+            ((jsonDecode(raw) as Map<String, dynamic>)['records'] as List)
+                    .single
+                as Map<String, dynamic>;
+        expect(
+          stored['test_path'],
+          relTest,
+          reason: '_canonicalize must still persist the portable form',
+        );
+        expect(
+          stored['gen_fingerprint'],
+          digest,
+          reason:
+              '_canonicalize rewrote the record but dropped gen_fingerprint '
+              '— #1388 reopens',
+        );
+
+        // ... and the digest survives the reanchor reader as well.
+        expect((await registry.loadAll()).single.genFingerprint, digest);
+      });
     });
   });
 }

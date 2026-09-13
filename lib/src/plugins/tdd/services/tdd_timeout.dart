@@ -122,17 +122,46 @@ Duration? parseTddTimeoutMinutes(String? raw) {
   );
 }
 
-/// Thrown when the `--timeout` flag value is not a positive number of
-/// minutes.
+/// Parses the `--heartbeat <seconds>` flag value (issue #1590).
+///
+/// `null`/empty → `null` (the CALLER applies its own default — the run
+/// driver's 30s). `0` → [Duration.zero] (heartbeats OFF — the
+/// parser-strict mode). Positive fractions are allowed (`0.05` = 50ms).
+/// Anything else throws [TddTimeoutFormatException] so the command can
+/// reject it non-zero instead of guessing; that includes the non-finite
+/// doubles `double.tryParse` admits (`NaN`, `Infinity`, an overflowing
+/// literal like `1e999`), which would otherwise crash `.round()` with
+/// an uncaught `UnsupportedError` instead of the rejection path.
+Duration? parseTddHeartbeatSeconds(String? raw) {
+  if (raw == null || raw.isEmpty) return null;
+  final seconds = double.tryParse(raw);
+  if (seconds == null || !seconds.isFinite || seconds < 0) {
+    throw TddTimeoutFormatException(raw, flag: '--heartbeat', unit: 'seconds');
+  }
+  return Duration(milliseconds: (seconds * 1000).round());
+}
+
+/// Thrown when a `--timeout`/`--heartbeat` flag value is not a positive
+/// number ([flag] names the offending flag, [unit] its unit).
 class TddTimeoutFormatException implements Exception {
-  TddTimeoutFormatException(this.raw);
+  TddTimeoutFormatException(
+    this.raw, {
+    this.flag = '--timeout',
+    this.unit = 'minutes',
+  });
 
   /// The invalid flag value as given.
   final String raw;
 
+  /// The flag whose value was rejected (defaults to `--timeout`).
+  final String flag;
+
+  /// The flag's unit (`minutes`, `seconds`).
+  final String unit;
+
   String get message =>
-      'invalid --timeout "$raw": pass a positive number of minutes '
-      '(fractions allowed, e.g. 0.5 for 30 seconds).';
+      'invalid $flag "$raw": pass a positive number of $unit '
+      '(fractions allowed, e.g. 0.5).';
 
   @override
   String toString() => message;
@@ -242,6 +271,15 @@ String formatBudget(Duration d) {
 ///     [ProcessTimeoutException] carrying the output captured so far is
 ///     thrown — no TDD subprocess may await a child indefinitely.
 ///
+/// Issue #1590: when [onStdoutLine] is set, every complete stdout line
+/// fires the callback AS IT ARRIVES (liveness for long-running steps —
+/// the make child's `→ ` sub-step banners reach the terminal while the
+/// step still runs, instead of surfacing only from the captured output
+/// after it exits). The returned `ProcessResult.stdout` stays
+/// BYTE-FAITHFUL to the pre-#1590 capture: the callback observes the same
+/// decoded stream the capture buffer does, it never replaces it. Null
+/// (the default) keeps the pre-#1590 `.join()` path exactly.
+///
 /// Bug #826: when [memoryLimitKb] is set and the platform is not Windows,
 /// the child spawns through `sh -c 'ulimit -v <kb>; exec "$0" "$@"'` so
 /// the ceiling is enforced by the kernel INSIDE the child while the spawn
@@ -272,6 +310,7 @@ Future<ProcessResult> runTimed(
   required Duration timeout,
   int? memoryLimitKb,
   Map<String, String>? environment,
+  void Function(String line)? onStdoutLine,
 }) async {
   // Bug #826: wrap the spawn under a kernel-enforced address-space
   // ceiling. Shell-wrapper mode requires direct execution (no shell of
@@ -295,7 +334,9 @@ Future<ProcessResult> runTimed(
     runInShell: runInShell,
     environment: environment,
   );
-  final stdoutFuture = process.stdout.transform(systemEncoding.decoder).join();
+  final stdoutFuture = onStdoutLine == null
+      ? process.stdout.transform(systemEncoding.decoder).join()
+      : _drainTeeing(process.stdout, onStdoutLine);
   final stderrFuture = process.stderr.transform(systemEncoding.decoder).join();
   // Spec 1529: the child's ACTUAL lifetime, measured — the configured
   // deadline ([timeout]) and the kill's wall time differ under load.
@@ -334,6 +375,43 @@ Future<ProcessResult> runTimed(
     );
   }
   return ProcessResult(process.pid, exitCode, stdoutText, stderrText);
+}
+
+/// Issue #1590: drains [stdout] into a byte-faithful string buffer while
+/// firing [onLine] per COMPLETE line as it arrives (a carry accumulator
+/// splits on `\n`, tolerates `\r\n`, and flushes a final unterminated
+/// line at done). The returned string is the exact concatenation of the
+/// decoded chunks — identical to what `.join()` would have produced.
+Future<String> _drainTeeing(
+  Stream<List<int>> stdout,
+  void Function(String line) onLine,
+) {
+  final buffer = StringBuffer();
+  var carry = '';
+  final completer = Completer<void>();
+  stdout
+      .transform(systemEncoding.decoder)
+      .listen(
+        (chunk) {
+          buffer.write(chunk);
+          carry += chunk;
+          var newline = carry.indexOf('\n');
+          while (newline >= 0) {
+            var line = carry.substring(0, newline);
+            if (line.endsWith('\r')) line = line.substring(0, line.length - 1);
+            onLine(line);
+            carry = carry.substring(newline + 1);
+            newline = carry.indexOf('\n');
+          }
+        },
+        onDone: () {
+          if (carry.isNotEmpty) onLine(carry);
+          completer.complete();
+        },
+        onError: (Object error) => completer.completeError(error),
+        cancelOnError: true,
+      );
+  return completer.future.then((_) => buffer.toString());
 }
 
 /// One process line of the descendant snapshot: `pid ppid args` collapsed
