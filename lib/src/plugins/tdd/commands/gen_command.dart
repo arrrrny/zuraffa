@@ -1107,6 +1107,21 @@ class GenCommand extends Command<void> {
                     '`zfa tdd gen ${behavior.id} --repair --feature '
                     '$featureRef`',
               );
+              // Issue #1495 review: the stale record was already dropped
+              // above — trace the mutation even though this run refuses
+              // (the post-flow audit call is gated on repairConflict,
+              // which this early return never sets). `kept` = survivors
+              // verified so far; nothing was regenerated.
+              await bounded(
+                _auditRepair(
+                  featureDir,
+                  featureName,
+                  behavior.id,
+                  adoptedPaths,
+                  const [],
+                ),
+                'repair: audit log (refused after drop)',
+              );
               // House pattern (spec 048): signal through exitCode and
               // return, so the JSON verdict stays the final stdout line.
               exitCode = 1;

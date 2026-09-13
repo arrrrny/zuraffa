@@ -302,28 +302,31 @@ void main() {
       },
     );
 
-    test('bug 840 RED: doctor prescribes reset when the registry records '
-        'files missing from disk and nothing is resumable', () async {
-      // Registry record for B-001, but BOTH files are gone; run-state
-      // absent (nothing to resume).
-      await fx.registerBehavior(
-        id: behaviorId,
-        description: 'first',
-        writeTestFile: false,
-      );
+    test(
+      'bug 840 RED: doctor prescribes the surgical repair when the '
+      'registry records files missing from disk and nothing is resumable',
+      () async {
+        // Registry record for B-001, but BOTH files are gone; run-state
+        // absent (nothing to resume).
+        await fx.registerBehavior(
+          id: behaviorId,
+          description: 'first',
+          writeTestFile: false,
+        );
 
-      final out = await runCli(['doctor', feature]);
+        final out = await runCli(['doctor', feature]);
 
-      expect(exitCode, 1, reason: out);
-      expect(out, contains('--> fix:'), reason: out);
-      // Issue #1495: a record whose BOTH files are gone owns NOTHING on
-      // disk — the prescription is now the surgical garbage-collect
-      // (`doctor --repair` keeps every healthy record and touches no
-      // file); `zfa tdd reset` remains the heavier alternative.
-      expect(out, contains('zfa tdd doctor $feature --repair'), reason: out);
-      final v = verdict(out);
-      expect(v['prescription'], 'repair');
-    });
+        expect(exitCode, 1, reason: out);
+        expect(out, contains('--> fix:'), reason: out);
+        // Issue #1495: a record whose BOTH files are gone owns NOTHING on
+        // disk — the prescription is now the surgical garbage-collect
+        // (`doctor --repair` keeps every healthy record and touches no
+        // file); `zfa tdd reset` remains the heavier alternative.
+        expect(out, contains('zfa tdd doctor $feature --repair'), reason: out);
+        final v = verdict(out);
+        expect(v['prescription'], 'repair');
+      },
+    );
 
     test(
       'bug 840 RED: doctor exits 0 with a deterministic healthy verdict',

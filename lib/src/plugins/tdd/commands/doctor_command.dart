@@ -395,7 +395,10 @@ class DoctorCommand extends Command<void> {
           feature: feature,
           verdict: 'repaired',
           prescription: 'repair',
-          fix: 'zfa tdd gen <id> --feature ${resolved.ref}',
+          // Issue #1495 review: a concrete command, not a template with a
+          // literal `<id>` placeholder — the run driver re-drives the
+          // collected behaviors honestly.
+          fix: 'zfa tdd run ${resolved.ref}',
           drifts: drifts,
         );
         exitCode = 0;
@@ -426,9 +429,11 @@ class DoctorCommand extends Command<void> {
       _printVerdict(
         feature: feature,
         verdict: 'drift',
-        prescription: repairMode || fix.contains('--repair')
-            ? 'repair'
-            : 'reset',
+        // Issue #1495 review: match the prescription to its fix line —
+        // on a half-missing record the fix is the reset command, so the
+        // flag alone must not flip the machine-readable field (the same
+        // state diagnosed without the flag reports 'reset').
+        prescription: fix.contains('--repair') ? 'repair' : 'reset',
         fix: fix,
         drifts: drifts,
       );
@@ -878,7 +883,7 @@ class DoctorCommand extends Command<void> {
   Future<void> _auditRepair(
     String featureDir,
     String featureName,
-    List<dynamic> droppedRecords,
+    List<ArtifactRecord> droppedRecords,
   ) async {
     final auditFile = File(p.join(featureDir, 'tdd', 'audit.log'));
     await auditFile.parent.create(recursive: true);
@@ -887,7 +892,7 @@ class DoctorCommand extends Command<void> {
       'action': 'repair',
       'feature': featureName,
       'command': 'doctor',
-      'dropped': droppedRecords.map((r) => r.behaviorId as String).toList(),
+      'dropped': droppedRecords.map((r) => r.behaviorId).toList(),
     });
     final sink = auditFile.openWrite(mode: FileMode.append);
     sink.writeln(line);
@@ -910,7 +915,9 @@ class DoctorCommand extends Command<void> {
       _verdict
         ..feature = feature
         ..exitClass = verdict
-        ..outcome = verdict == 'healthy'
+        // Issue #1495 review: `repaired` is a SUCCESS verdict — the GC
+        // path exits 0, so the envelope must not gate it as fail.
+        ..outcome = (verdict == 'healthy' || verdict == 'repaired')
             ? VerdictOutcome.pass
             : VerdictOutcome.fail
         ..fix = fix

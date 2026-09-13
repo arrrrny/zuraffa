@@ -327,6 +327,45 @@ void main() {
         reason: out,
       );
     });
+
+    test('drops the stale record then refuses on an unshaped survivor — the '
+        'drop is still audit-traced (issue #1495 review)', () async {
+      await firstGen(behaviorId);
+      await File(subjectPathOf(behaviorId)).delete();
+      await File(
+        testPathOf(behaviorId),
+      ).writeAsString('// hand-refined, no provenance header\n');
+
+      final out = await runCli([
+        'gen',
+        behaviorId,
+        '--feature',
+        feature,
+        '--repair',
+      ]);
+
+      expect(exitCode, 1, reason: out);
+      expect(
+        out,
+        contains('does not match the generated test shape'),
+        reason: out,
+      );
+      // The stale record was dropped BEFORE the shape check refused…
+      expect(
+        (await records()).where((r) => r['behavior_id'] == behaviorId),
+        isEmpty,
+        reason: 'the stale record was dropped before the refusal — $out',
+      );
+      // …and the drop is traced even on this refusal path — the one
+      // repair outcome that mutates the registry and still refuses.
+      final audit = File(p.join(fx.featureDir, 'tdd', 'audit.log'));
+      expect(audit.existsSync(), isTrue, reason: out);
+      expect(
+        audit.readAsStringSync(),
+        contains('"action":"repair"'),
+        reason: 'the dropped record must leave an audit trail — $out',
+      );
+    });
   });
 
   group('bug 1495 — zfa tdd doctor <feature> --repair', () {
@@ -363,6 +402,25 @@ void main() {
       expect(v['verdict'], 'repaired', reason: out);
     });
 
+    test('--json reports the repaired GC as PASS with exit 0 (issue #1495 '
+        'review: the envelope verdict is the outcome category)', () async {
+      await firstGen(behaviorId);
+      await File(testPathOf(behaviorId)).delete();
+      await File(subjectPathOf(behaviorId)).delete();
+
+      final out = await runCli(['doctor', feature, '--repair', '--json']);
+
+      expect(exitCode, 0, reason: out);
+      final v = verdictMap(out);
+      expect(v['verdict'], 'pass', reason: out);
+      expect(v['exit_class'], 'repaired', reason: out);
+      expect(
+        (v['details'] as Map<String, dynamic>)['prescription'],
+        'repair',
+        reason: out,
+      );
+    });
+
     test('RED: refuses to garbage-collect a HALF-missing record (the '
         'surviving half is still owned — GC would orphan it); prescribes '
         'reset, drops nothing', () async {
@@ -373,6 +431,11 @@ void main() {
 
       expect(exitCode, 1, reason: out);
       expect(out, contains('zfa tdd reset $feature'), reason: out);
+      // Issue #1495 review: the machine-readable prescription matches the
+      // fix line — the flag alone must not flip it to 'repair'.
+      final v = verdictMap(out);
+      expect(v['prescription'], 'reset', reason: out);
+      expect(v['fix'], 'zfa tdd reset $feature', reason: out);
       expect(
         (await records()).where((r) => r['behavior_id'] == behaviorId),
         hasLength(1),
