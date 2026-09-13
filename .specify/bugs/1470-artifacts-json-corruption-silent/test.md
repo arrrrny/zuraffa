@@ -27,10 +27,22 @@ reproducible in-process, unlike #1469's unobservable fsync):
 5. **U-1470-a5** a MISSING registry is still an empty one (`loadAll` →
    `[]`, `findRecord` → `null`) — FR-012 unchanged; corrupt ≠ missing is
    the distinction the fix must not erase.
+6. **U-1470-a6** a valid-JSON registry with no `records` list
+   (`{"feature": ...}`, `{}`) throws instead of reading as a fresh
+   feature — the shape gate added in the review-fix round (review
+   finding 1).
+7. **U-1470-a7** wrong-shape JSON (non-object top level, non-list
+   `records`, non-object record entry) maps to
+   `ArtifactRegistryCorruptException` rather than a raw `TypeError`
+   (review finding 2); the U-1470-a2 fixture now truncates the real
+   seeded registry bytes instead of an unrelated literal (review
+   finding 3).
 
 Corruption fixtures: truncated JSON (`'{"records": [ {"behavior_id":
-"B-001" '`), non-JSON text (`'not json at all'`), and structurally-broken
-JSON (`'{]]}'`).
+"B-001" '`, and — for the register test — a truncation of the real
+seeded B-001/B-002 bytes, per review finding 3), structurally-broken
+JSON (`'{]]}'`), and the wrong shapes (no `records` list, non-object
+top level, non-object record entry).
 
 ## RED evidence (pre-fix)
 
@@ -50,11 +62,12 @@ Committed suite pre-fix: compile-level RED —
 ## GREEN evidence (post-fix)
 
 ```
-00:00 +5: All tests passed!
+00:00 +7: All tests passed!
 ```
 
-All five behaviors pass; the suite is deterministic (no sleeps, no network,
-temp-dir fixture torn down per test).
+All seven behaviors pass (the two review-round pins included); the suite
+is deterministic (no sleeps, no network, temp-dir fixture torn down per
+test).
 
 ## Regression sweep (post-fix, this session)
 
@@ -66,9 +79,15 @@ temp-dir fixture torn down per test).
   test/plugins/tdd/services/spec_fuzz_auditor_test.dart
   test/plugins/tdd/services/behavior_kind_trace_test.dart
   test/plugins/tdd/services/mutation_auditor_test.dart`
-  → `+68: All tests passed!`
+  → `+70: All tests passed!` — re-run in the review-fix round (+2 = the
+  two new shape pins; was +68 before them).
 - Chunked fast-suite sweep (repo policy `tools/run_tests_chunked.sh`
   semantics: per-folder chunks, kernel cache cleared between chunks,
   flutter-tagged excluded): 103 runnable chunks + 4 root-file chunks
   (905 tests in `tdd/services` root, 519 in `tdd` root) — all passed;
   5 all-slow folders SKIP. Full table: `../../tdd/verification.md`.
+- Review-fix round (2026-09-13): RED `+0 -2` for the two new pins
+  against the pre-gate code (silent `[]`, raw `TypeError`); GREEN `+7`
+  for the suite; `dart analyze` clean on the changed files; `dart format
+  lib test` 0 files changed; `test/plugins/tdd/services/` folder run
+  green (974 passed / 1 skipped).

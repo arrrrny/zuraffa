@@ -54,15 +54,18 @@ the committed test's pre-fix failure.
 
 ## Fix shape (and constraints honored)
 
-Behavioral change confined to the `FormatException` handling in
+Behavioral change confined to the corruption gate in
 `artifact_registry.dart` (single file in lib/):
 
 - New `ArtifactRegistryCorruptException` (`implements Exception`, message +
   `toString() => message`) mirroring `RunStateCorruptException`'s shape.
-- `on FormatException catch (e)` now throws with the registry path, the
-  parser's cause, and a recovery prescription (repair to valid registry
-  JSON or restore from version control; do not delete — deletion is what
-  re-registers every behavior as created and duplicates artifact files).
+- `_loadRecords` now throws on every wrong shape with the registry path,
+  the cause, and a recovery prescription (repair to valid registry JSON or
+  restore from version control; do not delete — deletion is what
+  re-registers every behavior as created and duplicates artifact files):
+  unparseable JSON (`on FormatException`), a non-object top level, a
+  missing/non-list "records", and non-object record entries (the last
+  three closed in the post-review fix round — review findings 1–2).
 
 The issue's suggested message offered "delete the file and re-run gen" as
 recovery; the fix deliberately prescribes repair/restore instead — with
@@ -73,7 +76,9 @@ path, cause, actionable recovery) is exactly what the issue asks for.
 - Missing-file behavior (FR-012, `loadAll` on absent file → `[]`) is
   unchanged and pinned by a new test — corrupt ≠ missing.
 - No other file in lib/ changed (`git diff --stat` = one lib file).
-- Out of scope by the same constraint: `RunStateStore.readDropped`'s
-  intentional `FormatException → const []` (documented there: `load()` is
-  the corruption gate that fires first), and shape violations that raise
-  `TypeError` rather than `FormatException` (valid JSON, wrong shape).
+- Out of scope at assessment time by the same constraint:
+  `RunStateStore.readDropped`'s intentional `FormatException → const []`
+  (documented there: `load()` is the corruption gate that fires first).
+  Shape violations that raise `TypeError` rather than `FormatException`
+  (valid JSON, wrong shape) were closed in the post-review fix round
+  instead of deferred (review findings 1–2).

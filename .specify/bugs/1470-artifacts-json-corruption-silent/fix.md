@@ -7,7 +7,7 @@ TDD mode: red → green recorded in `red-evidence.md` / `test.md`, and in
 ## What changed and why
 
 1. **`lib/src/plugins/tdd/services/artifact_registry.dart` — the
-   `FormatException` handling only.**
+   corruption gate in `_loadRecords`.**
 
    New exception, mirroring `RunStateCorruptException`'s contract (message
    field, `toString() => message`):
@@ -23,18 +23,22 @@ TDD mode: red → green recorded in `red-evidence.md` / `test.md`, and in
    }
    ```
 
-   `_loadRecords`' swallow replaced with the throw:
+   `_loadRecords`' swallow replaced with one gate for every wrong shape —
+   unparseable JSON, a non-object top level, a missing/non-list "records",
+   and non-object record entries (the last three previously read as `[]`
+   or leaked a raw `TypeError`; closed in the review-fix round):
 
    ```dart
+   Never corrupt(String cause) => throw ArtifactRegistryCorruptException(
+     'corrupted artifacts.json at $registryPath ($cause). Recovery: '
+     'repair the file to valid registry JSON '
+     '(a "feature" plus a "records" list) or restore it from version '
+     'control — do NOT delete it, or the next gen re-registers every '
+     'behavior as created and can duplicate artifact files.',
+   );
+   ...
    } on FormatException catch (e) {
-     // Bug #1470: a corrupt registry is NOT an empty one. ...
-     throw ArtifactRegistryCorruptException(
-       'corrupted artifacts.json at $registryPath (invalid JSON: '
-       '${e.message}). Recovery: repair the file to valid registry JSON '
-       '(a "feature" plus a "records" list) or restore it from version '
-       'control — do NOT delete it, or the next gen re-registers every '
-       'behavior as created and can duplicate artifact files.',
-     );
+     corrupt('invalid JSON: ${e.message}');
    }
    ```
 
@@ -45,11 +49,12 @@ TDD mode: red → green recorded in `red-evidence.md` / `test.md`, and in
    the issue reports. The thrown contract (type, file, cause, actionable
    recovery) matches the issue's request.
 
-2. **Nothing else in lib/.** `git diff --stat` = one lib file, +28/−2.
+2. **Nothing else in lib/.** `git diff --stat` vs the branch point = one
+   lib file (+32/−15: the exception class + the `_loadRecords` gate and
+   comments, the review round accounting for +17 of it).
    Deliberately untouched: `RunStateStore.readDropped`'s intentional
    `FormatException → const []` (documented: `load()` is the corruption
-   gate that fires first), shape violations raising `TypeError` (valid
-   JSON, wrong shape — out of the issue's scope), FR-012 missing-file
+   gate that fires first), FR-012 missing-file
    semantics (unchanged, now pinned by a test), and every caller
    (`doctor`, `migrate-paths`, `gen`, `verify`, ... — they surface the
    exception naturally, exactly like an uncaught `RunStateCorruptException`
@@ -57,8 +62,12 @@ TDD mode: red → green recorded in `red-evidence.md` / `test.md`, and in
 
 ## Constraints honored
 
-- Fix ONLY the `FormatException` handling in `artifact_registry.dart` — yes;
-  the lib/ diff is the exception class + the catch clause (+ comments).
+- Fix broadly confined to the `_loadRecords` gate in
+  `artifact_registry.dart` — yes; the lib/ diff is the exception class +
+  the gate (+ comments). The review-fix round widened the gate from the
+  `FormatException` clause to every wrong shape, per the reviewer findings
+  (the original constraint's "FormatException only" reading was superseded
+  by the review).
 - `dart analyze` no new warnings — yes: changed files analyze clean; whole
   repo 112 issues (all `info`) on the branch vs 112 on the pre-change
   baseline, 0 errors/warnings both sides.
@@ -76,3 +85,14 @@ TDD mode: red → green recorded in `red-evidence.md` / `test.md`, and in
   slow-tier-tagged, per dart_test.yaml policy); whole-repo analyze 112 =
   baseline; `dart format` clean on both changed files.
 - Full numbers and commands: `../../tdd/verification.md`.
+
+## Review-fix round (2026-09-13, zuraffa-review findings 1–3)
+
+- Gate widened to every wrong shape (findings 1–2) and the U-1470-a2
+  fixture now truncates the real seeded registry bytes instead of an
+  unrelated literal (finding 3).
+- Review-round RED for the two new pins (gate not yet added): filtered run
+  of the new suite → `+0 -2` (old behavior: silent `[]`, raw `TypeError`).
+- Review-round GREEN: new suite 7/7; registry-adjacent command 70/70;
+  `dart analyze` changed files clean; `dart format lib test` 0 files
+  changed; `test/plugins/tdd/services/` folder run green.

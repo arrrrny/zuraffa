@@ -58,15 +58,20 @@ void main() {
     createdAt: '2026-08-29T20:00:00Z',
   );
 
+  /// Seed a valid two-record registry and return the bytes written.
+  Future<String> seedValidRegistry() async {
+    await regFile.parent.create(recursive: true);
+    final valid = const JsonEncoder.withIndent('  ').convert({
+      'feature': '044-test-tdd-generation',
+      'records': [recordFor('B-001').toJson(), recordFor('B-002').toJson()],
+    });
+    await regFile.writeAsString(valid);
+    return valid;
+  }
+
   /// Seed a valid two-record registry, then corrupt the file on disk.
   Future<void> seedThenCorrupt(String corruptBody) async {
-    await regFile.parent.create(recursive: true);
-    await regFile.writeAsString(
-      const JsonEncoder.withIndent('  ').convert({
-        'feature': '044-test-tdd-generation',
-        'records': [recordFor('B-001').toJson(), recordFor('B-002').toJson()],
-      }),
-    );
+    await seedValidRegistry();
     await regFile.writeAsString(corruptBody, mode: FileMode.write);
   }
 
@@ -84,7 +89,12 @@ void main() {
     test('register refuses to re-register through a corrupt registry — '
         'prior records survive on disk untouched (pre-fix: B-003 got '
         'Ownership.created and the rewrite destroyed B-001/B-002)', () async {
-      await seedThenCorrupt('not json at all');
+      // Corrupt the file the way a crash mid-write would: a truncated
+      // copy of the REAL B-001/B-002 bytes, not an unrelated literal, so
+      // the survival check below is honest about what it proves.
+      final valid = await seedValidRegistry();
+      final corrupt = valid.substring(0, valid.length ~/ 2);
+      await regFile.writeAsString(corrupt);
 
       await expectLater(
         registry.register(recordFor('B-003')),
@@ -93,7 +103,45 @@ void main() {
 
       // The corrupt bytes were NOT overwritten by a fresh one-record
       // registry: a repair can still recover B-001/B-002 ownership.
-      expect(await regFile.readAsString(), 'not json at all');
+      expect(await regFile.readAsString(), corrupt);
+    });
+
+    test('a valid-JSON registry with no "records" list is corrupt, not a '
+        'fresh feature', () async {
+      // jsonDecode accepts these files, so the FormatException clause
+      // never fires; without the shape gate they read as "no prior
+      // records" and the next append rewrites the file (the same #1470
+      // P1 chain as unparseable JSON).
+      await seedThenCorrupt('{"feature": "044-test-tdd-generation"}');
+      await expectLater(
+        registry.register(recordFor('B-003')),
+        throwsA(isA<ArtifactRegistryCorruptException>()),
+      );
+
+      await seedThenCorrupt('{}');
+      await expectLater(
+        registry.loadAll(),
+        throwsA(isA<ArtifactRegistryCorruptException>()),
+      );
+    });
+
+    test('wrong-shape JSON maps to the recovery exception, not a raw '
+        'TypeError', () async {
+      // These used to throw TypeError from the casts, so the caller got a
+      // Dart stack trace instead of the actionable recovery message.
+      const wrongShapes = [
+        '["B-001"]', // non-object top level
+        '{"records": {"behavior_id": "B-001"}}', // "records" is not a list
+        '{"records": [42]}', // record entry is not an object
+      ];
+      for (final content in wrongShapes) {
+        await seedThenCorrupt(content);
+        await expectLater(
+          registry.loadAll(),
+          throwsA(isA<ArtifactRegistryCorruptException>()),
+          reason: 'registry content: $content',
+        );
+      }
     });
 
     test('findRecord (reader path) also refuses a corrupt registry', () async {
