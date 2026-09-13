@@ -30,29 +30,45 @@ void main() {
               'signature `(int a, int b) -> int`');
 
       // Case 2 of 3 — implementation: invoking the declared
-      // method does not throw UnimplementedError.
+      // method does not throw UnimplementedError. A captured rejection
+      // (the implementation threw ArgumentError/TypeError/... for the
+      // representative argument) PASSES this case: the seam is
+      // implemented and validating (issue #1541) — the outcome split is
+      // recorded below, never an uncaught error.
       final Object? outcome = _captured(() => impl(0, 0));
       expect(outcome, isNot(isA<UnimplementedError>()),
           reason: 'contract:A1 — Calculator.add is not implemented — the declared '
               'contract is unsatisfied, so the cycle is BLOCKED and cannot '
               'proceed to GREEN (issue #1007)');
       // Case 3 of 3 — return: the invocation satisfies the
-      // declared return type `int`.
-      expect(outcome, isA<int>(),
-          reason: 'contract:A1 — Calculator.add must return the declared type '
-              '`int`');
+      // declared return type `int`. When the captured
+      // outcome is a REJECTION (an ArgumentError, TypeError, ... thrown
+      // by an argument-validating implementation) the return-type
+      // assertion does not run: there is no return value to type-check,
+      // and the contract is SATISFIED-WITH-REJECTION (issue #1541).
+      if (outcome is! Error && outcome is! Exception) {
+        expect(outcome, isA<int>(),
+            reason: 'contract:A1 — Calculator.add must return the declared type '
+                '`int`');
+      }
     });
   });
 }
 
-/// Captures an [UnimplementedError] thrown by an unimplemented contract
-/// seam (or a scaffold placeholder argument) as the assertion's actual
-/// value, so the blocked state fails through an assertion (never an
-/// uncaught error).
+/// Captures ANY error the contract seam invocation can throw (issue
+/// #1541) as the assertion's actual value — never an uncaught escape into
+/// the runner transcript (an uncaught error graded `runner-error`, never
+/// a named verdict). The outcome classes stay split at the assertions:
+/// an [UnimplementedError] (the unimplemented seam, or a scaffold
+/// placeholder argument) drives the BLOCKED verdict through the Case 2
+/// assertion; any OTHER captured error (`ArgumentError` from an
+/// argument-validating implementation, a `TypeError` from a cast, ...) is
+/// a satisfied-with-rejection — the seam is implemented and rejected the
+/// scaffold's representative argument.
 Object? _captured(Object? Function() invoke) {
   try {
     return invoke();
-  } on UnimplementedError catch (error) {
+  } on Object catch (error) {
     return error;
   }
 }

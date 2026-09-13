@@ -278,18 +278,28 @@ String? _returnCaseType(String returnType) {
 }
 
 /// The representative argument expression for a declared parameter type.
-/// Complex types get a placeholder helper invocation (`_argN()`) that
-/// throws `UnimplementedError` with the exact instruction — the scaffold
-/// fails through an assertion, never an uncaught error, and the author
-/// replaces it with a representative value.
+/// Scalar declared types get representative literals; complex types and
+/// `dynamic`-typed (and empty-typed) declared params get the scaffold
+/// placeholder helper invocation (`_argN()`) that throws
+/// `UnimplementedError` with the exact instruction — the scaffold fails
+/// through an assertion, never an uncaught error, and the author replaces
+/// it with a representative value.
+///
+/// Issue #1541: a `dynamic` declared param no longer resolves to the bare
+/// literal `null`. A bare `null` is not a DECLARED-SHAPE representative —
+/// an argument-validating implementation legitimately rejects it (the
+/// issue's `AgentLog.logger(subsystem as String)` throws for it), and the
+/// rejection used to escape `_captured` as an uncaught runner error. The
+/// `dynamic` param now takes the unit lane's placeholder discipline
+/// (`provide a representative argument`) so the scaffold blocks honestly
+/// until the author supplies a representative value. Nullable complex
+/// types KEEP `null`: their declared shape IS nullable, so `null` is a
+/// legitimate representative argument.
 String _representativeArg(String type, int index) {
   final trimmed = type.trim();
   var base = trimmed;
   if (base.endsWith('?')) base = base.substring(0, base.length - 1).trim();
   switch (base) {
-    case '':
-    case 'dynamic':
-      return 'null';
     case 'String':
       return "'contract-sample'";
     case 'int':
@@ -304,6 +314,9 @@ String _representativeArg(String type, int index) {
   }
   // A nullable complex type accepts null as its representative value.
   if (trimmed.endsWith('?')) return 'null';
+  // Issue #1541: `dynamic` (and the never-emitted empty type) carry NO
+  // declared shape to represent — the placeholder seam asks the author
+  // for a representative argument instead of a bare `null`.
   return '_arg$index()';
 }
 
@@ -400,7 +413,11 @@ void main() {
               'signature `($paramSummary) -> ${c.returnType}`');
 
       // Case 2 of $caseCount — implementation: invoking the declared
-      // method does not throw UnimplementedError.
+      // method does not throw UnimplementedError. A captured rejection
+      // (the implementation threw ArgumentError/TypeError/... for the
+      // representative argument) PASSES this case: the seam is
+      // implemented and validating (issue #1541) — the outcome split is
+      // recorded below, never an uncaught error.
       final Object? outcome = _captured(() => impl($args));
       expect(outcome, isNot(isA<UnimplementedError>()),
           reason: '${c.qualifiedMethod} is not implemented — the declared '
@@ -408,12 +425,19 @@ void main() {
               'proceed to GREEN (issue #1007)');
 ${returnTypeCase == null ? '' : '''
       // Case 3 of $caseCount — return: the invocation satisfies the
-      // declared return type `${c.returnType}`.
-      expect(outcome, isA<$returnTypeCase>(),
-          reason: '${c.qualifiedMethod} must return the declared type '
-              '`${c.returnType}`');
+      // declared return type `${c.returnType}`. When the captured
+      // outcome is a REJECTION (an ArgumentError, TypeError, ... thrown
+      // by an argument-validating implementation) the return-type
+      // assertion does not run: there is no return value to type-check,
+      // and the contract is SATISFIED-WITH-REJECTION (issue #1541).
+      if (outcome is! Error && outcome is! Exception) {
+        expect(outcome, isA<$returnTypeCase>(),
+            reason: '${c.qualifiedMethod} must return the declared type '
+                '`${c.returnType}`');
+      }
 '''}${placeholderArgs.isEmpty ? '' : '''
-      // SCAFFOLD PLACEHOLDERS — the complex-typed arguments below throw
+      // SCAFFOLD PLACEHOLDERS — the placeholder arguments below (complex-
+      // typed or dynamic-typed declared params, issue #1541) throw
       // UnimplementedError with the exact instruction. Replace each
       // placeholder with a representative value for its declared type so
       // this contract test exercises the real invocation:
@@ -422,14 +446,20 @@ ${placeholderArgs.entries.map((entry) => '      //   _arg${entry.key}() -> a rep
   });
 }
 
-/// Captures an [UnimplementedError] thrown by an unimplemented contract
-/// seam (or a scaffold placeholder argument) as the assertion's actual
-/// value, so the blocked state fails through an assertion (never an
-/// uncaught error).
+/// Captures ANY error the contract seam invocation can throw (issue
+/// #1541) as the assertion's actual value — never an uncaught escape into
+/// the runner transcript (an uncaught error graded `runner-error`, never
+/// a named verdict). The outcome classes stay split at the assertions:
+/// an [UnimplementedError] (the unimplemented seam, or a scaffold
+/// placeholder argument) drives the BLOCKED verdict through the Case 2
+/// assertion; any OTHER captured error (`ArgumentError` from an
+/// argument-validating implementation, a `TypeError` from a cast, ...) is
+/// a satisfied-with-rejection — the seam is implemented and rejected the
+/// scaffold's representative argument.
 Object? _captured(Object? Function() invoke) {
   try {
     return invoke();
-  } on UnimplementedError catch (error) {
+  } on Object catch (error) {
     return error;
   }
 }
