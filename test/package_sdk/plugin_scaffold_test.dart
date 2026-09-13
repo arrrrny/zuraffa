@@ -777,7 +777,12 @@ void main() {
       expect(publish, contains('verify_resolvable'));
       expect(publish, contains('resolution_probe'));
       expect(publish, contains('dart pub publish --dry-run'));
-      expect(publish, contains('dart format lib test'));
+      // Formatting is validated, never applied: the prep commit and tag are
+      // already made, so rewriting files here would ship a different archive.
+      expect(
+        publish,
+        contains('dart format --output=none --set-exit-if-changed lib test'),
+      );
       // The release tag is created and pushed by publish.sh (zikzak flow).
       expect(publish, contains(r'git tag "$VERSION"'));
       expect(publish, contains(r'git push origin "$VERSION"'));
@@ -956,11 +961,11 @@ void main() {
 
       final branch = await _git(monorepo, ['branch', '--show-current']);
       expect(branch.trim(), 'master');
+      // Ask git, not the filesystem: `git pack-refs` moves the loose ref into
+      // .git/packed-refs, after which the file check passes for a live branch.
       expect(
-        Directory(
-          p.join(monorepo, '.git', 'refs', 'heads', 'publish-9.9.9'),
-        ).existsSync(),
-        isFalse,
+        (await _git(monorepo, ['branch', '--list', 'publish-9.9.9'])).trim(),
+        isEmpty,
         reason: 'the publish branch must be deleted',
       );
       final spec = pubspecOf(monorepo, 'my_plugin');
@@ -970,6 +975,120 @@ void main() {
         reason: 'master stays at the released state',
       );
     });
+
+    test(
+      'B12f: a hand-written root entry yields exactly one published heading',
+      () async {
+        final result = await scaffold();
+        final monorepo = result.rootPath;
+        const version = '2.0.0';
+
+        // The operator wrote the entry first — PUBLISH.md step 1, and the
+        // branch whose prepend used to duplicate the heading.
+        final rootChangelog = File(p.join(monorepo, 'CHANGELOG.md'));
+        rootChangelog.writeAsStringSync(
+          '## $version\n\n* feat: hand-written entry\n\n'
+          '${rootChangelog.readAsStringSync()}',
+        );
+
+        await _git(monorepo, ['init']);
+        await _git(monorepo, ['config', 'user.email', 'scaffold@test']);
+        await _git(monorepo, ['config', 'user.name', 'Scaffold Test']);
+        await _git(monorepo, ['add', '-A']);
+        await _git(monorepo, ['commit', '-m', 'scaffold', '--no-verify']);
+
+        final prep = Process.runSync(
+          'bash',
+          [p.join('scripts', 'prepare_for_publish.sh'), version, '-f'],
+          workingDirectory: monorepo,
+          stdoutEncoding: utf8,
+          stderrEncoding: utf8,
+        );
+        expect(
+          prep.exitCode,
+          0,
+          reason: 'prepare failed: ${prep.stderr}${prep.stdout}',
+        );
+
+        final heading = RegExp(
+          '^## ${RegExp.escape(version)}(?:\\s|\$)',
+          multiLine: true,
+        );
+        for (final pkg in const [
+          'my_plugin',
+          'my_plugin_platform',
+          'my_plugin_macos',
+        ]) {
+          final changelog = File(
+            p.join(monorepo, 'packages', pkg, 'CHANGELOG.md'),
+          ).readAsStringSync();
+          expect(
+            heading.allMatches(changelog),
+            hasLength(1),
+            reason: '$pkg must carry exactly one heading for $version',
+          );
+          expect(
+            changelog,
+            contains('* feat: hand-written entry'),
+            reason: '$pkg keeps the hand-written body',
+          );
+        }
+      },
+    );
+
+    test(
+      'B12g: restore replaces family overrides and keeps the rest',
+      () async {
+        final repoRoot = Directory.current.path;
+        final result = await scaffold(zuraffaPath: repoRoot);
+        final monorepo = result.rootPath;
+
+        final restore = Process.runSync(
+          'bash',
+          [p.join('scripts', 'restore_dev_setup.sh')],
+          workingDirectory: monorepo,
+          stdoutEncoding: utf8,
+          stderrEncoding: utf8,
+        );
+        expect(
+          restore.exitCode,
+          0,
+          reason: 'restore failed: ${restore.stderr}${restore.stdout}',
+        );
+
+        for (final pkg in const [
+          'my_plugin',
+          'my_plugin_platform',
+          'my_plugin_macos',
+        ]) {
+          final overrides =
+              pubspecOf(monorepo, pkg)['dependency_overrides'] as YamlMap?;
+          expect(
+            overrides,
+            isNotNull,
+            reason: '$pkg must carry overrides after the restore',
+          );
+          // The --zuraffa-path checkout is not part of the family: it has to
+          // survive the section rebuild.
+          final zuraffaOverride = overrides!['zuraffa'];
+          expect(
+            zuraffaOverride,
+            isA<YamlMap>(),
+            reason: '$pkg must keep the framework override',
+          );
+          expect(
+            (zuraffaOverride as YamlMap)['path'],
+            repoRoot,
+            reason: '$pkg must point the framework override at the checkout',
+          );
+          expect(
+            overrides.keys.cast<String>().where((k) => k != 'zuraffa'),
+            isNotEmpty,
+            reason: '$pkg must still link its siblings',
+          );
+        }
+      },
+    );
   });
 }
 

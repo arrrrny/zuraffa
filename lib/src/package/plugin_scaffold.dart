@@ -196,7 +196,12 @@ class PluginScaffold {
         _prepareForPublishTemplate,
         tokens,
       ),
-      p.join('scripts', 'publish.sh'): _render(_publishTemplate, tokens),
+      p.join('scripts', 'publish.sh'): _render(_publishTemplate, {
+        ...tokens,
+        // The resolution probe must run under the same SDK floor as the
+        // emitted packages, or it fails for a reason unrelated to pub.dev.
+        '@@SDK@@': _sdkConstraint,
+      }),
       p.join('scripts', 'push_to_master.sh'): _render(
         _pushToMasterTemplate,
         tokens,
@@ -545,7 +550,9 @@ done
 # single source of truth. With none, generate one from git history since the
 # last tag (Feature/Change/Fix grouping) and prepend it to the root
 # CHANGELOG so it stays the source of truth.
-ENTRY=$(awk -v v="$VERSION" 'BEGIN{p=0} /^## /{{if (p) exit} if ($0 ~ "^## " v) p=1} p{{print}}' CHANGELOG.md 2>/dev/null || true)
+# The entry body only: the matching heading is skipped so the prepended
+# dated heading below is the single heading each package changelog carries.
+ENTRY=$(awk -v v="$VERSION" 'BEGIN{p=0} /^## /{if (p) exit; if ($0 ~ "^## " v) {p=1; next}} p{print}' CHANGELOG.md 2>/dev/null || true)
 if [ -z "$ENTRY" ]; then
     echo -e "${BLUE}No root CHANGELOG entry for $VERSION - generating from git history...${NC}"
     LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
@@ -644,22 +651,25 @@ on_pub_dev() {
 # dependency from a clean harness (no dependency_overrides in play).
 verify_resolvable() {
     local pkg=$1 version=$2
-    local harness
+    local harness out
     harness=$(mktemp -d)
     cat > "$harness/pubspec.yaml" <<EOF
 name: resolution_probe
 version: 1.0.0
 
 environment:
-  sdk: ^3.0.0
+  sdk: @@SDK@@
 
 dependencies:
   $pkg: ^$version
 EOF
-    if (cd "$harness" && dart pub get >/dev/null 2>&1); then
+    if out=$( (cd "$harness" && dart pub get) 2>&1 ); then
         rm -rf "$harness"
         return 0
     fi
+    # Surface the reason: an SDK or network failure is not the same as a
+    # dependency that has not been published yet.
+    echo -e "${YELLOW}resolution probe for $pkg ^$version failed: $(printf '%s' "$out" | tail -1)${NC}" >&2
     rm -rf "$harness"
     return 1
 }
@@ -713,8 +723,12 @@ publish_package() {
     echo -e "${BLUE}Final resolution check: dart pub get...${NC}"
     dart pub get || { echo -e "${RED}pub get failed for $pkg${NC}"; return 1; }
 
-    echo -e "${BLUE}Formatting lib/ and test/...${NC}"
-    dart format lib test >/dev/null
+    echo -e "${BLUE}Checking formatting (non-mutating)...${NC}"
+    # Validation, not mutation: the prep commit is already made and tagged
+    # later, so rewriting files here would ship an archive that differs from
+    # the commit.
+    dart format --output=none --set-exit-if-changed lib test \
+        || { echo -e "${RED}Formatting needed for $pkg - run 'dart format lib test' and amend the publish commit.${NC}"; return 1; }
 
     echo -e "${BLUE}Analyzing...${NC}"
     dart analyze || { echo -e "${RED}Analyze failed for $pkg${NC}"; return 1; }
@@ -810,9 +824,13 @@ set -e
 # at every OTHER family package, so the whole family resolves from this
 # checkout. Pub strips overrides on publish, so this is dev-only state; the
 # hosted constraints in `dependencies:` stay untouched (FR-006/FR-013).
+# Overrides for packages outside the family (a `--zuraffa-path` checkout, for
+# instance) are preserved rather than replaced.
 
 GREEN='\033[0;32m'; NC='\033[0m'
 PACKAGES=(@@PKGS@@)
+FAMILY_ALT=$(printf '%s|' "${PACKAGES[@]}")
+FAMILY_ALT="${FAMILY_ALT%|}"
 ROOT_DIR="$(cd "$(dirname "$0")/.." >/dev/null 2>&1; pwd -P)"
 cd "$ROOT_DIR"
 
@@ -820,23 +838,53 @@ for pkg in "${PACKAGES[@]}"; do
     pubspec="packages/$pkg/pubspec.yaml"
     [ -f "$pubspec" ] || continue
 
-    # Drop any existing overrides section, then append a fresh one covering
-    # every other family package.
-    tmp="$pubspec.tmp"
-    awk '/^dependency_overrides:/{skip=1; next} skip && /^[^[:space:]]/{skip=0} !skip{print}' "$pubspec" > "$tmp"
-    {
-        cat "$tmp"
-        echo ""
-        echo "dependency_overrides:"
-        echo "  # Local development only - resolve the family to this checkout;"
-        echo "  # stripped by pub on publish."
-        for other in "${PACKAGES[@]}"; do
-            [ "$other" = "$pkg" ] && continue
-            echo "  $other:"
-            echo "    path: ../$other"
-        done
-    } > "$pubspec"
-    rm -f "$tmp"
+    # Rebuild the overrides section: every sibling gets a path override, and
+    # non-family entries already there (a `--zuraffa-path` checkout, say) are
+    # carried over untouched.
+    awk -v family="$FAMILY_ALT" -v self="$pkg" '
+        function flush() {
+            if (name != "" && !(name in fam)) kept = kept entry
+            name = ""; entry = ""
+        }
+        function section() {
+            print "dependency_overrides:"
+            print "  # Local development only - resolve the family to this checkout;"
+            print "  # stripped by pub on publish."
+            if (kept != "") printf "%s", kept
+            for (i = 1; i <= n; i++) {
+                if (a[i] == self) continue
+                print "  " a[i] ":"
+                print "    path: ../" a[i]
+            }
+            in_ov = 0
+        }
+        BEGIN {
+            n = split(family, a, "|")
+            for (i = 1; i <= n; i++) fam[a[i]] = 1
+        }
+        /^dependency_overrides:/ { in_ov = 1; seen = 1; next }
+        in_ov && /^[^[:space:]]/ { flush(); section(); print; next }
+        in_ov {
+            if ($0 ~ /^  [^[:space:]#]/) {
+                flush()
+                name = $0
+                sub(/:.*$/, "", name)
+                sub(/^  /, "", name)
+                entry = pending $0 "\n"
+                pending = ""
+                next
+            }
+            if (name == "") pending = pending $0 "\n"
+            else entry = entry $0 "\n"
+            next
+        }
+        { print }
+        END {
+            if (in_ov) { flush(); section() }
+            else if (!seen) { print ""; section() }
+        }
+    ' "$pubspec" > "$pubspec.tmp"
+    mv "$pubspec.tmp" "$pubspec"
     echo -e "${GREEN}Restored dev overrides in $pkg${NC}"
 done
 
@@ -854,14 +902,19 @@ set -e
 
 GREEN='\033[0;32m'; BLUE='\033[0;34m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 
+ROOT_DIR="$(cd "$(dirname "$0")/.." >/dev/null 2>&1; pwd -P)"
+cd "$ROOT_DIR"
+
 CURRENT_BRANCH=$(git branch --show-current)
 echo -e "${BLUE}=== Publish revert ===${NC}"
 echo -e "Current branch: ${YELLOW}$CURRENT_BRANCH${NC}"
 
+# This tool abandons a publish branch and nothing else: branching off is not
+# an escape hatch, because the branch it came from gets force-deleted.
 if [[ "$CURRENT_BRANCH" != publish-* ]]; then
-    echo -e "${RED}Not on a publish-* branch.${NC}"
-    read -r -p "Continue anyway? [y/N] " proceed || proceed=""
-    [[ "$proceed" != [yY]* ]] && exit 0
+    echo -e "${RED}Not on a publish-* branch - nothing to revert.${NC}"
+    echo -e "${YELLOW}Only a publish-* branch is ever deleted; check out the publish branch first.${NC}"
+    exit 1
 fi
 
 read -r -p "Branch to return to (default: master): " target || target=""
@@ -870,9 +923,13 @@ if ! git show-ref --verify --quiet "refs/heads/$target"; then
     echo -e "${RED}Branch '$target' does not exist.${NC}"
     exit 1
 fi
+if [ "$target" = "$CURRENT_BRANCH" ]; then
+    echo -e "${RED}Target equals the current branch - nothing to revert to.${NC}"
+    exit 1
+fi
 
 echo -e "${RED}This discards every change made for publishing on $CURRENT_BRANCH.${NC}"
-read -r -p "Revert to '$target' and delete the publish branch? [y/N] " confirm || confirm=""
+read -r -p "Revert to '$target' and delete branch '$CURRENT_BRANCH'? [y/N] " confirm || confirm=""
 [[ "$confirm" != [yY]* ]] && { echo -e "${YELLOW}Aborted.${NC}"; exit 0; }
 
 if ! git diff-index --quiet HEAD -- 2>/dev/null; then
@@ -882,10 +939,8 @@ if ! git diff-index --quiet HEAD -- 2>/dev/null; then
 fi
 
 git checkout "$target"
-if [ "$CURRENT_BRANCH" != "$target" ]; then
-    git branch -D "$CURRENT_BRANCH"
-fi
-./scripts/restore_dev_setup.sh
+git branch -D "$CURRENT_BRANCH"
+"$ROOT_DIR/scripts/restore_dev_setup.sh"
 echo -e "${GREEN}Reverted to '$target'; dev setup restored.${NC}"
 ''';
 
