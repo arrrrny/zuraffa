@@ -64,10 +64,38 @@ String? probeRelocatedArtifact(String projectRoot, String recorded) {
   return null;
 }
 
-/// Thrown when a file exists on disk but the registry has no record for it
-/// (FR-008). The caller must leave the file untouched.
+/// Which way the ownership mismatch points (issue #1495). The remedy text
+/// is direction-aware — the fix that resolves one direction is a
+/// no-op (or worse) for the other:
+///
+/// - [OwnershipConflictDirection.existsUnowned]: a file exists on disk the
+///   registry does not own (the FR-008 clobber hazard, #840's direction).
+///   The resolving command is `zfa tdd gen <id> --adopt`.
+/// - [OwnershipConflictDirection.ownedButMissing]: the registry records a
+///   file that is missing from disk. There is NOTHING on disk to clobber;
+///   the resolving commands are `zfa tdd gen <id> --repair` (drop the stale
+///   record and regenerate) and `zfa tdd doctor <feature> --repair`
+///   (garbage-collect every gone-file record).
+/// - [OwnershipConflictDirection.pathMismatch]: the registry's recorded
+///   path and the computed path disagree. No automatic rewrite is safe in
+///   general; the refusal points at the deterministic diagnosis entry.
+enum OwnershipConflictDirection { existsUnowned, ownedButMissing, pathMismatch }
+
+/// Thrown when the registry and the disk disagree about who owns an
+/// artifact (FR-008). The caller must leave on-disk content untouched.
+///
+/// Issue #1495: the remedy embedded in [toString] is DIRECTION-aware. The
+/// old text named `zfa tdd gen <behavior-id>` for every direction — for
+/// the owned-but-missing direction that is the very command that refused
+/// (a circular remedy that left the state unresolvable), and for the
+/// exists-unowned direction it omitted the `--adopt` flag that resolves it.
 class OwnershipConflict implements Exception {
-  OwnershipConflict(this.path, this.role, {this.reason});
+  OwnershipConflict(
+    this.path,
+    this.role, {
+    this.reason,
+    this.direction = OwnershipConflictDirection.existsUnowned,
+  });
 
   /// The absolute or repo-relative path of the conflicting file.
   final String path;
@@ -78,15 +106,32 @@ class OwnershipConflict implements Exception {
   /// More specific registry/file mismatch detail, when available.
   final String? reason;
 
+  /// Which way the mismatch points — selects the remedy [toString] names
+  /// (issue #1495).
+  final OwnershipConflictDirection direction;
+
   @override
   String toString() {
     final detail =
         reason ??
         '$role file "$path" exists on disk but the registry has no '
             'recorded ownership';
-    return 'OwnershipConflict: $detail. Refusing to overwrite non-owned '
-        'content. Run `zfa tdd gen <behavior-id>` after resolving the '
-        'conflict.';
+    final remedy = switch (direction) {
+      OwnershipConflictDirection.ownedButMissing =>
+        'Owned-and-missing has nothing to clobber. Run `zfa tdd gen '
+            '<behavior-id> --repair` to drop the stale record and '
+            'regenerate, or `zfa tdd doctor <feature> --repair` to '
+            'garbage-collect every gone-file record.',
+      OwnershipConflictDirection.existsUnowned =>
+        'Refusing to overwrite non-owned content. Run `zfa tdd gen '
+            '<behavior-id> --adopt` after verifying the file is a '
+            'generated artifact.',
+      OwnershipConflictDirection.pathMismatch =>
+        'Refusing to overwrite non-owned content. Run `zfa tdd doctor '
+            '<feature>` for the deterministic diagnosis of the path '
+            'disagreement.',
+    };
+    return 'OwnershipConflict: $detail. $remedy';
   }
 }
 
@@ -175,6 +220,7 @@ class ArtifactRegistry {
               'the registry test path "${prior.testPath}" does not match '
               '"${record.testPath}"'
               '${_legacyHint(prior.testPath, record.testPath)}',
+          direction: OwnershipConflictDirection.pathMismatch,
         );
       }
       if (!_samePath(prior.subjectPath, record.subjectPath)) {
@@ -185,6 +231,7 @@ class ArtifactRegistry {
               'the registry subject path "${prior.subjectPath}" does not '
               'match "${record.subjectPath}"'
               '${_legacyHint(prior.subjectPath, record.subjectPath)}',
+          direction: OwnershipConflictDirection.pathMismatch,
         );
       }
       if (!await File(_locate(record.testPath)).exists()) {
@@ -194,6 +241,7 @@ class ArtifactRegistry {
           reason:
               'the registry records test file "${record.testPath}", but it '
               'is missing from disk',
+          direction: OwnershipConflictDirection.ownedButMissing,
         );
       }
       if (!await File(_locate(record.subjectPath)).exists()) {
@@ -203,6 +251,7 @@ class ArtifactRegistry {
           reason:
               'the registry records subject file "${record.subjectPath}", '
               'but it is missing from disk',
+          direction: OwnershipConflictDirection.ownedButMissing,
         );
       }
       return prior.copyWithOwnership(
@@ -256,6 +305,30 @@ class ArtifactRegistry {
       testOwnership: Ownership.created,
       subjectOwnership: Ownership.created,
     );
+  }
+
+  /// Drop the records for [behaviorIds] (issue #1495 repair path).
+  ///
+  /// Surgical: ONLY the named records are removed from the registry — no
+  /// file on disk is touched (owned-and-absent has nothing to clobber).
+  /// The write uses the same write-and-rename discipline as every other
+  /// registry write (bug #828). Returns the records actually dropped, in
+  /// registry order; an id with no record is silently ignored.
+  Future<List<ArtifactRecord>> dropRecords(Set<String> behaviorIds) async {
+    if (behaviorIds.isEmpty) return const [];
+    final existing = await _loadRecords();
+    final dropped = <ArtifactRecord>[];
+    final remaining = <ArtifactRecord>[];
+    for (final record in existing) {
+      if (behaviorIds.contains(record.behaviorId)) {
+        dropped.add(record);
+      } else {
+        remaining.add(record);
+      }
+    }
+    if (dropped.isEmpty) return const [];
+    await _writeRecords(remaining);
+    return dropped;
   }
 
   /// Load all records for this feature.
