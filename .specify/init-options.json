@@ -5,5 +5,5 @@
   "here": true,
   "integration": "zed",
   "script": "sh",
-  "speckit_version": "1.0.5.dev0"
+  "speckit_version": "1.0.7.dev0"
 }

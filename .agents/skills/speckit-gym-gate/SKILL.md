@@ -1,11 +1,13 @@
 ---
 name: speckit-gym-gate
-description: 'Spec-kit workflow command: speckit-gym-gate'
+description: 'Extension command: speckit.gym.gate'
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: gym:commands/speckit.gym.gate.md
+  author: gym
+  source: extension:gym
 ---
+
+# Gym Gate Skill
 
 # GYM: Gate
 
@@ -31,3 +33,4 @@ Prints `open` or `closed` to stdout and exits `0` when open, `1` when closed.
 Hosts should treat `closed` as "do not proceed." Pair this with the optional
 `before_implement` hook bound to `speckit.gym.gate` to block implementation until
 the operator has cleared GYM.
+
