@@ -44,11 +44,20 @@ class ZuraffaBarrelExports {
   /// The current resolution, or null when never seeded / unresolvable.
   static ZuraffaBarrelExports? get current => _seeded;
 
-  /// Filters [hides] to names the barrel actually exports. Unresolved →
-  /// legacy behavior (keep every name).
+  /// Filters [hides] to names the barrel actually exports.
+  ///
+  /// Issue #1530 (FR-001): an UNRESOLVED surface returns an EMPTY list —
+  /// the import is emitted with no `hide` combinator at all. The legacy
+  /// keep-all fallback emitted unverified names (`hide Task, TaskPatch`
+  /// for an entity the barrel never exports), every one an
+  /// `undefined_hidden_name` warning, and `zfa build`'s analyze gate
+  /// fails on warnings — the generator's own output failed its own
+  /// gate. Dropping the combinator when nothing can be verified is the
+  /// honest emission; the #942 collision protection stays on the SEEDED
+  /// path, where names are verified against the real surface.
   static List<String> filter(Iterable<String> hides) {
     final seed = _seeded;
-    if (seed == null) return hides.toList();
+    if (seed == null) return const [];
     return hides.where(seed.names.contains).toList();
   }
 
@@ -88,20 +97,49 @@ class ZuraffaBarrelExports {
     String barrelPath,
     String packageRoot,
     Set<String> names,
-    int depth,
-  ) {
+    int depth, {
+    Set<String>? inheritedShow,
+    Set<String> inheritedHide = const {},
+  }) {
     if (depth > 3) return;
     final barrel = File(barrelPath);
     if (!barrel.existsSync()) return;
+    // Issue #1530 (FR-003): directory-relative export targets resolve
+    // against the EXPORTING barrel's own directory — for the top-level
+    // `lib/zuraffa.dart` this is lib-root (identical to the legacy
+    // lib-rooted join), and for nested barrels
+    // (`src/core/params/index.dart` exporting `'query_params.dart'`)
+    // the legacy join silently dropped the name one level down.
+    final barrelDir = p.dirname(barrelPath);
 
-    String? quotedTarget(String line) {
+    // Parses `export '<uri>' ...;` into the quoted target plus the
+    // combinator tail (everything after the closing quote).
+    (String, String)? exportParts(String line) {
       final trimmed = line.trim();
       if (!trimmed.startsWith('export ')) return null;
       final start = trimmed.indexOf("'");
       if (start < 0) return null;
       final end = trimmed.indexOf("'", start + 1);
       if (end < 0) return null;
-      return trimmed.substring(start + 1, end);
+      return (
+        trimmed.substring(start + 1, end),
+        trimmed.substring(end + 1),
+      );
+    }
+
+    // The names of one combinator (`show a, b` / `hide c`) — null when
+    // the keyword is absent (issue #1530 FR-002).
+    Set<String>? combinatorNames(String tail, String keyword) {
+      final match = RegExp(
+        '\\b$keyword\\s+([^;]+);?',
+      ).firstMatch(tail);
+      if (match == null) return null;
+      return match
+          .group(1)!
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toSet();
     }
 
     String? declaredType(String line) {
@@ -119,26 +157,64 @@ class ZuraffaBarrelExports {
     }
 
     for (final line in barrel.readAsLinesSync()) {
-      final target = quotedTarget(line);
-      if (target == null) continue;
+      final parts = exportParts(line);
+      if (parts == null) continue;
+      final (target, tail) = parts;
+      // Issue #1530 (FR-002): honor the line's combinators — a
+      // `show`-restricted line contributes ONLY the shown names and a
+      // `hide`-carrying line subtracts the hidden names. Both filters
+      // intersect with the inherited ones from an enclosing barrel line
+      // (`export 'index.dart' show X;` restricts what the nested barrel
+      // contributes too).
+      final shown = combinatorNames(tail, 'show');
+      final hidden = combinatorNames(tail, 'hide') ?? const <String>{};
+      final effectiveShow = inheritedShow == null
+          ? shown
+          : (shown == null ? inheritedShow : inheritedShow.intersection(shown));
+      final effectiveHide = {...inheritedHide, ...hidden};
+
       var path = target;
       if (path.startsWith('package:zuraffa/')) {
-        path = path.replaceFirst('package:zuraffa/', '');
+        path = p.normalize(
+          p.join('lib', path.replaceFirst('package:zuraffa/', '')),
+        );
+        path = p.join(packageRoot, path);
       } else if (path.startsWith('package:')) {
+        // External re-exports stay skipped: collecting THEIR surface
+        // would over-collect (the walker cannot see their combinators),
+        // and under-collection is the safe direction — it can only
+        // lose #942 protection for an exotic name, never emit an
+        // unverified hide.
         continue;
       } else {
-        path = p.normalize(p.join('lib', path));
+        path = p.normalize(p.join(barrelDir, path));
       }
-      final file = File(p.join(packageRoot, path));
+      final file = File(path);
       if (!file.existsSync()) continue;
-      for (final line in file.readAsLinesSync()) {
-        final name = declaredType(line);
-        if (name != null && name.isNotEmpty) names.add(name);
+      final fileLines = file.readAsLinesSync();
+      var hasNestedExports = false;
+      for (final fileLine in fileLines) {
+        if (fileLine.trim().startsWith('export ')) {
+          hasNestedExports = true;
+          continue;
+        }
+        final name = declaredType(fileLine);
+        if (name == null || name.isEmpty) continue;
+        if (effectiveShow != null && !effectiveShow.contains(name)) continue;
+        if (effectiveHide.contains(name)) continue;
+        names.add(name);
       }
-      // Follow nested barrels one more level.
-      if (depth < 2 &&
-          file.readAsLinesSync().any((l) => l.trim().startsWith('export '))) {
-        _collectFromBarrel(file.path, packageRoot, names, depth + 1);
+      // Follow nested barrels one more level, threading the effective
+      // combinators down (issue #1530 FR-002).
+      if (depth < 2 && hasNestedExports) {
+        _collectFromBarrel(
+          file.path,
+          packageRoot,
+          names,
+          depth + 1,
+          inheritedShow: effectiveShow,
+          inheritedHide: effectiveHide,
+        );
       }
     }
   }
