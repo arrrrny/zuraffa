@@ -72,10 +72,19 @@ class DifferentialSetupException implements Exception {
 const Duration defaultDifferentialBudget = Duration(minutes: 5);
 
 class DifferentialRefRunner {
+  /// [childEnvironment] (spec 1520, issue #1520): the driving command's
+  /// per-run scratch TMPDIR map (`ScratchTmpDir.childEnvironment`) merged
+  /// over every spawned child's inherited environment — the ref worktree
+  /// setup, the scratch-project `dart pub get`, and each step's
+  /// `dart test` write their kernel dirs inside the run's own scratch
+  /// instead of the shared user TMPDIR. Null (the default) preserves the
+  /// inherit-`Platform.environment` behavior; injected spawner fakes keep
+  /// their own contract.
   DifferentialRefRunner({
     DifferentialSpawner? spawner,
     DifferentialGitRunner? gitRunner,
     Duration? budget,
+    Map<String, String>? childEnvironment,
   }) : budget = budget ?? defaultDifferentialBudget,
        _spawner =
            spawner ??
@@ -84,11 +93,16 @@ class DifferentialRefRunner {
              command.sublist(1),
              workingDirectory: workingDirectory,
              timeout: budget ?? defaultDifferentialBudget,
+             environment: childEnvironment,
            )),
        _gitRunner =
            gitRunner ??
-           ((List<String> args, String workingDirectory) =>
-               Process.run('git', args, workingDirectory: workingDirectory));
+           ((List<String> args, String workingDirectory) => Process.run(
+                 'git',
+                 args,
+                 workingDirectory: workingDirectory,
+                 environment: childEnvironment,
+               ));
 
   /// The per-step wall-clock budget. A child that outlives it is
   /// killed and records the `hang` outcome.

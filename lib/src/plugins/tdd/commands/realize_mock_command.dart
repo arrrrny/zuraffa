@@ -43,6 +43,7 @@ import '../services/entity_lookup.dart' show toSnakeCase;
 import '../services/era_tagged_log.dart';
 import '../services/realize_mock_receipt.dart';
 import '../services/realize_state.dart';
+import '../services/scratch_tmpdir.dart';
 import '../services/tier2_firestore/fake_firebase_firestore.dart';
 import '../services/tier2_firestore/tier2_mock_provider.dart';
 import '../tdd_plugin.dart';
@@ -144,8 +145,48 @@ class RealizeMockCommand extends Command<void> {
   /// The project root this invocation resolved (driver spawn cwd).
   String _resolvedRoot = '';
 
+  /// Spec 1520: this invocation's per-run scratch environment
+  /// (`ScratchTmpDir.childEnvironment`) — set by [run] after the scratch is
+  /// acquired, read by the default suite runner / tier-1 driver so every
+  /// `dart test` child writes its kernel dir inside the run's own scratch
+  /// instead of the shared user TMPDIR (issue #1520). Null — scratchless
+  /// run — inherits the ambient TMPDIR as before.
+  Map<String, String>? _scratchEnv;
+
   @override
   Future<void> run() async {
+    // Spec 1520 (issue #1520): ONE scratch dir per invocation, injected
+    // into every child's environment and deleted best-effort at run end
+    // (the finally below) — the #1507 leak fixed by construction.
+    final rest0 = argResults?.rest ?? const <String>[];
+    final entityLabel = rest0.isNotEmpty ? rest0.first.trim() : '';
+    final scratch = await ScratchTmpDir.acquire(
+      label: entityLabel.isNotEmpty ? entityLabel : 'realize-mock',
+      projectRoot: _scratchProjectRoot(),
+    );
+    try {
+      _scratchEnv = scratch?.childEnvironment();
+      await _runScratched();
+    } finally {
+      _scratchEnv = null;
+      await scratch?.dispose();
+    }
+  }
+
+  /// The project root the scratch-root resolution uses (.zfa.json tier) —
+  /// best-effort: an unresolvable root degrades to the env-only tiers.
+  String? _scratchProjectRoot() {
+    try {
+      final projectFlag = (argResults?['project'] as String?)?.trim() ?? '';
+      return projectFlag.isNotEmpty
+          ? projectFlag
+          : ProjectRoot.find(anchorDir: 'specs');
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> _runScratched() async {
     final rest = argResults?.rest ?? const <String>[];
     final entity = rest.isNotEmpty ? rest.first.trim() : '';
     final against = (argResults?['against'] as String?)?.trim() ?? '';
@@ -776,11 +817,14 @@ class RealizeMockCommand extends Command<void> {
   RealizeSuiteRunner _suiteRunner() {
     final override = _suiteRunnerOverride;
     if (override != null) return override;
+    // Spec 1520: the default spawn path carries the run's scratch TMPDIR so
+    // this `dart test` child's kernel dir lands inside the run's own
+    // scratch (issue #1520); null inherits the ambient TMPDIR as before.
     return (paths, workingDirectory) async {
       final result = await Process.run('dart', [
         'test',
         ...paths,
-      ], workingDirectory: workingDirectory);
+      ], workingDirectory: workingDirectory, environment: _scratchEnv);
       return (
         exitCode: result.exitCode,
         output: '${result.stdout}${result.stderr}',
@@ -809,7 +853,7 @@ class RealizeMockCommand extends Command<void> {
         'tier1',
         '--entity',
         entity,
-      ], workingDirectory: _resolvedRoot);
+      ], workingDirectory: _resolvedRoot, environment: _scratchEnv);
       process.stdin.write(jsonEncode(input));
       await process.stdin.close();
       final stdoutText = await process.stdout.transform(utf8.decoder).join();

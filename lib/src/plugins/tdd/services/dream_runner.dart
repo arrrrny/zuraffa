@@ -44,6 +44,7 @@ import '../../../core/project/receipt_store.dart';
 import '../../../mcp/capabilities/dream_capability.dart' show DreamNouns;
 import '../../../mcp/v2_tools.dart';
 import '../models/behavior.dart';
+import '../services/scratch_tmpdir.dart';
 import '../services/step_runner.dart';
 import '../services/test_list_reader.dart';
 
@@ -70,6 +71,13 @@ class DreamRunner {
   /// Executes the dream pipeline for [description]; returns the exit
   /// code (0 iff the engine is green and the PR phase, when attempted,
   /// did not fail).
+  ///
+  /// Spec 1520: acquires ONE per-run scratch dir (issue #1520) — every
+  /// child spawned by the DEFAULT spawners (the `zfa tdd run` engine
+  /// phase, the git/gh phases) inherits the scratch as its TMPDIR, so
+  /// nested `dart test` kernel dirs land inside the run's own scratch,
+  /// deleted best-effort in the finally below (the #1507 leak fixed by
+  /// construction). Injected spawners keep their own contract (fakes).
   static Future<int> execute({
     required String description,
     String? feature,
@@ -83,14 +91,54 @@ class DreamRunner {
     DreamProcSpawner? procSpawner,
     void Function(String line) emit = print,
   }) async {
+    final scratch = await ScratchTmpDir.acquire(
+      label: (feature != null && feature.isNotEmpty) ? feature : 'dream',
+      projectRoot: (projectFlag != null && projectFlag.isNotEmpty)
+          ? p.absolute(projectFlag)
+          : null,
+    );
+    try {
+      return await _execute(
+        description: description,
+        feature: feature,
+        projectFlag: projectFlag,
+        zfaBin: zfaBin,
+        llmClient: llmClient,
+        maxRetries: maxRetries,
+        engineAttempts: engineAttempts,
+        noPr: noPr,
+        zfaSpawner: zfaSpawner,
+        procSpawner: procSpawner,
+        emit: emit,
+        scratchEnv: scratch?.childEnvironment(),
+      );
+    } finally {
+      await scratch?.dispose();
+    }
+  }
+
+  static Future<int> _execute({
+    required String description,
+    String? feature,
+    String? projectFlag,
+    String? zfaBin,
+    LlmClient? llmClient,
+    int maxRetries = 3,
+    int engineAttempts = 2,
+    bool noPr = false,
+    DreamZfaSpawner? zfaSpawner,
+    DreamProcSpawner? procSpawner,
+    void Function(String line) emit = print,
+    Map<String, String>? scratchEnv,
+  }) async {
     final root = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
     final featureName = (feature != null && feature.isNotEmpty)
         ? feature
         : _deriveFeatureName(root, description);
-    final zfa = zfaSpawner ?? _defaultZfaSpawner(zfaBin);
-    final proc = procSpawner ?? _defaultProcSpawner;
+    final zfa = zfaSpawner ?? _defaultZfaSpawner(zfaBin, scratchEnv);
+    final proc = procSpawner ?? _defaultProcSpawner(scratchEnv);
 
     emit('[dream] feature=$featureName project=$root');
     emit('[dream] description: $description');
@@ -586,7 +634,13 @@ class DreamRunner {
   // Default spawners (the real sub-process path)
   // -----------------------------------------------------------------
 
-  static DreamZfaSpawner _defaultZfaSpawner(String? zfaBin) {
+  /// The default zfa spawner — [environment] is the run's scratch-TMPDIR
+  /// map (spec 1520) merged over the child's inherited environment; null
+  /// inherits it unchanged.
+  static DreamZfaSpawner _defaultZfaSpawner(
+    String? zfaBin,
+    Map<String, String>? environment,
+  ) {
     return (List<String> tail, String cwd) async {
       final entry = zfaBin ?? await StepRunner.defaultZfaBin();
       final argv = <String>[
@@ -594,26 +648,41 @@ class DreamRunner {
         entry,
         ...tail,
       ];
-      return _timedProcessRun(argv, cwd, const Duration(minutes: 30));
+      return _timedProcessRun(
+        argv,
+        cwd,
+        const Duration(minutes: 30),
+        environment: environment,
+      );
     };
   }
 
-  static DreamProcSpawner get _defaultProcSpawner =>
-      (List<String> argv, String cwd) =>
-          _timedProcessRun(argv, cwd, const Duration(minutes: 5));
+  static DreamProcSpawner _defaultProcSpawner(
+    Map<String, String>? environment,
+  ) =>
+      (List<String> argv, String cwd) => _timedProcessRun(
+            argv,
+            cwd,
+            const Duration(minutes: 5),
+            environment: environment,
+          );
 
   /// Process.run with a deadline (the bug #742 rule: a hanging child is
   /// killed and mapped to a non-zero result instead of hanging the
-  /// orchestrator forever).
+  /// orchestrator forever). [environment] overrides selected variables in
+  /// the child's inherited environment (spec 1520's scratch TMPDIR); null
+  /// inherits it unchanged.
   static Future<ProcessResult> _timedProcessRun(
     List<String> argv,
     String cwd,
-    Duration timeout,
-  ) async {
+    Duration timeout, {
+    Map<String, String>? environment,
+  }) async {
     final proc = await Process.start(
       argv.first,
       argv.skip(1).toList(),
       workingDirectory: cwd,
+      environment: environment,
     );
     final stdoutBuffer = StringBuffer();
     final stderrBuffer = StringBuffer();
