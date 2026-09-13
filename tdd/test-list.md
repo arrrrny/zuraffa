@@ -1,23 +1,19 @@
-# TDD test list — Spec 1509 toolchain-path-portable
+# TDD test list — Bug #1495 registry-owns-missing-file recovery
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| T-1509-pin | test/utils/dart_toolchain_pin_test.dart | spec-pin | no hardcoded /opt/flutter dart path remains in tracked toolchain sources (bin/, lib/, scripts, yaml) | FR-002, SC-001 | GREEN |
-| T-1509-c1 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths emits no constant machine-specific paths when the env declares none | FR-002, FR-005 | GREEN |
-| T-1509-c2 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths includes $FLUTTER_ROOT/bin/dart iff FLUTTER_ROOT is set | FR-005 | GREEN |
-| T-1509-c3 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths derives $HOME/flutter/bin/dart and $HOME/development/flutter/bin/dart from the injected home | FR-005, FR-006 | GREEN |
-| T-1509-c4 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths expands ZURAFFA_TOOLCHAIN_HINTS entries into <dir>/dart and <dir>/bin/dart candidates in declared order | FR-002, FR-005 | GREEN |
-| T-1509-c5 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths keeps the generic /usr/local/flutter/bin/dart hint and omits user-derived entries when home is empty | FR-005, FR-006 | GREEN |
-| T-1509-r1 | test/utils/dart_toolchain_resolver_test.dart | unit | ZURAFFA_DART_BIN pin wins over every tier when the file exists | FR-004 | GREEN |
-| T-1509-r2 | test/utils/dart_toolchain_resolver_test.dart | unit | ZURAFFA_DART_BIN pin pointing at a missing file is skipped and resolution falls through to PATH | FR-004 | GREEN |
-| T-1509-r3 | test/utils/dart_toolchain_resolver_test.dart | unit | PATH which-dart hit is returned trimmed and first (PATH-first contract) | FR-001 | GREEN |
-| T-1509-r4 | test/utils/dart_toolchain_resolver_test.dart | unit | dart next to which-flutter (symlink-resolved sibling) is found when PATH dart misses | FR-006 | GREEN |
-| T-1509-r5 | test/utils/dart_toolchain_resolver_test.dart | unit | existing candidates resolve in candidate order when PATH probes miss | FR-005, FR-006 | GREEN |
-| T-1509-r6 | test/utils/dart_toolchain_resolver_test.dart | unit | resolve returns null when every tier misses | FR-006 | GREEN |
-| T-1509-mcp | test/utils/dart_toolchain_resolver_test.dart | unit | a flutter install without a sibling dart keeps the search going (tier-2 exists-check guard) | FR-006 | GREEN |
-| T-1509-acc2 | test/utils/dart_toolchain_resolver_test.dart | acceptance | the documented environment recipe works: ZURAFFA_TOOLCHAIN_HINTS=/opt/flutter yields the old last-resort candidate without any code literal | acceptance 2, FR-002 | GREEN |
-
-Red evidence: recorded before implementation — see
-specs/1509-toolchain-path-portable/tdd/verification.md
-(pin test failed against bin/zuraffa_mcp_server.dart:1638; resolver
-suite failed to compile because the library did not exist yet).
+| A-1495-a1 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | acceptance | the owned-and-missing gen refusal names the repair command (`gen <id> --repair`), never the refusing command; the record stays until an explicit repair | FR-1495.2 (actionable refusal), artifact_registry.OwnershipConflict | GREEN |
+| A-1495-a2 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | acceptance | `gen <id> --repair` drops the stale record and regenerates the gone pair — verdict `repaired`, audit-logged (action "repair"), exactly one record after | FR-1495.1 (repair flag), gen_command._generate | GREEN |
+| A-1495-a3 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | acceptance | a shape-verified surviving half is kept byte-identical and only the gone half is regenerated (adopt discipline) | FR-1495.1, gen_command repair branch | GREEN |
+| A-1495-b1 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | unit | the exists-unowned refusal names `--adopt` — the resolving command for the opposite drift direction (#840) | FR-1495.2, OwnershipConflict.toString | GREEN |
+| A-1495-b2 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | unit | `--repair` on the exists-unowned direction refuses and names `--adopt` (no stale record to drop; adopt contract untouched) | FR-1495.3 (no adopt regression), gen_command repair branch | GREEN |
+| A-1495-b3 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | unit | `--adopt` on the owned-and-missing state still refuses ("nothing unowned to adopt") — the #840 contract is unchanged | FR-1495.3, gen_command adopt branch | GREEN |
+| A-1495-c1 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | integration | `doctor <feature> --repair` garbage-collects every record whose files are gone and keeps healthy records — audit-logged, exit 0 | FR-1495.4 (doctor GC), doctor_command | GREEN |
+| A-1495-c2 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | integration | `doctor --repair` refuses a HALF-missing record (the survivor is still owned — GC would orphan it); prescribes reset, drops nothing | FR-1495.4 safety bound, doctor_command | GREEN |
+| A-1495-c3 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | integration | without `--repair` the fully-gone drift still exits 1 and the fix line names the surgical `doctor <feature> --repair` command | FR-1495.2, doctor_command prescription | GREEN |
+| A-1495-c4 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | integration | `doctor --repair` on a healthy feature is a no-op success (nothing to collect) | FR-1495.4, doctor_command | GREEN |
+| A-1495-d1 | test/plugins/tdd/services/artifact_registry_test.dart | unit | dropRecords removes exactly the named records and keeps the rest (parseable registry, feature label preserved) | FR-1495.1 primitive, ArtifactRegistry.dropRecords | GREEN |
+| A-1495-d2 | test/plugins/tdd/services/artifact_registry_test.dart | unit | dropRecords drops every named id in one write | ArtifactRegistry.dropRecords | GREEN |
+| A-1495-d3 | test/plugins/tdd/services/artifact_registry_test.dart | unit | dropRecords with an unknown id is a no-op (empty drop) | ArtifactRegistry.dropRecords | GREEN |
+| A-1495-d4 | test/plugins/tdd/services/artifact_registry_test.dart | unit | dropRecords never touches files on disk (registry-only) | ArtifactRegistry.dropRecords | GREEN |
+| A-1495-r1 | test/plugins/tdd/bug_840_recovery_commands_test.dart | regression | doctor's fully-gone prescription is the surgical `doctor <feature> --repair` (updated from `reset` — the #1495 remedy) | FR-1495.2, doctor_command | GREEN |

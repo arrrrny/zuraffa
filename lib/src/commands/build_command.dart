@@ -11,6 +11,7 @@ import 'build_slang_stage.dart';
 import 'build_yaml_guard.dart';
 import '../core/ast/file_parser.dart';
 import '../core/dependencies/builder_dependency_preflight.dart';
+import '../core/generation/tracked_generated_output_guard.dart';
 import '../core/project/project_root.dart';
 import '../dda/plugins/route/route_build_stage.dart';
 import '../feature_flags/feature_flag_config.dart';
@@ -194,8 +195,24 @@ class BuildCommand extends Command {
       return;
     }
 
+    // Spec 1540 (restore-or-refuse): snapshot every git-tracked
+    // generated-name file (tracked ∧ present) BEFORE build_runner runs, so
+    // its stale-output cleanup cannot silently orphan a hand-authored
+    // placeholder (issue #1540). Disabled (no-op snapshot) outside git.
+    final trackedGuard = TrackedGeneratedOutputGuard(
+      projectRoot: ProjectRoot.safeCurrentPath(),
+    );
+    final trackedSnapshot = await trackedGuard.capture();
+
     final build = await _runBuild();
     final exitCode = build.exitCode;
+
+    // Spec 1540: restore-or-refuse BEFORE any gate or failure verdict —
+    // a deletion the build caused must never be the reason the build's own
+    // completeness gate dead-ends the loop without a remedy.
+    if (!await recoverTrackedGeneratedOutputs(trackedGuard, trackedSnapshot)) {
+      exit(1);
+    }
 
     if (exitCode == 0) {
       print('');
@@ -242,6 +259,14 @@ class BuildCommand extends Command {
       await _cleanBuildCache();
       final retry = await _runBuild();
       final retryCode = retry.exitCode;
+      // Spec 1540: the retry build can delete tracked outputs exactly like
+      // the initial one — restore-or-refuse again before any verdict.
+      if (!await recoverTrackedGeneratedOutputs(
+        trackedGuard,
+        trackedSnapshot,
+      )) {
+        exit(1);
+      }
       if (retryCode == 0) {
         print('\n✅ Build completed successfully after cache clean');
         if (!verifyOutputsOrFail(buildOutput: retry.output) ||
@@ -262,6 +287,76 @@ class BuildCommand extends Command {
       print('\n❌ Build failed with exit code $exitCode');
       exit(1);
     }
+  }
+
+  /// Spec 1540 (restore-or-refuse): detects git-tracked generated-name
+  /// files the build deleted, restores their exact pre-build bytes, and
+  /// reports what it did. Returns false — the caller must exit non-zero —
+  /// when a deletion could NOT be restored, printing the exact
+  /// `git checkout -- <path>` remedy instead of leaving the tree broken
+  /// for the completeness gate to dead-end on (issue #1540).
+  ///
+  /// Never prints when nothing tracked was deleted (the happy path —
+  /// including every non-git project — is byte-identical to pre-1540).
+  @visibleForTesting
+  Future<bool> recoverTrackedGeneratedOutputs(
+    TrackedGeneratedOutputGuard guard,
+    TrackedGeneratedSnapshot snapshot,
+  ) async {
+    final deleted = guard.detectDeleted(snapshot);
+    if (deleted.isEmpty) return true;
+    final result = await guard.restore(snapshot, deleted);
+    if (result.restored.isNotEmpty) {
+      print(
+        '\n♻️  Restored ${result.restored.length} git-tracked '
+        'generated-name file(s) deleted by the build (spec 1540):',
+      );
+      for (final path in result.restored) {
+        print('     - $path');
+        final owner = TrackedGeneratedOutputGuard.owningLibraryFor(path);
+        if (owner != null) {
+          print('       owning library: $owner');
+        }
+      }
+      print(
+        '   A git-tracked generated-name file with no owning generator run is a '
+        'hand-authored placeholder — build_runner cleanup deletes it on every '
+        'build.',
+      );
+      final owner = TrackedGeneratedOutputGuard.owningLibraryFor(
+        result.restored.first,
+      );
+      if (owner != null) {
+        print(
+          '   Prevent the recurring deletion by excluding the owning library '
+          'from BOTH builders in build.yaml:',
+        );
+        print('       json_serializable:');
+        print('         generate_for:');
+        print('           exclude: [$owner]');
+        print('       source_gen:combining_builder:');
+        print('         generate_for:');
+        print('           exclude: [$owner]');
+      }
+      print(
+        '   See $kHandAuthoredPlaceholderDoc for the '
+        'hand-authored-placeholder pattern.',
+      );
+    }
+    if (result.failed.isNotEmpty) {
+      print(
+        '\n❌ zfa build deleted ${result.failed.length} git-tracked '
+        'generated-name file(s) and could not restore them — refusing to '
+        'report success on a broken tree (spec 1540):',
+      );
+      print(
+        TrackedGeneratedOutputGuard.restoreRemedyLines(
+          result.failed,
+        ).join('\n'),
+      );
+      return false;
+    }
+    return true;
   }
 
   /// Runs the DDA @Route stage (spec 033) against the current project root
@@ -487,6 +582,10 @@ class BuildCommand extends Command {
   @visibleForTesting
   bool verifyDeclaredPartsOrFail({String? projectRoot}) {
     final missing = <String>[];
+    // Spec 1540: project-relative (forward-slash) paths of the missing
+    // parts, in the same reference frame `git ls-files` reports under
+    // [projectRoot] — the membership key for the tracked-remedy check.
+    final missingRelativePaths = <String>[];
     for (final root in ['lib', 'test']) {
       final rootPath = projectRoot != null ? p.join(projectRoot, root) : root;
       final dir = Directory(rootPath);
@@ -523,6 +622,14 @@ class BuildCommand extends Command {
           final resolved = p.join(p.dirname(entity.path), partName);
           if (!File(resolved).existsSync()) {
             missing.add('${p.relative(entity.path)} -> $partName');
+            missingRelativePaths.add(
+              p
+                  .relative(
+                    resolved,
+                    from: projectRoot ?? Directory.current.path,
+                  )
+                  .replaceAll(p.separator, '/'),
+            );
           }
         }
       }
@@ -537,6 +644,25 @@ class BuildCommand extends Command {
         '   source while the rest of the build succeeded. Fix the reported source\n'
         '   and re-run `zfa build`.',
       );
+      // Spec 1540 (issue #1540): when a missing declared part is tracked in
+      // git, the build just deleted a hand-authored placeholder — the gate
+      // must detect it and provide an actionable restore path instead of
+      // dead-ending the `zfa tdd` loop with no remedy. Untracked (and
+      // non-git) trees keep the message above, unchanged.
+      final tracked = TrackedGeneratedOutputGuard.trackedFilesSync(
+        projectRoot ?? ProjectRoot.safeCurrentPath(),
+      );
+      final trackedMissing = missingRelativePaths
+          .where(tracked.contains)
+          .toList();
+      if (trackedMissing.isNotEmpty) {
+        print('');
+        print(
+          TrackedGeneratedOutputGuard.restoreRemedyLines(
+            trackedMissing,
+          ).join('\n'),
+        );
+      }
       return false;
     }
     return true;

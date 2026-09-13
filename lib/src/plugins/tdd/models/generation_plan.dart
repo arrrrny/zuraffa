@@ -341,12 +341,22 @@ class GenerationPlan {
   final List<GenerationStepSpec> steps;
   final String? unexpressibleReason;
 
+  /// Issue #1565: the func-surface branch omitted the `tdd func` step
+  /// because the subject is already gen's contract-derived stub func
+  /// would refuse to rewrite — the ONLY plan shape that drops a func
+  /// step. Make gates its audit note on THIS plan fact (an omission the
+  /// plan actually made), never on the summary-wide predicate: plans
+  /// that never scheduled a func step (entity pipelines, wire,
+  /// acceptance composition) must not claim one was skipped.
+  final bool funcStepSkipped;
+
   GenerationPlan({
     required this.behaviorId,
     required this.feature,
     required this.sourceCriterion,
     required this.steps,
     this.unexpressibleReason,
+    this.funcStepSkipped = false,
   }) : assert(
          (steps.isNotEmpty && unexpressibleReason == null) ||
              (steps.isEmpty && unexpressibleReason != null),
