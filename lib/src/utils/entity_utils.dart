@@ -132,8 +132,9 @@ class EntityUtils {
   /// Issue #1176: the hide list is filtered to names the resolved
   /// zuraffa barrel actually exports — hiding a name the barrel never
   /// exports is an `undefined_hidden_name` warning, and `zfa build`'s
-  /// analyze gate fails on warnings. Unresolved (no seed) → legacy
-  /// unconditional hide.
+  /// analyze gate fails on warnings. Issue #1530: an unresolved surface
+  /// yields an EMPTY list, so the import carries no `hide` combinator
+  /// (the legacy unconditional-hide fallback is gone).
   static List<String> barrelHideNames(String entityName) =>
       ZuraffaBarrelExports.filter(<String>[entityName, '${entityName}Patch']);
 }

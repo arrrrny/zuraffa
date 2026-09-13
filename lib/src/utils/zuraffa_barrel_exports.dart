@@ -10,10 +10,13 @@
 /// and walks the barrel's export graph collecting top-level type names,
 /// so the emitted hide list contains only names that exist.
 ///
-/// Seed once per generation (`seed`, called from
+/// Seeded once per generation (`seed`, called from
 /// `PluginManager.buildContext`); builders then filter through
-/// [filter]. Unresolved (no seed, no package_config) → `null` → callers
-/// keep the legacy unconditional hide.
+/// [filter]. The resolution itself is DEFERRED to the first read.
+/// Unresolved (no seed, no resolvable `package_config.json` entry, or a
+/// missing barrel file → an empty name set) makes [filter] return an
+/// EMPTY list: callers emit no `hide` combinator at all (issue #1530
+/// FR-001 removed the legacy keep-all fallback).
 library;
 
 import 'dart:convert';
@@ -27,22 +30,50 @@ class ZuraffaBarrelExports {
   final Set<String> names;
 
   static ZuraffaBarrelExports? _seeded;
+  static String? _projectRoot;
+  static bool _resolved = false;
 
   /// Seed from [projectRoot] (the generation target). Safe to call
-  /// repeatedly; the resolution is cached until [reset].
+  /// repeatedly; the resolution happens on first read and is cached
+  /// until [reset].
   static void seed(String projectRoot) {
-    _seeded = _resolve(projectRoot);
+    _projectRoot = projectRoot;
+    _seeded = null;
+    _resolved = false;
   }
 
   /// Test seam: seed with an explicit name set.
   static void seedForTest(Set<String> names) {
     _seeded = ZuraffaBarrelExports._(names);
+    _projectRoot = null;
+    _resolved = true;
   }
 
-  static void reset() => _seeded = null;
+  static void reset() {
+    _seeded = null;
+    _projectRoot = null;
+    _resolved = false;
+  }
 
-  /// The current resolution, or null when never seeded / unresolvable.
-  static ZuraffaBarrelExports? get current => _seeded;
+  /// The current resolution, or null when the surface is unresolved.
+  ///
+  /// Issue #1530 (FR-001/FR-005): the resolution is DEFERRED to this
+  /// first read rather than run inside [seed]. The seed happens at
+  /// generation start (`PluginManager.buildContext`) while the pubspec
+  /// ensure that makes a fresh target's `zuraffa` entry resolvable lands
+  /// at the END of the same run — resolving late lets any resolution
+  /// state produced in between land first. The window is still open for
+  /// a run whose only change is that pubspec write (the ensure never
+  /// spawns `pub get`, so `package_config.json` — what [_resolve] reads
+  /// — is unchanged until the user runs it); that residual is recorded
+  /// in the spec's risk table.
+  static ZuraffaBarrelExports? get current {
+    if (_resolved) return _seeded;
+    final root = _projectRoot;
+    if (root == null) return null;
+    _resolved = true;
+    return _seeded = _resolve(root);
+  }
 
   /// Filters [hides] to names the barrel actually exports.
   ///
@@ -56,7 +87,7 @@ class ZuraffaBarrelExports {
   /// honest emission; the #942 collision protection stays on the SEEDED
   /// path, where names are verified against the real surface.
   static List<String> filter(Iterable<String> hides) {
-    final seed = _seeded;
+    final seed = current;
     if (seed == null) return const [];
     return hides.where(seed.names.contains).toList();
   }
@@ -112,22 +143,50 @@ class ZuraffaBarrelExports {
     // the legacy join silently dropped the name one level down.
     final barrelDir = p.dirname(barrelPath);
 
-    // Parses `export '<uri>' ...;` into the quoted target plus the
-    // combinator tail (everything after the closing quote).
-    (String, String)? exportParts(String line) {
-      final trimmed = line.trim();
-      if (!trimmed.startsWith('export ')) return null;
-      final start = trimmed.indexOf("'");
-      if (start < 0) return null;
-      final end = trimmed.indexOf("'", start + 1);
-      if (end < 0) return null;
-      return (trimmed.substring(start + 1, end), trimmed.substring(end + 1));
+    // Parses `export '<uri>' ...;` STATEMENTS into the quoted target plus
+    // the combinator tail (everything after the closing quote).
+    //
+    // Combinators belong to the STATEMENT, not the line: dart_style
+    // wraps long `export`s — this repo's own `lib/zuraffa.dart` uses that
+    // form four times — so accumulate to the terminating `;` before
+    // reading the tail. A line-scoped parse sees an empty tail for the
+    // wrapped form, treats the statement as unrestricted, and collects
+    // every top-level declaration of the target file (re-emitting
+    // exactly the unverified hides issue #1530 removes). Whitespace is
+    // collapsed so a wrapped name list reads as one list.
+    Iterable<(String, String)> exportStatements(List<String> lines) sync* {
+      final buf = StringBuffer();
+      var open = false;
+      for (final line in lines) {
+        final trimmed = line.trim();
+        if (!open) {
+          if (!trimmed.startsWith('export ')) continue;
+          open = true;
+          buf.clear();
+        }
+        buf.write(trimmed.replaceAll(RegExp(r'\s+'), ' '));
+        buf.write(' ');
+        final text = buf.toString();
+        if (!text.contains(';')) continue;
+        open = false;
+        final start = text.indexOf("'");
+        if (start < 0) continue;
+        final end = text.indexOf("'", start + 1);
+        if (end < 0) continue;
+        yield (text.substring(start + 1, end), text.substring(end + 1));
+      }
     }
 
     // The names of one combinator (`show a, b` / `hide c`) — null when
-    // the keyword is absent (issue #1530 FR-002).
+    // the keyword is absent (issue #1530 FR-002). The capture stops at a
+    // sibling combinator keyword or the statement terminator: `show
+    // Alpha hide Beta` is one legal statement, and letting the capture
+    // run to the `;` would swallow `hide Beta` into the `show` list, so
+    // Alpha — genuinely exported — would stop verifying.
     Set<String>? combinatorNames(String tail, String keyword) {
-      final match = RegExp('\\b$keyword\\s+([^;]+);?').firstMatch(tail);
+      final match = RegExp(
+        '\\b$keyword\\s+([^;]*?)(?=\\s+(?:show|hide)\\b|\\s*;)',
+      ).firstMatch(tail);
       if (match == null) return null;
       return match
           .group(1)!
@@ -151,16 +210,13 @@ class ZuraffaBarrelExports {
       return null;
     }
 
-    for (final line in barrel.readAsLinesSync()) {
-      final parts = exportParts(line);
-      if (parts == null) continue;
-      final (target, tail) = parts;
-      // Issue #1530 (FR-002): honor the line's combinators — a
-      // `show`-restricted line contributes ONLY the shown names and a
-      // `hide`-carrying line subtracts the hidden names. Both filters
-      // intersect with the inherited ones from an enclosing barrel line
-      // (`export 'index.dart' show X;` restricts what the nested barrel
-      // contributes too).
+    for (final (target, tail) in exportStatements(barrel.readAsLinesSync())) {
+      // Issue #1530 (FR-002): honor the statement's combinators — a
+      // `show`-restricted statement contributes ONLY the shown names and
+      // a `hide`-carrying statement subtracts the hidden names. Both
+      // filters intersect with the inherited ones from an enclosing
+      // barrel statement (`export 'index.dart' show X;` restricts what
+      // the nested barrel contributes too).
       final shown = combinatorNames(tail, 'show');
       final hidden = combinatorNames(tail, 'hide') ?? const <String>{};
       final effectiveShow = inheritedShow == null

@@ -99,11 +99,36 @@ void main() {
       File(
         p.join(zuraffaRoot, 'lib', 'src', 'c.dart'),
       ).writeAsStringSync('class Gamma {}\n');
+      // d.dart declares Delta AND WrappedSecret; the statement shows
+      // Delta only and dart_style wraps the tail onto its own line.
+      File(
+        p.join(zuraffaRoot, 'lib', 'src', 'd.dart'),
+      ).writeAsStringSync('class Delta {}\nclass WrappedSecret {}\n');
+      // e.dart declares Epsilon and Zeta; ONE statement carries both
+      // combinators (`show Epsilon hide Zeta`).
+      File(
+        p.join(zuraffaRoot, 'lib', 'src', 'e.dart'),
+      ).writeAsStringSync('class Epsilon {}\nclass Zeta {}\n');
+      // f.dart declares Eta, Theta and Iota; the shown name list itself
+      // wraps across lines.
+      File(
+        p.join(zuraffaRoot, 'lib', 'src', 'f.dart'),
+      ).writeAsStringSync('class Eta {}\nclass Theta {}\nclass Iota {}\n');
       File(p.join(zuraffaRoot, 'lib', 'zuraffa.dart')).writeAsStringSync(
         [
           "export 'src/a.dart' show Alpha;",
           "export 'src/b.dart' hide Beta;",
           "export 'src/c.dart';",
+          // The form this repository's own `lib/zuraffa.dart` ships:
+          // the combinator tail lives on the line AFTER `export`.
+          "export 'src/d.dart'",
+          '    show Delta;',
+          "export 'src/e.dart' show Epsilon hide Zeta;",
+          // The wrapped shown-name list form.
+          "export 'src/f.dart'",
+          '    show',
+          '        Eta,',
+          '        Theta;',
         ].join('\n'),
       );
       final dotTool = Directory(p.join(combTmp.path, '.dart_tool'));
@@ -148,6 +173,44 @@ void main() {
     test('an unqualified export line keeps full collection', () {
       ZuraffaBarrelExports.seed(combTmp.path);
       expect(ZuraffaBarrelExports.current!.names, contains('Gamma'));
+    });
+
+    // Review of #1578: the combinator tail belongs to the STATEMENT, and
+    // dart_style wraps long `export`s (this repository's own
+    // `lib/zuraffa.dart` ships four of them). A line-scoped parse reads
+    // an empty tail for the wrapped form, treats the statement as
+    // unrestricted, and collects the target file's whole declaration
+    // list — the over-collection that re-emits unverified hides.
+    test('a wrapped `export … show …` restricts to the shown names', () {
+      ZuraffaBarrelExports.seed(combTmp.path);
+      expect(ZuraffaBarrelExports.current!.names, contains('Delta'));
+      expect(
+        ZuraffaBarrelExports.current!.names,
+        isNot(contains('WrappedSecret')),
+        reason:
+            'the wrapped statement shows Delta only; collecting '
+            'WrappedSecret re-emits an undefined_hidden_name hide',
+      );
+    });
+
+    test('a wrapped shown-name list keeps every shown name', () {
+      ZuraffaBarrelExports.seed(combTmp.path);
+      expect(ZuraffaBarrelExports.current!.names, contains('Eta'));
+      expect(ZuraffaBarrelExports.current!.names, contains('Theta'));
+      expect(ZuraffaBarrelExports.current!.names, isNot(contains('Iota')));
+    });
+
+    // Review of #1578: `show Alpha hide Beta` is ONE legal statement; a
+    // capture that runs to the `;` swallows the sibling keyword
+    // (`{Epsilon hide Zeta}`), so neither name matches a declaration and
+    // a name that genuinely IS exported stops verifying — the #942
+    // collision protection disappears for it.
+    test('a sibling `show … hide …` keeps the shown name only', () {
+      ZuraffaBarrelExports.seed(combTmp.path);
+      expect(ZuraffaBarrelExports.current!.names, contains('Epsilon'));
+      expect(ZuraffaBarrelExports.current!.names, isNot(contains('Zeta')));
+      expect(EntityUtils.barrelHideNames('Epsilon'), ['Epsilon']);
+      expect(EntityUtils.barrelHideNames('Zeta'), isEmpty);
     });
   });
 
