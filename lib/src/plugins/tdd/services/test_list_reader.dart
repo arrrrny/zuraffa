@@ -73,6 +73,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/behavior.dart';
+import 'cycle_log_sections.dart';
 import 'finder_taxonomy.dart';
 import 'lane_plans.dart';
 import 'lane_split.dart';
@@ -325,12 +326,68 @@ class TestListReader {
     return rows;
   }
 
+  /// The fence-aware line walk (issue #1575) — the `## ` header
+  /// detection every section-state scanner in this reader shares, routed
+  /// through the #1467 splitter so an in-fence `## ` line (a markdown
+  /// banner inside a fenced example) can never flip a section state the
+  /// way it flipped the #1549 cycle-log line-scanners.
+  ///
+  /// [splitCycleLogSections] cuts the content at column-0 `## ` lines
+  /// OUTSIDE fenced code blocks; each section's first line is its header.
+  /// The splitter consumed the `## ` prefix as the boundary separator (a
+  /// byte-0 header keeps its prefix, mirroring the legacy
+  /// `raw.split('\n## ')` byte contract), so the header text is the
+  /// line's right-trimmed remainder — byte-equal to the legacy
+  /// `trimmed.substring(3)` for every column-0 header. A bare `## `
+  /// heading (empty remainder) is emitted as a body line: the legacy walk
+  /// ignored those too (`'## '.trim()` does not start with `'## '`), so
+  /// an empty heading never flipped a section state and still must not.
+  ///
+  /// Yields every original line with its 1-based number — the splitter's
+  /// boundary cuts reconstruct the original line sequence (the legacy
+  /// `\n## ` separators it consumed each consumed exactly one line), so
+  /// the line-naming error contract (bug #984) stays byte-identical —
+  /// plus the header text for section-header lines (null for body lines,
+  /// verbatim otherwise).
+  static List<({int lineNo, String raw, String? header})> _fenceAwareLines(
+    String content,
+  ) {
+    final lines = <({int lineNo, String raw, String? header})>[];
+    final sections = splitCycleLogSections(content);
+    for (var s = 0; s < sections.length; s++) {
+      final sectionLines = sections[s].split('\n');
+      for (var i = 0; i < sectionLines.length; i++) {
+        final raw = sectionLines[i];
+        String? header;
+        if (i == 0) {
+          if (s == 0) {
+            // Byte-compat: only chunk 0 can carry a `## ` prefix (the
+            // split never separates byte 0); legacy semantics apply to
+            // line 1 verbatim.
+            final trimmed = raw.trim();
+            header = trimmed.startsWith('## ') ? trimmed.substring(3) : null;
+          } else {
+            final text = raw.trimRight();
+            header = text.isEmpty ? null : text;
+          }
+        }
+        lines.add((lineNo: lines.length + 1, raw: raw, header: header));
+      }
+    }
+    return lines;
+  }
+
   /// The single-file row parser (bug #617): the line walk every list
   /// shape funnels through — section headers set the kind, declarative
   /// sections are skipped, table rows parse in the canonical 4-column
   /// or deprecated 6-column shapes.
+  ///
+  /// Fence-aware (issue #1575): headers come from [_fenceAwareLines], so
+  /// a `## ` line inside a fenced code block (a markdown banner inside a
+  /// fenced example — the #1467 phantom-section defect on a different
+  /// input file) can no longer flip `kind` or the declarative-section
+  /// state. The row grammar and the section vocabulary are unchanged.
   List<BehaviorRow> _parseRows(String content, {required String path}) {
-    final lines = content.split('\n');
     final rows = <BehaviorRow>[];
     BehaviorKind? kind;
     var inDeclarativeSection = false;
@@ -340,34 +397,32 @@ class TestListReader {
     // process per file — separate processes (separate commands) each
     // print their own, exactly as before.
     var deprecatedDialectWarned = _deprecationNotedFiles.contains(path);
-    for (var i = 0; i < lines.length; i++) {
-      final raw = lines[i];
-      final trimmed = raw.trim();
-      if (trimmed.startsWith('## ')) {
-        final header = trimmed.substring(3).toLowerCase();
-        if (header.startsWith('outer loop')) {
+    for (final (:lineNo, :raw, :header) in _fenceAwareLines(content)) {
+      if (header != null) {
+        final lowered = header.toLowerCase();
+        if (lowered.startsWith('outer loop')) {
           // Bug #830: `## Outer loop: widget behaviors` marks the UI
           // acceptance section — its rows are widget kind, still outer-loop
           // (acceptance-level) but asserted through a testWidgets pair.
-          kind = header.contains('widget')
+          kind = lowered.contains('widget')
               ? BehaviorKind.widget
               : BehaviorKind.acceptance;
-        } else if (header.startsWith('inner loop')) {
+        } else if (lowered.startsWith('inner loop')) {
           kind = BehaviorKind.unit;
-        } else if (header.startsWith('theme harness')) {
+        } else if (lowered.startsWith('theme harness')) {
           // Theme-harness section (issue #841): theme-kind behaviors whose
           // gen pair is the theme-harness widget test + subject contract.
           kind = BehaviorKind.theme;
-        } else if (header.startsWith('native loop')) {
+        } else if (lowered.startsWith('native loop')) {
           // Bug #835: the native loop section carries FFI/OCR
           // native-boundary behaviors. Rows under it are ffi-kind.
           kind = BehaviorKind.ffi;
-        } else if (header.startsWith('platform harness')) {
+        } else if (lowered.startsWith('platform harness')) {
           // Platform-harness section (issue #831): platform-kind behaviors
           // whose gen pair drives a platform channel through the certified
           // fake + committed scenario written by `zfa tdd fake`.
           kind = BehaviorKind.platform;
-        } else if (header.startsWith('contract loop')) {
+        } else if (lowered.startsWith('contract loop')) {
           // Contract-loop section (issue #1007): CONTRACT-kind behaviors —
           // one declared entity method, controller method or usecase per
           // row, written by plan from the spec's Layer Contracts section.
@@ -393,22 +448,23 @@ class TestListReader {
         // machine, routes) are the typed contract the loop referees
         // the skin against — declarations, not behaviors.
         inDeclarativeSection =
-            header.startsWith('key entities') ||
-            header.startsWith('external dependencies') ||
-            header.startsWith('layer contracts') ||
-            header.startsWith('lane split') ||
-            header.startsWith('adaptive view slots') ||
-            header.startsWith('boundary') ||
-            header.startsWith('shared seam behaviors') ||
-            header.startsWith('platform contract') ||
-            header.startsWith('state machine contract') ||
-            header.startsWith('route contract') ||
-            header.startsWith('skin contract') ||
+            lowered.startsWith('key entities') ||
+            lowered.startsWith('external dependencies') ||
+            lowered.startsWith('layer contracts') ||
+            lowered.startsWith('lane split') ||
+            lowered.startsWith('adaptive view slots') ||
+            lowered.startsWith('boundary') ||
+            lowered.startsWith('shared seam behaviors') ||
+            lowered.startsWith('platform contract') ||
+            lowered.startsWith('state machine contract') ||
+            lowered.startsWith('route contract') ||
+            lowered.startsWith('skin contract') ||
             // Bug #1261: the visual-contract rows (the golden-gated
             // behaviors) are declarations, not behaviors.
-            header.startsWith('visual contract');
+            lowered.startsWith('visual contract');
         continue;
       }
+      final trimmed = raw.trim();
       if (inDeclarativeSection) continue;
       if (!trimmed.startsWith('|')) continue;
       final cells = _splitRow(trimmed).map((c) => c.trim()).toList();
@@ -429,7 +485,7 @@ class TestListReader {
       final (row: row, dialect: dialect) = _parseDataRow(
         cells,
         kind: kind,
-        lineNo: i + 1,
+        lineNo: lineNo,
         raw: raw,
       );
       if (row != null) rows.add(row);
@@ -474,21 +530,22 @@ class TestListReader {
   /// pre-829 artifact), and rows that do not carry a name cell are
   /// skipped rather than rejected — the section is an extraction aid,
   /// not a behavior contract.
+  ///
+  /// Fence-aware (issue #1575): headers come from [_fenceAwareLines], so
+  /// an in-fence `## ` banner can no longer close the section and drop
+  /// the entity rows after it.
   Future<List<DeclaredEntity>> readEntities() async {
     final specMd = await _sectionsSource();
     if (specMd.isEmpty) return const [];
-    final lines = specMd.split('\n');
     final entities = <DeclaredEntity>[];
     var inEntitySection = false;
-    for (final raw in lines) {
-      final trimmed = raw.trim();
-      if (trimmed.startsWith('## ')) {
-        inEntitySection = trimmed
-            .substring(3)
-            .toLowerCase()
-            .startsWith('key entities');
+    for (final walk in _fenceAwareLines(specMd)) {
+      final header = walk.header;
+      if (header != null) {
+        inEntitySection = header.toLowerCase().startsWith('key entities');
         continue;
       }
+      final trimmed = walk.raw.trim();
       if (!inEntitySection) continue;
       if (!trimmed.startsWith('|')) continue;
       final cells = _splitRow(trimmed).map((c) => c.trim()).toList();
@@ -522,21 +579,22 @@ class TestListReader {
   /// Lenient like [readEntities]: a list without the section yields an
   /// empty list (every pre-919 artifact); header/separator rows and rows
   /// without a dependency name are skipped rather than rejected.
+  ///
+  /// Fence-aware (issue #1575): headers come from [_fenceAwareLines], so
+  /// an in-fence `## ` banner can no longer close the section and drop
+  /// the dependency rows after it.
   Future<List<SpecDependency>> readDependencies() async {
     final specMd = await _sectionsSource();
     if (specMd.isEmpty) return const [];
-    final lines = specMd.split('\n');
     final dependencies = <SpecDependency>[];
     var inSection = false;
-    for (final raw in lines) {
-      final trimmed = raw.trim();
-      if (trimmed.startsWith('## ')) {
-        inSection = trimmed
-            .substring(3)
-            .toLowerCase()
-            .startsWith('external dependencies');
+    for (final walk in _fenceAwareLines(specMd)) {
+      final header = walk.header;
+      if (header != null) {
+        inSection = header.toLowerCase().startsWith('external dependencies');
         continue;
       }
+      final trimmed = walk.raw.trim();
       if (!inSection || !trimmed.startsWith('|')) continue;
       final cells = _splitRow(trimmed).map((c) => c.trim()).toList();
       // Leading empty cell + the four data cells.
@@ -559,23 +617,24 @@ class TestListReader {
   /// Parse the `## Layer contracts` section plan writes (bug #919):
   /// `### <layer>` headings and `- `<interface>`: `sig1`, `sig2``
   /// bullets beneath them.
+  ///
+  /// Fence-aware (issue #1575): headers come from [_fenceAwareLines], so
+  /// an in-fence `## ` banner can no longer close the section (and reset
+  /// the layer) and drop the contract bullets after it.
   Future<List<LayerContract>> readLayerContracts() async {
     final specMd = await _sectionsSource();
     if (specMd.isEmpty) return const [];
-    final lines = specMd.split('\n');
     final contracts = <LayerContract>[];
     var inSection = false;
     var layer = '';
-    for (final raw in lines) {
-      final trimmed = raw.trim();
-      if (trimmed.startsWith('## ')) {
-        inSection = trimmed
-            .substring(3)
-            .toLowerCase()
-            .startsWith('layer contracts');
+    for (final walk in _fenceAwareLines(specMd)) {
+      final header = walk.header;
+      if (header != null) {
+        inSection = header.toLowerCase().startsWith('layer contracts');
         if (!inSection) layer = '';
         continue;
       }
+      final trimmed = walk.raw.trim();
       if (!inSection || trimmed.isEmpty) continue;
       final layerM = RegExp(r'^###\s+(.+)$').firstMatch(trimmed);
       if (layerM != null) {

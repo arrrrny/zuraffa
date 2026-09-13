@@ -62,9 +62,10 @@ void main() {
     expect(rows[1].kind, BehaviorKind.acceptance);
   });
 
-  test('1575: an in-fence declarative marker does not swallow real rows',
-      () async {
-    final dir = await seed('''
+  test(
+    '1575: an in-fence declarative marker does not swallow real rows',
+    () async {
+      final dir = await seed('''
 ## Inner loop: unit behaviors
 
 | id | behavior | traces | state |
@@ -79,22 +80,24 @@ zfa make example
 | U2 | after the fence | FR-002 | PENDING |
 ''');
 
-    final rows = await TestListReader(dir).read();
+      final rows = await TestListReader(dir).read();
 
-    // The in-fence `## Key entities` banner must not switch the walk into
-    // the declarative section — U2 is a real behavior row, not a Key
-    // entities declaration.
-    expect(rows.map((r) => r.id), ['U1', 'U2']);
-    expect(rows[1].kind, BehaviorKind.unit);
-  });
+      // The in-fence `## Key entities` banner must not switch the walk into
+      // the declarative section — U2 is a real behavior row, not a Key
+      // entities declaration.
+      expect(rows.map((r) => r.id), ['U1', 'U2']);
+      expect(rows[1].kind, BehaviorKind.unit);
+    },
+  );
 
   // -------------------------------------------------------------------
   // readEntities — the Key entities scanner (line 485).
   // -------------------------------------------------------------------
 
-  test('1575: readEntities — an in-fence header does not close the section',
-      () async {
-    final dir = await seed('''
+  test(
+    '1575: readEntities — an in-fence header does not close the section',
+    () async {
+      final dir = await seed('''
 ## Key entities
 
 | entity | fields |
@@ -109,19 +112,21 @@ final r = Role();
 | Widget | child:Widget |
 ''');
 
-    final entities = await TestListReader(dir).readEntities();
+      final entities = await TestListReader(dir).readEntities();
 
-    expect(entities.map((e) => e.name), ['Role', 'Widget']);
-    expect(entities[1].fields, ['child:Widget']);
-  });
+      expect(entities.map((e) => e.name), ['Role', 'Widget']);
+      expect(entities[1].fields, ['child:Widget']);
+    },
+  );
 
   // -------------------------------------------------------------------
   // readDependencies — the External dependencies scanner (line 533).
   // -------------------------------------------------------------------
 
-  test('1575: readDependencies — an in-fence header does not close the section',
-      () async {
-    final dir = await seed('''
+  test(
+    '1575: readDependencies — an in-fence header does not close the section',
+    () async {
+      final dir = await seed('''
 ## External dependencies
 
 | dependency | type | contract | mock priority |
@@ -136,22 +141,23 @@ deploy:
 | Clock | system | ClockContract | low |
 ''');
 
-    final dependencies = await TestListReader(dir).readDependencies();
+      final dependencies = await TestListReader(dir).readDependencies();
 
-    expect(dependencies.map((d) => d.dependency), ['AuthApi', 'Clock']);
-    expect(dependencies[1].type, 'system');
-    expect(dependencies[1].contract, 'ClockContract');
-    expect(dependencies[1].mockPriority, 'low');
-  });
+      expect(dependencies.map((d) => d.dependency), ['AuthApi', 'Clock']);
+      expect(dependencies[1].type, 'system');
+      expect(dependencies[1].contract, 'ClockContract');
+      expect(dependencies[1].mockPriority, 'low');
+    },
+  );
 
   // -------------------------------------------------------------------
   // readLayerContracts — the Layer contracts scanner (line 571).
   // -------------------------------------------------------------------
 
   test(
-      '1575: readLayerContracts — an in-fence header does not close the section',
-      () async {
-    final dir = await seed('''
+    '1575: readLayerContracts — an in-fence header does not close the section',
+    () async {
+      final dir = await seed('''
 ## Layer contracts
 
 ### domain
@@ -167,13 +173,14 @@ abstract class Fake {
 - `IStore`: `sig3`
 ''');
 
-    final contracts = await TestListReader(dir).readLayerContracts();
+      final contracts = await TestListReader(dir).readLayerContracts();
 
-    expect(contracts.map((c) => c.interfaceName), ['IRepo', 'IStore']);
-    expect(contracts[0].layer, 'domain');
-    expect(contracts[1].layer, 'domain');
-    expect(contracts[1].methods, ['sig3']);
-  });
+      expect(contracts.map((c) => c.interfaceName), ['IRepo', 'IStore']);
+      expect(contracts[0].layer, 'domain');
+      expect(contracts[1].layer, 'domain');
+      expect(contracts[1].methods, ['sig3']);
+    },
+  );
 
   // -------------------------------------------------------------------
   // Well-formed inputs must parse exactly as before (hard constraint).
@@ -233,35 +240,39 @@ abstract class Fake {
     expect(rows.single.kind, BehaviorKind.unit);
   });
 
-  test('1575: a malformed row after a fence reports its honest line number',
-      () async {
-    // Line accounting parity: the fence-aware walk reconstructs the
-    // original line sequence (the splitter consumes the `## ` boundary
-    // separators), so the line-naming error contract (bug #984) stays
-    // byte-identical for rows that sit after a fenced example.
-    final dir = await seed([
-      '## Inner loop: unit behaviors',
-      '',
-      '```dart',
-      '## Inner loop: unit behaviors',
-      '```',
-      '',
-      '| U2 | six column row | FR-002 | banana | PENDING |  |',
-      '',
-    ].join('\n'));
+  test(
+    '1575: a malformed row after a fence reports its honest line number',
+    () async {
+      // Line accounting parity: the fence-aware walk reconstructs the
+      // original line sequence (the splitter consumes the `## ` boundary
+      // separators), so the line-naming error contract (bug #984) stays
+      // byte-identical for rows that sit after a fenced example.
+      final dir = await seed(
+        [
+          '## Inner loop: unit behaviors',
+          '',
+          '```dart',
+          '## Inner loop: unit behaviors',
+          '```',
+          '',
+          '| U2 | six column row | FR-002 | banana | PENDING |  |',
+          '',
+        ].join('\n'),
+      );
 
-    await expectLater(
-      TestListReader(dir).read(),
-      throwsA(
-        isA<TestListReadException>().having(
-          (e) => e.message,
-          'message',
-          // Exact wording pinned: line 7 of the fixture above.
-          'test-list.md line 7: expected 4 columns '
-              '(id/behavior/traces/state), found 6: '
-              '"| U2 | six column row | FR-002 | banana | PENDING |  |"',
+      await expectLater(
+        TestListReader(dir).read(),
+        throwsA(
+          isA<TestListReadException>().having(
+            (e) => e.message,
+            'message',
+            // Exact wording pinned: line 7 of the fixture above.
+            'test-list.md line 7: expected 4 columns '
+                '(id/behavior/traces/state), found 6: '
+                '"| U2 | six column row | FR-002 | banana | PENDING |  |"',
+          ),
         ),
-      ),
-    );
-  });
+      );
+    },
+  );
 }

@@ -50,9 +50,10 @@ void main() {
         .toSet();
   }
 
-  test('1575: an in-fence header does not drop post-fence behavior ids',
-      () async {
-    await seedTestList('f1', '''
+  test(
+    '1575: an in-fence header does not drop post-fence behavior ids',
+    () async {
+      await seedTestList('f1', '''
 # Test List
 
 ## Behaviors
@@ -69,18 +70,20 @@ an example block inside the behaviors section
 | B2 | does y | FR-2 | test/y_test.dart |
 ''');
 
-    final gaps = await coverageGapIds();
+      final gaps = await coverageGapIds();
 
-    // No green evidence exists for either behavior: both must be reported.
-    // The in-fence `## Notes:` banner must not switch the walk off the
-    // behavior section (the legacy walk dropped B2 silently).
-    expect(gaps.any((g) => g.contains('"B1"')), isTrue);
-    expect(gaps.any((g) => g.contains('"B2"')), isTrue);
-  });
+      // No green evidence exists for either behavior: both must be reported.
+      // The in-fence `## Notes:` banner must not switch the walk off the
+      // behavior section (the legacy walk dropped B2 silently).
+      expect(gaps.any((g) => g.contains('"B1"')), isTrue);
+      expect(gaps.any((g) => g.contains('"B2"')), isTrue);
+    },
+  );
 
-  test('1575: a fenced `## Behaviors` example fabricates no phantom ids',
-      () async {
-    await seedTestList('f1', '''
+  test(
+    '1575: a fenced `## Behaviors` example fabricates no phantom ids',
+    () async {
+      await seedTestList('f1', '''
 # Test List
 
 ## Key entities
@@ -95,20 +98,28 @@ an example block inside the behaviors section
 ```
 ''');
 
-    final gaps = await coverageGapIds();
+      final gaps = await coverageGapIds();
 
-    // The fenced example table sits in a declarative section; its banner
-    // must not re-arm the behavior-section walk and its rows must never
-    // become audit ids.
-    expect(gaps.any((g) => g.contains('PHANTOM')), isFalse,
-        reason: 'an in-fence example row is not a behavior');
-    expect(gaps.any((g) => g.contains('"Role"')), isFalse,
-        reason: 'declarations are not behaviors either');
-  });
+      // The fenced example table sits in a declarative section; its banner
+      // must not re-arm the behavior-section walk and its rows must never
+      // become audit ids.
+      expect(
+        gaps.any((g) => g.contains('PHANTOM')),
+        isFalse,
+        reason: 'an in-fence example row is not a behavior',
+      );
+      expect(
+        gaps.any((g) => g.contains('"Role"')),
+        isFalse,
+        reason: 'declarations are not behaviors either',
+      );
+    },
+  );
 
-  test('1575: a well-formed behaviors table audits exactly as before',
-      () async {
-    await seedTestList('f1', '''
+  test(
+    '1575: a well-formed behaviors table audits exactly as before',
+    () async {
+      await seedTestList('f1', '''
 # Test List
 
 ## Behaviors
@@ -125,10 +136,11 @@ an example block inside the behaviors section
 | Role | name:String |
 ''');
 
-    final gaps = await coverageGapIds();
+      final gaps = await coverageGapIds();
 
-    expect(gaps.any((g) => g.contains('"B1"')), isTrue);
-    expect(gaps.any((g) => g.contains('"B2"')), isTrue);
-    expect(gaps.any((g) => g.contains('"Role"')), isFalse);
-  });
+      expect(gaps.any((g) => g.contains('"B1"')), isTrue);
+      expect(gaps.any((g) => g.contains('"B2"')), isTrue);
+      expect(gaps.any((g) => g.contains('"Role"')), isFalse);
+    },
+  );
 }
