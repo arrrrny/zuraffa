@@ -23,9 +23,12 @@
 ///   4. Discovers the feature's composable green unit subjects via
 ///      `CompositionTargets` (unit-kind test-list rows ∩ green cycle-log
 ///      evidence ∩ existing subject artifacts). Zero anchors →
-///      `no-green-units` misfire-stop; a missing anchor artifact →
-///      `runner-error` misfire-stop; a unit-kind target → fail-closed
-///      refusal (composition is the acceptance-subject surface only).
+///      `no-green-units` misfire-stop; a green unit whose registry
+///      record is absent → `stale-evidence` refusal (issue #1550 — the
+///      green premise is stale, re-derive the artifacts); a missing
+///      anchor artifact → `runner-error` misfire-stop; a unit-kind
+///      target → fail-closed refusal (composition is the
+///      acceptance-subject surface only).
 ///   5. Replaces the subject's `UnimplementedError` stub body with the
 ///      minimal composed implementation: the green unit subject files are
 ///      imported and referenced as the implementation anchor (spec 047
@@ -61,6 +64,12 @@ enum ComposeOutcome {
   alreadyComposed('already-composed'),
   notCertifiedRed('not-certified-red'),
   noGreenUnits('no-green-units'),
+  // Issue #1550: the green-unit premise is contradicted by the registry
+  // — a unit the cycle-log advertises green has no registry record (its
+  // artifacts were dropped, canonically by a reset). An actionable
+  // refusal naming the stale premise, never a runner-error the operator
+  // cannot act on.
+  staleEvidence('stale-evidence'),
   runnerError('runner-error');
 
   const ComposeOutcome(this.label);
@@ -268,9 +277,14 @@ class ComposeCommand extends Command<void> {
     );
     if (discovery is CompositionTargetFailure) {
       print('zfa tdd compose: ${discovery.message}');
-      final outcome = discovery.code == 'no-green-units'
-          ? ComposeOutcome.noGreenUnits
-          : ComposeOutcome.runnerError;
+      // Issue #1550: the stale green premise is its own outcome — a unit
+      // advertised green with no registry record is a stale-evidence
+      // refusal (re-derive the artifacts), not a runner-error.
+      final outcome = switch (discovery.code) {
+        'no-green-units' => ComposeOutcome.noGreenUnits,
+        'stale-evidence' => ComposeOutcome.staleEvidence,
+        _ => ComposeOutcome.runnerError,
+      };
       _printSummary(
         behavior: record.behaviorId,
         outcome: outcome,
