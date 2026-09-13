@@ -2,7 +2,7 @@
 // spawns no subprocesses) so the default CI tier runs the #1574 guard on
 // every build — the same reasoning as bug_1573_doctor_migrate_prescription_test.
 // Bug #1574 — tdd gen still records machine-absolute test_path/subject_path
-// while the run driver records the relative form — 10 of 18 committed
+// while the run driver records the relative form — 11 of 18 committed
 // registries are absolute (#1397's corruption is still being written).
 //
 // Issue state: gen_command.dart composes the record's artifact paths straight
@@ -286,10 +286,17 @@ coverage: 'dart test --coverage'
     test('every tracked artifacts.json records relative artifact paths', () {
       final repoRoot = Directory.current.path;
       final tracked = <String>[];
-      final probe = Process.runSync('git', [
-        'ls-files',
-        '*.json',
-      ], workingDirectory: repoRoot);
+      final ProcessResult probe;
+      try {
+        probe = Process.runSync('git', [
+          'ls-files',
+          '*.json',
+        ], workingDirectory: repoRoot);
+      } on ProcessException catch (error) {
+        // A bare ProcessException (git absent) would bury the census's own
+        // reason — keep the failure legible instead.
+        fail('the census needs `git ls-files` to list the registries: $error');
+      }
       for (final line in (probe.stdout as String).split('\n')) {
         if (line.trim().endsWith('artifacts.json')) tracked.add(line.trim());
       }
@@ -309,6 +316,19 @@ coverage: 'dart test --coverage'
             final value = record[key];
             if (value is String && value.startsWith('/')) {
               absoluteRecords.add('$rel (${record['behavior_id']}: $key)');
+            }
+          }
+          // The issue's drifted record embeds the machine-absolute prefix a
+          // third time, in runnable_test_name's first `::` segment — a
+          // regression that reintroduces it ONLY there must not slip past
+          // this census unnoticed.
+          final runnable = record['runnable_test_name'];
+          if (runnable is String) {
+            final firstSegment = runnable.split('::').first;
+            if (firstSegment.contains('/') && firstSegment.startsWith('/')) {
+              absoluteRecords.add(
+                '$rel (${record['behavior_id']}: runnable_test_name)',
+              );
             }
           }
         }

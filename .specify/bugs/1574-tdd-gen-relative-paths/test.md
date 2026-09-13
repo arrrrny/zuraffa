@@ -25,7 +25,7 @@
     conflict — OwnershipConflict: the registry test path "test/tdd/
     100-feature-one/a1_test.dart" does not match "/tmp/…/test/tdd/
     100-feature-one/a1_test.dart"`,
-  - committed census counted the 10 drifted registries.
+  - committed census counted the 11 drifted registries.
 - The one pre-fix pass (specs-lane persist) is the #1397 canonicalization net
   — the issue itself acknowledges persist is masked in that lane; the guard
   stays as a regression pin.
@@ -62,14 +62,19 @@
 
 ### 5. Data migration audit
 
-- Pre-migration census (per-record, not per-registry): 10 registries carrying
-  machine-absolute `test_path`/`subject_path` fields (107 records); 7
-  relative registries; 1 empty.
+- Pre-migration census (per-record, not per-registry): 11 registries carrying
+  machine-absolute `test_path`/`subject_path` fields (107 records); 6
+  relative registries; 1 empty. (The issue's "10" classified first records
+  only — `.specify/bugs/tdd-run-baseline-timeout` has a relative A1 but
+  absolute A2/U1/A3.)
 - Post-migration census: **0 records with an absolute path field across all
-  18 tracked registries**.
+  19 tracked registries** (the 18 of the original base plus #1609's
+  `specs/1444-setup-zuraffa-app`).
 - Migration diff is form-only: 11 files changed, 11 insertions, 11 deletions
   (one line per registry — compact JSON byte format preserved); no artifact
-  file touched, no registry structure changed.
+  file touched, no registry structure changed. The #1609 follow-on registry
+  (2 records) was migrated on rebase in `c7f88e22` — 12 registry files
+  changed in total.
 
 ## Pre-existing failures NOT caused by this fix (flagged honestly)
 

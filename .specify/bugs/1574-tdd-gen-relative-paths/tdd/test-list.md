@@ -12,7 +12,7 @@ project, no mocks).
 | A2 | fresh gen in the `.specify/bugs/<slug>` lane persists relative `test_path`/`subject_path` (the live leak at master) | issue §Evidence drift is live | unit | DONE |
 | A3 | gen's emitted record (stdout `test_path:`/`subject_path:`/`runnable_test_name:`) carries the relative form in both lanes | issue §Proposed fix 1 | unit | DONE |
 | A4 | re-gen of a behavior whose prior record is relative (the run driver's form) reuses without an ownership conflict in the `.specify/bugs/<slug>` lane | issue §Actual + acceptance 3 | unit | DONE |
-| A5 | committed-registry census: every tracked `artifacts.json` records relative forms — no record's `test_path` starts with `/` after migration | issue §Proposed fix 3 | unit | DONE |
+| A5 | committed-registry census: every tracked `artifacts.json` records relative forms — no record's `test_path`/`subject_path` or `runnable_test_name` first segment starts with `/` after migration | issue §Proposed fix 3 | unit | DONE |
 
 ## Red evidence (pre-fix, recorded 2026-09-13)
 
@@ -23,4 +23,4 @@ project, no mocks).
 - A3: RED — stdout record lines carry absolute forms.
 - A4: RED — gen refuses with `path mismatch` ownership conflict against the
   relative prior record in the bug lane.
-- A5: RED — 10 of 18 tracked registries carry absolute forms at master.
+- A5: RED — 11 of 18 tracked registries carry absolute forms at master.

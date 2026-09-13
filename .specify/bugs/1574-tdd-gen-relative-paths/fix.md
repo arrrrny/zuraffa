@@ -12,9 +12,11 @@
 `test_path`/`subject_path` in the registry record, the emitted stdout record,
 and `runnable_test_name`'s first segment — the same form
 `run_driver_core.dart` has recorded since commit `af40f686b` (2026-09-08). The
-10 committed registries that still carried machine-absolute records (107
-records) are migrated to the relative form. The two writers no longer
-disagree by construction.
+11 committed registries that still carried machine-absolute records (107
+records at the original base — the issue's "10" counted first records only)
+are migrated to the relative form, together with the #1609 drift the rebase
+surfaced (2 more records). The two writers no longer disagree by
+construction.
 
 ## Root cause (verified empirically, not just read)
 
@@ -78,7 +80,7 @@ moves from a nonexistent location to the real files. Verified: the full
 `test/plugins/tdd/commands` chunk (584 tests) passes, including every
 ownership-gate, doctor and migrate-paths suite (#835/#840/#1495/#1397/#1573).
 
-### 3. Data migration — 10 registries, 107 records
+### 3. Data migration — 11 registries, 107 records
 
 `scripts/migrate_1574_registries.py` (dry-run census + `--apply`) rewrites
 each registry's string FORMS only — no artifact file touched, byte format
@@ -90,18 +92,33 @@ preserved (compact `jsonEncode`-style, no re-indent; diff = 11 files,
 - `runnable_test_name` first segment rebuilt with the new `test_path` when
   that segment resolves to the recorded test file (mirrors `_canonicalize`'s
   `firstIsTestPath` guard).
-- Result census: 10/10 registries migrated, 107/172 records rewritten, 0
-  absolute path fields remain across all 18 tracked registries.
+- Result census: 11/11 registries migrated, 107/172 records rewritten (a
+  per-record census — the issue's "10 registries" classified first records
+  only: `.specify/bugs/tdd-run-baseline-timeout` has a relative A1 but
+  absolute A2/U1/A3), 0 absolute path fields remain across all 18 tracked
+  registries at that base.
+- Follow-on: while the PR was open, master merged #1609 — one more drifted
+  registry (`specs/1444-setup-zuraffa-app`, 2 absolute records). The rebase
+  migrated it too (commit `c7f88e22`): final state 12 registries / 109
+  records rewritten, 0 absolute path fields across all 19 tracked
+  registries.
 
 Note on the issue's "blanket rewrite would corrupt fixtures" caution: the
 fixture-style registries (`corpus/regression/make-baseline-cache/...`,
 `examples/todo_tdd/...`) were migrated deliberately — a test sweep showed
 nothing consumes their absolute forms (the corpus tiers are driven by
 `entry.json`, not `artifacts.json` path forms), and doctor's own drift rule
-defines the relative form as the canonical healthy one. `zfa tdd
-migrate-paths` could not perform this migration itself: it only reads
-`specs/<feature>/tdd/artifacts.json` (migrate_paths_command.dart:873,876-878),
-never `.specify/bugs/` — the exact gap the issue files separately.
+defines the relative form as the canonical healthy one. The committed
+registries were normalized with the one-shot script rather than `zfa tdd
+migrate-paths` so all 11 — including the two nested fixture projects
+(`corpus/regression/make-baseline-cache/project/`, `examples/todo_tdd/`)
+whose registries a single repo-root invocation does not reach (the tool
+sweeps one project root's `specs/` + `.specify/bugs/` lanes) — were
+rewritten in one pass. The tool itself can rewrite these forms: since #1573
+`_scanRegistries` sweeps the bug extension's registries
+(`_scanBugRegistries`, called at migrate_paths_command.dart:900), and
+`--feature` resolves `.specify/bugs/<slug>` through `_resolveFlaggedRegistry`
+(912-928).
 
 ### 4. Guard test — `test/plugins/tdd/commands/bug_1574_gen_relative_paths_test.dart`
 
@@ -115,7 +132,8 @@ default CI tier runs the guard — same reasoning as the #1573 suite):
 - bug lane: re-gen of a run-driver-shaped relative prior record reuses
   without an ownership conflict (A4 — acceptance 3)
 - committed census: no tracked registry record's `test_path`/`subject_path`
-  starts with `/` (A5 — acceptance 2, keeps the migration migrated)
+  or `runnable_test_name` first `::` segment starts with `/` (A5 — acceptance
+  2, keeps the migration migrated)
 
 ## Verification (real runs — see test.md and tdd/verification.md)
 
@@ -132,8 +150,9 @@ default CI tier runs the guard — same reasoning as the #1573 suite):
 
 1. `zfa tdd gen` produces registries with relative `test_path`/`subject_path`
    — PROVED (persist tests, both lanes, red→green).
-2. All 10 committed registries with absolute paths migrated to relative form
-   — PROVED (107 records rewritten; census test A5 + shell census 0 absolute).
+2. All 11 committed registries with absolute paths migrated to relative form
+   (12 with the #1609 follow-on) — PROVED (107 records rewritten; census
+   test A5 + shell census 0 absolute).
 3. `zfa tdd gen` no longer produces `ownership conflict` errors against the
    run driver's relative form — PROVED (A4 red→green: the verbatim
    pathMismatch refusal at master, reused/reused after the fix).

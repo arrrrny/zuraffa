@@ -11,10 +11,11 @@
 Follow-on to #1397. The #1397 fix added *detection* (doctor path-form drift) + a
 `migrate-paths` prescription and canonicalized the registry's persisted form —
 but the corrupting writer (`gen_command.dart`) was never normalized, and the
-drifted committed data was never migrated. The issue's census at `master`: of 18
-tracked `artifacts.json` registries, 10 record machine-absolute
-`test_path`/`subject_path`, 7 record the relative form, 1 is empty. Absolute is
-the majority form.
+drifted committed data was never migrated. The issue's census at `master`
+(first-record classification): of 18 tracked `artifacts.json` registries, 10
+record machine-absolute `test_path`/`subject_path`, 7 record the relative
+form, 1 is empty (a per-record recount finds 11 — see fix.md §3). Absolute
+is the majority form.
 
 ## Symptom
 
@@ -67,7 +68,7 @@ machine-absolute `cwd` and never derives the project-relative form, while
 In the specs lane the registry's `_canonicalize` masks this on persist; in the
 `.specify/bugs/<slug>` lane the registry's project-root heuristic cannot
 resolve the lanes against the mis-derived root, so the absolute form survives
-the write. Result: two writers disagreeing by construction, and 10 of 18
+the write. Result: two writers disagreeing by construction, and 11 of 18
 committed registries in the drifted (absolute) form.
 
 ## Proposed Remediation
@@ -89,7 +90,7 @@ committed registries in the drifted (absolute) form.
    (StateError / ownedButMissing). Gate semantics are unchanged: absolute
    records resolve exactly as before; only relative-record resolution moves
    from a nonexistent location to the real files.
-3. **Data migration** — rewrite the 10 committed absolute-path registries to
+3. **Data migration** — rewrite the 11 committed absolute-path registries to
    the relative form (strip the stale machine prefix at the last `/test/` or
    `/lib/` marker, mirroring `reanchorRecordPath`'s semantics; rebuild
    `runnable_test_name`'s first segment). Verified before rewriting: no test
@@ -116,10 +117,13 @@ committed registries in the drifted (absolute) form.
   would corrupt fixtures", but the census + test-sweep shows nothing consumes
   their absolute forms, while the canonical contract (and doctor) define the
   relative form as the only portable/healthy one.
-- `zfa tdd migrate-paths` cannot perform the migration itself: it only reads
-  `specs/<feature>/tdd/artifacts.json` (migrate_paths_command.dart:873,876-878),
-  never `.specify/bugs/` — so the committed registries are rewritten directly
-  (JSON-only, no file moves), mirroring the tool's own form rewrite.
+- `zfa tdd migrate-paths` can rewrite these forms — since #1573 its sweep
+  covers the bug extension's registries too (`_scanBugRegistries`; a plain
+  `--feature` name resolves through `_resolveFlaggedRegistry`) — but the
+  committed registries were rewritten directly with a one-shot script so all
+  11 (including the two nested fixture projects a single repo-root
+  invocation does not reach) normalize in one pass (JSON-only, no file
+  moves), mirroring the tool's own form rewrite.
 
 ## Open Questions
 
