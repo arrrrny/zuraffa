@@ -123,9 +123,7 @@ void main() {
 
       expect(out, contains('created/created'), reason: out);
       final stored = readFirstRecord(
-        File(
-          p.join(tmpDir.path, 'specs', feature, 'tdd', 'artifacts.json'),
-        ),
+        File(p.join(tmpDir.path, 'specs', feature, 'tdd', 'artifacts.json')),
       );
       expect(
         stored['test_path'],
@@ -180,7 +178,10 @@ void main() {
   });
 
   group('Bug #1574 — gen emits the relative form on stdout', () {
-    for (final (label, bugLane) in [('specs lane', false), ('bug lane', true)]) {
+    for (final (label, bugLane) in [
+      ('specs lane', false),
+      ('bug lane', true),
+    ]) {
       test('$label: the emitted record carries relative paths', () async {
         await seedFeature(tmpDir, bugLane: bugLane);
 
@@ -214,7 +215,9 @@ void main() {
           await file.parent.create(recursive: true);
           await file.writeAsString('// prior artifact\n');
         }
-        final registryFile = File(p.join(specDir.path, 'tdd', 'artifacts.json'));
+        final registryFile = File(
+          p.join(specDir.path, 'tdd', 'artifacts.json'),
+        );
         await registryFile.parent.create(recursive: true);
         await registryFile.writeAsString(
           jsonEncode({
