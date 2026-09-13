@@ -44,6 +44,7 @@ import 'package:path/path.dart' as p;
 import '../services/artifact_registry.dart';
 import '../services/declared_routing.dart';
 import '../services/entity_lookup.dart';
+import '../services/path_canonicalizer.dart';
 import '../services/subject_signature_deriver.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/unit_contract_shape.dart';
@@ -206,7 +207,10 @@ class WireCommand extends Command<void> {
     try {
       canonicalRoot = await Directory(normalizedCwd).resolveSymbolicLinks();
     } on FileSystemException {
-      canonicalRoot = normalizedCwd;
+      // Symmetric with the subject side below: a root that cannot resolve
+      // is canonicalized through its nearest EXISTING ancestor, never left
+      // raw (review of #1611).
+      canonicalRoot = await canonicalizeMissingPath(normalizedCwd);
     }
     String canonicalSubject;
     try {
@@ -218,7 +222,7 @@ class WireCommand extends Command<void> {
       // a symlinked temp root (`/var/folders` → `/private/var/folders`
       // on macOS) read the project's own recorded path as "outside the
       // project root" — the wrong refusal branch (pull/1516 review).
-      canonicalSubject = await _canonicalizeMissingPath(subjectPath);
+      canonicalSubject = await canonicalizeMissingPath(subjectPath);
     }
     if (!p.equals(canonicalRoot, canonicalSubject) &&
         !p.isWithin(canonicalRoot, canonicalSubject)) {
@@ -789,28 +793,6 @@ $effectiveReturnType $functionName($stubParams) {$body}
     }
     final rel = p.relative(entityFile, from: p.join(cwd, 'lib'));
     return 'package:$pkg/$rel';
-  }
-
-  /// Canonicalize [path] when the file itself does not exist yet: walk up
-  /// to the nearest EXISTING ancestor, resolve THAT through symlinks, and
-  /// re-append the remaining (missing) segments. Returns [path] unchanged
-  /// when no ancestor resolves (pull/1516 review: a symlinked temp root
-  /// must not make the project's own recorded subject path compare as
-  /// outside the project root).
-  static Future<String> _canonicalizeMissingPath(String path) async {
-    var dir = Directory(p.dirname(path));
-    final tail = <String>[p.basename(path)];
-    while (true) {
-      try {
-        final resolved = await dir.resolveSymbolicLinks();
-        return p.joinAll([resolved, ...tail.reversed]);
-      } on FileSystemException {
-        final parent = dir.parent;
-        if (parent.path == dir.path) return path;
-        tail.add(p.basename(dir.path));
-        dir = parent;
-      }
-    }
   }
 
   Future<_Resolved?> _resolve(

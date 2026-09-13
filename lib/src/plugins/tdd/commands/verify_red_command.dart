@@ -53,6 +53,7 @@ import 'package:path/path.dart' as p;
 import '../models/red_classification.dart';
 import '../services/artifact_registry.dart';
 import '../services/contract_blocked_receipt.dart';
+import '../services/hand_surface.dart';
 import '../services/cycle_evidence.dart';
 import '../services/cycle_log.dart';
 import '../services/cycle_log_sections.dart';
@@ -437,6 +438,22 @@ class VerifyRedCommand extends Command<void> {
         'zfa tdd verify-red: blocked — implement the declared contract '
         '${record.sourceCriterion}, then re-run '
         '`zfa tdd verify-red ${record.behaviorId}`',
+      );
+      // Issue #1589: the blocked verdict names the hand surface — where
+      // the declared contract is implemented (the seam) and the command
+      // that binds it (wire) — so the verdict is actionable as written.
+      // Messaging only: the verdict, the receipt and the no-red-evidence
+      // contract are the #1007 ones.
+      final seamRel = p
+          .relative(
+            p.isAbsolute(record.testPath)
+                ? record.testPath
+                : p.join(cwd, record.testPath),
+            from: cwd,
+          )
+          .replaceAll(r'\', '/');
+      stderr.writeln(
+        '   ${HandSurface.hintLine(behaviorId: record.behaviorId, seamPath: seamRel, contract: record.sourceCriterion)}',
       );
       stderr.writeln('   no red evidence written');
       _printSummary(

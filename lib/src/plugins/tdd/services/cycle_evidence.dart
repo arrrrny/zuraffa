@@ -192,12 +192,34 @@ class CycleEvidence {
   /// (the issue #959 additive field), so a bare substring probe would
   /// also exempt a red-less entry whose note merely QUOTES the marker
   /// prose (a hand-written debugging note).
-  Future<bool> bornGreenCertified(String behaviorId) async {
-    final last = await lastEntryFor(behaviorId, kind: 'green');
-    if (last == null) return false;
-    final note = last.evidence;
-    if (note == null) return false;
-    return note.startsWith(bornGreenEvidenceMarker);
+  ///
+  /// Review #1608: the per-behavior probe delegates to the batch
+  /// [bornGreenCertifiedEntries] so the last-green + anchored-marker rule
+  /// has ONE home — the anchor changed once already (review #1566), and
+  /// the run driver keys its batch pass on the same map.
+  Future<bool> bornGreenCertified(String behaviorId) async =>
+      (await bornGreenCertifiedEntries()).containsKey(behaviorId);
+
+  /// Every behavior whose LAST green evidence entry certifies the
+  /// born-green hand transition — the batch form of [bornGreenCertified]
+  /// (one append-order pass over [entries], the same last-green rule
+  /// [greenEvidence] and [orphanedGreenEvidence] apply).
+  ///
+  /// Review #1608: the run driver keys its #1592 refactor re-entry on
+  /// this map (the entry rides along so the caller can bind the
+  /// certification to the current subject), so the rule lives here
+  /// instead of being re-derived per call site.
+  Future<Map<String, ParsedCycleEntry>> bornGreenCertifiedEntries() async {
+    final lastGreen = <String, ParsedCycleEntry>{};
+    for (final entry in await entries()) {
+      if (entry.kind != 'green') continue;
+      lastGreen[entry.behaviorId] = entry;
+    }
+    return {
+      for (final MapEntry(key: behaviorId, value: entry) in lastGreen.entries)
+        if (entry.evidence?.startsWith(bornGreenEvidenceMarker) ?? false)
+          behaviorId: entry,
+    };
   }
 
   /// Every parsed entry, in file order.
