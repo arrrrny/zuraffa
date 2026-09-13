@@ -1,143 +1,115 @@
-# tdd.verify — Bug #1551 acceptance compose no-green-units hard stop
+# tdd.verify — Bug #1544 run parks forever on first blocked contract
 
 - **Verified**: 2026-09-13, this session, on
-  `fix/1551-acceptance-compose-deadlock` (working tree, pre-push)
+  `fix/1544-parks-forever-on-first-blocked-contract` (working tree, pushed)
 - **Toolchain**: Dart 3.13.3 (stable) on linux_x64
-- **Scope**: the changed grading in `make_command.dart`, the new bug
-  suite, the repaired A10 pin, then the targeted + chunked regression
-  sweeps and a REAL end-to-end `zfa tdd run` red/green pair below.
+- **Scope**: `lib/src/plugins/tdd/commands/run_driver_core.dart` + the new
+  `test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart`,
+  then the chunked regression sweep below.
 
-## Verdict: PASS
+## Verdict: PASS (with the recorded host/environment caveats in §5)
 
 ## 1. Static analysis
 
 ```
-dart analyze lib/src/plugins/tdd/commands/make_command.dart \
-             test/plugins/tdd/commands/bug_1551_no_green_units_defers_test.dart \
-             test/plugins/tdd/make_command_test.dart
+dart analyze lib/src/plugins/tdd/commands/run_driver_core.dart \
+             test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart
 → No issues found!
+
+dart analyze            (whole repo)
+→ 112 issues found      (all `info`)
+→ errors/warnings: 0    (baseline: 0 — no new warnings)
 ```
 
-## 2. The bug suite + repaired pin (REAL runs in this session)
+The whole-repo count is byte-identical to the pre-change baseline (112 info
+lints, 0 errors, 0 warnings).
+
+## 2. The bug suite (REAL runs in this session)
 
 ```
-dart test -j 1 test/plugins/tdd/commands/bug_1551_no_green_units_defers_test.dart
-→ 00:26 +4: All tests passed!
-
-dart test --preset=all -j 1 -N "A10: acceptance make with zero composable anchors" \
-    test/plugins/tdd/make_command_test.dart
-→ 00:08 +1: All tests passed!
+dart test test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart
+→ 00:08 +6: All tests passed!
 ```
 
-RED evidence (pre-fix working tree — the two grading pins fail for the
-right reasons while the two must-not-disturb guards pass):
+REQUIRED checks — the issue's two expected behaviors are PROVED by real
+runs, not inspection:
+
+- **Continue past blocked (A-1544-a1)**: with `contract:A1` scripted
+  `verify-red -> blocked` and `contract:A2`/`contract:A3` defaulting green,
+  the single `tdd run` spawn log contains
+  `verify-red contract:A1 → gen contract:A2 → verify-red contract:A2 →
+  make contract:A2 → gen contract:A3` IN ORDER, never `make contract:A1`,
+  and the summary line reads
+  `run: feature=004-login-ui result=blocked pending=0 red=0 green=0 done=2 blocked=1 stopped_at=contract:A1:verify-red`
+  with exit code 1. Persisted state: A1 `blocked`, A2/A3 `done`.
+- **Resume skip with receipt (A-1544-a2)**: run 2 (same fixture, seeded
+  `contract-blocked.A1.json` with `blocked_at = now-1h`, seam file and
+  test-list mtimes `now-2h`) prints
+  `[run] contract:A1 verify-red -> skipped (still blocked since 2026-09-13T…)`,
+  spawns NO step for A1, stops `result=blocked blocked=1`, and leaves the
+  state honestly blocked.
+- **Fail-open (A-1544-a3/a4/a5)**: seam file newer than the verdict, lib/
+  source newer than the verdict, and a missing receipt each re-drive
+  `verify-red contract:A1` (the unblock path preserved).
+- **Non-blocked resume guard (A-1544-b1)**: with U1 seeded red and A1
+  blocked-unchanged, the resume spawns `make U1` AND prints the A1 skip
+  receipt — both resume windows work in one run.
+
+## 3. RED evidence (pre-fix)
+
+The same suite against the unmodified driver failed 3/6:
 
 ```
-dart test -j 1 test/plugins/tdd/commands/bug_1551_no_green_units_defers_test.dart
-→ 00:26 +2 -2: Some tests failed.
-  (1) Expected: contains 'make: behavior=A1 outcome=unexpressible ...'
-      Actual:   '... make: behavior=A1 outcome=generation-error ...'
-  (2) Expected: 'make: behavior=A1 outcome=unexpressible feature=001-barcode-scan'
-      Actual:   'make: behavior=A1 outcome=generation-error feature=001-barcode-scan'
+A-1544-a1  [E]  Expected: contains 'gen contract:A2' (in order after verify-red contract:A1)
+                Actual: run stopped at contract:A1 — stepInvocations ended at
+                [gen contract:A1, verify-red contract:A1]
+A-1544-a2  [E]  Expected: contains 'contract:A1 verify-red -> skipped (still blocked since'
+                Actual: '[run] contract:A1 verify-red -> blocked' — re-attempted
+A-1544-b1  [E]  same skip-receipt absence
 ```
 
-Master-side witness: A10 was ALREADY red on pristine master (proven via
-`git stash` — the failure is not introduced by this branch):
+— exactly the reported symptoms (A2 unreachable; resume re-attempting A1).
+
+## 4. Regression sweep (chunked, real runs)
 
 ```
-Expected: contains 'make: behavior=A-101 outcome=unexpressible ...'
-Actual:   '... outcome=generation-error ...' (after running a 2-step
-          composition plan against a fake compose that exited 0)
+dart test test/plugins/tdd/commands
+→ 03:38 +539: All tests passed!
+
+dart test test/plugins/tdd/services
+→ 02:04 +935: All tests passed!
+
+dart test test/plugins/tdd/*.dart            (halves)
+→ +186: All tests passed!
+→ +333: All tests passed!
 ```
 
-## 3. End-to-end — a REAL `zfa tdd run` on a fresh fixture (red/green pair)
-
-The issue's reproduction shape, minimized: fixture `barcode_probe`,
-`specs/001-barcode-scan/tdd/test-list.md` with A1 (acceptance prose, no
-entity → spec-052 compose lane) + U1 (func-intent unit prose → func
-lane). Real CLI (AOT-compiled `bin/zfa.dart` so the nested analyzer
-children survive the 4 GB container — no `ZFA_TDD_STEP_MEMORY_KB`
-override needed at the AOT sizes), real gen / verify-red (`dart test`
-in the fixture) / make / compose / refactor steps.
-
-### RED — pristine master (4d1dafc): the deadlock, exactly as reported
+Targeted neighbor pin (the pre-#1544 contracts that must survive):
 
 ```
-[run] A1 gen -> ok
-[run] A1 verify-red -> certified
-[run] A1 make -> generation-error
-zfa tdd run: step failed — behavior=A1 step=make outcome=generation-error
-   zfa tdd make: behavior A1
-      feature: 001-barcode-scan
-      test: test/tdd/001-barcode-scan/a1_test.dart
-   resume: fix the failing step, then re-run `zfa tdd run 001-barcode-scan`
-run: feature=001-barcode-scan result=stopped pending=1 red=1 green=0 done=0 stopped_at=A1:make
-=== run exit code: 1 ===
+dart test contract_kind_1007_test.dart run_engine_command_test.dart \
+         run_skin_command_test.dart run_command_bug_1471_test.dart \
+         bug_1271_widget_lane_engine_deferral_test.dart \
+         bug_1373_scaffolded_hand_off_driver_test.dart \
+         bug_1411_born_green_hand_transition_test.dart
+→ +51: All tests passed!
 ```
 
-Every resume re-stops identically: the units are never reached. (The
-issue's own log shows the identical shape at `pending=30`.)
+The #1007 single-row pin still holds verbatim: one blocked contract stops
+with `result=blocked`, `blocked=1`, `stopped_at=contract:A1:verify-red`,
+exit 1, step log exactly `[gen contract:A1, verify-red contract:A1]` — for a
+single-row list the end-of-pass terminal is indistinguishable from the old
+mid-loop stop.
 
-### GREEN — this branch: defer, then compose at phase 2, complete
+## 5. Host/environment caveats
 
-```
-[run] A1 gen -> ok
-[run] A1 verify-red -> certified
-[run] A1 make -> unexpressible
-[run] A1 make -> deferred (phase 2)
-[run] U1 gen -> ok
-[run] U1 verify-red -> certified
-[run] U1 make -> green
-[run] U1 refactor -> deferred (phase 2)
-[run] A1 make -> green (phase 2)
-[run] A1 refactor -> refactored (phase 2)
-[run] U1 refactor -> clean (phase 2)
-run: feature=001-barcode-scan result=complete pending=0 red=0 green=0 done=2
-=== run exit code: 0 ===
-```
-
-The phase-2 make re-attempt composes A1 against the now-green U1 anchor
-(the compose child's `composed` path) and certifies green. Loop
-complete, exit 0. The driver, state machine, and compose surface are
-byte-identical to master — only the make's grading changed.
-
-## 4. Regression sweep (targeted suites, REAL runs)
-
-```
-dart test -j 1 test/plugins/tdd/commands/compose_command_test.dart \
-    test/plugins/tdd/services/composition_planner_test.dart \
-    test/plugins/tdd/services/composition_targets_test.dart \
-    test/plugins/tdd/services/composition_targets_widget_939_test.dart \
-    test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart
-→ 00:23 +51: All tests passed!
-
-dart test --preset=all -j 1 test/plugins/tdd/run_command_test.dart
-→ 05:24 +50: All tests passed!          (the bug #625/#826 deferral contract)
-
-dart test --preset=all -j 1 test/plugins/tdd/make_command_test.dart
-→ 05:13 +34 -4: Some tests failed.
-```
-
-The 4 make-suite failures (U-829g, U-829h, A11/U17, A15) are
-PRE-EXISTING on pristine master — proven by stashing this branch's
-changes and running the identical selection on master:
-
-```
-git stash push -u; dart test --preset=all -j 1 -n "(U-829g|U-829h|A11/U17|A15 \()" \
-    test/plugins/tdd/make_command_test.dart
-→ 00:38 +0 -4: Some tests failed.  (identical set); git stash pop
-```
-
-Net: **no new failures; one pre-existing failure repaired** (A10).
-
-## 5. Environment caveats
-
-- The container is 4 GB RAM; the default 2 GiB per-step address-space
-  ceiling killed the analyzer-heavy make child (`resource-limit`) when
-  the CLI was invoked via `dart run bin/zfa.dart` (nested kernel
-  compiles). The e2e pair therefore runs an AOT-compiled binary
-  (`dart compile exe bin/zfa.dart`), which fits comfortably. This is a
-  host-environment fact, not a product behavior — the unit pins run
-  in-process and are unaffected.
-- Kernel-cache hygiene between suite chunks: `rm -rf .dart_tool/test/`
-  (per the repo's small-disk guidance in `dart_test.yaml`).
+- `/tmp` filled once during the first full-tree sweep (`No space left on
+  device` while copying kernel dills — 123 LOAD errors, zero assertion
+  failures). After housekeeping the previously-unloaded files were re-run
+  clean (49/49). Keep `/tmp` swept when running the full tdd tree on a
+  10 GB-disk agent.
+- The container has no Flutter SDK; the `example/` package does not resolve
+  (`flutter pub` required). Unrelated to this fix — no touched code path
+  imports Flutter.
+- `dart format` was applied to the two changed files only (formatting the
+  whole repo is out of scope and would pollute the diff).

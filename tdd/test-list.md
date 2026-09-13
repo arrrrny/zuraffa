@@ -1,17 +1,24 @@
-# TDD test list — Bug #1551 acceptance compose no-green-units hard stop
+# TDD test list — Bug #1544 run parks forever on first blocked contract
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| A-1551-1 | test/plugins/tdd/commands/bug_1551_no_green_units_defers_test.dart | acceptance | an acceptance make whose compose step reports no-green-units grades unexpressible — never generation-error; stop names #1551 + phase 2; #1036 subject restore holds; no green evidence | FR-1551, make_command._composeOutputReportsNoGreenUnits | GREEN |
-| A-1551-2 | test/plugins/tdd/commands/bug_1551_no_green_units_defers_test.dart | unit | the final make summary line carries exactly outcome=unexpressible — the kv contract the run driver's StepRunner parses and the bug #625/#826 deferral arm consumes | FR-1551, MakeOutcome.unexpressible.label | GREEN |
-| A-1551-3 | test/plugins/tdd/commands/bug_1551_no_green_units_defers_test.dart | acceptance | the same make composes and certifies green once the unit IS green (the #1512 surface unbroken — compose then build executed, green evidence appended) | FR-1551, compose-when-green anchors | GREEN |
-| A-1551-4 | test/plugins/tdd/commands/bug_1551_no_green_units_defers_test.dart | unit | a direct `zfa tdd compose` keeps its honest no-green-units stop (exit 1, summary line, no subject rewrite) — the compose surface is unchanged | FR-1551, compose_command surface | GREEN |
-| A-1551-a10 | test/plugins/tdd/make_command_test.dart | acceptance | A10 re-faithed: zero-anchor acceptance make grades unexpressible (deferral) with the REAL production compose transcript, never generation-error | FR-1551, MakeOutcome grading | GREEN |
+| A-1544-a1 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | a blocked contract parks and the run drives the remaining contracts to their own verdicts, then stops result=blocked | FR-1544 (continue past blocked), RunDriverCore._driveBehavior #1007 arm | GREEN |
+| A-1544-a2 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | resume skips an unchanged blocked behavior with receipt and still drives the rest | FR-1544 (skip unchanged blocked, `skipped: still blocked since <ts>`), RunDriverCore._unchangedBlockedSince | GREEN |
+| A-1544-a3 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | resume re-drives a blocked behavior when the seam file changed since the verdict (fail open) | FR-1544 (change signal: seam file), RunDriverCore._isNewerThan | GREEN |
+| A-1544-a4 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | resume re-drives a blocked behavior when the implementation changed since the verdict (lib/ newer than blocked_at) | FR-1544 (change signal: implementation), RunDriverCore._treeChangedAfter | GREEN |
+| A-1544-a5 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | a missing blocked receipt fails open — resume re-drives the blocked behavior honestly | FR-1544 (fail open — never fabricate `blocked since`), ContractBlockedReceipt.fromFile | GREEN |
+| A-1544-b1 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | unit | a red behavior still resumes at make beside a skipped blocked contract (non-blocked resume untouched) | FR-1544 constraint (must not break non-blocked resume), RunDriverCore._stepsFor | GREEN |
+| U-1544-c1 | test/plugins/tdd/commands/contract_kind_1007_test.dart | unit | the #1007 single-row pin survives: one blocked contract still stops result=blocked blocked=1 stopped_at=contract:A1:verify-red, never spawning make | #1007 compatibility, RunDriverCore end-of-pass blocked terminal | GREEN |
+| U-1544-c2 | test/plugins/tdd/commands/run_engine_command_test.dart + run_skin_command_test.dart | unit | the engine/skin lane commands over the shared core keep their gate and receipt contracts | spec 1008 compatibility | GREEN |
 
-## Changed source surface (hard constraint: grading only)
+## Red evidence (pre-fix, this session)
 
-| file | change |
-| ---- | ------ |
-| lib/src/plugins/tdd/commands/make_command.dart | the pipeline-failure handler: a new arm grades the composition step's `no-green-units` child verdict `unexpressible` (+ `_isCompositionStepArgs`, `_composeOutputReportsNoGreenUnits` helpers). Byte-identical neighbors: compose_command.dart, composition_targets.dart, composition_planner.dart, generation_planner.dart, run_driver_core.dart, step_runner.dart |
-| test/plugins/tdd/make_command_test.dart | A10 re-faithed to the production transcript + the corrected deferral contract (was ALREADY RED on pristine master) |
-| test/plugins/tdd/commands/bug_1551_no_green_units_defers_test.dart | NEW — the four pins above |
+A-1544-a1: the run terminated at `contract:A1 verify-red -> blocked` —
+`gen contract:A2` never spawned (A2..An unreachable; the reported symptom).
+
+A-1544-a2 (and b1's skip half): the resume re-spawned
+`verify-red contract:A1` — no skip receipt existed.
+
+A-1544-a3/a4/a5 were written as pins for the fail-open directions and pass
+in both worlds (pre-fix re-drive is the only behavior; post-fix it is the
+change-signal path).
