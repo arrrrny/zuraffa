@@ -1,23 +1,15 @@
-# TDD test list — Spec 1509 toolchain-path-portable
+# TDD test list — Bug #1575 fence-blind line-scanners outside the cycle-log
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| T-1509-pin | test/utils/dart_toolchain_pin_test.dart | spec-pin | no hardcoded /opt/flutter dart path remains in tracked toolchain sources (bin/, lib/, scripts, yaml) | FR-002, SC-001 | GREEN |
-| T-1509-c1 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths emits no constant machine-specific paths when the env declares none | FR-002, FR-005 | GREEN |
-| T-1509-c2 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths includes $FLUTTER_ROOT/bin/dart iff FLUTTER_ROOT is set | FR-005 | GREEN |
-| T-1509-c3 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths derives $HOME/flutter/bin/dart and $HOME/development/flutter/bin/dart from the injected home | FR-005, FR-006 | GREEN |
-| T-1509-c4 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths expands ZURAFFA_TOOLCHAIN_HINTS entries into <dir>/dart and <dir>/bin/dart candidates in declared order | FR-002, FR-005 | GREEN |
-| T-1509-c5 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths keeps the generic /usr/local/flutter/bin/dart hint and omits user-derived entries when home is empty | FR-005, FR-006 | GREEN |
-| T-1509-r1 | test/utils/dart_toolchain_resolver_test.dart | unit | ZURAFFA_DART_BIN pin wins over every tier when the file exists | FR-004 | GREEN |
-| T-1509-r2 | test/utils/dart_toolchain_resolver_test.dart | unit | ZURAFFA_DART_BIN pin pointing at a missing file is skipped and resolution falls through to PATH | FR-004 | GREEN |
-| T-1509-r3 | test/utils/dart_toolchain_resolver_test.dart | unit | PATH which-dart hit is returned trimmed and first (PATH-first contract) | FR-001 | GREEN |
-| T-1509-r4 | test/utils/dart_toolchain_resolver_test.dart | unit | dart next to which-flutter (symlink-resolved sibling) is found when PATH dart misses | FR-006 | GREEN |
-| T-1509-r5 | test/utils/dart_toolchain_resolver_test.dart | unit | existing candidates resolve in candidate order when PATH probes miss | FR-005, FR-006 | GREEN |
-| T-1509-r6 | test/utils/dart_toolchain_resolver_test.dart | unit | resolve returns null when every tier misses | FR-006 | GREEN |
-| T-1509-mcp | test/utils/dart_toolchain_resolver_test.dart | unit | a flutter install without a sibling dart keeps the search going (tier-2 exists-check guard) | FR-006 | GREEN |
-| T-1509-acc2 | test/utils/dart_toolchain_resolver_test.dart | acceptance | the documented environment recipe works: ZURAFFA_TOOLCHAIN_HINTS=/opt/flutter yields the old last-resort candidate without any code literal | acceptance 2, FR-002 | GREEN |
-
-Red evidence: recorded before implementation — see
-specs/1509-toolchain-path-portable/tdd/verification.md
-(pin test failed against bin/zuraffa_mcp_server.dart:1638; resolver
-suite failed to compile because the library did not exist yet).
+| A-1575-a1 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | an in-fence `## Inner loop:` banner does not re-kind the enclosing section (A2 stays acceptance) | FR-1575, TestListReader._parseRows | GREEN |
+| A-1575-a2 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | an in-fence `## Key entities` banner does not switch the walk into the declarative section (U2 parses, no silent vanish) | FR-1575, TestListReader._parseRows | GREEN |
+| A-1575-a3 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | readEntities: an in-fence header does not close the Key entities section (post-fence entity row survives) | FR-1575, TestListReader.readEntities | GREEN |
+| A-1575-a4 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | readDependencies: an in-fence header does not close the External dependencies section (post-fence dependency row survives) | FR-1575, TestListReader.readDependencies | GREEN |
+| A-1575-a5 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | readLayerContracts: an in-fence header does not close the Layer contracts section (post-fence contract bullet survives, layer kept) | FR-1575, TestListReader.readLayerContracts | GREEN |
+| U-1575-b1 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | unit | a well-formed list without fences parses unchanged (hard constraint: no regression for canonical inputs) | FR-1575, TestListReader._parseRows | GREEN |
+| U-1575-b2 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | unit | the committed 004 corpus shape (in-fence `## Baseline (...)` banner) parses identically before and after the fix | FR-1575, TestListReader._parseRows | GREEN |
+| U-1575-b3 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | unit | a malformed row after a fence reports its honest absolute line number (bug #984 line-naming contract stays byte-identical) | FR-1575, TestListReader._parseDataRow | GREEN |
+| U-1575-c1 | test/core/proof_chain_checker_1575_fence_test.dart | unit | an in-fence header does not drop post-fence behavior ids from the coverage audit (B2 gap reported) | FR-1575, _behaviorIdsOf | GREEN |
+| U-1575-c2 | test/core/proof_chain_checker_1575_fence_test.dart | unit | a fenced `## Behaviors` example fabricates no phantom audit ids (PHANTOM never reported, declarations stay declarations) | FR-1575, _behaviorIdsOf | GREEN |
+| U-1575-c3 | test/core/proof_chain_checker_1575_fence_test.dart | unit | a well-formed behaviors table audits exactly as before (hard constraint: no regression for the coverage check) | FR-1575, _behaviorIdsOf | GREEN |
