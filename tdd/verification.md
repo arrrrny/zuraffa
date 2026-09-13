@@ -1,115 +1,109 @@
-# tdd.verify — Bug #1544 run parks forever on first blocked contract
+# tdd.verify — Bug #1495 registry-owns-missing-file recovery
 
 - **Verified**: 2026-09-13, this session, on
-  `fix/1544-parks-forever-on-first-blocked-contract` (working tree, pushed)
-- **Toolchain**: Dart 3.13.3 (stable) on linux_x64
-- **Scope**: `lib/src/plugins/tdd/commands/run_driver_core.dart` + the new
-  `test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart`,
-  then the chunked regression sweep below.
+  `fix/1495-registry-owns-missing-file-recovery` (working tree, pre-push)
+- **Toolchain**: Dart 3.13.3 (stable) on linux_x64 (cloud sandbox)
+- **Scope**: the three changed source files
+  (`artifact_registry.dart`, `gen_command.dart`, `doctor_command.dart`),
+  the new bug-1495 suite, the extended registry suite, and the mapped
+  regression suites below — then the chunked regression sweep summary.
 
-## Verdict: PASS (with the recorded host/environment caveats in §5)
+## Verdict: PASS
 
-## 1. Static analysis
+## 1. What the fix ships
 
-```
-dart analyze lib/src/plugins/tdd/commands/run_driver_core.dart \
-             test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart
-→ No issues found!
+1. `zfa tdd gen <id> --repair` — drops the stale registry record when the
+   registry RECORDS a file missing from disk and regenerates the pair.
+   Surviving halves are kept only after the same generated-shape
+   verification `--adopt` uses; the repair is audit-logged
+   (`action: "repair"`) to `specs/<feature>/tdd/audit.log`; verdict
+   `repaired`.
+2. Actionable refusals — `OwnershipConflict` now carries a direction
+   (`ownedButMissing` / `existsUnowned` / `pathMismatch`) and the remedy
+   text names the RESOLVING command: `gen <id> --repair` /
+   `gen <id> --adopt` / `doctor <feature>`. The circular
+   "Run `zfa tdd gen <behavior-id>` after resolving the conflict" remedy
+   is gone from every direction.
+3. `zfa tdd doctor <feature> --repair` — garbage-collects every registry
+   record whose BOTH files are gone (relocation-probe aware), keeps every
+   healthy record, touches no file, audit-logs, exits 0 with verdict
+   `repaired`. Half-missing records are never collected (reset remains
+   their prescription); the flagless diagnosis names the surgical fix.
+4. `ArtifactRegistry.dropRecords` — the surgical, atomic (write-and-
+   rename) registry primitive both repair paths build on.
 
-dart analyze            (whole repo)
-→ 112 issues found      (all `info`)
-→ errors/warnings: 0    (baseline: 0 — no new warnings)
-```
+Constraints honored: the FR-008 ownership contract (preflight refuses by
+default), the `--adopt` logic, and the state machine are unchanged.
 
-The whole-repo count is byte-identical to the pre-change baseline (112 info
-lints, 0 errors, 0 warnings).
+## 2. RED evidence (pre-fix)
 
-## 2. The bug suite (REAL runs in this session)
+`dart test test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart --preset=all`
+→ `00:08 +2 -9` — raw output committed at
+`.specify/bugs/1495-registry-owns-missing-file-recovery/red-evidence.txt`.
 
-```
-dart test test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart
-→ 00:08 +6: All tests passed!
-```
+Key RED observations:
 
-REQUIRED checks — the issue's two expected behaviors are PROVED by real
-runs, not inspection:
+- owned-and-missing gen output contained the circular remedy
+  "Run `zfa tdd gen <behavior-id>` after resolving the conflict." (A-1495-a1)
+- `gen <id> --repair` → `Could not find an option named "--repair"`, exit 2
+- `doctor <feature> --repair` → same usage error (A-1495-c1)
+- flagless doctor fix line named only `zfa tdd reset <feature>` (A-1495-c3)
 
-- **Continue past blocked (A-1544-a1)**: with `contract:A1` scripted
-  `verify-red -> blocked` and `contract:A2`/`contract:A3` defaulting green,
-  the single `tdd run` spawn log contains
-  `verify-red contract:A1 → gen contract:A2 → verify-red contract:A2 →
-  make contract:A2 → gen contract:A3` IN ORDER, never `make contract:A1`,
-  and the summary line reads
-  `run: feature=004-login-ui result=blocked pending=0 red=0 green=0 done=2 blocked=1 stopped_at=contract:A1:verify-red`
-  with exit code 1. Persisted state: A1 `blocked`, A2/A3 `done`.
-- **Resume skip with receipt (A-1544-a2)**: run 2 (same fixture, seeded
-  `contract-blocked.A1.json` with `blocked_at = now-1h`, seam file and
-  test-list mtimes `now-2h`) prints
-  `[run] contract:A1 verify-red -> skipped (still blocked since 2026-09-13T…)`,
-  spawns NO step for A1, stops `result=blocked blocked=1`, and leaves the
-  state honestly blocked.
-- **Fail-open (A-1544-a3/a4/a5)**: seam file newer than the verdict, lib/
-  source newer than the verdict, and a missing receipt each re-drive
-  `verify-red contract:A1` (the unblock path preserved).
-- **Non-blocked resume guard (A-1544-b1)**: with U1 seeded red and A1
-  blocked-unchanged, the resume spawns `make U1` AND prints the A1 skip
-  receipt — both resume windows work in one run.
+## 3. GREEN evidence (post-fix, this run)
 
-## 3. RED evidence (pre-fix)
+| Command | Result |
+|---------|--------|
+| `dart test test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart --preset=all` | **+10 ~1 — All tests passed!** |
+| `dart test test/plugins/tdd/services/artifact_registry_test.dart --preset=all` | **All tests passed** (25 existing + 4 new dropRecords) |
+| `dart test test/plugins/tdd/commands/bug_1397_path_form_mismatch_test.dart --preset=all` | **All tests passed** |
+| `dart analyze` over all six changed .dart files | **No issues found!** |
+| `dart format` over the changed files | 4 reformatted, re-analyzed clean, suite re-run green |
 
-The same suite against the unmodified driver failed 3/6:
+The one skipped test is the RED-only flag-absence documentation test
+(`skip:` marker in-source; its evidence lives in `red-evidence.txt`).
 
-```
-A-1544-a1  [E]  Expected: contains 'gen contract:A2' (in order after verify-red contract:A1)
-                Actual: run stopped at contract:A1 — stepInvocations ended at
-                [gen contract:A1, verify-red contract:A1]
-A-1544-a2  [E]  Expected: contains 'contract:A1 verify-red -> skipped (still blocked since'
-                Actual: '[run] contract:A1 verify-red -> blocked' — re-attempted
-A-1544-b1  [E]  same skip-receipt absence
-```
+## 4. Chunked regression sweep (no-new-failures protocol)
 
-— exactly the reported symptoms (A2 unreachable; resume re-attempting A1).
+`dart_test.yaml` mandates the chunked runner on constrained hosts
+(whole-tree kernel cache overflows small disks), so suites were run as
+focused chunks with baseline comparison — the pristine baseline captured
+by `git stash`-ing this branch's changes:
 
-## 4. Regression sweep (chunked, real runs)
+| Chunk | Pristine baseline | With fix | New failures |
+|-------|-------------------|----------|--------------|
+| `bug_840_recovery_commands_test.dart` | +4 -5 | +4 -5 | 0 |
+| `bug_874_doctor_cross_feature_adoption_test.dart` | +7 -4 | +7 -4 | 0 |
+| `gen_command_test.dart` | +17 -1 | +17 -1 | 0 |
+| `gen_command_{theme,platform,ffi_835}_test.dart` + `bug_1518_gen_command_seam_test.dart` | +11 -1 | +11 -1 | 0 |
+| `bug_1397_path_form_mismatch_test.dart` | all pass | all pass | 0 |
+| `artifact_registry_test.dart` | all pass | all pass | 0 |
 
-```
-dart test test/plugins/tdd/commands
-→ 03:38 +539: All tests passed!
+The 11 pre-existing failures reproduce identically before and after
+(host-environment fixtures: temp-project `dart test` spawns and template
+assertions unrelated to the ownership paths); the ownership-conflict,
+adopt, doctor, and registry suites specific to this fix are fully green.
 
-dart test test/plugins/tdd/services
-→ 02:04 +935: All tests passed!
+One deliberate expectation update, recorded in the test's comment:
+`bug_840_recovery_commands_test.dart` → "doctor prescribes reset when the
+registry records files missing from disk" — its record is FULLY gone, so
+per issue #1495 the prescription is now the surgical
+`zfa tdd doctor <feature> --repair` (the heavy `reset` remains prescribed
+for half-missing records, covered by A-1495-c2).
 
-dart test test/plugins/tdd/*.dart            (halves)
-→ +186: All tests passed!
-→ +333: All tests passed!
-```
+## 5. Kernel cache hygiene
 
-Targeted neighbor pin (the pre-#1544 contracts that must survive):
+`rm -rf .dart_tool/test/ && rm -f $TMPDIR/dart_test.kernel.*` executed
+before the analyze sweep and again after the final suite run (the
+dart_test.yaml disk-pressure protocol for cloud agents).
 
-```
-dart test contract_kind_1007_test.dart run_engine_command_test.dart \
-         run_skin_command_test.dart run_command_bug_1471_test.dart \
-         bug_1271_widget_lane_engine_deferral_test.dart \
-         bug_1373_scaffolded_hand_off_driver_test.dart \
-         bug_1411_born_green_hand_transition_test.dart
-→ +51: All tests passed!
-```
+## 6. Honest caveats
 
-The #1007 single-row pin still holds verbatim: one blocked contract stops
-with `result=blocked`, `blocked=1`, `stopped_at=contract:A1:verify-red`,
-exit 1, step log exactly `[gen contract:A1, verify-red contract:A1]` — for a
-single-row list the end-of-pass terminal is indistinguishable from the old
-mid-loop stop.
-
-## 5. Host/environment caveats
-
-- `/tmp` filled once during the first full-tree sweep (`No space left on
-  device` while copying kernel dills — 123 LOAD errors, zero assertion
-  failures). After housekeeping the previously-unloaded files were re-run
-  clean (49/49). Keep `/tmp` swept when running the full tdd tree on a
-  10 GB-disk agent.
-- The container has no Flutter SDK; the `example/` package does not resolve
-  (`flutter pub` required). Unrelated to this fix — no touched code path
-  imports Flutter.
-- `dart format` was applied to the two changed files only (formatting the
-  whole repo is out of scope and would pollute the diff).
+- The sandbox has no Flutter SDK: suites requiring `flutter_test`
+  (example/ package resolution) are out of scope for this run; none of
+  the touched code paths depend on Flutter.
+- The heavy `gen_command_test.dart` honest-red chunk spawns `dart test`
+  in temp fixtures; on this host it shows the same single pre-existing
+  failure as the pristine tree (verified, not assumed).
+- `--reclaim` (the issue's parenthetical alternative name) is NOT
+  implemented: `args` has no flag aliases and `--repair` is the primary
+  name in the issue.
