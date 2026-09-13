@@ -29,13 +29,18 @@
 /// printing the final summary line or setting the process exit code: the
 /// commands own the summary line and the exit code. Lane runs also write
 /// their receipt here — one code path for the standalone commands and the
-/// meta driver's internal lanes, never duplicated.
+/// meta driver's internal lanes, never duplicated. Issue #1590 carve-out:
+/// the machine-contract lines stay byte-identical; the ADDITIVE liveness
+/// lines (the pre-spawn step-start banner, the tee'd `→ ` child banners,
+/// the elapsed-time heartbeats) are new — see the [RunDriverCore]
+/// statics and the `run_command.dart` library doc.
 ///
 /// Exit codes (unchanged): 0 complete, 1 stopped, 2 runner-error,
 /// 3 corrupt-state, 4 concurrent-run — plus run-skin's engine-gate refusal
 /// (exit 2, handled by the command before the core is invoked).
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -60,6 +65,7 @@ import '../services/run_baseline_cache.dart';
 import '../services/corpus_baseline_cache.dart';
 import '../services/run_state_store.dart';
 import '../services/runner.dart';
+import '../services/spec_parser.dart';
 import '../services/step_runner.dart';
 import '../services/contract_blocked_receipt.dart';
 import '../services/suite_guard.dart';
@@ -67,6 +73,7 @@ import '../models/routing.dart';
 import '../services/test_list_reader.dart';
 import '../services/unit_contract_shape.dart';
 import '../services/tdd_timeout.dart';
+import '../services/step_timeout_receipt.dart';
 import '../services/vacuous_guard.dart';
 import '../services/widget_scaffold.dart' show scaffoldedMarker;
 import '../services/tdd_transaction.dart';
@@ -195,12 +202,66 @@ class RunDriverCore {
   /// closes the output. Null (the default): no events, legacy output.
   void Function(StepStreamEvent event)? onStepEvent;
 
+  // Issue #1590 (progress liveness): per-invocation output tuning, set by
+  // [drive] (the same instance-state pattern as the stream context — drive
+  // is non-reentrant on one instance).
+  //
+  // [_verboseChildLines] — `--verbose`: forward EVERY stdout line the step
+  // children print to the run output. Default (false): forward only
+  // banner-shaped lines (`^→ `, the pipeline's sub-step announcements).
+  bool _verboseChildLines = false;
+
+  // [_heartbeat] — the elapsed-time heartbeat cadence for a running step
+  // (`--heartbeat <seconds>`); [Duration.zero] disables, null keeps the
+  // 30s default.
+  Duration? _heartbeat;
+
   // The active invocation's stream context, set by [drive] (the hook is
   // instance-level so the per-behavior helpers can fire it too; drive is
   // non-reentrant on one instance, so no cross-call interference).
   String? _streamCommand;
   String? _streamFeature;
   String? _streamLane;
+
+  /// Issue #1590: forward the step child's stdout lines to the run output.
+  /// Default: banner-shaped lines only (starting with the pipeline banner
+  /// arrow, FR-005); `--verbose` forwards every line verbatim.
+  void _forwardChildLine(String line) {
+    if (_verboseChildLines || line.startsWith('\u2192 ')) print(line);
+  }
+
+  /// Issue #1590: the pre-spawn step announcement (FR-001/FR-007) — the
+  /// pre-#1590 driver printed nothing between the spawn and the
+  /// completion line (273.7s of silence on one make). The hint is static
+  /// per-step knowledge; the SUB-STEP plan is the make child's own
+  /// announcement (the pipeline banners ride the stdout tee). When the
+  /// loaded run-state marks this exact behavior+step as in-flight under a
+  /// foreign pid, the banner names the resume (FR-007).
+  static String stepStartLine(
+    String behavior,
+    String step, {
+    bool resumingInFlight = false,
+    int? ownerPid,
+  }) {
+    final hint = switch (step) {
+      'gen' => 'scaffold test + stub',
+      'verify-red' => 'run target test (expect red)',
+      'make' => 'generation pipeline (sub-steps announced as they start)',
+      'refactor' => 'format + analyze + re-proof',
+      _ => 'running',
+    };
+    final resume = resumingInFlight
+        ? ' (resuming in-flight step from run-state.json, '
+              'owner pid ${ownerPid ?? 'unknown'})'
+        : '';
+    return '[run] $behavior $step \u2014 $hint$resume';
+  }
+
+  /// Issue #1590: the elapsed-time heartbeat line for a running step
+  /// (FR-006); [elapsed] formatted by `formatTddTimeout`.
+  static String heartbeatLine(String behavior, String step, Duration elapsed) {
+    return '[run] $behavior $step \u2026 ${formatTddTimeout(elapsed)} elapsed';
+  }
 
   // Issue #1329: the failed step's diagnostic evidence, staged by the
   // error-outcome recording path and consumed by [_finish] for the lane
@@ -270,6 +331,17 @@ class RunDriverCore {
     /// instead of the shared user TMPDIR (issue #1520). Null (the default)
     /// preserves the inherit-`Platform.environment` behavior.
     Map<String, String>? childEnvironment,
+
+    /// Issue #1590: forward EVERY stdout line the step children print to
+    /// the run output (`--verbose`). Default (false): forward only
+    /// banner-shaped lines (`^→ `, the pipeline's sub-step announcements).
+    bool verbose = false,
+
+    /// Issue #1590: the heartbeat cadence for a running step —
+    /// `[run] <behavior> <step> … <elapsed> elapsed` every [heartbeat]
+    /// while the child runs. Null keeps the 30s default;
+    /// [Duration.zero] disables (`--heartbeat 0`, the parser-strict mode).
+    Duration? heartbeat,
   }) async {
     // Issue #1471: the caller hands the canonical REFERENCE — the parent
     // resolved it once (pin included) and its child steps must resolve the
@@ -291,6 +363,9 @@ class RunDriverCore {
     _streamCommand = label;
     _streamFeature = feature;
     _streamLane = lane;
+    // Issue #1590: publish this invocation's liveness tuning.
+    _verboseChildLines = verbose;
+    _heartbeat = heartbeat ?? const Duration(seconds: 30);
     // Issue #1329: one failure detail per drive — staged by the
     // error-outcome arms below, consumed by _finish.
     _lastStepFailure = null;
@@ -542,12 +617,18 @@ class RunDriverCore {
     //    a red or pending-with-artifacts behavior reds the suite for
     //    every lane's refactors exactly like it did for the single run.
     // -----------------------------------------------------------------
-    // Bug #742: the step spawner carries the deadline. Spec 1520: it also
-    // carries the run's scratch-TMPDIR map for every step child.
-    final runner = StepRunner(
+    // Bug #742: the step spawner carries the deadline. Spec 1529: the
+    // budget may be UPGRADED below (scaled from the measured baseline
+    // suite duration) — the runner is rebuilt there when it changes.
+    // Spec 1520: it also carries the run's scratch-TMPDIR map for every
+    // step child. Issue #1590: it also tees the child's stdout lines so
+    // the driver can forward the make child's sub-step banners while the
+    // step runs.
+    var runner = StepRunner(
       zfaBin: zfaBin,
       timeout: timeout,
       childEnvironment: childEnvironment,
+      onChildLine: _forwardChildLine,
     );
 
     // Issue #992: --skip-widget turns a widget-lane gen refusal (#938
@@ -597,7 +678,13 @@ class RunDriverCore {
 
     // ---------------------------------------------------------------
     // 6b. Cache the full-suite baseline ONCE per run (issue #741).
+    // Spec 1529: the capture's measured wall time (fresh or recorded in
+    // a reused cache) scales the per-step budget (US2) — a make step's
+    // cost is bounded by the suite it re-certifies against, and that
+    // suite grows every behavior, so a FIXED budget gets less safe as
+    // the run progresses.
     // ---------------------------------------------------------------
+    int? measuredBaselineMs;
     if (anyMakeOutstanding) {
       try {
         final suiteTemplate = await const SingleTestRunner().loadSuiteTemplate(
@@ -630,10 +717,21 @@ class RunDriverCore {
         if (corpusReused != null &&
             corpusReused.parseable &&
             baselineScope == null) {
+          // Spec 1529: the corpus cache rides the capture duration so a
+          // REUSE run scales the per-step budget without re-measuring.
+          final reusedMs = await corpusCache.readDurationMs(
+            projectRoot: projectRoot,
+          );
           suiteBaselinePath = await const RunBaselineCache().write(
             featureDir: featureDir,
             snapshot: corpusReused,
+            durationMs: reusedMs,
+            // Spec 1529: the fingerprint rides the feature-local cache so
+            // make's trimmed re-certification can prove the environment
+            // is the one the baseline certified (FR-9a).
+            fingerprint: fingerprint,
           );
+          measuredBaselineMs = reusedMs;
           print(
             '   suite baseline: corpus-wide reuse '
             '(fingerprint match; spec 069 T004) — '
@@ -652,6 +750,9 @@ class RunDriverCore {
           print(
             '   suite baseline: $scopedTemplate (once per run — issue #741)',
           );
+          // Spec 1529: the capture's wall time is the measured baseline
+          // the per-step budget scales from — measure the REAL run.
+          final captureStopwatch = Stopwatch()..start();
           final baselineRecord = await const SingleTestRunner().runSuite(
             suiteTemplate: scopedTemplate,
             workingDirectory: projectRoot,
@@ -660,16 +761,28 @@ class RunDriverCore {
             // baseline suite included. Dropping it here left the hardcoded
             // 10-minute defaultSuite in charge, killing the baseline (and
             // with it every make step) on repos whose fast suite runs long.
-            timeout: timeout,
+            // Spec 1529: without an override the capture is bounded by at
+            // least the derived FLOOR, never by the old fixed 10-minute
+            // default — a measurement killed at 10 minutes is exactly the
+            // case the scaling exists for (no duration recorded ⇒ the
+            // budget silently degrades to the floor).
+            timeout: timeout ?? scaledStepBudget(measuredBaseline: null),
           );
+          captureStopwatch.stop();
           final snapshot = const SuiteGuard().fromRunRecord(
             record: baselineRecord,
             capturedAt: DateTime.now().toUtc().toIso8601String(),
           );
           if (snapshot.parseable) {
+            final durationMs = captureStopwatch.elapsed.inMilliseconds;
+            measuredBaselineMs = durationMs;
             suiteBaselinePath = await const RunBaselineCache().write(
               featureDir: featureDir,
               snapshot: snapshot,
+              durationMs: durationMs,
+              // Spec 1529: the fingerprint rides the feature-local cache
+              // (FR-9a) — make's trimmed re-certification keys on it.
+              fingerprint: fingerprint,
             );
             // Issue #1374: a scoped snapshot never enters the
             // corpus-wide cache.
@@ -678,6 +791,7 @@ class RunDriverCore {
                 projectRoot: projectRoot,
                 snapshot: snapshot,
                 fingerprint: fingerprint,
+                durationMs: durationMs,
               );
             }
             print(
@@ -686,10 +800,77 @@ class RunDriverCore {
               '(${snapshot.failedTests.length} pre-existing failure(s)); '
               'make steps reuse it instead of re-running the suite',
             );
+          } else {
+            // Spec 1529, FR-5: an unusable capture is reported, never a
+            // silent degrade to the floor — the operator must be able to
+            // tell that the scaling did not apply, and why.
+            print(
+              '   note: the suite baseline capture produced no usable '
+              'snapshot (exit ${baselineRecord.exitCode}'
+              '${baselineRecord.timedOut ? ', timed out' : ''}) — the '
+              'per-step budget falls back to the floor (spec 1529)',
+            );
           }
         }
       } on StateError {
         // No profile / no suite template
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // 6c. Derive the per-step budget (spec 1529, US2 / FR-4..FR-6).
+    // An explicit --timeout ALWAYS wins; the default scales from the
+    // measured baseline suite duration (floor 25 min). When the
+    // projection meets or exceeds an EXPLICIT budget, warn loudly
+    // BEFORE the first step spawns — the issue's misfire came from a
+    // budget that was safe on an idle machine and unsafe under load.
+    // The budget stays ONE uniform deadline handed to every step child
+    // (issue #1159's contract), passed down as the child's --timeout.
+    // ---------------------------------------------------------------
+    if (anyMakeOutstanding) {
+      final measuredBaseline = measuredBaselineMs == null
+          ? null
+          : Duration(milliseconds: measuredBaselineMs);
+      final budget = scaledStepBudget(
+        measuredBaseline: measuredBaseline,
+        explicit: timeout,
+      );
+      if (timeout != null) {
+        final projected = projectedMakeCost(measuredBaseline: measuredBaseline);
+        if (projected != null && projected >= timeout) {
+          print(
+            'WARNING: the explicit --timeout looks unsafe for this run '
+            '(issue #1529):',
+          );
+          print(
+            '   measured baseline suite: ${formatBudget(measuredBaseline!)}',
+          );
+          print(
+            '   projected per-step make cost: 4 x baseline = '
+            '${formatBudget(projected)}',
+          );
+          print(
+            '   explicit budget: ${formatBudget(timeout)} — a make step '
+            'under load may be killed mid-suite (the budget was measured '
+            'on an idle machine)',
+          );
+          print(
+            '   consider raising --timeout, or drop it to use the scaled '
+            'default (max(25m floor, 4 x baseline))',
+          );
+        }
+      }
+      if (budget != timeout && budget != TddTimeouts.defaultStepProcess) {
+        runner = StepRunner(
+          zfaBin: zfaBin,
+          timeout: budget,
+          childEnvironment: childEnvironment,
+          onChildLine: _forwardChildLine,
+        );
+        print(
+          '   per-step budget: ${formatBudget(budget)} '
+          '(scaled from the measured baseline, issue #1529)',
+        );
       }
     }
 
@@ -899,6 +1080,10 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
+        // Issue #1588: the phase-2 refactor pass is the batch — every
+        // spawn opts into the pass-batch ledger and hands the lane's
+        // parked BLOCKED ids as exempt from the gate.
+        batchRefactor: true,
       );
       if (result.stop != null) {
         return _finish(
@@ -1506,6 +1691,13 @@ class RunDriverCore {
     required String feature,
     required Set<String> greenEvidenceIds,
     Set<String>? unblockedThisRun,
+
+    /// Issue #1588: the phase-2b refactor pass opts its spawns into the
+    /// feature pass-batch ledger (--pass-batch) and hands the lane's
+    /// parked BLOCKED behavior ids as --exempt-behaviors, so their
+    /// designed red tests cannot poison the refactor gate. Phase-1
+    /// refactors and every other step keep the default (no batch flags).
+    bool batchRefactor = false,
   }) async {
     var updated = current;
     var state = updated.behaviorStates[row.id] ?? BehaviorState.pending;
@@ -1555,7 +1747,35 @@ class RunDriverCore {
       // Bug #828: write-ahead the intended transition BEFORE the spawn.
       await tx.begin(behavior: row.id, step: step);
 
+      // Issue #1590: announce the step BEFORE the spawn — the pre-#1590
+      // driver printed nothing between the spawn and the completion line
+      // (a single make ran 273.7s in silence). The hint is static
+      // per-step knowledge; the sub-step plan is the make child's own
+      // announcement (the pipeline banners ride the stdout tee). The
+      // loaded state (`current`, pre-markInFlight) names the resumed
+      // in-flight step when it was ours, under a foreign pid.
+      print(
+        stepStartLine(
+          row.id,
+          step,
+          resumingInFlight:
+              current.inFlightBehaviorId == row.id &&
+              current.inFlightStep == step &&
+              current.inFlightOwnerPid != pid,
+          ownerPid: current.inFlightOwnerPid,
+        ),
+      );
+
       StepResult result;
+      final stepClock = Stopwatch()..start();
+      final heartbeatInterval = _heartbeat;
+      final heartbeat =
+          heartbeatInterval != null && heartbeatInterval > Duration.zero
+          ? Timer.periodic(
+              heartbeatInterval,
+              (_) => print(heartbeatLine(row.id, step, stepClock.elapsed)),
+            )
+          : null;
       try {
         // Issue #1471: hand the child the canonical REFERENCE (never the
         // bare name), so a bug-directory feature resolves to the same
@@ -1566,6 +1786,9 @@ class RunDriverCore {
           feature: featureRef,
           projectRoot: projectRoot,
           suiteBaselinePath: suiteBaselinePath,
+          extraArgs: step == 'refactor' && batchRefactor
+              ? _refactorBatchArgs(rows, updated)
+              : const [],
         );
       } on StateError catch (e) {
         // Entrypoint resolution failed before any spawn: runner-error.
@@ -1607,6 +1830,10 @@ class RunDriverCore {
           ),
           refactorBlocked: false,
         );
+      } finally {
+        // Issue #1590: the heartbeat dies the moment the step completes
+        // (or the run stops) — no elapsed lines AFTER the completion line.
+        heartbeat?.cancel();
       }
 
       print('[run] ${row.id} $step -> ${result.outcome}$progressSuffix');
@@ -2193,6 +2420,32 @@ class RunDriverCore {
           featureDir: featureDir,
           criterion: row.traces,
         );
+        // Spec 1529 (U8/FR-1/FR-12): a make step killed at the deadline
+        // leaves an INSPECTABLE receipt in the feature tdd dir — phase,
+        // argv, actual elapsed, captured tail — so resume is an informed
+        // decision instead of a blind re-roll. The write is best-effort:
+        // a failed write is reported, never fatal (the receipt is
+        // additive evidence, not a gate).
+        if (step == 'make' && result.timeoutReceipt != null) {
+          final outcome = await writeStepTimeoutReceiptReported(
+            featureDir: featureDir,
+            receipt: result.timeoutReceipt!.toReceipt(
+              capturedAt: DateTime.now().toUtc().toIso8601String(),
+            ),
+          );
+          if (outcome.written) {
+            print(
+              '   timeout receipt: ${p.relative(outcome.path!, from: projectRoot)} '
+              '(phase=${result.timeoutReceipt!.phase.phase}, '
+              'elapsed=${formatTddTimeout(result.timeoutReceipt!.elapsed)})',
+            );
+          } else {
+            stderr.writeln(
+              '   note: the timeout receipt could not be written '
+              '(${outcome.error}) — the runner-error stands unchanged',
+            );
+          }
+        }
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
         await tx.clear();
@@ -2268,6 +2521,25 @@ class RunDriverCore {
     'refactor' => BehaviorState.done,
     _ => throw ArgumentError.value(step, 'step', 'unknown TDD step'),
   };
+
+  /// Issue #1588: the batch context the phase-2b refactor pass hands every
+  /// spawn — `--pass-batch` (the ledger opt-in) plus the lane's parked
+  /// BLOCKED behavior ids as `--exempt-behaviors` (their red tests are the
+  /// designed park state, #1007/#1544, and must not poison the gate the
+  /// baseline cannot know about). Sorted for a stable ledger key and
+  /// stable spawn argv.
+  List<String> _refactorBatchArgs(List<BehaviorRow> rows, RunState state) {
+    final blocked = [
+      for (final r in rows)
+        if ((state.behaviorStates[r.id] ?? BehaviorState.pending) ==
+            BehaviorState.blocked)
+          r.id,
+    ]..sort();
+    return [
+      '--pass-batch',
+      if (blocked.isNotEmpty) ...['--exempt-behaviors', blocked.join(',')],
+    ];
+  }
 
   bool _hasRedBehavior(List<BehaviorRow> rows, RunState state) {
     for (final row in rows) {
@@ -2801,8 +3073,10 @@ class RunDriverCore {
 
     var created = 0;
     for (final entity in entities) {
-      if (await locateEntityFile(projectRoot, entity.name) != null) {
+      final entityPath = await locateEntityFile(projectRoot, entity.name);
+      if (entityPath != null) {
         print('[run] phase-0 entity ${entity.name} -> reused');
+        await _logPhaseZeroFieldMismatch(entity, entityPath);
         continue;
       }
       final args = [
@@ -2909,6 +3183,41 @@ class RunDriverCore {
     }
     print('[run] phase-0 build -> ok');
     return null;
+  }
+
+  /// Issue #1486: phase-0 reuse keeps the on-disk entity AS-IS — but a
+  /// pre-fix run could create a FIELD-LESS entity (the parser dropped
+  /// unbackticked `name: Type` pairs silently), and a later, fixed run
+  /// reused that starved shape with no signal anywhere. When the plan's
+  /// declared fields and the fields the entity file actually declares
+  /// diverge, name both sets. Print-only by design: reuse semantics are
+  /// unchanged, and any read/parse hiccup stays quiet — the warning is
+  /// observability, never a run stopper.
+  Future<void> _logPhaseZeroFieldMismatch(
+    DeclaredEntity entity,
+    String entityPath,
+  ) async {
+    if (entity.fields.isEmpty) return;
+    try {
+      final source = await File(entityPath).readAsString();
+      final onDisk = SpecParser.entityFieldNamesFromDartSource(source);
+      final declared = <String>{
+        for (final f in entity.fields)
+          f.contains(':') ? f.substring(0, f.indexOf(':')).trim() : f.trim(),
+      };
+      final onDiskSet = onDisk.toSet();
+      final missingOnDisk = declared.difference(onDiskSet).toList()..sort();
+      final undeclared = onDiskSet.difference(declared).toList()..sort();
+      if (missingOnDisk.isEmpty && undeclared.isEmpty) return;
+      print(
+        '[run] phase-0 entity ${entity.name} -> field mismatch: plan '
+        'declares [${declared.join(', ')}], entity file declares '
+        '[${onDiskSet.join(', ')}] — reuse keeps the on-disk shape '
+        '(issue #1486)',
+      );
+    } on Exception {
+      // Best-effort: an unreadable entity file must never stop the run.
+    }
   }
 
   // -------------------------------------------------------------------

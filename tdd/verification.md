@@ -1,115 +1,113 @@
-# tdd.verify — Bug #1544 run parks forever on first blocked contract
+# tdd.verify — Bug #1486 entity fields silently dropped without backticks
 
 - **Verified**: 2026-09-13, this session, on
-  `fix/1544-parks-forever-on-first-blocked-contract` (working tree, pushed)
-- **Toolchain**: Dart 3.13.3 (stable) on linux_x64
-- **Scope**: `lib/src/plugins/tdd/commands/run_driver_core.dart` + the new
-  `test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart`,
-  then the chunked regression sweep below.
+  `fix/1486-entity-fields-backtick-parsing` (working tree, pre-push)
+- **Toolchain**: Dart 3.13.3 (stable) on linux_x64 (container; no Flutter
+  SDK — flutter-tagged suites are excluded per the repo's own chunked
+  runner policy)
+- **Scope**: the three changed source files + the new bug suite, then the
+  chunked fast-tier sweep below
 
-## Verdict: PASS (with the recorded host/environment caveats in §5)
+## Verdict: PASS
 
-## 1. Static analysis
+## 0. RED evidence (pre-fix, real runs)
+
+Stage 1 — behavioral red, `bug_1486_entity_fields_backtick_parsing_test.dart`
+against the untouched tree (full output in
+`.specify/bugs/1486-entity-fields-backtick-parsing/red-evidence.md`):
 
 ```
-dart analyze lib/src/plugins/tdd/commands/run_driver_core.dart \
-             test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart
+00:00 +2 -5: Some tests failed.
+Failing tests:
+  ...: B1: a 3-column row with plain pairs parses all fields (#1486)
+  ...: B2: the 2-column table accepts plain pairs (#1486 + #1381)
+  ...: B3: a mixed cell parses backticked and plain pairs in order
+  ...: B5: generic types with commas survive the plain-pair split
+  ...: B6: nullable types parse as plain pairs
+```
+
+Actuals matched the issue's controlled experiment exactly: plain pairs
+yield `SpecEntity.fields == []`; the backticked guards (B4/B8) passed
+(backwards-compat baseline intact).
+
+Stage 2 — API red: adding B7 (anomalies) + B9
+(`entityFieldNamesFromDartSource`) failed to compile against the pre-fix
+parser, as expected:
+
+```
+Error: 'SpecEntityFieldAnomaly' isn't a type.
+Error: Member not found: 'SpecParser.entityFieldNamesFromDartSource'.
+Error: No named parameter with the name 'anomalies'.
+```
+
+## 1. Static analysis (post-fix, post-format)
+
+```
+dart analyze lib/src/plugins/tdd/services/spec_parser.dart \
+             lib/src/plugins/tdd/commands/plan_command.dart \
+             lib/src/plugins/tdd/commands/run_driver_core.dart \
+             test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart
 → No issues found!
-
-dart analyze            (whole repo)
-→ 112 issues found      (all `info`)
-→ errors/warnings: 0    (baseline: 0 — no new warnings)
 ```
 
-The whole-repo count is byte-identical to the pre-change baseline (112 info
-lints, 0 errors, 0 warnings).
-
-## 2. The bug suite (REAL runs in this session)
+## 2. The bug suite + regression surface (REAL runs in this session)
 
 ```
-dart test test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart
-→ 00:08 +6: All tests passed!
+dart test test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart
+→ 00:00 +9: All tests passed!
+
+Parser corpus (spec_parser, declarations, hardening_1196, traces_1319,
+fr_manual_1484, contract_files_1485, bug_1381, bug_919, bug_1486):
+→ 00:01 +116: All tests passed!
+
+Mapped command suites (bug_1381_plan_warns_on_unparsed_entities,
+plan_command_bug_1182/1481/contracts_1485/pipe_escape_1401/ffi_835,
+pipeline_runner, runner_plain_name_regression, runner_regex_escape):
+→ 00:18 +46: All tests passed!
 ```
 
-REQUIRED checks — the issue's two expected behaviors are PROVED by real
-runs, not inspection:
+The #1381 plan-warning suite passes unchanged — its fixture produces no
+#1486 anomalies (its pairs parse), so the new warning is correctly silent
+there.
 
-- **Continue past blocked (A-1544-a1)**: with `contract:A1` scripted
-  `verify-red -> blocked` and `contract:A2`/`contract:A3` defaulting green,
-  the single `tdd run` spawn log contains
-  `verify-red contract:A1 → gen contract:A2 → verify-red contract:A2 →
-  make contract:A2 → gen contract:A3` IN ORDER, never `make contract:A1`,
-  and the summary line reads
-  `run: feature=004-login-ui result=blocked pending=0 red=0 green=0 done=2 blocked=1 stopped_at=contract:A1:verify-red`
-  with exit code 1. Persisted state: A1 `blocked`, A2/A3 `done`.
-- **Resume skip with receipt (A-1544-a2)**: run 2 (same fixture, seeded
-  `contract-blocked.A1.json` with `blocked_at = now-1h`, seam file and
-  test-list mtimes `now-2h`) prints
-  `[run] contract:A1 verify-red -> skipped (still blocked since 2026-09-13T…)`,
-  spawns NO step for A1, stops `result=blocked blocked=1`, and leaves the
-  state honestly blocked.
-- **Fail-open (A-1544-a3/a4/a5)**: seam file newer than the verdict, lib/
-  source newer than the verdict, and a missing receipt each re-drive
-  `verify-red contract:A1` (the unblock path preserved).
-- **Non-blocked resume guard (A-1544-b1)**: with U1 seeded red and A1
-  blocked-unchanged, the resume spawns `make U1` AND prints the A1 skip
-  receipt — both resume windows work in one run.
+## 3. Chunked regression sweep — NO NEW failures
 
-## 3. RED evidence (pre-fix)
+The repo's sanctioned `tools/run_tests_chunked.sh` policy was followed
+(fast tier, `--exclude-tags flutter`, kernel cache purged between chunks —
+`dart_test.yaml` documents the ~6.5 GB single-invocation kernel cache and
+`.specify/bugs/1507-tmpdir-kernel-cache-leak` documents the per-process
+`$TMPDIR/dart_test.kernel.*` leak that both ENOSPC'd this container until
+the purge cadence was applied). Per-chunk results:
 
-The same suite against the unmodified driver failed 3/6:
+- 105 chunks from the runner's own DRY_RUN list: **100 OK, 5 SKIP**
+  (`SKIP(no-fast-tier)` — benchmark/core-proof/integration/tdd-scenarios/
+  077-make-engine-preset carry only slow-tier tags, excluded by design),
+  **0 FAIL**. The tally closes at the listed total (100 + 5 + 0 = 105):
+  the runner classifies every chunk as OK, SKIP, or FAIL, and no failure
+  was reported — `DRY_RUN=1 tools/run_tests_chunked.sh` re-confirms the
+  list is 105 chunks.
+- The runner's threshold-40 recursion skips ROOT test files of heavy dirs;
+  those were run explicitly with identical semantics and all passed:
+  `test/plugins/tdd/*_test.dart` (519 tests), `tdd/commands` a–z splits
+  (533 tests), `tdd/services` a–z splits (1171 tests).
 
-```
-A-1544-a1  [E]  Expected: contains 'gen contract:A2' (in order after verify-red contract:A1)
-                Actual: run stopped at contract:A1 — stepInvocations ended at
-                [gen contract:A1, verify-red contract:A1]
-A-1544-a2  [E]  Expected: contains 'contract:A1 verify-red -> skipped (still blocked since'
-                Actual: '[run] contract:A1 verify-red -> blocked' — re-attempted
-A-1544-b1  [E]  same skip-receipt absence
-```
+## 4. Host/environment caveats (recorded honestly)
 
-— exactly the reported symptoms (A2 unreachable; resume re-attempting A1).
+- No Flutter SDK in this container: flutter-tagged suites are excluded by
+  the sanctioned runner itself (`--exclude-tags flutter`), so their status
+  is unchanged-by-construction (none touch `spec_parser.dart` field
+  parsing; the two command files changed are pure-Dart paths).
+- `dart format` ran over the four changed files (3 reformatted — the new
+  suite file plus whitespace); `dart analyze` re-run clean afterwards.
+- `dart test` kernel-cache purge cadence (per chunk) was required: the
+  container disk is 9.9 GB and a single whole-tree invocation ENOSPCs
+  (matches the dart_test.yaml header's warning and #1507).
 
-## 4. Regression sweep (chunked, real runs)
+## 5. Constraint audit
 
-```
-dart test test/plugins/tdd/commands
-→ 03:38 +539: All tests passed!
-
-dart test test/plugins/tdd/services
-→ 02:04 +935: All tests passed!
-
-dart test test/plugins/tdd/*.dart            (halves)
-→ +186: All tests passed!
-→ +333: All tests passed!
-```
-
-Targeted neighbor pin (the pre-#1544 contracts that must survive):
-
-```
-dart test contract_kind_1007_test.dart run_engine_command_test.dart \
-         run_skin_command_test.dart run_command_bug_1471_test.dart \
-         bug_1271_widget_lane_engine_deferral_test.dart \
-         bug_1373_scaffolded_hand_off_driver_test.dart \
-         bug_1411_born_green_hand_transition_test.dart
-→ +51: All tests passed!
-```
-
-The #1007 single-row pin still holds verbatim: one blocked contract stops
-with `result=blocked`, `blocked=1`, `stopped_at=contract:A1:verify-red`,
-exit 1, step log exactly `[gen contract:A1, verify-red contract:A1]` — for a
-single-row list the end-of-pass terminal is indistinguishable from the old
-mid-loop stop.
-
-## 5. Host/environment caveats
-
-- `/tmp` filled once during the first full-tree sweep (`No space left on
-  device` while copying kernel dills — 123 LOAD errors, zero assertion
-  failures). After housekeeping the previously-unloaded files were re-run
-  clean (49/49). Keep `/tmp` swept when running the full tdd tree on a
-  10 GB-disk agent.
-- The container has no Flutter SDK; the `example/` package does not resolve
-  (`flutter pub` required). Unrelated to this fix — no touched code path
-  imports Flutter.
-- `dart format` was applied to the two changed files only (formatting the
-  whole repo is out of scope and would pollute the diff).
+- Parsing semantics live entirely in `spec_parser.dart`; the state
+  machine, gen, and loop semantics are untouched.
+- The two consumers are print-only: plan's per-row WARNING and phase-0's
+  reuse mismatch log (reuse decisions byte-for-byte unchanged).
+- Backticked grammar unchanged: guard B4 + the full #919/#1381/#1196/
+  #1319/#1484/#1485 suites green.

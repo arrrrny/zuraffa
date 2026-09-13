@@ -114,9 +114,11 @@ class RunSkinCommand extends Command<void> {
       'timeout',
       valueHelp: 'minutes',
       help:
-          'Hard deadline in minutes for each spawned step command (bug #742; '
-          'default 10). Fractions are allowed. On timeout the child is '
-          'killed and the run stops with result=runner-error.',
+          'Hard deadline in minutes for each spawned step command (bug #742). '
+          'Omitted, the deadline SCALES from the measured baseline suite '
+          '(max(25m floor, 4 x baseline) — spec 1529). Fractions are '
+          'allowed. On timeout the child is killed and the run stops with '
+          'result=runner-error.',
     );
     argParser.addFlag(
       'skip-widget',
@@ -129,6 +131,25 @@ class RunSkinCommand extends Command<void> {
       negatable: false,
     );
     argParser.addFlag('stream', help: kStreamFlagHelp, negatable: false);
+    // Issue #1590: the flags tune the LANE-MODE driver only — the
+    // conformance cycle (adaptive_slots lanes) drives its own progress
+    // and does not emit heartbeats or forward child output. The scope is
+    // stated in the help because the flags are otherwise silently
+    // unused on a conformance lane (review finding, #1599).
+    argParser.addFlag(
+      'verbose',
+      help:
+          '$kVerboseFlagHelp Lane-mode runs only: the conformance cycle '
+          'does not forward child output.',
+      negatable: false,
+    );
+    argParser.addOption(
+      'heartbeat',
+      valueHelp: 'seconds',
+      help:
+          '$kHeartbeatFlagHelp Lane-mode runs only: the conformance cycle '
+          'does not emit heartbeats.',
+    );
   }
 
   final TddPlugin plugin;
@@ -196,6 +217,25 @@ class RunSkinCommand extends Command<void> {
       exitCode = _exitRunnerError;
       return;
     }
+
+    // Issue #1590: the --heartbeat override (and the --verbose toggle).
+    // Parsed HERE — beside --timeout, BEFORE the engine gate and the
+    // conformance-mode branch — so an invalid value is rejected with the
+    // same runner-error path whatever the lane shape. The flags tune the
+    // lane-mode driver; the conformance cycle does not emit heartbeats
+    // or forward child output (stated in the flag help).
+    Duration? heartbeatOverride;
+    try {
+      heartbeatOverride = parseTddHeartbeatSeconds(
+        argResults?['heartbeat'] as String?,
+      );
+    } on TddTimeoutFormatException catch (e) {
+      print('zfa tdd $label: ${e.message}');
+      _printSummary(feature, 'runner-error', null);
+      exitCode = _exitRunnerError;
+      return;
+    }
+    final verbose = argResults?['verbose'] as bool? ?? false;
 
     // -----------------------------------------------------------------
     // The engine gate (issue #1008): the skin lane requires a green
@@ -283,6 +323,8 @@ class RunSkinCommand extends Command<void> {
       lane: 'skin',
       label: label,
       skipWidget: argResults?['skip-widget'] as bool? ?? false,
+      verbose: verbose,
+      heartbeat: heartbeatOverride,
     );
     if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
     // Issue #1327: same terminal-receipt close-out as the engine lane —
