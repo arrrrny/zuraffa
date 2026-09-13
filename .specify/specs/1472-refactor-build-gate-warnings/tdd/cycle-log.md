@@ -70,7 +70,7 @@ zuraffa repo itself: green on the touched suites pre-change.
 - exit: 0
 - timestamp: 2026-09-13T09:34:00Z
 - evidence: `+13: All tests passed!` — with the probe/pin in
-  `zfaBuildCommand` the transcript carries `build pass: system zfa on PATH
+  `zfaBuildCommand` the transcript carries `build pass: resolved build zfa
   is v0.0.9 — pinned to the driving CLI v6.2.2 (issue #1472).`; the
   equal-version and unprovable-version cases keep the #717 candidate
   byte-identically.
@@ -99,3 +99,53 @@ zuraffa repo itself: green on the touched suites pre-change.
   (errors refusal → `pass "build" failed — misfire-stop.` +
   `outcome=runner-error`, exit != 0), A-1472-3 (`analyze-gate:
   warnings-blocking` in the fixture profile restores the legacy refusal).
+
+## Cycle: U-1472-14..U-1472-18 (review follow-up on #1572)
+
+- kind: green — no red phase. These behaviors were written AFTER the fix they
+  pin (the review of `5e1159e0` asked for the uncovered branches and the
+  missing `_pinToDrivingVersion` seam), so there is no honest red to record.
+  Recording a fabricated pre-fix failure here would be a lie; the pinned
+  behaviors are the two silence directions of the pin and the warning cap.
+- behavior: U-1472-14 (the replacement is probed too — a replacement whose
+  probe differs from the driving version keeps the #717 candidate), U-1472-15
+  (an unprovable replacement keeps the candidate), U-1472-16 (a driving
+  entrypoint identical to the candidate is a no-op — no re-route, no pin
+  line), U-1472-17 (an unresolvable driving entrypoint, `StateError`, fails
+  open to the candidate), U-1472-18 (a voluminous verdict logs a capped sample
+  of 10 `warning -` lines plus the `... N more warning(s)` remainder)
+- verdict: passed
+- command: `dart test test/plugins/tdd/bug_1472_refactor_gate_errors_only_test.dart`
+- exit: 0
+- timestamp: 2026-09-13T11:10:00Z
+- evidence: `00:00 +18: All tests passed!` — U-1472-14/15/16 assert on the
+  captured transcript (`isNot(contains('pinned to'))` for the silence cases),
+  U-1472-17 injects a resolver that throws `StateError`, U-1472-18 asserts the
+  capped sample and the remainder count. The seam is the
+  `ZfaEntrypointResolver` typedef / `resolveDrivingEntrypoint` parameter on
+  `zfaBuildCommand`; U-1472-11 now injects a fake driving entrypoint through
+  it instead of relying on the real `bin/zfa.dart`.
+
+## Re-verification after the review-fix commit (2026-09-13T12:20:00Z)
+
+All suites were re-run after `dart format` and after the code moves (the
+shared `BuildCommand` gate parser/logger and the new `TddProfileKeys` reader),
+because those moves touch the call sites of every behavior above:
+
+- `dart analyze` on all ten changed Dart files → `No issues found!`
+- `dart format --set-exit-if-changed` on the same files → `0 changed`, exit 0
+- errors-only suite → `+18: All tests passed!`
+- acceptance suite (`--preset=integration`) → `01:08 +3: All tests passed!`
+- `refactor_passes_test` + `subprocess_timeout_test` + `refactor_action_test`
+  + `tdd_profile_writer_test` (one fast-tier invocation) → `01:06 +56: All
+  tests passed!`
+- `bug_1407_make_gate_errors_only_test` (`--preset=all`) → `03:06 +8: All
+  tests passed!`
+- `refactor_command_test` + `bug_1333` + `bug_1311` (`--preset=all`) → `05:30
+  +27: All tests passed!`
+- `build_command_unit_test` (`--preset=all`) → `00:15 +48: All tests passed!`
+
+The fast tier excludes `slow`-tagged tests, which is why
+`build_command_unit_test.dart` is recorded as a separate `--preset=all`
+invocation — the original `+43` line folded it into a command that never ran
+it (the finding fixed under issue #1572).

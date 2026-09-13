@@ -20,7 +20,7 @@ void main() {
   });
 
   test(
-    'writes the five-key profile to .specify/memory/tdd-profile.md',
+    'writes the six-key profile to .specify/memory/tdd-profile.md',
     () async {
       final writer = const TddProfileWriter();
       final path = await writer.write(tmpDir.path);
@@ -33,6 +33,11 @@ void main() {
       expect(content, contains('file:'));
       expect(content, contains('suite:'));
       expect(content, contains('coverage:'));
+      // Issue #1472: the analyze-gate opt-in ships with its default, so an
+      // operator can see the key (and how to spell the legacy value)
+      // without reading the CLI source.
+      expect(content, contains('analyze-gate: errors-only'));
+      expect(content, contains("'warnings-blocking'"));
     },
   );
 

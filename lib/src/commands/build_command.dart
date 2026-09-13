@@ -722,6 +722,78 @@ class BuildCommand extends Command {
   static int countAnalyzerErrors(String analyzeOutput) =>
       countAnalyzerIssues(analyzeOutput).errors;
 
+  /// The build command's analyze-gate refusal verdict (issues #395/#1035).
+  /// The message has exactly ONE writer — [verifyAnalyzeOrFail] above:
+  /// `❌ dart analyze reported <E> error(s) and <W> warning(s) — generated
+  /// code does not compile cleanly.` — and carries the counts the gate
+  /// decided on. The errors-only interpretations (the make's #1407 gate and
+  /// the refactor pass registry's #1472 arm) both read the verdict through
+  /// the two helpers below, so the readers can never drift apart.
+  static final RegExp _analyzeGateRefusalPattern = RegExp(
+    r'dart analyze reported (\d+) error\(s\) and (\d+) warning\(s\)',
+  );
+
+  /// Whether [buildOutput] is the build command's analyze-gate refusal on
+  /// WARNINGS ONLY — 0 error(s) and at least one warning — i.e. the tree
+  /// compiles (0 errors) and the build failed only because the #1035 gate
+  /// treats warnings as fatal.
+  ///
+  /// Requires BOTH of:
+  ///
+  ///   - the gate's own refusal message naming 0 errors (the single writer
+  ///     documented on [_analyzeGateRefusalPattern]). A build failure
+  ///     without that message is some other failure class (build_runner,
+  ///     DDA routes, post-build verifiers) and keeps the caller's honest
+  ///     failure handling unchanged;
+  ///   - [countAnalyzerIssues] (the #1035 single line-format contract)
+  ///     finds NO `error -` lines in the raw output. If the gate message
+  ///     and the parser disagree, the honest verdict stands (safe-failure,
+  ///     never a silent pass).
+  ///
+  /// Issue #1407 (the make) and issue #1472 (the refactor pass registry)
+  /// both read this one implementation.
+  static bool analyzeGateWarningsOnlyRefusal(String buildOutput) {
+    final match = _analyzeGateRefusalPattern.firstMatch(buildOutput);
+    if (match == null) return false;
+    final errors = int.tryParse(match.group(1)!) ?? -1;
+    final warnings = int.tryParse(match.group(2)!) ?? -1;
+    if (errors != 0 || warnings < 1) return false;
+    return !analyzeReportsError(buildOutput);
+  }
+
+  /// Log a tolerated warnings-only gate refusal: the verdict naming the
+  /// gate's own counts — warnings are NOT a compile failure — then the
+  /// analyzer `warning -` lines themselves. A voluminous verdict logs a
+  /// capped sample plus a remainder count so the transcript stays readable.
+  ///
+  /// [policy] names the strictness policy and its issue (e.g.
+  /// `(issue #1407, errors-only gate)`); [next] names what the caller does
+  /// next, so each caller keeps its own honest sentence.
+  static void logAnalyzeGateRefusal(
+    String buildOutput, {
+    required String policy,
+    required String next,
+  }) {
+    final match = _analyzeGateRefusalPattern.firstMatch(buildOutput)!;
+    final warnings = int.parse(match.group(2)!);
+    print(
+      '   analyze gate: 0 error(s), $warnings warning(s) — warnings are '
+      'non-blocking $policy: $next',
+    );
+    final warningLines = RegExp(
+      r'^\s*warning\s*-\s.*$',
+      multiLine: true,
+    ).allMatches(buildOutput).map((m) => m.group(0)!.trim()).toList();
+    const maxLogged = 10;
+    for (final line in warningLines.take(maxLogged)) {
+      print('   $line');
+    }
+    final remainder = warningLines.length - maxLogged;
+    if (remainder > 0) {
+      print('   ... $remainder more warning(s)');
+    }
+  }
+
   /// Issue #1303: whether [buildOutput] carries a pub RESOLUTION failure
   /// — the version-solving dump class (a stale `dependency_overrides`
   /// path, an unsatisfiable constraint) rather than a compile or cache

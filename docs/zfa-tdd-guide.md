@@ -102,6 +102,15 @@ right runner**: a Flutter project must have `runner: flutter_test` /
 `dart test`. If it chose wrong, edit the Keys block — every driven step shells
 out through these commands.
 
+The same Keys block carries the `analyze-gate:` strictness (issue #1472).
+`zfa setup` writes `analyze-gate: errors-only` — the `zfa build` analyze gate
+still refuses on errors and warnings, but the `make` step (#1407) and the
+`refactor` step (#1472) treat a warnings-only refusal as non-blocking, so the
+`dart fix --apply` pass gets to remove the lint instead of deadlocking the
+run. Set `analyze-gate: 'warnings-blocking'` to restore the legacy behavior
+(any warning fails the gate). An absent or unrecognized value means
+errors-only.
+
 > **Flutter projects, until issue #1349 is fixed**: init generates
 > `lib/app.dart` importing `zuraffa_flutter`/`get_it` without declaring them,
 > and self-heals a plain `test` dev_dependency that conflicts with

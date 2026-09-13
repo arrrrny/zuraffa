@@ -37,50 +37,19 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/services/refactor_passes.dart';
 import 'package:zuraffa/src/version.dart';
 
-/// A fake process executor that records every invocation and returns
-/// programmed outcomes in order (same shape as refactor_passes_test.dart).
-class _FakeExecutor implements ProcessExecutor {
-  _FakeExecutor(this._outcomes);
+import 'helpers/refactor_pass_fakes.dart';
 
-  final List<_ProgrammedOutcome> _outcomes;
-  int _next = 0;
-  final List<RefactorPassInvocation> invocations = [];
-
-  @override
-  Future<ProcessRunOutcome> run(RefactorPassInvocation inv) async {
-    invocations.add(inv);
-    if (_next >= _outcomes.length) {
-      return ProcessRunOutcome(
-        command: inv.command,
-        exitCode: 0,
-        output: '(default success)',
-        startedProcess: true,
-      );
-    }
-    final programmed = _outcomes[_next++];
-    return ProcessRunOutcome(
-      command: inv.command,
-      exitCode: programmed.exitCode,
-      output: programmed.output,
-      startedProcess: programmed.startedProcess,
-      timedOut: programmed.timedOut,
-    );
-  }
-}
-
-class _ProgrammedOutcome {
-  _ProgrammedOutcome({
-    required this.exitCode,
-    required this.output,
-    this.startedProcess = true,
-    this.timedOut = false,
-  });
-
-  final int exitCode;
-  final String output;
-  final bool startedProcess;
-  final bool timedOut;
-}
+/// The fixed pass set the registry under test executes.
+///
+/// Injected on every `RefactorPasses` construction below: without it each
+/// behavior would reach the real `defaultPassSpecs()` →
+/// `StepRunner.resolveEntrypoint` → `_probeZfaVersion` and spawn an ambient
+/// `zfa --version` (the #1572 review's fast-tier point).
+const _specs = [
+  RefactorPassSpec(name: 'build', command: 'zfa build'),
+  RefactorPassSpec(name: 'format', command: 'dart format lib/'),
+  RefactorPassSpec(name: 'fix', command: 'dart fix --apply lib/'),
+];
 
 /// The build pass's analyze-gate refusal on WARNINGS ONLY — the issue's
 /// exact real-world shape: a hand-implemented subject with an unused
@@ -107,24 +76,6 @@ const _errorsBuildOutput =
 /// crash class) — must keep the misfire-stop unchanged.
 const _nonGateBuildOutput = 'build_runner crashed: exit 255, seed 4242';
 
-/// Capture `print` output inside [body] (the registry logs the tolerated
-/// verdict through `print`).
-Future<(T, List<String>)> capturePrint<T>(Future<T> Function() body) async {
-  final lines = <String>[];
-  late final T result;
-  await runZoned(
-    () async {
-      result = await body();
-    },
-    zoneSpecification: ZoneSpecification(
-      print: (self, parent, zone, line) {
-        lines.add(line);
-      },
-    ),
-  );
-  return (result, lines);
-}
-
 void main() {
   group('issue #1472 — the refactor build gate is errors-only', () {
     test('U-1472-1: a warnings-only build-gate refusal does NOT misfire-stop '
@@ -133,13 +84,17 @@ void main() {
       addTearDown(() => project.deleteSync(recursive: true));
       await Directory(p.join(project.path, 'lib')).create(recursive: true);
 
-      final executor = _FakeExecutor([
+      final executor = FakeProcessExecutor([
         // The build pass refused on warnings only (0 errors).
-        _ProgrammedOutcome(exitCode: 1, output: _warningsOnlyBuildOutput),
-        _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
-        _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+        ProgrammedOutcome(exitCode: 1, output: _warningsOnlyBuildOutput),
+        ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+        ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
       ]);
-      final passes = RefactorPasses(project.path, executor: executor);
+      final passes = RefactorPasses(
+        project.path,
+        executor: executor,
+        passSpecs: Future.value(_specs),
+      );
       final result = await passes.run();
 
       // Pre-fix: misfire-stop after build; the fix pass never ran.
@@ -160,12 +115,16 @@ void main() {
       addTearDown(() => project.deleteSync(recursive: true));
       await Directory(p.join(project.path, 'lib')).create(recursive: true);
 
-      final executor = _FakeExecutor([
-        _ProgrammedOutcome(exitCode: 1, output: _warningsOnlyBuildOutput),
-        _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
-        _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+      final executor = FakeProcessExecutor([
+        ProgrammedOutcome(exitCode: 1, output: _warningsOnlyBuildOutput),
+        ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+        ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
       ]);
-      final passes = RefactorPasses(project.path, executor: executor);
+      final passes = RefactorPasses(
+        project.path,
+        executor: executor,
+        passSpecs: Future.value(_specs),
+      );
       final result = await passes.run();
 
       final build = result.actions.first;
@@ -185,12 +144,16 @@ void main() {
       addTearDown(() => project.deleteSync(recursive: true));
       await Directory(p.join(project.path, 'lib')).create(recursive: true);
 
-      final executor = _FakeExecutor([
-        _ProgrammedOutcome(exitCode: 1, output: _warningsOnlyBuildOutput),
-        _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
-        _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+      final executor = FakeProcessExecutor([
+        ProgrammedOutcome(exitCode: 1, output: _warningsOnlyBuildOutput),
+        ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+        ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
       ]);
-      final passes = RefactorPasses(project.path, executor: executor);
+      final passes = RefactorPasses(
+        project.path,
+        executor: executor,
+        passSpecs: Future.value(_specs),
+      );
 
       final (result, lines) = await capturePrint(passes.run);
       final transcript = lines.join('\n');
@@ -211,12 +174,16 @@ void main() {
       addTearDown(() => project.deleteSync(recursive: true));
       await Directory(p.join(project.path, 'lib')).create(recursive: true);
 
-      final executor = _FakeExecutor([
-        _ProgrammedOutcome(exitCode: 1, output: _errorsBuildOutput),
-        _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
-        _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+      final executor = FakeProcessExecutor([
+        ProgrammedOutcome(exitCode: 1, output: _errorsBuildOutput),
+        ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+        ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
       ]);
-      final passes = RefactorPasses(project.path, executor: executor);
+      final passes = RefactorPasses(
+        project.path,
+        executor: executor,
+        passSpecs: Future.value(_specs),
+      );
       final result = await passes.run();
 
       expect(result.stopped, isTrue);
@@ -229,12 +196,16 @@ void main() {
       addTearDown(() => project.deleteSync(recursive: true));
       await Directory(p.join(project.path, 'lib')).create(recursive: true);
 
-      final executor = _FakeExecutor([
-        _ProgrammedOutcome(exitCode: 255, output: _nonGateBuildOutput),
-        _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
-        _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+      final executor = FakeProcessExecutor([
+        ProgrammedOutcome(exitCode: 255, output: _nonGateBuildOutput),
+        ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+        ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
       ]);
-      final passes = RefactorPasses(project.path, executor: executor);
+      final passes = RefactorPasses(
+        project.path,
+        executor: executor,
+        passSpecs: Future.value(_specs),
+      );
       final result = await passes.run();
 
       expect(result.stopped, isTrue);
@@ -255,12 +226,16 @@ void main() {
             "'Widget'. - undefined_identifier\n"
             '❌ dart analyze reported 0 error(s) and 1 warning(s) — generated '
             'code does not compile cleanly.';
-        final executor = _FakeExecutor([
-          _ProgrammedOutcome(exitCode: 1, output: lyingOutput),
-          _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
-          _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+        final executor = FakeProcessExecutor([
+          ProgrammedOutcome(exitCode: 1, output: lyingOutput),
+          ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+          ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
         ]);
-        final passes = RefactorPasses(project.path, executor: executor);
+        final passes = RefactorPasses(
+          project.path,
+          executor: executor,
+          passSpecs: Future.value(_specs),
+        );
         final result = await passes.run();
 
         expect(result.stopped, isTrue, reason: 'never a silent pass on drift');
@@ -275,14 +250,15 @@ void main() {
       addTearDown(() => project.deleteSync(recursive: true));
       await Directory(p.join(project.path, 'lib')).create(recursive: true);
 
-      final executor = _FakeExecutor([
-        _ProgrammedOutcome(exitCode: 1, output: _warningsOnlyBuildOutput),
-        _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
-        _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+      final executor = FakeProcessExecutor([
+        ProgrammedOutcome(exitCode: 1, output: _warningsOnlyBuildOutput),
+        ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+        ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
       ]);
       final passes = RefactorPasses(
         project.path,
         executor: executor,
+        passSpecs: Future.value(_specs),
         warningsBlocking: true,
       );
       final result = await passes.run();
@@ -298,16 +274,20 @@ void main() {
       addTearDown(() => project.deleteSync(recursive: true));
       await Directory(p.join(project.path, 'lib')).create(recursive: true);
 
-      final executor = _FakeExecutor([
-        _ProgrammedOutcome(
+      final executor = FakeProcessExecutor([
+        ProgrammedOutcome(
           exitCode: -1,
           output: _warningsOnlyBuildOutput,
           timedOut: true,
         ),
-        _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
-        _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+        ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+        ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
       ]);
-      final passes = RefactorPasses(project.path, executor: executor);
+      final passes = RefactorPasses(
+        project.path,
+        executor: executor,
+        passSpecs: Future.value(_specs),
+      );
       final result = await passes.run();
 
       expect(result.stopped, isTrue);
@@ -320,16 +300,20 @@ void main() {
       addTearDown(() => project.deleteSync(recursive: true));
       await Directory(p.join(project.path, 'lib')).create(recursive: true);
 
-      final executor = _FakeExecutor([
-        _ProgrammedOutcome(
+      final executor = FakeProcessExecutor([
+        ProgrammedOutcome(
           exitCode: 0,
           output: _warningsOnlyBuildOutput,
           startedProcess: false,
         ),
-        _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
-        _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+        ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+        ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
       ]);
-      final passes = RefactorPasses(project.path, executor: executor);
+      final passes = RefactorPasses(
+        project.path,
+        executor: executor,
+        passSpecs: Future.value(_specs),
+      );
       final result = await passes.run();
 
       expect(result.stopped, isTrue);
@@ -343,12 +327,16 @@ void main() {
       addTearDown(() => project.deleteSync(recursive: true));
       await Directory(p.join(project.path, 'lib')).create(recursive: true);
 
-      final executor = _FakeExecutor([
-        _ProgrammedOutcome(exitCode: 0, output: 'build ok'),
-        _ProgrammedOutcome(exitCode: 1, output: _warningsOnlyBuildOutput),
-        _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+      final executor = FakeProcessExecutor([
+        ProgrammedOutcome(exitCode: 0, output: 'build ok'),
+        ProgrammedOutcome(exitCode: 1, output: _warningsOnlyBuildOutput),
+        ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
       ]);
-      final passes = RefactorPasses(project.path, executor: executor);
+      final passes = RefactorPasses(
+        project.path,
+        executor: executor,
+        passSpecs: Future.value(_specs),
+      );
       final result = await passes.run();
 
       expect(result.stopped, isTrue);
@@ -358,26 +346,93 @@ void main() {
         'format',
       ]);
     });
+
+    test('U-1472-18: a voluminous verdict logs a capped sample of the '
+        'warnings plus the remainder count', () async {
+      final project = Directory.systemTemp.createTempSync('z1472_cap_');
+      addTearDown(() => project.deleteSync(recursive: true));
+      await Directory(p.join(project.path, 'lib')).create(recursive: true);
+
+      final warningLines = List.generate(
+        13,
+        (i) =>
+            '   warning - lib/tdd/login/u${i}_subject.dart:1:1 - Unused '
+            'import: package:uuid/uuid.dart. - unused_import',
+      );
+      final output = [
+        ...warningLines,
+        '❌ dart analyze reported 0 error(s) and 13 warning(s) — generated '
+            'code does not compile cleanly.',
+      ].join('\n');
+
+      final executor = FakeProcessExecutor([
+        ProgrammedOutcome(exitCode: 1, output: output),
+        ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+        ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+      ]);
+      final passes = RefactorPasses(
+        project.path,
+        executor: executor,
+        passSpecs: Future.value(_specs),
+      );
+      final (result, lines) = await capturePrint(passes.run);
+      final transcript = lines.join('\n');
+
+      expect(result.stopped, isFalse);
+      expect(transcript, contains('0 error(s), 13 warning(s)'));
+      // The first ten warnings are listed…
+      expect(transcript, contains('u0_subject.dart'));
+      expect(transcript, contains('u9_subject.dart'));
+      // …and the rest collapse into the remainder line.
+      expect(transcript, isNot(contains('u10_subject.dart')));
+      expect(transcript, contains('... 3 more warning(s)'));
+    });
   });
 
   group(
     'issue #1472 — the build pass is pinned to the driving zfa version',
     () {
-      /// Install a fake `zfa` on an injected PATH whose `--version` stdout is
-      /// [versionLine] and return (binDir, zfaPath).
-      Future<(Directory, String)> installFakeZfa(String versionLine) async {
-        final binDir = Directory.systemTemp.createTempSync('z1472_pin_');
-        final zfa = File(p.join(binDir.path, 'zfa'));
-        zfa.writeAsStringSync(
+      /// Write an executable `zfa` stand-in whose `--version` stdout is
+      /// [versionLine] (empty string = unprovable).
+      Future<void> writeFakeZfaAt(String path, String versionLine) async {
+        File(path).writeAsStringSync(
           '#!/usr/bin/env bash\n'
           "if [[ \"\$*\" == *'--version'* ]]; then\n"
           "  echo '$versionLine'\n"
           'fi\n'
           'exit 0\n',
         );
-        await Process.run('chmod', ['+x', zfa.path]);
-        return (binDir, zfa.path);
+        await Process.run('chmod', ['+x', path]);
       }
+
+      /// Install a fake `zfa` on an injected PATH whose `--version` stdout is
+      /// [versionLine] and return (binDir, zfaPath).
+      Future<(Directory, String)> installFakeZfa(String versionLine) async {
+        final binDir = Directory.systemTemp.createTempSync('z1472_pin_');
+        final zfaPath = p.join(binDir.path, 'zfa');
+        await writeFakeZfaAt(zfaPath, versionLine);
+        return (binDir, zfaPath);
+      }
+
+      /// A fixture standing in for the driving CLI's own entrypoint, whose
+      /// probe by construction costs nothing. The real `bin/zfa.dart` cannot
+      /// serve here: its cold JIT compile outlives the probe's 30s bound
+      /// (`TddTimeouts.defaultProbe`), so the pin would (correctly) read it
+      /// as unprovable — see `ZfaEntrypointResolver`.
+      Future<(Directory, String)> installFakeDriving(String versionLine) async {
+        final dir = Directory.systemTemp.createTempSync('z1472_driving_');
+        final path = p.join(dir.path, 'zfa');
+        await writeFakeZfaAt(path, versionLine);
+        return (dir, path);
+      }
+
+      ZfaEntrypointResolver resolveTo(String path) =>
+          ({
+            required Uri script,
+            required String resolvedExecutable,
+            required Map<String, String> environment,
+            Future<Uri?> Function(Uri packageUri)? resolvePackageUri,
+          }) async => path;
 
       test(
         'U-1472-11: a PATH zfa whose version differs from the driving CLI '
@@ -385,19 +440,22 @@ void main() {
         () async {
           final (binDir, zfaPath) = await installFakeZfa('zfa v0.0.9');
           addTearDown(() => binDir.deleteSync(recursive: true));
+          final (drivingDir, drivingPath) = await installFakeDriving(
+            'zfa v$version',
+          );
+          addTearDown(() => drivingDir.deleteSync(recursive: true));
 
-          final specs = await RefactorPasses.defaultPassSpecs(
+          final command = await zfaBuildCommand(
             environment: {'PATH': '${binDir.path}:/usr/bin:/bin'},
+            resolveDrivingEntrypoint: resolveTo(drivingPath),
           );
 
-          final build = specs.first;
-          expect(build.name, 'build');
           // The stale system zfa is bypassed…
-          expect(build.command, isNot(contains(zfaPath)));
-          // …in favor of the driving CLI's own entrypoint (the running
-          // package's bin/zfa.dart, resolved through the un-suppressed chain).
-          expect(build.command, contains('bin/zfa.dart'));
-          expect(build.command, endsWith(' build'));
+          expect(command, isNot(contains(zfaPath)));
+          // …in favor of the driving CLI's own entrypoint, proven to carry
+          // the driving version (the un-suppressed chain is what resolves it
+          // in production; see U-1472-12/13 for the real chain).
+          expect(command, '$drivingPath build');
         },
       );
 
@@ -431,6 +489,81 @@ void main() {
           expect(build.command, '$zfaPath build');
         },
       );
+
+      test(
+        'U-1472-14: a REPLACEMENT that does not prove the driving version '
+        'keeps the #717 candidate (the pin proves BOTH sides of the swap)',
+        () async {
+          final (binDir, zfaPath) = await installFakeZfa('zfa v0.0.9');
+          addTearDown(() => binDir.deleteSync(recursive: true));
+          // A different tree (a sibling checkout, a snapshot built from an
+          // older source) answers with another version.
+          final (drivingDir, drivingPath) = await installFakeDriving(
+            'zfa v0.0.1',
+          );
+          addTearDown(() => drivingDir.deleteSync(recursive: true));
+
+          final (command, lines) = await capturePrint(
+            () => zfaBuildCommand(
+              environment: {'PATH': '${binDir.path}:/usr/bin:/bin'},
+              resolveDrivingEntrypoint: resolveTo(drivingPath),
+            ),
+          );
+
+          expect(command, '$zfaPath build');
+          expect(lines.join('\n'), isNot(contains('pinned to')));
+        },
+      );
+
+      test('U-1472-15: a REPLACEMENT whose version is UNPROVABLE keeps the '
+          '#717 candidate (silence rule, both directions)', () async {
+        final (binDir, zfaPath) = await installFakeZfa('zfa v0.0.9');
+        addTearDown(() => binDir.deleteSync(recursive: true));
+        final (drivingDir, drivingPath) = await installFakeDriving('');
+        addTearDown(() => drivingDir.deleteSync(recursive: true));
+
+        final command = await zfaBuildCommand(
+          environment: {'PATH': '${binDir.path}:/usr/bin:/bin'},
+          resolveDrivingEntrypoint: resolveTo(drivingPath),
+        );
+
+        expect(command, '$zfaPath build');
+      });
+
+      test('U-1472-16: a driving entrypoint identical to the candidate is a '
+          'no-op — no re-route, no pin line', () async {
+        final (binDir, zfaPath) = await installFakeZfa('zfa v0.0.9');
+        addTearDown(() => binDir.deleteSync(recursive: true));
+
+        final (command, lines) = await capturePrint(
+          () => zfaBuildCommand(
+            environment: {'PATH': '${binDir.path}:/usr/bin:/bin'},
+            resolveDrivingEntrypoint: resolveTo(zfaPath),
+          ),
+        );
+
+        expect(command, '$zfaPath build');
+        expect(lines.join('\n'), isNot(contains('pinned to')));
+      });
+
+      test('U-1472-17: an unresolvable driving entrypoint (StateError) fails '
+          'open to the #717 candidate', () async {
+        final (binDir, zfaPath) = await installFakeZfa('zfa v0.0.9');
+        addTearDown(() => binDir.deleteSync(recursive: true));
+
+        final command = await zfaBuildCommand(
+          environment: {'PATH': '${binDir.path}:/usr/bin:/bin'},
+          resolveDrivingEntrypoint:
+              ({
+                required Uri script,
+                required String resolvedExecutable,
+                required Map<String, String> environment,
+                Future<Uri?> Function(Uri packageUri)? resolvePackageUri,
+              }) async => throw StateError('unresolvable'),
+        );
+
+        expect(command, '$zfaPath build');
+      });
     },
   );
 }

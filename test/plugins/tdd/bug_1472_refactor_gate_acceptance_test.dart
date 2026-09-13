@@ -59,7 +59,13 @@ void main() {
 
   test('A-1472-1: a warnings-only build-gate refusal does not deadlock the '
       'refactor — outcome is clean/refactored, exit 0, fix pass ran', () async {
-    await fx.seedGreenSuite();
+    // The seeded subject carries a real fixable lint (an unused import) —
+    // the issue's exact deadlock shape — so the case proves the `dart fix`
+    // pass RAN and changed the tree, not merely that the pre-fix error
+    // message is absent.
+    await fx.seedGreenSuite(
+      libContent: "import 'dart:math';\n\nint answer() {\n  return 42;\n}\n",
+    );
     final zfaBin = await fx.writeFakeZfaBin(
       logPath: fx.fakeZfaLogPath,
       stdoutByArgv: {'build': _warningsOnlyBuildStdout},
@@ -89,6 +95,17 @@ void main() {
     expect(out, isNot(contains('outcome=runner-error')));
     // SC-3: the accurate counts are surfaced on the transcript.
     expect(out, contains('0 error(s), 2 warning(s)'));
+    // Both follow-on passes reached the transcript, and the fix pass really
+    // changed the tree (applied >= 1) — the deadlock's whole point.
+    expect(out, contains('pass: format'), reason: 'out:\n$out');
+    expect(out, contains('pass: fix'), reason: 'out:\n$out');
+    expect(
+      out,
+      contains(
+        RegExp(r'refactor: feature=\S+ outcome=refactored applied=[1-9]\d*'),
+      ),
+      reason: 'the dart fix pass must have applied a change:\n$out',
+    );
     expect(exitCode, 0, reason: 'out:\n$out');
   });
 

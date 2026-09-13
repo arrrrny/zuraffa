@@ -11,9 +11,11 @@
   refusal: the pass registry's build gate is errors-only (warnings are the
   `dart fix --apply` pass's input), the verdict is logged with its accurate
   counts, and the `analyze-gate: warnings-blocking` profile opt-in restores
-  the legacy refusal (#1472). The build pass's zfa binary is pinned to the
-  version driving the run — a stale system zfa on PATH is bypassed for the
-  driving CLI's own entrypoint (#1472)
+  the legacy refusal (#1472). When the build pass's resolved zfa binary
+  provably reports a version other than the driving CLI's, it is bypassed
+  for the driving CLI's own entrypoint — and only then: an equal, unprovable,
+  or unresolvable version keeps the previous resolution, and the replacement
+  itself must prove the driving version too (#1472)
 - Contract-lane generated tests import `flutter_test` on Flutter hosts and
   resolve the subject through a `package:` URI under `lib/`; the stale-stub
   re-render keeps the package import instead of reverting to the relative
