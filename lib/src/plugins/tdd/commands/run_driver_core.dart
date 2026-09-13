@@ -1408,6 +1408,26 @@ class RunDriverCore {
     if (start == 0 && hasGreenEvidence && greenTestBacked) {
       start = state == BehaviorState.pending ? 2 : 3;
     }
+    // Issue #1592: the #1324 guard's scope — start == 0 — misses the
+    // BLOCKED re-entry window (spec 1007: blocked => 1). A
+    // born-green-certified blocked behavior (the #1411 hand transition
+    // certified out-of-band via `zfa tdd make <id> --born-green`) re-entered
+    // at verify-red, whose already-green test unexpected-greens; make
+    // refuses not-certified-red and the #1411 hand-stop re-prescribes the
+    // exact --born-green command that already ran — the transition never
+    // converged. With current-generation green evidence backed on disk the
+    // blocked cycle resumes at make — the drift-skip / adoption transition
+    // (#694/#1162) re-certifies honestly and the run converges to
+    // result=complete without manual re-entry. Behaviors without backed
+    // green evidence keep the exact pre-#1592 windows: a normal
+    // (non-born-green) blocked resume never carries green evidence, so its
+    // window is bit-for-bit unchanged (SC-4).
+    if (start == 1 &&
+        state == BehaviorState.blocked &&
+        hasGreenEvidence &&
+        greenTestBacked) {
+      start = 2;
+    }
     return full.sublist(start.clamp(0, full.length));
   }
 

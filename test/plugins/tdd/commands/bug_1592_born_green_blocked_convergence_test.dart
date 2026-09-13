@@ -18,9 +18,10 @@
 //        drift-skip / adoption transition, #694/#1331): no verify-red
 //        re-entry, no gen over the certified pair, no born-green
 //        re-prescription; the run completes.
-//   B2 — convergence without manual re-entry: the drive after the
-//        certification completes the behavior (done=1); a further re-run
-//        is a no-op skip (the prescription loop is gone).
+//   B2 — convergence without manual re-entry: the certification drive
+//        completes (green=1, the #682 reconcile steady state) and the next
+//        run re-enters at refactor ONLY (make never re-spawns — the
+//        prescription loop is dead, the #1542 steady state).
 //   B3 — normal (non-born-green) blocked resume keeps the verify-red
 //        re-entry: without green evidence the guard never fires (the
 //        hard constraint — no behavior change for the #1544 class).
@@ -139,7 +140,7 @@ void main() {
   );
 
   test(
-    'B2: convergence without manual re-entry — the re-run is a no-op skip (SC-3)',
+    'B2: convergence without manual re-entry — the re-run re-enters at refactor ONLY (SC-3)',
     () async {
       const feature = '1592-no-reentry';
       fx = await TddFixture.create(featureName: feature);
@@ -148,19 +149,31 @@ void main() {
       await seedBornGreenBlocked('A1');
       await fx.setStepOutcome('make', 'A1', 'skip');
 
+      // The certification drive completes: make re-certifies once (the
+      // #694 skip transition), refactor passes, and the green-only class
+      // lands GREEN (the pre-existing reconcile design, bug #682 — the
+      // same terminal shape the #1542 born-green family accepts).
       final out = await drive(feature);
       expect(out, contains('result=complete'), reason: out);
       expect(
         out,
         contains('run: feature=$feature result=complete pending=0 red=0 '
-            'green=0 done=1'),
-        reason: 'the behavior landed on done — not parked, not stopped: '
-            '$out',
+            'green=1 done=0'),
+        reason: 'the run COMPLETES — not stopped, not parked: $out',
       );
+      expect(
+        out,
+        isNot(contains('--born-green')),
+        reason: 'no prescription: the transition converged: $out',
+      );
+      final state = await File(fx.runStatePath).readAsString();
+      expect(state, contains('"green"'), reason: state);
 
-      // The loop-killer: a SECOND run drives nothing and completes. Pre-fix
-      // this re-run stopped at the same make → not-certified-red and
-      // re-prescribed the born-green command.
+      // The loop-killer: the NEXT run re-enters at refactor ONLY — make
+      // (which would refuse not-certified-red flagless) never re-spawns,
+      // and the run completes with no manual command. Pre-fix this re-run
+      // stopped at the same make → not-certified-red and re-prescribed
+      // the born-green command.
       fx.clearStepInvocations();
       final out2 = await drive(feature);
       final invocations2 = fx.stepInvocations();
@@ -168,16 +181,13 @@ void main() {
       expect(out2, contains('result=complete'), reason: out2);
       expect(
         invocations2,
-        isEmpty,
+        ['refactor A1'],
         reason:
-            'the converged feature must not re-drive any step on the '
-            'next run — the prescription loop is gone: $invocations2',
+            'the converged feature re-proves at refactor only — the '
+            '#1542 steady state, no make, no prescription loop: '
+            '$invocations2',
       );
-      expect(
-        out2,
-        isNot(contains('--born-green')),
-        reason: out2,
-      );
+      expect(out2, isNot(contains('--born-green')), reason: out2);
     },
   );
 
