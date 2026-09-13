@@ -90,6 +90,21 @@ class OwnershipConflict implements Exception {
   }
 }
 
+/// Raised when `tdd/artifacts.json` exists but cannot be parsed (bug
+/// #1470). Corruption must never be conflated with an empty registry:
+/// returning [] here let `register` re-register behaviors with
+/// [Ownership.created] and rewrite the file, silently destroying every
+/// prior ownership record. The message names the file and the recovery
+/// path (same contract as `RunStateCorruptException` for run-state.json).
+class ArtifactRegistryCorruptException implements Exception {
+  const ArtifactRegistryCorruptException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 /// Append-only registry of [ArtifactRecord]s for a feature.
 class ArtifactRegistry {
   /// Construct a registry for a feature directory.
@@ -290,8 +305,19 @@ class ArtifactRegistry {
         final record = ArtifactRecord.fromJson(r as Map<String, dynamic>);
         return reanchor ? _reanchorRecord(record) : record;
       }).toList();
-    } on FormatException {
-      return [];
+    } on FormatException catch (e) {
+      // Bug #1470: a corrupt registry is NOT an empty one. Returning []
+      // here made `register` re-register behaviors with Ownership.created
+      // and rewrite the file, silently destroying every prior ownership
+      // record (and any chance of diagnosing the corruption). Fail loudly
+      // with the file and the recovery path instead.
+      throw ArtifactRegistryCorruptException(
+        'corrupted artifacts.json at $registryPath (invalid JSON: '
+        '${e.message}). Recovery: repair the file to valid registry JSON '
+        '(a "feature" plus a "records" list) or restore it from version '
+        'control — do NOT delete it, or the next gen re-registers every '
+        'behavior as created and can duplicate artifact files.',
+      );
     }
   }
 
