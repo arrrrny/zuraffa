@@ -22,6 +22,7 @@
 ///   "captured_at": "...",
 ///   "suite": "dart test",
 ///   "baseline_key": "<sha256 of the --suite-baseline file bytes, or ''>",
+///   "config_key": "<sha256 of the suite config: dart_test.yaml + pubspec.lock>",
 ///   "exempt_behaviors": ["contract:C1"],
 ///   "lib_digest": "<sha256 of the sorted lib/ tree fingerprints>",
 ///   "test_digest": "<sha256 of the sorted test/ tree fingerprints>",
@@ -31,13 +32,16 @@
 /// ```
 ///
 /// A later invocation in the SAME pass (same suite template, same baseline
-/// content, same exempt set, byte-identical `lib/` AND `test/` trees)
-/// inherits that gate: no preflight, no pass registry, no re-proof — a
-/// clean no-op with an honest evidence line. Any context mismatch, tree
-/// drift, or corrupt file falls back to the full pipeline (safe failure —
-/// the ledger is derived data, recomputed by every green application; the
-/// cycle-log entry remains the tamper-evident record, mirroring
-/// PassRegistryTracker's stance).
+/// content, same suite configuration — the repo-root `dart_test.yaml` and
+/// `pubspec.lock` the suite runs under — same exempt set, byte-identical
+/// `lib/` AND `test/` trees) inherits that gate: no preflight, no pass
+/// registry, no re-proof — a clean no-op with an honest evidence line. An
+/// invocation carrying `--full-reproof` never inherits: an explicit request
+/// for the strongest proof is always answered by running it. Any context
+/// mismatch, tree drift, or corrupt file falls back to the full pipeline
+/// (safe failure — the ledger is derived data, recomputed by every green
+/// application; the cycle-log entry remains the tamper-evident record,
+/// mirroring PassRegistryTracker's stance).
 ///
 /// The full gate still exists, frequency engineered (spec 069 T001): the
 /// full suite runs at feature completion (`zfa tdd verify`'s preflight)
@@ -56,16 +60,17 @@ import 'tree_snapshot.dart';
 /// The parsed pass-batch.json snapshot (the gate one green application
 /// proved) plus the context keys it is valid under.
 class PassBatchLedger {
-  const PassBatchLedger({
+  PassBatchLedger({
     required this.capturedAt,
     required this.suite,
     required this.baselineKey,
-    required this.exemptBehaviors,
+    required this.configKey,
+    required List<String> exemptBehaviors,
     required this.libDigest,
     required this.testDigest,
     required this.preflightVerdict,
     required this.reproofVerdict,
-  });
+  }) : exemptBehaviors = List<String>.of(exemptBehaviors)..sort();
 
   /// The ledger file name inside the feature's `tdd/` directory.
   static const fileName = 'pass-batch.json';
@@ -85,8 +90,18 @@ class PassBatchLedger {
   /// including a fresh run's new `captured_at` — changes the key.
   final String baselineKey;
 
-  /// The sorted exempt behavior ids the gate tolerated (issue #1588
-  /// parked exemption). A different exempt set is a different gate.
+  /// Content fingerprint of the repo-root suite configuration the gate ran
+  /// under — `dart_test.yaml` and `pubspec.lock`, when present
+  /// ([configKeyFor]). What the suite runs depends on inputs outside
+  /// `lib/`/`test/` (tag exclusions, presets, timeouts, dependency
+  /// resolution), so a ledger recorded under a different configuration is
+  /// a different gate.
+  final String configKey;
+
+  /// The exempt behavior ids the gate tolerated (issue #1588 parked
+  /// exemption), kept in canonical sorted order at construction so the
+  /// positional comparison in [matches] is order-insensitive. A different
+  /// exempt set is a different gate.
   final List<String> exemptBehaviors;
 
   /// Whole-tree digest of `lib/` at the proved state.
@@ -103,21 +118,28 @@ class PassBatchLedger {
   bool matches({
     required String suite,
     required String baselineKey,
+    required String configKey,
     required List<String> exemptBehaviors,
     required String libDigest,
     required String testDigest,
   }) {
     return this.suite == suite &&
         this.baselineKey == baselineKey &&
+        this.configKey == configKey &&
         this.libDigest == libDigest &&
         this.testDigest == testDigest &&
         _listEquals(this.exemptBehaviors, exemptBehaviors);
   }
 
+  /// Order-insensitive list equality: both sides are compared as sorted
+  /// copies, so a caller handing an unsorted exempt list cannot make a
+  /// canonical ledger miss.
   static bool _listEquals(List<String> a, List<String> b) {
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
+    final left = List<String>.of(a)..sort();
+    final right = List<String>.of(b)..sort();
+    if (left.length != right.length) return false;
+    for (var i = 0; i < left.length; i++) {
+      if (left[i] != right[i]) return false;
     }
     return true;
   }
@@ -126,6 +148,7 @@ class PassBatchLedger {
     'captured_at': capturedAt,
     'suite': suite,
     'baseline_key': baselineKey,
+    'config_key': configKey,
     'exempt_behaviors': exemptBehaviors,
     'lib_digest': libDigest,
     'test_digest': testDigest,
@@ -134,7 +157,8 @@ class PassBatchLedger {
   };
 
   /// Load a ledger snapshot. Returns null when the file is missing,
-  /// unreadable, corrupt, or typed wrong — the caller runs the full
+  /// unreadable, corrupt, or typed wrong (a ledger written before the
+  /// config key existed reads as typed wrong) — the caller runs the full
   /// pipeline (safe failure, never an inherited gate from bad data).
   static Future<PassBatchLedger?> read(String featureDir) async {
     try {
@@ -144,6 +168,7 @@ class PassBatchLedger {
       final capturedAt = json['captured_at'];
       final suite = json['suite'];
       final baselineKey = json['baseline_key'];
+      final configKey = json['config_key'];
       final exempt = json['exempt_behaviors'];
       final libDigest = json['lib_digest'];
       final testDigest = json['test_digest'];
@@ -152,6 +177,7 @@ class PassBatchLedger {
       if (capturedAt is! String ||
           suite is! String ||
           baselineKey is! String ||
+          configKey is! String ||
           exempt is! List ||
           libDigest is! String ||
           testDigest is! String ||
@@ -163,7 +189,8 @@ class PassBatchLedger {
         capturedAt: capturedAt,
         suite: suite,
         baselineKey: baselineKey,
-        exemptBehaviors: exempt.whereType<String>().toList()..sort(),
+        configKey: configKey,
+        exemptBehaviors: exempt.whereType<String>().toList(),
         libDigest: libDigest,
         testDigest: testDigest,
         preflightVerdict: preflightVerdict,
@@ -207,5 +234,25 @@ class PassBatchLedger {
     } catch (_) {
       return '';
     }
+  }
+
+  /// The content fingerprint of the repo-root suite CONFIGURATION the
+  /// invocation runs under: `dart_test.yaml` (tag exclusions, presets,
+  /// timeouts) and `pubspec.lock` (dependency resolution), when present.
+  /// Neither lives in the `lib/`/`test/` trees the gate otherwise keys on,
+  /// so folding them in keeps "byte-identical inputs ⇒ the same gate"
+  /// true across separate runs. An absent file contributes its name only
+  /// (still a stable key).
+  static Future<String> configKeyFor(String projectRoot) async {
+    final parts = <String>[];
+    for (final name in const ['dart_test.yaml', 'pubspec.lock']) {
+      try {
+        final bytes = await File(p.join(projectRoot, name)).readAsBytes();
+        parts.add('$name ${sha256.convert(bytes)}');
+      } catch (_) {
+        parts.add('$name -');
+      }
+    }
+    return sha256.convert(utf8.encode(parts.join('\n'))).toString();
   }
 }

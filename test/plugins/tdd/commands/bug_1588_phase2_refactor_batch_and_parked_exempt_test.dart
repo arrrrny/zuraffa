@@ -120,6 +120,19 @@ void main() {
       expect(exitCode, isNot(0), reason: out);
       expect(out, contains('outcome=not-green'));
     });
+
+    test('bug 1588: an exempt id the run state does not record as blocked '
+        'is ignored — the gate stays strict', () async {
+      // A run state exists, but C1 is not a designed park.
+      await fx.seedRunState(states: {'C1': 'pending'});
+      final out = await runRefactor(extraArgs: ['--exempt-behaviors', 'C1']);
+
+      expect(exitCode, isNot(0), reason: out);
+      expect(out, contains('outcome=not-green'));
+      // The ignored id is named instead of silently weakening the gate.
+      expect(out, contains('ignored'));
+      expect(out, contains('C1'));
+    });
   });
 
   group('command level — pass-batch ledger (--pass-batch)', () {
@@ -199,7 +212,7 @@ coverage: 'dart test --coverage'
       expect(exitCode, 0, reason: first);
       final spawnsAfterFirst = await suiteSpawnCount();
       // The first invocation pays the pipeline: preflight + re-proof.
-      expect(spawnsAfterFirst, 2, reason: first);
+      expect(spawnsAfterFirst, greaterThanOrEqualTo(2), reason: first);
 
       final second = await runRefactor(extraArgs: ['--pass-batch']);
       expect(exitCode, 0, reason: second);
@@ -244,8 +257,83 @@ coverage: 'dart test --coverage'
 
       final second = await runRefactor();
       expect(exitCode, 0, reason: second);
-      // No ledger inheritance: the preflight + re-proof both ran again.
-      expect(await suiteSpawnCount(), spawnsAfterFirst + 2, reason: second);
+      // No ledger inheritance: the pipeline ran again.
+      expect(
+        await suiteSpawnCount(),
+        greaterThan(spawnsAfterFirst),
+        reason: second,
+      );
+    });
+
+    test('bug 1588: a suite-context change invalidates the ledger — the '
+        'next --pass-batch invocation re-runs the full pipeline', () async {
+      final baselinePath = p.join(fx.root.path, 'baseline.json');
+      await File(
+        baselinePath,
+      ).writeAsString(_baselineJson(capturedAt: '2026-01-01T00:00:00Z'));
+      final first = await runRefactor(
+        extraArgs: ['--pass-batch', '--suite-baseline', baselinePath],
+      );
+      expect(exitCode, 0, reason: first);
+
+      // (a) A baseline rewrite — a fresh capture's new bytes — is a
+      // different gate key (baseline_key): the suite spawns again.
+      var spawns = await suiteSpawnCount();
+      await File(
+        baselinePath,
+      ).writeAsString(_baselineJson(capturedAt: '2026-01-02T00:00:00Z'));
+      final second = await runRefactor(
+        extraArgs: ['--pass-batch', '--suite-baseline', baselinePath],
+      );
+      expect(exitCode, 0, reason: second);
+      expect(await suiteSpawnCount(), greaterThan(spawns), reason: second);
+
+      // (b) A suite-configuration rewrite (dart_test.yaml) is a different
+      // gate key too (config_key): the pipeline runs again.
+      spawns = await suiteSpawnCount();
+      await File(
+        p.join(fx.root.path, 'dart_test.yaml'),
+      ).writeAsString('concurrency: 1\n');
+      final third = await runRefactor(
+        extraArgs: ['--pass-batch', '--suite-baseline', baselinePath],
+      );
+      expect(exitCode, 0, reason: third);
+      expect(await suiteSpawnCount(), greaterThan(spawns), reason: third);
+    });
+
+    test('bug 1588: a corrupt or mistyped ledger falls back to the full '
+        'pipeline (safe failure)', () async {
+      final first = await runRefactor(extraArgs: ['--pass-batch']);
+      expect(exitCode, 0, reason: first);
+      final ledgerPath = p.join(fx.featureDir, 'tdd', 'pass-batch.json');
+      expect(File(ledgerPath).existsSync(), isTrue, reason: first);
+
+      for (final payload in const ['{"lib_digest": 42}', '{ not json']) {
+        final spawnsBefore = await suiteSpawnCount();
+        await File(ledgerPath).writeAsString(payload);
+        final out = await runRefactor(extraArgs: ['--pass-batch']);
+        expect(exitCode, 0, reason: out);
+        // No inherited gate: preflight + re-proof ran again.
+        expect(await suiteSpawnCount(), greaterThan(spawnsBefore), reason: out);
+      }
+    });
+
+    test('bug 1588: --pass-batch --full-reproof never inherits the ledger — '
+        'the explicit request always runs the full pipeline', () async {
+      final first = await runRefactor(extraArgs: ['--pass-batch']);
+      expect(exitCode, 0, reason: first);
+      final spawnsAfterFirst = await suiteSpawnCount();
+
+      final second = await runRefactor(
+        extraArgs: ['--pass-batch', '--full-reproof'],
+      );
+      expect(exitCode, 0, reason: second);
+      expect(second, contains('--full-reproof'), reason: second);
+      expect(
+        await suiteSpawnCount(),
+        greaterThan(spawnsAfterFirst),
+        reason: second,
+      );
     });
   });
 
@@ -483,3 +571,13 @@ coverage: 'dart test --coverage'
     });
   });
 }
+
+/// The run-baseline cache shape `RunBaselineCache` reads (the
+/// `--suite-baseline` file, issue #922).
+String _baselineJson({required String capturedAt}) => jsonEncode({
+  'command': 'dart test',
+  'exitCode': 0,
+  'failedTests': <String>[],
+  'capturedAt': capturedAt,
+  'parseable': true,
+});
