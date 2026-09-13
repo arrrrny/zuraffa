@@ -4,7 +4,7 @@ loop: outside-in
 profile: .specify/memory/tdd-profile.md
 spec_criteria: 6
 planned_at: 46fe766e
-updated_at: 46fe766e
+updated_at: HEAD
 suite_baseline: green
 ---
 
@@ -22,12 +22,12 @@ selectors: include: "<all>" exclude: "slow"` on untouched master
 
 | id | behavior                                                                                     | traces  | kind    | state  | test                                                                                                        |
 | --- | ------------------------------------------------------------------------------------------- | ------- | -------- | ---- | ---------------------------------------------------------------------------------------------------------- |
-| B1  | `dart test test/plugins/tdd/make_command_test.dart` exits 0 and runs 42 tests under the default preset | SC-1 | example | PENDING | `dart test test/plugins/tdd/make_command_test.dart` (default preset, no tags flags)                        |
-| B2  | `dart test test/plugins/tdd/make_command_declared_071_test.dart` exits 0 and runs 1 test under the default preset | SC-2 | example | PENDING | `dart test test/plugins/tdd/make_command_declared_071_test.dart` (default preset, no tags flags)           |
-| B3  | `--preset=regression` selects both files (the regression lane covers them)                    | SC-4    | example | PENDING | `dart test --preset=regression test/plugins/tdd/make_command_declared_071_test.dart` + count check         |
-| B4  | `--preset=all` still selects both files                                                       | SC-4    | example | PENDING | `dart test --preset=all test/plugins/tdd/make_command_declared_071_test.dart`                              |
-| B5  | CI fast-lane shape excludes both files: `--exclude-tags "flutter || e2e"` skips them          | SC-3    | example | PENDING | selector dry-run against the two files + fast-lane file untouched (`core_result_test.dart` still selected) |
-| B6  | Regression-tier integrity pin unaffected: `test/tier_integrity_test.dart` passes              | SC-5    | example | PENDING | `dart test test/tier_integrity_test.dart`                                                                  |
+| B1  | `dart test test/plugins/tdd/make_command_test.dart` exits 0 and runs 42 tests under the default preset | SC-1 | example | DONE   | `dart test test/plugins/tdd/make_command_test.dart` (default preset, no tags flags)                        |
+| B2  | `dart test test/plugins/tdd/make_command_declared_071_test.dart` exits 0 and runs 1 test under the default preset | SC-2 | example | DONE   | `dart test test/plugins/tdd/make_command_declared_071_test.dart` (default preset, no tags flags)           |
+| B3  | `--preset=regression` selects both files (the regression lane covers them)                    | SC-4    | example | DONE   | `dart test --preset=regression test/plugins/tdd/make_command_declared_071_test.dart` + count check         |
+| B4  | `--preset=all` still selects both files                                                       | SC-4    | example | DONE   | `dart test --preset=all test/plugins/tdd/make_command_declared_071_test.dart`                              |
+| B5  | CI fast-lane shape excludes both files: `--exclude-tags "flutter || e2e"` skips them          | SC-3    | example | DONE   | selector dry-run against the two files + fast-lane file untouched (`core_result_test.dart` still selected) |
+| B6  | Regression-tier integrity pin unaffected: `test/tier_integrity_test.dart` passes              | SC-5    | example | DONE   | `dart test test/tier_integrity_test.dart`                                                                  |
 
 ## Outer ring (non-behavioural)
 

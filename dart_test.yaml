@@ -4,6 +4,15 @@
 # default (tagged `slow`); every slow test also carries a tier tag:
 # `regression`, `integration`, `property`, `benchmark`.
 #
+# The `e2e` tag marks heavyweight end-to-end suites that drive the real CLI
+# against throwaway temp projects (real `dart test` / `dart pub get`
+# subprocesses) WITHOUT carrying the `slow` tag — e.g. the make-command
+# regression files (#1510). e2e-tagged files are honest under direct
+# `dart test <file>` invocations (the default preset no longer empties
+# them), while CI's fast lane keeps them excluded via
+# `--exclude-tags "flutter || e2e"`. The heavy lanes that opt in explicitly
+# (`--preset=regression`, `--preset=all`) run them.
+#
 # Full suite (heavy, full-local baseline only — NOT for CI / cloud agents):
 #   dart test --preset=all
 # CI and cloud/CI agents run the default fast tier (`dart test`). --preset=all
@@ -70,6 +79,7 @@ tags:
   property:
   benchmark:
   ffi:
+  e2e:
 
 exclude_tags: slow
 

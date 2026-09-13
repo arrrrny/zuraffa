@@ -1,4 +1,4 @@
-@Tags(['slow'])
+@Tags(['regression', 'e2e'])
 // Tests for `MakeCommand` (spec 047-tdd-make, T010/T014/T018/T022/T025).
 // Drives the public CLI surface (`zfa tdd make`) against a real temp
 // fixture project whose registry records gen-style artifacts; the
