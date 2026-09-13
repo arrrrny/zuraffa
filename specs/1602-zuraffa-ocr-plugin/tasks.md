@@ -18,13 +18,13 @@ every OCR stamp verified.
 
 ### Tests for User Story 1 (written first, must FAIL)
 
-- [ ] T002. [US1] [behavior: B1] [MANDATORY] Instance layout + stamps in
+- [x] T002. [US1] [behavior: B1] [MANDATORY] Instance layout + stamps in
       `test/package_sdk/plugin_ocr_instance_test.dart`: real CLI scaffold
       into temp; five packages; verbatim description, repository/issue
       tracker slugs, `ocr` topic, version 0.1.0, zuraffa `^6.2.2` hosted,
       no `publish_to`, LICENSE + CHANGELOG per package. Traces FR-001 /
       FR-002 / FR-005(structural) / SC-1.
-- [ ] T003. [US1] [behavior: B2] [MANDATORY] Wiring + name shapes +
+- [x] T003. [US1] [behavior: B2] [MANDATORY] Wiring + name shapes +
       harness integrity in the same file: dependency invariants (app →
       zuraffa only; core → app; adapters → app + core; nobody → adapter;
       `^0.1.0` in-family); `OcrPort`/`OcrService` present in the app
@@ -34,7 +34,7 @@ every OCR stamp verified.
 
 ### Implementation for User Story 1
 
-- [ ] T004. [US1] No code change by design (generator frozen): confirm
+- [x] T004. [US1] No code change by design (generator frozen): confirm
       B1/B2 green against the delivered generator and record the run in
       `tdd/cycle-log.md`. If either behavior fails, that is a generator
       defect — STOP and report per the repo's roadblock rule.
