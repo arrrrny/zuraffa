@@ -35,6 +35,7 @@ import '../../../core/project/receipt_store.dart';
 import '../models/artifact_record.dart';
 import '../models/red_classification.dart';
 import '../services/artifact_registry.dart';
+import '../services/cycle_log_sections.dart';
 import '../services/journal.dart';
 import '../services/test_list_reader.dart';
 
@@ -599,7 +600,7 @@ class TheaterLogParser {
 
   static List<TheaterCycle> parse(String raw) {
     final cycles = <TheaterCycle>[];
-    for (final section in raw.split('\n## ')) {
+    for (final section in splitCycleLogSections(raw)) {
       final behavior = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,

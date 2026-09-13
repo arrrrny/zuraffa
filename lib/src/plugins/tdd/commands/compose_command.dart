@@ -51,6 +51,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/composition_targets.dart';
+import '../services/cycle_log_sections.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -547,7 +548,7 @@ $returnType $functionName() {$body}
     // Issue #1353: scan EVERY section — a stale non-red section from an
     // earlier failed attempt must not shadow a later certified-red section
     // for the same behavior (mirrors MakeCommand._hasCertifiedRed).
-    for (final section in raw.split('\n## ')) {
+    for (final section in splitCycleLogSections(raw)) {
       final behavior = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,
@@ -674,7 +675,7 @@ $returnType $functionName() {$body}
     if (!await file.exists()) return const {};
     final raw = await file.readAsString();
     final certified = <String>{};
-    for (final section in raw.split('\n## ')) {
+    for (final section in splitCycleLogSections(raw)) {
       final behavior = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,

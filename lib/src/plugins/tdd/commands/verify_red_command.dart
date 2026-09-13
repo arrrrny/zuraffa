@@ -47,6 +47,7 @@ import '../services/artifact_registry.dart';
 import '../services/contract_blocked_receipt.dart';
 import '../services/cycle_evidence.dart';
 import '../services/cycle_log.dart';
+import '../services/cycle_log_sections.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/red_classifier.dart';
@@ -772,7 +773,7 @@ class VerifyRedCommand extends Command<void> {
     if (!await file.exists()) return const {};
     final raw = await file.readAsString();
     final certified = <String>{};
-    for (final section in raw.split('\n## ')) {
+    for (final section in splitCycleLogSections(raw)) {
       final behavior = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,

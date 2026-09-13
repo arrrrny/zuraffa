@@ -1,0 +1,1 @@
+{"entries":[{"files":["lib/src/commands/make_command.dart","lib/tdd/1444-setup-zuraffa-app/a2_subject.dart","lib/tdd/1444-setup-zuraffa-app/a5_subject.dart","lib/tdd/1444-setup-zuraffa-app/a7_subject.dart"],"captured_at":"2026-09-11T04:26:28.032118Z","command":"dart fix --apply lib/"}]}
