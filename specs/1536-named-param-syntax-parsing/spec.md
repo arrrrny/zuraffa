@@ -71,7 +71,7 @@ void-returning guard) and are intentionally out of scope.
    onRecord}`), **When** the shape is derived, **Then** each
    single-identifier token is treated as a declared parameter NAME with
    the `Object?` renderable type (Dart named parameters always carry a
-   name); a two-word token inside the group (`{AuthRequest request}`))
+   name); a two-word token inside the group (`{AuthRequest request}`)
    keeps the existing `Type name` split.
    **Type**: acceptance
 5. **Given** a contract row whose parameter text carries stray or

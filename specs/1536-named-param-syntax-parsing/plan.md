@@ -104,11 +104,12 @@ specs/1536-named-param-syntax-parsing/
 lib/src/plugins/tdd/
 ├── models/
 │   └── routing.dart                  # FR-001: brace-aware token split + grammar doc + refusal
-└── services/
-    ├── unit_contract_shape.dart      # FR-002/FR-004: named expansion + camelCase preservation + shared renderer
-    ├── subject_writer.dart           # FR-003: grouped rendering via the shared renderer
-    ├── behavior_test_writer.dart     # FR-003: named args at the capture site
-    └── commands/func_command.dart    # FR-003: scaffold uses the shared renderer
+├── services/
+│   ├── unit_contract_shape.dart      # FR-002/FR-004: named expansion + camelCase preservation + shared renderer
+│   ├── subject_writer.dart           # FR-003: grouped rendering via the shared renderer
+│   └── behavior_test_writer.dart     # FR-003: named args at the capture site
+└── commands/
+    └── func_command.dart             # FR-003: scaffold uses the shared renderer
 test/plugins/tdd/
 └── issue_1536_named_param_syntax_test.dart  # RED-first behavior coverage
 ```
