@@ -1,134 +1,115 @@
-# tdd.verify — Bug #1512 acceptance vacuous composition
+# tdd.verify — Bug #1544 run parks forever on first blocked contract
 
-- **Verified**: 2026-09-11 (round-2 review fixes), this session, on
-  `fix/1512-acceptance-vacuous-composition` (working tree, pre-push)
-- **Toolchain**: Dart 3.13.2 (stable) on macos_x64
-- **Scope**: the two changed source files + the new `vacuous_guard.dart`
-  vocabulary constants + the rewritten suite, then the chunked regression
-  sweep below.
+- **Verified**: 2026-09-13, this session, on
+  `fix/1544-parks-forever-on-first-blocked-contract` (working tree, pushed)
+- **Toolchain**: Dart 3.13.3 (stable) on linux_x64
+- **Scope**: `lib/src/plugins/tdd/commands/run_driver_core.dart` + the new
+  `test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart`,
+  then the chunked regression sweep below.
 
-## Verdict: PASS (with the recorded host/environment caveats in §4)
-
-## 0. Round-2 review corrections (what changed since round 1)
-
-The round-1 record below claimed the acceptance capture threaded the declared
-args and returned the declared result. That branch did not ship —
-`gen_command.dart` resolves a `contractShape` only for `BehaviorKind.unit` and
-the paired acceptance subject is a parameterless `void <target>()` scenario
-runner, so the branch was unreachable in production and would not compile if
-reached. Round 2 applied the reviewed option (b):
-
-1. the acceptance declared-args/return branch is REMOVED; the acceptance
-   capture is the void-safe, argument-free form and an injected
-   `contractShape` is inert for acceptance;
-2. the undeclared acceptance fallback emits the acceptance-lane token
-   (`acceptanceFallbackGuardToken` / `acceptanceFallbackGuardComment`)
-   instead of the #1259 `vacuousGuardMarker`, keeping the run driver's
-   `stopped_at=<id>:make` classification;
-3. planner branch 3b no longer consults `_extractCapitalizedTrace` — only
-   explicit prose signals (`target` / `entity <Name>` / `create <Name>`) may
-   drive `entity create`;
-4. the suite was rewritten to drive the real path and now includes a slow
-   `dart test` compile pin over the emitted test+subject pair.
+## Verdict: PASS (with the recorded host/environment caveats in §5)
 
 ## 1. Static analysis
 
 ```
-dart analyze lib/src/plugins/tdd/services/behavior_test_writer.dart \
-             lib/src/plugins/tdd/services/generation_planner.dart \
-             lib/src/plugins/tdd/services/vacuous_guard.dart \
-             test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart
+dart analyze lib/src/plugins/tdd/commands/run_driver_core.dart \
+             test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart
 → No issues found!
+
+dart analyze            (whole repo)
+→ 112 issues found      (all `info`)
+→ errors/warnings: 0    (baseline: 0 — no new warnings)
 ```
 
-Full-project `dart analyze`: **112 `info` lints, 0 errors / 0 warnings** —
-identical to the pre-change baseline (112).
+The whole-repo count is byte-identical to the pre-change baseline (112 info
+lints, 0 errors, 0 warnings).
 
 ## 2. The bug suite (REAL runs in this session)
 
 ```
-dart test test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart
-→ 00:00 +16: All tests passed!          (fast tier)
-
-dart test --preset=all test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart
-→ 00:14 +17: All tests passed!          (incl. the slow pair-compile pin)
+dart test test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart
+→ 00:08 +6: All tests passed!
 ```
 
-REQUIRED check — the acceptance capture is the void-safe, argument-free form
-`gen` can actually build: PROVED by A-1512-a1/a2/a3 (undeclared row; scalar
-shape injected; entity shape injected — no threaded args, no returned result)
-and A-1512-a4 (the paired subject `SubjectWriter` emits is the parameterless
-`void subject_a1()` runner the call is arity-compatible with).
+REQUIRED checks — the issue's two expected behaviors are PROVED by real
+runs, not inspection:
 
-REQUIRED check — the acceptance fallback is not misclassified as the traced
-hand-delta seam: PROVED by A-1512-b1 (`acceptanceFallbackGuardToken` present,
-`contentCarriesVacuousGuardMarker` false, `contentIsVacuousGreen` still true)
-and b2.
+- **Continue past blocked (A-1544-a1)**: with `contract:A1` scripted
+  `verify-red -> blocked` and `contract:A2`/`contract:A3` defaulting green,
+  the single `tdd run` spawn log contains
+  `verify-red contract:A1 → gen contract:A2 → verify-red contract:A2 →
+  make contract:A2 → gen contract:A3` IN ORDER, never `make contract:A1`,
+  and the summary line reads
+  `run: feature=004-login-ui result=blocked pending=0 red=0 green=0 done=2 blocked=1 stopped_at=contract:A1:verify-red`
+  with exit code 1. Persisted state: A1 `blocked`, A2/A3 `done`.
+- **Resume skip with receipt (A-1544-a2)**: run 2 (same fixture, seeded
+  `contract-blocked.A1.json` with `blocked_at = now-1h`, seam file and
+  test-list mtimes `now-2h`) prints
+  `[run] contract:A1 verify-red -> skipped (still blocked since 2026-09-13T…)`,
+  spawns NO step for A1, stops `result=blocked blocked=1`, and leaves the
+  state honestly blocked.
+- **Fail-open (A-1544-a3/a4/a5)**: seam file newer than the verdict, lib/
+  source newer than the verdict, and a missing receipt each re-drive
+  `verify-red contract:A1` (the unblock path preserved).
+- **Non-blocked resume guard (A-1544-b1)**: with U1 seeded red and A1
+  blocked-unchanged, the resume spawns `make U1` AND prints the A1 skip
+  receipt — both resume windows work in one run.
 
-REQUIRED check — the planner returns a real make surface for acceptance rows
-and an incidental capitalised word cannot fabricate an entity: PROVED by
-A-1512-c1..c8 (compose lane; `the User signs in.` composes; explicit
-`entity <Name>`/`create <Name>`/`target` route to the entity pipeline; the
-honest #758 refusal stays; non-acceptance rows keep the generic misfire).
+## 3. RED evidence (pre-fix)
 
-REQUIRED check — the unit lane is unchanged: PROVED by A-1512-d1/d2 plus the
-pre-existing `behavior_test_writer_test.dart`, `subject_writer_test.dart`,
-`issue_1308_vacuous_guard_remedy_test.dart`, `bug_1259_vacuous_green_test.dart`
-and `bug_912_literal_safety_test.dart` pins — all green in the sweep below.
+The same suite against the unmodified driver failed 3/6:
 
-REQUIRED check — the emitted pair compiles: PROVED by A-1512-e1 (slow): the
-emitted test + paired subject are written to a temp package with a `test`
-dependency and run through `dart test`; the run must fail through an
-assertion (`Expected:`/`Actual:`), never a compile-time error.
+```
+A-1544-a1  [E]  Expected: contains 'gen contract:A2' (in order after verify-red contract:A1)
+                Actual: run stopped at contract:A1 — stepInvocations ended at
+                [gen contract:A1, verify-red contract:A1]
+A-1544-a2  [E]  Expected: contains 'contract:A1 verify-red -> skipped (still blocked since'
+                Actual: '[run] contract:A1 verify-red -> blocked' — re-attempted
+A-1544-b1  [E]  same skip-receipt absence
+```
 
-## 3. Regression sweep (REAL runs in this session)
+— exactly the reported symptoms (A2 unreachable; resume re-attempting A1).
 
-| Chunk | Result |
-| ----- | ------ |
-| `test/plugins/tdd/services/` | `04:18 +870 ~1: All tests passed!` |
-| `test/plugins/tdd/commands/` | `+503 -4` — every non-green entry is environmental and **reproduced on a pristine `b5abf380` worktree or passes with a relaxed ceiling** (see §4) |
-| `test/plugins/tdd/*_test.dart` (root suites) | `+458 -2` — both non-green entries reproduce on the pristine `b5abf380` worktree (see §4) |
-| `test/cli/`, `test/commands/` | not re-run this round: the change is confined to the TDD acceptance lane, and every suite in this repo that pins the planner or the writers lives in `test/plugins/tdd/services/` (full green) |
+## 4. Regression sweep (chunked, real runs)
 
-## 4. The non-green entries — all proved to pre-date this change
+```
+dart test test/plugins/tdd/commands
+→ 03:38 +539: All tests passed!
 
-`test/plugins/tdd/commands`:
+dart test test/plugins/tdd/services
+→ 02:04 +935: All tests passed!
 
-1. `view_command_test.dart` U-V3 "a missing subject file is a hard
-   runner-error" — **pre-existing**: the same failure reproduces on a pristine
-   `b5abf380` worktree (`Expected: contains 'missing subject file'` vs. the
-   actual "registry record … points outside the project root" message). The
-   view lane and its registry-path resolution are untouched by this PR.
-2. `bug_1320_declared_assertion_reachable_test.dart` U7 — `TimeoutException
-   after 0:01:00` (the 2x default ceiling) under concurrent load; the file
-   passes cleanly in isolation with a relaxed ceiling: `+8: All tests
-   passed!`.
-3. `bug_1372_certified_red_scan_test.dart` B1 and B2 — same 60 s host
-   timeouts; the file passes cleanly in isolation with a relaxed ceiling:
-   `+3: All tests passed!`.
+dart test test/plugins/tdd/*.dart            (halves)
+→ +186: All tests passed!
+→ +333: All tests passed!
+```
 
-`test/plugins/tdd` (root suites):
+Targeted neighbor pin (the pre-#1544 contracts that must survive):
 
-4. `wire_command_test.dart` U-W3 "a missing subject file is a hard
-   runner-error naming the gen remediation" — **pre-existing**: reproduces on
-   the pristine `b5abf380` worktree (`1 [E]`, same "registry record … points
-   outside the project root" vs. "missing subject file" mismatch).
-5. `bug_993_plan_entity_export_clash_test.dart` "end-to-end … (subprocess)" —
-   **pre-existing host slowness**: the same 60 s `TimeoutException` reproduces
-   on the pristine `b5abf380` worktree.
+```
+dart test contract_kind_1007_test.dart run_engine_command_test.dart \
+         run_skin_command_test.dart run_command_bug_1471_test.dart \
+         bug_1271_widget_lane_engine_deferral_test.dart \
+         bug_1373_scaffolded_hand_off_driver_test.dart \
+         bug_1411_born_green_hand_transition_test.dart
+→ +51: All tests passed!
+```
 
-No assertion-level failure was introduced by the change.
+The #1007 single-row pin still holds verbatim: one blocked contract stops
+with `result=blocked`, `blocked=1`, `stopped_at=contract:A1:verify-red`,
+exit 1, step log exactly `[gen contract:A1, verify-red contract:A1]` — for a
+single-row list the end-of-pass terminal is indistinguishable from the old
+mid-loop stop.
 
-## 5. Environment notes (honest recording)
+## 5. Host/environment caveats
 
-- This host ran several concurrent heavy `dart test` sweeps (other agents in
-  `/tmp/fix-pr-1523` and elsewhere) throughout; the default 60 s per-test
-  ceiling was exceeded by subprocess-spawning tests. Each such entry was
-  either proved on a pristine worktree or re-run green with a relaxed
-  ceiling, and is recorded rather than silently re-run away.
-- Pre-existing macOS-only failures on this host: `view_command_test U-V3` and
-  `wire_command_test U-W3` (both the same registry-record/temp-path
-  resolution mismatch — `lib/<id>_subject.dart` judged "outside the project
-  root" when `Directory.systemTemp` is `/var/folders/…`), plus one slow
-  subprocess suite (`bug_993`).
-
+- `/tmp` filled once during the first full-tree sweep (`No space left on
+  device` while copying kernel dills — 123 LOAD errors, zero assertion
+  failures). After housekeeping the previously-unloaded files were re-run
+  clean (49/49). Keep `/tmp` swept when running the full tdd tree on a
+  10 GB-disk agent.
+- The container has no Flutter SDK; the `example/` package does not resolve
+  (`flutter pub` required). Unrelated to this fix — no touched code path
+  imports Flutter.
+- `dart format` was applied to the two changed files only (formatting the
+  whole repo is out of scope and would pollute the diff).
