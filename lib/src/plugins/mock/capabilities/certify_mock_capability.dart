@@ -22,6 +22,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
+import '../certification/mock_certification_sandbox.dart';
 import '../certification/mock_certifier.dart';
 import '../mock_plugin.dart';
 import '../../../core/plugin_system/capability.dart';
@@ -121,8 +122,28 @@ class CertifyMockCapability implements ZuraffaCapability {
         : ProjectRoot.find(anchorDir: 'specs');
 
     // 1. Live re-proof: extract the contract, render the test, run the
-    //    sandbox, build the receipt.
-    final certifier = MockCertifier();
+    //    sandbox, build the receipt. Issue #1600: the certifier is shaped
+    //    by the HOST (a Flutter project's contract test imports the
+    //    Flutter test framework and is proven with the Flutter toolchain).
+    final certifier = MockCertifier.forProject(projectRoot);
+
+    // Issue #1600: a Flutter-shaped proof without the Flutter toolchain is
+    // an unresolvable environment — not a red contract (the spec-1110
+    // precedent). The un-certified state stays loud: no receipt is
+    // written, so the engine cert-gate refuses the entity downstream.
+    if (certifier.sandbox.flutterTest &&
+        !MockCertificationSandbox.flutterOnPath()) {
+      stderr.writeln(
+        'zfa mock certify: the Flutter-shaped contract test cannot be '
+        'certified — no flutter executable on PATH. No '
+        'mock-cert.$name.json receipt written; the mock stays uncertified.',
+      );
+      stderr.writeln(
+        '--> fix: install the Flutter SDK (or run on a machine that has '
+        'it), then re-run `zfa mock certify $name`.',
+      );
+      return 0;
+    }
     final outcome = await certifier.certify(
       entityName: name,
       projectRoot: projectRoot,

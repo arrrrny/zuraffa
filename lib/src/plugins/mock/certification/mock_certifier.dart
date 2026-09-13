@@ -16,6 +16,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../../core/dependencies/dependency_wirer.dart';
 import '../../../utils/string_utils.dart';
 import 'mock_cert_receipt.dart';
 import 'mock_certification_sandbox.dart';
@@ -51,6 +52,32 @@ class MockCertifier {
     MockCertificationSandbox? sandbox,
   }) : contractWriter = contractWriter ?? const MockContractTestWriter(),
        sandbox = sandbox ?? MockCertificationSandbox();
+
+  /// The certifier shaped for the host project at [projectRoot]
+  /// (issue #1600): the pubspec's Flutter dependency decides the test
+  /// framework the committed contract test imports and the toolchain the
+  /// sandbox proves it with. An unreadable or absent pubspec is NOT a
+  /// Flutter host — the pure-Dart default applies.
+  factory MockCertifier.forProject(
+    String projectRoot, {
+    MockCertificationSandbox? sandbox,
+  }) {
+    var flutterTest = false;
+    final pubspec = File(p.join(projectRoot, 'pubspec.yaml'));
+    if (pubspec.existsSync()) {
+      try {
+        flutterTest = DependencyWirer.isFlutterProject(
+          pubspec.readAsStringSync(),
+        );
+      } catch (_) {
+        flutterTest = false;
+      }
+    }
+    return MockCertifier(
+      contractWriter: MockContractTestWriter(flutterTest: flutterTest),
+      sandbox: sandbox ?? MockCertificationSandbox(flutterTest: flutterTest),
+    );
+  }
 
   final MockContractTestWriter contractWriter;
   final MockCertificationSandbox sandbox;
