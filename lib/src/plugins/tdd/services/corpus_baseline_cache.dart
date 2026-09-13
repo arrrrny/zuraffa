@@ -38,6 +38,8 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
+import '../../../core/project/project_paths.dart';
+
 import 'suite_guard.dart';
 
 class CorpusBaselineCache {
@@ -187,14 +189,25 @@ class CorpusBaselineCache {
 
   /// Contribute a deterministic CONTENT digest of [dir]'s regular files
   /// to [builder] (issue #1505). Sorted project-relative POSIX paths +
-  /// length-prefixed content bytes make the digest filesystem-order- and
-  /// platform-independent; absent and empty-but-present directories get
-  /// distinct markers. Only CONTENT is hashed — a pure mtime touch never
-  /// flips the digest. Symlinks are skipped (no cycles, no platform
-  /// drift). An unreadable file contributes its path with an
-  /// `unreadable` marker instead of failing the whole fingerprint (the
-  /// #741 fail-safe stance: the worst case is a rare extra miss, never
-  /// a crash and never a wrong hit).
+  /// length-prefixed per-file `sha256(content)` make the digest
+  /// filesystem-order- and platform-independent while bounding peak
+  /// memory to the largest single file instead of the whole tree: the
+  /// tree payload is never accumulated (review F4 — a large binary
+  /// fixture can no longer grow the buffer without bound). Only CONTENT
+  /// is hashed — a pure mtime touch never flips the digest. Symlinks are
+  /// skipped (no cycles, no platform drift). An unreadable file
+  /// contributes its path with an `unreadable` marker instead of failing
+  /// the whole fingerprint (the #741 fail-safe stance: the worst case is
+  /// a rare extra miss, never a crash and never a wrong hit).
+  ///
+  /// An ABSENT directory and an EMPTY one hash identically: neither
+  /// carries content. That matters because a tool can materialise an
+  /// empty directory mid-lane — `ProjectContextStore.save()` creates the
+  /// empty `.zfa/manifests/` at the tail of every `zfa make` — and a
+  /// present-but-empty marker would flip the key for zero content change
+  /// (review F1/F3; the same absent≡empty reasoning the `.zfa` state
+  /// digest already applies one level up). A real content change — a
+  /// file added, edited, or deleted — still flips it.
   Future<void> _addTreeDigest(
     BytesBuilder builder,
     Directory dir, {
@@ -224,7 +237,8 @@ class CorpusBaselineCache {
       return;
     }
     if (entries.isEmpty) {
-      builder.add(utf8.encode(':empty\n'));
+      // An empty directory is an absent one: zero content either way.
+      builder.add(utf8.encode(':absent\n'));
       return;
     }
     entries.sort((a, b) => a.relPath.compareTo(b.relPath));
@@ -233,7 +247,10 @@ class CorpusBaselineCache {
       try {
         final bytes = await entry.file.readAsBytes();
         builder.add(_lengthPrefix(bytes.length));
-        builder.add(bytes);
+        // Digest the file into the hash instead of buffering it whole:
+        // still content-based and mtime-blind, but the tree payload
+        // never accumulates (review F4).
+        builder.add(crypto.sha256.convert(bytes).bytes);
       } catch (_) {
         builder.add(utf8.encode('unreadable\n'));
       }
@@ -250,58 +267,68 @@ class CorpusBaselineCache {
   /// are mutated by every normal run; keying them would flip the
   /// fingerprint between features and force a live suite re-run each
   /// time, destroying the spec 069 economics (SC-3).
+  ///
+  /// The `.zfa/` layout comes from [ProjectPaths] rather than being
+  /// re-derived here (review F5): one source of truth for the directory
+  /// shape. Note `.zfa/AGENT_CONTRACT.md` has no writer anywhere in the
+  /// repo today (only the [ProjectPaths] declaration and a spec-007
+  /// aspiration) — keying it is inert but forward-looking, and a real
+  /// change to it still invalidates.
   Future<void> _addZfaStateDigest(
     BytesBuilder builder,
     String projectRoot,
   ) async {
     builder.add(utf8.encode('\x00zfa-state'));
     // NOTE: there is deliberately NO `.zfa`-directory existence marker
-    // here. The cache write itself creates `.zfa/corpus/`, so an
-    // absent→present `.zfa/` flip happens between the very features the
-    // cache must serve — while carrying ZERO declared-state change. The
-    // state IS the sub-digests below: an existing-but-empty `.zfa/` and
-    // no `.zfa/` at all are the same effective state and must hash the
-    // same.
+    // here, and none on the sub-digests either. The cache write itself
+    // creates `.zfa/corpus/`, and `ProjectContextStore.save()` creates an
+    // empty `.zfa/manifests/` plus `.zfa/context.json` at the tail of
+    // every `zfa make` — absent→present transitions between the very
+    // features the cache must serve, while carrying ZERO declared-state
+    // change. Absent and empty therefore hash the same (review F1); the
+    // state IS the sub-digests' real content.
+    final paths = ProjectPaths(projectRoot);
     await _addTreeDigest(
       builder,
-      Directory(p.join(zfaDirPath(projectRoot), 'manifests')),
+      Directory(paths.manifestsDirectory),
       label: 'manifests',
     );
     await _addLooseFile(
       builder,
-      File(p.join(zfaDirPath(projectRoot), 'context.json')),
+      File(paths.contextFilePath),
       label: 'context.json',
     );
     await _addLooseFile(
       builder,
-      File(p.join(zfaDirPath(projectRoot), 'AGENT_CONTRACT.md')),
+      File(paths.agentContractFilePath),
       label: 'AGENT_CONTRACT.md',
     );
   }
 
-  /// The project's `.zfa/` directory path.
-  static String zfaDirPath(String projectRoot) => p.join(projectRoot, '.zfa');
-
-  /// Contribute a single run-stable file to [builder]: an explicit
-  /// present/absent marker plus length-prefixed content (or an
-  /// `unreadable` marker on a read failure — fail-safe, never fatal).
+  /// Contribute a single run-stable file to [builder]: length-prefixed
+  /// content when it carries any, NOTHING when it is absent or empty, or
+  /// an `unreadable` marker on a read failure (fail-safe, never fatal).
+  ///
+  /// Absent ≡ empty here for the same reason as in [_addTreeDigest]: a
+  /// tool-written file (`.zfa/context.json`) that appears empty mid-lane
+  /// carries no state change and must not flip the key (review F1).
   Future<void> _addLooseFile(
     BytesBuilder builder,
     File file, {
     required String label,
   }) async {
-    builder.add(utf8.encode('\x00file:$label\n'));
-    if (!await file.exists()) {
-      builder.add(utf8.encode('absent\n'));
+    if (!await file.exists()) return;
+    Uint8List bytes;
+    try {
+      bytes = await file.readAsBytes();
+    } catch (_) {
+      builder.add(utf8.encode('\x00file:$label\nunreadable\n'));
       return;
     }
-    try {
-      final bytes = await file.readAsBytes();
-      builder.add(_lengthPrefix(bytes.length));
-      builder.add(bytes);
-    } catch (_) {
-      builder.add(utf8.encode('unreadable\n'));
-    }
+    if (bytes.isEmpty) return;
+    builder.add(utf8.encode('\x00file:$label\n'));
+    builder.add(_lengthPrefix(bytes.length));
+    builder.add(bytes);
   }
 
   /// An 8-byte big-endian content length: it removes any

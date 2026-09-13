@@ -117,6 +117,14 @@ match reuses the snapshot across features; the suite is not re-run).
 **Why this priority**: an always-miss cache would regress the corpus lane
 into one suite run per feature — the exact cost 069 T004 exists to remove.
 
+**Production caveat** (review F2): in a REAL corpus lane the TDD loop writes
+`lib/` (GREEN implementation) and `test/` (new tests) for every feature, so
+SC-1's inputs — and therefore the fingerprint — change after each feature
+and the cross-feature hit rate is ≈ 0. The reuse this story guarantees holds
+for a lane whose features do not change the hashed inputs. The economics
+guard's fixture writes no `lib/`/`test/` files, so it pins the mechanism,
+not the production hit rate.
+
 **Independent Test**: seed a cache keyed to F; touch file mtimes, run steps
 that mutate run-state/receipts/progress, add unrelated specs/ artifacts;
 the fingerprint must still be F and `read()` must hit.
@@ -141,6 +149,9 @@ the fingerprint must still be F and `read()` must hit.
 3. SC-3: `dependencyFingerprint()` output is UNCHANGED by run-mutated state
    (`.zfa/corpus/**`, `.zfa/runs/**`, `.zfa/receipts/**`, `.zfa/plans/**`,
    `.zfa/blueprints/**`, `.zfa/decisions/**`, `.zfa/provenance/**`, mtimes).
+   This is the *reuse-preserving* half only: it does not claim a production
+   hit rate, since a feature that generates `lib/`/`test/` code legitimately
+   flips SC-1's inputs and misses (see the US-4 production caveat).
 4. SC-4: driver-level: after a test-file fix, the second `zfa tdd run`
    re-runs the live suite (no `corpus-wide reuse` line); with no relevant
    change, the second run still reports `corpus-wide reuse` and zero
@@ -167,6 +178,11 @@ the fingerprint must still be F and `read()` must hit.
 - The per-feature `RunBaselineCache` (#741) fingerprinting.
 - Fingerprinting `.specify/memory/tdd-profile.md` beyond the already-hashed
   suite template extraction.
+- Re-keying the corpus cache after a feature's GREEN phase (write the
+  snapshot under the fingerprint the NEXT feature will see) to restore the
+  cross-feature hit rate in real lanes — review F2's follow-up, with the
+  caveat that the captured failure set must still describe the tests the
+  next feature runs.
 - git HEAD sha + dirty-state hashing (rejected: the fixture-driven test
   suites run in temp dirs with no git repo; direct content hashing is
   deterministic and environment-independent).

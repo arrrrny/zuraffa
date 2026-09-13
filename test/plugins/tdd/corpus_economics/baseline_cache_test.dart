@@ -8,14 +8,20 @@
 //
 //   1. CorpusBaselineCache writes/reads a project-level baseline
 //      (`.zfa/corpus/run-baseline.json`) keyed by a dependency
-//      fingerprint (pubspec.yaml + pubspec.lock + the suite template).
+//      fingerprint (pubspec.yaml + pubspec.lock + the profile's suite
+//      template + the CONTENT of the `test/` and `lib/` trees + the
+//      run-stable `.zfa/` memory/manifest state — issues #741, #916,
+//      #1505).
 //   2. A fingerprint MATCH reuses the snapshot across features: the
 //      second feature's run driver materializes the feature-local
 //      run-baseline.json from the corpus cache and NEVER runs the
 //      suite (make steps still receive --suite-baseline).
-//   3. Invalidation is correct, never stale: a pubspec change flips
-//      the fingerprint, the read misses, and the live suite re-runs
-//      (issue #916: "correct invalidation on dependency changes").
+//   3. Invalidation is correct, never stale: a pubspec change, a
+//      test-file fix, a lib/ source edit, or a declared-state change
+//      flips the fingerprint, the read misses, and the live suite
+//      re-runs (issue #916: "correct invalidation on dependency
+//      changes"; issue #1505: "invalidate when anything that can change
+//      test outcomes changes").
 //   4. Corrupt/missing cache files fall back to the live suite (the
 //      #741 safe-failure stance, one level up).
 //
@@ -295,6 +301,61 @@ void main() {
       );
     });
 
+    test('T003b: .zfa/AGENT_CONTRACT.md participates in the fingerprint '
+        '(SC-2), while the tool-written absent→present transition of an '
+        'EMPTY .zfa state does NOT flip it (review F1)', () async {
+      final before = await fingerprint();
+
+      // `ProjectContextStore.save()` creates an empty `.zfa/manifests/`
+      // and writes `.zfa/context.json` at the tail of every `zfa make`
+      // (plugin_manager.dart). A fresh lane therefore sees this exact
+      // absent→present transition between two features.
+      await Directory(
+        p.join(fx.root.path, '.zfa', 'manifests'),
+      ).create(recursive: true);
+      await File(
+        p.join(fx.root.path, '.zfa', 'context.json'),
+      ).writeAsString('');
+      final afterToolWrite = await fingerprint();
+      expect(
+        afterToolWrite,
+        equals(before),
+        reason:
+            'an absent→present but EMPTY tool-written state carries zero '
+            'declared-state change and must not force a spurious miss',
+      );
+
+      // A real content change still flips it — the pin above is not
+      // vacuous (the file is keyed, it is only its emptiness that is
+      // ignored).
+      await File(
+        p.join(fx.root.path, '.zfa', 'AGENT_CONTRACT.md'),
+      ).writeAsString('# contract\n');
+      final afterContract = await fingerprint();
+      expect(
+        afterContract,
+        isNot(equals(afterToolWrite)),
+        reason: 'SC-2 names .zfa/AGENT_CONTRACT.md as declared state',
+      );
+    });
+
+    test('T007b: run-mutated .zfa/ dirs a normal run writes '
+        '(.zfa/provenance, .zfa/decisions, .zfa/blueprints) do NOT flip '
+        'the fingerprint (SC-3)', () async {
+      final before = await fingerprint();
+      for (final dirName in const ['provenance', 'decisions', 'blueprints']) {
+        final dir = Directory(p.join(fx.root.path, '.zfa', dirName));
+        await dir.create(recursive: true);
+        await File(p.join(dir.path, 'entry.json')).writeAsString('{}\n');
+      }
+      final after = await fingerprint();
+      expect(
+        after,
+        equals(before),
+        reason: 'SC-3: these dirs are run-mutated, not declared state',
+      );
+    });
+
     test('T006: mtime-only changes do NOT flip the fingerprint '
         '(content hashing — no false invalidation)', () async {
       final testDir = Directory(p.join(fx.root.path, 'test'));
@@ -313,6 +374,93 @@ void main() {
         equals(before),
         reason: 'metadata-only churn must not force a live suite re-run',
       );
+    });
+
+    test('T001b: DELETING a file under test/ flips the fingerprint '
+        '(US-1 names created, modified, and renamed/deleted)', () async {
+      final testDir = Directory(p.join(fx.root.path, 'test'));
+      await testDir.create(recursive: true);
+      final doomed = File(p.join(testDir.path, 'doomed_test.dart'));
+      await doomed.writeAsString('void main() {}\n');
+      final before = await fingerprint();
+
+      await doomed.delete();
+      final after = await fingerprint();
+
+      expect(
+        after,
+        isNot(equals(before)),
+        reason: 'a deletion changes the suite inputs exactly like an edit',
+      );
+    });
+
+    test(
+      'T011: an EMPTY test/ or lib/ directory hashes the same as an '
+      'absent one — no scaffold-time false invalidation (review F3)',
+      () async {
+        final before = await fingerprint();
+        await Directory(p.join(fx.root.path, 'test')).create(recursive: true);
+        await Directory(p.join(fx.root.path, 'lib')).create(recursive: true);
+        final after = await fingerprint();
+        expect(
+          after,
+          equals(before),
+          reason: 'an empty tree carries no content, like an absent one',
+        );
+      },
+    );
+
+    test('T009 fail-safe: a symlink under test/ is skipped — no crash, no '
+        'fingerprint contribution', () async {
+      final testDir = Directory(p.join(fx.root.path, 'test'));
+      await testDir.create(recursive: true);
+      final real = File(p.join(testDir.path, 'real_test.dart'));
+      await real.writeAsString('void main() {}\n');
+      final before = await fingerprint();
+
+      await Link(p.join(testDir.path, 'link_test.dart')).create(real.path);
+      final after = await fingerprint();
+
+      expect(
+        after,
+        equals(before),
+        reason: 'symlinks are skipped: no cycles, no platform drift',
+      );
+    });
+
+    test('T010 fail-safe: an unreadable file under test/ degrades to an '
+        '`unreadable` marker instead of failing the fingerprint', () async {
+      final testDir = Directory(p.join(fx.root.path, 'test'));
+      await testDir.create(recursive: true);
+      final secret = File(p.join(testDir.path, 'secret_test.dart'));
+      await secret.writeAsString('void main() {}\n');
+      final before = await fingerprint();
+
+      await Process.run('chmod', ['000', secret.path]);
+      try {
+        // root — and some CI images — can still read a 0o000 file; the
+        // fail-safe only has meaning where the read genuinely fails.
+        var unreadable = false;
+        try {
+          await secret.readAsBytes();
+        } on FileSystemException {
+          unreadable = true;
+        }
+        if (!unreadable) {
+          markTestSkipped('0o000 is still readable in this environment');
+          return;
+        }
+
+        final after = await fingerprint();
+        expect(
+          after,
+          isNot(equals(before)),
+          reason: 'the fail-safe marker replaces the unreadable content',
+        );
+        expect(after, isNotNull, reason: 'a read failure is never fatal');
+      } finally {
+        await Process.run('chmod', ['644', secret.path]);
+      }
     });
 
     test('T007: run-mutated .zfa/ state (progress, lock, receipts, runs, '
@@ -591,6 +739,15 @@ void main() {
         p.join(corpusDir.path, 'progress.json'),
       ).writeAsString('{"features": {}}\n');
       await File(p.join(corpusDir.path, 'run.lock')).writeAsString('1:2');
+      // A `zfa make` tail also creates an EMPTY `.zfa/manifests/` and
+      // writes `.zfa/context.json` (ProjectContextStore.save()) — the
+      // absent→present transition review F1 flagged. Reuse must survive.
+      await Directory(
+        p.join(fx.root.path, '.zfa', 'manifests'),
+      ).create(recursive: true);
+      await File(
+        p.join(fx.root.path, '.zfa', 'context.json'),
+      ).writeAsString('');
       pinned.setLastModifiedSync(
         DateTime.now().toUtc().add(const Duration(days: 2)),
       );

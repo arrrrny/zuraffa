@@ -83,3 +83,37 @@ is the invalidation the issue demands and is called out in plan.md's
 risk section. #1550's primary remedies (reset invalidation, compose
 premise check) remain out of scope here; the fingerprint half of #1550's
 suggestion (declared-state participation) is covered via SC-2.
+
+**Review F2 addendum**: this boundary is a *production* caveat, not a
+test-visible one. The economics guard and SC-3/US-4 read as "reuse
+preserved" because the fixture's fake step driver writes no `lib/`/`test/`
+files, so the guard is green by construction; in a real lane the
+per-feature GREEN implementation and new tests flip SC-1's inputs and the
+hit rate is ≈ 0. SC-3/US-4 therefore pin the *mechanism* (reuse survives
+run-mutated state), not the production hit rate. Recorded in spec.md's
+US-4 production caveat and SC-3 note.
+
+## 7. Review-fixes round (2026-09-13, pool task f84bad57)
+
+Findings F1–F6 from the automated review of `bb18331b` (the two
+behaviour-bearing files are byte-identical at `fb4e8c77`) were applied:
+
+- **F1** — `.zfa/manifests/` and `.zfa/context.json` are tool-written
+  (`ProjectContextStore.save()` at the tail of every `zfa make`); their
+  absent→present transition now hashes the same as absent. Pinned by
+  T003b (unit) and by the driver economics guard, which now creates an
+  empty `.zfa/manifests/` and an empty `.zfa/context.json` between the
+  two feature runs.
+- **F3** — the same absent≡empty collapse applied to the `test/`/`lib/`
+  tree markers; pinned by T011.
+- **F2** — production-hit-rate caveat recorded (this file §6 + spec.md
+  US-4/SC-3).
+- **F4** — tree files now contribute `sha256(content)` instead of raw
+  bytes, so peak memory is bounded by the largest single file; the tree
+  payload is never accumulated in the buffer.
+- **F5** — the `.zfa` layout is read from `ProjectPaths`; the local
+  `zfaDirPath` duplicate was removed.
+- **F6** — coverage pins added: `.zfa/AGENT_CONTRACT.md` (T003b),
+  `.zfa/provenance|decisions|blueprints` (T007b), a `test/` deletion
+  (T001b), symlink skip (T009), unreadable-file fail-safe (T010), and the
+  stale file header corrected.
