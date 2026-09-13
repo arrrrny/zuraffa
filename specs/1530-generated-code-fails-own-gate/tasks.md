@@ -6,6 +6,17 @@ Dependency-ordered, MVP-first. Every behavior task carries a
 `[behavior: <id>]` marker and is MANDATORY (never skippable) — the test
 must be written and certified red BEFORE its implementation task.
 
+## Traceability (spec Lanes → task behavior ids)
+
+- A1→A-1530-1 (US1-1, SC-001), A2→A-1530-2 (US1-2), A3→A-1530-3
+  (US1-3), A4→A-1530-2/`A-1530-2-guard` (US1-4/FR-010), A5→A-1530-5
+  (US2-1), A6→A-1530-6 (US2-2), A7→A-1530-7 (US2-3), A8→A-1530-8
+  (US2-4), A9→A-1530-9 (US2-5), A10→A-1530-11 (US3-1), A11→A-1530-12
+  (US3-3), A12→A-1530-13 (US3-2 guard). U1→T008's generated-output
+  probe (FR-004), U2→T015/T016 wiring (FR-007), U4→T005
+  (FR-010). Task ids carry the `A-1530-*`/`U-1530-*` prefixes; the
+  tdd test-list records the spec-id ↔ task-id mapping per row.
+
 ## Phase 1 — Foundational (barrel-surface verification vocabulary)
 
 - [ ] T001 Update `lib/src/utils/zuraffa_barrel_exports.dart` —

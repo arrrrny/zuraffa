@@ -190,12 +190,18 @@ summary.
 ```yaml
 Lanes:
   - lane: CORE
-    behaviors: [A1-A4, U1-U6]
+    behaviors: [A1-A12, U1-U4]
     flutter_allowed: false
 ```
 
-This feature is pure-Dart generator/CLI behavior (the dogfood app's gate
-is driven by the pure-Dart CLI); no widget surface is exercised.
+Behavior-id derivation: A1-A4 are US1's scenarios (hide verification),
+A5-A9 US2's (dependency ensure), A10-A12 US3's (receipt warnings); U1
+routes FR-001..FR-004 (hide emission), U2 routes FR-005..FR-007
+(dependency ensure), U3 routes FR-008 (receipt warnings), U4 routes
+FR-010 (compiling-output preservation). FR-009 is a constraint, not a
+behavior. This feature is pure-Dart generator/CLI behavior (the dogfood
+app's gate is driven by the pure-Dart CLI); no widget surface is
+exercised.
 
 ## Success Criteria *(mandatory)*
 
