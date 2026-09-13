@@ -68,6 +68,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/import_resolution.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -133,6 +134,21 @@ class MigratePathsCommand extends Command<void> {
     final dryRun = argResults?['dry-run'] as bool? ?? false;
     final featureFlag = argResults?['feature'] as String?;
     final projectFlag = argResults?['project'] as String?;
+    // Issue #1573: reject every unrecognized positional argument LOUDLY.
+    // This command declares only flags; the doctor's old prescription
+    // (`zfa tdd migrate-paths <feature>`) landed its slug in `rest`, was
+    // silently discarded, and the migration swept EVERY registry in the
+    // project — rewriting an unrelated feature's records. A positional
+    // argument is a usage error, never a silent no-op with sweeping side
+    // effects.
+    final rest = argResults?.rest ?? const <String>[];
+    if (rest.isNotEmpty) {
+      usageException(
+        'Unexpected positional argument "${rest.first}" — migrate-paths '
+        'takes the feature as a flag: '
+        'zfa tdd migrate-paths --feature <name>',
+      );
+    }
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.normalize(p.absolute(projectFlag))
         : ProjectRoot.find(anchorDir: 'specs');
@@ -592,9 +608,9 @@ class MigratePathsCommand extends Command<void> {
 
     if (!sawAnyRegistry) {
       print(
-        'zfa tdd migrate-paths: no feature registry found under '
-        '${_rel(cwd, p.join(cwd, 'specs'))} '
-        '(expected specs/<feature>/tdd/artifacts.json). Nothing to migrate.',
+        'zfa tdd migrate-paths: no feature registry found under specs/ or '
+        '.specify/bugs/ (expected specs/<feature>/tdd/artifacts.json or '
+        '.specify/bugs/<slug>/tdd/artifacts.json). Nothing to migrate.',
       );
     }
     final featureLabel = (featureFlag != null && featureFlag.isNotEmpty)
@@ -868,19 +884,52 @@ class MigratePathsCommand extends Command<void> {
     await tmp.rename(file.path);
   }
 
+  /// Issue #1573: the registry scan covers EVERY feature registry — the
+  /// bug extension's `.specify/bugs/<slug>/tdd/artifacts.json` stores
+  /// included — and a `--feature` reference routes through the same
+  /// resolver every TDD command uses ([TddFeaturePaths.resolveWithPin],
+  /// issue #1471), so the bug directory the doctor resolved its
+  /// prescription from is finally reachable (`specs/<name>` kept the bug
+  /// directories unreachable and the prescribed command reported
+  /// `migrated=0`).
   List<_RegistryEntry> _scanRegistries(String cwd, String? featureFlag) {
     if (featureFlag != null && featureFlag.isNotEmpty) {
-      final featureDir = p.join(cwd, 'specs', featureFlag);
-      return [_RegistryEntry(featureFlag, featureDir)];
+      final resolved = TddFeaturePaths.resolveWithPin(
+        projectRoot: cwd,
+        featureRef: featureFlag,
+      );
+      // A plain slug that names no specs/ feature but matches a
+      // `.specify/bugs/<slug>` directory still reaches the bug registry:
+      // doctor prescribes the bug slug for a bug feature it resolved by
+      // path (no active pin), and the prescribed command must run. The
+      // legacy specs/ directory keeps priority; non-plain references are
+      // already resolved above and never re-probed.
+      var featureDir = resolved.dir;
+      var featureName = resolved.name;
+      final isPlain =
+          !featureFlag.contains('/') && !featureFlag.contains(r'\');
+      if (isPlain && !Directory(featureDir).existsSync()) {
+        final bugDir = p.join(cwd, '.specify', 'bugs', featureFlag);
+        if (Directory(bugDir).existsSync()) {
+          featureDir = bugDir;
+          featureName = featureFlag;
+        }
+      }
+      return [_RegistryEntry(featureName, featureDir)];
     }
-    final specsDir = Directory(p.join(cwd, 'specs'));
-    if (!specsDir.existsSync()) return const [];
-    final dirs = specsDir.listSync().whereType<Directory>().toList()
-      ..sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
     final entries = <_RegistryEntry>[];
-    for (final dir in dirs) {
-      if (File(p.join(dir.path, 'tdd', 'artifacts.json')).existsSync()) {
-        entries.add(_RegistryEntry(p.basename(dir.path), dir.path));
+    for (final root in [
+      p.join(cwd, 'specs'),
+      p.join(cwd, '.specify', 'bugs'),
+    ]) {
+      final specsDir = Directory(root);
+      if (!specsDir.existsSync()) continue;
+      final dirs = specsDir.listSync().whereType<Directory>().toList()
+        ..sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
+      for (final dir in dirs) {
+        if (File(p.join(dir.path, 'tdd', 'artifacts.json')).existsSync()) {
+          entries.add(_RegistryEntry(p.basename(dir.path), dir.path));
+        }
       }
     }
     return entries;
