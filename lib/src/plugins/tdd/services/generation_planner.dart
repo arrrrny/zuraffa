@@ -119,6 +119,17 @@ class BehaviorSummary {
   /// instead of falling back (the declaration ladder's strict gate).
   final bool strictRouting;
 
+  /// Issue #1565: the subject artifact is already gen's CONTRACT-DERIVED
+  /// stub whose declared signature func's bounded rewrite set does not
+  /// cover — scheduling `tdd func` would refuse (exit 1) and dead-end the
+  /// make in a generation-error ON A SUBJECT THAT IS ALREADY WHAT THE
+  /// BEHAVIOR NEEDS. Make computes the fact from the subject's provenance
+  /// header (SubjectProvenance.funcWouldRefuseContractDerivedStub) BEFORE
+  /// planning; the func surface plan then emits only the terminal `build`
+  /// step. Scalar contract-derived subjects (func CAN rewrite them) and
+  /// every legacy subject keep the func step.
+  final bool skipFuncScaffold;
+
   const BehaviorSummary({
     required this.behaviorId,
     required this.feature,
@@ -131,6 +142,7 @@ class BehaviorSummary {
     this.traces = const [],
     this.declarations,
     this.strictRouting = false,
+    this.skipFuncScaffold = false,
   });
 
   /// Construct a summary from a registry record.
@@ -144,6 +156,7 @@ class BehaviorSummary {
     List<String> traces = const [],
     SpecDeclarations? declarations,
     bool strictRouting = false,
+    bool skipFuncScaffold = false,
   }) {
     return BehaviorSummary(
       behaviorId: record.behaviorId,
@@ -157,6 +170,7 @@ class BehaviorSummary {
       traces: traces,
       declarations: declarations,
       strictRouting: strictRouting,
+      skipFuncScaffold: skipFuncScaffold,
     );
   }
 }
@@ -853,31 +867,52 @@ class GenerationPlanner {
   /// generator surface). Shared by the unit-kind branch (bug #718) and
   /// the function-intent branch (bug #657); [verb] names the described
   /// function intent for the step purpose.
+  ///
+  /// Issue #1565: the func step is scheduled ONLY when the subject is one
+  /// func can rewrite. A gen CONTRACT-DERIVED stub whose declared
+  /// signature rides entity types (SPEC 1489 verbatim rendering) is
+  /// already the shape the behavior needs — func would refuse to rewrite
+  /// a file it did not generate in a shape it does not recognize (the
+  /// correct guard), so scheduling the step dead-ends the make in a
+  /// generation-error on a COMPLETE subject. Make computes that fact from
+  /// the subject's provenance header before planning
+  /// ([BehaviorSummary.skipFuncScaffold]); this plan then carries only
+  /// the terminal `build` step, which the contract-derived stub compiles
+  /// through. Legacy and scalar contract-derived subjects keep the step.
   GenerationPlan _functionSurfacePlan(BehaviorSummary summary, String verb) {
     return GenerationPlan(
       behaviorId: summary.behaviorId,
       feature: summary.feature,
       sourceCriterion: summary.sourceCriterion,
       steps: [
-        GenerationStepSpec(
-          // Bug #877: the spawn carries `--feature <summary.feature>` —
-          // a bare behavior id is ambiguous in multi-feature projects
-          // (U1 registered in both 001 and 004 exits 1) and make owns
-          // the disambiguated feature.
-          args: [
-            'tdd',
-            'func',
-            summary.behaviorId,
-            '--feature',
-            summary.feature,
-          ],
-          purpose:
-              'scaffold the $verb function for behavior '
-              '${summary.behaviorId} from its description',
-        ),
+        // Issue #1565: the skipped func step's work is already done — the
+        // subject IS the declared contract — so the plan emits only the
+        // terminal build step. The purpose names the issue for audit.
+        if (!summary.skipFuncScaffold)
+          GenerationStepSpec(
+            // Bug #877: the spawn carries `--feature <summary.feature>` —
+            // a bare behavior id is ambiguous in multi-feature projects
+            // (U1 registered in both 001 and 004 exits 1) and make owns
+            // the disambiguated feature.
+            args: [
+              'tdd',
+              'func',
+              summary.behaviorId,
+              '--feature',
+              summary.feature,
+            ],
+            purpose:
+                'scaffold the $verb function for behavior '
+                '${summary.behaviorId} from its description',
+          ),
         GenerationStepSpec(
           args: ['build'],
-          purpose: 'build generated code for behavior ${summary.behaviorId}',
+          purpose: summary.skipFuncScaffold
+              ? 'build generated code for behavior ${summary.behaviorId} '
+                    '(plan: func step skipped — the subject is already gen\'s '
+                    'contract-derived stub func would refuse to rewrite; '
+                    'issue #1565)'
+              : 'build generated code for behavior ${summary.behaviorId}',
         ),
       ],
     );
