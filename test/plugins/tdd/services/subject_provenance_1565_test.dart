@@ -190,4 +190,29 @@ User login(AuthRequest request) => throw UnimplementedError('x');
       );
     });
   });
+
+  group('hasUnimplementedThrow (the shared throw scan)', () {
+    test('U-1565-P8: an actual throw statement trips the scan; the stub '
+        'header doc comment mention does not', () {
+      expect(
+        SubjectProvenance.hasUnimplementedThrow(
+          "ScanSession subject_u1() => throw UnimplementedError('x');",
+        ),
+        isTrue,
+      );
+      expect(
+        SubjectProvenance.hasUnimplementedThrow(
+          "throw const UnimplementedError('x');",
+        ),
+        isTrue,
+      );
+      expect(
+        SubjectProvenance.hasUnimplementedThrow(
+          '/// Throws [UnimplementedError] until the real implementation '
+          'lands.\nScanSession subject_u1() => ScanSession();',
+        ),
+        isFalse,
+      );
+    });
+  });
 }

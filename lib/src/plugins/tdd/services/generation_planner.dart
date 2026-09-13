@@ -884,6 +884,7 @@ class GenerationPlanner {
       behaviorId: summary.behaviorId,
       feature: summary.feature,
       sourceCriterion: summary.sourceCriterion,
+      funcStepSkipped: summary.skipFuncScaffold,
       steps: [
         // Issue #1565: the skipped func step's work is already done — the
         // subject IS the declared contract — so the plan emits only the

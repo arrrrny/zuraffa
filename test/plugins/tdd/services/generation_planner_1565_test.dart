@@ -36,6 +36,11 @@ void main() {
         contains('#1565'),
         reason: 'the skip reason must name the issue for audit',
       );
+      expect(
+        plan.funcStepSkipped,
+        isTrue,
+        reason: 'the plan records the omission make\'s audit note keys on',
+      );
     });
 
     test('U-1565-8b: the unit-kind dispatch honors the skip too (U<n> id '
@@ -86,6 +91,35 @@ void main() {
 
       expect(plan.steps.first.args.first, 'tdd');
       expect(plan.steps.first.args[1], 'func');
+    });
+
+    test('U-1565-12: a traced-entity pipeline with the skip flag set still '
+        'reports funcStepSkipped=false — no func step was planned, so no '
+        'skip may be claimed for the audit note', () {
+      final plan = planner.plan(
+        BehaviorSummary(
+          behaviorId: 'U9',
+          feature: '1565-func-recognize-contract-derived-subject',
+          sourceCriterion: 'FR-1',
+          description: 'the scanner returns the active session',
+          entityTraced: 'ScanSession',
+          skipFuncScaffold: true,
+        ),
+      );
+
+      expect(plan.isExpressible, isTrue, reason: plan.toString());
+      expect(
+        plan.steps.where((s) => s.args.length >= 2 && s.args[1] == 'func'),
+        isEmpty,
+        reason: 'the entity pipeline never schedules tdd func',
+      );
+      expect(
+        plan.funcStepSkipped,
+        isFalse,
+        reason:
+            'the flag must report an omission the plan actually made — not '
+            'the summary-wide predicate',
+      );
     });
   });
 }

@@ -236,7 +236,9 @@ class FuncCommand extends Command<void> {
       // implementation, so a substring check refuses every already-done
       // subject and breaks deterministic replay of recorded `tdd func`
       // steps (exit 1 on a converged tree).
-      final hasUnimplementedThrow = _unimplementedThrow.hasMatch(raw);
+      final hasUnimplementedThrow = SubjectProvenance.hasUnimplementedThrow(
+        raw,
+      );
       if (hasUnimplementedThrow) {
         // Issue #1565: provenance-aware recognition. A gen CONTRACT-DERIVED
         // stub (both provenance markers + the declaration shape the #1259
@@ -386,16 +388,10 @@ class FuncCommand extends Command<void> {
   // Resolution + rendering helpers.
   // -------------------------------------------------------------------
 
-  // The stub declaration func rewrites is the shared
-  // SubjectProvenance.funcRewritableStubPattern (issue #1565) so make's
-  // plan decision consults the SAME pattern this command refuses on.
-
-  /// Spec 0806 FR-006: an actual throw statement — what the refusal keys
-  /// on. Distinguished from the stub header's doc comment, which merely
-  /// mentions `UnimplementedError` and survives implementation.
-  static final RegExp _unimplementedThrow = RegExp(
-    r'throw[ \t]+(?:const[ \t]+)?UnimplementedError\s*\(',
-  );
+  // The stub declaration func rewrites and the UnimplementedError throw
+  // scan the refusal keys on are the shared SubjectProvenance members
+  // (issue #1565) so make's plan decision consults the SAME patterns this
+  // command refuses on.
 
   // -------------------------------------------------------------------
   // Issue #1517: header/doc reconciliation for the scaffolded-dummy

@@ -101,6 +101,15 @@ class SubjectProvenance {
       source.contains(kGenProvenanceMarker) &&
       source.contains(kContractDerivedMarker);
 
+  /// Spec 0806 FR-006: whether [source] carries an ACTUAL
+  /// `throw UnimplementedError(...)` statement — the scan func's refusal
+  /// branch keys on. Exposed (issue #1565 review) so func's refusal
+  /// decision and make's plan-skip predicate consult ONE copy of the
+  /// scan: the stub header's doc comment merely MENTIONS
+  /// `UnimplementedError` and must never trip it.
+  static bool hasUnimplementedThrow(String source) =>
+      _unimplementedThrow.hasMatch(source);
+
   /// Whether func would REFUSE the subject this file carries — the exact
   /// #1565 deadlock class, and the predicate make's plan consults before
   /// scheduling the func step (issue #1565 FR-1.4):
@@ -115,6 +124,6 @@ class SubjectProvenance {
   /// the refusal guard stays honest for files gen did not write.
   static bool funcWouldRefuseContractDerivedStub(String source) =>
       isContractDerivedGenStub(source) &&
-      _unimplementedThrow.hasMatch(source) &&
+      hasUnimplementedThrow(source) &&
       !funcRewritableStubPattern.hasMatch(source);
 }

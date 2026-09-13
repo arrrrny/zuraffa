@@ -14,6 +14,7 @@
 | U-1565-P5 | rewritability: entity-typed signatures (`ScanSession`, `User login(AuthRequest request)`, `List<Task>`, `Task?`) do NOT match the bounded pattern | SC-1 | GREEN |
 | U-1565-P6 | declaration: the broadened pattern recognizes every shape gen's contract-derived template emits | SC-1 | GREEN |
 | U-1565-P7 | refusal classification: `funcWouldRefuseContractDerivedStub` true only for provenance + throw + non-rewritable | SC-1, SC-3 | GREEN |
+| U-1565-P8 | provenance: the shared `hasUnimplementedThrow` scan (one copy for func's refusal and make's plan-skip) — actual throw true, header doc-comment mention false | SC-1 | GREEN |
 | U-1565-1 | func on an existing-entity contract-derived stub (`ScanSession subject_u1()`) → exit 0, outcome `contract-derived-noop`, subject byte-identical | SC-1 | GREEN |
 | U-1565-2 | func on a parametrized entity contract-derived stub (`User login(AuthRequest request)`) → exit 0, no-op, byte-identical | SC-1 | GREEN |
 | U-1565-3 | func on an entity-typed subject WITHOUT the contract-derived marker → refusal (exit 1, `unrecognized`) | SC-2 | GREEN |
@@ -21,10 +22,12 @@
 | U-1565-5 | func on an implemented contract-derived subject (no throw) → `already-implemented` untouched | SC-4 | GREEN |
 | U-1565-6 | func on a generic entity return (`List<Task> scanTasks()`) → no-op success | SC-1 | GREEN |
 | U-1565-7 | func on a legacy plain-function stub (`int subject_x() => throw ...`) → still `scaffolded` (the bounded path is untouched) | SC-4 | GREEN |
-| U-1565-8 | planner: `skipFuncScaffold: true` → plan carries only the terminal `build` step (expressible) | SC-3 | GREEN |
+| U-1565-8 | planner: `skipFuncScaffold: true` → plan carries only the terminal `build` step (expressible) and records `funcStepSkipped` | SC-3 | GREEN |
 | U-1565-9 | planner: default summary → func step kept (legacy + scalar contract-derived) | SC-4, SC-3 | GREEN |
 | U-1565-10 | make: contract-derived subject → recorded generation commands carry NO `tdd func`, subject byte-identical, no func refusal in output | SC-3 | GREEN |
 | U-1565-11 | make: scalar contract-derived subject → the func step REMAINS scheduled (declared-dummy path preserved) | SC-4, SC-3 | GREEN |
+| U-1565-12 | planner: traced-entity pipeline with the skip flag set → `funcStepSkipped` false (the audit note's gating fact — no func step was planned) | SC-3 | GREEN |
+| U-1565-13 | make: traced-entity pipeline + contract-derived subject → the "func step skipped" note stays silent (review fix: the note only reports an omission the plan made) | SC-3 | GREEN |
 
 ## Red evidence (recorded before implementation)
 

@@ -1341,11 +1341,11 @@ class MakeCommand extends Command<void> {
           workingDirectory: cwd,
         );
         print('   plan: ${effectivePlan.steps.length} step(s)');
-        if (summary.skipFuncScaffold) {
+        if (effectivePlan.funcStepSkipped) {
           print(
-            '   plan: func step skipped — the subject is already gen\'s '
+            '   plan: func step skipped — the subject is gen\'s '
             'contract-derived stub func would refuse to rewrite '
-            '(issue #1565); the declared signature stays as generated.',
+            '(issue #1565); the subject file is left untouched.',
           );
         }
       } else {
@@ -2868,6 +2868,7 @@ class MakeCommand extends Command<void> {
       sourceCriterion: plan.sourceCriterion,
       steps: kept,
       unexpressibleReason: plan.unexpressibleReason,
+      funcStepSkipped: plan.funcStepSkipped,
     );
   }
 

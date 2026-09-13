@@ -166,5 +166,54 @@ int subject_u2() => throw UnimplementedError('subject_u2 not implemented: count(
       );
       expect(out, isNot(contains('plan: func step skipped')));
     });
+
+    test('U-1565-13: a plan that never scheduled a func step (traced-entity '
+        'pipeline) does NOT print the skip note', () async {
+      const id = 'U1';
+      final subject = contractDerivedSubject(id);
+      await fx.seedCertifiedRed(
+        id: id,
+        description: 'the scanner returns the active ScanSession',
+        testContent: _redTest,
+        subjectContent: subject,
+      );
+      // The declared Key Entity traces U1 to the ENTITY pipeline (bug
+      // #829) — a plan with no func step at all — while the subject keeps
+      // the contract-derived provenance that sets skipFuncScaffold.
+      await File(fx.testListPath).parent.create(recursive: true);
+      await File(fx.testListPath).writeAsString('''
+# Test List: ${fx.featureName}
+
+## Key entities
+
+| entity | fields | purpose |
+| ------ | ------ | ------- |
+| ScanSession | id: String | the declared entity |
+''');
+      final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'make',
+        id,
+        '--project',
+        fx.root.path,
+        '--zfa-bin',
+        zfaBin,
+      ]);
+
+      final log = await File(fx.fakeZfaLogPath).readAsString();
+      // The traced-entity pipeline ran — and it carries no func step.
+      expect(log, contains('entity create'), reason: 'out: $out');
+      expect(log, isNot(contains('tdd func')), reason: 'out: $out');
+      // The skip note is gated on the plan actually omitting the step —
+      // this plan never scheduled one, so the note must stay silent.
+      expect(
+        out,
+        isNot(contains('plan: func step skipped')),
+        reason: 'out: $out',
+      );
+    });
   });
 }
