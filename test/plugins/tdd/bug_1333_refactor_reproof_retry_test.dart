@@ -83,7 +83,17 @@ exit 0
     File(
       p.join(fx.root.path, '.dart_tool', 'test', 'probe.kernel'),
     ).writeAsStringSync('stale kernel bytes');
-    tmpKernelMarker(unique).writeAsStringSync('stale tmp kernel bytes');
+    final marker = tmpKernelMarker(unique)
+      ..writeAsStringSync('stale tmp kernel bytes');
+    // Spec 1520: the janitor's age floor never sweeps a
+    // `$TMPDIR/dart_test.kernel.*` entry younger than ~1 hour (it may
+    // belong to a concurrent runner, or to a crashed run about to be
+    // re-read). The markers model HISTORICAL leaks, so their mtime is
+    // backdated past the floor — the same fixture discipline the #1507
+    // suite's backdated seeders use.
+    marker.setLastModifiedSync(
+      DateTime.now().subtract(const Duration(hours: 1, minutes: 1)),
+    );
   }
 
   Future<String> runRefactor() async {

@@ -210,6 +210,15 @@ String formatTddTimeout(Duration d) {
 /// the shell but not kernel-enforced there, so the bound is best-effort —
 /// the deadline and the classified-verdict contract still hold. Windows
 /// has no ulimit equivalent; [memoryLimitKb] is ignored there.
+///
+/// Spec 1520: [environment] overrides selected variables in the child's
+/// inherited environment (the map is MERGED with the parent environment —
+/// `Process.start(includeParentEnvironment: true)` semantics — not a
+/// replacement). The scratch-TMPDIR injection point: callers pass
+/// `ScratchTmpDir.childEnvironment` so every `dart test` child writes its
+/// per-process `dart_test.kernel.*` dir inside the run's own scratch
+/// instead of the shared user TMPDIR (issue #1520). Null (the default)
+/// preserves the pre-1520 inherit-`Platform.environment` behavior.
 Future<ProcessResult> runTimed(
   String executable,
   List<String> arguments, {
@@ -217,6 +226,7 @@ Future<ProcessResult> runTimed(
   bool runInShell = false,
   required Duration timeout,
   int? memoryLimitKb,
+  Map<String, String>? environment,
 }) async {
   // Bug #826: wrap the spawn under a kernel-enforced address-space
   // ceiling. Shell-wrapper mode requires direct execution (no shell of
@@ -238,6 +248,7 @@ Future<ProcessResult> runTimed(
     spawnArguments,
     workingDirectory: workingDirectory,
     runInShell: runInShell,
+    environment: environment,
   );
   final stdoutFuture = process.stdout.transform(systemEncoding.decoder).join();
   final stderrFuture = process.stderr.transform(systemEncoding.decoder).join();
