@@ -16,3 +16,15 @@
   behaviors (board + publish) evidenced in this log. The generator is frozen; failures
   against it are roadblocks, not fix prompts.
 - Derivation: LLM-guided fallback (repo not `.zfa.json`-wired), same as specs 1600/1601/1602.
+
+## Cycle C1 — RED baseline for the migration instance (B1–B4)
+
+- **RED**: `dart test test/package_sdk/plugin_html_to_markdown_ffi_instance_test.dart`
+  → `00:00 +0 -9: Some tests failed.` All 9 fail for the single honest reason:
+  `~/Developer/html_to_markdown_ffi/packages/` does not exist — the migration is
+  not delivered (B1a/B1b/B1c family assertions, B2a/B2b preserved-surface pins,
+  B3a/B3b/B3c domain pins, B4 host-proof existence). No assertion was relaxed;
+  the file pins the target state.
+- Native parity constants recorded from the clean pre-migration clone:
+  android 3×.so (2903004/4478336/4953808 B), ios 3×.a (32746784/32675128/32847136 B),
+  macos 2×.dylib (3895968/4136208 B) — baked into the B1c pins.
