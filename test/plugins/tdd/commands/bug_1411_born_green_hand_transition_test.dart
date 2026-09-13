@@ -316,26 +316,23 @@ void main() {
       },
     );
 
-    test(
-      'M-1542-2 (issue #1542): born-green with NO run-state.json still '
-      'certifies green and writes no state file (make never fabricates '
-      'a run)',
-      () async {
-        await fx.registerBehavior(
-          id: 'U1',
-          description: _description,
-          testContent: bornGreenTest(_description, attested: true),
-        );
-        await writeSubject('int u1_value() => 42;\n');
-        expect(File(fx.runStatePath).existsSync(), isFalse);
+    test('M-1542-2 (issue #1542): born-green with NO run-state.json still '
+        'certifies green and writes no state file (make never fabricates '
+        'a run)', () async {
+      await fx.registerBehavior(
+        id: 'U1',
+        description: _description,
+        testContent: bornGreenTest(_description, attested: true),
+      );
+      await writeSubject('int u1_value() => 42;\n');
+      expect(File(fx.runStatePath).existsSync(), isFalse);
 
-        final out = await drive(bornGreenArgs());
+      final out = await drive(bornGreenArgs());
 
-        expect(exitCode, 0, reason: out);
-        expect(out, contains('outcome=born-green'), reason: out);
-        expect(File(fx.runStatePath).existsSync(), isFalse, reason: out);
-      },
-    );
+      expect(exitCode, 0, reason: out);
+      expect(out, contains('outcome=born-green'), reason: out);
+      expect(File(fx.runStatePath).existsSync(), isFalse, reason: out);
+    });
 
     test(
       'M-1542-3 (issue #1542): born-green leaves a pending run-state '

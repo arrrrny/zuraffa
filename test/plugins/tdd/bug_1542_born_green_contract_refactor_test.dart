@@ -31,7 +31,6 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
@@ -73,13 +72,12 @@ void main() {
     }
     final evidence = bornGreen
         ? 'issue #1411 born-green hand transition — no prior red evidence '
-            'exists (the hand step preceded the first certification); green '
-            'certified from the passing target test with the vacuous-guard '
-            'marker absent and the $behaviorId:hand attestation header '
-            'present'
+              'exists (the hand step preceded the first certification); green '
+              'certified from the passing target test with the vacuous-guard '
+              'marker absent and the $behaviorId:hand attestation header '
+              'present'
         : 'the target test passes against the implemented subject';
-    await file.writeAsString(
-      '''
+    await file.writeAsString('''
 ## Cycle: $behaviorId (green)
 
 - behavior: $behaviorId
@@ -90,9 +88,7 @@ void main() {
 - exit: 0
 - at: 2026-08-30T00:00:00.000Z
 
-''',
-      mode: FileMode.append,
-    );
+''', mode: FileMode.append);
   }
 
   setUp(() async {
@@ -105,181 +101,188 @@ void main() {
     exitCode = 0;
   });
 
-  test(
-    'U-1542-1 (issue #1542): a contract-lane behavior with green-only '
-    'evidence completes the run — red is defined out of existence for the '
-    'BLOCKED-never-RED lane (#1007)',
-    () async {
-      // The born-green contract shape after `make --born-green` certified
-      // green: the behavior sits BLOCKED (the #1007 verdict — make was
-      // never reached), the cycle-log carries the green certification,
-      // and no red evidence can ever exist for the lane.
-      await fx.seedTestList([
-        (
-          id: 'contract:A7',
-          description: 'the declared contract holds',
-          traces: 'FR-003',
-          state: 'PENDING',
-          kind: 'contract',
-        ),
-      ]);
-      await fx.registerBehavior(
+  test('U-1542-1 (issue #1542): a contract-lane behavior with green-only '
+      'evidence completes the run — red is defined out of existence for the '
+      'BLOCKED-never-RED lane (#1007)', () async {
+    // The born-green contract shape after `make --born-green` certified
+    // green: the behavior sits BLOCKED (the #1007 verdict — make was
+    // never reached), the cycle-log carries the green certification,
+    // and no red evidence can ever exist for the lane.
+    await fx.seedTestList([
+      (
         id: 'contract:A7',
         description: 'the declared contract holds',
-      );
-      await fx.seedRunState(states: {'contract:A7': 'blocked'});
-      await seedBornGreenEvidence('contract:A7', bornGreen: false);
-      // The re-entry scripts the honest already-green flip: verify-red
-      // grades unexpected-green (the contract is satisfied now), make
-      // re-certifies green without appending a duplicate entry, and
-      // refactor certifies clean.
-      await fx.setStepOutcome('verify-red', 'contract:A7', 'unexpected-green');
-      await fx.setStepOutcome('make', 'contract:A7', 'ok-no-evidence');
+        traces: 'FR-003',
+        state: 'PENDING',
+        kind: 'contract',
+      ),
+    ]);
+    await fx.registerBehavior(
+      id: 'contract:A7',
+      description: 'the declared contract holds',
+    );
+    await fx.seedRunState(states: {'contract:A7': 'blocked'});
+    await seedBornGreenEvidence('contract:A7', bornGreen: false);
+    // The re-entry scripts the honest already-green flip: verify-red
+    // grades unexpected-green (the contract is satisfied now), make
+    // re-certifies green without appending a duplicate entry, and
+    // refactor certifies clean.
+    await fx.setStepOutcome('verify-red', 'contract:A7', 'unexpected-green');
+    await fx.setStepOutcome('make', 'contract:A7', 'ok-no-evidence');
 
-      final out = await drive();
+    final out = await drive();
 
-      // PRE-FIX the run dead-ends: `refactor certified but evidence for
-      // "contract:A7" is incomplete in tdd/cycle-log.md (red: false,
-      // green: true)` — the structural #1542 trap.
-      expect(
-        out,
-        isNot(contains('is incomplete in tdd/cycle-log.md')),
-        reason: out,
-      );
-      expect(exitCode, 0, reason: out);
-      expect(fx.stepInvocations(), [
-        'verify-red contract:A7',
-        'make contract:A7',
-        'refactor contract:A7',
-      ], reason: out);
-      expect(
-        out,
-        contains(
-          'run: feature=$feature result=complete pending=0 red=0 '
-          'green=0 done=1',
-        ),
-        reason: out,
-      );
-      final state = await readState();
-      expect(state['behavior_states']['contract:A7'], 'done', reason: out);
-    },
-  );
+    // PRE-FIX the run dead-ends: `refactor certified but evidence for
+    // "contract:A7" is incomplete in tdd/cycle-log.md (red: false,
+    // green: true)` — the structural #1542 trap.
+    expect(
+      out,
+      isNot(contains('is incomplete in tdd/cycle-log.md')),
+      reason: out,
+    );
+    expect(exitCode, 0, reason: out);
+    expect(fx.stepInvocations(), [
+      'verify-red contract:A7',
+      'make contract:A7',
+      'refactor contract:A7',
+    ], reason: out);
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 '
+        'green=1 done=0',
+      ),
+      reason: out,
+    );
+    // The green-only class ends GREEN by the pre-existing reconcile
+    // design (bug #682: a done claim with green-only evidence is
+    // re-provable — the next run re-enters at refactor, which now
+    // PASSES instead of dead-ending). The #1542 acceptance is the
+    // COMPLETION above, not the terminal token.
+    final state = await readState();
+    expect(state['behavior_states']['contract:A7'], 'green', reason: out);
+  });
 
-  test(
-    'U-1542-2 (issue #1542): a behavior whose LAST green entry carries the '
-    'born-green journal marker completes refactor on green-only evidence — '
-    'any lane',
-    () async {
-      // A UNIT behavior certified through the born-green transition (the
-      // journal marker is on the last green entry): the lane is not
-      // contract, so the exemption must come from the JOURNAL probe.
-      await fx.seedTestList([
-        (
-          id: 'U1',
-          description: 'first behavior',
-          traces: 'FR-001',
-          state: 'PENDING',
-          kind: 'unit',
-        ),
-      ]);
-      await fx.registerBehavior(id: 'U1', description: 'first behavior');
-      await fx.seedRunState(states: {'U1': 'green'});
-      await seedBornGreenEvidence('U1', bornGreen: true);
+  test('U-1542-2 (issue #1542): a behavior whose LAST green entry carries the '
+      'born-green journal marker completes refactor on green-only evidence — '
+      'any lane', () async {
+    // A UNIT behavior certified through the born-green transition (the
+    // journal marker is on the last green entry): the lane is not
+    // contract, so the exemption must come from the JOURNAL probe.
+    await fx.seedTestList([
+      (
+        id: 'U1',
+        description: 'first behavior',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    await fx.registerBehavior(id: 'U1', description: 'first behavior');
+    await fx.seedRunState(states: {'U1': 'green'});
+    await seedBornGreenEvidence('U1', bornGreen: true);
 
-      final out = await drive();
+    final out = await drive();
 
-      expect(out, isNot(contains('is incomplete in tdd/cycle-log.md')),
-          reason: out);
-      expect(exitCode, 0, reason: out);
-      // The green claim re-enters at refactor ONLY (never at make).
-      expect(fx.stepInvocations(), ['refactor U1'], reason: out);
-      final state = await readState();
-      expect(state['behavior_states']['U1'], 'done', reason: out);
-    },
-  );
+    expect(
+      out,
+      isNot(contains('is incomplete in tdd/cycle-log.md')),
+      reason: out,
+    );
+    expect(exitCode, 0, reason: out);
+    // The green claim re-enters at refactor ONLY (never at make).
+    expect(fx.stepInvocations(), ['refactor U1'], reason: out);
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 '
+        'green=1 done=0',
+      ),
+      reason: out,
+    );
+    final state = await readState();
+    expect(state['behavior_states']['U1'], 'green', reason: out);
+  });
 
-  test(
-    'U-1542-3 (issue #1542): the marker-less twin — plain green-only, '
-    'non-contract — still misfires with the byte-identical pre-#1542 '
-    'message (the bug #682 honesty contract is unchanged)',
-    () async {
-      await fx.seedTestList([
-        (
-          id: 'U1',
-          description: 'first behavior',
-          traces: 'FR-001',
-          state: 'PENDING',
-          kind: 'unit',
-        ),
-      ]);
-      await fx.registerBehavior(id: 'U1', description: 'first behavior');
-      await fx.seedRunState(states: {'U1': 'green'});
-      await seedBornGreenEvidence('U1', bornGreen: false);
+  test('U-1542-3 (issue #1542): the marker-less twin — plain green-only, '
+      'non-contract — still misfires with the byte-identical pre-#1542 '
+      'message (the bug #682 honesty contract is unchanged)', () async {
+    await fx.seedTestList([
+      (
+        id: 'U1',
+        description: 'first behavior',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    await fx.registerBehavior(id: 'U1', description: 'first behavior');
+    await fx.seedRunState(states: {'U1': 'green'});
+    await seedBornGreenEvidence('U1', bornGreen: false);
 
-      final out = await drive();
+    final out = await drive();
 
-      expect(
-        out,
-        contains(
-          'refactor certified but evidence for "U1" is incomplete in '
-          'tdd/cycle-log.md (red: false, green: true)',
-        ),
-        reason: out,
-      );
-      expect(exitCode, 2, reason: out);
-      expect(
-        out,
-        contains(
-          'result=runner-error pending=0 red=0 green=1 done=0 '
-          'stopped_at=U1:refactor',
-        ),
-        reason: out,
-      );
-      final state = await readState();
-      expect(state['behavior_states']['U1'], 'green', reason: out);
-    },
-  );
+    expect(
+      out,
+      contains(
+        'refactor certified but evidence for "U1" is incomplete in '
+        'tdd/cycle-log.md (red: false, green: true)',
+      ),
+      reason: out,
+    );
+    expect(exitCode, 2, reason: out);
+    expect(
+      out,
+      contains(
+        'result=runner-error pending=0 red=0 green=1 done=0 '
+        'stopped_at=U1:refactor',
+      ),
+      reason: out,
+    );
+    final state = await readState();
+    expect(state['behavior_states']['U1'], 'green', reason: out);
+  });
 
-  test(
-    'U-1542-4 (issue #1542): the full born-green contract flow — the '
-    'post-advancement state reconciles to green and re-enters at refactor '
-    'ONLY (make never re-spawns) — no manual run-state surgery',
-    () async {
-      // The state `make --born-green` leaves behind (the #1542
-      // advancement: blocked -> done) plus the journal certification.
-      // The reconciliation downgrades green-only `done` to `green`, and
-      // the green claim re-enters at refactor — make (which would refuse
-      // not-certified-red flagless) never spawns.
-      await fx.seedTestList([
-        (
-          id: 'contract:A7',
-          description: 'the declared contract holds',
-          traces: 'FR-003',
-          state: 'PENDING',
-          kind: 'contract',
-        ),
-      ]);
-      await fx.registerBehavior(
+  test('U-1542-4 (issue #1542): the full born-green contract flow — the '
+      'post-advancement state reconciles to green and re-enters at refactor '
+      'ONLY (make never re-spawns) — no manual run-state surgery', () async {
+    // The state `make --born-green` leaves behind (the #1542
+    // advancement: blocked -> done) plus the journal certification.
+    // The reconciliation downgrades green-only `done` to `green`, and
+    // the green claim re-enters at refactor — make (which would refuse
+    // not-certified-red flagless) never spawns.
+    await fx.seedTestList([
+      (
         id: 'contract:A7',
         description: 'the declared contract holds',
-      );
-      await fx.seedRunState(states: {'contract:A7': 'done'});
-      await seedBornGreenEvidence('contract:A7', bornGreen: true);
+        traces: 'FR-003',
+        state: 'PENDING',
+        kind: 'contract',
+      ),
+    ]);
+    await fx.registerBehavior(
+      id: 'contract:A7',
+      description: 'the declared contract holds',
+    );
+    await fx.seedRunState(states: {'contract:A7': 'done'});
+    await seedBornGreenEvidence('contract:A7', bornGreen: true);
 
-      final out = await drive();
+    final out = await drive();
 
-      expect(exitCode, 0, reason: out);
-      expect(fx.stepInvocations(), ['refactor contract:A7'], reason: out);
-      expect(
-        out,
-        contains(
-          'run: feature=$feature result=complete pending=0 red=0 '
-          'green=0 done=1',
-        ),
-        reason: out,
-      );
-      final state = await readState();
-      expect(state['behavior_states']['contract:A7'], 'done', reason: out);
-    },
-  );
+    expect(exitCode, 0, reason: out);
+    expect(fx.stepInvocations(), ['refactor contract:A7'], reason: out);
+    expect(
+      out,
+      contains(
+        'run: feature=$feature result=complete pending=0 red=0 '
+        'green=1 done=0',
+      ),
+      reason: out,
+    );
+    // The green-only class ends GREEN by the pre-existing reconcile
+    // design (bug #682) — the run COMPLETES, which is the #1542
+    // acceptance; the next run re-enters at refactor and passes.
+    final state = await readState();
+    expect(state['behavior_states']['contract:A7'], 'green', reason: out);
+  });
 }

@@ -2058,8 +2058,15 @@ class RunDriverCore {
       }
 
       // Evidence check before advancing: a certified step that did not
-      // write its evidence is a misfire (FR-003, FR-011).
-      final misfire = await _evidenceMisfire(evidence, step, row.id);
+      // write its evidence is a misfire (FR-003, FR-011). Issue #1542:
+      // the row's kind rides along — the contract lane's red evidence is
+      // defined out of existence by the #1007 BLOCKED verdict.
+      final misfire = await _evidenceMisfire(
+        evidence,
+        step,
+        row.id,
+        kind: row.kind,
+      );
       if (misfire != null) {
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
@@ -2393,8 +2400,9 @@ class RunDriverCore {
   Future<String?> _evidenceMisfire(
     CycleEvidence evidence,
     String step,
-    String behaviorId,
-  ) async {
+    String behaviorId, {
+    BehaviorKind? kind,
+  }) async {
     switch (step) {
       case 'verify-red':
         if (!await _hasEvidence(evidence.redEvidence, behaviorId)) {
@@ -2409,7 +2417,22 @@ class RunDriverCore {
       case 'refactor':
         final hasRed = await _hasEvidence(evidence.redEvidence, behaviorId);
         final hasGreen = await _hasEvidence(evidence.greenEvidence, behaviorId);
-        if (!hasRed || !hasGreen) {
+        // Issue #1542: red is defined out of existence for two classes —
+        // (a) the CONTRACT lane, whose verify-red verdict is BLOCKED,
+        // never a certified red (issue #1007); (b) the born-green hand
+        // transition, which certifies green WITHOUT a prior red (issue
+        // #1411) — the journal probe reads the LAST green entry's
+        // `- evidence:` marker, so the certification survives state
+        // resets. For both classes the GREEN half stays mandatory (a
+        // refactor with no green evidence at all still misfires), and
+        // every other class keeps the exact red→green→refactor triple
+        // (the bug #682 honesty contract).
+        final redDefinedOutOfExistence =
+            (hasGreen && kind == BehaviorKind.contract) ||
+            (hasGreen &&
+                !hasRed &&
+                await evidence.bornGreenCertified(behaviorId));
+        if ((!hasRed || !hasGreen) && !redDefinedOutOfExistence) {
           return 'refactor certified but evidence for "$behaviorId" is '
               'incomplete in tdd/cycle-log.md '
               '(red: $hasRed, green: $hasGreen)';
