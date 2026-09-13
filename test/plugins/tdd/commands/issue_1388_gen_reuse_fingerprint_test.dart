@@ -15,8 +15,10 @@
 // hand-delete + --adopt) are undocumented in gen's output.
 //
 // Fix under test: gen's reuse FINGERPRINT — sha256 over the resolved
-// lane-plan traces cell + the feature's spec.md — persisted per record
-// (`gen_fingerprint`), gating the reuse path: drift → forced
+// lane-plan traces cell + the spec's declared-routing surface (the Layer
+// Contracts section — never the whole `spec.md`, so a documentation-only
+// edit is not a routing change; issue #1388 review) — persisted per
+// record (`gen_fingerprint`), gating the reuse path: drift → forced
 // regeneration (stub pair; verdict=regenerated) or refusal naming
 // `zfa tdd reset <feature>` (progressed/ffi pair).
 //
@@ -41,6 +43,14 @@
 //   U6 — genuinely unchanged routing and LEGACY records (no stored
 //        fingerprint) keep byte-identical `reused` reuse — the gate
 //        never breaks FR-006 idempotency for the unchanged class.
+//   U7 — a documentation-only `spec.md` edit (reworded acceptance prose,
+//        an appended comment; no re-plan) is NOT a routing change:
+//        verdict=reused, the digest and the bytes do not move.
+//   U7b — that same prose edit on a PROGRESSED pair reuses (exit 0) —
+//        it never prescribes the destructive `zfa tdd reset`.
+//   U8 — a Layer Contracts declaration that resolves no routing leaves
+//        the render byte-identical and still forces the re-render
+//        (verdict=regenerated, digest refreshed, reuse resumes).
 library;
 
 import 'dart:convert';
@@ -119,6 +129,60 @@ const noSignatureTracedSpec = '''
 
 - **FR-001**: System MUST expose the response content type
             traces: RouteFlags
+
+## Acceptance Scenarios
+
+1. **Given** a response **When** the header is read **Then** the content type is exposed.
+''';
+
+/// Documentation-only edits to [selfTracedSpec]: the acceptance prose is
+/// reworded and a comment is appended. Nothing here declares routing, so
+/// the pair gen owns is not stale — the fingerprint must not move
+/// (issue #1388 review: hashing the whole `spec.md` made every prose edit
+/// read as a declared-routing change).
+const proseOnlyEditedSpec = '''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 1388-repro
+
+### Layer Contracts
+
+**Domain**:
+- `RouteContentType`: `contentType() -> String`
+
+## Functional Requirements
+
+- **FR-001**: System MUST expose the response content type
+            traces: FR-001
+
+## Acceptance Scenarios
+
+1. **Given** a response **When** the reader asks for the header **Then** the
+   content type is exposed.
+
+<!-- typo fix in prose, no routing change -->
+''';
+
+/// A declaration added to the Layer Contracts section that no behavior's
+/// traces cell resolves: the declared-routing SURFACE changed, but the
+/// resolved cell (and therefore the rendered pair) is byte-identical.
+/// Pins the forceRebuild leg — the drift is the routing's, not the
+/// render's (issue #1388 review).
+const routingSurfaceEditedSpec = '''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 1388-repro
+
+### Layer Contracts
+
+**Domain**:
+- `RouteContentType`: `contentType() -> String`
+- `UnrelatedShape`: `id() -> String`
+
+## Functional Requirements
+
+- **FR-001**: System MUST expose the response content type
+            traces: FR-001
 
 ## Acceptance Scenarios
 
@@ -493,6 +557,177 @@ void main() {
               'legacy records without gen_fingerprint keep reusing — the '
               'fingerprint arms going forward, it never retro-invalidates:\n'
               '$third',
+        );
+      });
+
+      test('U7: a documentation-only spec edit is not a routing change — '
+          'the pair is reused, the digest does not move', () async {
+        final seeded = await seedGuardOnlyPair(runner, fx, selfTracedSpec);
+
+        // Edit spec.md ONLY (no `tdd plan`): the acceptance prose is
+        // reworded and a comment is appended. Nothing here declares
+        // routing, so the pair gen owns is not stale.
+        await File(
+          p.join(fx.featureDir, 'spec.md'),
+        ).writeAsString(proseOnlyEditedSpec);
+
+        final second = await runner.runCapturing([
+          'tdd',
+          'gen',
+          'U1',
+          '--project',
+          fx.root.path,
+        ]);
+        expect(exitCode, 0, reason: 'a prose edit is not a failure: $second');
+        expect(
+          second,
+          contains('verdict=reused'),
+          reason:
+              'the spec component of the fingerprint is the declared-'
+              'routing surface (Layer Contracts) — prose that resolves no '
+              'routing must not read as a declared-routing change '
+              '(issue #1388 review):\n$second',
+        );
+        expect(
+          second,
+          isNot(contains('declared routing changed')),
+          reason: 'no false "declared routing changed" note:\n$second',
+        );
+        final after = await fx.registryRecordOf('U1');
+        expect(
+          after['gen_fingerprint'],
+          seeded.record['gen_fingerprint'],
+          reason: 'a documentation-only edit must not move the digest',
+        );
+        final testAfter = await File(
+          fixturePath(fx, after['test_path'] as String),
+        ).readAsString();
+        expect(
+          testAfter,
+          seeded.testContent,
+          reason: 'the reuse is byte-identical',
+        );
+      });
+
+      test('U7b: a prose-only spec edit on a PROGRESSED pair reuses — it '
+          'never prescribes the destructive `zfa tdd reset`', () async {
+        final seeded = await seedGuardOnlyPair(runner, fx, selfTracedSpec);
+
+        // The subject progressed past the stub stage — the shape where a
+        // fingerprint drift used to hard-fail with a remedy that deletes
+        // the implementation.
+        final subjectFile = File(
+          fixturePath(fx, seeded.record['subject_path'] as String),
+        );
+        final progressed = (await subjectFile.readAsString())
+            .replaceFirst(
+              RegExp(r'=> throw UnimplementedError\([^;]*\);'),
+              "=> 'text/event-stream';",
+            )
+            .replaceFirst(
+              '/// Throws [UnimplementedError] until the real implementation '
+                  "lands.\n",
+              '',
+            );
+        await subjectFile.writeAsString(progressed);
+
+        await File(
+          p.join(fx.featureDir, 'spec.md'),
+        ).writeAsString(proseOnlyEditedSpec);
+
+        final second = await runner.runCapturing([
+          'tdd',
+          'gen',
+          'U1',
+          '--project',
+          fx.root.path,
+        ]);
+        expect(
+          exitCode,
+          0,
+          reason:
+              'a prose edit must never fail a gen run, however the pair is '
+              'shaped (issue #1388 review):\n$second',
+        );
+        expect(
+          second,
+          contains('verdict=reused'),
+          reason: 'the pair is not stale — nothing it renders moved:\n$second',
+        );
+        expect(
+          second,
+          isNot(contains('--> fix: zfa tdd reset')),
+          reason:
+              'the destructive remedy is for a genuine declared-routing '
+              'change, never for a documentation edit:\n$second',
+        );
+        expect(
+          await subjectFile.readAsString(),
+          progressed,
+          reason: 'the progressed subject survives verbatim',
+        );
+      });
+
+      test('U8: a routing-surface declaration that leaves the render '
+          'byte-identical still forces the re-render (forceRebuild)', () async {
+        final seeded = await seedGuardOnlyPair(runner, fx, selfTracedSpec);
+
+        // Edit spec.md ONLY (no `tdd plan`): a Layer Contracts row is
+        // added that no behavior's traces cell resolves. The writers
+        // render from the resolved cell, so the pair's bytes stay
+        // identical — only the declared-routing surface moved. Without
+        // forceRebuild the byte-equality short-circuit would keep the
+        // stored pair and report `reused`.
+        await File(
+          p.join(fx.featureDir, 'spec.md'),
+        ).writeAsString(routingSurfaceEditedSpec);
+
+        final second = await runner.runCapturing([
+          'tdd',
+          'gen',
+          'U1',
+          '--project',
+          fx.root.path,
+        ]);
+        expect(exitCode, 0, reason: 'the re-render must succeed: $second');
+        expect(
+          second,
+          contains('verdict=regenerated'),
+          reason:
+              'the drift is the ROUTING\'s, not the render\'s — the '
+              'byte-equality short-circuit must not keep a pair that '
+              'predates a declared-routing-surface change:\n$second',
+        );
+        final after = await fx.registryRecordOf('U1');
+        final testAfter = await File(
+          fixturePath(fx, after['test_path'] as String),
+        ).readAsString();
+        expect(
+          testAfter,
+          seeded.testContent,
+          reason:
+              'the render is byte-identical — exactly the drift the '
+              'byte-compare cannot see',
+        );
+        expect(
+          after['gen_fingerprint'],
+          isNot(seeded.record['gen_fingerprint']),
+          reason:
+              'the drift is consumed once: the stored digest refreshes and '
+              'the next gen reuses again',
+        );
+
+        final third = await runner.runCapturing([
+          'tdd',
+          'gen',
+          'U1',
+          '--project',
+          fx.root.path,
+        ]);
+        expect(
+          third,
+          contains('verdict=reused'),
+          reason: 'stable reuse resumes after the refresh:\n$third',
         );
       });
     },

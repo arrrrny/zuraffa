@@ -996,7 +996,9 @@ class GenCommand extends Command<void> {
           );
 
     // Issue #1388: the gen reuse fingerprint — sha256 over the resolved
-    // lane-plan traces cell + the feature's spec.md. Every record gen
+    // lane-plan traces cell + the spec's declared-routing surface (its
+    // Layer Contracts section, never the whole `spec.md`: prose that
+    // declares no routing is not a routing change). Every record gen
     // writes arms it, so the NEXT gen can tell whether the declared
     // routing changed since the owned pair was generated. Without it the
     // reuse decision is blind to routing changes that do not alter the
@@ -1394,11 +1396,11 @@ class GenCommand extends Command<void> {
           final reason =
               'the owned pair for "$behaviorId" predates a '
               'declared-routing change (reuse fingerprint drifted: the '
-              'lane-plan traces cell or spec.md changed since '
-              'generation) and gen cannot auto-regenerate it — the '
-              'subject has progressed past the stub stage or the pair '
-              'is an ffi harness, and regenerating would clobber real '
-              'work (issue #1388)';
+              "lane-plan traces cell or the spec's Layer Contracts "
+              'routing surface changed since generation) and gen cannot '
+              'auto-regenerate it — the subject has progressed past the '
+              'stub stage or the pair is an ffi harness, and regenerating '
+              'would clobber real work (issue #1388)';
           print('zfa tdd gen: reuse refused — $reason.');
           print(
             '   --> fix: zfa tdd reset $featureName — drop the '
@@ -1410,6 +1412,9 @@ class GenCommand extends Command<void> {
             behaviorId: behavior.id,
             verdict: 'refused',
             reason: reason,
+            featureName: featureName,
+            featureDisplay: featureDisplay,
+            kind: effectiveBehavior.kind.name,
           );
           exitCode = 1;
           return 'refused';
@@ -1453,8 +1458,8 @@ class GenCommand extends Command<void> {
                   '— pair regenerated (issue #1320)'
             : staleness.fingerprintDrift
             ? 'note: declared routing changed since the owned pair was '
-                  'generated (traces cell or spec) — pair regenerated '
-                  '(issue #1388)'
+                  "generated (traces cell or the spec's Layer Contracts) "
+                  '— pair regenerated (issue #1388)'
             : 'note: binary updated, stub regenerated',
       );
     }
@@ -1912,12 +1917,13 @@ class GenCommand extends Command<void> {
     /// short-circuit must NOT keep the on-disk pair in that case: the
     /// pair is re-rendered and rewritten even when the current binary
     /// would produce identical bytes (the drift is the ROUTING's, not
-    /// the render's — a no-signature contract row changes nothing the
-    /// writers can see), so the verdict honestly reports
-    /// `regenerated` and the stored fingerprint refreshes. Every other
-    /// guard stays: ffi harnesses are never auto-regenerated, progressed
-    /// subjects are never clobbered, and a failed rewrite still rolls
-    /// back.
+    /// the render's — a no-signature contract row, or a declaration
+    /// added to the spec's Layer Contracts surface that no behavior's
+    /// traces cell resolves, changes nothing the writers can see), so
+    /// the verdict honestly reports `regenerated` and the stored
+    /// fingerprint refreshes. Every other guard stays: ffi harnesses are
+    /// never auto-regenerated, progressed subjects are never clobbered,
+    /// and a failed rewrite still rolls back.
     bool forceRebuild = false,
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract

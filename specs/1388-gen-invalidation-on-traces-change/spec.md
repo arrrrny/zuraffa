@@ -32,8 +32,8 @@ undocumented in gen's output.
 1. Gen's reuse decision gains a FINGERPRINT: sha256 over the resolved
    lane-plan traces cell (the row `TestListReader` resolves for the
    behavior — `04-ENGINE.md`/`04-SKIN.md` when the list is a lane
-   meta-index, else `tdd/test-list.md`) plus the feature's `spec.md`
-   content. Persisted per record as `gen_fingerprint`.
+   meta-index, else `tdd/test-list.md`) plus the spec's declared-routing
+   surface. Persisted per record as `gen_fingerprint`.
 2. Fingerprint drift on a reused pair is invalidated through the front
    door: gen regenerates the pair (`verdict=regenerated`) when the pair
    is still at the stub stage, and refreshes the stored fingerprint so
@@ -49,11 +49,23 @@ undocumented in gen's output.
 5. SCOPE HARD CONSTRAINT: only the gen REUSE decision changes. The
    writers (generation logic), plan routing, and the run state machine
    are untouched.
+6. The spec component of the fingerprint is the spec's DECLARED-ROUTING
+   SURFACE — its `### Layer Contracts` section (the declarations a
+   `traces:` cell resolves against, read by the same section walk as
+   `SpecParser.parseLayerContracts`) — never the whole file. Hashing the
+   whole `spec.md` made every documentation-only edit (a typo fix, a
+   comment, reworded acceptance prose) diverge the digest, so gen called
+   a prose edit "a declared-routing change" and, on a pair it cannot
+   regenerate, hard-failed with a remedy that deletes the
+   implementation (PR #1597 review).
 
 ## Functional requirements
 
 - **FR-1**: every gen-created or gen-regenerated record persists
-  `gen_fingerprint` = sha256(version ‖ traces cell ‖ spec.md content).
+  `gen_fingerprint` = sha256(version ‖ traces cell ‖ the spec's Layer
+  Contracts routing surface). A documentation-only `spec.md` edit —
+  prose, comments or acceptance wording OUTSIDE that section, with no
+  plan re-run — leaves the digest unchanged.
 - **FR-2**: a reused pair whose stored fingerprint differs from the
   current one is NOT reported `reused`: it is regenerated (stub-stage
   pair) or reuse is refused (progressed/ffi pair).
@@ -62,6 +74,10 @@ undocumented in gen's output.
 - **FR-4**: genuinely unchanged routing keeps `verdict=reused`
   byte-identical reuse (FR-006 idempotency preserved).
 - **FR-5**: legacy records without `gen_fingerprint` keep reusing.
+- **FR-6**: the refusal is reachable only for a declared-ROUTING change
+  (the traces cell or the Layer Contracts surface); a
+  documentation-only spec edit is never refused and never prescribes
+  `zfa tdd reset`.
 
 ## Acceptance scenarios
 
@@ -84,6 +100,16 @@ undocumented in gen's output.
 5. **Given** two consecutive gens with zero routing change **When**
    the second gen runs **Then** `verdict=reused` and the pair is
    byte-identical.
+6. **Given** a pair whose `spec.md` is edited in prose only (acceptance
+   wording reworded, a comment appended; no plan re-run) **When** gen
+   runs **Then** `verdict=reused`, the pair and the stored digest are
+   byte-identical, and a PROGRESSED pair takes the same path — exit 0,
+   never `zfa tdd reset`.
+7. **Given** a declaration added to the Layer Contracts section that no
+   behavior's traces cell resolves (no plan re-run) **When** gen runs
+   **Then** `verdict=regenerated` even though the rendered bytes are
+   identical — the drift is the routing's, not the render's (the
+   `forceRebuild` leg) — and the following gen is `reused` again.
 
 ## Success criteria
 
@@ -95,9 +121,11 @@ undocumented in gen's output.
 
 ## Assumptions
 
-- The spec hash covers `spec.md` only (the file the #1388 migration
-  edits and the primary declared-row source); `contracts/*.md`
-  (#1485) edits ride the traces cell when plan re-renders it.
+- The spec hash covers the Layer Contracts section only (the primary
+  declared-routing source a `traces:` cell resolves against); a
+  `traces:` edit reaches gen through the re-planned cell — the traces
+  component — while `contracts/*.md` (#1485) edits ride that same cell
+  when plan re-renders it.
 - The #1320 binary-drift staleness path keeps its semantics
   byte-for-byte; the fingerprint gate composes with it (drift forces
   the re-render, equality no longer short-circuits a drifted pair).
