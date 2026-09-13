@@ -229,7 +229,10 @@ void $target() => throw UnimplementedError('$target not implemented');
     String target,
     UnitContractShape shape,
   ) {
-    final params = shape.params.map((p) => '${p.type} ${p.name}').join(', ');
+    // SPEC 1536: the ONE shared renderer — positional params first, the
+    // named group as ONE trailing `{...}` block (`{Object? level,
+    // Object? onRecord}`); legacy positional rows render byte-for-byte.
+    final params = UnitContractShape.renderParameterList(shape.params);
     final paramDocs = shape.params.isEmpty
         ? ''
         : '\n// Declared parameters: ${shape.params.map((p) => '${p.name}: ${p.declaredType}').join(', ')}'

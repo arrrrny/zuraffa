@@ -267,36 +267,24 @@ class UnitContractShape {
         returnRenderable && !isRenderableDartType(declaredReturn);
     final params = <UnitContractParam>[];
     final usedNames = <String>{};
-    for (final token in signature.parameters) {
-      final trimmed = token.trim();
-      if (trimmed.isEmpty) continue;
-      final parts = trimmed
-          .split(RegExp(r'\s+'))
-          .where((w) => w.isNotEmpty)
-          .toList();
-      // A declared token may carry its own name (`AuthRequest request`)
-      // — the last identifier-shaped word is the name, the rest the type.
-      String declaredType;
-      String? declaredName;
-      if (parts.length >= 2 && _isIdentifier(parts.last)) {
-        declaredName = parts.last;
-        declaredType = parts.sublist(0, parts.length - 1).join(' ');
-      } else {
-        declaredType = trimmed;
-      }
+    // SPEC 1536: the ONE token-expansion grammar (_expandParamTokens) —
+    // positional tokens keep the legacy split, named-group tokens
+    // expand into individual named parameters.
+    for (final part in _expandParamTokens(signature.parameters)) {
       final renderable = isRenderableDartType(
-        declaredType,
+        part.declaredType,
         entityExists: entityExists,
       );
       final name = _unique(
-        declaredName ?? _defaultParamName(declaredType),
+        part.declaredName ?? _defaultParamName(part.declaredType),
         usedNames,
       );
       params.add(
         UnitContractParam(
-          declaredType: declaredType,
-          type: renderable ? declaredType : 'Object?',
+          declaredType: part.declaredType,
+          type: renderable ? part.declaredType : 'Object?',
           name: name,
+          named: part.named,
         ),
       );
     }
@@ -354,18 +342,8 @@ class UnitContractShape {
       });
     }
 
-    for (final token in signature.parameters) {
-      final trimmed = token.trim();
-      if (trimmed.isEmpty) continue;
-      final parts = trimmed
-          .split(RegExp(r'\s+'))
-          .where((w) => w.isNotEmpty)
-          .toList();
-      addCandidates(
-        parts.length >= 2 && _isIdentifier(parts.last)
-            ? parts.sublist(0, parts.length - 1).join(' ')
-            : trimmed,
-      );
+    for (final part in _expandParamTokens(signature.parameters)) {
+      addCandidates(part.declaredType);
     }
     addCandidates(signature.returnType.trim());
 
@@ -460,8 +438,38 @@ class UnitContractShape {
   static bool _isIdentifier(String s) =>
       RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(s);
 
+  /// The parameter list the generated source renders (SPEC 1536,
+  /// FR-003) — the ONE renderer every generated signature shares: the
+  /// positional parameters first, then the named group as ONE trailing
+  /// `{...}` block. A signature with no named params renders exactly
+  /// the legacy positional list, byte-for-byte.
+  ///
+  /// Consumers: [SubjectWriter] (the gen stub) and `func_command`'s
+  /// declared scaffold (`zfa tdd func`) — the grammar lives in ONE
+  /// place, never scattered across call sites (#1323 lesson).
+  static String renderParameterList(List<UnitContractParam> params) {
+    final positional = params
+        .where((param) => !param.named)
+        .map((param) => '${param.type} ${param.name}')
+        .toList();
+    final named = params
+        .where((param) => param.named)
+        .map((param) => '${param.type} ${param.name}')
+        .toList();
+    return [
+      ...positional,
+      if (named.isNotEmpty) '{${named.join(', ')}}',
+    ].join(', ');
+  }
+
   /// The parameter name for a type-only declaration token. Scalar types
   /// get a readable default; entity types camelCase the declared name.
+  ///
+  /// SPEC 1536 (FR-004): an already lower-first word is kept VERBATIM —
+  /// `onRecord` must not degrade to `onrecord` (the issue's Defect 2
+  /// mangle). Upper-first type-derived names keep the legacy output
+  /// byte-for-byte (`AuthRequest` → `authrequest`), so no existing
+  /// positional row's generated shape changes.
   static String _defaultParamName(String declaredType) {
     final base = declaredType.trim().endsWith('?')
         ? declaredType.trim().substring(0, declaredType.trim().length - 1)
@@ -483,7 +491,16 @@ class UnitContractShape {
     final camel = base.replaceAll(RegExp(r'[^A-Za-z0-9]+'), ' ').trim();
     if (camel.isEmpty) return 'input';
     final words = camel.split(RegExp(r'\s+'));
-    final head = words.first.toLowerCase();
+    // SPEC 1536 (FR-004): a lower-first head word is kept VERBATIM —
+    // `onRecord` must not degrade to `onrecord`. An upper-first head
+    // keeps the legacy output byte-for-byte (`AuthRequest` →
+    // `authrequest` — the legacy rule lowercased the whole word).
+    final headWord = words.first;
+    final isUpperFirst =
+        headWord.isNotEmpty &&
+        headWord.codeUnitAt(0) >= 0x41 &&
+        headWord.codeUnitAt(0) <= 0x5A;
+    final head = isUpperFirst ? headWord.toLowerCase() : headWord;
     final tail = words.skip(1).map((w) {
       if (w.isEmpty) return w;
       return w[0].toUpperCase() + w.substring(1);
@@ -501,3 +518,70 @@ class UnitContractShape {
     return '$name$i';
   }
 }
+
+/// One declared parameter token split into its parts: the declared type
+/// verbatim, the declared name (null when derived), and whether the
+/// token came from a Dart named-parameter group (SPEC 1536).
+typedef _ParamParts = ({String declaredType, String? declaredName, bool named});
+
+/// The ONE token-expansion grammar every shape derivation shares (the
+/// #1323 lesson: the grammar lives in ONE place, never scattered across
+/// call sites).
+///
+/// SPEC 1536 (FR-002): a named-group token (`{a, b}` — kept whole by
+/// `Signature.parse`'s brace-aware split) expands into its individual
+/// named parameters. Inside a group a single-identifier token is the
+/// parameter NAME (Dart named parameters always carry a name) whose
+/// renderable type is the shape's `Object?` degradation; a multi-word
+/// token keeps the existing `Type name` split. Positional tokens keep
+/// the legacy single-identifier = TYPE reading byte-for-byte.
+List<_ParamParts> _expandParamTokens(Iterable<String> tokens) {
+  final parts = <_ParamParts>[];
+  for (final token in tokens) {
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) continue;
+    final namedGroup = trimmed.startsWith('{') && trimmed.endsWith('}');
+    if (!namedGroup) {
+      parts.add(_paramPartsOf(trimmed, named: false));
+      continue;
+    }
+    final inner = trimmed.substring(1, trimmed.length - 1);
+    // The SAME brace-aware splitter the outer parse used — a generic
+    // inside the group (`{Map<String, int> table}`) never splits.
+    for (final groupToken in Signature.splitParameterTokens(inner)) {
+      final g = groupToken.trim();
+      if (g.isEmpty) continue;
+      parts.add(_paramPartsOf(g, named: true));
+    }
+  }
+  return parts;
+}
+
+/// The `Type name` split for one parameter token, positional or inside
+/// a named group (SPEC 1536: a single identifier inside a group is a
+/// declared NAME with the `Object?` renderable degradation).
+_ParamParts _paramPartsOf(String trimmed, {required bool named}) {
+  final parts = trimmed
+      .split(RegExp(r'\s+'))
+      .where((w) => w.isNotEmpty)
+      .toList();
+  // A declared token may carry its own name (`AuthRequest request`)
+  // — the last identifier-shaped word is the name, the rest the type.
+  if (parts.length >= 2 && _isParamIdentifier(parts.last)) {
+    return (
+      declaredType: parts.sublist(0, parts.length - 1).join(' '),
+      declaredName: parts.last,
+      named: named,
+    );
+  }
+  // SPEC 1536: a single identifier inside a named group is the
+  // parameter NAME — the type degrades to `Object?` like every
+  // non-renderable declared type.
+  if (named && parts.length == 1 && _isParamIdentifier(parts.single)) {
+    return (declaredType: 'Object?', declaredName: parts.single, named: true);
+  }
+  return (declaredType: trimmed, declaredName: null, named: named);
+}
+
+bool _isParamIdentifier(String s) =>
+    RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(s);

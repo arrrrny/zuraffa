@@ -65,9 +65,7 @@ void main() {
     });
 
     test('a mixed row keeps the positional token and the group apart', () {
-      final sig = Signature.parse(
-        'log(String id, {Object? level}) -> void',
-      );
+      final sig = Signature.parse('log(String id, {Object? level}) -> void');
       expect(sig.parameters, ['String id', '{Object? level}']);
     });
 
@@ -134,10 +132,7 @@ void main() {
           Signature.parse('log({level, onRecord}) -> void'),
           cwd: tmp.path,
         );
-        expect(shape.params.map((param) => param.name), [
-          'level',
-          'onRecord',
-        ]);
+        expect(shape.params.map((param) => param.name), ['level', 'onRecord']);
         expect(shape.params.every((param) => param.named), isTrue);
       } finally {
         tmp.deleteSync(recursive: true);
@@ -208,9 +203,7 @@ void main() {
       final tmp = Directory.systemTemp.createTempSync('spec_1536_pair_');
       try {
         final testPath = p.join(tmp.path, 'u3_test.dart');
-        await BehaviorTestWriter(
-          contractShape: shape,
-        ).write(
+        await BehaviorTestWriter(contractShape: shape).write(
           behavior: unitBehavior('U3', 'subject_u3'),
           testPath: testPath,
           subjectPath: p.join(tmp.path, 'u3_subject.dart'),
@@ -235,9 +228,7 @@ void main() {
       final tmp = Directory.systemTemp.createTempSync('spec_1536_scalar_');
       try {
         final testPath = p.join(tmp.path, 'u3_test.dart');
-        await BehaviorTestWriter(
-          contractShape: shape,
-        ).write(
+        await BehaviorTestWriter(contractShape: shape).write(
           behavior: unitBehavior('U3', 'subject_u3'),
           testPath: testPath,
           subjectPath: p.join(tmp.path, 'u3_subject.dart'),
@@ -260,31 +251,31 @@ void main() {
       final tmp = Directory.systemTemp.createTempSync('spec_1536_legacy_');
       try {
         final testPath = p.join(tmp.path, 'u6_test.dart');
-        await BehaviorTestWriter(
-          contractShape: shape,
-        ).write(
+        await BehaviorTestWriter(contractShape: shape).write(
           behavior: unitBehavior('U6', 'subject_u6'),
           testPath: testPath,
           subjectPath: p.join(tmp.path, 'u6_subject.dart'),
         );
         final content = File(testPath).readAsStringSync();
-        expect(content, contains("subject.subject_u6('sample')"));
+        expect(content, contains("subject.subject_u6(r'sample')"));
       } finally {
         tmp.deleteSync(recursive: true);
       }
     });
 
-    test('the legacy mangled pair is gone: no onrecord, no positional group',
-        () async {
-      final shape = UnitContractShape.of(
-        Signature.parse('log({level, onRecord}) -> void'),
-      );
-      final subject = SubjectWriter(
-        contractShape: shape,
-      ).render(unitBehavior('U3', 'subject_u3'));
-      expect(subject, isNot(contains('onrecord')));
-      expect(subject, isNot(contains('Object? level, Object? onRecord) =>')));
-    });
+    test(
+      'the legacy mangled pair is gone: no onrecord, no positional group',
+      () async {
+        final shape = UnitContractShape.of(
+          Signature.parse('log({level, onRecord}) -> void'),
+        );
+        final subject = SubjectWriter(
+          contractShape: shape,
+        ).render(unitBehavior('U3', 'subject_u3'));
+        expect(subject, isNot(contains('onrecord')));
+        expect(subject, isNot(contains('Object? level, Object? onRecord) =>')));
+      },
+    );
   });
 
   group('1536 AC-5/FR-005: unparseable syntax refuses with a named remedy', () {
@@ -292,16 +283,15 @@ void main() {
       expect(
         () => Signature.parse('log({level, onRecord) -> void'),
         throwsA(
-          isA<FormatException>()
-              .having(
-                (e) => e.message,
-                'message',
-                allOf(
-                  contains('name(Type) -> Return'),
-                  contains('{a, b}'),
-                  contains('--> fix:'),
-                ),
-              ),
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            allOf(
+              contains('name(Type) -> Return'),
+              contains('{a, b}'),
+              contains('--> fix:'),
+            ),
+          ),
         ),
       );
     });
