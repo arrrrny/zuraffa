@@ -700,7 +700,9 @@ class ProofChainChecker {
               actual:
                   "import '${issue.uri}' does not resolve "
                   '(${issue.reason})',
-              fix: 'zfa tdd migrate-paths $feature',
+              // Issue #1573: prescribe the flag form migrate-paths parses
+              // (a positional slug is silently discarded).
+              fix: 'zfa tdd migrate-paths --feature $feature',
             ),
           );
         }

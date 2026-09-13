@@ -9,8 +9,8 @@
 /// 1. **migrate** — generated-shape files exist at the legacy flat layout
 ///    that ANOTHER feature's registry owns (the pre-#827 multi-feature
 ///    project, bug #874): the owning feature's artifacts must be migrated
-///    to the namespaced layout (`zfa tdd migrate-paths <owner>`) — never
-///    adopted, which would corrupt ownership.
+///    to the namespaced layout (`zfa tdd migrate-paths --feature <owner>`)
+///    — never adopted, which would corrupt ownership.
 /// 2. **adopt** — generated-shape files exist on disk that NO feature's
 ///    registry owns (the post-crash/post-merge state): ownership must be
 ///    registered before anything else can run (`zfa tdd gen <id>
@@ -28,7 +28,9 @@
 ///    registry, which `reset` would wrongly answer by dropping certified
 ///    behaviors). The migration rewrites the recorded forms to the
 ///    portable project-relative POSIX form without moving any file
-///    (`zfa tdd migrate-paths <feature>`).
+///    (`zfa tdd migrate-paths --feature <feature>` — the resolved
+///    reference, since a bare name can re-resolve to a same-named
+///    `specs/` directory instead).
 /// 4. **resume** — the stores disagree on progress (an in-flight marker,
 ///    or claims whose matching cycle-log evidence is missing), or green
 ///    evidence has no backing artifact on disk (issue #1264's
@@ -241,8 +243,11 @@ class DoctorCommand extends Command<void> {
           '${entry.value.map((path_) => _displayPath(cwd, path_)).join(', ')}',
         );
       }
+      // Issue #1573: the prescription must be the form the command
+      // actually parses — migrate-paths takes --feature, not a positional
+      // argument (a positional slug is silently discarded).
       final fix = ownersInvolved.length == 1
-          ? 'zfa tdd migrate-paths ${ownersInvolved.first}'
+          ? 'zfa tdd migrate-paths --feature ${ownersInvolved.first}'
           : 'zfa tdd migrate-paths';
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
@@ -458,7 +463,15 @@ class DoctorCommand extends Command<void> {
           'registry (the recorded form, not the artifacts, has drifted)',
         );
       }
-      final fix = 'zfa tdd migrate-paths $feature';
+      // Issue #1573: prescribe the flag form migrate-paths parses, naming
+      // the RESOLVED REFERENCE rather than the bare name. Re-resolving a
+      // bare name through `resolveWithPin` keeps `specs/<name>` whenever
+      // that directory exists, so a plain name would migrate a DIFFERENT
+      // registry than the one just diagnosed (doctor on
+      // `.specify/bugs/<slug>` with a same-named `specs/<slug>` present).
+      // The reference is what issue #1471 hands to child steps for exactly
+      // this reason: resolving it yields this same directory.
+      final fix = 'zfa tdd migrate-paths --feature ${resolved.ref}';
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
@@ -547,10 +560,14 @@ class DoctorCommand extends Command<void> {
     // POSIX form without moving any file.
     final formDrifts = <String>[];
     for (final record in records) {
+      // Issue #1573: the drift line prints the RAW recorded value — the
+      // exact string the registry carries. The old rendering piped it
+      // through display normalization, so the line claimed "machine-absolute"
+      // while showing a relative path the registry does not contain.
       if (p.isAbsolute(record.testPath)) {
         formDrifts.add(
           '${record.behaviorId}: the recorded test path is '
-          'machine-absolute (${_displayPath(cwd, p.normalize(record.testPath))}) '
+          'machine-absolute (${record.testPath}) '
           '— records must be project-relative to stay portable',
         );
       }
@@ -558,14 +575,22 @@ class DoctorCommand extends Command<void> {
         formDrifts.add(
           '${record.behaviorId}: the recorded subject path is '
           'machine-absolute '
-          '(${_displayPath(cwd, p.normalize(record.subjectPath))}) '
+          '(${record.subjectPath}) '
           '— records must be project-relative to stay portable',
         );
       }
     }
     if (formDrifts.isNotEmpty) {
       drifts.addAll(formDrifts);
-      final fix = 'zfa tdd migrate-paths $feature';
+      // Issue #1573: prescribe the flag form migrate-paths parses, naming
+      // the RESOLVED REFERENCE rather than the bare name. Re-resolving a
+      // bare name through `resolveWithPin` keeps `specs/<name>` whenever
+      // that directory exists, so a plain name would migrate a DIFFERENT
+      // registry than the one just diagnosed (doctor on
+      // `.specify/bugs/<slug>` with a same-named `specs/<slug>` present).
+      // The reference is what issue #1471 hands to child steps for exactly
+      // this reason: resolving it yields this same directory.
+      final fix = 'zfa tdd migrate-paths --feature ${resolved.ref}';
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
@@ -693,7 +718,15 @@ class DoctorCommand extends Command<void> {
     }
     if (importDrifts.isNotEmpty) {
       drifts.addAll(importDrifts);
-      final fix = 'zfa tdd migrate-paths $feature';
+      // Issue #1573: prescribe the flag form migrate-paths parses, naming
+      // the RESOLVED REFERENCE rather than the bare name. Re-resolving a
+      // bare name through `resolveWithPin` keeps `specs/<name>` whenever
+      // that directory exists, so a plain name would migrate a DIFFERENT
+      // registry than the one just diagnosed (doctor on
+      // `.specify/bugs/<slug>` with a same-named `specs/<slug>` present).
+      // The reference is what issue #1471 hands to child steps for exactly
+      // this reason: resolving it yields this same directory.
+      final fix = 'zfa tdd migrate-paths --feature ${resolved.ref}';
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
