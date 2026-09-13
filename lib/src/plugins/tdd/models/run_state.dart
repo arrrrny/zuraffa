@@ -24,8 +24,10 @@ class RunState {
   /// graded `outcome=hand-step` on a previous run. Resume does NOT
   /// re-drive them: the behavior stays PENDING with its honest red
   /// until the author implements the subject deliberately and re-runs
-  /// make. ADDITIVE field: a legacy snapshot without it loads with an
-  /// empty set.
+  /// make. The park CLEARS on the certifying transition (review fix):
+  /// green/done drops the id, so a later evidence regression can never
+  /// be masked by a stale skip. ADDITIVE field: a legacy snapshot
+  /// without it loads with an empty set.
   final Set<String> handSteps;
 
   RunState({
@@ -43,6 +45,11 @@ class RunState {
   RunState advance(String behaviorId, BehaviorState newState) {
     final next = Map<String, BehaviorState>.from(behaviorStates);
     next[behaviorId] = newState;
+    // Review fix (issue #1568): advancing a behavior to green/done is the
+    // CERTIFYING transition — it clears the behavior's park through
+    // [pruneCertifiedHandSteps], so a stale hand-step can never mask a
+    // behavior that already certified (and, after a later evidence
+    // regression, is honestly re-drivable again).
     return RunState(
       feature: feature,
       behaviorStates: Map.unmodifiable(next),
@@ -50,7 +57,7 @@ class RunState {
       inFlightStep: null,
       inFlightOwnerPid: null,
       handSteps: handSteps,
-    );
+    ).pruneCertifiedHandSteps();
   }
 
   RunState markInFlight(String behaviorId, String step, {int? ownerPid}) {
@@ -76,6 +83,30 @@ class RunState {
       inFlightBehaviorId: null,
       inFlightStep: null,
       inFlightOwnerPid: null,
+      handSteps: Set.unmodifiable(next),
+    );
+  }
+
+  /// Drop every parked id whose behavior reached green/done — the
+  /// certifying transition (review fix on issue #1568). The park is the
+  /// make's honest classification of a still-unimplemented subject; once
+  /// the behavior certifies, a surviving id would make the resume gate
+  /// re-park it forever if that green evidence later regresses (the
+  /// `_reconcile` rebuild drops it back to red/pending) — masking a
+  /// re-drivable behavior. Returns [this] when nothing is certified (no
+  /// copy churn); the caller persists.
+  RunState pruneCertifiedHandSteps() {
+    final next = handSteps.where((id) {
+      final state = behaviorStates[id] ?? BehaviorState.pending;
+      return state != BehaviorState.green && state != BehaviorState.done;
+    }).toSet();
+    if (next.length == handSteps.length) return this;
+    return RunState(
+      feature: feature,
+      behaviorStates: behaviorStates,
+      inFlightBehaviorId: inFlightBehaviorId,
+      inFlightStep: inFlightStep,
+      inFlightOwnerPid: inFlightOwnerPid,
       handSteps: Set.unmodifiable(next),
     );
   }

@@ -212,5 +212,83 @@ void main() {
       expect(readStateJson(fx)['behavior_states']['U1'], 'red');
       expect(takeExitCode(), 1, reason: out);
     });
+
+    test('d5: a park before a later fatal stop still reports hand_steps=N '
+        '(review fix: mid-run stops carry the parked ids)', () async {
+      // U2's make fails generically after U1 parked: the run stops mid-pass
+      // — the summary must still name the park (SC-5/AC-2).
+      await fx.setStepOutcome('make', 'U2', 'generation-error');
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'run',
+        '004-login-ui',
+        '--project',
+        fx.root.path,
+        '--zfa-bin',
+        fx.fakeZfaBin,
+      ]);
+
+      expect(out, contains('U1:hand'), reason: out);
+      expect(out, contains('stopped_at=U2:make'), reason: out);
+      expect(out, contains('hand_steps=1'), reason: out);
+      expect(takeExitCode(), 1, reason: out);
+    });
+
+    test('d6: a certified hand-step leaves the park — the resume gate never '
+        'masks a re-drivable behavior (review fix)', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      // Run 1: U1 parks, U2 drives to done.
+      await runner.runCapturing([
+        'tdd',
+        'run',
+        '004-login-ui',
+        '--project',
+        fx.root.path,
+        '--zfa-bin',
+        fx.fakeZfaBin,
+      ]);
+      takeExitCode();
+
+      // The author's certification: the direct `zfa tdd make U1` appends
+      // the green cycle entry (the fake writes the real cycle-log shape;
+      // the subject is now implemented, so the make certifies green)…
+      await fx.setStepOutcome('make', 'U1', 'ok');
+      final certify = Process.runSync(fx.fakeZfaBin, [
+        'tdd',
+        'make',
+        'U1',
+        '--feature',
+        '004-login-ui',
+        '--project',
+        fx.root.path,
+      ]);
+      expect(certify.exitCode, 0, reason: '${certify.stdout}${certify.stderr}');
+      // …and the claim is certifiable again (a park that preceded any
+      // advance leaves the behavior PENDING, as here).
+      final state = readStateJson(fx);
+      (state['behavior_states'] as Map)['U1'] = 'pending';
+      File(fx.runStatePath).writeAsStringSync(jsonEncode(state));
+      fx.clearStepInvocations();
+
+      // Run 2: the reconciler lifts U1 to green from the evidence — the
+      // park must clear with it, or a later regression re-parks forever.
+      final out = await runner.runCapturing([
+        'tdd',
+        'run',
+        '004-login-ui',
+        '--project',
+        fx.root.path,
+        '--zfa-bin',
+        fx.fakeZfaBin,
+      ]);
+
+      expect(out, isNot(contains('make -> parked')), reason: out);
+      final handSteps =
+          (readStateJson(fx)['hand_steps'] as List?) ?? const <String>[];
+      expect(handSteps, isNot(contains('U1')), reason: out);
+      // The certification completes the behavior: nothing is left parked.
+      expect(out, contains('result=complete'), reason: out);
+    });
   });
 }

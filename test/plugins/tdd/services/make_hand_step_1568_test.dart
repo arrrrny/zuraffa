@@ -9,9 +9,12 @@
 // boundary) — and mirrors the forecast's announced class exactly.
 library;
 
+import 'dart:io';
+
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/models/generation_plan.dart';
 import 'package:zuraffa/src/plugins/tdd/services/hand_step_classifier.dart';
+import 'package:zuraffa/src/plugins/tdd/services/step_runner.dart';
 
 void main() {
   group(
@@ -22,16 +25,38 @@ void main() {
       });
 
       test('the outcome is NOT in the make green family — the run loop must '
-          'never read it as a certified generation', () {
-        const greenFamily = {
-          'green',
-          'skipped',
-          'green-with-failed-build',
-          'adopted',
-          'adopted-placeholder',
-          'born-green',
-        };
-        expect(greenFamily, isNot(contains(MakeOutcome.handStep.label)));
+          'never read it as a certified generation', () async {
+        // Review fix: exercise StepRunner's REAL success classifier (the
+        // one the run loop consults) through its documented summary-line
+        // contract, instead of re-declaring the family literal — a
+        // regression that added `hand-step` to the production list turns
+        // the first expectation red, which the local list never could.
+        Future<StepResult> runMake(String outcome) =>
+            StepRunner(
+              zfaBin: '/fake/zfa',
+              spawner: (command, workingDirectory) async => ProcessResult(
+                0,
+                0,
+                'make: behavior=U1 outcome=$outcome feature=demo',
+                '',
+              ),
+            ).run(
+              step: 'make',
+              behaviorId: 'U1',
+              feature: 'demo',
+              projectRoot: '.',
+            );
+
+        // A zero-exit make carrying the hand-step token is NOT a success.
+        final handStep = await runMake('hand-step');
+        expect(handStep.outcome, 'hand-step');
+        expect(handStep.success, isFalse);
+
+        // The same shape with a certified token IS a success — the
+        // classifier is live, so the assertion above is not vacuous.
+        final green = await runMake('green');
+        expect(green.outcome, 'green');
+        expect(green.success, isTrue);
       });
     },
   );

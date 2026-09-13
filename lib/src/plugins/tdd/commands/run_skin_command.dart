@@ -918,7 +918,10 @@ class RunSkinCommand extends Command<void> {
         counts:
             outcome?.counts ??
             const {'total': 0, 'pending': 0, 'red': 0, 'green': 0, 'done': 0},
-        skippedWidgetIds: outcome?.skippedWidgetIds ?? const [],
+        // Issue #1568 (in scope): the lane summary carries the parked
+        // hand-step count like the run/run-engine summaries do. The
+        // `skipped-widget` token stays OUT of run-skin — that omission is
+        // a pre-#1568 behavior outside this feature's scope (review fix).
         handStepIds: outcome?.handStepIds ?? const [],
         stoppedAt: outcome?.stoppedAt,
       ),

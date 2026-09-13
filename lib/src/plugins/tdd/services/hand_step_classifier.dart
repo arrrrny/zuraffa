@@ -24,8 +24,9 @@
 /// hand step.
 library;
 
-import '../services/declared_routing.dart';
-import '../services/unit_contract_shape.dart';
+import '../models/routing.dart';
+import 'declared_routing.dart';
+import 'unit_contract_shape.dart';
 
 /// The hand-step classification predicates (issue #1568).
 class HandStepClassifier {
@@ -43,13 +44,20 @@ class HandStepClassifier {
     return !isRenderableScalarType(trimmed);
   }
 
-  /// Whether [behaviorId]'s DECLARED contract (resolved the same way the
-  /// forecast resolves it — the test-list trace cell against the spec's
-  /// contract rows) returns an entity-shaped type. Fail-closed to false:
-  /// an unreadable artifact or a malformed declaration is NOT a
-  /// hand-step — the generic stop stands (the malformed case is the
-  /// caller's earlier refusal surface).
-  static Future<bool> isPlannerDeclaredHandStep({
+  /// The declared contract's signature when [behaviorId] is a
+  /// planner-declared hand-step; null when it is not. The resolution goes
+  /// through the SAME `DeclaredRouting.declaredSignatureFor` the forecast
+  /// uses (the test-list trace cell against the spec's contract rows), so
+  /// the caller can print the exact signature this classification
+  /// resolved — no second lookup, no drift.
+  ///
+  /// Fail-closed to null: a scalar-shaped return, an undeclared or
+  /// unreadable behavior, and a malformed declaration are NOT hand-steps.
+  /// The malformed case deliberately throws `StateError`, which is NOT an
+  /// `Exception` — the catch is intentionally clause-less so the
+  /// documented fail-closed contract is real (review fix: `on Exception`
+  /// never saw it).
+  static Future<Signature?> declaredHandStepSignature({
     required String cwd,
     required String featureName,
     required String featureDir,
@@ -62,10 +70,10 @@ class HandStepClassifier {
         featureDir: featureDir,
         behaviorId: behaviorId,
       );
-      if (signature == null) return false;
-      return isEntityShapedReturn(signature.returnType);
-    } on Exception {
-      return false;
+      if (signature == null) return null;
+      return isEntityShapedReturn(signature.returnType) ? signature : null;
+    } catch (_) {
+      return null;
     }
   }
 }

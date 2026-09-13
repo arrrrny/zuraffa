@@ -2034,22 +2034,19 @@ class MakeCommand extends Command<void> {
                         s.args[0] == 'tdd' &&
                         s.args[1] == 'wire')),
           );
-          final declaredHandStep =
-              !planCarriedMechanicalSurface &&
-              await HandStepClassifier.isPlannerDeclaredHandStep(
-                cwd: cwd,
-                featureName: target.featureName,
-                featureDir: target.featureDir,
-                behaviorId: record.behaviorId,
-              );
-          if (declaredHandStep) {
-            final declared = await DeclaredRouting.declaredSignatureFor(
-              cwd: cwd,
-              featureName: target.featureName,
-              featureDir: target.featureDir,
-              behaviorId: record.behaviorId,
-            );
-            final signature = declared?.toString() ?? 'the declared contract';
+          final declaredHandStep = planCarriedMechanicalSurface
+              ? null
+              : await HandStepClassifier.declaredHandStepSignature(
+                  cwd: cwd,
+                  featureName: target.featureName,
+                  featureDir: target.featureDir,
+                  behaviorId: record.behaviorId,
+                );
+          if (declaredHandStep != null) {
+            // Review fix: the message prints the exact signature the
+            // classification just resolved — never a second lookup, so
+            // the verdict and the printed contract cannot drift.
+            final signature = declaredHandStep.toString();
             print(
               'zfa tdd make: the planner declared this behavior a HAND '
               'STEP (issue #1568) — the declared contract returns an '

@@ -63,4 +63,62 @@ void main() {
       expect(marked.handSteps, {'U1'});
     });
   });
+
+  group(
+    'B-1568-r2: the certifying transition clears the park (review fix)',
+    () {
+      test(
+        'advance to green/done drops the parked id; red/pending keeps it',
+        () {
+          final parked = RunState.empty('f')
+              .advance('U1', BehaviorState.red)
+              .advance('U2', BehaviorState.pending)
+              .markHandStep('U1')
+              .markHandStep('U2');
+
+          final green = parked.advance('U1', BehaviorState.green);
+          expect(green.handSteps, isNot(contains('U1')));
+          expect(
+            green.handSteps,
+            contains('U2'),
+            reason: 'a still-parked sibling survives the certification',
+          );
+
+          final done = parked.advance('U2', BehaviorState.done);
+          expect(done.handSteps, {'U1'});
+
+          final red = parked.advance('U1', BehaviorState.red);
+          expect(red.handSteps, {
+            'U1',
+            'U2',
+          }, reason: 'a non-certifying re-advance keeps the park');
+        },
+      );
+
+      test('pruneCertifiedHandSteps drops green/done ids only, immutably', () {
+        final state = RunState.empty('f')
+            .advance('U1', BehaviorState.pending)
+            .advance('U2', BehaviorState.green)
+            .advance('U3', BehaviorState.done)
+            .markHandStep('U1')
+            .markHandStep('U2')
+            .markHandStep('U3');
+
+        final pruned = state.pruneCertifiedHandSteps();
+        expect(pruned.handSteps, {'U1'});
+        expect(pruned.behaviorStates, state.behaviorStates);
+        expect(state.handSteps, {
+          'U1',
+          'U2',
+          'U3',
+        }, reason: 'the original state is untouched (immutability)');
+
+        expect(
+          identical(pruned.pruneCertifiedHandSteps(), pruned),
+          isTrue,
+          reason: 'nothing certified -> the same instance, no copy churn',
+        );
+      });
+    },
+  );
 }

@@ -943,6 +943,10 @@ class RunDriverCore {
           '[run] ${row.id} make -> parked (planner-declared hand-step, '
           'issue #1568)',
         );
+        // Review fix: the skip token is `parked`, deliberately distinct
+        // from the driven make's `hand-step` child outcome (a stream
+        // consumer can tell the two occurrences apart — this arm never
+        // spawned a step, the park is a known record).
         _emitStep(row.id, 'make', 'parked');
         continue;
       }
@@ -996,6 +1000,11 @@ class RunDriverCore {
           skippedWidgets: skippedWidgets,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
+          // Review fix: a park earlier in this pass must still be named
+          // on the summary line (SC-5/AC-2), even when a later
+          // behavior's fatal step stops the run before the end-of-run
+          // terminal block.
+          handStepIds: _parkedHandStepsIn(result.state),
         );
       }
       current = result.state;
@@ -1035,6 +1044,8 @@ class RunDriverCore {
           '[run] ${row.id} make -> parked (planner-declared hand-step, '
           'issue #1568)',
         );
+        // Review fix: the same deliberate `parked` skip token the phase-1
+        // gate emits — never the driven make's `hand-step` child outcome.
         _emitStep(row.id, 'make', 'parked');
         continue;
       }
@@ -1079,6 +1090,9 @@ class RunDriverCore {
           skippedWidgets: skippedWidgets,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
+          // Review fix: the phase-2a re-attempt stop carries the parks
+          // recorded earlier in the pass too (SC-5/AC-2).
+          handStepIds: _parkedHandStepsIn(result.state),
         );
       }
       current = result.state;
@@ -1170,10 +1184,7 @@ class RunDriverCore {
     // prints the deliberate-implementation remedy beside any
     // bounded-progress skips, and stops bounded (FR-007), never a fake
     // DONE (FR-008) and never the pre-#1568 mid-run wall.
-    final parkedHandSteps = current.handSteps.where((id) {
-      final s = current.behaviorStates[id] ?? BehaviorState.pending;
-      return s != BehaviorState.green && s != BehaviorState.done;
-    }).toList()..sort();
+    final parkedHandSteps = _parkedHandStepsIn(current);
     // Issue #1544: the parked BLOCKED behaviors are the pass's terminal
     // condition — the run names them, prints any bounded-progress skips
     // beside them, and stops with `result=blocked blocked=N` (exit 1).
@@ -1532,6 +1543,19 @@ class RunDriverCore {
     );
   }
 
+  /// The parked hand-step ids in [state] (issue #1568): hand-steps whose
+  /// behavior has not reached green/done — the summary's `hand_steps=N`
+  /// set. Review fix: the mid-run stop returns compute it through this
+  /// helper too, so a park that happened before a later behavior's fatal
+  /// stop is still named on the summary line.
+  static List<String> _parkedHandStepsIn(RunState? state) {
+    if (state == null) return const [];
+    return state.handSteps.where((id) {
+      final s = state.behaviorStates[id] ?? BehaviorState.pending;
+      return s != BehaviorState.green && s != BehaviorState.done;
+    }).toList()..sort();
+  }
+
   /// The machine summary line the commands print as their final line
   /// (FR-009/FR-010, shape unchanged; lane commands carry `lane=`):
   /// `run: feature=<f> result=<r> pending=<n> red=<n> green=<n> done=<n>`
@@ -1669,9 +1693,12 @@ class RunDriverCore {
       // Issue #1568: the parked hand-steps survive reconciliation — the
       // set is not evidence-derived state (it is the make's own
       // classification record) and must never be dropped by the
-      // evidence-beats-state rebuild.
+      // evidence-beats-state rebuild. Review fix: except the ids whose
+      // RECONCILED state is green/done — that lift IS a certification,
+      // and keeping the id would re-park a re-drivable behavior if the
+      // evidence later regresses.
       handSteps: state.handSteps,
-    );
+    ).pruneCertifiedHandSteps();
   }
 
   // -------------------------------------------------------------------
