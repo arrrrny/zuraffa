@@ -181,6 +181,19 @@ enum MakeOutcome {
   /// non-attested shape.
   bornGreen('born-green'),
 
+  /// The blocked-contract precondition stop (issue #1589): the target is
+  /// a CONTRACT behavior whose BLOCKED verdict receipt exists and whose
+  /// watched world is unchanged since the verdict — there is no certified
+  /// red to make from, and the contract lane never certifies one (#1007),
+  /// so the plain refusal names the hand surface (the seam file + the
+  /// `zfa tdd wire <id>` command) instead of dead-ending the documented
+  /// resume path with "run verify-red first". Exit 1, no green entry, no
+  /// state advance: the verdict, the contract lane and the state machine
+  /// are untouched. Fail-open: any change signal since the verdict, a
+  /// missing receipt, or a non-contract target keeps the existing
+  /// `not-certified-red` refusal.
+  implementSeamFirst('implement-seam-first'),
+
   /// A plan `build` step failed because the BUILDER package is not in the
   /// dependency graph (issue #1322): build_runner warned `Ignoring
   /// options for unknown builder <key>` and silently generated nothing —

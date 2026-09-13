@@ -168,6 +168,38 @@ class RefactorCommand extends Command<void> {
           'absolute-green contract applies (spec 048 FR-001). A missing or '
           'corrupt cache falls back to the absolute-green contract safely.',
     );
+    argParser.addMultiOption(
+      'parked-seam',
+      valueHelp: 'path',
+      help:
+          'A parked contract\'s seam test file (project-relative) whose '
+          'suite failure the preflight and re-proof tolerate (issue #1589). '
+          'The driving run hands the seams it knows are parked — the BLOCKED '
+          'verdict\'s failing contract test is a KNOWN red for the whole '
+          'pass (pre-existing-failure economics, the same discipline issue '
+          '#922 gave the baseline), so it cannot refuse or regress the '
+          'phase-2 refactors of the behaviors that ARE green. Repeatable. '
+          'GRANULARITY: this flag alone tolerates every failure in the named '
+          'FILE; pair it with --parked-failure to pin the tolerance to the '
+          'failure the verdict actually recorded. A NEW failure in any other '
+          'file still refuses, an unparseable transcript still fails closed, '
+          'and without the flag the absolute-green contract applies '
+          '(spec 048 FR-001).',
+    );
+    argParser.addMultiOption(
+      'parked-failure',
+      valueHelp: 'identifier',
+      help:
+          'A failing-test identifier a parked BLOCKED verdict RECORDED '
+          '(issue #1589, review fix) — the `<path>: <test name>` shape the '
+          'verdict receipt\'s transcript carries. When handed, a failure '
+          'inside a handed --parked-seam is tolerated ONLY if its identifier '
+          'matches one of these, so a SECOND, new failure inside the same '
+          'seam file still refuses (the parked verdict\'s own red is the '
+          'known red — nothing else). Seams with no attested identifier '
+          'keep the coarser file-level tolerance of --parked-seam alone. '
+          'Repeatable; driver-only.',
+    );
     argParser.addOption(
       'timeout',
       valueHelp: 'minutes',
@@ -312,6 +344,15 @@ class RefactorCommand extends Command<void> {
         timeout: timeoutOverride,
         fullReproof: argResults?['full-reproof'] as bool? ?? false,
         suiteBaselinePath: argResults?['suite-baseline'] as String?,
+        parkedSeams: (argResults?['parked-seam'] as List<String>? ?? const [])
+            .where((s) => s.trim().isNotEmpty)
+            .map((s) => p.normalize(s.trim()).replaceAll(r'\', '/'))
+            .toSet(),
+        parkedFailures:
+            (argResults?['parked-failure'] as List<String>? ?? const [])
+                .where((s) => s.trim().isNotEmpty)
+                .map((s) => s.trim())
+                .toSet(),
         scratchEnv: scratch?.childEnvironment(),
         passBatch: argResults?['pass-batch'] as bool? ?? false,
         exemptBehaviorIds: _parseExemptBehaviors(
@@ -360,6 +401,8 @@ class RefactorCommand extends Command<void> {
     Duration? timeout,
     bool fullReproof = false,
     String? suiteBaselinePath,
+    Set<String> parkedSeams = const {},
+    Set<String> parkedFailures = const {},
     Map<String, String>? scratchEnv,
     bool passBatch = false,
     List<String> exemptBehaviorIds = const [],
@@ -497,6 +540,17 @@ class RefactorCommand extends Command<void> {
         }
         return null;
       }
+
+      // Issue #1589: a failure inside a handed parked seam — the driving
+      // run's BLOCKED verdict attests its own failing test file — is
+      // known red by the same economics as the #1588 registry exemption,
+      // with or without a baseline. The registry matches by registered
+      // test path prefix; the seam matches by file (or, when the verdict
+      // attested the failing identifier, by that identifier alone —
+      // review fix), so both feed the same gate.
+      bool exemptFailure(String failingId) =>
+          exemptBehaviorFor(failingId) != null ||
+          _isParkedSeamFailure(failingId, parkedSeams, parkedFailures);
 
       // Issue #1588: the driver-only pass-batch fast path. A valid ledger
       // (same suite template, same baseline content, same suite
@@ -648,6 +702,11 @@ class RefactorCommand extends Command<void> {
         // failing set BEFORE the verdict — their red is the designed park
         // state (#1007/#1544), and without the removal every preflight in
         // the batch refuses for a behavior this run can never fix.
+        // Issue #1589: a failure whose file the driving run attested as a
+        // PARKED contract's seam (a BLOCKED verdict's own failing test) is
+        // the same known red — the same pre-existing-failure economics,
+        // with or without a baseline. The tolerance is surgical: any NEW
+        // failure outside the exempt set still refuses.
         final preflightSnapshot = preflight.startedProcess
             ? const SuiteGuard().fromRunRecord(
                 record: preflight,
@@ -658,15 +717,11 @@ class RefactorCommand extends Command<void> {
             preflightSnapshot != null && preflightSnapshot.parseable;
         final nonExemptFailures = <String>[
           if (preflightParseable)
-            ...preflightSnapshot.failedTests.where(
-              (id) => exemptBehaviorFor(id) == null,
-            ),
+            ...preflightSnapshot.failedTests.where((id) => !exemptFailure(id)),
         ]..sort();
         final exemptedFailures = <String>[
           if (preflightParseable)
-            ...preflightSnapshot.failedTests.where(
-              (id) => exemptBehaviorFor(id) != null,
-            ),
+            ...preflightSnapshot.failedTests.where(exemptFailure),
         ]..sort();
         final newFailures = <String>[
           if (preflightParseable && suiteBaseline != null)
@@ -705,8 +760,9 @@ class RefactorCommand extends Command<void> {
           } else {
             print(
               '   suite is RED but every failure belongs to a '
-              'parked-exempt behavior — $preflightExempted parked-exempt '
-              'failure(s) excluded (issue #1588):',
+              'parked-exempt behavior or a handed parked seam — '
+              '$preflightExempted failure(s) excluded '
+              '(issues #1588/#1589):',
             );
           }
           for (final name in preflightSnapshot.failedTests) {
@@ -714,6 +770,8 @@ class RefactorCommand extends Command<void> {
             print(
               owner != null
                   ? '   parked-exempt ($owner, issue #1588): $name'
+                  : _isParkedSeamFailure(name, parkedSeams, parkedFailures)
+                  ? '   tolerated (parked contract seam, issue #1589): $name'
                   : '   tolerated: $name',
             );
           }
@@ -1074,7 +1132,9 @@ class RefactorCommand extends Command<void> {
         // behaviors' registered tests are removed from the failing set
         // BEFORE the verdict — the same exclusion the preflight applied,
         // so a scoped or full re-proof is not regressed by the designed
-        // park state of a BLOCKED contract.
+        // park state of a BLOCKED contract. Issue #1589: a failure inside
+        // a handed parked seam is the same known red here — a parked
+        // verdict's failing test cannot grade the passes a regression.
         final reproofSnapshot = !reproof.startedProcess
             ? null
             : const SuiteGuard().fromRunRecord(
@@ -1085,9 +1145,7 @@ class RefactorCommand extends Command<void> {
             reproofSnapshot != null && reproofSnapshot.parseable;
         final nonExemptReproofFailures = <String>[
           if (reproofParseable)
-            ...reproofSnapshot.failedTests.where(
-              (id) => exemptBehaviorFor(id) == null,
-            ),
+            ...reproofSnapshot.failedTests.where((id) => !exemptFailure(id)),
         ]..sort();
         final newReproofFailures = <String>[
           if (reproofParseable && suiteBaseline != null)
@@ -1107,7 +1165,7 @@ class RefactorCommand extends Command<void> {
           // pre-existing red (issue #1588).
           reproofTolerated = nonExemptReproofFailures.length;
           reproofExempted = reproofSnapshot.failedTests
-              .where((id) => exemptBehaviorFor(id) != null)
+              .where(exemptFailure)
               .length;
           if (suiteBaseline != null) {
             if (reproofExempted == 0) {
@@ -1127,8 +1185,9 @@ class RefactorCommand extends Command<void> {
           } else {
             print(
               '   re-proof RED but every failure belongs to a '
-              'parked-exempt behavior — $reproofExempted parked-exempt '
-              'failure(s) excluded, no regression (issue #1588).',
+              'parked-exempt behavior or a handed parked seam — '
+              '$reproofExempted failure(s) excluded, no regression '
+              '(issues #1588/#1589).',
             );
           }
         } else {
@@ -1424,6 +1483,78 @@ class RefactorCommand extends Command<void> {
   /// like `00:01 +0 -1: test name [E]`; the result is sorted and de-duped.
   List<String> _extractFailingTestNames(String output) =>
       parseFailingTestNames(output);
+
+  /// Issue #1589: whether a failing-test identifier lives inside a handed
+  /// parked seam and is the red that seam's verdict ATTESTED.
+  ///
+  /// Review fix: the exemption is pinned to the failure the BLOCKED verdict
+  /// recorded. [parkedFailures] carries those identifiers (the verdict
+  /// receipt's transcript, `--parked-failure`); when the seam has at least
+  /// one, only an identifier match is tolerated — a SECOND, new failure
+  /// inside the same seam file refuses, so the gate cannot certify a
+  /// regression the parked verdict never saw. A seam the driver could not
+  /// attest (no parseable identifier in its receipt) keeps the coarser
+  /// file-level match, stated in the `--parked-seam` help text.
+  ///
+  /// Both comparisons tolerate path-shape drift (absolute vs relative,
+  /// Windows vs POSIX) the same way make's #731 scoping does: identifiers
+  /// compare as normalized `<file>: <name>` strings, and a shorter path
+  /// prefix on either side matches at the `/` boundary, so `u2_test.dart`
+  /// never matches `xu2_test.dart`.
+  bool _isParkedSeamFailure(
+    String identifier,
+    Set<String> parkedSeams,
+    Set<String> parkedFailures,
+  ) {
+    if (parkedSeams.isEmpty) return false;
+    final normalized = _normalizeFailureIdentifier(identifier);
+    final file = _filePartOf(normalized);
+    final seam = _matchingParkedSeam(file, parkedSeams);
+    if (seam == null) return false;
+    final attested = <String>[
+      for (final pin in parkedFailures)
+        if (_matchingParkedSeam(_filePartOf(_normalizeFailureIdentifier(pin)), {
+              seam,
+            }) !=
+            null)
+          _normalizeFailureIdentifier(pin),
+    ];
+    if (attested.isEmpty) return true;
+    for (final pin in attested) {
+      if (_sameFailureIdentifier(normalized, pin)) return true;
+    }
+    return false;
+  }
+
+  /// The parked seam [file] belongs to, or null — the file-suffix match
+  /// (see [_isParkedSeamFailure]) against the handed seam paths.
+  String? _matchingParkedSeam(String file, Set<String> parkedSeams) {
+    for (final seam in parkedSeams) {
+      if (file == seam || file.endsWith('/$seam') || seam.endsWith('/$file')) {
+        return seam;
+      }
+    }
+    return null;
+  }
+
+  /// The file part of a failing-test identifier: everything before the
+  /// first `:`, with the `loading ` prefix stripped.
+  String _filePartOf(String identifier) {
+    final idx = identifier.indexOf(':');
+    return idx > 0 ? identifier.substring(0, idx).trim() : identifier;
+  }
+
+  String _normalizeFailureIdentifier(String identifier) {
+    var s = identifier.trim();
+    const loading = 'loading ';
+    if (s.startsWith(loading)) s = s.substring(loading.length).trim();
+    return s.replaceAll(r'\', '/');
+  }
+
+  /// Whether two normalized failure identifiers name the same test,
+  /// tolerating a shorter path prefix on either side.
+  bool _sameFailureIdentifier(String a, String b) =>
+      a == b || a.endsWith('/$b') || b.endsWith('/$a');
 
   /// Append the re-proof verdict + transcript tail to the feature's
   /// cycle-log (spec 1333 FR-3) on every non-green verdict: the failed
