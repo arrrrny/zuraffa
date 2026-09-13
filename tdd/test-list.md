@@ -1,24 +1,23 @@
-# TDD test list — Bug #1544 run parks forever on first blocked contract
+# TDD test list — Spec 1509 toolchain-path-portable
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| A-1544-a1 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | a blocked contract parks and the run drives the remaining contracts to their own verdicts, then stops result=blocked | FR-1544 (continue past blocked), RunDriverCore._driveBehavior #1007 arm | GREEN |
-| A-1544-a2 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | resume skips an unchanged blocked behavior with receipt and still drives the rest | FR-1544 (skip unchanged blocked, `skipped: still blocked since <ts>`), RunDriverCore._unchangedBlockedSince | GREEN |
-| A-1544-a3 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | resume re-drives a blocked behavior when the seam file changed since the verdict (fail open) | FR-1544 (change signal: seam file), RunDriverCore._isNewerThan | GREEN |
-| A-1544-a4 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | resume re-drives a blocked behavior when the implementation changed since the verdict (lib/ newer than blocked_at) | FR-1544 (change signal: implementation), RunDriverCore._treeChangedAfter | GREEN |
-| A-1544-a5 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | a missing blocked receipt fails open — resume re-drives the blocked behavior honestly | FR-1544 (fail open — never fabricate `blocked since`), ContractBlockedReceipt.fromFile | GREEN |
-| A-1544-b1 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | unit | a red behavior still resumes at make beside a skipped blocked contract (non-blocked resume untouched) | FR-1544 constraint (must not break non-blocked resume), RunDriverCore._stepsFor | GREEN |
-| U-1544-c1 | test/plugins/tdd/commands/contract_kind_1007_test.dart | unit | the #1007 single-row pin survives: one blocked contract still stops result=blocked blocked=1 stopped_at=contract:A1:verify-red, never spawning make | #1007 compatibility, RunDriverCore end-of-pass blocked terminal | GREEN |
-| U-1544-c2 | test/plugins/tdd/commands/run_engine_command_test.dart + run_skin_command_test.dart | unit | the engine/skin lane commands over the shared core keep their gate and receipt contracts | spec 1008 compatibility | GREEN |
+| T-1509-pin | test/utils/dart_toolchain_pin_test.dart | spec-pin | no hardcoded /opt/flutter dart path remains in tracked toolchain sources (bin/, lib/, scripts, yaml) | FR-002, SC-001 | GREEN |
+| T-1509-c1 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths emits no constant machine-specific paths when the env declares none | FR-002, FR-005 | GREEN |
+| T-1509-c2 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths includes $FLUTTER_ROOT/bin/dart iff FLUTTER_ROOT is set | FR-005 | GREEN |
+| T-1509-c3 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths derives $HOME/flutter/bin/dart and $HOME/development/flutter/bin/dart from the injected home | FR-005, FR-006 | GREEN |
+| T-1509-c4 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths expands ZURAFFA_TOOLCHAIN_HINTS entries into <dir>/dart and <dir>/bin/dart candidates in declared order | FR-002, FR-005 | GREEN |
+| T-1509-c5 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths keeps the generic /usr/local/flutter/bin/dart hint and omits user-derived entries when home is empty | FR-005, FR-006 | GREEN |
+| T-1509-r1 | test/utils/dart_toolchain_resolver_test.dart | unit | ZURAFFA_DART_BIN pin wins over every tier when the file exists | FR-004 | GREEN |
+| T-1509-r2 | test/utils/dart_toolchain_resolver_test.dart | unit | ZURAFFA_DART_BIN pin pointing at a missing file is skipped and resolution falls through to PATH | FR-004 | GREEN |
+| T-1509-r3 | test/utils/dart_toolchain_resolver_test.dart | unit | PATH which-dart hit is returned trimmed and first (PATH-first contract) | FR-001 | GREEN |
+| T-1509-r4 | test/utils/dart_toolchain_resolver_test.dart | unit | dart next to which-flutter (symlink-resolved sibling) is found when PATH dart misses | FR-006 | GREEN |
+| T-1509-r5 | test/utils/dart_toolchain_resolver_test.dart | unit | existing candidates resolve in candidate order when PATH probes miss | FR-005, FR-006 | GREEN |
+| T-1509-r6 | test/utils/dart_toolchain_resolver_test.dart | unit | resolve returns null when every tier misses | FR-006 | GREEN |
+| T-1509-mcp | test/utils/dart_toolchain_resolver_test.dart | unit | a flutter install without a sibling dart keeps the search going (tier-2 exists-check guard) | FR-006 | GREEN |
+| T-1509-acc2 | test/utils/dart_toolchain_resolver_test.dart | acceptance | the documented environment recipe works: ZURAFFA_TOOLCHAIN_HINTS=/opt/flutter yields the old last-resort candidate without any code literal | acceptance 2, FR-002 | GREEN |
 
-## Red evidence (pre-fix, this session)
-
-A-1544-a1: the run terminated at `contract:A1 verify-red -> blocked` —
-`gen contract:A2` never spawned (A2..An unreachable; the reported symptom).
-
-A-1544-a2 (and b1's skip half): the resume re-spawned
-`verify-red contract:A1` — no skip receipt existed.
-
-A-1544-a3/a4/a5 were written as pins for the fail-open directions and pass
-in both worlds (pre-fix re-drive is the only behavior; post-fix it is the
-change-signal path).
+Red evidence: recorded before implementation — see
+specs/1509-toolchain-path-portable/tdd/verification.md
+(pin test failed against bin/zuraffa_mcp_server.dart:1638; resolver
+suite failed to compile because the library did not exist yet).
