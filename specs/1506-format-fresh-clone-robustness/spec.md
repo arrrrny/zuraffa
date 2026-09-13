@@ -3,7 +3,7 @@
 **Feature ID:** 1506-format-fresh-clone-robustness
 **Issue:** #1506
 **Related:** #1509 (toolchain path), CI `format` job (`.github/workflows/ci.yaml`)
-**Status:** IN_PROGRESS
+**Status:** IMPLEMENTED
 
 ## Summary
 
