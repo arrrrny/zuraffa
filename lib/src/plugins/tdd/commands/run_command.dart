@@ -934,6 +934,7 @@ class RunCommand extends Command<void> {
         ),
         stoppedAt: outcome.stoppedAt,
         skippedWidgetIds: outcome.skippedWidgetIds,
+        handStepIds: outcome.handStepIds,
       ),
     );
     // Issue #969: carry the shipped exit taxonomy into the envelope —
@@ -954,6 +955,13 @@ class RunCommand extends Command<void> {
       ..details['done'] = outcome.counts['done'];
     if (outcome.stoppedAt != null) {
       _verdict.details['stopped_at'] = outcome.stoppedAt;
+    }
+    // Issue #1568 (review fix): the parked hand-steps are part of the
+    // machine-readable verdict the `--json` envelope serializes
+    // (standard/output_format.dart) — the summary line carries
+    // `hand_steps=N`, so `details` must too.
+    if (outcome.handStepIds.isNotEmpty) {
+      _verdict.details['hand_steps'] = outcome.handStepIds.length;
     }
     // Issue #1125: the run's explain block — the counts reuse the
     // summary line's numbers, the receipts the journal's refs, the
