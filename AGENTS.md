@@ -39,7 +39,7 @@ zfa build
 - **Do not hand-create entities.** Use `zfa entity create`.
 - **Do not call `build_runner` directly in normal agent flows.** Use `zfa build`.
 - **Do not invent alternate folder structures.** Zuraffa v5 assumes a fixed domain root.
-- **Always run `dart format lib test` before every commit and push.** CI enforces `dart format --set-exit-if-changed lib test` — any unformatted file blocks the build. Run it, stage the results, then commit. Never push without formatting first.
+- **Always run `dart pub get --no-example` before formatting, then `dart format lib test` before every commit and push.** Formatting without package resolution (a fresh clone has none) makes `dart format` fail to resolve `analysis_options.yaml`'s `package:lints/recommended.yaml` include — it spams a `Package resolution error` warning per file and rewrites hundreds of unrelated files (#1506). CI enforces `dart format --set-exit-if-changed lib test` — any unformatted file blocks the build. Run pub get, format, stage the results, then commit. Never push without formatting first.
 
 ## STOP-ON-ROADBLOCK RULE (HARD, NON-NEGOTIABLE — HARDCODED)
 
