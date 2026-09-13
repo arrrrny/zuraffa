@@ -16,6 +16,23 @@ import '../../../utils/entity_utils.dart';
 import '../services/mock_staleness_detector.dart';
 import 'mock_type_helper.dart';
 
+/// Generates the certified mock datasource that implements
+/// `<Entity>DataSource`.
+///
+/// Lane contract (issue #1570): the skip decision for an existing mock
+/// is a SHAPE check, not an existence check. The mock's implemented
+/// member set is compared against the interface's declared member set
+/// ([MockStalenessDetector] — the certification's structural
+/// primitives, the same comparison the tdd lane's stale-mirror check
+/// follows):
+///   * in-sync mock → `skipped` (idempotent regeneration: extend,
+///     never clobber);
+///   * stale mock (missing interface members) → repaired through the
+///     idempotent append path, ledger `updated`, with a notice naming
+///     the missing members — the drift never reaches the analyze gate
+///     as a compile error (`non_abstract_class_inherits_abstract_member`).
+/// `--force` regeneration, `--append` idempotent member addition, and
+/// `--revert` undo/delete keep their pre-existing contracts.
 class MockDataSourceBuilder {
   final String outputDir;
   final GeneratorOptions options;
