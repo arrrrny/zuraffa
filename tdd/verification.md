@@ -1,134 +1,127 @@
-# tdd.verify — Bug #1512 acceptance vacuous composition
+# tdd.verify — Bug #1488 acceptance vacuous green
 
-- **Verified**: 2026-09-11 (round-2 review fixes), this session, on
-  `fix/1512-acceptance-vacuous-composition` (working tree, pre-push)
-- **Toolchain**: Dart 3.13.2 (stable) on macos_x64
-- **Scope**: the two changed source files + the new `vacuous_guard.dart`
-  vocabulary constants + the rewritten suite, then the chunked regression
-  sweep below.
+- **Verified**: 2026-09-13, this session, on
+  `fix/1488-acceptance-vacuous-green` (working tree, pre-push), HEAD base
+  b621f38b (master)
+- **Toolchain**: Dart 3.13.3 (stable) on linux_x64 (cloud sandbox, 4 GB
+  RAM / 10 GB disk — see §4 environment caveats)
+- **Scope**: the widened make step-3c gate + the two comment blocks, the
+  new `bug_1488` suite, the two inverted legacy pins (`bug_1259` U3,
+  `bug_1162` A-1162e), then the chunked fast suite and the slow tdd
+  scope below.
 
 ## Verdict: PASS (with the recorded host/environment caveats in §4)
 
-## 0. Round-2 review corrections (what changed since round 1)
+## 1. RED → GREEN (the fix's own cycle)
 
-The round-1 record below claimed the acceptance capture threaded the declared
-args and returned the declared result. That branch did not ship —
-`gen_command.dart` resolves a `contractShape` only for `BehaviorKind.unit` and
-the paired acceptance subject is a parameterless `void <target>()` scenario
-runner, so the branch was unreachable in production and would not compile if
-reached. Round 2 applied the reviewed option (b):
+- **RED (pre-fix, clean b621f38b)**: `bug_1488` A1 — acceptance row +
+  certified red + non-throwing subject + guard-only test certified
+  `outcome=skipped`, exit 0, `## Cycle: A-1488 (green)` appended. Run:
+  `+3 -1` (A1 the only failure; A2/A3/U1 guardrails already green).
+- **GREEN (post-fix)**: A1 refuses — exit 1, `outcome=vacuous-green`,
+  `UnimplementedError guard` named, NO green evidence. Run:
+  `+4 -0` (`bug_1488` suite all green).
+- The two inverted legacy pins re-ran green post-fix: `bug_1259`
+  U1/U2/U3' and `bug_1162` all 5 (`+5: All tests passed!`,
+  `+13 -3` across the three bug files where the -3 are the
+  pre-existing environmental failures documented in §3).
 
-1. the acceptance declared-args/return branch is REMOVED; the acceptance
-   capture is the void-safe, argument-free form and an injected
-   `contractShape` is inert for acceptance;
-2. the undeclared acceptance fallback emits the acceptance-lane token
-   (`acceptanceFallbackGuardToken` / `acceptanceFallbackGuardComment`)
-   instead of the #1259 `vacuousGuardMarker`, keeping the run driver's
-   `stopped_at=<id>:make` classification;
-3. planner branch 3b no longer consults `_extractCapitalizedTrace` — only
-   explicit prose signals (`target` / `entity <Name>` / `create <Name>`) may
-   drive `entity create`;
-4. the suite was rewritten to drive the real path and now includes a slow
-   `dart test` compile pin over the emitted test+subject pair.
+## 2. dart analyze / dart format
 
-## 1. Static analysis
+- `dart analyze` on the five changed files: **No issues found!**
+  (one transient `await_only_futures` info in the new 1162 pin was
+  introduced and fixed during this session — final state clean).
+- `dart format --output=none --set-exit-if-changed .`: **Formatted 2764
+  files (0 changed)** — the tree is format-clean. (The `example/`
+  package-resolution warning is the Flutter subpackage; no Flutter SDK
+  on this host, expected, warning only.)
 
-```
-dart analyze lib/src/plugins/tdd/services/behavior_test_writer.dart \
-             lib/src/plugins/tdd/services/generation_planner.dart \
-             lib/src/plugins/tdd/services/vacuous_guard.dart \
-             test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart
-→ No issues found!
-```
+## 3. Full-suite sweeps (chunked; kernel caches cleared between chunks)
 
-Full-project `dart analyze`: **112 `info` lints, 0 errors / 0 warnings** —
-identical to the pre-change baseline (112).
+Fast suite (default tier; `dart_test.yaml` excludes `slow`):
 
-## 2. The bug suite (REAL runs in this session)
+- 106-chunk list of `tools/run_tests_chunked.sh` — every chunk OK or
+  SKIP (all-slow folders, by design). Notable: `test/cli` OK,
+  `test/commands` OK, `test/plugins/tdd/commands` OK.
+- The loose `test/plugins/tdd/*.dart` files the subdir split skips
+  (99 files, chunk `test/plugins/tdd/__loose__`): **+519 All tests
+  passed!**
+- `test/plugins/tdd/services` (fast tier): **+945 All tests passed!**
+- Remaining commands+loose files (fast tier): **+488 All tests passed!**
 
-```
-dart test test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart
-→ 00:00 +16: All tests passed!          (fast tier)
+Slow tdd scope (`--preset=all`, per file, `-j 1`) — fix-relevant
+results:
 
-dart test --preset=all test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart
-→ 00:14 +17: All tests passed!          (incl. the slow pair-compile pin)
-```
-
-REQUIRED check — the acceptance capture is the void-safe, argument-free form
-`gen` can actually build: PROVED by A-1512-a1/a2/a3 (undeclared row; scalar
-shape injected; entity shape injected — no threaded args, no returned result)
-and A-1512-a4 (the paired subject `SubjectWriter` emits is the parameterless
-`void subject_a1()` runner the call is arity-compatible with).
-
-REQUIRED check — the acceptance fallback is not misclassified as the traced
-hand-delta seam: PROVED by A-1512-b1 (`acceptanceFallbackGuardToken` present,
-`contentCarriesVacuousGuardMarker` false, `contentIsVacuousGreen` still true)
-and b2.
-
-REQUIRED check — the planner returns a real make surface for acceptance rows
-and an incidental capitalised word cannot fabricate an entity: PROVED by
-A-1512-c1..c8 (compose lane; `the User signs in.` composes; explicit
-`entity <Name>`/`create <Name>`/`target` route to the entity pipeline; the
-honest #758 refusal stays; non-acceptance rows keep the generic misfire).
-
-REQUIRED check — the unit lane is unchanged: PROVED by A-1512-d1/d2 plus the
-pre-existing `behavior_test_writer_test.dart`, `subject_writer_test.dart`,
-`issue_1308_vacuous_guard_remedy_test.dart`, `bug_1259_vacuous_green_test.dart`
-and `bug_912_literal_safety_test.dart` pins — all green in the sweep below.
-
-REQUIRED check — the emitted pair compiles: PROVED by A-1512-e1 (slow): the
-emitted test + paired subject are written to a temp package with a `test`
-dependency and run through `dart test`; the run must fail through an
-assertion (`Expected:`/`Actual:`), never a compile-time error.
-
-## 3. Regression sweep (REAL runs in this session)
-
-| Chunk | Result |
+| suite | result |
 | ----- | ------ |
-| `test/plugins/tdd/services/` | `04:18 +870 ~1: All tests passed!` |
-| `test/plugins/tdd/commands/` | `+503 -4` — every non-green entry is environmental and **reproduced on a pristine `b5abf380` worktree or passes with a relaxed ceiling** (see §4) |
-| `test/plugins/tdd/*_test.dart` (root suites) | `+458 -2` — both non-green entries reproduce on the pristine `b5abf380` worktree (see §4) |
-| `test/cli/`, `test/commands/` | not re-run this round: the change is confined to the TDD acceptance lane, and every suite in this repo that pins the planner or the writers lives in `test/plugins/tdd/services/` (full green) |
+| bug_1488_acceptance_vacuous_green_test | +4 All tests passed |
+| bug_1162_bug_subject_green_path_test | +5 All tests passed (incl. inverted A-1162e) |
+| bug_1259_vacuous_green_test | U1/U2/U3' green (see §3a for U4-U6) |
+| make_command_test | +33 (see §3a for the 5 env failures) |
+| make_command_1036_test | +5 All tests passed |
+| make_command_strict_071_test | +1 All tests passed |
+| make_command_declared_071_test | +4 All tests passed |
+| make_command_widget_939/950_test | +4 / +1 All tests passed |
+| run_command_test | +50 All tests passed |
+| run_skin_command_test, verify_command_test, gen_namespacing_827_test | All tests passed |
+| issue_1308_vacuous_guard_remedy_driver_test | +4 All tests passed |
+| issue_1482_run_preflight_driver_test | green (batch `+8 -2`, the -2 are §3a's 1323-seam env failures) |
+| issue_1323_hand_delta_driver_test | green (same batch) |
+| issue_1330_make_subject_edit_fallback_test | green (batch `+4 All tests passed`) |
+| bug_1331_make_adopted_re_drive_test | +8 All tests passed |
+| bug_1345_placeholder_re_drive_test | +5 All tests passed* |
+| bug_1430_refresh_evidence_test | +14 All tests passed |
+| bug_964_finder_kind_taxonomy_test | +33 All tests passed |
+| compose_command_test | +15 All tests passed |
+| bug_1373 / bug_1374 / func_command / func_convergent / func_declared_signature / two_cycle / unified_journal / runner_test / refactor_command / verify_red_subdirectory / two-cycle drivers | All tests passed |
 
-## 4. The non-green entries — all proved to pre-date this change
+### 3a. Non-passing tests — ALL reproduced on the CLEAN tree (git stash
+protocol), zero introduced by this fix
 
-`test/plugins/tdd/commands`:
+| failing test | failure | clean-tree result |
+| ------------ | ------- | ----------------- |
+| bug_1259 U4/U5/U6 | gen-emission `PathNotFoundException` (gen subprocess cannot emit in sandbox) | identical `+4 -3` on stashed tree |
+| make_command_test U-829g/U-829h, A10, A11/U17, A15 | multi-step real pipelines hit sandbox resource kills (`resource-limit` exit -6 / SIGKILL -9) | identical 5 failures on stashed tree (`+33 -5`) |
+| issue_1323_hand_delta_seam U-1323-3/U-1323-4 | same gen-emission `PathNotFoundException` | identical 2 failures on stashed tree |
+| gen_command_test #871 pin | registry description echo drift (test/impl, unrelated to make gate) | identical `+17 -1` on stashed tree |
+| services/behavior_test_writer_test #871 pin | same #871 drift | identical `+11 -1` on stashed tree |
+| verify_red_command U23/A1 | pins pre-#1397 absolute-path evidence form | identical failure on stashed tree (`+25 -2` with smoke) |
+| tdd_command_smoke | corpus help text drift | identical (same stash run) |
+| bug_801 / bug_828 / bug_840 / bug_874 | resource kills + CLI drifts (doctor `--feature`, `--adopt` shape, verdict JSON) | all 4 fail on stashed tree (`+20 -14`) |
+| bug_1345 B1+B2 | `resource-limit` exit -6 on the compose child | +5 All tests passed with `ZFA_TDD_STEP_MEMORY_KB=0` |
 
-1. `view_command_test.dart` U-V3 "a missing subject file is a hard
-   runner-error" — **pre-existing**: the same failure reproduces on a pristine
-   `b5abf380` worktree (`Expected: contains 'missing subject file'` vs. the
-   actual "registry record … points outside the project root" message). The
-   view lane and its registry-path resolution are untouched by this PR.
-2. `bug_1320_declared_assertion_reachable_test.dart` U7 — `TimeoutException
-   after 0:01:00` (the 2x default ceiling) under concurrent load; the file
-   passes cleanly in isolation with a relaxed ceiling: `+8: All tests
-   passed!`.
-3. `bug_1372_certified_red_scan_test.dart` B1 and B2 — same 60 s host
-   timeouts; the file passes cleanly in isolation with a relaxed ceiling:
-   `+3: All tests passed!`.
+\* The 1345 compose child was killed by the pipeline runner's 2 GB
+address-space guard (`pipeline_runner.dart defaultStepMemoryKb`); with
+the guard disabled the suite is fully green — and B1+B2 passing PROVES
+the widened gate does not pre-empt the legitimate compose re-entry (the
+re-drive fixture is real-assertion, per its own comment).
 
-`test/plugins/tdd` (root suites):
+## 4. Environment caveats (honest limitations of this host)
 
-4. `wire_command_test.dart` U-W3 "a missing subject file is a hard
-   runner-error naming the gen remediation" — **pre-existing**: reproduces on
-   the pristine `b5abf380` worktree (`1 [E]`, same "registry record … points
-   outside the project root" vs. "missing subject file" mismatch).
-5. `bug_993_plan_entity_export_clash_test.dart` "end-to-end … (subprocess)" —
-   **pre-existing host slowness**: the same 60 s `TimeoutException` reproduces
-   on the pristine `b5abf380` worktree.
+- No Flutter SDK: `example/` subpackage resolution fails (expected;
+  out of scope for the CLI fix); `--exclude-tags flutter` used on dir
+  runs, mirroring `tools/run_tests_chunked.sh`.
+- Sandbox resource limits: real-subprocess pipelines (gen/func/compose
+  children) intermittently hit `resource-limit` kills or isolate-spawn
+  failures (`SendPort` subtype error). Every such failure above was
+  reproduced on the UNMODIFIED tree before classification.
+- Background processes are reaped between commands here; the sweeps ran
+  as resumable segmented batches with kernel-cache cleanup between
+  chunks (`.dart_tool/test/incremental_kernel.*`,
+  `$TMPDIR/dart_test.kernel.*`), per the dart_test.yaml protocol.
+- `specify init` / `specify extension add` were NOT re-run: `.specify/`
+  is already fully initialized in this repo (init-options.json,
+  integration.json, extensions.yml lists bug + tdd as installed) and
+  the task forbids clobbering existing `.specify/templates|scripts`.
+  The bug + TDD artifacts follow the existing per-bug conventions
+  (`.specify/bugs/1512-acceptance-vacuous-composition/` shape).
 
-No assertion-level failure was introduced by the change.
+## 5. Constraint compliance
 
-## 5. Environment notes (honest recording)
-
-- This host ran several concurrent heavy `dart test` sweeps (other agents in
-  `/tmp/fix-pr-1523` and elsewhere) throughout; the default 60 s per-test
-  ceiling was exceeded by subprocess-spawning tests. Each such entry was
-  either proved on a pristine worktree or re-run green with a relaxed
-  ceiling, and is recorded rather than silently re-run away.
-- Pre-existing macOS-only failures on this host: `view_command_test U-V3` and
-  `wire_command_test U-W3` (both the same registry-record/temp-path
-  resolution mismatch — `lib/<id>_subject.dart` judged "outside the project
-  root" when `Directory.systemTemp` is `/var/folders/…`), plus one slow
-  subprocess suite (`bug_993`).
-
+- Fix scope: ONLY the vacuous-green detection scope in
+  `make_command.dart` (gate widened unit → unit+acceptance).
+  `contentIsVacuousGreen` untouched (verified: no diff in
+  `vacuous_guard.dart`).
+- Unit-lane detection unbroken: `bug_1259` U1/U2 green, `bug_1488` U1
+  green, `make_command_1036` +5, `bug_1345` +5.
+- `dart analyze`: no new warnings. `dart format`: tree clean.

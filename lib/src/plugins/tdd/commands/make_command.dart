@@ -964,25 +964,35 @@ class MakeCommand extends Command<void> {
     }
 
     // ---------------------------------------------------------------
-    // 3c. Vacuous greens cannot certify green (issue #1259) — the
-    //     unit-lane analogue of the scaffolded refusal above (issue
-    //     #912 defect 3). A UNIT test whose assertion set is only the
-    //     UnimplementedError guard proves only "the subject does not
-    //     throw": a func-scaffolded dummy `return 0;` flips it green
-    //     with zero declared-contract code, yet the receipt reported
-    //     complete. The red surface may START at the guard (the stub
-    //     throws, the capture returns the error, the guard fails —
-    //     honest red); green requires at least one assertion on the
-    //     observable outcome named by the behavior description. Scoped
-    //     to UNIT rows (kindless/legacy rows fail open — no test list,
-    //     no refusal); acceptance rows keep the legacy skip transition
-    //     (the composition lane is deferred by design, FR-009).
+    // 3c. Vacuous greens cannot certify green (issue #1259; the scope
+    //     widened to the ACCEPTANCE lane by issue #1488) — the analogue
+    //     of the scaffolded refusal above (issue #912 defect 3). A test
+    //     whose assertion set is only the UnimplementedError guard
+    //     proves only "the subject does not throw": a func-scaffolded
+    //     dummy `return 0;` (unit) or an empty scenario-runner body
+    //     (acceptance) flips it green with zero declared-contract code,
+    //     yet the receipt reported complete. The red surface may START
+    //     at the guard (the stub throws, the capture returns the error,
+    //     the guard fails — honest red); green requires at least one
+    //     assertion on the observable outcome named by the behavior
+    //     description. Acceptance rows are IN scope because the
+    //     composition lane never touches the paired test (the 044
+    //     ownership contract — compose_command.dart's library doc), so
+    //     a guard-only acceptance test stays guard-only for its whole
+    //     life and its post-compose pass is exactly the proof-free
+    //     green the run driver already classifies as the marker-absent
+    //     `stopped_at=<id>:make` fallback (issue #1308/#1512). Scoped
+    //     to UNIT + ACCEPTANCE rows (kindless/legacy rows fail open —
+    //     no test list, no refusal).
     // ---------------------------------------------------------------
     final BehaviorKind? vacuousRowKind = await _rowKindQuiet(
       target.featureDir,
       record.behaviorId,
     );
-    if (vacuousRowKind == BehaviorKind.unit && scaffoldCheckFile.existsSync()) {
+    final vacuousLaneScoped =
+        vacuousRowKind == BehaviorKind.unit ||
+        vacuousRowKind == BehaviorKind.acceptance;
+    if (vacuousLaneScoped && scaffoldCheckFile.existsSync()) {
       final testContent = await scaffoldCheckFile.readAsString();
       if (contentIsVacuousGreen(testContent)) {
         final description = _descriptionFor(record);
