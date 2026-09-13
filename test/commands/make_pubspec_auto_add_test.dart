@@ -8,6 +8,12 @@
 // path uses, and keep the ⚠️ + `--> fix:` diagnostic ONLY when the add is
 // impossible (offline, resolution conflict, SDK-only gap).
 //
+// Issue #1530 re-scoped the CORE package: `zuraffa` is ENSURED textually
+// (offline-safe, the `zfa tdd init --skin` patcher discipline) BEFORE the
+// auto-add runs, so a failed/offline `pub add` can no longer leave the
+// generated `package:zuraffa/...` imports undeclared. The #1265 auto-add
+// and the ⚠️ diagnostic remain for every OTHER hosted gap package.
+//
 // Hermetic: the `pub add` process is intercepted by an injectable runner
 // (the doctor_checks.dart `ZfaProcessRunner` convention); the fake simulates
 // the real pub add effect on the sandbox pubspec so the end state is pinned
@@ -142,40 +148,47 @@ dev_dependencies:
   }
 
   group('zfa make auto-adds emitted imports (issue #1265)', () {
+    test('crud run auto-adds the hosted gap via pub add; zuraffa is ENSURED '
+        'textually (#1530)', () async {
+      await seedEntity();
+
+      final output = await captureOutput(
+        () => commandRunner().run([
+          'make',
+          'car',
+          '--preset=crud',
+          '--state',
+          '--test',
+        ]),
+      );
+
+      // One mechanical auto-add covering every OTHER hosted gap package
+      // — `zuraffa` is excluded (the #1530 ensure declared it).
+      expect(runner.invocations, hasLength(1));
+      expect(runner.invocations.single, startsWith('flutter pub add '));
+      expect(
+        runner.invocations.single.split(' '),
+        isNot(contains('zuraffa')),
+        reason:
+            '#1530: the ensured core package must not be re-`pub add`ed '
+            '(a zuraffa_flutter add is fine — it is a different package)',
+      );
+
+      // The pubspec declares the core package — via the textual ensure.
+      final pubspec = File('${dir.path}/pubspec.yaml').readAsStringSync();
+      expect(pubspec, contains('zuraffa: ^6.0.0'));
+
+      // The ensure success surfaces in the completion output…
+      expect(output, contains('Ensured zuraffa'));
+      // …and the auto-add success for the remaining packages.
+      expect(output, contains('Auto-added'));
+      // …and the warn-only gap diagnostic is gone (nothing remains).
+      expect(output, isNot(contains("pubspec.yaml doesn't declare")));
+    }, timeout: const Timeout(Duration(minutes: 3)));
+
     test(
-      'crud run auto-adds zuraffa (and the rest of the gap) via pub add',
-      () async {
-        await seedEntity();
-
-        final output = await captureOutput(
-          () => commandRunner().run([
-            'make',
-            'car',
-            '--preset=crud',
-            '--state',
-            '--test',
-          ]),
-        );
-
-        // One mechanical auto-add covering every hosted gap package.
-        expect(runner.invocations, hasLength(1));
-        expect(runner.invocations.single, startsWith('flutter pub add '));
-        expect(runner.invocations.single, contains('zuraffa'));
-
-        // The pubspec now declares what the generated code imports.
-        final pubspec = File('${dir.path}/pubspec.yaml').readAsStringSync();
-        expect(pubspec, contains('zuraffa:'));
-
-        // Success surfaces in the completion output…
-        expect(output, contains('Auto-added'));
-        // …and the warn-only gap diagnostic is gone (nothing remains).
-        expect(output, isNot(contains("pubspec.yaml doesn't declare")));
-      },
-      timeout: const Timeout(Duration(minutes: 3)),
-    );
-
-    test(
-      'when the add fails, the consistent ⚠️ + fix diagnostic remains',
+      'when the add fails, the ⚠️ + fix diagnostic remains for the other '
+      'packages — the core zuraffa declaration is STILL ensured (#1530)',
       () async {
         await seedEntity();
         final failing = _RecordingRunner(exitCode: 1, sandbox: dir);
@@ -201,12 +214,15 @@ dev_dependencies:
         });
 
         expect(runner.invocations, hasLength(1));
+        // The failed `pub add` packages keep the consistent diagnostic.
         expect(output, contains("pubspec.yaml doesn't declare"));
         expect(output, contains('--> fix: `flutter pub add'));
-        expect(output, contains('zuraffa'));
-        // Nothing was declared behind the user's back.
+        // The CORE package is declared EVEN OFFLINE — the #1530 ensure is
+        // a textual patch, not a pub add, and its receipt line names it
+        // (not behind the user's back).
+        expect(output, contains('Ensured zuraffa'));
         final pubspec = File('${dir.path}/pubspec.yaml').readAsStringSync();
-        expect(pubspec, isNot(contains('zuraffa:')));
+        expect(pubspec, contains('zuraffa: ^6.0.0'));
       },
       timeout: const Timeout(Duration(minutes: 3)),
     );
