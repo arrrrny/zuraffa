@@ -164,6 +164,7 @@ class UnitContractParam {
     required this.declaredType,
     required this.type,
     required this.name,
+    this.named = false,
   });
 
   /// The declared token verbatim (`AuthRequest`).
@@ -175,6 +176,13 @@ class UnitContractParam {
 
   /// The derived parameter name (`authRequest`).
   final String name;
+
+  /// SPEC 1536: whether the parameter was declared inside a Dart
+  /// named-parameter group (`({a, b})`). Named params render `{...}` in
+  /// subject signatures and pass named arguments at the paired test's
+  /// capture site. False for every positional parameter — the legacy
+  /// shapes are byte-for-byte unchanged.
+  final bool named;
 }
 
 /// The contract-derived shape of a unit subject.
