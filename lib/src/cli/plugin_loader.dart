@@ -41,18 +41,36 @@ import '../plugins/slice/slice_plugin.dart';
 class PluginConfig {
   final Set<String> disabled;
 
-  PluginConfig({Set<String>? disabled}) : disabled = disabled ?? {};
+  /// Issue #1586: [disabled] arrives as an unmodifiable view when loaded from
+  /// `.zfa.json` (`ZfaConfig` stores `disabledPlugins` via `Set.unmodifiable`).
+  /// `zfa plugin enable/disable` mutates this set in place
+  /// (`plugin_command.dart`), so [PluginConfig] must OWN a mutable copy taken
+  /// at this ownership boundary — passing the view by reference crashed every
+  /// `enable`/`disable` with `Unsupported operation: Cannot change an
+  /// unmodifiable set`. [Set.of] copies into a fresh growable set; the config
+  /// format and `ZfaConfig`'s immutability contract are unchanged.
+  PluginConfig({Set<String>? disabled})
+    : disabled = Set.of(disabled ?? const <String>{});
 
   static PluginConfig load({String? projectRoot}) {
     final config = ZfaConfig.load(projectRoot: projectRoot);
     return PluginConfig(disabled: config?.disabledPlugins);
   }
 
-  void save({String? projectRoot}) {
+  /// Persists [disabled] into the project's `.zfa.json`.
+  ///
+  /// Issue #1586: this future MUST be awaited by callers (see
+  /// `plugin_command.dart`). `ZfaConfig.save` writes asynchronously through
+  /// `FileUtils.writeFile`; the CLI runner `_exit(...)`es right after the
+  /// command returns, so a fire-and-forget save was killed before the bytes
+  /// landed — `zfa plugin enable/disable` would report success while losing
+  /// the state change. Awaiting here matches the established pattern
+  /// (`config_command.dart`); the save pipeline and file format are unchanged.
+  Future<void> save({String? projectRoot}) async {
     final root = projectRoot ?? Directory.current.path;
     final existing = ZfaConfig.load(projectRoot: root) ?? ZfaConfig();
     final updated = existing.copyWith(disabledPlugins: disabled);
-    ZfaConfig.save(updated, projectRoot: root);
+    await ZfaConfig.save(updated, projectRoot: root);
   }
 }
 

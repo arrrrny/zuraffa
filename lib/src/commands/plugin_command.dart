@@ -52,7 +52,10 @@ class PluginCommand {
         } else {
           config.disabled.add(id);
         }
-        config.save();
+        // Issue #1586: the save is asynchronous and the CLI runner exits
+        // immediately after this command returns — it must be awaited or
+        // the persisted `.zfa.json` never sees the mutation.
+        await config.save();
         final verb = action == 'enable' ? 'Enabled' : 'Disabled';
         print('$verb plugin: $id');
         return;
