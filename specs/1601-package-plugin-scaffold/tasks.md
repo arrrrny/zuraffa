@@ -5,7 +5,7 @@
 
 ## Phase 1: Setup
 
-- [ ] T001. [P] Implement `PluginFamilyNames` value type in
+- [x] T001. [P] Implement `PluginFamilyNames` value type in
       `lib/src/package/plugin_family_names.dart`: `app`, `core`
       (`<name>_platform`), `adapter(platform)` (`<name>_<platform>`),
       pascal forms (`ZuraffaFfi…`), and `PackageRole` /
@@ -22,7 +22,7 @@ file tree, parse pubspecs, run analyze/test per package.
 
 ### Tests for User Story 1 (written first, must FAIL)
 
-- [ ] T002. [P] [US1] [behavior: B1] [MANDATORY] Full-family layout test in
+- [x] T002. [P] [US1] [behavior: B1] [MANDATORY] Full-family layout test in
       `test/package_sdk/plugin_scaffold_test.dart`: scaffold
       `my_plugin` (all platforms) into a temp dir; assert the five
       package dirs each contain pubspec/analysis_options/README/
@@ -30,24 +30,24 @@ file tree, parse pubspecs, run analyze/test per package.
       README.md, PUBLISH.md, LICENSE, CHANGELOG.md, .gitignore,
       scripts/{prepare_for_publish.sh,publish.sh,push_to_master.sh}.
       Traces FR-001 / FR-011 / SC-1.
-- [ ] T003. [P] [US1] [behavior: B2] [MANDATORY] Dependency-graph wiring test (yaml
+- [x] T003. [P] [US1] [behavior: B2] [MANDATORY] Dependency-graph wiring test (yaml
       parse, `package:yaml`): app → `zuraffa ^<version>` and no in-family
       deps; core → app only; each adapter → app + core; nobody lists an
       adapter as a dependency; in-family constraints `^1.0.0`; all
       versions `1.0.0`. Traces FR-004.
-- [ ] T004. [P] [US1] [behavior: B3] [MANDATORY] Harness-integrity test: each generated
+- [x] T004. [P] [US1] [behavior: B3] [MANDATORY] Harness-integrity test: each generated
       package's test file references its package's public surface and a
       fake channel (grep the generated sources for the fake channel
       import — tests fail if the wiring is broken, FR-008).
 
 ### Implementation for User Story 1
 
-- [ ] T005. [US1] Implement `PluginScaffold` in
+- [x] T005. [US1] Implement `PluginScaffold` in
       `lib/src/package/plugin_scaffold.dart`: build the full
       monorepo file map (all package templates + root docs + scripts)
       from a request; write dirs/files; return `PluginScaffoldResult`.
       Pure templates, no command deps. Traces FR-001 / FR-004 / FR-011.
-- [ ] T006. [US1] Add `plugin` subcommand to
+- [x] T006. [US1] Add `plugin` subcommand to
       `lib/src/commands/package_command.dart` parsing
       `--platforms/--description/--repo/--output/--zuraffa-path/--dry-run`,
       delegating to `PluginScaffold`, printing per-package ✓ lines +
@@ -67,19 +67,19 @@ script's logic offline (version rewrite) in a temp clone.
 
 ### Tests for User Story 2 (written first, must FAIL)
 
-- [ ] T007. [P] [US2] [behavior: B4] [MANDATORY] Publish-metadata test: every generated
+- [x] T007. [P] [US2] [behavior: B4] [MANDATORY] Publish-metadata test: every generated
       pubspec parses and has non-empty `description`, `homepage`,
       `repository`, `issue_tracker`, ≥1 `topics` entry, `version`, and
       the package dir contains non-empty LICENSE + CHANGELOG.md
       (pub.dev requirement — live dry-run evidence in research.md D3).
       Traces FR-003 / SC-2.
-- [ ] T008. [P] [US2] [behavior: B5] [MANDATORY] Overrides-placement test: sibling path
+- [x] T008. [P] [US2] [behavior: B5] [MANDATORY] Overrides-placement test: sibling path
       overrides appear only under `dependency_overrides` (never under
       `dependencies`), and the hosted in-family constraint is present in
       `dependencies`. With `--zuraffa-path`, the framework path lands in
       `dependency_overrides` while `dependencies.zuraffa` stays hosted.
       Traces FR-006 / FR-013.
-- [ ] T009. [P] [US2] [behavior: B6] [MANDATORY] Publish-tooling test: generated
+- [x] T009. [P] [US2] [behavior: B6] [MANDATORY] Publish-tooling test: generated
       `scripts/prepare_for_publish.sh` rewrites every package (incl.
       `<name>_platform`) to the target version + `^<version>` in-family
       constraints and propagates the root CHANGELOG entry (assert by
@@ -89,7 +89,7 @@ script's logic offline (version rewrite) in a temp clone.
 
 ### Implementation for User Story 2
 
-- [ ] T010. [US2] Stamp metadata + overrides in the
+- [x] T010. [US2] Stamp metadata + overrides in the
       `PluginScaffold` templates (pubspec builder shared per role) and
       emit the three publish scripts + PUBLISH.md with all five packages
       listed (fixes the zuraffa_auth `_platform` drift per research.md
@@ -108,17 +108,17 @@ packages and clean checks; assert rejections for `''` and `dos`.
 
 ### Tests for User Story 3 (written first, must FAIL)
 
-- [ ] T011. [P] [US3] [behavior: B7] [MANDATORY] Subset test: `--platforms android,ios`
+- [x] T011. [P] [US3] [behavior: B7] [MANDATORY] Subset test: `--platforms android,ios`
       yields exactly app/core/android/ios (no macos dir), same clean
       invariants as the full family. Traces FR-005.
-- [ ] T012. [P] [US3] [behavior: B8] [MANDATORY] Selection rejection: empty platforms
+- [x] T012. [P] [US3] [behavior: B8] [MANDATORY] Selection rejection: empty platforms
       list and unknown platform names throw
       `PluginScaffoldException` naming the supported set; dry-run purity
       maintained. Traces FR-005 / FR-010.
 
 ### Implementation for User Story 3
 
-- [ ] T013. [US3] Platform selection in `PluginScaffold` +
+- [x] T013. [US3] Platform selection in `PluginScaffold` +
       `package plugin` arg parsing (csv parse, validation, error copy).
       Traces FR-005.
 
@@ -160,24 +160,24 @@ creates nothing.
 
 ### Tests for User Story 5 (written first, must FAIL)
 
-- [ ] T016. [P] [US5] [behavior: B10] [MANDATORY] Validation test: bad name
+- [x] T016. [P] [US5] [behavior: B10] [MANDATORY] Validation test: bad name
       (`Bad-Name`, `9lives`) → snake_case-rule message; existing target
       dir → exists-message and untouched tree; bad `--zuraffa-path` →
       not-a-directory message. Traces FR-010.
-- [ ] T017. [P] [US5] [behavior: B11] [MANDATORY] Dry-run purity: result lists every
+- [x] T017. [P] [US5] [behavior: B11] [MANDATORY] Dry-run purity: result lists every
       file the real run creates (same relative paths, superset
       equality), and the temp dir remains empty afterwards. Traces
       FR-009.
 
 ### Implementation for User Story 5
 
-- [ ] T018. [US5] Validation + dry-run in `PluginScaffold` /
+- [x] T018. [US5] Validation + dry-run in `PluginScaffold` /
       `package plugin` (name regex, target-exists, zuraffa-path check,
       dry-run short-circuit). Traces FR-009 / FR-010.
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T019. [P] CLI_GUIDE.md + README.md: document
+- [x] T019. [P] CLI_GUIDE.md + README.md: document
       `zfa package plugin` beside `zfa package create` (surface, options,
       generated family, publish flow pointer).
 - [ ] T020. `dart format lib test` clean; `dart analyze` clean;

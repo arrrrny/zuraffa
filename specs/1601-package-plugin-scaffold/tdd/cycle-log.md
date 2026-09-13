@@ -22,3 +22,27 @@
   B10, B11; B9 e2e file not yet written — separate cycle).
 - **GREEN**: implement `PluginFamilyNames` + `PluginScaffold` +
   `package plugin` subcommand (below).
+
+- **Reconciliation** (mid-loop): a parallel workstream's `stash` commit
+  (9555fc80, issue #1604 / spec 1444 lineage) landed a complete
+  `PluginScaffold` implementation + `zfa package create-plugin` command on
+  this branch while the loop was red. Decision: the spec-1601 behaviors
+  became the verification suite over that implementation, and the loop
+  closed the real gaps via TDD deltas:
+  1. `repository`/`--repo` option (FR-012) — repo slug was hardwired.
+  2. Framework path overrides placement (FR-006/FR-013) — `--zuraffa-path`
+     previously wrote a path dep into `dependencies` (unpublishable); now
+     the hosted constraint stays and the path rides
+     `dependency_overrides` in every package.
+  3. `zfa package plugin` alias (FR-001 command surface).
+  4. `PluginScaffold.platformsFromCsv` public contract (FR-005/FR-010) —
+     command parsing now delegates to the engine.
+  5. Explicit `--description` stamps role pubspecs (FR-012) — core and
+     adapter descriptions previously ignored it.
+  Spec Assumptions updated to match delivered reality (logged, not silent):
+  initial version **0.1.0** (was assumed 1.0.0); name derivation strips the
+  `zuraffa_` prefix for class nouns (`Ffi`, not `ZuraffaFfi`).
+- **GREEN** (cycle C1 close):
+  `dart test test/package_sdk/plugin_scaffold_test.dart`
+  → `00:03 +15: All tests passed!` — B1–B8, B10, B11 driven to done
+  (15 test cases over 11 behaviors; committed 3472ad8d).
