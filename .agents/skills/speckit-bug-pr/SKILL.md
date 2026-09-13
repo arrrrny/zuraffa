@@ -3,9 +3,11 @@ name: speckit-bug-pr
 description: Open a pull request for the applied bug fix, linking the tracked issue
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: bug:commands/speckit.bug.pr.md
+  author: arrrrny
+  source: extension:bug
 ---
+
+# Bug Pr Skill
 
 # Open Fix Pull Request
 
