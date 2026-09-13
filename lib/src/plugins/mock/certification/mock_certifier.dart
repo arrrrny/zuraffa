@@ -16,6 +16,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../../core/dependencies/dependency_wirer.dart';
 import '../../../utils/string_utils.dart';
 import 'mock_cert_receipt.dart';
 import 'mock_certification_sandbox.dart';
@@ -51,6 +52,47 @@ class MockCertifier {
     MockCertificationSandbox? sandbox,
   }) : contractWriter = contractWriter ?? const MockContractTestWriter(),
        sandbox = sandbox ?? MockCertificationSandbox();
+
+  /// The certifier shaped for the host project at [projectRoot]
+  /// (issue #1600): the pubspec's Flutter dependency decides the test
+  /// framework the committed contract test imports and the toolchain the
+  /// sandbox proves it with. An unreadable or absent pubspec is NOT a
+  /// Flutter host — the pure-Dart default applies.
+  factory MockCertifier.forProject(
+    String projectRoot, {
+    MockCertificationSandbox? sandbox,
+  }) {
+    var flutterTest = false;
+    final pubspec = File(p.join(projectRoot, 'pubspec.yaml'));
+    if (pubspec.existsSync()) {
+      try {
+        flutterTest = DependencyWirer.isFlutterProject(
+          pubspec.readAsStringSync(),
+        );
+      } catch (_) {
+        flutterTest = false;
+      }
+    }
+    // The writer and the sandbox must describe the SAME host (issue
+    // #1600 review): the capabilities' degradation checks read the
+    // sandbox flag while `render()` follows the writer flag, so a
+    // mismatched pair would render `flutter_test` and then prove it with
+    // `dart` (or the reverse) as a mystery red. An injected sandbox —
+    // tests inject stubs here — must agree with the pubspec-derived host.
+    if (sandbox != null && sandbox.flutterTest != flutterTest) {
+      throw ArgumentError.value(
+        sandbox.flutterTest,
+        'sandbox.flutterTest',
+        'disagrees with the host detected at $projectRoot '
+            '($flutterTest) — the writer and the proof must describe the '
+            'same test framework',
+      );
+    }
+    return MockCertifier(
+      contractWriter: MockContractTestWriter(flutterTest: flutterTest),
+      sandbox: sandbox ?? MockCertificationSandbox(flutterTest: flutterTest),
+    );
+  }
 
   final MockContractTestWriter contractWriter;
   final MockCertificationSandbox sandbox;

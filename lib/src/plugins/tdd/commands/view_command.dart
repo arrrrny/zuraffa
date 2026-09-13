@@ -235,7 +235,14 @@ class ViewCommand extends Command<void> {
     try {
       canonicalSubject = await File(subjectPath).resolveSymbolicLinks();
     } on FileSystemException {
-      canonicalSubject = subjectPath;
+      // A missing subject file (the U-V3 artifact case) has nothing to
+      // resolve: canonicalize through its nearest EXISTING ancestor and
+      // re-append the remaining segments. Taking the raw path here made
+      // a symlinked temp root (`/var/folders` → `/private/var/folders`
+      // on macOS) read the project's own recorded path as "outside the
+      // project root" — the wrong refusal branch (issue #1603; the same
+      // fix wire carries since pull/1516 review, c1e287da).
+      canonicalSubject = await _canonicalizeMissingPath(subjectPath);
     }
     if (!p.equals(canonicalRoot, canonicalSubject) &&
         !p.isWithin(canonicalRoot, canonicalSubject)) {
@@ -1034,6 +1041,28 @@ $layoutStubs''';
   /// Strip newlines from a description for safe single-line comment use.
   static String _commentSafe(String description) =>
       description.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+
+  /// Canonicalize [path] when the file itself does not exist yet: walk up
+  /// to the nearest EXISTING ancestor, resolve THAT through symlinks, and
+  /// re-append the remaining (missing) segments. Returns [path] unchanged
+  /// when no ancestor resolves (issue #1603 / pull/1516 review: a symlinked
+  /// temp root must not make the project's own recorded subject path
+  /// compare as outside the project root).
+  static Future<String> _canonicalizeMissingPath(String path) async {
+    var dir = Directory(p.dirname(path));
+    final tail = <String>[p.basename(path)];
+    while (true) {
+      try {
+        final resolved = await dir.resolveSymbolicLinks();
+        return p.joinAll([resolved, ...tail.reversed]);
+      } on FileSystemException {
+        final parent = dir.parent;
+        if (parent.path == dir.path) return path;
+        tail.add(p.basename(dir.path));
+        dir = parent;
+      }
+    }
+  }
 
   Future<_Resolved?> _resolve(
     String cwd,
