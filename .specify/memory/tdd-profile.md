@@ -20,7 +20,10 @@ commands, layout, and conventions the auditor needs to grade tests cold.
 - Single test: `dart test <file> --plain-name "<name>"` (the `--plain-name`
   filter matches test names containing the string).
 - Whole file: `dart test <file>`
-- Full suite (feature scope): `dart test test/plugins/tdd/`
+- Full suite (feature scope): `dart test test/plugins/tdd/ --exclude-tags "flutter || e2e"`
+  (the `e2e` guard keeps the heavyweight make-command suites — #1510, real
+  subprocesses in temp fixtures — off this scope; the same flag runs in
+  `tools/run-tdd-tests.sh` and CI's `dart_core` lane)
 - Full suite (repo): `dart test` — slow; do not run for feature work, run the
   scoped subset instead.
 - Static analysis (feature scope): `dart analyze lib/src/plugins/tdd/ test/plugins/tdd/`
