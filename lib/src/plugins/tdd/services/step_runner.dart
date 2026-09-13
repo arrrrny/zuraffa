@@ -102,16 +102,21 @@ class StepRunner {
   /// [StepResult] instead of hanging the driver forever. Defaults to
   /// [TddTimeouts.defaultStepProcess]. Injected [spawner] fakes are the
   /// caller's responsibility (fast-tier tests), as before.
-  StepRunner({this.zfaBin, StepSpawner? spawner, Duration? timeout})
-    : timeout = timeout ?? TddTimeouts.defaultStepProcess,
-      _spawner =
-          spawner ??
-          ((List<String> command, String workingDirectory) =>
-              _timedDefaultSpawner(
-                command,
-                workingDirectory,
-                timeout ?? TddTimeouts.defaultStepProcess,
-              ));
+  StepRunner({
+    this.zfaBin,
+    StepSpawner? spawner,
+    Duration? timeout,
+    this.childEnvironment,
+  }) : timeout = timeout ?? TddTimeouts.defaultStepProcess,
+       _spawner =
+           spawner ??
+           ((List<String> command, String workingDirectory) =>
+               _timedDefaultSpawner(
+                 command,
+                 workingDirectory,
+                 timeout ?? TddTimeouts.defaultStepProcess,
+                 childEnvironment,
+               ));
 
   /// Explicit entrypoint override (`--zfa-bin`). When null the package
   /// root's `bin/zfa.dart` is resolved.
@@ -122,6 +127,15 @@ class StepRunner {
 
   final StepSpawner _spawner;
 
+  /// Injected child environment (spec 1520): the caller's per-run scratch
+  /// TMPDIR map (`ScratchTmpDir.childEnvironment`) handed to EVERY spawned
+  /// step child through the default spawner, so `dart test` grandchildren
+  /// write their `dart_test.kernel.*` dirs inside the run's own scratch
+  /// instead of the shared user TMPDIR (issue #1520). Null — the default —
+  /// preserves the inherit-`Platform.environment` behavior; an injected
+  /// [StepSpawner] fake keeps its own contract (the env rides the REAL
+  /// spawn path only).
+  final Map<String, String>? childEnvironment;
   /// Resolved entrypoint, cached after the first step so `defaultZfaBin`'s
   /// `Isolate.resolvePackageUri` lookup runs once per run, not once per step
   /// (minor finding from the review of #608).
@@ -486,17 +500,21 @@ class StepRunner {
 
   /// The default spawn path with a hard deadline (bug #742): the child is
   /// killed at [timeout] and a [ProcessTimeoutException] propagates to
-  /// [run], which maps it to a `runner-error` StepResult.
+  /// [run], which maps it to a `runner-error` StepResult. [environment] is
+  /// the caller's scratch-TMPDIR map (spec 1520) — merged over the
+  /// inherited environment, null inherits it unchanged.
   static Future<ProcessResult> _timedDefaultSpawner(
     List<String> command,
     String workingDirectory,
     Duration timeout,
+    Map<String, String>? environment,
   ) {
     return runTimed(
       command.first,
       command.sublist(1),
       workingDirectory: workingDirectory,
       timeout: timeout,
+      environment: environment,
     );
   }
 }

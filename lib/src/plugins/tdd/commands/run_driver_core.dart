@@ -261,6 +261,14 @@ class RunDriverCore {
     bool skipWidget = false,
     Map<String, int>? mockCounts,
     String? baselineScope,
+
+    /// Spec 1520: the caller's per-run scratch environment
+    /// (`ScratchTmpDir.childEnvironment`) — handed to the spawned step
+    /// children and the phase-0 pipeline spawns so every `dart test`
+    /// grandchild writes its kernel dir inside the run's own scratch
+    /// instead of the shared user TMPDIR (issue #1520). Null (the default)
+    /// preserves the inherit-`Platform.environment` behavior.
+    Map<String, String>? childEnvironment,
   }) async {
     // Issue #1471: the caller hands the canonical REFERENCE — the parent
     // resolved it once (pin included) and its child steps must resolve the
@@ -526,8 +534,13 @@ class RunDriverCore {
     //    a red or pending-with-artifacts behavior reds the suite for
     //    every lane's refactors exactly like it did for the single run.
     // -----------------------------------------------------------------
-    // Bug #742: the step spawner carries the deadline.
-    final runner = StepRunner(zfaBin: zfaBin, timeout: timeout);
+    // Bug #742: the step spawner carries the deadline. Spec 1520: it also
+    // carries the run's scratch-TMPDIR map for every step child.
+    final runner = StepRunner(
+      zfaBin: zfaBin,
+      timeout: timeout,
+      childEnvironment: childEnvironment,
+    );
 
     // Issue #992: --skip-widget turns a widget-lane gen refusal (#938
     // skin gate) into a recorded per-behavior skip instead of a run
@@ -553,6 +566,7 @@ class RunDriverCore {
           timeout: timeout,
           label: label,
           feature: feature,
+          childEnvironment: childEnvironment,
         );
         if (stop != null) {
           return _finish(
@@ -2470,6 +2484,7 @@ class RunDriverCore {
     required Duration? timeout,
     required String label,
     required String feature,
+    Map<String, String>? childEnvironment,
   }) async {
     final entry = zfaBin ?? await StepRunner.defaultZfaBin();
     final deadline = timeout ?? TddTimeouts.defaultPipelineStep;
@@ -2483,6 +2498,7 @@ class RunDriverCore {
         command.sublist(1),
         workingDirectory: projectRoot,
         timeout: deadline,
+        environment: childEnvironment,
       );
     }
 
