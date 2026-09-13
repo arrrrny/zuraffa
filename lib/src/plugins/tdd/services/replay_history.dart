@@ -10,23 +10,21 @@
 /// `    purpose:` lines the 047 make pipeline renders), which replay
 /// re-executes in the sandbox.
 ///
-/// The integrity stage recomputes the per-behavior evidence chain exactly
-/// as `CycleLog.append` built it — sha256 over `CycleLog.payloadFromFields`
-/// plus prev-hash linkage from `CycleLog.genesisHash` — and structurally
-/// validates red evidence against the real tree. A behavior whose integrity
-/// stage diverges MUST NOT proceed to gen/verify: the commands of a
-/// tampered history are never executed (FR-004).
+/// The integrity stage verifies the per-behavior evidence chain through
+/// the shared walk ([verifyEvidenceChain] — the same rule the doctor
+/// applies, review #1612 finding 3) and structurally validates red
+/// evidence against the real tree. A behavior whose integrity stage
+/// diverges MUST NOT proceed to gen/verify: the commands of a tampered
+/// history are never executed (FR-004).
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
-import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import 'cycle_evidence.dart';
-import 'cycle_log.dart';
 import 'cycle_log_sections.dart';
+import 'evidence_chain.dart';
 import 'replay_paths.dart';
 
 /// One recorded generation step parsed from a green section's
@@ -171,7 +169,9 @@ class ReplayHistory {
   }
 
   /// The integrity stage (FR-004/FR-005): recompute the per-behavior chain
-  /// over hashed entries, then structurally validate the red evidence.
+  /// over hashed entries ([verifyEvidenceChain] — the shared walk, so this
+  /// reader and the doctor cannot disagree on what a broken chain is),
+  /// then structurally validate the red evidence.
   ///
   /// [recordedRoot] (spec 0806 FR-002): the detected root the history's
   /// paths were anchored at on the recording machine. A red `test:` path
@@ -185,46 +185,18 @@ class ReplayHistory {
     required String projectRoot,
     String? recordedRoot,
   }) async {
-    final unverified = <String>[];
-    String? prevHash;
-    for (final entry in behavior.entries) {
-      if (!entry.isHashed) {
-        unverified.add(entry.kind);
-        continue;
-      }
-      final recomputed = sha256
-          .convert(
-            utf8.encode(
-              CycleLog.payloadFromFields(
-                behaviorId: entry.behaviorId,
-                kind: entry.kind,
-                exit: entry.exit?.toString() ?? '',
-                command: entry.command ?? '',
-                criterion: entry.criterion ?? '',
-                test: entry.test ?? '',
-                timestamp: entry.at ?? '',
-                prevHash: entry.prevHash ?? '',
-              ),
-            ),
-          )
-          .toString();
-      if (recomputed != entry.hash) {
-        return IntegrityOutcome.broken(
-          reason: 'chain mismatch: ${entry.kind}',
-          entryKind: entry.kind,
-          unverifiedKinds: unverified,
-        );
-      }
-      final expectedPrev = prevHash ?? CycleLog.genesisHash;
-      if ((entry.prevHash ?? '') != expectedPrev) {
-        return IntegrityOutcome.broken(
-          reason: 'chain linkage: ${entry.kind}',
-          entryKind: entry.kind,
-          unverifiedKinds: unverified,
-        );
-      }
-      prevHash = entry.hash;
+    final chain = verifyEvidenceChain(behavior.entries);
+    if (chain.drifts.isNotEmpty) {
+      final drift = chain.drifts.first;
+      return IntegrityOutcome.broken(
+        reason: drift.kind == EvidenceChainDriftKind.linkage
+            ? 'chain linkage: ${drift.entry.kind}'
+            : 'chain mismatch: ${drift.entry.kind}',
+        entryKind: drift.entry.kind,
+        unverifiedKinds: chain.unverifiedKinds,
+      );
     }
+    final unverified = chain.unverifiedKinds;
 
     final red = behavior.red;
     if (red != null) {

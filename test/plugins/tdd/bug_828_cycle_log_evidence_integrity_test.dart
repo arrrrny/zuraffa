@@ -19,6 +19,7 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/plugins/tdd/models/cycle_entry.dart';
 import 'package:zuraffa/src/plugins/tdd/services/cycle_log.dart';
+import 'package:zuraffa/src/simulation/fixture_registry.dart';
 
 import 'helpers/tdd_fixture.dart';
 
@@ -477,5 +478,108 @@ void main() {
       expect(out, contains('--> fix:'), reason: out);
       expect(out, contains('does not link'), reason: out);
     });
+
+    test('review #1612: a fixtures section written through the converged '
+        'certifier chain is NOT reported as tampering', () async {
+      // The certifier writer chains through CycleLog.chainHashFromFields
+      // (the canonical payload) and keeps the manifest digest in its own
+      // `- digest:` field, so the doctor's walk verifies the section
+      // instead of flagging every committed simulation certification.
+      final fixturesDir = p.join(fx.featureDir, 'tdd', 'fixtures');
+      await Directory(fixturesDir).create(recursive: true);
+      await File(
+        p.join(fixturesDir, 'auth-world.json'),
+      ).writeAsString('{"uid":"u-1"}\n');
+      final registry = FixtureRegistry(fixturesDir);
+      await registry.writeManifest(families: ['firebase-auth']);
+      await registry.appendCycleEvidence(
+        featureDir: fx.featureDir,
+        families: ['firebase-auth'],
+        commandLine:
+            'zfa simulate --scaffold specs/$feature --family firebase-auth',
+      );
+
+      final out = await doctor();
+
+      expect(exitCode, 0, reason: out);
+      final verdict =
+          jsonDecode(out.trim().split('\n').last) as Map<String, dynamic>;
+      expect(verdict['verdict'], 'healthy', reason: out);
+      expect(verdict['drifts'], isEmpty, reason: out);
+    });
+
+    test('review #1612: a LEGACY foreign-writer section (the manifest '
+        'digest in - hash:) is tolerated, never failed', () async {
+      // The pre-convergence committed format: the certifier stamped the
+      // manifest digest into `- hash:`, a payload the canonical walk
+      // cannot rebuild. It must not read as tampering.
+      await File(fx.cycleLogPath).parent.create(recursive: true);
+      await File(fx.cycleLogPath).writeAsString(
+        '# Cycle Log\n\n'
+        '## 2026-09-01T00:00:00Z: certified simulation fixtures (bug #832)\n'
+        '- behavior: $feature-fixtures\n'
+        '- kind: fixtures\n'
+        '- at: 2026-09-01T00:00:00Z\n'
+        '- exit: 0\n'
+        '- criterion: certified fixture world committed under tdd/fixtures/ '
+        'and hashed into the manifest digest\n'
+        '- command: `zfa simulate --scaffold specs/$feature`\n'
+        '- schema: 1\n'
+        '- prev-hash: genesis\n'
+        '- hash: d08179e0${'0' * 56}\n',
+      );
+
+      final out = await doctor();
+
+      expect(exitCode, 0, reason: out);
+      expect(
+        jsonDecode(out.trim().split('\n').last)['verdict'],
+        'healthy',
+        reason: out,
+      );
+    });
+
+    test(
+      'review #1612: a chain-claiming section whose - hash: line is '
+      'rewritten to non-hex is reported — the hash-less tail bypass',
+      () async {
+        // The bypass the walk could not see: the LAST hashed entry of a
+        // behavior, its `- hash:` line mangled (not deleted) so the parser
+        // stops capturing it — the section still advertises `- schema: 1`
+        // / `- prev-hash:`, so the guard must report it instead of
+        // skipping.
+        final log = CycleLog(p.dirname(p.dirname(fx.cycleLogPath)));
+        await log.append(
+          CycleLogEntry(
+            behaviorId: 'B-001',
+            kind: CycleEntryKind.red,
+            runnerCommand: 'dart test b_001_test.dart',
+            exitCode: 1,
+            capturedOutput: 'Expected: <2>\n  Actual: <1>',
+            classification: FailureClass.assertionFailure,
+            sourceCriterion: 'FR-001',
+            testPath: 'test/tdd/b_001_test.dart',
+            timestamp: '2026-09-01T00:00:00.000Z',
+          ),
+        );
+        final file = File(fx.cycleLogPath);
+        final raw = await file.readAsString();
+        final recorded = RegExp(
+          r'^- hash: ([0-9a-f]{64})$',
+          multiLine: true,
+        ).firstMatch(raw)!;
+        await file.writeAsString(
+          raw.replaceFirst(
+            recorded.group(0)!,
+            '- hash: ${recorded.group(1)!.toUpperCase()}',
+          ),
+        );
+
+        final out = await doctor();
+
+        expect(exitCode, 1, reason: out);
+        expect(out, contains('cannot be verified'), reason: out);
+      },
+    );
   });
 }
