@@ -21,8 +21,10 @@
 //    machine-specific absolute path survives a write), so committed
 //    registries stay portable.
 // 3. `zfa tdd doctor` flags machine-absolute recorded paths as drift and
-//    prescribes `zfa tdd migrate-paths <feature>` — and the prescribed
-//    migration actually repairs the drift (doctor returns healthy).
+//    prescribes `zfa tdd migrate-paths --feature <feature>` (issue #1573:
+//    the flag form the command actually parses — a positional slug is
+//    silently discarded) — and the prescribed migration actually repairs
+//    the drift (doctor returns healthy).
 // 4. `zfa tdd migrate-paths` rewrites the recorded FORM (absolute →
 //    project-relative) of already-namespaced records without moving any
 //    file, fails honestly when a recorded artifact is missing, and is
@@ -218,13 +220,16 @@ void main() {
         final v = verdict(out);
         expect(v['verdict'], 'drift');
         expect(v['prescription'], 'migrate');
-        expect(v['fix'], contains('zfa tdd migrate-paths $feature'));
+        expect(v['fix'], contains('zfa tdd migrate-paths --feature $feature'));
         expect(
           (v['drifts'] as List).join(' '),
           contains('A1'),
           reason: 'the drift names the offending behavior',
         );
-        expect(fixLine(out), contains('zfa tdd migrate-paths $feature'));
+        expect(
+          fixLine(out),
+          contains('zfa tdd migrate-paths --feature $feature'),
+        );
       },
     );
 
@@ -299,7 +304,10 @@ void main() {
               'a relocatable record is form drift — the migration repairs '
               'it; reset would drop the certified behavior',
         );
-        expect(fixLine(out), contains('zfa tdd migrate-paths $feature'));
+        expect(
+          fixLine(out),
+          contains('zfa tdd migrate-paths --feature $feature'),
+        );
 
         // The prescription closes the loop: the migration heals the
         // relocated registry and doctor returns healthy.
