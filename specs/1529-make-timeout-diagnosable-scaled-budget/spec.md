@@ -270,12 +270,21 @@ guard pairing, and every fallback.
 - **FR-7**: The baseline caches (#741 feature-local, #1505 corpus-wide)
   MUST persist the measured capture duration and make it available to
   the budget derivation; older cache files without a duration keep
-  working (floor applies).
+  working (floor applies). Without an explicit `--timeout` the capture
+  itself MUST NOT be bounded by the old fixed 10-minute default — it
+  runs under at least the derived floor, so a suite slower than 10
+  minutes is measured instead of killed unmeasured. A capture that
+  produced no usable snapshot MUST be reported, so the floor fallback
+  is never a silent surprise.
 - **FR-8**: make's re-certification set MUST be the behavior's own test
   plus the tests whose transitive import closure (imports, exports,
   parts; relative and self-package URIs) reaches the declared write set
   (the registered subject and test paths), computable as a pure function
-  over the test tree.
+  over the test tree. The declared set is deliberately the registered
+  PAIR: a generation whose pipeline writes generated sources outside it
+  (`.g.dart` / `.zorphy.dart` / build outputs under `lib/`) produces
+  shared writes, so the trim declines to the existing full-suite path —
+  that is the intended, documented behavior, not a missed engagement.
 - **FR-9**: The trimmed path MUST require BOTH a computable dependency
   fingerprint AND a post-generation mtime scan proving no shared file
   was modified outside the declared write set; otherwise the existing

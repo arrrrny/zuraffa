@@ -4,9 +4,10 @@
 // and the scaled default is handed down as the ONE uniform deadline
 // (US2 / FR-4..FR-6).
 //
-// Fast-ish tier: the fixture's suite spy sleeps 0.5s (the measured
-// baseline the budget scales from); the fake zfa's make step sleeps 30s
-// and is killed at the 1.2s deadline. No `dart test` compiles.
+// Fast-ish tier: the fixture's suite spy sleeps 0.5s (U8 reaches it live
+// and the 1.2s deadline kills the capture; U13 seeds the corpus cache so
+// its warning never races that capture); the fake zfa's make step sleeps
+// 30s and is killed at the 1.2s deadline. No `dart test` compiles.
 library;
 
 import 'dart:convert';
@@ -15,8 +16,12 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/services/corpus_baseline_cache.dart';
 
 import '../helpers/tdd_fixture.dart';
+
+/// The suite spy the fixture's TDD profile points at.
+String _suiteSpyOf(TddFixture fx) => p.join(fx.root.path, '.spies', 'suite');
 
 void main() {
   late TddFixture fx;
@@ -28,14 +33,15 @@ void main() {
   setUp(() async {
     fx = await TddFixture.create(featureName: feature, writeProfile: false);
     fakeZfa1529 = p.join(fx.root.path, 'fake_bin_1529', 'zfa');
-    // The suite spy SLEEPS 0.5s before printing the green transcript:
-    // the driver's baseline capture measures ~0.5s, so the projected
-    // per-step make cost (4 x baseline ≈ 2s) exceeds the explicit
-    // 1.2s budget (the loud-warning trigger) while the baseline itself
-    // still completes well inside that deadline.
+    // The suite spy SLEEPS 0.5s before printing the green transcript.
+    // It is deliberately NOT relied on to complete: on a loaded machine
+    // a cold `#!/bin/sh` spawn can itself outlast the 1.2s budget, so
+    // U8's capture is expected to be killed (its receipt assertions do
+    // not depend on the measurement surviving), and U13 seeds the corpus
+    // cache with a recorded duration instead of racing this process.
     final spyDir = p.join(fx.root.path, '.spies');
     await Directory(spyDir).create(recursive: true);
-    final suiteSpy = p.join(spyDir, 'suite');
+    final suiteSpy = _suiteSpyOf(fx);
     await File(suiteSpy).writeAsString(
       '#!/bin/sh\nsleep 0.5\n'
       "cat <<'SPY_EOF'\n"
@@ -123,6 +129,14 @@ void main() {
 
   test('U13: an explicit --timeout below the projected make cost draws the '
       'loud warning before the first step spawns', () async {
+    // Seed the corpus baseline cache with a recorded 5s capture instead
+    // of measuring the 0.5s spy live. The live variant raced the very
+    // budget under test: a cold spawn on a loaded machine outlasts the
+    // 1.2s deadline, the capture is killed, no baseline is measured, and
+    // the warning this test exists to pin never prints. A reused cache
+    // substitutes its recorded duration (US2.3), so 4 x 5s = 20s >= 1.2s
+    // is deterministic.
+    await _seedCorpusBaseline(fx, durationMs: 5000);
     final runner = CliRunner(exitOnCompletion: false);
     final out = await runner.runCapturing([
       'tdd',
@@ -184,6 +198,34 @@ void main() {
       isFalse,
     );
   });
+}
+
+/// Seed the project-level corpus baseline cache (`.zfa/corpus/`) with a
+/// RECORDED capture duration, so the budget scaling reads a known
+/// baseline instead of racing a live capture (spec 1529 US2.3). The
+/// recorded `command` must equal the profile's suite template and the
+/// `dependency_fingerprint` must match the live one, or the driver
+/// discards the entry as drift and re-runs the suite.
+Future<void> _seedCorpusBaseline(
+  TddFixture fx, {
+  required int durationMs,
+}) async {
+  final fingerprint = await const CorpusBaselineCache().dependencyFingerprint(
+    fx.root.path,
+  );
+  final file = File(CorpusBaselineCache.pathFor(projectRoot: fx.root.path));
+  await file.parent.create(recursive: true);
+  await file.writeAsString(
+    jsonEncode({
+      'command': _suiteSpyOf(fx),
+      'exitCode': 0,
+      'failedTests': <String>[],
+      'capturedAt': '2026-09-01T00:00:00.000Z',
+      'parseable': true,
+      'dependency_fingerprint': fingerprint,
+      'duration_ms': durationMs,
+    }),
+  );
 }
 
 /// The spec-1529 fake zfa: `verify-red` certifies with a red evidence

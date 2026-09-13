@@ -1849,7 +1849,10 @@ class MakeCommand extends Command<void> {
             print(
               '   trimmed re-certification declined: ${recert.reason} '
               '(${sharedWrites.length} file(s): '
-              '${sharedWrites.take(3).join(', ')}...)',
+              '${sharedWrites.take(3).join(', ')}...) — the existing '
+              'full-suite guard runs (the declared set is the registered '
+              'subject + test pair; a generation that emits sources '
+              'elsewhere declines the trim by design, spec 1529 FR-8)',
             );
           } else if (recert.mode == RecertGuardMode.postRunTranscript) {
             print('   trimmed re-certification: ${recert.reason}');

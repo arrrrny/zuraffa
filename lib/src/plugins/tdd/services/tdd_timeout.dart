@@ -440,11 +440,15 @@ const _compileMarkers = [
   'dartdev run_kernel',
 ];
 
-/// Marker substrings in CAPTURED OUTPUT that prove a test run had begun
-/// (the compact/file reporters' progress lines and summaries).
+/// Marker patterns in CAPTURED OUTPUT that prove a test run had begun
+/// (the compact/file reporters' progress lines and summaries only — the
+/// shapes must be specific enough that a stray timestamp or an
+/// `exit code -1:` note cannot masquerade as test progress, spec 1529
+/// FR-3).
 final RegExp _testProgressPattern = RegExp(
-  r'^\d{2}:\d{2} \+\d+|^\d+:\d+ |All tests passed|Some tests failed|'
-  r'loading (test|\.)|-[0-9]+: ',
+  r'^\d\d:\d\d \+\d+ (?:-\d+: )?|^\d\d:\d\d \+\d+: |'
+  r'^\d\d:\d\d \+\d+ ~\d+ |All tests passed!|Some tests failed\.|'
+  r'loading test/',
   multiLine: true,
 );
 

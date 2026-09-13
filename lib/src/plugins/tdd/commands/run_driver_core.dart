@@ -661,7 +661,12 @@ class RunDriverCore {
             // baseline suite included. Dropping it here left the hardcoded
             // 10-minute defaultSuite in charge, killing the baseline (and
             // with it every make step) on repos whose fast suite runs long.
-            timeout: timeout,
+            // Spec 1529: without an override the capture is bounded by at
+            // least the derived FLOOR, never by the old fixed 10-minute
+            // default — a measurement killed at 10 minutes is exactly the
+            // case the scaling exists for (no duration recorded ⇒ the
+            // budget silently degrades to the floor).
+            timeout: timeout ?? scaledStepBudget(measuredBaseline: null),
           );
           captureStopwatch.stop();
           final snapshot = const SuiteGuard().fromRunRecord(
@@ -694,6 +699,16 @@ class RunDriverCore {
               '${p.relative(suiteBaselinePath, from: projectRoot)} '
               '(${snapshot.failedTests.length} pre-existing failure(s)); '
               'make steps reuse it instead of re-running the suite',
+            );
+          } else {
+            // Spec 1529, FR-5: an unusable capture is reported, never a
+            // silent degrade to the floor — the operator must be able to
+            // tell that the scaling did not apply, and why.
+            print(
+              '   note: the suite baseline capture produced no usable '
+              'snapshot (exit ${baselineRecord.exitCode}'
+              '${baselineRecord.timedOut ? ', timed out' : ''}) — the '
+              'per-step budget falls back to the floor (spec 1529)',
             );
           }
         }
@@ -2136,7 +2151,7 @@ class RunDriverCore {
               'elapsed=${formatTddTimeout(result.timeoutReceipt!.elapsed)})',
             );
           } else {
-            print(
+            stderr.writeln(
               '   note: the timeout receipt could not be written '
               '(${outcome.error}) — the runner-error stands unchanged',
             );

@@ -146,6 +146,25 @@ void main() {
       expect(verdict.evidence, contains('no'));
     });
 
+    test('output that merely LOOKS like a timestamp or an exit note is not '
+        'test progress — the phase stays unknown', () {
+      // A compact-reporter progress line is specific: `HH:MM +n:`. A bare
+      // `digits:digits` prefix (a log timestamp) or an unanchored
+      // `-1: ` in an exit-code note must not be graded as a running test
+      // run — that would present a guess as an observation (FR-3).
+      for (final output in const [
+        '10:31 loading failed\n',
+        'exit code -1: killed\n',
+        'see line -1: the stack trace below\n',
+      ]) {
+        final verdict = inferTimeoutPhase(
+          descendantArgvs: const [],
+          output: output,
+        );
+        expect(verdict.phase, 'unknown', reason: output);
+      }
+    });
+
     test('process-tree evidence outranks the captured-output markers', () {
       final verdict = inferTimeoutPhase(
         descendantArgvs: ['/usr/bin/frontend_server --target=flutter'],

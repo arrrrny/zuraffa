@@ -180,18 +180,29 @@ class RecertScope {
     } on FileSystemException {
       return resolved;
     }
-    final matches = RegExp(
-      r'''^\s*(?:import|export|part)\s+['"]([^'"]+)['"]''',
+    // A directive statement (`import` / `export` / `part`) runs to its
+    // terminating `;`, multi-line included; every quoted string in that
+    // span is a URI the file depends on. Matching only the FIRST URI on
+    // the line would drop the `if (dart.library.…)` alternative of a
+    // conditional directive — an UNDER-approximation of the closure,
+    // which silently narrows the trimmed re-certification set, the one
+    // unsafe direction (spec 1529 FR-8).
+    final directives = RegExp(
+      r'''^\s*(?:import|export|part)\s+([^;]*);''',
       multiLine: true,
     ).allMatches(content);
-    for (final match in matches) {
-      final uri = match.group(1)!;
-      final target = _resolveUri(
-        uri: uri,
-        importerRelativeDir: p.dirname(relativePath),
-        selfPackage: selfPackage,
-      );
-      if (target != null) resolved.add(target);
+    for (final directive in directives) {
+      for (final uriMatch in RegExp(
+        '''['"]([^'"]+)['"]''',
+      ).allMatches(directive.group(1)!)) {
+        final uri = uriMatch.group(1)!;
+        final target = _resolveUri(
+          uri: uri,
+          importerRelativeDir: p.dirname(relativePath),
+          selfPackage: selfPackage,
+        );
+        if (target != null) resolved.add(target);
+      }
     }
     return resolved;
   }
