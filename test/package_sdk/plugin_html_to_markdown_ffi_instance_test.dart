@@ -132,9 +132,12 @@ void main() {
     test('B1b: federated dependency graph — nobody depends on an adapter',
         () {
       final appSpec = pubspecOf('html_to_markdown_ffi');
-      expect((appSpec['dependencies'] as YamlMap).keys.cast<String>(),
-          ['zuraffa'],
-          reason: 'app package depends only on hosted zuraffa');
+      final appDeps =
+          (appSpec['dependencies'] as YamlMap).keys.cast<String>().toSet();
+      expect(appDeps, contains('zuraffa'),
+          reason: 'app package builds on hosted zuraffa');
+      expect(appDeps.intersection(family.toSet()), isEmpty,
+          reason: 'app package depends on no in-family package');
 
       final platformDeps =
           pubspecOf('html_to_markdown_ffi_platform')['dependencies']
@@ -144,11 +147,19 @@ void main() {
 
       for (final adapter in adapters) {
         final deps =
-            pubspecOf(adapter)['dependencies'] as YamlMap;
-        expect(deps.keys.cast<String>(),
-            unorderedEquals(['html_to_markdown_ffi',
-                'html_to_markdown_ffi_platform']),
-            reason: '$adapter depends exactly on app + core');
+            (pubspecOf(adapter)['dependencies'] as YamlMap)
+                .keys
+                .cast<String>()
+                .toSet();
+        expect(deps, containsAll(['html_to_markdown_ffi',
+            'html_to_markdown_ffi_platform']),
+            reason: '$adapter depends on app + core');
+        expect(
+          deps.intersection(
+              adapters.toSet()..remove(adapter)),
+          isEmpty,
+          reason: '$adapter must not depend on sibling adapters',
+        );
       }
 
       for (final pkg in family) {

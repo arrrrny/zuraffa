@@ -45,3 +45,19 @@
 - App package suite: `dart test` → **90 passing, 0 failing** (76 ported legacy
   + service contract + host FFI proof) on the macOS host through the migrated
   stack.
+
+## Cycle C3 — GREEN (B1–B4)
+
+- `dart test test/package_sdk/plugin_html_to_markdown_ffi_instance_test.dart`
+  → **+9: All tests passed!** (B1a family/stamps/binaries parity, B1b graph,
+  B1c native artifact parity byte-for-byte, B2a preserved barrels, B2b ported
+  suite presence, B3a/B3b/B3c generated domain, B4 host FFI proof spawn).
+- B4 evidence: the spawned app-package run executes 90 tests against the real
+  macos dylib through service → use case → repository → datasource (FR-004).
+- Two instance-test pins were corrected during green (my derivation errors,
+  not product issues): B1b app-package dep set (ffi/http/zorphy_annotation
+  are legitimate hosted deps; invariant is "no in-family deps") and B1b
+  adapter deps (scaffold adds zuraffa for GetIt; invariant is "contains
+  app+core, never sibling adapters").
+- Scoped suite: `dart test test/package_sdk/` → all green (58 baseline + 9
+  instance).
