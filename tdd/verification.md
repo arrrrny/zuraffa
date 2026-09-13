@@ -1,134 +1,141 @@
-# tdd.verify — Bug #1512 acceptance vacuous composition
+# tdd.verify — Bug #1575 fence-blind line-scanners outside the cycle-log
 
-- **Verified**: 2026-09-11 (round-2 review fixes), this session, on
-  `fix/1512-acceptance-vacuous-composition` (working tree, pre-push)
-- **Toolchain**: Dart 3.13.2 (stable) on macos_x64
-- **Scope**: the two changed source files + the new `vacuous_guard.dart`
-  vocabulary constants + the rewritten suite, then the chunked regression
-  sweep below.
+- **Verified**: 2026-09-13, this session, on
+  `fix/1575-remaining-fence-blind-line-scanners` (working tree, pre-push)
+- **Toolchain**: Dart 3.13.3 (stable) on linux_x64 (Flutter SDK absent —
+  recorded where it matters, §3/§4)
+- **Scope**: the two changed source files, the two new fence-fixture
+  suites, the pre-existing reader/proof suites, then the full 1,294-file
+  chunked regression sweep below.
 
-## Verdict: PASS (with the recorded host/environment caveats in §4)
-
-## 0. Round-2 review corrections (what changed since round 1)
-
-The round-1 record below claimed the acceptance capture threaded the declared
-args and returned the declared result. That branch did not ship —
-`gen_command.dart` resolves a `contractShape` only for `BehaviorKind.unit` and
-the paired acceptance subject is a parameterless `void <target>()` scenario
-runner, so the branch was unreachable in production and would not compile if
-reached. Round 2 applied the reviewed option (b):
-
-1. the acceptance declared-args/return branch is REMOVED; the acceptance
-   capture is the void-safe, argument-free form and an injected
-   `contractShape` is inert for acceptance;
-2. the undeclared acceptance fallback emits the acceptance-lane token
-   (`acceptanceFallbackGuardToken` / `acceptanceFallbackGuardComment`)
-   instead of the #1259 `vacuousGuardMarker`, keeping the run driver's
-   `stopped_at=<id>:make` classification;
-3. planner branch 3b no longer consults `_extractCapitalizedTrace` — only
-   explicit prose signals (`target` / `entity <Name>` / `create <Name>`) may
-   drive `entity create`;
-4. the suite was rewritten to drive the real path and now includes a slow
-   `dart test` compile pin over the emitted test+subject pair.
+## Verdict: PASS (the only non-green entries are pre-existing host-environment gaps, proved on a pristine pre-fix worktree)
 
 ## 1. Static analysis
 
 ```
-dart analyze lib/src/plugins/tdd/services/behavior_test_writer.dart \
-             lib/src/plugins/tdd/services/generation_planner.dart \
-             lib/src/plugins/tdd/services/vacuous_guard.dart \
-             test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart
+dart analyze lib/src/plugins/tdd/services/test_list_reader.dart \
+             lib/src/core/proof/proof_chain_checker.dart \
+             test/plugins/tdd/services/test_list_reader_1575_fence_test.dart \
+             test/core/proof_chain_checker_1575_fence_test.dart
 → No issues found!
 ```
 
-Full-project `dart analyze`: **112 `info` lints, 0 errors / 0 warnings** —
-identical to the pre-change baseline (112).
+Full-project `dart analyze`: **112 issues — identical to the pre-change
+baseline** (a pristine worktree at the pre-fix commit d5a40731 analyzes to
+the same 112, 0 errors / 0 warnings on both sides).
 
-## 2. The bug suite (REAL runs in this session)
+`dart format` on the four changed Dart files: clean (idempotent, no diff).
+
+## 2. The bug suites (REAL runs in this session)
+
+RED (pre-fix tree, commit d5a40731 — full evidence in
+`.specify/bugs/1575-remaining-fence-blind-line-scanners/red-evidence.md`):
 
 ```
-dart test test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart
-→ 00:00 +16: All tests passed!          (fast tier)
-
-dart test --preset=all test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart
-→ 00:14 +17: All tests passed!          (incl. the slow pair-compile pin)
+dart test test/plugins/tdd/services/test_list_reader_1575_fence_test.dart \
+          test/core/proof_chain_checker_1575_fence_test.dart
+→ 5 failed / 3 passed   (reader file)
+→ 2 failed / 1 passed   (proof-chain file)
 ```
 
-REQUIRED check — the acceptance capture is the void-safe, argument-free form
-`gen` can actually build: PROVED by A-1512-a1/a2/a3 (undeclared row; scalar
-shape injected; entity shape injected — no threaded args, no returned result)
-and A-1512-a4 (the paired subject `SubjectWriter` emits is the parameterless
-`void subject_a1()` runner the call is arity-compatible with).
+Every failure mode from the issue reproduced verbatim: an in-fence
+`## Inner loop:` banner mis-kinded a post-fence acceptance row
+(acceptance → unit); an in-fence `## Key entities` banner silently
+swallowed a post-fence behavior row; the same silent vanish in
+`readEntities` / `readDependencies` / `readLayerContracts`; a post-fence
+behavior id (`B2`) silently dropped from the coverage audit; a fenced
+`## Behaviors (example)` table fabricating a phantom `PHANTOM` audit id.
 
-REQUIRED check — the acceptance fallback is not misclassified as the traced
-hand-delta seam: PROVED by A-1512-b1 (`acceptanceFallbackGuardToken` present,
-`contentCarriesVacuousGuardMarker` false, `contentIsVacuousGreen` still true)
-and b2.
+GREEN (post-fix tree, commit 5484f162):
 
-REQUIRED check — the planner returns a real make surface for acceptance rows
-and an incidental capitalised word cannot fabricate an entity: PROVED by
-A-1512-c1..c8 (compose lane; `the User signs in.` composes; explicit
-`entity <Name>`/`create <Name>`/`target` route to the entity pipeline; the
-honest #758 refusal stays; non-acceptance rows keep the generic misfire).
+```
+dart test test/plugins/tdd/services/test_list_reader_1575_fence_test.dart \
+          test/core/proof_chain_checker_1575_fence_test.dart
+→ 00:00 +11: All tests passed!
+```
 
-REQUIRED check — the unit lane is unchanged: PROVED by A-1512-d1/d2 plus the
-pre-existing `behavior_test_writer_test.dart`, `subject_writer_test.dart`,
-`issue_1308_vacuous_guard_remedy_test.dart`, `bug_1259_vacuous_green_test.dart`
-and `bug_912_literal_safety_test.dart` pins — all green in the sweep below.
+REQUIRED check — the five `startsWith('## ')` sites are routed through
+the fence-aware splitter: PROVED by A-1575-a1/a2 (parseRows kind-flip and
+declarative-swallow), A-1575-a3/a4/a5 (the three declaration readers),
+U-1575-c1/c2 (the audit id vanish and phantom fabrication).
 
-REQUIRED check — the emitted pair compiles: PROVED by A-1512-e1 (slow): the
-emitted test + paired subject are written to a temp package with a `test`
-dependency and run through `dart test`; the run must fail through an
-assertion (`Expected:`/`Actual:`), never a compile-time error.
+REQUIRED check — well-formed parsing is unchanged (hard constraint):
+PROVED by U-1575-b1 (no-fence canonical list), U-1575-b2 (the committed
+corpus shape — the one real in-fence `## ` at
+`specs/004-fix-zuraffa-gen/tdd/test-list.md:83` — parses identically),
+U-1575-c3 (the well-formed behaviors audit), and the pre-existing suites
+below.
+
+REQUIRED check — the line-naming error contract (bug #984) survives the
+section→line reconstruction: PROVED by U-1575-b3 (a malformed row after a
+fence reports `test-list.md line 7: expected 4 columns …`, byte-exact).
+
+REQUIRED check — the cycle-log readers are untouched (hard constraint):
+`git diff` names exactly two `lib/` files; `provenance_scanner.dart`,
+`ci_referee/*`, `cycle_log_sections.dart`, `cycle_log_entry_sections.dart`
+have no changes, and their suites are green in the sweep (§3).
 
 ## 3. Regression sweep (REAL runs in this session)
 
+The full suite — every `test/**/*_test.dart` file, 1,294 files — ran in
+26 chunks of ≤50 files (`dart test` per chunk, caches cleaned per
+protocol afterwards):
+
 | Chunk | Result |
 | ----- | ------ |
-| `test/plugins/tdd/services/` | `04:18 +870 ~1: All tests passed!` |
-| `test/plugins/tdd/commands/` | `+503 -4` — every non-green entry is environmental and **reproduced on a pristine `b5abf380` worktree or passes with a relaxed ceiling** (see §4) |
-| `test/plugins/tdd/*_test.dart` (root suites) | `+458 -2` — both non-green entries reproduce on the pristine `b5abf380` worktree (see §4) |
-| `test/cli/`, `test/commands/` | not re-run this round: the change is confined to the TDD acceptance lane, and every suite in this repo that pins the planner or the writers lives in `test/plugins/tdd/services/` (full green) |
+| 1–7, 10–19, 21–25 | `All tests passed!` |
+| 8 | `controller_compile_test.dart` (setUpAll) — environmental, see §4 |
+| 9 | `presenter_compile_test.dart` (setUpAll) — environmental, see §4 |
+| 20 | `view_compile_test.dart` (setUpAll) — environmental, see §4 |
+| 26 | `templates/self_hosting/downstream_compile_gate_test.dart` (setUpAll) — environmental, see §4 |
+
+Totals across the sweep: **≈6,507 tests passed, 4 failed** (the four
+`(setUpAll)` entries below; a log-string audit for `[E]` finds no other
+failure anywhere in the sweep).
+
+Targeted pre-existing suites around the changed readers (REAL runs):
+
+```
+dart test test/plugins/tdd/services/test_list_reader_test.dart \
+          test/plugins/tdd/services/test_list_reader_984_test.dart \
+          test/plugins/tdd/services/test_list_reader_ffi_835_test.dart \
+          test/plugins/tdd/services/test_list_reader_persistence_833_test.dart \
+          test/plugins/tdd/services/bug_919_reader_test.dart \
+          test/plugins/tdd/bug_937_reader_sections_test.dart \
+          test/core/proof_chain_checker_test.dart
+→ 00:03 +76: All tests passed!
+```
 
 ## 4. The non-green entries — all proved to pre-date this change
 
-`test/plugins/tdd/commands`:
+Each of the four failing suites spawns the Flutter toolchain in its
+`setUpAll` via `test/plugins/helpers/flutter_cluster_fixture.dart`
+(`flutter pub get --no-example`), and this host has **no Flutter SDK**:
 
-1. `view_command_test.dart` U-V3 "a missing subject file is a hard
-   runner-error" — **pre-existing**: the same failure reproduces on a pristine
-   `b5abf380` worktree (`Expected: contains 'missing subject file'` vs. the
-   actual "registry record … points outside the project root" message). The
-   view lane and its registry-path resolution are untouched by this PR.
-2. `bug_1320_declared_assertion_reachable_test.dart` U7 — `TimeoutException
-   after 0:01:00` (the 2x default ceiling) under concurrent load; the file
-   passes cleanly in isolation with a relaxed ceiling: `+8: All tests
-   passed!`.
-3. `bug_1372_certified_red_scan_test.dart` B1 and B2 — same 60 s host
-   timeouts; the file passes cleanly in isolation with a relaxed ceiling:
-   `+3: All tests passed!`.
+```
+ProcessException: No such file or directory
+  Command: flutter pub get --no-example
+```
 
-`test/plugins/tdd` (root suites):
-
-4. `wire_command_test.dart` U-W3 "a missing subject file is a hard
-   runner-error naming the gen remediation" — **pre-existing**: reproduces on
-   the pristine `b5abf380` worktree (`1 [E]`, same "registry record … points
-   outside the project root" vs. "missing subject file" mismatch).
-5. `bug_993_plan_entity_export_clash_test.dart` "end-to-end … (subprocess)" —
-   **pre-existing host slowness**: the same 60 s `TimeoutException` reproduces
-   on the pristine `b5abf380` worktree.
+The same four files fail identically on a pristine worktree at the
+pre-fix commit d5a40731 (verified by running
+`controller_compile_test`, `presenter_compile_test` and
+`view_compile_test` there — same `ProcessException`, same command):
+controller, presenter and view generated code targets a Flutter app, so
+these compile pins require the Flutter toolchain. The failure is a host
+gap (the same one `dart pub get` reports for `example/`), not a
+regression; the codegen surfaces they pin are untouched by this fix.
 
 No assertion-level failure was introduced by the change.
 
 ## 5. Environment notes (honest recording)
 
-- This host ran several concurrent heavy `dart test` sweeps (other agents in
-  `/tmp/fix-pr-1523` and elsewhere) throughout; the default 60 s per-test
-  ceiling was exceeded by subprocess-spawning tests. Each such entry was
-  either proved on a pristine worktree or re-run green with a relaxed
-  ceiling, and is recorded rather than silently re-run away.
-- Pre-existing macOS-only failures on this host: `view_command_test U-V3` and
-  `wire_command_test U-W3` (both the same registry-record/temp-path
-  resolution mismatch — `lib/<id>_subject.dart` judged "outside the project
-  root" when `Directory.systemTemp` is `/var/folders/…`), plus one slow
-  subprocess suite (`bug_993`).
-
+- Chunked execution ran in the foreground on a single-tenant host; the
+  kernel/build caches were cleared after the sweep per the verification
+  hygiene protocol (`rm -rf .dart_tool/test/`, dart test kernel temp).
+- The full-project analyze parity (112 == 112) and the pristine-worktree
+  comparisons above were run against a `git worktree` at the pre-fix
+  commit, removed after use (disk housekeeping).
+- The 004 corpus fixture (`specs/004-fix-zuraffa-gen`) parses
+  byte-identically before and after the fix (U-1575-b2), so no committed
+  artifact shifts.
