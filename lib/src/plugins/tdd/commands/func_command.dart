@@ -50,6 +50,7 @@ import 'package:path/path.dart' as p;
 import '../models/routing.dart';
 import '../services/artifact_registry.dart';
 import '../services/declared_routing.dart';
+import '../services/path_canonicalizer.dart';
 import '../services/subject_signature_deriver.dart';
 import '../services/subject_provenance.dart';
 import '../services/subject_writer.dart';
@@ -189,29 +190,27 @@ class FuncCommand extends Command<void> {
           ? recordedSubject
           : p.join(normalizedCwd, recordedSubject),
     );
-    // macOS (and any symlinked temp root): the recorded path may come
-    // through one side of a symlink (`/var/...`) while the project root
-    // resolves through the other (`/private/var/...`). Compare CANONICAL
-    // forms — an unresolved comparison misreads the project's own
-    // subject as "outside the project root" (issue #1603).
+    // Compare CANONICAL forms: the recorded path may travel one side of a
+    // symlink (`/var/...`) while the project root resolves through the
+    // other (`/private/var/...`), so an unresolved comparison misreads the
+    // project's own subject as "outside the project root" (issue #1603).
     String canonicalRoot;
     try {
       canonicalRoot = await Directory(normalizedCwd).resolveSymbolicLinks();
     } on FileSystemException {
-      canonicalRoot = normalizedCwd;
+      // Symmetric with the subject side below: a root that cannot resolve
+      // is canonicalized through its nearest EXISTING ancestor, never left
+      // raw (review of #1611).
+      canonicalRoot = await canonicalizeMissingPath(normalizedCwd);
     }
     String canonicalSubject;
     try {
       canonicalSubject = await File(subjectPath).resolveSymbolicLinks();
     } on FileSystemException {
       // A missing subject file (the U-F5 artifact case) has nothing to
-      // resolve: canonicalize through its nearest EXISTING ancestor and
-      // re-append the remaining segments. Taking the raw path here made
-      // a symlinked temp root (`/var/folders` → `/private/var/folders`
-      // on macOS) read the project's own recorded path as "outside the
-      // project root" — the wrong refusal branch, hit before the
-      // missing-subject check below could run (issue #1603).
-      canonicalSubject = await _canonicalizeMissingPath(subjectPath);
+      // resolve: canonicalize it so the wrong refusal branch is never hit
+      // before the missing-subject check below (issue #1603).
+      canonicalSubject = await canonicalizeMissingPath(subjectPath);
     }
     if (!p.equals(canonicalRoot, canonicalSubject) &&
         !p.isWithin(canonicalRoot, canonicalSubject)) {
@@ -591,28 +590,6 @@ class FuncCommand extends Command<void> {
   /// make/wire/compose (bug #871: legacy `<id> — ` echoes stripped).
   static String _descriptionFor(ArtifactRecord record) =>
       record.descriptionSegment;
-
-  /// Canonicalize [path] for a subject file that may not EXIST (the
-  /// missing-subject artifact case): resolve through its nearest EXISTING
-  /// ancestor directory and re-append the remaining segments, so the
-  /// containment check compares the subject's true canonical location
-  /// against the canonicalized root even when the file is gone (issue
-  /// #1603; mirrors wire's guard, pull/1516 review).
-  static Future<String> _canonicalizeMissingPath(String path) async {
-    var dir = Directory(p.dirname(path));
-    final tail = <String>[p.basename(path)];
-    while (true) {
-      try {
-        final resolved = await dir.resolveSymbolicLinks();
-        return p.joinAll([resolved, ...tail.reversed]);
-      } on FileSystemException {
-        final parent = dir.parent;
-        if (parent.path == dir.path) return path;
-        tail.add(p.basename(dir.path));
-        dir = parent;
-      }
-    }
-  }
 
   String _renderScaffolded({
     required String description,

@@ -343,14 +343,9 @@ int subject_u_001() {
       '"missing subject file", never "outside the project root" (#1603)',
       () async {
         await File(fx.subjectPathOf('A-001')).delete();
-        // Alias the root through a symlink and pass the ALIAS as --project:
-        // the raw cwd then canonicalizes to a different prefix — macOS's
-        // /var → /private/var shape, reproduced deterministically here.
-        final aliasPath = p.join(
-          Directory.systemTemp.path,
-          'tdd_alias_1603d_${DateTime.now().microsecondsSinceEpoch}',
-        );
-        await Link(aliasPath).create(fx.root.path);
+        // Pass the ALIAS as --project: the raw cwd then canonicalizes to a
+        // different prefix — macOS's /var → /private/var shape (#1603).
+        final aliasPath = await symlinkRootAlias(fx);
         addTearDown(() => Link(aliasPath).deleteSync());
 
         final out = await runner.runCapturing([
