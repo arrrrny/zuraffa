@@ -304,6 +304,7 @@ class StepRunner {
     required String feature,
     required String projectRoot,
     String? suiteBaselinePath,
+    List<String> extraArgs = const [],
   }) async {
     if (!stepOrder.contains(step)) {
       throw ArgumentError.value(step, 'step', 'unknown TDD step');
@@ -340,6 +341,14 @@ class StepRunner {
         (timeout.inMicroseconds / Duration.microsecondsPerMinute)
             .toStringAsFixed(4),
       ]);
+    }
+    // Issue #1588: driver-passed step flags (the phase-2 refactor pass's
+    // --pass-batch / --exempt-behaviors batch context). Appended verbatim
+    // after the baseline/timeout flags; the default is empty so every
+    // existing call site (gen / verify-red / make / phase-1 refactor)
+    // spawns byte-identical argv as before.
+    if (extraArgs.isNotEmpty) {
+      argv.addAll(extraArgs);
     }
     final command = entry.endsWith('.dart')
         ? ['dart', entry, ...argv]

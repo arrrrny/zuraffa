@@ -1,15 +1,18 @@
-# TDD test list — Bug #1575 fence-blind line-scanners outside the cycle-log
+# TDD test list — Bug 1588 phase-2 refactor batch + parked exempt
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| A-1575-a1 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | an in-fence `## Inner loop:` banner does not re-kind the enclosing section (A2 stays acceptance) | FR-1575, TestListReader._parseRows | GREEN |
-| A-1575-a2 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | an in-fence `## Key entities` banner does not switch the walk into the declarative section (U2 parses, no silent vanish) | FR-1575, TestListReader._parseRows | GREEN |
-| A-1575-a3 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | readEntities: an in-fence header does not close the Key entities section (post-fence entity row survives) | FR-1575, TestListReader.readEntities | GREEN |
-| A-1575-a4 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | readDependencies: an in-fence header does not close the External dependencies section (post-fence dependency row survives) | FR-1575, TestListReader.readDependencies | GREEN |
-| A-1575-a5 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | readLayerContracts: an in-fence header does not close the Layer contracts section (post-fence contract bullet survives, layer kept) | FR-1575, TestListReader.readLayerContracts | GREEN |
-| U-1575-b1 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | unit | a well-formed list without fences parses unchanged (hard constraint: no regression for canonical inputs) | FR-1575, TestListReader._parseRows | GREEN |
-| U-1575-b2 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | unit | the committed 004 corpus shape (in-fence `## Baseline (...)` banner) parses identically before and after the fix | FR-1575, TestListReader._parseRows | GREEN |
-| U-1575-b3 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | unit | a malformed row after a fence reports its honest absolute line number (bug #984 line-naming contract stays byte-identical) | FR-1575, TestListReader._parseDataRow | GREEN |
-| U-1575-c1 | test/core/proof_chain_checker_1575_fence_test.dart | unit | an in-fence header does not drop post-fence behavior ids from the coverage audit (B2 gap reported) | FR-1575, _behaviorIdsOf | GREEN |
-| U-1575-c2 | test/core/proof_chain_checker_1575_fence_test.dart | unit | a fenced `## Behaviors` example fabricates no phantom audit ids (PHANTOM never reported, declarations stay declarations) | FR-1575, _behaviorIdsOf | GREEN |
-| U-1575-c3 | test/core/proof_chain_checker_1575_fence_test.dart | unit | a well-formed behaviors table audits exactly as before (hard constraint: no regression for the coverage check) | FR-1575, _behaviorIdsOf | GREEN |
+| T-1588-exempt-1 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | a parked behavior's red test does not poison the gate — `--exempt-behaviors C1` lets the refactor proceed (exit 0), exclusion named honestly | SC-2, FR-1588-2 | GREEN |
+| T-1588-exempt-2 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | without the flag the refusal stands — the absolute-green contract is preserved for a flag-less standalone refactor | FR-001 (048), FR-1588-2 | GREEN |
+| T-1588-exempt-3 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | unit | the exemption never masks a NON-exempt failure — a second red test outside the exempt set still refuses, failure named | FR-1588-2, U18 (safe failure) | GREEN |
+| T-1588-exempt-4 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | unit | an exempt id with no registered artifact is ignored (fail-open) and does not weaken the gate | FR-1588-2 | GREEN |
+| T-1588-batch-1 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | the second `--pass-batch` invocation of an unchanged tree inherits the gate — zero suite runs, exit 0, ledger recorded, hit named | SC-1, SC-3, FR-1588-1 | GREEN |
+| T-1588-batch-2 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | unit | tree drift invalidates the ledger — the next `--pass-batch` invocation re-runs the full pipeline | FR-1588-1 (safe failure) | GREEN |
+| T-1588-batch-3 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | unit | a flag-less invocation never reads the ledger — the standalone contract keeps the full pipeline | FR-001 (048), FR-1588-1 | GREEN |
+| T-1588-driver-1 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | the phase-2b refactor spawn carries `--pass-batch` and the parked ids as `--exempt-behaviors`; greens reach done, the park stays blocked | SC-1, SC-2, FR-1588-1/2 | GREEN |
+| T-1588-driver-2 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | with no parked behaviors the spawn carries `--pass-batch` and NO `--exempt-behaviors`; per-behavior spawns preserved | FR-1588-1 | GREEN |
+
+Red evidence: recorded before implementation — the RED run of the bug file
+against the un-patched tree scored 1 passed / 8 failed (the 8 new-contract
+assertions; the contract guard T-1588-exempt-2 is expected green both
+ways). See `.specify/bugs/1588-phase2-refactor-batch-and-parked-exempt/test.md`.

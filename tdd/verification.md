@@ -1,141 +1,96 @@
-# tdd.verify — Bug #1575 fence-blind line-scanners outside the cycle-log
+# tdd.verify — Bug #1588 phase-2 refactor batch + parked exemption
 
 - **Verified**: 2026-09-13, this session, on
-  `fix/1575-remaining-fence-blind-line-scanners` (working tree, pre-push)
-- **Toolchain**: Dart 3.13.3 (stable) on linux_x64 (Flutter SDK absent —
-  recorded where it matters, §3/§4)
-- **Scope**: the two changed source files, the two new fence-fixture
-  suites, the pre-existing reader/proof suites, then the full 1,294-file
-  chunked regression sweep below.
+  `fix/1588-phase2-refactor-batch-and-parked-exempt` (working tree, pushed)
+- **Toolchain**: Dart 3.13.3 (stable) on linux_x64
+- **Scope**: `lib/src/plugins/tdd/commands/refactor_command.dart`,
+  `lib/src/plugins/tdd/commands/run_driver_core.dart`,
+  `lib/src/plugins/tdd/services/step_runner.dart`, the new
+  `lib/src/plugins/tdd/services/pass_batch_ledger.dart`, and the new
+  `test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart`,
+  then the chunked regression sweep below.
 
-## Verdict: PASS (the only non-green entries are pre-existing host-environment gaps, proved on a pristine pre-fix worktree)
+## Verdict: PASS (with the recorded pre-existing-failure caveat in §3)
 
 ## 1. Static analysis
 
 ```
-dart analyze lib/src/plugins/tdd/services/test_list_reader.dart \
-             lib/src/core/proof/proof_chain_checker.dart \
-             test/plugins/tdd/services/test_list_reader_1575_fence_test.dart \
-             test/core/proof_chain_checker_1575_fence_test.dart
+dart analyze <changed files + new files>
 → No issues found!
+
+dart analyze            (whole repo)
+→ 112 issues found      (all `info`)
+→ errors/warnings: 0    (baseline: 0 — no new warnings)
 ```
 
-Full-project `dart analyze`: **112 issues — identical to the pre-change
-baseline** (a pristine worktree at the pre-fix commit d5a40731 analyzes to
-the same 112, 0 errors / 0 warnings on both sides).
+The whole-repo count is byte-identical to the pre-change baseline (112 info
+lints, 0 errors, 0 warnings).
 
-`dart format` on the four changed Dart files: clean (idempotent, no diff).
-
-## 2. The bug suites (REAL runs in this session)
-
-RED (pre-fix tree, commit d5a40731 — full evidence in
-`.specify/bugs/1575-remaining-fence-blind-line-scanners/red-evidence.md`):
+## 2. The bug suite (REAL runs in this session)
 
 ```
-dart test test/plugins/tdd/services/test_list_reader_1575_fence_test.dart \
-          test/core/proof_chain_checker_1575_fence_test.dart
-→ 5 failed / 3 passed   (reader file)
-→ 2 failed / 1 passed   (proof-chain file)
+dart test --preset=all \
+  test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart
+
+RED  (un-patched tree):  1 passed / 8 failed  — exactly the 8 new-contract
+                         assertions (unknown --exempt-behaviors /
+                         --pass-batch options; missing --pass-batch in the
+                         phase-2b spawn argv). The 1 pass is the contract
+                         guard ("without the flag the refusal stands").
+GREEN (patched tree):    9 passed / 0 failed   (~01:04 wall clock)
+GREEN (post-format rerun, fresh): 9 passed / 0 failed
 ```
 
-Every failure mode from the issue reproduced verbatim: an in-fence
-`## Inner loop:` banner mis-kinded a post-fence acceptance row
-(acceptance → unit); an in-fence `## Key entities` banner silently
-swallowed a post-fence behavior row; the same silent vanish in
-`readEntities` / `readDependencies` / `readLayerContracts`; a post-fence
-behavior id (`B2`) silently dropped from the coverage audit; a fenced
-`## Behaviors (example)` table fabricating a phantom `PHANTOM` audit id.
+The suite proves, against real `dart test` fixtures and the fake-zfa
+driver harness:
 
-GREEN (post-fix tree, commit 5484f162):
+- a parked BLOCKED behavior's red test no longer poisons the refactor gate
+  (`--exempt-behaviors` exclusion, named in the output, non-exempt
+  failures still refuse, unknown ids fail open);
+- the second and later `--pass-batch` invocations of an unchanged tree run
+  ZERO suite processes and ZERO pass spawns (counted through a logging
+  suite wrapper) — one pipeline per batch, not per behavior;
+- tree drift and flag-less invocations fall back to the full pipeline
+  (safe failure; the standalone absolute-green contract stands);
+- the driver hands `--pass-batch` (+ `--exempt-behaviors <parked ids>`)
+  on every phase-2b refactor spawn; phase-1 spawns and all other steps
+  keep byte-identical argv; per-behavior spawn honesty and the #1544
+  blocked-park terminal state are unchanged.
 
-```
-dart test test/plugins/tdd/services/test_list_reader_1575_fence_test.dart \
-          test/core/proof_chain_checker_1575_fence_test.dart
-→ 00:00 +11: All tests passed!
-```
-
-REQUIRED check — the five `startsWith('## ')` sites are routed through
-the fence-aware splitter: PROVED by A-1575-a1/a2 (parseRows kind-flip and
-declarative-swallow), A-1575-a3/a4/a5 (the three declaration readers),
-U-1575-c1/c2 (the audit id vanish and phantom fabrication).
-
-REQUIRED check — well-formed parsing is unchanged (hard constraint):
-PROVED by U-1575-b1 (no-fence canonical list), U-1575-b2 (the committed
-corpus shape — the one real in-fence `## ` at
-`specs/004-fix-zuraffa-gen/tdd/test-list.md:83` — parses identically),
-U-1575-c3 (the well-formed behaviors audit), and the pre-existing suites
-below.
-
-REQUIRED check — the line-naming error contract (bug #984) survives the
-section→line reconstruction: PROVED by U-1575-b3 (a malformed row after a
-fence reports `test-list.md line 7: expected 4 columns …`, byte-exact).
-
-REQUIRED check — the cycle-log readers are untouched (hard constraint):
-`git diff` names exactly two `lib/` files; `provenance_scanner.dart`,
-`ci_referee/*`, `cycle_log_sections.dart`, `cycle_log_entry_sections.dart`
-have no changes, and their suites are green in the sweep (§3).
-
-## 3. Regression sweep (REAL runs in this session)
-
-The full suite — every `test/**/*_test.dart` file, 1,294 files — ran in
-26 chunks of ≤50 files (`dart test` per chunk, caches cleaned per
-protocol afterwards):
-
-| Chunk | Result |
-| ----- | ------ |
-| 1–7, 10–19, 21–25 | `All tests passed!` |
-| 8 | `controller_compile_test.dart` (setUpAll) — environmental, see §4 |
-| 9 | `presenter_compile_test.dart` (setUpAll) — environmental, see §4 |
-| 20 | `view_compile_test.dart` (setUpAll) — environmental, see §4 |
-| 26 | `templates/self_hosting/downstream_compile_gate_test.dart` (setUpAll) — environmental, see §4 |
-
-Totals across the sweep: **≈6,507 tests passed, 4 failed** (the four
-`(setUpAll)` entries below; a log-string audit for `[E]` finds no other
-failure anywhere in the sweep).
-
-Targeted pre-existing suites around the changed readers (REAL runs):
+## 3. Chunked regression sweep (no NEW failures)
 
 ```
-dart test test/plugins/tdd/services/test_list_reader_test.dart \
-          test/plugins/tdd/services/test_list_reader_984_test.dart \
-          test/plugins/tdd/services/test_list_reader_ffi_835_test.dart \
-          test/plugins/tdd/services/test_list_reader_persistence_833_test.dart \
-          test/plugins/tdd/services/bug_919_reader_test.dart \
-          test/plugins/tdd/bug_937_reader_sections_test.dart \
-          test/core/proof_chain_checker_test.dart
-→ 00:03 +76: All tests passed!
+refactor_command_test.dart ......... 14/14 PASS
+run_command_test.dart .............. PASS   (grouped run)
+bug_1544_run_continue_after_blocked  PASS   (grouped run)
+bug_1551_no_green_units_defers ...... PASS   (grouped run)
+run_baseline_cache_test.dart .......  7/7 PASS
+step_runner_test.dart .............. 18/18 PASS
+incremental_verify_test.dart ....... 10/10 PASS (spec 069 T001 scoped re-proof)
+bug_922_refactor_preflight_baseline   8/9 — 1 PRE-EXISTING failure
 ```
 
-## 4. The non-green entries — all proved to pre-date this change
+The single `bug_922` failure ("a green behavior behind a baseline-red
+suite reaches done and the run completes") was **stash-bisected to the
+base commit e260a59b**: the identical `runner-error` at
+`stopped_at=B-001:refactor` reproduces with this fix fully stashed, so it
+is a pre-existing, environment-dependent failure (the test provisions real
+build_runner codegen in its fixture and dies mid-preflight on this host) —
+NOT a regression of this change. That file's other 8 tests, including the
+`--suite-baseline` argv handoff to refactor steps, pass.
 
-Each of the four failing suites spawns the Flutter toolchain in its
-`setUpAll` via `test/plugins/helpers/flutter_cluster_fixture.dart`
-(`flutter pub get --no-example`), and this host has **no Flutter SDK**:
+## 4. Format (CI gate)
 
 ```
-ProcessException: No such file or directory
-  Command: flutter pub get --no-example
+dart format --set-exit-if-changed --output=none lib test
+→ Formatted 2615 files (0 changed) — exit 0
 ```
 
-The same four files fail identically on a pristine worktree at the
-pre-fix commit d5a40731 (verified by running
-`controller_compile_test`, `presenter_compile_test` and
-`view_compile_test` there — same `ProcessException`, same command):
-controller, presenter and view generated code targets a Flutter app, so
-these compile pins require the Flutter toolchain. The failure is a host
-gap (the same one `dart pub get` reports for `example/`), not a
-regression; the codegen surfaces they pin are untouched by this fix.
+## 5. Host/environment caveats
 
-No assertion-level failure was introduced by the change.
-
-## 5. Environment notes (honest recording)
-
-- Chunked execution ran in the foreground on a single-tenant host; the
-  kernel/build caches were cleared after the sweep per the verification
-  hygiene protocol (`rm -rf .dart_tool/test/`, dart test kernel temp).
-- The full-project analyze parity (112 == 112) and the pristine-worktree
-  comparisons above were run against a `git worktree` at the pre-fix
-  commit, removed after use (disk housekeeping).
-- The 004 corpus fixture (`specs/004-fix-zuraffa-gen`) parses
-  byte-identically before and after the fix (U-1575-b2), so no committed
-  artifact shifts.
+- The sandbox provides no Flutter SDK; `example/` does not resolve. The
+  touched code is pure-Dart CLI + test code; no Flutter surface is
+  involved.
+- The `bug_922` end-to-end test in §3 requires the host to run the real
+  codegen pipeline inside a throwaway fixture; it fails identically at
+  base and HEAD on this host (see the bisect note above).
