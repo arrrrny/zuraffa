@@ -1,21 +1,18 @@
-# TDD test list — Bug #1512 acceptance vacuous composition
+# TDD test list — Bug #1486 Key Entities fields silently dropped without backticks
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| A-1512-a1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | an undeclared acceptance row emits the parameterless void-safe capture | FR-1512, BehaviorTestWriter._captureInvocation | GREEN |
-| A-1512-a2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | a directly-injected scalar shape is inert for acceptance (no threaded args, no returned result) | FR-1512, BehaviorTestWriter._captureInvocation | GREEN |
-| A-1512-a3 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | a directly-injected entity-return shape is inert too | FR-1512, BehaviorTestWriter._captureInvocation | GREEN |
-| A-1512-a4 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | the paired subject is the parameterless void runner the test call matches | FR-1512, SubjectWriter acceptance stub | GREEN |
-| A-1512-b1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the undeclared acceptance fallback carries the acceptance token, never the vacuous-guard marker | FR-1512, BehaviorTestWriter._deriveAssertion | GREEN |
-| A-1512-b2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the acceptance fallback does not reuse the unit-lane comment block | FR-1512, vacuous_guard.acceptanceFallbackGuardComment | GREEN |
-| A-1512-c1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | a plain scenario row plans the spec-052 composition lane (tdd compose → build) | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an incidental capitalised word does not fabricate an entity | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c3 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | a capitalised word alone never drives the entity pipeline | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c4 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an explicit `entity <Name>` prose signal plans the #758 entity pipeline (entity create → make → wire → build) | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c5 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an explicit `create <Name>` prose signal plans the entity pipeline too | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c6 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an explicit target wins the entity derivation | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c7 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the honest #758 refusal stays (CRUD prose, no entity) | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c8 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | non-acceptance rows keep the generic misfire | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-d1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the unit scalar capture is byte-for-byte (inferred annotation, threaded args, isA<T>, no marker, no acceptance token) | FR-1512, unit-lane guardrail | GREEN |
-| A-1512-d2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the undeclared unit fallback guard stays unmarked (#1308 two-class dispatch) | FR-1512, unit-lane guardrail | GREEN |
-| A-1512-e1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | integration | the emitted acceptance test+subject pair compiles and fails through an assertion (slow) | FR-1512, compile proof | GREEN |
+| A-1486-b1 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a 3-column row with plain pairs parses ALL fields — the issue's exact repro (`Task`, `id/title/isCompleted/createdAt`), purpose intact | FR-1486, SpecParser.parseKeyEntities, _parseFieldCell | GREEN (RED pre-fix) |
+| A-1486-b2 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | the 2-column table (#1381 grammar) accepts plain pairs | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
+| A-1486-b3 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a mixed cell (backticked + plain) parses both, in source order | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
+| A-1486-b4 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | GUARD: the backticked 3-col grammar is unchanged (names + purpose) | FR-1486, backwards compat | GREEN |
+| A-1486-b5 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | generic types with top-level commas survive the plain split (`Map<String, int>`, `List<List<int>>` verbatim) | FR-1486, depth-aware comma split | GREEN (RED pre-fix) |
+| A-1486-b6 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | nullable types parse as plain pairs (`String?`) | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
+| A-1486-b7 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | evidence-but-zero cells are REPORTED, never silent: `1id: String` and a prose backtick span yield anomalies (entity, verbatim cell, 1-based line); no-evidence and parsing cells yield none | FR-1486, SpecEntityFieldAnomaly | GREEN (compile-red pre-fix) |
+| A-1486-b8 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | GUARD: bullet prose keeps the strict backticked-only grammar — plain prose invents NOTHING | FR-1486, false-positive guard | GREEN |
+| A-1486-b9 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | `entityFieldNamesFromDartSource` reads the on-disk entity shape (final/late final in; constructor params and assignment-initialised locals out) | FR-1486, phase-0 reuse mismatch | GREEN (compile-red pre-fix) |
+
+Signal paths (print-only, exercised by the suites above + the #1381 plan suite):
+
+- plan: `SpecEntityFieldAnomaly` rows → per-row `zfa tdd plan: WARNING` (#1486 sibling of #1381's zero-entity warning) — plan_command.dart
+- run: phase-0 reuse branch logs declared-vs-on-disk field mismatch — run_driver_core.dart `_logPhaseZeroFieldMismatch`

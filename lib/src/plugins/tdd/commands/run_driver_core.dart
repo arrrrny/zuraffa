@@ -60,6 +60,7 @@ import '../services/run_baseline_cache.dart';
 import '../services/corpus_baseline_cache.dart';
 import '../services/run_state_store.dart';
 import '../services/runner.dart';
+import '../services/spec_parser.dart';
 import '../services/step_runner.dart';
 import '../services/suite_guard.dart';
 import '../models/routing.dart';
@@ -2500,8 +2501,10 @@ class RunDriverCore {
 
     var created = 0;
     for (final entity in entities) {
-      if (await locateEntityFile(projectRoot, entity.name) != null) {
+      final entityPath = await locateEntityFile(projectRoot, entity.name);
+      if (entityPath != null) {
         print('[run] phase-0 entity ${entity.name} -> reused');
+        await _logPhaseZeroFieldMismatch(entity, entityPath);
         continue;
       }
       final args = [
@@ -2608,6 +2611,41 @@ class RunDriverCore {
     }
     print('[run] phase-0 build -> ok');
     return null;
+  }
+
+  /// Issue #1486: phase-0 reuse keeps the on-disk entity AS-IS — but a
+  /// pre-fix run could create a FIELD-LESS entity (the parser dropped
+  /// unbackticked `name: Type` pairs silently), and a later, fixed run
+  /// reused that starved shape with no signal anywhere. When the plan's
+  /// declared fields and the fields the entity file actually declares
+  /// diverge, name both sets. Print-only by design: reuse semantics are
+  /// unchanged, and any read/parse hiccup stays quiet — the warning is
+  /// observability, never a run stopper.
+  Future<void> _logPhaseZeroFieldMismatch(
+    DeclaredEntity entity,
+    String entityPath,
+  ) async {
+    if (entity.fields.isEmpty) return;
+    try {
+      final source = await File(entityPath).readAsString();
+      final onDisk = SpecParser.entityFieldNamesFromDartSource(source);
+      final declared = <String>{
+        for (final f in entity.fields)
+          f.contains(':') ? f.substring(0, f.indexOf(':')).trim() : f.trim(),
+      };
+      final onDiskSet = onDisk.toSet();
+      final missingOnDisk = declared.difference(onDiskSet).toList()..sort();
+      final undeclared = onDiskSet.difference(declared).toList()..sort();
+      if (missingOnDisk.isEmpty && undeclared.isEmpty) return;
+      print(
+        '[run] phase-0 entity ${entity.name} -> field mismatch: plan '
+        'declares [${declared.join(', ')}], entity file declares '
+        '[${onDiskSet.join(', ')}] — reuse keeps the on-disk shape '
+        '(issue #1486)',
+      );
+    } on Exception {
+      // Best-effort: an unreadable entity file must never stop the run.
+    }
   }
 
   // -------------------------------------------------------------------
