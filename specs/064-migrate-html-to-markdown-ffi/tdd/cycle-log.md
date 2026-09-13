@@ -74,3 +74,18 @@
 - Pre-board cleanups: dropped empty zfa-scaffolded `android/`+`assets/`
   trees from the app package; package CHANGELOGs now mention 1.1.0 (kills
   the dry-run version warning); publish runs from a clean git state.
+
+## Cycle C5 — B6 publish (partial: pub.dev new-package rate limit)
+
+- `prepare_for_publish.sh 1.2.0` → branch `publish-1.2.0`, versions bumped,
+  in-family constraints `^1.2.0`, changelog propagated, committed + pushed.
+- `publish.sh`: **html_to_markdown_ffi 1.2.0 is LIVE on pub.dev** (existing
+  package, update path). The four NEW family packages
+  (`_platform`, `_android`, `_ios`, `_macos`) were blocked at upload:
+  "The package-created operation is blocked, as its rate limit has been
+  reached (12 in the last day)" — an account-wide 24h window (shared with
+  the parallel zuraffa_ocr delivery), not a package defect; dry-runs are
+  clean (0 warnings).
+- Mitigation: scheduled retry automation (every 20 min, ≤ 15 runs) re-runs
+  the idempotent publish script and, once all five are live at 1.2.0,
+  finishes `push_to_master.sh -f` (merge + tag + push).
