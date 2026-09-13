@@ -61,3 +61,16 @@
   app+core, never sibling adapters").
 - Scoped suite: `dart test test/package_sdk/` → all green (58 baseline + 9
   instance).
+
+## Cycle C4 — B5 family board (delivered repo, network tier)
+
+- Per package `dart pub get` + `dart analyze --no-fatal-warnings` +
+  `dart test` + `dart pub publish --dry-run`:
+  - html_to_markdown_ffi: analyze OK · 90 tests passed · **0 warnings**
+  - html_to_markdown_ffi_platform: analyze OK · 6 tests passed · **0 warnings** (1 hint)
+  - html_to_markdown_ffi_android: analyze OK · 6 tests passed · **0 warnings** (2 hints)
+  - html_to_markdown_ffi_ios: analyze OK · 6 tests passed · **0 warnings** (2 hints)
+  - html_to_markdown_ffi_macos: analyze OK · 7 tests passed · **0 warnings** (2 hints)
+- Pre-board cleanups: dropped empty zfa-scaffolded `android/`+`assets/`
+  trees from the app package; package CHANGELOGs now mention 1.1.0 (kills
+  the dry-run version warning); publish runs from a clean git state.
