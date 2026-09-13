@@ -23,10 +23,7 @@
 //   3. the two fallback classes rendered differently: `[fallback:
 //      repairable — ...]` vs `[fallback: no declared trace — make will
 //      dead-end; ...]`, plus a one-line dead-end tally so the author
-//      need not scan every route line. Feature #1484 has since put the
-//      fatal class out of reach for unbound FRs — see the note below;
-//      `_printDeadEndTally` and the class string remain in
-//      `plan_command.dart`, just unrouted from here.
+//      need not scan every route line.
 //
 // Feature #1484 update: the FATAL unit-fallback class no longer exists
 // for unbound FRs — an FR with no surviving `traces:` binding routes to
@@ -34,6 +31,14 @@
 // route line, so the group below asserts the post-1484 contract: the
 // manual-declaration warnings are rendered, no unit route line is
 // emitted, and the dead-end tally is gone for manual-routed FRs.
+//
+// SPEC 1537 update (issue #1537): the fatal class is NOT fully retired —
+// it is LIVE for criterion-only trace bindings (`traces: FR-001`, the
+// resolver's criterion-token skip), reachable via the persistence-marked
+// exemption or `--allow-unit-fallback`. The earlier "out of reach" note
+// above is true only for the no-binding default; the `#1537` group at the
+// end of this file pins the live machinery (proven red against a deletion
+// mutant, green on HEAD).
 library;
 
 import 'dart:convert';
@@ -399,10 +404,12 @@ void main() {
   // `--allow-unit-fallback` skips it. These tests PIN the machinery so the
   // next sweep cannot delete it as "dead code" on the strength of the
   // disproved unreachability analysis.
-  group('#1537: the fatal dead-end machinery is LIVE (criterion-only trace bindings)', () {
-    // The persistence route: default flags, no escape hatch — the #1480
-    // gate exempts persistence-marked unit fallbacks.
-    const persistentCriterionTraceSpec = '''
+  group(
+    '#1537: the fatal dead-end machinery is LIVE (criterion-only trace bindings)',
+    () {
+      // The persistence route: default flags, no escape hatch — the #1480
+      // gate exempts persistence-marked unit fallbacks.
+      const persistentCriterionTraceSpec = '''
 **Template Version**: `zuraffa-1.0`
 
 # Spec: 1481-route
@@ -417,8 +424,8 @@ void main() {
 1. **Given** the app **When** the total is requested **Then** the total equals the sum of items.
 ''';
 
-    // The flag route: no persistence mark, the gate explicitly waived.
-    const criterionTraceSpec = '''
+      // The flag route: no persistence mark, the gate explicitly waived.
+      const criterionTraceSpec = '''
 **Template Version**: `zuraffa-1.0`
 
 # Spec: 1481-route
@@ -433,89 +440,90 @@ void main() {
 1. **Given** the app **When** the total is requested **Then** the total equals the sum of items.
 ''';
 
-    test(
-      'a persistence-marked FR with a criterion-only traces binding renders '
-      'the fatal route line and the tally (default flags, exit 0)',
-      () async {
-        final tmp = await _featureDir(persistentCriterionTraceSpec);
+      test(
+        'a persistence-marked FR with a criterion-only traces binding renders '
+        'the fatal route line and the tally (default flags, exit 0)',
+        () async {
+          final tmp = await _featureDir(persistentCriterionTraceSpec);
+          try {
+            final out = await _plan(tmp);
+            expect(exitCode, 0, reason: out);
+            // The fatal-class route prefix renders for the unit fallback.
+            expect(
+              out,
+              contains(
+                'route: U1 -> unit lane [fallback: no declared trace — '
+                'make will dead-end',
+              ),
+              reason: 'the fatal fallback class renders: $out',
+            );
+            // The one-line tally names the id — the author learns the plan
+            // will dead-end without scanning every route line (bug #1481).
+            expect(
+              out,
+              contains('zfa tdd plan: 1 behavior will dead-end at make'),
+              reason: 'the fatal tally renders: $out',
+            );
+            expect(
+              out,
+              contains('(U1)'),
+              reason: 'the tally names the dead-ended behavior id: $out',
+            );
+          } finally {
+            tmp.deleteSync(recursive: true);
+          }
+        },
+      );
+
+      test('the flag route — --allow-unit-fallback reaches the same tally '
+          'without the persistence mark', () async {
+        final tmp = await _featureDir(criterionTraceSpec);
         try {
-          final out = await _plan(tmp);
+          final out = await _plan(tmp, ['--allow-unit-fallback']);
           expect(exitCode, 0, reason: out);
-          // The fatal-class route prefix renders for the unit fallback.
           expect(
             out,
             contains(
               'route: U1 -> unit lane [fallback: no declared trace — '
               'make will dead-end',
             ),
-            reason: 'the fatal fallback class renders: $out',
+            reason: 'the fatal fallback class renders under the waiver: $out',
           );
-          // The one-line tally names the id — the author learns the plan
-          // will dead-end without scanning every route line (bug #1481).
           expect(
             out,
             contains('zfa tdd plan: 1 behavior will dead-end at make'),
-            reason: 'the fatal tally renders: $out',
+            reason: 'the fatal tally renders under the waiver: $out',
           );
+          expect(out, contains('(U1)'), reason: out);
+        } finally {
+          tmp.deleteSync(recursive: true);
+        }
+      });
+
+      test('the verdict envelope counts the dead end '
+          '(dead_end_behaviors == 1)', () async {
+        final tmp = await _featureDir(persistentCriterionTraceSpec);
+        try {
+          final out = await _plan(tmp, ['--json']);
+          expect(exitCode, 0, reason: out);
+          final verdictLine = out
+              .split('\n')
+              .lastWhere(
+                (l) => l.trim().startsWith('{'),
+                orElse: () => fail('no verdict.v1 envelope on stdout'),
+              );
+          final verdict = jsonDecode(verdictLine) as Map<String, dynamic>;
+          expect(verdict['schema'], 'zuraffa.verdict.v1');
+          final details = verdict['details'] as Map<String, dynamic>;
           expect(
-            out,
-            contains('(U1)'),
-            reason: 'the tally names the dead-ended behavior id: $out',
+            details['dead_end_behaviors'],
+            1,
+            reason: 'the machine-readable dead-end count rides the envelope',
           );
         } finally {
           tmp.deleteSync(recursive: true);
         }
-      },
-    );
-
-    test('the flag route — --allow-unit-fallback reaches the same tally '
-        'without the persistence mark', () async {
-      final tmp = await _featureDir(criterionTraceSpec);
-      try {
-        final out = await _plan(tmp, ['--allow-unit-fallback']);
-        expect(exitCode, 0, reason: out);
-        expect(
-          out,
-          contains(
-            'route: U1 -> unit lane [fallback: no declared trace — '
-            'make will dead-end',
-          ),
-          reason: 'the fatal fallback class renders under the waiver: $out',
-        );
-        expect(
-          out,
-          contains('zfa tdd plan: 1 behavior will dead-end at make'),
-          reason: 'the fatal tally renders under the waiver: $out',
-        );
-        expect(out, contains('(U1)'), reason: out);
-      } finally {
-        tmp.deleteSync(recursive: true);
-      }
-    });
-
-    test('the verdict envelope counts the dead end '
-        '(dead_end_behaviors == 1)', () async {
-      final tmp = await _featureDir(persistentCriterionTraceSpec);
-      try {
-        final out = await _plan(tmp, ['--json']);
-        expect(exitCode, 0, reason: out);
-        final verdictLine = out
-            .split('\n')
-            .lastWhere(
-              (l) => l.trim().startsWith('{'),
-              orElse: () => fail('no verdict.v1 envelope on stdout'),
-            );
-        final verdict = jsonDecode(verdictLine) as Map<String, dynamic>;
-        expect(verdict['schema'], 'zuraffa.verdict.v1');
-        final details = verdict['details'] as Map<String, dynamic>;
-        expect(
-          details['dead_end_behaviors'],
-          1,
-          reason: 'the machine-readable dead-end count rides the envelope',
-        );
-      } finally {
-        tmp.deleteSync(recursive: true);
-      }
-    });
-  });
+      });
+    },
+  );
 }
