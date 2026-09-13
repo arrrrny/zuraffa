@@ -339,6 +339,47 @@ int subject_u_001() {
     });
 
     test(
+      'U-1603d: a missing subject under a symlinked project root reports '
+      '"missing subject file", never "outside the project root" (#1603)',
+      () async {
+        await File(fx.subjectPathOf('A-001')).delete();
+        // Alias the root through a symlink and pass the ALIAS as --project:
+        // the raw cwd then canonicalizes to a different prefix — macOS's
+        // /var → /private/var shape, reproduced deterministically here.
+        final aliasPath = p.join(
+          Directory.systemTemp.path,
+          'tdd_alias_1603d_${DateTime.now().microsecondsSinceEpoch}',
+        );
+        await Link(aliasPath).create(fx.root.path);
+        addTearDown(() => Link(aliasPath).deleteSync());
+
+        final out = await runner.runCapturing([
+          'tdd',
+          'compose',
+          '--project',
+          aliasPath,
+          'A-001',
+        ]);
+
+        expect(exitCode, isNot(0), reason: out);
+        expect(out, contains('outcome=runner-error'));
+        expect(out, contains('missing subject file'));
+        expect(out, contains('lib/a_001_subject.dart'));
+        expect(
+          out,
+          isNot(contains('outside the project root')),
+          reason:
+              "the project's own recorded subject is never outside the "
+              'root — the raw path only looked that way because the root '
+              'canonicalizes through a symlink (#1603)',
+        );
+      },
+      onPlatform: {
+        'windows': const Skip('symlink creation may need privileges'),
+      },
+    );
+
+    test(
       'U12: an in-root subject symlink targeting outside the project is refused',
       () async {
         final outside = await Directory.systemTemp.createTemp(

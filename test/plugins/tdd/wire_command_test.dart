@@ -160,6 +160,53 @@ int subject_b_001() => 42;
     );
   });
 
+  test(
+    'U-1603e: a missing subject under a symlinked project root reports '
+    '"missing subject file", never "outside the project root" (#1603)',
+    () async {
+      await fx.registerBehavior(
+        id: 'B-001',
+        description: 'create entity User with email',
+        // registerBehavior records subject_path but writes no subject
+        // file — the missing-artifact case exactly.
+      );
+      // Alias the root through a symlink and pass the ALIAS as --project:
+      // the raw cwd then canonicalizes to a different prefix — macOS's
+      // /var → /private/var shape, reproduced deterministically here.
+      final aliasPath = p.join(
+        Directory.systemTemp.path,
+        'tdd_alias_1603e_${DateTime.now().microsecondsSinceEpoch}',
+      );
+      await Link(aliasPath).create(fx.root.path);
+      addTearDown(() => Link(aliasPath).deleteSync());
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'wire',
+        'B-001',
+        '--project',
+        aliasPath,
+        '--entity',
+        'User',
+      ]);
+
+      expect(exitCode, isNot(0), reason: 'out: $out');
+      expect(out, contains('runner-error'));
+      expect(out, contains('missing subject file'));
+      expect(out, contains('zfa tdd gen B-001'));
+      expect(
+        out,
+        isNot(contains('outside the project root')),
+        reason:
+            "the project's own recorded subject is never outside the "
+            'root — the raw path only looked that way because the root '
+            'canonicalizes through a symlink (#1603)',
+      );
+    },
+    onPlatform: {'windows': const Skip('symlink creation may need privileges')},
+  );
+
   test('U-W4: a missing entity file is a hard runner-error naming the '
       'entity create remediation (misfire-stop, not papered over)', () async {
     await fx.registerBehavior(

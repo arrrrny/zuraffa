@@ -46,6 +46,22 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 
 import '../helpers/tdd_fixture.dart';
 
+/// A symlink alias of the fixture root: passing the ALIAS as `--project`
+/// reproduces the macOS symlinked-root shape (`/var/folders` →
+/// `/private/var/folders`) deterministically on every POSIX platform
+/// (issue #1603). The alias is a DIFFERENT path string than the resolved
+/// root, so a raw-vs-canonical comparison misreads containment exactly
+/// like macOS does.
+Future<String> symlinkRootAlias(TddFixture fx) async {
+  final aliasPath = p.join(
+    Directory.systemTemp.path,
+    'tdd_alias_${DateTime.now().microsecondsSinceEpoch}_'
+    '${fx.featureName.replaceAll(RegExp('[^a-zA-Z0-9]'), '')}',
+  );
+  await Link(aliasPath).create(fx.root.path);
+  return aliasPath;
+}
+
 /// The gen-shaped widget stub SubjectWriter emits for a widget-kind
 /// behavior (bug #830): a view-builder function returning the feature
 /// Widget, throwing UnimplementedError (honest red).
@@ -223,6 +239,74 @@ Widget subject_a_001() => const Placeholder();
     expect(out, contains('runner-error'));
     expect(out, contains('missing subject file'));
   });
+
+  test(
+    'U-1603a: a missing subject under a symlinked project root reports '
+    '"missing subject file", never "outside the project root" (#1603)',
+    () async {
+      await fx.registerBehavior(
+        id: 'A-001',
+        description: 'the login page renders',
+        writeTestFile: false,
+      );
+      final aliasPath = await symlinkRootAlias(fx);
+      addTearDown(() => Link(aliasPath).deleteSync());
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'view',
+        'A-001',
+        '--project',
+        aliasPath,
+      ]);
+
+      expect(exitCode, isNot(0), reason: 'out: $out');
+      expect(out, contains('runner-error'));
+      expect(out, contains('missing subject file'));
+      expect(
+        out,
+        isNot(contains('outside the project root')),
+        reason:
+            'the project\'s own recorded subject is never outside the '
+            'root — the raw path only looked that way because the root '
+            'canonicalizes through a symlink (#1603)',
+      );
+    },
+    onPlatform: {'windows': const Skip('symlink creation may need privileges')},
+  );
+
+  test(
+    'U-1603b: an existing subject under a symlinked root still resolves '
+    'and is processed (no green-path behavior flip) (#1603)',
+    () async {
+      await fx.registerBehavior(
+        id: 'A-001',
+        description: "the login page shows 'Welcome back'",
+      );
+      await File(
+        fx.subjectPathOf('A-001'),
+      ).writeAsString(genStyleWidgetStub('A-001'));
+      final aliasPath = await symlinkRootAlias(fx);
+      addTearDown(() => Link(aliasPath).deleteSync());
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'view',
+        'A-001',
+        '--project',
+        aliasPath,
+      ]);
+
+      expect(exitCode, 0, reason: 'out: $out');
+      expect(out, contains('view: behavior=A-001 outcome='));
+      expect(out, isNot(contains('outside the project root')));
+      final subject = await File(fx.subjectPathOf('A-001')).readAsString();
+      expect(subject, contains('Widget subject_a_001() => A001View();'));
+    },
+    onPlatform: {'windows': const Skip('symlink creation may need privileges')},
+  );
 
   test('U-V4: an unknown behavior id is a hard runner-error', () async {
     final out = await runView(id: 'A-999');
