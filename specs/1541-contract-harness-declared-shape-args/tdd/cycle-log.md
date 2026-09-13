@@ -64,3 +64,58 @@
     test/commands 370.
 
 
+## Cycle C2 — PR #1558 review fixes (renderable-shape literals + rejection signal)
+
+- **BASELINE** (review findings on 694f629f, both reproduced through the
+  real writer before the fix):
+  - Finding 1 (major, inline comment 3999249815): `_representativeArg` fell
+    through to the `_argN()` placeholder for declared types the seam
+    renders verbatim (`List<T>`, `Set<T>`, `Map<K, V>`, `Iterable<T>`,
+    `Future<T>`, `Stream<T>`); the placeholder's `Object?` return does not
+    compile against those declared parameter types, so `zfa tdd gen`
+    emitted a pair that failed to LOAD (`The argument type 'Object?' can't
+    be assigned to the parameter type 'List<String>'`) — verify-red could
+    only grade a load/runner error, never the named BLOCKED verdict.
+  - Finding 2 (minor, inline comment 3999249824): the Case 3 guard
+    (`outcome is! Error && outcome is! Exception`) guessed "was thrown"
+    from the runtime type; a seam throwing a raw value MATCHING the
+    declared return type (`String label(String name) => throw 'not
+    implemented yet';`) passed the contract test (exit 0, no return value
+    ever produced).
+- **RED** (review-fix pins against the pre-fix writer — the writer edits
+  stashed, the new pins live):
+  - `dart test test/plugins/tdd/services/bug_1541_contract_harness_args_test.dart`
+    → **10 pass / 8 red**: the U-1541-3 signal pin, 5 of the 6 U-1541-8
+    shape pins (the non-renderable-inner guard held by construction), and
+    both U-1541-9 pins; the 10 original #1541 pins stayed green.
+- **GREEN** (post-fix):
+  - `dart test test/plugins/tdd/services/bug_1541_contract_harness_args_test.dart`
+    → **18/18**.
+  - Combined changed-file loop (bug_1513 + bug_1541 + contract_kind_1007 +
+    bug_1363 + bug_1443 + the dogfooded test/tdd/004-login-ui pair) →
+    **50/50** — the #1513 golden (regenerated again for the rejection
+    signal + guarded Case 3) byte-compares; the scalar `impl(0, 0)` render
+    survives.
+  - Slow-tier e2e (`dart test --preset=all
+    test/plugins/tdd/commands/contract_satisfied_with_rejection_e2e_1541_test.dart`,
+    real `dart test` subprocesses) → **5/5**: the three original outcomes
+    plus U-1541-8 (a real `List<String>` pair LOADS, blocks at the Case 2
+    assertion, and satisfies with an implementation) and U-1541-9 (a
+    raw-throwing seam fails Case 3 with the named `threw a raw value`
+    assertion).
+  - Generated-scaffold analyzer check (scratch package, every new shape +
+    the two-case render): `dart analyze .` → **No issues found!** — the
+    rejection signal is emitted with its Case 3 reader, so two-case
+    scaffolds carry no unread declaration.
+  - Wider fast-tier chunks: `test/plugins/tdd/services` **952 pass + 1
+    skip**; `test/plugins/tdd/commands` **532 pass** + the pre-existing
+    macOS `view_command_test` U-V3 failure (issue #1463 — reproduced on
+    the unmodified base with the changes stashed; unrelated); `test/tdd`
+    157 pass.
+  - Analyzer parity: `dart analyze lib test bin` → **112 issues; the issue
+    SET byte-identical** to the pre-change baseline (issue lists diffed
+    clean with the changes stashed).
+  - Artifacts: the test list closes U-1541-1..9 as GREEN (rows 8/9 added),
+    the plan's Case-3/raw-value rationale is aligned with the
+    signal-based semantics, and the verification table carries the new
+    behaviors.

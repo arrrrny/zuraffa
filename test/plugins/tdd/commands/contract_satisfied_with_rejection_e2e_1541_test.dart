@@ -79,6 +79,54 @@ const String kAgentSpec = '''
 - `AgentLog`: `logger(dynamic subsystem) -> Logger`
 ''';
 
+const String kCollectionParamSpec = '''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 004-login-ui
+
+## Functional Requirements
+
+- **FR-001**: The role assignment accepts the declared role list.
+
+## Acceptance Scenarios
+
+1. **Given** a role list **When** the user assigns it **Then** the assignment completes
+
+### Key Entities
+
+| Entity | Fields | Purpose |
+| User | email: String, password: String | The account holder |
+
+## Layer Contracts
+
+**Entities**:
+- `User`: `assign(List<String> roles) -> bool`
+''';
+
+const String kRawThrowSpec = '''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 004-login-ui
+
+## Functional Requirements
+
+- **FR-001**: The label names the user.
+
+## Acceptance Scenarios
+
+1. **Given** a user **When** the label is built **Then** the label names them
+
+### Key Entities
+
+| Entity | Fields | Purpose |
+| User | email: String, password: String | The account holder |
+
+## Layer Contracts
+
+**Entities**:
+- `User`: `label(String name) -> String`
+''';
+
 Future<Directory> _fixture(String spec, String name) async {
   final tmp = Directory.systemTemp.createTempSync(name);
   final featureDir = p.join(tmp.path, 'specs', '004-login-ui');
@@ -381,6 +429,100 @@ Object? logger(dynamic subsystem) => _agentLogLogger(subsystem as String);
             'a representative argument must satisfy the argument-validating '
             'contract (issue #1541 criterion 3) — '
             'transcript:\n$satisfiedTranscript',
+      );
+    } finally {
+      if (tmp.existsSync()) tmp.deleteSync(recursive: true);
+    }
+  });
+
+  test('U-1541-8 e2e: a declared type the seam renders verbatim '
+      '(List<String>) compiles — the pair fails at the named assertion, '
+      'never at load', () async {
+    final tmp = await _fixture(kCollectionParamSpec, 'contract_e2e_1541_list_');
+    try {
+      final (testPath, subjectPath) = await _planAndGen(tmp);
+      final generated = File(testPath).readAsStringSync();
+      expect(generated, contains('impl(<String>[])'), reason: generated);
+      expect(generated, isNot(contains('_arg0')), reason: generated);
+
+      // The stub seam: the pair must LOAD and fail at the Case 2
+      // assertion (the BLOCKED surface), never at compilation — the
+      // placeholder's `Object?` could not be assigned to the declared
+      // `List<String>` parameter (review finding).
+      final direct = await Process.run('dart', [
+        'test',
+        testPath,
+        '--plain-name',
+        'User.assign(List<String> roles) -> bool (entity method contract)',
+      ], workingDirectory: tmp.path);
+      final transcript = '${direct.stdout}${direct.stderr}';
+      expect(direct.exitCode, isNot(0), reason: transcript);
+      expect(transcript, contains('Expected:'), reason: transcript);
+      expect(transcript, isNot(contains('Failed to load')), reason: transcript);
+      expect(
+        transcript,
+        isNot(contains('Compilation failed')),
+        reason: transcript,
+      );
+      expect(
+        transcript,
+        isNot(contains("can't be assigned")),
+        reason: transcript,
+      );
+
+      // An implemented seam satisfies the contract through the literal.
+      await File(subjectPath).writeAsString('''
+library;
+
+/// Implemented contract seam — the declared List<String> parameter.
+bool assign(List<String> roles) => roles.length.isEven;
+''');
+      final satisfied = await Process.run('dart', [
+        'test',
+        testPath,
+        '--plain-name',
+        'User.assign(List<String> roles) -> bool (entity method contract)',
+      ], workingDirectory: tmp.path);
+      expect(
+        satisfied.exitCode,
+        0,
+        reason: '${satisfied.stdout}${satisfied.stderr}',
+      );
+    } finally {
+      if (tmp.existsSync()) tmp.deleteSync(recursive: true);
+    }
+  });
+
+  test('U-1541-9 e2e: a seam that throws a RAW value matching the declared '
+      'return type is surfaced by Case 3, never graded as a return', () async {
+    final tmp = await _fixture(kRawThrowSpec, 'contract_e2e_1541_raw_');
+    try {
+      final (testPath, subjectPath) = await _planAndGen(tmp);
+
+      // The review's exact silent green: a String-returning seam that
+      // throws a raw value of the MATCHING runtime type. The pre-review
+      // guard (`outcome is! Error && outcome is! Exception`) mistook the
+      // thrown value for a return and the test exited 0.
+      await File(subjectPath).writeAsString('''
+library;
+
+String label(String name) => throw 'not implemented yet';
+''');
+
+      final direct = await Process.run('dart', [
+        'test',
+        testPath,
+        '--plain-name',
+        'User.label(String name) -> String (entity method contract)',
+      ], workingDirectory: tmp.path);
+      final transcript = '${direct.stdout}${direct.stderr}';
+      expect(direct.exitCode, isNot(0), reason: transcript);
+      expect(transcript, contains('threw a raw value'), reason: transcript);
+      expect(transcript, contains('Expected:'), reason: transcript);
+      expect(
+        transcript,
+        isNot(contains('Compilation failed')),
+        reason: transcript,
       );
     } finally {
       if (tmp.existsSync()) tmp.deleteSync(recursive: true);

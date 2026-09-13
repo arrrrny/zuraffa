@@ -27,7 +27,9 @@ red-green loop drives them); T4-T5 are the non-behavioral wiring
 - [x] **T3** (P1) [behavior: U-1541-3] `contract_test_writer.dart` `_render`: guard the
   return-type case (Case 3, non-nullable scalar returns) so the
   `expect(outcome, isA<...>())` assertion runs only when the captured
-  outcome is NOT a rejection (`outcome is! Error && outcome is! Exception`),
+  outcome is NOT a rejection (`outcome is! Error && outcome is! Exception`
+  — revised by the PR #1558 review fix to the `_rejection` capture signal,
+  which also surfaces thrown raw values; see cycle-log C2),
   with a named comment recording the satisfied-with-rejection semantics
   (issue #1541). Case 1/Case 2 text, order, and the
   `isNot(isA<UnimplementedError>())` pin stay byte-unchanged. Traces:

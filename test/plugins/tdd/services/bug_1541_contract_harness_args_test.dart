@@ -191,16 +191,30 @@ void main() {
   group('U-1541-3: the return-type case is rejection-guarded, the #1007 '
       'pins unchanged (FR-4)', () {
     test(
-      'Case 3 runs only when the captured outcome is not a rejection',
+      'Case 3 runs only when the capture signal records no rejection',
       () async {
         final test = await _render(scalarContract, target: 'validateEmail');
         expect(
           test,
-          contains('outcome is! Error && outcome is! Exception'),
+          contains('if (_rejection == null) {'),
           reason:
               'a captured rejection has no return value to type-check — '
-              'the guard records the satisfied-with-rejection outcome:\n'
+              'the guard keys on the rejection SIGNAL `_captured` records '
+              '(review finding), never the outcome runtime type:\n'
               '$test',
+        );
+        expect(
+          test,
+          contains('_rejection = error;'),
+          reason: 'the capture records the thrown value as the signal:\n$test',
+        );
+        expect(
+          test,
+          isNot(contains('outcome is! Error && outcome is! Exception')),
+          reason:
+              'the runtime-type guess IS the review finding — a thrown raw '
+              'value matching the declared return type was graded as a '
+              'return that never happened:\n$test',
         );
         expect(
           test,
@@ -225,13 +239,16 @@ void main() {
       expect(RegExp(r'\btest\(').allMatches(test), hasLength(1));
     });
 
-    test('a non-scalar return carries no Case 3 and no guard (the '
-        '#1007 two-case shape)', () async {
+    test('a non-scalar return carries no Case 3 and no rejection signal '
+        '(the #1007 two-case shape)', () async {
       final test = await _render(dynamicParamContract);
       expect(test, contains('Case 1 of 2'));
       expect(test, contains('Case 2 of 2'));
       expect(test, isNot(contains('Case 3')));
-      expect(test, isNot(contains('outcome is! Error')));
+      // The rejection signal is emitted WITH its Case 3 reader — an
+      // unread declaration would leak an `unused_element` analyzer
+      // warning into every two-case scaffold (review finding follow-up).
+      expect(test, isNot(contains('_rejection')));
     });
   });
 
@@ -243,6 +260,132 @@ void main() {
       expect(test, contains("import 'package:test/test.dart';"));
       expect(test, isNot(contains('flutter_test')));
       expect(test, contains("as subject;"));
+    });
+  });
+
+  group('U-1541-8: declared types the seam renders verbatim get '
+      'representative literals, never the Object? placeholder (review '
+      'finding 1)', () {
+    test('List<T> / Iterable<T> render an empty typed list literal', () async {
+      expect(
+        await _render(
+          'contract:A1 — User.assign(List<String> roles) -> bool '
+          '(entity method contract)',
+        ),
+        contains('impl(<String>[])'),
+        reason:
+            'the placeholder Object? cannot be assigned to '
+            'List<String> — the pair must pass a typed literal',
+      );
+      expect(
+        await _render(
+          'contract:A1 — User.list(Iterable<String> names) -> bool '
+          '(entity method contract)',
+        ),
+        contains('impl(<String>[])'),
+      );
+    });
+
+    test('Set<T> / Map<K, V> render empty typed collection literals', () async {
+      expect(
+        await _render(
+          'contract:A1 — User.tag(Set<int> ids) -> bool '
+          '(entity method contract)',
+        ),
+        contains('impl(<int>{})'),
+      );
+      expect(
+        await _render(
+          'contract:A1 — User.score(Map<String, int> scores) -> bool '
+          '(entity method contract)',
+        ),
+        contains('impl(<String, int>{})'),
+      );
+    });
+
+    test('Future<void> / Stream<T> render their value-less literals', () async {
+      expect(
+        await _render(
+          'contract:A1 — Api.wait(Future<void> done) -> bool '
+          '(usecase contract)',
+        ),
+        contains('impl(Future<void>.value())'),
+      );
+      expect(
+        await _render(
+          'contract:A1 — Api.watch(Stream<int> ticks) -> bool '
+          '(usecase contract)',
+        ),
+        contains('impl(const Stream.empty())'),
+      );
+    });
+
+    test('a renderable collection settles its INNER type in the literal — '
+        'the inner dynamic never nests a placeholder', () async {
+      final test = await _render(
+        'contract:A1 — Api.send(List<dynamic> cells) -> bool '
+        '(usecase contract)',
+      );
+      expect(test, contains('impl(<dynamic>[])'), reason: test);
+      expect(test, isNot(contains('_arg0')), reason: test);
+    });
+
+    test('Future<dynamic> nests the placeholder, labeled with the INNER '
+        'type the author must supply', () async {
+      final test = await _render(
+        'contract:A1 — Api.poll(Future<dynamic> task) -> int '
+        '(usecase contract)',
+      );
+      expect(
+        test,
+        contains('impl(Future<dynamic>.value(_arg0()))'),
+        reason: test,
+      );
+      expect(
+        test,
+        contains('_arg0() -> a representative `dynamic` value'),
+        reason: test,
+      );
+      expect(
+        test,
+        contains('provide a representative `dynamic` '),
+        reason: test,
+      );
+    });
+
+    test('a declared type with a NON-renderable inner keeps the '
+        'placeholder (the seam parameter is Object? there)', () async {
+      final test = await _render(
+        'contract:A1 — Repo.save(List<Product> items) -> bool '
+        '(usecase contract)',
+      );
+      expect(test, contains('impl(_arg0())'), reason: test);
+      expect(
+        test,
+        contains('provide a representative `List<Product>` '),
+        reason: test,
+      );
+    });
+  });
+
+  group('U-1541-9: raw thrown values are surfaced by Case 3 (review '
+      'finding 2)', () {
+    test('the guard asserts the captured rejection is an Error/Exception, '
+        'so a raw throw fails instead of passing as a return', () async {
+      final test = await _render(scalarContract, target: 'validateEmail');
+      expect(
+        test,
+        contains('expect(_rejection, anyOf(isA<Error>(), isA<Exception>()),'),
+        reason: test,
+      );
+      expect(test, contains('threw a raw value'), reason: test);
+    });
+
+    test('a returned value still type-checks against the declared return '
+        '(the signal is only set on a capture)', () async {
+      final test = await _render(scalarContract, target: 'validateEmail');
+      expect(test, contains('if (_rejection == null) {'), reason: test);
+      expect(test, contains('expect(outcome, isA<bool>(),'), reason: test);
     });
   });
 }

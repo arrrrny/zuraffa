@@ -42,14 +42,37 @@
     - **declared-shape argument generation / Case 3 guard**: the return-
       type case (Case 3, emitted only for non-nullable scalar returns) is
       wrapped in a guard that runs the `expect(outcome, isA<...>())`
-      assertion only when the captured outcome is NOT a rejection
-      (`outcome is! Error && outcome is! Exception`). A captured
-      rejection passes Case 2 (`isNot(isA<UnimplementedError>())` — an
-      `ArgumentError` satisfies it verbatim) and skips Case 3 with a named
-      comment (issue #1541 satisfied-with-rejection), so the test passes
-      and verify-red grades it out of the blocked class. Case 1/Case 2
-      text, order, and the `isNot(isA<UnimplementedError>())` pin are
-      byte-unchanged (the #1007 fast-tier suite pins them).
+      assertion only when the capture SIGNAL records no rejection
+      (`if (_rejection == null)` — `_captured` records the thrown value;
+      PR #1558 review: the signal replaces the old runtime-type guess
+      `outcome is! Error && outcome is! Exception`, which mistook a thrown
+      raw value of the declared return type for a real return). A captured
+      Error/Exception rejection passes Case 2
+      (`isNot(isA<UnimplementedError>())` — an `ArgumentError` satisfies it
+      verbatim) and skips Case 3 with a named comment (issue #1541
+      satisfied-with-rejection), so the test passes and verify-red grades
+      it out of the blocked class; a thrown RAW value (neither an `Error`
+      nor an `Exception`) fails Case 3's Error/Exception assertion —
+      surfaced honestly, never a silent green. The `_rejection` signal and
+      its reader are emitted together: a two-case render (non-scalar
+      return, no Case 3) carries neither, so no unread declaration leaks
+      an analyzer warning. Case 1/Case 2 text, order, and the
+      `isNot(isA<UnimplementedError>())` pin are byte-unchanged (the #1007
+      fast-tier suite pins them).
+    - **renderable declared types get literals (PR #1558 review)**: the
+      resolver now resolves declared types the seam renders VERBATIM
+      (`List<T>`, `Set<T>`, `Map<K, V>`, `Iterable<T>`, `Future<T>`,
+      `Stream<T>`) to representative literals (`<T>[]`, `<T>{}`,
+      `<K, V>{}`, `const Stream.empty()`, `Future<T>.value(...)`, the
+      value-less form for `Future<void>`). The `_argN()` placeholder's
+      `Object?` return does not compile against those declared parameter
+      types, so the pre-fix pair failed to LOAD (verify-red could only
+      grade a load/runner error, never the named BLOCKED verdict).
+      `Future<dynamic>` nests the inner-typed placeholder (`_argN()` is
+      caught at invocation, the BLOCKED surface holds); a declared type
+      with a non-renderable inner (`List<Product>`) keeps the placeholder
+      (the seam parameter is `Object?` there, the placeholder stays
+      assignable).
   - `test/fixtures/baseline_outputs/bug_1513_contract_default_render.txt` —
     the #1513 byte-stability golden: REGENERATED in the same change (the
     captured-error doc comment and the guarded Case 3 alter the default
@@ -87,9 +110,14 @@
   (surfaced, not papered over).
 - **`on Object`, not `on Error`**: implementations throw both `Error`s and
   `Exception`s (and pathological raw values). The catch-all arm uses
-  `on Object` so the guarantee is total; the Case 3 guard mirrors it with
-  `is! Error && is! Exception` so a thrown raw value still fails the
-  return-type case honestly (an assertion, never an escape).
+  `on Object` so the guarantee is total; `_captured` additionally records
+  the thrown value in the emitted `_rejection` signal, and the Case 3
+  guard keys on that SIGNAL — never the outcome's runtime type. A captured
+  Error/Exception rejection skips the return-type assertion
+  (satisfied-with-rejection); a thrown raw value — neither an `Error` nor
+  an `Exception` — fails Case 3's Error/Exception assertion honestly
+  (surfaced, never an escape, and never mistaken for a return that did
+  not happen — PR #1558 review finding).
 - **Placeholder for `dynamic`, literal `null` only for nullable complex
   types**: `_representativeArg` keeps `null` for `T?` complex types (the
   declared shape IS nullable — `null` is a legitimate representative) and
