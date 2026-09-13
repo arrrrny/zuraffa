@@ -15,6 +15,7 @@ import '../utils/string_utils.dart';
 import '../version.dart';
 import '../core/dependencies/builder_dependency_preflight.dart';
 import '../core/dependencies/pubspec_auto_add.dart' show PubspecProcessRunner;
+import '../core/format/format_runner.dart';
 import '../plugins/cli/cli_plugin.dart';
 import '../cli/exit_protocol.dart';
 
@@ -27,7 +28,14 @@ class EntityCommand {
   /// the default spawner.
   final PubspecProcessRunner? _pubRunner;
 
-  EntityCommand({PubspecProcessRunner? pubRunner}) : _pubRunner = pubRunner;
+  /// Issue #1506: the pub-get-enforcing, scope-limited format runner.
+  /// Injectable so tests can record the exact `dart format` invocation
+  /// without spawning a formatter; null uses the default runner.
+  final FormatRunner? _formatRunner;
+
+  EntityCommand({PubspecProcessRunner? pubRunner, FormatRunner? formatRunner})
+    : _pubRunner = pubRunner,
+      _formatRunner = formatRunner;
 
   /// SPEC 917: whether this invocation owns the process (CLI mode) or is
   /// embedded (in-process dispatch / MCP), where a raw `exit()` would kill
@@ -1425,11 +1433,21 @@ ${missing.map((d) => '   • $d').join('\n')}
   }
 
   Future<void> _runFormat() async {
-    final process = await Process.start('dart', [
-      'format',
-      '.',
-    ], mode: ProcessStartMode.inheritStdio);
-    await process.exitCode;
+    // Issue #1506: the format scope is the generated entity output tree —
+    // the ONLY place this command writes Dart sources (create, add-field,
+    // enum and from-json all target fixedEntityOutput). The previous
+    // `dart format .` swept the whole package tree (test/, bin/, tool/,
+    // corpus/, examples/) and, in a project without package resolution,
+    // spammed per-file `Package resolution error` warnings while
+    // rewriting hundreds of unrelated files. FormatRunner additionally
+    // enforces `dart pub get --no-example` before any formatter run and
+    // skips with a single actionable warning when resolution cannot be
+    // established.
+    final runner = _formatRunner ?? FormatRunner();
+    final result = await runner.formatPaths([fixedEntityOutput]);
+    if (result.warning != null) {
+      print('⚠️  ${result.warning}');
+    }
   }
 
   Future<void> _handleBuild(List<String> subArgs) async {
