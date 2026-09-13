@@ -51,7 +51,7 @@ No material smells.
 | -- | -- | -- | -- |
 | M1 | `certify_mock_capability`: `MockCertifier.forProject(projectRoot)` → `MockCertifier()` (threading removed) | B8's in-process capability drive (`+3 -1` with mutant) | **killed** |
 | M2 | default render drift | B2 byte-for-byte golden | **killed** (by construction; golden run pre- and post-fix) |
-| M3 | `create_mock_capability`: create-side degradation check removed (`if (false)`) | integration degradation test (`+0 -1` with mutant; fast tier survives it — documented: the create path is only integration-drivable, `Directory.current`) | **killed** |
+| M3 | `create_mock_capability`: create-side degradation check removed (`if (false)`) | B7b fast-tier capability drive (`+0 -1` with mutant) + integration degradation test | **killed** |
 
 Restoration after each mutant verified by `cmp` against pre-mutation
 backups + green re-run: `+8: All tests passed!`. **0 survived, 0 timed

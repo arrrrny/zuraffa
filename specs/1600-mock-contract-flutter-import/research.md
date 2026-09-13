@@ -34,8 +34,11 @@ questions remain.
 
 - **Decision**: `MockCertificationSandbox({this.flutterTest = false})`;
   when set, the sandbox pubspec gains `flutter: sdk: flutter` +
-  `flutter_test: {sdk: flutter}` (dev_deps keep `test` for parity of the
-  runner engine) and the three steps run through the `flutter` executable:
+  `flutter_test: {sdk: flutter}` — plain `test` is deliberately NOT
+  declared: no published `test` version resolves beside flutter_test's
+  matcher/test_api pins in the framework's graphql graph (the #1189
+  conflict, see `tdd/cycle-log.md` C5) — and the three steps run through
+  the `flutter` executable:
   `flutter pub get --offline` → online fallback → `flutter analyze .` →
   `flutter test <rel> --reporter json`. `MockCertificationRun.runner`
   records `flutter` (currently hardcoded `'dart'` at four return sites).

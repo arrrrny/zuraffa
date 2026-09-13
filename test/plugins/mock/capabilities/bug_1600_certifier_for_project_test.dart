@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/mock/capabilities/certify_mock_capability.dart';
+import 'package:zuraffa/src/plugins/mock/capabilities/create_mock_capability.dart';
 import 'package:zuraffa/src/plugins/mock/certification/mock_certification_sandbox.dart';
 import 'package:zuraffa/src/plugins/mock/certification/mock_contract_test_writer.dart';
 import 'package:zuraffa/src/plugins/mock/certification/mock_certifier.dart';
@@ -12,13 +13,19 @@ import 'package:zuraffa/src/core/generator_options.dart';
 /// Spec 1600 (issue #1600): the certifier honors the host test framework
 /// end to end.
 ///
-/// - B5 — the create re-pin path (`certify(rePin: true)`) renders a
+/// - B5 — the certifier re-pin path (`certify(rePin: true)`) renders a
 ///   Flutter-shaped contract test on a Flutter host (assertion red pre-fix:
 ///   the #1600 defect — the certified source was Dart-shaped).
 /// - B6 — `MockCertifier.forProject` detection matrix: flutter pubspec →
 ///   Flutter-shaped certifier (writer + sandbox); pure-Dart / unreadable /
 ///   absent pubspec → today's Dart shape; the default constructor
-///   unchanged.
+///   unchanged; an injected sandbox that disagrees with the detected host
+///   is a loud failure, never a mystery red.
+/// - B7 — the PATH probe requires an EXECUTABLE flutter, and a genuinely
+///   red contract with the SDK present is still honestly red.
+/// - B7b — `CreateMockCapability` drives the Flutter-SDK degradation in
+///   the fast tier (`Directory.current` seam): `certSandboxUnresolved`
+///   with no receipt, so the create path's degradation is CI-runnable.
 /// - B8 — the certify fresh-render path (`rePin: false`, no committed
 ///   test) emits the same Flutter-shaped surface (assertion red pre-fix).
 ///
@@ -114,7 +121,10 @@ dependencies:
         'test on a Flutter host', () async {
       final certifier = MockCertifier.forProject(
         flutterFixture,
-        sandbox: _StubGreenSandbox(methods: const ['get', 'update']),
+        sandbox: _StubGreenSandbox(
+          methods: const ['get', 'update'],
+          flutterTest: true,
+        ),
       );
       final outcome = await certifier.certify(
         entityName: 'Login',
@@ -183,7 +193,10 @@ dependencies:
       // No committed contract test in the fixture → certify renders fresh.
       final certifier = MockCertifier.forProject(
         flutterFixture,
-        sandbox: _StubGreenSandbox(methods: const ['get', 'update']),
+        sandbox: _StubGreenSandbox(
+          methods: const ['get', 'update'],
+          flutterTest: true,
+        ),
       );
       final outcome = await certifier.certify(
         entityName: 'Login',
@@ -239,13 +252,26 @@ dependencies:
         MockCertificationSandbox.flutterOnPath = previousProbe;
       }
     });
-    test('B7: the Flutter probe is a PATH scan, and a red contract with '
-        'the SDK present is still honestly red', () async {
-      // The probe seam: a PATH entry holding a flutter executable counts.
+    test('B7: the Flutter probe requires an EXECUTABLE flutter, and a red '
+        'contract with the SDK present is still honestly red', () async {
+      // The probe seam: a PATH entry holding an EXECUTABLE flutter counts.
       final withFlutter = Directory.systemTemp.createTempSync('zfa_1600_p1_');
-      File(
-        p.join(withFlutter.path, 'flutter'),
-      ).writeAsStringSync('#!/bin/sh\n');
+      final flutter = File(p.join(withFlutter.path, 'flutter'));
+      flutter.writeAsStringSync('#!/bin/sh\n');
+      if (!Platform.isWindows) {
+        // Existence alone is not capability (#1600 review): a file
+        // without an execute bit cannot start `flutter pub get`, so it
+        // must degrade exactly like an absent SDK instead of reddening
+        // the run.
+        expect(
+          MockCertificationSandbox.flutterExecutableOnPath(
+            '/nonexistent-a:/nonexistent-b:${withFlutter.path}',
+          ),
+          isFalse,
+          reason: 'a non-executable flutter file is not a usable SDK',
+        );
+        Process.runSync('chmod', ['+x', flutter.path]);
+      }
       expect(
         MockCertificationSandbox.flutterExecutableOnPath(
           '/nonexistent-a:/nonexistent-b:${withFlutter.path}',
@@ -262,12 +288,40 @@ dependencies:
       expect(MockCertificationSandbox.flutterExecutableOnPath(''), isFalse);
       withFlutter.deleteSync(recursive: true);
 
+      // Both toolchains' analyzer line grammars are counted — the Flutter
+      // lane separates with `\u2022`, dart with `-` (#1600 review).
+      expect(
+        MockCertificationSandbox.countAnalyzeErrors(
+          '  error - lib/bad.dart:1:25 - Undefined name - '
+          'undefined_identifier\n',
+        ),
+        1,
+      );
+      expect(
+        MockCertificationSandbox.countAnalyzeErrors(
+          '  error \u2022 Undefined name \u2022 lib/bad.dart:1:25 \u2022 '
+          'undefined_identifier\n',
+        ),
+        1,
+      );
+      expect(
+        MockCertificationSandbox.countAnalyzeErrors(
+          '  info \u2022 Prefer const \u2022 lib/a.dart:3:3 \u2022 prefer_const\n'
+          '  warning - lib/b.dart:2:1 - unused - unused_import\n',
+        ),
+        0,
+        reason: 'only error severity counts on either lane',
+      );
+
       // Degradation guard: with the toolchain available, a genuinely red
       // contract is still honestly red — the environment degradation path
       // never masks it.
       final certifier = MockCertifier.forProject(
         flutterFixture,
-        sandbox: _StubRedSandbox(methods: const ['get', 'update']),
+        sandbox: _StubRedSandbox(
+          methods: const ['get', 'update'],
+          flutterTest: true,
+        ),
       );
       final outcome = await certifier.certify(
         entityName: 'Login',
@@ -283,13 +337,85 @@ dependencies:
         reason: 'every pinned method is honestly unsatisfied',
       );
     });
+
+    test('B7b: the create path degrades on a Flutter host without the SDK — '
+        'certSandboxUnresolved, no receipt (fast tier)', () async {
+      // `CreateMockCapability._certify` resolves the project through
+      // `Directory.current` (the CLI contract): assign it into the
+      // Flutter fixture so the create-side degradation is CI-runnable
+      // without the Flutter SDK (#1600 review) — previously only the
+      // slow integration tier exercised this branch.
+      final previousCwd = Directory.current;
+      final previousProbe = MockCertificationSandbox.flutterOnPath;
+      MockCertificationSandbox.flutterOnPath = () => false;
+      Directory.current = flutterFixture;
+      try {
+        final plugin = MockPlugin(
+          outputDir: p.join(flutterFixture, 'lib', 'src'),
+          options: const GeneratorOptions(dryRun: false, force: true),
+        );
+        final result = await CreateMockCapability(
+          plugin,
+        ).execute({'name': 'Login', 'certify': true});
+
+        expect(result.data?['certSandboxUnresolved'], isTrue);
+        expect(result.data?['certified'], isFalse);
+        expect(
+          result.success,
+          isTrue,
+          reason:
+              'an unrunnable environment proof is not a red contract — the '
+              'exit stays generation-governed (the spec-1110 precedent)',
+        );
+        expect(
+          File(
+            p.join(
+              flutterFixture,
+              'test',
+              'mock',
+              'login',
+              'mock-cert.Login.json',
+            ),
+          ).existsSync(),
+          isFalse,
+          reason: 'no receipt lies about an unrun certification',
+        );
+      } finally {
+        Directory.current = previousCwd;
+        MockCertificationSandbox.flutterOnPath = previousProbe;
+      }
+    });
+
+    test('B6b: an injected sandbox that disagrees with the detected host is '
+        'a loud failure, not a mystery red', () {
+      // The capabilities' degradation checks read the sandbox flag while
+      // `render()` follows the writer flag (#1600 review) — the pair must
+      // describe the same framework.
+      expect(
+        () => MockCertifier.forProject(
+          flutterFixture,
+          sandbox: _StubGreenSandbox(
+            methods: const ['get'],
+            flutterTest: false,
+          ),
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => MockCertifier.forProject(
+          dartFixture,
+          sandbox: _StubGreenSandbox(methods: const ['get'], flutterTest: true),
+        ),
+        throwsArgumentError,
+      );
+    });
   });
 }
 
 /// A green proof without executing any toolchain — the render surface is
 /// what this file pins.
 class _StubGreenSandbox extends MockCertificationSandbox {
-  _StubGreenSandbox({required this.methods});
+  _StubGreenSandbox({required this.methods, required super.flutterTest});
 
   final List<String> methods;
 
@@ -317,7 +443,7 @@ class _StubGreenSandbox extends MockCertificationSandbox {
 /// A honestly-red proof without executing any toolchain — the degradation
 /// path must never mask a real red.
 class _StubRedSandbox extends MockCertificationSandbox {
-  _StubRedSandbox({required this.methods});
+  _StubRedSandbox({required this.methods, required super.flutterTest});
 
   final List<String> methods;
 

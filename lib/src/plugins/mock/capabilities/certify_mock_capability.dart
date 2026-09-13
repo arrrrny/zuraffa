@@ -1,7 +1,8 @@
 /// CertifyMockCapability (spec 1001, issue #1001): `zfa mock certify
 /// <Entity>` — re-proves the mock's contract LIVE (auto-generated
-/// contract test in a temp sandbox: dart analyze + dart test) and adds
-/// the mock to the #832 certification registry entry.
+/// contract test in a temp sandbox: the HOST's `analyze` + `test`
+/// toolchain — `dart` by default, `flutter` on a Flutter host, #1600)
+/// and adds the mock to the #832 certification registry entry.
 ///
 /// The registry add is the live re-proof, never a copy of an old
 /// receipt: `certifyMockInRegistry` commits the freshly-proven receipt
@@ -15,6 +16,13 @@
 /// - no mock artifacts for the entity      → exit 2
 /// - contract red in the sandbox           → exit 3
 /// - no feature/fixtures dir resolvable    → exit 4
+///
+/// Exit 0 is overloaded by design (the spec-1110 precedent, #1600): it
+/// means a proven + registered certification, OR a Flutter-shaped proof
+/// whose environment cannot run (no usable Flutter SDK on PATH) — the
+/// latter certifies and registers nothing and writes no receipt, so the
+/// exit code alone cannot tell "certified" from "environment gap"; the
+/// "cannot be certified" warning on stderr is the signal.
 library;
 
 import 'dart:io';
@@ -135,8 +143,9 @@ class CertifyMockCapability implements ZuraffaCapability {
         !MockCertificationSandbox.flutterOnPath()) {
       stderr.writeln(
         'zfa mock certify: the Flutter-shaped contract test cannot be '
-        'certified — no flutter executable on PATH. No '
-        'mock-cert.$name.json receipt written; the mock stays uncertified.',
+        'certified — no flutter executable on PATH. No new '
+        'mock-cert.$name.json receipt is written; this run does not '
+        're-certify the mock.',
       );
       stderr.writeln(
         '--> fix: install the Flutter SDK (or run on a machine that has '

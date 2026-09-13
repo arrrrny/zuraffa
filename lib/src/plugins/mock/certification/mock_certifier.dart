@@ -73,6 +73,21 @@ class MockCertifier {
         flutterTest = false;
       }
     }
+    // The writer and the sandbox must describe the SAME host (issue
+    // #1600 review): the capabilities' degradation checks read the
+    // sandbox flag while `render()` follows the writer flag, so a
+    // mismatched pair would render `flutter_test` and then prove it with
+    // `dart` (or the reverse) as a mystery red. An injected sandbox —
+    // tests inject stubs here — must agree with the pubspec-derived host.
+    if (sandbox != null && sandbox.flutterTest != flutterTest) {
+      throw ArgumentError.value(
+        sandbox.flutterTest,
+        'sandbox.flutterTest',
+        'disagrees with the host detected at $projectRoot '
+            '($flutterTest) — the writer and the proof must describe the '
+            'same test framework',
+      );
+    }
     return MockCertifier(
       contractWriter: MockContractTestWriter(flutterTest: flutterTest),
       sandbox: sandbox ?? MockCertificationSandbox(flutterTest: flutterTest),
