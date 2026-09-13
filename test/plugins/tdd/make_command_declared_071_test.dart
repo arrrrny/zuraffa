@@ -1,4 +1,4 @@
-@Tags(['slow'])
+@Tags(['regression', 'e2e'])
 // A2/T-review (feature 071): `zfa tdd make` wires parsed spec
 // declarations into the planner — a declared entity contract row routes
 // the entity pipeline with the DECLARED entity name at the CLI surface,

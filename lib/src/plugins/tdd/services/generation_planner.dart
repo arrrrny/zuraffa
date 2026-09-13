@@ -763,53 +763,37 @@ class GenerationPlanner {
     switch (result.surface) {
       case GenerationSurface.entityPipeline:
         final name = result.entityName;
-        if (name == null) return null; // undeclared aspect -> fallback
+        if (name != null) return _entityPipelinePlan(summary, name);
+        // Issue #1498: a computed surface the plan builder cannot serve
+        // must be REFUSED — never a silent `return null` into the legacy
+        // keyword branches that manufactured the #1489 vacuous greens.
+        // The one underivable shape the legacy lane legitimately serves
+        // is a renderable-scalar declared return: that contract IS a
+        // plain function by declaration (the #1310 lineage — gen derives
+        // the declared scalar subject and the paired test asserts the
+        // typed outcome), so it keeps its labeled fallback. Everything
+        // else stops honestly, naming the row and the fix.
+        final declaredReturn = result.signature?.returnType;
+        if (declaredReturn != null &&
+            _isRenderableScalarReturn(declaredReturn)) {
+          return null; // undeclared aspect -> labeled fallback (func lane)
+        }
         return GenerationPlan(
           behaviorId: summary.behaviorId,
           feature: summary.feature,
           sourceCriterion: summary.sourceCriterion,
-          steps: [
-            GenerationStepSpec(
-              // Bug #1503 (review finding 1): same built-entity
-              // precondition as the traced arm — the certify step's
-              // sandbox needs the entity's build_runner outputs on disk.
-              args: ['entity', 'create', '-n', name, '--build'],
-              purpose:
-                  'ensure entity $name exists AND is built for behavior '
-                  '${summary.behaviorId} (declared contract row; '
-                  'idempotent — an existing entity is reused; the build '
-                  'emits the .zorphy.dart/.g.dart parts the certify '
-                  'sandbox must resolve)',
-            ),
-            GenerationStepSpec(
-              // Bug #1503: the declared entity pipeline requests the
-              // CERTIFIED variant too (spec 1001 — bug #1503).
-              args: ['mock', 'create', '--name', name, '--certify'],
-              purpose:
-                  'generate contract-conforming certified mock datasource '
-                  'for entity $name (behavior ${summary.behaviorId}; '
-                  'spec 1001 — bug #1503)',
-            ),
-            GenerationStepSpec(
-              args: [
-                'tdd',
-                'wire',
-                summary.behaviorId,
-                '--entity',
-                name,
-                '--feature',
-                summary.feature,
-              ],
-              purpose:
-                  'wire subject of behavior ${summary.behaviorId} to '
-                  'declared entity $name',
-            ),
-            GenerationStepSpec(
-              args: ['build'],
-              purpose:
-                  'build generated code for behavior ${summary.behaviorId}',
-            ),
-          ],
+          steps: const [],
+          unexpressibleReason:
+              'behavior "${summary.behaviorId}" resolves the declared '
+              'surface entityPipeline, but no entity name could be '
+              'derived from the declared contract — surface: '
+              'entityPipeline (dropped: no entity name). The '
+              'entity→mock→wire engine cannot be planned without the '
+              'declared entity.\n'
+              '   --> fix: declare the traced contract row to return an '
+              'entity (e.g. `create(String title) -> Task` — '
+              'Future/List/Set/Iterable unwrap), or trace the behavior '
+              'to a Key Entities row.',
         );
       case GenerationSurface.plainFunction:
         return _functionSurfacePlan(
@@ -847,6 +831,83 @@ class GenerationPlanner {
       case null:
         return null; // kind declared without a row surface — fallback
     }
+  }
+
+  /// The declared entityPipeline plan (issue #1498's served path): the
+  /// 4-step entity→mock→wire engine, with the #1503 built-entity
+  /// precondition and the #1503 certified mock variant.
+  GenerationPlan _entityPipelinePlan(BehaviorSummary summary, String name) {
+    return GenerationPlan(
+      behaviorId: summary.behaviorId,
+      feature: summary.feature,
+      sourceCriterion: summary.sourceCriterion,
+      steps: [
+        GenerationStepSpec(
+          // Bug #1503 (review finding 1): same built-entity
+          // precondition as the traced arm — the certify step's
+          // sandbox needs the entity's build_runner outputs on disk.
+          args: ['entity', 'create', '-n', name, '--build'],
+          purpose:
+              'ensure entity $name exists AND is built for behavior '
+              '${summary.behaviorId} (declared contract row; '
+              'idempotent — an existing entity is reused; the build '
+              'emits the .zorphy.dart/.g.dart parts the certify '
+              'sandbox must resolve)',
+        ),
+        GenerationStepSpec(
+          // Bug #1503: the declared entity pipeline requests the
+          // CERTIFIED variant too (spec 1001 — bug #1503).
+          args: ['mock', 'create', '--name', name, '--certify'],
+          purpose:
+              'generate contract-conforming certified mock datasource '
+              'for entity $name (behavior ${summary.behaviorId}; '
+              'spec 1001 — bug #1503)',
+        ),
+        GenerationStepSpec(
+          args: [
+            'tdd',
+            'wire',
+            summary.behaviorId,
+            '--entity',
+            name,
+            '--feature',
+            summary.feature,
+          ],
+          purpose:
+              'wire subject of behavior ${summary.behaviorId} to '
+              'declared entity $name',
+        ),
+        GenerationStepSpec(
+          args: ['build'],
+          purpose: 'build generated code for behavior ${summary.behaviorId}',
+        ),
+      ],
+    );
+  }
+
+  /// Issue #1498: whether [returnType] is a renderable scalar — the
+  /// declared-return shapes the plain-function lane legitimately serves
+  /// with a typed outcome (the #1310 lineage). Mirrors the resolver's
+  /// non-entity vocabulary (`UnitContractShape`'s renderable scalars
+  /// plus the core Dart value types).
+  static bool _isRenderableScalarReturn(String returnType) {
+    final trimmed = returnType.trim();
+    final base = trimmed.endsWith('?')
+        ? trimmed.substring(0, trimmed.length - 1).trim()
+        : trimmed;
+    return const {
+      'void',
+      'Never',
+      'bool',
+      'String',
+      'int',
+      'double',
+      'num',
+      'dynamic',
+      'Object',
+      'DateTime',
+      'Duration',
+    }.contains(base);
   }
 
   /// The `tdd func` + `build` plan (the bug #657/#660 plain-function
