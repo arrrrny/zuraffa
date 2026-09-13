@@ -289,7 +289,7 @@ void main() {
             allOf(
               contains('name(Type) -> Return'),
               contains('{a, b}'),
-              contains('--> fix:'),
+              contains('--> fix: use the supported parameter grammar'),
             ),
           ),
         ),
@@ -299,7 +299,13 @@ void main() {
     test('a stray close brace throws the same refusal', () {
       expect(
         () => Signature.parse('log(}level) -> void'),
-        throwsA(isA<FormatException>()),
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('}level'), contains('--> fix:')),
+          ),
+        ),
       );
     });
 
@@ -320,11 +326,67 @@ void main() {
               contains('Logger'),
               contains('log({level, onRecord) -> void'),
               contains('spec line 4'),
-              contains('--> fix:'),
+              contains('--> fix: use the supported parameter grammar'),
+              // Exactly ONE remedy line: the parameter-syntax message
+              // carries its own, so no second prefixed copy appears.
+              isNot(contains('--> fix: parameter syntax')),
             ),
           ),
         ),
       );
     });
+
+    test('a function-typed parameter refuses with its real cause', () {
+      // `_shape`'s `[^)]*` capture ends the parameters region at the
+      // first `)`, so this valid Dart callback shape never parses; the
+      // refusal names that cause instead of the missing-`-> Return`
+      // remedy, which would be wrong advice (the arrow is present).
+      for (final raw in const [
+        'log(void Function(int) cb) -> void',
+        'log({void Function(int) cb}) -> void',
+      ]) {
+        expect(
+          () => Signature.parse(raw),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                contains('not a flat'),
+                contains('Function(int) cb'),
+                contains('--> fix: declare the callback parameter'),
+              ),
+            ),
+          ),
+          reason: raw,
+        );
+      }
+    });
+
+    test(
+      'a FUNCTION-layer row with a function-typed parameter names the cause',
+      () {
+        const spec = '''
+### Layer Contracts
+
+**Function**:
+- `Logger`: `log(void Function(int) cb) -> void`
+''';
+        expect(
+          () => const SpecParser().parseContractRows(spec),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                contains('Logger'),
+                contains('not a flat'),
+                isNot(contains('add the `-> Return` part.')),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   });
 }

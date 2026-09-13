@@ -111,7 +111,7 @@ void-returning guard) and are intentionally out of scope.
   single word that is already a lower-first Dart identifier is kept
   verbatim (`onRecord` stays `onRecord`). Upper-first type-derived
   names keep the existing behavior (`AuthRequest` → `authrequest`), so
-  no existing positional row's output changes.
+  positional rows whose head word is upper-first are unchanged.
 - **FR-005**: A parameter token with stray or unbalanced grouping
   characters MUST refuse at parse time with a [FormatException] whose
   message names the supported grammar — positional `name(Type)` pairs

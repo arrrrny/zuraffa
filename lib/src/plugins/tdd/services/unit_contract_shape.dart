@@ -435,9 +435,6 @@ class UnitContractShape {
         'because return is an entity.';
   }
 
-  static bool _isIdentifier(String s) =>
-      RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(s);
-
   /// The parameter list the generated source renders (SPEC 1536,
   /// FR-003) — the ONE renderer every generated signature shares: the
   /// positional parameters first, then the named group as ONE trailing
@@ -468,8 +465,8 @@ class UnitContractShape {
   /// SPEC 1536 (FR-004): an already lower-first word is kept VERBATIM —
   /// `onRecord` must not degrade to `onrecord` (the issue's Defect 2
   /// mangle). Upper-first type-derived names keep the legacy output
-  /// byte-for-byte (`AuthRequest` → `authrequest`), so no existing
-  /// positional row's generated shape changes.
+  /// byte-for-byte (`AuthRequest` → `authrequest`), so positional rows
+  /// whose head word is upper-first are unchanged.
   static String _defaultParamName(String declaredType) {
     final base = declaredType.trim().endsWith('?')
         ? declaredType.trim().substring(0, declaredType.trim().length - 1)
@@ -506,7 +503,7 @@ class UnitContractShape {
       return w[0].toUpperCase() + w.substring(1);
     }).join();
     final name = '$head$tail';
-    return _isIdentifier(name) ? name : 'input';
+    return _isDartIdentifier(name) ? name : 'input';
   }
 
   static String _unique(String name, Set<String> used) {
@@ -567,7 +564,7 @@ _ParamParts _paramPartsOf(String trimmed, {required bool named}) {
       .toList();
   // A declared token may carry its own name (`AuthRequest request`)
   // — the last identifier-shaped word is the name, the rest the type.
-  if (parts.length >= 2 && _isParamIdentifier(parts.last)) {
+  if (parts.length >= 2 && _isDartIdentifier(parts.last)) {
     return (
       declaredType: parts.sublist(0, parts.length - 1).join(' '),
       declaredName: parts.last,
@@ -577,11 +574,8 @@ _ParamParts _paramPartsOf(String trimmed, {required bool named}) {
   // SPEC 1536: a single identifier inside a named group is the
   // parameter NAME — the type degrades to `Object?` like every
   // non-renderable declared type.
-  if (named && parts.length == 1 && _isParamIdentifier(parts.single)) {
+  if (named && parts.length == 1 && _isDartIdentifier(parts.single)) {
     return (declaredType: 'Object?', declaredName: parts.single, named: true);
   }
   return (declaredType: trimmed, declaredName: null, named: named);
 }
-
-bool _isParamIdentifier(String s) =>
-    RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(s);

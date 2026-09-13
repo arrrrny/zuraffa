@@ -932,20 +932,21 @@ class SpecParser {
             // A malformed signature refuses on FUNCTION rows (their
             // return type drives subject generation); other layers
             // preserve methods verbatim for their existing consumers.
-            // SPEC 1536: a parameter-syntax refusal carries the parse
-            // error's OWN named remedy (the supported grammar + fix) so
-            // the row refuses at plan time instead of emitting a pair
-            // that can only die at verify-red; the missing-`-> Return`
-            // refusal keeps its legacy message byte-for-byte.
+            // SPEC 1536: a parameter-syntax refusal is its own
+            // exception TYPE (FR-005) carrying its OWN named remedy
+            // (the supported grammar + fix) so the row refuses at plan
+            // time instead of emitting a pair that can only die at
+            // verify-red; the missing-`-> Return` refusal keeps its
+            // legacy message byte-for-byte.
             if (kind == ContractRowKind.function) {
-              final missingReturn = error.message.startsWith(
-                'not a `name(Params) -> Return`',
-              );
+              final remedy = error is ParameterSyntaxException
+                  ? error.message
+                  : '   --> fix: add the `-> Return` part.';
               throw StateError(
                 'contract row "$name" declares a malformed signature '
                 '"$method" — declared signatures must be '
                 '`name(Params) -> Return` (spec line $lineNo).\n'
-                '   --> fix: ${missingReturn ? 'add the `-> Return` part.' : error.message}',
+                '$remedy',
               );
             }
           }

@@ -54,6 +54,16 @@ class ProvenanceLine {
       ' $detail${specLine == null ? '' : ' (spec line $specLine)'}';
 }
 
+/// The refusal for a parameter region [Signature.parse] cannot express
+/// in the supported grammar (SPEC 1536 FR-005/FR-006): stray or
+/// unbalanced grouping characters, or a nested `(...)` the flat
+/// parameters capture cannot hold. A [FormatException] subtype so
+/// refusal surfaces discriminate the kind by TYPE, never by message
+/// prose; the message carries its own `--> fix:` line.
+class ParameterSyntaxException extends FormatException {
+  ParameterSyntaxException(super.message);
+}
+
 /// A declared subject signature: `name(Params) -> Return`.
 class Signature {
   final String name;
@@ -81,8 +91,12 @@ class Signature {
   ///   inside the group is the parameter NAME, type `Object?`).
   ///
   /// Groups survive the split as ONE token that keeps its grouping
-  /// characters: a comma inside `{}` / `[]` / `()` / `<>` never splits
-  /// the token, so generics (`Map<String, int>`) and groups ride whole.
+  /// characters: a comma inside `{}` / `[]` / `<>` never splits the
+  /// token, so generics (`Map<String, int>`) and groups ride whole.
+  /// The parameters region itself ends at the first `)` ([_shape]'s
+  /// `[^)]*` capture), so function-typed parameters are not part of
+  /// the supported grammar: they never reach this splitter and refuse
+  /// in [Signature.parse] with their own named remedy.
   static List<String> splitParameterTokens(String params) {
     final tokens = <String>[];
     final current = StringBuffer();
@@ -121,8 +135,11 @@ class Signature {
   /// Whether [token] is a well-formed parameter token under the
   /// [splitParameterTokens] grammar: every grouping character is
   /// balanced and properly nested (`{level, onRecord}` is, `{level` and
-  /// `}level` are not). SPEC 1536 FR-005: an unparseable token REFUSES
-  /// with a named remedy instead of silently degrading into a
+  /// `}level` are not). A `(` can only appear STRAY here — `_shape`'s
+  /// `[^)]*` capture severs a function type before its closing `)` —
+  /// so tracking it refuses the severed head instead of degrading it
+  /// into rendered source. SPEC 1536 FR-005: an unparseable token
+  /// REFUSES with a named remedy instead of silently degrading into a
   /// non-compiling pair.
   static bool isWellFormedParameterToken(String token) {
     final openers = <String>{'{', '[', '(', '<'};
@@ -151,16 +168,40 @@ class Signature {
       "   --> fix: use the supported parameter grammar, e.g. "
       '`log(String id, {Object? level, Object? onRecord}) -> void`.';
 
-  /// Parse declared signature text. Throws [FormatException] on a
-  /// missing return part — the resolver turns that into a
-  /// `malformedDeclaration` refusal naming the row — and on parameter
-  /// tokens with stray/unbalanced grouping characters (SPEC 1536
-  /// FR-005), whose message names the supported grammar and the remedy
-  /// so the row refuses at plan time instead of emitting a pair that
-  /// can only die at verify-red.
+  /// The refusal message for a signature whose parameters nest a `(...)`
+  /// — a function-typed parameter (`void Function(int) cb`) — which the
+  /// flat [_shape] capture cannot hold (SPEC 1536 FR-005): names the
+  /// real cause and the remedy.
+  static String functionTypedParameterRemedy(String raw) =>
+      'signature "$raw" is not a flat `name(Params) -> Return`: the '
+      'parameters region ends at the first `)`, so a function-typed '
+      'parameter (`void Function(int) cb`, or the named-group entry '
+      '`{void Function(int) cb}`) is not part of the supported '
+      'grammar.\n'
+      '   --> fix: declare the callback parameter with a plain type — '
+      'a typedef or class name, e.g. '
+      '`log(OnRecordHandler onRecord) -> void`.';
+
+  /// Parse declared signature text. Throws a plain [FormatException] on
+  /// a missing return part — the resolver turns that into a
+  /// `malformedDeclaration` refusal naming the row. Throws
+  /// [ParameterSyntaxException] on a parameter token with
+  /// stray/unbalanced grouping characters and on a function-typed
+  /// parameter (`void Function(int) cb` — the flat [_shape] capture
+  /// cannot hold a nested `(...)`); its message names the supported
+  /// grammar and the remedy (SPEC 1536 FR-005), so the row refuses at
+  /// plan time instead of emitting a pair that can only die at
+  /// verify-red.
   factory Signature.parse(String raw) {
     final m = _shape.firstMatch(raw);
     if (m == null) {
+      // SPEC 1536 FR-005: a function-typed parameter nests a `)` that
+      // the flat capture cannot hold, so the shape misses even though
+      // the `-> Return` part is present — refuse with the REAL cause
+      // instead of the missing-`-> Return` advice.
+      if (raw.contains('->') && raw.contains('Function(')) {
+        throw ParameterSyntaxException(functionTypedParameterRemedy(raw));
+      }
       throw FormatException('not a `name(Params) -> Return` signature: $raw');
     }
     final params = splitParameterTokens(
@@ -168,7 +209,7 @@ class Signature {
     ).map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
     for (final token in params) {
       if (!isWellFormedParameterToken(token)) {
-        throw FormatException(parameterSyntaxRemedy(token));
+        throw ParameterSyntaxException(parameterSyntaxRemedy(token));
       }
     }
     return Signature(
