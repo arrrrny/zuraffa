@@ -1,11 +1,14 @@
 ---
 name: speckit-gh-triage-feature
-description: Create a GitHub issue describing a new feature, label it with the configured feature label, and optionally auto-run speckit.specify to turn it into a spec
+description: Create a GitHub issue describing a new feature, label it with the configured
+  feature label, and optionally auto-run speckit.specify to turn it into a spec
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: gh-triage:commands/speckit.gh-triage.feature.md
+  author: arrrrny
+  source: extension:gh-triage
 ---
+
+# Gh Triage Feature Skill
 
 # GitHub Triage — Create Feature Issue
 

@@ -1,7 +1,7 @@
 {
   "integration": "zed",
   "version": "1.0.7.dev0",
-  "installed_at": "2026-09-13T06:29:42.579758+00:00",
+  "installed_at": "2026-09-13T08:49:33.322355+00:00",
   "files": {
     ".agents/skills/speckit-analyze/SKILL.md": "60cbd0a4bb5c01bc5d447e5d42543b02ebf1560a2b9bfcb750b3502c5941a711",
     ".agents/skills/speckit-clarify/SKILL.md": "7e93e870ed222212b52da03670c0debde24813d2c01d51cb62a23e9d2788ae7b",

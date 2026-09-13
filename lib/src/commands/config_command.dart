@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../cli/exit_protocol.dart';
 import '../config/zfa_config.dart';
 import '../core/project/project_root.dart';
 
@@ -38,14 +39,42 @@ class ConfigCommand {
   }
 
   Future<void> _handleInit(List<String> args) async {
-    final projectRoot = args.isEmpty ? null : args[0];
+    // Issue #1496: `zfa config init [--minimal] [projectRoot]` — the
+    // --minimal flag is positional-agnostic so an optional project root
+    // can still be passed in either order.
+    //
+    // Review fix: the runner feeds this handler raw args
+    // (`ArgParser.allowAnything()` in cli_runner.dart), so `--help` and
+    // misspelled flags arrive here instead of being consumed by the
+    // parser. Handle help first, then reject anything that is not
+    // --minimal/-m — a typo must not silently init the current directory.
+    if (args.contains('--help') || args.contains('-h')) {
+      _printHelp();
+      return;
+    }
+    final unknownOptions = args.where(
+      (arg) => arg.startsWith('-') && arg != '--minimal' && arg != '-m',
+    );
+    if (unknownOptions.isNotEmpty) {
+      print('❌ Unknown init option: ${unknownOptions.first}');
+      print('   Usage: zfa config init [--minimal] [projectRoot]');
+      print(ExitProtocol.fixLine('pass --minimal (or -m), or drop the flag'));
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+
+    final minimal = args.contains('--minimal') || args.contains('-m');
+    final positional = args
+        .where((arg) => !arg.startsWith('-'))
+        .toList(growable: false);
+    final projectRoot = positional.isEmpty ? null : positional.first;
 
     if (projectRoot != null && !Directory(projectRoot).existsSync()) {
       print('❌ Directory not found: $projectRoot');
       exit(1);
     }
 
-    await ZfaConfig.init(projectRoot: projectRoot);
+    await ZfaConfig.init(projectRoot: projectRoot, minimal: minimal);
   }
 
   Future<void> _handleShow(List<String> args) async {
@@ -163,6 +192,9 @@ COMMANDS:
   help                Show this help message
 
 OPTIONS:
+  init --minimal, -m  Keep every plugin default off (the pre-#1496
+                      behaviour) — select plugins per command with
+                      --preset=crud or --with=<plugin>
   --help, -h          Show this help message
 
 CONFIGURATION KEYS:
@@ -174,6 +206,7 @@ CONFIGURATION KEYS:
 
 EXAMPLES:
   zfa config init
+  zfa config init --minimal
   zfa config show
   zfa config set diByDefault true
   zfa config set repositoryByDefault true

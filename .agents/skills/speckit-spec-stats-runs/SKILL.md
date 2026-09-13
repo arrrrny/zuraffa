@@ -1,11 +1,16 @@
 ---
 name: speckit-spec-stats-runs
-description: On-demand execution — reads verified suite command from .specify/memory/tdd-profile.md, runs it for selected specs (--all, spec id/slug, or default active feature), captures pass/fail + duration + tail, appends run record to .specify/stats/runs.json, refreshes dashboard health column
+description: On-demand execution — reads verified suite command from .specify/memory/tdd-profile.md,
+  runs it for selected specs (--all, spec id/slug, or default active feature), captures
+  pass/fail + duration + tail, appends run record to .specify/stats/runs.json, refreshes
+  dashboard health column
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: spec-stats:commands/speckit.spec-stats.runs.md
+  author: arrrrny
+  source: extension:spec-stats
 ---
+
+# Spec Stats Runs Skill
 
 # Spec Stats — Runs
 

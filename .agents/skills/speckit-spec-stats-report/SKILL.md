@@ -1,11 +1,17 @@
 ---
 name: speckit-spec-stats-report
-description: Main generator — scans all specs/*/, derives per-feature stage, task progress, health, last updated; when the TDD extension is installed, adds a deep TDD table (acceptance/unit/characterization counts, DONE, loop mode, tasks.md state); renders dashboard to configurable output path and writes .specify/stats/stats.json snapshot
+description: Main generator — scans all specs/*/, derives per-feature stage, task
+  progress, health, last updated; when the TDD extension is installed, adds a deep
+  TDD table (acceptance/unit/characterization counts, DONE, loop mode, tasks.md state);
+  renders dashboard to configurable output path and writes .specify/stats/stats.json
+  snapshot
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: spec-stats:commands/speckit.spec-stats.report.md
+  author: arrrrny
+  source: extension:spec-stats
 ---
+
+# Spec Stats Report Skill
 
 # Spec Stats — Report
 

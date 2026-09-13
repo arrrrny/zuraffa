@@ -3,9 +3,11 @@ name: speckit-chore-pr
 description: Open a pull request for the implemented chore, linking the tracked issue
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: chore:commands/speckit.chore.pr.md
+  author: arrrrny
+  source: extension:chore
 ---
+
+# Chore Pr Skill
 
 # Open Chore Pull Request
 

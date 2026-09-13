@@ -1,11 +1,16 @@
 ---
 name: speckit-gh-triage-triage
-description: 'Fetch open GitHub issues, classify each as bug, feature, or chore, then DELEGATE to the correct extension: bugs → bug.fetch (saved under .specify/bugs/), chores → chore.fetch (saved under .specify/chores/), features → speckit.specify (saved under specs/). Never save bugs or chores as specs.'
+description: 'Fetch open GitHub issues, classify each as bug, feature, or chore, then
+  DELEGATE to the correct extension: bugs → bug.fetch (saved under .specify/bugs/),
+  chores → chore.fetch (saved under .specify/chores/), features → speckit.specify
+  (saved under specs/). Never save bugs or chores as specs.'
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: gh-triage:commands/speckit.gh-triage.triage.md
+  author: arrrrny
+  source: extension:gh-triage
 ---
+
+# Gh Triage Triage Skill
 
 # GitHub Triage
 

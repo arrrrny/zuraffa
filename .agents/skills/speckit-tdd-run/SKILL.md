@@ -1,11 +1,15 @@
 ---
 name: speckit-tdd-run
-description: Drive the red-green-refactor loop by delegating to zfa tdd run (deterministic engine); the LLM handles only honest stops — fixing genuine reds and remediation — never re-driving what zfa drives
+description: Drive the red-green-refactor loop by delegating to zfa tdd run (deterministic
+  engine); the LLM handles only honest stops — fixing genuine reds and remediation
+  — never re-driving what zfa drives
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: tdd:commands/speckit.tdd.run.md
+  author: d0whc3r
+  source: extension:tdd
 ---
+
+# Tdd Run Skill
 
 # TDD Run (zfa-delegating)
 
