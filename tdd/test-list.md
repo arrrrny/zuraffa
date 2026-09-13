@@ -1,21 +1,43 @@
-# TDD test list — Bug #1486 Key Entities fields silently dropped without backticks
+# TDD test list — Bug #1589 blocked contracts dead-end the resume path + poison the phase-2 refactor pass
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| A-1486-b1 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a 3-column row with plain pairs parses ALL fields — the issue's exact repro (`Task`, `id/title/isCompleted/createdAt`), purpose intact | FR-1486, SpecParser.parseKeyEntities, _parseFieldCell | GREEN (RED pre-fix) |
-| A-1486-b2 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | the 2-column table (#1381 grammar) accepts plain pairs | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
-| A-1486-b3 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a mixed cell (backticked + plain) parses both, in source order | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
-| A-1486-b4 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | GUARD: the backticked 3-col grammar is unchanged (names + purpose) | FR-1486, backwards compat | GREEN |
-| A-1486-b5 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | generic types with top-level commas survive the plain split (`Map<String, int>`, `List<List<int>>` verbatim) | FR-1486, depth-aware comma split | GREEN (RED pre-fix) |
-| A-1486-b6 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | nullable types parse as plain pairs (`String?`) | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
-| A-1486-b7 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | evidence-but-zero cells are REPORTED, never silent: `1id: String` and a prose backtick span yield anomalies (entity, verbatim cell, 1-based line); no-evidence and parsing cells yield none | FR-1486, SpecEntityFieldAnomaly | GREEN (compile-red pre-fix) |
-| A-1486-b8 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | GUARD: bullet prose keeps the strict backticked-only grammar — plain prose invents NOTHING | FR-1486, false-positive guard | GREEN |
-| A-1486-b9 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | `entityFieldNamesFromDartSource` reads the on-disk entity shape (final/late final in; constructor params and assignment-initialised locals out) | FR-1486, phase-0 reuse mismatch | GREEN (compile-red pre-fix) |
-| A-1486-b10 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a PARTIALLY dropped cell is REPORTED too: `id: String, 2ndField: int` mints `id` and announces the drop; `id: String; title: String` announces the type-swallowed second pair | FR-1486, SpecEntityFieldAnomaly, partial drop | GREEN (RED pre-fix) |
-| A-1486-b11 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a whitespace-padded backticked span (`` ` id: String` ``) mints its pair like the plain path — and drops nothing, so reports nothing | FR-1486, span trim parity | GREEN (RED pre-fix) |
-| A-1486-b12 | test/plugins/tdd/run_command_test.dart | integration | the phase-0 reuse branch's field-mismatch warning is ASSERTED (not merely executed): plan declares `id, title`, the reused entity file declares only `id` → stdout names both sets, the file is untouched | FR-1486, `_logPhaseZeroFieldMismatch` | GREEN |
+| U-1589-a1 | test/plugins/tdd/commands/bug_1589_contract_blocked_resume_test.dart | unit | the park note names the hand surface: seam path + `zfa tdd wire contract:A1 --entity User` | issue #1589 criterion 1, #1007 park arm | GREEN |
+| U-1589-a2 | test/plugins/tdd/commands/bug_1589_contract_blocked_resume_test.dart | unit | the terminal `result=blocked` block names the hand surface per parked row; verdict/lane/state pins hold (`blocked=1 done=1`, `stopped_at=contract:A1:verify-red`) | issue #1589 criteria 1+4, #1007/#1544 pins | GREEN |
+| U-1589-a3 | test/plugins/tdd/commands/bug_1589_contract_blocked_resume_test.dart | unit | a contract parked THIS run hands its seam to every refactor spawn (`--parked-seam`) | issue #1589 criterion 3, driver handoff | GREEN |
+| U-1589-a4 | test/plugins/tdd/commands/bug_1589_contract_blocked_resume_test.dart | unit | a still-blocked SKIP on resume (persisted parking + receipt) hands the seam to the refactor spawn too | issue #1589 criterion 3, #1544 skip arm | GREEN |
+| U-1589-a5 | test/plugins/tdd/commands/bug_1589_contract_blocked_resume_test.dart | unit | `make contract:A1` on a parked contract (receipt + unchanged world) refuses `implement-seam-first` naming the hand surface; the dead-end "has no certified-red evidence" remedy is gone; no green evidence written | issue #1589 criterion 2, #1007 contract lane | GREEN |
+| U-1589-a6 | test/plugins/tdd/commands/bug_1589_contract_blocked_resume_test.dart | unit | a changed world (lib/ newer than the verdict) fails OPEN to the existing not-certified-red refusal | fail-open guard, #1544 watch set | GREEN |
+| U-1589-a7 | test/plugins/tdd/commands/bug_1589_contract_blocked_resume_test.dart | unit | a missing receipt fails OPEN to the existing refusal | fail-open guard | GREEN |
+| U-1589-a8 | test/plugins/tdd/commands/bug_1589_contract_blocked_resume_test.dart | unit | a NON-contract behavior without red evidence keeps the existing refusal (contract-lane scoping) | scoping guard | GREEN |
+| U-1589-b1 | test/plugins/tdd/bug_1589_refactor_parked_seam_test.dart | unit | a preflight red whose ONLY failure lives in a handed parked seam is tolerated (`outcome=clean`, exit 0, no mutation) | issue #1589 criterion 3, #922 economics | GREEN |
+| U-1589-b2 | test/plugins/tdd/bug_1589_refactor_parked_seam_test.dart | unit | WITHOUT the flag the same red still refuses — flag-less standalone refactor keeps the absolute-green contract (spec 048 FR-001) | contract-preservation guard | GREEN |
+| U-1589-b3 | test/plugins/tdd/bug_1589_refactor_parked_seam_test.dart | unit | a NEW failure beyond the handed parked seam still refuses — the tolerance is surgical | safe-failure guard | GREEN |
+| U-1589-b4 | test/plugins/tdd/bug_1589_refactor_parked_seam_test.dart | unit | a parked-seam failure BESIDE baseline-recorded failures is tolerated too — the #922 and #1589 economics compose | composition | GREEN |
+| U-1589-b5 | test/plugins/tdd/bug_1589_refactor_parked_seam_test.dart | unit | a re-proof red confined to the handed parked seam is NOT a regression (`outcome=refactored`, exit 0) | re-proof tolerance | GREEN |
+| U-1589-b6 | test/plugins/tdd/bug_1589_refactor_parked_seam_test.dart | unit | an UNPARSEABLE red is never parked-tolerated — fail closed (`outcome=not-green`) | U18 fail-closed guard | GREEN |
 
-Signal paths (print-only, asserted by the suites above + the #1381 plan suite):
+## Red evidence (pre-fix, this session)
 
-- plan: `SpecEntityFieldAnomaly` rows → per-row `zfa tdd plan: WARNING` (#1486 sibling of #1381's zero-entity warning) — plan_command.dart
-- run: phase-0 reuse branch logs declared-vs-on-disk field mismatch — run_driver_core.dart `_logPhaseZeroFieldMismatch`, asserted by A-1486-b12 (`run_command_test.dart` U-829d2)
+Verbatim runs preserved in
+`.specify/bugs/1589-contract-blocked-dead-end-resume/red-evidence.md`:
+
+- Suite 1 (pre-fix): `+3 -5` — no hand surface in any blocked stop; the
+  refactor spawn argv carries no `--parked-seam`; `make contract:A1`
+  dead-ends with "has no certified-red evidence … Run `zfa tdd verify-red`
+  first" (the loop the issue reports). The 3 fail-open/scoping guards were
+  already green pre-fix (they pin behavior that must not change).
+- Suite 2 (pre-fix): `+1 -5` — the `--parked-seam` flag does not parse
+  (usage exception) and the gate refuses/regresses on the parked verdict's
+  own failure; the flag-less absolute-green guard was already green.
+
+## Suite placement note
+
+The behaviors live beside their neighbors: the driver/make suite in
+`test/plugins/tdd/commands/` (colocated with
+`bug_1544_run_continue_after_blocked_test.dart` and
+`contract_kind_1007_test.dart`, fast tier, fake-zfa scripted) and the
+refactor-gate suite in `test/plugins/tdd/` (colocated with
+`bug_922_refactor_preflight_baseline_test.dart`, `slow` tag per the
+refactor-command convention, spy-scripted suite). Both run in the chunked
+sweep; the slow file via `--preset=all`.
