@@ -80,6 +80,18 @@ class DoctorCommand extends Command<void> {
           'line (VISION §5, issue #969).',
       negatable: false,
     );
+    argParser.addFlag(
+      'repair',
+      help:
+          'Repair mode (issue #1495): garbage-collect every registry '
+          'record whose test AND subject files are gone from disk (no '
+          'relocation match). Surgical — healthy records stay, no file on '
+          'disk is touched (owned-and-absent has nothing to clobber), '
+          'audit-logged (action "repair"). A record that still owns a '
+          'surviving half is never collected — reset remains its remedy.',
+      defaultsTo: false,
+      negatable: false,
+    );
     argParser.addOption(
       'project',
       aliases: const ['project-root'],
@@ -109,7 +121,8 @@ class DoctorCommand extends Command<void> {
       '--> fix: line with a JSON verdict (bugs #840, #874).';
 
   @override
-  String get invocation => 'zfa tdd doctor <feature> [--project <path>]';
+  String get invocation =>
+      'zfa tdd doctor <feature> [--repair] [--project <path>]';
 
   @override
   Future<void> run() =>
@@ -291,8 +304,19 @@ class DoctorCommand extends Command<void> {
     // separates the two: a record whose missing paths all relocate is
     // routed to migrate-paths below; a record with a genuinely missing
     // artifact (probe finds nothing) still resets.
+    //
+    // Issue #1495: a record whose BOTH files are gone (no relocation
+    // match) owns NOTHING on disk — `zfa tdd doctor <feature> --repair`
+    // garbage-collects exactly those records (surgical, audit-logged);
+    // a record that still owns a surviving half is never collected (GC
+    // would orphan the survivor — reset remains its remedy).
     final missingFiles = <String>[];
     final relocatedRecords = <_RelocatedRecord>[];
+    // Issue #1495: per-record GC classification — a record is collectible
+    // only when BOTH recorded paths are genuinely missing (no relocation
+    // probe match, nothing on disk it owns).
+    final collectibleIds = <String>{};
+    final halfMissingIds = <String>{};
     for (final record in records) {
       // Records may be absolute (gen's default) or project-relative —
       // resolve both against the project root (issue #912: the raw
@@ -335,23 +359,76 @@ class DoctorCommand extends Command<void> {
           'recorded but missing from disk',
         );
       }
+      // Issue #1495 GC classification: both halves genuinely gone -> the
+      // record owns nothing on disk and is collectible; a surviving (or
+      // relocatable) half keeps the record un-collectible.
+      final testCollectible = missingTest && relocatedTest == null;
+      final subjectCollectible = missingSubject && relocatedSubject == null;
+      if (testCollectible && subjectCollectible) {
+        collectibleIds.add(record.behaviorId);
+      } else {
+        halfMissingIds.add(record.behaviorId);
+      }
     }
     if (missingFiles.isNotEmpty) {
       drifts.addAll(missingFiles);
-      final fix = 'zfa tdd reset $feature';
+      final repairMode = argResults?['repair'] as bool? ?? false;
+      if (repairMode && halfMissingIds.isEmpty) {
+        // Issue #1495: the surgical repair — drop EVERY gone-file record,
+        // keep every healthy record, touch no file on disk, audit-log.
+        final dropped = await registry.dropRecords(collectibleIds);
+        await _auditRepair(featureDir, feature, dropped);
+        final droppedIds = dropped.map((r) => r.behaviorId).toList()..sort();
+        print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
+        print(
+          '  repaired: dropped ${droppedIds.length} gone-file registry '
+          'record(s): ${droppedIds.join(', ')} — no file on disk was '
+          'touched (owned-and-absent has nothing to clobber; issue '
+          '#1495)',
+        );
+        print(
+          '   --> next: re-drive the collected behaviors from gen '
+          '(`zfa tdd gen <id> --feature ${resolved.ref}` or '
+          '`zfa tdd run ${resolved.ref}`)',
+        );
+        _printVerdict(
+          feature: feature,
+          verdict: 'repaired',
+          prescription: 'repair',
+          fix: 'zfa tdd gen <id> --feature ${resolved.ref}',
+          drifts: drifts,
+        );
+        exitCode = 0;
+        return;
+      }
+      final fix = repairMode && halfMissingIds.isNotEmpty
+          ? 'zfa tdd reset $feature'
+          : collectibleIds.isNotEmpty && halfMissingIds.isEmpty
+          ? 'zfa tdd doctor $feature --repair'
+          : 'zfa tdd reset $feature';
+      final why = repairMode
+          ? 'a half-missing record still owns a file on disk — collecting '
+                'it would orphan the survivor (issue #1495); the full reset '
+                'reconciles records AND owned artifacts'
+          : collectibleIds.isNotEmpty && halfMissingIds.isEmpty
+          ? 'drop the stale registry records only — the surgical '
+                'garbage-collect keeps every healthy record and touches no '
+                'file (issue #1495); `zfa tdd reset` remains the heavier '
+                'alternative'
+          : 'drop the stale registry records and owned artifacts, then '
+                're-drive from gen (resume cannot pass the ownership '
+                'preflight while records point at missing files)';
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
-      print(
-        '   --> fix: $fix — drop the stale registry records and owned '
-        'artifacts, then re-drive from gen (resume cannot pass the '
-        'ownership preflight while records point at missing files)',
-      );
+      print('   --> fix: $fix — $why');
       _printVerdict(
         feature: feature,
         verdict: 'drift',
-        prescription: 'reset',
+        prescription: repairMode || fix.contains('--repair')
+            ? 'repair'
+            : 'reset',
         fix: fix,
         drifts: drifts,
       );
@@ -793,6 +870,30 @@ class DoctorCommand extends Command<void> {
   /// [TddFeaturePaths.displayDir] idiom, so every command renders one way.
   String _displayPath(String cwd, String absolute) =>
       TddFeaturePaths.displayDir(cwd: cwd, dir: absolute);
+
+  /// Append the garbage-collect audit record (issue #1495): one JSONL line
+  /// per repair run in `specs/<feature>/tdd/audit.log` — the same
+  /// discipline as the #840 adoption line. Records which behavior ids
+  /// were collected; no file on disk is touched.
+  Future<void> _auditRepair(
+    String featureDir,
+    String featureName,
+    List<dynamic> droppedRecords,
+  ) async {
+    final auditFile = File(p.join(featureDir, 'tdd', 'audit.log'));
+    await auditFile.parent.create(recursive: true);
+    final line = jsonEncode({
+      'at': DateTime.now().toUtc().toIso8601String(),
+      'action': 'repair',
+      'feature': featureName,
+      'command': 'doctor',
+      'dropped': droppedRecords.map((r) => r.behaviorId as String).toList(),
+    });
+    final sink = auditFile.openWrite(mode: FileMode.append);
+    sink.writeln(line);
+    await sink.flush();
+    await sink.close();
+  }
 
   /// The machine-readable JSON verdict (bug #840) — the LAST stdout line.
   void _printVerdict({

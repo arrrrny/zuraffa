@@ -48,15 +48,16 @@ void main() {
       .toList()
       .last;
 
+  /// The last non-empty stdout line — the recovery commands' verdict
+  /// contract (text `key=value` summary for gen without --json; raw JSON
+  /// envelope for doctor).
   Map<String, dynamic> verdictMap(String out) {
-    // The text verdict line carries `key=value` tokens; the machine
-    // assertions below only need the verdict token and reason.
     final line = lastLine(out);
+    if (line.startsWith('{')) {
+      return jsonDecode(line) as Map<String, dynamic>;
+    }
     final tokens = RegExp(r'(\w+)=(?:"([^"]*)"|(\S+))').allMatches(line);
-    return {
-      for (final m in tokens)
-        m.group(1)!: m.group(2) ?? m.group(3),
-    };
+    return {for (final m in tokens) m.group(1)!: m.group(2) ?? m.group(3)};
   }
 
   Future<List<Map<String, dynamic>>> records() async {
@@ -66,14 +67,14 @@ void main() {
     return ((raw['records'] as List?) ?? []).cast<Map<String, dynamic>>();
   }
 
-  String _snake(String id) => id.toLowerCase().replaceAll('-', '_');
+  String snake(String id) => id.toLowerCase().replaceAll('-', '_');
 
   /// The gen default namespaced layout for the fixture feature.
   String testPathOf(String id) =>
-      p.join(fx.root.path, 'test', 'tdd', feature, '${_snake(id)}_test.dart');
+      p.join(fx.root.path, 'test', 'tdd', feature, '${snake(id)}_test.dart');
 
-  String subjectPathOf(String id) => p.join(
-      fx.root.path, 'lib', 'tdd', feature, '${_snake(id)}_subject.dart');
+  String subjectPathOf(String id) =>
+      p.join(fx.root.path, 'lib', 'tdd', feature, '${snake(id)}_subject.dart');
 
   /// One real `zfa tdd gen` — writes the pair + the registry record.
   Future<String> firstGen(String id) async {
@@ -146,28 +147,11 @@ void main() {
     );
 
     test('RED: --repair does not exist before the fix (usage error)', () async {
-      await firstGen(behaviorId);
-      await File(testPathOf(behaviorId)).delete();
-      await File(subjectPathOf(behaviorId)).delete();
-
-      final out = await runCli([
-        'gen',
-        behaviorId,
-        '--feature',
-        feature,
-        '--repair',
-      ]);
-
-      expect(exitCode, isNot(0), reason: out);
-      expect(
-        out.toLowerCase(),
-        anyOf(
-          contains('could not find an option named "--repair"'),
-          contains('could not find an option named "--repair".'),
-        ),
-        reason: out,
-      );
-    });
+      // RED-only documentation of the flag's absence; at GREEN the same
+      // invocation is the successful repair covered by the tests below.
+      // Kept out of the green suite on purpose (the flag exists there),
+      // the evidence lives in red-evidence.txt.
+    }, skip: 'RED-only: superseded at GREEN by the --repair success tests');
 
     test('RED: exists-unowned refusal names --adopt (the resolving command '
         'for the opposite drift direction)', () async {
@@ -204,100 +188,83 @@ void main() {
   });
 
   group('bug 1495 — zfa tdd gen <id> --repair', () {
-    test(
-      'RED: drops the stale record and regenerates the gone pair — '
-      'verdict repaired, audit-logged, exactly one record after',
-      () async {
-        await firstGen(behaviorId);
-        final oldRecord = (await records()).single;
-        await File(testPathOf(behaviorId)).delete();
-        await File(subjectPathOf(behaviorId)).delete();
+    test('RED: drops the stale record and regenerates the gone pair — '
+        'verdict repaired, audit-logged, exactly one record after', () async {
+      await firstGen(behaviorId);
+      final oldRecord = (await records()).single;
+      await File(testPathOf(behaviorId)).delete();
+      await File(subjectPathOf(behaviorId)).delete();
 
-        final out = await runCli([
-          'gen',
-          behaviorId,
-          '--feature',
-          feature,
-          '--repair',
-        ]);
+      final out = await runCli([
+        'gen',
+        behaviorId,
+        '--feature',
+        feature,
+        '--repair',
+      ]);
 
-        expect(exitCode, 0, reason: out);
-        // Fresh pair back on disk.
-        expect(File(testPathOf(behaviorId)).existsSync(), isTrue, reason: out);
-        expect(
-          File(subjectPathOf(behaviorId)).existsSync(),
-          isTrue,
-          reason: out,
-        );
-        // Exactly one record for the behavior — the STALE one was
-        // dropped, not duplicated against.
-        final rs = await records();
-        final mine = rs.where((r) => r['behavior_id'] == behaviorId).toList();
-        expect(mine, hasLength(1), reason: out);
-        expect(
-          mine.single['created_at'],
-          isNot(oldRecord['created_at']),
-          reason: 'the stale record must be REPLACED, not kept — ${out}',
-        );
-        // Verdict names the recovery.
-        final v = verdictMap(out);
-        expect(v['verdict'], 'repaired', reason: out);
-        // Audit trail, same discipline as --adopt (bug #840).
-        final audit = File(
-          p.join(fx.featureDir, 'tdd', 'audit.log'),
-        );
-        expect(audit.existsSync(), isTrue, reason: out);
-        final auditLine = audit
-            .readAsStringSync()
-            .split('\n')
-            .where((l) => l.contains('"action":"repair"'))
-            .toList();
-        expect(auditLine, hasLength(1), reason: out);
-        expect(auditLine.single, contains('"behavior":"$behaviorId"'));
-      },
-    );
+      expect(exitCode, 0, reason: out);
+      // Fresh pair back on disk.
+      expect(File(testPathOf(behaviorId)).existsSync(), isTrue, reason: out);
+      expect(File(subjectPathOf(behaviorId)).existsSync(), isTrue, reason: out);
+      // Exactly one record for the behavior — the STALE one was
+      // dropped, not duplicated against.
+      final rs = await records();
+      final mine = rs.where((r) => r['behavior_id'] == behaviorId).toList();
+      expect(mine, hasLength(1), reason: out);
+      expect(
+        mine.single['created_at'],
+        isNot(oldRecord['created_at']),
+        reason: 'the stale record must be REPLACED, not kept — $out',
+      );
+      // Verdict names the recovery.
+      final v = verdictMap(out);
+      expect(v['verdict'], 'repaired', reason: out);
+      // Audit trail, same discipline as --adopt (bug #840).
+      final audit = File(p.join(fx.featureDir, 'tdd', 'audit.log'));
+      expect(audit.existsSync(), isTrue, reason: out);
+      final auditLine = audit
+          .readAsStringSync()
+          .split('\n')
+          .where((l) => l.contains('"action":"repair"'))
+          .toList();
+      expect(auditLine, hasLength(1), reason: out);
+      expect(auditLine.single, contains('"behavior":"$behaviorId"'));
+    });
 
-    test(
-      'RED: keeps a shape-verified surviving half byte-identical and '
-      'regenerates only the gone half (adopt discipline)',
-      () async {
-        await firstGen(behaviorId);
-        final testBytes = await File(
-          testPathOf(behaviorId),
-        ).readAsBytes();
-        await File(subjectPathOf(behaviorId)).delete();
+    test('RED: keeps a shape-verified surviving half byte-identical and '
+        'regenerates only the gone half (adopt discipline)', () async {
+      await firstGen(behaviorId);
+      final testBytes = await File(testPathOf(behaviorId)).readAsBytes();
+      await File(subjectPathOf(behaviorId)).delete();
 
-        final out = await runCli([
-          'gen',
-          behaviorId,
-          '--feature',
-          feature,
-          '--repair',
-        ]);
+      final out = await runCli([
+        'gen',
+        behaviorId,
+        '--feature',
+        feature,
+        '--repair',
+      ]);
 
-        expect(exitCode, 0, reason: out);
-        // The surviving test half was kept, NOT rewritten.
-        expect(
-          await File(testPathOf(behaviorId)).readAsBytes(),
-          testBytes,
-          reason: 'a repair must never rewrite a verified surviving '
-              'half — ${out}',
-        );
-        expect(
-          File(subjectPathOf(behaviorId)).existsSync(),
-          isTrue,
-          reason: out,
-        );
-        final rs = await records();
-        expect(
-          rs.where((r) => r['behavior_id'] == behaviorId),
-          hasLength(1),
-          reason: out,
-        );
-        final v = verdictMap(out);
-        expect(v['verdict'], 'repaired', reason: out);
-      },
-    );
+      expect(exitCode, 0, reason: out);
+      // The surviving test half was kept, NOT rewritten.
+      expect(
+        await File(testPathOf(behaviorId)).readAsBytes(),
+        testBytes,
+        reason:
+            'a repair must never rewrite a verified surviving '
+            'half — $out',
+      );
+      expect(File(subjectPathOf(behaviorId)).existsSync(), isTrue, reason: out);
+      final rs = await records();
+      expect(
+        rs.where((r) => r['behavior_id'] == behaviorId),
+        hasLength(1),
+        reason: out,
+      );
+      final v = verdictMap(out);
+      expect(v['verdict'], 'repaired', reason: out);
+    });
 
     test(
       'RED: --repair on the exists-unowned direction refuses and names '
@@ -363,83 +330,74 @@ void main() {
   });
 
   group('bug 1495 — zfa tdd doctor <feature> --repair', () {
-    test(
-      'RED: garbage-collects every record whose files are gone and keeps '
-      'healthy records — audit-logged, exit 0',
-      () async {
-        await firstGen(behaviorId);
-        await firstGen(otherId);
-        expect((await records()), hasLength(2));
-        await File(testPathOf(behaviorId)).delete();
-        await File(subjectPathOf(behaviorId)).delete();
+    test('RED: garbage-collects every record whose files are gone and keeps '
+        'healthy records — audit-logged, exit 0', () async {
+      await firstGen(behaviorId);
+      await firstGen(otherId);
+      expect((await records()), hasLength(2));
+      await File(testPathOf(behaviorId)).delete();
+      await File(subjectPathOf(behaviorId)).delete();
 
-        final out = await runCli(['doctor', feature, '--repair']);
+      final out = await runCli(['doctor', feature, '--repair']);
 
-        expect(exitCode, 0, reason: out);
-        final rs = await records();
-        expect(
-          rs.where((r) => r['behavior_id'] == behaviorId),
-          isEmpty,
-          reason: 'the gone-file record must be collected — ${out}',
-        );
-        expect(
-          rs.where((r) => r['behavior_id'] == otherId),
-          hasLength(1),
-          reason: 'the healthy record must stay — ${out}',
-        );
-        final audit = File(p.join(fx.featureDir, 'tdd', 'audit.log'));
-        expect(audit.existsSync(), isTrue, reason: out);
-        expect(
-          audit.readAsStringSync(),
-          contains('"action":"repair"'),
-          reason: out,
-        );
-        final v = verdictMap(out);
-        expect(v['verdict'], 'repaired', reason: out);
-      },
-    );
+      expect(exitCode, 0, reason: out);
+      final rs = await records();
+      expect(
+        rs.where((r) => r['behavior_id'] == behaviorId),
+        isEmpty,
+        reason: 'the gone-file record must be collected — $out',
+      );
+      expect(
+        rs.where((r) => r['behavior_id'] == otherId),
+        hasLength(1),
+        reason: 'the healthy record must stay — $out',
+      );
+      final audit = File(p.join(fx.featureDir, 'tdd', 'audit.log'));
+      expect(audit.existsSync(), isTrue, reason: out);
+      expect(
+        audit.readAsStringSync(),
+        contains('"action":"repair"'),
+        reason: out,
+      );
+      final v = verdictMap(out);
+      expect(v['verdict'], 'repaired', reason: out);
+    });
 
-    test(
-      'RED: refuses to garbage-collect a HALF-missing record (the '
-      'surviving half is still owned — GC would orphan it); prescribes '
-      'reset, drops nothing',
-      () async {
-        await firstGen(behaviorId);
-        await File(testPathOf(behaviorId)).delete();
+    test('RED: refuses to garbage-collect a HALF-missing record (the '
+        'surviving half is still owned — GC would orphan it); prescribes '
+        'reset, drops nothing', () async {
+      await firstGen(behaviorId);
+      await File(testPathOf(behaviorId)).delete();
 
-        final out = await runCli(['doctor', feature, '--repair']);
+      final out = await runCli(['doctor', feature, '--repair']);
 
-        expect(exitCode, 1, reason: out);
-        expect(out, contains('zfa tdd reset $feature'), reason: out);
-        expect(
-          (await records()).where((r) => r['behavior_id'] == behaviorId),
-          hasLength(1),
-          reason: out,
-        );
-      },
-    );
+      expect(exitCode, 1, reason: out);
+      expect(out, contains('zfa tdd reset $feature'), reason: out);
+      expect(
+        (await records()).where((r) => r['behavior_id'] == behaviorId),
+        hasLength(1),
+        reason: out,
+      );
+    });
 
-    test(
-      'RED: without --repair the fully-gone drift still exits 1 and the '
-      'fix line names the surgical repair command',
-      () async {
-        await firstGen(behaviorId);
-        await File(testPathOf(behaviorId)).delete();
-        await File(subjectPathOf(behaviorId)).delete();
+    test('RED: without --repair the fully-gone drift still exits 1 and the '
+        'fix line names the surgical repair command', () async {
+      await firstGen(behaviorId);
+      await File(testPathOf(behaviorId)).delete();
+      await File(subjectPathOf(behaviorId)).delete();
 
-        final out = await runCli(['doctor', feature]);
+      final out = await runCli(['doctor', feature]);
 
-        expect(exitCode, 1, reason: out);
-        expect(out, contains('--> fix:'), reason: out);
-        expect(out, contains('--repair'), reason: out);
-        // Diagnosis only: nothing was dropped.
-        expect(
-          (await records()).where((r) => r['behavior_id'] == behaviorId),
-          hasLength(1),
-          reason: out,
-        );
-      },
-    );
+      expect(exitCode, 1, reason: out);
+      expect(out, contains('--> fix:'), reason: out);
+      expect(out, contains('--repair'), reason: out);
+      // Diagnosis only: nothing was dropped.
+      expect(
+        (await records()).where((r) => r['behavior_id'] == behaviorId),
+        hasLength(1),
+        reason: out,
+      );
+    });
 
     test('--repair with a healthy feature is a no-op success (nothing to '
         'collect)', () async {
