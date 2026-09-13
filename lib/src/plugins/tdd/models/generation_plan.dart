@@ -189,7 +189,24 @@ enum MakeOutcome {
   /// `dart pub add --dev <pkg>` fix instead of the generic
   /// `generation-error`. Exit 1, no green entry (the same honesty class);
   /// the remedy is to add the dependency, then re-run make.
-  missingBuilderDependency('missing-builder-dependency');
+  missingBuilderDependency('missing-builder-dependency'),
+
+  /// The planner-declared hand step (issue #1568): the behavior's
+  /// declared contract returns an entity-shaped type, so the generation
+  /// pipeline has NO mechanical implementation surface for it (the #1565
+  /// build-only plan after the func skip, or func's honest non-scalar
+  /// throw) — the post-generation red is the DESIGNED author hand step
+  /// (the #1308 vocabulary), never a generation defect. The planner had
+  /// already announced the class up front (SPEC 1489 SC-4's
+  /// `Seam cost: N of M unit behaviors will hand-step because return is
+  /// an entity`); grading it `generation-error` stopped the whole run at
+  /// the first hand-step and made the mechanical behaviors behind it
+  /// unreachable. Non-green: exit 1, no green entry, the subject
+  /// restored byte-identically (#1036); the run driver parks the
+  /// behavior (PENDING with its honest red), records it in the run
+  /// summary (`hand_steps=N`), and CONTINUES with the remaining
+  /// behaviors.
+  handStep('hand-step');
 
   const MakeOutcome(this.label);
 

@@ -90,6 +90,7 @@ import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/generation_planner.dart';
+import '../services/hand_step_classifier.dart';
 import '../services/hand_delta_receipt.dart';
 import '../services/journal.dart';
 import '../services/nuance_receipts.dart';
@@ -2005,6 +2006,79 @@ class MakeCommand extends Command<void> {
             _printSummary(
               behavior: record.behaviorId,
               outcome: MakeOutcome.handDeltaRequired,
+              feature: target.featureName,
+            );
+            exitCode = 1;
+            return;
+          }
+          // Issue #1568: the PLANNER-DECLARED hand-step class — a
+          // behavior whose declared contract returns an entity-shaped
+          // type has NO mechanical implementation surface (the #1565
+          // build-only plan after the func skip, or func's honest
+          // non-scalar throw), so this red is the DESIGNED author hand
+          // step (#1308's vocabulary), never a generation defect. The
+          // planner announced the class up front (SPEC 1489's seam
+          // forecast); grading it generation-error stopped the whole run
+          // at the first hand-step and made the mechanical behaviors
+          // behind it unreachable. The entity pipeline's served shapes
+          // (#1498/#1500) keep the honest generic stop: when the plan
+          // CARRIED a mechanical implementation surface (the
+          // entity→mock→wire engine), a post-generation red is a real
+          // generation outcome, not the designed hand step.
+          final planCarriedMechanicalSurface = effectivePlan.steps.any(
+            (s) =>
+                s.args.isNotEmpty &&
+                (s.args.first == 'entity' ||
+                    s.args.first == 'mock' ||
+                    (s.args.length >= 2 &&
+                        s.args[0] == 'tdd' &&
+                        s.args[1] == 'wire')),
+          );
+          final declaredHandStep =
+              !planCarriedMechanicalSurface &&
+              await HandStepClassifier.isPlannerDeclaredHandStep(
+                cwd: cwd,
+                featureName: target.featureName,
+                featureDir: target.featureDir,
+                behaviorId: record.behaviorId,
+              );
+          if (declaredHandStep) {
+            final declared = await DeclaredRouting.declaredSignatureFor(
+              cwd: cwd,
+              featureName: target.featureName,
+              featureDir: target.featureDir,
+              behaviorId: record.behaviorId,
+            );
+            final signature = declared?.toString() ?? 'the declared contract';
+            print(
+              'zfa tdd make: the planner declared this behavior a HAND '
+              'STEP (issue #1568) — the declared contract returns an '
+              'entity ($signature), so the generation pipeline has no '
+              'mechanical implementation surface for it.',
+            );
+            print(
+              '   the subject is gen\'s contract-derived stub and the red '
+              'is honest; the generation steps that ran are not a defect '
+              '(SPEC 1489 seam forecast: entity-return contract subject).',
+            );
+            print(
+              '   hand step: ${record.behaviorId}:hand — implement the '
+              'subject deliberately to satisfy the declared contract, '
+              'then re-run `zfa tdd make ${record.behaviorId}` (or the '
+              'run driver), and the cycle certifies from your '
+              'implementation.',
+            );
+            // Issue #1036: the failed-make contract holds for the park —
+            // the certified-red subject shape survives byte-identically
+            // and the retry fails honestly.
+            await _restoreSubjectIfMutated(
+              subjectFile,
+              subjectSnapshot,
+              reason: 'the make stopped with a hand-step park (issue #1568)',
+            );
+            _printSummary(
+              behavior: record.behaviorId,
+              outcome: MakeOutcome.handStep,
               feature: target.featureName,
             );
             exitCode = 1;

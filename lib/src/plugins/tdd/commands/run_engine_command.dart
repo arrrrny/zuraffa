@@ -396,6 +396,7 @@ class RunEngineCommand extends Command<void> {
         counts: outcome.counts,
         stoppedAt: outcome.stoppedAt,
         skippedWidgetIds: outcome.skippedWidgetIds,
+        handStepIds: outcome.handStepIds,
       ),
     );
     exitCode = outcome.exitCode;

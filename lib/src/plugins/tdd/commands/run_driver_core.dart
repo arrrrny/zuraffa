@@ -91,6 +91,7 @@ class RunDriverOutcome {
     required this.drove,
     required this.counts,
     required this.skippedWidgetIds,
+    this.handStepIds = const [],
     this.stoppedAt,
     this.message,
     this.lane,
@@ -126,6 +127,13 @@ class RunDriverOutcome {
   /// widget-lane gen refusals the operator chose to skip); named in the
   /// end-of-run summary (`skipped-widget=<n>`).
   final List<String> skippedWidgetIds;
+
+  /// The parked hand-step behavior ids (issue #1568): the
+  /// planner-declared entity-return seam behaviors the run parked at
+  /// make (`outcome=hand-step`). Named in the end-of-run summary
+  /// (`hand_steps=N` + the terminal block) so the operator can implement
+  /// them deliberately.
+  final List<String> handStepIds;
 
   /// A refusal/corruption message printed before the summary line (the
   /// concurrent-run refusal and the corruption recovery path name their
@@ -905,6 +913,23 @@ class RunDriverCore {
         }
       }
 
+      // Issue #1568: a KNOWN hand-step behavior (the planner-declared
+      // entity-return seam the make parked on an earlier run) is NOT
+      // re-driven on resume — the behavior stays PENDING with its honest
+      // red until the author implements the subject deliberately and
+      // re-runs make (AC-4). Any state the author's work moves
+      // (green/done via a direct make) leaves the park and re-enters the
+      // normal loop gates.
+      if (current.handSteps.contains(row.id) &&
+          (state == BehaviorState.pending || state == BehaviorState.red)) {
+        print(
+          '[run] ${row.id} make -> parked (planner-declared hand-step, '
+          'issue #1568)',
+        );
+        _emitStep(row.id, 'make', 'parked');
+        continue;
+      }
+
       final inFlightStep = current.inFlightBehaviorId == row.id
           ? current.inFlightStep
           : null;
@@ -981,6 +1006,20 @@ class RunDriverCore {
       // re-driving its make would refuse "no gen artifacts" and stop the
       // run for a behavior the operator already chose to skip.
       if (skippedWidgets.containsKey(row.id)) continue;
+      // Issue #1568: a hand-step parked behavior owes NO phase-2 make
+      // re-attempt — the park is the terminal verdict for this run (the
+      // subject implementation is the author's deliberate hand step,
+      // never a generation the loop could retry).
+      if (current.handSteps.contains(row.id) &&
+          state != BehaviorState.green &&
+          state != BehaviorState.done) {
+        print(
+          '[run] ${row.id} make -> parked (planner-declared hand-step, '
+          'issue #1568)',
+        );
+        _emitStep(row.id, 'make', 'parked');
+        continue;
+      }
 
       final inFlightStep = current.inFlightBehaviorId == row.id
           ? current.inFlightStep
@@ -1108,6 +1147,15 @@ class RunDriverCore {
     final allDone = rows.every(
       (r) => current.behaviorStates[r.id] == BehaviorState.done,
     );
+    // Issue #1568: the parked hand-steps are the pass's OTHER terminal
+    // condition (the #1544 blocked-park sibling) — the run names them,
+    // prints the deliberate-implementation remedy beside any
+    // bounded-progress skips, and stops bounded (FR-007), never a fake
+    // DONE (FR-008) and never the pre-#1568 mid-run wall.
+    final parkedHandSteps = current.handSteps.where((id) {
+      final s = current.behaviorStates[id] ?? BehaviorState.pending;
+      return s != BehaviorState.green && s != BehaviorState.done;
+    }).toList()..sort();
     // Issue #1544: the parked BLOCKED behaviors are the pass's terminal
     // condition — the run names them, prints any bounded-progress skips
     // beside them, and stops with `result=blocked blocked=N` (exit 1).
@@ -1164,9 +1212,11 @@ class RunDriverCore {
         skippedWidgets: skippedWidgets,
         stoppedAt: '${blockedRows.first.id}:verify-red',
         message: null,
+        handStepIds: parkedHandSteps,
       );
     }
     if (!allDone &&
+        parkedHandSteps.isEmpty &&
         (skippedRefactors.isNotEmpty || skippedWidgets.isNotEmpty)) {
       // Bug #734 per-behavior gate (+ v2 refusal skips, issue #992): the
       // pass completed for every behavior that could proceed; the rest
@@ -1214,9 +1264,53 @@ class RunDriverCore {
             : '${skippedWidgets.keys.first}:gen',
         skippedWidgets: skippedWidgets,
         message: null,
+        handStepIds: parkedHandSteps,
       );
     }
     if (!allDone) {
+      if (parkedHandSteps.isNotEmpty) {
+        if (skippedRefactors.isNotEmpty) {
+          print(
+            'zfa tdd $label: refactor skipped for '
+            '${skippedRefactors.keys.join(', ')} — '
+            '${skippedRefactors.values.toSet().join(' / ')}',
+          );
+        }
+        if (skippedWidgets.isNotEmpty) {
+          print(
+            'zfa tdd $label: widget-lane skipped for '
+            '${skippedWidgets.keys.join(', ')} — '
+            '${skippedWidgets.values.toSet().join(' / ')}',
+          );
+        }
+        print(
+          'zfa tdd $label: hand-step for ${parkedHandSteps.join(', ')} — '
+          '${parkedHandSteps.length} behavior(s) the planner declared '
+          'hand-step (entity-return contract subjects, issue #1568); '
+          'they stay pending with their honest red.',
+        );
+        print(
+          '   resume: implement each subject deliberately (the declared '
+          'contract), then re-run `zfa tdd make <id>` for it, then '
+          're-run `zfa tdd $label $feature`.',
+        );
+        return _finish(
+          result: 'stopped',
+          exitCode: _exitStopped,
+          rows: allRows,
+          state: current,
+          drove: true,
+          lane: lane,
+          laneRows: rows,
+          receipts: receipts,
+          journalStartedAt: journalStartedAt,
+          projectRoot: projectRoot,
+          skippedWidgets: skippedWidgets,
+          stoppedAt: null,
+          message: null,
+          handStepIds: parkedHandSteps,
+        );
+      }
       print(
         'zfa tdd $label: internal error — loop finished with non-DONE '
         'behaviors',
@@ -1294,6 +1388,7 @@ class RunDriverCore {
     String? stoppedAt,
     String? message,
     Map<String, int>? mockCounts,
+    List<String> handStepIds = const [],
   }) async {
     final counts = laneCounts(laneRows, state?.behaviorStates ?? const {});
     if (lane != null && drove) {
@@ -1412,6 +1507,7 @@ class RunDriverCore {
       drove: drove,
       counts: counts,
       skippedWidgetIds: skippedWidgets.keys.toList(),
+      handStepIds: handStepIds,
       stoppedAt: stoppedAt,
       message: message,
       lane: lane,
@@ -1430,6 +1526,7 @@ class RunDriverCore {
     String? lane,
     String? stoppedAt,
     List<String> skippedWidgetIds = const [],
+    List<String> handStepIds = const [],
   }) {
     final lanePart = lane == null ? '' : ' lane=$lane';
     // Issue #1007: the BLOCKED contract verdict is counted on its own
@@ -1444,6 +1541,9 @@ class RunDriverCore {
         'green=${counts['green']} done=${counts['done']}'
         '$blockedPart'
         '${skippedWidgetIds.isNotEmpty ? ' skipped-widget=${skippedWidgetIds.length}' : ''}'
+        // Issue #1568: the parked hand-steps are their own summary token
+        // (the skipped-widget precedent) — never folded into red/pending.
+        '${handStepIds.isNotEmpty ? ' hand_steps=${handStepIds.length}' : ''}'
         '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}';
   }
 
@@ -1548,6 +1648,11 @@ class RunDriverCore {
       inFlightBehaviorId: state.inFlightBehaviorId,
       inFlightStep: state.inFlightStep,
       inFlightOwnerPid: state.inFlightOwnerPid,
+      // Issue #1568: the parked hand-steps survive reconciliation — the
+      // set is not evidence-derived state (it is the make's own
+      // classification record) and must never be dropped by the
+      // evidence-beats-state rebuild.
+      handSteps: state.handSteps,
     );
   }
 
@@ -1926,6 +2031,38 @@ class RunDriverCore {
           await tx.clear();
           print('[run] ${row.id} make -> deferred (phase 2)');
           _emitStep(row.id, 'make', 'deferred');
+          return (state: updated, stop: null, refactorBlocked: false);
+        }
+        // Issue #1568: the make's `outcome=hand-step` verdict is the
+        // PLANNER-DECLARED hand step (the entity-return contract subject
+        // the pipeline has no mechanical implementation surface for) — a
+        // non-fatal park, never a run stop. The behavior keeps its state
+        // (PENDING with its honest red — never a fake DONE), the id is
+        // persisted so a resume does not re-drive it, and the run
+        // CONTINUES with the remaining behaviors: the mechanical
+        // behaviors behind the hand-step are reachable and drivable.
+        if (step == 'make' && result.outcome == 'hand-step') {
+          updated = updated.advance(row.id, state).markHandStep(row.id);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          print(
+            'zfa tdd $label: step failed — behavior=${row.id} step=$step '
+            'outcome=${result.outcome}',
+          );
+          _printOutputExcerpt(result.output);
+          print(
+            '   hand step: ${row.id}:hand — the planner declared this '
+            'behavior hand-step (the declared contract returns an entity, '
+            'issue #1568): the pipeline has no mechanical implementation '
+            'surface for it, so the behavior stays PENDING with its '
+            'honest red.',
+          );
+          print(
+            '   implement the subject deliberately, then re-run '
+            '`zfa tdd make ${row.id}` or `zfa tdd $label $feature` — the '
+            'run continues with the remaining behaviors.',
+          );
+          _emitStep(row.id, 'make', 'hand-step', exitCode: result.exitCode);
           return (state: updated, stop: null, refactorBlocked: false);
         }
         if (step == 'verify-red' && result.outcome == 'unexpected-green') {

@@ -1,21 +1,23 @@
-# TDD test list — Bug #1486 Key Entities fields silently dropped without backticks
+# TDD test list — Bug #1568 `tdd make` hand-step first-class run state
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| A-1486-b1 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a 3-column row with plain pairs parses ALL fields — the issue's exact repro (`Task`, `id/title/isCompleted/createdAt`), purpose intact | FR-1486, SpecParser.parseKeyEntities, _parseFieldCell | GREEN (RED pre-fix) |
-| A-1486-b2 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | the 2-column table (#1381 grammar) accepts plain pairs | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
-| A-1486-b3 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a mixed cell (backticked + plain) parses both, in source order | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
-| A-1486-b4 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | GUARD: the backticked 3-col grammar is unchanged (names + purpose) | FR-1486, backwards compat | GREEN |
-| A-1486-b5 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | generic types with top-level commas survive the plain split (`Map<String, int>`, `List<List<int>>` verbatim) | FR-1486, depth-aware comma split | GREEN (RED pre-fix) |
-| A-1486-b6 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | nullable types parse as plain pairs (`String?`) | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
-| A-1486-b7 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | evidence-but-zero cells are REPORTED, never silent: `1id: String` and a prose backtick span yield anomalies (entity, verbatim cell, 1-based line); no-evidence and parsing cells yield none | FR-1486, SpecEntityFieldAnomaly | GREEN (compile-red pre-fix) |
-| A-1486-b8 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | GUARD: bullet prose keeps the strict backticked-only grammar — plain prose invents NOTHING | FR-1486, false-positive guard | GREEN |
-| A-1486-b9 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | `entityFieldNamesFromDartSource` reads the on-disk entity shape (final/late final in; constructor params and assignment-initialised locals out) | FR-1486, phase-0 reuse mismatch | GREEN (compile-red pre-fix) |
-| A-1486-b10 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a PARTIALLY dropped cell is REPORTED too: `id: String, 2ndField: int` mints `id` and announces the drop; `id: String; title: String` announces the type-swallowed second pair | FR-1486, SpecEntityFieldAnomaly, partial drop | GREEN (RED pre-fix) |
-| A-1486-b11 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a whitespace-padded backticked span (`` ` id: String` ``) mints its pair like the plain path — and drops nothing, so reports nothing | FR-1486, span trim parity | GREEN (RED pre-fix) |
-| A-1486-b12 | test/plugins/tdd/run_command_test.dart | integration | the phase-0 reuse branch's field-mismatch warning is ASSERTED (not merely executed): plan declares `id, title`, the reused entity file declares only `id` → stdout names both sets, the file is untouched | FR-1486, `_logPhaseZeroFieldMismatch` | GREEN |
+| A-1568-m1 | test/plugins/tdd/services/make_hand_step_1568_test.dart | unit | `MakeOutcome.handStep` exists with label `hand-step` and is NOT a make green-family outcome (never conflated with green/skipped/adopted) | FR-1568-1, MakeOutcome | GREEN (RED pre-fix) |
+| A-1568-m2 | test/plugins/tdd/services/make_hand_step_1568_test.dart | unit | the classifier keys on the declared contract TYPE SHAPE, registry-independent: entity returns (`ScanSession`, `List<Task>`, `Map<String, Task>`, `Task?`) classify hand-step; scalars/void/`List<int>`/undeclared do not | FR-1568-1, UnitContractShape.isRenderableScalarType, SPEC 1489 seam class | GREEN (RED pre-fix) |
+| A-1568-s1 | test/plugins/tdd/commands/make_command_hand_step_1568_test.dart | integration | a make whose generation completed but whose target test is still red, with an entity-shaped declared contract return, reports `outcome=hand-step` (never `generation-error`), exits 1, appends no green evidence | SC-1, AC-1 | GREEN (RED pre-fix) |
+| A-1568-s2 | test/plugins/tdd/commands/make_command_hand_step_1568_test.dart | integration | the hand-step stop names the designed hand step (`<id>:hand`), the declared contract, and the re-run remedy | SC-2 | GREEN (RED pre-fix) |
+| A-1568-g1 | test/plugins/tdd/commands/make_command_hand_step_1568_test.dart | integration | GUARD (SC-7): a SCALAR-return behavior with a post-generation red keeps the honest `generation-error` stop; an UNDECLARED behavior too | SC-7, regression guard | GREEN (RED pre-fix) |
+| B-1568-r1 | test/plugins/tdd/models/run_state_hand_steps_1568_test.dart | unit | `RunState.markHandStep` adds immutably; `toJson` emits `hand_steps`; `fromJson` round-trips; a legacy snapshot WITHOUT the field loads with an empty set (AC-4 persistence basis) | SC-4, RunState | GREEN (RED pre-fix) |
+| C-1568-d1 | test/plugins/tdd/commands/run_driver_hand_step_1568_test.dart | unit | `RunDriverCore.summaryLine` emits ` hand_steps=N` for non-empty ids, nothing for empty (the `skipped-widget=` precedent) | SC-5, AC-2 | GREEN (RED pre-fix) |
+| C-1568-d2 | test/plugins/tdd/commands/run_driver_hand_step_1568_test.dart | integration | a make child reporting `outcome=hand-step` parks the behavior (state stays pending), persists the id in run-state.json, and the run CONTINUES to the next behavior — mechanical behaviors behind the hand-step are reachable | SC-3, SC-6, AC-1/AC-3 | GREEN (RED pre-fix) |
+| C-1568-d3 | test/plugins/tdd/commands/run_driver_hand_step_1568_test.dart | integration | a KNOWN hand-step id in the loaded run state is NOT re-driven on resume: the driver prints the parked line and continues; the behavior keeps pending with its honest red | SC-4, AC-4 | GREEN (RED pre-fix) |
+| C-1568-d4 | test/plugins/tdd/commands/run_driver_hand_step_1568_test.dart | integration | the end-of-run terminal block names the hand-step ids with the deliberate-implementation remedy | SC-5, AC-2 | GREEN (RED pre-fix) |
 
-Signal paths (print-only, asserted by the suites above + the #1381 plan suite):
+Signal paths (asserted by the suites above):
 
-- plan: `SpecEntityFieldAnomaly` rows → per-row `zfa tdd plan: WARNING` (#1486 sibling of #1381's zero-entity warning) — plan_command.dart
-- run: phase-0 reuse branch logs declared-vs-on-disk field mismatch — run_driver_core.dart `_logPhaseZeroFieldMismatch`, asserted by A-1486-b12 (`run_command_test.dart` U-829d2)
+- make: `make: behavior=<id> outcome=hand-step feature=<f>` — the machine
+  summary stays the LAST line (the StepRunner parse contract, FR-002).
+- run: `[run] <id> make -> parked (planner-declared hand-step, issue #1568)`
+  — the resume/phase-2 skip line.
+- run: `run: feature=<f> result=... hand_steps=N` — the end-of-run summary
+  token; the ids are named in the terminal block above it.

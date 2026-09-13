@@ -918,6 +918,8 @@ class RunSkinCommand extends Command<void> {
         counts:
             outcome?.counts ??
             const {'total': 0, 'pending': 0, 'red': 0, 'green': 0, 'done': 0},
+        skippedWidgetIds: outcome?.skippedWidgetIds ?? const [],
+        handStepIds: outcome?.handStepIds ?? const [],
         stoppedAt: outcome?.stoppedAt,
       ),
     );

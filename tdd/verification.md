@@ -1,113 +1,131 @@
-# tdd.verify — Bug #1486 entity fields silently dropped without backticks
+# tdd.verify — SPEC 1568 `tdd make` hand-step first-class run state
 
-- **Verified**: 2026-09-13, this session, on
-  `fix/1486-entity-fields-backtick-parsing` (working tree, pre-push)
+- **Verified**: 2026-09-14, this session, on
+  `feat/1568-tdd-make-hand-step-first-class` (working tree, pre-push)
 - **Toolchain**: Dart 3.13.3 (stable) on linux_x64 (container; no Flutter
   SDK — flutter-tagged suites are excluded per the repo's own chunked
   runner policy)
-- **Scope**: the three changed source files + the new bug suite, then the
-  chunked fast-tier sweep below
+- **Scope**: the nine changed source files + the four new 1568 suites, then
+  the sanctioned chunked fast-tier sweep
 
 ## Verdict: PASS
 
 ## 0. RED evidence (pre-fix, real runs)
 
-Stage 1 — behavioral red, `bug_1486_entity_fields_backtick_parsing_test.dart`
-against the untouched tree (full output in
-`.specify/bugs/1486-entity-fields-backtick-parsing/red-evidence.md`):
+Full output in
+`.specify/bugs/1568-tdd-make-hand-step-first-class/red-evidence.md`:
+the three fast suites were compile-red against the untouched API
+(`MakeOutcome.handStep`, `HandStepClassifier`, `RunState.handSteps`,
+`summaryLine(handStepIds:)` all missing), and the make integration
+reproduction captured the exact #1568 symptom on the pre-fix tree:
 
 ```
-00:00 +2 -5: Some tests failed.
-Failing tests:
-  ...: B1: a 3-column row with plain pairs parses all fields (#1486)
-  ...: B2: the 2-column table accepts plain pairs (#1486 + #1381)
-  ...: B3: a mixed cell parses backticked and plain pairs in order
-  ...: B5: generic types with commas survive the plain-pair split
-  ...: B6: nullable types parse as plain pairs
+Expected: contains 'make: behavior=U1 outcome=hand-step feature=090-hand-step-1568'
+  Actual: ...
+    make: behavior=U1 outcome=generation-error feature=090-hand-step-1568
+  Which: does not contain 'make: behavior=U1 outcome=hand-step feature=090-hand-step-1568'
 ```
 
-Actuals matched the issue's controlled experiment exactly: plain pairs
-yield `SpecEntity.fields == []`; the backticked guards (B4/B8) passed
-(backwards-compat baseline intact).
-
-Stage 2 — API red: adding B7 (anomalies) + B9
-(`entityFieldNamesFromDartSource`) failed to compile against the pre-fix
-parser, as expected:
-
-```
-Error: 'SpecEntityFieldAnomaly' isn't a type.
-Error: Member not found: 'SpecParser.entityFieldNamesFromDartSource'.
-Error: No named parameter with the name 'anomalies'.
-```
+— the planner-declared hand-step condition (entity-return contract subject,
+`scan() -> ScanSession`, #1565 func-skip plan) graded `generation-error`,
+exactly the issue's wall.
 
 ## 1. Static analysis (post-fix, post-format)
 
 ```
-dart analyze lib/src/plugins/tdd/services/spec_parser.dart \
-             lib/src/plugins/tdd/commands/plan_command.dart \
+dart analyze lib/src/plugins/tdd/commands/make_command.dart \
              lib/src/plugins/tdd/commands/run_driver_core.dart \
-             test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart
+             lib/src/plugins/tdd/commands/run_command.dart \
+             lib/src/plugins/tdd/commands/run_engine_command.dart \
+             lib/src/plugins/tdd/commands/run_skin_command.dart \
+             lib/src/plugins/tdd/models/run_state.dart \
+             lib/src/plugins/tdd/models/generation_plan.dart \
+             lib/src/plugins/tdd/services/hand_step_classifier.dart \
+             lib/src/plugins/tdd/services/run_state_store.dart \
+             test/plugins/tdd/{commands,models,services}/…1568_test.dart
 → No issues found!
 ```
 
-## 2. The bug suite + regression surface (REAL runs in this session)
+`dart format .` → `Formatted 2837 files (0 changed)` — zero remaining
+formatting diffs (CI format gate).
+
+## 2. The 1568 suites (REAL runs, post-fix)
 
 ```
-dart test test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart
-→ 00:00 +9: All tests passed!
-
-Parser corpus (spec_parser, declarations, hardening_1196, traces_1319,
-fr_manual_1484, contract_files_1485, bug_1381, bug_919, bug_1486):
-→ 00:01 +116: All tests passed!
-
-Mapped command suites (bug_1381_plan_warns_on_unparsed_entities,
-plan_command_bug_1182/1481/contracts_1485/pipe_escape_1401/ffi_835,
-pipeline_runner, runner_plain_name_regression, runner_regex_escape):
-→ 00:18 +46: All tests passed!
+dart test test/plugins/tdd/commands/make_command_hand_step_1568_test.dart \
+          test/plugins/tdd/commands/run_driver_hand_step_1568_test.dart \
+          test/plugins/tdd/models/run_state_hand_steps_1568_test.dart \
+          test/plugins/tdd/services/make_hand_step_1568_test.dart
+→ 00:18 +14: All tests passed!                       (fast tier)
+→ 00:38 +5:  All tests passed!                       (make integration, real dart test children)
 ```
 
-The #1381 plan-warning suite passes unchanged — its fixture produces no
-#1486 anomalies (its pairs parse), so the new warning is correctly silent
-there.
+19/19 green. Coverage against the acceptance criteria:
 
-## 3. Chunked regression sweep — NO NEW failures
+- **AC-1** (`outcome=hand-step`, not `generation-error`, continues): A-1568-s1
+  (make surface, real runner) + d2 (driver park arm, run continues).
+- **AC-2** (`hand_steps=N` + ids listed): d1 (summary token) + d2/d4
+  (terminal block `hand-step for U1` + remedy).
+- **AC-3** (mechanical behaviors reachable): d2 pins `make U1` followed by
+  `gen U2 → verify-red U2 → make U2 → refactor U2` with U2 done.
+- **AC-4** (resume never re-drives): d3 (parked line, no gen/verify-red/make
+  spawn) + B-1568-r1 (`hand_steps` round-trip + legacy-snapshot
+  compatibility) + the store round-trip (`run_state_store.dart`).
+- **SC-7 guards**: A-1568-g1 scalar + undeclared keep the honest
+  `generation-error`; the entity-pipeline mechanical-surface guard is
+  enforced in the make arm (plans carrying entity/mock/wire steps never
+  park).
 
-The repo's sanctioned `tools/run_tests_chunked.sh` policy was followed
-(fast tier, `--exclude-tags flutter`, kernel cache purged between chunks —
-`dart_test.yaml` documents the ~6.5 GB single-invocation kernel cache and
-`.specify/bugs/1507-tmpdir-kernel-cache-leak` documents the per-process
-`$TMPDIR/dart_test.kernel.*` leak that both ENOSPC'd this container until
-the purge cadence was applied). Per-chunk results:
+## 3. Mutation evidence (targeted, real runs — each mutant KILLED)
 
-- 105 chunks from the runner's own DRY_RUN list: **100 OK, 5 SKIP**
-  (`SKIP(no-fast-tier)` — benchmark/core-proof/integration/tdd-scenarios/
-  077-make-engine-preset carry only slow-tier tags, excluded by design),
-  **0 FAIL**. The tally closes at the listed total (100 + 5 + 0 = 105):
-  the runner classifies every chunk as OK, SKIP, or FAIL, and no failure
-  was reported — `DRY_RUN=1 tools/run_tests_chunked.sh` re-confirms the
-  list is 105 chunks.
-- The runner's threshold-40 recursion skips ROOT test files of heavy dirs;
-  those were run explicitly with identical semantics and all passed:
-  `test/plugins/tdd/*_test.dart` (519 tests), `tdd/commands` a–z splits
-  (533 tests), `tdd/services` a–z splits (1171 tests).
+| Mutant | Site | Result |
+| ------ | ---- | ------ |
+| M1: `isEntityShapedReturn` → `return false` | `hand_step_classifier.dart` | s1 red (`Some tests failed`) — killed |
+| M2: park arm drops `.markHandStep(row.id)` | `run_driver_core.dart` | d2 red (`Some tests failed`) — killed |
+| M3: phase-1 resume skip removed | `run_driver_core.dart` | d3 red (`Some tests failed`) — killed |
 
-## 4. Host/environment caveats (recorded honestly)
+Every mutant was reverted from a byte backup and the restored tree
+re-verified green (`00:17 +4: All tests passed!` on the driver suite).
 
-- No Flutter SDK in this container: flutter-tagged suites are excluded by
-  the sanctioned runner itself (`--exclude-tags flutter`), so their status
-  is unchanged-by-construction (none touch `spec_parser.dart` field
-  parsing; the two command files changed are pure-Dart paths).
-- `dart format` ran over the four changed files (3 reformatted — the new
-  suite file plus whitespace); `dart analyze` re-run clean afterwards.
-- `dart test` kernel-cache purge cadence (per chunk) was required: the
-  container disk is 9.9 GB and a single whole-tree invocation ENOSPCs
-  (matches the dart_test.yaml header's warning and #1507).
+## 4. Chunked regression sweep — the repo's sanctioned runner, NO NEW failures
 
-## 5. Constraint audit
+`tools/run_tests_chunked.sh` (fast tier, kernel cache purged between
+chunks — `dart_test.yaml` documents the ~6.5 GB single-invocation cache
+that overflows this container's disk):
 
-- Parsing semantics live entirely in `spec_parser.dart`; the state
-  machine, gen, and loop semantics are untouched.
-- The two consumers are print-only: plan's per-row WARNING and phase-0's
-  reuse mismatch log (reuse decisions byte-for-byte unchanged).
-- Backticked grammar unchanged: guard B4 + the full #919/#1381/#1196/
-  #1319/#1484/#1485 suites green.
+```
+=== 104 chunks over the full fast suite ===
+OK: all chunks passed.
+```
+
+Including the tdd chunks:
+- `test/plugins/tdd/commands` → `07:45 +601: All tests passed!`
+  (includes the five 1568 make/driver integration pins + bug_1544, bug_1551,
+  func_command_1565 — every sibling regression suite unchanged)
+- `test/plugins/tdd/models` → `00:01 +90: All tests passed!`
+- `test/plugins/tdd/services/*` → all passed (the 1080-test baseline
+  surface plus the new classifier suite)
+- `SKIP: no fast-tier tests in test/plugins/tdd/scenarios` (by design)
+
+## 5. Pre-existing failures (flagged, unrelated — verified on master)
+
+`test/plugins/tdd/make_command_test.dart` (tagged `regression`/`e2e` — a
+tier `dart_test.yaml` marks "NOT for CI / cloud agents"; excluded from the
+chunked fast sweep) fails 4 pins on this container. Verified PRE-EXISTING
+by running the same pins on pristine master twice — a clean-tree stash run
+in this working tree and an independent `master` worktree — both red
+identically (`green-with-failed-build` expectations vs the #1587
+build-skip's `outcome=green`). None touch the 1568 surfaces; none were
+introduced or masked by this fix.
+
+## 6. Success criteria proven vs not
+
+| SC | Proved by | Status |
+| -- | --------- | ------ |
+| SC-1 make outcome=hand-step | A-1568-s1 (real runner) | PROVED |
+| SC-2 named hand-step stop | A-1568-s2 | PROVED |
+| SC-3 non-fatal park, honest red | d2 + d3 | PROVED |
+| SC-4 persisted, resume skips | B-1568-r1 + d3 + store round-trip | PROVED |
+| SC-5 hand_steps=N + ids | d1 + d2/d4 | PROVED |
+| SC-6 mechanical behaviors drivable | d2 (U2 done behind parked U1) | PROVED |
+| SC-7 classification-only change | A-1568-g1 + chunked sweep (all sibling suites unchanged) | PROVED |

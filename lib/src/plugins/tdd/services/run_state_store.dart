@@ -127,6 +127,10 @@ class RunStateStore {
     final map = <String, Object?>{
       'feature': state.feature,
       'behavior_states': states,
+      // Issue #1568: the parked hand-step ids ride the state file so a
+      // resume does not re-drive them (AC-4).
+      if (state.handSteps.isNotEmpty)
+        'hand_steps': state.handSteps.toList()..sort(),
       if (state.inFlightBehaviorId != null)
         'in_flight_behavior_id': state.inFlightBehaviorId,
       if (state.inFlightStep != null) 'in_flight_step': state.inFlightStep,
@@ -239,6 +243,20 @@ RunState _validated(String raw, String path, String expectedFeature) {
   if (inFlightId != null && inFlightId is! String) {
     corrupt('"in_flight_behavior_id" is not a string');
   }
+  // Issue #1568: the parked hand-step ids — an optional string list; a
+  // malformed value corrupts the file (the same standard every other
+  // field is held to).
+  final handStepsRaw = map['hand_steps'];
+  if (handStepsRaw != null && handStepsRaw is! List) {
+    corrupt('"hand_steps" is not a list');
+  }
+  final handSteps = <String>{};
+  if (handStepsRaw is List) {
+    for (final id in handStepsRaw) {
+      if (id is! String) corrupt('"hand_steps" carries a non-string id');
+      handSteps.add(id);
+    }
+  }
   return RunState(
     feature: map['feature'] as String,
     behaviorStates: Map.unmodifiable(states),
@@ -247,5 +265,6 @@ RunState _validated(String raw, String path, String expectedFeature) {
     inFlightOwnerPid: map['in_flight_owner_pid'] is num
         ? (map['in_flight_owner_pid'] as num).toInt()
         : null,
+    handSteps: Set.unmodifiable(handSteps),
   );
 }
