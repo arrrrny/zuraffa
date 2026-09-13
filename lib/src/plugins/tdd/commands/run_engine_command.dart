@@ -133,6 +133,12 @@ class RunEngineCommand extends Command<void> {
     );
     argParser.addFlag('json', help: kJsonFlagHelp, negatable: false);
     argParser.addFlag('stream', help: kStreamFlagHelp, negatable: false);
+    argParser.addFlag('verbose', help: kVerboseFlagHelp, negatable: false);
+    argParser.addOption(
+      'heartbeat',
+      valueHelp: 'seconds',
+      help: kHeartbeatFlagHelp,
+    );
   }
 
   final TddPlugin plugin;
@@ -305,6 +311,39 @@ class RunEngineCommand extends Command<void> {
       return;
     }
 
+    // Issue #1590: the --heartbeat override (and the --verbose toggle).
+    Duration? heartbeatOverride;
+    try {
+      heartbeatOverride = parseTddHeartbeatSeconds(
+        argResults?['heartbeat'] as String?,
+      );
+    } on TddTimeoutFormatException catch (e) {
+      print('zfa tdd $label: ${e.message}');
+      print(
+        RunDriverCore.summaryLine(
+          label: label,
+          feature: feature,
+          lane: 'engine',
+          result: 'runner-error',
+          counts: const {
+            'total': 0,
+            'pending': 0,
+            'red': 0,
+            'green': 0,
+            'done': 0,
+          },
+        ),
+      );
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..exitClass = 'runner-error'
+        ..outcome = VerdictOutcome.error
+        ..fix = 'pass --heartbeat in seconds (0 disables) and re-run';
+      exitCode = _exitRunnerError;
+      return;
+    }
+    final verbose = argResults?['verbose'] as bool? ?? false;
+
     final driver = RunDriverCore();
     // SPEC 917 (--stream): one NDJSON step-verdict.v1 event per completed
     // step while the lane drives.
@@ -325,6 +364,8 @@ class RunEngineCommand extends Command<void> {
         'total': gate.mocks.length,
         'certified': gate.certified.length,
       },
+      verbose: verbose,
+      heartbeat: heartbeatOverride,
     );
     _collectVerdict(outcome);
     if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');

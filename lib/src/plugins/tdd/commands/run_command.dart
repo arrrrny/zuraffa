@@ -47,6 +47,16 @@
 /// `result=setup-error` (exit 1, journaled preflight_red, verdict
 /// receipt exit_class=setup-error). A setup condition never surfaces as
 /// the loop's `classification=unresolved`.
+///
+/// Issue #1590 carve-out (additive liveness lines, never parsed by the
+/// machine contract): the driver also prints a pre-spawn step-start
+/// banner `[run] <behavior> <step> — <hint>`, forwards the make child's
+/// banner-shaped stdout lines (`→ …`) live (every line under
+/// `--verbose`), and emits elapsed-time heartbeats
+/// `[run] <behavior> <step> … <elapsed> elapsed` while a step runs
+/// (`--heartbeat <seconds>`, default 30, `0` disables). The completion
+/// lines, the summary line, `--stream` NDJSON events and the verdict
+/// envelope are byte-identical to the pre-#1590 output.
 library;
 
 import 'dart:io';
@@ -85,11 +95,32 @@ const String kJsonFlagHelp =
     'Emit a versioned verdict.v1 JSON envelope as the final stdout line '
     '(VISION §5, issue #964/#838).';
 
+/// The `--verbose` flag's help text — shared by the three driving commands
+/// (issue #1590).
+const String kVerboseFlagHelp =
+    'Forward EVERY stdout line the spawned step children print to the run '
+    'output as it arrives (issue #1590). Default: only the pipeline '
+    'sub-step banner lines (starting with the banner arrow) are '
+    'forwarded.';
+
+/// The `--heartbeat` flag's help text — shared by the three driving
+/// commands (issue #1590).
+const String kHeartbeatFlagHelp =
+    'Seconds between heartbeat lines for a running step (issue #1590; '
+    'default 30, fractions allowed, 0 disables). Each heartbeat names the '
+    'behavior, the step, and the elapsed time.';
+
 class RunCommand extends Command<void> {
   RunCommand(this.plugin) {
     argParser.addFlag('json', help: kJsonFlagHelp, negatable: false);
     argParser.addFlag('explain', help: kExplainFlagHelp, negatable: false);
     argParser.addFlag('stream', help: kStreamFlagHelp, negatable: false);
+    argParser.addFlag('verbose', help: kVerboseFlagHelp, negatable: false);
+    argParser.addOption(
+      'heartbeat',
+      valueHelp: 'seconds',
+      help: kHeartbeatFlagHelp,
+    );
     argParser.addOption(
       'project',
       aliases: const ['project-root'],
@@ -570,6 +601,39 @@ class RunCommand extends Command<void> {
       return;
     }
 
+    // Issue #1590: the --heartbeat override (and the --verbose toggle) —
+    // the run's liveness tuning, threaded into the driver.
+    Duration? heartbeatOverride;
+    try {
+      heartbeatOverride = parseTddHeartbeatSeconds(
+        argResults?['heartbeat'] as String?,
+      );
+    } on TddTimeoutFormatException catch (e) {
+      print('zfa tdd $label: ${e.message}');
+      print(
+        RunDriverCore.summaryLine(
+          label: label,
+          feature: feature,
+          result: 'runner-error',
+          counts: const {
+            'total': 0,
+            'pending': 0,
+            'red': 0,
+            'green': 0,
+            'done': 0,
+          },
+        ),
+      );
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..exitClass = 'runner-error'
+        ..outcome = VerdictOutcome.error
+        ..fix = 'pass --heartbeat in seconds (0 disables) and re-run';
+      exitCode = _exitRunnerError;
+      return;
+    }
+    final verbose = argResults?['verbose'] as bool? ?? false;
+
     final skipWidget = argResults?['skip-widget'] as bool? ?? false;
     final core = RunDriverCore();
     // SPEC 917 (--stream): when set, every completed step streams one
@@ -660,6 +724,8 @@ class RunCommand extends Command<void> {
       mockCounts: mockCounts,
       baselineScope: baselineScope,
       childEnvironment: scratchEnv,
+      verbose: verbose,
+      heartbeat: heartbeatOverride,
     );
 
     // Fail fast (issue #1008): the engine lane must be green before the
@@ -711,6 +777,8 @@ class RunCommand extends Command<void> {
       skipWidget: skipWidget,
       baselineScope: baselineScope,
       childEnvironment: scratchEnv,
+      verbose: verbose,
+      heartbeat: heartbeatOverride,
     );
 
     if (skin.result != 'complete') {
