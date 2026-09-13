@@ -26,6 +26,14 @@
 ///      line on every code path (FR-009); exit code 0 means exactly
 ///      "green before and after".
 ///
+/// Spec 1520 — per-run scratch TMPDIR. The command acquires ONE scratch dir
+/// per invocation and hands it to the preflight/re-proof suite runs and the
+/// pass registry, so every `dart test`/`dart` child of the cycle writes its
+/// kernel and dill temp files inside the run's own scratch instead of the
+/// shared user TMPDIR; the scratch is deleted recursively in a `finally`
+/// (the #1507 leak fixed by construction, in the command whose loops ran
+/// longest). Best-effort: a scratchless run always beats a failed one.
+///
 /// Issue #922 — pre-existing red and the run's done gate. When the driving
 /// `zfa tdd run` hands its cached full-suite baseline
 /// (`--suite-baseline run-baseline.json`, the issue #741 cache) to a
@@ -72,6 +80,7 @@ import '../services/refactor_receipt_refresh.dart';
 import '../services/reproof_failure_classifier.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
+import '../services/scratch_tmpdir.dart';
 import '../services/subject_evidence_refresh.dart';
 import '../services/suite_guard.dart';
 import '../services/tdd_timeout.dart';
@@ -211,14 +220,33 @@ class RefactorCommand extends Command<void> {
       return;
     }
 
-    await _run(
-      cwd: cwd,
-      featureFlag: featureFlag,
-      zfaBin: zfaBinFlag,
-      timeout: timeoutOverride,
-      fullReproof: argResults?['full-reproof'] as bool? ?? false,
-      suiteBaselinePath: argResults?['suite-baseline'] as String?,
+    // Spec 1520: ONE scratch dir per invocation. Every child of a refactor
+    // cycle — the preflight/re-proof suite runs AND the pass registry's
+    // spawns (build/format/fix) — inherits the scratch as its TMPDIR, so
+    // their `dart test`/`dart` grandchild kernel dirs land inside the run's
+    // own scratch instead of the shared user TMPDIR; the finally below
+    // deletes it recursively at run end (the #1507 leak fixed by
+    // construction). Best-effort: a scratchless run always beats a crashed
+    // command.
+    final scratch = await ScratchTmpDir.acquire(
+      label: (featureFlag != null && featureFlag.isNotEmpty)
+          ? featureFlag
+          : 'refactor',
+      projectRoot: cwd,
     );
+    try {
+      await _run(
+        cwd: cwd,
+        featureFlag: featureFlag,
+        zfaBin: zfaBinFlag,
+        timeout: timeoutOverride,
+        fullReproof: argResults?['full-reproof'] as bool? ?? false,
+        suiteBaselinePath: argResults?['suite-baseline'] as String?,
+        scratchEnv: scratch?.childEnvironment(),
+      );
+    } finally {
+      await scratch?.dispose();
+    }
   }
 
   /// The body of the command, extracted so it can return a typed outcome
@@ -231,6 +259,7 @@ class RefactorCommand extends Command<void> {
     Duration? timeout,
     bool fullReproof = false,
     String? suiteBaselinePath,
+    Map<String, String>? scratchEnv,
   }) async {
     RefactorOutcome outcome;
     int applied = 0;
@@ -299,6 +328,7 @@ class RefactorCommand extends Command<void> {
         suiteTemplate: suiteTemplate,
         workingDirectory: cwd,
         timeout: timeout,
+        environment: scratchEnv,
       );
       print('   preflight exit: ${preflight.exitCode}');
 
@@ -428,6 +458,7 @@ class RefactorCommand extends Command<void> {
         cwd,
         zfaBinOverride: (zfaBin != null && zfaBin.isNotEmpty) ? zfaBin : null,
         passTimeout: timeout,
+        environment: scratchEnv,
       );
       final passResult = await passes.run();
       for (final action in passResult.actions) {
@@ -587,6 +618,7 @@ class RefactorCommand extends Command<void> {
         suiteTemplate: reproofCommand,
         workingDirectory: cwd,
         timeout: timeout,
+        environment: scratchEnv,
       );
       print('   re-proof exit: ${reproof.exitCode}');
 
@@ -625,6 +657,7 @@ class RefactorCommand extends Command<void> {
           suiteTemplate: reproofCommand,
           workingDirectory: cwd,
           timeout: timeout,
+          environment: scratchEnv,
         );
         print('   re-proof exit: ${reproof.exitCode} (retry $reproofRetries)');
       }
