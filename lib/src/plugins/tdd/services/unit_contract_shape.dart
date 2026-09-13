@@ -423,6 +423,33 @@ class UnitContractShape {
     return seams;
   }
 
+  /// The resolved seam BEHAVIOR indices for the run driver (issue
+  /// #1568): the same resolution [countEntityReturnSeamsResolved]
+  /// applies, but the caller keeps the per-behavior verdict so the loop
+  /// can park a make-failed seam behavior instead of stopping the run.
+  /// Indices are positions in [declared] (nulls included), matching the
+  /// parallel unit-row list the driver zips with it. Best-effort by
+  /// contract: a resolution failure is not a seam.
+  static Future<Set<int>> entityReturnSeamIndicesResolved({
+    required Iterable<Signature?> declared,
+    required String cwd,
+  }) async {
+    final seams = <int>{};
+    var index = 0;
+    for (final signature in declared) {
+      if (signature != null && !isRenderableDartType(signature.returnType)) {
+        try {
+          final shape = await ofResolved(signature, cwd: cwd);
+          if (!shape.scalarOutcome) seams.add(index);
+        } on Exception {
+          // Best-effort forecast: an unreadable artifact is not a seam.
+        }
+      }
+      index++;
+    }
+    return seams;
+  }
+
   /// The surfaced seam-cost line (SPEC 1489 SC-4). Null when there is
   /// nothing to surface — a lane whose every unit behavior asserts a
   /// real outcome prints no forecast.
