@@ -245,12 +245,47 @@ post-build safety nets (zero-output detection, declared-parts check,
 the `publish_to: none` line and the (if used) path dependency on zuraffa
 with the published version constraint stamped in your pubspec.
 
+## Federated plugin monorepos (`zfa package plugin`)
+
+When the reusable unit is a **platform plugin** rather than a pure
+architecture package, one command scaffolds the whole federated family the
+`zuraffa_auth` and `zuraffa_permissions` repos follow (spec 1601 /
+issue #678):
+
+```bash
+zfa package plugin my_plugin                       # android + ios + macos
+zfa package create-plugin my_plugin                # alias — same scaffold
+zfa package plugin my_plugin --platforms android,ios --repo myorg/my_plugin
+```
+
+The generated monorepo is publish-ready:
+
+```text
+my_plugin/
+├── README.md / PUBLISH.md / LICENSE / CHANGELOG.md
+├── scripts/                                       # zikzak publish pipeline
+└── packages/
+    ├── my_plugin/            # app-facing: Port + Service + DI registration
+    ├── my_plugin_platform/   # shared channel-envelope core
+    ├── my_plugin_android/    # adapters over an INJECTED channel seam
+    ├── my_plugin_ios/
+    └── my_plugin_macos/
+```
+
+Every package analyzes, tests, and publish-dry-runs clean with zero manual
+edits. Adapters are pure Dart — the native transport is injected through
+the platform envelope, so no Flutter plugin boilerplate ships. In-family
+dependencies are hosted constraints; sibling path resolution lives under
+`dependency_overrides` (pub strips them on publish). Release flow: see the
+generated `PUBLISH.md`.
+
 ## Quick reference
 
 | Concern | Where |
 |---|---|
 | Package-mode marker | `zfa.yaml` → `package_mode: true` |
 | Scaffold command | `zfa package create <name>` |
+| Federated plugin scaffold | `zfa package plugin <name>` (alias: `create-plugin`) |
 | Registrar (generated) | `lib/src/di/<name>_package_registrar.dart` |
 | Runtime module (yours) | `lib/src/module/<name>_package_module.dart` |
 | Auto-DI entry | `engine.registerPackage(<Module>())` → `bootstrap()` |
