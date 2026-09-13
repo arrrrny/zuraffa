@@ -281,7 +281,12 @@ class PluginScaffold {
       created.add(entry.key);
     }
     if (!Platform.isWindows) {
-      for (final script in const ['prepare_for_publish.sh', 'publish.sh']) {
+      for (final script in const [
+        'prepare_for_publish.sh',
+        'publish.sh',
+        'push_to_master.sh',
+        'restore_dev_setup.sh',
+      ]) {
         await Process.run('chmod', ['+x', p.join(rootPath, 'scripts', script)]);
       }
     }

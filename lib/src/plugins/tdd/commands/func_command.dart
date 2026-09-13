@@ -50,6 +50,7 @@ import 'package:path/path.dart' as p;
 import '../models/routing.dart';
 import '../services/artifact_registry.dart';
 import '../services/declared_routing.dart';
+import '../services/path_canonicalizer.dart';
 import '../services/subject_signature_deriver.dart';
 import '../services/subject_provenance.dart';
 import '../services/subject_writer.dart';
@@ -189,8 +190,30 @@ class FuncCommand extends Command<void> {
           ? recordedSubject
           : p.join(normalizedCwd, recordedSubject),
     );
-    if (!p.equals(normalizedCwd, subjectPath) &&
-        !p.isWithin(normalizedCwd, subjectPath)) {
+    // Compare CANONICAL forms: the recorded path may travel one side of a
+    // symlink (`/var/...`) while the project root resolves through the
+    // other (`/private/var/...`), so an unresolved comparison misreads the
+    // project's own subject as "outside the project root" (issue #1603).
+    String canonicalRoot;
+    try {
+      canonicalRoot = await Directory(normalizedCwd).resolveSymbolicLinks();
+    } on FileSystemException {
+      // Symmetric with the subject side below: a root that cannot resolve
+      // is canonicalized through its nearest EXISTING ancestor, never left
+      // raw (review of #1611).
+      canonicalRoot = await canonicalizeMissingPath(normalizedCwd);
+    }
+    String canonicalSubject;
+    try {
+      canonicalSubject = await File(subjectPath).resolveSymbolicLinks();
+    } on FileSystemException {
+      // A missing subject file (the U-F5 artifact case) has nothing to
+      // resolve: canonicalize it so the wrong refusal branch is never hit
+      // before the missing-subject check below (issue #1603).
+      canonicalSubject = await canonicalizeMissingPath(subjectPath);
+    }
+    if (!p.equals(canonicalRoot, canonicalSubject) &&
+        !p.isWithin(canonicalRoot, canonicalSubject)) {
       print(
         'zfa tdd func: the registry record for behavior '
         '"${record.behaviorId}" points outside the project root at '

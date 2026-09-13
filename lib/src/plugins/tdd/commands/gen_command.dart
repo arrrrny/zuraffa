@@ -1018,6 +1018,21 @@ class GenCommand extends Command<void> {
     _validateFeatureSegment(featureName);
     final testPath = '$cwd/test/tdd/$featureName/${snakeId}_test.dart';
     final subjectPath = '$cwd/lib/tdd/$featureName/${snakeId}_subject.dart';
+    // Issue #1574: the RECORD carries the portable project-relative POSIX
+    // form — the same form run_driver_core.dart records (commit af40f686b).
+    // Composing the record straight from the machine-absolute `cwd` leaked
+    // `/…` paths into committed registries (10 of 18 at the issue's census)
+    // and, in the `.specify/bugs/<slug>` lane, the registry's write-time
+    // canonicalization cannot relativize them — the #1397 corruption was
+    // still being written. The absolute locals above stay the I/O form
+    // (every writer, preflight stat and import anchor resolves against
+    // them); only the recorded form changes.
+    final recordTestPath = p
+        .relative(testPath, from: cwd)
+        .replaceAll(r'\', '/');
+    final recordSubjectPath = p
+        .relative(subjectPath, from: cwd)
+        .replaceAll(r'\', '/');
     // Bug #871: the composite third segment is the PURE description —
     // the id is embedded exactly once (segment 2). The old
     // `'$testPath::$id::$id — $description'` double-embed leaked an
@@ -1026,8 +1041,9 @@ class GenCommand extends Command<void> {
     // captured the id as the entity name (`make A1` instead of
     // `make Todo`). The generated test's name (BehaviorTestWriter) is
     // the same pure description, so `--plain-name` matching agrees.
+    // Issue #1574: the first segment is the RELATIVE recorded form.
     final runnableTestName =
-        '$testPath::${behavior.id}::${behavior.description}';
+        '$recordTestPath::${behavior.id}::${behavior.description}';
 
     // Issue #831: platform behaviors drive a platform channel through
     // the certified fake + committed scenario written by
@@ -1094,12 +1110,15 @@ class GenCommand extends Command<void> {
 
     // Build the proposed record, then preflight ownership without changing
     // the registry. The record is appended only after both writes succeed.
+    // Issue #1574: the recorded paths are the portable project-relative
+    // form (recordTestPath/recordSubjectPath), never the machine-absolute
+    // I/O form.
     var record = ArtifactRecord(
       behaviorId: behavior.id,
       feature: featureName,
       sourceCriterion: behavior.sourceCriterion,
-      testPath: testPath,
-      subjectPath: subjectPath,
+      testPath: recordTestPath,
+      subjectPath: recordSubjectPath,
       runnableTestName: runnableTestName,
       testOwnership: dryRun ? Ownership.planned : Ownership.created,
       subjectOwnership: dryRun ? Ownership.planned : Ownership.created,

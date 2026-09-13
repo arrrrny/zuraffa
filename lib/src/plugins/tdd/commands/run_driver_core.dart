@@ -45,6 +45,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/behavior.dart';
@@ -68,6 +69,8 @@ import '../services/runner.dart';
 import '../services/spec_parser.dart';
 import '../services/step_runner.dart';
 import '../services/contract_blocked_receipt.dart';
+import '../services/hand_surface.dart';
+import '../services/reproof_failure_classifier.dart' show parseFailingTestNames;
 import '../services/suite_guard.dart';
 import '../models/routing.dart';
 import '../services/test_list_reader.dart';
@@ -271,6 +274,28 @@ class RunDriverCore {
   // the pre-spawn runner-error), never by the named deferral/skip/block
   // arms or by successful steps.
   _StepFailure? _lastStepFailure;
+
+  /// Issue #1589: the parked contracts' seam file paths (project-relative)
+  /// the phase-2 refactor gate must tolerate — pre-existing-failure
+  /// economics for a BLOCKED verdict. Seeded from the persisted state
+  /// (blocked contract + verdict receipt on disk — cross-lane/resume
+  /// parkings), the still-blocked skip arm, and this run's parkings; the
+  /// set is complete before the first phase-2b refactor spawns and is
+  /// handed to every refactor child as `--parked-seam <path>`. Every path
+  /// is existence-gated (review fix): the flag only ever names a seam the
+  /// driver SAW parked, never `seamPathFor`'s display-only fallback.
+  /// Per-run instance state (drive is non-reentrant per instance).
+  final Set<String> _parkedSeamPaths = <String>{};
+
+  /// Issue #1589 (review fix): the failing-test identifiers the parked
+  /// verdicts RECORDED, handed to refactor children as
+  /// `--parked-failure <identifier>` so the tolerance pins to the known
+  /// red instead of exempting a whole seam file. Read from each verdict
+  /// receipt's `output_excerpt` (the transcript the verdict actually saw)
+  /// when it is parseable; a seam with no identifier here keeps the
+  /// coarser file-level tolerance, which is what the pre-review flag did
+  /// for every seam.
+  final Set<String> _parkedFailureIdentifiers = <String>{};
 
   /// Fires one step-verdict.v1 event for a completed step (a no-op when
   /// the hook is unset — the legacy byte-identical output path).
@@ -534,6 +559,23 @@ class RunDriverCore {
     final certifiedGreenBacked = await _certifiedGreenBacked(
       evidence,
       projectRoot,
+    );
+    // Review #1608: the registry resolves each behavior's registered
+    // subject path — the born-green subject binding below (and every
+    // later phase) reads it, so it is constructed once, here.
+    final registry = ArtifactRegistry(featureDir: featureDir);
+    // Issue #1592: the behaviors whose LAST green entry certifies the
+    // born-green hand transition (the #1411 journal marker) AND binds the
+    // current subject — the class whose blocked re-entry converges at
+    // refactor (the #1542 evidence check), never at the flagless make
+    // that refuses not-certified-red. Review #1608: the certification is
+    // a SHORTCUT over the honest verify-red -> make re-drive, so it must
+    // pin the subject shape it exercised (the #1036/#1587 rule) — a
+    // hashless or mismatched entry keeps the pre-#1592 window.
+    final bornGreenCertifiedBehaviors = await _bornGreenCertifiedBehaviors(
+      evidence,
+      registry: registry,
+      projectRoot: projectRoot,
     );
 
     var current = _reconcile(
@@ -867,8 +909,39 @@ class RunDriverCore {
       }
     }
 
+    // Issue #1589: seed the parked seams the phase-2 refactor gate must
+    // tolerate. A persisted BLOCKED contract (any lane's rows — the parked
+    // verdict poisons every later refactor spawn, not just its own lane's)
+    // whose verdict receipt exists contributes its seam file: the failing
+    // seam test is a KNOWN red for the rest of this run, not new damage.
+    // Fail-closed: no receipt on disk — no tolerance (the honest refusal
+    // stands). This run's parkings and still-blocked skips are added by
+    // their arms below (authoritative — the driver SAW the verdict).
+    // Review fix: the seam is existence-gated (never a display-only guess)
+    // and the receipt's own transcript contributes the attested failing
+    // identifiers the gate pins its tolerance to.
+    final blockedReceiptStore = ContractBlockedReceiptStore(
+      projectRoot: projectRoot,
+    );
+    for (final row in allRows) {
+      if (row.kind != BehaviorKind.contract) continue;
+      if ((current.behaviorStates[row.id] ?? BehaviorState.pending) !=
+          BehaviorState.blocked) {
+        continue;
+      }
+      final receipt = ContractBlockedReceipt.fromFile(
+        blockedReceiptStore.pathFor(row.id),
+      );
+      if (receipt == null) continue;
+      _addParkedSeam(
+        behaviorId: row.id,
+        projectRoot: projectRoot,
+        feature: feature,
+        attestedOutput: receipt.outputExcerpt,
+      );
+    }
+
     // --- Phase 1: the uniform cycle in list order, with the deferrals.
-    final registry = ArtifactRegistry(featureDir: featureDir);
     // Issue #1544 (review fix): the rows whose BLOCKED verdict THIS run's
     // verify-red lifted (`unexpected-green` against a blocked contract).
     // That arm keeps the persisted state at BLOCKED, so the phase-2a guard
@@ -901,6 +974,13 @@ class RunDriverCore {
             '$since)',
           );
           _emitStep(row.id, 'verify-red', 'skipped');
+          // Issue #1589: the parked verdict's seam test stays red for the
+          // rest of this run — the phase-2 refactor gate must tolerate it.
+          _addParkedSeam(
+            behaviorId: row.id,
+            projectRoot: projectRoot,
+            feature: feature,
+          );
           continue;
         }
       }
@@ -917,6 +997,7 @@ class RunDriverCore {
           hasGenArtifacts: hasGenArtifacts,
           hasGreenEvidence: greenEvidence.contains(row.id),
           greenTestBacked: certifiedGreenBacked.contains(row.id),
+          bornGreenCertified: bornGreenCertifiedBehaviors.contains(row.id),
         ),
         progressSuffix: '',
         deferralAllowed: true,
@@ -1145,6 +1226,19 @@ class RunDriverCore {
         '${blockedRows.map((r) => r.id).join(', ')} — the declared '
         'contract(s) are not satisfied (issue #1007)',
       );
+      // Issue #1589: the resume instructions are followable as written —
+      // each parked contract's stop names its hand surface (the seam file
+      // + the wire command). Messaging only: the stop contract (result,
+      // stopped_at, exit code) is the #1007/#1544 one.
+      for (final row in blockedRows) {
+        print(
+          '   ${HandSurface.hintLine(
+            behaviorId: row.id,
+            seamPath: HandSurface.seamPathFor(projectRoot: projectRoot, feature: feature, behaviorId: row.id),
+            contract: row.traces,
+          )}',
+        );
+      }
       print(
         '   resume: implement the declared contract, then re-run '
         '`zfa tdd $label $feature` — unchanged blocked behaviors are '
@@ -1561,6 +1655,7 @@ class RunDriverCore {
     required bool hasGenArtifacts,
     bool hasGreenEvidence = false,
     bool greenTestBacked = false,
+    bool bornGreenCertified = false,
   }) {
     const full = ['gen', 'verify-red', 'make', 'refactor'];
     var start = switch (state) {
@@ -1590,7 +1685,42 @@ class RunDriverCore {
     // (the #694 skip / #1331 adoption transitions re-certify honestly),
     // refactor for a green/mocked claim. Behaviors without backed green
     // evidence keep the exact pre-#1324 windows (SC-4).
-    if (start == 0 && hasGreenEvidence && greenTestBacked) {
+    //
+    // Issue #1592: the guard's scope extends to the BLOCKED state for
+    // the born-green-certified class — the behavior whose LAST green
+    // entry certifies the #1411 hand transition. The #1007 blocked arm
+    // re-enters at index 1 (verify-red), so a born-green-certified
+    // blocked contract skipped the `start == 0` guard and re-drove
+    // verify-red -> make forever: verify-red unexpected-greens the
+    // already-passing test, the flagless make refuses not-certified-red
+    // (no certified red can exist for the lane / the born-green class),
+    // and the #1411 stop arm prescribes the `--born-green` command that
+    // ALREADY ran — the transition never converges. A born-green-
+    // certified blocked behavior re-enters at refactor instead, where
+    // the #1542 evidence check already accepts the green-only born-green
+    // certification: the run completes without manual re-entry. The
+    // marker-less blocked shapes (a plain green-only contract, U-1542-1's
+    // pinned window) and blocked claims without backed green evidence
+    // keep the exact pre-#1592 window — the #1007 re-entry at verify-red
+    // is unchanged.
+    //
+    // Review #1608 (CodeRabbit): `bornGreenCertified` is only true when
+    // the certification BINDS the current subject — the caller
+    // (_bornGreenCertifiedBehaviors) requires the certifying entry's
+    // `- subject-hash:` to match the registered subject file's sha256
+    // (the #1036/#1587 byte-identical-subject rule). A subject edited
+    // after `make --born-green` therefore keeps the pre-#1592 window and
+    // falls back to the honest ladder instead of completing on a stale
+    // certification.
+    // Review #1608 (zuraffa-review): the refactor child's own suite gate
+    // stays baseline-relative (#741/#922) — a certified test already red
+    // at the run-start baseline is tolerated by that pre-existing design;
+    // the subject binding above is what keeps a drifted subject out of
+    // this window.
+    if (hasGreenEvidence &&
+        greenTestBacked &&
+        (start == 0 ||
+            (state == BehaviorState.blocked && bornGreenCertified))) {
       start = state == BehaviorState.pending ? 2 : 3;
     }
     return full.sublist(start.clamp(0, full.length));
@@ -1756,6 +1886,13 @@ class RunDriverCore {
           feature: featureRef,
           projectRoot: projectRoot,
           suiteBaselinePath: suiteBaselinePath,
+          // Issue #1589: the parked seams the refactor gate must tolerate
+          // (pre-existing-failure economics for a BLOCKED verdict), plus
+          // the verdict-attested failing identifiers that pin that
+          // tolerance to the known red. The StepRunner appends both to
+          // REFACTOR spawns only.
+          parkedSeamPaths: _parkedSeamPaths,
+          parkedFailureIdentifiers: _parkedFailureIdentifiers,
           extraArgs: step == 'refactor' && batchRefactor
               ? _refactorBatchArgs(rows, updated)
               : const [],
@@ -2020,9 +2157,31 @@ class RunDriverCore {
             '   the declared contract ${row.traces} is not satisfied — the '
             'cycle is BLOCKED and cannot proceed to GREEN (issue #1007)',
           );
+          // Issue #1589: name the hand surface — where the declared
+          // contract is implemented (the seam) and the command that binds
+          // it (wire), so the parked verdict is actionable as written.
+          // Messaging only: the verdict, the state advance and the park
+          // semantics are the #1007/#1544 ones.
+          final parkedSeam = HandSurface.seamPathFor(
+            projectRoot: projectRoot,
+            feature: feature,
+            behaviorId: row.id,
+          );
+          print(
+            '   ${HandSurface.hintLine(behaviorId: row.id, seamPath: parkedSeam, contract: row.traces)}',
+          );
           print(
             '   parked — the run continues with the remaining behaviors '
             '(issue #1544)',
+          );
+          // Review fix: the file is existence-gated (the printed
+          // `parkedSeam` above stays the display path) and the tolerance is
+          // pinned to the failure the verify-red transcript just attested.
+          _addParkedSeam(
+            behaviorId: row.id,
+            projectRoot: projectRoot,
+            feature: feature,
+            attestedOutput: result.output,
           );
           return (state: updated, stop: null, refactorBlocked: false);
         }
@@ -2557,6 +2716,68 @@ class RunDriverCore {
     return backed;
   }
 
+  /// Issue #1592: the behavior ids whose LAST green evidence entry
+  /// certifies the born-green hand transition — the entry's `- evidence:`
+  /// field carries the shared journal marker the `make --born-green`
+  /// transition writes (`bornGreenEvidenceMarker`, issue #1411), anchored
+  /// to the note's start (the review #1566 probe) — AND whose
+  /// certification binds the current subject. The append-order last-green
+  /// rule lives in [CycleEvidence.bornGreenCertifiedEntries] (review
+  /// #1608: one home); this pass adds the binding the #1592 refactor
+  /// re-entry requires, so the run driver keys the window on the
+  /// certification the #1542 refactor evidence check accepts, restricted
+  /// to the entries whose subject is still the one the transition
+  /// certified.
+  Future<Set<String>> _bornGreenCertifiedBehaviors(
+    CycleEvidence evidence, {
+    required ArtifactRegistry registry,
+    required String projectRoot,
+  }) async {
+    final certified = <String>{};
+    for (final MapEntry(key: behaviorId, value: entry)
+        in (await evidence.bornGreenCertifiedEntries()).entries) {
+      if (await _bornGreenSubjectBinds(
+        entry,
+        behaviorId: behaviorId,
+        registry: registry,
+        projectRoot: projectRoot,
+      )) {
+        certified.add(behaviorId);
+      }
+    }
+    return certified;
+  }
+
+  /// Review #1608 (CodeRabbit): whether the born-green certification
+  /// still binds the CURRENT subject — the refactor re-entry is a
+  /// short-cut over the honest verify-red -> make re-drive, so the
+  /// certification must pin the subject shape it exercised (the same
+  /// "the subject the certification ran against is byte-identical" rule
+  /// the make dedup requires, issue #1587, and the make drift check
+  /// applies, issue #1036). The recorded `- subject-hash:` (a 64-hex
+  /// sha256 — [ParsedCycleEntry.subjectHash] only parses that shape) must
+  /// equal the registered subject file's current sha256; a hashless or
+  /// mismatched entry refuses the short-cut and the behavior keeps the
+  /// pre-#1592 window (verify-red re-grades, the flagless make refuses
+  /// `not-certified-red`, and the #1411 arm re-prescribes the
+  /// `--born-green` command, whose re-run re-certifies honestly).
+  Future<bool> _bornGreenSubjectBinds(
+    ParsedCycleEntry entry, {
+    required String behaviorId,
+    required ArtifactRegistry registry,
+    required String projectRoot,
+  }) async {
+    final certified = entry.subjectHash;
+    if (certified == null) return false;
+    final record = await registry.findRecord(behaviorId);
+    if (record == null) return false;
+    final subjectPath = normalizeArtifactPath(projectRoot, record.subjectPath);
+    final subjectFile = File(subjectPath);
+    if (!await subjectFile.exists()) return false;
+    return sha256.convert(await subjectFile.readAsBytes()).toString() ==
+        certified;
+  }
+
   Future<bool> _hasPendingWithArtifacts(
     List<BehaviorRow> rows,
     RunState state,
@@ -2599,6 +2820,60 @@ class RunDriverCore {
 
   String _snakeCase(String id) =>
       id.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+
+  /// Issue #1589 (review fix): record [behaviorId]'s parked verdict for the
+  /// phase-2 refactor gate — the seam file ONLY when it exists on disk (the
+  /// `--parked-seam` handoff must never name a file the driver did not see
+  /// parked), plus the failing-test identifiers the verdict RECORDED, so
+  /// the gate pins its tolerance to the known red instead of exempting the
+  /// whole seam file. [attestedOutput] overrides the verdict receipt's
+  /// transcript for a parking this run observed directly (the verify-red
+  /// step's own output); otherwise the persisted receipt's
+  /// `output_excerpt` is used. An unparseable transcript contributes no
+  /// identifier — the seam keeps the coarse file-level tolerance, which is
+  /// all a caller could attest.
+  void _addParkedSeam({
+    required String behaviorId,
+    required String projectRoot,
+    required String feature,
+    String? attestedOutput,
+  }) {
+    final seamPath = _existingSeamRelativePath(
+      behaviorId,
+      projectRoot: projectRoot,
+      feature: feature,
+    );
+    if (seamPath != null) _parkedSeamPaths.add(seamPath);
+    final output =
+        attestedOutput ??
+        ContractBlockedReceipt.fromFile(
+          ContractBlockedReceiptStore(
+            projectRoot: projectRoot,
+          ).pathFor(behaviorId),
+        )?.outputExcerpt;
+    if (output != null && output.trim().isNotEmpty) {
+      _parkedFailureIdentifiers.addAll(parseFailingTestNames(output));
+    }
+  }
+
+  /// Issue #1589 (review fix): the project-relative POSIX path of
+  /// [behaviorId]'s generated contract test, or null when no seam file is
+  /// on disk — the existence-gated counterpart of
+  /// [HandSurface.seamPathFor]'s display-only canonical fallback, resolved
+  /// through the same two candidates.
+  String? _existingSeamRelativePath(
+    String behaviorId, {
+    required String projectRoot,
+    required String feature,
+  }) {
+    final existing = _existingGeneratedTestPath(
+      projectRoot: projectRoot,
+      feature: feature,
+      behaviorId: behaviorId,
+    );
+    if (existing == null) return null;
+    return p.relative(existing, from: projectRoot).replaceAll(r'\', '/');
+  }
 
   /// The generated unit test file for [behaviorId] when one exists on
   /// disk — the #827 namespaced layout first, the legacy flat fallback
@@ -2919,6 +3194,13 @@ class RunDriverCore {
         // refactor with no green evidence at all still misfires), and
         // every other class keeps the exact red→green→refactor triple
         // (the bug #682 honesty contract).
+        //
+        // Review #1608: this arm is the certification ACCEPTANCE (the
+        // #1542 contract — hashless legacy entries included); the #1592
+        // re-entry gate is deliberately stricter (the guard also
+        // requires the certification's `- subject-hash:` to bind the
+        // current subject), so the refactor window can never be entered
+        // on a certification this check would reject.
         final redDefinedOutOfExistence =
             (hasGreen && kind == BehaviorKind.contract) ||
             (hasGreen &&

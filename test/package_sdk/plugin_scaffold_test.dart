@@ -188,6 +188,25 @@ void main() {
             reason: 'monorepo root $rel must exist',
           );
         }
+
+        // Every generated publish script must be executable as-is — the
+        // PUBLISH.md flow invokes `./scripts/...` directly.
+        for (final script in const [
+          'prepare_for_publish.sh',
+          'publish.sh',
+          'push_to_master.sh',
+          'restore_dev_setup.sh',
+        ]) {
+          final mode = File(
+            p.join(monorepo, 'scripts', script),
+          ).statSync().mode;
+          // 73 = 0o111: any of the three exec bits set.
+          expect(
+            (mode & 73) != 0,
+            isTrue,
+            reason: 'scripts/$script must carry the executable bit',
+          );
+        }
       },
     );
   });
