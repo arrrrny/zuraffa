@@ -484,10 +484,21 @@ class SpecParser {
 
   /// Issue #1486: positive evidence that a fields cell TRIES to declare
   /// pairs — any backtick span, or any `identifier:` shape. Evidence
-  /// plus zero parsed fields is a spec-authoring bug the plan names
-  /// (see [SpecEntityFieldAnomaly]), never a silent empty list.
+  /// that mints no pair is a spec-authoring bug the plan names
+  /// (see [SpecEntityFieldAnomaly]), never silence. The shape is applied
+  /// per fragment and per span, so a cell that mints one pair and
+  /// starves another is reported too.
   static final RegExp _fieldCellEvidence = RegExp(
     r'`|[A-Za-z_][A-Za-z0-9_]*\s*:',
+  );
+
+  /// Issue #1486: a `;`-separated declaration hiding inside a pair's
+  /// type (`id: String; title: String`). The cell split only knows
+  /// commas, so the second pair never gets its turn — the type swallows
+  /// it. Matching the separator AND the following `identifier:` keeps a
+  /// harmless trailing `;` (`id: String;`) from being called a drop.
+  static final RegExp _swallowedPair = RegExp(
+    r';\s*[A-Za-z_][A-Za-z0-9_]*\s*:',
   );
 
   /// Issue #1486: the `final` member shape of an entity Dart file —
@@ -1475,13 +1486,13 @@ class SpecParser {
           }
           if (!_dartIdentifier.hasMatch(name)) continue;
           // Issue #1486: table cells carry the pair covenant — accept
-          // backticked, plain, and mixed pairs; report evidence-without-
-          // fields instead of losing it silently.
+          // backticked, plain, and mixed pairs; report every pair the
+          // cell DROPPED instead of losing it silently. The guard is no
+          // longer all-or-nothing: a cell that mints one pair and
+          // starves another is the same silence, one step in.
           final cell = m.group(2) ?? '';
-          final fields = _parseFieldCell(cell);
-          if (fields.isEmpty &&
-              anomalies != null &&
-              _fieldCellEvidence.hasMatch(cell)) {
+          final (fields, dropped) = _parseFieldCell(cell);
+          if (anomalies != null && dropped > 0) {
             anomalies.add(
               SpecEntityFieldAnomaly(entity: name, cell: cell, line: lineNo),
             );
@@ -1529,8 +1540,16 @@ class SpecParser {
   /// backtick, commas inside are the type's own), while the unbackticked
   /// text between spans is split on top-level commas only — a comma
   /// nested in `<...>`/`(...)` belongs to its type (`Map<String, int>`).
-  static List<EntityField> _parseFieldCell(String cell) {
+  ///
+  /// Returns the minted fields AND the count of pairs the cell dropped:
+  /// a fragment or span that shows pair evidence but mints nothing, or a
+  /// pair whose type swallowed a further declaration
+  /// (`id: String; title: String`). A non-zero count is the partial
+  /// starvation `parseKeyEntities` reports — the #1486 silence is not
+  /// only the wholly empty cell.
+  static (List<EntityField>, int) _parseFieldCell(String cell) {
     final fields = <EntityField>[];
+    var dropped = 0;
     var inBackticks = false;
     final span = StringBuffer();
 
@@ -1549,11 +1568,11 @@ class SpecParser {
         } else if (ch == '>' || ch == ')') {
           if (depth > 0) depth--;
         } else if (ch == ',' && depth == 0) {
-          _addFieldFragment(fields, text.substring(start, i));
+          dropped += _addFieldFragment(fields, text.substring(start, i));
           start = i + 1;
         }
       }
-      _addFieldFragment(fields, text.substring(start));
+      dropped += _addFieldFragment(fields, text.substring(start));
     }
 
     for (var i = 0; i < cell.length; i++) {
@@ -1563,12 +1582,21 @@ class SpecParser {
         continue;
       }
       if (inBackticks) {
-        // Closing backtick: the span content parses under the OLD
-        // grammar — raw content, no trim, so `a: ` still yields a
-        // (whitespace) type exactly as `_fieldPair` did.
-        final m = _fieldPairShape.firstMatch(span.toString());
+        // Closing backtick: the span content parses under the pair
+        // grammar, with the span's OUTER whitespace tolerated — the
+        // plain path trims, so the two halves of one cell grammar now
+        // agree and a padded ` id: String` still mints its pair. Raw
+        // content is tried first, so the old grammar's fidelity holds
+        // (`a: ` still yields its empty type). A span that mints no
+        // pair at all is a dropped candidate, never silence.
+        final raw = span.toString();
+        final m =
+            _fieldPairShape.firstMatch(raw) ??
+            _fieldPairShape.firstMatch(raw.trim());
         if (m != null) {
           fields.add(EntityField(name: m.group(1)!, type: m.group(2)!.trim()));
+        } else {
+          dropped++;
         }
         span.clear();
       } else {
@@ -1584,13 +1612,21 @@ class SpecParser {
     // which degrades to plain-pair parsing rather than vanishing (the
     // exact silence #1486 forbids).
     flushOutside();
-    return fields;
+    return (fields, dropped);
   }
 
-  static void _addFieldFragment(List<EntityField> fields, String fragment) {
-    final m = _fieldPairShape.firstMatch(fragment.trim());
-    if (m == null) return;
+  /// Mint one plain-pair fragment and return how many pairs it DROPPED:
+  /// zero when it minted its pair and no declaration was left inside the
+  /// type. A fragment that carries the `identifier:` shape but mints
+  /// nothing is a dropped pair, not prose; and a pair whose type still
+  /// carries a `;`-separated declaration (`id: String; title: String`)
+  /// swallowed the second one, because the split only knows commas.
+  static int _addFieldFragment(List<EntityField> fields, String fragment) {
+    final trimmed = fragment.trim();
+    final m = _fieldPairShape.firstMatch(trimmed);
+    if (m == null) return _fieldCellEvidence.hasMatch(trimmed) ? 1 : 0;
     fields.add(EntityField(name: m.group(1)!, type: m.group(2)!.trim()));
+    return _swallowedPair.hasMatch(m.group(2)!) ? 1 : 0;
   }
 
   /// Issue #1486: the field NAMES an entity Dart file on disk declares —

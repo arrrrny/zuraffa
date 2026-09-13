@@ -2036,6 +2036,58 @@ One per functional requirement in `spec.md`.
         );
       });
 
+      test('U-829d2: a reused entity whose on-disk fields diverge from the '
+          'plan is NAMED, never silently starved (issue #1486)', () async {
+        await seedEntitiesSection('''
+## Key entities
+
+| entity | fields |
+| ------ | ------ |
+| User | id: String, title: String |
+''');
+        // The pre-fix shape: a field-less (here: id-only) entity on
+        // disk that a later, fixed run reuses as-is.
+        final entityFile = File(
+          p.join(
+            fx.root.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'user',
+            'user.dart',
+          ),
+        );
+        await entityFile.parent.create(recursive: true);
+        await entityFile.writeAsString(
+          'class User {\n'
+          '  final String id;\n'
+          '\n'
+          '  const User({required this.id});\n'
+          '}\n',
+        );
+
+        final out = await drive();
+
+        expect(exitCode, 0, reason: out);
+        expect(out, contains('[run] phase-0 entity User -> reused'));
+        expect(
+          out,
+          contains('field mismatch: plan declares'),
+          reason:
+              'the plan declares title, the entity file does not — this '
+              'warning is the only signal a later run gets, so it must '
+              'stay asserted (issue #1486)',
+        );
+        expect(out, contains('[id, title]'));
+        expect(out, contains('entity file declares [id]'));
+        expect(
+          await entityFile.readAsString(),
+          contains('final String id;'),
+          reason: 'reuse keeps the on-disk shape untouched',
+        );
+      });
+
       test('U-829e: a failed entity create stops the run honestly '
           '(runner-error, stopped_at names phase 0)', () async {
         await seedEntitiesSection('''

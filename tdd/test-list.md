@@ -11,8 +11,11 @@
 | A-1486-b7 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | evidence-but-zero cells are REPORTED, never silent: `1id: String` and a prose backtick span yield anomalies (entity, verbatim cell, 1-based line); no-evidence and parsing cells yield none | FR-1486, SpecEntityFieldAnomaly | GREEN (compile-red pre-fix) |
 | A-1486-b8 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | GUARD: bullet prose keeps the strict backticked-only grammar — plain prose invents NOTHING | FR-1486, false-positive guard | GREEN |
 | A-1486-b9 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | `entityFieldNamesFromDartSource` reads the on-disk entity shape (final/late final in; constructor params and assignment-initialised locals out) | FR-1486, phase-0 reuse mismatch | GREEN (compile-red pre-fix) |
+| A-1486-b10 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a PARTIALLY dropped cell is REPORTED too: `id: String, 2ndField: int` mints `id` and announces the drop; `id: String; title: String` announces the type-swallowed second pair | FR-1486, SpecEntityFieldAnomaly, partial drop | GREEN (RED pre-fix) |
+| A-1486-b11 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a whitespace-padded backticked span (`` ` id: String` ``) mints its pair like the plain path — and drops nothing, so reports nothing | FR-1486, span trim parity | GREEN (RED pre-fix) |
+| A-1486-b12 | test/plugins/tdd/run_command_test.dart | integration | the phase-0 reuse branch's field-mismatch warning is ASSERTED (not merely executed): plan declares `id, title`, the reused entity file declares only `id` → stdout names both sets, the file is untouched | FR-1486, `_logPhaseZeroFieldMismatch` | GREEN |
 
-Signal paths (print-only, exercised by the suites above + the #1381 plan suite):
+Signal paths (print-only, asserted by the suites above + the #1381 plan suite):
 
 - plan: `SpecEntityFieldAnomaly` rows → per-row `zfa tdd plan: WARNING` (#1486 sibling of #1381's zero-entity warning) — plan_command.dart
-- run: phase-0 reuse branch logs declared-vs-on-disk field mismatch — run_driver_core.dart `_logPhaseZeroFieldMismatch`
+- run: phase-0 reuse branch logs declared-vs-on-disk field mismatch — run_driver_core.dart `_logPhaseZeroFieldMismatch`, asserted by A-1486-b12 (`run_command_test.dart` U-829d2)

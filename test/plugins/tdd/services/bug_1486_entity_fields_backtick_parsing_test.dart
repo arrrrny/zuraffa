@@ -20,6 +20,12 @@
 //        parses to zero fields is reported, never silent.
 //   B8 — guard: bullet prose keeps the strict backticked-only grammar
 //        (plain prose must NOT invent fields).
+//   B9 — the on-disk entity reader (`entityFieldNamesFromDartSource`)
+//        sees `final` members only.
+//   B10 — a PARTIALLY dropped cell (`id: String, 2ndField: int`;
+//        `id: String; title: String`) is reported too, never silent.
+//   B11 — a whitespace-padded backticked span (` id: String`) mints
+//        its pair, matching the plain path's trim.
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/services/spec_parser.dart';
@@ -83,6 +89,23 @@ const evidenceEmptySpec = '''
 | Note | — | free-form |
 | Config | `host: String` | runtime knobs |
 | Ping | `see the docs` | prose in a backtick |
+''';
+
+const partiallyDroppedSpec = '''
+## Key Entities
+
+| Entity | Fields | Purpose |
+| ------ | ------ | ------- |
+| Task | id: String, 2ndField: int | one pair parses, one is dropped |
+| Item | id: String; title: String | a semicolon swallows the second |
+''';
+
+const paddedSpanSpec = '''
+## Key Entities
+
+| Entity | Fields | Purpose |
+| ------ | ------ | ------- |
+| Session | ` id: String`, token: String | the session identity |
 ''';
 
 const bulletGuardSpec = '''
@@ -193,6 +216,50 @@ void main() {
       reason: 'the anomaly quotes the cell verbatim',
     );
     expect(anomalies[1].line, 8);
+  });
+
+  test('B10: a partially dropped cell is reported, never silent (#1486)', () {
+    final anomalies = <SpecEntityFieldAnomaly>[];
+    final entities = const SpecParser().parseKeyEntities(
+      partiallyDroppedSpec,
+      anomalies: anomalies,
+    );
+    expect(entities, hasLength(2), reason: entities.toString());
+    expect(entities[0].fields.map((f) => f.name), [
+      'id',
+    ], reason: 'the pair that parses still mints');
+    expect(
+      anomalies.map((a) => a.entity),
+      ['Task', 'Item'],
+      reason:
+          '`2ndField` fails the pair shape but still shows identifier: '
+          'evidence, and `id: String; title: String` mints one pair whose '
+          'type swallowed the second — a partially dropped cell is the same '
+          '#1486 silence, one step in.',
+    );
+    expect(anomalies[0].cell, 'id: String, 2ndField: int');
+    expect(anomalies[1].cell, 'id: String; title: String');
+  });
+
+  test('B11: a whitespace-padded backticked span still mints its pair', () {
+    final anomalies = <SpecEntityFieldAnomaly>[];
+    final entities = const SpecParser().parseKeyEntities(
+      paddedSpanSpec,
+      anomalies: anomalies,
+    );
+    expect(entities, hasLength(1), reason: entities.toString());
+    expect(
+      entities.single.fields.map((f) => f.name),
+      ['id', 'token'],
+      reason:
+          'trimming the span like the plain path makes the two halves of '
+          'one cell grammar agree: ` id: String` mints instead of vanishing',
+    );
+    expect(
+      anomalies,
+      isEmpty,
+      reason: 'nothing was dropped, so nothing is reported',
+    );
   });
 
   test('B9: entityFieldNamesFromDartSource reads the on-disk entity shape', () {

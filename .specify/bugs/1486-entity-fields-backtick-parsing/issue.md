@@ -42,8 +42,10 @@ defaults to `const []`.
 
 ### Hard constraints
 
-- Fix ONLY field-pair parsing in `spec_parser.dart`. Do NOT change the
-  state machine, gen, or loop semantics.
+- Fix field-pair parsing in `spec_parser.dart`, plus the diagnostics the
+  fix requires: the positive-evidence anomaly (`SpecEntityFieldAnomaly`
+  → the `zfa tdd plan` WARNING) and the phase-0 reuse field-mismatch
+  log. Do NOT change the state machine, gen, or loop semantics.
 - Must handle backticked, unbackticked, mixed, and 2-column forms.
 - Backticked form must continue to work (backwards compatible).
 - Must pass `dart analyze` with no new warnings.

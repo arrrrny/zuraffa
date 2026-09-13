@@ -16,15 +16,19 @@
 
 - **Backticked spans** (backwards compatible by construction): the cell is
   walked as alternating in/out-backtick segments. Each span's RAW content
-  must match the pair shape with the identifier opening the span and the
-  type running to the closing backtick — exactly the old `_fieldPair`
-  semantics (commas inside a span stay part of the type; an untrimmed
-  trailing type such as `` `a: ` `` still yields the same whitespace type
-  the old regex produced, which the caller then trims).
+  is tried first against the pair shape with the identifier opening the
+  span and the type running to the closing backtick — exactly the old
+  `_fieldPair` semantics (commas inside a span stay part of the type; an
+  untrimmed trailing type such as `` `a: ` `` still yields the same
+  whitespace type the old regex produced, which the caller then trims).
+  A span whose raw content misses (a padded `` ` id: String` ``) is
+  retried with its OUTER whitespace trimmed, so the two halves of one
+  cell grammar — backticked and plain — agree.
 - **Unbackticked text** between spans (and any trailing tail): split on
   top-level commas only — a comma nested in `<...>` / `(...)` belongs to
   its type (`Map<String, int>`, `List<List<int>>`) — then each fragment
-  must match the pair shape. Shapeless fragments are skipped, never minted.
+  must match the pair shape. Shapeless fragments are skipped, never
+  minted — but counted, see below.
 
 An unterminated backtick span degrades to plain-pair parsing rather than
 vanishing (the exact silence #1486 forbids).
@@ -37,11 +41,16 @@ mint fields there (false-positive guard, pinned by guard B8).
 ### Positive-evidence-empty detection
 
 `_fieldCellEvidence` — `` `|[A-Za-z_][A-Za-z0-9_]*\s*: `` — marks a cell as
-DECLARING intent. Evidence + zero parsed fields ⇒ the row yields a
+DECLARING intent. `_parseFieldCell` returns the minted fields AND the
+count of pairs it DROPPED: a fragment or span that shows evidence but
+mints no field, or a pair whose type swallowed a further `;`-separated
+declaration (`id: String; title: String`, the separator the comma split
+cannot see). Any drop (> 0) ⇒ the row yields a
 `SpecEntityFieldAnomaly(entity, cell, line)` (new public record; the cell
-is kept verbatim, the line is the 1-based spec line). `parseKeyEntities`
-gains an optional `anomalies` out-param — additive, every existing caller
-is source-compatible.
+is kept verbatim, the line is the 1-based spec line) — so a cell that
+mints one pair and starves another is named too, not only the wholly
+empty one. `parseKeyEntities` gains an optional `anomalies` out-param —
+additive, every existing caller is source-compatible.
 
 ### Phase-0's comparison helper
 
@@ -54,12 +63,13 @@ gate.
 ## 2. `plan_command.dart` — warn at plan time (print-only)
 
 The #1381 zero-entity warning keeps its behavior; its per-row sibling now
-names every anomaly:
+names every anomaly — the wholly dropped cell and the partially dropped
+one alike:
 
 ```
 zfa tdd plan: WARNING — Key Entities row `Task` (spec line N) declares
-field pairs that parsed to zero fields (cell: `1id: String`) — fix the
-field grammar or the entity will be created field-less (issue #1486).
+field pairs that parsing dropped (cell: `1id: String`) — fix the field
+grammar or the entity will be created without them (issue #1486).
 ```
 
 The author learns in seconds, not 28 minutes into a run.

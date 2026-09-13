@@ -348,15 +348,16 @@ class PlanCommand extends Command<void> {
     }
     // Issue #1486: a per-row sibling of the #1381 warning — the section
     // extracted entities, but one row's fields cell shows pair evidence
-    // (a backtick span or an `identifier:` shape) that strict parsing
-    // dropped. The entity WILL be created field-less; name the row and
-    // the cell instead of letting the run vacuous-green later.
+    // (a backtick span or an `identifier:` shape) that parsing dropped,
+    // wholly or partially. The entity is created without those pairs;
+    // name the row and the cell instead of letting the run vacuous-green
+    // later.
     for (final anomaly in keyEntityAnomalies) {
       print(
         'zfa tdd plan: WARNING — Key Entities row `${anomaly.entity}` '
-        '(spec line ${anomaly.line}) declares field pairs that parsed to '
-        'zero fields (cell: `${anomaly.cell}`) — fix the field grammar or '
-        'the entity will be created field-less (issue #1486).',
+        '(spec line ${anomaly.line}) declares field pairs that parsing '
+        'dropped (cell: `${anomaly.cell}`) — fix the field grammar or the '
+        'entity will be created without them (issue #1486).',
       );
     }
 

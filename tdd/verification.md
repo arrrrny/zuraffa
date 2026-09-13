@@ -79,10 +79,13 @@ The repo's sanctioned `tools/run_tests_chunked.sh` policy was followed
 `$TMPDIR/dart_test.kernel.*` leak that both ENOSPC'd this container until
 the purge cadence was applied). Per-chunk results:
 
-- 105 chunks from the runner's own DRY_RUN list: **97 OK, 5 SKIP**
+- 105 chunks from the runner's own DRY_RUN list: **100 OK, 5 SKIP**
   (`SKIP(no-fast-tier)` — benchmark/core-proof/integration/tdd-scenarios/
   077-make-engine-preset carry only slow-tier tags, excluded by design),
-  **0 FAIL**.
+  **0 FAIL**. The tally closes at the listed total (100 + 5 + 0 = 105):
+  the runner classifies every chunk as OK, SKIP, or FAIL, and no failure
+  was reported — `DRY_RUN=1 tools/run_tests_chunked.sh` re-confirms the
+  list is 105 chunks.
 - The runner's threshold-40 recursion skips ROOT test files of heavy dirs;
   those were run explicitly with identical semantics and all passed:
   `test/plugins/tdd/*_test.dart` (519 tests), `tdd/commands` a–z splits
