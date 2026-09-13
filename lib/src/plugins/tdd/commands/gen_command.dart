@@ -1036,7 +1036,8 @@ class GenCommand extends Command<void> {
           'ownership preflight: cross-registry lookup',
         );
         if (foreignOwner != null) {
-          final migrateFix = 'zfa tdd migrate-paths $foreignOwner';
+          // Issue #1573: prescribe the flag form migrate-paths parses.
+          final migrateFix = 'zfa tdd migrate-paths --feature $foreignOwner';
           _printVerdict(
             behaviorId: behavior.id,
             verdict: 'foreign-owned',
@@ -1105,7 +1106,8 @@ class GenCommand extends Command<void> {
         'adopt: cross-registry lookup',
       );
       if (adoptForeignOwner != null) {
-        final migrateFix = 'zfa tdd migrate-paths $adoptForeignOwner';
+        // Issue #1573: prescribe the flag form migrate-paths parses.
+        final migrateFix = 'zfa tdd migrate-paths --feature $adoptForeignOwner';
         _printVerdict(
           behaviorId: behavior.id,
           verdict: 'foreign-owned',
