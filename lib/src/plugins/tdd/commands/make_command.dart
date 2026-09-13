@@ -1381,7 +1381,9 @@ class MakeCommand extends Command<void> {
           plan,
           workingDirectory: cwd,
         );
-        print('   plan: ${effectivePlan.steps.length} step(s)');
+        // Issue #1590: the plan line names the steps (the pre-#1590 line
+        // carried only a count).
+        print(PipelineRunner.planSummaryLine(effectivePlan.steps));
       } else {
         // ---------------------------------------------------------
         // Composition fallback (issue #642, spec 052): the planner is
@@ -1449,8 +1451,10 @@ class MakeCommand extends Command<void> {
         }
         effectivePlan = composed;
         print(
-          '   plan: composition fallback — '
-          '${effectivePlan.steps.length} step(s)',
+          PipelineRunner.planSummaryLine(
+            effectivePlan.steps,
+            compositionFallback: true,
+          ),
         );
       }
 

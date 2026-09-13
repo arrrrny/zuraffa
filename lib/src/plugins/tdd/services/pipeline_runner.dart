@@ -65,6 +65,54 @@ class PipelineResult {
 class PipelineRunner {
   const PipelineRunner();
 
+  /// Issue #1590: the sub-step NAME without the banner token or hint
+  /// (FR-003's derivation, shared with make's plan lines). From the
+  /// step's args: `tdd`-prefixed → the subcommand verb (`func`, `wire`,
+  /// `compose`); `build` → `build`; `entity create <Name>` →
+  /// `entity create <Name>`; `make <Name>` → `make <Name>`; `mock create`
+  /// → `mock create`; anything else → the first two args joined.
+  static String nameFor(GenerationStepSpec spec) {
+    final args = spec.args;
+    if (args.isEmpty) return '(empty step)';
+    final head = args.first;
+    if (head == 'tdd' && args.length > 1) return args[1];
+    if (head == 'build') return 'build';
+    if (head == 'entity' && args.length > 2) {
+      return 'entity ${args[1]} ${args[2]}';
+    }
+    if (head == 'make' && args.length > 1) return 'make ${args[1]}';
+    if (head == 'mock' && args.length > 1) return 'mock ${args[1]}';
+    return args.length > 1 ? '${args[0]} ${args[1]}' : args[0];
+  }
+
+  /// Issue #1590: the `→ ` banner line printed before each sub-step spawn
+  /// (FR-002) — the pipeline was the silent 273.7s window inside a driven
+  /// make. The build step carries the hint the issue asks for; everything
+  /// else is the plain name.
+  static String bannerFor(GenerationStepSpec spec) {
+    final args = spec.args;
+    if (args.isEmpty) return '→ (empty step)';
+    final head = args.first;
+    if (head == 'tdd' && args.length > 1) return '→ ${args[1]}';
+    if (head == 'build') {
+      return '→ build (build_runner + analyze; minutes on first run)';
+    }
+    return '→ ${nameFor(spec)}';
+  }
+
+  /// Issue #1590: make's plan line with the step NAMES (FR-003) — the
+  /// pre-#1590 line carried only a count. [compositionFallback] renders
+  /// the labeled composition variant.
+  static String planSummaryLine(
+    List<GenerationStepSpec> steps, {
+    bool compositionFallback = false,
+  }) {
+    final names = steps.map(nameFor).join(', ');
+    return compositionFallback
+        ? '   plan: composition fallback — ${steps.length} step(s): $names'
+        : '   plan: ${steps.length} step(s): $names';
+  }
+
   /// The default per-step address-space ceiling (bug #826): 2 GiB in KB —
   /// measured generous enough for the analyzer/build pipeline a real
   /// `zfa make`/`zfa build` child loads (a 1 GiB ceiling makes the child
@@ -164,6 +212,11 @@ class PipelineRunner {
       final spec = plan.steps[i];
       final args = [...entrypoint.arguments, ...spec.args];
       final fullCmd = '${entrypoint.displayCommand} ${spec.args.join(' ')}';
+      // Issue #1590: announce the sub-step BEFORE the spawn — each step
+      // was previously a silent window (a driven build runs minutes on
+      // first run). Spawned steps only: the misfire-stop paths below
+      // never announce a step they never reached.
+      print(bannerFor(spec));
       final clock = Stopwatch()..start();
       final rssBeforeKb = ProcessInfo.currentRss ~/ 1024;
       try {
