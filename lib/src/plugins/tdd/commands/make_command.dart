@@ -969,13 +969,43 @@ class MakeCommand extends Command<void> {
       final runState = await store.load();
       final claimed = runState?.behaviorStates[record.behaviorId];
       if (claimed == BehaviorState.blocked) {
-        await store.save(
-          runState!.advance(record.behaviorId, BehaviorState.done),
-        );
-        print(
-          '   run-state advanced: ${record.behaviorId} blocked -> done '
-          '(born-green certification, issue #1542)',
-        );
+        // Review #1566 finding 1a: hold the same concurrency gate every
+        // run-driver write holds. `RunState.advance()` nulls the
+        // in-flight marker, so an ungated write here would silently
+        // release a live `zfa tdd run`'s claim and let a third run start
+        // concurrently.
+        final refusal = store.refusalReason(runState);
+        if (refusal != null) {
+          print('   run-state left untouched: $refusal');
+        } else {
+          // Review #1566 finding 1b: pass the active ids the way every
+          // run-driver `store.save` call site does, so the `dropped`
+          // audit key survives the write instead of being erased
+          // (`save()` only records it when `activeBehaviorIds` is
+          // given). A missing/unreadable test list cannot be recomputed,
+          // so the ids already carrying the `dropped` marker are carried
+          // through — the audit is preserved, never rewritten.
+          Set<String> activeIds;
+          try {
+            activeIds = {
+              for (final row in await TestListReader(target.featureDir).read())
+                row.id,
+            };
+          } on TestListReadException {
+            final dropped = (await store.readDropped()).toSet();
+            activeIds = runState!.behaviorStates.keys
+                .where((id) => !dropped.contains(id))
+                .toSet();
+          }
+          await store.save(
+            runState!.advance(record.behaviorId, BehaviorState.done),
+            activeBehaviorIds: activeIds,
+          );
+          print(
+            '   run-state advanced: ${record.behaviorId} blocked -> done '
+            '(born-green certification, issue #1542)',
+          );
+        }
       }
       print(
         '   green evidence appended to specs/${target.featureName}/tdd/'

@@ -39,6 +39,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/services/born_green.dart';
 
 import '../helpers/tdd_fixture.dart';
 
@@ -313,6 +314,14 @@ void main() {
             jsonDecode(await File(fx.runStatePath).readAsString())
                 as Map<String, dynamic>;
         expect(state['behavior_states']['U1'], 'done', reason: out);
+        // Review #1566: the WRITER half of the #1542 exemption seam — the
+        // driver's reader probe keys on this marker, so the transition
+        // must actually land it in the journal. Without this assertion
+        // `make` could stop emitting it (or the field could move off
+        // `- evidence:`) and both #1542 suites would stay green while
+        // production regressed back to the dead-end.
+        final cycleLog = await File(fx.cycleLogPath).readAsString();
+        expect(cycleLog, contains(bornGreenEvidenceMarker), reason: out);
       },
     );
 

@@ -26,8 +26,11 @@ transition advance the run state it completes.
 1. **Given** a contract-lane behavior whose cycle-log carries green evidence
    but no red evidence (BLOCKED-never-RED, issue #1007) **When** the run
    driver certifies the refactor step **Then** the refactor evidence check
-   accepts `green: true` alone — the run advances the behavior to `done`
-   and completes; the misfire message is not emitted.
+   accepts `green: true` alone — the run completes with the behavior
+   landing at `green`; the misfire message is not emitted. (`done` is
+   unreachable for the green-only classes: the bug #682 reconcile rule
+   demotes a `done` claim carrying green-only evidence back to `green`,
+   which is what keeps the behavior re-provable — see SC-4.)
 2. **Given** any behavior whose LAST green evidence entry certifies the
    born-green hand transition (the journal carries the #1411 transition
    marker the `--born-green` transition writes) **When** the run driver
@@ -98,12 +101,14 @@ transition advance the run state it completes.
 ## Success Criteria (measurable)
 
 - SC-1: A driver-level suite drives a contract-lane behavior from
-  `blocked` + green evidence through refactor to `done` with
+  `blocked` + green evidence through refactor to `green` — `done` is
+  unreachable for the green-only classes (the bug #682 reconcile rule
+  demotes the `done` claim, keeping the behavior re-provable) — with
   `result=complete` and no `incomplete` misfire line.
 - SC-2: A driver-level suite drives a behavior whose last green entry
-  carries the born-green journal marker through refactor to `done` — and a
-  twin WITHOUT the marker still misfires byte-identically to the pre-#1542
-  message.
+  carries the born-green journal marker through refactor to `green` (the
+  same #682 reconcile rule) — and a twin WITHOUT the marker still misfires
+  byte-identically to the pre-#1542 message.
 - SC-3: A make-level suite proves `make --born-green` on a `blocked` state
   file flips the behavior to `done` on disk (and prints the advancement);
   with no state file, the transition still exits 0 and writes none.

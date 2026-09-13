@@ -160,12 +160,18 @@ class CycleEvidence {
   /// evidence), not the run state, so the certification survives state
   /// resets and degradations; the LAST-green rule is the same append-order
   /// rule [greenEvidence] and [orphanedGreenEvidence] apply.
+  ///
+  /// Review #1566: the match is ANCHORED to the note's start (the
+  /// transition writes the marker first) — `- evidence:` is free-form
+  /// (the issue #959 additive field), so a bare substring probe would
+  /// also exempt a red-less entry whose note merely QUOTES the marker
+  /// prose (a hand-written debugging note).
   Future<bool> bornGreenCertified(String behaviorId) async {
     final last = await lastEntryFor(behaviorId, kind: 'green');
     if (last == null) return false;
     final note = last.evidence;
     if (note == null) return false;
-    return note.contains(bornGreenEvidenceMarker);
+    return note.startsWith(bornGreenEvidenceMarker);
   }
 
   /// Every parsed entry, in file order.

@@ -33,6 +33,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/services/born_green.dart';
 
 import 'helpers/tdd_fixture.dart';
 
@@ -71,7 +72,7 @@ void main() {
       await file.writeAsString('# Cycle Log\n\n');
     }
     final evidence = bornGreen
-        ? 'issue #1411 born-green hand transition — no prior red evidence '
+        ? '$bornGreenEvidenceMarker — no prior red evidence '
               'exists (the hand step preceded the first certification); green '
               'certified from the passing target test with the vacuous-guard '
               'marker absent and the $behaviorId:hand attestation header '

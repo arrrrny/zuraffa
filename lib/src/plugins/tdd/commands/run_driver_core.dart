@@ -2401,7 +2401,12 @@ class RunDriverCore {
     CycleEvidence evidence,
     String step,
     String behaviorId, {
-    BehaviorKind? kind,
+    // Review #1566: REQUIRED, not optional — a nullable `kind` defaulting
+    // to null would let a future call site that omits it silently revert
+    // every contract row to the pre-#1542 dead-end with no analyzer
+    // signal (`hasGreen && kind == BehaviorKind.contract` is false for
+    // null).
+    required BehaviorKind kind,
   }) async {
     switch (step) {
       case 'verify-red':
