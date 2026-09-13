@@ -4,6 +4,18 @@
 # default (tagged `slow`); every slow test also carries a tier tag:
 # `regression`, `integration`, `property`, `benchmark`.
 #
+# The `e2e` tag marks heavyweight end-to-end suites that drive the real CLI
+# against throwaway temp projects (real `dart test` / `dart pub get`
+# subprocesses) WITHOUT carrying the `slow` tag — e.g. the make-command
+# regression files (#1510). e2e-tagged files are honest under direct
+# `dart test <file>` invocations (the default preset no longer empties
+# them), while CI's fast lane keeps them excluded via
+# `--exclude-tags "flutter || e2e"` (the same guard runs in
+# `tools/run-tdd-tests.sh`). The heavy lanes that opt in explicitly
+# (`--preset=regression`, `--preset=all`) run them. `e2e:` carries the
+# same `timeout: 4x` ceiling the `slow` tag had — these suites spawn real
+# subprocesses and must outlast the 75s child guard.
+#
 # Full suite (heavy, full-local baseline only — NOT for CI / cloud agents):
 #   dart test --preset=all
 # CI and cloud/CI agents run the default fast tier (`dart test`). --preset=all
@@ -54,13 +66,16 @@ concurrency: 1
 # "A tag was used that wasn't specified in dart_test.yaml" warning. The default
 # run excludes `slow`; the slow tiers are selected by the presets below.
 #
-# Slow-tagged tests get a relaxed 4x timeout (4 × 30s = 120s): they spawn
-# `dart` subprocesses whose cold JIT compile can exceed the 30s default on
-# slower machines (2019 Intel Mac, loaded CI runners), and the relaxed
-# ceiling also keeps the helper's 75s child-guard (run_zfa_source.dart,
-# issue #531) SHORTER than the enclosing test timeout — with the bare 30s
-# default the test runner killed the test before the child guard could
-# fire its diagnostic.
+# Slow- and e2e-tagged tests get a relaxed 4x timeout (4 × 30s = 120s):
+# they spawn `dart` subprocesses whose cold JIT compile can exceed the 30s
+# default on slower machines (2019 Intel Mac, loaded CI runners), and the
+# relaxed ceiling also keeps the helper's 75s child-guard
+# (run_zfa_source.dart, issue #531) SHORTER than the enclosing test timeout
+# — with the bare 30s default the test runner killed the test before the
+# child guard could fire its diagnostic. `e2e` carries the same ceiling the
+# `slow` tag had: the re-tagged make-command suites (#1510) spawn real
+# `dart pub get` / `dart test` children, so the global 2x (60s) would sit
+# below the 75s child guard.
 tags:
   slow:
     timeout: 4x
@@ -70,6 +85,8 @@ tags:
   property:
   benchmark:
   ffi:
+  e2e:
+    timeout: 4x
 
 exclude_tags: slow
 
