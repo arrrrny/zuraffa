@@ -290,6 +290,7 @@ class StepRunner {
     required String feature,
     required String projectRoot,
     String? suiteBaselinePath,
+    Set<String> parkedSeamPaths = const {},
   }) async {
     if (!stepOrder.contains(step)) {
       throw ArgumentError.value(step, 'step', 'unknown TDD step');
@@ -315,6 +316,19 @@ class StepRunner {
         suiteBaselinePath != null &&
         suiteBaselinePath.isNotEmpty) {
       argv.addAll(['--suite-baseline', suiteBaselinePath]);
+    }
+    // Issue #1589: hand the parked contracts' seam files to refactor
+    // spawns — the gate tolerates suite failures inside those files (the
+    // BLOCKED verdict's pre-existing red, the same economics issue #922
+    // gave the baseline). The driver only ever passes seams it SAW parked
+    // (or loaded from a persisted verdict receipt), so the flag is the
+    // driver's attestation; a flag-less standalone refactor keeps the
+    // absolute-green contract (spec 048 FR-001).
+    if (step == 'refactor' && parkedSeamPaths.isNotEmpty) {
+      for (final seam in parkedSeamPaths) {
+        if (seam.isEmpty) continue;
+        argv.addAll(['--parked-seam', seam]);
+      }
     }
     // Issue #1159: the driver's deadline is ONE uniform deadline (bug #742)
     // — the spawned step child must inherit it, otherwise make/refactor

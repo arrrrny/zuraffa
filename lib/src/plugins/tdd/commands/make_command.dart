@@ -107,6 +107,8 @@ import '../services/test_list_reader.dart';
 import '../services/suite_guard.dart';
 import '../services/tdd_profile_keys.dart';
 import '../services/tdd_timeout.dart';
+import '../services/contract_blocked_receipt.dart';
+import '../services/hand_surface.dart';
 import '../services/vacuous_guard.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -445,6 +447,73 @@ class MakeCommand extends Command<void> {
         !contentCarriesVacuousGuardMarker(handFirstTestContent) &&
         contentCarriesHandStepHeader(handFirstTestContent, record.behaviorId);
     if (!certifiedRed && !(authorMode && testIsScaffolded) && !bornGreenFlag) {
+      // Issue #1589: the contract lane's BLOCKED verdict accepted as the
+      // precondition state it IS — a parked contract (receipt on disk)
+      // whose watched world is UNCHANGED since the verdict says so plainly:
+      // implement seam first. The old refusal here dead-ended the
+      // documented resume path — it demanded certified red that
+      // verify-red is FORBIDDEN to write for a contract (issue #1007),
+      // so make and verify-red waited on each other forever. The arm is
+      // fail-open: any change signal since the verdict (the #1544 watch
+      // set — the seam file, the contract row, the implementation), a
+      // missing/unreadable receipt, or a non-contract target falls
+      // through to the existing refusal — an in-progress unblock or a
+      // stale receipt never gets misdirected, and the #1542 born-green
+      // attestation stays the sanctioned recovery for the satisfied
+      // contract. No state advances, no evidence is written: the verdict,
+      // the contract lane and the state machine are untouched.
+      final rowKindQuiet = await _rowKindQuiet(
+        target.featureDir,
+        record.behaviorId,
+      );
+      if (rowKindQuiet == BehaviorKind.contract) {
+        final receipt = ContractBlockedReceipt.fromFile(
+          ContractBlockedReceiptStore(
+            projectRoot: cwd,
+          ).pathFor(record.behaviorId),
+        );
+        final blockedAt = receipt == null
+            ? null
+            : DateTime.tryParse(receipt.blockedAt);
+        if (blockedAt != null &&
+            await _blockedWorldUnchangedSince(
+              blockedAt,
+              projectRoot: cwd,
+              featureDir: target.featureDir,
+              testPath: testPath,
+            )) {
+          final seamPath = p
+              .relative(testPath, from: cwd)
+              .replaceAll(r'\', '/');
+          final receiptPath = p
+              .relative(
+                ContractBlockedReceiptStore(
+                  projectRoot: cwd,
+                ).pathFor(record.behaviorId),
+                from: cwd,
+              )
+              .replaceAll(r'\', '/');
+          print(
+            'zfa tdd make: behavior "${record.behaviorId}" is a BLOCKED '
+            'contract (verdict receipt $receiptPath, issue #1007) — '
+            'implement seam first: there is no certified red to make '
+            'from, and the contract lane never certifies one.',
+          );
+          print(
+            '   ${HandSurface.hintLine(behaviorId: record.behaviorId, seamPath: seamPath, contract: record.sourceCriterion)} — '
+            'once the implementation satisfies the contract, re-run '
+            '`zfa tdd verify-red ${record.behaviorId}` (it reports the '
+            'contract satisfied and the run unblocks the cycle).',
+          );
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.implementSeamFirst,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
+      }
       print(
         'zfa tdd make: behavior "${record.behaviorId}" has no certified-red '
         'evidence in cycle-log.md. Run `zfa tdd verify-red '
@@ -3339,6 +3408,58 @@ class MakeCommand extends Command<void> {
       }
     }
     return false;
+  }
+
+  /// Issue #1589: whether the watched world is UNCHANGED since the blocked
+  /// verdict at [blockedAt] — the #1544 watch set, mirrored for make's
+  /// implement-seam-first arm: the seam test file, the contract row
+  /// (`tdd/test-list.md`), and the implementation (`lib/`, recursive) must
+  /// all be OLDER than the verdict. False — the arm stands down and the
+  /// existing refusal applies — when ANY watched input is newer (the
+  /// unblock signal) or a probe errors out (fail open, the same discipline
+  /// as the run driver's unchanged-blocked-since probe: an unreadable file
+  /// is a change, never a silence).
+  Future<bool> _blockedWorldUnchangedSince(
+    DateTime blockedAt, {
+    required String projectRoot,
+    required String featureDir,
+    required String testPath,
+  }) async {
+    bool isNewerThan(File file) {
+      try {
+        if (!file.existsSync()) return false;
+        return file.lastModifiedSync().isAfter(blockedAt);
+      } on FileSystemException {
+        return true;
+      }
+    }
+
+    // 1. The seam file — the generated contract test the verdict ran.
+    if (isNewerThan(File(testPath))) return false;
+    // 2. The contract row — the test list the behavior is declared in.
+    if (isNewerThan(File(p.join(featureDir, 'tdd', 'test-list.md')))) {
+      return false;
+    }
+    // 3. The implementation — any lib/ source newer than the verdict.
+    final libDir = Directory(p.join(projectRoot, 'lib'));
+    if (await libDir.exists()) {
+      try {
+        await for (final entity in libDir.list(
+          recursive: true,
+          followLinks: false,
+        )) {
+          if (entity is! File) continue;
+          try {
+            if ((await entity.lastModified()).isAfter(blockedAt)) return false;
+          } on FileSystemException {
+            return false;
+          }
+        }
+      } on FileSystemException {
+        return false;
+      }
+    }
+    return true;
   }
 
   /// Behavior ids that have a red entry in the feature's cycle-log.

@@ -62,6 +62,7 @@ import '../services/run_state_store.dart';
 import '../services/runner.dart';
 import '../services/step_runner.dart';
 import '../services/contract_blocked_receipt.dart';
+import '../services/hand_surface.dart';
 import '../services/suite_guard.dart';
 import '../models/routing.dart';
 import '../services/test_list_reader.dart';
@@ -211,6 +212,16 @@ class RunDriverCore {
   // the pre-spawn runner-error), never by the named deferral/skip/block
   // arms or by successful steps.
   _StepFailure? _lastStepFailure;
+
+  /// Issue #1589: the parked contracts' seam file paths (project-relative)
+  /// the phase-2 refactor gate must tolerate — pre-existing-failure
+  /// economics for a BLOCKED verdict. Seeded from the persisted state
+  /// (blocked contract + verdict receipt on disk — cross-lane/resume
+  /// parkings), the still-blocked skip arm, and this run's parkings; the
+  /// set is complete before the first phase-2b refactor spawns and is
+  /// handed to every refactor child as `--parked-seam <path>`. Per-run
+  /// instance state (drive is non-reentrant per instance).
+  final Set<String> _parkedSeamPaths = <String>{};
 
   /// Fires one step-verdict.v1 event for a completed step (a no-op when
   /// the hook is unset — the legacy byte-identical output path).
@@ -789,6 +800,36 @@ class RunDriverCore {
       }
     }
 
+    // Issue #1589: seed the parked seams the phase-2 refactor gate must
+    // tolerate. A persisted BLOCKED contract (any lane's rows — the parked
+    // verdict poisons every later refactor spawn, not just its own lane's)
+    // whose verdict receipt exists contributes its seam file: the failing
+    // seam test is a KNOWN red for the rest of this run, not new damage.
+    // Fail-closed: no receipt on disk — no tolerance (the honest refusal
+    // stands). This run's parkings and still-blocked skips are added by
+    // their arms below (authoritative — the driver SAW the verdict).
+    final blockedReceiptStore = ContractBlockedReceiptStore(
+      projectRoot: projectRoot,
+    );
+    for (final row in allRows) {
+      if (row.kind != BehaviorKind.contract) continue;
+      if ((current.behaviorStates[row.id] ?? BehaviorState.pending) !=
+          BehaviorState.blocked) {
+        continue;
+      }
+      if (ContractBlockedReceipt.fromFile(blockedReceiptStore.pathFor(row.id)) ==
+          null) {
+        continue;
+      }
+      _parkedSeamPaths.add(
+        HandSurface.seamPathFor(
+          projectRoot: projectRoot,
+          feature: feature,
+          behaviorId: row.id,
+        ),
+      );
+    }
+
     // --- Phase 1: the uniform cycle in list order, with the deferrals.
     final registry = ArtifactRegistry(featureDir: featureDir);
     // Issue #1544 (review fix): the rows whose BLOCKED verdict THIS run's
@@ -823,6 +864,15 @@ class RunDriverCore {
             '$since)',
           );
           _emitStep(row.id, 'verify-red', 'skipped');
+          // Issue #1589: the parked verdict's seam test stays red for the
+          // rest of this run — the phase-2 refactor gate must tolerate it.
+          _parkedSeamPaths.add(
+            HandSurface.seamPathFor(
+              projectRoot: projectRoot,
+              feature: feature,
+              behaviorId: row.id,
+            ),
+          );
           continue;
         }
       }
@@ -1063,6 +1113,15 @@ class RunDriverCore {
         '${blockedRows.map((r) => r.id).join(', ')} — the declared '
         'contract(s) are not satisfied (issue #1007)',
       );
+      // Issue #1589: the resume instructions are followable as written —
+      // each parked contract's stop names its hand surface (the seam file
+      // + the wire command). Messaging only: the stop contract (result,
+      // stopped_at, exit code) is the #1007/#1544 one.
+      for (final row in blockedRows) {
+        print(
+          '   ${HandSurface.hintLine(behaviorId: row.id, seamPath: HandSurface.seamPathFor(projectRoot: projectRoot, feature: feature, behaviorId: row.id), contract: row.traces)}',
+        );
+      }
       print(
         '   resume: implement the declared contract, then re-run '
         '`zfa tdd $label $feature` — unchanged blocked behaviors are '
@@ -1639,6 +1698,10 @@ class RunDriverCore {
           feature: featureRef,
           projectRoot: projectRoot,
           suiteBaselinePath: suiteBaselinePath,
+          // Issue #1589: the parked seams the refactor gate must tolerate
+          // (pre-existing-failure economics for a BLOCKED verdict). The
+          // StepRunner appends them to REFACTOR spawns only.
+          parkedSeamPaths: _parkedSeamPaths,
         );
       } on StateError catch (e) {
         // Entrypoint resolution failed before any spawn: runner-error.
@@ -1896,10 +1959,22 @@ class RunDriverCore {
             '   the declared contract ${row.traces} is not satisfied — the '
             'cycle is BLOCKED and cannot proceed to GREEN (issue #1007)',
           );
+          // Issue #1589: name the hand surface — where the declared
+          // contract is implemented (the seam) and the command that binds
+          // it (wire), so the parked verdict is actionable as written.
+          // Messaging only: the verdict, the state advance and the park
+          // semantics are the #1007/#1544 ones.
+          final parkedSeam = HandSurface.seamPathFor(
+            projectRoot: projectRoot,
+            feature: feature,
+            behaviorId: row.id,
+          );
+          print('   ${HandSurface.hintLine(behaviorId: row.id, seamPath: parkedSeam, contract: row.traces)}');
           print(
             '   parked — the run continues with the remaining behaviors '
             '(issue #1544)',
           );
+          _parkedSeamPaths.add(parkedSeam);
           return (state: updated, stop: null, refactorBlocked: false);
         }
         // Issue #1308: the vacuous-green make stop is not a dead end —

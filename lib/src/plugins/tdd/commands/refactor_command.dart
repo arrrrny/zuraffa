@@ -140,6 +140,21 @@ class RefactorCommand extends Command<void> {
           'absolute-green contract applies (spec 048 FR-001). A missing or '
           'corrupt cache falls back to the absolute-green contract safely.',
     );
+    argParser.addMultiOption(
+      'parked-seam',
+      valueHelp: 'path',
+      help:
+          'A parked contract\'s seam test file (project-relative) whose '
+          'suite failure the preflight and re-proof tolerate (issue #1589). '
+          'The driving run hands the seams it knows are parked — the BLOCKED '
+          'verdict\'s failing contract test is a KNOWN red for the whole '
+          'pass (pre-existing-failure economics, the same discipline issue '
+          '#922 gave the baseline), so it cannot refuse or regress the '
+          'phase-2 refactors of the behaviors that ARE green. Repeatable. '
+          'A NEW failure in any other file still refuses, an unparseable '
+          'transcript still fails closed, and without the flag the '
+          'absolute-green contract applies (spec 048 FR-001).',
+    );
     argParser.addOption(
       'timeout',
       valueHelp: 'minutes',
@@ -243,6 +258,11 @@ class RefactorCommand extends Command<void> {
         timeout: timeoutOverride,
         fullReproof: argResults?['full-reproof'] as bool? ?? false,
         suiteBaselinePath: argResults?['suite-baseline'] as String?,
+        parkedSeams:
+            (argResults?['parked-seam'] as List<String>? ?? const [])
+                .where((s) => s.trim().isNotEmpty)
+                .map((s) => p.normalize(s.trim()).replaceAll(r'\', '/'))
+                .toSet(),
         scratchEnv: scratch?.childEnvironment(),
       );
     } finally {
@@ -260,6 +280,7 @@ class RefactorCommand extends Command<void> {
     Duration? timeout,
     bool fullReproof = false,
     String? suiteBaselinePath,
+    Set<String> parkedSeams = const {},
     Map<String, String>? scratchEnv,
   }) async {
     RefactorOutcome outcome;
@@ -394,27 +415,53 @@ class RefactorCommand extends Command<void> {
         // unparseable transcript is never tolerated: a red the parser
         // cannot name may be a runner/compile failure, so the refusal
         // stands (safe failure — never a silent pass).
-        final preflightSnapshot = suiteBaseline == null
-            ? null
-            : const SuiteGuard().fromRunRecord(
+        // Issue #1589: a failure whose file the driving run attested as a
+        // PARKED contract's seam (a BLOCKED verdict's own failing test) is
+        // also a known red — the same pre-existing-failure economics, with
+        // or without a baseline. The tolerance is surgical: any NEW
+        // failure outside the handed seams still refuses.
+        final preflightSnapshot = (suiteBaseline != null || parkedSeams.isNotEmpty)
+            ? const SuiteGuard().fromRunRecord(
                 record: preflight,
                 capturedAt: DateTime.now().toUtc().toIso8601String(),
-              );
-        final newFailures = (suiteBaseline == null || preflightSnapshot == null)
-            ? const <String>[]
-            : const SuiteGuard()
-                  .diff(baseline: suiteBaseline, guard: preflightSnapshot)
-                  .newFailures;
+              )
+            : null;
+        final preflightNewFailures = suiteBaseline == null
+            ? (preflightSnapshot?.failedTests.toList() ?? const <String>[])
+            : (preflightSnapshot == null
+                  ? const <String>[]
+                  : const SuiteGuard()
+                        .diff(baseline: suiteBaseline, guard: preflightSnapshot)
+                        .newFailures);
+        final preflightParked = preflightNewFailures
+            .where((id) => _isParkedSeamFailure(id, parkedSeams))
+            .toList();
+        final newFailures = preflightNewFailures
+            .where((id) => !preflightParked.contains(id))
+            .toList();
         if (preflightSnapshot != null &&
             preflightSnapshot.parseable &&
             newFailures.isEmpty) {
-          preflightTolerated = preflightSnapshot.failedTests.length;
-          print(
-            '   suite is RED but every failure is pre-existing at '
-            'baseline — $preflightTolerated tolerated (issue #922):',
-          );
+          preflightTolerated =
+              preflightSnapshot.failedTests.length;
+          if (suiteBaseline != null) {
+            print(
+              '   suite is RED but every failure is pre-existing at '
+              'baseline — $preflightTolerated tolerated (issue #922):',
+            );
+          } else {
+            print(
+              '   suite is RED but every failure is a parked contract '
+              'verdict — $preflightTolerated tolerated (issue #1589):',
+            );
+          }
           for (final name in preflightSnapshot.failedTests) {
-            print('   tolerated: $name');
+            final parked = preflightParked.contains(name);
+            print(
+              parked
+                  ? '   tolerated (parked contract, issue #1589): $name'
+                  : '   tolerated: $name',
+            );
           }
         } else {
           final failingTests = _extractFailingTestNames(preflight.output);
@@ -770,28 +817,47 @@ class RefactorCommand extends Command<void> {
         // unparseable transcript still classifies as a regression (safe
         // failure), and so does any failure whose identifier the baseline
         // does not already record.
+        // Issue #1589: a failure inside a handed parked seam is the same
+        // known red here — a parked verdict's failing test cannot grade
+        // the passes a regression.
         final reproofSnapshot =
-            (!reproof.startedProcess || suiteBaseline == null)
+            (!reproof.startedProcess ||
+                (suiteBaseline == null && parkedSeams.isEmpty))
             ? null
             : const SuiteGuard().fromRunRecord(
                 record: reproof,
                 capturedAt: DateTime.now().toUtc().toIso8601String(),
               );
-        final newReproofFailures =
-            (suiteBaseline == null || reproofSnapshot == null)
-            ? const <String>[]
-            : const SuiteGuard()
-                  .diff(baseline: suiteBaseline, guard: reproofSnapshot)
-                  .newFailures;
+        final reproofNewAll = suiteBaseline == null
+            ? (reproofSnapshot?.failedTests.toList() ?? const <String>[])
+            : (reproofSnapshot == null
+                  ? const <String>[]
+                  : const SuiteGuard()
+                        .diff(baseline: suiteBaseline, guard: reproofSnapshot)
+                        .newFailures);
+        final reproofParked = reproofNewAll
+            .where((id) => _isParkedSeamFailure(id, parkedSeams))
+            .toList();
+        final newReproofFailures = reproofNewAll
+            .where((id) => !reproofParked.contains(id))
+            .toList();
         if (reproofSnapshot != null &&
             reproofSnapshot.parseable &&
             newReproofFailures.isEmpty) {
           reproofTolerated = reproofSnapshot.failedTests.length;
-          print(
-            '   re-proof RED but every failure is pre-existing at '
-            'baseline — $reproofTolerated tolerated, no regression '
-            '(issue #922).',
-          );
+          if (suiteBaseline != null) {
+            print(
+              '   re-proof RED but every failure is pre-existing at '
+              'baseline — $reproofTolerated tolerated, no regression '
+              '(issue #922).',
+            );
+          } else {
+            print(
+              '   re-proof RED but every failure is a parked contract '
+              'verdict — $reproofTolerated tolerated, no regression '
+              '(issue #1589).',
+            );
+          }
         } else {
           final regressedTests = _extractFailingTestNames(reproof.output);
           print('   REGRESSION detected — suite is no longer green.');
@@ -1003,6 +1069,33 @@ class RefactorCommand extends Command<void> {
   /// like `00:01 +0 -1: test name [E]`; the result is sorted and de-duped.
   List<String> _extractFailingTestNames(String output) =>
       parseFailingTestNames(output);
+
+  /// Issue #1589: whether a failing-test identifier lives inside a handed
+  /// parked seam — the file part of the identifier (everything before the
+  /// first `:`, `loading ` stripped) boundary-matches one of the parked
+  /// seam paths the driving run attested. The same file-suffix match the
+  /// make's #731 scoping uses (the `/` boundary keeps `u2_test.dart` from
+  /// matching `xu2_test.dart`), so absolute/relative and Windows/POSIX
+  /// path shapes compare equal.
+  bool _isParkedSeamFailure(String identifier, Set<String> parkedSeams) {
+    if (parkedSeams.isEmpty) return false;
+    var s = identifier.trim();
+    const loading = 'loading ';
+    if (s.startsWith(loading)) s = s.substring(loading.length);
+    final idx = s.indexOf(':');
+    if (idx > 0) s = s.substring(0, idx);
+    final file = p
+        .normalize(s.trim())
+        .replaceAll(r'\', '/');
+    for (final seam in parkedSeams) {
+      if (file == seam ||
+          file.endsWith('/$seam') ||
+          seam.endsWith('/$file')) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   /// Append the re-proof verdict + transcript tail to the feature's
   /// cycle-log (spec 1333 FR-3) on every non-green verdict: the failed

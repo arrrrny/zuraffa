@@ -194,7 +194,7 @@ void main() {
     test('a contract parked THIS run hands its seam to the refactor spawn',
         () async {
       final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing([
+      await runner.runCapturing([
         'tdd',
         'run',
         feature,
@@ -257,7 +257,7 @@ void main() {
 
       // Run 2 (resume): A1 is skipped (still blocked since …), U1 still
       // drives — and its refactor spawn must still carry A1's seam.
-      await runner.runCapturing([
+      final out2 = await runner.runCapturing([
         'tdd',
         'run',
         feature,
@@ -267,6 +267,13 @@ void main() {
         fx.fakeZfaBin,
       ]);
       takeExitCode();
+
+      // The skip fired (the persisted parking is in the world run 2 sees).
+      expect(
+        out2,
+        contains('contract:A1 verify-red -> skipped (still blocked since'),
+        reason: out2,
+      );
 
       final refactorArgv = fx
           .stepArgvLog()
