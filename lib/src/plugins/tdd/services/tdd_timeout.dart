@@ -390,8 +390,7 @@ Duration scaledStepBudget({Duration? measuredBaseline, Duration? explicit}) {
   if (explicit != null) return explicit;
   if (measuredBaseline == null) return TddTimeouts.minStepBudget;
   final scaled = Duration(
-    microseconds:
-        measuredBaseline.inMicroseconds * TddTimeouts.budgetMultiple,
+    microseconds: measuredBaseline.inMicroseconds * TddTimeouts.budgetMultiple,
   );
   return scaled > TddTimeouts.minStepBudget
       ? scaled
@@ -403,8 +402,7 @@ Duration scaledStepBudget({Duration? measuredBaseline, Duration? explicit}) {
 Duration? projectedMakeCost({Duration? measuredBaseline}) {
   if (measuredBaseline == null) return null;
   return Duration(
-    microseconds:
-        measuredBaseline.inMicroseconds * TddTimeouts.budgetMultiple,
+    microseconds: measuredBaseline.inMicroseconds * TddTimeouts.budgetMultiple,
   );
 }
 
@@ -470,7 +468,8 @@ PhaseVerdict inferTimeoutPhase({
       if (tree.contains(marker)) {
         return PhaseVerdict(
           phase: 'running',
-          evidence: 'descendant argv matches test-runner marker '
+          evidence:
+              'descendant argv matches test-runner marker '
               '"$marker": ${descendantArgvs.firstWhere((a) => a.contains(marker))}',
         );
       }
@@ -479,14 +478,16 @@ PhaseVerdict inferTimeoutPhase({
       if (tree.contains(marker)) {
         return PhaseVerdict(
           phase: 'compiling',
-          evidence: 'descendant argv matches compile marker "$marker": '
+          evidence:
+              'descendant argv matches compile marker "$marker": '
               '${descendantArgvs.firstWhere((a) => a.contains(marker))}',
         );
       }
     }
     return PhaseVerdict(
       phase: 'unknown',
-      evidence: 'descendant snapshot observable but matches no known '
+      evidence:
+          'descendant snapshot observable but matches no known '
           'test-runner or compile marker',
     );
   }
@@ -498,7 +499,8 @@ PhaseVerdict inferTimeoutPhase({
   }
   return PhaseVerdict(
     phase: 'unknown',
-    evidence: 'no descendant snapshot and no test-progress output — '
+    evidence:
+        'no descendant snapshot and no test-progress output — '
         'the child produced no observable signal before the kill',
   );
 }

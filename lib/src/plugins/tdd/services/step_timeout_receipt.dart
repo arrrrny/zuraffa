@@ -137,9 +137,11 @@ Future<String> writeStepTimeoutReceipt({
   required StepTimeoutReceipt receipt,
 }) async {
   final file = File(
-    p.join(featureDir, 'tdd', StepTimeoutReceipt.fileNameFor(
-      receipt.behaviorId,
-    )),
+    p.join(
+      featureDir,
+      'tdd',
+      StepTimeoutReceipt.fileNameFor(receipt.behaviorId),
+    ),
   );
   await file.parent.create(recursive: true);
   const encoder = JsonEncoder.withIndent('  ');
@@ -176,9 +178,6 @@ Future<StepTimeoutReceiptWriteOutcome> writeStepTimeoutReceiptReported({
     );
     return StepTimeoutReceiptWriteOutcome(written: true, path: path);
   } on Exception catch (e) {
-    return StepTimeoutReceiptWriteOutcome(
-      written: false,
-      error: e.toString(),
-    );
+    return StepTimeoutReceiptWriteOutcome(written: false, error: e.toString());
   }
 }

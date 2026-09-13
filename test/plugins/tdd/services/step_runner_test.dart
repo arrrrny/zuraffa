@@ -357,16 +357,15 @@ void main() {
     () async {
       final runner = StepRunner(
         zfaBin: '/fake/bin/zfa',
-        spawner: (command, workingDirectory) =>
-            throw ProcessTimeoutException(
-              executable: command.first,
-              arguments: command.sublist(1),
-              timeout: const Duration(minutes: 25),
-              workingDirectory: workingDirectory,
-              output: 'zfa tdd make: behavior U8\n',
-              elapsed: const Duration(minutes: 25, seconds: 2),
-              descendantArgvs: const ['/usr/bin/flutter_tester'],
-            ),
+        spawner: (command, workingDirectory) => throw ProcessTimeoutException(
+          executable: command.first,
+          arguments: command.sublist(1),
+          timeout: const Duration(minutes: 25),
+          workingDirectory: workingDirectory,
+          output: 'zfa tdd make: behavior U8\n',
+          elapsed: const Duration(minutes: 25, seconds: 2),
+          descendantArgvs: const ['/usr/bin/flutter_tester'],
+        ),
       );
 
       final result = await runner.run(

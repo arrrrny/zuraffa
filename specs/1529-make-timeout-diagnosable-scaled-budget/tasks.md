@@ -24,33 +24,34 @@ within a milestone the pure helpers land before their wiring.
 
 ## Milestone M1 — receipt on kill (US1, P1)
 
-- [ ] **T001** [P] [US1] `tdd_timeout.dart`: add `elapsed` +
+- [x] **T001** [P] [US1] `tdd_timeout.dart`: add `elapsed` +
   `descendantArgvs` to `ProcessTimeoutException`; `runTimed` measures
   actual wall time and snapshots the child's descendants (POSIX `ps`,
   best-effort) at the deadline BEFORE the kill.
-- [ ] **T002** [P] [US1] `tdd_timeout.dart`: pure `inferTimeoutPhase`
+- [x] **T002** [P] [US1] `tdd_timeout.dart`: pure `inferTimeoutPhase`
   (running/compiling/unknown + evidence) and `TddTimeouts.minStepBudget`
   (25 min floor constant).
-- [ ] **T003** [US1] New `services/step_timeout_receipt.dart`:
+- [x] **T003** [US1] New `services/step_timeout_receipt.dart`:
   `StepTimeoutReceipt` model (`tdd-make-timeout-receipt.v1`: behavior,
   step, argv, elapsed, deadline, phase, evidence, output tail,
   capturedAt) + best-effort writer to
   `specs/<feature>/tdd/make.<behaviorId>.timeout.json`.
-- [ ] **T004** [US1] `step_runner.dart`: `StepResult.timeoutReceipt`
+- [x] **T004** [US1] `step_runner.dart`: `StepResult.timeoutReceipt`
   (`StepTimeoutInfo?`) built in the `ProcessTimeoutException` arm only.
-- [ ] **T005** [US1] `run_driver_core.dart`: the error-outcome arm
+- [x] **T005** [US1] `run_driver_core.dart`: the error-outcome arm
   writes the make-step receipt into the feature tdd dir and prints the
   path; failed writes reported, never fatal (FR-1, FR-12).
 
 ## Milestone M2 — scaled budget (US2, P2)
 
-- [ ] **T006** [P] [US2] `tdd_timeout.dart`: pure `scaledStepBudget`
+- [x] **T006** [P] [US2] `tdd_timeout.dart`: pure `scaledStepBudget`
   (`max(25 min, 4 x baseline)`, explicit override wins, null baseline →
   floor).
-- [ ] **T007** [P] [US2] `run_baseline_cache.dart` +
+- [x] **T007** [P] [US2] `run_baseline_cache.dart` +
   `corpus_baseline_cache.dart`: additive optional `durationMs` write/
-  read; old files read as null.
-- [ ] **T008** [US2] `run_driver_core.dart`: measure the baseline
+  read; old files read as null. (Fingerprint persistence added under
+  T010's FR-9a work; U9 round-trip tests in recert_scope_test.dart.)
+- [x] **T008** [US2] `run_driver_core.dart`: measure the baseline
   capture, persist its duration, derive the budget (explicit honored +
   loud warning when `4 x baseline >= explicit`; default upgraded),
   rebuild the step runner with the scaled budget, keep the ONE uniform
@@ -58,22 +59,24 @@ within a milestone the pure helpers land before their wiring.
 
 ## Milestone M3 — trimmed re-certification (US3, P3)
 
-- [ ] **T009** [P] [US3] New `services/recert_scope.dart`: pure import-
+- [x] **T009** [P] [US3] New `services/recert_scope.dart`: pure import-
   closure scoping over `test/**/*_test.dart` (imports/exports/parts;
   relative + self-package URIs; memoized) → own test + closure hits, or
   the full-tree signal (FR-8, FR-11).
-- [ ] **T010** [P] [US3] `make_command.dart`: the trimmed-decision
+- [x] **T010** [P] [US3] `make_command.dart`: the trimmed-decision
   helper — fingerprint computable + mtime scan proving no shared write
   outside the declared set + parseable scoped transcript → scoped
   command via the #1374 template-append pattern; every unmet condition
-  → existing paths (FR-9, FR-10).
-- [ ] **T011** [US3] `make_command.dart`: wire the decision into the
+  → existing paths (FR-9, FR-10). (`planGuardRecert` +
+  `SourceWriteProbe` live in `recert_scope.dart`; `RunBaselineCache`
+  persists the corpus fingerprint for FR-9a.)
+- [x] **T011** [US3] `make_command.dart`: wire the decision into the
   step-5 baseline and step-9 guard selection (standalone) and the
   cached-baseline guard fallback (driver path) with #731 attribution;
   unattributable failures stay fail-closed (FR-10).
 
 ## Final
 
-- [ ] **T012** [US1–US3] `/speckit.tdd.run` red-green evidence recorded
+- [x] **T012** [US1–US3] `/speckit.tdd.run` red-green evidence recorded
   under `tdd/`; `/speckit.tdd.verify` writes `tdd/verification.md`;
   `dart analyze` clean on changed files; `dart format` applied.

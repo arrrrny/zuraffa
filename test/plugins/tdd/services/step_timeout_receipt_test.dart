@@ -188,71 +188,73 @@ void main() {
     });
 
     test('fileNameFor matches the issue glob make.<id>.*.json', () {
+      expect(StepTimeoutReceipt.fileNameFor('U8'), 'make.U8.timeout.json');
       expect(
-        StepTimeoutReceipt.fileNameFor('U8'),
-        'make.U8.timeout.json',
-      );
-      expect(
-        RegExp(r'^make\.u8\..+\.json$', caseSensitive: false).hasMatch(
-          StepTimeoutReceipt.fileNameFor('U8'),
-        ),
+        RegExp(
+          r'^make\.u8\..+\.json$',
+          caseSensitive: false,
+        ).hasMatch(StepTimeoutReceipt.fileNameFor('U8')),
         isTrue,
         reason: 'the operator globs make.u8.*.json (issue #1529)',
       );
     });
 
-    test('write() lands the file in the feature tdd dir and returns it',
-        () async {
-      final featureDir = await Directory.systemTemp.createTemp('zfa1529_');
-      addTearDown(() => featureDir.deleteSync(recursive: true));
-      final receipt = StepTimeoutReceipt(
-        behaviorId: 'U8',
-        step: 'make',
-        argv: const ['dart', 'bin/zfa.dart', 'tdd', 'make', 'U8'],
-        elapsed: const Duration(minutes: 25),
-        deadline: const Duration(minutes: 25),
-        phase: const PhaseVerdict(phase: 'unknown', evidence: 'no signal'),
-        outputTail: 'header only',
-        capturedAt: '2026-09-13T12:00:00.000Z',
-      );
-      final path = await writeStepTimeoutReceipt(
-        featureDir: featureDir.path,
-        receipt: receipt,
-      );
-      expect(
-        p.relative(path, from: featureDir.path),
-        p.join('tdd', 'make.U8.timeout.json'),
-      );
-      final decoded =
-          jsonDecode(await File(path).readAsString()) as Map<String, dynamic>;
-      expect(decoded['schema'], 'tdd-make-timeout-receipt.v1');
-      expect(decoded['behavior'], 'U8');
-      expect(decoded['phase'], 'unknown');
-    });
+    test(
+      'write() lands the file in the feature tdd dir and returns it',
+      () async {
+        final featureDir = await Directory.systemTemp.createTemp('zfa1529_');
+        addTearDown(() => featureDir.deleteSync(recursive: true));
+        final receipt = StepTimeoutReceipt(
+          behaviorId: 'U8',
+          step: 'make',
+          argv: const ['dart', 'bin/zfa.dart', 'tdd', 'make', 'U8'],
+          elapsed: const Duration(minutes: 25),
+          deadline: const Duration(minutes: 25),
+          phase: const PhaseVerdict(phase: 'unknown', evidence: 'no signal'),
+          outputTail: 'header only',
+          capturedAt: '2026-09-13T12:00:00.000Z',
+        );
+        final path = await writeStepTimeoutReceipt(
+          featureDir: featureDir.path,
+          receipt: receipt,
+        );
+        expect(
+          p.relative(path, from: featureDir.path),
+          p.join('tdd', 'make.U8.timeout.json'),
+        );
+        final decoded =
+            jsonDecode(await File(path).readAsString()) as Map<String, dynamic>;
+        expect(decoded['schema'], 'tdd-make-timeout-receipt.v1');
+        expect(decoded['behavior'], 'U8');
+        expect(decoded['phase'], 'unknown');
+      },
+    );
 
-    test('write() is best-effort: an unwritable dir reports, never throws',
-        () async {
-      final featureDir = await Directory.systemTemp.createTemp('zfa1529_');
-      addTearDown(() => featureDir.deleteSync(recursive: true));
-      // A FILE where the tdd/ DIRECTORY must be — the write cannot land.
-      File(p.join(featureDir.path, 'tdd')).writeAsStringSync('not a dir');
-      final receipt = StepTimeoutReceipt(
-        behaviorId: 'U8',
-        step: 'make',
-        argv: const ['dart'],
-        elapsed: const Duration(minutes: 1),
-        deadline: const Duration(minutes: 1),
-        phase: const PhaseVerdict(phase: 'unknown', evidence: 'no signal'),
-        outputTail: '',
-        capturedAt: '2026-09-13T12:00:00.000Z',
-      );
-      final outcome = await writeStepTimeoutReceiptReported(
-        featureDir: featureDir.path,
-        receipt: receipt,
-      );
-      expect(outcome.written, isFalse);
-      expect(outcome.path, isNull);
-      expect(outcome.error, isNotNull);
-    });
+    test(
+      'write() is best-effort: an unwritable dir reports, never throws',
+      () async {
+        final featureDir = await Directory.systemTemp.createTemp('zfa1529_');
+        addTearDown(() => featureDir.deleteSync(recursive: true));
+        // A FILE where the tdd/ DIRECTORY must be — the write cannot land.
+        File(p.join(featureDir.path, 'tdd')).writeAsStringSync('not a dir');
+        final receipt = StepTimeoutReceipt(
+          behaviorId: 'U8',
+          step: 'make',
+          argv: const ['dart'],
+          elapsed: const Duration(minutes: 1),
+          deadline: const Duration(minutes: 1),
+          phase: const PhaseVerdict(phase: 'unknown', evidence: 'no signal'),
+          outputTail: '',
+          capturedAt: '2026-09-13T12:00:00.000Z',
+        );
+        final outcome = await writeStepTimeoutReceiptReported(
+          featureDir: featureDir.path,
+          receipt: receipt,
+        );
+        expect(outcome.written, isFalse);
+        expect(outcome.path, isNull);
+        expect(outcome.error, isNotNull);
+      },
+    );
   });
 }

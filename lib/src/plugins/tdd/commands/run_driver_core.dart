@@ -626,6 +626,10 @@ class RunDriverCore {
             featureDir: featureDir,
             snapshot: corpusReused,
             durationMs: reusedMs,
+            // Spec 1529: the fingerprint rides the feature-local cache so
+            // make's trimmed re-certification can prove the environment
+            // is the one the baseline certified (FR-9a).
+            fingerprint: fingerprint,
           );
           measuredBaselineMs = reusedMs;
           print(
@@ -671,6 +675,9 @@ class RunDriverCore {
               featureDir: featureDir,
               snapshot: snapshot,
               durationMs: durationMs,
+              // Spec 1529: the fingerprint rides the feature-local cache
+              // (FR-9a) — make's trimmed re-certification keys on it.
+              fingerprint: fingerprint,
             );
             // Issue #1374: a scoped snapshot never enters the
             // corpus-wide cache.

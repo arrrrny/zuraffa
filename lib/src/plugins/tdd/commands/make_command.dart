@@ -94,6 +94,8 @@ import '../services/nuance_receipts.dart';
 import '../services/pipeline_runner.dart';
 import '../services/red_classifier.dart';
 import '../services/run_baseline_cache.dart';
+import '../services/recert_scope.dart';
+import '../services/corpus_baseline_cache.dart';
 import '../services/skin_authoring.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/runner.dart';
@@ -1198,6 +1200,12 @@ class MakeCommand extends Command<void> {
     // ---------------------------------------------------------------
     SuiteSnapshot? baseline;
     var baselineFromCache = false;
+    // Spec 1529 (FR-9a): the baseline's dependency fingerprint — the
+    // recorded corpus fingerprint for a cached baseline (the one the
+    // driver computed at capture time), a fresh computation for a live
+    // one. The guard's untouched-rest proof compares it against a fresh
+    // computation at guard time.
+    String? baselineFingerprint;
     if (!alreadyGreen) {
       SuiteSnapshot? cached;
       if (suiteBaselinePath != null) {
@@ -1257,6 +1265,9 @@ class MakeCommand extends Command<void> {
         }
         baseline = live;
       }
+      baselineFingerprint = baselineFromCache && suiteBaselinePath != null
+          ? await const RunBaselineCache().readFingerprint(suiteBaselinePath)
+          : await const CorpusBaselineCache().dependencyFingerprint(cwd);
     }
 
     // ---------------------------------------------------------------
@@ -1267,6 +1278,15 @@ class MakeCommand extends Command<void> {
     // ---------------------------------------------------------------
     PipelineResult? pipelineResult;
     var postRun = driftRun;
+    // Spec 1529 (FR-9b): the source write probe — a stat-only snapshot of
+    // every project .dart file under lib/ and test/, taken BEFORE the
+    // pipeline runs; the guard-time diff proves what make actually
+    // wrote. The declared write set is the registered pair (subject +
+    // test) in the same normalized project-relative POSIX form the probe
+    // reports. Null when the generation path does not run (the guard
+    // does not either).
+    Map<String, SourceStamp>? writeProbe;
+    Set<String>? declaredWriteSet;
     // Issue #737: set when the plan's terminal `build` step failed but
     // the per-behavior guard tolerated it (the behavior's own test
     // passes, and the failed build's output carried no analyzer errors
@@ -1466,6 +1486,13 @@ class MakeCommand extends Command<void> {
       final subjectSnapshot = await subjectFile.exists()
           ? await subjectFile.readAsString()
           : null;
+      // Spec 1529 (FR-9b): the BEFORE snapshot — taken after the plan is
+      // known, before the first generation step spawns.
+      writeProbe = await SourceWriteProbe.capture(projectRoot: cwd);
+      declaredWriteSet = {
+        _relPosix(record.testPath, cwd),
+        _relPosix(record.subjectPath, cwd),
+      };
       try {
         pipelineResult = await pipelineRunner.runPlan(
           plan: effectivePlan,
@@ -1783,6 +1810,60 @@ class MakeCommand extends Command<void> {
     SuiteSnapshot? guardSnap;
     var regressed = const <String>[];
     if (!alreadyGreen) {
+      // -------------------------------------------------------------
+      // Spec 1529 (US3, FR-9/FR-10/FR-11): the trimmed re-certification
+      // decision. The guard certifies only the behavior's own test plus
+      // the tests whose import closure reaches the declared write set —
+      // and ONLY under the untouched-rest proof: a provable dependency
+      // fingerprint and a write probe showing make changed no .dart file
+      // outside the declared set. Every unmet condition — and every
+      // probe failure — keeps the EXISTING paths below (fail-closed,
+      // never a silent pass).
+      // -------------------------------------------------------------
+      RecertGuardPlan? recert;
+      try {
+        if (writeProbe != null && declaredWriteSet != null) {
+          final changed = await SourceWriteProbe.changedSince(
+            projectRoot: cwd,
+            before: writeProbe,
+          );
+          final sharedWrites = changed.difference(declaredWriteSet).toList();
+          final scope = await RecertScope.compute(
+            projectRoot: cwd,
+            writtenFiles: declaredWriteSet,
+            ownTestPath: _relPosix(testPath, cwd),
+          );
+          final fingerprintNow = await const CorpusBaselineCache()
+              .dependencyFingerprint(cwd);
+          recert = planGuardRecert(
+            fingerprintProven:
+                baselineFingerprint != null &&
+                baselineFingerprint == fingerprintNow,
+            writesDeclaredOnly: sharedWrites.isEmpty,
+            scope: scope,
+            ownTestPath: _relPosix(testPath, cwd),
+            suiteTemplate: suiteTemplate,
+          );
+          if (sharedWrites.isNotEmpty &&
+              recert.mode == RecertGuardMode.fullSuite) {
+            print(
+              '   trimmed re-certification declined: ${recert.reason} '
+              '(${sharedWrites.length} file(s): '
+              '${sharedWrites.take(3).join(', ')}...)',
+            );
+          } else if (recert.mode == RecertGuardMode.postRunTranscript) {
+            print('   trimmed re-certification: ${recert.reason}');
+          }
+        }
+      } on Exception catch (e) {
+        // The trim is an optimization: a probe failure keeps the existing
+        // certification paths (safe failure, never a silent pass).
+        print(
+          '   note: the trimmed re-certification probe failed ($e) — the '
+          'existing guard path applies',
+        );
+        recert = null;
+      }
       if (baselineFromCache) {
         final scopedGuard = guard.parse(
           command: postRun.command,
@@ -1790,15 +1871,54 @@ class MakeCommand extends Command<void> {
           output: postRun.output,
           capturedAt: DateTime.now().toUtc().toIso8601String(),
         );
-        if (scopedGuard.parseable) {
+        if (scopedGuard.parseable &&
+            recert?.mode != RecertGuardMode.scopedRun) {
           print(
             '   suite guard: scoped single-test result (issue #741 '
             'baseline cache)',
           );
           guardSnap = scopedGuard;
+        } else if (scopedGuard.parseable) {
+          print(
+            '   suite guard: the scoped single-test transcript is '
+            'superseded — the trimmed re-certification run must also '
+            'cover the importer test(s) (spec 1529)',
+          );
         } else {
           print(
             '   scoped guard transcript unusable — falling back to the '
+            'live suite',
+          );
+        }
+      }
+      // The trimmed run: ONE scoped suite invocation over {own test +
+      // importers}, replacing the full-suite guard on BOTH the cached-
+      // baseline and the live-baseline paths (FR-10: the #1374
+      // template-append pattern; an unusable transcript falls through to
+      // the full-suite safe failure).
+      if (guardSnap == null &&
+          recert != null &&
+          recert.mode == RecertGuardMode.scopedRun) {
+        print(
+          '   suite guard: trimmed re-certification set — '
+          '${recert.files.length} file(s) (spec 1529)',
+        );
+        final scopedRun = await runner.runSuite(
+          suiteTemplate: recert.command!,
+          workingDirectory: cwd,
+          timeout: timeoutOverride,
+        );
+        final scopedSnap = guard.fromRunRecord(
+          record: scopedRun,
+          capturedAt: DateTime.now().toUtc().toIso8601String(),
+        );
+        if (scopedRun.startedProcess &&
+            scopedSnap.parseable &&
+            !(scopedSnap.exitCode != 0 && scopedSnap.failedTests.isEmpty)) {
+          guardSnap = scopedSnap;
+        } else {
+          print(
+            '   trimmed guard transcript unusable — falling back to the '
             'live suite',
           );
         }
@@ -2889,6 +3009,14 @@ class MakeCommand extends Command<void> {
     final idx = s.indexOf(':');
     if (idx > 0) s = s.substring(0, idx);
     return s.trim();
+  }
+
+  /// Project-relative POSIX normalization (spec 1529): the form the
+  /// write probe reports and the scoped guard command appends — absolute
+  /// or backslash-shaped inputs collapse to one comparable form.
+  static String _relPosix(String path, String from) {
+    final rel = p.isAbsolute(path) ? p.relative(path, from: from) : path;
+    return p.normalize(rel).replaceAll('\\', '/');
   }
 
   /// Whether two test-file paths denote the same file. Paths compared

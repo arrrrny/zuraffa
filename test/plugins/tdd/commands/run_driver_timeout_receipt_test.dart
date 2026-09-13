@@ -26,10 +26,7 @@ void main() {
   late String fakeZfa1529;
 
   setUp(() async {
-    fx = await TddFixture.create(
-      featureName: feature,
-      writeProfile: false,
-    );
+    fx = await TddFixture.create(featureName: feature, writeProfile: false);
     fakeZfa1529 = p.join(fx.root.path, 'fake_bin_1529', 'zfa');
     // The suite spy SLEEPS 0.5s before printing the green transcript:
     // the driver's baseline capture measures ~0.5s, so the projected
@@ -71,134 +68,122 @@ void main() {
     exitCode = 0;
   });
 
-  test(
-    'U8: a make step killed at the deadline writes the timeout receipt '
-    'and names it in the failure report',
-    () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing([
-        'tdd',
-        'run',
-        feature,
-        '--project',
-        fx.root.path,
-        '--zfa-bin',
-        fakeZfa1529,
-        // 0.02 minutes = 1.2s — the make child (sleep 30) is killed.
-        '--timeout',
-        '0.02',
-      ]);
+  test('U8: a make step killed at the deadline writes the timeout receipt '
+      'and names it in the failure report', () async {
+    final runner = CliRunner(exitOnCompletion: false);
+    final out = await runner.runCapturing([
+      'tdd',
+      'run',
+      feature,
+      '--project',
+      fx.root.path,
+      '--zfa-bin',
+      fakeZfa1529,
+      // 0.02 minutes = 1.2s — the make child (sleep 30) is killed.
+      '--timeout',
+      '0.02',
+    ]);
 
-      expect(exitCode, 2, reason: out);
-      expect(out, contains('result=runner-error'));
-      expect(out, contains('stopped_at=B-001:make'));
-      // The failure report names the receipt (FR-1).
-      expect(out, contains('timeout receipt:'));
+    expect(exitCode, 2, reason: out);
+    expect(out, contains('result=runner-error'));
+    expect(out, contains('stopped_at=B-001:make'));
+    // The failure report names the receipt (FR-1).
+    expect(out, contains('timeout receipt:'));
 
-      final receiptPath = p.join(
-        fx.featureDir,
-        'tdd',
-        'make.B-001.timeout.json',
-      );
-      expect(
-        File(receiptPath).existsSync(),
-        isTrue,
-        reason: 'the receipt lands in the feature tdd dir (the issue glob '
-            'make.u8.*.json shape)',
-      );
-      final receipt =
-          jsonDecode(File(receiptPath).readAsStringSync())
-              as Map<String, dynamic>;
-      expect(receipt['schema'], 'tdd-make-timeout-receipt.v1');
-      expect(receipt['behavior'], 'B-001');
-      expect(receipt['step'], 'make');
-      final argv = (receipt['argv'] as List).join(' ');
-      expect(argv, contains('make'));
-      expect(argv, contains('--timeout 0.0200'));
-      // The child slept 30s; the kill landed at the 1.2s deadline.
-      final elapsedMs = receipt['elapsed_ms'] as int;
-      expect(elapsedMs, greaterThanOrEqualTo(1000));
-      expect(elapsedMs, lessThan(25000));
-      expect(receipt['deadline_ms'], 1200);
-      // The fake's make step prints nothing and spawns only `sleep` —
-      // the honest `unknown` phase (FR-3: never a silent guess).
-      expect(receipt['phase'], 'unknown');
-      expect(receipt['phase_evidence'], isA<String>());
-      // No green evidence may exist for the killed make.
-      final log = File(fx.cycleLogPath).readAsStringSync();
-      expect(log, isNot(contains('- kind: green\n- behavior: B-001')));
-    },
-  );
+    final receiptPath = p.join(fx.featureDir, 'tdd', 'make.B-001.timeout.json');
+    expect(
+      File(receiptPath).existsSync(),
+      isTrue,
+      reason:
+          'the receipt lands in the feature tdd dir (the issue glob '
+          'make.u8.*.json shape)',
+    );
+    final receipt =
+        jsonDecode(File(receiptPath).readAsStringSync())
+            as Map<String, dynamic>;
+    expect(receipt['schema'], 'tdd-make-timeout-receipt.v1');
+    expect(receipt['behavior'], 'B-001');
+    expect(receipt['step'], 'make');
+    final argv = (receipt['argv'] as List).join(' ');
+    expect(argv, contains('make'));
+    expect(argv, contains('--timeout 0.0200'));
+    // The child slept 30s; the kill landed at the 1.2s deadline.
+    final elapsedMs = receipt['elapsed_ms'] as int;
+    expect(elapsedMs, greaterThanOrEqualTo(1000));
+    expect(elapsedMs, lessThan(25000));
+    expect(receipt['deadline_ms'], 1200);
+    // The fake's make step prints nothing and spawns only `sleep` —
+    // the honest `unknown` phase (FR-3: never a silent guess).
+    expect(receipt['phase'], 'unknown');
+    expect(receipt['phase_evidence'], isA<String>());
+    // No green evidence may exist for the killed make.
+    final log = File(fx.cycleLogPath).readAsStringSync();
+    expect(log, isNot(contains('- kind: green\n- behavior: B-001')));
+  });
 
-  test(
-    'U13: an explicit --timeout below the projected make cost draws the '
-    'loud warning before the first step spawns',
-    () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing([
-        'tdd',
-        'run',
-        feature,
-        '--project',
-        fx.root.path,
-        '--zfa-bin',
-        fakeZfa1529,
-        '--timeout',
-        '0.02',
-      ]);
+  test('U13: an explicit --timeout below the projected make cost draws the '
+      'loud warning before the first step spawns', () async {
+    final runner = CliRunner(exitOnCompletion: false);
+    final out = await runner.runCapturing([
+      'tdd',
+      'run',
+      feature,
+      '--project',
+      fx.root.path,
+      '--zfa-bin',
+      fakeZfa1529,
+      '--timeout',
+      '0.02',
+    ]);
 
-      expect(exitCode, 2, reason: out);
-      expect(out, contains('WARNING: the explicit --timeout looks unsafe'));
-      expect(out, contains('measured baseline suite:'));
-      expect(out, contains('4 x baseline = '));
-      // The honored budget stays the explicit value (1.2s — 0.02 min).
-      expect(out, contains('explicit budget: 1.2s'));
-      // The warning fires BEFORE any step spawns: the driver prints it
-      // in the baseline block (before phase 1), so it must appear before
-      // the baseline's own cached line and long before the step failure.
-      final warningIndex = out.indexOf(
-        'WARNING: the explicit --timeout looks unsafe',
-      );
-      final stepFailedIndex = out.indexOf('step failed');
-      expect(warningIndex, greaterThanOrEqualTo(0));
-      expect(stepFailedIndex, greaterThan(warningIndex));
-    },
-  );
+    expect(exitCode, 2, reason: out);
+    expect(out, contains('WARNING: the explicit --timeout looks unsafe'));
+    expect(out, contains('measured baseline suite:'));
+    expect(out, contains('4 x baseline = '));
+    // The honored budget stays the explicit value (1.2s — 0.02 min).
+    expect(out, contains('explicit budget: 1.2s'));
+    // The warning fires BEFORE any step spawns: the driver prints it
+    // in the baseline block (before phase 1), so it must appear before
+    // the baseline's own cached line and long before the step failure.
+    final warningIndex = out.indexOf(
+      'WARNING: the explicit --timeout looks unsafe',
+    );
+    final stepFailedIndex = out.indexOf('step failed');
+    expect(warningIndex, greaterThanOrEqualTo(0));
+    expect(stepFailedIndex, greaterThan(warningIndex));
+  });
 
-  test(
-    'the scaled DEFAULT budget (no --timeout) is handed down as the one '
-    'uniform deadline — the 25m floor for a fast measured suite',
-    () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing([
-        'tdd',
-        'run',
-        feature,
-        '--project',
-        fx.root.path,
-        '--zfa-bin',
-        fakeZfa1529,
-      ]);
+  test('the scaled DEFAULT budget (no --timeout) is handed down as the one '
+      'uniform deadline — the 25m floor for a fast measured suite', () async {
+    final runner = CliRunner(exitOnCompletion: false);
+    final out = await runner.runCapturing([
+      'tdd',
+      'run',
+      feature,
+      '--project',
+      fx.root.path,
+      '--zfa-bin',
+      fakeZfa1529,
+    ]);
 
-      // The fake make green-paths when the argv carries the floor
-      // budget; the run completes.
-      expect(exitCode, 0, reason: out);
-      final log = File(
-        p.join(fx.root.path, 'fake_bin_1529', 'zfa_calls.log'),
-      ).readAsStringSync().split('\n').where((l) => l.trim().isNotEmpty);
-      final makeCall = log.firstWhere((l) => l.contains('tdd make '));
-      expect(makeCall, contains('--timeout 25.0000'));
-      // No warning without an explicit budget.
-      expect(out, isNot(contains('WARNING: the explicit --timeout')));
-      // No receipt: nothing was killed.
-      expect(
-        File(
-          p.join(fx.featureDir, 'tdd', 'make.B-001.timeout.json'),
-        ).existsSync(),
-        isFalse,
-      );
-    },
-  );
+    // The fake make green-paths when the argv carries the floor
+    // budget; the run completes.
+    expect(exitCode, 0, reason: out);
+    final log = File(
+      p.join(fx.root.path, 'fake_bin_1529', 'zfa_calls.log'),
+    ).readAsStringSync().split('\n').where((l) => l.trim().isNotEmpty);
+    final makeCall = log.firstWhere((l) => l.contains('tdd make '));
+    expect(makeCall, contains('--timeout 25.0000'));
+    // No warning without an explicit budget.
+    expect(out, isNot(contains('WARNING: the explicit --timeout')));
+    // No receipt: nothing was killed.
+    expect(
+      File(
+        p.join(fx.featureDir, 'tdd', 'make.B-001.timeout.json'),
+      ).existsSync(),
+      isFalse,
+    );
+  });
 }
 
 /// The spec-1529 fake zfa: `verify-red` certifies with a red evidence
@@ -210,7 +195,8 @@ Future<void> _writeFakeZfa(TddFixture fx) async {
   final binDir = p.join(fx.root.path, 'fake_bin_1529');
   await Directory(binDir).create(recursive: true);
   final scriptPath = p.join(binDir, 'zfa');
-  await File(scriptPath).writeAsString(r'''
+  await File(scriptPath).writeAsString(
+    r'''
 #!/usr/bin/env bash
 ARGV="$*"
 HEAD="$1"
@@ -257,9 +243,8 @@ case "$STEP" in
     exit 0
     ;;
 esac
-'''.replaceAll(
-        '__ARGVLOG__',
-        p.join(binDir, 'zfa_calls.log'),
-      ));
+'''
+        .replaceAll('__ARGVLOG__', p.join(binDir, 'zfa_calls.log')),
+  );
   await Process.run('chmod', ['+x', scriptPath]);
 }
