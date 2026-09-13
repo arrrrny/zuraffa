@@ -46,3 +46,14 @@
   `dart test test/package_sdk/plugin_scaffold_test.dart`
   → `00:03 +15: All tests passed!` — B1–B8, B10, B11 driven to done
   (15 test cases over 11 behaviors; committed 3472ad8d).
+
+## Cycle C2 — B9 end-to-end (slow tier)
+
+- **RED**: B9 test file first failed to load (missing `dart:convert`
+  import — compile-error red, fixed without touching assertions).
+- **GREEN**: `dart test test/package_sdk/plugin_scaffold_e2e_test.dart
+  --preset=integration` → `05:05 +1: All tests passed!` — the real CLI
+  (`zfa package plugin e2e_plugin --zuraffa-path <checkout> --no-gate`)
+  scaffolded the five-package family and every package passed
+  `dart pub get` → `dart analyze --no-fatal-warnings` → `dart test`
+  untouched, in 3m51s (budget 8 min). Evidence: B9 elapsed log line.

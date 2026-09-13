@@ -47,12 +47,13 @@ void main() {
         final monorepo = p.join(tempDir.path, 'e2e_plugin');
         expect(Directory(monorepo).existsSync(), isTrue);
 
-        final packages = Directory(p.join(monorepo, 'packages'))
-            .listSync()
-            .whereType<Directory>()
-            .map((d) => p.basename(d.path))
-            .toList()
-          ..sort();
+        final packages =
+            Directory(p.join(monorepo, 'packages'))
+                .listSync()
+                .whereType<Directory>()
+                .map((d) => p.basename(d.path))
+                .toList()
+              ..sort();
         expect(packages, [
           'e2e_plugin',
           'e2e_plugin_android',
@@ -77,16 +78,22 @@ void main() {
             workingDirectory: pkgPath,
             timeout: const Duration(seconds: 120),
           );
-          expect(analyze.exitCode, 0,
-              reason: '$pkg must analyze clean: ${_raw(analyze)}');
+          expect(
+            analyze.exitCode,
+            0,
+            reason: '$pkg must analyze clean: ${_raw(analyze)}',
+          );
 
           final test = await _runSupervised(
             ['dart', 'test'],
             workingDirectory: pkgPath,
             timeout: const Duration(seconds: 300),
           );
-          expect(test.exitCode, 0,
-              reason: '$pkg tests must pass: ${_raw(test)}');
+          expect(
+            test.exitCode,
+            0,
+            reason: '$pkg tests must pass: ${_raw(test)}',
+          );
         }
 
         // ignore: avoid_print

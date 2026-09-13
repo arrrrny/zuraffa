@@ -132,7 +132,7 @@ per-package pub get + analyze + test green.
 
 ### Tests for User Story 4 (written first, must FAIL)
 
-- [ ] T014. [US4] [behavior: B9] [MANDATORY] E2E in
+- [x] T014. [US4] [behavior: B9] [MANDATORY] E2E in
       `test/package_sdk/plugin_scaffold_e2e_test.dart`
       (`@Tags(['integration','slow'])`, `run_zfa_source` helper): CLI
       `package plugin e2e_plugin --output <tmp> --zuraffa-path <repo>`
@@ -180,7 +180,7 @@ creates nothing.
 - [x] T019. [P] CLI_GUIDE.md + README.md: document
       `zfa package plugin` beside `zfa package create` (surface, options,
       generated family, publish flow pointer).
-- [ ] T020. `dart format lib test` clean; `dart analyze` clean;
+- [x] T020. `dart format lib test` clean; `dart analyze` clean;
       feature-scoped `dart test test/package_sdk/` green.
 
 ## Dependencies & Execution Order
