@@ -1,15 +1,21 @@
-# TDD test list — Bug #1575 fence-blind line-scanners outside the cycle-log
+# TDD test list — Bug #1486 Key Entities fields silently dropped without backticks
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| A-1575-a1 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | an in-fence `## Inner loop:` banner does not re-kind the enclosing section (A2 stays acceptance) | FR-1575, TestListReader._parseRows | GREEN |
-| A-1575-a2 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | an in-fence `## Key entities` banner does not switch the walk into the declarative section (U2 parses, no silent vanish) | FR-1575, TestListReader._parseRows | GREEN |
-| A-1575-a3 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | readEntities: an in-fence header does not close the Key entities section (post-fence entity row survives) | FR-1575, TestListReader.readEntities | GREEN |
-| A-1575-a4 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | readDependencies: an in-fence header does not close the External dependencies section (post-fence dependency row survives) | FR-1575, TestListReader.readDependencies | GREEN |
-| A-1575-a5 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | readLayerContracts: an in-fence header does not close the Layer contracts section (post-fence contract bullet survives, layer kept) | FR-1575, TestListReader.readLayerContracts | GREEN |
-| U-1575-b1 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | unit | a well-formed list without fences parses unchanged (hard constraint: no regression for canonical inputs) | FR-1575, TestListReader._parseRows | GREEN |
-| U-1575-b2 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | unit | the committed 004 corpus shape (in-fence `## Baseline (...)` banner) parses identically before and after the fix | FR-1575, TestListReader._parseRows | GREEN |
-| U-1575-b3 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | unit | a malformed row after a fence reports its honest absolute line number (bug #984 line-naming contract stays byte-identical) | FR-1575, TestListReader._parseDataRow | GREEN |
-| U-1575-c1 | test/core/proof_chain_checker_1575_fence_test.dart | unit | an in-fence header does not drop post-fence behavior ids from the coverage audit (B2 gap reported) | FR-1575, _behaviorIdsOf | GREEN |
-| U-1575-c2 | test/core/proof_chain_checker_1575_fence_test.dart | unit | a fenced `## Behaviors` example fabricates no phantom audit ids (PHANTOM never reported, declarations stay declarations) | FR-1575, _behaviorIdsOf | GREEN |
-| U-1575-c3 | test/core/proof_chain_checker_1575_fence_test.dart | unit | a well-formed behaviors table audits exactly as before (hard constraint: no regression for the coverage check) | FR-1575, _behaviorIdsOf | GREEN |
+| A-1486-b1 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a 3-column row with plain pairs parses ALL fields — the issue's exact repro (`Task`, `id/title/isCompleted/createdAt`), purpose intact | FR-1486, SpecParser.parseKeyEntities, _parseFieldCell | GREEN (RED pre-fix) |
+| A-1486-b2 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | the 2-column table (#1381 grammar) accepts plain pairs | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
+| A-1486-b3 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a mixed cell (backticked + plain) parses both, in source order | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
+| A-1486-b4 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | GUARD: the backticked 3-col grammar is unchanged (names + purpose) | FR-1486, backwards compat | GREEN |
+| A-1486-b5 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | generic types with top-level commas survive the plain split (`Map<String, int>`, `List<List<int>>` verbatim) | FR-1486, depth-aware comma split | GREEN (RED pre-fix) |
+| A-1486-b6 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | nullable types parse as plain pairs (`String?`) | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
+| A-1486-b7 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | evidence-but-zero cells are REPORTED, never silent: `1id: String` and a prose backtick span yield anomalies (entity, verbatim cell, 1-based line); no-evidence and parsing cells yield none | FR-1486, SpecEntityFieldAnomaly | GREEN (compile-red pre-fix) |
+| A-1486-b8 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | GUARD: bullet prose keeps the strict backticked-only grammar — plain prose invents NOTHING | FR-1486, false-positive guard | GREEN |
+| A-1486-b9 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | `entityFieldNamesFromDartSource` reads the on-disk entity shape (final/late final in; constructor params and assignment-initialised locals out) | FR-1486, phase-0 reuse mismatch | GREEN (compile-red pre-fix) |
+| A-1486-b10 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a PARTIALLY dropped cell is REPORTED too: `id: String, 2ndField: int` mints `id` and announces the drop; `id: String; title: String` announces the type-swallowed second pair | FR-1486, SpecEntityFieldAnomaly, partial drop | GREEN (RED pre-fix) |
+| A-1486-b11 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a whitespace-padded backticked span (`` ` id: String` ``) mints its pair like the plain path — and drops nothing, so reports nothing | FR-1486, span trim parity | GREEN (RED pre-fix) |
+| A-1486-b12 | test/plugins/tdd/run_command_test.dart | integration | the phase-0 reuse branch's field-mismatch warning is ASSERTED (not merely executed): plan declares `id, title`, the reused entity file declares only `id` → stdout names both sets, the file is untouched | FR-1486, `_logPhaseZeroFieldMismatch` | GREEN |
+
+Signal paths (print-only, asserted by the suites above + the #1381 plan suite):
+
+- plan: `SpecEntityFieldAnomaly` rows → per-row `zfa tdd plan: WARNING` (#1486 sibling of #1381's zero-entity warning) — plan_command.dart
+- run: phase-0 reuse branch logs declared-vs-on-disk field mismatch — run_driver_core.dart `_logPhaseZeroFieldMismatch`, asserted by A-1486-b12 (`run_command_test.dart` U-829d2)

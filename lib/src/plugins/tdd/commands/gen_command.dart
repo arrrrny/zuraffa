@@ -45,7 +45,17 @@
 /// safe once explicitly requested (audit-logged, adopt discipline for
 /// surviving halves).
 ///
-/// `--dry-run`: plans the pair without writing anything (FR-009).
+/// `--dry-run`: plans the pair without writing anything (FR-009) — the
+/// issue-#1528 entry preflight probes the TDD profile but never
+/// initializes it, so a missing profile fails closed as `setup-error`
+/// instead of scaffolding a baseline the invocation was told to plan
+/// only.
+///
+/// Issue #1528 ordering: the behavior/test-list row is resolved BEFORE
+/// the entry preflight, so a caller-level error (`unknown behavior id`,
+/// a malformed test list) is reported without baseline side effects
+/// (`tdd run` orders its preflight the same way, after feature
+/// resolution).
 ///
 /// Bounded flow (bug #744): every awaited stage of the flow — behavior
 /// resolution, ownership preflight, the two writer writes, the registry
@@ -84,6 +94,8 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../../../cli/exit_protocol.dart';
+
 import '../models/channel_scenario.dart';
 import '../models/verdict_envelope.dart';
 import '../services/artifact_registry.dart';
@@ -96,6 +108,7 @@ import '../services/generated_shape.dart';
 import '../services/gen_reuse_fingerprint.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
+import '../services/profile_preflight.dart';
 import '../services/vacuous_guard.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/declared_routing.dart';
@@ -742,6 +755,46 @@ class GenCommand extends Command<void> {
         '${featureFlag != null ? " for feature $featureFlag" : ""}.',
       );
       throw StateError('zfa tdd gen: unknown behavior id "$behaviorId"');
+    }
+
+    // ---------------------------------------------------------------
+    // Issue #1528 entry preflight: a missing TDD profile is a SETUP
+    // condition, deterministically detectable before the flow. The row
+    // is resolved FIRST (above), so a caller-level usage error — a
+    // typo'd behavior id, a malformed test list — can never scaffold a
+    // baseline or patch `pubspec.yaml` as a side effect of reporting it
+    // (`tdd run` orders its preflight the same way, after feature
+    // resolution). Ensure the baseline HERE (the shared idempotent init
+    // sequence, created artifacts logged); a misfiring writer fails
+    // CLOSED with the machine-readable setup-error verdict before any
+    // test/subject is touched. A present profile makes this a silent
+    // no-op, and `--dry-run` (plan without writing, FR-009) probes only:
+    // a missing profile there fails closed instead of auto-initializing.
+    // ---------------------------------------------------------------
+    try {
+      await const TddProfilePreflight().ensure(
+        projectRoot: cwd,
+        commandLabel: 'zfa tdd gen',
+        onLine: print,
+        autoInit: !dryRun,
+      );
+    } on TddProfilePreflightError catch (e) {
+      print(
+        'zfa tdd gen: $kSetupErrorLabel — the TDD baseline could not be '
+        'ensured before the flow: ${e.message}',
+      );
+      print(ExitProtocol.fixLine('run `zfa tdd init`, then re-run'));
+      _verdict
+        ..exitClass = kSetupErrorLabel
+        ..outcome = VerdictOutcome.fail
+        ..fix = 'run `zfa tdd init` (idempotent), then re-run'
+        ..details['preflight'] =
+            'baseline preflight refused the gen '
+            '(issue #1528)'
+        ..details['setup'] = 'missing/broken ${TddProfilePreflight.profilePath}'
+        ..details['classification'] = kSetupErrorLabel;
+      exitCode = 1;
+      return null;
     }
 
     // Issue #1471: the feature directory may be a bug directory
