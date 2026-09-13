@@ -1,4 +1,4 @@
-@Tags(['slow'])
+@Tags(['regression', 'e2e'])
 // Tests for `MakeCommand` (spec 047-tdd-make, T010/T014/T018/T022/T025).
 // Drives the public CLI surface (`zfa tdd make`) against a real temp
 // fixture project whose registry records gen-style artifacts; the
@@ -1303,7 +1303,28 @@ int subject_u_100() {
         description: 'pure prose acceptance behavior',
       );
       // No unit behaviors, no green evidence: nothing to compose against.
-      final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
+      // Issue #1512 routed this row to the spec-052 composition plan, so
+      // the compose step DOES run — and the real compose command
+      // fail-closes with the no-green-units anchor precondition (the
+      // transcript below is its production output shape). Issue #1551:
+      // that unmet precondition is a DEFERRAL, not a generation defect —
+      // the make grades it `unexpressible` so the run driver's deferral
+      // arm (bug #625/#826) defers the behavior to phase 2 instead of
+      // hard-stopping the run at A-101:make on every resume.
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        stdoutByArgv: {
+          'tdd compose': [
+            'zfa tdd compose: no green unit subjects to compose against: '
+                'behavior "A-101" needs at least one unit-kind behavior '
+                'with green cycle-log evidence or an entity-wired subject '
+                'artifact.',
+            'compose: behavior=A-101 outcome=no-green-units '
+                'feature=${fx.featureName}',
+          ],
+        },
+        exitByArgv: {'tdd compose': 1},
+      );
 
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(
@@ -1317,10 +1338,20 @@ int subject_u_100() {
           'make: behavior=A-101 outcome=unexpressible '
           'feature=${fx.featureName}',
         ),
+        reason: out,
       );
-      // Pipeline NEVER invoked — the fallback disengaged before spawning.
+      // Issue #1551: never the generation-error grading (the deadlock
+      // token), and the stop names the deferral.
+      expect(out, isNot(contains('outcome=generation-error')), reason: out);
+      expect(out, contains('#1551'));
+      // The composition lane engaged (the compose step ran and failed
+      // with the anchor precondition).
       final log = await fx.readFakeZfaLog();
-      expect(log, isEmpty);
+      expect(
+        log.where((l) => l.contains('tdd compose A-101')),
+        isNotEmpty,
+        reason: 'the compose step runs before the deferral grading',
+      );
       expect(
         await File(fx.cycleLogPath).readAsString(),
         isNot(contains('## Cycle: A-101 (green)')),

@@ -36,7 +36,13 @@ jobs:
         # Exclude the Flutter-generation tests (tagged `flutter`); those are
         # covered by the `test` (flutter) job below. This keeps `dart_core` a
         # true pure-Dart suite that runs on the Dart SDK only.
-        run: dart test test --exclude-tags flutter
+        # Also exclude `e2e` — heavyweight make-command regression suites
+        # (#1510) that drive real `dart test`/`dart pub get` subprocesses in
+        # temp fixtures. They are honest under direct `dart test <file>`
+        # (no longer slow-tagged) but must stay off the fast lane: this job
+        # runs at ~22 of its 30 budgeted minutes, and the e2e suites would
+        # blow it. They run in --preset=regression / --preset=all instead.
+        run: dart test test --exclude-tags "flutter || e2e"
 
   proof_smoke:
     # Issue #807 (proof-carrying generation): generate a sandbox project,

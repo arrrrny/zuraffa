@@ -347,12 +347,19 @@ class SingleTestRunner {
   /// #742): a hanging child is killed and the returned [RunRecord] carries
   /// `timedOut: true` with the timeout message as its output — never a
   /// hang, never a certified red. Defaults to [TddTimeouts.defaultSingleTest].
+  ///
+  /// [environment] (spec 1520) is the caller's per-run scratch environment
+  /// (`ScratchTmpDir.childEnvironment`) — MERGED into the child's inherited
+  /// environment by `Process.start`, so `PATH`/`HOME` survive while
+  /// `TMPDIR`/`TEMP`/`TMP` point at the run's own scratch. Null inherits
+  /// the parent environment unchanged.
   Future<RunRecord> runSingle({
     required String singleTemplate,
     required String testPath,
     required String testName,
     required String workingDirectory,
     Duration? timeout,
+    Map<String, String>? environment,
   }) async {
     final display = _substitute(singleTemplate, testPath, testName);
     final tokens = withCompactReporter(
@@ -367,6 +374,7 @@ class SingleTestRunner {
         args,
         workingDirectory: workingDirectory,
         timeout: timeout ?? TddTimeouts.defaultSingleTest,
+        environment: environment,
       );
       // CRLF first: a lone-`\r` fold would turn every Windows-style
       // CRLF into two newlines, and the blank line breaks the trailing
@@ -414,10 +422,15 @@ class SingleTestRunner {
   /// [timeout] is the hard deadline for the spawned suite process (bug
   /// #742): a hanging child is killed and the returned [SuiteRunRecord]
   /// carries `timedOut: true`. Defaults to [TddTimeouts.defaultSuite].
+  ///
+  /// [environment] (spec 1520) is the caller's per-run scratch environment
+  /// (`ScratchTmpDir.childEnvironment`), forwarded to the spawn chokepoint
+  /// exactly like [runSingle]'s. Null inherits the parent environment.
   Future<SuiteRunRecord> runSuite({
     required String suiteTemplate,
     required String workingDirectory,
     Duration? timeout,
+    Map<String, String>? environment,
   }) async {
     final command = suiteTemplate.trim();
     final tokens = withCompactReporter(splitCommand(command));
@@ -430,6 +443,7 @@ class SingleTestRunner {
         args,
         workingDirectory: workingDirectory,
         timeout: timeout ?? TddTimeouts.defaultSuite,
+        environment: environment,
       );
       // CRLF first (see runSingle): two-newline folds break the trailing
       // failure-block regex in SuiteGuard.parse.
