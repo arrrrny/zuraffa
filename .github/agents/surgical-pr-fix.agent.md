@@ -76,6 +76,10 @@ failing test demands it.
 ### 6. Apply the minimal edit and verify ONLY the failing test
 
 ```bash
+dart pub get --no-example   # required before formatting (#1506): a fresh
+                            # clone without package resolution makes
+                            # dart format spam resolution warnings and
+                            # rewrite unrelated files
 dart format <touched files>
 dart test test/path/to/failing_file_test.dart
 ```
