@@ -21,6 +21,7 @@
 // unchanged.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -124,33 +125,47 @@ void main() {
       );
     });
 
-    test('U-1539-3: a twice-crashing analyze does NOT mask real structural '
-        'drift — the gate still fails', () async {
-      final report = await MockCertifier().gate(
-        certification: _driftedCertification,
-        projectRoot: Directory.systemTemp.path,
-        analyzeRunner: (files, cwd) async =>
-            (exitCode: 1, output: _crashOutput),
-      );
+    test(
+      'U-1539-3: a twice-crashing analyze does NOT mask real structural '
+      'drift — the gate still fails, and drift alone is never retried',
+      () async {
+        var calls = 0;
+        final report = await MockCertifier().gate(
+          certification: _driftedCertification,
+          projectRoot: Directory.systemTemp.path,
+          analyzeRunner: (files, cwd) async {
+            calls++;
+            return (exitCode: 1, output: _crashOutput);
+          },
+        );
 
-      expect(
-        report.passed,
-        isFalse,
-        reason: 'the crash must not paper over the missing member',
-      );
-      expect(
-        report.fixLines.join('\n'),
-        contains('update'),
-        reason: 'the drift fix line names the missing member',
-      );
-      expect(
-        report.analyzeUnverified,
-        isNull,
-        reason:
-            'the certification did not stand, so there is nothing '
-            'to disclose as unverified',
-      );
-    });
+        expect(
+          calls,
+          1,
+          reason:
+              'the gate already fails on drift, so a second analysis '
+              'server would be spent re-failing on evidence the analyze '
+              'cannot change',
+        );
+        expect(
+          report.passed,
+          isFalse,
+          reason: 'the crash must not paper over the missing member',
+        );
+        expect(
+          report.fixLines.join('\n'),
+          contains('update'),
+          reason: 'the drift fix line names the missing member',
+        );
+        expect(
+          report.analyzeUnverified,
+          isNull,
+          reason:
+              'the certification did not stand, so there is nothing '
+              'to disclose as unverified',
+        );
+      },
+    );
 
     test('U-1539-4: a real analyzer error (no crash signature) is never '
         'retried and still fails the gate', () async {
@@ -173,6 +188,89 @@ void main() {
       expect(calls, 1, reason: 'only a detected crash retries');
       expect(report.passed, isFalse);
       expect(report.fixLines.join('\n'), contains('Some compile error'));
+      expect(report.analyzeUnverified, isNull);
+    });
+
+    test('U-1539-4b: a crash retried into a real analyzer error still fails '
+        'the gate with fix lines', () async {
+      var calls = 0;
+      final report = await MockCertifier().gate(
+        certification: _cleanCertification,
+        projectRoot: Directory.systemTemp.path,
+        analyzeRunner: (files, cwd) async {
+          calls++;
+          return calls == 1
+              ? (exitCode: 1, output: _crashOutput)
+              : (
+                  exitCode: 3,
+                  output:
+                      '  error - lib/src/data/datasources/product/'
+                      'product_mock_datasource.dart:12:9 - Some compile '
+                      'error - some_code',
+                );
+        },
+      );
+
+      expect(calls, 2, reason: 'the crash retried once');
+      expect(report.passed, isFalse);
+      expect(
+        report.fixLines.join('\n'),
+        contains('Some compile error'),
+        reason: 'the retry verdict is the one that counts',
+      );
+      expect(report.analyzeUnverified, isNull);
+    });
+
+    test('U-1539-4c: unrecognized non-zero output is NOT a crash — the gate '
+        'fails safe on the raw tail, with no retry', () async {
+      var calls = 0;
+      final report = await MockCertifier().gate(
+        certification: _cleanCertification,
+        projectRoot: Directory.systemTemp.path,
+        analyzeRunner: (files, cwd) async {
+          calls++;
+          return (exitCode: 1, output: 'some unrecognized tool failure');
+        },
+      );
+
+      expect(calls, 1, reason: 'only the recognized crash shape retries');
+      expect(
+        report.passed,
+        isFalse,
+        reason:
+            'an unrecognized failure must fail the gate, never pass on '
+            'the structural proof',
+      );
+      expect(
+        report.fixLines.join('\n'),
+        contains('some unrecognized tool failure'),
+        reason: 'the raw tail is surfaced rather than staying silent',
+      );
+      expect(report.analyzeUnverified, isNull);
+    });
+
+    test('U-1539-4d: a re-cased, reworded analysis-server shutdown is still '
+        'classified as infra', () async {
+      var calls = 0;
+      final report = await MockCertifier().gate(
+        certification: _cleanCertification,
+        projectRoot: Directory.systemTemp.path,
+        analyzeRunner: (files, cwd) async {
+          calls++;
+          return calls == 1
+              ? (exitCode: 1, output: 'The ANALYSIS SERVER shut down.')
+              : (exitCode: 0, output: 'Analyzing... No issues found!');
+        },
+      );
+
+      expect(
+        calls,
+        2,
+        reason:
+            'the classifier matches the stable part of the message, not '
+            'the SDK wording, so a reworded shutdown still retries',
+      );
+      expect(report.passed, isTrue);
       expect(report.analyzeUnverified, isNull);
     });
   });
@@ -259,6 +357,78 @@ void main() {
       expect(out, isNot(contains('--> fix:')));
       exitCode = exitCodeAtEntry;
     }, timeout: const Timeout(Duration(minutes: 3)));
+
+    test('U-1539-7: mock create --certify --json discloses the unverified '
+        'compiler verdict in the machine envelope', () async {
+      MockCertifier.analyzeRunnerOverride = (files, cwd) async =>
+          (exitCode: 1, output: _crashOutput);
+
+      final out = await runCli([
+        'mock',
+        'create',
+        'Product',
+        '--certify',
+        '--json',
+      ]);
+
+      expect(
+        exitCode,
+        0,
+        reason: 'the structural certification stands, output:\n$out',
+      );
+      final decoded = jsonDecode(out) as Map<String, dynamic>;
+      final details = decoded['details'] as Map<String, dynamic>;
+      expect(
+        details['analyzeUnverified'],
+        contains('The analysis server crashed unexpectedly'),
+        reason:
+            'a machine consumer must be able to tell a compiler-verified '
+            'mock from one certified on structure alone',
+      );
+      exitCode = exitCodeAtEntry;
+    }, timeout: const Timeout(Duration(minutes: 3)));
+  });
+
+  group('disclosure contract — one formatter for both commands (#1616)', () {
+    test('U-1539-8: the shared notice reports the receipt write that '
+        'actually happened', () {
+      List<String> notice({required bool hasReceipt, bool written = false}) =>
+          analyzeUnverifiedNotice(
+            entity: 'Product',
+            registryId: 'mock-cert:product@deadbeef',
+            crashOutput: _crashOutput,
+            subject: 'mock certification: Product — ',
+            hasReceipt: hasReceipt,
+            receiptWritten: written,
+          );
+
+      final persisted = notice(hasReceipt: true, written: true);
+      final failed = notice(hasReceipt: true);
+      final readOnly = notice(hasReceipt: false);
+
+      expect(persisted.join('\n'), contains('receipt persisted'));
+      expect(
+        failed.join('\n'),
+        contains('receipt NOT written'),
+        reason:
+            'the receipt write is best-effort, so claiming a receipt it '
+            'failed to write is the one lie this disclosure exists to '
+            'prevent',
+      );
+      expect(
+        readOnly.join('\n'),
+        isNot(contains('receipt')),
+        reason: 'mock verify writes no receipt, so it makes no claim',
+      );
+      for (final lines in [persisted, failed, readOnly]) {
+        expect(lines.first, contains('UNVERIFIED'));
+        expect(
+          lines.last,
+          contains('zfa mock verify Product'),
+          reason: 'the re-proof path is part of the shared contract',
+        );
+      }
+    });
   });
 }
 

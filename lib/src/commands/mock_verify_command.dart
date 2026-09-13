@@ -283,23 +283,19 @@ class MockVerifyCommand extends Command<void> {
       if (report.passed) {
         // Issue #1539: a crashed analyze on BOTH passes leaves the
         // structural certification standing — disclose the unverified
-        // compiler verdict loudly, never a silent pass.
+        // compiler verdict loudly, never a silent pass. Same shared
+        // formatter as `mock create --certify` (PR #1616 review finding
+        // 6): this command writes no receipt, so the receipt clause is
+        // absent rather than false.
         if (report.analyzeUnverified != null) {
-          // ignore: avoid_print
-          print(
-            '⚠️  dart analyze could not produce a compiler verdict '
-            '(analysis server crash, retried once). The compiler verdict '
-            'is UNVERIFIED (issue #1539):',
-          );
-          // ignore: avoid_print
-          print(report.analyzeUnverified!);
-          // ignore: avoid_print
-          print(
-            '   The structural certification stands '
-            '(${certification.registryId} conforms). Re-run '
-            '`zfa mock verify $entity` on a quieter host to re-prove the '
-            'compiler verdict.',
-          );
+          for (final line in analyzeUnverifiedNotice(
+            entity: entity,
+            registryId: certification.registryId,
+            crashOutput: report.analyzeUnverified!,
+          )) {
+            // ignore: avoid_print
+            print(line);
+          }
         }
         // ignore: avoid_print
         print(

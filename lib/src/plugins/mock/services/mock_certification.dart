@@ -490,6 +490,45 @@ class CertifyReport {
   });
 }
 
+/// Issue #1539 (PR #1616 review finding 6): the ONE source of the UNVERIFIED
+/// disclosure contract, shared by `mock create --certify` and `mock verify`.
+/// The two commands print these lines verbatim, and the tests assert them by
+/// substring (`U-1539-5`/`U-1539-6`), so the wording, the indentation, and the
+/// `zfa mock verify` re-proof path agreeing is part of the API surface — one
+/// formatter is what keeps them from drifting apart again.
+///
+/// [subject] is the command-specific lead-in (`mock certification: Product — `
+/// for create, empty for the bare verify form); everything after it is shared.
+///
+/// [hasReceipt] is false for the read-only verify, which writes no receipt.
+/// When it is true, [receiptWritten] reports whether the best-effort receipt
+/// write actually landed — claiming "receipt persisted" after a failed write
+/// would be the one lie this disclosure exists to prevent.
+List<String> analyzeUnverifiedNotice({
+  required String entity,
+  required String registryId,
+  required String crashOutput,
+  String subject = '',
+  bool hasReceipt = false,
+  bool receiptWritten = false,
+}) {
+  final receiptClause = !hasReceipt
+      ? ''
+      : receiptWritten
+      ? ', receipt persisted'
+      : ', receipt NOT written';
+  return [
+    '⚠️  ${subject}dart analyze could not produce a compiler verdict '
+        '(analysis server crash, retried once). The compiler verdict is '
+        'UNVERIFIED (issue #1539):',
+    crashOutput,
+    '    The structural certification stands '
+        '($registryId conforms$receiptClause). '
+        'Re-run `zfa mock verify $entity` on a quieter host to re-prove '
+        'the compiler verdict.',
+  ];
+}
+
 /// `zfa mock create <Entity> --certify` (issue #970 T004): the gate that
 /// makes "contract-conforming" a refused-not-claimed property.
 ///
@@ -566,7 +605,13 @@ class MockCertifier {
       // verification TOOL, not mock drift — retry the pass once before
       // classifying (the dogfood crash was host memory pressure under
       // concurrent builds, a shape that clears on a retry).
-      if (_isAnalyzerCrash(result.exitCode, result.output)) {
+      //
+      // Only when nothing else already fails the gate: a structurally
+      // drifted mock is failing on evidence the analyze cannot change, so
+      // the second `dart analyze` (analysis-server start included) would
+      // be spent purely to re-fail on drift the gate already knew about.
+      // The raw-tail fallback below still runs for a non-empty `fixes`.
+      if (fixes.isEmpty && _isAnalyzerCrash(result.exitCode, result.output)) {
         result = await runner(analyzeFiles, projectRoot);
       }
       if (result.exitCode != 0) {
@@ -611,11 +656,19 @@ class MockCertifier {
 
   /// Issue #1539: the analysis-server crash shape — the child died
   /// mid-verification, so the exit is non-zero with NO `error -`
-  /// diagnostics and the crash text in the output. Both dogfood strings
-  /// are matched verbatim.
-  static bool _isAnalyzerCrash(int exitCode, String output) =>
-      exitCode != 0 &&
-      !output.contains('error -') &&
-      (output.contains('The analysis server crashed unexpectedly') ||
-          output.contains('The analysis server shut down unexpectedly'));
+  /// diagnostics and crash text in the output.
+  ///
+  /// Matching is case-insensitive over the STABLE part of the message
+  /// (`analysis server` + `crash`/`shut down`) rather than the analysis
+  /// server's verbatim wording, which is not a public contract: a
+  /// reworded or re-cased shutdown must not fall through to a drift
+  /// verdict. Unrecognized non-zero output is deliberately NOT a crash —
+  /// the caller fails the gate on the raw tail, which is the fail-safe
+  /// direction.
+  static bool _isAnalyzerCrash(int exitCode, String output) {
+    if (exitCode == 0 || output.contains('error -')) return false;
+    final lower = output.toLowerCase();
+    return lower.contains('analysis server') &&
+        (lower.contains('crash') || lower.contains('shut down'));
+  }
 }
