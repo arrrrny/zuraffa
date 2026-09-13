@@ -11,15 +11,18 @@
 ///    into a temp package's `lib/`, preserving the layout so the contract
 ///    test's relative imports are byte-identical;
 /// 3. copy the contract test to `test/mock/<snake>/…`;
-/// 4. `dart pub get` (offline first, warm-cache friendly), `dart analyze`
-///    (must be error-free), `dart test <contract-test>` with the JSON
-///    reporter — per-method outcomes are parsed from the test events.
+/// 4. pub get (offline first, warm-cache friendly), analyze (must be
+///    error-free), `test <contract-test>` with the JSON reporter —
+///    per-method outcomes are parsed from the test events.
 ///
-/// The runner is `dart analyze` + `dart test` (package:test — the same
-/// engine `flutter test` wraps): the zuraffa root package is pure Dart
-/// (see `.specify/memory/tdd-profile.md`) and CI has no Flutter SDK on
-/// the dart lane, so the deterministic, CI-parity choice is the Dart
-/// toolchain.
+/// The runner is the plain Dart toolchain by default (`dart analyze` +
+/// `dart test` — package:test is the same engine `flutter test` wraps; the
+/// zuraffa root package is pure Dart (see
+/// `.specify/memory/tdd-profile.md`) and CI has no Flutter SDK on the dart
+/// lane, so the deterministic, CI-parity choice is the Dart toolchain).
+/// A Flutter-shaped contract test (#1600) is proven with the Flutter
+/// toolchain instead: the manifest declares the Flutter SDK + flutter_test
+/// and the steps run through `flutter`.
 library;
 
 import 'dart:convert';
@@ -59,7 +62,8 @@ class MockCertificationRun {
   /// unsatisfied.
   final Map<String, bool> methodOutcomes;
 
-  /// The test runner used (`dart`).
+  /// The test runner used (`dart` by default, `flutter` for a
+  /// Flutter-shaped proof).
   final String runner;
 
   /// Diagnostic tail (analyze + test output) for honest failure reports.
@@ -74,14 +78,95 @@ class MockCertificationRun {
 
 /// Runs the contract test in a temp sandbox and reports per-method
 /// outcomes.
+///
+/// [flutterTest] (issue #1600) proves a Flutter-shaped contract test with
+/// the Flutter toolchain: the sandbox manifest declares the Flutter SDK and
+/// `flutter_test`, and the pub-get / analyze / test steps run through the
+/// `flutter` executable (same timeouts, offline-first strategy, JSON
+/// reporter, and per-method parsing). The default keeps today's pure-Dart
+/// sandbox byte-for-byte.
 class MockCertificationSandbox {
   MockCertificationSandbox({
+    this.flutterTest = false,
     this.testTimeout = const Duration(minutes: 5),
     this.pubGetTimeout = const Duration(minutes: 3),
   });
 
+  /// Whether the contract test under proof imports the Flutter test
+  /// framework (the host project is a Flutter project).
+  final bool flutterTest;
+
   final Duration testTimeout;
   final Duration pubGetTimeout;
+
+  /// The toolchain executable for [flutterTest]: `flutter` proves a
+  /// Flutter-shaped test (the plain Dart VM cannot resolve the Flutter SDK
+  /// packages), `dart` keeps the deterministic CI-parity default.
+  static String toolchainFor(bool flutterTest) =>
+      flutterTest ? 'flutter' : 'dart';
+
+  /// The toolchain executable this sandbox runs with.
+  String get toolchain => toolchainFor(flutterTest);
+
+  /// Whether a `flutter` executable is available on PATH — the
+  /// Flutter-shaped proof needs the Flutter toolchain. Assignable so hosts
+  /// and tests can pin the probe: the CLI capabilities consult it BEFORE
+  /// the sandbox runs and degrade honestly when it answers false (the
+  /// spec-1110 unresolved-environment precedent).
+  static bool Function() flutterOnPath = _flutterExecutableOnPathDefault;
+
+  /// Scans a PATH-style string for a flutter executable file.
+  static bool flutterExecutableOnPath(
+    String pathEnv, {
+    String delimiter = ':',
+  }) {
+    for (final dir in pathEnv.split(delimiter)) {
+      if (dir.isEmpty) continue;
+      if (File(p.join(dir, 'flutter')).existsSync()) return true;
+      if (File(p.join(dir, 'flutter.bat')).existsSync()) return true;
+    }
+    return false;
+  }
+
+  static bool _flutterExecutableOnPathDefault() => flutterExecutableOnPath(
+    Platform.environment['PATH'] ?? '',
+    delimiter: Platform.isWindows ? ';' : ':',
+  );
+
+  /// The sandbox package manifest for [frameworkRoot]. The Flutter shape
+  /// declares the Flutter SDK + `flutter_test` so the Flutter-shaped
+  /// contract test resolves; `test` is NOT declared there — flutter_test
+  /// pins matcher/test_api with which no published `test` version resolves
+  /// once the framework's graphql graph is present (the same #1189
+  /// conflict), and the Flutter-shaped test imports only flutter_test. The
+  /// default shape is today's exact bytes.
+  static String pubspecFor({
+    required String frameworkRoot,
+    required bool flutterTest,
+  }) => flutterTest
+      ? '''
+name: zfa_mock_cert_sandbox
+environment:
+  sdk: ^3.11.0
+dependencies:
+  flutter:
+    sdk: flutter
+  zuraffa:
+    path: ${jsonEncode(p.normalize(frameworkRoot))}
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+'''
+      : '''
+name: zfa_mock_cert_sandbox
+environment:
+  sdk: ^3.11.0
+dependencies:
+  zuraffa:
+    path: ${jsonEncode(p.normalize(frameworkRoot))}
+dev_dependencies:
+  test: ^1.25.0
+''';
 
   /// Execute the contract test for [entityName] against the subjects
   /// under [projectRoot]/[outputDir]. [contractTestSource] is the exact
@@ -109,17 +194,26 @@ class MockCertificationSandbox {
         );
       }
 
-      // 1. pubspec with a path dependency on the resolved framework.
-      await File(p.join(sandbox.path, 'pubspec.yaml')).writeAsString('''
-name: zfa_mock_cert_sandbox
-environment:
-  sdk: ^3.11.0
-dependencies:
-  zuraffa:
-    path: ${jsonEncode(p.normalize(frameworkRoot))}
-dev_dependencies:
-  test: ^1.25.0
-''');
+      // A Flutter-shaped proof without the Flutter toolchain is an
+      // unresolvable environment, not a red contract (#1600) — the CLI
+      // capabilities check this BEFORE the sandbox runs; this is the
+      // honest defense for direct library use.
+      if (flutterTest && !flutterOnPath()) {
+        return _unresolvedRun(
+          methods,
+          logs..add(
+            'the Flutter-shaped contract test cannot be certified: no '
+            'flutter executable on PATH — install the Flutter SDK, then '
+            're-run the certification',
+          ),
+        );
+      }
+
+      // 1. pubspec with a path dependency on the resolved framework (the
+      //    Flutter shape declares the Flutter SDK + flutter_test — #1600).
+      await File(p.join(sandbox.path, 'pubspec.yaml')).writeAsString(
+        pubspecFor(frameworkRoot: frameworkRoot, flutterTest: flutterTest),
+      );
 
       // 2. Copy the subject import closure into lib/.
       final copied = await _copyImportClosure(
@@ -142,32 +236,32 @@ dev_dependencies:
       await testFile.parent.create(recursive: true);
       await testFile.writeAsString(contractTestSource);
 
-      // 4. dart pub get (offline first — warm cache, no network).
+      // 4. pub get (offline first — warm cache, no network).
       var pubGet = await _run(
-        'dart',
+        toolchain,
         ['pub', 'get', '--offline'],
         sandbox.path,
         pubGetTimeout,
       );
       if (pubGet.exitCode != 0) {
         pubGet = await _run(
-          'dart',
+          toolchain,
           ['pub', 'get'],
           sandbox.path,
           pubGetTimeout,
         );
       }
       if (pubGet.exitCode != 0) {
-        logs.add('dart pub get failed:\n${_tail(pubGet.stderr)}');
+        logs.add('$toolchain pub get failed:\n${_tail(pubGet.stderr)}');
         return _unresolvedRun(methods, logs);
       }
 
-      // 5. dart analyze — errors fail certification outright. Infos are
+      // 5. analyze — errors fail certification outright. Infos are
       //    not fatal by default in the Dart SDK; warnings are demoted so
       //    only real errors block (the sandbox has no analysis_options,
       //    so lints never apply).
       final analyze = await _run(
-        'dart',
+        toolchain,
         ['analyze', '.', '--no-fatal-warnings'],
         sandbox.path,
         testTimeout,
@@ -177,25 +271,25 @@ dev_dependencies:
         analyze.stdout + analyze.stderr,
       );
       logs.add(
-        'dart analyze: $analyzeIssues issue(s), '
+        '$toolchain analyze: $analyzeIssues issue(s), '
         '$analyzeErrors error(s)',
       );
       if (analyze.exitCode != 0 || analyzeErrors > 0) {
-        logs.add('dart analyze output:\n${_tail(analyze.stdout)}');
+        logs.add('$toolchain analyze output:\n${_tail(analyze.stdout)}');
         return MockCertificationRun(
           analyzeIssues: analyzeIssues,
           analyzeErrors: analyzeErrors,
           passedTests: const [],
           failedTests: const [],
           methodOutcomes: {for (final m in methods) m.name: false},
-          runner: 'dart',
+          runner: toolchain,
           logs: logs,
         );
       }
 
-      // 6. dart test with the JSON reporter — per-method outcomes.
+      // 6. test with the JSON reporter — per-method outcomes.
       final test = await _run(
-        'dart',
+        toolchain,
         ['test', testRel, '--reporter', 'json'],
         sandbox.path,
         testTimeout,
@@ -209,7 +303,7 @@ dev_dependencies:
       if (test.exitCode != 0 && failed.isEmpty) {
         // Compilation/load failure: every method is honestly red.
         logs.add(
-          'dart test failed to run the contract test:\n'
+          '$toolchain test failed to run the contract test:\n'
           '${_tail(test.stdout + test.stderr)}',
         );
         return MockCertificationRun(
@@ -218,7 +312,7 @@ dev_dependencies:
           passedTests: const [],
           failedTests: [for (final m in methods) m.name],
           methodOutcomes: {for (final m in methods) m.name: false},
-          runner: 'dart',
+          runner: toolchain,
           logs: logs,
         );
       }
@@ -231,7 +325,7 @@ dev_dependencies:
         passedTests: passed,
         failedTests: failed,
         methodOutcomes: outcomes,
-        runner: 'dart',
+        runner: toolchain,
         logs: logs,
       );
     } finally {
@@ -248,7 +342,7 @@ dev_dependencies:
     passedTests: const [],
     failedTests: [for (final m in methods) m.name],
     methodOutcomes: {for (final m in methods) m.name: false},
-    runner: 'dart',
+    runner: toolchain,
     logs: logs,
   );
 
