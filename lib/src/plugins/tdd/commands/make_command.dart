@@ -89,6 +89,7 @@ import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/generation_planner.dart';
+import '../services/hand_delta_receipt.dart';
 import '../services/journal.dart';
 import '../services/nuance_receipts.dart';
 import '../services/pipeline_runner.dart';
@@ -2037,6 +2038,24 @@ class MakeCommand extends Command<void> {
       feature: target.featureName,
       files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
     );
+    // Spec 1423: the SKIP TRANSITION certifies the designed hand-delta —
+    // the drifted receipted test/subject paths are re-hashed from the
+    // current bytes (action: update) so the verify proof preflight
+    // validates the certified hand-delta instead of demanding `zfa tdd
+    // gen` (issue #1375), which would destroy the hand work. Only the
+    // skip transition re-receipts: the generation path's writes are
+    // receipted by their own verbs, and the #1331 adoption is a
+    // re-drive class, not a hand-delta certification.
+    if (alreadyGreen && !adoptedReDrive) {
+      await HandDeltaReceipts.refreshBestEffort(
+        projectRoot: cwd,
+        feature: target.featureName,
+        behaviorId: record.behaviorId,
+        command: 'tdd make',
+        transition: 'skip',
+        artifactPaths: [record.testPath, record.subjectPath],
+      );
+    }
     print(
       '   green evidence appended to ${TddFeaturePaths.displayDir(cwd: cwd, dir: target.featureDir)}/tdd/'
       'cycle-log.md',
