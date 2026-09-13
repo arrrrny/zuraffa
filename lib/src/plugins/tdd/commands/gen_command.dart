@@ -78,6 +78,8 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../../../cli/exit_protocol.dart';
+
 import '../models/channel_scenario.dart';
 import '../models/verdict_envelope.dart';
 import '../services/artifact_registry.dart';
@@ -89,6 +91,7 @@ import '../services/finder_taxonomy.dart';
 import '../services/generated_shape.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
+import '../services/profile_preflight.dart';
 import '../services/vacuous_guard.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/declared_routing.dart';
@@ -308,6 +311,38 @@ class GenCommand extends Command<void> {
       if (scopeRejection != null) {
         usageException('zfa tdd gen: $scopeRejection');
       }
+    }
+    // ---------------------------------------------------------------
+    // Issue #1528 entry preflight: a missing TDD profile is a SETUP
+    // condition, deterministically detectable before the flow. Ensure
+    // the baseline HERE (the shared idempotent init sequence, created
+    // artifacts logged); a misfiring writer fails CLOSED with the
+    // machine-readable setup-error verdict before any test/subject is
+    // touched. A present profile makes this a silent no-op.
+    // ---------------------------------------------------------------
+    try {
+      await const TddProfilePreflight().ensure(
+        projectRoot: cwd,
+        commandLabel: 'zfa tdd gen',
+        onLine: print,
+      );
+    } on TddProfilePreflightError catch (e) {
+      print(
+        'zfa tdd gen: $kSetupErrorLabel — the TDD baseline could not be '
+        'ensured before the flow: ${e.message}',
+      );
+      print(ExitProtocol.fixLine('run `zfa tdd init`, then re-run'));
+      _verdict
+        ..exitClass = kSetupErrorLabel
+        ..outcome = VerdictOutcome.fail
+        ..fix = 'run `zfa tdd init` (idempotent), then re-run'
+        ..details['preflight'] =
+            'baseline preflight refused the gen '
+            '(issue #1528)'
+        ..details['setup'] = 'missing/broken ${TddProfilePreflight.profilePath}'
+        ..details['classification'] = kSetupErrorLabel;
+      exitCode = 1;
+      return;
     }
     // Issue #912 defect 2: the widget template's app shell — the explicit
     // flag wins over the `.zfa.json` `tdd.widgetShell` project default;

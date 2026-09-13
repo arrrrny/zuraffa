@@ -1,20 +1,19 @@
 /// `zfa tdd init` — idempotently ensure the Part-1 TDD environment exists.
+///
+/// Spec 1528 (issue #1528): the writer sequence moved VERBATIM into
+/// `TddBaselineInit` (services/baseline_init.dart) so the `zfa tdd run` /
+/// `zfa tdd gen` entry preflight executes the SAME idempotent sequence.
+/// This command's observable behavior is byte-identical: the service
+/// prints the same lines through the stdout/stderr sinks and throws the
+/// same misfire StateError.
 library;
 
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
-import 'package:yaml/yaml.dart';
 
-import '../../../cli/writers/tdd/app_module_writer.dart';
-import '../../../cli/writers/tdd/dart_test_yaml_writer.dart';
-import '../../../cli/writers/tdd/pubspec_app_dependencies_patcher.dart';
-import '../../../cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
-import '../../../cli/writers/tdd/pubspec_skin_dependency_patcher.dart';
-import '../../../cli/writers/tdd/smoke_test_writer.dart';
-import '../../../cli/writers/tdd/spec_template_writer.dart';
-import '../../../cli/writers/tdd/tdd_profile_writer.dart';
+import '../services/baseline_init.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
@@ -87,259 +86,20 @@ class InitCommand extends Command<void> {
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
-    final isFlutter = await _isFlutterProject(cwd);
     final force = argResults?['force'] == true;
     // Issue #1260 remediation 2: skin-lane opt-in — the certified
     // dependency is added to the project's dependencies: (runtime).
     final skin = argResults?['skin'] == true;
 
-    stdout.writeln(
-      'zfa tdd init: ensuring TDD baseline in $cwd '
-      '(${isFlutter ? "Flutter" : "Dart"})'
-      '${force ? " (force: overwrite on content mismatch)" : ""}',
-    );
-
-    final failures = <String>[];
-
-    try {
-      final written = await TddProfileWriter(
-        profile: isFlutter ? TddProfile.flutter : TddProfile.dart,
-      ).write(cwd, force: force);
-      stdout.writeln(
-        written == null
-            ? '   ✓ .specify/memory/tdd-profile.md (already present)'
-            : '   ✓ .specify/memory/tdd-profile.md (created)',
-      );
-    } on StateError catch (e) {
-      stdout.writeln('   ✗ .specify/memory/tdd-profile.md: $e');
-      failures.add('tdd_profile_writer: $e');
-    }
-
-    try {
-      final written = await const DartTestYamlWriter().write(cwd);
-      stdout.writeln(
-        written == null
-            ? '   ✓ dart_test.yaml (already present)'
-            : '   ✓ dart_test.yaml (created)',
-      );
-    } on StateError catch (e) {
-      stdout.writeln('   ✗ dart_test.yaml: $e');
-      failures.add('dart_test_yaml_writer: $e');
-    }
-
-    // Issue #1480: the wiring verb propagates the AUTHORING grammar —
-    // the spec template a spec-kit project actually receives must carry
-    // the zuraffa-1.0 sections (`## Layer Contracts`, `traces:`) or every
-    // spec-kit-authored spec dead-ends the unit lane. Absent → install;
-    // grammarless (stock spec-kit scaffold) → replace with a loud
-    // notice; already pinned to a known zuraffa version → untouched.
-    try {
-      final result = await const SpecTemplateWriter().write(cwd);
-      if (result == null) {
-        stdout.writeln(
-          '   ✓ .specify/templates/spec-template.md (already current)',
-        );
-      } else {
-        switch (result.action) {
-          case SpecTemplateWriteAction.created:
-            stdout.writeln(
-              '   ✓ .specify/templates/spec-template.md (created: the '
-              'zuraffa-1.0 authoring grammar)',
-            );
-          case SpecTemplateWriteAction.replaced:
-            stdout.writeln(
-              '   ✓ .specify/templates/spec-template.md (REPLACED: the '
-              'previous template pinned no zuraffa template version and '
-              'carried none of the authoring grammar — specs authored '
-              'from it dead-ended the unit lane; issue #1480)',
-            );
-        }
-      }
-    } on StateError catch (e) {
-      stdout.writeln('   ✗ .specify/templates/spec-template.md: $e');
-      failures.add('spec_template_writer: $e');
-    }
-
-    final appName = _deriveAppName(cwd);
-    try {
-      // Issue #664: gate the smoke-test flavor behind the project flavor —
-      // a pure Dart package must not receive `package:flutter_test` imports
-      // it cannot resolve.
-      final written = await SmokeTestWriter(
-        isFlutter: isFlutter,
-      ).write(cwd, appName);
-      stdout.writeln(
-        written == null
-            ? '   ✓ test/bootstrap_smoke_test.dart (already present)'
-            : '   ✓ test/bootstrap_smoke_test.dart (created)',
-      );
-    } on StateError catch (e) {
-      stdout.writeln('   ✗ test/bootstrap_smoke_test.dart: $e');
-      failures.add('smoke_test_writer: $e');
-    }
-
-    // Issue #626: in a Flutter project the smoke test asserts the
-    // zfa-generated app module (<AppName>Container in lib/app.dart), so
-    // the baseline is only green when the module exists. Skip-if-exists —
-    // existing user content is never touched (FR-008).
-    if (isFlutter) {
-      try {
-        final written = await const AppModuleWriter(
-          isFlutter: true,
-        ).write(cwd, appName);
-        stdout.writeln(
-          written == null
-              ? '   ✓ lib/app.dart (already present)'
-              : '   ✓ lib/app.dart (created)',
-        );
-      } on StateError catch (e) {
-        stdout.writeln('   ✗ lib/app.dart: $e');
-        failures.add('app_module_writer: $e');
-      }
-
-      // Issue #1349: the day-zero app module imports
-      // `package:zuraffa_flutter/zuraffa_flutter.dart` and exposes a
-      // `GetIt` registry — but init only self-healed the TESTING
-      // dev_dependencies below. The runtime deps the generated module
-      // requires were never declared, so every test failed to compile
-      // and the promised day-zero baseline was red out of the box.
-      // Same self-heal pass as the dev_dependencies patcher: ensure the
-      // deps under `dependencies:` (runtime, not dev) — idempotent,
-      // hand-edit preserving, comment/formatting safe.
-      try {
-        final added = await const PubspecAppDependenciesPatcher().ensure(cwd);
-        if (added.isEmpty) {
-          stdout.writeln(
-            '   ✓ pubspec.yaml dependencies (app module: already declared)',
-          );
-        } else {
-          stdout.writeln(
-            '   ✓ pubspec.yaml dependencies (app module: added: '
-            '${added.join(', ')})',
-          );
-        }
-      } on FormatException catch (e) {
-        stdout.writeln('   ✗ pubspec.yaml dependencies (app module): $e');
-        failures.add('pubspec_app_dependencies_patcher: $e');
-      } on StateError catch (e) {
-        stdout.writeln('   ✗ pubspec.yaml dependencies (app module): $e');
-        failures.add('pubspec_app_dependencies_patcher: $e');
-      } on UnsupportedError catch (e) {
-        stdout.writeln('   ✗ pubspec.yaml dependencies (app module): $e');
-        failures.add('pubspec_app_dependencies_patcher: $e');
-      }
-    }
-
-    try {
-      final added = await PubspecDevDependenciesPatcher(
-        isFlutter: isFlutter,
-      ).ensure(cwd);
-      if (added.isEmpty) {
-        stdout.writeln('   ✓ pubspec.yaml dev_dependencies (already complete)');
-      } else {
-        stdout.writeln(
-          '   ✓ pubspec.yaml dev_dependencies (added: ${added.join(', ')})',
-        );
-      }
-    } on FormatException catch (e) {
-      stdout.writeln('   ✗ pubspec.yaml dev_dependencies: $e');
-      failures.add('pubspec_dev_dependencies_patcher: $e');
-    } on StateError catch (e) {
-      stdout.writeln('   ✗ pubspec.yaml dev_dependencies: $e');
-      failures.add('pubspec_dev_dependencies_patcher: $e');
-    }
-
-    // Issue #1260 remediation 2: the skin lane's certified vocabulary is
-    // opt-in. On a pure-Dart target the opt-in is a LOUD misfire (the
-    // certified package needs the Flutter SDK — a silently corrupted
-    // pubspec is the dishonest outcome), not a warning.
-    if (skin) {
-      if (!isFlutter) {
-        final message =
-            '--skin requires a Flutter project: zuraffa_ui (the skin '
-            'lane\'s certified vocabulary) is a Flutter SDK package and '
-            'cannot resolve in a pure-Dart target.';
-        stdout.writeln('   ✗ pubspec.yaml dependencies (skin): $message');
-        failures.add('pubspec_skin_dependency_patcher: $message');
-      } else {
-        try {
-          final added = await const PubspecSkinDependencyPatcher().ensure(cwd);
-          if (added.isEmpty) {
-            stdout.writeln(
-              '   ✓ pubspec.yaml dependencies (skin: zuraffa_ui already '
-              'declared)',
-            );
-          } else {
-            stdout.writeln(
-              '   ✓ pubspec.yaml dependencies (added: ${added.join(', ')})',
-            );
-          }
-        } on FormatException catch (e) {
-          stdout.writeln('   ✗ pubspec.yaml dependencies (skin): $e');
-          failures.add('pubspec_skin_dependency_patcher: $e');
-        } on StateError catch (e) {
-          stdout.writeln('   ✗ pubspec.yaml dependencies (skin): $e');
-          failures.add('pubspec_skin_dependency_patcher: $e');
-        } on UnsupportedError catch (e) {
-          stdout.writeln('   ✗ pubspec.yaml dependencies (skin): $e');
-          failures.add('pubspec_skin_dependency_patcher: $e');
-        }
-      }
-    }
-
-    if (failures.isNotEmpty) {
-      stderr.writeln(
-        '\nzfa tdd init: misfire — ${failures.length} writer(s) failed. '
-        'Resolve the failures above and re-run `zfa tdd init`.',
-      );
-      for (final f in failures) {
-        stderr.writeln('  - $f');
-      }
-      // Errors-are-an-API (VISION §4): the thrown message carries the
-      // failure details too, so captured channels (wrappers, JSON
-      // envelopes, `zfa tdd run` step logs) name the exact remedy without
-      // needing the raw stderr transcript.
-      throw StateError(
-        'zfa tdd init: misfire — ${failures.length} writer(s) failed: '
-        '${failures.join(' | ')}',
-      );
-    }
-
-    stdout.writeln(
-      '\nTDD baseline ensured. Run `flutter test` (or '
-      '`dart test`) to confirm a green baseline.',
+    // Spec 1528: the shared idempotent writer sequence (TddBaselineInit) —
+    // identical stdout/stderr output, identical misfire StateError.
+    await const TddBaselineInit().ensure(
+      projectRoot: cwd,
+      force: force,
+      skin: skin,
+      onLine: stdout.writeln,
+      onError: stderr.writeln,
     );
     _verdict.details['failures'] = 0;
-  }
-
-  Future<bool> _isFlutterProject(String cwd) async {
-    final pubspec = File('$cwd/pubspec.yaml');
-    if (!await pubspec.exists()) return false;
-    dynamic doc;
-    try {
-      doc = loadYaml(await pubspec.readAsString());
-    } on YamlException catch (e) {
-      throw FormatException(
-        'pubspec.yaml at ${pubspec.path} is not valid YAML: $e',
-      );
-    }
-    if (doc is! YamlMap) {
-      throw FormatException(
-        'pubspec.yaml at ${pubspec.path} did not parse to a Map',
-      );
-    }
-    final dependencies = doc['dependencies'];
-    if (dependencies == null) return false;
-    if (dependencies is! YamlMap) {
-      throw FormatException(
-        'pubspec.yaml at ${pubspec.path} has a non-map dependencies value',
-      );
-    }
-    return dependencies.containsKey('flutter');
-  }
-
-  String _deriveAppName(String cwd) {
-    final base = cwd.split(Platform.pathSeparator).last;
-    return base.isEmpty ? 'myapp' : base;
   }
 }
