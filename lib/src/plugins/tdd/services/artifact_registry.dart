@@ -90,6 +90,21 @@ class OwnershipConflict implements Exception {
   }
 }
 
+/// Raised when `tdd/artifacts.json` exists but cannot be parsed (issue
+/// #1470). A corrupt registry is NOT a fresh feature: treating it as one
+/// makes `register` re-emit artifacts with [Ownership.created] and the
+/// next append rewrite the file, silently destroying the prior records.
+/// The message names the file and the recovery path — the same contract
+/// as `RunStateCorruptException`.
+class ArtifactRegistryCorruptException implements Exception {
+  const ArtifactRegistryCorruptException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 /// Append-only registry of [ArtifactRecord]s for a feature.
 class ArtifactRegistry {
   /// Construct a registry for a feature directory.
@@ -290,8 +305,19 @@ class ArtifactRegistry {
         final record = ArtifactRecord.fromJson(r as Map<String, dynamic>);
         return reanchor ? _reanchorRecord(record) : record;
       }).toList();
-    } on FormatException {
-      return [];
+    } on FormatException catch (e) {
+      // Issue #1470: a corrupt registry must NOT read as "no prior
+      // records" — register() would re-emit artifacts with
+      // Ownership.created and the next append rewrite the file, silently
+      // destroying every prior record. Fail loud instead, the way
+      // RunStateStore does for run-state.json: name the file and the
+      // recovery path. (A MISSING file stays the legitimate empty
+      // registry of a fresh feature — FR-012 — see the exists() guard
+      // above, which this does not touch.)
+      throw ArtifactRegistryCorruptException(
+        'Corrupt artifacts.json at $registryPath: ${e.message}. '
+        'Delete the file and re-run gen to rebuild the registry.',
+      );
     }
   }
 

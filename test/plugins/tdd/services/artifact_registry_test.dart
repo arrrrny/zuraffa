@@ -372,6 +372,108 @@ void main() {
       );
     });
   });
+
+  group('ArtifactRegistry — corrupt registry (issue #1470)', () {
+    /// Writes [content] directly to the registry file so the store must
+    /// parse it back (bypasses the writer — corruption happens outside
+    /// the process: crash mid-write, manual edit, merge conflict).
+    Future<void> seedCorruptRegistry(String content) async {
+      final regFile = File(registry.registryPath);
+      await regFile.parent.create(recursive: true);
+      await regFile.writeAsString(content);
+    }
+
+    test('loadAll on a corrupt registry throws '
+        'ArtifactRegistryCorruptException, not an empty list', () async {
+      // The bug: a truncated write (crash mid-write, bad merge) is
+      // unparseable JSON. _loadRecords caught the FormatException and
+      // returned [] — indistinguishable from a missing (fresh) registry.
+      await seedCorruptRegistry('{"records": ['); // truncated JSON
+
+      await expectLater(
+        registry.loadAll(),
+        throwsA(isA<ArtifactRegistryCorruptException>()),
+      );
+    });
+
+    test(
+      'findRecord on a corrupt registry throws too (same read path)',
+      () async {
+        await seedCorruptRegistry('not json at all');
+
+        await expectLater(
+          registry.findRecord('B-003'),
+          throwsA(isA<ArtifactRegistryCorruptException>()),
+        );
+      },
+    );
+
+    test('register refuses to re-register on a corrupt registry '
+        '(no silent duplicate pair, no registry rewrite)', () async {
+      // The P1 hazard: corrupt registry → loadAll() == [] → register()
+      // decides the behavior is new, returns Ownership.created and
+      // _appendRecord rewrites the file, destroying the prior records.
+      final prior = sampleRecord(behaviorId: 'B-001');
+      final survivor = sampleRecord(behaviorId: 'B-002');
+      final priorFile = File(registry.registryPath);
+      await priorFile.parent.create(recursive: true);
+      await priorFile.writeAsString(
+        jsonEncode({
+          'feature': '044-test-tdd-generation',
+          'records': [prior.toJson(), survivor.toJson()],
+        }),
+      );
+      // Corrupt the registry the way a crash mid-write would (the .tmp
+      // rename protocol means this needs an external writer, not the
+      // store itself).
+      await seedCorruptRegistry('{"records": [{"behavior_id": "B-001"');
+      final corruptBytes = await priorFile.readAsBytes();
+
+      // register() must surface the corruption, not silently re-create.
+      await expectLater(
+        registry.register(sampleRecord(behaviorId: 'B-003')),
+        throwsA(isA<ArtifactRegistryCorruptException>()),
+      );
+
+      // The corrupt file is left untouched for the recovery path (the
+      // store must not "repair" it by overwriting with one fresh record).
+      expect(await priorFile.readAsBytes(), corruptBytes);
+    });
+
+    test('the corruption message names the registry path and the '
+        'recovery (delete the file, re-run gen)', () async {
+      await seedCorruptRegistry('{"records": [');
+      final expectedTail = p.join('tdd', 'artifacts.json');
+
+      await expectLater(
+        registry.loadAll(),
+        throwsA(
+          isA<ArtifactRegistryCorruptException>().having(
+            (e) => e.toString(),
+            'message',
+            allOf(
+              contains('Corrupt artifacts.json'),
+              contains(registry.registryPath),
+              contains(expectedTail),
+              contains('Delete the file'),
+              contains('re-run gen'),
+            ),
+          ),
+        ),
+      );
+    });
+
+    test('missing-file behavior is unchanged (FR-012 guard)', () async {
+      // The corrupt-file fix must not bleed into the missing-file case:
+      // no registry file at all is still a legitimate fresh feature.
+      expect(await registry.loadAll(), isEmpty);
+      expect(await registry.findRecord('B-003'), isNull);
+
+      final result = await registry.register(sampleRecord());
+      expect(result.testOwnership, Ownership.created);
+      expect(result.subjectOwnership, Ownership.created);
+    });
+  });
 }
 
 String _sha256(File f) {
