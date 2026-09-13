@@ -82,6 +82,7 @@ import '../services/born_green.dart';
 import '../services/composition_planner.dart';
 import '../services/composition_targets.dart';
 import '../services/cycle_evidence.dart';
+import '../services/cycle_log_sections.dart';
 import '../services/dependency_override_preflight.dart';
 import '../services/subject_shape.dart';
 import '../services/cycle_log.dart';
@@ -3164,7 +3165,7 @@ class MakeCommand extends Command<void> {
     // Issue #1353: scan EVERY section — a stale non-red section from an
     // earlier failed attempt (the normal shape of a resumed run) must not
     // shadow a later certified-red section for the same behavior.
-    for (final section in raw.split('\n## ')) {
+    for (final section in splitCycleLogSections(raw)) {
       final behavior = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,
@@ -3183,7 +3184,7 @@ class MakeCommand extends Command<void> {
     if (!await file.exists()) return const {};
     final raw = await file.readAsString();
     final certified = <String>{};
-    for (final section in raw.split('\n## ')) {
+    for (final section in splitCycleLogSections(raw)) {
       final behavior = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,

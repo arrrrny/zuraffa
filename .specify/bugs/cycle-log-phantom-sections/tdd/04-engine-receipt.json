@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "feature": "cycle-log-phantom-sections",
+  "lane": "engine",
+  "verdict": "error",
+  "result": "runner-error",
+  "behaviors": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5"
+  ],
+  "counts": {
+    "total": 5,
+    "pending": 0,
+    "red": 0,
+    "green": 5,
+    "done": 0
+  },
+  "stopped_at": "A1:refactor",
+  "at": "2026-09-11T11:49:29.095840Z"
+}
