@@ -1536,6 +1536,69 @@ class MakeCommand extends Command<void> {
           exitCode = 1;
           return;
         }
+        // Issue #1551 — the compose step's no-green-units precondition is
+        // a DEFERRAL, not a generation defect. fix(1512) gave every
+        // acceptance row without an entity signal the spec-052
+        // composition plan (`tdd compose <id> --feature <f>` → build);
+        // on a FRESH project the run driver walks behaviors in id order
+        // (A1 before any U*), so the compose step's anchor precondition
+        // ("at least one green/wired unit subject") is unmet at the
+        // FIRST behavior. Grading that unmet precondition as a bare
+        // `generation-error` made the run hard-stop at A1:make — and
+        // every resume re-stopped identically (the deadlock), because
+        // the driver's deferral arm (`unexpressible`/`no-op` → deferred
+        // (phase 2), the bug #625/#826 contract) can never match the
+        // token. When the failed step IS the plan's composition step and
+        // the child's own summary line names `no-green-units`, grade the
+        // make `unexpressible` — the exact token the pre-#1512
+        // zero-anchor shape produced — so the driver's EXISTING deferral
+        // arm defers the behavior to phase 2, where the units are
+        // green/wired and the composition succeeds (phase 2a re-attempts
+        // it; a still-unmet precondition there honest-stops as before).
+        // ONLY the no-green-units token routes here: a compose failure
+        // carrying any other outcome (a misfire, a missing anchor
+        // artifact) keeps the honest `generation-error` stop, and a
+        // compose that SUCCEEDS (green/wired anchors — the #1512
+        // surface) never enters this block. The compose command's own
+        // surface, the state machine, and the loop semantics are
+        // untouched — this is only how the make grades the child's
+        // precondition verdict.
+        if (failed != null &&
+            idx >= 0 &&
+            idx < effectivePlan.steps.length &&
+            _isCompositionStepArgs(effectivePlan.steps[idx].args) &&
+            _composeOutputReportsNoGreenUnits(failed.output)) {
+          print(
+            'zfa tdd make: the composition step reports no composable '
+            'unit anchors yet (issue #1551) — the anchor behaviors are '
+            'driven later in the run.',
+          );
+          print(
+            "--> fix: nothing to hand-edit — the run driver defers this "
+            'behavior to phase 2 (the `make -> unexpressible -> deferred '
+            '(phase 2)` contract), where the units are green/wired and '
+            'the composition re-runs; a direct `zfa tdd compose` caller '
+            'can wire a unit first (`zfa tdd wire <id> --entity <Name>`).',
+          );
+          // The failed-make contract holds (issue #1036): the
+          // certified-red subject shape survives the failed make.
+          // (compose failed BEFORE any subject write, so this is a no-op
+          // guard — kept for the same safety contract as the arm below.)
+          await _restoreSubjectIfMutated(
+            subjectFile,
+            subjectSnapshot,
+            reason:
+                'the make stopped with an unmet compose anchor '
+                'precondition (deferred, issue #1551)',
+          );
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.unexpressible,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
         // Issue #1407 — the make's analyze gate is ERRORS-ONLY. The plan's
         // terminal `build` step runs `zfa build`, whose analyze stage
         // (issues #395/#1035) refuses the tree on errors OR warnings; a
@@ -2289,6 +2352,27 @@ class MakeCommand extends Command<void> {
       print('   ... $remainder more warning(s)');
     }
   }
+
+  /// Issue #1551: whether [args] IS the plan's composition step — the
+  /// spec-052 composition lane's argv shape `['tdd', 'compose', <id>,
+  /// '--feature', <f>]` (generation_planner.dart branch 3b; the same argv
+  /// CompositionPlanner emits through make's #642 fallback).
+  static bool _isCompositionStepArgs(List<String> args) =>
+      args.length >= 2 && args[0] == 'tdd' && args[1] == 'compose';
+
+  /// Issue #1551: whether the failed composition step's own output
+  /// carries the compose command's machine summary line naming the
+  /// `no-green-units` outcome (compose_command.dart's fail-closed anchor
+  /// discovery) — the UNMET PRECONDITION verdict, as opposed to any other
+  /// compose failure (a misfire, a missing anchor artifact), which keeps
+  /// the honest `generation-error` grading.
+  static final RegExp _composeNoGreenUnitsSummary = RegExp(
+    r'^compose: behavior=\S+ outcome=no-green-units(?:\s|$)',
+    multiLine: true,
+  );
+
+  static bool _composeOutputReportsNoGreenUnits(String composeOutput) =>
+      _composeNoGreenUnitsSummary.hasMatch(composeOutput);
 
   /// Issue #1407 (FR-005): whether the project opted into the LEGACY
   /// warnings-blocking strictness via the TDD profile's machine-readable
