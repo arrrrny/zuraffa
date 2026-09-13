@@ -1,23 +1,30 @@
-# TDD test list — Spec 1509 toolchain-path-portable
+# TDD test list — Bug #1470 artifacts.json silently swallows corruption
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| T-1509-pin | test/utils/dart_toolchain_pin_test.dart | spec-pin | no hardcoded /opt/flutter dart path remains in tracked toolchain sources (bin/, lib/, scripts, yaml) | FR-002, SC-001 | GREEN |
-| T-1509-c1 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths emits no constant machine-specific paths when the env declares none | FR-002, FR-005 | GREEN |
-| T-1509-c2 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths includes $FLUTTER_ROOT/bin/dart iff FLUTTER_ROOT is set | FR-005 | GREEN |
-| T-1509-c3 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths derives $HOME/flutter/bin/dart and $HOME/development/flutter/bin/dart from the injected home | FR-005, FR-006 | GREEN |
-| T-1509-c4 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths expands ZURAFFA_TOOLCHAIN_HINTS entries into <dir>/dart and <dir>/bin/dart candidates in declared order | FR-002, FR-005 | GREEN |
-| T-1509-c5 | test/utils/dart_toolchain_resolver_test.dart | unit | candidatePaths keeps the generic /usr/local/flutter/bin/dart hint and omits user-derived entries when home is empty | FR-005, FR-006 | GREEN |
-| T-1509-r1 | test/utils/dart_toolchain_resolver_test.dart | unit | ZURAFFA_DART_BIN pin wins over every tier when the file exists | FR-004 | GREEN |
-| T-1509-r2 | test/utils/dart_toolchain_resolver_test.dart | unit | ZURAFFA_DART_BIN pin pointing at a missing file is skipped and resolution falls through to PATH | FR-004 | GREEN |
-| T-1509-r3 | test/utils/dart_toolchain_resolver_test.dart | unit | PATH which-dart hit is returned trimmed and first (PATH-first contract) | FR-001 | GREEN |
-| T-1509-r4 | test/utils/dart_toolchain_resolver_test.dart | unit | dart next to which-flutter (symlink-resolved sibling) is found when PATH dart misses | FR-006 | GREEN |
-| T-1509-r5 | test/utils/dart_toolchain_resolver_test.dart | unit | existing candidates resolve in candidate order when PATH probes miss | FR-005, FR-006 | GREEN |
-| T-1509-r6 | test/utils/dart_toolchain_resolver_test.dart | unit | resolve returns null when every tier misses | FR-006 | GREEN |
-| T-1509-mcp | test/utils/dart_toolchain_resolver_test.dart | unit | a flutter install without a sibling dart keeps the search going (tier-2 exists-check guard) | FR-006 | GREEN |
-| T-1509-acc2 | test/utils/dart_toolchain_resolver_test.dart | acceptance | the documented environment recipe works: ZURAFFA_TOOLCHAIN_HINTS=/opt/flutter yields the old last-resort candidate without any code literal | acceptance 2, FR-002 | GREEN |
+| U-1470-a1 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | loadAll throws ArtifactRegistryCorruptException on invalid JSON (pre-fix: silently returned []) | issue #1470 root cause (L293–294 swallow), FR-012 corrupt-vs-missing split | GREEN |
+| U-1470-a2 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | register refuses to re-register through a corrupt registry; corrupt bytes survive untouched on disk (pre-fix: Ownership.created + rewrite destroyed B-001/B-002) | issue #1470 impact (duplicate artifacts, silent data loss), preflight ownership gate | GREEN |
+| U-1470-a3 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | findRecord (reader path) also refuses a corrupt registry | issue #1470 (every reader funnels through _loadRecords) | GREEN |
+| U-1470-a4 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | the exception names artifacts.json, contains the full registry path, and prescribes recovery | RunStateCorruptException message discipline (U9), issue #1470 expected behavior | GREEN |
+| U-1470-a5 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | a MISSING registry is still an empty one (loadAll → [], findRecord → null) — corrupt ≠ missing | FR-012 (unchanged, pinned) | GREEN |
 
-Red evidence: recorded before implementation — see
-specs/1509-toolchain-path-portable/tdd/verification.md
-(pin test failed against bin/zuraffa_mcp_server.dart:1638; resolver
-suite failed to compile because the library did not exist yet).
+## Red evidence (pre-fix, this session)
+
+Behavioral probe against pre-fix code (output preserved verbatim in
+`.specify/bugs/1470-artifacts-json-corruption-silent/red-evidence.md`):
+
+- RED-1: `loadAll()` on a corrupt registry returned 0 records, no exception.
+- RED-2: `register(B-003)` returned `Ownership.created` / `created` with no
+  corruption diagnosis.
+- RED-3: the registry rewrite left only `[B-003]` — B-001/B-002 ownership
+  records silently destroyed.
+
+The committed suite's pre-fix state was a compile-level RED
+(`'ArtifactRegistryCorruptException' isn't a type`).
+
+## Suite placement note
+
+The behaviors are unit tests in the registry's own service suite
+(`test/plugins/tdd/services/`), colocated with `artifact_registry_test.dart`.
+They are fast-tier (no `slow`/`flutter` tags) and run in the default
+`dart test` selection and in the chunked sweep.
