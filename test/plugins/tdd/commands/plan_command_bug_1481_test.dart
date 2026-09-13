@@ -36,6 +36,7 @@
 // emitted, and the dead-end tally is gone for manual-routed FRs.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -378,6 +379,139 @@ void main() {
           out,
           isNot(contains('will dead-end at make')),
           reason: 'no dead-end tally when nothing dead-ends',
+        );
+      } finally {
+        tmp.deleteSync(recursive: true);
+      }
+    });
+  });
+
+  // SPEC 1537 (issue #1537): the fatal class is NOT retired — it is LIVE
+  // through the criterion-token seam. An inline `traces:` line whose tokens
+  // are all criterion-shaped (`FR-001` — the resolver's `_criterionToken`
+  // skip) survives the `traceTokens` filter (only `(`-shaped tokens drop),
+  // binds non-empty (so feature #1484 keeps the unit row instead of routing
+  // a manual declaration), and passes the resolver without dangling —
+  // `kind == null` -> `RoutingUndeclared` -> `decision == unit` ->
+  // `!repairable` -> `deadEnds.add`. The #1480 unit-fallback gate hides the
+  // route on the default path, but two live routes reach the machinery:
+  // persistence-marked fallbacks are exempt from the gate, and
+  // `--allow-unit-fallback` skips it. These tests PIN the machinery so the
+  // next sweep cannot delete it as "dead code" on the strength of the
+  // disproved unreachability analysis.
+  group('#1537: the fatal dead-end machinery is LIVE (criterion-only trace bindings)', () {
+    // The persistence route: default flags, no escape hatch — the #1480
+    // gate exempts persistence-marked unit fallbacks.
+    const persistentCriterionTraceSpec = '''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 1481-route
+
+## Functional Requirements
+
+- **FR-001**: [persistent] the label renders the template
+            traces: FR-001
+
+## Acceptance Scenarios
+
+1. **Given** the app **When** the total is requested **Then** the total equals the sum of items.
+''';
+
+    // The flag route: no persistence mark, the gate explicitly waived.
+    const criterionTraceSpec = '''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 1481-route
+
+## Functional Requirements
+
+- **FR-001**: the label renders the template
+            traces: FR-001
+
+## Acceptance Scenarios
+
+1. **Given** the app **When** the total is requested **Then** the total equals the sum of items.
+''';
+
+    test(
+      'a persistence-marked FR with a criterion-only traces binding renders '
+      'the fatal route line and the tally (default flags, exit 0)',
+      () async {
+        final tmp = await _featureDir(persistentCriterionTraceSpec);
+        try {
+          final out = await _plan(tmp);
+          expect(exitCode, 0, reason: out);
+          // The fatal-class route prefix renders for the unit fallback.
+          expect(
+            out,
+            contains(
+              'route: U1 -> unit lane [fallback: no declared trace — '
+              'make will dead-end',
+            ),
+            reason: 'the fatal fallback class renders: $out',
+          );
+          // The one-line tally names the id — the author learns the plan
+          // will dead-end without scanning every route line (bug #1481).
+          expect(
+            out,
+            contains('zfa tdd plan: 1 behavior will dead-end at make'),
+            reason: 'the fatal tally renders: $out',
+          );
+          expect(
+            out,
+            contains('(U1)'),
+            reason: 'the tally names the dead-ended behavior id: $out',
+          );
+        } finally {
+          tmp.deleteSync(recursive: true);
+        }
+      },
+    );
+
+    test('the flag route — --allow-unit-fallback reaches the same tally '
+        'without the persistence mark', () async {
+      final tmp = await _featureDir(criterionTraceSpec);
+      try {
+        final out = await _plan(tmp, ['--allow-unit-fallback']);
+        expect(exitCode, 0, reason: out);
+        expect(
+          out,
+          contains(
+            'route: U1 -> unit lane [fallback: no declared trace — '
+            'make will dead-end',
+          ),
+          reason: 'the fatal fallback class renders under the waiver: $out',
+        );
+        expect(
+          out,
+          contains('zfa tdd plan: 1 behavior will dead-end at make'),
+          reason: 'the fatal tally renders under the waiver: $out',
+        );
+        expect(out, contains('(U1)'), reason: out);
+      } finally {
+        tmp.deleteSync(recursive: true);
+      }
+    });
+
+    test('the verdict envelope counts the dead end '
+        '(dead_end_behaviors == 1)', () async {
+      final tmp = await _featureDir(persistentCriterionTraceSpec);
+      try {
+        final out = await _plan(tmp, ['--json']);
+        expect(exitCode, 0, reason: out);
+        final verdictLine = out
+            .split('\n')
+            .lastWhere(
+              (l) => l.trim().startsWith('{'),
+              orElse: () => fail('no verdict.v1 envelope on stdout'),
+            );
+        final verdict = jsonDecode(verdictLine) as Map<String, dynamic>;
+        expect(verdict['schema'], 'zuraffa.verdict.v1');
+        final details = verdict['details'] as Map<String, dynamic>;
+        expect(
+          details['dead_end_behaviors'],
+          1,
+          reason: 'the machine-readable dead-end count rides the envelope',
         );
       } finally {
         tmp.deleteSync(recursive: true);
