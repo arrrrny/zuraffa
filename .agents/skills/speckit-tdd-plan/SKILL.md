@@ -1,11 +1,14 @@
 ---
 name: speckit-tdd-plan
-description: Derive the feature's test list by delegating to zfa tdd plan (deterministic engine); falls back to LLM-guided derivation only when zfa is unavailable
+description: Derive the feature's test list by delegating to zfa tdd plan (deterministic
+  engine); falls back to LLM-guided derivation only when zfa is unavailable
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: tdd:commands/speckit.tdd.plan.md
+  author: d0whc3r
+  source: extension:tdd
 ---
+
+# Tdd Plan Skill
 
 # TDD Plan (zfa-delegating)
 
@@ -40,6 +43,23 @@ Follow the standard feature resolution:
 
 Set `FEATURE_SLUG` to the resolved directory name (e.g. `003-user-auth`).
 Write it to `.specify/feature.json` if not already pinned.
+
+### Supported feature-reference shapes (issue #1182)
+
+`zfa tdd plan` accepts any of these — pass the reference VERBATIM, no
+symlink bridge needed:
+
+| Shape | Resolves to | Use for |
+|-------|-------------|---------|
+| `<name>` | `<root>/specs/<name>` | regular features |
+| `specs/<name>` | `<root>/specs/<name>` | regular features (path form) |
+| `.specify/bugs/<slug>` | `<root>/.specify/bugs/<slug>` | BUG features (spec-whole TDD mode) |
+| an absolute path | that directory | any feature outside `specs/` |
+
+For a bug, dispatch with the pinned `feature_directory` value as-is:
+`zfa tdd plan ".specify/bugs/$SLUG"`. Artifacts (test-list.md,
+traceability.md) are written beside the resolved spec — inside the bug
+directory — never under `specs/`.
 
 ## Step 2 — Dispatch to zfa
 

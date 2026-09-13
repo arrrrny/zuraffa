@@ -1,11 +1,14 @@
 ---
 name: speckit-tdd-setup
-description: Detect the test stack and write .specify/memory/tdd-profile.md; zuraffa-wired projects record zfa commands as the engine
+description: Detect the test stack and write .specify/memory/tdd-profile.md; zuraffa-wired
+  projects record zfa commands as the engine
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: tdd:commands/speckit.tdd.setup.md
+  author: d0whc3r
+  source: extension:tdd
 ---
+
+# Tdd Setup Skill
 
 # TDD Setup (zfa-aware)
 

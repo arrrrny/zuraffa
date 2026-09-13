@@ -38,14 +38,21 @@ class ConfigCommand {
   }
 
   Future<void> _handleInit(List<String> args) async {
-    final projectRoot = args.isEmpty ? null : args[0];
+    // Issue #1496: `zfa config init [--minimal] [projectRoot]` — the
+    // --minimal flag is positional-agnostic so an optional project root
+    // can still be passed in either order.
+    final minimal = args.contains('--minimal') || args.contains('-m');
+    final positional = args
+        .where((arg) => !arg.startsWith('-'))
+        .toList(growable: false);
+    final projectRoot = positional.isEmpty ? null : positional.first;
 
     if (projectRoot != null && !Directory(projectRoot).existsSync()) {
       print('❌ Directory not found: $projectRoot');
       exit(1);
     }
 
-    await ZfaConfig.init(projectRoot: projectRoot);
+    await ZfaConfig.init(projectRoot: projectRoot, minimal: minimal);
   }
 
   Future<void> _handleShow(List<String> args) async {
@@ -163,6 +170,9 @@ COMMANDS:
   help                Show this help message
 
 OPTIONS:
+  init --minimal      Keep every plugin default off (the pre-#1496
+                      behaviour) — select plugins per command with
+                      --preset=crud or --with=<plugin>
   --help, -h          Show this help message
 
 CONFIGURATION KEYS:
@@ -174,6 +184,7 @@ CONFIGURATION KEYS:
 
 EXAMPLES:
   zfa config init
+  zfa config init --minimal
   zfa config show
   zfa config set diByDefault true
   zfa config set repositoryByDefault true

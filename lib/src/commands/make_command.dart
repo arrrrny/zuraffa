@@ -744,7 +744,14 @@ class MakeCommand extends Command<void> {
 
     final activePlugins = plan.activePlugins;
     if (activePlugins.isEmpty) {
+      // Issue #1496: the dead-end message now names the remedy — the two
+      // supported ways to select plugins when the config enables none.
       print('❌ No active plugins to run.');
+      print('   The plan resolved to zero plugins (no flags, and .zfa.json');
+      print('   enables none by default).');
+      print('--> fix: pass --preset=crud for the standard data slice, or');
+      print('   --with=<plugin> to select individual plugins (e.g.');
+      print('   --with=usecase,repository). See `zfa make --help`.');
       return;
     }
 
