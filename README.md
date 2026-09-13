@@ -122,6 +122,8 @@ Use `zfa build` instead of calling `build_runner` directly in docs and agent wor
 | `zfa make`             | Canonical architecture generator           |
 | `zfa build`            | Run the codegen/build step                 |
 | `zfa feature scaffold` | Wrapper over the normalized feature preset |
+| `zfa package create`   | Scaffold a Zuraffa-native reusable package |
+| `zfa package plugin`   | Scaffold a publish-ready federated plugin monorepo (app package + platform core + android/ios/macos adapters + publish pipeline) |
 | `zfa config`           | Manage `.zfa.json` project defaults        |
 | `zfa manifest`         | Inspect available plugins and capabilities |
 | `zfa doctor`           | Inspect local tooling and project health   |
