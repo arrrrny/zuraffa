@@ -24,10 +24,23 @@
 //  U-V10: description-quoted literals become Text children (the same
 //         literals behavior_test_writer derives find.text assertions
 //         from, issue #912 defect 3) — the loop's REACH-green contract.
+//  U-V11: a missing subject under a symlinked project root is the
+//         missing-file refusal, never "outside the project root"
+//         (issue #1603: a missing subject is canonicalized through its
+//         nearest EXISTING ancestor before the outside-root comparison).
+//  U-V12: a recorded subject that genuinely resolves outside the project
+//         root is still refused as outside-root (the #1603 guard).
+//  U-V13: a MISSING subject whose recorded path sits inside the project
+//         but travels out through an in-project directory symlink is
+//         refused as outside-root — the canonicalization above compares
+//         the RESOLVED ancestor, so the guard is tighter than the raw
+//         recorded path suggests (intended, see fix.md).
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
@@ -92,9 +105,15 @@ void main() {
     exitCode = 0;
   });
 
-  Future<String> runView({String? id = 'A-001'}) {
+  Future<String> runView({String? id = 'A-001', String? project}) {
     final runner = CliRunner(exitOnCompletion: false);
-    final args = <String>['tdd', 'view', ?id, '--project', fx.root.path];
+    final args = <String>[
+      'tdd',
+      'view',
+      ?id,
+      '--project',
+      project ?? fx.root.path,
+    ];
     return runner.runCapturing(args);
   }
 
@@ -204,6 +223,74 @@ Widget subject_a_001() => const Placeholder();
     expect(out, contains('runner-error'));
     expect(out, contains('missing subject file'));
   });
+
+  test(
+    'U-1603a: a missing subject under a symlinked project root reports '
+    '"missing subject file", never "outside the project root" (#1603)',
+    () async {
+      await fx.registerBehavior(
+        id: 'A-001',
+        description: 'the login page renders',
+        writeTestFile: false,
+      );
+      final aliasPath = await symlinkRootAlias(fx);
+      addTearDown(() => Link(aliasPath).deleteSync());
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'view',
+        'A-001',
+        '--project',
+        aliasPath,
+      ]);
+
+      expect(exitCode, isNot(0), reason: 'out: $out');
+      expect(out, contains('runner-error'));
+      expect(out, contains('missing subject file'));
+      expect(
+        out,
+        isNot(contains('outside the project root')),
+        reason:
+            'the project\'s own recorded subject is never outside the '
+            'root — the raw path only looked that way because the root '
+            'canonicalizes through a symlink (#1603)',
+      );
+    },
+    onPlatform: {'windows': const Skip('symlink creation may need privileges')},
+  );
+
+  test(
+    'U-1603b: an existing subject under a symlinked root still resolves '
+    'and is processed (no green-path behavior flip) (#1603)',
+    () async {
+      await fx.registerBehavior(
+        id: 'A-001',
+        description: "the login page shows 'Welcome back'",
+      );
+      await File(
+        fx.subjectPathOf('A-001'),
+      ).writeAsString(genStyleWidgetStub('A-001'));
+      final aliasPath = await symlinkRootAlias(fx);
+      addTearDown(() => Link(aliasPath).deleteSync());
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'view',
+        'A-001',
+        '--project',
+        aliasPath,
+      ]);
+
+      expect(exitCode, 0, reason: 'out: $out');
+      expect(out, contains('view: behavior=A-001 outcome='));
+      expect(out, isNot(contains('outside the project root')));
+      final subject = await File(fx.subjectPathOf('A-001')).readAsString();
+      expect(subject, contains('Widget subject_a_001() => A001View();'));
+    },
+    onPlatform: {'windows': const Skip('symlink creation may need privileges')},
+  );
 
   test('U-V4: an unknown behavior id is a hard runner-error', () async {
     final out = await runView(id: 'A-999');
@@ -330,5 +417,85 @@ ${genStyleWidgetStub('A-001').split('\n').skip(1).join('\n')}
     expect(subject, contains('keep this helper below'));
     expect(subject, contains('String loginTitle()'));
     expect(subject, contains('Widget subject_a_001() => A001View();'));
+  });
+
+  test('U-V11: a missing subject under a symlinked project root is the '
+      'missing-file refusal, never outside-root (issue #1603)', () async {
+    await fx.registerBehavior(
+      id: 'A-001',
+      description: 'the login page renders',
+      writeTestFile: false,
+    );
+    // The fixture's own temp root may already traverse a symlink on macOS
+    // (`/var` → `/private/var`), which is how #1603 was found; this
+    // sibling link makes the case deterministic on every platform.
+    final link = Link('${fx.root.path}_link');
+    await link.create(fx.root.path);
+    addTearDown(() async {
+      if (await FileSystemEntity.isLink(link.path)) await link.delete();
+    });
+
+    final out = await runView(project: link.path);
+
+    expect(exitCode, isNot(0));
+    expect(out, contains('missing subject file'));
+    expect(out, isNot(contains('points outside the project root')));
+  });
+
+  test('U-V12: a recorded subject that genuinely resolves outside the '
+      'project root is still refused as outside-root', () async {
+    await fx.registerBehavior(
+      id: 'A-001',
+      description: 'the login page renders',
+      writeTestFile: false,
+    );
+    final registry =
+        jsonDecode(await File(fx.artifactsPath).readAsString())
+            as Map<String, dynamic>;
+    final records = registry['records'] as List<dynamic>;
+    (records.single as Map<String, dynamic>)['subject_path'] = p.join(
+      '..',
+      'outside_subject.dart',
+    );
+    await File(fx.artifactsPath).writeAsString(jsonEncode(registry));
+
+    final out = await runView();
+
+    expect(exitCode, isNot(0));
+    expect(out, contains('points outside the project root'));
+  });
+
+  test('U-V13: a missing subject whose in-project path escapes through a '
+      'directory symlink is refused as outside-root (the #1603 guard, '
+      'tightened by the resolved-ancestor canonicalization)', () async {
+    await fx.registerBehavior(
+      id: 'A-001',
+      description: 'the login page renders',
+      writeTestFile: false,
+    );
+    final registry =
+        jsonDecode(await File(fx.artifactsPath).readAsString())
+            as Map<String, dynamic>;
+    final records = registry['records'] as List<dynamic>;
+    (records.single as Map<String, dynamic>)['subject_path'] =
+        'shared/missing_subject.dart';
+    await File(fx.artifactsPath).writeAsString(jsonEncode(registry));
+
+    // The project contains the escaping link itself, so the recorded path
+    // reads as in-project while its nearest EXISTING ancestor resolves
+    // outside the root — the guard follows the RESOLVED ancestor.
+    final outside = Directory.systemTemp.createTempSync('tdd_outside_');
+    addTearDown(() => outside.deleteSync(recursive: true));
+    final link = Link(p.join(fx.root.path, 'shared'));
+    await link.create(outside.path);
+    addTearDown(() async {
+      if (await FileSystemEntity.isLink(link.path)) await link.delete();
+    });
+
+    final out = await runView();
+
+    expect(exitCode, isNot(0));
+    expect(out, contains('points outside the project root'));
+    expect(out, isNot(contains('missing subject file')));
   });
 }
