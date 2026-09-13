@@ -217,7 +217,11 @@ void main() {
       expect(out, contains('--> fix:'), reason: out);
       expect(out, contains('foreign-owned'), reason: out);
       final fix = fixLine(out);
-      expect(fix, contains('zfa tdd migrate-paths --feature $owner'), reason: out);
+      expect(
+        fix,
+        contains('zfa tdd migrate-paths --feature $owner'),
+        reason: out,
+      );
       // The trust violation: never prescribe adopting another feature's
       // files into the queried registry.
       expect(fix, isNot(contains('--adopt')), reason: out);
@@ -267,7 +271,11 @@ void main() {
       expect(v['verdict'], 'foreign-owned', reason: out);
       expect(v['prescription'], 'migrate', reason: out);
       final fix = fixLine(out);
-      expect(fix, contains('zfa tdd migrate-paths --feature $owner'), reason: out);
+      expect(
+        fix,
+        contains('zfa tdd migrate-paths --feature $owner'),
+        reason: out,
+      );
     });
 
     test('multiple foreign owners -> the all-features migration', () async {
@@ -341,7 +349,11 @@ void main() {
         expect(v['verdict'], 'foreign-owned', reason: out);
         expect(v['prescription'], 'migrate', reason: out);
         final fix = fixLine(out);
-        expect(fix, contains('zfa tdd migrate-paths --feature $owner'), reason: out);
+        expect(
+          fix,
+          contains('zfa tdd migrate-paths --feature $owner'),
+          reason: out,
+        );
         expect(fix, isNot(contains('--adopt')), reason: out);
       },
     );

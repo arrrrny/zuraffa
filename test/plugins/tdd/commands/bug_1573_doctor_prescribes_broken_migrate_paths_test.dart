@@ -106,9 +106,8 @@ void main() {
     p.join(tmpDir.path, '.specify', 'bugs', slug, 'tdd', 'artifacts.json'),
   );
 
-  File bystanderRegistryFile() => File(
-    p.join(tmpDir.path, 'specs', bystander, 'tdd', 'artifacts.json'),
-  );
+  File bystanderRegistryFile() =>
+      File(p.join(tmpDir.path, 'specs', bystander, 'tdd', 'artifacts.json'));
 
   /// Seed `.specify/bugs/<slug>/tdd/artifacts.json` with one record.
   Future<void> seedBugFeature({
@@ -225,38 +224,39 @@ void main() {
       );
     });
 
-    test('the prescribed command heals the bug registry (migrated > 0)',
-        () async {
-      await seedBugArtifacts();
-      await seedBugFeature(
-        testPath: foreignTestPath,
-        subjectPath: foreignSubjectPath,
-      );
+    test(
+      'the prescribed command heals the bug registry (migrated > 0)',
+      () async {
+        await seedBugArtifacts();
+        await seedBugFeature(
+          testPath: foreignTestPath,
+          subjectPath: foreignSubjectPath,
+        );
 
-      final out = await runner.runCapturing(
-        migrateArgs(['--feature', bugRef]),
-      );
+        final out = await runner.runCapturing(
+          migrateArgs(['--feature', bugRef]),
+        );
 
-      expect(
-        out,
-        contains('migrated=1'),
-        reason:
-            'the bug directory the doctor diagnosed must be reachable by '
-            'the prescribed command (out: $out)',
-      );
-      expect(bugRecords()['test_path'], relTestPath);
-      expect(bugRecords()['subject_path'], relSubjectPath);
+        expect(
+          out,
+          contains('migrated=1'),
+          reason:
+              'the bug directory the doctor diagnosed must be reachable by '
+              'the prescribed command (out: $out)',
+        );
+        expect(bugRecords()['test_path'], relTestPath);
+        expect(bugRecords()['subject_path'], relSubjectPath);
 
-      final healed = await runner.runCapturing(doctorArgs(bugRef));
-      expect(
-        verdict(healed)['verdict'],
-        'healthy',
-        reason: 'the prescribed migration closes the loop (out: $healed)',
-      );
-    });
+        final healed = await runner.runCapturing(doctorArgs(bugRef));
+        expect(
+          verdict(healed)['verdict'],
+          'healthy',
+          reason: 'the prescribed migration closes the loop (out: $healed)',
+        );
+      },
+    );
 
-    test('a plain bug slug resolves through the bug extension pin',
-        () async {
+    test('a plain bug slug resolves through the bug extension pin', () async {
       await seedBugArtifacts();
       await seedBugFeature(
         testPath: foreignTestPath,
@@ -264,9 +264,7 @@ void main() {
       );
       final pin = File(p.join(tmpDir.path, '.specify', 'feature.json'));
       await pin.parent.create(recursive: true);
-      await pin.writeAsString(
-        jsonEncode({'feature_directory': bugRef}),
-      );
+      await pin.writeAsString(jsonEncode({'feature_directory': bugRef}));
 
       final out = await runner.runCapturing(migrateArgs(['--feature', slug]));
 
@@ -294,7 +292,8 @@ void main() {
       expect(
         CliRunner.lastDispatchedExitCode,
         ExitProtocol.usage,
-        reason: 'a positional migrate-paths never learned must exit as a '
+        reason:
+            'a positional migrate-paths never learned must exit as a '
             'usage error, not success (out: $out)',
       );
       expect(out, contains('Unexpected positional argument'), reason: out);
@@ -306,7 +305,8 @@ void main() {
       expect(
         bystanderFile.readAsStringSync(),
         bystanderBefore,
-        reason: 'the discarded slug must NOT trigger a whole-project '
+        reason:
+            'the discarded slug must NOT trigger a whole-project '
             'sweep that rewrites an unrelated feature (out: $out)',
       );
       expect(
@@ -318,26 +318,28 @@ void main() {
   });
 
   group('Bug #1573 — the sweep reaches the bug directories', () {
-    test('migrate-paths with no flag migrates a bug-directory registry',
-        () async {
-      await seedBugArtifacts();
-      await seedBugFeature(
-        testPath: foreignTestPath,
-        subjectPath: foreignSubjectPath,
-      );
+    test(
+      'migrate-paths with no flag migrates a bug-directory registry',
+      () async {
+        await seedBugArtifacts();
+        await seedBugFeature(
+          testPath: foreignTestPath,
+          subjectPath: foreignSubjectPath,
+        );
 
-      final out = await runner.runCapturing(migrateArgs());
+        final out = await runner.runCapturing(migrateArgs());
 
-      expect(
-        out,
-        contains('migrated=1'),
-        reason:
-            'the sweep covers every feature registry — the bug extension '
-            'stores included (out: $out)',
-      );
-      expect(bugRecords()['test_path'], relTestPath);
-      expect(bugRecords()['subject_path'], relSubjectPath);
-    });
+        expect(
+          out,
+          contains('migrated=1'),
+          reason:
+              'the sweep covers every feature registry — the bug extension '
+              'stores included (out: $out)',
+        );
+        expect(bugRecords()['test_path'], relTestPath);
+        expect(bugRecords()['subject_path'], relSubjectPath);
+      },
+    );
   });
 
   group('Bug #1573 — the drift line names the raw recorded value', () {
