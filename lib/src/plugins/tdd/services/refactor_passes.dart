@@ -90,10 +90,16 @@ abstract interface class ProcessExecutor {
 /// recorded as a timed-out failure so the registry misfire-stops instead of
 /// hanging forever. Defaults to [TddTimeouts.defaultRefactorPass].
 class DefaultProcessExecutor implements ProcessExecutor {
-  const DefaultProcessExecutor({this.timeout});
+  const DefaultProcessExecutor({this.timeout, this.environment});
 
   /// The per-pass deadline; `null` uses [TddTimeouts.defaultRefactorPass].
   final Duration? timeout;
+
+  /// The caller's per-run scratch environment (spec 1520) — MERGED into
+  /// each pass child's inherited environment, so a pass that spawns `dart`
+  /// (build, `dart format`, `dart fix`) writes its caches inside the run's
+  /// scratch. Null inherits the parent environment unchanged.
+  final Map<String, String>? environment;
 
   @override
   Future<ProcessRunOutcome> run(RefactorPassInvocation inv) async {
@@ -114,6 +120,7 @@ class DefaultProcessExecutor implements ProcessExecutor {
         args,
         workingDirectory: inv.workingDirectory,
         timeout: timeout ?? TddTimeouts.defaultRefactorPass,
+        environment: environment,
       );
       return ProcessRunOutcome(
         command: inv.command,
@@ -222,7 +229,12 @@ class RefactorPasses {
     String? zfaBinOverride,
     Map<String, String>? environment,
     Duration? passTimeout,
-  }) : _executor = executor ?? DefaultProcessExecutor(timeout: passTimeout),
+  }) : _executor =
+           executor ??
+           DefaultProcessExecutor(
+             timeout: passTimeout,
+             environment: environment,
+           ),
        _passSpecsFuture =
            passSpecs ??
            defaultPassSpecs(

@@ -56,6 +56,7 @@ import '../services/feature_path_resolver.dart';
 import '../services/kernel_cache.dart';
 import '../services/lane_receipts.dart';
 import '../services/routing_provenance_preflight.dart';
+import '../services/scratch_tmpdir.dart';
 import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
@@ -175,6 +176,41 @@ class RunCommand extends Command<void> {
   );
 
   Future<void> _run() async {
+    // Spec 1520 (issue #1520): ONE scratch dir per invocation. Every child
+    // this command spawns — step children and the phase-0 pipeline spawns
+    // alike — inherits the scratch as its TMPDIR, so every `dart test`
+    // grandchild writes its `dart_test.kernel.*` dir inside the run's own
+    // scratch instead of the shared user TMPDIR, and the finally below
+    // deletes the scratch recursively at run end (the #1507 leak fixed by
+    // construction). Best-effort: a scratchless run (children inherit the
+    // ambient TMPDIR) always beats a crashed command.
+    const label = 'run';
+    final rest = argResults?.rest ?? const <String>[];
+    final scratch = await ScratchTmpDir.acquire(
+      label: rest.isNotEmpty ? rest.first : label,
+      projectRoot: _scratchProjectRoot(),
+    );
+    try {
+      await _runDriven(scratch?.childEnvironment());
+    } finally {
+      await scratch?.dispose();
+    }
+  }
+
+  /// The project root the scratch-root resolution uses (.zfa.json tier) —
+  /// best-effort: an unresolvable root degrades to the env-only tiers.
+  String? _scratchProjectRoot() {
+    try {
+      final projectFlag = argResults?['project'] as String?;
+      return projectFlag != null && projectFlag.isNotEmpty
+          ? projectFlag
+          : ProjectRoot.find(anchorDir: 'specs');
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> _runDriven(Map<String, String>? scratchEnv) async {
     const label = 'run';
     // Spec 1113: the meta entry's bounds — the meta cycle started when
     // the command began, finishes at its terminal outcome.
@@ -518,6 +554,7 @@ class RunCommand extends Command<void> {
       skipWidget: skipWidget,
       mockCounts: mockCounts,
       baselineScope: baselineScope,
+      childEnvironment: scratchEnv,
     );
 
     // Fail fast (issue #1008): the engine lane must be green before the
@@ -568,6 +605,7 @@ class RunCommand extends Command<void> {
       announce: false,
       skipWidget: skipWidget,
       baselineScope: baselineScope,
+      childEnvironment: scratchEnv,
     );
 
     if (skin.result != 'complete') {
