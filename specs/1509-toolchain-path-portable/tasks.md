@@ -8,14 +8,14 @@ delegates). T011–T014 are non-behavioural hardening and traceability.
 
 ## MVP (behaviors first — every one has a failing test before implementation)
 
-- [ ] **T001** [P] [US1] Write the spec-pin test: the tracked-source scan
+- [x] **T001** [P] [US1] Write the spec-pin test: the tracked-source scan
       asserting `/opt/flutter/bin/dart` is absent from all `bin/**/*.dart`,
       `lib/**/*.dart` files (suite
       `test/utils/dart_toolchain_resolver_test.dart`, test
       `spec-pin: no hardcoded /opt/flutter/bin/dart in tracked toolchain sources`).
       RED evidence: fails against `bin/zuraffa_mcp_server.dart:1638`.
       Traces: FR-002, SC-001.
-- [ ] **T002** [P] [US1] Write resolver unit tests for
+- [x] **T002** [P] [US1] Write resolver unit tests for
       `candidatePaths` purity: no `/opt/flutter` (or any
       machine-specific) entry under FLUTTER_ROOT/HOME-bearing
       environments (FR-005); FLUTTER_ROOT candidate present iff env set;
@@ -23,7 +23,7 @@ delegates). T011–T014 are non-behavioural hardening and traceability.
       `<dir>/dart` + `<dir>/bin/dart`; empty-env minimal list.
       RED evidence: library does not exist (compile failure).
       Traces: FR-002, FR-005, acceptance 5.
-- [ ] **T003** [P] [US1] Write resolver unit tests for the resolve()
+- [x] **T003** [P] [US1] Write resolver unit tests for the resolve()
       tiers over injected probes: `ZURAFFA_DART_BIN` pin wins when the
       file exists and is skipped when it does not (FR-004/acceptance 4);
       PATH `which dart` hit returned trimmed (FR-001); flutter-adjacent
@@ -31,28 +31,28 @@ delegates). T011–T014 are non-behavioural hardening and traceability.
       candidate-order filesystem fallback (FR-005); null when nothing
       found (FR-006). RED evidence: library does not exist.
       Traces: FR-001, FR-004, FR-006.
-- [ ] **T004** [US1] Implement `lib/src/utils/dart_toolchain_resolver.dart`:
+- [x] **T004** [US1] Implement `lib/src/utils/dart_toolchain_resolver.dart`:
       pure `candidatePaths`, injectable `DartToolchainResolver.resolve()`,
       platform-correct real `which`/`where` adapter, dartdoc documenting
       the environment contract (`ZURAFFA_DART_BIN`,
       `ZURAFFA_TOOLCHAIN_HINTS`, `FLUTTER_ROOT`) and the documented-env
       recipe (`ZURAFFA_TOOLCHAIN_HINTS=/opt/flutter`). Turns T001–T003
       green. Traces: FR-001..FR-006.
-- [ ] **T005** [US1] Rewrite `ZuraffaMcpServer._findDartExecutable()` to
+- [x] **T005** [US1] Rewrite `ZuraffaMcpServer._findDartExecutable()` to
       delegate to a `DartToolchainResolver` field, preserving the
       `_dartProbeDone`/`_cachedDartPath` cache contract and the
       `Future<String?>` signature. Removes the banned literal — T001
       flips green. Traces: FR-003, FR-006.
-- [ ] **T006** [US1] Run `dart test test/utils/dart_toolchain_resolver_test.dart`
+- [x] **T006** [US1] Run `dart test test/utils/dart_toolchain_resolver_test.dart`
       → fully green; record in tdd/test-list.md. Traces: SC-003.
 
 ## Post-MVP (non-behavioural)
 
-- [ ] **T007** [P] Run `dart format lib test bin` (repo contract) —
+- [x] **T007** [P] Run `dart format lib test bin` (repo contract) —
       no formatting deltas expected for touched files. Traces: SC-005.
-- [ ] **T008** Run `dart analyze .` → 0 errors / 0 warnings / no new
+- [x] **T008** Run `dart analyze .` → 0 errors / 0 warnings / no new
       infos vs. the 112-info baseline. Traces: SC-002.
-- [ ] **T009** Run `dart test --preset=all
+- [x] **T009** Run `dart test --preset=all
       test/plugins/tdd/make_command_test.dart` → no new failures vs. the
       recorded 5-failure environment baseline; clean dart-test kernel
       cache before and after. Traces: SC-004.

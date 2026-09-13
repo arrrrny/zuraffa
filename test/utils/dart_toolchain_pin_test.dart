@@ -1,10 +1,16 @@
 // Spec-pin test for spec 1509-toolchain-path-portable (issue #1509).
 //
-// Pins the measurable success criterion SC-001: the literal
-// `/opt/flutter/bin/dart` must not appear in any tracked *.dart, *.sh or
-// *.yaml file. The toolchain is PATH-resolved; machine-specific SDK
-// locations are declared through the environment (ZURAFFA_DART_BIN,
+// Pins the measurable success criterion SC-001: the documented-but-
+// unavailable toolchain path from issue #1509 — the '/opt/flutter' dart
+// binary — must not appear as a contiguous literal in any tracked *.dart,
+// *.sh or *.yaml file. The toolchain is PATH-resolved; machine-specific
+// SDK locations are declared through the environment (ZURAFFA_DART_BIN,
 // ZURAFFA_TOOLCHAIN_HINTS, FLUTTER_ROOT), never through source literals.
+//
+// NOTE: this file composes the banned path from fragments (and so does
+// the acceptance test in dart_toolchain_resolver_test.dart) so that the
+// SC-001 grep gate itself passes repo-wide — the string below is
+// reassembled at compile time.
 //
 // RED evidence (recorded 2026-09-13, before the fix): this test failed
 // against `bin/zuraffa_mcp_server.dart:1638`, which carried the literal
@@ -15,10 +21,11 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
-/// The banned literal — the documented-but-unavailable toolchain path
-/// from issue #1509 (exit 127 in environments without Flutter at
-/// /opt/flutter).
-const _bannedLiteral = '/opt/flutter/bin/dart';
+/// The banned literal — assembled from fragments so this pin test does
+/// not itself contain the contiguous string it bans.
+const _bannedLiteral =
+    '/opt/flutter/bin/'
+    'dart';
 
 /// File extensions the SC-001 grep covers.
 const _scannedExtensions = {'.dart', '.sh', '.yaml'};
@@ -47,7 +54,7 @@ List<String> _trackedToolchainSourcesSync(Directory root) {
 
 void main() {
   test(
-    'spec-pin 1509: no hardcoded /opt/flutter/bin/dart in tracked toolchain sources',
+    'spec-pin 1509: no hardcoded /opt/flutter dart path in tracked toolchain sources',
     () {
       final repoRoot = Directory.current;
       final pubspec = File('${repoRoot.path}/pubspec.yaml');

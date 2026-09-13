@@ -88,7 +88,9 @@ class DartToolchainResolver {
   }) {
     final candidates = <String>[];
     for (final dir in _hintDirs(environment)) {
-      candidates..add(p.join(dir, 'dart'))..add(p.join(dir, 'bin', 'dart'));
+      candidates
+        ..add(p.join(dir, 'dart'))
+        ..add(p.join(dir, 'bin', 'dart'));
     }
     final flutterRoot = environment['FLUTTER_ROOT'];
     if (flutterRoot != null && flutterRoot.isNotEmpty) {
