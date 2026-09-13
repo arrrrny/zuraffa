@@ -544,6 +544,28 @@ void main() {
         isFalse,
         reason: 'unselected platform must have no adapter',
       );
+
+      // The README's wiring example must name a registration that exists
+      // in the subset: an android-less family can't tell users to call
+      // `registerAndroid…` (review of PR #1609 — the token used to be
+      // overridden with a literal `Android`).
+      final subset = await scaffold(
+        name: 'picker',
+        platforms: const [PluginPlatform.ios, PluginPlatform.macos],
+      );
+      final subsetReadme = File(
+        p.join(subset.rootPath, 'packages', 'picker', 'README.md'),
+      ).readAsStringSync();
+      expect(
+        subsetReadme,
+        contains('registerIosPickerDependencies'),
+        reason: 'the subset README must point at its first platform adapter',
+      );
+      expect(
+        subsetReadme,
+        isNot(contains('registerAndroid')),
+        reason: 'no android adapter is scaffolded for an ios,macos subset',
+      );
     });
   });
 

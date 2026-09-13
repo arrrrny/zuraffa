@@ -106,6 +106,11 @@ class PluginScaffold {
         'At least one platform is required (--platforms android,ios,macos).',
       );
     }
+    // Normalize to family order (android, ios, macos) regardless of the
+    // caller's input order — publish order and the README's platform
+    // example must be stable for library callers too, not just for the
+    // CLI (whose `platformsFromCsv` already returns enum order).
+    platforms = PluginPlatform.values.where(platforms.contains).toList();
     if (zuraffaPath != null && !Directory(zuraffaPath).existsSync()) {
       throw PackageScaffoldException(
         'Invalid --zuraffa-path: "$zuraffaPath" is not a directory.',
@@ -153,13 +158,17 @@ class PluginScaffold {
       '@@NOUN@@': family.noun,
       '@@PASCAL@@': family.appPascal,
       '@@DESC@@': effectiveDescription,
+      // The custom --description, kept separate from @@DESC@@ so the
+      // adapters can tell "author chose this text" from "use the
+      // per-platform default sentence".
+      '@@CUSTOM_DESC@@': _singleLine(description ?? ''),
       '@@REPO@@': repoUrl,
       '@@ZURAFFA_DEP@@': zuraffaDep,
       '@@APP_OVERRIDES@@': appOverrides,
       '@@ZURAFFA_PATH_ENTRY@@': zuraffaPathEntry,
       '@@CORE_DESC@@':
           description ??
-          'Shared channel-envelope core for the \$name platform adapters: '
+          'Shared channel-envelope core for the $name platform adapters: '
               'decode, typed-error plumbing, and timeout policy over an '
               'injected platform channel.',
       '@@TOPICS@@': _topicsYaml(_topicsFor(family.noun)),
@@ -304,11 +313,16 @@ class PluginScaffold {
   /// The sed lines every family pubspec gets during a version bump: the
   /// app-facing constraint and the platform-core constraint are aligned to
   /// the release version wherever they appear (hosted in-family deps).
+  ///
+  /// `-i.bak` is the in-place form BSD and GNU sed both accept (bare
+  /// `-i ''` is the macOS spelling; GNU sed reads the empty string as the
+  /// script and dies) — the same portable form the repo's pipeline tests
+  /// pin. The backup is removed after each rewrite.
   String _familyConstraintSeds(String name) {
     final lines = StringBuffer();
     for (final familyPkg in [name, '${name}_platform']) {
       lines.write(
-        "    sed -i '' -E \"/^( *$familyPkg: \\^)/s|.*|  $familyPkg: ^\$VERSION|\" \"\$pubspec\"\n",
+        "    sed -i.bak -E \"/^( *$familyPkg: \\^)/s|.*|  $familyPkg: ^\$VERSION|\" \"\$pubspec\" && rm -f \"\$pubspec.bak\"\n",
       );
     }
     return lines.toString();
@@ -485,9 +499,11 @@ git checkout -b "$BRANCH" 2>/dev/null || { echo -e "${RED}Branch $BRANCH already
 echo -e "${GREEN}Created branch $BRANCH${NC}"
 
 # Bump every package version and align in-family constraints to ^VERSION.
+# -i.bak is the in-place form BSD and GNU sed both accept (bare -i '' is
+# macOS-only; GNU sed dies on it).
 for pkg in @@PKGS@@; do
     pubspec="packages/$pkg/pubspec.yaml"
-    sed -i '' -E "s/^version: .*/version: $VERSION/" "$pubspec"
+    sed -i.bak -E "s/^version: .*/version: $VERSION/" "$pubspec" && rm -f "$pubspec.bak"
 @@FAMILY_SEDS@@    echo -e "${BLUE}$pkg -> $VERSION (in-family deps ^$VERSION)${NC}"
 done
 
@@ -626,8 +642,7 @@ issue_tracker: @@REPO@@/issues
         _packageChangelogTemplate,
         tokens,
       ),
-      p.join('packages', name, 'README.md'): _render(
-        r'''
+      p.join('packages', name, 'README.md'): _render(r'''
 # @@PKG@@
 
 @@DESC@@
@@ -657,9 +672,7 @@ wired port every call surfaces the typed `port_not_wired` failure.
 dart pub get
 dart test
 ```
-''',
-        {...tokens, '@@PLATFORM_EXAMPLE@@': 'Android'},
-      ),
+''', tokens),
       p.join('packages', name, 'LICENSE'): _render(_licenseTemplate, tokens),
       p.join('packages', name, 'lib', '$name.dart'): _render(r'''
 /// @@PKG@@ — @@PASCAL@@ support for the Zuraffa ecosystem.
@@ -749,7 +762,10 @@ sealed class @@PASCAL@@Value {
   static @@PASCAL@@Value decode(Object? raw) {
     if (raw is int) return @@PASCAL@@I32(raw);
     if (raw is double) return @@PASCAL@@F64(raw);
-    if (raw is String) return @@PASCAL@@I64(BigInt.parse(raw));
+    if (raw is String) {
+      final parsed = BigInt.tryParse(raw);
+      if (parsed != null) return @@PASCAL@@I64(parsed);
+    }
     throw @@PASCAL@@Exception(
       'malformed_value',
       'Cannot decode "$raw" into a @@PASCAL@@Value.',
@@ -934,15 +950,22 @@ class _Unwired@@PASCAL@@Port implements @@PASCAL@@Port {
 
 /// Registers the @@PKG@@ stack onto [getIt]: the [@@PASCAL@@Port] is
 /// normally supplied by the platform adapter package for the running
-/// platform (e.g. `registerAndroid@@PASCAL@@Dependencies`). Without a
-/// port the service resolves over the unwired placeholder and surfaces
-/// typed `port_not_wired` failures.
+/// platform (e.g. `registerAndroid@@PASCAL@@Dependencies`), so the
+/// service falls back to the GetIt-registered port when no explicit one
+/// is passed. Without any registered port the service resolves over the
+/// unwired placeholder and surfaces typed `port_not_wired` failures.
 void register@@PASCAL@@Dependencies(
   GetIt getIt, {
   @@PASCAL@@Port? port,
 }) {
   getIt.registerLazySingleton<@@PASCAL@@Service>(
-    () => @@PASCAL@@Service(port: port ?? const _Unwired@@PASCAL@@Port()),
+    () => @@PASCAL@@Service(
+      port:
+          port ??
+          (getIt.isRegistered<@@PASCAL@@Port>()
+              ? getIt<@@PASCAL@@Port>()
+              : const _Unwired@@PASCAL@@Port()),
+    ),
   );
 }
 ''';
@@ -1483,11 +1506,14 @@ void main() {
     final adapterName = '${name}_${platform.dirSuffix}';
     final adapterTokens = {
       ...tokens,
-      '@@ADAPTER_DESC@@':
-          tokens['@@DESC@@'] ??
-          '${platform.label} adapter for $name — the '
-              '${tokens['@@PASCAL@@']} port over an injected platform '
-              'channel with a typed failure taxonomy.',
+      // A custom --description mirrors onto the adapters; without one the
+      // per-platform sentence is the default (a generic app-level
+      // sentence would waste the per-platform pub.dev surface).
+      '@@ADAPTER_DESC@@': tokens['@@CUSTOM_DESC@@']!.isEmpty
+          ? '${platform.label} adapter for $name — the '
+                '${tokens['@@PASCAL@@']} port over an injected platform '
+                'channel with a typed failure taxonomy.'
+          : tokens['@@CUSTOM_DESC@@']!,
       '@@TOPICS@@': _topicsYaml(_topicsFor(noun, platform: platform)),
       '@@PLATFORM_CLASS@@': platform.classPrefix,
       '@@PLATFORM_FILE@@': platform.dirSuffix,

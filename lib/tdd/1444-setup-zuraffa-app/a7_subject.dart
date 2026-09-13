@@ -1,91 +1,76 @@
-// GENERATED STUB — `zfa tdd gen A7` (spec 044-test-tdd-generation).
+// GENERATED IMPLEMENTATION — hand-implemented per the paired test header's
+// instruction ("Replace the subject's stub body with real implementation to
+// make this test pass"), the sanctioned handcraft seam of the TDD loop.
 //
 // behavior_id: A7
 // source_criterion: AC-7
 // description: no errors are reported (the imports resolve correctly)
 //
+// Drives the real generation path — the CLI's AppShellBuilder.buildMain,
+// the same emitter `zfa app shell` / `zfa setup` call — and inspects the
+// emitted entrypoint instead of a hand-written fixture (review of PR
+// #1609: the previous body asserted on a file it wrote itself). Every
+// `package:` import in the emitted main.dart must name a file the shell
+// path writes: the #1462 project-root-prefixed outputDir regression
+// emitted `package:my_app/../my_app/lib/src/…`, which never resolves.
+//
 // ignore_for_file: non_constant_identifier_names
 library;
 
-import 'dart:io';
+import 'package:zuraffa/src/plugins/app_shell/builders/app_shell_builder.dart';
 
 /// Scenario runner for behavior A7.
-///
-/// Verifies that a generated main.dart with ZuraffaApp compiles cleanly
-/// (no unused imports, no missing symbols). This is a static-analysis
-/// check — the generated code must pass `dart analyze`.
 void subject_a7() {
-  final tempDir = Directory.systemTemp.createTempSync('zfa_a7_');
-  try {
-    // Scaffold a minimal Flutter project structure with ZuraffaApp shell.
-    final pubspec = File('${tempDir.path}/pubspec.yaml');
-    pubspec.writeAsStringSync('''
-name: test_compile_check
-environment:
-  sdk: ">=3.11.0 <4.0.0"
-dependencies:
-  flutter:
-    sdk: flutter
-  zuraffa_flutter:
-    git:
-      url: https://github.com/arrrrny/zuraffa
-      path: zuraffa_flutter
-  zuraffa_ui:
-    git:
-      url: https://github.com/arrrrny/zuraffa
-      path: zuraffa_ui
-  get_it: ^2.0.0
-''');
+  const builder = AppShellBuilder();
+  const appName = 'demo_app';
 
-    final diDir = Directory('${tempDir.path}/lib/src/di')
-      ..createSync(recursive: true);
-    File('${diDir.path}/index.dart').writeAsStringSync('''
-import 'package:get_it/get_it.dart';
-void setupDependencies(GetIt getIt) {}
-''');
+  final main = builder.buildMain(
+    appName: appName,
+    naming: AppShellNaming.fromAppName(appName),
+    // Exactly the lib/-relative outputDir setup's shell step passes
+    // (the #1462 fix).
+    outputDir: 'lib/src',
+    diTakesGetIt: true,
+    diIsAsync: false,
+    coreImport: 'package:zuraffa_flutter/zuraffa_flutter.dart',
+  );
 
-    // Write a main.dart that uses ZuraffaApp (the generated pattern).
-    final mainDart = File('${tempDir.path}/lib/main.dart');
-    mainDart.writeAsStringSync('''
-import 'package:flutter/material.dart';
-import 'package:get_it/get_it.dart';
-import 'package:zuraffa_flutter/zuraffa_flutter.dart';
-import 'package:zuraffa_ui/zuraffa_ui.dart';
-import 'src/di/index.dart';
+  final imports = RegExp(
+    r"import '([^']+)';",
+  ).allMatches(main).map((match) => match.group(1)!).toList();
 
-void main() {
-  setupDependencies(GetIt.instance);
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        body: Center(child: Text('Test')),
-      ),
+  const shellImport = 'package:$appName/src/app/demo_app.dart';
+  const diImport = 'package:$appName/src/di/index.dart';
+  if (!imports.contains(shellImport)) {
+    throw StateError(
+      'main.dart must import the shell widget it runs ($shellImport); '
+      'got: $imports',
     );
   }
-}
-''');
+  if (!imports.contains(diImport)) {
+    throw StateError(
+      'main.dart must import the DI barrel it calls ($diImport); '
+      'got: $imports',
+    );
+  }
+  for (final uri in imports) {
+    if (uri.contains('..')) {
+      throw StateError('emitted import does not resolve (path escapes): $uri');
+    }
+  }
 
-    // Verify: the file doesn't reference ZuraffaApp directly in this
-    // simplified stub (the real generated code would). The key check
-    // is that the file exists and has valid Dart syntax.
-    if (!mainDart.existsSync()) {
-      throw StateError('main.dart was not created');
-    }
-    final content = mainDart.readAsStringSync();
-    if (content.isEmpty) {
-      throw StateError('main.dart is empty');
-    }
-    // Basic syntax check: file has imports and a main function.
-    if (!content.contains('void main()')) {
-      throw StateError('main.dart is missing void main()');
-    }
-  } finally {
-    tempDir.deleteSync(recursive: true);
+  if (!main.contains('void main()')) {
+    throw StateError('generated main.dart is missing void main()');
+  }
+  if (!main.contains('setupDependencies(GetIt.instance);')) {
+    throw StateError(
+      'generated main.dart must call the canonical '
+      'setupDependencies(GetIt.instance)',
+    );
+  }
+  if (!main.contains('runApp(const DemoApp());')) {
+    throw StateError(
+      'generated main.dart must runApp the shell widget it imports',
+    );
   }
 }
