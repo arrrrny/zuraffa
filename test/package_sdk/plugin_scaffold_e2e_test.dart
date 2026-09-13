@@ -130,6 +130,10 @@ void main() {
             '--no-gate',
           ],
           workingDirectory: tempDir.path,
+          // 240s, not the 75s default: when the AOT build is unavailable
+          // (its 100s budget misses on slow hosts) the spawn falls back to
+          // a cold `dart bin/zfa.dart` start that already exceeds 75s —
+          // arrrrny/zuraffa#1623.
           timeout: const Duration(seconds: 240),
         );
         expect(
