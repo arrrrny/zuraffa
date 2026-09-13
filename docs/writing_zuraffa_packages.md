@@ -46,6 +46,7 @@ Options:
 | `--output <dir>` | Parent directory for the new package (default `.`) |
 | `--description <text>` | pubspec + README description |
 | `--zuraffa-path <path>` | Pin zuraffa as a **path dependency** (develop the package against a local zuraffa checkout) instead of the published version |
+| `--zuraffa-constraint <c>` | Pin the hosted zuraffa constraint stamped into the pubspec and module (e.g. `^6.2.2`); the value is used **verbatim**. Defaults to the latest version published on pub.dev |
 | `--dry-run` | Preview the file list without writing |
 
 Running `zfa package create` against an existing directory fails with a

@@ -256,6 +256,12 @@ class MockVerifyCommand extends Command<void> {
             'interfaceFile': certification.interface,
             'readOnly': true,
             'certification': certification.toEnvelopeJson(),
+            // Issue #1539: the compiler verdict is UNVERIFIED — the
+            // analysis server crashed on both passes (retried once) while
+            // the structural certification was clean. Non-null only in
+            // that shape; the crash text is disclosed, never silent.
+            if (report.analyzeUnverified != null)
+              'analyzeUnverified': report.analyzeUnverified,
           },
         ),
       );
@@ -275,6 +281,22 @@ class MockVerifyCommand extends Command<void> {
       // ignore: avoid_print
       print('  registry  : ${certification.registryId}');
       if (report.passed) {
+        // Issue #1539: a crashed analyze on BOTH passes leaves the
+        // structural certification standing — disclose the unverified
+        // compiler verdict loudly, never a silent pass. Same shared
+        // formatter as `mock create --certify` (PR #1616 review finding
+        // 6): this command writes no receipt, so the receipt clause is
+        // absent rather than false.
+        if (report.analyzeUnverified != null) {
+          for (final line in analyzeUnverifiedNotice(
+            entity: entity,
+            registryId: certification.registryId,
+            crashOutput: report.analyzeUnverified!,
+          )) {
+            // ignore: avoid_print
+            print(line);
+          }
+        }
         // ignore: avoid_print
         print(
           '✅ verified: the mock conforms to '
