@@ -612,7 +612,7 @@ class SimulateInitCommand extends Command<void> {
         commandLine:
             'zfa simulate init $scenario --feature '
             '${resolved.featureName} --seed $seed',
-        hash: manifest.worldHash,
+        subjectDigest: manifest.worldHash,
         exitCode: 0,
         criterion:
             'world "$scenario" committed under tdd/worlds/ with '
@@ -863,7 +863,7 @@ class SimulateRunCommand extends Command<void> {
         commandLine:
             'zfa simulate run $scenario --feature ${resolved.featureName}'
             '${seed != manifest.seed ? ' --seed $seed' : ''}',
-        hash: runDigest,
+        subjectDigest: runDigest,
         exitCode: verdict == 'GREEN' && diffOk ? 0 : 1,
         criterion:
             'scenario "$scenario" executed against world '
@@ -1051,7 +1051,7 @@ class SimulateReplayCommand extends Command<void> {
         commandLine:
             'zfa simulate replay $scenario --feature '
             '${resolved.featureName}',
-        hash: digest,
+        subjectDigest: digest,
         exitCode: matches ? 0 : 1,
         criterion:
             'replay of scenario "$scenario" re-executed with the recorded '
@@ -1161,7 +1161,7 @@ class SimulateCertifyCommand extends Command<void> {
         commandLine:
             'zfa simulate certify $scenario --feature '
             '${resolved.featureName}',
-        hash: manifest.worldHash,
+        subjectDigest: manifest.worldHash,
         exitCode: certification.certified ? 0 : 1,
         criterion:
             'world "$scenario" re-certified live: '

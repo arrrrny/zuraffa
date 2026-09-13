@@ -9,6 +9,11 @@ import 'package:zuraffa/src/package/package_scaffold.dart';
 import 'package:yaml/yaml.dart';
 import 'package:zuraffa/src/version.dart';
 
+/// The published-looking constraint the hermetic scaffolds pin — distinct
+/// from the dev version const, so a regression back to `^$version` shows up
+/// on disk.
+const String _publishedConstraintStub = '^6.2.2';
+
 void main() {
   late Directory tempDir;
 
@@ -20,12 +25,25 @@ void main() {
     if (tempDir.existsSync()) await tempDir.delete(recursive: true);
   });
 
-  Future<PackageScaffoldResult> scaffold({String? zuraffaPath}) {
-    return PackageScaffold().create(
-      name: 'my_pkg',
+  Future<PackageScaffoldResult> scaffold({
+    String? zuraffaPath,
+    String? zuraffaConstraint,
+    Future<String> Function()? zuraffaConstraintResolver,
+    void Function(String message)? warningSink,
+    String name = 'my_pkg',
+    String description = 'A test package',
+  }) {
+    return PackageScaffold(
+      // Default to a stub: this suite must not depend on pub.dev.
+      zuraffaConstraintResolver:
+          zuraffaConstraintResolver ?? () async => _publishedConstraintStub,
+      warningSink: warningSink,
+    ).create(
+      name: name,
       outputParent: tempDir.path,
-      description: 'A test package',
+      description: description,
       zuraffaPath: zuraffaPath,
+      zuraffaConstraint: zuraffaConstraint,
     );
   }
 
@@ -81,7 +99,7 @@ void main() {
       ).readAsStringSync();
       expect(pubspec, contains('name: my_pkg'));
       expect(pubspec, contains('publish_to: none'));
-      expect(pubspec, contains('zuraffa: ^$version'));
+      expect(pubspec, contains('zuraffa: $_publishedConstraintStub'));
       expect(pubspec, contains('zorphy:'));
       expect(pubspec, contains('zorphy_annotation:'));
       expect(pubspec, contains('build_runner:'));
@@ -107,9 +125,8 @@ void main() {
     test(
       'U3c: description containing a colon stays YAML-safe (dogfood bug)',
       () async {
-        await PackageScaffold().create(
+        await scaffold(
           name: 'colon_pkg',
-          outputParent: tempDir.path,
           description: 'Spec 025 reference: one entity, one usecase',
         );
 
@@ -172,8 +189,14 @@ void main() {
         expect(module, contains('registerMyPkgPackage(di)'));
         expect(module, contains('package:zuraffa/zuraffa.dart'));
         expect(module, contains('ZuraffaDIContainer'));
-        // The module declares the constraint the pubspec pins (FR-015).
-        expect(module, contains('zuraffaSdkConstraint'));
+        // The module declares the constraint the pubspec pins (FR-015) —
+        // the published one, never the dev version const (#1615).
+        expect(
+          module,
+          contains(
+            "String get zuraffaSdkConstraint => '$_publishedConstraintStub'",
+          ),
+        );
       },
     );
 
@@ -252,6 +275,89 @@ void main() {
         throwsA(isA<PackageScaffoldException>()),
       );
       expect(Directory(p.join(tempDir.path, 'Bad-Name')).existsSync(), isFalse);
+    });
+  });
+
+  group('PackageScaffold — hosted zuraffa constraint (issue #1615 parity)', () {
+    test(
+      'B12a-parity: the hosted lane stamps the published constraint',
+      () async {
+        await scaffold();
+
+        final pubspec =
+            loadYaml(
+                  File(
+                    p.join(tempDir.path, 'my_pkg', 'pubspec.yaml'),
+                  ).readAsStringSync(),
+                )
+                as YamlMap;
+        expect(
+          (pubspec['dependencies'] as YamlMap)['zuraffa'],
+          _publishedConstraintStub,
+          reason:
+              'the stamped constraint must be the published one — a dev '
+              'checkout const (e.g. ^$version pre-release) cannot resolve',
+        );
+      },
+    );
+
+    test('B12b-parity: a resolver failure warns and falls back', () async {
+      final warnings = <String>[];
+      await scaffold(
+        zuraffaConstraintResolver: () async =>
+            throw const SocketException('offline'),
+        warningSink: warnings.add,
+      );
+
+      final pubspec =
+          loadYaml(
+                File(
+                  p.join(tempDir.path, 'my_pkg', 'pubspec.yaml'),
+                ).readAsStringSync(),
+              )
+              as YamlMap;
+      expect((pubspec['dependencies'] as YamlMap)['zuraffa'], '^$version');
+      expect(
+        warnings.single,
+        allOf(
+          contains('pub.dev'),
+          contains('^$version'),
+          contains('--zuraffa-constraint'),
+        ),
+      );
+    });
+
+    test('B12c-parity: an explicit constraint beats the resolver', () async {
+      await scaffold(
+        zuraffaConstraint: '^7.0.1',
+        zuraffaConstraintResolver: () async =>
+            throw const SocketException('resolver must not be consulted'),
+      );
+
+      final pubspec =
+          loadYaml(
+                File(
+                  p.join(tempDir.path, 'my_pkg', 'pubspec.yaml'),
+                ).readAsStringSync(),
+              )
+              as YamlMap;
+      expect((pubspec['dependencies'] as YamlMap)['zuraffa'], '^7.0.1');
+
+      final module = File(
+        p.join(
+          tempDir.path,
+          'my_pkg',
+          'lib',
+          'src',
+          'module',
+          'my_pkg_package_module.dart',
+        ),
+      ).readAsStringSync();
+      expect(
+        module,
+        contains("String get zuraffaSdkConstraint => '^7.0.1'"),
+        reason: 'the module must advertise what the pubspec declares',
+      );
     });
   });
 }

@@ -689,6 +689,23 @@ case "$STEP" in
         echo "make: behavior=$ID outcome=green feature=$FEATURE"
         exit 0
         ;;
+      hand-step-red)
+        # Issue #1568 shape: the planner-declared hand-step seam — the
+        # target test still fails after generation (the honest red the
+        # forecast pre-declared), so the real make exits 1 with
+        # outcome=generation-error and its transcript carries the
+        # still-failing-target-test line.
+        echo 'zfa tdd make: target test still fails after generation (exit 1).'
+        echo "make: behavior=$ID outcome=generation-error feature=$FEATURE"
+        exit 1
+        ;;
+      crash-no-marker)
+        # Issue #1568 guard shape: a REAL generation failure on the same
+        # seam — outcome=generation-error WITHOUT the still-failing
+        # marker, so the driver's generic stop must stand.
+        echo "make: behavior=$ID outcome=generation-error feature=$FEATURE"
+        exit 1
+        ;;
       exit0:*)
         echo "make: behavior=$ID outcome=${OUTCOME#exit0:} feature=$FEATURE"
         exit 0

@@ -69,6 +69,8 @@ import '../services/runner.dart';
 import '../services/spec_parser.dart';
 import '../services/step_runner.dart';
 import '../services/contract_blocked_receipt.dart';
+import '../services/hand_surface.dart';
+import '../services/reproof_failure_classifier.dart' show parseFailingTestNames;
 import '../services/suite_guard.dart';
 import '../models/routing.dart';
 import '../services/test_list_reader.dart';
@@ -121,6 +123,11 @@ class RunDriverOutcome {
   /// under [state] — the receipt counts and the lane summary counts.
   final Map<String, int> counts;
 
+  /// The behavior ids the run parked at the designed hand-step (issue
+  /// #1568: the planner's seam forecast + make's still-failing red) —
+  /// named in the end-of-run summary (`hand_steps=N`).
+  final List<String> handStepIds;
+
   /// `behavior:step` when the run stopped, else null.
   final String? stoppedAt;
 
@@ -128,13 +135,6 @@ class RunDriverOutcome {
   /// widget-lane gen refusals the operator chose to skip); named in the
   /// end-of-run summary (`skipped-widget=<n>`).
   final List<String> skippedWidgetIds;
-
-  /// The parked hand-step behavior ids (issue #1568): the
-  /// planner-declared entity-return seam behaviors the run parked at
-  /// make (`outcome=hand-step`). Named in the end-of-run summary
-  /// (`hand_steps=N` + the terminal block) so the operator can implement
-  /// them deliberately.
-  final List<String> handStepIds;
 
   /// A refusal/corruption message printed before the summary line (the
   /// concurrent-run refusal and the corruption recovery path name their
@@ -280,6 +280,28 @@ class RunDriverCore {
   // the pre-spawn runner-error), never by the named deferral/skip/block
   // arms or by successful steps.
   _StepFailure? _lastStepFailure;
+
+  /// Issue #1589: the parked contracts' seam file paths (project-relative)
+  /// the phase-2 refactor gate must tolerate — pre-existing-failure
+  /// economics for a BLOCKED verdict. Seeded from the persisted state
+  /// (blocked contract + verdict receipt on disk — cross-lane/resume
+  /// parkings), the still-blocked skip arm, and this run's parkings; the
+  /// set is complete before the first phase-2b refactor spawns and is
+  /// handed to every refactor child as `--parked-seam <path>`. Every path
+  /// is existence-gated (review fix): the flag only ever names a seam the
+  /// driver SAW parked, never `seamPathFor`'s display-only fallback.
+  /// Per-run instance state (drive is non-reentrant per instance).
+  final Set<String> _parkedSeamPaths = <String>{};
+
+  /// Issue #1589 (review fix): the failing-test identifiers the parked
+  /// verdicts RECORDED, handed to refactor children as
+  /// `--parked-failure <identifier>` so the tolerance pins to the known
+  /// red instead of exempting a whole seam file. Read from each verdict
+  /// receipt's `output_excerpt` (the transcript the verdict actually saw)
+  /// when it is parseable; a seam with no identifier here keeps the
+  /// coarser file-level tolerance, which is what the pre-review flag did
+  /// for every seam.
+  final Set<String> _parkedFailureIdentifiers = <String>{};
 
   /// Fires one step-verdict.v1 event for a completed step (a no-op when
   /// the hook is unset — the legacy byte-identical output path).
@@ -586,23 +608,24 @@ class RunDriverCore {
       print('zfa tdd $label: feature $feature — ${rows.length} behavior(s)');
       if (skipped > 0) print('   $skipped already done — skipping');
       // SPEC 1489: the unit lane's hand-step forecast — the same seam
-      // cost `zfa tdd plan` surfaced, recomputed against the entity
-      // registry NOW (entities created since planning lift their
-      // behaviors out of the forecast). Output-only: the loop, the
+      // cost `zfa tdd plan` surfaced. Output-only here: the announce
+      // reads the entity registry as it stands now, and the loop, the
       // BehaviorState transitions and the two-phase driver semantics
-      // are untouched.
+      // stay untouched. Issue #1568's park gate resolves the SAME
+      // forecast lazily on the failure path instead (after phase-0 has
+      // created the pass's declared entities) — see `_driveBehavior`.
       final unitRowCount = rows
           .where((r) => r.kind == BehaviorKind.unit)
           .length;
       if (unitRowCount > 0) {
-        final seams = await _entityReturnSeamForecast(
+        final seamIds = await _entityReturnSeamIds(
           projectRoot: projectRoot,
           featureName: feature,
           featureDir: featureDir,
           rows: rows,
         );
         final seamLine = UnitContractShape.entityReturnSeamCostLine(
-          seams: seams,
+          seams: seamIds.length,
           total: unitRowCount,
         );
         if (seamLine != null) print('   $seamLine');
@@ -655,6 +678,11 @@ class RunDriverCore {
     // stop. The map is keyed by behavior id (transcript + summary) and
     // gates phases 2a/2b so a skipped behavior is never re-driven.
     final skippedWidgets = <String, String>{};
+
+    // Issue #1568: the behaviors this pass parked at the designed
+    // hand-step (planner seam forecast + make's still-failing red), with
+    // the reason recorded for the end-of-pass summary and the journal.
+    final handSteps = <String, String>{};
 
     String? suiteBaselinePath;
     final anyMakeOutstanding = rows.any(
@@ -893,6 +921,38 @@ class RunDriverCore {
       }
     }
 
+    // Issue #1589: seed the parked seams the phase-2 refactor gate must
+    // tolerate. A persisted BLOCKED contract (any lane's rows — the parked
+    // verdict poisons every later refactor spawn, not just its own lane's)
+    // whose verdict receipt exists contributes its seam file: the failing
+    // seam test is a KNOWN red for the rest of this run, not new damage.
+    // Fail-closed: no receipt on disk — no tolerance (the honest refusal
+    // stands). This run's parkings and still-blocked skips are added by
+    // their arms below (authoritative — the driver SAW the verdict).
+    // Review fix: the seam is existence-gated (never a display-only guess)
+    // and the receipt's own transcript contributes the attested failing
+    // identifiers the gate pins its tolerance to.
+    final blockedReceiptStore = ContractBlockedReceiptStore(
+      projectRoot: projectRoot,
+    );
+    for (final row in allRows) {
+      if (row.kind != BehaviorKind.contract) continue;
+      if ((current.behaviorStates[row.id] ?? BehaviorState.pending) !=
+          BehaviorState.blocked) {
+        continue;
+      }
+      final receipt = ContractBlockedReceipt.fromFile(
+        blockedReceiptStore.pathFor(row.id),
+      );
+      if (receipt == null) continue;
+      _addParkedSeam(
+        behaviorId: row.id,
+        projectRoot: projectRoot,
+        feature: feature,
+        attestedOutput: receipt.outputExcerpt,
+      );
+    }
+
     // --- Phase 1: the uniform cycle in list order, with the deferrals.
     // Issue #1544 (review fix): the rows whose BLOCKED verdict THIS run's
     // verify-red lifted (`unexpected-green` against a blocked contract).
@@ -926,6 +986,13 @@ class RunDriverCore {
             '$since)',
           );
           _emitStep(row.id, 'verify-red', 'skipped');
+          // Issue #1589: the parked verdict's seam test stays red for the
+          // rest of this run — the phase-2 refactor gate must tolerate it.
+          _addParkedSeam(
+            behaviorId: row.id,
+            projectRoot: projectRoot,
+            feature: feature,
+          );
           continue;
         }
       }
@@ -984,6 +1051,7 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
+        handSteps: handSteps,
       );
       if (result.stop != null) {
         return _finish(
@@ -998,6 +1066,12 @@ class RunDriverCore {
           journalStartedAt: journalStartedAt,
           projectRoot: projectRoot,
           skippedWidgets: skippedWidgets,
+          // Issue #1568 (review fix): the parked hand-steps ride every
+          // stop path, not just the terminal hand-step branch — a later
+          // behavior's genuine failure must not drop the record of the
+          // behavior this pass deliberately parked (`hand_steps=N` in
+          // the summary, `parked-hand-step=` in the journal).
+          handSteps: handSteps,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
           // Review fix: a park earlier in this pass must still be named
@@ -1036,7 +1110,9 @@ class RunDriverCore {
       // Issue #1568: a hand-step parked behavior owes NO phase-2 make
       // re-attempt — the park is the terminal verdict for this run (the
       // subject implementation is the author's deliberate hand step,
-      // never a generation the loop could retry).
+      // never a generation the loop could retry). Both ledgers count:
+      // the persisted park (a resume of an earlier run's park) and the
+      // local in-run map (a park recorded by this pass's phase-1 arm).
       if (current.handSteps.contains(row.id) &&
           state != BehaviorState.green &&
           state != BehaviorState.done) {
@@ -1049,6 +1125,7 @@ class RunDriverCore {
         _emitStep(row.id, 'make', 'parked');
         continue;
       }
+      if (handSteps.containsKey(row.id)) continue;
 
       final inFlightStep = current.inFlightBehaviorId == row.id
           ? current.inFlightStep
@@ -1074,6 +1151,7 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
+        handSteps: handSteps,
       );
       if (result.stop != null) {
         return _finish(
@@ -1088,6 +1166,12 @@ class RunDriverCore {
           journalStartedAt: journalStartedAt,
           projectRoot: projectRoot,
           skippedWidgets: skippedWidgets,
+          // Issue #1568 (review fix): the parked hand-steps ride every
+          // stop path, not just the terminal hand-step branch — a later
+          // behavior's genuine failure must not drop the record of the
+          // behavior this pass deliberately parked (`hand_steps=N` in
+          // the summary, `parked-hand-step=` in the journal).
+          handSteps: handSteps,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
           // Review fix: the phase-2a re-attempt stop carries the parks
@@ -1143,6 +1227,7 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
+        handSteps: handSteps,
         // Issue #1588: the phase-2 refactor pass is the batch — every
         // spawn opts into the pass-batch ledger and hands the lane's
         // parked BLOCKED ids as exempt from the gate.
@@ -1161,6 +1246,12 @@ class RunDriverCore {
           journalStartedAt: journalStartedAt,
           projectRoot: projectRoot,
           skippedWidgets: skippedWidgets,
+          // Issue #1568 (review fix): the parked hand-steps ride every
+          // stop path, not just the terminal hand-step branch — a later
+          // behavior's genuine failure must not drop the record of the
+          // behavior this pass deliberately parked (`hand_steps=N` in
+          // the summary, `parked-hand-step=` in the journal).
+          handSteps: handSteps,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
         );
@@ -1222,6 +1313,19 @@ class RunDriverCore {
         '${blockedRows.map((r) => r.id).join(', ')} — the declared '
         'contract(s) are not satisfied (issue #1007)',
       );
+      // Issue #1589: the resume instructions are followable as written —
+      // each parked contract's stop names its hand surface (the seam file
+      // + the wire command). Messaging only: the stop contract (result,
+      // stopped_at, exit code) is the #1007/#1544 one.
+      for (final row in blockedRows) {
+        print(
+          '   ${HandSurface.hintLine(
+            behaviorId: row.id,
+            seamPath: HandSurface.seamPathFor(projectRoot: projectRoot, feature: feature, behaviorId: row.id),
+            contract: row.traces,
+          )}',
+        );
+      }
       print(
         '   resume: implement the declared contract, then re-run '
         '`zfa tdd $label $feature` — unchanged blocked behaviors are '
@@ -1242,6 +1346,57 @@ class RunDriverCore {
         stoppedAt: '${blockedRows.first.id}:verify-red',
         message: null,
         handStepIds: parkedHandSteps,
+      );
+    }
+    // Issue #1568: the hand-stepped behaviors are the pass's terminal
+    // condition beside the blocked ones — the run names them, prints any
+    // bounded-progress skips beside them, and stops with
+    // `stopped_at=<id>:hand` (the #1308 named-hand-step stop shape) and
+    // `hand_steps=N` in the summary. Bounded, resumable progress
+    // (FR-007), never a fake DONE (FR-008): the hand-stepped behaviors
+    // keep their honest red, the driven ones their verdicts.
+    if (handSteps.isNotEmpty) {
+      if (skippedRefactors.isNotEmpty) {
+        print(
+          'zfa tdd $label: refactor skipped for '
+          '${skippedRefactors.keys.join(', ')} — '
+          '${skippedRefactors.values.toSet().join(' / ')}',
+        );
+      }
+      if (skippedWidgets.isNotEmpty) {
+        print(
+          'zfa tdd $label: widget-lane skipped for '
+          '${skippedWidgets.keys.join(', ')} — '
+          '${skippedWidgets.values.toSet().join(' / ')}',
+        );
+      }
+      print(
+        'zfa tdd $label: hand-step for ${handSteps.keys.join(', ')} — '
+        'the planner declared these unit behaviors hand-step '
+        '(entity-return contract subjects): make cannot implement them '
+        'mechanically (issue #1568)',
+      );
+      print(
+        '   resume: implement the subject by hand (or certify a '
+        'hand-implemented subject with `zfa tdd make <id> --born-green`), '
+        'then re-run `zfa tdd $label $feature` — the mechanical '
+        'behaviors were driven this pass',
+      );
+      return _finish(
+        result: 'stopped',
+        exitCode: _exitStopped,
+        rows: allRows,
+        state: current,
+        drove: true,
+        lane: lane,
+        laneRows: rows,
+        receipts: receipts,
+        journalStartedAt: journalStartedAt,
+        projectRoot: projectRoot,
+        skippedWidgets: skippedWidgets,
+        handSteps: handSteps,
+        stoppedAt: '${handSteps.keys.first}:hand',
+        message: null,
       );
     }
     if (!allDone &&
@@ -1414,6 +1569,7 @@ class RunDriverCore {
     required String journalStartedAt,
     required String projectRoot,
     Map<String, String> skippedWidgets = const {},
+    Map<String, String> handSteps = const {},
     String? stoppedAt,
     String? message,
     Map<String, int>? mockCounts,
@@ -1461,8 +1617,21 @@ class RunDriverCore {
         // entity/void vacuous-green seam) carries the hand-step violation
         // — what to write (the outcome assertion) and where (the
         // generated test file).
+        //
+        // Review fix on #1568: a PARKED hand-step is NOT a #1308 stop.
+        // The #1308 remedy prescribes replacing a placeholder guard, a
+        // scaffolded marker or a born-green header — none of which the
+        // generated subject of an entity-return seam need contain — so
+        // emitting it for a park would prescribe a change that does not
+        // apply. The park carries its own `parked-hand-step=` line below;
+        // the lookup stands down only for the behavior this pass parked,
+        // so a `:hand` stop for any OTHER behavior keeps the remedy.
         final handStepViolation =
-            stoppedAt != null && stoppedAt.endsWith(':hand')
+            stoppedAt != null &&
+                stoppedAt.endsWith(':hand') &&
+                !handSteps.containsKey(
+                  stoppedAt.substring(0, stoppedAt.lastIndexOf(':')),
+                )
             ? _handStepViolationFor(
                 stoppedAt,
                 receipts.featureDir,
@@ -1483,6 +1652,14 @@ class RunDriverCore {
                 'outcome=${failure.outcome} exit=${failure.exitCode}',
           for (final id in skippedWidgets.keys)
             'skipped-widget=$id (${skippedWidgets[id]})',
+          // Issue #1568: the parked hand-steps ride the journal the same
+          // way the #992 widget skips do — machine-greppable, named. The
+          // token is its OWN (`parked-hand-step=`): `hand-step=<id>:hand
+          // — <sentence>` is the long-standing #1308/#1323/#1373/#1411
+          // remedy grammar (review fix), and a consumer grepping
+          // `hand-step=` must not have to parse two field shapes.
+          for (final id in handSteps.keys)
+            'parked-hand-step=$id (${handSteps[id]})',
         ];
         await journalWriter.append(
           JournalEntry(
@@ -1536,7 +1713,15 @@ class RunDriverCore {
       drove: drove,
       counts: counts,
       skippedWidgetIds: skippedWidgets.keys.toList(),
-      handStepIds: handStepIds,
+      // Issue #1568: the summary's `hand_steps=N` set is the UNION of the
+      // three ledgers the merge composes — explicitly handed ids (the
+      // mid-run stops' parked-in-state computation), this pass's local
+      // in-run map, and the persisted parks still short of green/done.
+      handStepIds: ({
+        ...handStepIds,
+        ...handSteps.keys,
+        ..._parkedHandStepsIn(state),
+      }).toList()..sort(),
       stoppedAt: stoppedAt,
       message: message,
       lane: lane,
@@ -1559,7 +1744,8 @@ class RunDriverCore {
   /// The machine summary line the commands print as their final line
   /// (FR-009/FR-010, shape unchanged; lane commands carry `lane=`):
   /// `run: feature=<f> result=<r> pending=<n> red=<n> green=<n> done=<n>`
-  /// plus ` stopped_at=<behavior>:<step>` when stopped.
+  /// plus ` hand_steps=<n>` when the pass parked hand-steps (issue
+  /// #1568) and ` stopped_at=<behavior>:<step>` when stopped.
   static String summaryLine({
     required String label,
     required String feature,
@@ -1847,6 +2033,13 @@ class RunDriverCore {
     required String feature,
     required Set<String> greenEvidenceIds,
     Set<String>? unblockedThisRun,
+    // Issue #1568: the hand-steps recorded THIS pass — the end-of-pass
+    // summary names them and `_finish` journals them. Required: every
+    // lane passes it so a missed call site can never silently drop the
+    // park record. (The park gate's forecast ids are NOT threaded — the
+    // arm resolves them itself, on the failure path, so the registry
+    // read is fresh; see below.)
+    required Map<String, String> handSteps,
 
     /// Issue #1588: the phase-2b refactor pass opts its spawns into the
     /// feature pass-batch ledger (--pass-batch) and hands the lane's
@@ -1942,6 +2135,13 @@ class RunDriverCore {
           feature: featureRef,
           projectRoot: projectRoot,
           suiteBaselinePath: suiteBaselinePath,
+          // Issue #1589: the parked seams the refactor gate must tolerate
+          // (pre-existing-failure economics for a BLOCKED verdict), plus
+          // the verdict-attested failing identifiers that pin that
+          // tolerance to the known red. The StepRunner appends both to
+          // REFACTOR spawns only.
+          parkedSeamPaths: _parkedSeamPaths,
+          parkedFailureIdentifiers: _parkedFailureIdentifiers,
           extraArgs: step == 'refactor' && batchRefactor
               ? _refactorBatchArgs(rows, updated)
               : const [],
@@ -2238,9 +2438,31 @@ class RunDriverCore {
             '   the declared contract ${row.traces} is not satisfied — the '
             'cycle is BLOCKED and cannot proceed to GREEN (issue #1007)',
           );
+          // Issue #1589: name the hand surface — where the declared
+          // contract is implemented (the seam) and the command that binds
+          // it (wire), so the parked verdict is actionable as written.
+          // Messaging only: the verdict, the state advance and the park
+          // semantics are the #1007/#1544 ones.
+          final parkedSeam = HandSurface.seamPathFor(
+            projectRoot: projectRoot,
+            feature: feature,
+            behaviorId: row.id,
+          );
+          print(
+            '   ${HandSurface.hintLine(behaviorId: row.id, seamPath: parkedSeam, contract: row.traces)}',
+          );
           print(
             '   parked — the run continues with the remaining behaviors '
             '(issue #1544)',
+          );
+          // Review fix: the file is existence-gated (the printed
+          // `parkedSeam` above stays the display path) and the tolerance is
+          // pinned to the failure the verify-red transcript just attested.
+          _addParkedSeam(
+            behaviorId: row.id,
+            projectRoot: projectRoot,
+            feature: feature,
+            attestedOutput: result.output,
           );
           return (state: updated, stop: null, refactorBlocked: false);
         }
@@ -2588,6 +2810,66 @@ class RunDriverCore {
             refactorBlocked: false,
           );
         }
+        // Issue #1568: a make failure on a behavior the planner already
+        // declared HAND-STEP (the entity-return seam forecast, SPEC
+        // 1489) is the DESIGNED non-green state, not a generation
+        // defect: the subject is a gen contract-derived stub (issue
+        // #1259) with no mechanical implementation surface, so the
+        // target test failing "after generation" is the honest red the
+        // forecast pre-declared. Grading it generation-error stopped
+        // the whole run at the first hand-step and left every
+        // mechanical behavior behind it unreachable (the #1544
+        // hard-stop family). The behavior keeps its honest red, the
+        // pass continues with the remaining behaviors, and the
+        // end-of-pass summary names the hand-steps (`hand_steps=N`,
+        // `stopped_at=<id>:hand`). Two signals must agree (FR-001):
+        // the seam forecast contains the behavior AND make's own
+        // transcript carries the still-failing-target-test shape — a
+        // real generation bug keeps the honest generic stop.
+        //
+        // Review fix: the forecast is resolved HERE, on the failure
+        // path, not once before the loop. Phase-0 has already created
+        // the pass's declared entities by now, so a behavior whose
+        // entity this same pass generated is correctly OUT of the set —
+        // the pre-phase-0 read the announce prints is stale for it, and
+        // the arm's premise ("no mechanical implementation surface") no
+        // longer holds. Cost: one lookup per failed make, not one per
+        // unit behavior.
+        if (step == 'make' &&
+            result.outcome == 'generation-error' &&
+            result.output.contains('still fails after generation') &&
+            (await _entityReturnSeamIds(
+              projectRoot: projectRoot,
+              featureName: feature,
+              featureDir: featureDir,
+              rows: rows,
+            )).contains(row.id)) {
+          updated = updated.advance(row.id, state);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          handSteps[row.id] =
+              'entity-return contract subject (planner seam forecast, '
+              'SPEC 1489)';
+          print(
+            'zfa tdd $label: step failed — behavior=${row.id} step=$step '
+            'outcome=${result.outcome}',
+          );
+          _printOutputExcerpt(result.output);
+          print(
+            '   hand step: ${row.id}:hand — the planner declared this '
+            'behavior hand-step (entity-return contract subject): make '
+            'cannot implement it mechanically; the failing target test '
+            'is the honest red (issue #1568).',
+          );
+          print(
+            '   parked — the run continues with the remaining behaviors '
+            '(issue #1568). Certify the hand implementation '
+            'deliberately: implement the subject, then run '
+            '`zfa tdd make ${row.id} --born-green`, and re-run '
+            '`zfa tdd $label $feature`.',
+          );
+          return (state: updated, stop: null, refactorBlocked: false);
+        }
         // Honest stop (FR-007).
         final isRunnerError = result.outcome == 'runner-error';
         // Issue #1329: the error-outcome path records the same
@@ -2879,6 +3161,60 @@ class RunDriverCore {
 
   String _snakeCase(String id) =>
       id.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+
+  /// Issue #1589 (review fix): record [behaviorId]'s parked verdict for the
+  /// phase-2 refactor gate — the seam file ONLY when it exists on disk (the
+  /// `--parked-seam` handoff must never name a file the driver did not see
+  /// parked), plus the failing-test identifiers the verdict RECORDED, so
+  /// the gate pins its tolerance to the known red instead of exempting the
+  /// whole seam file. [attestedOutput] overrides the verdict receipt's
+  /// transcript for a parking this run observed directly (the verify-red
+  /// step's own output); otherwise the persisted receipt's
+  /// `output_excerpt` is used. An unparseable transcript contributes no
+  /// identifier — the seam keeps the coarse file-level tolerance, which is
+  /// all a caller could attest.
+  void _addParkedSeam({
+    required String behaviorId,
+    required String projectRoot,
+    required String feature,
+    String? attestedOutput,
+  }) {
+    final seamPath = _existingSeamRelativePath(
+      behaviorId,
+      projectRoot: projectRoot,
+      feature: feature,
+    );
+    if (seamPath != null) _parkedSeamPaths.add(seamPath);
+    final output =
+        attestedOutput ??
+        ContractBlockedReceipt.fromFile(
+          ContractBlockedReceiptStore(
+            projectRoot: projectRoot,
+          ).pathFor(behaviorId),
+        )?.outputExcerpt;
+    if (output != null && output.trim().isNotEmpty) {
+      _parkedFailureIdentifiers.addAll(parseFailingTestNames(output));
+    }
+  }
+
+  /// Issue #1589 (review fix): the project-relative POSIX path of
+  /// [behaviorId]'s generated contract test, or null when no seam file is
+  /// on disk — the existence-gated counterpart of
+  /// [HandSurface.seamPathFor]'s display-only canonical fallback, resolved
+  /// through the same two candidates.
+  String? _existingSeamRelativePath(
+    String behaviorId, {
+    required String projectRoot,
+    required String feature,
+  }) {
+    final existing = _existingGeneratedTestPath(
+      projectRoot: projectRoot,
+      feature: feature,
+      behaviorId: behaviorId,
+    );
+    if (existing == null) return null;
+    return p.relative(existing, from: projectRoot).replaceAll(r'\', '/');
+  }
 
   /// The generated unit test file for [behaviorId] when one exists on
   /// disk — the #827 namespaced layout first, the legacy flat fallback
@@ -3232,19 +3568,20 @@ class RunDriverCore {
   // invoking command label.
   // -------------------------------------------------------------------
 
-  /// The unit lane's hand-step forecast (SPEC 1489): how many of the
-  /// lane's unit behaviors have a declared contract returning an entity
-  /// that does not exist on disk yet. Best-effort by contract: any
-  /// resolution failure contributes a silent zero — the forecast is
-  /// observability, never a run stopper, and it never touches the state.
-  Future<int> _entityReturnSeamForecast({
+  /// The unit lane's hand-step forecast (SPEC 1489): WHICH of the lane's
+  /// unit behaviors have a declared contract returning an entity that
+  /// does not exist on disk yet. Best-effort by contract: any resolution
+  /// failure contributes an empty set — the forecast is observability
+  /// and (issue #1568) the run-level park gate, never a run stopper, and
+  /// it never touches the state.
+  Future<Set<String>> _entityReturnSeamIds({
     required String projectRoot,
     required String featureName,
     required String featureDir,
     required List<BehaviorRow> rows,
   }) async {
     final unitRows = rows.where((r) => r.kind == BehaviorKind.unit).toList();
-    if (unitRows.isEmpty) return 0;
+    if (unitRows.isEmpty) return const {};
     try {
       final declared = <Signature?>[
         for (final row in unitRows)
@@ -3255,13 +3592,17 @@ class RunDriverCore {
             behaviorId: row.id,
           ),
       ];
-      final seams = await UnitContractShape.countEntityReturnSeamsResolved(
-        declared: declared,
-        cwd: projectRoot,
-      );
-      return seams;
+      final seamIndices =
+          await UnitContractShape.entityReturnSeamIndicesResolved(
+            declared: declared,
+            cwd: projectRoot,
+          );
+      return {
+        for (final index in seamIndices)
+          if (index >= 0 && index < unitRows.length) unitRows[index].id,
+      };
     } on Exception {
-      return 0;
+      return const {};
     }
   }
 

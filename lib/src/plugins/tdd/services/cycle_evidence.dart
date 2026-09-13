@@ -97,10 +97,26 @@ class ParsedCycleEntry {
 }
 
 class CycleEvidence {
-  const CycleEvidence(this.featureDir);
+  /// A plain view: every read hits disk. Writers and the run driver keep
+  /// this one — appended evidence must never be read through a stale
+  /// cache.
+  CycleEvidence(this.featureDir) : _cache = false;
+
+  /// A caching view for read-only multi-read flows (`zfa tdd doctor`
+  /// parses the same log for every check): one disk read + parse serves
+  /// every call on the instance. There is no invalidation — callers must
+  /// not use it across a write to the same log (review #1612, finding 5).
+  CycleEvidence.cached(this.featureDir) : _cache = true;
 
   /// The feature directory (`specs/<feature>`).
   final String featureDir;
+
+  final bool _cache;
+
+  bool _loaded = false;
+  String? _raw;
+  List<ParsedCycleEntry>? _entries;
+  final Map<String, Set<String>> _kindSets = {};
 
   /// Behavior ids that have a `kind: red` cycle-log section.
   Future<Set<String>> redEvidence() => _evidence('red');
@@ -208,10 +224,24 @@ class CycleEvidence {
 
   /// Every parsed entry, in file order.
   Future<List<ParsedCycleEntry>> entries() async {
+    if (_cache && _entries != null) return _entries!;
+    final raw = await _readRaw();
+    final parsed = raw == null ? const <ParsedCycleEntry>[] : parseEntries(raw);
+    if (_cache) _entries = parsed;
+    return parsed;
+  }
+
+  /// The log's raw text, or null when the file does not exist. Cached in
+  /// [CycleEvidence.cached] mode (one disk read per instance).
+  Future<String?> _readRaw() async {
+    if (_loaded) return _raw;
     final file = File(p.join(featureDir, 'tdd', 'cycle-log.md'));
-    if (!await file.exists()) return const [];
-    final raw = await file.readAsString();
-    return parseEntries(raw);
+    final raw = await file.exists() ? await file.readAsString() : null;
+    if (_cache) {
+      _loaded = true;
+      _raw = raw;
+    }
+    return raw;
   }
 
   /// The hash of the LAST hashed entry for [behaviorId], or `null` when
@@ -246,20 +276,22 @@ class CycleEvidence {
   }
 
   Future<Set<String>> _evidence(String kind) async {
-    final file = File(p.join(featureDir, 'tdd', 'cycle-log.md'));
-    if (!await file.exists()) return const {};
-    final raw = await file.readAsString();
+    if (_cache && _kindSets.containsKey(kind)) return _kindSets[kind]!;
+    final raw = await _readRaw();
     final ids = <String>{};
-    for (final section in splitCycleLogSections(raw)) {
-      final behavior = RegExp(
-        r'^- behavior: (\S+)',
-        multiLine: true,
-      ).firstMatch(section);
-      if (behavior == null) continue;
-      if (RegExp('^- kind: $kind\$', multiLine: true).hasMatch(section)) {
-        ids.add(behavior.group(1)!);
+    if (raw != null) {
+      for (final section in splitCycleLogSections(raw)) {
+        final behavior = RegExp(
+          r'^- behavior: (\S+)',
+          multiLine: true,
+        ).firstMatch(section);
+        if (behavior == null) continue;
+        if (RegExp('^- kind: $kind\$', multiLine: true).hasMatch(section)) {
+          ids.add(behavior.group(1)!);
+        }
       }
     }
+    if (_cache) _kindSets[kind] = ids;
     return ids;
   }
 }

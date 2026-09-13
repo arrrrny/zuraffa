@@ -45,6 +45,20 @@
 ///    unexpected-green → make subject-drift) or fake-completes on the
 ///    stale certification — the same recovery the run driver's stop
 ///    prescribes (`zfa tdd reset <feature>`).
+/// 5a. **hash-chain** — a schema-1 cycle-log entry's recomputed chain
+///    digest no longer matches its recorded `- hash:` link, its
+///    `- prev-hash:` link does not chain to the previous recorded hash,
+///    or a chain-claiming section carries no well-formed `- hash:` line
+///    (bug #828 — the walk restored by #1585 after the #840 rework
+///    dropped it): the certified facts were edited after certification,
+///    so every claim the log backs is untrusted. There is no automatic
+///    remedy — restore the cycle-log from a trusted source, then re-run
+///    `zfa tdd run <feature>` to re-certify. Legacy hash-less entries
+///    stay valid and unverifiable, and are never failed; sections from
+///    the certifier writers (`fixtures`, `mock-cert`, `world-*`,
+///    `realize*`) are verified when their hash recomputes and otherwise
+///    tolerated — the canonical payload cannot rebuild a legacy foreign
+///    scheme (review #1612; see `evidence_chain.dart`).
 /// 6. **none** — the stores agree; the feature is healthy.
 ///
 /// The same state always produces the same prescription (deterministic:
@@ -64,6 +78,7 @@ import '../../../core/project/receipt_store.dart';
 import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/cycle_evidence.dart';
+import '../services/evidence_chain.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/generated_shape.dart';
 import '../services/journal.dart';
@@ -195,7 +210,10 @@ class DoctorCommand extends Command<void> {
       drifts.add('run-state.json is corrupted: ${e.message}');
     }
 
-    final evidence = CycleEvidence(featureDir);
+    // Read-only, multi-read flow: the cached view serves every check from
+    // one disk read + parse (review #1612, finding 5). The doctor never
+    // writes the cycle log, so the cache cannot go stale mid-run.
+    final evidence = CycleEvidence.cached(featureDir);
     final red = await evidence.redEvidence();
     final green = await evidence.greenEvidence();
 
@@ -902,6 +920,49 @@ class DoctorCommand extends Command<void> {
         feature: feature,
         verdict: 'drift',
         prescription: handDelta.prescription,
+        fix: fix,
+        drifts: drifts,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // ---- 3c. Evidence hash-chain integrity -> RESTORE + RE-CERTIFY ----
+    // Bug #828 (restored by #1585): schema-1 cycle-log entries carry a
+    // tamper-evident hash chain (`- prev-hash:` / `- hash:`), and this
+    // command is the reader that verifies it — without the walk, a
+    // hand-edited entry reads as "stores agree" while the certified
+    // facts no longer match their evidence. The walk is shared with the
+    // replay reader (`verifyEvidenceChain`, review #1612 finding 3):
+    // every `prev-hash` must link the previous recorded hash, every
+    // canonical `hash` must equal the recomputed payload digest
+    // (`CycleLog.payloadFromFields`), and a chain-claiming section with
+    // no well-formed `- hash:` line is drift — the tail bypass where
+    // deleting the line hid the entry from the walk (finding 2).
+    // Certifier-written sections (`fixtures`, `mock-cert`, `world-*`,
+    // `realize*`) whose legacy `- hash:` predates the canonical chain are
+    // unverifiable, never failed (finding 1); entries written through
+    // `CycleLog.chainHashFromFields` verify cleanly.
+    final chainWalk = verifyEvidenceChain(await evidence.entries());
+    if (chainWalk.drifts.isNotEmpty) {
+      drifts.addAll(chainWalk.drifts.map((drift) => drift.message));
+      final fix =
+          'restore the cycle-log from a trusted source, then re-run '
+          '`zfa tdd run $feature` to re-certify';
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
+      for (final drift in drifts) {
+        print('  drift: $drift');
+      }
+      print(
+        '   --> fix: $fix — the entry was edited or reordered after it was '
+        'certified, so every claim it backs is untrusted; there is no '
+        'automatic remedy, and re-certification re-proves the behaviors '
+        'through the runner',
+      );
+      _printVerdict(
+        feature: feature,
+        verdict: 'drift',
+        prescription: 'resume',
         fix: fix,
         drifts: drifts,
       );
