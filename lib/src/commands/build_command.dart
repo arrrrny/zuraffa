@@ -11,6 +11,7 @@ import 'build_slang_stage.dart';
 import 'build_yaml_guard.dart';
 import '../core/ast/file_parser.dart';
 import '../core/dependencies/builder_dependency_preflight.dart';
+import '../core/generation/tracked_generated_output_guard.dart';
 import '../core/project/project_root.dart';
 import '../dda/plugins/route/route_build_stage.dart';
 import '../feature_flags/feature_flag_config.dart';
@@ -263,6 +264,15 @@ class BuildCommand extends Command {
       exit(1);
     }
   }
+
+  /// Spec 1540 (restore-or-refuse) — stub; behavior lands with the guard
+  /// implementation (T003/T004). Kept `@visibleForTesting` so the red tests
+  /// drive this exact seam.
+  @visibleForTesting
+  Future<bool> recoverTrackedGeneratedOutputs(
+    TrackedGeneratedOutputGuard guard,
+    TrackedGeneratedSnapshot snapshot,
+  ) async => true;
 
   /// Runs the DDA @Route stage (spec 033) against the current project root
   /// and prints a summary. Returns the stage result so tests can assert on
