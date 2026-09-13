@@ -674,6 +674,14 @@ class RunDriverCore {
 
     // --- Phase 1: the uniform cycle in list order, with the deferrals.
     final registry = ArtifactRegistry(featureDir: featureDir);
+    // Issue #1544 (review fix): the rows whose BLOCKED verdict THIS run's
+    // verify-red lifted (`unexpected-green` against a blocked contract).
+    // That arm keeps the persisted state at BLOCKED, so the phase-2a guard
+    // cannot tell a still-parked contract from one the run just unblocked;
+    // without this set the deferred make's phase-2 re-attempt is lost and
+    // the run reports a factually wrong `result=blocked` for a contract
+    // verify-red just certified satisfied.
+    final unblockedThisRun = <String>{};
     for (final row in rows) {
       final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
       if (state == BehaviorState.done) continue;
@@ -717,6 +725,7 @@ class RunDriverCore {
         ),
         progressSuffix: '',
         deferralAllowed: true,
+        unblockedThisRun: unblockedThisRun,
         rows: allRows,
         current: current,
         projectRoot: projectRoot,
@@ -764,7 +773,15 @@ class RunDriverCore {
       // implementation that satisfies the declared contract (the
       // pre-#1544 driver never reached this phase with a parked
       // behavior; continuing past blocked does).
-      if (state == BehaviorState.blocked) continue;
+      //
+      // Issue #1544 (review fix): a blocked contract whose block THIS
+      // run's verify-red lifted is exempt — its state is still BLOCKED
+      // (the unexpected-green arm does not transition it), but its
+      // phase-1 make was deferred and owes this phase-2 re-attempt.
+      if (state == BehaviorState.blocked &&
+          !unblockedThisRun.contains(row.id)) {
+        continue;
+      }
       // Issue #992: a widget-skipped behavior has no gen artifacts —
       // re-driving its make would refuse "no gen artifacts" and stop the
       // run for a behavior the operator already chose to skip.
@@ -1444,6 +1461,7 @@ class RunDriverCore {
     required String label,
     required String feature,
     required Set<String> greenEvidenceIds,
+    Set<String>? unblockedThisRun,
   }) async {
     var updated = current;
     var state = updated.behaviorStates[row.id] ?? BehaviorState.pending;
@@ -1670,6 +1688,13 @@ class RunDriverCore {
           return (state: updated, stop: null, refactorBlocked: false);
         }
         if (step == 'verify-red' && result.outcome == 'unexpected-green') {
+          // Issue #1544 (review fix): a blocked contract that unblocks via
+          // unexpected-green keeps its persisted BLOCKED state (the
+          // advance below is a no-op for blocked), which would make the
+          // phase-2a guard skip the make this drive just deferred. Record
+          // the lifted block so phase 2a re-attempts that make like every
+          // other deferred behavior.
+          if (state == BehaviorState.blocked) unblockedThisRun?.add(row.id);
           updated = updated.advance(row.id, state);
           await store.save(updated, activeBehaviorIds: activeIds);
           await tx.clear();
@@ -2333,6 +2358,10 @@ class RunDriverCore {
       behaviorId: row.id,
     );
     if (testPath == null) return null;
+    // Issue #1544 (review fix): re-check existence at the mtime read — a
+    // seam file vanishing between `_existingGeneratedTestPath`'s probe and
+    // this read must fail open (re-drive), not be read as "not newer".
+    if (!File(testPath).existsSync()) return null;
     if (_isNewerThan(File(testPath), blockedAt)) return null;
     // 2. The contract row — the test list the behavior is declared in.
     if (_isNewerThan(

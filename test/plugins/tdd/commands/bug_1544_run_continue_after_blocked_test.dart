@@ -213,11 +213,16 @@ void main() {
       );
       await _seedBlockedReceipt(fx, 'contract:A1', verdictAt);
       // The seam file changed AFTER the verdict — the driver must NOT
-      // skip: verify-red re-classifies honestly.
+      // skip: verify-red re-classifies honestly. Backdate the contract
+      // row alongside the seam: the fixture's test-list mtime is ~now and
+      // would re-drive on its own, leaving the seam signal untested.
       final seamPath = _seedSeamFile(fx, 'contract:A1');
       File(
         seamPath,
       ).setLastModified(verdictAt.add(const Duration(minutes: 30)));
+      File(
+        fx.testListPath,
+      ).setLastModified(verdictAt.subtract(const Duration(hours: 1)));
 
       fx.clearStepInvocations();
 
@@ -285,6 +290,77 @@ void main() {
       expect(fx.stepInvocations(), contains('verify-red contract:A1'));
       expect(out, contains('contract:A1 verify-red -> blocked'));
       expect(out, contains('result=blocked'));
+      expect(takeExitCode(), 1, reason: out);
+    });
+
+    test('a blocked contract whose block is lifted in the same run still '
+        're-attempts its deferred make in phase 2 (review fix)', () async {
+      // Run 1 parks A1 — same parked world as the tests above.
+      final runner = CliRunner(exitOnCompletion: false);
+      await runner.runCapturing([
+        'tdd',
+        'run',
+        '004-login-ui',
+        '--project',
+        fx.root.path,
+        '--zfa-bin',
+        fx.fakeZfaBin,
+      ]);
+      takeExitCode();
+
+      final verdictAt = DateTime.now().toUtc().subtract(
+        const Duration(hours: 1),
+      );
+      await _seedBlockedReceipt(fx, 'contract:A1', verdictAt);
+      // The seam file and the contract row are unchanged; the
+      // implementation changed AFTER the verdict — the unblock signal.
+      final seamPath = _seedSeamFile(fx, 'contract:A1');
+      final before = verdictAt.subtract(const Duration(hours: 1));
+      File(seamPath).setLastModified(before);
+      File(fx.testListPath).setLastModified(before);
+      final impl = File(p.join(fx.root.path, 'lib', 'user.dart'));
+      impl.createSync(recursive: true);
+      impl.setLastModified(verdictAt.add(const Duration(minutes: 1)));
+
+      // The resume world: verify-red certifies the contract satisfied
+      // (unexpected-green) but the deferred make still refuses. The
+      // persisted state stays BLOCKED, so only the lifted-block record
+      // can tell the driver the phase-2 make re-attempt is owed.
+      await fx.setStepOutcome('verify-red', 'contract:A1', 'unexpected-green');
+      await fx.setStepOutcome('make', 'contract:A1', 'unexpressible');
+      fx.clearStepInvocations();
+
+      final out = await runner.runCapturing([
+        'tdd',
+        'run',
+        '004-login-ui',
+        '--project',
+        fx.root.path,
+        '--zfa-bin',
+        fx.fakeZfaBin,
+      ]);
+
+      // make runs TWICE: the phase-1 deferral plus the phase-2
+      // re-attempt the lifted block owes (without the record the guard
+      // skipped the row and make ran once).
+      expect(
+        fx.stepInvocations().where((s) => s == 'make contract:A1').length,
+        2,
+        reason: out,
+      );
+      // The honest make failure surfaces — NOT the misdirected "contract
+      // not satisfied" blocked verdict for a contract verify-red just
+      // certified satisfied.
+      expect(
+        out,
+        contains(
+          'step failed — behavior=contract:A1 step=make '
+          'outcome=unexpressible',
+        ),
+      );
+      expect(out, contains('stopped_at=contract:A1:make'));
+      expect(out, isNot(contains('result=blocked')));
+      expect(out, contains('result=stopped'));
       expect(takeExitCode(), 1, reason: out);
     });
 
