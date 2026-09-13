@@ -12,6 +12,11 @@
 ///     pre-#1528 behavior, FR-008);
 ///   * profile missing → the shared idempotent [TddBaselineInit] sequence
 ///     runs (non-force, non-skin) and every created artifact is logged;
+///   * profile missing with `autoInit: false` (a `--dry-run` invocation:
+///     "plan … without writing anything", FR-009) →
+///     [TddProfilePreflightError] with ZERO writes — the caller
+///     fail-closes with the `setup-error` verdict instead of mutating a
+///     project it was asked only to plan against;
 ///   * the init sequence misfires → [TddProfilePreflightError] — the
 ///     caller fail-closes with the `setup-error` verdict BEFORE any
 ///     behavior is driven (spec 1528 US3).
@@ -26,6 +31,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import 'baseline_init.dart';
+import 'runner.dart';
 
 /// Issue #1528: the machine-readable label for setup conditions (a
 /// missing/broken TDD baseline) — `exit_class` in the verdict envelopes,
@@ -67,13 +73,16 @@ class TddProfilePreflightError implements Exception {
 class TddProfilePreflight {
   const TddProfilePreflight();
 
-  /// The probed path — the runner's own constant is the single path truth.
-  static const String profilePath = '.specify/memory/tdd-profile.md';
+  /// The probed path — [SingleTestRunner.defaultProfilePath] is the single
+  /// path truth (the runner reads the profile through it and verify-red
+  /// probes through it), never a re-typed literal that can drift.
+  static const String profilePath = SingleTestRunner.defaultProfilePath;
 
   Future<ProfilePreflightReport> ensure({
     required String projectRoot,
     String commandLabel = 'zfa tdd run',
     void Function(String line)? onLine,
+    bool autoInit = true,
   }) async {
     final profileFile = File(p.join(projectRoot, profilePath));
     if (await profileFile.exists()) {
@@ -81,6 +90,17 @@ class TddProfilePreflight {
     }
 
     void log(String line) => onLine?.call(line);
+    if (!autoInit) {
+      // FR-009: a planning-only invocation (`--dry-run`) must not write the
+      // baseline — but it must not proceed against an absent profile either,
+      // so it fails closed with the same `setup-error` the auto-init path
+      // reports on a misfire.
+      throw TddProfilePreflightError(
+        '$commandLabel: TDD profile missing at $profilePath and auto-init is '
+        'disabled for this invocation (--dry-run plans without writing, '
+        'FR-009) — run `zfa tdd init` first.',
+      );
+    }
     log(
       '$commandLabel: preflight — TDD profile missing '
       '($profilePath); running idempotent `zfa tdd init` (issue #1528)',

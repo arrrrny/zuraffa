@@ -140,6 +140,13 @@ void main() {
         contains('classification=setup-error'),
         reason: 'the per-behavior summary classifies setup-error too',
       );
+      expect(
+        out,
+        contains('TDD profile not found at'),
+        reason:
+            'the batch refusal names the probed profile path, like the '
+            'single lane does',
+      );
       expect(exitCode, isNot(0));
       expect(File(fx.cycleLogPath).existsSync(), isFalse);
     });
@@ -324,6 +331,33 @@ void main() {
       },
       timeout: const Timeout(Duration(minutes: 4)),
     );
+
+    test(
+      '--json closes with a verdict receipt carrying exit_class setup-error '
+      '(spec US3 acceptance scenario 2)',
+      tags: ['integration'],
+      () async {
+        // Same corrupt-pubspec misfire as above, exercised through the
+        // --json surface so the run body's envelope wiring
+        // (exitClass/outcome/details['classification']) is really asserted.
+        final pubspec = File(p.join(fx.root.path, 'pubspec.yaml'));
+        pubspec.writeAsStringSync('\tbroken: yaml: [\n');
+
+        final out = await drive(extraArgs: ['--json']);
+
+        final last = out.trim().split('\n').last;
+        final envelope = jsonDecode(last) as Map<String, dynamic>;
+        expect(envelope['command'], 'run');
+        expect(envelope['exit_class'], 'setup-error');
+        expect(envelope['verdict'], isNot('pass'));
+        expect(
+          (envelope['details'] as Map<String, dynamic>)['classification'],
+          'setup-error',
+        );
+        expect(exitCode, 1);
+      },
+      timeout: const Timeout(Duration(minutes: 4)),
+    );
   });
 
   group('slow — U-1528-5: gen entry preflights the baseline', () {
@@ -392,6 +426,78 @@ void main() {
         final envelope = jsonDecode(last) as Map<String, dynamic>;
         expect(envelope['command'], 'gen');
         expect(envelope['exit_class'], 'setup-error');
+      },
+      timeout: const Timeout(Duration(minutes: 4)),
+    );
+
+    test(
+      '--dry-run never scaffolds the baseline: a missing profile fails '
+      'closed as setup-error with ZERO writes (FR-009)',
+      tags: ['integration'],
+      () async {
+        final pubspec = File(p.join(fx.root.path, 'pubspec.yaml'));
+        final pubspecBefore = pubspec.readAsStringSync();
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'gen',
+          '--project',
+          fx.root.path,
+          '--dry-run',
+          'B-001',
+        ]);
+
+        expect(exitCode, isNot(0), reason: 'out:\n$out');
+        expect(out, contains('setup-error'));
+        expect(out, contains('zfa tdd init'));
+        expect(
+          File(
+            p.join(fx.root.path, '.specify', 'memory', 'tdd-profile.md'),
+          ).existsSync(),
+          isFalse,
+          reason: 'a planning invocation must not write the baseline',
+        );
+        expect(
+          pubspec.readAsStringSync(),
+          pubspecBefore,
+          reason: 'the dry-run must not patch pubspec.yaml',
+        );
+      },
+      timeout: const Timeout(Duration(minutes: 4)),
+    );
+
+    test(
+      'a usage-level caller error (unknown behavior id) never scaffolds the '
+      'baseline as a side effect — the row resolves first',
+      tags: ['integration'],
+      () async {
+        final pubspec = File(p.join(fx.root.path, 'pubspec.yaml'));
+        final pubspecBefore = pubspec.readAsStringSync();
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'gen',
+          '--project',
+          fx.root.path,
+          'B-999',
+        ]);
+
+        expect(out, contains('unknown behavior id'));
+        expect(exitCode, isNot(0));
+        expect(
+          File(
+            p.join(fx.root.path, '.specify', 'memory', 'tdd-profile.md'),
+          ).existsSync(),
+          isFalse,
+          reason: 'the preflight runs after the behavior resolution',
+        );
+        expect(
+          pubspec.readAsStringSync(),
+          pubspecBefore,
+          reason: 'no baseline writer ran before the caller error surfaced',
+        );
       },
       timeout: const Timeout(Duration(minutes: 4)),
     );

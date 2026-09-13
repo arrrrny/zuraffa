@@ -92,13 +92,16 @@ class InitCommand extends Command<void> {
     final skin = argResults?['skin'] == true;
 
     // Spec 1528: the shared idempotent writer sequence (TddBaselineInit) —
-    // identical stdout/stderr output, identical misfire StateError.
+    // identical stdout/stderr output, identical misfire StateError. The
+    // ✗ writer lines stay on stdout and only the trailing misfire block
+    // goes to stderr, exactly as the pre-#1528 inline loop wrote them.
     await const TddBaselineInit().ensure(
       projectRoot: cwd,
       force: force,
       skin: skin,
       onLine: stdout.writeln,
-      onError: stderr.writeln,
+      onError: stdout.writeln,
+      onMisfire: stderr.writeln,
     );
     _verdict.details['failures'] = 0;
   }

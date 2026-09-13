@@ -60,18 +60,23 @@ class TddBaselineInit {
   /// [force] / [skin] mirror the `zfa tdd init` flags; the entry
   /// preflight always passes both false (idempotent, opt-out of skin).
   /// [onLine] receives the human-facing ✓ lines (byte-identical to the
-  /// pre-#1528 `zfa tdd init` stdout); [onError] receives the ✗ lines
-  /// and the misfire block (stderr for the command, the same sink for
-  /// the preflight).
+  /// pre-#1528 `zfa tdd init` stdout); [onError] receives the ✗ writer
+  /// lines (stdout for the command, pre-#1528, so a CI log parser keeps
+  /// the diagnosis); [onMisfire] receives the trailing misfire block
+  /// (stderr for the command, pre-#1528 — the only part that ever went
+  /// there). When omitted, both fall back to [onLine]'s sink — which is
+  /// what the entry preflight relies on (one sink for all three).
   Future<BaselineInitReport> ensure({
     required String projectRoot,
     bool force = false,
     bool skin = false,
     void Function(String line)? onLine,
     void Function(String line)? onError,
+    void Function(String line)? onMisfire,
   }) async {
     final log = onLine ?? (_) {};
     final logError = onError ?? log;
+    final logMisfire = onMisfire ?? logError;
     final cwd = projectRoot;
     final isFlutter = await _isFlutterProject(cwd);
 
@@ -274,12 +279,12 @@ class TddBaselineInit {
     }
 
     if (failures.isNotEmpty) {
-      logError(
+      logMisfire(
         '\nzfa tdd init: misfire — ${failures.length} writer(s) failed. '
         'Resolve the failures above and re-run `zfa tdd init`.',
       );
       for (final f in failures) {
-        logError('  - $f');
+        logMisfire('  - $f');
       }
       // Errors-are-an-API (VISION §4): the thrown message carries the
       // failure details too, so captured channels (wrappers, JSON

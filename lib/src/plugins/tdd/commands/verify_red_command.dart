@@ -158,17 +158,25 @@ class VerifyRedCommand extends Command<void> {
     return !await profileFile.exists();
   }
 
-  Future<void> _failClosedOnMissingProfile({
-    required String cwd,
-    required String behaviorLabel,
-    String? feature,
-  }) async {
+  /// Issue #1528: the setup diagnosis naming the probed profile path —
+  /// BOTH the single and the batch refusal print this same line (the
+  /// batch lane used to print only the count + `--> fix:` lines, leaving
+  /// the operator without the path to act on).
+  void _printMissingProfileDiagnosis({required String cwd}) {
     final profileFile = File(p.join(cwd, SingleTestRunner.defaultProfilePath));
     print(
       'zfa tdd verify-red: $kSetupErrorLabel — TDD profile not found at '
       '${profileFile.path}. This is a setup condition: the idempotent '
       '`zfa tdd init` creates the baseline (issue #1528).',
     );
+  }
+
+  Future<void> _failClosedOnMissingProfile({
+    required String cwd,
+    required String behaviorLabel,
+    String? feature,
+  }) async {
+    _printMissingProfileDiagnosis(cwd: cwd);
     print(ExitProtocol.fixLine('run `zfa tdd init`, then re-run'));
     _printSummary(
       behavior: behaviorLabel,
@@ -1011,6 +1019,10 @@ class VerifyRedCommand extends Command<void> {
     //    template load / any runner spawn (after the empty-targets early
     //    return, so nothing-to-certify stays the honest batch exit).
     if (await _missingProfile(cwd: cwd)) {
+      // The same diagnosis the single lane prints, ahead of the
+      // per-behavior loop: the operator gets the probed path, not just
+      // the count.
+      _printMissingProfileDiagnosis(cwd: cwd);
       for (final target in targets) {
         _printSummary(
           behavior: target.record.behaviorId,
