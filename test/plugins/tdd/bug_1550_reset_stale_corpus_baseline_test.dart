@@ -235,6 +235,14 @@ void main() {
           hasLength(2),
           reason: 'the post-reset baseline is a LIVE re-capture: $out2',
         );
+        expect(
+          File(corpusCachePath()).existsSync(),
+          isTrue,
+          reason:
+              'the post-reset run re-populates the corpus-wide cache — the '
+              'reset forces exactly ONE live re-capture, not a permanent '
+              'opt-out of reuse: $out2',
+        );
       },
     );
   });

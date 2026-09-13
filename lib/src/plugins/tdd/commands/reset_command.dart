@@ -546,6 +546,10 @@ class ResetCommand extends Command<void> {
     }
     // Issue #1550: the baseline caches the reset invalidated (the
     // corpus-wide cache + the feature-local snapshot), by display path.
+    // The list is the POST-condition, not a deletion log: every entry is
+    // guaranteed absent after the reset, whether or not it existed on
+    // disk before (deleting an absent cache is an idempotent no-op) —
+    // "invalidated", never "deleted".
     if (invalidatedCaches.isNotEmpty) {
       _verdict.details['invalidated_caches'] = invalidatedCaches;
     }

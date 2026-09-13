@@ -261,10 +261,11 @@ class CompositionTargets {
     //    REGISTRY first. A green row whose registry record is ABSENT is
     //    the stale-evidence refusal — the cycle-log's green claim
     //    survives (append-only) while the artifacts it certified were
-    //    dropped (canonically by a reset; the #1264 tombstone that
-    //    invalidates the claim lives in the journal, which discovery
-    //    does not consult). Classifying it `stale-evidence` (not the
-    //    legacy `missing-anchor-subject` → `runner-error`) names the
+    //    dropped or never recorded (canonically by a reset — the #1264
+    //    tombstone that invalidates the claim lives in the journal,
+    //    which discovery does not consult; an unreadable registry
+    //    reports the same absence). Classifying it `stale-evidence` (not
+    //    the legacy `missing-anchor-subject` → `runner-error`) names the
     //    actual inconsistency: the premise is stale, re-derive the
     //    artifacts. A record PRESENT but file missing stays
     //    `missing-anchor-subject` — the registry premise is intact,
@@ -279,13 +280,15 @@ class CompositionTargets {
           return CompositionTargetFailure(
             code: 'stale-evidence',
             message:
-                'green unit subject "${row.id}" has no registry record in '
+                'green unit subject "${row.id}" carries green evidence in '
+                'tdd/cycle-log.md but has no registry record in '
                 '${p.join(featureDir, 'tdd', 'artifacts.json')} — the green '
-                'evidence in tdd/cycle-log.md is STALE (its artifacts were '
-                'dropped, e.g. by a `zfa tdd reset`; the tombstone that '
-                'invalidates the evidence lives in tdd/journal.json). '
-                'Re-derive the artifacts: run `zfa tdd gen ${row.id}` and '
-                're-drive the behavior before composing.',
+                'premise and the registry disagree. The artifacts were '
+                'dropped or never recorded (a `zfa tdd reset` drops them and '
+                'tombstones the evidence in tdd/journal.json; an unreadable '
+                'registry reports the same absence). Re-derive the artifacts: '
+                'run `zfa tdd gen ${row.id}` and re-drive the behavior before '
+                'composing.',
           );
         }
         final normalized = p.normalize(
