@@ -1,19 +1,21 @@
-# tdd.verify — Bug #1544 run parks forever on first blocked contract
+# tdd.verify — Bug #1588 phase-2 refactor batch + parked exemption
 
 - **Verified**: 2026-09-13, this session, on
-  `fix/1544-parks-forever-on-first-blocked-contract` (working tree, pushed)
+  `fix/1588-phase2-refactor-batch-and-parked-exempt` (working tree, pushed)
 - **Toolchain**: Dart 3.13.3 (stable) on linux_x64
-- **Scope**: `lib/src/plugins/tdd/commands/run_driver_core.dart` + the new
-  `test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart`,
+- **Scope**: `lib/src/plugins/tdd/commands/refactor_command.dart`,
+  `lib/src/plugins/tdd/commands/run_driver_core.dart`,
+  `lib/src/plugins/tdd/services/step_runner.dart`, the new
+  `lib/src/plugins/tdd/services/pass_batch_ledger.dart`, and the new
+  `test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart`,
   then the chunked regression sweep below.
 
-## Verdict: PASS (with the recorded host/environment caveats in §5)
+## Verdict: PASS (with the recorded pre-existing-failure caveat in §3)
 
 ## 1. Static analysis
 
 ```
-dart analyze lib/src/plugins/tdd/commands/run_driver_core.dart \
-             test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart
+dart analyze <changed files + new files>
 → No issues found!
 
 dart analyze            (whole repo)
@@ -27,89 +29,68 @@ lints, 0 errors, 0 warnings).
 ## 2. The bug suite (REAL runs in this session)
 
 ```
-dart test test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart
-→ 00:08 +6: All tests passed!
+dart test --preset=all \
+  test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart
+
+RED  (un-patched tree):  1 passed / 8 failed  — exactly the 8 new-contract
+                         assertions (unknown --exempt-behaviors /
+                         --pass-batch options; missing --pass-batch in the
+                         phase-2b spawn argv). The 1 pass is the contract
+                         guard ("without the flag the refusal stands").
+GREEN (patched tree):    9 passed / 0 failed   (~01:04 wall clock)
+GREEN (post-format rerun, fresh): 9 passed / 0 failed
 ```
 
-REQUIRED checks — the issue's two expected behaviors are PROVED by real
-runs, not inspection:
+The suite proves, against real `dart test` fixtures and the fake-zfa
+driver harness:
 
-- **Continue past blocked (A-1544-a1)**: with `contract:A1` scripted
-  `verify-red -> blocked` and `contract:A2`/`contract:A3` defaulting green,
-  the single `tdd run` spawn log contains
-  `verify-red contract:A1 → gen contract:A2 → verify-red contract:A2 →
-  make contract:A2 → gen contract:A3` IN ORDER, never `make contract:A1`,
-  and the summary line reads
-  `run: feature=004-login-ui result=blocked pending=0 red=0 green=0 done=2 blocked=1 stopped_at=contract:A1:verify-red`
-  with exit code 1. Persisted state: A1 `blocked`, A2/A3 `done`.
-- **Resume skip with receipt (A-1544-a2)**: run 2 (same fixture, seeded
-  `contract-blocked.A1.json` with `blocked_at = now-1h`, seam file and
-  test-list mtimes `now-2h`) prints
-  `[run] contract:A1 verify-red -> skipped (still blocked since 2026-09-13T…)`,
-  spawns NO step for A1, stops `result=blocked blocked=1`, and leaves the
-  state honestly blocked.
-- **Fail-open (A-1544-a3/a4/a5)**: seam file newer than the verdict, lib/
-  source newer than the verdict, and a missing receipt each re-drive
-  `verify-red contract:A1` (the unblock path preserved).
-- **Non-blocked resume guard (A-1544-b1)**: with U1 seeded red and A1
-  blocked-unchanged, the resume spawns `make U1` AND prints the A1 skip
-  receipt — both resume windows work in one run.
+- a parked BLOCKED behavior's red test no longer poisons the refactor gate
+  (`--exempt-behaviors` exclusion, named in the output, non-exempt
+  failures still refuse, unknown ids fail open);
+- the second and later `--pass-batch` invocations of an unchanged tree run
+  ZERO suite processes and ZERO pass spawns (counted through a logging
+  suite wrapper) — one pipeline per batch, not per behavior;
+- tree drift and flag-less invocations fall back to the full pipeline
+  (safe failure; the standalone absolute-green contract stands);
+- the driver hands `--pass-batch` (+ `--exempt-behaviors <parked ids>`)
+  on every phase-2b refactor spawn; phase-1 spawns and all other steps
+  keep byte-identical argv; per-behavior spawn honesty and the #1544
+  blocked-park terminal state are unchanged.
 
-## 3. RED evidence (pre-fix)
-
-The same suite against the unmodified driver failed 3/6:
+## 3. Chunked regression sweep (no NEW failures)
 
 ```
-A-1544-a1  [E]  Expected: contains 'gen contract:A2' (in order after verify-red contract:A1)
-                Actual: run stopped at contract:A1 — stepInvocations ended at
-                [gen contract:A1, verify-red contract:A1]
-A-1544-a2  [E]  Expected: contains 'contract:A1 verify-red -> skipped (still blocked since'
-                Actual: '[run] contract:A1 verify-red -> blocked' — re-attempted
-A-1544-b1  [E]  same skip-receipt absence
+refactor_command_test.dart ......... 14/14 PASS
+run_command_test.dart .............. PASS   (grouped run)
+bug_1544_run_continue_after_blocked  PASS   (grouped run)
+bug_1551_no_green_units_defers ...... PASS   (grouped run)
+run_baseline_cache_test.dart .......  7/7 PASS
+step_runner_test.dart .............. 18/18 PASS
+incremental_verify_test.dart ....... 10/10 PASS (spec 069 T001 scoped re-proof)
+bug_922_refactor_preflight_baseline   8/9 — 1 PRE-EXISTING failure
 ```
 
-— exactly the reported symptoms (A2 unreachable; resume re-attempting A1).
+The single `bug_922` failure ("a green behavior behind a baseline-red
+suite reaches done and the run completes") was **stash-bisected to the
+base commit e260a59b**: the identical `runner-error` at
+`stopped_at=B-001:refactor` reproduces with this fix fully stashed, so it
+is a pre-existing, environment-dependent failure (the test provisions real
+build_runner codegen in its fixture and dies mid-preflight on this host) —
+NOT a regression of this change. That file's other 8 tests, including the
+`--suite-baseline` argv handoff to refactor steps, pass.
 
-## 4. Regression sweep (chunked, real runs)
-
-```
-dart test test/plugins/tdd/commands
-→ 03:38 +539: All tests passed!
-
-dart test test/plugins/tdd/services
-→ 02:04 +935: All tests passed!
-
-dart test test/plugins/tdd/*.dart            (halves)
-→ +186: All tests passed!
-→ +333: All tests passed!
-```
-
-Targeted neighbor pin (the pre-#1544 contracts that must survive):
+## 4. Format (CI gate)
 
 ```
-dart test contract_kind_1007_test.dart run_engine_command_test.dart \
-         run_skin_command_test.dart run_command_bug_1471_test.dart \
-         bug_1271_widget_lane_engine_deferral_test.dart \
-         bug_1373_scaffolded_hand_off_driver_test.dart \
-         bug_1411_born_green_hand_transition_test.dart
-→ +51: All tests passed!
+dart format --set-exit-if-changed --output=none lib test
+→ Formatted 2615 files (0 changed) — exit 0
 ```
-
-The #1007 single-row pin still holds verbatim: one blocked contract stops
-with `result=blocked`, `blocked=1`, `stopped_at=contract:A1:verify-red`,
-exit 1, step log exactly `[gen contract:A1, verify-red contract:A1]` — for a
-single-row list the end-of-pass terminal is indistinguishable from the old
-mid-loop stop.
 
 ## 5. Host/environment caveats
 
-- `/tmp` filled once during the first full-tree sweep (`No space left on
-  device` while copying kernel dills — 123 LOAD errors, zero assertion
-  failures). After housekeeping the previously-unloaded files were re-run
-  clean (49/49). Keep `/tmp` swept when running the full tdd tree on a
-  10 GB-disk agent.
-- The container has no Flutter SDK; the `example/` package does not resolve
-  (`flutter pub` required). Unrelated to this fix — no touched code path
-  imports Flutter.
-- `dart format` was applied to the two changed files only (formatting the
-  whole repo is out of scope and would pollute the diff).
+- The sandbox provides no Flutter SDK; `example/` does not resolve. The
+  touched code is pure-Dart CLI + test code; no Flutter surface is
+  involved.
+- The `bug_922` end-to-end test in §3 requires the host to run the real
+  codegen pipeline inside a throwaway fixture; it fails identically at
+  base and HEAD on this host (see the bisect note above).
