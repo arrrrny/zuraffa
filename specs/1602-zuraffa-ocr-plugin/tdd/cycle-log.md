@@ -45,3 +45,24 @@
   pub.dev — the exact miss #1615 fixed. Board: 5 packages × (pub get,
   analyze, test, publish --dry-run) all exit 0, elapsed 10m16s (budget
   15 min).
+
+## Cycle C3 — delivery (B4)
+
+- Contract invocation run in `~/Developer`: `zfa package create-plugin
+  zuraffa_ocr --repo arrrrrny/zuraffa_ocr --description "Typed OCR
+  support …"` (default platforms, built-in gate). Gate: pub get + analyze
+  OK on all five packages; generated pubspecs pin `zuraffa: ^6.2.2` (the
+  PUBLISHED line, post-#1615).
+- Board on the delivered repo: `dart test` + `dart pub publish
+  --dry-run` per package → 5/5 OK (gate covered pub get + analyze).
+- `git init -b master` → initial commit 61c72d4 (64 files, no local paths
+  in committed manifests) → `gh repo create arrrrrny/zuraffa_ocr --public
+  --source . --push` → repo resolves: HTTP 200, public.
+
+## Audit mutant sampling
+
+- **M1**: fixture repo slug mutated to `arrrrny/wrong_slug` → B1 red
+  (`+0 -1`) — the stamps assertions detect identity drift. **killed**.
+- Restoration: file restored from backup, full file re-run `+4: All
+  tests passed!`. The generator engine itself was mutation-audited in
+  spec 1601 (3/3 killed) and is frozen here.

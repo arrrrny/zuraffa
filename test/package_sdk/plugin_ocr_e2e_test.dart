@@ -25,29 +25,36 @@ void main() {
       final tempDir = await Directory.systemTemp.createTemp('zfa_ocr_e2e_');
 
       try {
-        final scaffold = await runZfaSource([
-          'package',
-          'create-plugin',
-          'zuraffa_ocr',
-          '--repo',
-          'arrrrny/zuraffa_ocr',
-          '--description',
-          'Typed OCR support for the Zuraffa ecosystem: a pure-Dart port, '
-              'recognition lifecycle, and typed failures behind an injected '
-              'platform channel with federated adapters.',
-          '--no-gate',
-        ], workingDirectory: tempDir.path,
-            timeout: const Duration(seconds: 240));
-        expect(scaffold.exitCode, 0,
-            reason: 'scaffold failed: ${_out(scaffold)}');
+        final scaffold = await runZfaSource(
+          [
+            'package',
+            'create-plugin',
+            'zuraffa_ocr',
+            '--repo',
+            'arrrrny/zuraffa_ocr',
+            '--description',
+            'Typed OCR support for the Zuraffa ecosystem: a pure-Dart port, '
+                'recognition lifecycle, and typed failures behind an injected '
+                'platform channel with federated adapters.',
+            '--no-gate',
+          ],
+          workingDirectory: tempDir.path,
+          timeout: const Duration(seconds: 240),
+        );
+        expect(
+          scaffold.exitCode,
+          0,
+          reason: 'scaffold failed: ${_out(scaffold)}',
+        );
         final monorepo = p.join(tempDir.path, 'zuraffa_ocr');
 
-        final packages = Directory(p.join(monorepo, 'packages'))
-            .listSync()
-            .whereType<Directory>()
-            .map((d) => p.basename(d.path))
-            .toList()
-          ..sort();
+        final packages =
+            Directory(p.join(monorepo, 'packages'))
+                .listSync()
+                .whereType<Directory>()
+                .map((d) => p.basename(d.path))
+                .toList()
+              ..sort();
         expect(packages, [
           'zuraffa_ocr',
           'zuraffa_ocr_android',
@@ -61,20 +68,25 @@ void main() {
 
           for (final gate in const [
             (['dart', 'pub', 'get'], Duration(seconds: 180)),
-            (['dart', 'analyze', '--no-fatal-warnings'],
-                Duration(seconds: 120)),
+            (
+              ['dart', 'analyze', '--no-fatal-warnings'],
+              Duration(seconds: 120),
+            ),
             (['dart', 'test'], Duration(seconds: 300)),
-            (['dart', 'pub', 'publish', '--dry-run'],
-                Duration(seconds: 120)),
+            (['dart', 'pub', 'publish', '--dry-run'], Duration(seconds: 120)),
           ]) {
             final result = await _runSupervised(
               gate.$1,
               workingDirectory: pkgPath,
               timeout: gate.$2,
             );
-            expect(result.exitCode, 0,
-                reason: '$pkg ${gate.$1.join(" ")} failed:\n'
-                    '${_tail(result)}');
+            expect(
+              result.exitCode,
+              0,
+              reason:
+                  '$pkg ${gate.$1.join(" ")} failed:\n'
+                  '${_tail(result)}',
+            );
           }
         }
 

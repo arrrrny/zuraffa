@@ -63,7 +63,7 @@ every OCR stamp verified.
 
 ## Phase 4: User Story 3 — the repo exists on GitHub (P2)
 
-- [ ] T007. [US3] [behavior: B4] [MANDATORY] Delivery: run the contract
+- [x] T007. [US3] [behavior: B4] [MANDATORY] Delivery: run the contract
       invocation in `~/Developer` (produces `~/Developer/zuraffa_ocr`),
       run the full board there, `git init -b master`, initial commit,
       `gh repo create arrrrrny/zuraffa_ocr --public --source . --push`,
@@ -73,9 +73,9 @@ every OCR stamp verified.
 
 ## Phase 5: Polish & Cross-Cutting
 
-- [ ] T008. [P] Comment on issue #684 linking the repo + family packages
+- [x] T008. [P] Comment on issue #684 linking the repo + family packages
       and the generating command (after the repo is pushed).
-- [ ] T009. `dart format` clean on touched files; feature-scoped
+- [x] T009. `dart format` clean on touched files; feature-scoped
       `dart test test/package_sdk/` green; commit + push the branch.
 
 ## Dependencies & Execution Order
