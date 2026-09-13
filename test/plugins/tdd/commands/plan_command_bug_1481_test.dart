@@ -114,6 +114,24 @@ Future<String> _plan(Directory tmp, [List<String> extra = const []]) async {
 File _specFile(Directory tmp) =>
     File(p.join(tmp.path, 'specs', '1481-route', 'spec.md'));
 
+/// The `--json` verdict.v1 envelope — the final captured-output line by
+/// contract (the flag help names it). Anchored on the last NON-EMPTY line:
+/// scanning for a `{`-shaped line would silently decode a human output
+/// line that merely starts with `{` (review of #1537). The schema stamp is
+/// asserted here so every caller reads a canonical envelope.
+Map<String, dynamic> _verdictEnvelope(String out) {
+  final line = out
+      .split('\n')
+      .map((l) => l.trim())
+      .lastWhere(
+        (l) => l.isNotEmpty,
+        orElse: () => fail('no verdict.v1 envelope on stdout'),
+      );
+  final decoded = jsonDecode(line) as Map<String, dynamic>;
+  expect(decoded['schema'], 'zuraffa.verdict.v1');
+  return decoded;
+}
+
 void main() {
   group('#1481: one plan invocation reports the post-migration truth', () {
     test(
@@ -404,6 +422,20 @@ void main() {
   // `--allow-unit-fallback` skips it. These tests PIN the machinery so the
   // next sweep cannot delete it as "dead code" on the strength of the
   // disproved unreachability analysis.
+  //
+  // Both render paths are pinned: P1-P3 walk the legacy single-file path,
+  // P4 the `## Lanes` split — a SEPARATE verdict write (plan_command.dart
+  // :1377 vs :1558) — so the deletion mutant's "both verdict keys" claim is
+  // evidenced end to end (review of #1537).
+  //
+  // Two hermeticity caveats the pins inherit (review of #1537): the exit
+  // reads use `CliRunner.lastDispatchedExitCode` — the per-isolate
+  // snapshot — because `dart:io`'s `exitCode` is process-global and a
+  // sibling suite can clobber it (cli_runner.dart:90-103); and
+  // `runCapturing` returns ONE captured buffer (cli_runner.dart:654 —
+  // zone-intercepted `print`, no per-stream API), so a `contains` proves
+  // the line is emitted on the captured channel, not that stdout/stderr
+  // are distinguishable.
   group(
     '#1537: the fatal dead-end machinery is LIVE (criterion-only trace bindings)',
     () {
@@ -425,19 +457,41 @@ void main() {
 ''';
 
       // The flag route: no persistence mark, the gate explicitly waived.
-      const criterionTraceSpec = '''
+      // Derived from the spec above so the pair cannot drift beyond the one
+      // intended difference (review of #1537).
+      final criterionTraceSpec = persistentCriterionTraceSpec.replaceFirst(
+        '[persistent] ',
+        '',
+      );
+
+      // The lane-split route (review of #1537): the SAME criterion-only
+      // seam through the `## Lanes` render path. Every spec-derived behavior
+      // must be declared in a lane (an undeclared id refuses before any
+      // artifact), so CORE names both the scenario and the FR route. P4
+      // (below) pins the split path's verdict write (plan_command.dart
+      // :1377), the sibling of the legacy :1558 site the cases above pin.
+      const laneSplitCriterionTraceSpec = '''
 **Template Version**: `zuraffa-1.0`
 
 # Spec: 1481-route
 
 ## Functional Requirements
 
-- **FR-001**: the label renders the template
+- **FR-001**: [persistent] the label renders the template
             traces: FR-001
 
 ## Acceptance Scenarios
 
 1. **Given** the app **When** the total is requested **Then** the total equals the sum of items.
+
+## Lanes
+
+```yaml
+Lanes:
+  - lane: CORE
+    behaviors: [A1, U1]
+    flutter_allowed: false
+```
 ''';
 
       test(
@@ -447,7 +501,7 @@ void main() {
           final tmp = await _featureDir(persistentCriterionTraceSpec);
           try {
             final out = await _plan(tmp);
-            expect(exitCode, 0, reason: out);
+            expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
             // The fatal-class route prefix renders for the unit fallback.
             expect(
               out,
@@ -480,7 +534,7 @@ void main() {
         final tmp = await _featureDir(criterionTraceSpec);
         try {
           final out = await _plan(tmp, ['--allow-unit-fallback']);
-          expect(exitCode, 0, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
           expect(
             out,
             contains(
@@ -494,7 +548,11 @@ void main() {
             contains('zfa tdd plan: 1 behavior will dead-end at make'),
             reason: 'the fatal tally renders under the waiver: $out',
           );
-          expect(out, contains('(U1)'), reason: out);
+          expect(
+            out,
+            contains('(U1)'),
+            reason: 'the tally names the dead-ended behavior id: $out',
+          );
         } finally {
           tmp.deleteSync(recursive: true);
         }
@@ -505,20 +563,64 @@ void main() {
         final tmp = await _featureDir(persistentCriterionTraceSpec);
         try {
           final out = await _plan(tmp, ['--json']);
-          expect(exitCode, 0, reason: out);
-          final verdictLine = out
-              .split('\n')
-              .lastWhere(
-                (l) => l.trim().startsWith('{'),
-                orElse: () => fail('no verdict.v1 envelope on stdout'),
-              );
-          final verdict = jsonDecode(verdictLine) as Map<String, dynamic>;
-          expect(verdict['schema'], 'zuraffa.verdict.v1');
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
+          final verdict = _verdictEnvelope(out);
           final details = verdict['details'] as Map<String, dynamic>;
           expect(
             details['dead_end_behaviors'],
             1,
             reason: 'the machine-readable dead-end count rides the envelope',
+          );
+        } finally {
+          tmp.deleteSync(recursive: true);
+        }
+      });
+
+      test('the lane-split render path (## Lanes) renders the same fatal '
+          'tally and verdict count as the legacy path', () async {
+        final tmp = await _featureDir(laneSplitCriterionTraceSpec);
+        try {
+          final out = await _plan(tmp, ['--json']);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
+          // The split path's own route line and tally (the lane branch of
+          // plan_command.dart) render the fatal class the same way.
+          expect(
+            out,
+            contains(
+              'route: U1 -> unit lane [fallback: no declared trace — '
+              'make will dead-end',
+            ),
+            reason: 'the fatal fallback class renders in the split: $out',
+          );
+          expect(
+            out,
+            contains('zfa tdd plan: 1 behavior will dead-end at make'),
+            reason: 'the fatal tally renders in the split path: $out',
+          );
+          expect(
+            out,
+            contains('(U1)'),
+            reason: 'the tally names the dead-ended behavior id: $out',
+          );
+          // Anchor the run ON the split path: 04-ENGINE.md is the split's
+          // exclusive product, so a silent fall-through to the legacy
+          // render cannot leave this pin green against its subject — the
+          // verdict write at plan_command.dart:1377.
+          expect(
+            File(
+              p.join(tmp.path, 'specs', '1481-route', 'tdd', '04-ENGINE.md'),
+            ).existsSync(),
+            isTrue,
+            reason: 'the run took the ## Lanes split render path: $out',
+          );
+          final verdict = _verdictEnvelope(out);
+          final details = verdict['details'] as Map<String, dynamic>;
+          expect(
+            details['dead_end_behaviors'],
+            1,
+            reason:
+                'the machine-readable dead-end count rides the split '
+                'verdict write',
           );
         } finally {
           tmp.deleteSync(recursive: true);
