@@ -472,12 +472,15 @@ class VerifyRedCommand extends Command<void> {
       // CURRENT bytes (action: update) so the verify proof preflight
       // validates the certified hand-delta instead of demanding its
       // destruction via `zfa tdd gen` (issue #1375). Append-only: the gen
-      // receipts stay; latest-wins resolves the certified state.
+      // receipts stay; latest-wins resolves the certified state. The
+      // id-bearing command becomes the event's runnable `repro`
+      // (`zfa tdd verify-red <id> --re-certify`), the remedy a later
+      // drift on the same file prints.
       await HandDeltaReceipts.refreshBestEffort(
         projectRoot: cwd,
         feature: target.featureName,
         behaviorId: record.behaviorId,
-        command: 'tdd verify-red --re-certify',
+        command: 'tdd verify-red ${record.behaviorId} --re-certify',
         transition: 're-certify',
         artifactPaths: [record.testPath, record.subjectPath],
       );

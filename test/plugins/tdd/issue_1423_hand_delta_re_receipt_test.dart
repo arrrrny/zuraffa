@@ -26,10 +26,16 @@
 //   E4  a skip over an UNCHANGED pair appends NO hand-delta receipt (the
 //       gen receipts still validate — backward compatibility);
 //   E5  (SC-4) doctor does NOT report `stores agree` while hand-delta
-//       drift exists: drift line naming behavior+path, prescribes the
-//       re-certify transition, never `zfa tdd gen`;
+//       drift exists: drift line naming behavior+path, names the
+//       re-certify transition and the run loop, never `zfa tdd gen`;
 //   E6  (SC-4 converse) after the sanctioned transitions complete, doctor
-//       reports `stores agree` again.
+//       reports `stores agree` again;
+//   E7  (SC-4) a drifted-but-FAILING hand-delta (the hand-written
+//       assertions landed, the subject is still the gen stub — the exact
+//       state the `<id>:hand` stop leaves mid-way): the prescription
+//       resumes the run loop (re-certify cannot fire on a non-green
+//       pair) and names the direct transition; completing the hand step
+//       and running the named transition re-receipts and doctor heals.
 //
 // RED evidence (pre-fix master): E1/E2/E3/E5 fail — no `hand_delta` receipt
 // exists, ProofChecker still reports `modified` on the hand-edited pair,
@@ -225,7 +231,14 @@ void main() {
       );
       final event = events.single.receipt;
       expect(event.schema, 'proof.v1');
-      expect(event.command, 'tdd verify-red --re-certify');
+      expect(event.command, 'tdd verify-red A1 --re-certify');
+      expect(
+        event.repro,
+        'zfa tdd verify-red A1 --re-certify',
+        reason:
+            'a later drift prints the repro as the remedy — it must '
+            're-run as-is (the behavior id is not optional)',
+      );
       expect(event.input['feature'], fx.featureName);
       expect(event.input['sanctioned'], true);
       expect(event.input['hand_delta'], true);
@@ -333,7 +346,14 @@ void main() {
       expect(events, hasLength(1), reason: 'make output:\n$out');
       final event = events.single.receipt;
       expect(event.schema, 'proof.v1');
-      expect(event.command, 'tdd make');
+      expect(event.command, 'tdd make A2');
+      expect(
+        event.repro,
+        'zfa tdd make A2',
+        reason:
+            'a later drift prints the repro as the remedy — it must '
+            're-run as-is (the behavior id is not optional)',
+      );
       expect(event.input['feature'], fx.featureName);
       expect(event.input['sanctioned'], true);
       expect(event.input['hand_delta'], true);
@@ -479,64 +499,70 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
   );
 
   group('issue #1423 — doctor does not call a drifted hand-delta healthy', () {
-    test(
-      'E5: hand-delta drift present -> no `stores agree`, drift line names '
-      'behavior+path, prescription is the re-certify transition (SC-4)',
-      () async {
-        const desc = 'returns 42 when invoked with no args';
-        const id = 'A5';
-        await fx.seedCertifiedRed(
-          id: id,
-          description: desc,
-          testContent: subjectDrivenTest1423(id, desc),
-          subjectContent: throwingSubject1423(id),
-        );
-        await seedGenReceipts1423(fx, id);
+    test('E5: hand-delta drift present -> no `stores agree`, drift line names '
+        'behavior+path, the prescription names the re-certify transition and '
+        'the run loop (SC-4)', () async {
+      const desc = 'returns 42 when invoked with no args';
+      const id = 'A5';
+      await fx.seedCertifiedRed(
+        id: id,
+        description: desc,
+        testContent: subjectDrivenTest1423(id, desc),
+        subjectContent: throwingSubject1423(id),
+      );
+      await seedGenReceipts1423(fx, id);
 
-        // The hand-delta happened; the certification transitions have NOT
-        // run yet — exactly the state the `<id>:hand` stop leaves.
-        await File(
-          fx.subjectPathOf(id),
-        ).writeAsString(handImplementedSubject1423(id));
+      // The hand-delta happened; the certification transitions have NOT
+      // run yet — exactly the state the `<id>:hand` stop leaves.
+      await File(
+        fx.subjectPathOf(id),
+      ).writeAsString(handImplementedSubject1423(id));
 
-        final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing([
-          'tdd',
-          'doctor',
-          fx.featureName,
-          '--project',
-          fx.root.path,
-        ]);
-        expect(
-          exitCode,
-          isNot(0),
-          reason: 'a drifted hand-delta must not read healthy:\n$out',
-        );
-        expect(
-          out,
-          isNot(contains('stores agree')),
-          reason: 'SC-4: doctor must not claim the stores agree:\n$out',
-        );
-        expect(out, contains('hand-delta drift'));
-        expect(out, contains(id));
-        final subjectRel = p
-            .relative(fx.subjectPathOf(id), from: fx.root.path)
-            .replaceAll(r'\', '/');
-        expect(out, contains(subjectRel));
-        expect(
-          out,
-          contains('--re-certify'),
-          reason: 'the sanctioned transition must be prescribed:\n$out',
-        );
-        expect(
-          out,
-          isNot(contains('zfa tdd gen')),
-          reason:
-              'the destructive remedy (#1375) must never be prescribed:\n'
-              '$out',
-        );
-      },
-    );
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'doctor',
+        fx.featureName,
+        '--project',
+        fx.root.path,
+      ]);
+      expect(
+        exitCode,
+        isNot(0),
+        reason: 'a drifted hand-delta must not read healthy:\n$out',
+      );
+      expect(
+        out,
+        isNot(contains('stores agree')),
+        reason: 'SC-4: doctor must not claim the stores agree:\n$out',
+      );
+      expect(out, contains('hand-delta drift'));
+      expect(out, contains(id));
+      final subjectRel = p
+          .relative(fx.subjectPathOf(id), from: fx.root.path)
+          .replaceAll(r'\', '/');
+      expect(out, contains(subjectRel));
+      expect(
+        out,
+        contains('--re-certify'),
+        reason: 'the sanctioned transition must be named:\n$out',
+      );
+      expect(
+        out,
+        contains('zfa tdd run'),
+        reason:
+            'the record carries no green certification, so the run loop '
+            'must be named too — re-certify alone dead-ends on a pair '
+            'that does not pass:\n$out',
+      );
+      expect(
+        out,
+        isNot(contains('zfa tdd gen')),
+        reason:
+            'the destructive remedy (#1375) must never be prescribed:\n'
+            '$out',
+      );
+    });
 
     test('E6: after the sanctioned transitions complete -> doctor reports '
         '`stores agree` again (SC-4 converse)', () async {
@@ -583,6 +609,91 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
       expect(exitCode, 0, reason: 'the healed state must read healthy:\n$out');
       expect(out, contains('stores agree'));
     });
+
+    test(
+      'E7: drifted-but-failing hand-delta -> the prescription resumes the '
+      'run loop (re-certify alone dead-ends) and names the direct '
+      'transition; completing the hand step then running it re-receipts',
+      () async {
+        const desc = 'returns 42 when invoked with no args';
+        const id = 'A7';
+        await fx.seedCertifiedRed(
+          id: id,
+          description: desc,
+          testContent: subjectDrivenTest1423(id, desc),
+          subjectContent: throwingSubject1423(id),
+        );
+        await seedGenReceipts1423(fx, id);
+
+        // The hand step is only HALF done — the hand-written assertions
+        // landed, the subject is still the gen stub, so the test currently
+        // FAILS. `verify-red --re-certify` cannot fire here (it requires
+        // the unexpected-green classification), so a prescription that
+        // pushes only that command loops the agent at a no-op.
+        await File(
+          fx.testPathOf(id),
+        ).writeAsString(handEditedTest1423(id, desc));
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'doctor',
+          fx.featureName,
+          '--project',
+          fx.root.path,
+        ]);
+        expect(exitCode, isNot(0), reason: out);
+        expect(out, isNot(contains('stores agree')), reason: out);
+        expect(out, contains('hand-delta drift'));
+        expect(
+          out,
+          contains('zfa tdd run'),
+          reason:
+              'the last certification is red — the run loop is the honest '
+              'resume for the incomplete hand-delta:\n$out',
+        );
+        expect(
+          out,
+          contains('zfa tdd verify-red $id --re-certify'),
+          reason: 'the direct close stays named for the green state:\n$out',
+        );
+        expect(
+          out,
+          isNot(contains('zfa tdd gen')),
+          reason: 'the destructive remedy (#1375) must never be named:\n$out',
+        );
+
+        // The named path is executable, not prose: completing the hand
+        // step makes the named direct transition runnable, and running it
+        // re-receipts the drifted pair — doctor then reads healthy.
+        await File(
+          fx.subjectPathOf(id),
+        ).writeAsString(handImplementedSubject1423(id));
+        final recert = await runner.runCapturing([
+          'tdd',
+          'verify-red',
+          '--project',
+          fx.root.path,
+          '--re-certify',
+          id,
+        ]);
+        expect(exitCode, 0, reason: recert);
+        expect(
+          await handDeltaReceiptsOf(fx),
+          hasLength(1),
+          reason: 'the prescribed transition must re-receipt:\n$recert',
+        );
+        final healed = await runner.runCapturing([
+          'tdd',
+          'doctor',
+          fx.featureName,
+          '--project',
+          fx.root.path,
+        ]);
+        expect(exitCode, 0, reason: healed);
+        expect(healed, contains('stores agree'));
+      },
+    );
   });
 
   _serviceTier();
@@ -645,7 +756,7 @@ void _serviceTier() {
       projectRoot: tmp.path,
       feature: '1423-fixture',
       behaviorId: 'B1',
-      command: 'tdd verify-red --re-certify',
+      command: 'tdd verify-red B1 --re-certify',
       transition: 're-certify',
       artifactPaths: const ['test/b1_test.dart', 'lib/b1_subject.dart'],
     );
@@ -660,7 +771,12 @@ void _serviceTier() {
     expect(events, hasLength(1), reason: 'exactly one appended event');
     final event = events.single.receipt;
     expect(event.schema, 'proof.v1');
-    expect(event.command, 'tdd verify-red --re-certify');
+    expect(event.command, 'tdd verify-red B1 --re-certify');
+    expect(
+      event.repro,
+      'zfa tdd verify-red B1 --re-certify',
+      reason: 'the repro derives from the exact command (zfa \$command)',
+    );
     expect(event.target, 'B1');
     expect(event.input['feature'], '1423-fixture');
     expect(event.input['sanctioned'], true);

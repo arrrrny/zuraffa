@@ -754,7 +754,7 @@ class DoctorCommand extends Command<void> {
       return;
     }
 
-    // ---- 3b. Hand-delta proof drift -> RE-CERTIFY (spec 1423) --------
+    // ---- 3b. Hand-delta proof drift -> RE-CERTIFY / RESUME (1423) ----
     // The proof-layer class the store-vs-store comparisons cannot see:
     // a registry-recorded test/subject path whose disk digest differs
     // from its latest receipt digest — the certified hand-delta state
@@ -766,8 +766,15 @@ class DoctorCommand extends Command<void> {
     // certification transitions (`verify-red --re-certify`, make's skip
     // — spec 1423); re-driving the generator over a hand-delta would
     // DESTROY the certified work (the #1375 destructive remedy) and is
-    // never the prescription.
-    final handDelta = await _handDeltaProofDrifts(cwd, feature, records, red);
+    // never the prescription. Which transition is prescribed derives
+    // from the behavior's last certification — see
+    // `_handDeltaProofDrifts`.
+    final handDelta = await _handDeltaProofDrifts(
+      cwd,
+      feature,
+      records,
+      evidence,
+    );
     if (handDelta.lines.isNotEmpty) {
       drifts.addAll(handDelta.lines);
       final fix = handDelta.fix;
@@ -775,13 +782,7 @@ class DoctorCommand extends Command<void> {
       for (final drift in drifts) {
         print('  drift: $drift');
       }
-      print(
-        '   --> fix: $fix — the certification re-receipts the hand-edited '
-        'test/subject pair with the current digest (spec 1423); re-run '
-        '`zfa tdd doctor $feature` afterwards. Never re-drive the '
-        'generator over a hand-delta — it regenerates the guard test and '
-        'destroys the certified work (issue #1375).',
-      );
+      print('   --> fix: $fix — ${handDelta.note}');
       _printVerdict(
         feature: feature,
         verdict: 'drift',
@@ -802,10 +803,11 @@ class DoctorCommand extends Command<void> {
 
   /// The hand-delta proof-drift scan (spec 1423, SC-4): for every
   /// registry-recorded test/subject path, compare the disk digest against
-  /// the LATEST receipt digest covering it (the same latest-wins
-  /// resolution `ProofChecker` applies). A mismatch is the certified
-  /// hand-delta state the stores cannot see: state claims and cycle-log
-  /// evidence agree while `zfa tdd verify`'s proof preflight refuses.
+  /// the LATEST receipt digest covering it through the shared
+  /// [ReceiptStore.latestForPath] resolution (the same one `ProofChecker`
+  /// applies). A mismatch is the certified hand-delta state the stores
+  /// cannot see: state claims and cycle-log evidence agree while
+  /// `zfa tdd verify`'s proof preflight refuses.
   ///
   /// Fail-open surfaces: an unreadable receipts tree, a feature with no
   /// receipts, an unreceipted artifact path (the preflight's
@@ -813,48 +815,48 @@ class DoctorCommand extends Command<void> {
   /// already reported it) all produce no hand-delta findings — never a
   /// fabricated mismatch.
   ///
-  /// The prescription is deterministic: the first drifted behavior with
-  /// certified red evidence takes the explicit `verify-red <id>
-  /// --re-certify` transition; a feature whose drifted behaviors carry no
-  /// red evidence resumes through the run loop (the sanctioned
-  /// transitions re-receipt the pair — spec 1423). The destructive
-  /// generator re-drive (#1375) is never prescribed here.
-  Future<({List<String> lines, String fix, String prescription})>
+  /// The prescription derives from the FIRST drifted behavior's last
+  /// recorded certification, never from the mere presence of red
+  /// evidence — which the designed `<id>:hand` stop always leaves behind
+  /// (`zfa tdd run` certifies the honest red before the hand step).
+  /// `verify-red <id> --re-certify` fires ONLY on the unexpected-green
+  /// classification (`verify_red_command.dart:396`), so a behavior whose
+  /// last certification is red (an interrupted hand-delta) resumes
+  /// through the run loop, while a behavior last certified green (or
+  /// refactor) takes the direct transition. Both commands stay named so
+  /// a drifted-but-green pair is never pushed at the re-certify no-op.
+  /// The destructive generator re-drive (#1375) is never prescribed.
+  Future<({List<String> lines, String fix, String prescription, String note})>
   _handDeltaProofDrifts(
     String cwd,
     String feature,
     List<ArtifactRecord> records,
-    Set<String> redEvidence,
+    CycleEvidence evidence,
   ) async {
+    const none = (lines: <String>[], fix: '', prescription: 'none', note: '');
     final List<ReceiptRecord> receipts;
     try {
       receipts = await ReceiptStore(projectRoot: cwd).loadAll();
     } catch (_) {
       // Unreadable receipts tree — fail open here; the verify proof
       // preflight still gates the audit on whatever it can read.
-      return (lines: <String>[], fix: '', prescription: 'none');
+      return none;
     }
     if (receipts.isEmpty || records.isEmpty) {
-      return (lines: <String>[], fix: '', prescription: 'none');
-    }
-    final latest = <String, String>{};
-    for (final record in receipts) {
-      for (final entry in record.receipt.files) {
-        latest[entry.path] = entry.sha256;
-      }
-    }
-    if (latest.isEmpty) {
-      return (lines: <String>[], fix: '', prescription: 'none');
+      return none;
     }
 
     final lines = <String>[];
-    String? fix;
+    String? firstDrifted;
     for (final record in records) {
       for (final recorded in [record.testPath, record.subjectPath]) {
         // Both recorded forms resolve to the project-relative POSIX shape
         // the receipt store records (issue #1397 compat).
         final relative = canonicalArtifactPath(cwd, recorded);
-        final recordedDigest = latest[relative];
+        final recordedDigest = ReceiptStore.latestForPath(
+          receipts,
+          relative,
+        )?.entry.sha256;
         if (recordedDigest == null) continue; // unreceipted: not this class
         final file = File(p.join(cwd, relative));
         if (!file.existsSync()) continue; // check 2 reported the deletion
@@ -871,24 +873,54 @@ class DoctorCommand extends Command<void> {
           '${_shortDigest(diskDigest)}) — the certified hand-delta is not '
           'receipted (issue #1423)',
         );
-        fix ??= redEvidence.contains(record.behaviorId)
-            ? 'zfa tdd verify-red ${record.behaviorId} --re-certify'
-            : null;
+        firstDrifted ??= record.behaviorId;
       }
     }
-    if (lines.isEmpty) {
-      return (lines: <String>[], fix: '', prescription: 'none');
+    if (lines.isEmpty) return none;
+
+    // Green-backed: the behavior's last recorded certification is a green
+    // (or refactor) one — the state the direct re-certify transition can
+    // close. A later red entry (a re-drive, an interrupted cycle)
+    // supersedes it: the pair must pass the loop again first.
+    final behaviorId = firstDrifted!;
+    final entries = await evidence.entries();
+    var lastRed = -1;
+    var lastGreen = -1;
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+      if (entry.behaviorId != behaviorId) continue;
+      if (entry.kind == 'red') lastRed = i;
+      if (entry.kind == 'green') lastGreen = i;
     }
-    if (fix == null) {
-      // No drifted behavior carries certified red evidence: resume
-      // through the run loop — the sanctioned transitions re-receipt.
+    final tail =
+        're-run `zfa tdd doctor $feature` afterwards. Never re-drive the '
+        'generator over a hand-delta — it regenerates the guard test and '
+        'destroys the certified work (issue #1375).';
+    if (lastGreen > lastRed) {
       return (
         lines: lines,
-        fix: 'zfa tdd run $feature',
-        prescription: 'resume',
+        fix: 'zfa tdd verify-red $behaviorId --re-certify',
+        prescription: 're-certify',
+        note:
+            'the re-certify transition re-receipts the hand-edited '
+            'test/subject pair with the current digest (spec 1423); if the '
+            'pair no longer passes, resume with `zfa tdd run $feature`. '
+            '$tail',
       );
     }
-    return (lines: lines, fix: fix, prescription: 're-certify');
+    return (
+      lines: lines,
+      fix: 'zfa tdd run $feature',
+      prescription: 'resume',
+      note:
+          "the behavior's last certification is not green, so the "
+          're-certify transition cannot fire yet (it needs the pair to '
+          'pass) — resume the loop; the sanctioned transitions re-receipt '
+          'the hand-delta once it is green (spec 1423). If the drifted '
+          "behavior's test already passes, "
+          '`zfa tdd verify-red $behaviorId --re-certify` closes it '
+          'directly. $tail',
+    );
   }
 
   static String _shortDigest(String digest) =>

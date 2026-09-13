@@ -65,12 +65,13 @@ class HandDeltaReceipts {
   /// recorded test/subject paths, any form — machine-absolute legacy or
   /// project-relative per issue #1397).
   ///
-  /// [command] and [transition] name the certifying verb (`tdd make` /
-  /// `skip`, `tdd verify-red --re-certify` / `re-certify`) so the appended
-  /// event's provenance names the transition that blessed the current
-  /// bytes. [feature] scopes the event the way the generation verbs do
-  /// (`input.feature`) so `zfa tdd verify`'s feature-scoped proof
-  /// preflight recognizes the refreshed paths.
+  /// [command] and [transition] name the certifying verb (`tdd make
+  /// <id>` / `skip`, `tdd verify-red <id> --re-certify` / `re-certify`)
+  /// so the appended event's provenance names the transition that
+  /// blessed the current bytes, and its `repro` (`zfa $command`) stays
+  /// runnable as-is. [feature] scopes the event the way the generation
+  /// verbs do (`input.feature`) so `zfa tdd verify`'s feature-scoped
+  /// proof preflight recognizes the refreshed paths.
   static Future<HandDeltaReceiptReport> refresh({
     required String projectRoot,
     required String? feature,

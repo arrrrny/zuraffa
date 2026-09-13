@@ -1988,13 +1988,15 @@ class MakeCommand extends Command<void> {
     // gen` (issue #1375), which would destroy the hand work. Only the
     // skip transition re-receipts: the generation path's writes are
     // receipted by their own verbs, and the #1331 adoption is a
-    // re-drive class, not a hand-delta certification.
+    // re-drive class, not a hand-delta certification. The id-bearing
+    // command becomes the event's runnable `repro` (`zfa tdd make <id>`),
+    // the remedy a later drift on the same file prints.
     if (alreadyGreen && !adoptedReDrive) {
       await HandDeltaReceipts.refreshBestEffort(
         projectRoot: cwd,
         feature: target.featureName,
         behaviorId: record.behaviorId,
-        command: 'tdd make',
+        command: 'tdd make ${record.behaviorId}',
         transition: 'skip',
         artifactPaths: [record.testPath, record.subjectPath],
       );
