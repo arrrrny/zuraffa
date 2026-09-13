@@ -1,0 +1,15 @@
+zfa tdd run: feature 090-run-driver — 1 behavior(s)
+   suite baseline: dart test (once per run — issue #741)
+[run] B-001 gen — scaffold test + stub
+[run] B-001 gen -> ok
+[run] B-001 verify-red — run target test (expect red)
+[run] B-001 verify-red -> certified
+[run] B-001 make — generation pipeline (sub-steps announced as they start)
+→ live-banner (demo)
+[run] B-001 make … 0s elapsed
+[run] B-001 make … 0s elapsed
+[run] B-001 make -> green
+[run] B-001 refactor — format + analyze + re-proof
+[run] B-001 refactor -> clean
+run: feature=090-run-driver result=complete pending=0 red=0 green=0 done=1
+
