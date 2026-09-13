@@ -135,6 +135,21 @@ class OwnershipConflict implements Exception {
   }
 }
 
+/// Raised when `tdd/artifacts.json` exists but cannot be parsed (bug
+/// #1470). Corruption must never be conflated with an empty registry:
+/// returning [] here let `register` re-register behaviors with
+/// [Ownership.created] and rewrite the file, silently destroying every
+/// prior ownership record. The message names the file and the recovery
+/// path (same contract as `RunStateCorruptException` for run-state.json).
+class ArtifactRegistryCorruptException implements Exception {
+  const ArtifactRegistryCorruptException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 /// Append-only registry of [ArtifactRecord]s for a feature.
 class ArtifactRegistry {
   /// Construct a registry for a feature directory.
@@ -356,15 +371,43 @@ class ArtifactRegistry {
   Future<List<ArtifactRecord>> _loadRecords({bool reanchor = true}) async {
     final file = File(registryPath);
     if (!await file.exists()) return [];
+
+    // Bug #1470: a corrupt registry is NOT an empty one. Returning [] for
+    // any malformed shape made `register` re-register behaviors with
+    // Ownership.created and rewrite the file, silently destroying every
+    // prior ownership record (and any chance of diagnosing the
+    // corruption). Fail loudly on EVERY wrong shape: unparseable JSON,
+    // a non-object top level, a missing/non-list "records" (the reviewer-
+    // found silent path), and non-object record entries (previously a raw
+    // TypeError) — with the file and the recovery path. A MISSING file
+    // stays the legitimate empty registry of a fresh feature (FR-012;
+    // see the exists() guard above, which this does not touch).
+    Never corrupt(String cause) => throw ArtifactRegistryCorruptException(
+      'corrupted artifacts.json at $registryPath ($cause). Recovery: '
+      'repair the file to valid registry JSON (a "feature" plus a '
+      '"records" list) or restore it from version control — do NOT delete '
+      'it, or the next gen re-registers every behavior as created and can '
+      'duplicate artifact files.',
+    );
+
     try {
-      final raw = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-      final records = (raw['records'] as List?) ?? [];
+      final decoded = jsonDecode(await file.readAsString());
+      if (decoded is! Map<String, dynamic>) {
+        corrupt('top-level value is not an object');
+      }
+      final records = decoded['records'];
+      if (records is! List) {
+        corrupt('missing "records" list');
+      }
       return records.map((r) {
-        final record = ArtifactRecord.fromJson(r as Map<String, dynamic>);
+        if (r is! Map<String, dynamic>) {
+          corrupt('a "records" entry is not an object');
+        }
+        final record = ArtifactRecord.fromJson(r);
         return reanchor ? _reanchorRecord(record) : record;
       }).toList();
-    } on FormatException {
-      return [];
+    } on FormatException catch (e) {
+      corrupt('invalid JSON: ${e.message}');
     }
   }
 
