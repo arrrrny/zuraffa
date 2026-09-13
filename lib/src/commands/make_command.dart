@@ -18,6 +18,7 @@ import '../cli/plugin_loader.dart';
 import '../core/branding/branding_writer.dart';
 import '../core/dependencies/generated_import_scanner.dart';
 import '../core/dependencies/pubspec_auto_add.dart';
+import '../core/dependencies/pubspec_zuraffa_ensure.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugin_context.dart';
 import '../core/project/project_root.dart';
@@ -1050,18 +1051,66 @@ class MakeCommand extends Command<void> {
           ? _pubsyncGapForFiles(files)
           : null;
 
+      // Issue #1530 — ENSURE `zuraffa` when the files this run wrote
+      // import `package:zuraffa/...`: the core package was never
+      // declared by the standard wiring for Flutter targets (only
+      // `zuraffa_flutter` / `zuraffa_ui`), so generated imports fired
+      // `depend_on_referenced_packages` and `zfa build`'s analyze gate
+      // went red on zfa-generated code. The ensure is the offline-safe
+      // textual declaration (the `zfa tdd init --skin` patcher
+      // discipline for `zuraffa_ui`): no process spawn, idempotent,
+      // hand-edit preserving. Runs BEFORE the #1265 auto-add so the
+      // ensured declaration is not re-`pub add`ed.
+      var zuraffaEnsured = false;
+      if (pubsyncGap != null) {
+        try {
+          final ensureOutcome = await const PubspecZuraffaEnsure()
+              .ensureForImports(manager.projectRoot, pubsyncGap.importedPackages);
+          if (ensureOutcome.added) {
+            zuraffaEnsured = true;
+            print(
+              '✅ Ensured zuraffa: ${ensureOutcome.constraint} in '
+              'pubspec.yaml dependencies — generated files import '
+              'package:zuraffa (issue #1530). Run pub get to re-resolve.',
+            );
+          }
+        } on FormatException catch (e) {
+          print(
+            '   ⚠️ pubspec.yaml could not be patched to declare zuraffa: '
+            '$e',
+          );
+        } on UnsupportedError catch (e) {
+          print(
+            '   ⚠️ pubspec.yaml could not be patched to declare zuraffa: '
+            '${e.message}',
+          );
+        } on StateError catch (e) {
+          print(
+            '   ⚠️ pubspec.yaml could not be patched to declare zuraffa: '
+            '${e.message}',
+          );
+        }
+      }
+
       // Issue #1265 — auto-add, don't warn-only: the make generator now
       // DECLARES what it emits. One mechanical `<flutter|dart> pub add`
       // heals the hosted gap (the same fix path `zfa doctor
       // generated-imports --fix` uses); the ⚠️ diagnostic remains only
       // for what the add could not heal (offline, SDK-provided packages).
       var pubsyncAutoAdded = const <String>[];
+      final autoAddPackages = (pubsyncGap?.pubAddPackages ?? const <String>[])
+          .where(
+            (name) =>
+                !(zuraffaEnsured &&
+                    name == PubspecZuraffaEnsure.packageName),
+          )
+          .toList();
       if (pubsyncGap != null &&
           pubsyncGap.hasMissing &&
-          pubsyncGap.pubAddPackages.isNotEmpty) {
+          autoAddPackages.isNotEmpty) {
         final outcome = await PubspecAutoAdd.add(
           projectRoot: manager.projectRoot,
-          packages: pubsyncGap.pubAddPackages,
+          packages: autoAddPackages,
           isFlutter: pubsyncGap.isFlutterProject,
           runner: _processRunner,
         );
