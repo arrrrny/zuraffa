@@ -16,8 +16,9 @@
 // 1. Doctor (and gen's recovery path) consult ALL specs/*/tdd/artifacts.json
 //    before declaring a file "unowned". Another feature's file → distinct
 //    verdict `foreign-owned`, prescription `migrate`, NEVER `adopt`.
-// 2. The migration fix is `zfa tdd migrate-paths <owner>` (the command
-//    exists on master; the owner's registry is the one that must move).
+// 2. The migration fix is `zfa tdd migrate-paths --feature <owner>` (issue
+//    #1573: the flag form the command actually parses; the owner's registry
+//    is the one that must move).
 // 3. Doctor verdicts include the owning feature for foreign files
 //    (`owned_by` map + owner named in the drift lines).
 library;
@@ -217,7 +218,11 @@ void main() {
       expect(out, contains('--> fix:'), reason: out);
       expect(out, contains('foreign-owned'), reason: out);
       final fix = fixLine(out);
-      expect(fix, contains('zfa tdd migrate-paths $owner'), reason: out);
+      expect(
+        fix,
+        contains('zfa tdd migrate-paths --feature $owner'),
+        reason: out,
+      );
       // The trust violation: never prescribe adopting another feature's
       // files into the queried registry.
       expect(fix, isNot(contains('--adopt')), reason: out);
@@ -267,7 +272,11 @@ void main() {
       expect(v['verdict'], 'foreign-owned', reason: out);
       expect(v['prescription'], 'migrate', reason: out);
       final fix = fixLine(out);
-      expect(fix, contains('zfa tdd migrate-paths $owner'), reason: out);
+      expect(
+        fix,
+        contains('zfa tdd migrate-paths --feature $owner'),
+        reason: out,
+      );
     });
 
     test('multiple foreign owners -> the all-features migration', () async {
@@ -341,7 +350,11 @@ void main() {
         expect(v['verdict'], 'foreign-owned', reason: out);
         expect(v['prescription'], 'migrate', reason: out);
         final fix = fixLine(out);
-        expect(fix, contains('zfa tdd migrate-paths $owner'), reason: out);
+        expect(
+          fix,
+          contains('zfa tdd migrate-paths --feature $owner'),
+          reason: out,
+        );
         expect(fix, isNot(contains('--adopt')), reason: out);
       },
     );
