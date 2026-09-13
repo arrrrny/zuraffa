@@ -121,14 +121,22 @@ void main() {
           .where((l) => l.isNotEmpty)
           .toList();
 
-      expect(lines, isNotEmpty,
-          reason: 'the run must spawn step children (gen/verify-red/make/'
-              'refactor per behavior) — out receipt:\n${lines.join('\n')}');
+      expect(
+        lines,
+        isNotEmpty,
+        reason:
+            'the run must spawn step children (gen/verify-red/make/'
+            'refactor per behavior) — out receipt:\n${lines.join('\n')}',
+      );
 
       final observed = lines.map((l) => l.substring('TMPDIR='.length)).toSet();
-      expect(observed.length, 1,
-          reason: 'one scratch dir per invocation — every child of the run '
-              'observes the SAME TMPDIR');
+      expect(
+        observed.length,
+        1,
+        reason:
+            'one scratch dir per invocation — every child of the run '
+            'observes the SAME TMPDIR',
+      );
 
       final scratch = observed.first;
       expect(
@@ -139,20 +147,22 @@ void main() {
             'pre-fix the children observed the shared user TMPDIR '
             '(${Directory.systemTemp.path}) — receipt:\n${lines.join('\n')}',
       );
-      expect(Directory(scratch).existsSync(), isFalse,
-          reason: 'the run deleted its own scratch at run end (FR-3)');
+      expect(
+        Directory(scratch).existsSync(),
+        isFalse,
+        reason: 'the run deleted its own scratch at run end (FR-3)',
+      );
     });
 
     test('B9: .zfa.json tdd.tmpDir names the scratch root and the scratch '
         'is still cleaned at run end', () async {
-      final cfgRoot =
-          Directory.systemTemp.createTempSync('zfa1520-cfg-root-');
+      final cfgRoot = Directory.systemTemp.createTempSync('zfa1520-cfg-root-');
       addTearDown(() {
         if (cfgRoot.existsSync()) cfgRoot.deleteSync(recursive: true);
       });
-      File(p.join(fx.root.path, '.zfa.json')).writeAsStringSync(
-        '{"tdd": {"tmpDir": "${cfgRoot.path}"}}',
-      );
+      File(
+        p.join(fx.root.path, '.zfa.json'),
+      ).writeAsStringSync('{"tdd": {"tmpDir": "${cfgRoot.path}"}}');
 
       await runFeature();
 
@@ -164,14 +174,21 @@ void main() {
       expect(lines, isNotEmpty);
 
       final scratch = lines.first.substring('TMPDIR='.length);
-      expect(p.dirname(scratch), cfgRoot.path,
-          reason:
-              'the configured scratch root (.zfa.json tdd.tmpDir) holds the '
-              'per-run scratch (FR-6 / SC-2)');
+      expect(
+        p.dirname(scratch),
+        cfgRoot.path,
+        reason:
+            'the configured scratch root (.zfa.json tdd.tmpDir) holds the '
+            'per-run scratch (FR-6 / SC-2)',
+      );
       expect(p.basename(scratch), startsWith('zfa-090-tdd-fixture-'));
-      expect(Directory(scratch).existsSync(), isFalse,
-          reason: 'the scratch is deleted at run end even under a '
-              'configured root (FR-3)');
+      expect(
+        Directory(scratch).existsSync(),
+        isFalse,
+        reason:
+            'the scratch is deleted at run end even under a '
+            'configured root (FR-3)',
+      );
     });
   }, timeout: const Timeout(Duration(minutes: 4)));
 }

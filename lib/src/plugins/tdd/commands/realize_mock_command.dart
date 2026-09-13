@@ -821,10 +821,12 @@ class RealizeMockCommand extends Command<void> {
     // this `dart test` child's kernel dir lands inside the run's own
     // scratch (issue #1520); null inherits the ambient TMPDIR as before.
     return (paths, workingDirectory) async {
-      final result = await Process.run('dart', [
-        'test',
-        ...paths,
-      ], workingDirectory: workingDirectory, environment: _scratchEnv);
+      final result = await Process.run(
+        'dart',
+        ['test', ...paths],
+        workingDirectory: workingDirectory,
+        environment: _scratchEnv,
+      );
       return (
         exitCode: result.exitCode,
         output: '${result.stdout}${result.stderr}',
@@ -846,14 +848,19 @@ class RealizeMockCommand extends Command<void> {
           '(see the realize command docs).',
         );
       }
-      final process = await Process.start('dart', [
-        'run',
-        'tool/realize_driver.dart',
-        '--binding',
-        'tier1',
-        '--entity',
-        entity,
-      ], workingDirectory: _resolvedRoot, environment: _scratchEnv);
+      final process = await Process.start(
+        'dart',
+        [
+          'run',
+          'tool/realize_driver.dart',
+          '--binding',
+          'tier1',
+          '--entity',
+          entity,
+        ],
+        workingDirectory: _resolvedRoot,
+        environment: _scratchEnv,
+      );
       process.stdin.write(jsonEncode(input));
       await process.stdin.close();
       final stdoutText = await process.stdout.transform(utf8.decoder).join();

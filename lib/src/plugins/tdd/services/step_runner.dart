@@ -136,6 +136,7 @@ class StepRunner {
   /// [StepSpawner] fake keeps its own contract (the env rides the REAL
   /// spawn path only).
   final Map<String, String>? childEnvironment;
+
   /// Resolved entrypoint, cached after the first step so `defaultZfaBin`'s
   /// `Isolate.resolvePackageUri` lookup runs once per run, not once per step
   /// (minor finding from the review of #608).

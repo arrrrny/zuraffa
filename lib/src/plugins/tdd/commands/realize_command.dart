@@ -1374,14 +1374,19 @@ class RealizeCommand extends Command<void> {
           'needs the project-owned driver (see the realize command docs).',
         );
       }
-      final process = await Process.start('dart', [
-        'run',
-        'tool/realize_driver.dart',
-        '--binding',
-        binding,
-        '--entity',
-        entity,
-      ], workingDirectory: _resolvedRoot, environment: _scratchEnv);
+      final process = await Process.start(
+        'dart',
+        [
+          'run',
+          'tool/realize_driver.dart',
+          '--binding',
+          binding,
+          '--entity',
+          entity,
+        ],
+        workingDirectory: _resolvedRoot,
+        environment: _scratchEnv,
+      );
       process.stdin.write(jsonEncode(input));
       await process.stdin.close();
       final stdoutText = await process.stdout.transform(utf8.decoder).join();
@@ -1420,10 +1425,12 @@ class RealizeCommand extends Command<void> {
       if (paths.isEmpty) {
         return (exitCode: 0, output: '(no mock-era suite registered)');
       }
-      final result = await Process.run('dart', [
-        'test',
-        ...paths,
-      ], workingDirectory: workingDirectory, environment: _scratchEnv);
+      final result = await Process.run(
+        'dart',
+        ['test', ...paths],
+        workingDirectory: workingDirectory,
+        environment: _scratchEnv,
+      );
       return (
         exitCode: result.exitCode,
         output: '${result.stdout}${result.stderr}',

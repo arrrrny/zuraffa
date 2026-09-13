@@ -98,11 +98,11 @@ class DifferentialRefRunner {
        _gitRunner =
            gitRunner ??
            ((List<String> args, String workingDirectory) => Process.run(
-                 'git',
-                 args,
-                 workingDirectory: workingDirectory,
-                 environment: childEnvironment,
-               ));
+             'git',
+             args,
+             workingDirectory: workingDirectory,
+             environment: childEnvironment,
+           ));
 
   /// The per-step wall-clock budget. A child that outlives it is
   /// killed and records the `hang` outcome.

@@ -39,9 +39,9 @@ void main() {
   Directory seedKernelDir(String name) {
     final dir = Directory(p.join(ambientRoot.path, 'dart_test.kernel.$name'))
       ..createSync(recursive: true);
-    File(p.join(dir.path, 'output.dill')).writeAsBytesSync(
-      List.filled(64 * 1024, 120),
-    );
+    File(
+      p.join(dir.path, 'output.dill'),
+    ).writeAsBytesSync(List.filled(64 * 1024, 120));
     return dir;
   }
 
@@ -77,10 +77,14 @@ void main() {
         now: DateTime.now().add(const Duration(seconds: 10)),
       );
 
-      expect(youngDir.existsSync(), isTrue,
-          reason: 'a dart_test.kernel.* entry younger than ~1h may belong '
-              'to a concurrent runner — the janitor must not delete it '
-              '(spec 1520 FR-5 / SC-3; pre-spec the entry is deleted)');
+      expect(
+        youngDir.existsSync(),
+        isTrue,
+        reason:
+            'a dart_test.kernel.* entry younger than ~1h may belong '
+            'to a concurrent runner — the janitor must not delete it '
+            '(spec 1520 FR-5 / SC-3; pre-spec the entry is deleted)',
+      );
     });
   });
 
@@ -97,11 +101,18 @@ void main() {
         now: DateTime.now().add(const Duration(hours: 2)),
       );
 
-      expect(oldDir.existsSync(), isFalse,
-          reason: 'a genuinely stale kernel DIRECTORY is reclaimed '
-              '(#1507 preserved) — with its dill contents');
-      expect(oldFile.existsSync(), isFalse,
-          reason: 'a genuinely stale kernel FILE is reclaimed');
+      expect(
+        oldDir.existsSync(),
+        isFalse,
+        reason:
+            'a genuinely stale kernel DIRECTORY is reclaimed '
+            '(#1507 preserved) — with its dill contents',
+      );
+      expect(
+        oldFile.existsSync(),
+        isFalse,
+        reason: 'a genuinely stale kernel FILE is reclaimed',
+      );
     });
   });
 
@@ -117,10 +128,14 @@ void main() {
         now: DateTime.now().add(const Duration(hours: 2)),
       );
 
-      expect(liveDir.existsSync(), isTrue,
-          reason: 'the entry\'s mtime is after the command start — it may '
-              'belong to a concurrent runner no matter how old it is '
-              '(#1507 C4 preserved)');
+      expect(
+        liveDir.existsSync(),
+        isTrue,
+        reason:
+            'the entry\'s mtime is after the command start — it may '
+            'belong to a concurrent runner no matter how old it is '
+            '(#1507 C4 preserved)',
+      );
     });
   });
 
@@ -137,18 +152,22 @@ void main() {
       await clearDartTestKernelCache(
         sandbox.path,
         commandStartedAt: DateTime.now().add(const Duration(seconds: 1)),
-        environment: {
-          'TMPDIR': ambientRoot.path,
-          'ZFA_TMPDIR': cfgRoot.path,
-        },
+        environment: {'TMPDIR': ambientRoot.path, 'ZFA_TMPDIR': cfgRoot.path},
         now: DateTime.now().add(const Duration(hours: 2)),
       );
 
-      expect(ambientStaleDir.existsSync(), isFalse,
-          reason: 'the ambient TMPDIR root is swept as before');
-      expect(cfgStaleFile.existsSync(), isFalse,
-          reason: 'the configured scratch root is swept under the same '
-              'guard stack (spec 1520 FR-7)');
+      expect(
+        ambientStaleDir.existsSync(),
+        isFalse,
+        reason: 'the ambient TMPDIR root is swept as before',
+      );
+      expect(
+        cfgStaleFile.existsSync(),
+        isFalse,
+        reason:
+            'the configured scratch root is swept under the same '
+            'guard stack (spec 1520 FR-7)',
+      );
     });
   });
 }

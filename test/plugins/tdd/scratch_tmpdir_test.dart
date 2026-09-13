@@ -62,126 +62,152 @@ void main() {
 
       expect(scratch, isNotNull);
       final name = p.basename(scratch!.path);
-      expect(name, startsWith('zfa-my_feature_x_-'),
-          reason: 'the label is sanitized ([^A-Za-z0-9._-] -> _) and the '
-              'createTemp random suffix follows it');
-      expect(p.dirname(scratch.path), userTmp.path,
-          reason: 'the default scratch root is the effective temp root of '
-              'the injected environment');
+      expect(
+        name,
+        startsWith('zfa-my_feature_x_-'),
+        reason:
+            'the label is sanitized ([^A-Za-z0-9._-] -> _) and the '
+            'createTemp random suffix follows it',
+      );
+      expect(
+        p.dirname(scratch.path),
+        userTmp.path,
+        reason:
+            'the default scratch root is the effective temp root of '
+            'the injected environment',
+      );
     });
 
-    test('falls back TEMP then TMP then systemTemp when TMPDIR is absent',
-        () async {
-      final tmpA = Directory(p.join(sandbox.path, 'tmp-a'))..createSync();
-      final tmpB = Directory(p.join(sandbox.path, 'tmp-b'))..createSync();
+    test(
+      'falls back TEMP then TMP then systemTemp when TMPDIR is absent',
+      () async {
+        final tmpA = Directory(p.join(sandbox.path, 'tmp-a'))..createSync();
+        final tmpB = Directory(p.join(sandbox.path, 'tmp-b'))..createSync();
 
-      final viaTemp = await ScratchTmpDir.acquire(
-        label: 'f',
-        environment: {'TEMP': tmpA.path},
-      );
-      expect(p.dirname(viaTemp!.path), tmpA.path);
+        final viaTemp = await ScratchTmpDir.acquire(
+          label: 'f',
+          environment: {'TEMP': tmpA.path},
+        );
+        expect(p.dirname(viaTemp!.path), tmpA.path);
 
-      final viaTmp = await ScratchTmpDir.acquire(
-        label: 'f',
-        environment: {'TMP': tmpB.path},
-      );
-      expect(p.dirname(viaTmp!.path), tmpB.path);
+        final viaTmp = await ScratchTmpDir.acquire(
+          label: 'f',
+          environment: {'TMP': tmpB.path},
+        );
+        expect(p.dirname(viaTmp!.path), tmpB.path);
 
-      final viaSystem = await ScratchTmpDir.acquire(
-        label: 'f',
-        environment: <String, String>{'PATH': '/usr/bin'},
-      );
-      expect(p.dirname(viaSystem!.path), Directory.systemTemp.path);
-    });
+        final viaSystem = await ScratchTmpDir.acquire(
+          label: 'f',
+          environment: <String, String>{'PATH': '/usr/bin'},
+        );
+        expect(p.dirname(viaSystem!.path), Directory.systemTemp.path);
+      },
+    );
   });
 
-  group('B2: configurable scratch root (ZFA_TMPDIR > .zfa.json > default)',
-      () {
-    test('ZFA_TMPDIR names the scratch root and wins over the ambient TMPDIR',
-        () async {
-      final cfgRoot = Directory(p.join(sandbox.path, 'cfg-root'))
-        ..createSync(recursive: true);
-      final userTmp = Directory(p.join(sandbox.path, 'user-tmp'))
-        ..createSync(recursive: true);
+  group('B2: configurable scratch root (ZFA_TMPDIR > .zfa.json > default)', () {
+    test(
+      'ZFA_TMPDIR names the scratch root and wins over the ambient TMPDIR',
+      () async {
+        final cfgRoot = Directory(p.join(sandbox.path, 'cfg-root'))
+          ..createSync(recursive: true);
+        final userTmp = Directory(p.join(sandbox.path, 'user-tmp'))
+          ..createSync(recursive: true);
 
-      final scratch = await ScratchTmpDir.acquire(
-        label: 'f',
-        environment: {'ZFA_TMPDIR': cfgRoot.path, 'TMPDIR': userTmp.path},
-      );
+        final scratch = await ScratchTmpDir.acquire(
+          label: 'f',
+          environment: {'ZFA_TMPDIR': cfgRoot.path, 'TMPDIR': userTmp.path},
+        );
 
-      expect(p.dirname(scratch!.path), cfgRoot.path,
-          reason: 'the configured root wins over the effective temp root');
-    });
+        expect(
+          p.dirname(scratch!.path),
+          cfgRoot.path,
+          reason: 'the configured root wins over the effective temp root',
+        );
+      },
+    );
 
-    test('.zfa.json tdd.tmpDir names the root when ZFA_TMPDIR is absent',
-        () async {
-      final project = Directory(p.join(sandbox.path, 'proj'))
-        ..createSync(recursive: true);
-      final cfgRoot = Directory(p.join(sandbox.path, 'cfg-root'))
-        ..createSync(recursive: true);
-      File(p.join(project.path, '.zfa.json')).writeAsStringSync(
-        '{"tdd": {"tmpDir": "${cfgRoot.path}"}}',
-      );
+    test(
+      '.zfa.json tdd.tmpDir names the root when ZFA_TMPDIR is absent',
+      () async {
+        final project = Directory(p.join(sandbox.path, 'proj'))
+          ..createSync(recursive: true);
+        final cfgRoot = Directory(p.join(sandbox.path, 'cfg-root'))
+          ..createSync(recursive: true);
+        File(
+          p.join(project.path, '.zfa.json'),
+        ).writeAsStringSync('{"tdd": {"tmpDir": "${cfgRoot.path}"}}');
 
-      final scratch = await ScratchTmpDir.acquire(
-        label: 'f',
-        projectRoot: project.path,
-        environment: {'TMPDIR': sandbox.path},
-      );
+        final scratch = await ScratchTmpDir.acquire(
+          label: 'f',
+          projectRoot: project.path,
+          environment: {'TMPDIR': sandbox.path},
+        );
 
-      expect(p.dirname(scratch!.path), cfgRoot.path);
-    });
+        expect(p.dirname(scratch!.path), cfgRoot.path);
+      },
+    );
 
-    test('ZFA_TMPDIR wins over .zfa.json, and empty values fall through',
-        () async {
-      final project = Directory(p.join(sandbox.path, 'proj'))
-        ..createSync(recursive: true);
-      final envRoot = Directory(p.join(sandbox.path, 'env-root'))
-        ..createSync(recursive: true);
-      final cfgRoot = Directory(p.join(sandbox.path, 'cfg-root'))
-        ..createSync(recursive: true);
-      File(p.join(project.path, '.zfa.json')).writeAsStringSync(
-        '{"tdd": {"tmpDir": "${cfgRoot.path}"}}',
-      );
+    test(
+      'ZFA_TMPDIR wins over .zfa.json, and empty values fall through',
+      () async {
+        final project = Directory(p.join(sandbox.path, 'proj'))
+          ..createSync(recursive: true);
+        final envRoot = Directory(p.join(sandbox.path, 'env-root'))
+          ..createSync(recursive: true);
+        final cfgRoot = Directory(p.join(sandbox.path, 'cfg-root'))
+          ..createSync(recursive: true);
+        File(
+          p.join(project.path, '.zfa.json'),
+        ).writeAsStringSync('{"tdd": {"tmpDir": "${cfgRoot.path}"}}');
 
-      final byEnv = await ScratchTmpDir.acquire(
-        label: 'f',
-        projectRoot: project.path,
-        environment: {'ZFA_TMPDIR': envRoot.path},
-      );
-      expect(p.dirname(byEnv!.path), envRoot.path,
-          reason: 'the invocation-level env wins over the project config');
+        final byEnv = await ScratchTmpDir.acquire(
+          label: 'f',
+          projectRoot: project.path,
+          environment: {'ZFA_TMPDIR': envRoot.path},
+        );
+        expect(
+          p.dirname(byEnv!.path),
+          envRoot.path,
+          reason: 'the invocation-level env wins over the project config',
+        );
 
-      final byCfg = await ScratchTmpDir.acquire(
-        label: 'f',
-        projectRoot: project.path,
-        environment: {'ZFA_TMPDIR': ''},
-      );
-      expect(p.dirname(byCfg!.path), cfgRoot.path,
-          reason: 'an empty ZFA_TMPDIR falls through to .zfa.json');
-    });
+        final byCfg = await ScratchTmpDir.acquire(
+          label: 'f',
+          projectRoot: project.path,
+          environment: {'ZFA_TMPDIR': ''},
+        );
+        expect(
+          p.dirname(byCfg!.path),
+          cfgRoot.path,
+          reason: 'an empty ZFA_TMPDIR falls through to .zfa.json',
+        );
+      },
+    );
   });
 
   group('B3: childEnvironment — TMPDIR/TEMP/TMP override, base merge', () {
-    test('overrides the three temp vars and preserves everything else',
-        () async {
-      final userTmp = Directory(p.join(sandbox.path, 'user-tmp'))
-        ..createSync(recursive: true);
-      final scratch = await ScratchTmpDir.acquire(
-        label: 'f',
-        environment: {'TMPDIR': userTmp.path},
-      );
+    test(
+      'overrides the three temp vars and preserves everything else',
+      () async {
+        final userTmp = Directory(p.join(sandbox.path, 'user-tmp'))
+          ..createSync(recursive: true);
+        final scratch = await ScratchTmpDir.acquire(
+          label: 'f',
+          environment: {'TMPDIR': userTmp.path},
+        );
 
-      final env = scratch!.childEnvironment(
-        base: {'PATH': '/opt/bin', 'HOME': '/home/zfa'},
-      );
+        final env = scratch!.childEnvironment(
+          base: {'PATH': '/opt/bin', 'HOME': '/home/zfa'},
+        );
 
-      expect(env['TMPDIR'], scratch.path);
-      expect(env['TEMP'], scratch.path);
-      expect(env['TMP'], scratch.path);
-      expect(env['PATH'], '/opt/bin', reason: 'base variables are preserved');
-      expect(env['HOME'], '/home/zfa');
-    });
+        expect(env['TMPDIR'], scratch.path);
+        expect(env['TEMP'], scratch.path);
+        expect(env['TMP'], scratch.path);
+        expect(env['PATH'], '/opt/bin', reason: 'base variables are preserved');
+        expect(env['HOME'], '/home/zfa');
+      },
+    );
 
     test('defaults to the platform environment as the base', () async {
       final userTmp = Directory(p.join(sandbox.path, 'user-tmp'))
@@ -208,18 +234,27 @@ void main() {
         label: 'f',
         environment: {'TMPDIR': userTmp.path},
       );
-      Directory(p.join(scratch!.path, 'dart_test.kernel.leak'))
-          .createSync(recursive: true);
-      File(p.join(scratch.path, 'dart_test.kernel.leak', 'out.dill'))
-          .writeAsStringSync('dill');
+      Directory(
+        p.join(scratch!.path, 'dart_test.kernel.leak'),
+      ).createSync(recursive: true);
+      File(
+        p.join(scratch.path, 'dart_test.kernel.leak', 'out.dill'),
+      ).writeAsStringSync('dill');
 
       await scratch.dispose();
 
-      expect(Directory(scratch.path).existsSync(), isFalse,
-          reason: 'run-end cleanup deletes the run\'s own scratch '
-              'recursively (the #1507 leak fixed by construction)');
-      expect(userTmp.existsSync(), isTrue,
-          reason: 'only the scratch goes — never its root');
+      expect(
+        Directory(scratch.path).existsSync(),
+        isFalse,
+        reason:
+            'run-end cleanup deletes the run\'s own scratch '
+            'recursively (the #1507 leak fixed by construction)',
+      );
+      expect(
+        userTmp.existsSync(),
+        isTrue,
+        reason: 'only the scratch goes — never its root',
+      );
 
       await scratch.dispose(); // idempotent, no throw
       expect(Directory(scratch.path).existsSync(), isFalse);
@@ -236,9 +271,13 @@ void main() {
         environment: {'ZFA_TMPDIR': notADir.path},
       );
 
-      expect(scratch, isNull,
-          reason: 'a scratchless run (children inherit the ambient TMPDIR) '
-              'always beats a crashed command');
+      expect(
+        scratch,
+        isNull,
+        reason:
+            'a scratchless run (children inherit the ambient TMPDIR) '
+            'always beats a crashed command',
+      );
     });
   });
 
@@ -252,9 +291,13 @@ void main() {
       );
 
       expect(result.exitCode, 0);
-      expect(result.stdout, '/zfa-scratch-probe',
-          reason: 'runTimed must forward the caller\'s environment so the '
-              'per-run scratch reaches every child');
+      expect(
+        result.stdout,
+        '/zfa-scratch-probe',
+        reason:
+            'runTimed must forward the caller\'s environment so the '
+            'per-run scratch reaches every child',
+      );
     });
   });
 
@@ -276,9 +319,13 @@ void main() {
       );
 
       expect(result.success, isTrue, reason: result.output);
-      expect(result.output, contains('TMPDIR=/zfa-step-scratch'),
-          reason: 'the run driver\'s step children must observe the '
-              'per-run scratch, not the shared user TMPDIR');
+      expect(
+        result.output,
+        contains('TMPDIR=/zfa-step-scratch'),
+        reason:
+            'the run driver\'s step children must observe the '
+            'per-run scratch, not the shared user TMPDIR',
+      );
     });
   });
 }

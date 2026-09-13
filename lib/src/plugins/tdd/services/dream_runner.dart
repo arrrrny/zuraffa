@@ -661,11 +661,11 @@ class DreamRunner {
     Map<String, String>? environment,
   ) =>
       (List<String> argv, String cwd) => _timedProcessRun(
-            argv,
-            cwd,
-            const Duration(minutes: 5),
-            environment: environment,
-          );
+        argv,
+        cwd,
+        const Duration(minutes: 5),
+        environment: environment,
+      );
 
   /// Process.run with a deadline (the bug #742 rule: a hanging child is
   /// killed and mapped to a non-zero result instead of hanging the
