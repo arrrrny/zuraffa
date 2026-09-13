@@ -36,8 +36,14 @@
 /// silently leave a stale stub behind. A progressed subject (no
 /// `UnimplementedError` left) is never clobbered.
 ///
-/// Ownership conflict: if a file exists on disk but the registry has no
-/// record for it, exits non-zero WITHOUT modifying the file (FR-008).
+/// Ownership conflict (FR-008): if a file exists on disk but the registry
+/// has no record for it, exits non-zero WITHOUT modifying the file (FR-008)
+/// — the refusal names `--adopt` as the resolving command (bug #840). The
+/// opposite drift direction (issue #1495) — the registry RECORDS a file
+/// that is missing from disk — refuses with the `--repair` remedy: nothing
+/// is on disk to clobber, so dropping the stale record and regenerating is
+/// safe once explicitly requested (audit-logged, adopt discipline for
+/// surviving halves).
 ///
 /// `--dry-run`: plans the pair without writing anything (FR-009).
 ///
@@ -168,6 +174,19 @@ class GenCommand extends Command<void> {
       negatable: false,
     );
     argParser.addFlag(
+      'repair',
+      help:
+          'Recovery mode (issue #1495): when the registry RECORDS a file '
+          'that is missing from disk (the opposite drift direction of '
+          '--adopt), drop the stale record and regenerate. Surviving '
+          'halves are kept only after the same generated-shape '
+          'verification --adopt uses; the repair is audit-logged '
+          '(action "repair"). Owned-and-missing has nothing to clobber, '
+          'so regenerating is safe once explicitly requested.',
+      defaultsTo: false,
+      negatable: false,
+    );
+    argParser.addFlag(
       'all',
       negatable: false,
       help:
@@ -235,7 +254,8 @@ class GenCommand extends Command<void> {
 
   @override
   String get invocation =>
-      'zfa tdd gen <behavior-id> [--dry-run] [--kind widget] [--golden]';
+      'zfa tdd gen <behavior-id> [--dry-run] [--kind widget] [--golden] '
+      '[--adopt] [--repair]';
 
   /// The default wall-clock budget for the whole gen flow: 0.5 minutes =
   /// 30 seconds (bug #744 — the same acceptance budget the bug records
@@ -269,6 +289,7 @@ class GenCommand extends Command<void> {
     final behaviorId = rest.isEmpty ? null : rest.first;
     final dryRun = argResults!['dry-run'] as bool;
     final adopt = argResults!['adopt'] as bool;
+    final repair = argResults!['repair'] as bool;
     // Bug #830: explicit subject-kind override and the widget-only golden
     // baseline hook. The override is validated by args' `allowed` list;
     // the golden flag is validated against the EFFECTIVE kind below
@@ -343,6 +364,7 @@ class GenCommand extends Command<void> {
         await _generateAll(
           dryRun: dryRun,
           adopt: adopt,
+          repair: repair,
           kindOverride: kindOverride,
           golden: golden,
           featureFlag: featureFlag,
@@ -357,6 +379,7 @@ class GenCommand extends Command<void> {
         behaviorId!,
         dryRun: dryRun,
         adopt: adopt,
+        repair: repair,
         kindOverride: kindOverride,
         golden: golden,
         featureFlag: featureFlag,
@@ -397,6 +420,7 @@ class GenCommand extends Command<void> {
   Future<void> _generateAll({
     required bool dryRun,
     required bool adopt,
+    required bool repair,
     required BehaviorKind? kindOverride,
     required bool golden,
     required String? featureFlag,
@@ -501,6 +525,7 @@ class GenCommand extends Command<void> {
           id,
           dryRun: dryRun,
           adopt: adopt,
+          repair: repair,
           kindOverride: kindOverride,
           golden: golden,
           featureFlag: featureRef,
@@ -558,6 +583,8 @@ class GenCommand extends Command<void> {
         ? 'created'
         : (counts['adopted'] ?? 0) > 0
         ? 'adopted'
+        : (counts['repaired'] ?? 0) > 0
+        ? 'repaired'
         : (counts['regenerated'] ?? 0) > 0
         ? 'regenerated'
         : (counts['reused'] ?? 0) > 0
@@ -651,6 +678,7 @@ class GenCommand extends Command<void> {
     String behaviorId, {
     required bool dryRun,
     required bool adopt,
+    required bool repair,
     required BehaviorKind? kindOverride,
     required bool golden,
     required String? featureFlag,
@@ -1019,53 +1047,141 @@ class GenCommand extends Command<void> {
     GoldenHarnessPaths? goldenPaths;
 
     var adoptConflict = false;
+    // Issue #1495: set when the repair path dropped a stale record — the
+    // surviving halves are then reconciled exactly like adopted files
+    // (kept, never rewritten, protected from the transactional cleanup)
+    // and the flow reports verdict `repaired` with an action=repair
+    // audit line.
+    var repairConflict = false;
     try {
       record = await bounded(
         registry.preflight(record, dryRun: dryRun),
         'ownership preflight',
       );
     } on OwnershipConflict catch (e) {
-      if (!adopt || dryRun) {
-        // Bug #874: consult ALL feature registries before calling the
-        // conflicting file unowned. Another feature's artifact is
-        // foreign-owned — the verdict names the owner and the migrate
-        // fix; adopting it into a second registry would corrupt
-        // ownership.
-        final foreignOwner = await bounded(
-          foreignOwnerOf(cwd, [e.path], excludeFeature: featureName),
-          'ownership preflight: cross-registry lookup',
+      final repairable =
+          repair &&
+          !dryRun &&
+          e.direction == OwnershipConflictDirection.ownedButMissing;
+      if (repairable) {
+        final stale = await bounded(
+          registry.findRecord(behavior.id),
+          'repair: registry lookup',
         );
-        if (foreignOwner != null) {
-          final migrateFix = 'zfa tdd migrate-paths $foreignOwner';
+        if (stale == null) {
+          // Honest fallback: the conflict claimed ownership that the
+          // registry no longer shows. Nothing to drop — refuse with the
+          // actionable text below (never silently proceed).
+        } else {
+          // Drop the stale record BEFORE the shape checks so every
+          // refusal below leaves a RESOLVABLE state: once the record is
+          // gone, a surviving half degrades to the documented
+          // exists-unowned direction (--adopt) instead of a dead end.
+          await bounded(
+            registry.dropRecords({behavior.id}),
+            'repair: drop stale record',
+          );
+          // Issue #1495, same discipline as --adopt (bug #840): a
+          // surviving half is kept ONLY when it matches the generated
+          // shape (provenance header + behavior id) — never blindly.
+          for (final (role, path, shaped) in [
+            ('test', testPath, matchesGeneratedTestShape),
+            ('subject', subjectPath, matchesGeneratedSubjectShape),
+          ]) {
+            final file = File(path);
+            if (!await bounded(file.exists(), 'repair: stat $role')) continue;
+            final content = await bounded(
+              file.readAsString(),
+              'repair: read $role',
+            );
+            if (!shaped(content, behavior.id)) {
+              _printVerdict(
+                behaviorId: behavior.id,
+                verdict: 'refused',
+                reason:
+                    '$role file "$path" survived the gone pair but does not '
+                    'match the generated $role shape (provenance header + '
+                    'behavior_id) — the stale registry record was dropped, '
+                    'so the file is now unowned: delete it (or restore the '
+                    'generated artifact) and re-run '
+                    '`zfa tdd gen ${behavior.id} --repair --feature '
+                    '$featureRef`',
+              );
+              // House pattern (spec 048): signal through exitCode and
+              // return, so the JSON verdict stays the final stdout line.
+              exitCode = 1;
+              return 'refused';
+            }
+            adoptedPaths.add(path);
+          }
+          print(
+            'note: dropped the stale registry record for "${behavior.id}" '
+            '— the registry owned the missing file(s), nothing on disk to '
+            'clobber; regenerating (issue #1495)',
+          );
+          repairConflict = true;
+        }
+      }
+      if (!repairConflict) {
+        if (!adopt || dryRun) {
+          // Bug #874: consult ALL feature registries before calling the
+          // conflicting file unowned. Another feature's artifact is
+          // foreign-owned — the verdict names the owner and the migrate
+          // fix; adopting it into a second registry would corrupt
+          // ownership.
+          final foreignOwner = await bounded(
+            foreignOwnerOf(cwd, [e.path], excludeFeature: featureName),
+            'ownership preflight: cross-registry lookup',
+          );
+          if (foreignOwner != null) {
+            final migrateFix = 'zfa tdd migrate-paths $foreignOwner';
+            _printVerdict(
+              behaviorId: behavior.id,
+              verdict: 'foreign-owned',
+              reason:
+                  'the conflicting file is owned by feature "$foreignOwner" '
+                  '— never adopt another feature\'s artifacts; run '
+                  '`$migrateFix` to move the owning feature\'s artifacts '
+                  'to the namespaced layout',
+            );
+            exitCode = 1;
+            stderr.writeln(
+              'zfa tdd gen: foreign-owned — the conflicting file is owned '
+              'by feature $foreignOwner',
+            );
+            throw StateError(
+              'zfa tdd gen: foreign-owned — the conflicting file is owned '
+              'by feature $foreignOwner',
+            );
+          }
+          // Issue #1495: the refusal names the command that RESOLVES this
+          // drift direction — never the command that refused. --adopt is
+          // the resolution for files-without-records (#840); --repair is
+          // the resolution for records-without-files.
+          final remedyFix = switch (e.direction) {
+            OwnershipConflictDirection.ownedButMissing =>
+              'zfa tdd gen ${behavior.id} --repair --feature $featureRef',
+            OwnershipConflictDirection.existsUnowned =>
+              'zfa tdd gen ${behavior.id} --adopt --feature $featureRef',
+            OwnershipConflictDirection.pathMismatch =>
+              'zfa tdd doctor $featureRef',
+          };
           _printVerdict(
             behaviorId: behavior.id,
-            verdict: 'foreign-owned',
-            reason:
-                'the conflicting file is owned by feature "$foreignOwner" '
-                '— never adopt another feature\'s artifacts; run '
-                '`$migrateFix` to move the owning feature\'s artifacts '
-                'to the namespaced layout',
+            verdict: 'refused',
+            reason: 'ownership conflict: $e — resolving command: $remedyFix',
           );
           exitCode = 1;
           stderr.writeln(
-            'zfa tdd gen: foreign-owned — the conflicting file is owned '
-            'by feature $foreignOwner',
+            'zfa tdd gen: ownership conflict — $e '
+            '--> fix: $remedyFix',
           );
           throw StateError(
-            'zfa tdd gen: foreign-owned — the conflicting file is owned '
-            'by feature $foreignOwner',
+            'zfa tdd gen: ownership conflict — $e --> fix: $remedyFix',
           );
         }
-        _printVerdict(
-          behaviorId: behavior.id,
-          verdict: 'refused',
-          reason: 'ownership conflict: ${e.toString()}',
-        );
-        exitCode = 1;
-        stderr.writeln('zfa tdd gen: ownership conflict — $e');
-        throw StateError('zfa tdd gen: ownership conflict — $e');
+        adoptConflict = true;
       }
-      adoptConflict = true;
     }
 
     if (adoptConflict) {
@@ -1272,7 +1388,18 @@ class GenCommand extends Command<void> {
         }
         Error.throwWithStackTrace(error, stackTrace);
       }
-      if (adoptedPaths.isNotEmpty) {
+      if (repairConflict) {
+        await bounded(
+          _auditRepair(
+            featureDir,
+            featureName,
+            behavior.id,
+            adoptedPaths,
+            createdPaths,
+          ),
+          'repair: audit log',
+        );
+      } else if (adoptedPaths.isNotEmpty) {
         await bounded(
           _auditAdopt(featureDir, featureName, behavior.id, adoptedPaths),
           'adopt: audit log',
@@ -1350,8 +1477,12 @@ class GenCommand extends Command<void> {
       );
     }
     // Bug #840: the machine-readable JSON verdict — the final stdout line
-    // on every gen path.
-    final verdictToken = adoptedPaths.isNotEmpty
+    // on every gen path. Issue #1495: a repair run reports `repaired`
+    // (the stale record was dropped + the pair regenerated) ahead of the
+    // adopted/created tokens.
+    final verdictToken = repairConflict
+        ? 'repaired'
+        : adoptedPaths.isNotEmpty
         ? 'adopted'
         : dryRun
         ? 'planned'
@@ -1369,6 +1500,7 @@ class GenCommand extends Command<void> {
       created: createdPaths,
       featureName: featureName,
       featureDisplay: featureDisplay,
+      repaired: repairConflict,
       goldenTestPath: goldenPaths?.laneTestPath,
       goldenFixturesDir: goldenPaths?.fixturesDir,
     );
@@ -1402,6 +1534,9 @@ class GenCommand extends Command<void> {
     // only the keys it knows.
     String? kind,
     bool golden = false,
+    // Issue #1495: a repair run — the audit_log detail is emitted for the
+    // repair (not only for adoptions).
+    bool repaired = false,
     String? goldenTestPath,
     String? goldenFixturesDir,
   }) {
@@ -1426,7 +1561,7 @@ class GenCommand extends Command<void> {
       if (golden) _verdict.details['golden'] = true;
       if (adopted.isNotEmpty) _verdict.details['adopted'] = adopted;
       if (created.isNotEmpty) _verdict.details['created'] = created;
-      if (adopted.isNotEmpty && featureDisplay != null) {
+      if ((adopted.isNotEmpty || repaired) && featureDisplay != null) {
         _verdict.details['audit_log'] = p.join(
           featureDisplay,
           'tdd',
@@ -1457,7 +1592,7 @@ class GenCommand extends Command<void> {
         if (golden) 'golden': true,
         if (adopted.isNotEmpty) 'adopted': adopted,
         if (created.isNotEmpty) 'created': created,
-        if (adopted.isNotEmpty && featureDisplay != null)
+        if ((adopted.isNotEmpty || repaired) && featureDisplay != null)
           'audit_log': p.join(featureDisplay, 'tdd', 'audit.log'),
         'golden_test': ?goldenTestPath,
         'golden_fixtures': ?goldenFixturesDir,
@@ -1724,6 +1859,34 @@ class GenCommand extends Command<void> {
       'feature': featureName,
       'behavior': behaviorId,
       'paths': adoptedPaths,
+    });
+    final sink = auditFile.openWrite(mode: FileMode.append);
+    sink.writeln(line);
+    await sink.flush();
+    await sink.close();
+  }
+
+  /// Append the repair audit record (issue #1495): one JSONL line per
+  /// repair in `specs/<feature>/tdd/audit.log` — the same discipline as
+  /// the #840 adoption line. Records what was dropped and how the pair
+  /// was re-materialized (kept surviving halves vs regenerated halves).
+  Future<void> _auditRepair(
+    String featureDir,
+    String featureName,
+    String behaviorId,
+    List<String> keptPaths,
+    List<String> createdPaths,
+  ) async {
+    final auditFile = File(p.join(featureDir, 'tdd', 'audit.log'));
+    await auditFile.parent.create(recursive: true);
+    final line = jsonEncode({
+      'at': DateTime.now().toUtc().toIso8601String(),
+      'action': 'repair',
+      'feature': featureName,
+      'behavior': behaviorId,
+      'dropped_record': true,
+      'kept': keptPaths,
+      'created': createdPaths,
     });
     final sink = auditFile.openWrite(mode: FileMode.append);
     sink.writeln(line);

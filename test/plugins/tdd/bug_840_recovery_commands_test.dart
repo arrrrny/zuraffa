@@ -316,9 +316,13 @@ void main() {
 
       expect(exitCode, 1, reason: out);
       expect(out, contains('--> fix:'), reason: out);
-      expect(out, contains('zfa tdd reset'), reason: out);
+      // Issue #1495: a record whose BOTH files are gone owns NOTHING on
+      // disk — the prescription is now the surgical garbage-collect
+      // (`doctor --repair` keeps every healthy record and touches no
+      // file); `zfa tdd reset` remains the heavier alternative.
+      expect(out, contains('zfa tdd doctor $feature --repair'), reason: out);
       final v = verdict(out);
-      expect(v['prescription'], 'reset');
+      expect(v['prescription'], 'repair');
     });
 
     test(
