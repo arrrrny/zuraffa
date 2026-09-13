@@ -51,6 +51,22 @@ void main() {
       ..writeAsBytesSync(List.filled(64 * 1024, 120));
   }
 
+  /// Seed a `zfa-<name>-<rand>` scratch DIRECTORY (spec 1520 FR-1) — the
+  /// debris a run that died before its `finally` leaves behind — with an
+  /// optional nested `dart_test.kernel.*` child (mtime = now).
+  Directory seedScratchDir(String name, {bool withKernel = false}) {
+    final dir = Directory(p.join(ambientRoot.path, 'zfa-$name-rand'))
+      ..createSync(recursive: true);
+    if (withKernel) {
+      final kernel = Directory(p.join(dir.path, 'dart_test.kernel.live'))
+        ..createSync(recursive: true);
+      File(
+        p.join(kernel.path, 'output.dill'),
+      ).writeAsBytesSync(List.filled(64 * 1024, 120));
+    }
+    return dir;
+  }
+
   setUp(() async {
     sandbox = await Directory.systemTemp.createTemp('zfa1520-janitor-');
     ambientRoot = Directory(p.join(sandbox.path, 'ambient-tmp'))
@@ -167,6 +183,75 @@ void main() {
         reason:
             'the configured scratch root is swept under the same '
             'guard stack (spec 1520 FR-7)',
+      );
+    });
+  });
+
+  group('B14: the sweep reclaims orphaned zfa-* scratch dirs', () {
+    test('a scratch past the age floor is reclaimed recursively', () async {
+      final oldScratch = seedScratchDir('old', withKernel: true);
+
+      await clearDartTestKernelCache(
+        sandbox.path,
+        commandStartedAt: DateTime.now().add(const Duration(seconds: 1)),
+        environment: {'TMPDIR': ambientRoot.path},
+        now: DateTime.now().add(const Duration(hours: 2)),
+        liveKernelDirs: const <String>{},
+      );
+
+      expect(
+        oldScratch.existsSync(),
+        isFalse,
+        reason:
+            'a zfa-* scratch orphaned by a killed run (no finally) is '
+            'reclaimed — pre-fix the sweep matched only '
+            'dart_test.kernel.* entries, so the scratch leaked forever '
+            '(spec 1520 FR-5)',
+      );
+    });
+
+    test('a scratch younger than the age floor survives', () async {
+      final youngScratch = seedScratchDir('young', withKernel: true);
+
+      await clearDartTestKernelCache(
+        sandbox.path,
+        commandStartedAt: DateTime.now().add(const Duration(seconds: 1)),
+        environment: {'TMPDIR': ambientRoot.path},
+        now: DateTime.now().add(const Duration(seconds: 10)),
+        liveKernelDirs: const <String>{},
+      );
+
+      expect(
+        youngScratch.existsSync(),
+        isTrue,
+        reason:
+            'a fresh scratch may belong to a concurrent run — the age '
+            'floor protects it exactly like a kernel entry (spec 1520 FR-5)',
+      );
+    });
+
+    test('a scratch holding a live runner\'s kernel survives regardless of '
+        'age', () async {
+      final liveScratch = seedScratchDir('live', withKernel: true);
+      final liveKernel = p.join(liveScratch.path, 'dart_test.kernel.live');
+
+      await clearDartTestKernelCache(
+        sandbox.path,
+        commandStartedAt: DateTime.now().add(const Duration(seconds: 1)),
+        environment: {'TMPDIR': ambientRoot.path},
+        now: DateTime.now().add(const Duration(hours: 4)),
+        // The frontend-server child's argv reference, as the probe would
+        // report it: a kernel dir INSIDE the scratch.
+        liveKernelDirs: {liveKernel},
+      );
+
+      expect(
+        liveScratch.existsSync(),
+        isTrue,
+        reason:
+            'a live runner\'s kernel lives inside the scratch — the '
+            'liveness guard must skip it (and thus its scratch) or the '
+            'runner\'s loader crashes at close (spec 1520 FR-5)',
       );
     });
   });

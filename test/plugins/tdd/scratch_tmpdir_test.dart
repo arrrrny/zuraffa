@@ -34,6 +34,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/plugins/tdd/services/refactor_passes.dart';
 import 'package:zuraffa/src/plugins/tdd/services/scratch_tmpdir.dart';
 import 'package:zuraffa/src/plugins/tdd/services/step_runner.dart';
 import 'package:zuraffa/src/plugins/tdd/services/tdd_timeout.dart';
@@ -147,6 +148,31 @@ void main() {
         expect(p.dirname(scratch!.path), cfgRoot.path);
       },
     );
+
+    test('a relative .zfa.json tmpDir resolves against the project root, '
+        'not the process CWD', () async {
+      final project = Directory(p.join(sandbox.path, 'proj'))
+        ..createSync(recursive: true);
+      File(
+        p.join(project.path, '.zfa.json'),
+      ).writeAsStringSync('{"tdd": {"tmpDir": "scratch-root"}}');
+
+      final scratch = await ScratchTmpDir.acquire(
+        label: 'f',
+        projectRoot: project.path,
+        environment: {'TMPDIR': sandbox.path},
+      );
+
+      expect(
+        p.dirname(scratch!.path),
+        p.join(project.path, 'scratch-root'),
+        reason:
+            'the checked-in config names a location relative to the '
+            'project that declared it — resolving against the process '
+            'CWD would scatter scratches and leave the janitor\'s '
+            'configured-root sweep unable to find them (spec 1520 FR-6)',
+      );
+    });
 
     test(
       'ZFA_TMPDIR wins over .zfa.json, and empty values fall through',
@@ -328,4 +354,66 @@ void main() {
       );
     });
   });
+
+  group('B14: nesting — a nested scratch stays inside its parent', () {
+    test(
+      'acquiring with the parent scratch as TMPDIR lands inside it',
+      () async {
+        final userTmp = Directory(p.join(sandbox.path, 'user-tmp'))
+          ..createSync(recursive: true);
+        final parent = await ScratchTmpDir.acquire(
+          label: 'parent',
+          environment: {'TMPDIR': userTmp.path},
+        );
+
+        final nested = await ScratchTmpDir.acquire(
+          label: 'nested',
+          environment: parent!.childEnvironment(),
+        );
+
+        expect(
+          p.isWithin(parent.path, nested!.path),
+          isTrue,
+          reason:
+              'a spawned tdd command inherits its parent\'s scratch as '
+              'TMPDIR, so its own scratch (and every dart test kernel '
+              'below it) stays inside the outermost scratch — nesting '
+              'never escapes it (spec 1520 FR-4)',
+        );
+      },
+    );
+  });
+
+  group(
+    'B16: refactor passes — the injected environment reaches the child',
+    () {
+      test('DefaultProcessExecutor forwards its environment to the pass '
+          'child', () async {
+        final probe = File(p.join(sandbox.path, 'pass-tmp-probe'))
+          ..writeAsStringSync('#!/bin/sh\necho "TMPDIR=\$TMPDIR"\nexit 0\n');
+        Process.runSync('chmod', ['+x', probe.path]);
+
+        final outcome =
+            await const DefaultProcessExecutor(
+              environment: {'TMPDIR': '/zfa-pass-scratch'},
+            ).run(
+              RefactorPassInvocation(
+                passName: 'build',
+                command: probe.path,
+                workingDirectory: sandbox.path,
+              ),
+            );
+
+        expect(outcome.exitCode, 0, reason: outcome.output);
+        expect(
+          outcome.output,
+          contains('TMPDIR=/zfa-pass-scratch'),
+          reason:
+              'the refactor pass registry must hand the per-run scratch to '
+              'every pass child (spec 1520 FR-1), so their dart/dill temp '
+              'writes stay inside the run\'s own scratch',
+        );
+      });
+    },
+  );
 }

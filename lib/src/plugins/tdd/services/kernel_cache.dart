@@ -26,7 +26,9 @@ const Duration defaultKernelAgeGuard = Duration(hours: 1);
 /// The leaked entries are per-invocation DIRECTORIES full of dill files,
 /// so the pre-#1507 `entity is File` match never fired (dead code) and a
 /// long TDD loop leaked 51 GB in ~80 minutes; directory entries are
-/// deleted recursively.
+/// deleted recursively. Top-level `zfa-*` scratch directories (spec 1520
+/// FR-1) are swept here too, so a scratch orphaned by a killed run is
+/// reclaimed instead of accumulating forever.
 ///
 /// The temp sweep covers the ambient temp root (TMPDIR/TEMP/TMP, else
 /// `Directory.systemTemp`) AND the configured scratch root
@@ -48,9 +50,10 @@ const Duration defaultKernelAgeGuard = Duration(hours: 1);
 /// 3. Liveness guard — a kernel entry whose path appears in ANY live
 ///    process's argv (the dart test runner's own frontend-server child
 ///    holds `--output-dill=<tmp>/dart_test.kernel.<rand>/output.dill` for
-///    the whole invocation) is skipped. Without it, sweeping at cycle
-///    start inside a process that is itself nested under a live `dart
-///    test` (the repo's own in-process test fleet) deletes the outer
+///    the whole invocation) is skipped; a `zfa-*` scratch dir is skipped
+///    when any live kernel dir lives inside it. Without it, sweeping at
+///    cycle start inside a process that is itself nested under a live
+///    `dart test` (the repo's own in-process test fleet) deletes the outer
 ///    runner's kernel mid-run and its loader crashes at close with a
 ///    PathNotFoundException copying the incremental dill back. The probe
 ///    reads `/proc/<pid>/cmdline` on Linux and `ps -ww -Ao pid=,args=` on
@@ -64,6 +67,8 @@ const Duration defaultKernelAgeGuard = Duration(hours: 1);
 /// [environment] (default `Platform.environment`) and [now] (default the
 /// sweep instant) are injectable so fast-tier tests can drive the guard
 /// stack hermetically — no shared-user-TMPDIR state is ever touched.
+/// [liveKernelDirs] overrides the liveness probe the same way (default: the
+/// real process scan).
 ///
 /// Best-effort overall: a clear failure prints a note and never crashes
 /// the command; the caller simply re-runs and the classifier grades the
@@ -76,10 +81,13 @@ Future<void> clearDartTestKernelCache(
   Map<String, String>? environment,
   DateTime? now,
   Duration ageGuard = defaultKernelAgeGuard,
+  Set<String>? liveKernelDirs,
 }) async {
   var cleared = 0;
   var freedBytes = 0;
-  final liveKernelDirs = _liveKernelDirRefs();
+  final liveDirs = liveKernelDirs == null
+      ? _liveKernelDirRefs()
+      : liveKernelDirs.map(p.canonicalize).toSet();
   // A foreign live cycle owns this project's shared test cache — leave it
   // alone (finding CR-1). Read BEFORE marking ourselves so a live owner's
   // marker is never overwritten.
@@ -106,21 +114,23 @@ Future<void> clearDartTestKernelCache(
 
   // Spec 1520: the temp sweep runs over BOTH the ambient temp root and the
   // configured scratch root, deduped — every root under the full guard
-  // stack (liveness, commandStartedAt, age floor).
+  // stack (liveness, commandStartedAt, age floor). The configured root is
+  // resolved ONCE: two calls could read different `.zfa.json` contents
+  // (and the `!`-asserted second one could throw on a mid-sweep null).
   final env = environment ?? Platform.environment;
   final effectiveNow = now ?? DateTime.now();
   final ageFloor = effectiveNow.subtract(ageGuard);
+  final configured = scratchConfiguredRoot(projectRoot, environment: env);
   final roots = <String>{
     p.canonicalize(scratchEffectiveTempRoot(env)),
-    if (scratchConfiguredRoot(projectRoot, environment: env) != null)
-      p.canonicalize(scratchConfiguredRoot(projectRoot, environment: env)!),
+    if (configured != null) p.canonicalize(configured),
   };
   for (final rootPath in roots) {
     final swept = await _sweepTempKernelEntries(
       rootPath,
       commandStartedAt: commandStartedAt,
       ageFloor: ageFloor,
-      liveKernelDirs: liveKernelDirs,
+      liveKernelDirs: liveDirs,
     );
     cleared += swept.$1;
     freedBytes += swept.$2;
@@ -133,10 +143,14 @@ Future<void> clearDartTestKernelCache(
   }
 }
 
-/// Sweep ONE temp root's top-level `dart_test.kernel.*` entries under the
-/// full guard stack. Returns `(cleared, freedBytes)` — best-effort: a
-/// root that does not exist sweeps to zero, an entry pinned by a
-/// concurrent runner (or deleted mid-walk) is skipped.
+/// Sweep ONE temp root's top-level kernel entries under the full guard
+/// stack: `dart_test.kernel.*` files and directories (#1507's leaks) AND
+/// `zfa-*` scratch directories orphaned by a run that died without its
+/// `finally` (spec 1520 FR-5 — the sweep must not seal a leak class it
+/// used to mop up, or #1507's unbounded growth returns through the
+/// scratch). Returns `(cleared, freedBytes)` — best-effort: a root that
+/// does not exist sweeps to zero, an entry pinned by a concurrent runner
+/// (or deleted mid-walk) is skipped.
 Future<(int, int)> _sweepTempKernelEntries(
   String rootPath, {
   required DateTime commandStartedAt,
@@ -149,16 +163,30 @@ Future<(int, int)> _sweepTempKernelEntries(
     final root = Directory(rootPath);
     if (!await root.exists()) return (cleared, freedBytes);
     await for (final entity in root.list()) {
-      if (!p.basename(entity.path).startsWith('dart_test.kernel.')) {
-        continue;
-      }
+      final base = p.basename(entity.path);
+      final isKernel = base.startsWith('dart_test.kernel.');
+      // A scratch dir left behind by a run that never reached its
+      // `finally` is sealed from the #1507 sweep by its `zfa-` prefix —
+      // matched explicitly so crash debris is still reclaimed.
+      final isScratch =
+          !isKernel &&
+          entity is Directory &&
+          base.startsWith(defaultScratchPrefix);
+      if (!isKernel && !isScratch) continue;
       // Issue #1507: the leaked entries are DIRECTORIES too — match
       // both shapes and delete directories recursively.
       try {
-        if (liveKernelDirs.contains(p.canonicalize(entity.path))) {
-          // A live dart test runner still holds this kernel (its
-          // frontend-server child references it in argv) — deleting it
-          // would crash that runner's loader at close.
+        final canonical = p.canonicalize(entity.path);
+        // A live dart test runner's frontend-server child references its
+        // kernel in argv for the whole invocation. For a `zfa-*` scratch
+        // that reference is `<scratch>/dart_test.kernel.<rand>/...`, so
+        // liveness for a scratch means "any live kernel dir lives
+        // inside it" — deleting it would crash that runner's loader at
+        // close.
+        final live = isScratch
+            ? liveKernelDirs.any((kernel) => p.isWithin(canonical, kernel))
+            : liveKernelDirs.contains(canonical);
+        if (live) {
           continue;
         }
         // Note: `lastModified()` is an instance method on File only —
@@ -192,7 +220,7 @@ Future<(int, int)> _sweepTempKernelEntries(
       }
     }
   } catch (e) {
-    print('   kernel cache clear (TMPDIR) failed: $e');
+    print('   kernel cache clear ($rootPath) failed: $e');
   }
   return (cleared, freedBytes);
 }

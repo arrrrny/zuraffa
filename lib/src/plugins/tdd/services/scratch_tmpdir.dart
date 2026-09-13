@@ -54,6 +54,13 @@ const String scratchTmpDirConfigKey = 'tmpDir';
 /// null (no `.zfa.json` tier). A malformed `.zfa.json` degrades to null —
 /// the config read is best-effort, matching the
 /// `tdd.realizeDifferentialThreshold` pattern.
+///
+/// `ZFA_TMPDIR` is returned verbatim (it is an invocation-level override,
+/// like any other environment path); a relative `.zfa.json` value is
+/// resolved against [projectRoot], so the checked-in config always names a
+/// location relative to the project that declared it — not the process's
+/// incidental CWD. (An absolute `.zfa.json` value is still taken as
+/// written: the config is a reviewed artifact, not an untrusted input.)
 String? scratchConfiguredRoot(
   String? projectRoot, {
   Map<String, String>? environment,
@@ -70,7 +77,9 @@ String? scratchConfiguredRoot(
     final tdd = json['tdd'];
     if (tdd is! Map<String, dynamic>) return null;
     final raw = tdd[scratchTmpDirConfigKey];
-    if (raw is String && raw.isNotEmpty) return raw;
+    if (raw is String && raw.isNotEmpty) {
+      return p.isAbsolute(raw) ? raw : p.join(projectRoot, raw);
+    }
     return null;
   } on FormatException {
     return null;

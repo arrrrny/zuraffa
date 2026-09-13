@@ -61,11 +61,14 @@ on the machine sweeps.
 ## Functional requirements
 
 - **FR-1 (per-run scratch)**: Every tdd command that spawns test children
-  (`tdd run`, `tdd realize`, `tdd realize-mock`, `tdd dream`, `tdd corpus
-  differential`) creates ONE scratch dir per invocation via
-  `createTemp('zfa-<feature>-')`, injects it as `TMPDIR`/`TEMP`/`TMP` into
-  every child's environment, and deletes it (recursively, best-effort) at
-  run end in a `finally` block.
+  or test-adjacent tooling (`tdd run`, `tdd refactor`, `tdd realize`, `tdd
+  realize-mock`, `tdd dream`, `tdd corpus differential`) creates ONE scratch
+  dir per invocation via `createTemp('zfa-<feature>-')`, injects it as
+  `TMPDIR`/`TEMP`/`TMP` into every child's environment, and deletes it
+  (recursively, best-effort) at run end in a `finally` block. `tdd refactor`
+  is the driving command whose loops historically leaked the most (#1507),
+  so its preflight/re-proof suite children AND its pass children
+  (build/format/fix) all inherit the scratch.
 
 - **FR-2 (chokepoint injection)**: `runTimed` accepts an optional
   `environment` map and passes it to `Process.start`; `StepRunner` accepts
@@ -90,12 +93,22 @@ on the machine sweeps.
   recursively) only when the entry's mtime is older than the command start
   (unchanged #1507 guard) AND older than ~1 hour (new age floor,
   `defaultKernelAgeGuard = Duration(hours: 1)`). Nothing written since the
-  command started is ever deleted.
+  command started is ever deleted. Top-level `zfa-*` scratch directories
+  are reclaimable under the same guard stack, so a scratch orphaned by a
+  run that died before its `finally` does not accumulate forever; a scratch
+  holding a live runner's kernel is protected by the liveness guard (the
+  runner's `--output-dill=<scratch>/dart_test.kernel.*` argv reference).
 
 - **FR-6 (configurable scratch root)**: `ZFA_TMPDIR` and `.zfa.json`
   `tdd.tmpDir` name the scratch ROOT; zfa creates the per-run subdir inside
   it. Default: per-run system temp (the effective temp root). Empty values
-  fall through to the next tier.
+  fall through to the next tier. `ZFA_TMPDIR` is used verbatim; a relative
+  `.zfa.json` `tdd.tmpDir` resolves against the project root that declared
+  it (not the process's incidental CWD, so two invocations from different
+  directories cannot scatter scratches across the filesystem). The
+  `.zfa.json` tier applies to every spec'd command, including ones invoked
+  without `--project` (the root falls back to the nearest `specs/`
+  ancestor).
 
 - **FR-7 (janitor covers the configured root)**: The kernel sweep covers
   the ambient TMPDIR root (as today) AND the configured scratch root when
@@ -119,6 +132,12 @@ on the machine sweeps.
 - SC-5: `runTimed(..., environment: {'TMPDIR': X})` children observe
   `TMPDIR=X`; `StepRunner(zfaBin: fake, childEnvironment: env)` children
   observe the injected `TMPDIR` (FR-2).
+- SC-7: A `tdd refactor` invocation's suite children observe a fresh
+  `zfa-<feature>-<random>` directory (not the shared user TMPDIR) and that
+  directory does not exist after the invocation completes (FR-1, FR-3).
+- SC-8: A top-level `zfa-*` scratch directory older than the age floor is
+  reclaimed by the sweep, while one holding a live runner's kernel (or
+  younger than the floor) survives (FR-5).
 - SC-6: `dart analyze` reports no new warnings; the existing bug-1507
   suite (test/plugins/tdd/bug_1507_kernel_cache_cycle_start_test.dart)
   stays green.
@@ -132,8 +151,7 @@ on the machine sweeps.
 - Labels are sanitized to `[A-Za-z0-9._-]` (anything else → `_`) so a
   feature reference can never escape the root path.
 - A scratch dir that survives a crashed run (the process died before the
-  finally) is ordinary garbage under the root; the janitor's
-  `dart_test.kernel.*` sweep intentionally does NOT delete `zfa-*` scratch
-  dirs (only kernel entries), so a crashed scratch leaks until manually
-  removed — accepted: the leak is bounded by the crash rate, not by every
-  test invocation.
+  finally) is ordinary garbage under the root; the janitor's sweep reclaims
+  top-level `zfa-*` scratch dirs under the same guard stack (commandStartedAt
+  + 1 h age floor + liveness), so the leak is bounded by the crash rate
+  rather than accumulating until manually removed (FR-5).

@@ -68,6 +68,18 @@ class _DraftPayload {
 }
 
 class DreamRunner {
+  /// The project root the dream pipeline operates on: `--project`
+  /// (absolutized) when given, else the nearest `specs/` ancestor.
+  ///
+  /// Shared by [execute] (the scratch-root resolution) and [_execute] (the
+  /// pipeline itself) so the two can never drift: without `--project` the
+  /// `.zfa.json` `tdd.tmpDir` tier must still apply (spec 1520 FR-6 — an
+  /// omitted flag is not an opt-out of the project's configured root).
+  static String _resolveRoot(String? projectFlag) =>
+      projectFlag != null && projectFlag.isNotEmpty
+      ? p.absolute(projectFlag)
+      : ProjectRoot.find(anchorDir: 'specs');
+
   /// Executes the dream pipeline for [description]; returns the exit
   /// code (0 iff the engine is green and the PR phase, when attempted,
   /// did not fail).
@@ -93,9 +105,7 @@ class DreamRunner {
   }) async {
     final scratch = await ScratchTmpDir.acquire(
       label: (feature != null && feature.isNotEmpty) ? feature : 'dream',
-      projectRoot: (projectFlag != null && projectFlag.isNotEmpty)
-          ? p.absolute(projectFlag)
-          : null,
+      projectRoot: _resolveRoot(projectFlag),
     );
     try {
       return await _execute(
@@ -131,9 +141,7 @@ class DreamRunner {
     void Function(String line) emit = print,
     Map<String, String>? scratchEnv,
   }) async {
-    final root = projectFlag != null && projectFlag.isNotEmpty
-        ? p.absolute(projectFlag)
-        : ProjectRoot.find(anchorDir: 'specs');
+    final root = _resolveRoot(projectFlag);
     final featureName = (feature != null && feature.isNotEmpty)
         ? feature
         : _deriveFeatureName(root, description);
