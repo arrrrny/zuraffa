@@ -467,9 +467,20 @@ class ArtifactRegistry {
     // `<root>/specs/<feature>`; fall back to the immediate parent for
     // layouts that do not nest under a `specs/` directory.
     final parent = p.dirname(absolute);
-    return p.basename(parent) == 'specs'
-        ? p.dirname(parent)
-        : p.dirname(absolute);
+    if (p.basename(parent) == 'specs') return p.dirname(parent);
+    // Issue #1574 x #1182: the bug extension's documented feature shape
+    // `<root>/.specify/bugs/<slug>` anchors the same `test/` and `lib/`
+    // lanes at `<root>`. Resolve it — otherwise every relative recorded
+    // path (the form gen records since #1574, and the run driver has
+    // always recorded) locates against `<root>/.specify/bugs`, the gate
+    // reports owned-but-missing for files that exist, and the write-time
+    // canonicalization cannot relativize absolute records (the live
+    // #1397 corruption writer).
+    if (p.basename(parent) == 'bugs' &&
+        p.basename(p.dirname(parent)) == '.specify') {
+      return p.dirname(p.dirname(parent));
+    }
+    return p.dirname(absolute);
   }
 
   /// Re-anchors [stored] to a repo-relative path when it is an absolute
