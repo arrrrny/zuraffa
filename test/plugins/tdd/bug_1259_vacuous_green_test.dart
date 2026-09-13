@@ -26,8 +26,12 @@
 //        dummy class): exit 1, outcome=vacuous-green, no green evidence.
 //   U2 — the same unit test WITH an observable-outcome assertion
 //        certifies green: the refusal keys on the assertion set.
-//   U3 — acceptance rows keep the legacy skip transition (unit-lane
-//        scope; the acceptance composition lane is deferred by design).
+//   U3 — acceptance rows are IN the vacuous-green refusal scope
+//        (inverted by issue #1488: pre-#1488 this pin held the legacy
+//        skip transition — the refusal was unit-lane scoped by design;
+//        the composition lane's 044 ownership contract makes a
+//        guard-only acceptance test proof-free forever, so the widened
+//        gate refuses it).
 //   U4 — gen derives the contract signature for a domain-traced unit
 //        behavior (entity return): no invented `int subject()` shape,
 //        declared contract provenance in the header, honest red kept,
@@ -244,8 +248,15 @@ void main() {
       expect(out, contains('outcome=skipped'));
     });
 
-    test('U3: acceptance rows keep the legacy skip transition — the '
-        'refusal is scoped to the unit lane', () async {
+    test('U3 (inverted by issue #1488): acceptance rows are IN the '
+        'vacuous-green refusal scope — a guard-only acceptance test '
+        'cannot certify green either', () async {
+      // Issue #1488 widened the refusal's scope: the composition lane
+      // never touches the paired test (the 044 ownership contract), so a
+      // guard-only acceptance test stays guard-only for its whole life
+      // and its post-compose pass is the proof-free green the lane must
+      // never certify. Pre-#1488 this pin held the legacy skip
+      // transition (outcome=skipped); the widened gate refuses instead.
       const description = 'the login scenario completes';
       await fx.seedTestList([
         (
@@ -267,8 +278,14 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', 'A-1259', '--project', fx.root.path]);
 
-      expect(exitCode, 0, reason: 'out: $out');
-      expect(out, contains('outcome=skipped'));
+      expect(exitCode, 1, reason: 'a vacuous green must not certify: $out');
+      expect(out, contains('outcome=vacuous-green'));
+      final log = await File(fx.cycleLogPath).readAsString();
+      expect(
+        log,
+        isNot(contains('## Cycle: A-1259 (green)')),
+        reason: 'no green evidence may be appended for a vacuous green',
+      );
     });
   });
 

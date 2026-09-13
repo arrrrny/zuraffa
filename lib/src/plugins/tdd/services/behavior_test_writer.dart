@@ -554,13 +554,14 @@ void main() {
     // keeps the explicit nullable annotation its initializer matches.
     //
     // Issue #1512: the acceptance capture stays the VOID-SAFE, ARGUMENT-FREE
-    // form. `make`'s vacuous-green refusal is unit-scoped by design
-    // (`make_command.dart` step 3c: "acceptance rows keep the legacy skip
-    // transition — the composition lane is deferred by design, FR-009"),
-    // so the guard-only acceptance test is the lane's correct red surface:
-    // the stub throws, the capture returns the error, the guard fails; the
-    // composition lane (`tdd compose`) then implements the subject and the
-    // guard certifies green.
+    // form. `make`'s vacuous-green refusal covers this lane too (issue
+    // #1488 widened the #1259 unit-lane scope: the composition lane never
+    // touches the paired test — the 044 ownership contract — so a
+    // guard-only acceptance test would stay guard-only for its whole life
+    // and certify nothing), so the guard-only acceptance test is the lane's
+    // correct RED surface — the stub throws, the capture returns the error,
+    // the guard fails — and the author completes the designed hand step (a
+    // real outcome assertion) before any green certifies.
     final String capture;
     final String invocation;
     if (acceptance) {
