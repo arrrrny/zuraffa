@@ -300,6 +300,30 @@ class ZfaConfig {
     }
   }
 
+  /// Issue #1596 review: [load] collapses "no `.zfa.json`" and "`.zfa.json`
+  /// exists but could not be parsed" onto the same result, so a write path
+  /// cannot tell that it is about to replace a file it failed to read —
+  /// dropping the user's `presets`, `aliases`, `ui`, `features` and `tdd`
+  /// sections in favour of generated defaults. Write paths call this before
+  /// persisting and refuse with the CLI's standard `--> fix:` guidance when it
+  /// returns non-null.
+  static String? unparseableConfigMessage({String? projectRoot}) {
+    final root = projectRoot ?? Directory.current.path;
+    final configFile = File(p.join(root, '.zfa.json'));
+    if (!configFile.existsSync()) return null;
+    try {
+      if (jsonDecode(configFile.readAsStringSync()) is Map<String, dynamic>) {
+        return null;
+      }
+    } catch (_) {
+      // Falls through to the refusal below.
+    }
+    return '❌ Refusing to overwrite ${configFile.path}: the existing '
+        '.zfa.json could not be parsed, and saving would replace it with '
+        'defaults (dropping its presets/aliases/ui/features/tdd sections).\n'
+        '   --> fix: repair or delete ${configFile.path}, then re-run.';
+  }
+
   factory ZfaConfig.fromJson(Map<String, dynamic> json) {
     final plugins = _map(json['plugins']);
     final planning = _map(json['planning']);

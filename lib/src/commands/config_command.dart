@@ -80,6 +80,17 @@ class ConfigCommand {
       exit(1);
     }
 
+    // Issue #1596 review: `load` returns a non-null config for an existing but
+    // unparseable `.zfa.json` too, so without this guard the write below would
+    // replace the user's file with defaults built from `_updatedConfig`.
+    final refusal = ZfaConfig.unparseableConfigMessage(
+      projectRoot: projectRoot,
+    );
+    if (refusal != null) {
+      print(refusal);
+      exit(1);
+    }
+
     final updated = _updatedConfig(existing, key, value);
     if (updated == null) {
       print('❌ Unknown configuration key: $key');

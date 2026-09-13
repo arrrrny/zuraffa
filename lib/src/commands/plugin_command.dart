@@ -17,7 +17,21 @@ class PluginCommand {
     }
 
     final action = args.first;
-    final config = PluginConfig.load();
+    // Extract an optional --root so tests (and advanced users) can target an
+    // explicit project root instead of relying on the process working
+    // directory (issue: non-hermetic CLI tests under `dart test`). Shared by
+    // the `add`, `enable` and `disable` arms; `mcp` parses its own flags.
+    String? root;
+    final rest = <String>[];
+    for (var i = 1; i < args.length; i++) {
+      if (args[i] == '--root' && i + 1 < args.length) {
+        root = args[i + 1];
+        i++;
+      } else {
+        rest.add(args[i]);
+      }
+    }
+    final config = PluginConfig.load(projectRoot: root);
     final loader = PluginLoader(
       outputDir: 'lib/src',
       dryRun: false,
@@ -36,12 +50,12 @@ class PluginCommand {
         return;
       case 'enable':
       case 'disable':
-        if (args.length < 2) {
+        if (rest.isEmpty) {
           print('Missing plugin id');
           _printHelp();
           exit(1);
         }
-        final id = args[1];
+        final id = rest.first;
         final exists = plugins.any((p) => p.id == id);
         if (!exists) {
           print('Unknown plugin: $id');
@@ -54,30 +68,16 @@ class PluginCommand {
         }
         // Issue #1586: the save is asynchronous and the CLI runner exits
         // immediately after this command returns — it must be awaited or
-        // the persisted `.zfa.json` never sees the mutation.
-        await config.save();
+        // the persisted `.zfa.json` never sees the mutation. A refused save
+        // (an existing `.zfa.json` that could not be parsed) must not be
+        // reported as success.
+        if (!await config.save(projectRoot: root)) {
+          exit(1);
+        }
         final verb = action == 'enable' ? 'Enabled' : 'Disabled';
         print('$verb plugin: $id');
         return;
       case 'add':
-        if (args.length < 2) {
-          print('Missing package name');
-          _printHelp();
-          exit(1);
-        }
-        // Extract an optional --root so tests (and advanced users) can target
-        // an explicit project root instead of relying on the process working
-        // directory (issue: non-hermetic CLI tests under `dart test`).
-        String? root;
-        final rest = <String>[];
-        for (var i = 1; i < args.length; i++) {
-          if (args[i] == '--root' && i + 1 < args.length) {
-            root = args[i + 1];
-            i++;
-          } else {
-            rest.add(args[i]);
-          }
-        }
         if (rest.isEmpty) {
           print('Missing package name');
           _printHelp();

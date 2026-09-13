@@ -66,11 +66,23 @@ class PluginConfig {
   /// landed — `zfa plugin enable/disable` would report success while losing
   /// the state change. Awaiting here matches the established pattern
   /// (`config_command.dart`); the save pipeline and file format are unchanged.
-  Future<void> save({String? projectRoot}) async {
+  ///
+  /// Returns `false` — writing nothing — when the existing `.zfa.json` could
+  /// not be parsed. `ZfaConfig.load` maps that case onto a default config, so
+  /// persisting would silently replace the user's `presets`, `aliases`, `ui`,
+  /// `features` and `tdd` sections with generated defaults; the caller must
+  /// surface the refusal instead of reporting success.
+  Future<bool> save({String? projectRoot}) async {
     final root = projectRoot ?? Directory.current.path;
+    final refusal = ZfaConfig.unparseableConfigMessage(projectRoot: root);
+    if (refusal != null) {
+      print(refusal);
+      return false;
+    }
     final existing = ZfaConfig.load(projectRoot: root) ?? ZfaConfig();
     final updated = existing.copyWith(disabledPlugins: disabled);
     await ZfaConfig.save(updated, projectRoot: root);
+    return true;
   }
 }
 
