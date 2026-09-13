@@ -70,7 +70,20 @@ void main() {
         '→ build (build_runner + analyze; minutes on first run)',
       );
 
-      // entity create → the entity name.
+      // entity create → the entity name. Every generation-planner call
+      // site passes the name as the VALUE of `-n` (review finding #1599):
+      // the flag itself must never reach the banner.
+      expect(
+        PipelineRunner.bannerFor(
+          _spec(['entity', 'create', '-n', 'User', '--build']),
+        ),
+        '→ entity create User',
+      );
+      expect(
+        PipelineRunner.bannerFor(_spec(['entity', 'create', '--name', 'User'])),
+        '→ entity create User',
+      );
+      // The positional form stays supported.
       expect(
         PipelineRunner.bannerFor(
           _spec(['entity', 'create', 'User', '--fields=email']),
@@ -248,12 +261,28 @@ void main() {
       expect(parseTddHeartbeatSeconds('30'), const Duration(seconds: 30));
       expect(
         () => parseTddHeartbeatSeconds('abc'),
-        throwsA(isA<TddTimeoutFormatException>()),
+        throwsA(
+          isA<TddTimeoutFormatException>()
+              // Review finding #1599: the rejection names the flag it
+              // rejected, not the pre-existing --timeout.
+              .having((e) => e.flag, 'flag', '--heartbeat')
+              .having((e) => e.unit, 'unit', 'seconds')
+              .having((e) => e.message, 'message', contains('--heartbeat')),
+        ),
       );
       expect(
         () => parseTddHeartbeatSeconds('-1'),
         throwsA(isA<TddTimeoutFormatException>()),
       );
+      // Non-finite doubles must land on the rejection path too — not an
+      // uncaught UnsupportedError from `.round()` (review finding #1599).
+      for (final raw in const ['NaN', 'Infinity', '-Infinity', '1e999']) {
+        expect(
+          () => parseTddHeartbeatSeconds(raw),
+          throwsA(isA<TddTimeoutFormatException>()),
+          reason: '$raw must be rejected, never crash',
+        );
+      }
     });
   });
 

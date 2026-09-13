@@ -114,28 +114,40 @@ Duration? parseTddTimeoutMinutes(String? raw) {
 /// driver's 30s). `0` → [Duration.zero] (heartbeats OFF — the
 /// parser-strict mode). Positive fractions are allowed (`0.05` = 50ms).
 /// Anything else throws [TddTimeoutFormatException] so the command can
-/// reject it non-zero instead of guessing.
+/// reject it non-zero instead of guessing; that includes the non-finite
+/// doubles `double.tryParse` admits (`NaN`, `Infinity`, an overflowing
+/// literal like `1e999`), which would otherwise crash `.round()` with
+/// an uncaught `UnsupportedError` instead of the rejection path.
 Duration? parseTddHeartbeatSeconds(String? raw) {
   if (raw == null || raw.isEmpty) return null;
   final seconds = double.tryParse(raw);
-  if (seconds == null || seconds < 0) {
-    throw TddTimeoutFormatException(raw);
+  if (seconds == null || !seconds.isFinite || seconds < 0) {
+    throw TddTimeoutFormatException(raw, flag: '--heartbeat', unit: 'seconds');
   }
   return Duration(milliseconds: (seconds * 1000).round());
 }
 
-/// Thrown when the `--timeout` flag value is not a positive number of
-/// minutes (also used by [parseTddHeartbeatSeconds] for an invalid
-/// `--heartbeat`).
+/// Thrown when a `--timeout`/`--heartbeat` flag value is not a positive
+/// number ([flag] names the offending flag, [unit] its unit).
 class TddTimeoutFormatException implements Exception {
-  TddTimeoutFormatException(this.raw);
+  TddTimeoutFormatException(
+    this.raw, {
+    this.flag = '--timeout',
+    this.unit = 'minutes',
+  });
 
   /// The invalid flag value as given.
   final String raw;
 
+  /// The flag whose value was rejected (defaults to `--timeout`).
+  final String flag;
+
+  /// The flag's unit (`minutes`, `seconds`).
+  final String unit;
+
   String get message =>
-      'invalid --timeout "$raw": pass a positive number of minutes '
-      '(fractions allowed, e.g. 0.5 for 30 seconds).';
+      'invalid $flag "$raw": pass a positive number of $unit '
+      '(fractions allowed, e.g. 0.5).';
 
   @override
   String toString() => message;

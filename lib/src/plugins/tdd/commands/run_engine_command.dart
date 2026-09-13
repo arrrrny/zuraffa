@@ -332,6 +332,11 @@ class RunEngineCommand extends Command<void> {
           },
         ),
       );
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..exitClass = 'runner-error'
+        ..outcome = VerdictOutcome.error
+        ..fix = 'pass --heartbeat in seconds (0 disables) and re-run';
       exitCode = _exitRunnerError;
       return;
     }

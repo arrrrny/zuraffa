@@ -68,17 +68,29 @@ class PipelineRunner {
   /// Issue #1590: the sub-step NAME without the banner token or hint
   /// (FR-003's derivation, shared with make's plan lines). From the
   /// step's args: `tdd`-prefixed → the subcommand verb (`func`, `wire`,
-  /// `compose`); `build` → `build`; `entity create <Name>` →
-  /// `entity create <Name>`; `make <Name>` → `make <Name>`; `mock create`
-  /// → `mock create`; anything else → the first two args joined.
+  /// `compose`); `build` → `build`; `entity create <Name>` (the name
+  /// rides `-n`/`--name`, the form every planner call site emits;
+  /// positional accepted too) → `entity create <Name>`; `make <Name>` →
+  /// `make <Name>`; `mock create` → `mock create`; anything else → the
+  /// first two args joined.
   static String nameFor(GenerationStepSpec spec) {
     final args = spec.args;
     if (args.isEmpty) return '(empty step)';
     final head = args.first;
     if (head == 'tdd' && args.length > 1) return args[1];
     if (head == 'build') return 'build';
-    if (head == 'entity' && args.length > 2) {
-      return 'entity ${args[1]} ${args[2]}';
+    if (head == 'entity' && args.length > 1) {
+      // `-n <Name>` / `--name <Name>` first (every generation-planner
+      // call site), then the positional form.
+      for (var i = 2; i < args.length - 1; i++) {
+        if (args[i] == '-n' || args[i] == '--name') {
+          return 'entity ${args[1]} ${args[i + 1]}';
+        }
+      }
+      final positional = args.length > 2 && !args[2].startsWith('-')
+          ? args[2]
+          : '';
+      return 'entity ${args[1]} $positional'.trimRight();
     }
     if (head == 'make' && args.length > 1) return 'make ${args[1]}';
     if (head == 'mock' && args.length > 1) return 'mock ${args[1]}';
