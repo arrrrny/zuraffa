@@ -41,8 +41,11 @@ Follow the standard feature resolution:
 - `.specify/feature.json` → `feature_directory`, or
 - `check-prerequisites.sh --json --paths-only`
 
-Set `FEATURE_SLUG` to the resolved directory name (e.g. `003-user-auth`).
-Write it to `.specify/feature.json` if not already pinned.
+Set `FEATURE_DIR` to the resolved feature directory (the path `zfa tdd
+plan` must receive — e.g. `specs/003-user-auth`, `.specify/bugs/<slug>`,
+or an absolute path) and `FEATURE_SLUG` to its directory name (e.g.
+`003-user-auth`) for reporting. Write `feature_directory` to
+`.specify/feature.json` if not already pinned.
 
 ### Supported feature-reference shapes (issue #1182)
 
@@ -64,7 +67,7 @@ directory — never under `specs/`.
 ## Step 2 — Dispatch to zfa
 
 ```bash
-zfa tdd plan "$FEATURE_SLUG" 2>&1
+zfa tdd plan "$FEATURE_DIR" 2>&1
 ```
 
 Interpret the exit code:

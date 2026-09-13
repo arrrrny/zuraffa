@@ -407,6 +407,25 @@ class ZfaConfig {
 
     if (configFile.existsSync()) {
       print('ℹ️  Configuration file already exists: ${configFile.path}');
+      // Issue #1496 item 6 (PR #1579 review): a config whose
+      // plugins.defaults entries are all `false` is almost certainly an
+      // artifact of the pre-fix `config init`, not a deliberate all-off
+      // choice — the map is exactly what the old defaults wrote. Report
+      // it instead of silently accepting it as intent.
+      final existingDefaults = load(projectRoot: root)?.pluginDefaults;
+      if (existingDefaults != null &&
+          existingDefaults.isNotEmpty &&
+          existingDefaults.values.every((enabled) => !enabled)) {
+        print('   ⚠️  plugins.defaults is all-false — the pre-#1496 default,');
+        print('      most likely, rather than an explicit opt-out.');
+        print(
+          '      Enable the stack with `zfa config set <plugin>ByDefault true`',
+        );
+        print(
+          '      (e.g. repositoryByDefault, usecaseByDefault, diByDefault)',
+        );
+        print('      or keep the all-off behavior deliberately.');
+      }
       return;
     }
 
