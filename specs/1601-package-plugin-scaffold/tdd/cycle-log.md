@@ -57,3 +57,17 @@
   scaffolded the five-package family and every package passed
   `dart pub get` → `dart analyze --no-fatal-warnings` → `dart test`
   untouched, in 3m51s (budget 8 min). Evidence: B9 elapsed log line.
+
+## Delivery (T015 — issue #678's concrete deliverable)
+
+- `zfa package plugin zuraffa_ffi --repo arrrrrny/zuraffa_ffi --description
+  "Typed FFI support …"` (default android+ios+macos) generated the monorepo
+  at ~/Developer/zuraffa_ffi; the built-in post-scaffold gate passed
+  (pub get + analyze, all five packages).
+- Full board: `dart test` per package → 5/5 green (32 generated tests).
+  `dart pub publish --dry-run` per package → 5/5 exit 0 (the app-facing
+  package validates with 0 warnings; siblings carry only the expected
+  dependency_overrides hint).
+- git init (master) → initial scaffold commit → one metadata fix (owner
+  slug) → pushed. GitHub: https://github.com/arrrrny/zuraffa_ffi resolves
+  PUBLIC (was 404 when issue #678 was filed).

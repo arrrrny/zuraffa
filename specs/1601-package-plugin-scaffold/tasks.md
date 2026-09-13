@@ -140,7 +140,7 @@ per-package pub get + analyze + test green.
       --no-fatal-warnings` (exit 0), `dart test` (exit 0) — zero manual
       edits, ≤ 8 min budget (mirrors package_e2e_test.dart). Traces
       FR-002 / SC-1.
-- [ ] T015. [US4] Delivery task (non-test): scaffold the real
+- [x] T015. [US4] Delivery task (non-test): scaffold the real
       `~/Developer/zuraffa_ffi` via the delivered command
       (`--description "Typed FFI bindings infrastructure for the
       Zuraffa ecosystem: native library loading, lifecycle, and typed
