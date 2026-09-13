@@ -32,12 +32,17 @@
 //   A3 — kindless/legacy rows (no resolvable kind) keep the fail-open
 //        skip transition: no test list kind cell → no refusal (the
 //        #1259 fail-open contract is unchanged for legacy projects).
+//   A4 — the remediation proven against the artifact `gen` ACTUALLY
+//        emits: gen's guard-only acceptance test → make refuses with the
+//        acceptance-lane (traced re-plan/re-gen) remedy → an assertion
+//        outside the capture lands → make certifies green.
 //   U1 — the unit lane refusal is byte-for-byte unchanged (issue #1259
 //        U1 mirror): a guard-only unit test is still refused.
 library;
 
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
@@ -71,14 +76,17 @@ void main() {
 /// The same acceptance test plus one observable-outcome assertion — the
 /// shape green certification must REQUIRE (issue #1488 remediation).
 /// The acceptance capture is void-safe by design (it returns null for
-/// any non-throwing scenario runner), so the honest outcome assertion
-/// here is on the completion surface: the runner returned, nothing
-/// threw, the capture resolved null.
+/// any non-throwing scenario runner), so `expect(result, isNull)` would
+/// only RESTATE the guard above it — that is the tautology review #1595
+/// rejected. The honest assertion has to reach OUTSIDE the capture, at
+/// the state the composed scenario writes: the void runner exposes no
+/// value of its own, which is exactly what the lane's refusal message
+/// must therefore not prescribe.
 String outcomeAssertedAcceptanceTest(String id, String description) =>
     guardOnlyAcceptanceTest(id, description).replaceFirst(
       '    expect(result, isNot(isA<UnimplementedError>()));',
       '    expect(result, isNot(isA<UnimplementedError>()));\n'
-          '    expect(result, isNull);',
+          '    expect(subject.scenarioSteps, isNotEmpty);',
     );
 
 /// The gen-emitted guard-only UNIT test (the issue #1259 shape) — the
@@ -104,14 +112,20 @@ void main() {
 ''';
 }
 
-/// An implemented acceptance scenario runner (no throw) — the composed /
-/// func-scaffolded state the guard-only test vacuously passes against.
+/// An implemented acceptance scenario runner (no throw) that RECORDS the
+/// scenario step it executed — the composed / func-scaffolded state the
+/// guard-only test vacuously passes against, and the observable state an
+/// honest outcome assertion reaches (the void capture exposes no value).
 String scaffoldedVoidSubject(String id) {
   final symbol = 'subject_${id.toLowerCase().replaceAll('-', '_')}';
   return '''
 library;
 
-void $symbol() {}
+final List<String> scenarioSteps = <String>[];
+
+void $symbol() {
+  scenarioSteps.add('scenario-step');
+}
 ''';
 }
 
@@ -171,6 +185,25 @@ void main() {
       expect(exitCode, 1, reason: 'a vacuous green must not certify: $out');
       expect(out, contains('outcome=vacuous-green'));
       expect(out, contains('UnimplementedError guard'));
+      expect(out, contains('issue #1488'));
+      // Review #1595: the acceptance lane gets the TRACED re-plan/re-gen
+      // remedy — not the unit-lane "assert the observable outcome at the
+      // capture", which the void scenario runner cannot carry.
+      expect(
+        out,
+        contains('re-run zfa tdd plan'),
+        reason:
+            'the acceptance-lane remedy is the traced re-plan/re-gen path: '
+            '$out',
+      );
+      expect(
+        out,
+        isNot(contains('marker if present')),
+        reason:
+            'the acceptance fallback deliberately carries no vacuous-guard '
+            'marker (issue #1512) — the remedy must not tell the author to '
+            'remove one: $out',
+      );
       final log = await File(fx.cycleLogPath).readAsString();
       expect(
         log,
@@ -207,12 +240,110 @@ void main() {
       expect(out, contains('outcome=skipped'));
     });
 
+    test('A4: the remedy proves out against the artifact `gen` emits — the '
+        'generated guard-only acceptance test is refused, and an assertion '
+        'outside the capture then certifies green', () async {
+      const description = 'the todo list renders the seeded items';
+      await fx.seedTestList([
+        (
+          id: 'A-1488',
+          description: description,
+          traces: 'AC-9',
+          state: 'PENDING',
+          kind: 'acceptance',
+        ),
+      ]);
+
+      // 1. The artifact gen ACTUALLY emits for an acceptance row with no
+      //    declared contract shape: the guard-only acceptance fallback —
+      //    the #1512 shape the #1488 gate now intercepts. (A1/A2/A3 seed
+      //    the paired test by hand; this pin never does.)
+      final genOut = await CliRunner(
+        exitOnCompletion: false,
+      ).runCapturing(['tdd', 'gen', 'A-1488', '--project', fx.root.path]);
+      expect(exitCode, 0, reason: 'gen out: $genOut');
+      // The registry record is the single path contract: gen owns the
+      // layout (project-relative, `test/tdd/<feature>/...`), so both
+      // generated files are addressed through it.
+      final record = await fx.registryRecordOf('A-1488');
+      final genTestPath = p.join(fx.root.path, record['test_path'] as String);
+      final genSubjectPath = p.join(
+        fx.root.path,
+        record['subject_path'] as String,
+      );
+      final generated = await File(genTestPath).readAsString();
+      expect(
+        generated,
+        contains('expect(result, isNot(isA<UnimplementedError>()))'),
+        reason: 'the emitted fallback carries the guard alone: $generated',
+      );
+      expect(
+        generated,
+        contains('acceptance-guard'),
+        reason: 'the emitted test is the ACCEPTANCE fallback: $generated',
+      );
+      expect(
+        generated,
+        isNot(contains('scenarioSteps')),
+        reason: 'nothing outside the capture is asserted yet',
+      );
+      // The honest red the generated pair starts from (the stub throws).
+      await fx.seedRedEvidence('A-1488');
+
+      // 2. make refuses the generated artifact itself.
+      final refused = await CliRunner(
+        exitOnCompletion: false,
+      ).runCapturing(['tdd', 'make', 'A-1488', '--project', fx.root.path]);
+      expect(exitCode, 1, reason: 'refusal out: $refused');
+      expect(refused, contains('outcome=vacuous-green'));
+      expect(refused, contains('re-run zfa tdd gen'));
+
+      // 3. The prescribed remedy applied by hand: the scenario runner
+      //    implemented (what the composition lane lands) and ONE assertion
+      //    outside the capture added to the gen-emitted test — green. The
+      //    symbol is read from gen's OWN call site in the emitted test (the
+      //    stub's prose mentions other identifiers, so the subject text is
+      //    not the source of truth).
+      final generatedSubject = await File(genSubjectPath).readAsString();
+      expect(
+        generatedSubject,
+        contains('UnimplementedError'),
+        reason: 'the emitted subject is the honest-red stub: $generatedSubject',
+      );
+      final symbol = RegExp(
+        r'subject\.(\w+)\s*\(',
+      ).firstMatch(generated)!.group(1)!;
+      await File(genSubjectPath).writeAsString('''
+library;
+
+final List<String> scenarioSteps = <String>[];
+
+void $symbol() {
+  scenarioSteps.add('scenario-step');
+}
+''');
+      await File(genTestPath).writeAsString(
+        generated.replaceFirst(
+          'expect(result, isNot(isA<UnimplementedError>()));',
+          'expect(result, isNot(isA<UnimplementedError>()));\n'
+              '    expect(subject.scenarioSteps, isNotEmpty);',
+        ),
+      );
+      final green = await CliRunner(
+        exitOnCompletion: false,
+      ).runCapturing(['tdd', 'make', 'A-1488', '--project', fx.root.path]);
+      expect(exitCode, 0, reason: 'green out: $green');
+      expect(green, contains('outcome=skipped'));
+    });
+
     test('A3: kindless/legacy rows keep the fail-open skip transition — '
         'no resolvable kind, no refusal (the #1259 fail-open contract '
         'unchanged)', () async {
       const description = 'the legacy scenario completes';
-      // No test list at all: the row's kind is unresolvable, exactly the
-      // legacy-project shape _rowKindQuiet fails open for.
+      // No test list AT ALL — not a row whose kind cell is empty: the
+      // behavior has no row, so there is no kind cell to read at all. That
+      // is the shape _rowKindQuiet fails open for; the row-present-with-kind
+      // variants are pinned by bug_1259's U3 (acceptance) and U1 (unit).
       await fx.seedCertifiedRed(
         id: 'A-9000',
         description: description,

@@ -399,12 +399,15 @@ void a1_value() {
       final cycleLog = await File(fx2.cycleLogPath).readAsString();
       expect(cycleLog, isNot(contains('## Cycle: A1 (green)')));
       // The refusal precedes generation planning: the fake zfa bin was
-      // never spawned (no compose dispatch).
-      final fakeLogFile = File(fx2.fakeZfaLogPath);
-      final logged = fakeLogFile.existsSync()
-          ? await fakeLogFile.readAsString()
-          : '';
-      expect(logged, isNot(contains('compose')));
+      // never spawned (no compose dispatch). Review #1595: the log's
+      // ABSENCE is the assertion — substituting `''` for a missing file
+      // let this pin pass without an artifact, the same vacuous-pass shape
+      // the #1488 gate exists to remove.
+      expect(
+        File(fx2.fakeZfaLogPath).existsSync(),
+        isFalse,
+        reason: 'the fake zfa bin was never spawned: $out',
+      );
     });
   });
 }

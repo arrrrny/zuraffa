@@ -1053,18 +1053,37 @@ class MakeCommand extends Command<void> {
       final testContent = await scaffoldCheckFile.readAsString();
       if (contentIsVacuousGreen(testContent)) {
         final description = _descriptionFor(record);
+        // Issue #1488 (review): the remedy is LANE-BRANCHED. The unit-lane
+        // remedy is an assertion on the capture's observable outcome; the
+        // acceptance capture is a parameterless `void` scenario runner
+        // (`behavior_test_writer._captureInvocation`), so that instruction
+        // is unexpressible there (the capture only ever resolves `null`),
+        // and the acceptance fallback deliberately carries NO
+        // `$vacuousGuardMarker` (issue #1512 — its absence is the run
+        // driver's `:make` vs `:hand` discriminator). The honest remedy for
+        // the acceptance row is the traced re-plan/re-gen path the gen-time
+        // warning and the run driver already prescribe for fallback-routed
+        // rows (`vacuousGuardFallbackRemedyFor`), single-sourced here so
+        // the three surfaces cannot drift.
+        final acceptanceLane = vacuousRowKind == BehaviorKind.acceptance;
+        final remedy = acceptanceLane
+            ? '${vacuousGuardFallbackRemedyFor(
+                lanePlanPath: lanePlanSeamPath(projectRoot: cwd, featureDir: target.featureDir),
+                testListPath: p.relative(p.join(target.featureDir, 'tdd', 'test-list.md'), from: cwd),
+              )}.'
+            : 'add at least one assertion on the observable outcome named by '
+                  'the behavior description ("$description"), remove the '
+                  '$vacuousGuardMarker marker if present, and re-run make.';
         print(
           'zfa tdd make: behavior "${record.behaviorId}" test is '
           'VACUOUS-GREEN — its assertion set is only the UnimplementedError '
-          'guard (issue #1259). A green here proves nothing about the '
-          'behavior: the guard passes on any non-throwing body (a dummy '
-          '`return 0;` flips it green with zero declared-contract code).',
+          'guard (issue ${acceptanceLane ? '#1488' : '#1259'}). A green here '
+          'proves nothing about the behavior: the guard passes on any '
+          'non-throwing body (${acceptanceLane ? 'an empty scenario-runner '
+                    'body' : 'a dummy `return 0;`'} flips it green with zero '
+          'declared-contract code).',
         );
-        print(
-          '   --> fix: add at least one assertion on the observable outcome '
-          'named by the behavior description ("$description"), remove the '
-          '$vacuousGuardMarker marker if present, and re-run make.',
-        );
+        print('   --> fix: $remedy');
         _printSummary(
           behavior: record.behaviorId,
           outcome: MakeOutcome.vacuousGreen,
