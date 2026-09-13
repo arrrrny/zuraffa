@@ -173,13 +173,12 @@ void main() {
 
     // THE LOOP (pre-#1592): the run stops at the #1411 arm and
     // prescribes `--born-green` — the command that already ran.
+    expect(out, isNot(contains('--born-green` — then re-run')), reason: out);
     expect(
       out,
-      isNot(contains('--born-green` — then re-run')),
+      isNot(contains('is incomplete in tdd/cycle-log.md')),
       reason: out,
     );
-    expect(out, isNot(contains('is incomplete in tdd/cycle-log.md')),
-        reason: out);
     expect(exitCode, 0, reason: out);
     // The convergent window: refactor ONLY — verify-red and make never
     // spawn for a born-green-certified blocked behavior.
@@ -277,8 +276,7 @@ void main() {
     // The exact pre-#1592 stop: the #1411 arm, the re-drive window
     // (verify-red -> make) unchanged.
     expect(exitCode, 1, reason: out);
-    expect(fx.stepInvocations(), ['verify-red $id', 'make $id'],
-        reason: out);
+    expect(fx.stepInvocations(), ['verify-red $id', 'make $id'], reason: out);
     expect(out, contains('stopped_at=$id:hand'), reason: out);
     final state = await readState();
     expect(state['behavior_states'][id], 'blocked', reason: out);
@@ -313,7 +311,8 @@ void main() {
     expect(
       fx.stepInvocations(),
       contains('verify-red $id'),
-      reason: 'without green evidence the blocked window is unchanged — '
+      reason:
+          'without green evidence the blocked window is unchanged — '
           'verify-red re-entry stands (the hard constraint)',
     );
     expect(fx.stepInvocations(), contains('make $id'), reason: out);
@@ -349,7 +348,8 @@ void main() {
     expect(
       fx.stepInvocations(),
       contains('verify-red $id'),
-      reason: 'unbacked green evidence does not lift the blocked window — '
+      reason:
+          'unbacked green evidence does not lift the blocked window — '
           'the #1324 SC-4 compat rule holds',
     );
     expect(out, contains('result=stale-artifacts'), reason: out);
