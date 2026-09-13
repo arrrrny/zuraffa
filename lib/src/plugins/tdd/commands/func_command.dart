@@ -51,6 +51,7 @@ import '../models/routing.dart';
 import '../services/artifact_registry.dart';
 import '../services/declared_routing.dart';
 import '../services/subject_signature_deriver.dart';
+import '../services/subject_provenance.dart';
 import '../services/subject_writer.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/unit_contract_shape.dart';
@@ -63,6 +64,14 @@ import '../../../core/project/project_root.dart';
 enum FuncOutcome {
   scaffolded('scaffolded'),
   alreadyImplemented('already-implemented'),
+
+  /// Issue #1565: the subject is gen's CONTRACT-DERIVED stub (provenance
+  /// markers + the declaration shape gen emits) whose signature func's
+  /// bounded set does not cover — the subject is ALREADY the declared
+  /// contract the behavior needs, so the step is an honest no-op success
+  /// (exit 0, nothing rewritten, the body stays the author's hand work).
+  contractDerivedNoop('contract-derived-noop'),
+
   runnerError('runner-error');
 
   const FuncOutcome(this.label);
@@ -217,7 +226,7 @@ class FuncCommand extends Command<void> {
     // 3. Parse the stub and emit the scaffolded implementation.
     // -------------------------------------------------------------
     final raw = await subjectFile.readAsString();
-    final stub = _stubSignature.firstMatch(raw);
+    final stub = SubjectProvenance.funcRewritableStubPattern.firstMatch(raw);
     if (stub == null) {
       // Spec 0806 FR-006 (convergent generation): the refusal must key on
       // an ACTUAL `throw UnimplementedError(…)` the command might have
@@ -229,6 +238,37 @@ class FuncCommand extends Command<void> {
       // steps (exit 1 on a converged tree).
       final hasUnimplementedThrow = _unimplementedThrow.hasMatch(raw);
       if (hasUnimplementedThrow) {
+        // Issue #1565: provenance-aware recognition. A gen CONTRACT-DERIVED
+        // stub (both provenance markers + the declaration shape the #1259
+        // template emits) whose declared signature rides entity types
+        // (SPEC 1489 verbatim rendering) is OUTSIDE func's bounded rewrite
+        // set — and that is correct: the signature IS the spec's declared
+        // contract, so scaffolding from prose would either invent a shape
+        // (#1259's forbidden class) or rewrite the declaration to itself.
+        // The subject is already what the behavior needs; the step is an
+        // honest no-op success and the body stays the author's hand work.
+        // Every other unrecognized shape keeps the guard below.
+        final contractDerivedNoop =
+            SubjectProvenance.isContractDerivedGenStub(raw) &&
+            SubjectProvenance.contractDerivedDeclarationPattern.hasMatch(raw);
+        if (contractDerivedNoop) {
+          print(
+            'zfa tdd func: subject at "$recordedSubject" is gen\'s '
+            'CONTRACT-DERIVED stub (issue #1259) — the declared signature '
+            'is already in place and is not rewritten from prose.',
+          );
+          print(
+            '   nothing to scaffold: implement the declared contract body '
+            'by hand (the paired test stays honestly red until then).',
+          );
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: FuncOutcome.contractDerivedNoop,
+            feature: resolved.featureName,
+          );
+          exitCode = 0;
+          return;
+        }
         print(
           'zfa tdd func: subject at "$recordedSubject" carries an '
           'UnimplementedError in an unrecognized shape — refusing to '
@@ -346,19 +386,9 @@ class FuncCommand extends Command<void> {
   // Resolution + rendering helpers.
   // -------------------------------------------------------------------
 
-  /// The stub declaration func rewrites: the shapes gen emits for the
-  /// unit lane — the legacy no-arg int/void stub (issue #657) and the
-  /// contract-derived shape (issue #1259: scalar declared types verbatim,
-  /// entity types degraded to `Object?`), with an optional parameter
-  /// list. A bounded type set (never an arbitrary identifier) keeps the
-  /// "this command did not generate" safety: a hand-authored subject
-  /// typed by an entity (`User login(...) => throw ...`) still refuses.
-  static final RegExp _stubSignature = RegExp(
-    r'^((?:int|void|String|bool|double|num|Object|dynamic)\??)'
-    r'[ \t]+([A-Za-z_][A-Za-z0-9_]*)\(([^)]*)\)[ \t]*=>[ \t]*'
-    r'throw[ \t]+UnimplementedError\([^;\r\n]*\);[ \t]*$',
-    multiLine: true,
-  );
+  // The stub declaration func rewrites is the shared
+  // SubjectProvenance.funcRewritableStubPattern (issue #1565) so make's
+  // plan decision consults the SAME pattern this command refuses on.
 
   /// Spec 0806 FR-006: an actual throw statement — what the refusal keys
   /// on. Distinguished from the stub header's doc comment, which merely
@@ -652,6 +682,10 @@ class FuncCommand extends Command<void> {
       ..outcome = switch (outcome) {
         FuncOutcome.scaffolded => VerdictOutcome.pass,
         FuncOutcome.alreadyImplemented => VerdictOutcome.stopped,
+        // Issue #1565: a no-op success — the subject is already the
+        // declared contract. `stopped` (the already-implemented class):
+        // exit 0, nothing generated, nothing to certify from this step.
+        FuncOutcome.contractDerivedNoop => VerdictOutcome.stopped,
         FuncOutcome.runnerError => VerdictOutcome.fail,
       }
       ..details['behavior'] = behavior

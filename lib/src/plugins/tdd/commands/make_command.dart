@@ -85,6 +85,7 @@ import '../services/cycle_evidence.dart';
 import '../services/cycle_log_sections.dart';
 import '../services/dependency_override_preflight.dart';
 import '../services/subject_shape.dart';
+import '../services/subject_provenance.dart';
 import '../services/cycle_log.dart';
 import '../services/entity_lookup.dart';
 import '../services/feature_path_resolver.dart';
@@ -1316,6 +1317,21 @@ class MakeCommand extends Command<void> {
         strictRouting: strictRouting,
         traces: await _rowTraces(target.featureDir, record.behaviorId),
         declarations: declarations,
+        // Issue #1565: the plan must not schedule `tdd func` for a subject
+        // func would refuse — gen's CONTRACT-DERIVED stub whose declared
+        // signature rides entity types (SPEC 1489 verbatim rendering) is
+        // outside func's bounded rewrite set, and scheduling the step
+        // dead-ends the make in a generation-error ON A SUBJECT THAT IS
+        // ALREADY WHAT THE BEHAVIOR NEEDS. The fact is computed from the
+        // subject's provenance header via the SAME predicate func refuses
+        // on (SubjectProvenance — the single source of truth), BEFORE the
+        // plan is built. Scalar contract-derived subjects and every legacy
+        // subject keep the func step. Best-effort: a missing/unreadable
+        // subject skips nothing (func's own missing-file error surfaces).
+        skipFuncScaffold: await _subjectWouldMakeFuncRefuse(
+          cwd: cwd,
+          record: record,
+        ),
       );
       final plan = planner.plan(summary);
       GenerationPlan effectivePlan;
@@ -1325,6 +1341,13 @@ class MakeCommand extends Command<void> {
           workingDirectory: cwd,
         );
         print('   plan: ${effectivePlan.steps.length} step(s)');
+        if (summary.skipFuncScaffold) {
+          print(
+            '   plan: func step skipped — the subject is already gen\'s '
+            'contract-derived stub func would refuse to rewrite '
+            '(issue #1565); the declared signature stays as generated.',
+          );
+        }
       } else {
         // ---------------------------------------------------------
         // Composition fallback (issue #642, spec 052): the planner is
@@ -2048,6 +2071,33 @@ class MakeCommand extends Command<void> {
       return null;
     }
     return null;
+  }
+
+  /// Issue #1565: whether the behavior's subject is gen's CONTRACT-DERIVED
+  /// stub func would REFUSE — the provenance markers (GENERATED STUB zfa
+  /// tdd gen + CONTRACT-DERIVED SUBJECT) with an actual
+  /// `throw UnimplementedError` whose signature func's bounded rewrite set
+  /// does not cover. Computed BEFORE the plan is built so the planner can
+  /// skip the doomed func step instead of dead-ending the make in a
+  /// generation-error on a subject that is already what the behavior needs.
+  /// Best-effort by contract: a missing or unreadable subject returns
+  /// false (nothing to skip; func's own missing-file error surfaces).
+  Future<bool> _subjectWouldMakeFuncRefuse({
+    required String cwd,
+    required ArtifactRecord record,
+  }) async {
+    final subjectPath = p.isAbsolute(record.subjectPath)
+        ? record.subjectPath
+        : p.join(cwd, record.subjectPath);
+    try {
+      final file = File(subjectPath);
+      if (!await file.exists()) return false;
+      return SubjectProvenance.funcWouldRefuseContractDerivedStub(
+        await file.readAsString(),
+      );
+    } on FileSystemException {
+      return false;
+    }
   }
 
   /// Feature 071: the behavior's raw trace tokens from its test-list
