@@ -72,21 +72,26 @@ Surfaces in this repository that can trigger the failure mode:
 ### FR-1 — FormatRunner: pub-get enforcement before every format invocation
 
 A single injectable format runner (`FormatRunner`,
-`lib/src/core/format/format_runner.dart`) is the ONLY way CLI commands
-spawn `dart format`. Before spawning the formatter it verifies package
+`lib/src/core/format/format_runner.dart`) is the format path for the
+generation commands — the TDD refactor pass registry
+(`refactor_passes.dart`) runs its own `dart format lib/` and is tracked
+separately. Before spawning the formatter it verifies package
 resolution (`.dart_tool/package_config.json` exists under the working
 directory). When resolution is missing it runs `dart pub get --no-example`
-first. If that fails, the format invocation is SKIPPED and exactly ONE
-actionable warning is emitted — the runner must never spawn `dart format`
-without package resolution, so the per-file warning spam is unreachable
-through the CLI.
+first; the CLI names that side effect (it can rewrite `pubspec.lock`). If
+that fails, the format invocation is SKIPPED and exactly ONE actionable
+warning is emitted — the runner must never spawn `dart format` without
+package resolution, so the per-file warning spam is unreachable through
+the CLI.
 
 ### FR-2 — FormatRunner refuses tree-wide scopes
 
-`FormatRunner.formatPaths` rejects scopes that format the whole tree
-(`.` / `./`) with an `ArgumentError` BEFORE any process is spawned. The
-whole-tree invocation is the blast-radius amplifier the issue reports;
-the guard makes the invariant mechanical.
+`FormatRunner.formatPaths` rejects scopes that format the whole tree —
+`.` / `./`, `..`, and any path resolving to the package root or above —
+with an `ArgumentError` BEFORE any process is spawned. The whole-tree
+invocation is the blast-radius amplifier the issue reports; the guard
+resolves each scope before comparing, so the invariant is mechanical
+rather than literal-equality.
 
 ### FR-3 — Scope-limited formatter invocations in CLI flows
 

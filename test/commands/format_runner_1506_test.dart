@@ -4,10 +4,12 @@
 // config) and rewrites hundreds of unrelated files (868 in the
 // reproduction on Dart 3.13.2).
 //
-// FormatRunner is the single CLI path to `dart format`: it verifies
-// package resolution first, enforces `dart pub get --no-example` when
-// missing, and never spawns the formatter without resolution — the
-// per-file warning spam becomes unreachable. Tree-wide scopes are
+// FormatRunner is the format path for the generation commands (the TDD
+// refactor pass registry runs its own `dart format lib/` and is tracked
+// separately): it verifies package resolution first, enforces
+// `dart pub get --no-example` when missing, and never spawns the
+// formatter without resolution — the per-file warning spam becomes
+// unreachable. Whole-tree scopes (`.`, `..`, the package root) are
 // rejected before any process is spawned.
 //
 // Hermetic throughout: the process runner is injected (the
@@ -26,7 +28,11 @@ class _RecordingRunner {
   final List<String> invocations = [];
   final int pubGetExitCode;
 
-  _RecordingRunner({this.pubGetExitCode = 0});
+  /// Canned `dart format` stdout, so the result's captured output can be
+  /// asserted (the `inheritStdio` summary the CLI now carries itself).
+  final String formatStdout;
+
+  _RecordingRunner({this.pubGetExitCode = 0, this.formatStdout = ''});
 
   Future<ProcessResult> call(
     String executable,
@@ -45,8 +51,9 @@ class _RecordingRunner {
       File(
         p.join(dartTool.path, 'package_config.json'),
       ).writeAsStringSync('{"configVersion":2,"packages":[]}');
+      return ProcessResult(1, 0, '', '');
     }
-    return ProcessResult(1, 0, '', '');
+    return ProcessResult(1, 0, formatStdout, '');
   }
 }
 
@@ -99,7 +106,10 @@ void main() {
     });
 
     test('U2: tree-wide scope rejected before ANY process spawns', () async {
-      for (final scope in ['.', './']) {
+      // `.` / `./` are the literal tree-wide scopes; `..` and the
+      // absolute package root (and its parent) resolve to the same whole
+      // tree and are rejected by the resolved-path guard.
+      for (final scope in ['.', './', '..', p.dirname(dir.path), dir.path]) {
         final runner = _RecordingRunner();
         final format = FormatRunner(processRunner: runner.call);
 
@@ -159,11 +169,15 @@ void main() {
       // One actionable remediation, not per-file spam: the hint covers
       // Flutter hosts whose only working resolution is flutter pub get.
       expect(result.warning, contains('flutter pub get'));
+      // The formatter never ran, so there is no captured output.
+      expect(result.output, isNull);
     });
 
     test('U5: resolution present — format only, no pub get', () async {
       await _seedPackageConfig(dir);
-      final runner = _RecordingRunner();
+      final runner = _RecordingRunner(
+        formatStdout: 'Formatted 1 file (0 changed)',
+      );
       final format = FormatRunner(processRunner: runner.call);
 
       final result = await format.formatPaths([
@@ -179,19 +193,28 @@ void main() {
       expect(result.pubGetRan, isFalse);
       expect(result.formatRan, isTrue);
       expect(result.warning, isNull);
+      // The `Formatted N files (M changed)` summary survives the move off
+      // inheritStdio instead of being silently discarded.
+      expect(result.output, 'Formatted 1 file (0 changed)');
     });
 
     test(
-      'U6: scoped args verbatim — never a bare whole-tree element',
+      'U6: padded scope is trimmed/normalized, never a whole-tree element',
       () async {
         await _seedPackageConfig(dir);
         final runner = _RecordingRunner();
         final format = FormatRunner(processRunner: runner.call);
 
         await format.formatPaths([
-          'lib/src/domain/entities',
+          ' lib/src/domain/entities ',
         ], workingDirectory: dir.path);
 
+        // Trimmed and normalized before the process sees it — the padded
+        // original would make the formatter reject the path.
+        expect(
+          runner.invocations.single,
+          'dart format lib/src/domain/entities',
+        );
         final args = runner.invocations.single
             .split('..') //
             .first

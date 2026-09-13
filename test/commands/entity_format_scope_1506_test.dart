@@ -21,7 +21,12 @@ import 'package:zuraffa/src/commands/entity_command.dart';
 import 'package:zuraffa/src/core/format/format_runner.dart';
 
 class _RecordingFormatRunner {
-  final List<String> invocations = [];
+  _RecordingFormatRunner([List<String>? recorder])
+    : invocations = recorder ?? <String>[];
+
+  /// The recorded process invocations. U8 shares one list with the pub
+  /// runner so cross-seam call order is observable.
+  final List<String> invocations;
 
   /// `late final` so the initializer can access [invocations] (field
   /// initializers cannot read `this`).
@@ -49,7 +54,10 @@ class _RecordingFormatRunner {
 }
 
 class _RecordingPubRunner {
-  final List<String> invocations = [];
+  _RecordingPubRunner([List<String>? recorder])
+    : invocations = recorder ?? <String>[];
+
+  final List<String> invocations;
 
   Future<ProcessResult> call(
     String executable,
@@ -169,8 +177,11 @@ dev_dependencies:
     test(
       'U8: without resolution, pub get precedes the scoped format',
       () async {
-        final pubRunner = _RecordingPubRunner();
-        final formatRunner = _RecordingFormatRunner();
+        // One shared log across both seams: concatenating two separate
+        // lists could never observe the two runners' real interleaving.
+        final calls = <String>[];
+        final pubRunner = _RecordingPubRunner(calls);
+        final formatRunner = _RecordingFormatRunner(calls);
         final command = EntityCommand(
           pubRunner: pubRunner.call,
           formatRunner: formatRunner.formatRunner,
@@ -187,7 +198,7 @@ dev_dependencies:
           ], exitOnCompletion: false);
         });
 
-        final all = [...pubRunner.invocations, ...formatRunner.invocations];
+        final all = calls;
         expect(
           all,
           contains('dart pub get --no-example'),

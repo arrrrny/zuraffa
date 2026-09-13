@@ -1445,8 +1445,26 @@ ${missing.map((d) => '   • $d').join('\n')}
     // established.
     final runner = _formatRunner ?? FormatRunner();
     final result = await runner.formatPaths([fixedEntityOutput]);
+    if (result.pubGetRan) {
+      // The enforcement is a real side effect in a consumer project (it
+      // can rewrite pubspec.lock and touch the network) — name it so the
+      // mutation is observable instead of silent.
+      print(
+        'ℹ️  resolved dependencies with `dart pub get --no-example` '
+        'before formatting.',
+      );
+    }
+    final output = result.output?.trim();
+    if (output != null && output.isNotEmpty) {
+      // The `Formatted N files (M changed)` summary (and any formatter
+      // error) reached the console through the previous inheritStdio
+      // path; carry it through instead of dropping it.
+      print(output);
+    }
     if (result.warning != null) {
       print('⚠️  ${result.warning}');
+    } else if (result.exitCode != 0) {
+      print('⚠️  dart format exited ${result.exitCode} for $fixedEntityOutput');
     }
   }
 

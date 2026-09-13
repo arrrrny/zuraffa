@@ -24,7 +24,7 @@ Cycle log: [cycle-log.md](cycle-log.md).
 |---|-----------|----------|
 | 1 | Fresh-clone CLI format path cannot emit repeated resolution warnings — `dart format` never spawned without resolution | U3 (pub get enforced before format), U4 (unresolvable → formatter NEVER spawned, single warning); integration U8 (order through `EntityCommand`) |
 | 2 | After `dart pub get --no-example`, `dart format lib test` is a no-op | Reproduced: fresh clone → `Formatted 2591 files (868 changed)`; after pub get → `Formatted 2591 files (0 changed)`. Post-fix repo: `dart format .` → `Formatted 2763 files (0 changed)` |
-| 3 | CLI format invocation scoped to `lib/src/domain/entities`, never `.` / bare `lib` / `test`; tree-wide scope raises `ArgumentError` before spawning | U2 (guard, both `.` and `./`), U5/U6 (scoped args verbatim, forbidden elements absent), U7 (entity integration: exactly one invocation, args `['format', 'lib/src/domain/entities']`) |
+| 3 | CLI format invocation scoped to `lib/src/domain/entities`, never `.` / bare `lib` / `test`; tree-wide scope raises `ArgumentError` before spawning | U2 (guard: `.`, `./`, `..`, the absolute package root and its parent), U5/U6 (scoped args, trimmed/normalized, forbidden elements absent), U7 (entity integration: exactly one invocation, args `['format', 'lib/src/domain/entities']`) |
 | 4 | Pub-get enforcement in every documented workflow | AGENTS.md hard rule amended (#1506 rationale); `.github/agents/surgical-pr-fix.agent.md` step 6 amended; CI format job verified already compliant (`.github/workflows/ci.yaml`: `dart pub get --no-example` with the resolution-rationale comment, then `dart format --set-exit-if-changed lib test`) — verified-no-change |
 | 5 | `dart analyze lib test` zero new issues | Post-change: 112 issues, 0 errors, 0 warnings — identical to the pre-change baseline (112 pre-existing infos) |
 
@@ -58,7 +58,9 @@ is <1s, so re-running after any mutant is cheap):
 | Spawn format despite failed pub get | U4 (formatter-never-spawned) |
 | Skip the resolution check when config exists | U5 (no pub get on the fast path) |
 | Accept `.` scope silently | U2 (ArgumentError + no process) |
-| Reformat args (drop/duplicate scope paths) | U6, U7 (verbatim args) |
+| Compare only the literal `.` (let `..`/absolute root through) | U2 (`..`, the package root, and its parent all rejected) |
+| Reformat args (drop/duplicate/pad scope paths) | U6, U7 (exact invocation args) |
+| Drop the formatter output (leave `result.output` unset) | U5 (captured summary carried in the result) |
 | Report `pubGetRan: false` after enforcement | U3 (result flag) — this exact mutant was caught during the green phase |
 | Emit per-file warnings instead of one | U4 (single-warning contract) |
 

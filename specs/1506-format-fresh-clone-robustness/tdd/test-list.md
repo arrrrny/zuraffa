@@ -18,9 +18,11 @@ Behavior unit = one observable runner/command contract, hermetic
 
 ### U2 — Tree-wide scope is rejected before any process (FR-2)
 - **Given** `FormatRunner` with a recording runner
-- **When** `formatPaths(['.'])` (and `['./']`)
+- **When** `formatPaths` is called with `.`, `./`, `..`, the absolute
+  package root, or its parent
 - **Then** `ArgumentError` is thrown; recorder stays empty (no pub get,
-  no format ever spawned).
+  no format ever spawned) — the guard resolves scopes before comparing,
+  so the `..`/absolute-root bypasses are closed.
 
 ### U3 — Missing resolution: pub get enforced BEFORE format (FR-1)
 - **Given** temp project WITHOUT `.dart_tool/package_config.json`
@@ -43,13 +45,17 @@ Behavior unit = one observable runner/command contract, hermetic
 - **Given** temp project WITH a seeded `.dart_tool/package_config.json`
 - **When** `formatPaths(['lib/src/domain/entities'])`
 - **Then** exactly one invocation: `dart format
-  lib/src/domain/entities`; no pub get; `warning == null`.
+  lib/src/domain/entities`; no pub get; `warning == null`; the
+  formatter's captured output is carried in `result.output` (the
+  summary the CLI must not drop now that `inheritStdio` is gone).
 
-### U6 — Scoped args reach the process verbatim (FR-3 support)
-- **Given** seeded fixture, scope `['lib/src/domain/entities']`
+### U6 — Scoped args are trimmed/normalized before the process (FR-3 support)
+- **Given** seeded fixture, whitespace-padded scope
+  `[' lib/src/domain/entities ']`
 - **When** format runs
-- **Then** the format invocation's args contain the scope verbatim and
-  NEVER a bare `.` / `./` / `lib` / `test` element.
+- **Then** the format invocation's args carry the normalized scope
+  (`lib/src/domain/entities`, never the padded original) and NEVER a
+  bare `.` / `./` / `lib` / `test` element.
 
 ### U7 — EntityCommand format scope (FR-3, integration)
 - **Given** the #1322 hermetic entity fixture (temp project, seeded
