@@ -99,7 +99,7 @@ void main() {
     });
 
     test('U2: tree-wide scope rejected before ANY process spawns', () async {
-      for (final scope in ['.']) {
+      for (final scope in ['.', './']) {
         final runner = _RecordingRunner();
         final format = FormatRunner(processRunner: runner.call);
 
