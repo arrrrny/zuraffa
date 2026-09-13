@@ -1,0 +1,73 @@
+00:00 +0: loading test/plugins/tdd/run_command_test.dart
+00:00 +0: #1590 progress liveness A-1590-2: --verbose forwards every child line; default banners only
+00:06 +0 -1: #1590 progress liveness A-1590-2: --verbose forwards every child line; default banners only [E]
+  Expected: contains '→ live-banner'
+    Actual: 'zfa tdd run: feature 090-run-driver — 3 behavior(s)\n'
+              '   suite baseline: dart test (once per run — issue #741)\n'
+              '[run] B-001 gen -> ok\n'
+              '[run] B-001 verify-red -> certified\n'
+              '[run] B-001 make -> green\n'
+              '[run] B-001 refactor -> clean\n'
+              '[run] B-002 gen -> ok\n'
+              '[run] B-002 verify-red -> certified\n'
+              '[run] B-002 make -> green\n'
+              '[run] B-002 refactor -> clean\n'
+              '[run] B-003 gen -> ok\n'
+              '[run] B-003 verify-red -> certified\n'
+              '[run] B-003 make -> green\n'
+              '[run] B-003 refactor -> clean\n'
+              'run: feature=090-run-driver result=complete pending=0 red=0 green=0 done=3\n'
+              ''
+     Which: does not contain '→ live-banner'
+  zfa tdd run: feature 090-run-driver — 3 behavior(s)
+     suite baseline: dart test (once per run — issue #741)
+  [run] B-001 gen -> ok
+  [run] B-001 verify-red -> certified
+  [run] B-001 make -> green
+  [run] B-001 refactor -> clean
+  [run] B-002 gen -> ok
+  [run] B-002 verify-red -> certified
+  [run] B-002 make -> green
+  [run] B-002 refactor -> clean
+  [run] B-003 gen -> ok
+  [run] B-003 verify-red -> certified
+  [run] B-003 make -> green
+  [run] B-003 refactor -> clean
+  run: feature=090-run-driver result=complete pending=0 red=0 green=0 done=3
+  
+  
+  package:matcher                                expect
+  test/plugins/tdd/run_command_test.dart 2269:7  main.<fn>.<fn>
+  
+00:06 +0 -1: #1590 progress liveness A-1590-2b: heartbeat follows --heartbeat (0.05 fires, 0 silent)
+00:07 +0 -2: #1590 progress liveness A-1590-2b: heartbeat follows --heartbeat (0.05 fires, 0 silent) [E]
+  Expected: <0>
+    Actual: <2>
+  ❌ Could not find an option named "--heartbeat".
+  Usage: zfa tdd run <feature> [--project <dir>] [--zfa-bin <path>]
+  -h, --help                    Print this usage information.
+      --json                    Emit a versioned verdict.v1 JSON envelope as the final stdout line (VISION §5, issue #964/#838).
+      --explain                 Print a human-readable multi-line explanation of what this command did and why: the features touched, the lane (engine vs skin) run, the receipts written, the fix hints emitted, and a one-paragraph narrative summary (issue #1125). The human twin of --json: both flags may be passed together — the JSON verdict line comes first, then a separator, then this explanation.
+      --stream                  Stream one NDJSON `step-verdict.v1` event per completed loop step as it happens (SPEC 917, issue #838); the final verdict.v1 envelope still closes the output.
+      --project                 Project root containing specs/, test/, and .specify/ (the fixture or target project). When omitted, the current working directory is used. The driver never mutates the process-global working directory.
+      --zfa-bin                 Path to the zfa CLI entrypoint used to spawn the step commands (defaults to this package's bin/zfa.dart). Point this at a scripted fake to drive the loop against stubbed steps.
+      --timeout=<minutes>       Hard deadline in minutes for each spawned step command (bug #742; default 10). Fractions are allowed. On timeout the child is killed and the run stops with result=runner-error.
+      --baseline-scope=<dir>    Issue #1374: scope the suite baseline to a directory (canonically the feature test dir, e.g. test/tdd/<feature>) so the FIRST baseline can be produced on constrained agents where the whole-tree run cannot. Bypasses the corpus-wide cache.
+      --skip-widget             Widget-lane behaviors whose gen refuses on the zuraffa_ui gate (issue #938) are skipped instead of stopping the run: each keeps its current state — never a fake DONE — and the end-of-run summary names the count (issue #992). Without the flag the refusal still stops the run.
+      --force                   Bypass the routing-provenance preflight (issue #1482): the run starts even when unit behaviors are fallback-routed with no derivable assertion — the vacuous-green honest stop remains the fallback for conditions the plan could not have known. The dependency_overrides gate (#1303) and the cert gate (#1001) keep their own semantics.
+  
+  Run "zfa help" to see global options.
+  --> fix: re-run with --help to list the valid flags and subcommands, then re-invoke
+  
+  
+  package:matcher                                expect
+  test/plugins/tdd/run_command_test.dart 2287:7  main.<fn>.<fn>
+  
+00:07 +0 -2: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/run_command_test.dart: #1590 progress liveness A-1590-2: --verbose forwards every child line; default banners only
+  test/plugins/tdd/run_command_test.dart: #1590 progress liveness A-1590-2b: heartbeat follows --heartbeat (0.05 fires, 0 silent)
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
