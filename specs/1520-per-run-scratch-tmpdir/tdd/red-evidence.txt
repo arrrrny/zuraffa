@@ -1,0 +1,22 @@
+RED EVIDENCE — spec 1520 (2026-09-13T08:16Z, Dart 3.13.3)
+
+== B1-B7, B10-B13 (fast tier): the scratch service and the new parameters do not exist ==
+$ dart analyze test/plugins/tdd/scratch_tmpdir_test.dart test/plugins/tdd/kernel_cache_age_guard_test.dart
+23
+    error
+
+== B8-B9 (CLI tier, behavioral): children observe the ambient user TMPDIR ==
+$ dart test test/plugins/tdd/bug_1520_run_scratch_tmpdir_test.dart
+00:00 +0: bug #1520: the run command drives its children inside a per-run scratch TMPDIR B8: every step child observes the same fresh zfa-<feature>-* scratch and the scratch is deleted at run end
+00:07 +0 -1: bug #1520: the run command drives its children inside a per-run scratch TMPDIR B8: every step child observes the same fresh zfa-<feature>-* scratch and the scratch is deleted at run end [E]
+  Expected: a string starting with 'zfa-090-tdd-fixture-'
+    Actual: ''
+00:07 +0 -1: bug #1520: the run command drives its children inside a per-run scratch TMPDIR B9: .zfa.json tdd.tmpDir names the scratch root and the scratch is still cleaned at run end
+00:15 +0 -2: bug #1520: the run command drives its children inside a per-run scratch TMPDIR B9: .zfa.json tdd.tmpDir names the scratch root and the scratch is still cleaned at run end [E]
+  Expected: '/tmp/zfa1520-cfg-root-ENOXKR'
+    Actual: '.'
+            Expected: /tmp/zfa15 ...
+              Actual: .
+00:15 +0 -2: Some tests failed.
+  test/plugins/tdd/bug_1520_run_scratch_tmpdir_test.dart: bug #1520: the run command drives its children inside a per-run scratch TMPDIR B8: every step child observes the same fresh zfa-<feature>-* scratch and the scratch is deleted at run end
+  test/plugins/tdd/bug_1520_run_scratch_tmpdir_test.dart: bug #1520: the run command drives its children inside a per-run scratch TMPDIR B9: .zfa.json tdd.tmpDir names the scratch root and the scratch is still cleaned at run end

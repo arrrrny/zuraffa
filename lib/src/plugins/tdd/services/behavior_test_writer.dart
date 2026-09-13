@@ -514,6 +514,35 @@ void main() {
       }
       args = argExprs.join(', ');
     }
+    // Issue #1538: a VOID-returning declared contract cannot feed the IIFE
+    // capture. The subject renders its declared return verbatim (`void
+    // subject_u3(...)` — void is a renderable scalar), so the default
+    // branch's `return subject.<target>(<args>)` returns a void expression
+    // from an `Object? Function()` closure: `use_of_void_result` +
+    // `return_of_invalid_type_from_closure` — the pair dies at
+    // `verify-red -> compile-error` and never reaches the designed
+    // vacuous-guard -> hand-step transition (the #1259 marker dispatch,
+    // #1308). The capture becomes the statement-based form: the call
+    // stands alone (its void result is never used), completion records
+    // `result = null`, and a thrown UnimplementedError records
+    // `result = error` — the same honest red, now compiling. The declared
+    // subject signature is untouched (the subject IS the declared
+    // contract; #1443's `Object?` degradation is the SEAM lane's scaffold
+    // remedy, not this lane's). `Future<void>` and every other declared
+    // return keep the default branch: their values are not void
+    // expressions at the return site.
+    final voidReturn =
+        !acceptance && shape != null && shape.declaredReturn.trim() == 'void';
+    if (voidReturn) {
+      return '$helpers'
+          'Object? result;\n'
+          '        try {\n'
+          '          subject.$target($args);\n'
+          '          result = null;\n'
+          '        } on UnimplementedError catch (error) {\n'
+          '          result = error;\n'
+          '        }';
+    }
     // Issue #1035: the UNIT lane's capture initializer is provably
     // non-nullable (the closure returns the subject's value or the
     // caught UnimplementedError — never null), so an explicit `Object?`
