@@ -620,6 +620,37 @@ class SpecParser {
     return dependencies;
   }
 
+  /// The spec's declared-routing surface (issue #1388): the text of the
+  /// Layer Contracts section — the declarations a behavior's `traces:`
+  /// cell resolves against.
+  ///
+  /// Section recognition ([_matchesSectionHeading] over
+  /// [_layerContractsHeading]) and the walk (any heading closes the
+  /// section) are exactly [parseLayerContracts]'s, so the surface is the
+  /// text the contract parser itself reads: a qualified heading
+  /// (`## Layer Contracts — epic-level`) or an entity-escaped one is the
+  /// same section, and content after the next heading is not part of it.
+  ///
+  /// A spec without that section yields the empty string: no declared
+  /// routing, so nothing for a routing fingerprint to cover. Callers
+  /// hash this (never the whole `spec.md`) precisely so prose that
+  /// declares no routing — typo fixes, comment edits, acceptance-scenario
+  /// wording — cannot be mistaken for a routing change.
+  String layerContractsSection(String specMd) {
+    final section = StringBuffer();
+    var inSection = false;
+    for (final line in normalizeSpecText(specMd).split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('#')) {
+        if (inSection) break;
+        inSection = _matchesSectionHeading(trimmed, _layerContractsHeading);
+        continue;
+      }
+      if (inSection) section.writeln(line);
+    }
+    return section.toString();
+  }
+
   /// Extract the declared layer contracts (bug #919): the bold layer
   /// names and their backticked interface declarations, preserving the
   /// declared method signatures verbatim.
@@ -928,16 +959,25 @@ class SpecParser {
         for (final method in methods) {
           try {
             signatures.add(Signature.parse(method));
-          } on FormatException {
+          } on FormatException catch (error) {
             // A malformed signature refuses on FUNCTION rows (their
             // return type drives subject generation); other layers
             // preserve methods verbatim for their existing consumers.
+            // SPEC 1536: a parameter-syntax refusal is its own
+            // exception TYPE (FR-005) carrying its OWN named remedy
+            // (the supported grammar + fix) so the row refuses at plan
+            // time instead of emitting a pair that can only die at
+            // verify-red; the missing-`-> Return` refusal keeps its
+            // legacy message byte-for-byte.
             if (kind == ContractRowKind.function) {
+              final remedy = error is ParameterSyntaxException
+                  ? error.message
+                  : '   --> fix: add the `-> Return` part.';
               throw StateError(
                 'contract row "$name" declares a malformed signature '
                 '"$method" — declared signatures must be '
                 '`name(Params) -> Return` (spec line $lineNo).\n'
-                '   --> fix: add the `-> Return` part.',
+                '$remedy',
               );
             }
           }

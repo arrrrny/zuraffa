@@ -20,10 +20,18 @@ library;
 // barrel keeps exporting everything else, the entity keeps its own
 // name, and the generated code compiles.
 //
+// Issue #1530: the clause is emitted on the VERIFIED path only — the
+// resolution above must succeed for a name to be hidden. `setUp` seeds
+// a fixture zuraffa root exporting the colliding pair, so this file
+// keeps pinning the seeded path's byte-identical output (FR-010); the
+// unresolved path (no combinator) is pinned by
+// test/plugins/datasource/barrel_hide_unverified_1530_test.dart.
+//
 // Remediation (2): `entity create` preflights the name against the
 // framework's export surface and refuses with a `--> fix:` rename
 // suggestion (VISION §4 — errors are an API), so users never walk into
 // the trap for NEW entities.
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -37,6 +45,7 @@ import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/datasource/datasource_plugin.dart';
 import 'package:zuraffa/src/plugins/mock/mock_plugin.dart';
 import 'package:zuraffa/src/plugins/sqlite/builders/sqlite_datasource_builder.dart';
+import 'package:zuraffa/src/utils/zuraffa_barrel_exports.dart';
 
 import '../helpers/run_zfa_source.dart';
 
@@ -44,6 +53,7 @@ void main() {
   setUpAll(initZfaSourceBin);
 
   late Directory workspace;
+  late Directory barrelFixture;
   late String outputDir;
   late FileSystem fs;
 
@@ -61,11 +71,46 @@ dev_dependencies:
   build_runner: any
 ''');
     fs = FileSystem.create(root: workspace.path);
+
+    // Issue #1530: the `hide` clause is emitted only when the barrel
+    // surface resolves — seed a fixture zuraffa root exporting the
+    // colliding Credentials pair (the #942 premise) so the emission
+    // tests keep pinning the verified path's exact output. The fixture
+    // lives OUTSIDE the workspace: `entity create` subprocesses below
+    // must keep resolving the real surface.
+    barrelFixture = await Directory.systemTemp.createTemp('zfa_942_barrel_');
+    final zuraffaRoot = p.join(barrelFixture.path, 'zuraffa');
+    await Directory(p.join(zuraffaRoot, 'lib', 'src')).create(recursive: true);
+    await File(
+      p.join(zuraffaRoot, 'lib', 'zuraffa.dart'),
+    ).writeAsString("export 'src/core.dart';\n");
+    await File(
+      p.join(zuraffaRoot, 'lib', 'src', 'core.dart'),
+    ).writeAsString('class Credentials {}\nclass CredentialsPatch {}\n');
+    final dotTool = Directory(p.join(barrelFixture.path, '.dart_tool'));
+    await dotTool.create(recursive: true);
+    await File(p.join(dotTool.path, 'package_config.json')).writeAsString(
+      jsonEncode({
+        'configVersion': 2,
+        'packages': [
+          {
+            'name': 'zuraffa',
+            'rootUri': Uri.file(zuraffaRoot).toString(),
+            'packageUri': 'lib/',
+          },
+        ],
+      }),
+    );
+    ZuraffaBarrelExports.seed(barrelFixture.path);
   });
 
   tearDown(() async {
+    ZuraffaBarrelExports.reset();
     if (workspace.existsSync()) {
       await workspace.delete(recursive: true);
+    }
+    if (barrelFixture.existsSync()) {
+      await barrelFixture.delete(recursive: true);
     }
   });
 
@@ -273,14 +318,17 @@ class ${name}Patch {}
         files.firstWhere((f) => f.path.endsWith('mock_datasource.dart')),
       );
 
-      // The barrel import is still there (now with the entity's own
-      // symbols hidden — uniform, deterministic codegen for every
-      // entity) and the class still implements its datasource.
+      // The barrel import is still there — unchanged, no `hide`
+      // combinator: Order is not a verified framework export, and
+      // issue #1530 never hides unverified names (the colliding pair
+      // above is the verified case) — and the class still implements
+      // its datasource.
       expect(
         content,
-        contains("import 'package:zuraffa/mock.dart' hide Order"),
+        contains("import 'package:zuraffa/mock.dart';"),
         reason: 'out:\n$content',
       );
+      expect(content, isNot(contains('hide Order')));
       expect(content, contains('class OrderMockDataSource'));
       expect(content, contains('implements OrderDataSource'));
     });

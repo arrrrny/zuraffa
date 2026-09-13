@@ -1,21 +1,15 @@
-# TDD test list — Bug #1512 acceptance vacuous composition
+# TDD test list — Bug #1488 acceptance vacuous green
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| A-1512-a1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | an undeclared acceptance row emits the parameterless void-safe capture | FR-1512, BehaviorTestWriter._captureInvocation | GREEN |
-| A-1512-a2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | a directly-injected scalar shape is inert for acceptance (no threaded args, no returned result) | FR-1512, BehaviorTestWriter._captureInvocation | GREEN |
-| A-1512-a3 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | a directly-injected entity-return shape is inert too | FR-1512, BehaviorTestWriter._captureInvocation | GREEN |
-| A-1512-a4 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | the paired subject is the parameterless void runner the test call matches | FR-1512, SubjectWriter acceptance stub | GREEN |
-| A-1512-b1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the undeclared acceptance fallback carries the acceptance token, never the vacuous-guard marker | FR-1512, BehaviorTestWriter._deriveAssertion | GREEN |
-| A-1512-b2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the acceptance fallback does not reuse the unit-lane comment block | FR-1512, vacuous_guard.acceptanceFallbackGuardComment | GREEN |
-| A-1512-c1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | a plain scenario row plans the spec-052 composition lane (tdd compose → build) | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an incidental capitalised word does not fabricate an entity | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c3 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | a capitalised word alone never drives the entity pipeline | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c4 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an explicit `entity <Name>` prose signal plans the #758 entity pipeline (entity create → make → wire → build) | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c5 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an explicit `create <Name>` prose signal plans the entity pipeline too | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c6 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an explicit target wins the entity derivation | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c7 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the honest #758 refusal stays (CRUD prose, no entity) | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c8 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | non-acceptance rows keep the generic misfire | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-d1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the unit scalar capture is byte-for-byte (inferred annotation, threaded args, isA<T>, no marker, no acceptance token) | FR-1512, unit-lane guardrail | GREEN |
-| A-1512-d2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the undeclared unit fallback guard stays unmarked (#1308 two-class dispatch) | FR-1512, unit-lane guardrail | GREEN |
-| A-1512-e1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | integration | the emitted acceptance test+subject pair compiles and fails through an assertion (slow) | FR-1512, compile proof | GREEN |
+| A-1488-a1 | test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart | acceptance | an acceptance test whose only assertion is the UnimplementedError guard cannot certify green — even when it passes (exit 1, outcome=vacuous-green, no green evidence) | FR-1488, MakeCommand step 3c gate | GREEN |
+| A-1488-a2 | test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart | acceptance | the acceptance test WITH an outcome assertion still certifies green — the refusal keys on the assertion set, not the lane | FR-1488, contentIsVacuousGreen backstop | GREEN |
+| A-1488-a3 | test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart | acceptance | kindless/legacy rows keep the fail-open skip transition — no resolvable kind, no refusal | FR-1488, #1259 fail-open contract | GREEN |
+| U-1488-u1 | test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart | unit | the unit lane refusal is unchanged — a guard-only unit test is still refused (#1259 U1 mirror) | FR-1488, unit-lane scope preserved | GREEN |
+| U-1259-u3i | test/plugins/tdd/bug_1259_vacuous_green_test.dart | acceptance | INVERTED (cites #1488): acceptance rows are IN the vacuous-green refusal scope — the legacy skip pin now refuses | FR-1488, bug_1259 U3 | GREEN |
+| A-1162ei | test/plugins/tdd/bug_1162_bug_subject_green_path_test.dart | acceptance | INVERTED (cites #1488): the unexpressible acceptance make is refused vacuous-green before the composition fallback runs (no compose dispatch) | FR-1488, bug_1162 A-1162e | GREEN |
+| R-1259-u1u2 | test/plugins/tdd/bug_1259_vacuous_green_test.dart | unit | regression guard: the unit-lane U1/U2 pins pass byte-for-byte (refusal + assertion-set keying unchanged) | FR-1488, unit-lane scope preserved | GREEN |
+| R-052-compose | test/plugins/tdd/make_command_test.dart | acceptance | regression guard: spec-052 compose-fallback acceptance greens (A13/U19, A13b) survive — real-assertion fixtures unaffected | FR-1488, spec 052 composition lane | GREEN |
+| R-1345-redrive | test/plugins/tdd/bug_1345_placeholder_re_drive_test.dart | acceptance | regression guard: the tombstoned acceptance placeholder re-drive still re-enters compose (real-assertion fixture; the widened gate does not pre-empt it) | FR-1488, issue #1345 re-entry | GREEN |
+| R-1488-analyze | tool | unit | `dart analyze` on the five changed files reports No issues found | FR-1488, no new warnings | GREEN |
+| R-1488-format | tool | unit | `dart format .` reports 2764 files, 0 changed (tree format-clean) | FR-1488, formatter clean | GREEN |

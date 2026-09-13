@@ -1,4 +1,6 @@
-/// Fence-aware section splitter for `tdd/cycle-log.md` (issue #1467).
+/// Fence-aware section splitter for `tdd/cycle-log.md` (issue #1467), plus
+/// the fence-aware line walk the `tdd/test-list.md` readers share
+/// (issue #1575).
 ///
 /// Cycle-log entries embed captured test stdout verbatim inside fenced code
 /// blocks (`- output:` followed by a bare ` ``` ` fence — see
@@ -62,6 +64,60 @@ List<String> splitCycleLogSections(String raw) {
   final recovered = _behaviorSections(anchored.sections);
   if (recovered > _behaviorSections(scan.sections)) return anchored.sections;
   return scan.sections;
+}
+
+/// The fence-aware line walk the `tdd/test-list.md` readers share (issue
+/// #1575) — the `## ` header detection every section-state scanner
+/// (`TestListReader`'s row/entity/dependency/layer walks, the proof-chain
+/// coverage audit) used to perform with a bare `trimmed.startsWith('## ')`.
+///
+/// [splitCycleLogSections] cuts [content] at column-0 `## ` lines OUTSIDE
+/// fenced code blocks; each section's first line is its header. The
+/// splitter consumed the `## ` prefix as the boundary separator (a byte-0
+/// header keeps its prefix, mirroring the legacy `raw.split('\n## ')` byte
+/// contract), so the header text is the line's right-trimmed remainder —
+/// byte-equal to the legacy `trimmed.substring(3)` for every column-0
+/// header. A bare `## ` heading (empty remainder) is emitted as a body
+/// line: the legacy walk ignored those too (`'## '.trim()` does not start
+/// with `'## '`), so an empty heading never flipped a section state and
+/// still must not.
+///
+/// Yields every original line with its 1-based number — the splitter's
+/// boundary cuts reconstruct the original line sequence (each `\n## `
+/// separator it consumed covered exactly one line), so the line-naming
+/// error contract (bug #984) stays byte-identical — plus the header text
+/// for section-header lines (null for body lines, verbatim otherwise).
+///
+/// Non-column-0 headers are a disclosed delta: the legacy walk trimmed the
+/// line before matching, so a `  ## Key entities` line opened a section; the
+/// splitter only cuts at byte 0, so such a line stays body. All 161
+/// committed test-lists parse byte-identically either way.
+List<({int lineNo, String raw, String? header})> fenceAwareLines(
+  String content,
+) {
+  final lines = <({int lineNo, String raw, String? header})>[];
+  final sections = splitCycleLogSections(content);
+  for (var s = 0; s < sections.length; s++) {
+    final sectionLines = sections[s].split('\n');
+    for (var i = 0; i < sectionLines.length; i++) {
+      final raw = sectionLines[i];
+      String? header;
+      if (i == 0) {
+        if (s == 0) {
+          // Byte-compat: only chunk 0 can carry a `## ` prefix (the split
+          // never separates byte 0); legacy semantics apply to line 1
+          // verbatim.
+          final trimmed = raw.trim();
+          header = trimmed.startsWith('## ') ? trimmed.substring(3) : null;
+        } else {
+          final text = raw.trimRight();
+          header = text.isEmpty ? null : text;
+        }
+      }
+      lines.add((lineNo: lines.length + 1, raw: raw, header: header));
+    }
+  }
+  return lines;
 }
 
 /// One fence-tracking pass over [raw]. With [outputFencesOnly] a fence opens

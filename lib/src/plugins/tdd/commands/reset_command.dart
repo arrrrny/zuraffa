@@ -24,9 +24,9 @@
 ///      never deleted.
 ///   5. Deletes the owned files, drops the registry
 ///      (`tdd/artifacts.json`) and the feature's run-state
-///      (`tdd/run-state.json`) — the two mutable stores a restart needs
-///      clean. The cycle-log is append-only evidence and is never
-///      touched; the audit log is history and is never touched.
+///      (`tdd/run-state.json`) — two of the three mutable stores a
+///      restart needs clean. The cycle-log is append-only evidence and
+///      is never touched; the audit log is history and is never touched.
 ///   6. Appends a reset TOMBSTONE to the unified journal
 ///      (`tdd/journal.json`, issue #1264): one entry naming every
 ///      dropped behavior id, invalidating the green evidence those
@@ -34,11 +34,19 @@
 ///      driver re-derives done from the surviving evidence and skips the
 ///      dropped behaviors as "already done" (the phantom done-state). The
 ///      tombstone is append-only — the journal's history stays intact.
-///   7. Validates its own outcome (issue #1331): every planned deletion
+///   7. Invalidates the baseline caches (issue #1550): the corpus-wide
+///      baseline cache (`.zfa/corpus/run-baseline.json`, spec 069 T004)
+///      and the feature-local `specs/<feature>/tdd/run-baseline.json`.
+///      The corpus cache is the THIRD store with the same restart
+///      contract — its dependency fingerprint survives the reset (the
+///      fingerprint hashes pubspec + suite template, never the TDD
+///      state), so a left-behind snapshot makes the next run reuse a
+///      pre-reset baseline and believe the dropped behaviors are green.
+///   8. Validates its own outcome (issue #1331): every planned deletion
 ///      is re-statted after acting — the reported deleted-file count
 ///      matches the printed "will delete N owned files" list, and any
 ///      survivor is named in a warning instead of being silently kept.
-///   8. Emits the machine-readable JSON verdict as the final stdout line
+///   9. Emits the machine-readable JSON verdict as the final stdout line
 ///      and exits 0 on success, 1 on refusal (unknown feature).
 ///
 /// Ownership rule (hard constraint): reset NEVER deletes foreign files —
@@ -54,9 +62,11 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
+import '../services/corpus_baseline_cache.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/generated_shape.dart';
 import '../services/journal.dart';
+import '../services/run_baseline_cache.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
@@ -243,6 +253,24 @@ class ResetCommand extends Command<void> {
       );
     }
     print('  will reset tdd/run-state.json');
+    // Issue #1550: the baseline caches are the third store with the same
+    // restart contract — announced BEFORE acting, like every other reset
+    // effect. The corpus-wide snapshot's fingerprint survives the reset
+    // (it hashes pubspec + suite template, never the TDD state), so a
+    // left-behind cache would make the next run reuse a pre-reset
+    // baseline and believe the dropped behaviors are green.
+    final corpusCachePath = CorpusBaselineCache.pathFor(projectRoot: cwd);
+    final featureBaselinePath = RunBaselineCache.pathFor(
+      featureDir: featureDir,
+    );
+    print(
+      '  will invalidate the corpus baseline cache '
+      '(${_displayPath(cwd, corpusCachePath)}; spec 069 T004)',
+    );
+    print(
+      '  will invalidate the feature baseline cache '
+      '(${_displayPath(cwd, featureBaselinePath)})',
+    );
     print(
       '  will keep $foreignKept foreign generated file(s) untouched '
       '(never deleted)',
@@ -316,6 +344,21 @@ class ResetCommand extends Command<void> {
     final runStateFile = File(p.join(featureDir, 'tdd', 'run-state.json'));
     if (await runStateFile.exists()) await runStateFile.delete();
 
+    // Issue #1550: invalidate the baseline caches — the corpus-wide
+    // cache (spec 069 T004) alongside the registry + run-state, and the
+    // feature-local snapshot with it. A surviving snapshot would carry
+    // the PRE-RESET suite baseline: the next run's driver hits the
+    // `corpus-wide reuse` path (fingerprint match — the fingerprint
+    // never covered the TDD state) and believes the dropped behaviors
+    // are green. Deletion is the invalidation: the next capture starts
+    // from an empty cache, honestly stamped post-reset.
+    final corpusCacheFile = File(corpusCachePath);
+    if (await corpusCacheFile.exists()) await corpusCacheFile.delete();
+    final featureBaselineFile = File(featureBaselinePath);
+    if (await featureBaselineFile.exists()) {
+      await featureBaselineFile.delete();
+    }
+
     // Issue #1264: tombstone the dropped behaviors — append the journal
     // entry that invalidates their surviving green evidence, so the run
     // driver re-drives them instead of skipping them as "already done".
@@ -345,6 +388,10 @@ class ResetCommand extends Command<void> {
           .expand((paths) => paths)
           .map((path_) => _displayPath(cwd, path_))
           .toList(),
+      invalidatedCaches: [
+        _displayPath(cwd, corpusCachePath),
+        _displayPath(cwd, featureBaselinePath),
+      ],
     );
     exitCode = 0;
   }
@@ -457,6 +504,7 @@ class ResetCommand extends Command<void> {
     List<String> deletedFiles = const [],
     List<String> pathDrift = const [],
     List<String> foreignOwnedLooking = const [],
+    List<String> invalidatedCaches = const [],
   }) {
     if (!_jsonMode) {
       print(
@@ -495,6 +543,15 @@ class ResetCommand extends Command<void> {
     }
     if (foreignOwnedLooking.isNotEmpty) {
       _verdict.details['foreign_owned_looking'] = foreignOwnedLooking;
+    }
+    // Issue #1550: the baseline caches the reset invalidated (the
+    // corpus-wide cache + the feature-local snapshot), by display path.
+    // The list is the POST-condition, not a deletion log: every entry is
+    // guaranteed absent after the reset, whether or not it existed on
+    // disk before (deleting an absent cache is an idempotent no-op) —
+    // "invalidated", never "deleted".
+    if (invalidatedCaches.isNotEmpty) {
+      _verdict.details['invalidated_caches'] = invalidatedCaches;
     }
   }
 }

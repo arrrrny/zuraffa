@@ -36,8 +36,14 @@
 /// silently leave a stale stub behind. A progressed subject (no
 /// `UnimplementedError` left) is never clobbered.
 ///
-/// Ownership conflict: if a file exists on disk but the registry has no
-/// record for it, exits non-zero WITHOUT modifying the file (FR-008).
+/// Ownership conflict (FR-008): if a file exists on disk but the registry
+/// has no record for it, exits non-zero WITHOUT modifying the file (FR-008)
+/// — the refusal names `--adopt` as the resolving command (bug #840). The
+/// opposite drift direction (issue #1495) — the registry RECORDS a file
+/// that is missing from disk — refuses with the `--repair` remedy: nothing
+/// is on disk to clobber, so dropping the stale record and regenerating is
+/// safe once explicitly requested (audit-logged, adopt discipline for
+/// surviving halves).
 ///
 /// `--dry-run`: plans the pair without writing anything (FR-009) — the
 /// issue-#1528 entry preflight probes the TDD profile but never
@@ -99,6 +105,7 @@ import '../services/contract_test_writer.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/generated_shape.dart';
+import '../services/gen_reuse_fingerprint.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
 import '../services/profile_preflight.dart';
@@ -181,6 +188,19 @@ class GenCommand extends Command<void> {
       negatable: false,
     );
     argParser.addFlag(
+      'repair',
+      help:
+          'Recovery mode (issue #1495): when the registry RECORDS a file '
+          'that is missing from disk (the opposite drift direction of '
+          '--adopt), drop the stale record and regenerate. Surviving '
+          'halves are kept only after the same generated-shape '
+          'verification --adopt uses; the repair is audit-logged '
+          '(action "repair"). Owned-and-missing has nothing to clobber, '
+          'so regenerating is safe once explicitly requested.',
+      defaultsTo: false,
+      negatable: false,
+    );
+    argParser.addFlag(
       'all',
       negatable: false,
       help:
@@ -248,7 +268,8 @@ class GenCommand extends Command<void> {
 
   @override
   String get invocation =>
-      'zfa tdd gen <behavior-id> [--dry-run] [--kind widget] [--golden]';
+      'zfa tdd gen <behavior-id> [--dry-run] [--kind widget] [--golden] '
+      '[--adopt] [--repair]';
 
   /// The default wall-clock budget for the whole gen flow: 0.5 minutes =
   /// 30 seconds (bug #744 — the same acceptance budget the bug records
@@ -282,6 +303,7 @@ class GenCommand extends Command<void> {
     final behaviorId = rest.isEmpty ? null : rest.first;
     final dryRun = argResults!['dry-run'] as bool;
     final adopt = argResults!['adopt'] as bool;
+    final repair = argResults!['repair'] as bool;
     // Bug #830: explicit subject-kind override and the widget-only golden
     // baseline hook. The override is validated by args' `allowed` list;
     // the golden flag is validated against the EFFECTIVE kind below
@@ -356,6 +378,7 @@ class GenCommand extends Command<void> {
         await _generateAll(
           dryRun: dryRun,
           adopt: adopt,
+          repair: repair,
           kindOverride: kindOverride,
           golden: golden,
           featureFlag: featureFlag,
@@ -370,6 +393,7 @@ class GenCommand extends Command<void> {
         behaviorId!,
         dryRun: dryRun,
         adopt: adopt,
+        repair: repair,
         kindOverride: kindOverride,
         golden: golden,
         featureFlag: featureFlag,
@@ -410,6 +434,7 @@ class GenCommand extends Command<void> {
   Future<void> _generateAll({
     required bool dryRun,
     required bool adopt,
+    required bool repair,
     required BehaviorKind? kindOverride,
     required bool golden,
     required String? featureFlag,
@@ -514,6 +539,7 @@ class GenCommand extends Command<void> {
           id,
           dryRun: dryRun,
           adopt: adopt,
+          repair: repair,
           kindOverride: kindOverride,
           golden: golden,
           featureFlag: featureRef,
@@ -571,6 +597,8 @@ class GenCommand extends Command<void> {
         ? 'created'
         : (counts['adopted'] ?? 0) > 0
         ? 'adopted'
+        : (counts['repaired'] ?? 0) > 0
+        ? 'repaired'
         : (counts['regenerated'] ?? 0) > 0
         ? 'regenerated'
         : (counts['reused'] ?? 0) > 0
@@ -664,6 +692,7 @@ class GenCommand extends Command<void> {
     String behaviorId, {
     required bool dryRun,
     required bool adopt,
+    required bool repair,
     required BehaviorKind? kindOverride,
     required bool golden,
     required String? featureFlag,
@@ -1047,6 +1076,22 @@ class GenCommand extends Command<void> {
             fromDir: p.dirname(testPath),
           );
 
+    // Issue #1388: the gen reuse fingerprint — sha256 over the resolved
+    // lane-plan traces cell + the spec's declared-routing surface (its
+    // Layer Contracts section, never the whole `spec.md`: prose that
+    // declares no routing is not a routing change). Every record gen
+    // writes arms it, so the NEXT gen can tell whether the declared
+    // routing changed since the owned pair was generated. Without it the
+    // reuse decision is blind to routing changes that do not alter the
+    // rendered bytes (a traces cell gaining a no-signature contract row
+    // — the 004-login-ui `adaptive_layouts` shape), and the recovery
+    // loop the guard-only stop prescribes (add traces → re-plan →
+    // re-gen) dead-ends at the re-gen step with verdict=reused.
+    final genFingerprint = GenReuseFingerprint.forFeature(
+      featureDir: featureDir,
+      tracesCell: behavior.sourceCriterion,
+    );
+
     // Build the proposed record, then preflight ownership without changing
     // the registry. The record is appended only after both writes succeed.
     var record = ArtifactRecord(
@@ -1059,6 +1104,7 @@ class GenCommand extends Command<void> {
       testOwnership: dryRun ? Ownership.planned : Ownership.created,
       subjectOwnership: dryRun ? Ownership.planned : Ownership.created,
       createdAt: DateTime.now().toUtc().toIso8601String(),
+      genFingerprint: genFingerprint,
     );
 
     // Bug #840: adopt mode tracks which unowned files were verified and
@@ -1072,53 +1118,157 @@ class GenCommand extends Command<void> {
     GoldenHarnessPaths? goldenPaths;
 
     var adoptConflict = false;
+    // Issue #1495: set when the repair path dropped a stale record — the
+    // surviving halves are then reconciled exactly like adopted files
+    // (kept, never rewritten, protected from the transactional cleanup)
+    // and the flow reports verdict `repaired` with an action=repair
+    // audit line.
+    var repairConflict = false;
     try {
       record = await bounded(
         registry.preflight(record, dryRun: dryRun),
         'ownership preflight',
       );
     } on OwnershipConflict catch (e) {
-      if (!adopt || dryRun) {
-        // Bug #874: consult ALL feature registries before calling the
-        // conflicting file unowned. Another feature's artifact is
-        // foreign-owned — the verdict names the owner and the migrate
-        // fix; adopting it into a second registry would corrupt
-        // ownership.
-        final foreignOwner = await bounded(
-          foreignOwnerOf(cwd, [e.path], excludeFeature: featureName),
-          'ownership preflight: cross-registry lookup',
+      final repairable =
+          repair &&
+          !dryRun &&
+          e.direction == OwnershipConflictDirection.ownedButMissing;
+      if (repairable) {
+        final stale = await bounded(
+          registry.findRecord(behavior.id),
+          'repair: registry lookup',
         );
-        if (foreignOwner != null) {
-          final migrateFix = 'zfa tdd migrate-paths $foreignOwner';
+        if (stale == null) {
+          // Honest fallback: the conflict claimed ownership that the
+          // registry no longer shows. Nothing to drop — refuse with the
+          // actionable text below (never silently proceed).
+        } else {
+          // Drop the stale record BEFORE the shape checks so every
+          // refusal below leaves a RESOLVABLE state: once the record is
+          // gone, a surviving half degrades to the documented
+          // exists-unowned direction (--adopt) instead of a dead end.
+          await bounded(
+            registry.dropRecords({behavior.id}),
+            'repair: drop stale record',
+          );
+          // Issue #1495, same discipline as --adopt (bug #840): a
+          // surviving half is kept ONLY when it matches the generated
+          // shape (provenance header + behavior id) — never blindly.
+          for (final (role, path, shaped) in [
+            ('test', testPath, matchesGeneratedTestShape),
+            ('subject', subjectPath, matchesGeneratedSubjectShape),
+          ]) {
+            final file = File(path);
+            if (!await bounded(file.exists(), 'repair: stat $role')) continue;
+            final content = await bounded(
+              file.readAsString(),
+              'repair: read $role',
+            );
+            if (!shaped(content, behavior.id)) {
+              _printVerdict(
+                behaviorId: behavior.id,
+                verdict: 'refused',
+                reason:
+                    '$role file "$path" survived the gone pair but does not '
+                    'match the generated $role shape (provenance header + '
+                    'behavior_id) — the stale registry record was dropped, '
+                    'so the file is now unowned: delete it (or restore the '
+                    'generated artifact) and re-run '
+                    '`zfa tdd gen ${behavior.id} --repair --feature '
+                    '$featureRef`',
+              );
+              // Issue #1495 review: the stale record was already dropped
+              // above — trace the mutation even though this run refuses
+              // (the post-flow audit call is gated on repairConflict,
+              // which this early return never sets). `kept` = survivors
+              // verified so far; nothing was regenerated.
+              await bounded(
+                _auditRepair(
+                  featureDir,
+                  featureName,
+                  behavior.id,
+                  adoptedPaths,
+                  const [],
+                ),
+                'repair: audit log (refused after drop)',
+              );
+              // House pattern (spec 048): signal through exitCode and
+              // return, so the JSON verdict stays the final stdout line.
+              exitCode = 1;
+              return 'refused';
+            }
+            adoptedPaths.add(path);
+          }
+          print(
+            'note: dropped the stale registry record for "${behavior.id}" '
+            '— the registry owned the missing file(s), nothing on disk to '
+            'clobber; regenerating (issue #1495)',
+          );
+          repairConflict = true;
+        }
+      }
+      if (!repairConflict) {
+        if (!adopt || dryRun) {
+          // Bug #874: consult ALL feature registries before calling the
+          // conflicting file unowned. Another feature's artifact is
+          // foreign-owned — the verdict names the owner and the migrate
+          // fix; adopting it into a second registry would corrupt
+          // ownership.
+          final foreignOwner = await bounded(
+            foreignOwnerOf(cwd, [e.path], excludeFeature: featureName),
+            'ownership preflight: cross-registry lookup',
+          );
+          if (foreignOwner != null) {
+            // Issue #1573: prescribe the flag form migrate-paths parses.
+            final migrateFix = 'zfa tdd migrate-paths --feature $foreignOwner';
+            _printVerdict(
+              behaviorId: behavior.id,
+              verdict: 'foreign-owned',
+              reason:
+                  'the conflicting file is owned by feature "$foreignOwner" '
+                  '— never adopt another feature\'s artifacts; run '
+                  '`$migrateFix` to move the owning feature\'s artifacts '
+                  'to the namespaced layout',
+            );
+            exitCode = 1;
+            stderr.writeln(
+              'zfa tdd gen: foreign-owned — the conflicting file is owned '
+              'by feature $foreignOwner',
+            );
+            throw StateError(
+              'zfa tdd gen: foreign-owned — the conflicting file is owned '
+              'by feature $foreignOwner',
+            );
+          }
+          // Issue #1495: the refusal names the command that RESOLVES this
+          // drift direction — never the command that refused. --adopt is
+          // the resolution for files-without-records (#840); --repair is
+          // the resolution for records-without-files.
+          final remedyFix = switch (e.direction) {
+            OwnershipConflictDirection.ownedButMissing =>
+              'zfa tdd gen ${behavior.id} --repair --feature $featureRef',
+            OwnershipConflictDirection.existsUnowned =>
+              'zfa tdd gen ${behavior.id} --adopt --feature $featureRef',
+            OwnershipConflictDirection.pathMismatch =>
+              'zfa tdd doctor $featureRef',
+          };
           _printVerdict(
             behaviorId: behavior.id,
-            verdict: 'foreign-owned',
-            reason:
-                'the conflicting file is owned by feature "$foreignOwner" '
-                '— never adopt another feature\'s artifacts; run '
-                '`$migrateFix` to move the owning feature\'s artifacts '
-                'to the namespaced layout',
+            verdict: 'refused',
+            reason: 'ownership conflict: $e — resolving command: $remedyFix',
           );
           exitCode = 1;
           stderr.writeln(
-            'zfa tdd gen: foreign-owned — the conflicting file is owned '
-            'by feature $foreignOwner',
+            'zfa tdd gen: ownership conflict — $e '
+            '--> fix: $remedyFix',
           );
           throw StateError(
-            'zfa tdd gen: foreign-owned — the conflicting file is owned '
-            'by feature $foreignOwner',
+            'zfa tdd gen: ownership conflict — $e --> fix: $remedyFix',
           );
         }
-        _printVerdict(
-          behaviorId: behavior.id,
-          verdict: 'refused',
-          reason: 'ownership conflict: ${e.toString()}',
-        );
-        exitCode = 1;
-        stderr.writeln('zfa tdd gen: ownership conflict — $e');
-        throw StateError('zfa tdd gen: ownership conflict — $e');
+        adoptConflict = true;
       }
-      adoptConflict = true;
     }
 
     if (adoptConflict) {
@@ -1158,7 +1308,8 @@ class GenCommand extends Command<void> {
         'adopt: cross-registry lookup',
       );
       if (adoptForeignOwner != null) {
-        final migrateFix = 'zfa tdd migrate-paths $adoptForeignOwner';
+        // Issue #1573: prescribe the flag form migrate-paths parses.
+        final migrateFix = 'zfa tdd migrate-paths --feature $adoptForeignOwner';
         _printVerdict(
           behaviorId: behavior.id,
           verdict: 'foreign-owned',
@@ -1325,7 +1476,18 @@ class GenCommand extends Command<void> {
         }
         Error.throwWithStackTrace(error, stackTrace);
       }
-      if (adoptedPaths.isNotEmpty) {
+      if (repairConflict) {
+        await bounded(
+          _auditRepair(
+            featureDir,
+            featureName,
+            behavior.id,
+            adoptedPaths,
+            createdPaths,
+          ),
+          'repair: audit log',
+        );
+      } else if (adoptedPaths.isNotEmpty) {
         await bounded(
           _auditAdopt(featureDir, featureName, behavior.id, adoptedPaths),
           'adopt: audit log',
@@ -1350,31 +1512,138 @@ class GenCommand extends Command<void> {
     // guard-only pair) reports `verdict=regenerated` instead of `reused`
     // — the stale-guard re-gen is the command-surfaced remedy the issue
     // names, and a bare `reused` verdict hid it.
-    var staleness = (regenerated: false, contractDrift: false);
+    //
+    // Issue #1388: the byte-compare above is blind to declared-routing
+    // changes that do NOT alter the rendered bytes (a traces cell gaining
+    // a no-signature contract row — a layout-surface/entity/dependency
+    // row), and a pair whose subject progressed past the stub stage
+    // exits the staleness path early by design (never clobber real
+    // work). The reuse fingerprint closes both holes: a stored
+    // fingerprint that differs from the current one (the lane-plan
+    // traces cell or spec.md changed since generation) FORCES the
+    // re-render past the byte-equality short-circuit — and when the
+    // machinery still declines (progressed subject, ffi harness), reuse
+    // is REFUSED with the actual escape hatch (`zfa tdd reset
+    // <feature>`) instead of silently reusing a pair that predates the
+    // routing change.
+    var staleness = (
+      regenerated: false,
+      contractDrift: false,
+      fingerprintDrift: false,
+    );
     if (record.testOwnership == Ownership.reused &&
         record.subjectOwnership == Ownership.reused &&
         !dryRun) {
-      staleness = await _regenerateStaleStub(
-        behavior: effectiveBehavior,
-        featureName: featureName,
-        testPath: testPath,
-        subjectPath: subjectPath,
-        golden: goldenGate,
-        platformContext: platformContext,
-        widgetShell: widgetShell,
-        i18nKeys: i18nKeys,
-        i18nImport: i18nImport,
-        i18nExpansion: i18nExpansion,
-        contractShape: contractShape,
-        bounded: bounded,
-        flutterTest: flutterTest,
-        // Issue #1518: the staleness mirror renders through the same
-        // writers and PRINTS the same warning — it gets the same seam
-        // context so one gen output never carries two different
-        // remedies.
-        projectRoot: cwd,
-        featureDir: featureDir,
-      );
+      // Issue #1388: the fingerprint gate. Records written before the
+      // fingerprint existed carry none — the gate stays open for them
+      // (the field arms on the next created/regenerated record; never
+      // retro-invalidate a shipped registry).
+      final fingerprintDrift =
+          record.genFingerprint != null &&
+          record.genFingerprint != genFingerprint;
+      if (fingerprintDrift) {
+        final forced = await _regenerateStaleStub(
+          behavior: effectiveBehavior,
+          featureName: featureName,
+          testPath: testPath,
+          subjectPath: subjectPath,
+          golden: goldenGate,
+          platformContext: platformContext,
+          widgetShell: widgetShell,
+          i18nKeys: i18nKeys,
+          i18nImport: i18nImport,
+          i18nExpansion: i18nExpansion,
+          contractShape: contractShape,
+          bounded: bounded,
+          flutterTest: flutterTest,
+          // Issue #1518: the staleness mirror renders through the same
+          // writers and PRINTS the same warning — it gets the same seam
+          // context so one gen output never carries two different
+          // remedies.
+          projectRoot: cwd,
+          featureDir: featureDir,
+          // Issue #1388: the routing changed since generation — the
+          // byte-equality short-circuit must not keep the stale pair.
+          forceRebuild: true,
+        );
+        staleness = (
+          regenerated: forced.regenerated,
+          contractDrift: forced.contractDrift,
+          fingerprintDrift: true,
+        );
+        if (staleness.regenerated) {
+          // The pair now reflects the current routing: refresh the
+          // stored digest so the drift fires once per change and
+          // stable reuse resumes (FR-006 idempotency for the
+          // unchanged class).
+          await bounded(
+            registry.refreshGenFingerprint(
+              behaviorId: behavior.id,
+              genFingerprint: genFingerprint,
+            ),
+            'registry fingerprint refresh',
+          );
+          record = record.copyWithGenFingerprint(genFingerprint);
+        } else {
+          // The regeneration machinery declined: the subject progressed
+          // past the stub stage (real implementation — never clobbered)
+          // or the pair is an ffi harness (never auto-regenerated).
+          // Refuse the reuse honestly and name the escape hatch the
+          // issue's workaround had to discover by hand.
+          final reason =
+              'the owned pair for "$behaviorId" predates a '
+              'declared-routing change (reuse fingerprint drifted: the '
+              "lane-plan traces cell or the spec's Layer Contracts "
+              'routing surface changed since generation) and gen cannot '
+              'auto-regenerate it — the subject has progressed past the '
+              'stub stage or the pair is an ffi harness, and regenerating '
+              'would clobber real work (issue #1388)';
+          print('zfa tdd gen: reuse refused — $reason.');
+          print(
+            '   --> fix: zfa tdd reset $featureName — drop the '
+            "feature's registry-owned artifacts, re-run "
+            '`zfa tdd plan $featureName` + `zfa tdd gen $behaviorId`, '
+            'then re-apply the implementation.',
+          );
+          _printVerdict(
+            behaviorId: behavior.id,
+            verdict: 'refused',
+            reason: reason,
+            featureName: featureName,
+            featureDisplay: featureDisplay,
+            kind: effectiveBehavior.kind.name,
+          );
+          exitCode = 1;
+          return 'refused';
+        }
+      } else {
+        final checked = await _regenerateStaleStub(
+          behavior: effectiveBehavior,
+          featureName: featureName,
+          testPath: testPath,
+          subjectPath: subjectPath,
+          golden: goldenGate,
+          platformContext: platformContext,
+          widgetShell: widgetShell,
+          i18nKeys: i18nKeys,
+          i18nImport: i18nImport,
+          i18nExpansion: i18nExpansion,
+          contractShape: contractShape,
+          bounded: bounded,
+          flutterTest: flutterTest,
+          // Issue #1518: the staleness mirror renders through the same
+          // writers and PRINTS the same warning — it gets the same seam
+          // context so one gen output never carries two different
+          // remedies.
+          projectRoot: cwd,
+          featureDir: featureDir,
+        );
+        staleness = (
+          regenerated: checked.regenerated,
+          contractDrift: checked.contractDrift,
+          fingerprintDrift: false,
+        );
+      }
     }
 
     // Print the structured result. Use `print` (not `stdout.writeln`) so
@@ -1384,6 +1653,10 @@ class GenCommand extends Command<void> {
         staleness.contractDrift
             ? 'note: traces cell gained a contract token since generation '
                   '— pair regenerated (issue #1320)'
+            : staleness.fingerprintDrift
+            ? 'note: declared routing changed since the owned pair was '
+                  "generated (traces cell or the spec's Layer Contracts) "
+                  '— pair regenerated (issue #1388)'
             : 'note: binary updated, stub regenerated',
       );
     }
@@ -1403,12 +1676,17 @@ class GenCommand extends Command<void> {
       );
     }
     // Bug #840: the machine-readable JSON verdict — the final stdout line
-    // on every gen path.
-    final verdictToken = adoptedPaths.isNotEmpty
+    // on every gen path. Issue #1495: a repair run reports `repaired`
+    // (the stale record was dropped + the pair regenerated) ahead of the
+    // adopted/created tokens.
+    final verdictToken = repairConflict
+        ? 'repaired'
+        : adoptedPaths.isNotEmpty
         ? 'adopted'
         : dryRun
         ? 'planned'
-        : staleness.regenerated && staleness.contractDrift
+        : staleness.regenerated &&
+              (staleness.contractDrift || staleness.fingerprintDrift)
         ? 'regenerated'
         : record.testOwnership == Ownership.reused
         ? 'reused'
@@ -1422,6 +1700,7 @@ class GenCommand extends Command<void> {
       created: createdPaths,
       featureName: featureName,
       featureDisplay: featureDisplay,
+      repaired: repairConflict,
       goldenTestPath: goldenPaths?.laneTestPath,
       goldenFixturesDir: goldenPaths?.fixturesDir,
     );
@@ -1455,6 +1734,9 @@ class GenCommand extends Command<void> {
     // only the keys it knows.
     String? kind,
     bool golden = false,
+    // Issue #1495: a repair run — the audit_log detail is emitted for the
+    // repair (not only for adoptions).
+    bool repaired = false,
     String? goldenTestPath,
     String? goldenFixturesDir,
   }) {
@@ -1479,7 +1761,7 @@ class GenCommand extends Command<void> {
       if (golden) _verdict.details['golden'] = true;
       if (adopted.isNotEmpty) _verdict.details['adopted'] = adopted;
       if (created.isNotEmpty) _verdict.details['created'] = created;
-      if (adopted.isNotEmpty && featureDisplay != null) {
+      if ((adopted.isNotEmpty || repaired) && featureDisplay != null) {
         _verdict.details['audit_log'] = p.join(
           featureDisplay,
           'tdd',
@@ -1510,7 +1792,7 @@ class GenCommand extends Command<void> {
         if (golden) 'golden': true,
         if (adopted.isNotEmpty) 'adopted': adopted,
         if (created.isNotEmpty) 'created': created,
-        if (adopted.isNotEmpty && featureDisplay != null)
+        if ((adopted.isNotEmpty || repaired) && featureDisplay != null)
           'audit_log': p.join(featureDisplay, 'tdd', 'audit.log'),
         'golden_test': ?goldenTestPath,
         'golden_fixtures': ?goldenFixturesDir,
@@ -1784,6 +2066,34 @@ class GenCommand extends Command<void> {
     await sink.close();
   }
 
+  /// Append the repair audit record (issue #1495): one JSONL line per
+  /// repair in `specs/<feature>/tdd/audit.log` — the same discipline as
+  /// the #840 adoption line. Records what was dropped and how the pair
+  /// was re-materialized (kept surviving halves vs regenerated halves).
+  Future<void> _auditRepair(
+    String featureDir,
+    String featureName,
+    String behaviorId,
+    List<String> keptPaths,
+    List<String> createdPaths,
+  ) async {
+    final auditFile = File(p.join(featureDir, 'tdd', 'audit.log'));
+    await auditFile.parent.create(recursive: true);
+    final line = jsonEncode({
+      'at': DateTime.now().toUtc().toIso8601String(),
+      'action': 'repair',
+      'feature': featureName,
+      'behavior': behaviorId,
+      'dropped_record': true,
+      'kept': keptPaths,
+      'created': createdPaths,
+    });
+    final sink = auditFile.openWrite(mode: FileMode.append);
+    sink.writeln(line);
+    await sink.flush();
+    await sink.close();
+  }
+
   /// Detect a stub written by an OLDER binary (bug #683) and regenerate
   /// the pair when the current binary would render different content.
   /// Every awaited stage runs under the caller's shared [bounded]
@@ -1834,6 +2144,20 @@ class GenCommand extends Command<void> {
     bool flutterTest = false,
     String? projectRoot,
     String? featureDir,
+
+    /// Issue #1388: the reuse fingerprint drifted — the declared routing
+    /// changed since the owned pair was generated. The byte-equality
+    /// short-circuit must NOT keep the on-disk pair in that case: the
+    /// pair is re-rendered and rewritten even when the current binary
+    /// would produce identical bytes (the drift is the ROUTING's, not
+    /// the render's — a no-signature contract row, or a declaration
+    /// added to the spec's Layer Contracts surface that no behavior's
+    /// traces cell resolves, changes nothing the writers can see), so
+    /// the verdict honestly reports `regenerated` and the stored
+    /// fingerprint refreshes. Every other guard stays: ffi harnesses are
+    /// never auto-regenerated, progressed subjects are never clobbered,
+    /// and a failed rewrite still rolls back.
+    bool forceRebuild = false,
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
     // seams are the implementer's wiring point — partial wiring (the
@@ -1938,7 +2262,9 @@ class GenCommand extends Command<void> {
         File(testPath).readAsString(),
         'staleness: read on-disk test',
       );
-      if (expectedSubject == onDiskSubject && expectedTest == onDiskTest) {
+      if (!forceRebuild &&
+          expectedSubject == onDiskSubject &&
+          expectedTest == onDiskTest) {
         return (regenerated: false, contractDrift: false);
       }
       // Issue #1320: the drift cause — the cell gained a contract token

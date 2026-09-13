@@ -26,6 +26,14 @@
 ///      line on every code path (FR-009); exit code 0 means exactly
 ///      "green before and after".
 ///
+/// Spec 1520 — per-run scratch TMPDIR. The command acquires ONE scratch dir
+/// per invocation and hands it to the preflight/re-proof suite runs and the
+/// pass registry, so every `dart test`/`dart` child of the cycle writes its
+/// kernel and dill temp files inside the run's own scratch instead of the
+/// shared user TMPDIR; the scratch is deleted recursively in a `finally`
+/// (the #1507 leak fixed by construction, in the command whose loops ran
+/// longest). Best-effort: a scratchless run always beats a failed one.
+///
 /// Issue #922 — pre-existing red and the run's done gate. When the driving
 /// `zfa tdd run` hands its cached full-suite baseline
 /// (`--suite-baseline run-baseline.json`, the issue #741 cache) to a
@@ -72,8 +80,10 @@ import '../services/refactor_receipt_refresh.dart';
 import '../services/reproof_failure_classifier.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/runner.dart';
+import '../services/scratch_tmpdir.dart';
 import '../services/subject_evidence_refresh.dart';
 import '../services/suite_guard.dart';
+import '../services/tdd_profile_keys.dart';
 import '../services/tdd_timeout.dart';
 import '../services/tree_snapshot.dart';
 import '../services/verdict_emitter.dart';
@@ -211,14 +221,33 @@ class RefactorCommand extends Command<void> {
       return;
     }
 
-    await _run(
-      cwd: cwd,
-      featureFlag: featureFlag,
-      zfaBin: zfaBinFlag,
-      timeout: timeoutOverride,
-      fullReproof: argResults?['full-reproof'] as bool? ?? false,
-      suiteBaselinePath: argResults?['suite-baseline'] as String?,
+    // Spec 1520: ONE scratch dir per invocation. Every child of a refactor
+    // cycle — the preflight/re-proof suite runs AND the pass registry's
+    // spawns (build/format/fix) — inherits the scratch as its TMPDIR, so
+    // their `dart test`/`dart` grandchild kernel dirs land inside the run's
+    // own scratch instead of the shared user TMPDIR; the finally below
+    // deletes it recursively at run end (the #1507 leak fixed by
+    // construction). Best-effort: a scratchless run always beats a crashed
+    // command.
+    final scratch = await ScratchTmpDir.acquire(
+      label: (featureFlag != null && featureFlag.isNotEmpty)
+          ? featureFlag
+          : 'refactor',
+      projectRoot: cwd,
     );
+    try {
+      await _run(
+        cwd: cwd,
+        featureFlag: featureFlag,
+        zfaBin: zfaBinFlag,
+        timeout: timeoutOverride,
+        fullReproof: argResults?['full-reproof'] as bool? ?? false,
+        suiteBaselinePath: argResults?['suite-baseline'] as String?,
+        scratchEnv: scratch?.childEnvironment(),
+      );
+    } finally {
+      await scratch?.dispose();
+    }
   }
 
   /// The body of the command, extracted so it can return a typed outcome
@@ -231,6 +260,7 @@ class RefactorCommand extends Command<void> {
     Duration? timeout,
     bool fullReproof = false,
     String? suiteBaselinePath,
+    Map<String, String>? scratchEnv,
   }) async {
     RefactorOutcome outcome;
     int applied = 0;
@@ -299,6 +329,7 @@ class RefactorCommand extends Command<void> {
         suiteTemplate: suiteTemplate,
         workingDirectory: cwd,
         timeout: timeout,
+        environment: scratchEnv,
       );
       print('   preflight exit: ${preflight.exitCode}');
 
@@ -423,11 +454,19 @@ class RefactorCommand extends Command<void> {
       // entrypoint resolves through the same tiers make/gen/verify use;
       // --zfa-bin overrides it (bug #689: never the hardcoded
       // bin/zfa.dart, which zfa setup does not create).
+      // Issue #1472: the build gate the registry applies is ERRORS-ONLY
+      // (warnings are the dart fix pass's input) unless this project's
+      // TDD profile opts back into the legacy warnings-blocking
+      // strictness with `analyze-gate: warnings-blocking` — the same
+      // machine-readable key, resolution order, and default the make's
+      // #1407 errors-only gate honors.
       print('zfa tdd refactor: applying passes');
       final passes = RefactorPasses(
         cwd,
         zfaBinOverride: (zfaBin != null && zfaBin.isNotEmpty) ? zfaBin : null,
         passTimeout: timeout,
+        warningsBlocking: await TddProfileKeys.warningsBlocking(cwd),
+        environment: scratchEnv,
       );
       final passResult = await passes.run();
       for (final action in passResult.actions) {
@@ -439,11 +478,41 @@ class RefactorCommand extends Command<void> {
         } else {
           print('     changed: (none)');
         }
+        // Spec 1540: surface the tracked-placeholder restore-or-refuse
+        // evidence the pass registry recorded (the full tool output stays
+        // in the action record / cycle log — only the [1540] lines are
+        // stdout-worthy).
+        for (final line in action.output.split('\n')) {
+          if (line.contains('[1540]')) {
+            print('     $line');
+          }
+        }
       }
+      // Spec 1540: computed BEFORE the misfire/refusal branches so the
+      // summary line reports the true applied count on every exit path.
+      applied = passResult.actions
+          .where((a) => a.filesChanged.isNotEmpty)
+          .length;
       if (passResult.stopped) {
         // Misfire-stop (FR-010) — a pass failed. Re-run the suite to
         // determine the resulting safety state.
         print('   pass "${passResult.failedPass}" failed — misfire-stop.');
+        // Spec 1540 (restore-or-refuse): the registry REFUSED because the
+        // build pass deleted a git-tracked generated-name file it could not
+        // restore. Re-proving a broken tree would be dishonest evidence —
+        // hard-stop here with the exact restore remedy, exit non-zero.
+        if (passResult.refusalReason != null) {
+          print('   ${passResult.refusalReason}');
+          print('   Restore the file, then re-run `zfa tdd refactor`.');
+          outcome = RefactorOutcome.runnerError;
+          _printSummary(
+            feature: featureName,
+            outcome: outcome,
+            applied: applied,
+          );
+          exitCode = 1;
+          return;
+        }
         final failedAction = passResult.actions
             .where((a) => a.name == passResult.failedPass)
             .toList();
@@ -457,9 +526,6 @@ class RefactorCommand extends Command<void> {
           );
         }
       }
-      applied = passResult.actions
-          .where((a) => a.filesChanged.isNotEmpty)
-          .length;
 
       // 6. Post-pass immutability + attribution checks (FR-004, FR-005).
       final testAfter = await TreeSnapshot.capture(cwd, trees: const ['test']);
@@ -587,6 +653,7 @@ class RefactorCommand extends Command<void> {
         suiteTemplate: reproofCommand,
         workingDirectory: cwd,
         timeout: timeout,
+        environment: scratchEnv,
       );
       print('   re-proof exit: ${reproof.exitCode}');
 
@@ -625,6 +692,7 @@ class RefactorCommand extends Command<void> {
           suiteTemplate: reproofCommand,
           workingDirectory: cwd,
           timeout: timeout,
+          environment: scratchEnv,
         );
         print('   re-proof exit: ${reproof.exitCode} (retry $reproofRetries)');
       }

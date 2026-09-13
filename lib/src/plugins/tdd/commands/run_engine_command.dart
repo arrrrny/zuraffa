@@ -115,9 +115,11 @@ class RunEngineCommand extends Command<void> {
       'timeout',
       valueHelp: 'minutes',
       help:
-          'Hard deadline in minutes for each spawned step command (bug #742; '
-          'default 10). Fractions are allowed. On timeout the child is '
-          'killed and the run stops with result=runner-error.',
+          'Hard deadline in minutes for each spawned step command (bug #742). '
+          'Omitted, the deadline SCALES from the measured baseline suite '
+          '(max(25m floor, 4 x baseline) — spec 1529). Fractions are '
+          'allowed. On timeout the child is killed and the run stops with '
+          'result=runner-error.',
     );
     argParser.addFlag(
       'skip-widget',
