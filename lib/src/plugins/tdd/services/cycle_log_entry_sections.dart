@@ -34,6 +34,10 @@ import 'cycle_log_sections.dart';
 class CycleLogEntrySection {
   const CycleLogEntrySection({required this.header, required this.bodyLines});
 
+  /// Hoisted: compiling per `kind` access recompiled the pattern for every
+  /// entry, per reader, per scan.
+  static final RegExp _kindTail = RegExp(r'\(([^)]*)\)$');
+
   /// The header line WITHOUT the `## ` prefix, trimmed — e.g.
   /// `Cycle: B-001 (red)`. A byte-0 header keeps its prefix under the
   /// legacy `raw.split('\n## ')` contract (the split never separates byte
@@ -58,7 +62,7 @@ class CycleLogEntrySection {
   /// `error`, `refresh` — or null when the header carries no
   /// `(kind)` suffix.
   String? get kind {
-    final match = RegExp(r'\(([^)]*)\)$').firstMatch(header);
+    final match = _kindTail.firstMatch(header);
     return match?.group(1);
   }
 }

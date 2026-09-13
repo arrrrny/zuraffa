@@ -301,8 +301,9 @@ void main() {
         feature.state,
         FeatureRealizationState.completeReal,
         reason:
-            'SC-3: both real behaviors are green — the phantom never '
-            'blocks completion, and only real green evidence counts',
+            'SC-3: the phantom header never greens a phantom behavior; the '
+            'in-fence `- kind: green` line credits the section\'s own real '
+            'behavior — masking in-fence field-shaped lines is deferred',
       );
     },
   );
