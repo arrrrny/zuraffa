@@ -49,7 +49,7 @@ every OCR stamp verified.
 
 ### Tests for User Story 2 (written first, must FAIL)
 
-- [ ] T005. [US2] [behavior: B3] [MANDATORY] Family board e2e in
+- [x] T005. [US2] [behavior: B3] [MANDATORY] Family board e2e in
       `test/package_sdk/plugin_ocr_e2e_test.dart`
       (`@Tags(['integration','slow'])`): real CLI scaffold → per package
       `dart pub get`, `dart analyze --no-fatal-warnings`, `dart test`,
@@ -58,7 +58,7 @@ every OCR stamp verified.
 
 ### Implementation for User Story 2
 
-- [ ] T006. [US2] Confirm B3 green; record elapsed + per-gate results in
+- [x] T006. [US2] Confirm B3 green; record elapsed + per-gate results in
       `tdd/cycle-log.md`. STOP and report on any gate failure.
 
 ## Phase 4: User Story 3 — the repo exists on GitHub (P2)

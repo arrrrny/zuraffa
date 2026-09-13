@@ -34,3 +34,14 @@
   plugin_ocr_instance_test.dart` → `+4: All tests passed!` (B1, B2, B2b,
   B2c). Full scoped suite: `+65: All tests passed!` (58 baseline + 4 OCR
   + 3 maintainer B12 tests).
+
+## Cycle C2 — the family board (B3)
+
+- **First run: `11:56 +1: All tests passed!`** — born-green (GUARD, honest
+  classification): the identical board was proven for the generator by the
+  zuraffa_ffi delivery and spec-1601's e2e; the OCR delta is the stamped
+  names/description, already pinned by B1/B2. Unlike the 1601 e2e, B3
+  passes NO `--zuraffa-path`, so the hosted constraint resolves against
+  pub.dev — the exact miss #1615 fixed. Board: 5 packages × (pub get,
+  analyze, test, publish --dry-run) all exit 0, elapsed 10m16s (budget
+  15 min).
