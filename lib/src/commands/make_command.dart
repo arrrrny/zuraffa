@@ -1065,7 +1065,10 @@ class MakeCommand extends Command<void> {
       if (pubsyncGap != null) {
         try {
           final ensureOutcome = await const PubspecZuraffaEnsure()
-              .ensureForImports(manager.projectRoot, pubsyncGap.importedPackages);
+              .ensureForImports(
+                manager.projectRoot,
+                pubsyncGap.importedPackages,
+              );
           if (ensureOutcome.added) {
             zuraffaEnsured = true;
             print(
@@ -1101,8 +1104,7 @@ class MakeCommand extends Command<void> {
       final autoAddPackages = (pubsyncGap?.pubAddPackages ?? const <String>[])
           .where(
             (name) =>
-                !(zuraffaEnsured &&
-                    name == PubspecZuraffaEnsure.packageName),
+                !(zuraffaEnsured && name == PubspecZuraffaEnsure.packageName),
           )
           .toList();
       if (pubsyncGap != null &&
@@ -1125,11 +1127,25 @@ class MakeCommand extends Command<void> {
         }
       }
 
+      // The ⚠️ diagnostics downstream must reflect the POST-ensure
+      // pubspec state: when the ensure declared `zuraffa`, the stale
+      // pre-ensure gap would print a `doesn't declare zuraffa` warning
+      // contradicting the receipt line above it — filter it out.
+      final effectiveGap = (pubsyncGap != null && zuraffaEnsured)
+          ? PubspecDependencyGap(
+              importedPackages: pubsyncGap.importedPackages,
+              missing: pubsyncGap.missing
+                  .where((name) => name != PubspecZuraffaEnsure.packageName)
+                  .toList(),
+              isFlutterProject: pubsyncGap.isFlutterProject,
+            )
+          : pubsyncGap;
+
       _logSummary(
         files,
         context.core.verbose,
         plan: plan,
-        pubsyncGap: pubsyncGap,
+        pubsyncGap: effectiveGap,
         pubsyncAutoAdded: pubsyncAutoAdded,
       );
 

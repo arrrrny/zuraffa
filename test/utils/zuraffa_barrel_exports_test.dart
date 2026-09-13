@@ -88,17 +88,17 @@ void main() {
       final zuraffaRoot = p.join(combTmp.path, 'zuraffa');
       Directory(p.join(zuraffaRoot, 'lib', 'src')).createSync(recursive: true);
       // a.dart declares Alpha AND Extra but the barrel only SHOWs Alpha.
-      File(p.join(zuraffaRoot, 'lib', 'src', 'a.dart')).writeAsStringSync(
-        'class Alpha {}\nclass Extra {}\n',
-      );
+      File(
+        p.join(zuraffaRoot, 'lib', 'src', 'a.dart'),
+      ).writeAsStringSync('class Alpha {}\nclass Extra {}\n');
       // b.dart declares Beta; the barrel line HIDES it.
-      File(p.join(zuraffaRoot, 'lib', 'src', 'b.dart')).writeAsStringSync(
-        'class Beta {}\n',
-      );
+      File(
+        p.join(zuraffaRoot, 'lib', 'src', 'b.dart'),
+      ).writeAsStringSync('class Beta {}\n');
       // c.dart declares Gamma with a plain (unqualified) export line.
-      File(p.join(zuraffaRoot, 'lib', 'src', 'c.dart')).writeAsStringSync(
-        'class Gamma {}\n',
-      );
+      File(
+        p.join(zuraffaRoot, 'lib', 'src', 'c.dart'),
+      ).writeAsStringSync('class Gamma {}\n');
       File(p.join(zuraffaRoot, 'lib', 'zuraffa.dart')).writeAsStringSync(
         [
           "export 'src/a.dart' show Alpha;",
@@ -164,15 +164,21 @@ void main() {
         p.join(zuraffaRoot, 'lib', 'src', 'core', 'params'),
       ).createSync(recursive: true);
       File(
-        p.join(zuraffaRoot, 'lib', 'src', 'core', 'params',
-            'query_params.dart'),
+        p.join(
+          zuraffaRoot,
+          'lib',
+          'src',
+          'core',
+          'params',
+          'query_params.dart',
+        ),
       ).writeAsStringSync('class QueryParams<T> {}\n');
       File(
         p.join(zuraffaRoot, 'lib', 'src', 'core', 'params', 'index.dart'),
       ).writeAsStringSync("export 'query_params.dart';\n");
-      File(p.join(zuraffaRoot, 'lib', 'zuraffa.dart')).writeAsStringSync(
-        "export 'src/core/params/index.dart';\n",
-      );
+      File(
+        p.join(zuraffaRoot, 'lib', 'zuraffa.dart'),
+      ).writeAsStringSync("export 'src/core/params/index.dart';\n");
       final dotTool = Directory(p.join(nestedTmp.path, '.dart_tool'));
       dotTool.createSync(recursive: true);
       File(p.join(dotTool.path, 'package_config.json')).writeAsStringSync(

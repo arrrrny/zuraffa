@@ -47,80 +47,82 @@ void main() {
   });
 
   GeneratorConfig taskConfig(String outputDir) => GeneratorConfig(
-        name: 'Task',
-        methods: const ['get', 'getList'],
-        generateLocal: true,
+    name: 'Task',
+    methods: const ['get', 'getList'],
+    generateLocal: true,
+    outputDir: outputDir,
+  );
+
+  test(
+    'local datasource emission drops the unverified hide combinator',
+    () async {
+      final builder = LocalDataSourceBuilder(
         outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
       );
 
-  test('local datasource emission drops the unverified hide combinator',
-      () async {
-    final builder = LocalDataSourceBuilder(
-      outputDir: outputDir,
-      options: const GeneratorOptions(
-        dryRun: false,
-        force: true,
-        verbose: false,
-      ),
-    );
+      final file = await builder.generate(taskConfig(outputDir));
+      final content = File(file.path).readAsStringSync();
 
-    final file = await builder.generate(taskConfig(outputDir));
-    final content = File(file.path).readAsStringSync();
+      expect(
+        content.contains('hide Task'),
+        isFalse,
+        reason:
+            '#1530: Task/TaskPatch are not zuraffa exports — an unresolved '
+            'barrel must drop the combinator instead of emitting '
+            '`hide Task, TaskPatch` (undefined_hidden_name):\n$content',
+      );
+      expect(
+        content.contains("import 'package:zuraffa/zuraffa.dart';"),
+        isTrue,
+        reason: 'the bare framework import must be emitted unchanged',
+      );
+    },
+  );
 
-    expect(
-      content.contains('hide Task'),
-      isFalse,
-      reason:
-          '#1530: Task/TaskPatch are not zuraffa exports — an unresolved '
-          'barrel must drop the combinator instead of emitting '
-          '`hide Task, TaskPatch` (undefined_hidden_name):\n$content',
-    );
-    expect(
-      content.contains("import 'package:zuraffa/zuraffa.dart';"),
-      isTrue,
-      reason: 'the bare framework import must be emitted unchanged',
-    );
-  });
+  test(
+    'remote datasource emission drops the unverified hide combinator',
+    () async {
+      final builder = RemoteDataSourceBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
 
-  test('remote datasource emission drops the unverified hide combinator',
-      () async {
-    final builder = RemoteDataSourceBuilder(
-      outputDir: outputDir,
-      options: const GeneratorOptions(
-        dryRun: false,
-        force: true,
-        verbose: false,
-      ),
-    );
+      final file = await builder.generate(taskConfig(outputDir));
+      final content = File(file.path).readAsStringSync();
 
-    final file = await builder.generate(taskConfig(outputDir));
-    final content = File(file.path).readAsStringSync();
+      expect(content.contains('hide Task'), isFalse, reason: '#1530');
+      expect(
+        content.contains("import 'package:zuraffa/zuraffa.dart';"),
+        isTrue,
+      );
+    },
+  );
 
-    expect(content.contains('hide Task'), isFalse, reason: '#1530');
-    expect(
-      content.contains("import 'package:zuraffa/zuraffa.dart';"),
-      isTrue,
-    );
-  });
+  test(
+    'mock datasource emission drops the unverified hide combinator',
+    () async {
+      final builder = MockDataSourceBuilder(outputDir: outputDir);
 
-  test('mock datasource emission drops the unverified hide combinator',
-      () async {
-    final builder = MockDataSourceBuilder(outputDir: outputDir);
+      final file = await builder.generateMockDataSource(taskConfig(outputDir));
+      final content = File(file.path).readAsStringSync();
 
-    final file =
-        await builder.generateMockDataSource(taskConfig(outputDir));
-    final content = File(file.path).readAsStringSync();
-
-    expect(
-      content.contains('hide Task'),
-      isFalse,
-      reason:
-          '#1530: the mock emission hid on package:zuraffa/mock.dart — '
-          'the same unverified-name class',
-    );
-    expect(
-      content.contains("import 'package:zuraffa/mock.dart';"),
-      isTrue,
-    );
-  });
+      expect(
+        content.contains('hide Task'),
+        isFalse,
+        reason:
+            '#1530: the mock emission hid on package:zuraffa/mock.dart — '
+            'the same unverified-name class',
+      );
+      expect(content.contains("import 'package:zuraffa/mock.dart';"), isTrue);
+    },
+  );
 }

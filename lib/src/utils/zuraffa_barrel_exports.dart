@@ -121,18 +121,13 @@ class ZuraffaBarrelExports {
       if (start < 0) return null;
       final end = trimmed.indexOf("'", start + 1);
       if (end < 0) return null;
-      return (
-        trimmed.substring(start + 1, end),
-        trimmed.substring(end + 1),
-      );
+      return (trimmed.substring(start + 1, end), trimmed.substring(end + 1));
     }
 
     // The names of one combinator (`show a, b` / `hide c`) — null when
     // the keyword is absent (issue #1530 FR-002).
     Set<String>? combinatorNames(String tail, String keyword) {
-      final match = RegExp(
-        '\\b$keyword\\s+([^;]+);?',
-      ).firstMatch(tail);
+      final match = RegExp('\\b$keyword\\s+([^;]+);?').firstMatch(tail);
       if (match == null) return null;
       return match
           .group(1)!

@@ -54,9 +54,7 @@ abstract class \$Product {
   String get title;
 }
 ''');
-    await File(
-      path.join(projectRoot, 'pubspec.yaml'),
-    ).writeAsString('''
+    await File(path.join(projectRoot, 'pubspec.yaml')).writeAsString('''
 name: zuraffa_1530_ensure_fixture
 environment:
   sdk: ^3.11.0
@@ -72,16 +70,11 @@ dependencies:
 
   Future<(String, int)> runMake(List<String> args) async {
     final process = useCompiledBinary
-        ? await Process.start(
+        ? await Process.start(zfaBin, args, workingDirectory: projectRoot)
+        : await Process.start('dart', [
             zfaBin,
-            args,
-            workingDirectory: projectRoot,
-          )
-        : await Process.start(
-            'dart',
-            [zfaBin, ...args],
-            workingDirectory: projectRoot,
-          );
+            ...args,
+          ], workingDirectory: projectRoot);
     final stdout = process.stdout.transform(systemEncoding.decoder).join();
     final stderr = process.stderr.transform(systemEncoding.decoder).join();
     final code = await process.exitCode;
@@ -112,36 +105,40 @@ dependencies:
     expect(
       output,
       contains('Ensured zuraffa'),
-      reason: 'the completion receipt must name the ensured declaration:\n'
+      reason:
+          'the completion receipt must name the ensured declaration:\n'
           '$output',
     );
   });
 
-  test('A-1530-6-e2e: a re-run is idempotent — exactly one declaration',
-      () async {
-    await runMake(['make', 'Product', 'datasource', '--with', 'mock']);
-    final firstPass = File(
-      path.join(projectRoot, 'pubspec.yaml'),
-    ).readAsStringSync();
+  test(
+    'A-1530-6-e2e: a re-run is idempotent — exactly one declaration',
+    () async {
+      await runMake(['make', 'Product', 'datasource', '--with', 'mock']);
+      final firstPass = File(
+        path.join(projectRoot, 'pubspec.yaml'),
+      ).readAsStringSync();
 
-    final (output, code) = await runMake([
-      'make',
-      'Product',
-      'datasource',
-      '--with',
-      'mock',
-      '--force',
-    ]);
+      final (output, code) = await runMake([
+        'make',
+        'Product',
+        'datasource',
+        '--with',
+        'mock',
+        '--force',
+      ]);
 
-    expect(code, 0, reason: 'out:\n$output');
-    final secondPass = File(
-      path.join(projectRoot, 'pubspec.yaml'),
-    ).readAsStringSync();
-    expect(
-      'zuraffa:'.allMatches(secondPass).length,
-      1,
-      reason: 'idempotence: exactly one zuraffa declaration may exist\n'
-          'first pass:\n$firstPass\nsecond pass:\n$secondPass',
-    );
-  });
+      expect(code, 0, reason: 'out:\n$output');
+      final secondPass = File(
+        path.join(projectRoot, 'pubspec.yaml'),
+      ).readAsStringSync();
+      expect(
+        'zuraffa:'.allMatches(secondPass).length,
+        1,
+        reason:
+            'idempotence: exactly one zuraffa declaration may exist\n'
+            'first pass:\n$firstPass\nsecond pass:\n$secondPass',
+      );
+    },
+  );
 }

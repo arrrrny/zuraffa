@@ -2315,9 +2315,7 @@ class MakeCommand extends Command<void> {
       );
       return;
     }
-    print(
-      '   analyzer warnings in the failed build output (verbatim):',
-    );
+    print('   analyzer warnings in the failed build output (verbatim):');
     const maxLogged = 10;
     for (final line in warningLines.take(maxLogged)) {
       print('   $line');

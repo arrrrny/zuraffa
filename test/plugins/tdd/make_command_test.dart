@@ -599,10 +599,7 @@ void main() {
         },
         exitByArgv: {'build': 1},
         stdoutByArgv: {
-          'build': [
-            'Build runner failed: some other reason',
-            'exit code 69',
-          ],
+          'build': ['Build runner failed: some other reason', 'exit code 69'],
         },
       );
 
@@ -622,7 +619,8 @@ void main() {
       expect(
         out,
         contains('no analyzer warnings reported'),
-        reason: 'the receipt must state the analyzer was silent '
+        reason:
+            'the receipt must state the analyzer was silent '
             'explicitly:\n$out',
       );
     });

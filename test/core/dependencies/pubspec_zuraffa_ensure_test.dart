@@ -59,7 +59,8 @@ dev_dependencies:
       expect(
         content,
         contains('  zuraffa: ^6.0.0\n'),
-        reason: 'the declaration lands inside the dependencies block:\n'
+        reason:
+            'the declaration lands inside the dependencies block:\n'
             '$content',
       );
       // RUNTIME dependency — never dev_dependencies.
@@ -87,8 +88,10 @@ dependencies:
       expect(readPubspec(), original);
     });
 
-    test('A-1530-7: comments, blank lines, and entry order are preserved', () async {
-      const original = '''
+    test(
+      'A-1530-7: comments, blank lines, and entry order are preserved',
+      () async {
+        const original = '''
 name: repro_app
 # A hand comment above dependencies
 dependencies:
@@ -100,27 +103,28 @@ dependencies:
 dev_dependencies:
   lints: ^6.0.0
 ''';
-      await seedPubspec(original);
+        await seedPubspec(original);
 
-      final result = await const PubspecZuraffaEnsure().ensure(tmp.path);
+        final result = await const PubspecZuraffaEnsure().ensure(tmp.path);
 
-      expect(result.added, isTrue);
-      final content = readPubspec();
-      // Every comment and blank line survives the textual patch.
-      expect(content, contains('# A hand comment above dependencies'));
-      expect(content, contains('# Comment on the first entry'));
-      expect(content, contains('# A comment after the block'));
-      expect(
-        content,
-        contains('  zorphy_annotation: ^2.3.0\n\n  json_annotation:'),
-        reason: 'blank lines between entries are preserved',
-      );
-      // The insertion sits before the next top-level key.
-      final insertion = content.indexOf('zuraffa: ^6.0.0');
-      final dev = content.indexOf('dev_dependencies:');
-      expect(insertion, greaterThan(0));
-      expect(insertion, lessThan(dev));
-    });
+        expect(result.added, isTrue);
+        final content = readPubspec();
+        // Every comment and blank line survives the textual patch.
+        expect(content, contains('# A hand comment above dependencies'));
+        expect(content, contains('# Comment on the first entry'));
+        expect(content, contains('# A comment after the block'));
+        expect(
+          content,
+          contains('  zorphy_annotation: ^2.3.0\n\n  json_annotation:'),
+          reason: 'blank lines between entries are preserved',
+        );
+        // The insertion sits before the next top-level key.
+        final insertion = content.indexOf('zuraffa: ^6.0.0');
+        final dev = content.indexOf('dev_dependencies:');
+        expect(insertion, greaterThan(0));
+        expect(insertion, lessThan(dev));
+      },
+    );
 
     test('A-1530-8a: inline dependencies mapping needing a patch is refused '
         'loudly', () async {
@@ -168,8 +172,7 @@ dependency_overrides:
     });
 
     test('A-1530-9: no zuraffa entry is added when the caller did not '
-        'detect a package:zuraffa import (ensureForImports no-op)',
-        () async {
+        'detect a package:zuraffa import (ensureForImports no-op)', () async {
       const original = '''
 name: repro_app
 dependencies:
@@ -177,8 +180,10 @@ dependencies:
 ''';
       await seedPubspec(original);
 
-      final result = await const PubspecZuraffaEnsure()
-          .ensureForImports(tmp.path, const ['path', 'yaml']);
+      final result = await const PubspecZuraffaEnsure().ensureForImports(
+        tmp.path,
+        const ['path', 'yaml'],
+      );
 
       expect(result.added, isFalse);
       expect(readPubspec(), original);
@@ -214,16 +219,18 @@ environment:
       expect(readPubspec(), contains('dependencies:\n  zuraffa: ^6.0.0\n'));
     });
 
-    test('an inline-empty dependencies mapping is expanded to block style',
-        () async {
-      await seedPubspec('''
+    test(
+      'an inline-empty dependencies mapping is expanded to block style',
+      () async {
+        await seedPubspec('''
 name: repro_app
 dependencies: {}
 ''');
-      final result = await const PubspecZuraffaEnsure().ensure(tmp.path);
+        final result = await const PubspecZuraffaEnsure().ensure(tmp.path);
 
-      expect(result.added, isTrue);
-      expect(readPubspec(), contains('dependencies:\n  zuraffa: ^6.0.0\n'));
-    });
+        expect(result.added, isTrue);
+        expect(readPubspec(), contains('dependencies:\n  zuraffa: ^6.0.0\n'));
+      },
+    );
   });
 }

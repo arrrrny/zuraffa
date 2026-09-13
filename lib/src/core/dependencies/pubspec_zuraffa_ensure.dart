@@ -101,7 +101,10 @@ class PubspecZuraffaEnsure {
 
     final newContent = _patchTextually(raw);
     await file.writeAsString(newContent);
-    return const PubspecZuraffaEnsureResult(added: true, constraint: constraint);
+    return const PubspecZuraffaEnsureResult(
+      added: true,
+      constraint: constraint,
+    );
   }
 
   /// The import-triggered seam: ensures the declaration only when
