@@ -1,11 +1,14 @@
 ---
 name: speckit-chore-implement
-description: Implement the scoped chore (the actual maintenance work) and record what changed
+description: Implement the scoped chore (the actual maintenance work) and record what
+  changed
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: chore:commands/speckit.chore.implement.md
+  author: arrrrny
+  source: extension:chore
 ---
+
+# Chore Implement Skill
 
 # Implement Chore
 
