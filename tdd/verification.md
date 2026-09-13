@@ -1,122 +1,141 @@
-# tdd.verify — Bug #1470 artifacts.json silently swallows corruption
+# tdd.verify — Bug #1575 fence-blind line-scanners outside the cycle-log
 
 - **Verified**: 2026-09-13, this session, on
-  `fix/1470-artifacts-json-corruption-silent` (working tree, pre-push)
-- **Toolchain**: Dart 3.13.3 (stable) on linux_x64
-- **Scope**: `lib/src/plugins/tdd/services/artifact_registry.dart` (+28/−2)
-  and the new
-  `test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart`,
-  then the chunked fast-suite sweep below.
+  `fix/1575-remaining-fence-blind-line-scanners` (working tree, pre-push)
+- **Toolchain**: Dart 3.13.3 (stable) on linux_x64 (Flutter SDK absent —
+  recorded where it matters, §3/§4)
+- **Scope**: the two changed source files, the two new fence-fixture
+  suites, the pre-existing reader/proof suites, then the full 1,294-file
+  chunked regression sweep below.
 
-## Verdict: PASS
+## Verdict: PASS (the only non-green entries are pre-existing host-environment gaps, proved on a pristine pre-fix worktree)
 
 ## 1. Static analysis
 
 ```
-dart analyze lib/src/plugins/tdd/services/artifact_registry.dart \
-             test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart
+dart analyze lib/src/plugins/tdd/services/test_list_reader.dart \
+             lib/src/core/proof/proof_chain_checker.dart \
+             test/plugins/tdd/services/test_list_reader_1575_fence_test.dart \
+             test/core/proof_chain_checker_1575_fence_test.dart
 → No issues found!
-
-dart analyze            (whole repo)
-→ 112 issues found      (all `info`)
-→ errors/warnings: 0    (baseline: 0 — no new warnings)
 ```
 
-The whole-repo count is identical to the pre-change baseline measured on
-this branch's parent state (112 info lints, 0 errors, 0 warnings).
+Full-project `dart analyze`: **112 issues — identical to the pre-change
+baseline** (a pristine worktree at the pre-fix commit d5a40731 analyzes to
+the same 112, 0 errors / 0 warnings on both sides).
 
-## 2. The bug suite (REAL run in this session)
+`dart format` on the four changed Dart files: clean (idempotent, no diff).
 
-```
-dart test test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart
-→ 00:00 +5: All tests passed!
-```
+## 2. The bug suites (REAL runs in this session)
 
-REQUIRED checks — the issue's expected behaviors are PROVED by real runs,
-not inspection:
-
-- **Corrupt file is loud (U-1470-a1/a3)**: `loadAll` and `findRecord` on a
-  truncated/garbled `artifacts.json` throw `ArtifactRegistryCorruptException`
-  — pre-fix they returned `[]`/`null` silently (probe RED-1).
-- **No re-registration through corruption (U-1470-a2)**: `register` on a
-  corrupt registry throws; the corrupt bytes are untouched on disk — pre-fix
-  the call returned `Ownership.created` and the rewrite destroyed the prior
-  records (probe RED-2/RED-3).
-- **Actionable message (U-1470-a4)**: the thrown message contains
-  `artifacts.json`, the full `registryPath`, and a recovery prescription.
-- **Missing ≠ corrupt (U-1470-a5)**: absent registry still loads as `[]`
-  (FR-012 unchanged).
-- **RED honesty**: pre-fix probe output and the compile-level RED are
-  preserved in `.specify/bugs/1470-artifacts-json-corruption-silent/red-evidence.md`.
-
-## 3. Registry-adjacent suites (one command, real run)
+RED (pre-fix tree, commit d5a40731 — full evidence in
+`.specify/bugs/1575-remaining-fence-blind-line-scanners/red-evidence.md`):
 
 ```
-dart test test/plugins/tdd/services/artifact_registry_test.dart \
-          test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart \
-          test/plugins/tdd/bug_1357_registry_path_reanchor_test.dart \
-          test/plugins/tdd/services/mutation_scope_test.dart \
-          test/plugins/tdd/services/spec_fuzz_auditor_test.dart \
-          test/plugins/tdd/services/behavior_kind_trace_test.dart \
-          test/plugins/tdd/services/mutation_auditor_test.dart
-→ 00:01 +68: All tests passed!
+dart test test/plugins/tdd/services/test_list_reader_1575_fence_test.dart \
+          test/core/proof_chain_checker_1575_fence_test.dart
+→ 5 failed / 3 passed   (reader file)
+→ 2 failed / 1 passed   (proof-chain file)
 ```
 
-## 4. Chunked fast-suite sweep (repo policy, real runs)
+Every failure mode from the issue reproduced verbatim: an in-fence
+`## Inner loop:` banner mis-kinded a post-fence acceptance row
+(acceptance → unit); an in-fence `## Key entities` banner silently
+swallowed a post-fence behavior row; the same silent vanish in
+`readEntities` / `readDependencies` / `readLayerContracts`; a post-fence
+behavior id (`B2`) silently dropped from the coverage audit; a fenced
+`## Behaviors (example)` table fabricating a phantom `PHANTOM` audit id.
 
-`dart_test.yaml` on this repo: the default `dart test` suite is the FAST
-tier; slow tiers are tag-excluded and a whole-tree single invocation
-overflows small disks (kernel cache), so the sanctioned path is
-`tools/run_tests_chunked.sh` semantics — per-folder chunks, kernel cache
-cleared between chunks, flutter-tagged tests excluded. All runs below are
-real `dart test <chunk> --exclude-tags flutter` invocations this session.
+GREEN (post-fix tree, commit 5484f162):
 
-- **107 chunks PASSED, 6,946 tests passed, 0 genuine failures.**
-- 5 folders correctly SKIP ("No tests ran"): every test in them carries a
-  slow-tier tag (`slow` / `integration` / `benchmark`) which the fast tier
-  excludes by design — the repo script treats this as SKIP, not failure
-  (verified per-folder: `@Tags(['slow'])` etc. on every contained test).
-- Highlight chunks (pass counts from the run log):
+```
+dart test test/plugins/tdd/services/test_list_reader_1575_fence_test.dart \
+          test/core/proof_chain_checker_1575_fence_test.dart
+→ 00:00 +11: All tests passed!
+```
 
-| chunk | result |
+REQUIRED check — the five `startsWith('## ')` sites are routed through
+the fence-aware splitter: PROVED by A-1575-a1/a2 (parseRows kind-flip and
+declarative-swallow), A-1575-a3/a4/a5 (the three declaration readers),
+U-1575-c1/c2 (the audit id vanish and phantom fabrication).
+
+REQUIRED check — well-formed parsing is unchanged (hard constraint):
+PROVED by U-1575-b1 (no-fence canonical list), U-1575-b2 (the committed
+corpus shape — the one real in-fence `## ` at
+`specs/004-fix-zuraffa-gen/tdd/test-list.md:83` — parses identically),
+U-1575-c3 (the well-formed behaviors audit), and the pre-existing suites
+below.
+
+REQUIRED check — the line-naming error contract (bug #984) survives the
+section→line reconstruction: PROVED by U-1575-b3 (a malformed row after a
+fence reports `test-list.md line 7: expected 4 columns …`, byte-exact).
+
+REQUIRED check — the cycle-log readers are untouched (hard constraint):
+`git diff` names exactly two `lib/` files; `provenance_scanner.dart`,
+`ci_referee/*`, `cycle_log_sections.dart`, `cycle_log_entry_sections.dart`
+have no changes, and their suites are green in the sweep (§3).
+
+## 3. Regression sweep (REAL runs in this session)
+
+The full suite — every `test/**/*_test.dart` file, 1,294 files — ran in
+26 chunks of ≤50 files (`dart test` per chunk, caches cleaned per
+protocol afterwards):
+
+| Chunk | Result |
 | ----- | ------ |
-| test/plugins/tdd/commands | +546 passed |
-| test/plugins/tdd/services (root files, incl. the new suite + artifact_registry_test) | +905 passed |
-| test/plugins/tdd (root files, incl. bug_1357 reanchor) | +519 passed |
-| test/plugins/tdd/models | +81 passed |
-| test/plugins/tdd/theater | +15 passed |
-| test/commands | +375 passed |
-| test/simulation | +210 passed |
-| test/core (root files) | +465 passed, 1 skipped |
-| test/zap | +76 passed |
+| 1–7, 10–19, 21–25 | `All tests passed!` |
+| 8 | `controller_compile_test.dart` (setUpAll) — environmental, see §4 |
+| 9 | `presenter_compile_test.dart` (setUpAll) — environmental, see §4 |
+| 20 | `view_compile_test.dart` (setUpAll) — environmental, see §4 |
+| 26 | `templates/self_hosting/downstream_compile_gate_test.dart` (setUpAll) — environmental, see §4 |
 
-One runner artifact, not a test failure: my chunk list carried a trailing
-blank line, producing one `dart test ""` → `Failed to load ""` entry. It is
-the empty path, not a test; every real chunk passed. (The committed repo
-runner `tools/run_tests_chunked.sh` builds its list differently and is not
-affected; I did not modify it — the one-file lib/ constraint stands.)
+Totals across the sweep: **≈6,507 tests passed, 4 failed** (the four
+`(setUpAll)` entries below; a log-string audit for `[E]` finds no other
+failure anywhere in the sweep).
 
-## 5. Format + hygiene
+Targeted pre-existing suites around the changed readers (REAL runs):
 
 ```
-dart format lib/.../artifact_registry.dart test/.../bug_1470_artifacts_json_corruption_test.dart
-→ Formatted 2 files (1 changed)   # one file reformatted, then:
-dart format --output=none --set-exit-if-changed <same two files>
-→ exit 0 (clean)
-→ bug suite re-run after formatting: +5: All tests passed!
+dart test test/plugins/tdd/services/test_list_reader_test.dart \
+          test/plugins/tdd/services/test_list_reader_984_test.dart \
+          test/plugins/tdd/services/test_list_reader_ffi_835_test.dart \
+          test/plugins/tdd/services/test_list_reader_persistence_833_test.dart \
+          test/plugins/tdd/services/bug_919_reader_test.dart \
+          test/plugins/tdd/bug_937_reader_sections_test.dart \
+          test/core/proof_chain_checker_test.dart
+→ 00:03 +76: All tests passed!
 ```
 
-- Kernel caches cleared before/after sweeps
-  (`rm -rf .dart_tool/test/`, `rm -f $TMPDIR/dart_test.kernel.*`).
-- Disk headroom after the sweep: 8.0G free (no leakage).
-- `git status` vs origin/master: 1 lib file modified, 1 test file added,
-  artifacts + tdd docs added. No stray files.
+## 4. The non-green entries — all proved to pre-date this change
 
-## 6. Environment caveats
+Each of the four failing suites spawns the Flutter toolchain in its
+`setUpAll` via `test/plugins/helpers/flutter_cluster_fixture.dart`
+(`flutter pub get --no-example`), and this host has **no Flutter SDK**:
 
-- No Flutter SDK on this host: flutter-tagged tests are excluded by the
-  repo's own chunked-runner policy; `example/` is not resolvable here and
-  is untouched by this fix.
-- Slow tiers (regression/integration/property/benchmark presets) not run —
-  per `dart_test.yaml` header they fill several GB under /tmp on small
-  agents; the fast tier is the sanctioned CI/cloud baseline.
+```
+ProcessException: No such file or directory
+  Command: flutter pub get --no-example
+```
+
+The same four files fail identically on a pristine worktree at the
+pre-fix commit d5a40731 (verified by running
+`controller_compile_test`, `presenter_compile_test` and
+`view_compile_test` there — same `ProcessException`, same command):
+controller, presenter and view generated code targets a Flutter app, so
+these compile pins require the Flutter toolchain. The failure is a host
+gap (the same one `dart pub get` reports for `example/`), not a
+regression; the codegen surfaces they pin are untouched by this fix.
+
+No assertion-level failure was introduced by the change.
+
+## 5. Environment notes (honest recording)
+
+- Chunked execution ran in the foreground on a single-tenant host; the
+  kernel/build caches were cleared after the sweep per the verification
+  hygiene protocol (`rm -rf .dart_tool/test/`, dart test kernel temp).
+- The full-project analyze parity (112 == 112) and the pristine-worktree
+  comparisons above were run against a `git worktree` at the pre-fix
+  commit, removed after use (disk housekeeping).
+- The 004 corpus fixture (`specs/004-fix-zuraffa-gen`) parses
+  byte-identically before and after the fix (U-1575-b2), so no committed
+  artifact shifts.

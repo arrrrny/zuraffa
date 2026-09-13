@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../../plugins/tdd/services/artifact_registry.dart';
 import '../../plugins/tdd/services/cycle_evidence.dart';
+import '../../plugins/tdd/services/cycle_log_sections.dart';
 import '../../plugins/tdd/services/import_resolution.dart';
 import '../../plugins/usecase/conformance/usecase_gate.dart';
 import '../project/receipt_store.dart';
@@ -1049,6 +1050,13 @@ const _behaviorSectionMarkers = [
 /// `TestListReader` rejects — a read-only auditor must read what
 /// exists, not demand a dialect. Lane-split meta-indexes contribute
 /// their engine/skin lane plan files' rows too.
+///
+/// Fence-aware (issue #1575): headers come from [fenceAwareLines], so a
+/// `## ` line inside a fenced code block (a markdown banner inside a
+/// fenced example — the #1467 phantom-section defect on a different
+/// input file) can no longer flip `inBehaviorSection`: post-fence
+/// behavior ids no longer silently vanish from the coverage audit, and a
+/// fenced `## Behaviors` example fabricates no phantom ids.
 List<String> _behaviorIdsOf(String raw, String featureDir) {
   final ids = <String>[];
   final sources = <String>[raw];
@@ -1065,15 +1073,16 @@ List<String> _behaviorIdsOf(String raw, String featureDir) {
 
   for (final source in sources) {
     var inBehaviorSection = false;
-    for (final line in source.split('\n')) {
-      final trimmed = line.trim();
-      if (trimmed.startsWith('## ')) {
-        final header = trimmed.substring(3).toLowerCase();
+    for (final walk in fenceAwareLines(source)) {
+      final header = walk.header;
+      if (header != null) {
+        final lowered = header.toLowerCase();
         inBehaviorSection = _behaviorSectionMarkers.any(
-          (m) => header.startsWith(m),
+          (m) => lowered.startsWith(m),
         );
         continue;
       }
+      final trimmed = walk.raw.trim();
       if (!inBehaviorSection) continue;
       if (!trimmed.startsWith('|')) continue;
       final cells = trimmed.split('|').map((c) => c.trim()).toList();
