@@ -262,6 +262,14 @@ class RunDriverCore {
     bool skipWidget = false,
     Map<String, int>? mockCounts,
     String? baselineScope,
+
+    /// Spec 1520: the caller's per-run scratch environment
+    /// (`ScratchTmpDir.childEnvironment`) — handed to the spawned step
+    /// children and the phase-0 pipeline spawns so every `dart test`
+    /// grandchild writes its kernel dir inside the run's own scratch
+    /// instead of the shared user TMPDIR (issue #1520). Null (the default)
+    /// preserves the inherit-`Platform.environment` behavior.
+    Map<String, String>? childEnvironment,
   }) async {
     // Issue #1471: the caller hands the canonical REFERENCE — the parent
     // resolved it once (pin included) and its child steps must resolve the
@@ -527,8 +535,13 @@ class RunDriverCore {
     //    a red or pending-with-artifacts behavior reds the suite for
     //    every lane's refactors exactly like it did for the single run.
     // -----------------------------------------------------------------
-    // Bug #742: the step spawner carries the deadline.
-    final runner = StepRunner(zfaBin: zfaBin, timeout: timeout);
+    // Bug #742: the step spawner carries the deadline. Spec 1520: it also
+    // carries the run's scratch-TMPDIR map for every step child.
+    final runner = StepRunner(
+      zfaBin: zfaBin,
+      timeout: timeout,
+      childEnvironment: childEnvironment,
+    );
 
     // Issue #992: --skip-widget turns a widget-lane gen refusal (#938
     // skin gate) into a recorded per-behavior skip instead of a run
@@ -554,6 +567,7 @@ class RunDriverCore {
           timeout: timeout,
           label: label,
           feature: feature,
+          childEnvironment: childEnvironment,
         );
         if (stop != null) {
           return _finish(
@@ -2174,8 +2188,15 @@ class RunDriverCore {
       }
 
       // Evidence check before advancing: a certified step that did not
-      // write its evidence is a misfire (FR-003, FR-011).
-      final misfire = await _evidenceMisfire(evidence, step, row.id);
+      // write its evidence is a misfire (FR-003, FR-011). Issue #1542:
+      // the row's kind rides along — the contract lane's red evidence is
+      // defined out of existence by the #1007 BLOCKED verdict.
+      final misfire = await _evidenceMisfire(
+        evidence,
+        step,
+        row.id,
+        kind: row.kind,
+      );
       if (misfire != null) {
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
@@ -2594,8 +2615,14 @@ class RunDriverCore {
   Future<String?> _evidenceMisfire(
     CycleEvidence evidence,
     String step,
-    String behaviorId,
-  ) async {
+    String behaviorId, {
+    // Review #1566: REQUIRED, not optional — a nullable `kind` defaulting
+    // to null would let a future call site that omits it silently revert
+    // every contract row to the pre-#1542 dead-end with no analyzer
+    // signal (`hasGreen && kind == BehaviorKind.contract` is false for
+    // null).
+    required BehaviorKind kind,
+  }) async {
     switch (step) {
       case 'verify-red':
         if (!await _hasEvidence(evidence.redEvidence, behaviorId)) {
@@ -2610,7 +2637,22 @@ class RunDriverCore {
       case 'refactor':
         final hasRed = await _hasEvidence(evidence.redEvidence, behaviorId);
         final hasGreen = await _hasEvidence(evidence.greenEvidence, behaviorId);
-        if (!hasRed || !hasGreen) {
+        // Issue #1542: red is defined out of existence for two classes —
+        // (a) the CONTRACT lane, whose verify-red verdict is BLOCKED,
+        // never a certified red (issue #1007); (b) the born-green hand
+        // transition, which certifies green WITHOUT a prior red (issue
+        // #1411) — the journal probe reads the LAST green entry's
+        // `- evidence:` marker, so the certification survives state
+        // resets. For both classes the GREEN half stays mandatory (a
+        // refactor with no green evidence at all still misfires), and
+        // every other class keeps the exact red→green→refactor triple
+        // (the bug #682 honesty contract).
+        final redDefinedOutOfExistence =
+            (hasGreen && kind == BehaviorKind.contract) ||
+            (hasGreen &&
+                !hasRed &&
+                await evidence.bornGreenCertified(behaviorId));
+        if ((!hasRed || !hasGreen) && !redDefinedOutOfExistence) {
           return 'refactor certified but evidence for "$behaviorId" is '
               'incomplete in tdd/cycle-log.md '
               '(red: $hasRed, green: $hasGreen)';
@@ -2671,6 +2713,7 @@ class RunDriverCore {
     required Duration? timeout,
     required String label,
     required String feature,
+    Map<String, String>? childEnvironment,
   }) async {
     final entry = zfaBin ?? await StepRunner.defaultZfaBin();
     final deadline = timeout ?? TddTimeouts.defaultPipelineStep;
@@ -2684,6 +2727,7 @@ class RunDriverCore {
         command.sublist(1),
         workingDirectory: projectRoot,
         timeout: deadline,
+        environment: childEnvironment,
       );
     }
 
