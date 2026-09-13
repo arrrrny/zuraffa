@@ -118,10 +118,14 @@ void main() {
       expect(skip, isFalse);
     });
 
-    test('a non-dart write never skips', () {
+    test('a non-dart write inside the fingerprinted roots never skips', () {
+      // The fingerprint only ever yields paths under lib/test/bin/tool
+      // plus the config files (see the class doc's coverage boundary),
+      // so the non-Dart shape that can actually reach the gate is one
+      // written inside those roots (issue #1587 review, finding 2).
       final skip = BuildRelevance.canSkipTerminalBuild(
-        before: {},
-        after: {'assets/data.txt': 'new'},
+        before: {'test/fixtures/data.txt': 'old'},
+        after: {'test/fixtures/data.txt': 'new'},
         readContent: (_) => 'data',
       );
       expect(skip, isFalse);
@@ -181,5 +185,54 @@ void main() {
         );
       },
     );
+
+    test('a non-UTF8 .dart write fails the decision toward RUN, never throws '
+        '(issue #1587 review, finding 1)', () async {
+      Directory(p.join(root.path, 'lib')).createSync(recursive: true);
+      final broken = File(p.join(root.path, 'lib', 'broken.dart'))
+        ..writeAsBytesSync([0xFF, 0xFE, 0x00, 0x01]);
+
+      final before = await BuildRelevance.fingerprint(projectRoot: root.path);
+      broken.writeAsBytesSync([0xFF, 0xFE, 0x00, 0x02]);
+      final after = await BuildRelevance.fingerprint(projectRoot: root.path);
+
+      // `readAsStringSync` on invalid UTF-8 raises FormatException — NOT
+      // a FileSystemException — so the gate must fail open on ANY throw
+      // instead of letting it escape the make.
+      expect(
+        await BuildRelevance.shouldSkipTerminalBuild(
+          projectRoot: root.path,
+          before: before,
+        ),
+        isFalse,
+        reason: 'a decode error must fail the decision toward RUN',
+      );
+      expect(after['lib/broken.dart'], isNotNull);
+    });
+
+    test('a non-dart write inside the walked roots forces a run (issue #1587 '
+        'review, finding 2)', () async {
+      Directory(p.join(root.path, 'test')).createSync(recursive: true);
+      final fixture = File(p.join(root.path, 'test', 'data.txt'))
+        ..writeAsStringSync('old\n');
+      File(
+        p.join(root.path, 'test', 'a_test.dart'),
+      ).writeAsStringSync('void main() {}\n');
+
+      final before = await BuildRelevance.fingerprint(projectRoot: root.path);
+      fixture.writeAsStringSync('new\n');
+      final after = await BuildRelevance.fingerprint(projectRoot: root.path);
+
+      expect(before['test/data.txt'], isNot(equals(after['test/data.txt'])));
+      expect(
+        BuildRelevance.canSkipTerminalBuild(
+          before: before,
+          after: after,
+          readContent: (_) => 'new\n',
+        ),
+        isFalse,
+        reason: 'a non-Dart write is never skipped',
+      );
+    });
   });
 }

@@ -70,7 +70,12 @@ void main() {
       logPath: logPath,
       sideEffectByArgv: {
         'tdd func': [
-          "sed -i '1s|.*|// @Zorphy annotated probe — builder-consumable|' "
+          // BSD/macOS `sed` parses a bare `-i` script as its extension
+          // argument and errors, so the step exits non-zero before the
+          // annotated write lands and the run never reaches the build
+          // step (issue #1587 review, walkthrough addendum). `-i.bak`
+          // is the form both BSD and GNU sed accept.
+          "sed -i.bak '1s|.*|// @Zorphy annotated probe — builder-consumable|' "
               '"$subjectPath"',
         ],
       },

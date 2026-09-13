@@ -180,9 +180,18 @@ class PipelineRunner {
     // plan) or when the flag is off.
     Map<String, String>? buildFingerprint;
     if (skipUnchangedBuild) {
-      buildFingerprint = await BuildRelevance.fingerprint(
-        projectRoot: workingDirectory,
-      );
+      try {
+        buildFingerprint = await BuildRelevance.fingerprint(
+          projectRoot: workingDirectory,
+        );
+      } catch (_) {
+        // Fail open (issue #1587 review): an unreadable tree turns the
+        // gate OFF — `null` is the same sentinel the flagless path
+        // leaves — instead of escaping runPlan as an I/O error that the
+        // make's `on PipelineResolutionError` arm cannot grade. The
+        // build then spawns exactly as it did before this change.
+        buildFingerprint = null;
+      }
     }
     for (var i = 0; i < plan.steps.length; i++) {
       final spec = plan.steps[i];

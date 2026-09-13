@@ -30,17 +30,21 @@ Future<String> subjectHashOf(TddFixture fx, String id) => File(
 /// Append a red entry carrying a subject hash — the shape the real
 /// verify-red appends (issue #1036). Appended AFTER the hashless
 /// seedCertifiedRed entry, so it is the behavior's LAST entry.
+/// [classification] defaults to the certified assertion failure the
+/// make's dedup requires; pass another class to drive the fail-open
+/// case (issue #1587 review, finding 4).
 Future<void> seedHashedRedEvidence(
   TddFixture fx,
   String behaviorId,
-  String subjectHash,
-) async {
+  String subjectHash, {
+  String classification = 'assertionFailure',
+}) async {
   await File(fx.cycleLogPath).writeAsString('''
 ## Cycle: $behaviorId (red)
 
 - behavior: $behaviorId
 - kind: red
-- classification: assertionFailure
+- classification: $classification
 - criterion: FR-007
 - test: ${fx.testPathOf(behaviorId)}
 - command: `dart test ${fx.testPathOf(behaviorId)} --plain-name "$behaviorId"`
@@ -175,6 +179,42 @@ void main() {
         expect(out, isNot(contains('drift check satisfied')));
       },
     );
+
+    test('a red certified for a non-assertion failure runs the live drift '
+        'check (issue #1587 review, finding 4)', () async {
+      await fx.seedCertifiedRed(
+        id: 'U-1587-8',
+        description: _description,
+        testContent: TddFixture.subjectDrivenTest('U-1587-8', _description),
+      );
+      // The subject hash MATCHES the on-disk subject — only the
+      // recorded classification (a compile error, not an honest
+      // assertion failure) may refuse the dedup.
+      await seedHashedRedEvidence(
+        fx,
+        'U-1587-8',
+        await subjectHashOf(fx, 'U-1587-8'),
+        classification: 'compileError',
+      );
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd func': fx.overwriteSubjectCommands(
+            'U-1587-8',
+            TddFixture.subjectReturning('U-1587-8', 42),
+          ),
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U-1587-8', zfaBin: zfaBin),
+      );
+
+      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(out, isNot(contains('drift check satisfied')));
+      expect(out, contains('target test exit: 0'));
+    });
   });
 
   group('A5 — a green entry after the last red keeps the live drift', () {

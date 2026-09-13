@@ -16,10 +16,23 @@
 ///   - any build config change (`pubspec.yaml`, `pubspec.lock`,
 ///     `build.yaml`, `analysis_options.yaml`, `dart_test.yaml`,
 ///     `.zfa.json`, `.dart_tool/package_config.json`) → run;
-///   - any non-Dart write → run (slang translation sources, assets);
+///   - any non-Dart write inside the fingerprinted roots (`lib/`,
+///     `test/`, `bin/`, `tool/` — slang translation sources and assets
+///     written there) → run;
 ///   - any Dart write whose RAW content mentions a builder-facing
 ///     annotation (`@Zorphy`, `@ZorphyMixin`, `@JsonSerializable`,
 ///     `@HiveType`, `@HiveField`, `@Route`, `@ZfaRoute`) → run.
+///
+/// Coverage boundary (issue #1587 review): [fingerprint] covers those
+/// four Dart roots plus [buildConfigFiles] and NOTHING else — a write
+/// outside them (a top-level `assets/`, a root `slang.yaml`, `web/`, a
+/// coverage or report file) never enters the changed set, so it does
+/// not by itself force a build. Widening the walk to the whole project
+/// tree was considered and rejected deliberately: the generation
+/// steps' own transient artifacts (tool logs, coverage output) would
+/// then register as changes and permanently disable the skip — a
+/// bigger loss than the uncovered writes it would catch. The gate is
+/// exactly as conservative as the roots listed here.
 ///
 /// The annotation match is RAW (comments count) — the same content-
 /// filter pattern the DDA route stage itself uses
@@ -27,10 +40,15 @@
 /// mentioning an annotation only ever makes the build RUN; the gate
 /// never skips on a guess.
 ///
-/// This is a scheduling decision only: the `zfa build` command, the
-/// analyze gate, and the run-loop state machine are untouched. When the
-/// build runs, every downstream guard (#737 tolerance, #942 analyzer
-/// errors, #1407 warnings-only refusal) sees a real executed step.
+/// This is a scheduling decision only: the `zfa build` command and the
+/// run-loop state machine are untouched. A SKIPPED build also skips
+/// `zfa build`'s whole-project `dart analyze lib/` stage — its verdict
+/// is the make's analyzer grading, and no other TDD step runs it on
+/// this path — so [skippedBuildNote] states that trade-off explicitly
+/// instead of leaving a reader to assume generated `lib/` code was
+/// analyzed. When the build runs, every downstream guard (#737
+/// tolerance, #942 analyzer errors, #1407 warnings-only refusal) sees a
+/// real executed step.
 library;
 
 import 'dart:io';
@@ -62,11 +80,15 @@ class BuildRelevance {
 
   /// The skip note recorded on a synthetic skipped build step and
   /// printed by the make. Names the issue so the audit and the run log
-  /// stay machine-findable.
+  /// stay machine-findable, and states the analyze-gate trade-off
+  /// explicitly (issue #1587 review) so a reader never assumes the
+  /// skipped step's writes were analyzer-graded.
   static const String skippedBuildNote =
       'terminal build step skipped: no builder-consumable input changed '
-      'since the plan started (issue #1587) — build_runner and the '
-      'analyze gate would see an unchanged builder surface.';
+      'since the plan started (issue #1587) — build_runner would '
+      're-derive identical outputs, and the whole-project `dart analyze '
+      'lib/` stage `zfa build` also runs was skipped with it, so these '
+      'plain-Dart writes were not analyzer-graded.';
 
   /// Fingerprint the build-relevant tree: a content digest per file,
   /// keyed by project-relative POSIX paths. Covers the Dart source dirs
@@ -121,9 +143,10 @@ class BuildRelevance {
   }
 
   /// Convenience for the pipeline runner: re-fingerprint [projectRoot]
-  /// and decide against the [before] fingerprint. Any unreadable file
-  /// fails the decision toward RUN (the safe direction) — a filesystem
-  /// hiccup must never fabricate a skip.
+  /// and decide against the [before] fingerprint. Any failure —
+  /// filesystem, decode, or a file that vanished mid-walk — fails the
+  /// decision toward RUN (the safe direction): a hiccup must never
+  /// fabricate a skip, and must never escape the make.
   static Future<bool> shouldSkipTerminalBuild({
     required String projectRoot,
     required Map<String, String> before,
@@ -136,7 +159,14 @@ class BuildRelevance {
         readContent: (path) =>
             File(p.join(projectRoot, path)).readAsStringSync(),
       );
-    } on FileSystemException {
+    } catch (_) {
+      // Issue #1587 review (finding 1): catch EVERYTHING, not just
+      // FileSystemException. `readAsStringSync` on a `.dart` file that
+      // is not valid UTF-8 raises FormatException, and a file removed
+      // between the walk and the read raises out of `fingerprint` too.
+      // An escaping error would abort the make after generation already
+      // rewrote the subject — the run loop's state machine would never
+      // see a graded outcome.
       return false;
     }
   }
@@ -167,6 +197,10 @@ class BuildRelevance {
       hash ^= byte;
       hash = (hash * 0x100000001b3) & 0xFFFFFFFFFFFFFFFF;
     }
-    return hash.toRadixString(16);
+    // The seed is a NEGATIVE signed 64-bit literal in Dart, so a bare
+    // `toRadixString(16)` renders most digests as negative hex
+    // (issue #1587 review, finding 5). Render the unsigned 64-bit value
+    // zero-padded to the full width a reader expects from the digest.
+    return hash.toUnsigned(64).toRadixString(16).padLeft(16, '0');
   }
 }

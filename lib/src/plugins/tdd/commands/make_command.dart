@@ -2918,10 +2918,12 @@ class MakeCommand extends Command<void> {
   ///     #694 skip transition / #1036 drift refusal own those shapes;
   ///   - the entry carries a 64-hex `subject-hash` (legacy hashless
   ///     entries fail open, the pre-#1587 behavior stands);
-  ///   - the recorded exit is 1 (a certified red — verify-red's own
-  ///     classification already proved an honest assertion failure, so
-  ///     the #742 timeout and #1402 zero-match misfire shapes can never
-  ///     be deduped into);
+  ///   - the recorded exit is 1 AND the entry's recorded
+  ///     `classification` is `assertionFailure` — a certified red proves
+  ///     an honest assertion failure, so a red recorded for any other
+  ///     reason (or one carrying no classification at all: the legacy
+  ///     shape) fails open to the live re-run, and the #742 timeout /
+  ///     #1402 zero-match misfire shapes can never be deduped into;
   ///   - the CURRENT subject file's sha256 equals the recorded hash —
   ///     the subject the certification exercised is byte-identical to
   ///     the one generation is about to consume.
@@ -2943,6 +2945,11 @@ class MakeCommand extends Command<void> {
       if (entry.behaviorId == record.behaviorId) last = entry;
     }
     if (last == null || last.kind != 'red') return null;
+    // Issue #1587 review: `kind: red` + exit 1 does not say WHY the run
+    // was red — the entry's own classification does. Only a certified
+    // assertion failure satisfies the precondition; every other class
+    // (and the classification-less legacy shape) fails open.
+    if (last.classification != 'assertionFailure') return null;
     final hash = last.subjectHash;
     if (hash == null || hash.length != 64) return null;
     if ((last.exit ?? 0) != 1) return null;
