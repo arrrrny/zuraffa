@@ -148,12 +148,17 @@ class _PackageCreatePluginCommand extends Command<void> {
   @override
   String get name => 'create-plugin';
 
+  /// `zfa package plugin <name>` — the spec-1601 alias for the same
+  /// scaffold (FR-001), so the command reads as a sibling of `create`.
+  @override
+  List<String> get aliases => ['plugin'];
+
   @override
   String get description =>
       'Create a publish-ready federated plugin monorepo (app-facing '
       'package, shared platform envelope core, and android/ios/macos '
       'adapters with the zikzak publish pipeline) — the shape '
-      'zuraffa_auth and zuraffa_permissions follow (issue #1604)';
+      'zuraffa_auth and zuraffa_permissions follow (issue #1604, #678)';
 
   @override
   String get invocation => 'zfa package create-plugin <name> [options]';
@@ -179,11 +184,17 @@ class _PackageCreatePluginCommand extends Command<void> {
       help: 'Package description (pubspec.yaml + READMEs).',
     );
     argParser.addOption(
+      'repo',
+      help:
+          'GitHub owner/name slug stamped into repository + issue_tracker '
+          'metadata (default: arrrrny/<name>).',
+    );
+    argParser.addOption(
       'zuraffa-path',
       help:
-          'Pin zuraffa as a path dependency (local checkout) instead of the '
-          'published version — for developing packages against a local '
-          'zuraffa tree.',
+          'Resolve zuraffa from a local checkout via dependency_overrides '
+          'instead of the published version — for developing the plugin '
+          'family against a local zuraffa tree.',
     );
     argParser.addFlag(
       'no-gate',
@@ -217,6 +228,7 @@ class _PackageCreatePluginCommand extends Command<void> {
     final platforms = _parsePlatforms(argResults!['platforms'] as String);
     final outputParent = argResults!['output'] as String;
     final description = argResults!['description'] as String?;
+    final repository = argResults!['repo'] as String?;
     final zuraffaPath = argResults!['zuraffa-path'] as String?;
     final dryRun = argResults!['dry-run'] as bool;
     final runGate = !(argResults!['no-gate'] as bool);
@@ -233,6 +245,7 @@ class _PackageCreatePluginCommand extends Command<void> {
         outputParent: outputParent,
         platforms: platforms,
         description: description,
+        repository: repository,
         zuraffaPath: zuraffaPath,
         dryRun: dryRun,
       );
@@ -287,36 +300,14 @@ class _PackageCreatePluginCommand extends Command<void> {
     }
   }
 
-  /// Parses and normalizes the --platforms option: unknown platforms are
-  /// operator errors; the returned list follows the android, ios, macos
-  /// declaration order regardless of input order.
+  /// Delegates the --platforms contract to the engine's
+  /// [PluginScaffold.platformsFromCsv] and surfaces failures as CLI usage
+  /// errors (spec 1601 FR-005: one parser, one message set).
   List<PluginPlatform> _parsePlatforms(String raw) {
-    final requested = raw
-        .split(',')
-        .map((part) => part.trim().toLowerCase())
-        .where((part) => part.isNotEmpty)
-        .toSet();
-    if (requested.isEmpty) {
-      usageException(
-        'No platforms requested — use --platforms android,ios,macos.',
-      );
+    try {
+      return PluginScaffold.platformsFromCsv(raw).toList();
+    } on PackageScaffoldException catch (e) {
+      usageException(e.message);
     }
-    final unknown = requested
-        .where(
-          (part) => PluginPlatform.values.every(
-            (platform) => platform.dirSuffix != part,
-          ),
-        )
-        .toList();
-    if (unknown.isNotEmpty) {
-      usageException(
-        'Unknown platform(s): ${unknown.join(', ')}. '
-        'Supported: ${PluginPlatform.values.map((p) => p.dirSuffix).join(', ')}.',
-      );
-    }
-    return [
-      for (final platform in PluginPlatform.values)
-        if (requested.contains(platform.dirSuffix)) platform,
-    ];
   }
 }

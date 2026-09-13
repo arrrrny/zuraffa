@@ -2,27 +2,11 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-import '../utils/string_utils.dart';
 import '../version.dart';
 import 'package_scaffold.dart';
+import 'plugin_family_names.dart';
 
-/// The platform adapters a federated plugin can ship.
-enum PluginPlatform {
-  android('android', 'Android', 'Android'),
-  ios('ios', 'Ios', 'iOS'),
-  macos('macos', 'Macos', 'macOS');
-
-  const PluginPlatform(this.dirSuffix, this.classPrefix, this.label);
-
-  /// Adapter package suffix + file-name prefix (`zuraffa_wasm_android`).
-  final String dirSuffix;
-
-  /// Dart identifier prefix (`AndroidWasmPort`).
-  final String classPrefix;
-
-  /// Human label for READMEs and docs (`iOS`).
-  final String label;
-}
+export 'plugin_family_names.dart' show PluginFamilyNames, PluginPlatform;
 
 /// Result of a successful federated-plugin scaffold.
 class PluginScaffoldResult {
@@ -89,8 +73,13 @@ class PluginScaffold {
   /// - [platforms] selects the adapter packages (normalized to android,
   ///   ios, macos order regardless of input order).
   /// - [description] lands in every pubspec + the root README.
-  /// - [zuraffaPath], when given, pins zuraffa as a path dependency
-  ///   (developing against a local checkout).
+  /// - [repository] overrides the GitHub `owner/name` slug stamped into
+  ///   every package's `repository`/`issue_tracker` metadata (FR-012);
+  ///   defaults to `arrrrny/<name>`.
+  /// - [zuraffaPath], when given, resolves zuraffa from a local checkout
+  ///   via `dependency_overrides` while the hosted constraint stays
+  ///   declared — dev-only resolution that never leaks into a release
+  ///   (FR-006, FR-013).
   /// - [dryRun] reports what would be written without touching the disk.
   ///
   /// Throws [PackageScaffoldException] (same contract as `zfa package
@@ -101,6 +90,7 @@ class PluginScaffold {
     required String outputParent,
     required List<PluginPlatform> platforms,
     String? description,
+    String? repository,
     String? zuraffaPath,
     bool dryRun = false,
   }) async {
@@ -134,32 +124,45 @@ class PluginScaffold {
 
     // Publish order: app-facing package first (every sibling declares it
     // hosted), then the shared envelope core, then the adapters.
-    final packageNames = <String>[
-      name,
-      '${name}_platform',
-      for (final platform in platforms) '${name}_${platform.dirSuffix}',
-    ];
+    final family = PluginFamilyNames(name, platforms);
+    final packageNames = family.packageNames;
 
-    final noun = _nounFor(name);
-    final pascalNoun = StringUtils.convertToPascalCase(noun);
-    final repoUrl = 'https://github.com/$_repoOwner/$name';
+    final repoSlug = repository ?? '$_repoOwner/$name';
+    final repoUrl = 'https://github.com/$repoSlug';
     final effectiveDescription = _singleLine(
       description ??
-          '$pascalNoun support for the Zuraffa ecosystem: a pure-Dart port '
-              'behind an injected platform channel with federated adapters.',
+          '${family.appPascal} support for the Zuraffa ecosystem: a pure-Dart '
+              'port behind an injected platform channel with federated adapters.',
     );
-    final zuraffaDep = (zuraffaPath != null)
-        ? '  zuraffa:\n    path: $zuraffaPath'
-        : '  zuraffa: ^$version';
+    // The hosted constraint is always declared; a local checkout resolves
+    // through dependency_overrides instead, so dev-only path resolution
+    // never leaks into a publish (FR-006, FR-013).
+    final zuraffaDep = '  zuraffa: ^$version';
+    final zuraffaPathEntry = (zuraffaPath != null)
+        ? '  zuraffa:\n    path: $zuraffaPath\n'
+        : '';
+    final appOverrides = (zuraffaPath != null)
+        ? 'dependency_overrides:\n'
+              '  # Local development only — resolve zuraffa to this checkout;\n'
+              '  # stripped on publish.\n'
+              '$zuraffaPathEntry'
+        : '';
 
     final tokens = <String, String>{
       '@@PKG@@': name,
-      '@@NOUN@@': noun,
-      '@@PASCAL@@': pascalNoun,
+      '@@NOUN@@': family.noun,
+      '@@PASCAL@@': family.appPascal,
       '@@DESC@@': effectiveDescription,
       '@@REPO@@': repoUrl,
       '@@ZURAFFA_DEP@@': zuraffaDep,
-      '@@TOPICS@@': _topicsYaml(_topicsFor(noun)),
+      '@@APP_OVERRIDES@@': appOverrides,
+      '@@ZURAFFA_PATH_ENTRY@@': zuraffaPathEntry,
+      '@@CORE_DESC@@':
+          description ??
+          'Shared channel-envelope core for the \$name platform adapters: '
+              'decode, typed-error plumbing, and timeout policy over an '
+              'injected platform channel.',
+      '@@TOPICS@@': _topicsYaml(_topicsFor(family.noun)),
       '@@PKGS@@': packageNames.map((pkg) => '"$pkg"').join(' '),
       '@@FAMILY_SEDS@@': _familyConstraintSeds(name),
       '@@ADAPTERS@@': platforms.map((platform) => platform.label).join(', '),
@@ -250,10 +253,38 @@ class PluginScaffold {
     );
   }
 
-  /// `zuraffa_wasm` → `wasm`; non-prefixed names keep their full noun.
-  String _nounFor(String packageName) => packageName.startsWith('zuraffa_')
-      ? packageName.substring('zuraffa_'.length)
-      : packageName;
+  /// Parses a `--platforms` CSV into the platform set. Whitespace is
+  /// tolerated; empty input and unknown names are operator-fixable errors
+  /// naming the supported set (FR-005, FR-010). Shared by the
+  /// `package plugin` command so the engine owns the whole contract.
+  static Set<PluginPlatform> platformsFromCsv(String csv) {
+    final names = csv
+        .split(',')
+        .map((part) => part.trim().toLowerCase())
+        .where((part) => part.isNotEmpty)
+        .toSet();
+    if (names.isEmpty) {
+      throw PackageScaffoldException(
+        'No platforms selected. '
+        'Supported: ${PluginPlatform.values.map((p) => p.dirSuffix).join(', ')}.',
+      );
+    }
+    final unknown = names
+        .where(
+          (name) => PluginPlatform.values.every((p) => p.dirSuffix != name),
+        )
+        .toList();
+    if (unknown.isNotEmpty) {
+      throw PackageScaffoldException(
+        'Unknown platform(s): ${unknown.join(", ")}. '
+        'Supported: ${PluginPlatform.values.map((p) => p.dirSuffix).join(", ")}.',
+      );
+    }
+    return {
+      for (final platform in PluginPlatform.values)
+        if (names.contains(platform.dirSuffix)) platform,
+    };
+  }
 
   /// Pub topics: the noun plus house topics. Underscores become hyphens
   /// (pub.dev rejects underscores in topics).
@@ -284,16 +315,15 @@ class PluginScaffold {
   }
 
   String _packageTable(String name, List<PluginPlatform> platforms) {
+    final pascalNoun = PluginFamilyNames(name).appPascal;
     final rows = <String>[
-      '| [`packages/$name`](packages/$name/) | App-facing package: `${_pascalFor(name)}Port`, `${_pascalFor(name)}Service`, typed failures + DI registration |',
+      '| [`packages/$name`](packages/$name/) | App-facing package: `${pascalNoun}Port`, `${pascalNoun}Service`, typed failures + DI registration |',
       '| [`packages/${name}_platform`](packages/${name}_platform/) | Shared channel-envelope core over an injected platform channel |',
       for (final platform in platforms)
         '| [`packages/${name}_${platform.dirSuffix}`](packages/${name}_${platform.dirSuffix}/) | ${platform.label} adapter (typed taxonomy over the injected channel) |',
     ];
     return rows.join('\n');
   }
-
-  String _pascalFor(String noun) => StringUtils.convertToPascalCase(noun);
 
   String _render(String template, Map<String, String> tokens) {
     var out = template;
@@ -580,7 +610,7 @@ dev_dependencies:
   lints: @@LINTS@@
   test: @@TEST@@
 
-repository: @@REPO@@
+@@APP_OVERRIDES@@repository: @@REPO@@
 issue_tracker: @@REPO@@/issues
 
 @@TOPICS@@''',
@@ -695,6 +725,8 @@ class @@PASCAL@@Exception implements Exception {
   }
 
   static const String _appValueTemplate = r'''
+import '@@NOUN@@_exception.dart';
+
 /// A WebAssembly scalar value crossing the platform boundary.
 ///
 /// The scaffold ships the four numeric types; the migration extends the
@@ -984,7 +1016,8 @@ void main() {
       );
 
       expect(port.calls, contains('invoke:demo:run'));
-      expect(results.single.value, 42);
+      expect(results.single, isA<@@PASCAL@@I32>());
+      expect((results.single as @@PASCAL@@I32).value, 42);
     });
 
     test('call before compile surfaces the typed not_compiled failure',
@@ -1050,15 +1083,15 @@ void main() {
 
   group('@@PASCAL@@Value', () {
     test('round-trips through the channel encoding', () {
-      final i32 = @@PASCAL@@Value.decode(const @@PASCAL@@I32(7).encode());
+      final i32 = @@PASCAL@@Value.decode(@@PASCAL@@I32(7).encode());
       expect(i32, isA<@@PASCAL@@I32>());
 
       final i64 = @@PASCAL@@Value.decode(
-        const @@PASCAL@@I64(BigInt.parse('9007199254740993')).encode(),
+        @@PASCAL@@I64(BigInt.parse('9007199254740993')).encode(),
       );
       expect((i64 as @@PASCAL@@I64).value, BigInt.parse('9007199254740993'));
 
-      final f64 = @@PASCAL@@Value.decode(const @@PASCAL@@F64(1.5).encode());
+      final f64 = @@PASCAL@@Value.decode(@@PASCAL@@F64(1.5).encode());
       expect((f64 as @@PASCAL@@F64).value, 1.5);
     });
 
@@ -1082,11 +1115,11 @@ import 'package:@@PKG@@/@@PKG@@.dart';
 
 void main() {
   test('i32 encodes to an int', () {
-    expect(const @@PASCAL@@I32(42).encode(), 42);
+    expect(@@PASCAL@@I32(42).encode(), 42);
   });
 
   test('i64 encodes to a decimal string and decodes back', () {
-    final value = const @@PASCAL@@I64(BigInt.parse('9007199254740993'));
+    final value = @@PASCAL@@I64(BigInt.parse('9007199254740993'));
 
     expect(value.encode(), '9007199254740993');
     expect(
@@ -1096,7 +1129,7 @@ void main() {
   });
 
   test('f64 encodes to a double', () {
-    expect(const @@PASCAL@@F64(0.5).encode(), 0.5);
+    expect(@@PASCAL@@F64(0.5).encode(), 0.5);
   });
 }
 ''';
@@ -1115,9 +1148,7 @@ void main() {
 # Federated plugin monorepo created by `zfa package create-plugin` (issue #1604).
 name: @@PKG@@_platform
 description: >-
-  Shared channel-envelope core for the @@PKG@@ platform adapters:
-  decode, typed-error plumbing, and timeout policy over an injected
-  platform channel.
+  @@CORE_DESC@@
 version: @@INITIAL_VERSION@@
 homepage: https://zuraffa.com
 
@@ -1137,7 +1168,7 @@ dependency_overrides:
   # checkout; stripped on publish.
   @@PKG@@:
     path: ../@@PKG@@
-
+@@ZURAFFA_PATH_ENTRY@@
 repository: @@REPO@@
 issue_tracker: @@REPO@@/issues
 
@@ -1452,6 +1483,11 @@ void main() {
     final adapterName = '${name}_${platform.dirSuffix}';
     final adapterTokens = {
       ...tokens,
+      '@@ADAPTER_DESC@@':
+          tokens['@@DESC@@'] ??
+          '${platform.label} adapter for $name — the '
+              '${tokens['@@PASCAL@@']} port over an injected platform '
+              'channel with a typed failure taxonomy.',
       '@@TOPICS@@': _topicsYaml(_topicsFor(noun, platform: platform)),
       '@@PLATFORM_CLASS@@': platform.classPrefix,
       '@@PLATFORM_FILE@@': platform.dirSuffix,
@@ -1463,8 +1499,7 @@ void main() {
 # Federated plugin monorepo created by `zfa package create-plugin` (issue #1604).
 name: @@PKG@@_@@PLATFORM_FILE@@
 description: >-
-  @@PLATFORM_LABEL@@ adapter for @@PKG@@ — the @@PASCAL@@ port over an
-  injected platform channel with a typed failure taxonomy.
+  @@ADAPTER_DESC@@
 version: @@INITIAL_VERSION@@
 homepage: https://zuraffa.com
 
@@ -1487,7 +1522,7 @@ dependency_overrides:
     path: ../@@PKG@@
   @@PKG@@_platform:
     path: ../@@PKG@@_platform
-
+@@ZURAFFA_PATH_ENTRY@@
 repository: @@REPO@@
 issue_tracker: @@REPO@@/issues
 
