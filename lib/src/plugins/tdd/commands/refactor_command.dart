@@ -60,6 +60,25 @@
 /// feature's `tdd/cycle-log.md`, so a false regression is auditable
 /// instead of silent.
 ///
+/// Issue #1588 — batch economics and the parked-behavior exemption. The
+/// driving run's phase-2 refactor pass hands this command two driver-only
+/// flags. `--pass-batch` opts the invocation into the feature pass-batch
+/// ledger (`tdd/pass-batch.json`, [PassBatchLedger]): a later invocation
+/// of the SAME batch on a byte-identical lib/ + test/ tree inherits the
+/// gate a previous invocation proved — no preflight, no pass registry, no
+/// re-proof — so N green behaviors cost ONE pipeline instead of N
+/// (the #741 economics, finally extended to the refactor pass). A
+/// flag-less standalone refactor never reads or writes the ledger: the
+/// absolute-green contract (spec 048 FR-001) stands. `--exempt-behaviors
+/// <ids>` excludes the named behaviors' registered tests from the
+/// preflight/re-proof failing sets — the lane's parked BLOCKED contracts
+/// (issue #1007/#1544) whose red tests are the designed park state, not
+/// this feature's doing, and which the #922 baseline cannot know (gen
+/// created their tests after the baseline capture). Every non-exempt
+/// failure still refuses; an id with no registered artifact is ignored
+/// (fail-open); the exclusion is named in the output and the evidence
+/// entry instead of silently claiming green.
+///
 /// Rejections and misfires are signaled through dart:io `exitCode` (which
 /// [CliRunner] honors) rather than by throwing, so the summary line stays
 /// the final stdout line.
@@ -74,6 +93,7 @@ import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/kernel_cache.dart';
+import '../services/pass_batch_ledger.dart';
 import '../services/pass_registry_tracker.dart';
 import '../services/refactor_passes.dart';
 import '../services/refactor_receipt_refresh.dart';
@@ -158,9 +178,44 @@ class RefactorCommand extends Command<void> {
       defaultsTo: false,
       negatable: false,
     );
+    argParser.addFlag(
+      'pass-batch',
+      help:
+          'Driver-only opt-in to the feature pass-batch ledger (issue '
+          '#1588). When the driving `zfa tdd run`\'s phase-2 refactor pass '
+          'hands this flag, the command records the gate it proved '
+          '(suite template, baseline content, exempt set, lib/ + test/ '
+          'tree digests) in specs/<feature>/tdd/pass-batch.json, and a '
+          'later invocation of the SAME batch on a byte-identical tree '
+          'inherits it — no preflight, no pass registry, no re-proof. A '
+          'flag-less standalone refactor never reads or writes the '
+          'ledger: the absolute-green contract (spec 048 FR-001) stands.',
+      defaultsTo: false,
+      negatable: false,
+    );
+    argParser.addOption(
+      'exempt-behaviors',
+      valueHelp: 'ids',
+      help:
+          'Comma-separated behavior ids whose registered tests are EXEMPT '
+          'from the gate (issue #1588). The driving run hands the lane\'s '
+          'parked BLOCKED contracts here: their red tests on disk are the '
+          'designed park state (#1007/#1544), not this feature\'s doing, '
+          'and must not poison every refactor preflight — the baseline '
+          'cannot know them (gen created their tests after the #741 '
+          'baseline capture). The exemption removes only the registered '
+          'tests of the named behaviors from the preflight/re-proof '
+          'failing sets; every other failure still refuses, and an id '
+          'with no registered artifact is ignored (fail-open). Without '
+          'the flag the gate is unchanged.',
+    );
     // Note (FR-002): there is INTENTIONALLY no --skip-preflight option.
     // The preflight is the entire discipline of the refactor step; skipping
-    // it would destroy the signal that makes refactoring safe.
+    // it would destroy the signal that makes refactoring safe. The
+    // --pass-batch ledger narrows nothing: it only lets a LATER invocation
+    // of the same proven batch skip a redundant re-proof of a
+    // byte-identical tree (issue #1588), and the full gate still runs at
+    // feature completion + nightly (spec 069 T001).
   }
 
   final TddPlugin plugin;
@@ -243,10 +298,41 @@ class RefactorCommand extends Command<void> {
         fullReproof: argResults?['full-reproof'] as bool? ?? false,
         suiteBaselinePath: argResults?['suite-baseline'] as String?,
         scratchEnv: scratch?.childEnvironment(),
+        passBatch: argResults?['pass-batch'] as bool? ?? false,
+        exemptBehaviorIds: _parseExemptBehaviors(
+          argResults?['exempt-behaviors'] as String?,
+        ),
       );
     } finally {
       await scratch?.dispose();
     }
+  }
+
+  /// Issue #1588: the comma-separated `--exempt-behaviors` value, split
+  /// into trimmed, de-duplicated, sorted ids. An empty value yields an
+  /// empty set (the gate is unchanged when the driver hands no ids).
+  static List<String> _parseExemptBehaviors(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return const [];
+    return raw
+        .split(',')
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+  }
+
+  /// Issue #1588: normalize a registered test path to the project-
+  /// relative, forward-slashed form the dart test reporter prints
+  /// (absolute recorded paths become relative to [projectRoot]; already-
+  /// relative paths pass through) — the same comparison contract
+  /// PassRegistryTracker.coveringTestsFor uses.
+  static String _normalizeGatePath(String path, String projectRoot) {
+    var normalized = p.normalize(path);
+    if (p.isAbsolute(normalized)) {
+      normalized = p.relative(normalized, from: p.normalize(projectRoot));
+    }
+    return p.posix.normalize(normalized);
   }
 
   /// The body of the command, extracted so it can return a typed outcome
@@ -260,6 +346,8 @@ class RefactorCommand extends Command<void> {
     bool fullReproof = false,
     String? suiteBaselinePath,
     Map<String, String>? scratchEnv,
+    bool passBatch = false,
+    List<String> exemptBehaviorIds = const [],
   }) async {
     RefactorOutcome outcome;
     int applied = 0;
@@ -276,6 +364,11 @@ class RefactorCommand extends Command<void> {
     // evidence entry records them honestly instead of claiming green.
     var preflightTolerated = 0;
     var reproofTolerated = 0;
+    // Issue #1588: how many failures each verdict excluded as
+    // parked-exempt behavior tests — 0 when the verdict involved no
+    // exemption. The evidence entry records them honestly.
+    var preflightExempted = 0;
+    var reproofExempted = 0;
 
     try {
       // Issue #1507: the kernel sweep is a start-of-cycle obligation, not
@@ -319,6 +412,119 @@ class RefactorCommand extends Command<void> {
         _printSummary(feature: featureName, outcome: outcome, applied: 0);
         exitCode = 1;
         return;
+      }
+
+      // Issue #1588: resolve the exempt behaviors' registered test paths
+      // BEFORE the gate. A parked BLOCKED contract's red test on disk is
+      // the designed park state (#1007/#1544), not this feature's doing;
+      // the #741 baseline cannot know it (gen created the test after the
+      // baseline capture), so it counts as a NEW #922 failure and poisons
+      // every refactor preflight. The exemption removes ONLY the failures
+      // whose identifier belongs to a named behavior's registered test —
+      // every other failure still refuses (safe fallback kept), and an id
+      // with no registered artifact is ignored (fail-open).
+      final exemptTestsByPath = <String, String>{};
+      if (exemptBehaviorIds.isNotEmpty) {
+        final records = await ArtifactRegistry(
+          featureDir: featureDir,
+        ).loadAll();
+        for (final record in records) {
+          if (!exemptBehaviorIds.contains(record.behaviorId)) continue;
+          exemptTestsByPath[_normalizeGatePath(record.testPath, cwd)] =
+              record.behaviorId;
+        }
+        if (exemptTestsByPath.isNotEmpty) {
+          print(
+            '   parked-exempt behaviors (issue #1588): '
+            '${exemptTestsByPath.values.toSet().join(', ')} — their '
+            'registered tests are excluded from the gate',
+          );
+        }
+      }
+
+      // The behavior id whose registered test a failing identifier
+      // belongs to, or null when the failure is not exempt. The dart test
+      // compact reporter prints failures as
+      // `test/foo_test.dart: group name test name [E]` — the identifier
+      // always STARTS with the file path, so the prefix match is exact.
+      String? exemptBehaviorFor(String failingId) {
+        for (final MapEntry(key: path, value: behavior)
+            in exemptTestsByPath.entries) {
+          if (failingId == path || failingId.startsWith('$path:')) {
+            return behavior;
+          }
+        }
+        return null;
+      }
+
+      // Issue #1588: the driver-only pass-batch fast path. A valid ledger
+      // (same suite template, same baseline content, same exempt set,
+      // byte-identical lib/ and test/ trees) means a previous invocation
+      // of THIS batch already proved the identical gate — preflight,
+      // pass registry and re-proof are inherited, costing this spawn two
+      // tree snapshots and a file read instead of a full pipeline. A
+      // flag-less standalone refactor never reaches this branch: the
+      // absolute-green contract (spec 048 FR-001) stands unchanged.
+      if (passBatch) {
+        final libNow = await TreeSnapshot.capture(cwd, trees: const ['lib']);
+        final testNow = await TreeSnapshot.capture(cwd, trees: const ['test']);
+        final ledger = await PassBatchLedger.read(featureDir);
+        if (ledger != null &&
+            ledger.matches(
+              suite: suiteTemplate,
+              baselineKey: await PassBatchLedger.baselineKeyFor(
+                suiteBaselinePath,
+              ),
+              exemptBehaviors: exemptBehaviorIds,
+              libDigest: PassBatchLedger.treeDigest(libNow),
+              testDigest: PassBatchLedger.treeDigest(testNow),
+            )) {
+          print(
+            'zfa tdd refactor: pass-batch ledger hit (issue #1588) — the '
+            'batch gate is inherited',
+          );
+          print(
+            '   proved ${ledger.capturedAt}: preflight, pass registry and '
+            're-proof skipped for this behavior (byte-identical lib/ and '
+            'test/ trees; the full gate still runs at feature completion '
+            '+ nightly, spec 069 T001)',
+          );
+          print(
+            '   inherited verdicts: preflight ${ledger.preflightVerdict}; '
+            're-proof ${ledger.reproofVerdict}',
+          );
+          if (exemptBehaviorIds.isNotEmpty) {
+            print(
+              '   parked-exempt behaviors: '
+              '${exemptBehaviorIds.join(', ')}',
+            );
+          }
+          outcome = RefactorOutcome.clean;
+          await CycleLog(featureDir).append(
+            CycleLogEntry(
+              behaviorId: '$featureName-refactor',
+              kind: CycleEntryKind.refactor,
+              runnerCommand: suiteTemplate,
+              exitCode: 0,
+              capturedOutput:
+                  'pass-batch: gate inherited from the recorded batch proof '
+                  'at ${ledger.capturedAt} (issue #1588) — byte-identical '
+                  'lib/ and test/ trees, same suite template, same baseline '
+                  'content, same exempt set.\n'
+                  'inherited preflight verdict: ${ledger.preflightVerdict}\n'
+                  'inherited re-proof verdict: ${ledger.reproofVerdict}\n'
+                  'applied: 0 actions (pass registry skipped on the '
+                  'unchanged tree).',
+              sourceCriterion: 'FR-008',
+              testPath: 'test/',
+              timestamp: DateTime.now().toUtc().toIso8601String(),
+              isNoOp: true,
+            ),
+          );
+          _printSummary(feature: featureName, outcome: outcome, applied: 0);
+          exitCode = 0;
+          return;
+        }
       }
 
       // 3. Run the preflight suite.
@@ -392,28 +598,64 @@ class RefactorCommand extends Command<void> {
         // tolerated (the U16 discipline make already applies). An
         // unparseable transcript is never tolerated: a red the parser
         // cannot name may be a runner/compile failure, so the refusal
-        // stands (safe failure — never a silent pass).
-        final preflightSnapshot = suiteBaseline == null
-            ? null
-            : const SuiteGuard().fromRunRecord(
+        // stands (safe failure — never a silent pass). Issue #1588: the
+        // parked-exempt behaviors' registered tests are removed from the
+        // failing set BEFORE the verdict — their red is the designed park
+        // state (#1007/#1544), and without the removal every preflight in
+        // the batch refuses for a behavior this run can never fix.
+        final preflightSnapshot = preflight.startedProcess
+            ? const SuiteGuard().fromRunRecord(
                 record: preflight,
                 capturedAt: DateTime.now().toUtc().toIso8601String(),
-              );
-        final newFailures = (suiteBaseline == null || preflightSnapshot == null)
-            ? const <String>[]
-            : const SuiteGuard()
-                  .diff(baseline: suiteBaseline, guard: preflightSnapshot)
-                  .newFailures;
-        if (preflightSnapshot != null &&
-            preflightSnapshot.parseable &&
-            newFailures.isEmpty) {
+              )
+            : null;
+        final preflightParseable =
+            preflightSnapshot != null && preflightSnapshot.parseable;
+        final nonExemptFailures = <String>[
+          if (preflightParseable)
+            ...preflightSnapshot.failedTests.where(
+              (id) => exemptBehaviorFor(id) == null,
+            ),
+        ]..sort();
+        final exemptedFailures = <String>[
+          if (preflightParseable)
+            ...preflightSnapshot.failedTests.where(
+              (id) => exemptBehaviorFor(id) != null,
+            ),
+        ]..sort();
+        final newFailures = <String>[
+          if (preflightParseable && suiteBaseline != null)
+            ...nonExemptFailures.where(
+              (id) => !suiteBaseline!.failedTests.contains(id),
+            ),
+        ]..sort();
+        final preflightToleratedVerdict =
+            preflightParseable &&
+            (suiteBaseline != null
+                ? newFailures.isEmpty
+                : nonExemptFailures.isEmpty);
+        if (preflightToleratedVerdict) {
           preflightTolerated = preflightSnapshot.failedTests.length;
-          print(
-            '   suite is RED but every failure is pre-existing at '
-            'baseline — $preflightTolerated tolerated (issue #922):',
-          );
+          preflightExempted = exemptedFailures.length;
+          if (suiteBaseline != null) {
+            print(
+              '   suite is RED but every failure is pre-existing at '
+              'baseline — $preflightTolerated tolerated (issue #922):',
+            );
+          } else {
+            print(
+              '   suite is RED but every failure belongs to a '
+              'parked-exempt behavior — $preflightTolerated tolerated '
+              '(issue #1588):',
+            );
+          }
           for (final name in preflightSnapshot.failedTests) {
-            print('   tolerated: $name');
+            final owner = exemptBehaviorFor(name);
+            print(
+              owner != null
+                  ? '   parked-exempt ($owner, issue #1588): $name'
+                  : '   tolerated: $name',
+            );
           }
         } else {
           final failingTests = _extractFailingTestNames(preflight.output);
@@ -734,29 +976,54 @@ class RefactorCommand extends Command<void> {
         // tolerated is not a regression introduced by the passes. An
         // unparseable transcript still classifies as a regression (safe
         // failure), and so does any failure whose identifier the baseline
-        // does not already record.
-        final reproofSnapshot =
-            (!reproof.startedProcess || suiteBaseline == null)
+        // does not already record. Issue #1588: the parked-exempt
+        // behaviors' registered tests are removed from the failing set
+        // BEFORE the verdict — the same exclusion the preflight applied,
+        // so a scoped or full re-proof is not regressed by the designed
+        // park state of a BLOCKED contract.
+        final reproofSnapshot = !reproof.startedProcess
             ? null
             : const SuiteGuard().fromRunRecord(
                 record: reproof,
                 capturedAt: DateTime.now().toUtc().toIso8601String(),
               );
-        final newReproofFailures =
-            (suiteBaseline == null || reproofSnapshot == null)
-            ? const <String>[]
-            : const SuiteGuard()
-                  .diff(baseline: suiteBaseline, guard: reproofSnapshot)
-                  .newFailures;
-        if (reproofSnapshot != null &&
-            reproofSnapshot.parseable &&
-            newReproofFailures.isEmpty) {
+        final reproofParseable =
+            reproofSnapshot != null && reproofSnapshot.parseable;
+        final nonExemptReproofFailures = <String>[
+          if (reproofParseable)
+            ...reproofSnapshot.failedTests.where(
+              (id) => exemptBehaviorFor(id) == null,
+            ),
+        ]..sort();
+        final newReproofFailures = <String>[
+          if (reproofParseable && suiteBaseline != null)
+            ...nonExemptReproofFailures.where(
+              (id) => !suiteBaseline!.failedTests.contains(id),
+            ),
+        ]..sort();
+        final reproofToleratedVerdict =
+            reproofParseable &&
+            (suiteBaseline != null
+                ? newReproofFailures.isEmpty
+                : nonExemptReproofFailures.isEmpty);
+        if (reproofToleratedVerdict) {
           reproofTolerated = reproofSnapshot.failedTests.length;
-          print(
-            '   re-proof RED but every failure is pre-existing at '
-            'baseline — $reproofTolerated tolerated, no regression '
-            '(issue #922).',
-          );
+          reproofExempted = reproofSnapshot.failedTests
+              .where((id) => exemptBehaviorFor(id) != null)
+              .length;
+          if (suiteBaseline != null) {
+            print(
+              '   re-proof RED but every failure is pre-existing at '
+              'baseline — $reproofTolerated tolerated, no regression '
+              '(issue #922).',
+            );
+          } else {
+            print(
+              '   re-proof RED but every failure belongs to a '
+              'parked-exempt behavior — $reproofTolerated tolerated, no '
+              'regression (issue #1588).',
+            );
+          }
         } else {
           final regressedTests = _extractFailingTestNames(reproof.output);
           print('   REGRESSION detected — suite is no longer green.');
@@ -849,6 +1116,16 @@ class RefactorCommand extends Command<void> {
           ? 'tolerated $reproofTolerated pre-existing failure(s) '
                 '(issue #922)'
           : 'green';
+      // Issue #1588: the parked-exemption counts ride the verdict strings
+      // honestly — never a green claim that hides an excluded red.
+      final preflightVerdictWithExempt = preflightExempted > 0
+          ? '$preflightVerdict; $preflightExempted parked-exempt '
+                'failure(s) excluded (issue #1588)'
+          : preflightVerdict;
+      final reproofVerdictWithExempt = reproofExempted > 0
+          ? '$reproofVerdict; $reproofExempted parked-exempt '
+                'failure(s) excluded (issue #1588)'
+          : reproofVerdict;
 
       // Issue #1333 FR-3: the re-proof verdict line (verdict + exit code)
       // and a truncated transcript tail ride along on the GREEN path too —
@@ -872,7 +1149,8 @@ class RefactorCommand extends Command<void> {
             runnerCommand: suiteTemplate,
             exitCode: 0,
             capturedOutput:
-                'preflight: $preflightVerdict\nre-proof: $reproofVerdict\n'
+                'preflight: $preflightVerdictWithExempt\n'
+                're-proof: $reproofVerdictWithExempt\n'
                 '$reproofDiagnostics\n'
                 '$reproofNote\n'
                 'applied: 0 actions.',
@@ -893,7 +1171,8 @@ class RefactorCommand extends Command<void> {
             runnerCommand: reproofCommand,
             exitCode: 0,
             capturedOutput:
-                'preflight: $preflightVerdict\nre-proof: $reproofVerdict\n'
+                'preflight: $preflightVerdictWithExempt\n'
+                're-proof: $reproofVerdictWithExempt\n'
                 '$reproofDiagnostics\n'
                 '$reproofNote\n'
                 'receipts refreshed: ${refresh.fired ? refresh.refreshedPaths.length : 0} '
@@ -929,6 +1208,34 @@ class RefactorCommand extends Command<void> {
           print(
             '   subject evidence refreshed: $refreshed certified '
             'subject(s) re-bound to the post-rewrite shapes (issue #1430)',
+          );
+        }
+      }
+      // Issue #1588: record the batch gate this green application proved,
+      // so the NEXT behavior's refactor spawn inherits it instead of
+      // re-paying the full pipeline. The digests describe the tree the
+      // re-proof just proved (testAfter/libAfter — the re-proof does not
+      // modify watched trees). Best-effort: a ledger write failure costs
+      // the next spawn one full pipeline, never correctness.
+      if (passBatch) {
+        try {
+          await PassBatchLedger(
+            capturedAt: DateTime.now().toUtc().toIso8601String(),
+            suite: suiteTemplate,
+            baselineKey: await PassBatchLedger.baselineKeyFor(
+              suiteBaselinePath,
+            ),
+            exemptBehaviors: exemptBehaviorIds,
+            libDigest: PassBatchLedger.treeDigest(libAfter),
+            testDigest: PassBatchLedger.treeDigest(testAfter),
+            preflightVerdict: preflightVerdictWithExempt,
+            reproofVerdict: reproofVerdictWithExempt,
+          ).write(featureDir: featureDir);
+        } catch (e) {
+          print(
+            '   WARNING: could not write the pass-batch ledger '
+            '(issue #1588): $e — the next batch spawn re-runs the full '
+            'pipeline.',
           );
         }
       }
