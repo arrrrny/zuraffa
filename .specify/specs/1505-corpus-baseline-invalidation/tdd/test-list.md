@@ -9,19 +9,19 @@
 
 | id | behavior | traces | state |
 | -- | -------- | ------ | ----- |
-| T001 | a created test/ file flips the fingerprint and read() misses | US-1 / SC-1 | PENDING |
-| T002 | a modified lib/ file flips the fingerprint | US-2 / SC-1 | PENDING |
-| T003 | .zfa memory/manifest state changes flip the fingerprint | US-3 / SC-2 | PENDING |
-| T006 | mtime-only touch does NOT flip the fingerprint | US-4 / SC-1 SC-3 | PENDING |
-| T007 | run-mutated .zfa state (progress/lock/receipts/cache file) does NOT flip the fingerprint | US-4 / SC-3 | PENDING |
-| T008u | fingerprint is stable across two computations with no changes (determinism) | US-4 / SC-3 | PENDING |
+| T001 | a created test/ file flips the fingerprint and read() misses | US-1 / SC-1 | DONE |
+| T002 | a modified lib/ file flips the fingerprint | US-2 / SC-1 | DONE |
+| T003 | .zfa memory/manifest state changes flip the fingerprint | US-3 / SC-2 | DONE |
+| T006 | mtime-only touch does NOT flip the fingerprint | US-4 / SC-1 SC-3 | DONE |
+| T007 | run-mutated .zfa state (progress/lock/receipts/cache file) does NOT flip the fingerprint | US-4 / SC-3 | DONE |
+| T008u | fingerprint is stable across two computations with no changes (determinism) | US-4 / SC-3 | DONE |
 
 ## Driver loop: end-to-end run behaviors
 
 | id | behavior | traces | state |
 | -- | -------- | ------ | ----- |
-| T004 | after a test-file fix, the second feature run re-runs the live suite (no corpus-wide reuse) — the #1505 repro | US-1 / SC-4 | PENDING |
-| T008 | with no outcome-relevant change, the second feature run still reuses the corpus baseline (zero extra suite spawns) | US-4 / SC-4 | PENDING (may resolve green-by-design; see tasks.md T008) |
+| T004 | after a test-file fix, the second feature run re-runs the live suite (no corpus-wide reuse) — the #1505 repro | US-1 / SC-4 | DONE |
+| T008 | with no outcome-relevant change, the second feature run still reuses the corpus baseline (zero extra suite spawns) | US-4 / SC-4 | DONE (green-by-design confirmed: allow-list keeps the hit) |
 
 ## Existing pinned behaviors (must stay green — regression guard)
 

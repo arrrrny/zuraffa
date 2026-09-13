@@ -83,3 +83,38 @@ corpus-wide reuse (fingerprint match; spec 069 T004) — …   ← stale reuse l
 - red set (exactly as planned): T001, T002, T003, #1505 repro.
 - green-before guards (regression pins, not red-cycle subjects): T006,
   T007, T008u, #1505 economics guard, R1–R8 (8 pre-existing tests).
+
+## Cycle: T005 implementation (green)
+
+- behavior: T001–T004, T006–T008u (all listed behaviors)
+- kind: green
+- classification: implementation
+- criterion: US-1..US-4 / SC-1..SC-4
+- change: `lib/src/plugins/tdd/services/corpus_baseline_cache.dart` ONLY —
+  `dependencyFingerprint()` extended with `test/` + `lib/` tree content
+  digests and the `.zfa/` memory/manifest allow-list (manifests/,
+  context.json, AGENT_CONTRACT.md); private helpers `_addTreeDigest`,
+  `_addZfaStateDigest`, `_addLooseFile`, `_lengthPrefix`; doc comments
+  updated (T010 folded in — same file).
+- command: `dart test test/plugins/tdd/corpus_economics/baseline_cache_test.dart`
+- exit: 0
+- at: 2026-09-13T00:00:00Z
+- result: `+16: All tests passed!` (8 pre-existing R1–R8 + 8 new)
+
+## Cycle: T007-driven refinement — the `.zfa` presence-marker lesson (green)
+
+- behavior: T007, R5, #1505 economics guard
+- kind: refactor (fix within the green cycle)
+- classification: logicCorrection
+- criterion: US-4 / SC-3
+- reading: the first implementation put a `.zfa`-directory existence
+  marker into the state digest. `CorpusBaselineCache.write()` itself
+  creates `.zfa/corpus/`, so the marker flipped absent→present between
+  the very features the cache must serve (T007, R5 and the economics
+  guard all failed with spurious misses). Fix: the `.zfa` state is ONLY
+  its sub-digests (manifests/, context.json, AGENT_CONTRACT.md) — an
+  existing-but-empty `.zfa/` and no `.zfa/` hash identically.
+- command: `dart test test/plugins/tdd/corpus_economics/baseline_cache_test.dart`
+- exit: 0
+- at: 2026-09-13T00:00:00Z
+- result: `+16: All tests passed!`
