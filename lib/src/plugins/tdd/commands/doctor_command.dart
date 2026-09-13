@@ -55,8 +55,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
+import '../../../core/project/receipt_store.dart';
 import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/cycle_evidence.dart';
@@ -834,12 +836,177 @@ class DoctorCommand extends Command<void> {
       return;
     }
 
+    // ---- 3b. Hand-delta proof drift -> RE-CERTIFY / RESUME (1423) ----
+    // The proof-layer class the store-vs-store comparisons cannot see:
+    // a registry-recorded test/subject path whose disk digest differs
+    // from its latest receipt digest — the certified hand-delta state
+    // the run driver's `<id>:hand` stop prescribes (issue #1308). Every
+    // store "agrees" (the claims are evidence-backed) while `zfa tdd
+    // verify`'s proof preflight refuses the feature on the drifted
+    // digest: doctor must NOT report "stores agree" here (SC-4). The
+    // sanctioned completion re-receipts the hand-edited pair at the
+    // certification transitions (`verify-red --re-certify`, make's skip
+    // — spec 1423); re-driving the generator over a hand-delta would
+    // DESTROY the certified work (the #1375 destructive remedy) and is
+    // never the prescription. Which transition is prescribed derives
+    // from the behavior's last certification — see
+    // `_handDeltaProofDrifts`.
+    final handDelta = await _handDeltaProofDrifts(
+      cwd,
+      feature,
+      records,
+      evidence,
+    );
+    if (handDelta.lines.isNotEmpty) {
+      drifts.addAll(handDelta.lines);
+      final fix = handDelta.fix;
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
+      for (final drift in drifts) {
+        print('  drift: $drift');
+      }
+      print('   --> fix: $fix — ${handDelta.note}');
+      _printVerdict(
+        feature: feature,
+        verdict: 'drift',
+        prescription: handDelta.prescription,
+        fix: fix,
+        drifts: drifts,
+      );
+      exitCode = 1;
+      return;
+    }
+
     // ---- 4. Healthy --------------------------------------------------
     print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
     print('  stores agree — no drift detected');
     _printVerdict(feature: feature, verdict: 'healthy', prescription: 'none');
     exitCode = 0;
   }
+
+  /// The hand-delta proof-drift scan (spec 1423, SC-4): for every
+  /// registry-recorded test/subject path, compare the disk digest against
+  /// the LATEST receipt digest covering it through the shared
+  /// [ReceiptStore.latestForPath] resolution (the same one `ProofChecker`
+  /// applies). A mismatch is the certified hand-delta state the stores
+  /// cannot see: state claims and cycle-log evidence agree while
+  /// `zfa tdd verify`'s proof preflight refuses.
+  ///
+  /// Fail-open surfaces: an unreadable receipts tree, a feature with no
+  /// receipts, an unreceipted artifact path (the preflight's
+  /// missing-receipt gate owns that class), and a missing file (check 2
+  /// already reported it) all produce no hand-delta findings — never a
+  /// fabricated mismatch.
+  ///
+  /// The prescription derives from the FIRST drifted behavior's last
+  /// recorded certification, never from the mere presence of red
+  /// evidence — which the designed `<id>:hand` stop always leaves behind
+  /// (`zfa tdd run` certifies the honest red before the hand step).
+  /// `verify-red <id> --re-certify` fires ONLY on the unexpected-green
+  /// classification (`verify_red_command.dart:396`), so a behavior whose
+  /// last certification is red (an interrupted hand-delta) resumes
+  /// through the run loop, while a behavior last certified green (or
+  /// refactor) takes the direct transition. Both commands stay named so
+  /// a drifted-but-green pair is never pushed at the re-certify no-op.
+  /// The destructive generator re-drive (#1375) is never prescribed.
+  Future<({List<String> lines, String fix, String prescription, String note})>
+  _handDeltaProofDrifts(
+    String cwd,
+    String feature,
+    List<ArtifactRecord> records,
+    CycleEvidence evidence,
+  ) async {
+    const none = (lines: <String>[], fix: '', prescription: 'none', note: '');
+    final List<ReceiptRecord> receipts;
+    try {
+      receipts = await ReceiptStore(projectRoot: cwd).loadAll();
+    } catch (_) {
+      // Unreadable receipts tree — fail open here; the verify proof
+      // preflight still gates the audit on whatever it can read.
+      return none;
+    }
+    if (receipts.isEmpty || records.isEmpty) {
+      return none;
+    }
+
+    final lines = <String>[];
+    String? firstDrifted;
+    for (final record in records) {
+      for (final recorded in [record.testPath, record.subjectPath]) {
+        // Both recorded forms resolve to the project-relative POSIX shape
+        // the receipt store records (issue #1397 compat).
+        final relative = canonicalArtifactPath(cwd, recorded);
+        final recordedDigest = ReceiptStore.latestForPath(
+          receipts,
+          relative,
+        )?.entry.sha256;
+        if (recordedDigest == null) continue; // unreceipted: not this class
+        final file = File(p.join(cwd, relative));
+        if (!file.existsSync()) continue; // check 2 reported the deletion
+        final String diskDigest;
+        try {
+          diskDigest = crypto.sha256.convert(file.readAsBytesSync()).toString();
+        } on FileSystemException {
+          continue;
+        }
+        if (diskDigest == recordedDigest) continue; // no drift
+        lines.add(
+          '${record.behaviorId}: hand-delta drift — $relative matches no '
+          'receipt digest (receipt ${_shortDigest(recordedDigest)}, disk '
+          '${_shortDigest(diskDigest)}) — the certified hand-delta is not '
+          'receipted (issue #1423)',
+        );
+        firstDrifted ??= record.behaviorId;
+      }
+    }
+    if (lines.isEmpty) return none;
+
+    // Green-backed: the behavior's last recorded certification is a green
+    // (or refactor) one — the state the direct re-certify transition can
+    // close. A later red entry (a re-drive, an interrupted cycle)
+    // supersedes it: the pair must pass the loop again first.
+    final behaviorId = firstDrifted!;
+    final entries = await evidence.entries();
+    var lastRed = -1;
+    var lastGreen = -1;
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+      if (entry.behaviorId != behaviorId) continue;
+      if (entry.kind == 'red') lastRed = i;
+      if (entry.kind == 'green') lastGreen = i;
+    }
+    final tail =
+        're-run `zfa tdd doctor $feature` afterwards. Never re-drive the '
+        'generator over a hand-delta — it regenerates the guard test and '
+        'destroys the certified work (issue #1375).';
+    if (lastGreen > lastRed) {
+      return (
+        lines: lines,
+        fix: 'zfa tdd verify-red $behaviorId --re-certify',
+        prescription: 're-certify',
+        note:
+            'the re-certify transition re-receipts the hand-edited '
+            'test/subject pair with the current digest (spec 1423); if the '
+            'pair no longer passes, resume with `zfa tdd run $feature`. '
+            '$tail',
+      );
+    }
+    return (
+      lines: lines,
+      fix: 'zfa tdd run $feature',
+      prescription: 'resume',
+      note:
+          "the behavior's last certification is not green, so the "
+          're-certify transition cannot fire yet (it needs the pair to '
+          'pass) — resume the loop; the sanctioned transitions re-receipt '
+          'the hand-delta once it is green (spec 1423). If the drifted '
+          "behavior's test already passes, "
+          '`zfa tdd verify-red $behaviorId --re-certify` closes it '
+          'directly. $tail',
+    );
+  }
+
+  static String _shortDigest(String digest) =>
+      digest.length <= 12 ? digest : digest.substring(0, 12);
 
   /// Scan the gen default layout (`test/tdd/*.dart`, `lib/tdd/*.dart`)
   /// and return the generated-shape files found there with the behavior
