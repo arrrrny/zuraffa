@@ -61,6 +61,7 @@ import '../services/corpus_baseline_cache.dart';
 import '../services/run_state_store.dart';
 import '../services/runner.dart';
 import '../services/step_runner.dart';
+import '../services/contract_blocked_receipt.dart';
 import '../services/suite_guard.dart';
 import '../models/routing.dart';
 import '../services/test_list_reader.dart';
@@ -677,6 +678,30 @@ class RunDriverCore {
       final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
       if (state == BehaviorState.done) continue;
 
+      // Issue #1544: an ALREADY-blocked contract behavior whose world is
+      // unchanged since its blocked verdict is skipped, not re-driven —
+      // the pre-#1544 resume re-attempted the SAME verify-red (a full
+      // refactor pass) for zero progress. Any change signal (the seam
+      // file, the contract row, the implementation) — or a missing or
+      // unreadable verdict receipt (fail open) — re-drives it honestly,
+      // so implementing the contract still unblocks the cycle.
+      if (state == BehaviorState.blocked && row.kind == BehaviorKind.contract) {
+        final since = await _unchangedBlockedSince(
+          row: row,
+          projectRoot: projectRoot,
+          featureDir: featureDir,
+          feature: feature,
+        );
+        if (since != null) {
+          print(
+            '[run] ${row.id} verify-red -> skipped (still blocked since '
+            '$since)',
+          );
+          _emitStep(row.id, 'verify-red', 'skipped');
+          continue;
+        }
+      }
+
       final inFlightStep = current.inFlightBehaviorId == row.id
           ? current.inFlightStep
           : null;
@@ -734,6 +759,12 @@ class RunDriverCore {
       final state = current.behaviorStates[row.id] ?? BehaviorState.pending;
       if (state == BehaviorState.done) continue;
       if (state == BehaviorState.green) continue;
+      // Issue #1007/#1544: make NEVER spawns for a BLOCKED contract —
+      // the parked behavior keeps its state and waits for an
+      // implementation that satisfies the declared contract (the
+      // pre-#1544 driver never reached this phase with a parked
+      // behavior; continuing past blocked does).
+      if (state == BehaviorState.blocked) continue;
       // Issue #992: a widget-skipped behavior has no gen artifacts —
       // re-driving its make would refuse "no gen artifacts" and stop the
       // run for a behavior the operator already chose to skip.
@@ -861,6 +892,64 @@ class RunDriverCore {
     final allDone = rows.every(
       (r) => current.behaviorStates[r.id] == BehaviorState.done,
     );
+    // Issue #1544: the parked BLOCKED behaviors are the pass's terminal
+    // condition — the run names them, prints any bounded-progress skips
+    // beside them, and stops with `result=blocked blocked=N` (exit 1).
+    // Bounded, resumable progress (FR-007), never a fake DONE (FR-008):
+    // the blocked behaviors keep their verdict, the driven ones theirs.
+    final blockedRows = rows
+        .where((r) => current.behaviorStates[r.id] == BehaviorState.blocked)
+        .toList();
+    if (blockedRows.isNotEmpty) {
+      if (skippedRefactors.isNotEmpty) {
+        print(
+          'zfa tdd $label: refactor skipped for '
+          '${skippedRefactors.keys.join(', ')} — '
+          '${skippedRefactors.values.toSet().join(' / ')}',
+        );
+        print(
+          '   resume: restore the suite green (re-run make for behaviors '
+          'whose own test is red; fix the failing tests the preflight '
+          'named otherwise), then re-run `zfa tdd $label $feature`',
+        );
+      }
+      if (skippedWidgets.isNotEmpty) {
+        print(
+          'zfa tdd $label: widget-lane skipped for '
+          '${skippedWidgets.keys.join(', ')} — '
+          '${skippedWidgets.values.toSet().join(' / ')}',
+        );
+        print(
+          '   resume: add zuraffa_ui (flutter pub add zuraffa_ui --dev) or '
+          'drop --skip-widget, then re-run `zfa tdd $label $feature`',
+        );
+      }
+      print(
+        'zfa tdd $label: blocked for '
+        '${blockedRows.map((r) => r.id).join(', ')} — the declared '
+        'contract(s) are not satisfied (issue #1007)',
+      );
+      print(
+        '   resume: implement the declared contract, then re-run '
+        '`zfa tdd $label $feature` — unchanged blocked behaviors are '
+        'skipped with receipt on resume (issue #1544)',
+      );
+      return _finish(
+        result: 'blocked',
+        exitCode: _exitStopped,
+        rows: allRows,
+        state: current,
+        drove: true,
+        lane: lane,
+        laneRows: rows,
+        receipts: receipts,
+        journalStartedAt: journalStartedAt,
+        projectRoot: projectRoot,
+        skippedWidgets: skippedWidgets,
+        stoppedAt: '${blockedRows.first.id}:verify-red',
+        message: null,
+      );
+    }
     if (!allDone &&
         (skippedRefactors.isNotEmpty || skippedWidgets.isNotEmpty)) {
       // Bug #734 per-behavior gate (+ v2 refusal skips, issue #992): the
@@ -1634,9 +1723,9 @@ class RunDriverCore {
         // honest first state of a unit/widget behavior (the loop EXPECTS
         // the failing test and proceeds to make/GREEN); a failing
         // CONTRACT test means the declared contract is unsatisfied, so
-        // the behavior is parked at BLOCKED, make/refactor NEVER spawn for
-        // it, and the run stops with `result=blocked` (the receipt lives
-        // at .zfa/receipts/contract-blocked.<id>.json — verify-red wrote
+        // the behavior is parked at BLOCKED and make/refactor NEVER spawn
+        // for it (the receipt lives at
+        // .zfa/receipts/contract-blocked.<id>.json — verify-red wrote
         // it). Resume re-enters at verify-red: once the implementation
         // satisfies the contract, the verdict flips (the unexpected-green
         // skip transitions the behavior on) and the cycle proceeds.
@@ -1644,6 +1733,17 @@ class RunDriverCore {
         // spec 1008 two-cycle refactor (issue #1092) dropped this arm and
         // the blocked verdict degraded into a generic result=stopped
         // (bug #1107).
+        //
+        // Issue #1544: blocked is a PER-BEHAVIOR verdict, not a run-fatal
+        // stop. The pre-#1544 arm TERMINATED the lane at the first
+        // blocked contract — every resume re-attempted the SAME
+        // behavior's verify-red and the remaining contracts were
+        // unreachable, each attempt costing a full refactor pass for
+        // zero progress. The behavior is parked at BLOCKED (unchanged
+        // issue #1007 semantics) and the loop CONTINUES with the
+        // remaining behaviors, each driving to its own verdict; the run
+        // stops with `result=blocked blocked=N` at the end of the pass,
+        // where the resume hint lives.
         if (step == 'verify-red' &&
             result.outcome == 'blocked' &&
             row.kind == BehaviorKind.contract) {
@@ -1655,19 +1755,10 @@ class RunDriverCore {
             'cycle is BLOCKED and cannot proceed to GREEN (issue #1007)',
           );
           print(
-            '   resume: implement the declared contract, then re-run '
-            '`zfa tdd $label $feature`',
+            '   parked — the run continues with the remaining behaviors '
+            '(issue #1544)',
           );
-          return (
-            state: updated,
-            stop: (
-              result: 'blocked',
-              stoppedAt: '${row.id}:verify-red',
-              exitCode: _exitStopped,
-              message: null,
-            ),
-            refactorBlocked: false,
-          );
+          return (state: updated, stop: null, refactorBlocked: false);
         }
         // Issue #1308: the vacuous-green make stop is not a dead end —
         // the driver names the remedy. The generated test's
@@ -2211,6 +2302,87 @@ class RunDriverCore {
       if (File(candidate).existsSync()) return candidate;
     }
     return null;
+  }
+
+  /// Issue #1544: the `blocked_at` timestamp to skip a still-blocked
+  /// contract behavior with, when NOTHING watched changed since the
+  /// behavior's blocked verdict — the verdict's receipt exists AND the
+  /// seam (generated contract test) file, the contract row
+  /// (`tdd/test-list.md`) and the implementation (`lib/`) are all older
+  /// than the verdict. Null — re-drive honestly — when the receipt is
+  /// missing or unreadable (fail open: the driver never fabricates a
+  /// `blocked since` timestamp), the seam file is gone, any watched
+  /// input is newer than the verdict (something changed: the unblock
+  /// path must re-classify), or a probe errors out.
+  Future<String?> _unchangedBlockedSince({
+    required BehaviorRow row,
+    required String projectRoot,
+    required String featureDir,
+    required String feature,
+  }) async {
+    final receipt = ContractBlockedReceipt.fromFile(
+      ContractBlockedReceiptStore(projectRoot: projectRoot).pathFor(row.id),
+    );
+    if (receipt == null) return null;
+    final blockedAt = DateTime.tryParse(receipt.blockedAt);
+    if (blockedAt == null) return null;
+    // 1. The seam file — the generated contract test the verdict ran.
+    final testPath = _existingGeneratedTestPath(
+      projectRoot: projectRoot,
+      feature: feature,
+      behaviorId: row.id,
+    );
+    if (testPath == null) return null;
+    if (_isNewerThan(File(testPath), blockedAt)) return null;
+    // 2. The contract row — the test list the behavior is declared in.
+    if (_isNewerThan(
+      File(p.join(featureDir, 'tdd', 'test-list.md')),
+      blockedAt,
+    )) {
+      return null;
+    }
+    // 3. The implementation — any lib/ source newer than the verdict.
+    if (await _treeChangedAfter(
+      Directory(p.join(projectRoot, 'lib')),
+      blockedAt,
+    )) {
+      return null;
+    }
+    return receipt.blockedAt;
+  }
+
+  /// Whether [file] exists and was modified after [at]. An unreadable
+  /// file is treated as changed (fail open — re-drive).
+  bool _isNewerThan(File file, DateTime at) {
+    try {
+      if (!file.existsSync()) return false;
+      return file.lastModifiedSync().isAfter(at);
+    } on FileSystemException {
+      return true;
+    }
+  }
+
+  /// Whether any file under [dir] was modified after [at] (recursive; a
+  /// missing directory changed nothing). An unreadable entry is treated
+  /// as changed (fail open — re-drive).
+  Future<bool> _treeChangedAfter(Directory dir, DateTime at) async {
+    if (!await dir.exists()) return false;
+    try {
+      await for (final entity in dir.list(
+        recursive: true,
+        followLinks: false,
+      )) {
+        if (entity is! File) continue;
+        try {
+          if ((await entity.lastModified()).isAfter(at)) return true;
+        } on FileSystemException {
+          return true;
+        }
+      }
+    } on FileSystemException {
+      return true;
+    }
+    return false;
   }
 
   /// Whether the generated test at [testPath] carries the
