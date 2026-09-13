@@ -37,6 +37,7 @@ import 'dart:isolate';
 import 'package:path/path.dart' as p;
 
 import 'tdd_timeout.dart';
+import 'step_timeout_receipt.dart';
 
 /// Spawn hook so fast-tier tests can drive the parser without real
 /// processes (the slow tier exercises the real spawn path with the
@@ -58,6 +59,7 @@ class StepResult {
     required this.output,
     required this.command,
     this.verdictKind,
+    this.timeoutReceipt,
   });
 
   final String step;
@@ -90,6 +92,13 @@ class StepResult {
   /// The step's combined stdout + stderr (for failure reports).
   final String output;
 
+  /// Spec 1529 (U7): the structured timeout diagnostics when the step
+  /// child was killed at the deadline — argv, actual elapsed, deadline,
+  /// phase inference, captured output tail. The run driver writes the
+  /// durable receipt (`make.<id>.timeout.json`) from this data; every
+  /// non-timeout path leaves it null.
+  final StepTimeoutInfo? timeoutReceipt;
+
   @override
   String toString() =>
       'StepResult(step: $step, behavior: $behaviorId, exit: $exitCode, '
@@ -102,16 +111,21 @@ class StepRunner {
   /// [StepResult] instead of hanging the driver forever. Defaults to
   /// [TddTimeouts.defaultStepProcess]. Injected [spawner] fakes are the
   /// caller's responsibility (fast-tier tests), as before.
-  StepRunner({this.zfaBin, StepSpawner? spawner, Duration? timeout})
-    : timeout = timeout ?? TddTimeouts.defaultStepProcess,
-      _spawner =
-          spawner ??
-          ((List<String> command, String workingDirectory) =>
-              _timedDefaultSpawner(
-                command,
-                workingDirectory,
-                timeout ?? TddTimeouts.defaultStepProcess,
-              ));
+  StepRunner({
+    this.zfaBin,
+    StepSpawner? spawner,
+    Duration? timeout,
+    this.childEnvironment,
+  }) : timeout = timeout ?? TddTimeouts.defaultStepProcess,
+       _spawner =
+           spawner ??
+           ((List<String> command, String workingDirectory) =>
+               _timedDefaultSpawner(
+                 command,
+                 workingDirectory,
+                 timeout ?? TddTimeouts.defaultStepProcess,
+                 childEnvironment,
+               ));
 
   /// Explicit entrypoint override (`--zfa-bin`). When null the package
   /// root's `bin/zfa.dart` is resolved.
@@ -121,6 +135,16 @@ class StepRunner {
   final Duration timeout;
 
   final StepSpawner _spawner;
+
+  /// Injected child environment (spec 1520): the caller's per-run scratch
+  /// TMPDIR map (`ScratchTmpDir.childEnvironment`) handed to EVERY spawned
+  /// step child through the default spawner, so `dart test` grandchildren
+  /// write their `dart_test.kernel.*` dirs inside the run's own scratch
+  /// instead of the shared user TMPDIR (issue #1520). Null — the default —
+  /// preserves the inherit-`Platform.environment` behavior; an injected
+  /// [StepSpawner] fake keeps its own contract (the env rides the REAL
+  /// spawn path only).
+  final Map<String, String>? childEnvironment;
 
   /// Resolved entrypoint, cached after the first step so `defaultZfaBin`'s
   /// `Isolate.resolvePackageUri` lookup runs once per run, not once per step
@@ -316,6 +340,15 @@ class StepRunner {
     } on ProcessTimeoutException catch (e) {
       // Bug #742: the step child outlived the deadline and was killed.
       // runner-error, never a hang, never a silent success.
+      //
+      // Spec 1529 (U7): the kill is no longer diagnose-blind — the
+      // structured diagnostics (argv, ACTUAL elapsed, deadline, phase,
+      // captured tail) ride the result; the driver writes the durable
+      // receipt from them.
+      final phase = inferTimeoutPhase(
+        descendantArgvs: e.descendantArgvs,
+        output: e.output,
+      );
       return StepResult(
         step: step,
         behaviorId: behaviorId,
@@ -324,6 +357,16 @@ class StepRunner {
         success: false,
         output: e.toString(),
         command: commandLine,
+        timeoutReceipt: StepTimeoutInfo(
+          behaviorId: behaviorId,
+          step: step,
+          argv: command,
+          elapsed: e.elapsed,
+          deadline: e.timeout,
+          phase: phase,
+          outputTail: e.output,
+          workingDirectory: e.workingDirectory,
+        ),
       );
     } on ProcessException catch (e) {
       return StepResult(
@@ -486,17 +529,21 @@ class StepRunner {
 
   /// The default spawn path with a hard deadline (bug #742): the child is
   /// killed at [timeout] and a [ProcessTimeoutException] propagates to
-  /// [run], which maps it to a `runner-error` StepResult.
+  /// [run], which maps it to a `runner-error` StepResult. [environment] is
+  /// the caller's scratch-TMPDIR map (spec 1520) — merged over the
+  /// inherited environment, null inherits it unchanged.
   static Future<ProcessResult> _timedDefaultSpawner(
     List<String> command,
     String workingDirectory,
     Duration timeout,
+    Map<String, String>? environment,
   ) {
     return runTimed(
       command.first,
       command.sublist(1),
       workingDirectory: workingDirectory,
       timeout: timeout,
+      environment: environment,
     );
   }
 }

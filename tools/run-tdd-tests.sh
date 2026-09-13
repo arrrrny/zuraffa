@@ -23,7 +23,12 @@
 #      "NotCovered" — the audit becomes corrupt.
 #   2. Runs `dart test` against the TDD test scope (writers + plugin +
 #      tdd_command aggregator + setup_command) with `-j 1` to avoid the
-#      parallel-test CWD-cascade flake (issue #506).
+#      parallel-test CWD-cascade flake (issue #506), and with the same
+#      lane guard as CI's fast lane (`--exclude-tags "flutter || e2e"`):
+#      the e2e-tagged make-command suites (#1510) spawn real
+#      `dart pub get` / `dart test` children in temp fixtures and carry
+#      5 pre-existing master failures, so the per-mutant loop must keep
+#      excluding them.
 #
 # We deliberately DO NOT delete `.dart_tool/test/incremental_kernel*`:
 #   that is the persistent incremental-compile cache. Removing it forces
@@ -44,4 +49,5 @@ fi
 rm -rf /tmp/dart_test.kernel.* 2>/dev/null || true
 
 # Run the TDD-scoped test suite. -j 1 serializes within a single mutant.
-exec dart test test/cli/writers/tdd/ test/plugins/tdd/ test/commands/setup_command_test.dart -j 1
+exec dart test test/cli/writers/tdd/ test/plugins/tdd/ test/commands/setup_command_test.dart -j 1 \
+  --exclude-tags "flutter || e2e"

@@ -1,24 +1,30 @@
-# TDD test list — Bug #1544 run parks forever on first blocked contract
+# TDD test list — Bug #1470 artifacts.json silently swallows corruption
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| A-1544-a1 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | a blocked contract parks and the run drives the remaining contracts to their own verdicts, then stops result=blocked | FR-1544 (continue past blocked), RunDriverCore._driveBehavior #1007 arm | GREEN |
-| A-1544-a2 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | resume skips an unchanged blocked behavior with receipt and still drives the rest | FR-1544 (skip unchanged blocked, `skipped: still blocked since <ts>`), RunDriverCore._unchangedBlockedSince | GREEN |
-| A-1544-a3 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | resume re-drives a blocked behavior when the seam file changed since the verdict (fail open) | FR-1544 (change signal: seam file), RunDriverCore._isNewerThan | GREEN |
-| A-1544-a4 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | resume re-drives a blocked behavior when the implementation changed since the verdict (lib/ newer than blocked_at) | FR-1544 (change signal: implementation), RunDriverCore._treeChangedAfter | GREEN |
-| A-1544-a5 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | a missing blocked receipt fails open — resume re-drives the blocked behavior honestly | FR-1544 (fail open — never fabricate `blocked since`), ContractBlockedReceipt.fromFile | GREEN |
-| A-1544-b1 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | unit | a red behavior still resumes at make beside a skipped blocked contract (non-blocked resume untouched) | FR-1544 constraint (must not break non-blocked resume), RunDriverCore._stepsFor | GREEN |
-| U-1544-c1 | test/plugins/tdd/commands/contract_kind_1007_test.dart | unit | the #1007 single-row pin survives: one blocked contract still stops result=blocked blocked=1 stopped_at=contract:A1:verify-red, never spawning make | #1007 compatibility, RunDriverCore end-of-pass blocked terminal | GREEN |
-| U-1544-c2 | test/plugins/tdd/commands/run_engine_command_test.dart + run_skin_command_test.dart | unit | the engine/skin lane commands over the shared core keep their gate and receipt contracts | spec 1008 compatibility | GREEN |
+| U-1470-a1 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | loadAll throws ArtifactRegistryCorruptException on invalid JSON (pre-fix: silently returned []) | issue #1470 root cause (L293–294 swallow), FR-012 corrupt-vs-missing split | GREEN |
+| U-1470-a2 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | register refuses to re-register through a corrupt registry; corrupt bytes survive untouched on disk (pre-fix: Ownership.created + rewrite destroyed B-001/B-002) | issue #1470 impact (duplicate artifacts, silent data loss), preflight ownership gate | GREEN |
+| U-1470-a3 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | findRecord (reader path) also refuses a corrupt registry | issue #1470 (every reader funnels through _loadRecords) | GREEN |
+| U-1470-a4 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | the exception names artifacts.json, contains the full registry path, and prescribes recovery | RunStateCorruptException message discipline (U9), issue #1470 expected behavior | GREEN |
+| U-1470-a5 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | a MISSING registry is still an empty one (loadAll → [], findRecord → null) — corrupt ≠ missing | FR-012 (unchanged, pinned) | GREEN |
 
 ## Red evidence (pre-fix, this session)
 
-A-1544-a1: the run terminated at `contract:A1 verify-red -> blocked` —
-`gen contract:A2` never spawned (A2..An unreachable; the reported symptom).
+Behavioral probe against pre-fix code (output preserved verbatim in
+`.specify/bugs/1470-artifacts-json-corruption-silent/red-evidence.md`):
 
-A-1544-a2 (and b1's skip half): the resume re-spawned
-`verify-red contract:A1` — no skip receipt existed.
+- RED-1: `loadAll()` on a corrupt registry returned 0 records, no exception.
+- RED-2: `register(B-003)` returned `Ownership.created` / `created` with no
+  corruption diagnosis.
+- RED-3: the registry rewrite left only `[B-003]` — B-001/B-002 ownership
+  records silently destroyed.
 
-A-1544-a3/a4/a5 were written as pins for the fail-open directions and pass
-in both worlds (pre-fix re-drive is the only behavior; post-fix it is the
-change-signal path).
+The committed suite's pre-fix state was a compile-level RED
+(`'ArtifactRegistryCorruptException' isn't a type`).
+
+## Suite placement note
+
+The behaviors are unit tests in the registry's own service suite
+(`test/plugins/tdd/services/`), colocated with `artifact_registry_test.dart`.
+They are fast-tier (no `slow`/`flutter` tags) and run in the default
+`dart test` selection and in the chunked sweep.

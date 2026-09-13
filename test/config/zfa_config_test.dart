@@ -31,8 +31,11 @@ void main() {
 
       final config = ZfaConfig.load(projectRoot: projectRoot);
       expect(config, isNotNull);
-      expect(config!.testByDefault, isFalse);
-      expect(config.mockByDefault, isFalse);
+      // Issue #1496: the clean-architecture stack is the default tier —
+      // init writes the stack plugins ON so a bare `zfa make` scaffolds
+      // a runnable slice instead of resolving zero plugins.
+      expect(config!.testByDefault, isTrue);
+      expect(config.mockByDefault, isTrue);
     });
 
     test(
