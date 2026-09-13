@@ -11,10 +11,12 @@ import 'dart:io';
 
 /// A4 — every cycle-log reader adopts the shared fence-aware splitter.
 ///
-/// The 9 naive `raw.split('\n## ')` sites from issue #1467 must all be
-/// gone from the reader sources, and every reader file must import the
-/// shared helper — a partial fix would leave readers disagreeing with the
-/// doctor (the exact failure mode of bug #828).
+/// The 10 naive `raw.split('\n## ')` sites the diff replaced (issue #1467's
+/// own text said 9) must all be gone from the reader sources, and every
+/// reader file must import the shared helper — a partial fix would leave
+/// readers disagreeing with the doctor (the exact failure mode of bug #828).
+/// Three further line-scanner readers are fence-blind for the same reason
+/// but in a different shape; they are tracked separately (#1549).
 void subject_a4() {
   final root = _packageRoot();
   const readers = [

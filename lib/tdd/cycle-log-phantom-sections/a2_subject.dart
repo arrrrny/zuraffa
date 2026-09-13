@@ -32,7 +32,7 @@ void subject_a2() {
       '```dart\n'
       'void main() {\n'
       '  // a captured markdown dump:\n'
-      '  ## not a section even inside a code fence\n'
+      '## not a section even inside a code fence\n'
       '  print("x");\n'
       '}\n'
       '```\n'

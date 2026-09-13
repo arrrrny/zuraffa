@@ -132,8 +132,10 @@ class ReplayHistory {
       ).firstMatch(section);
       if (behaviorMatch == null) continue;
       final id = behaviorMatch.group(1)!;
-      // parseEntries on the single section text (it contains no '\n## ')
-      // reuses the shared field regexes verbatim.
+      // parseEntries on the single section text reuses the shared field
+      // regexes verbatim; the section may still hold in-fence '\n## '
+      // lines as captured output, which the fence-aware split already
+      // resolved, so re-splitting it is a no-op for section boundaries.
       final parsed = parseEntries(section);
       if (parsed.isEmpty) continue;
       final entry = parsed.first;
