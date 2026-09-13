@@ -35,6 +35,13 @@ class MethodExtractor {
         paramsType = _getParameterType(firstParam);
       }
 
+      // The signature shape the declaration really carries: a getter and
+      // a parameter-less method both read as `'NoParams'` above, so the
+      // member's own shape must travel alongside (issue #1570 review —
+      // the mock repair mirrors the interface declaration).
+      final parameterCount = parameters?.length ?? 0;
+      final isGetter = method.isGetter;
+
       // Determine usecase type based on return type
       var useCaseType = 'usecase';
       if (returns.startsWith('Stream<')) {
@@ -53,6 +60,8 @@ class MethodExtractor {
           paramsType: paramsType ?? 'NoParams',
           returnsType: _cleanReturnType(returns),
           useCaseType: useCaseType,
+          parameterCount: parameterCount,
+          isGetter: isGetter,
         ),
       );
     }
