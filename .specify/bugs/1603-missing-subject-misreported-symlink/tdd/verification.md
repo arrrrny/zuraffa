@@ -83,3 +83,13 @@ reach the filesystem through a symlink (macOS `/var/folders` →
   sandbox (background processes are reaped between tool invocations); the
   chunked runs cover the same scope minus the e2e/slow-tagged lanes CI
   also excludes.
+
+## Post-rebase re-verification
+
+Rebased onto origin/master after PR #1606 (same-issue view fix) merged
+mid-flight. Re-ran the full affected scope on the rebased branch: the four
+suites (view/func/compose/wire) pass 57/57 — the union of this branch's
+U-1603a..e and #1606's U-V11/12/13 — with `dart analyze` clean on the delta
+and `dart format` 0 changed. The deliberate-mutant evidence for `func` (the
+branch's remaining code fix) stands: the func file is byte-identical to the
+pre-rebase state where mutant F1 was killed by U-1603c.

@@ -116,3 +116,21 @@ convention.
   verify gate semantics, no closure scan, no registry/record shape
   changes, no shared-utility refactor.
 - One PR per bug, branch `fix/1603-missing-subject-misreported-symlink`.
+
+## Post-rebase addendum (honest timeline)
+
+While this branch was in flight, PR #1606 (`fix/missing-subject-symlink-root`)
+merged the SAME view_command fix — independently converged on the identical
+`_canonicalizeMissingPath` walk-up helper and fallback routing (both mirror
+wire's c1e287da pattern), with equivalent regression tests (U-V11/U-V12/
+U-V13) — and closed issue #1603. On rebase onto that master:
+
+- `view_command.dart` now carries master's copy of the identical fix (this
+  branch no longer deltas that file; conflict resolved to master's version).
+- This branch's remaining code delta is exactly the unique value:
+  `func_command.dart` hardening (canonical-side record vs raw-side
+  `--project`) and the compose/wire symlinked-root regression pins
+  (U-1603d/U-1603e) plus the view green-path pin (U-1603b).
+- Post-rebase gates re-run: the four affected suites 57/57 (includes
+  U-V11/12/13 + U-1603a..e), `dart analyze` on the delta — No issues
+  found, `dart format` — 0 changed.
