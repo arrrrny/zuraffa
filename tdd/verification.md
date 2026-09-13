@@ -1,134 +1,110 @@
-# tdd.verify — Bug #1512 acceptance vacuous composition
+# tdd.verify — Bug #1486 entity fields silently dropped without backticks
 
-- **Verified**: 2026-09-11 (round-2 review fixes), this session, on
-  `fix/1512-acceptance-vacuous-composition` (working tree, pre-push)
-- **Toolchain**: Dart 3.13.2 (stable) on macos_x64
-- **Scope**: the two changed source files + the new `vacuous_guard.dart`
-  vocabulary constants + the rewritten suite, then the chunked regression
-  sweep below.
+- **Verified**: 2026-09-13, this session, on
+  `fix/1486-entity-fields-backtick-parsing` (working tree, pre-push)
+- **Toolchain**: Dart 3.13.3 (stable) on linux_x64 (container; no Flutter
+  SDK — flutter-tagged suites are excluded per the repo's own chunked
+  runner policy)
+- **Scope**: the three changed source files + the new bug suite, then the
+  chunked fast-tier sweep below
 
-## Verdict: PASS (with the recorded host/environment caveats in §4)
+## Verdict: PASS
 
-## 0. Round-2 review corrections (what changed since round 1)
+## 0. RED evidence (pre-fix, real runs)
 
-The round-1 record below claimed the acceptance capture threaded the declared
-args and returned the declared result. That branch did not ship —
-`gen_command.dart` resolves a `contractShape` only for `BehaviorKind.unit` and
-the paired acceptance subject is a parameterless `void <target>()` scenario
-runner, so the branch was unreachable in production and would not compile if
-reached. Round 2 applied the reviewed option (b):
-
-1. the acceptance declared-args/return branch is REMOVED; the acceptance
-   capture is the void-safe, argument-free form and an injected
-   `contractShape` is inert for acceptance;
-2. the undeclared acceptance fallback emits the acceptance-lane token
-   (`acceptanceFallbackGuardToken` / `acceptanceFallbackGuardComment`)
-   instead of the #1259 `vacuousGuardMarker`, keeping the run driver's
-   `stopped_at=<id>:make` classification;
-3. planner branch 3b no longer consults `_extractCapitalizedTrace` — only
-   explicit prose signals (`target` / `entity <Name>` / `create <Name>`) may
-   drive `entity create`;
-4. the suite was rewritten to drive the real path and now includes a slow
-   `dart test` compile pin over the emitted test+subject pair.
-
-## 1. Static analysis
+Stage 1 — behavioral red, `bug_1486_entity_fields_backtick_parsing_test.dart`
+against the untouched tree (full output in
+`.specify/bugs/1486-entity-fields-backtick-parsing/red-evidence.md`):
 
 ```
-dart analyze lib/src/plugins/tdd/services/behavior_test_writer.dart \
-             lib/src/plugins/tdd/services/generation_planner.dart \
-             lib/src/plugins/tdd/services/vacuous_guard.dart \
-             test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart
+00:00 +2 -5: Some tests failed.
+Failing tests:
+  ...: B1: a 3-column row with plain pairs parses all fields (#1486)
+  ...: B2: the 2-column table accepts plain pairs (#1486 + #1381)
+  ...: B3: a mixed cell parses backticked and plain pairs in order
+  ...: B5: generic types with commas survive the plain-pair split
+  ...: B6: nullable types parse as plain pairs
+```
+
+Actuals matched the issue's controlled experiment exactly: plain pairs
+yield `SpecEntity.fields == []`; the backticked guards (B4/B8) passed
+(backwards-compat baseline intact).
+
+Stage 2 — API red: adding B7 (anomalies) + B9
+(`entityFieldNamesFromDartSource`) failed to compile against the pre-fix
+parser, as expected:
+
+```
+Error: 'SpecEntityFieldAnomaly' isn't a type.
+Error: Member not found: 'SpecParser.entityFieldNamesFromDartSource'.
+Error: No named parameter with the name 'anomalies'.
+```
+
+## 1. Static analysis (post-fix, post-format)
+
+```
+dart analyze lib/src/plugins/tdd/services/spec_parser.dart \
+             lib/src/plugins/tdd/commands/plan_command.dart \
+             lib/src/plugins/tdd/commands/run_driver_core.dart \
+             test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart
 → No issues found!
 ```
 
-Full-project `dart analyze`: **112 `info` lints, 0 errors / 0 warnings** —
-identical to the pre-change baseline (112).
-
-## 2. The bug suite (REAL runs in this session)
+## 2. The bug suite + regression surface (REAL runs in this session)
 
 ```
-dart test test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart
-→ 00:00 +16: All tests passed!          (fast tier)
+dart test test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart
+→ 00:00 +9: All tests passed!
 
-dart test --preset=all test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart
-→ 00:14 +17: All tests passed!          (incl. the slow pair-compile pin)
+Parser corpus (spec_parser, declarations, hardening_1196, traces_1319,
+fr_manual_1484, contract_files_1485, bug_1381, bug_919, bug_1486):
+→ 00:01 +116: All tests passed!
+
+Mapped command suites (bug_1381_plan_warns_on_unparsed_entities,
+plan_command_bug_1182/1481/contracts_1485/pipe_escape_1401/ffi_835,
+pipeline_runner, runner_plain_name_regression, runner_regex_escape):
+→ 00:18 +46: All tests passed!
 ```
 
-REQUIRED check — the acceptance capture is the void-safe, argument-free form
-`gen` can actually build: PROVED by A-1512-a1/a2/a3 (undeclared row; scalar
-shape injected; entity shape injected — no threaded args, no returned result)
-and A-1512-a4 (the paired subject `SubjectWriter` emits is the parameterless
-`void subject_a1()` runner the call is arity-compatible with).
+The #1381 plan-warning suite passes unchanged — its fixture produces no
+#1486 anomalies (its pairs parse), so the new warning is correctly silent
+there.
 
-REQUIRED check — the acceptance fallback is not misclassified as the traced
-hand-delta seam: PROVED by A-1512-b1 (`acceptanceFallbackGuardToken` present,
-`contentCarriesVacuousGuardMarker` false, `contentIsVacuousGreen` still true)
-and b2.
+## 3. Chunked regression sweep — NO NEW failures
 
-REQUIRED check — the planner returns a real make surface for acceptance rows
-and an incidental capitalised word cannot fabricate an entity: PROVED by
-A-1512-c1..c8 (compose lane; `the User signs in.` composes; explicit
-`entity <Name>`/`create <Name>`/`target` route to the entity pipeline; the
-honest #758 refusal stays; non-acceptance rows keep the generic misfire).
+The repo's sanctioned `tools/run_tests_chunked.sh` policy was followed
+(fast tier, `--exclude-tags flutter`, kernel cache purged between chunks —
+`dart_test.yaml` documents the ~6.5 GB single-invocation kernel cache and
+`.specify/bugs/1507-tmpdir-kernel-cache-leak` documents the per-process
+`$TMPDIR/dart_test.kernel.*` leak that both ENOSPC'd this container until
+the purge cadence was applied). Per-chunk results:
 
-REQUIRED check — the unit lane is unchanged: PROVED by A-1512-d1/d2 plus the
-pre-existing `behavior_test_writer_test.dart`, `subject_writer_test.dart`,
-`issue_1308_vacuous_guard_remedy_test.dart`, `bug_1259_vacuous_green_test.dart`
-and `bug_912_literal_safety_test.dart` pins — all green in the sweep below.
+- 105 chunks from the runner's own DRY_RUN list: **97 OK, 5 SKIP**
+  (`SKIP(no-fast-tier)` — benchmark/core-proof/integration/tdd-scenarios/
+  077-make-engine-preset carry only slow-tier tags, excluded by design),
+  **0 FAIL**.
+- The runner's threshold-40 recursion skips ROOT test files of heavy dirs;
+  those were run explicitly with identical semantics and all passed:
+  `test/plugins/tdd/*_test.dart` (519 tests), `tdd/commands` a–z splits
+  (533 tests), `tdd/services` a–z splits (1171 tests).
 
-REQUIRED check — the emitted pair compiles: PROVED by A-1512-e1 (slow): the
-emitted test + paired subject are written to a temp package with a `test`
-dependency and run through `dart test`; the run must fail through an
-assertion (`Expected:`/`Actual:`), never a compile-time error.
+## 4. Host/environment caveats (recorded honestly)
 
-## 3. Regression sweep (REAL runs in this session)
+- No Flutter SDK in this container: flutter-tagged suites are excluded by
+  the sanctioned runner itself (`--exclude-tags flutter`), so their status
+  is unchanged-by-construction (none touch `spec_parser.dart` field
+  parsing; the two command files changed are pure-Dart paths).
+- `dart format` ran over the four changed files (3 reformatted — the new
+  suite file plus whitespace); `dart analyze` re-run clean afterwards.
+- `dart test` kernel-cache purge cadence (per chunk) was required: the
+  container disk is 9.9 GB and a single whole-tree invocation ENOSPCs
+  (matches the dart_test.yaml header's warning and #1507).
 
-| Chunk | Result |
-| ----- | ------ |
-| `test/plugins/tdd/services/` | `04:18 +870 ~1: All tests passed!` |
-| `test/plugins/tdd/commands/` | `+503 -4` — every non-green entry is environmental and **reproduced on a pristine `b5abf380` worktree or passes with a relaxed ceiling** (see §4) |
-| `test/plugins/tdd/*_test.dart` (root suites) | `+458 -2` — both non-green entries reproduce on the pristine `b5abf380` worktree (see §4) |
-| `test/cli/`, `test/commands/` | not re-run this round: the change is confined to the TDD acceptance lane, and every suite in this repo that pins the planner or the writers lives in `test/plugins/tdd/services/` (full green) |
+## 5. Constraint audit
 
-## 4. The non-green entries — all proved to pre-date this change
-
-`test/plugins/tdd/commands`:
-
-1. `view_command_test.dart` U-V3 "a missing subject file is a hard
-   runner-error" — **pre-existing**: the same failure reproduces on a pristine
-   `b5abf380` worktree (`Expected: contains 'missing subject file'` vs. the
-   actual "registry record … points outside the project root" message). The
-   view lane and its registry-path resolution are untouched by this PR.
-2. `bug_1320_declared_assertion_reachable_test.dart` U7 — `TimeoutException
-   after 0:01:00` (the 2x default ceiling) under concurrent load; the file
-   passes cleanly in isolation with a relaxed ceiling: `+8: All tests
-   passed!`.
-3. `bug_1372_certified_red_scan_test.dart` B1 and B2 — same 60 s host
-   timeouts; the file passes cleanly in isolation with a relaxed ceiling:
-   `+3: All tests passed!`.
-
-`test/plugins/tdd` (root suites):
-
-4. `wire_command_test.dart` U-W3 "a missing subject file is a hard
-   runner-error naming the gen remediation" — **pre-existing**: reproduces on
-   the pristine `b5abf380` worktree (`1 [E]`, same "registry record … points
-   outside the project root" vs. "missing subject file" mismatch).
-5. `bug_993_plan_entity_export_clash_test.dart` "end-to-end … (subprocess)" —
-   **pre-existing host slowness**: the same 60 s `TimeoutException` reproduces
-   on the pristine `b5abf380` worktree.
-
-No assertion-level failure was introduced by the change.
-
-## 5. Environment notes (honest recording)
-
-- This host ran several concurrent heavy `dart test` sweeps (other agents in
-  `/tmp/fix-pr-1523` and elsewhere) throughout; the default 60 s per-test
-  ceiling was exceeded by subprocess-spawning tests. Each such entry was
-  either proved on a pristine worktree or re-run green with a relaxed
-  ceiling, and is recorded rather than silently re-run away.
-- Pre-existing macOS-only failures on this host: `view_command_test U-V3` and
-  `wire_command_test U-W3` (both the same registry-record/temp-path
-  resolution mismatch — `lib/<id>_subject.dart` judged "outside the project
-  root" when `Directory.systemTemp` is `/var/folders/…`), plus one slow
-  subprocess suite (`bug_993`).
-
+- Parsing semantics live entirely in `spec_parser.dart`; the state
+  machine, gen, and loop semantics are untouched.
+- The two consumers are print-only: plan's per-row WARNING and phase-0's
+  reuse mismatch log (reuse decisions byte-for-byte unchanged).
+- Backticked grammar unchanged: guard B4 + the full #919/#1381/#1196/
+  #1319/#1484/#1485 suites green.

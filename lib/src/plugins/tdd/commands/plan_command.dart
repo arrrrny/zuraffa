@@ -322,7 +322,14 @@ class PlanCommand extends Command<void> {
     // Bug #829: extract the spec's Key Entities so the loop can create
     // and wire them (run phase 0 + the entity pipeline routing read
     // this section back through TestListReader.readEntities).
-    final entities = const SpecParser().parseKeyEntities(specMd);
+    // Issue #1486: cells that SHOW pair evidence but still parse to
+    // zero fields are collected — the vacuous-green seed must be named
+    // at plan time, not discovered 28 minutes into a run.
+    final keyEntityAnomalies = <SpecEntityFieldAnomaly>[];
+    final entities = const SpecParser().parseKeyEntities(
+      specMd,
+      anomalies: keyEntityAnomalies,
+    );
     // Issue #1381: a declared-but-unparseable `## Key Entities` section
     // used to vanish silently — the run-engine cert gate then saw zero
     // CORE entities and passed trivially. Name the loss.
@@ -337,6 +344,19 @@ class PlanCommand extends Command<void> {
         'no entities were extracted (check the table header grammar: '
         '`| Entity | Fields | Purpose |`). The engine cert gate will see '
         'zero CORE entities (issue #1381).',
+      );
+    }
+    // Issue #1486: a per-row sibling of the #1381 warning — the section
+    // extracted entities, but one row's fields cell shows pair evidence
+    // (a backtick span or an `identifier:` shape) that strict parsing
+    // dropped. The entity WILL be created field-less; name the row and
+    // the cell instead of letting the run vacuous-green later.
+    for (final anomaly in keyEntityAnomalies) {
+      print(
+        'zfa tdd plan: WARNING — Key Entities row `${anomaly.entity}` '
+        '(spec line ${anomaly.line}) declares field pairs that parsed to '
+        'zero fields (cell: `${anomaly.cell}`) — fix the field grammar or '
+        'the entity will be created field-less (issue #1486).',
       );
     }
 
