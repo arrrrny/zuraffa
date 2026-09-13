@@ -29,22 +29,24 @@ build-relevant inputs, the build runs exactly as before.
 ## Acceptance Scenarios
 
 1. **Given** a certified-red behavior whose make plan's generation steps
-   write no build-relevant file (no lib/test/bin/tool dart file created
-   or modified, no build config touched), **When** `zfa tdd make <id>`
-   executes the plan, **Then** the terminal `build` step is SKIPPED —
-   no `zfa build` subprocess is spawned (absent from the zfa argv log),
-   a synthetic audit step with exit 0 and the skip note is recorded in
-   the green evidence's generation block, the summary prints the skip
-   line naming issue #1587, and the make completes with its normal
-   outcome (exit 0, green evidence appended when the target test passes).
+   write nothing a builder consumes (a plain-Dart subject under `lib/`
+   with no builder-facing annotation — the reported calculator case —
+   or nothing at all), **When** `zfa tdd make <id>` executes the plan,
+   **Then** the terminal `build` step is SKIPPED — no `zfa build`
+   subprocess is spawned (absent from the zfa argv log), a synthetic
+   audit step with exit 0 and the skip note is recorded in the green
+   evidence's generation block, the make prints the skip line naming
+   issue #1587, and the make completes with its normal outcome (exit 0,
+   green evidence appended when the target test passes).
    **Type**: acceptance
 2. **Given** a certified-red behavior whose make plan's generation steps
-   DO write a build-relevant input (the subject under `lib/` is
-   rewritten, or a builder-facing annotated file is written, or a build
-   config file changes, or a build-relevant file is deleted), **When**
-   `zfa tdd make <id>` executes the plan, **Then** the terminal `build`
-   step RUNS exactly as before — the skip gate never fires and the
-   #737/#942/#1407 failed-build guards keep their existing contracts.
+   DO write something a builder consumes (a builder-facing annotated
+   dart file — `@Zorphy`, `@JsonSerializable`, `@HiveType`, `@Route` —
+   or a non-dart file), change a build config file, or delete a
+   build-relevant file, **When** `zfa tdd make <id>` executes the plan,
+   **Then** the terminal `build` step RUNS exactly as before — the skip
+   gate never fires and the #737/#942/#1407 failed-build guards keep
+   their existing contracts.
    **Type**: acceptance
 3. **Given** a behavior whose cycle log's LAST entry is a certified red
    carrying a subject hash, and the CURRENT subject file hash equals the
@@ -120,15 +122,16 @@ build-relevant inputs, the build runs exactly as before.
 
 ## Success Criteria (measurable)
 
-- **SC-001**: On a fixture make whose generation writes nothing, the
-  fake-zfa argv log records ZERO `build` invocations (was: 1) and the
-  make still exits 0 with green evidence when the target test passes.
-- **SC-002**: On a fixture make whose generation rewrites the subject
-  under `lib/`, the fake-zfa argv log records the `build` invocation
-  (unchanged from pre-fix).
-- **SC-003**: On a fixture make whose generation writes a
-  `@Zorphy`-annotated dart file, the `build` invocation is recorded
-  (annotated content never skips).
+- **SC-001**: On a fixture make whose generation writes only a plain
+  (un-annotated) Dart subject, the fake-zfa argv log records ZERO
+  `build` invocations (was: 1) and the make still exits 0 with green
+  evidence when the target test passes.
+- **SC-002**: On a fixture make whose generation writes an annotated
+  (`@Zorphy`) dart file under `lib/`, the fake-zfa argv log records the
+  `build` invocation (unchanged from pre-fix).
+- **SC-003**: On a fixture make whose generation changes a build config
+  file (or deletes a build-relevant file), the `build` invocation is
+  recorded (config churn and deletions never skip).
 - **SC-004**: On a fixture make whose certified red entry carries the
   matching subject hash, the precondition runs ZERO target-test
   subprocesses and the run completes green.

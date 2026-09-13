@@ -11,15 +11,15 @@
   no skip; deletion → no skip; non-dart write → no skip. [FR-001,
   SC-001..SC-003]
 - [ ] **T002** (P1) `test/plugins/tdd/make_command_1587_build_skip_test.dart`
-  — through `zfa tdd make`: generation writes nothing → `build` absent
-  from fake-zfa argv log, skip note printed, green evidence carries the
-  synthetic step with exit 0 + skip note, outcome green exit 0.
-  [FR-001/FR-002, SC-001]
-- [ ] **T003** (P1) same file — generation rewrites the subject under
-  `lib/` → `build` present in argv log (unchanged), #737/#942 tolerance
-  paths intact. [FR-003, SC-002]
-- [ ] **T004** (P1) same file — generation writes an annotated
-  (`@Zorphy`) dart file → `build` present. [FR-001, SC-003]
+  — through `zfa tdd make`: generation writes a plain un-annotated
+  subject → `build` absent from fake-zfa argv log, skip note printed,
+  green evidence carries the synthetic step with exit 0 + skip note,
+  outcome green exit 0. [FR-001/FR-002, SC-001]
+- [ ] **T003** (P1) same file — generation writes an annotated
+  (`@Zorphy`) dart file → `build` present (unchanged), #737/#942
+  tolerance paths intact. [FR-003, SC-002]
+- [ ] **T004** (P2) same file — generation changes `pubspec.yaml` →
+  `build` present (config churn never skips). [FR-001, SC-003]
 - [ ] **T005** (P2) same file — hashless-certified-red make still runs
   the live drift check (dedup fails open) and the live build. [FR-005]
 - [ ] **T006** (P1) `test/plugins/tdd/make_command_1587_dedup_test.dart`
