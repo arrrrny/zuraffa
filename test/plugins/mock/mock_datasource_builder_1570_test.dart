@@ -10,7 +10,6 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/core/context/file_system.dart';
-import 'package:zuraffa/src/models/generated_file.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/mock/builders/mock_datasource_builder.dart';
 import 'package:zuraffa/src/plugins/mock/mock_plugin.dart';
@@ -285,6 +284,24 @@ void main() {
         expect(await File(mockPath).readAsString(), before);
       },
     );
+
+    test('mock class absent from its file → skipped, no exception', () async {
+      // Fail-open on the mock side too (issue #1570): when the mock
+      // file exists but its class cannot be parsed, the lane must NOT
+      // fabricate members into a surface it cannot read.
+      final mockPath = await _seedTree(
+        outputDir,
+        mockContent: '// not a mock class: just a comment\n',
+      );
+      final before = await File(mockPath).readAsString();
+
+      final result = await _builder(
+        outputDir,
+      ).generateMockDataSource(_config(appendToExisting: false));
+
+      expect(result.action, 'skipped');
+      expect(await File(mockPath).readAsString(), before);
+    });
   });
 
   group('A4 — honesty: notice + dry-run safety', () {
