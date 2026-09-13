@@ -22,7 +22,7 @@ file tree, parse pubspecs, run analyze/test per package.
 
 ### Tests for User Story 1 (written first, must FAIL)
 
-- [ ] T002. [P] [US1] [behavior] Full-family layout test in
+- [ ] T002. [P] [US1] [behavior: B1] [MANDATORY] Full-family layout test in
       `test/package_sdk/plugin_scaffold_test.dart`: scaffold
       `my_plugin` (all platforms) into a temp dir; assert the five
       package dirs each contain pubspec/analysis_options/README/
@@ -30,12 +30,12 @@ file tree, parse pubspecs, run analyze/test per package.
       README.md, PUBLISH.md, LICENSE, CHANGELOG.md, .gitignore,
       scripts/{prepare_for_publish.sh,publish.sh,push_to_master.sh}.
       Traces FR-001 / FR-011 / SC-1.
-- [ ] T003. [P] [US1] [behavior] Dependency-graph wiring test (yaml
+- [ ] T003. [P] [US1] [behavior: B2] [MANDATORY] Dependency-graph wiring test (yaml
       parse, `package:yaml`): app → `zuraffa ^<version>` and no in-family
       deps; core → app only; each adapter → app + core; nobody lists an
       adapter as a dependency; in-family constraints `^1.0.0`; all
       versions `1.0.0`. Traces FR-004.
-- [ ] T004. [P] [US1] [behavior] Harness-fee test: each generated
+- [ ] T004. [P] [US1] [behavior: B3] [MANDATORY] Harness-integrity test: each generated
       package's test file references its package's public surface and a
       fake channel (grep the generated sources for the fake channel
       import — tests fail if the wiring is broken, FR-008).
@@ -67,19 +67,19 @@ script's logic offline (version rewrite) in a temp clone.
 
 ### Tests for User Story 2 (written first, must FAIL)
 
-- [ ] T007. [P] [US2] [behavior] Publish-metadata test: every generated
+- [ ] T007. [P] [US2] [behavior: B4] [MANDATORY] Publish-metadata test: every generated
       pubspec parses and has non-empty `description`, `homepage`,
       `repository`, `issue_tracker`, ≥1 `topics` entry, `version`, and
       the package dir contains non-empty LICENSE + CHANGELOG.md
       (pub.dev requirement — live dry-run evidence in research.md D3).
       Traces FR-003 / SC-2.
-- [ ] T008. [P] [US2] [behavior] Overrides-placement test: sibling path
+- [ ] T008. [P] [US2] [behavior: B5] [MANDATORY] Overrides-placement test: sibling path
       overrides appear only under `dependency_overrides` (never under
       `dependencies`), and the hosted in-family constraint is present in
       `dependencies`. With `--zuraffa-path`, the framework path lands in
       `dependency_overrides` while `dependencies.zuraffa` stays hosted.
       Traces FR-006 / FR-013.
-- [ ] T009. [P] [US2] [behavior] Publish-tooling test: generated
+- [ ] T009. [P] [US2] [behavior: B6] [MANDATORY] Publish-tooling test: generated
       `scripts/prepare_for_publish.sh` rewrites every package (incl.
       `<name>_platform`) to the target version + `^<version>` in-family
       constraints and propagates the root CHANGELOG entry (assert by
@@ -108,10 +108,10 @@ packages and clean checks; assert rejections for `''` and `dos`.
 
 ### Tests for User Story 3 (written first, must FAIL)
 
-- [ ] T011. [P] [US3] [behavior] Subset test: `--platforms android,ios`
+- [ ] T011. [P] [US3] [behavior: B7] [MANDATORY] Subset test: `--platforms android,ios`
       yields exactly app/core/android/ios (no macos dir), same clean
       invariants as the full family. Traces FR-005.
-- [ ] T012. [P] [US3] [behavior] Selection rejection: empty platforms
+- [ ] T012. [P] [US3] [behavior: B8] [MANDATORY] Selection rejection: empty platforms
       list and unknown platform names throw
       `PluginScaffoldException` naming the supported set; dry-run purity
       maintained. Traces FR-005 / FR-010.
@@ -132,7 +132,7 @@ per-package pub get + analyze + test green.
 
 ### Tests for User Story 4 (written first, must FAIL)
 
-- [ ] T014. [US4] [behavior] E2E in
+- [ ] T014. [US4] [behavior: B9] [MANDATORY] E2E in
       `test/package_sdk/plugin_scaffold_e2e_test.dart`
       (`@Tags(['integration','slow'])`, `run_zfa_source` helper): CLI
       `package plugin e2e_plugin --output <tmp> --zuraffa-path <repo>`
@@ -160,11 +160,11 @@ creates nothing.
 
 ### Tests for User Story 5 (written first, must FAIL)
 
-- [ ] T016. [P] [US5] [behavior] Validation test: bad name
+- [ ] T016. [P] [US5] [behavior: B10] [MANDATORY] Validation test: bad name
       (`Bad-Name`, `9lives`) → snake_case-rule message; existing target
       dir → exists-message and untouched tree; bad `--zuraffa-path` →
       not-a-directory message. Traces FR-010.
-- [ ] T017. [P] [US5] [behavior] Dry-run purity: result lists every
+- [ ] T017. [P] [US5] [behavior: B11] [MANDATORY] Dry-run purity: result lists every
       file the real run creates (same relative paths, superset
       equality), and the temp dir remains empty afterwards. Traces
       FR-009.
