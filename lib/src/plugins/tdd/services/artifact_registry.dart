@@ -368,6 +368,25 @@ class ArtifactRegistry {
     return null;
   }
 
+  /// Refresh the gen reuse fingerprint of [behaviorId]'s record (issue
+  /// #1388): gen calls this after a fingerprint-driven regeneration so
+  /// the stored digest matches the routing state the pair now reflects
+  /// — the drift fires once per routing change, then stable reuse
+  /// resumes. A no-op when no record for the id exists or the stored
+  /// digest already matches.
+  Future<void> refreshGenFingerprint({
+    required String behaviorId,
+    required String genFingerprint,
+  }) async {
+    final records = await _loadRecords();
+    final index = records.indexWhere((r) => r.behaviorId == behaviorId);
+    if (index < 0) return;
+    final current = records[index];
+    if (current.genFingerprint == genFingerprint) return;
+    records[index] = current.copyWithGenFingerprint(genFingerprint);
+    await _writeRecords(records);
+  }
+
   Future<List<ArtifactRecord>> _loadRecords({bool reanchor = true}) async {
     final file = File(registryPath);
     if (!await file.exists()) return [];
@@ -435,6 +454,7 @@ class ArtifactRegistry {
       testOwnership: record.testOwnership,
       subjectOwnership: record.subjectOwnership,
       createdAt: record.createdAt,
+      genFingerprint: record.genFingerprint,
     );
   }
 
@@ -554,6 +574,7 @@ class ArtifactRegistry {
       testOwnership: record.testOwnership,
       subjectOwnership: record.subjectOwnership,
       createdAt: record.createdAt,
+      genFingerprint: record.genFingerprint,
     );
   }
 
