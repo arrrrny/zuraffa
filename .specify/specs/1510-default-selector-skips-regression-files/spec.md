@@ -29,7 +29,7 @@ already misread as a pass. This is the same false-green class as issue
 #1510 breaks per-file invocations used to validate individual fixes.
 
 The two files are precisely the suites a contributor reaches for when
-changing the make pipeline (`MakeCommand`): the 42-behavior CLI-surface
+changing the make pipeline (`MakeCommand`): the 38-behavior CLI-surface
 suite and the declared-entity routing pin (issue #951 / feature 071).
 
 ## Goal
@@ -55,9 +55,13 @@ default preset, without inflating the fast tier that CI's `dart_core` job
 
 ## Success criteria (measurable)
 
-- **SC-1**: `dart test test/plugins/tdd/make_command_test.dart` exits 0
-  under the default preset and executes all 42 behaviors in that file
-  (no `No tests ran`, no exit 79).
+- **SC-1**: `dart test test/plugins/tdd/make_command_test.dart` no longer
+  silently empties the file under the default preset: the invocation
+  selects and executes all 38 runnable behaviors in that file (no
+  `No tests ran`, no exit 79) and reports the file's real pass/fail
+  counts. In a clean environment — without the 5 failures that match the
+  untouched-master baseline (`tdd/verification.md` §3) — the invocation
+  exits 0.
 - **SC-2**: `dart test test/plugins/tdd/make_command_declared_071_test.dart`
   exits 0 under the default preset and executes its 1 behavior.
 - **SC-3**: The two files remain out of CI's `dart_core` fast lane: the

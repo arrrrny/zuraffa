@@ -84,3 +84,41 @@ for the maintainer as an observation, not introduced by this PR.
 - SC-4 → B3 + B4
 - SC-5 → B6 + fast-tier sanity chunks + additive-only `dart_test.yaml` diff
 - SC-6 → W1 + W2
+
+## 5. Review-fix round (2026-09-13)
+
+Applied the review findings on PR #1567. No test logic, no `MakeCommand`,
+no state machine changes; selector/tagging/config and spec artifacts only.
+
+| Finding | Fix |
+|---|---|
+| `e2e` exclusion wired into `ci.yaml` only — `tools/run-tdd-tests.sh` and the feature-scope suite still ran the heavy suites (zuraffa-review, Major) | `tools/run-tdd-tests.sh` runs with `--exclude-tags "flutter || e2e"`; the `.specify/memory/tdd-profile.md` feature-scope command matches |
+| Re-tagging away from `slow` dropped the 4x timeout the suites depend on (zuraffa-review, Major) | `dart_test.yaml`: `e2e:` declares `timeout: 4x` (120s > the 75s child guard, as `slow` did) |
+| `plan.md` effect matrix contradicted this file; SC-1 unmet as written (zuraffa-review, Minor) | matrix records the measured `exit 1 — 38 selected, 33 pass, 5 pre-existing failures`; 42→38 reconciliation note (42 textual `test(` matches − 4 embedded fixture strings = 38 runnable); `spec.md` SC-1 restated honestly, clean-environment exit-0 retained above |
+| No pin for the `e2e` lane invariant (zuraffa-review, Trivial) | `test/tier_integrity_test.dart` B3/B4: every e2e-tagged file (walked from `test/`) must be selected by `--preset=all`'s effective selector AND excluded by the `dart_core` `--exclude-tags` selector parsed from `ci.yaml` |
+| `tasks.md`/`test-list.md` presented "exit 0, 42 tests" as measured (coderabbit, Minor) | T1/B1 now report 38 selected with the 5-failure master baseline |
+| Raw `\|\|` pipes broke the B5 table row (coderabbit, Minor) | pipes escaped — the table renders 6 columns |
+
+Fresh evidence (this round):
+
+- `dart test test/tier_integrity_test.dart` → `+5` exit 0 (B3/B4 added).
+- Both e2e files under the lane flag (`dart test <both> --exclude-tags
+  "flutter || e2e"`) → exit 79, `exclude: "slow || flutter || e2e"`;
+  control `arg_placeholder_test.dart` `+9` exit 0 under the same flag.
+- Direct `dart test test/plugins/tdd/make_command_declared_071_test.dart`
+  → `+1` exit 0 (wall 55 s under concurrent load — the margin the 4x
+  ceiling exists for).
+- `bash tools/run-tdd-tests.sh` (full local scope; 26:39, `+2197 ~1 -2`)
+  → exit 1, and the ONLY two failures are neither e2e nor from this PR —
+  both reproduce identically on untouched master `46fe766e`:
+  - `view_command_test.dart` U-V3 — macOS symlinked temp root (`/var` vs
+    `/private/var`) + missing subject file; deterministic (fails in
+    isolation on master in 2 s); the PR's CI `dart_core` run passes it.
+  - `bug_993_plan_entity_export_clash_test.dart` — 60 s per-test ceiling
+    after a ~100 s setUpAll cold start on this Intel-Mac host; same
+    timeout on master in isolation; CI passes it.
+  The e2e-tagged suites no longer contribute any failure to this scope:
+  pre-fix they contributed the 5 make-command failures; under the flag
+  they are not selected at all.
+- `dart format --output=none --set-exit-if-changed lib test` → 0 changed;
+  `dart analyze test/tier_integrity_test.dart` → no issues.

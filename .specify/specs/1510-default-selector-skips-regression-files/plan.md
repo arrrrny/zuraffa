@@ -35,7 +35,7 @@
 CI lanes that select tests:
 - `ci.yaml#dart_core`: `dart test test --exclude-tags flutter` (fast lane,
   30-min timeout, latest master run: 1339 s ≈ 22.3 min → ~7.7 min
-  headroom). Absorbing `make_command_test.dart` (42 behaviors, each
+  headroom). Absorbing `make_command_test.dart` (38 behaviors, each
   spawning a temp fixture with `dart pub get` + real `dart test`
   subprocesses) would blow the budget — the lane must keep excluding them.
 - `conformance.yml`: two default-selector file gates + one
@@ -68,9 +68,18 @@ both files were slow-excluded before and e2e-excluded after.
 
 ### Effect matrix
 
+Count reconciliation: earlier drafts said "42 tests" for
+`make_command_test.dart`. That figure counted every textual `test(`
+occurrence, including 4 embedded in fixture string constants (the
+`_greenTest` target, the two deferred-acceptance siblings, and the
+pre-existing broken sibling passed as `testContent`) that the temp fixture
+project writes into its own test files — they are not test cases of this
+file. The file declares 38 runnable behaviors; the runner selects 38
+(33 pass, 5 fail).
+
 | Invocation | Before | After |
 |---|---|---|
-| `dart test test/plugins/tdd/make_command_test.dart` | exit 79, 0 tests | exit 0, 42 tests |
+| `dart test test/plugins/tdd/make_command_test.dart` | exit 79, 0 tests | exit 1 — 38 selected, 33 pass, 5 pre-existing failures (verification.md §3) |
 | `dart test test/plugins/tdd/make_command_declared_071_test.dart` | exit 79, 0 tests | exit 0, 1 test |
 | default `dart test` (local fast tier) | excluded | included (+2 files, local-only cost) |
 | CI `dart_core` fast lane | excluded | excluded (unchanged) |

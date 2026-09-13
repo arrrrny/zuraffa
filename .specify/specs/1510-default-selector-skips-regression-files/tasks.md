@@ -9,7 +9,10 @@
 
 - [x] T1 (behaviour, SC-1) Tag `test/plugins/tdd/make_command_test.dart`
       `@Tags(['slow'])` → `@Tags(['regression', 'e2e'])`. Red: direct run
-      exits 79 with 0 tests. Green: direct run exits 0 with 42 tests.
+      exits 79 with 0 tests. Green: direct run selects and executes the
+      file's 38 runnable behaviors — 33 pass, 5 fail with the
+      byte-identical pre-existing failure set on master
+      (`tdd/verification.md` §3). Clean-environment expectation: exit 0.
 - [x] T2 (behaviour, SC-2) Tag `test/plugins/tdd/make_command_declared_071_test.dart`
       `@Tags(['slow'])` → `@Tags(['regression', 'e2e'])`. Red: direct run
       exits 79 with 0 tests. Green: direct run exits 0 with 1 test.
