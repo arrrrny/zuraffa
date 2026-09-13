@@ -66,10 +66,13 @@ class CorpusBaselineCache {
   }
 
   /// Persist [snapshot] with [fingerprint] at the project level.
+  /// Spec 1529: [durationMs] rides along for the budget scaling of REUSE
+  /// runs (null on older files — the floor applies).
   Future<String> write({
     required String projectRoot,
     required SuiteSnapshot snapshot,
     required String fingerprint,
+    int? durationMs,
   }) async {
     final file = File(pathFor(projectRoot: projectRoot));
     await file.parent.create(recursive: true);
@@ -81,9 +84,27 @@ class CorpusBaselineCache {
         'capturedAt': snapshot.capturedAt,
         'parseable': snapshot.parseable,
         'dependency_fingerprint': fingerprint,
+        'duration_ms': ?durationMs,
       }),
     );
     return file.path;
+  }
+
+  /// The recorded capture duration in milliseconds, or null when the
+  /// cache is missing/unreadable or predates spec 1529 (safe failure —
+  /// the budget derivation degrades to the floor).
+  Future<int?> readDurationMs({required String projectRoot}) async {
+    try {
+      final json = jsonDecode(
+        await File(pathFor(projectRoot: projectRoot)).readAsString(),
+      );
+      if (json is! Map<String, dynamic>) return null;
+      final value = json['duration_ms'];
+      if (value is! int || value <= 0) return null;
+      return value;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Load the corpus cache when the fingerprint MATCHES [fingerprint].

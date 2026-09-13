@@ -66,6 +66,7 @@ import '../models/routing.dart';
 import '../services/test_list_reader.dart';
 import '../services/unit_contract_shape.dart';
 import '../services/tdd_timeout.dart';
+import '../services/step_timeout_receipt.dart';
 import '../services/vacuous_guard.dart';
 import '../services/widget_scaffold.dart' show scaffoldedMarker;
 import '../services/tdd_transaction.dart';
@@ -526,8 +527,10 @@ class RunDriverCore {
     //    a red or pending-with-artifacts behavior reds the suite for
     //    every lane's refactors exactly like it did for the single run.
     // -----------------------------------------------------------------
-    // Bug #742: the step spawner carries the deadline.
-    final runner = StepRunner(zfaBin: zfaBin, timeout: timeout);
+    // Bug #742: the step spawner carries the deadline. Spec 1529: the
+    // budget may be UPGRADED below (scaled from the measured baseline
+    // suite duration) — the runner is rebuilt there when it changes.
+    var runner = StepRunner(zfaBin: zfaBin, timeout: timeout);
 
     // Issue #992: --skip-widget turns a widget-lane gen refusal (#938
     // skin gate) into a recorded per-behavior skip instead of a run
@@ -575,7 +578,13 @@ class RunDriverCore {
 
     // ---------------------------------------------------------------
     // 6b. Cache the full-suite baseline ONCE per run (issue #741).
+    // Spec 1529: the capture's measured wall time (fresh or recorded in
+    // a reused cache) scales the per-step budget (US2) — a make step's
+    // cost is bounded by the suite it re-certifies against, and that
+    // suite grows every behavior, so a FIXED budget gets less safe as
+    // the run progresses.
     // ---------------------------------------------------------------
+    int? measuredBaselineMs;
     if (anyMakeOutstanding) {
       try {
         final suiteTemplate = await const SingleTestRunner().loadSuiteTemplate(
@@ -608,10 +617,21 @@ class RunDriverCore {
         if (corpusReused != null &&
             corpusReused.parseable &&
             baselineScope == null) {
+          // Spec 1529: the corpus cache rides the capture duration so a
+          // REUSE run scales the per-step budget without re-measuring.
+          final reusedMs = await corpusCache.readDurationMs(
+            projectRoot: projectRoot,
+          );
           suiteBaselinePath = await const RunBaselineCache().write(
             featureDir: featureDir,
             snapshot: corpusReused,
+            durationMs: reusedMs,
+            // Spec 1529: the fingerprint rides the feature-local cache so
+            // make's trimmed re-certification can prove the environment
+            // is the one the baseline certified (FR-9a).
+            fingerprint: fingerprint,
           );
+          measuredBaselineMs = reusedMs;
           print(
             '   suite baseline: corpus-wide reuse '
             '(fingerprint match; spec 069 T004) — '
@@ -630,6 +650,9 @@ class RunDriverCore {
           print(
             '   suite baseline: $scopedTemplate (once per run — issue #741)',
           );
+          // Spec 1529: the capture's wall time is the measured baseline
+          // the per-step budget scales from — measure the REAL run.
+          final captureStopwatch = Stopwatch()..start();
           final baselineRecord = await const SingleTestRunner().runSuite(
             suiteTemplate: scopedTemplate,
             workingDirectory: projectRoot,
@@ -640,14 +663,21 @@ class RunDriverCore {
             // with it every make step) on repos whose fast suite runs long.
             timeout: timeout,
           );
+          captureStopwatch.stop();
           final snapshot = const SuiteGuard().fromRunRecord(
             record: baselineRecord,
             capturedAt: DateTime.now().toUtc().toIso8601String(),
           );
           if (snapshot.parseable) {
+            final durationMs = captureStopwatch.elapsed.inMilliseconds;
+            measuredBaselineMs = durationMs;
             suiteBaselinePath = await const RunBaselineCache().write(
               featureDir: featureDir,
               snapshot: snapshot,
+              durationMs: durationMs,
+              // Spec 1529: the fingerprint rides the feature-local cache
+              // (FR-9a) — make's trimmed re-certification keys on it.
+              fingerprint: fingerprint,
             );
             // Issue #1374: a scoped snapshot never enters the
             // corpus-wide cache.
@@ -656,6 +686,7 @@ class RunDriverCore {
                 projectRoot: projectRoot,
                 snapshot: snapshot,
                 fingerprint: fingerprint,
+                durationMs: durationMs,
               );
             }
             print(
@@ -668,6 +699,58 @@ class RunDriverCore {
         }
       } on StateError {
         // No profile / no suite template
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // 6c. Derive the per-step budget (spec 1529, US2 / FR-4..FR-6).
+    // An explicit --timeout ALWAYS wins; the default scales from the
+    // measured baseline suite duration (floor 25 min). When the
+    // projection meets or exceeds an EXPLICIT budget, warn loudly
+    // BEFORE the first step spawns — the issue's misfire came from a
+    // budget that was safe on an idle machine and unsafe under load.
+    // The budget stays ONE uniform deadline handed to every step child
+    // (issue #1159's contract), passed down as the child's --timeout.
+    // ---------------------------------------------------------------
+    if (anyMakeOutstanding) {
+      final measuredBaseline = measuredBaselineMs == null
+          ? null
+          : Duration(milliseconds: measuredBaselineMs);
+      final budget = scaledStepBudget(
+        measuredBaseline: measuredBaseline,
+        explicit: timeout,
+      );
+      if (timeout != null) {
+        final projected = projectedMakeCost(measuredBaseline: measuredBaseline);
+        if (projected != null && projected >= timeout) {
+          print(
+            'WARNING: the explicit --timeout looks unsafe for this run '
+            '(issue #1529):',
+          );
+          print(
+            '   measured baseline suite: ${formatBudget(measuredBaseline!)}',
+          );
+          print(
+            '   projected per-step make cost: 4 x baseline = '
+            '${formatBudget(projected)}',
+          );
+          print(
+            '   explicit budget: ${formatBudget(timeout)} — a make step '
+            'under load may be killed mid-suite (the budget was measured '
+            'on an idle machine)',
+          );
+          print(
+            '   consider raising --timeout, or drop it to use the scaled '
+            'default (max(25m floor, 4 x baseline))',
+          );
+        }
+      }
+      if (budget != timeout && budget != TddTimeouts.defaultStepProcess) {
+        runner = StepRunner(zfaBin: zfaBin, timeout: budget);
+        print(
+          '   per-step budget: ${formatBudget(budget)} '
+          '(scaled from the measured baseline, issue #1529)',
+        );
       }
     }
 
@@ -2033,6 +2116,32 @@ class RunDriverCore {
           featureDir: featureDir,
           criterion: row.traces,
         );
+        // Spec 1529 (U8/FR-1/FR-12): a make step killed at the deadline
+        // leaves an INSPECTABLE receipt in the feature tdd dir — phase,
+        // argv, actual elapsed, captured tail — so resume is an informed
+        // decision instead of a blind re-roll. The write is best-effort:
+        // a failed write is reported, never fatal (the receipt is
+        // additive evidence, not a gate).
+        if (step == 'make' && result.timeoutReceipt != null) {
+          final outcome = await writeStepTimeoutReceiptReported(
+            featureDir: featureDir,
+            receipt: result.timeoutReceipt!.toReceipt(
+              capturedAt: DateTime.now().toUtc().toIso8601String(),
+            ),
+          );
+          if (outcome.written) {
+            print(
+              '   timeout receipt: ${p.relative(outcome.path!, from: projectRoot)} '
+              '(phase=${result.timeoutReceipt!.phase.phase}, '
+              'elapsed=${formatTddTimeout(result.timeoutReceipt!.elapsed)})',
+            );
+          } else {
+            print(
+              '   note: the timeout receipt could not be written '
+              '(${outcome.error}) — the runner-error stands unchanged',
+            );
+          }
+        }
         updated = updated.advance(row.id, state);
         await store.save(updated, activeBehaviorIds: activeIds);
         await tx.clear();
