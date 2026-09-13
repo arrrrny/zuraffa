@@ -1,21 +1,18 @@
-# TDD test list — Bug #1512 acceptance vacuous composition
+# TDD test list — Bug #1470 artifacts.json silently swallows corruption
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| A-1512-a1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | an undeclared acceptance row emits the parameterless void-safe capture | FR-1512, BehaviorTestWriter._captureInvocation | GREEN |
-| A-1512-a2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | a directly-injected scalar shape is inert for acceptance (no threaded args, no returned result) | FR-1512, BehaviorTestWriter._captureInvocation | GREEN |
-| A-1512-a3 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | a directly-injected entity-return shape is inert too | FR-1512, BehaviorTestWriter._captureInvocation | GREEN |
-| A-1512-a4 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | the paired subject is the parameterless void runner the test call matches | FR-1512, SubjectWriter acceptance stub | GREEN |
-| A-1512-b1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the undeclared acceptance fallback carries the acceptance token, never the vacuous-guard marker | FR-1512, BehaviorTestWriter._deriveAssertion | GREEN |
-| A-1512-b2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the acceptance fallback does not reuse the unit-lane comment block | FR-1512, vacuous_guard.acceptanceFallbackGuardComment | GREEN |
-| A-1512-c1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | a plain scenario row plans the spec-052 composition lane (tdd compose → build) | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an incidental capitalised word does not fabricate an entity | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c3 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | a capitalised word alone never drives the entity pipeline | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c4 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an explicit `entity <Name>` prose signal plans the #758 entity pipeline (entity create → make → wire → build) | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c5 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an explicit `create <Name>` prose signal plans the entity pipeline too | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c6 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an explicit target wins the entity derivation | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c7 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the honest #758 refusal stays (CRUD prose, no entity) | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c8 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | non-acceptance rows keep the generic misfire | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-d1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the unit scalar capture is byte-for-byte (inferred annotation, threaded args, isA<T>, no marker, no acceptance token) | FR-1512, unit-lane guardrail | GREEN |
-| A-1512-d2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the undeclared unit fallback guard stays unmarked (#1308 two-class dispatch) | FR-1512, unit-lane guardrail | GREEN |
-| A-1512-e1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | integration | the emitted acceptance test+subject pair compiles and fails through an assertion (slow) | FR-1512, compile proof | GREEN |
+| A-1470-a1 | test/plugins/tdd/services/artifact_registry_test.dart | unit | loadAll on a corrupt registry throws ArtifactRegistryCorruptException, not an empty list | FR-012, ArtifactRegistry._loadRecords | GREEN |
+| A-1470-a2 | test/plugins/tdd/services/artifact_registry_test.dart | unit | findRecord on a corrupt registry throws too (same read path) | ArtifactRegistry.findRecord → _loadRecords | GREEN |
+| A-1470-a3 | test/plugins/tdd/services/artifact_registry_test.dart | unit | register refuses to re-register on a corrupt registry (no silent duplicate pair, no registry rewrite) | FR-006, ArtifactRegistry.register → preflight → _appendRecord | GREEN |
+| A-1470-a4 | test/plugins/tdd/services/artifact_registry_test.dart | unit | the corruption message names the registry path and the recovery (delete the file, re-run gen) | ArtifactRegistryCorruptException.toString, RunStateCorruptException parity | GREEN |
+| A-1470-b1 | test/plugins/tdd/services/artifact_registry_test.dart | guard | missing-file behavior is unchanged (FR-012 guard): loadAll → [], findRecord → null, register → created | FR-012 missing-file contract (must not regress) | GREEN |
+| A-1470-c1 | test/plugins/tdd/services/artifact_registry_test.dart (pre-existing, 15 tests) | regression | append/idempotent-reuse/ownership-conflict/dry-run/read-back/path-form normalization all still pass on the fixed loader | FR-005/006/007/008/009, issue #1397 path forms | GREEN |
+
+RED evidence (suite): `dart test test/plugins/tdd/services/artifact_registry_test.dart`
+with the exception type defined but the throw not yet wired → `+15 -4`
+(A-1470-a1..a4 failed with the bug's own symptoms: `loadAll` emitted `[]`,
+`findRecord` emitted `null`, `register` emitted `Ownership.created/created`;
+A-1470-b1 passed, correctly). Scratch repro on unmodified master additionally
+showed the P1 data-loss chain: corrupt file → `[]` → `register(B-003)` →
+`Ownership.created` → registry rewritten to `[B-003]`, destroying B-001/B-002.
