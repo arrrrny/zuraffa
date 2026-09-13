@@ -18,6 +18,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'born_green.dart';
 import 'cycle_log_sections.dart';
 
 /// One parsed cycle-log section: the certified facts the doctor, the
@@ -56,6 +57,14 @@ class ParsedCycleEntry {
   /// the sha256 of the subject file at certification time.
   final String? subjectHash;
 
+  /// The `- evidence:` field (issue #959 red entries; the issue #1411
+  /// born-green transition's green entry), when present: the free-text
+  /// evidence note the certifying step recorded. Issue #1542: the run
+  /// driver's refactor evidence check reads this field's born-green
+  /// marker ([bornGreenEvidenceMarker]) to accept green-only
+  /// certification for born-green behaviors.
+  final String? evidence;
+
   const ParsedCycleEntry({
     required this.behaviorId,
     required this.kind,
@@ -68,6 +77,7 @@ class ParsedCycleEntry {
     this.prevHash,
     this.hash,
     this.subjectHash,
+    this.evidence,
   });
 
   /// Whether this entry participates in the evidence hash chain (bug
@@ -136,6 +146,32 @@ class CycleEvidence {
       }
     }
     return orphans;
+  }
+
+  /// Whether the behavior's LAST green evidence entry certifies the
+  /// born-green hand transition (issue #1411) — the entry's `- evidence:`
+  /// field carries the shared journal marker the `make --born-green`
+  /// transition writes ([bornGreenEvidenceMarker]).
+  ///
+  /// Issue #1542: the run driver's refactor evidence check keys on this
+  /// to accept green-only certification for born-green behaviors — red is
+  /// defined out of existence by the transition, so demanding a red entry
+  /// would dead-end the run. The probe reads the JOURNAL (append-only
+  /// evidence), not the run state, so the certification survives state
+  /// resets and degradations; the LAST-green rule is the same append-order
+  /// rule [greenEvidence] and [orphanedGreenEvidence] apply.
+  ///
+  /// Review #1566: the match is ANCHORED to the note's start (the
+  /// transition writes the marker first) — `- evidence:` is free-form
+  /// (the issue #959 additive field), so a bare substring probe would
+  /// also exempt a red-less entry whose note merely QUOTES the marker
+  /// prose (a hand-written debugging note).
+  Future<bool> bornGreenCertified(String behaviorId) async {
+    final last = await lastEntryFor(behaviorId, kind: 'green');
+    if (last == null) return false;
+    final note = last.evidence;
+    if (note == null) return false;
+    return note.startsWith(bornGreenEvidenceMarker);
   }
 
   /// Every parsed entry, in file order.
@@ -220,6 +256,7 @@ List<ParsedCycleEntry> parseEntries(String raw) {
     final subjectHash = capture(
       RegExp(r'^- subject-hash: ([0-9a-f]{64})$', multiLine: true),
     );
+    final evidence = capture(RegExp(r'^- evidence: (.+)$', multiLine: true));
     entries.add(
       ParsedCycleEntry(
         behaviorId: behavior.group(1)!,
@@ -233,6 +270,7 @@ List<ParsedCycleEntry> parseEntries(String raw) {
         prevHash: prevHash,
         hash: hash,
         subjectHash: subjectHash,
+        evidence: evidence,
       ),
     );
   }

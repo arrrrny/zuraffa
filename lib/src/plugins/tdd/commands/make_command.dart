@@ -94,6 +94,7 @@ import '../services/nuance_receipts.dart';
 import '../services/pipeline_runner.dart';
 import '../services/red_classifier.dart';
 import '../services/run_baseline_cache.dart';
+import '../services/run_state_store.dart';
 import '../services/skin_authoring.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/runner.dart';
@@ -921,13 +922,13 @@ class MakeCommand extends Command<void> {
           runnerCommand: bornRun.command,
           exitCode: bornRun.exitCode,
           capturedOutput:
-              'issue #1411 born-green hand transition — the designed hand '
+              '$bornGreenEvidenceMarker — the designed hand '
               'step was completed before the first red certification '
               '(hand-first ordering); the passing transcript below is the '
               'green evidence bound to the current subject shape.\n'
               '${bornRun.output}',
           redEvidence:
-              'issue #1411 born-green hand transition — no prior red '
+              '$bornGreenEvidenceMarker — no prior red '
               'evidence exists (the hand step preceded the first '
               'certification); green certified from the passing target '
               'test with the vacuous-guard marker absent and the '
@@ -950,6 +951,62 @@ class MakeCommand extends Command<void> {
         feature: target.featureName,
         files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
       );
+      // Issue #1542: advance the run state for the WEDGED claim. A
+      // behavior parked at BLOCKED (the issue #1007 contract verdict;
+      // make/refactor never spawn for it) can never re-enter the cycle
+      // through the run: the re-driven verify-red unexpected-greens, and
+      // the flagless make this driver would spawn refuses
+      // not-certified-red before any skip transition. With the
+      // certification on the journal AND the claim advanced to done, the
+      // next run reconciles done -> green (green-only evidence, bug #682)
+      // and re-enters at refactor, where the #1542 evidence check accepts
+      // the born-green certification — the run completes without manual
+      // run-state surgery. ONLY the wedged state advances: pending
+      // promotes through the evidence reconciliation, red re-enters at
+      // make, green/mocked re-enter at refactor, and a missing state file
+      // means no run was ever started (make never fabricates a run).
+      final store = RunStateStore(target.featureDir);
+      final runState = await store.load();
+      final claimed = runState?.behaviorStates[record.behaviorId];
+      if (claimed == BehaviorState.blocked) {
+        // Review #1566 finding 1a: hold the same concurrency gate every
+        // run-driver write holds. `RunState.advance()` nulls the
+        // in-flight marker, so an ungated write here would silently
+        // release a live `zfa tdd run`'s claim and let a third run start
+        // concurrently.
+        final refusal = store.refusalReason(runState);
+        if (refusal != null) {
+          print('   run-state left untouched: $refusal');
+        } else {
+          // Review #1566 finding 1b: pass the active ids the way every
+          // run-driver `store.save` call site does, so the `dropped`
+          // audit key survives the write instead of being erased
+          // (`save()` only records it when `activeBehaviorIds` is
+          // given). A missing/unreadable test list cannot be recomputed,
+          // so the ids already carrying the `dropped` marker are carried
+          // through — the audit is preserved, never rewritten.
+          Set<String> activeIds;
+          try {
+            activeIds = {
+              for (final row in await TestListReader(target.featureDir).read())
+                row.id,
+            };
+          } on TestListReadException {
+            final dropped = (await store.readDropped()).toSet();
+            activeIds = runState!.behaviorStates.keys
+                .where((id) => !dropped.contains(id))
+                .toSet();
+          }
+          await store.save(
+            runState!.advance(record.behaviorId, BehaviorState.done),
+            activeBehaviorIds: activeIds,
+          );
+          print(
+            '   run-state advanced: ${record.behaviorId} blocked -> done '
+            '(born-green certification, issue #1542)',
+          );
+        }
+      }
       print(
         '   green evidence appended to specs/${target.featureName}/tdd/'
         'cycle-log.md',
