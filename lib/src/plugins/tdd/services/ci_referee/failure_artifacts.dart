@@ -15,6 +15,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../cycle_log_entry_sections.dart';
+
 /// The maximum excerpt length (US4.AC1: "max 20 lines").
 const int maxExcerptLines = 20;
 
@@ -68,62 +70,64 @@ class FailureArtifactBuilder {
   /// Parse the red entries of one feature's cycle log. Each red entry
   /// contributes exactly one artifact (its output block trimmed to the
   /// excerpt).
+  ///
+  /// Fence-aware (issue #1549): entries come from the shared
+  /// `splitCycleLogSections()` splitter via the entry-sections iterator, so
+  /// an in-fence `## Cycle:` line (a banner a test printed into its
+  /// captured output) can no longer call `closeEntry()` early — the
+  /// excerpt runs to the end of the captured output and the banner itself
+  /// is kept verbatim (captured output is evidence). The per-entry state
+  /// machine is unchanged: `- test:` names the test, bare ```` ``` ````
+  /// lines toggle the output block.
   Future<List<FailureArtifact>> _parseRedEntries(
     String feature,
     File cycleLog,
   ) async {
-    final lines = (await cycleLog.readAsString()).split('\n');
+    final entries = parseCycleLogEntrySections(await cycleLog.readAsString());
     final artifacts = <FailureArtifact>[];
 
-    String? currentTest;
-    var inRed = false;
-    var inOutput = false;
-    final output = <String>[];
+    for (final entry in entries) {
+      if (entry.kind != 'red') continue;
 
-    void closeEntry() {
-      if (currentTest == null) return;
-      final trimmed = output
-          .map((l) => l.trimRight())
-          .where((l) => l.trim().isNotEmpty)
-          .toList();
-      if (trimmed.isNotEmpty) {
-        final failingLine = _findFailingLine(trimmed);
-        artifacts.add(
-          FailureArtifact(
-            feature: feature,
-            testName: currentTest!,
-            excerpt: _excerptAround(trimmed, failingLine),
-            failingLine: failingLine,
-            fixDirection: _fixDirectionFor(trimmed, failingLine),
-          ),
-        );
-      }
-      currentTest = null;
-      inRed = false;
-      inOutput = false;
-      output.clear();
-    }
+      String? currentTest;
+      var inOutput = false;
+      final output = <String>[];
 
-    for (final line in lines) {
-      final trimmed = line.trim();
-      if (trimmed.startsWith('## Cycle:')) {
-        closeEntry();
-        inRed = trimmed.endsWith('(red)');
-        continue;
+      for (final line in entry.bodyLines) {
+        final trimmed = line.trim();
+        if (trimmed.startsWith('- test:')) {
+          currentTest = trimmed.substring('- test:'.length).trim();
+          continue;
+        }
+        if (trimmed == '```') {
+          inOutput = !inOutput;
+          continue;
+        }
+        if (inOutput) {
+          output.add(line);
+        }
       }
-      if (inRed && trimmed.startsWith('- test:')) {
-        currentTest = trimmed.substring('- test:'.length).trim();
-        continue;
-      }
-      if (inRed && trimmed == '```') {
-        inOutput = !inOutput;
-        continue;
-      }
-      if (inRed && inOutput) {
-        output.add(line);
+
+      // closeEntry — the entry ends with its section.
+      if (currentTest != null) {
+        final trimmed = output
+            .map((l) => l.trimRight())
+            .where((l) => l.trim().isNotEmpty)
+            .toList();
+        if (trimmed.isNotEmpty) {
+          final failingLine = _findFailingLine(trimmed);
+          artifacts.add(
+            FailureArtifact(
+              feature: feature,
+              testName: currentTest,
+              excerpt: _excerptAround(trimmed, failingLine),
+              failingLine: failingLine,
+              fixDirection: _fixDirectionFor(trimmed, failingLine),
+            ),
+          );
+        }
       }
     }
-    closeEntry();
     return artifacts;
   }
 
