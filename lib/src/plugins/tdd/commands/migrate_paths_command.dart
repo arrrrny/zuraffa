@@ -68,6 +68,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/import_resolution.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -130,6 +131,18 @@ class MigratePathsCommand extends Command<void> {
   Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
 
   Future<void> _run() async {
+    // Issue #1573: the feature is a --feature flag, not a positional
+    // argument. The old behavior silently discarded positional arguments
+    // and fell through to the whole-project sweep — an invocation meant
+    // for ONE feature rewrote EVERY registry. Refuse loudly instead.
+    final rest = argResults?.rest ?? const <String>[];
+    if (rest.isNotEmpty) {
+      usageException(
+        'zfa tdd migrate-paths takes no positional argument — pass the '
+        'feature as a flag: zfa tdd migrate-paths --feature <name> '
+        '(unrecognized positional argument "${rest.first}").',
+      );
+    }
     final dryRun = argResults?['dry-run'] as bool? ?? false;
     final featureFlag = argResults?['feature'] as String?;
     final projectFlag = argResults?['project'] as String?;
@@ -870,12 +883,60 @@ class MigratePathsCommand extends Command<void> {
 
   List<_RegistryEntry> _scanRegistries(String cwd, String? featureFlag) {
     if (featureFlag != null && featureFlag.isNotEmpty) {
-      final featureDir = p.join(cwd, 'specs', featureFlag);
-      return [_RegistryEntry(featureFlag, featureDir)];
+      return [_resolveFlaggedRegistry(cwd, featureFlag)];
     }
+    final entries = _scanSpecsRegistries(cwd);
+    // Issue #1573: the sweep covers the bug extension's registries too —
+    // a project can carry machine-absolute forms under
+    // .specify/bugs/<slug>/tdd/ that a specs/-only scan never examined.
+    entries.addAll(_scanBugRegistries(cwd));
+    return entries;
+  }
+
+  /// Issue #1573: a `--feature` reference resolves the way every TDD
+  /// command in the family resolves one (issue #1471) — explicit
+  /// `specs/<name>` / `.specify/bugs/<slug>` / absolute references go
+  /// through [TddFeaturePaths.resolveWithPin]; a plain name keeps the
+  /// legacy `specs/<name>` location, and when THAT carries no registry
+  /// the bug extension's conventional `.specify/bugs/<name>` directory
+  /// is probed (no pin file required) so the bug registry the doctor
+  /// diagnoses is reachable through the flag form the doctor prescribes.
+  _RegistryEntry _resolveFlaggedRegistry(String cwd, String ref) {
+    final resolved = TddFeaturePaths.resolveWithPin(
+      projectRoot: cwd,
+      featureRef: ref,
+    );
+    if (File(p.join(resolved.dir, 'tdd', 'artifacts.json')).existsSync()) {
+      return _RegistryEntry(resolved.name, resolved.dir);
+    }
+    final isPlain = !ref.contains('/') && !ref.contains(r'\');
+    if (isPlain) {
+      final bugDir = p.join(cwd, '.specify', 'bugs', ref);
+      if (File(p.join(bugDir, 'tdd', 'artifacts.json')).existsSync()) {
+        return _RegistryEntry(ref, bugDir);
+      }
+    }
+    return _RegistryEntry(resolved.name, resolved.dir);
+  }
+
+  List<_RegistryEntry> _scanSpecsRegistries(String cwd) {
     final specsDir = Directory(p.join(cwd, 'specs'));
     if (!specsDir.existsSync()) return const [];
     final dirs = specsDir.listSync().whereType<Directory>().toList()
+      ..sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
+    final entries = <_RegistryEntry>[];
+    for (final dir in dirs) {
+      if (File(p.join(dir.path, 'tdd', 'artifacts.json')).existsSync()) {
+        entries.add(_RegistryEntry(p.basename(dir.path), dir.path));
+      }
+    }
+    return entries;
+  }
+
+  List<_RegistryEntry> _scanBugRegistries(String cwd) {
+    final bugsDir = Directory(p.join(cwd, '.specify', 'bugs'));
+    if (!bugsDir.existsSync()) return const [];
+    final dirs = bugsDir.listSync().whereType<Directory>().toList()
       ..sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
     final entries = <_RegistryEntry>[];
     for (final dir in dirs) {

@@ -226,8 +226,11 @@ class DoctorCommand extends Command<void> {
           '${entry.value.map((path_) => _displayPath(cwd, path_)).join(', ')}',
         );
       }
+      // Issue #1573: the prescription must be the form the command
+      // actually parses — migrate-paths takes --feature, not a positional
+      // argument (a positional slug is silently discarded).
       final fix = ownersInvolved.length == 1
-          ? 'zfa tdd migrate-paths ${ownersInvolved.first}'
+          ? 'zfa tdd migrate-paths --feature ${ownersInvolved.first}'
           : 'zfa tdd migrate-paths';
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
@@ -374,7 +377,8 @@ class DoctorCommand extends Command<void> {
           'registry (the recorded form, not the artifacts, has drifted)',
         );
       }
-      final fix = 'zfa tdd migrate-paths $feature';
+      // Issue #1573: prescribe the flag form migrate-paths parses.
+      final fix = 'zfa tdd migrate-paths --feature $feature';
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
@@ -463,10 +467,14 @@ class DoctorCommand extends Command<void> {
     // POSIX form without moving any file.
     final formDrifts = <String>[];
     for (final record in records) {
+      // Issue #1573: the drift line prints the RAW recorded value — the
+      // exact string the registry carries. The old rendering piped it
+      // through display normalization, so the line claimed "machine-absolute"
+      // while showing a relative path the registry does not contain.
       if (p.isAbsolute(record.testPath)) {
         formDrifts.add(
           '${record.behaviorId}: the recorded test path is '
-          'machine-absolute (${_displayPath(cwd, p.normalize(record.testPath))}) '
+          'machine-absolute (${record.testPath}) '
           '— records must be project-relative to stay portable',
         );
       }
@@ -474,14 +482,15 @@ class DoctorCommand extends Command<void> {
         formDrifts.add(
           '${record.behaviorId}: the recorded subject path is '
           'machine-absolute '
-          '(${_displayPath(cwd, p.normalize(record.subjectPath))}) '
+          '(${record.subjectPath}) '
           '— records must be project-relative to stay portable',
         );
       }
     }
     if (formDrifts.isNotEmpty) {
       drifts.addAll(formDrifts);
-      final fix = 'zfa tdd migrate-paths $feature';
+      // Issue #1573: prescribe the flag form migrate-paths parses.
+      final fix = 'zfa tdd migrate-paths --feature $feature';
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
@@ -609,7 +618,8 @@ class DoctorCommand extends Command<void> {
     }
     if (importDrifts.isNotEmpty) {
       drifts.addAll(importDrifts);
-      final fix = 'zfa tdd migrate-paths $feature';
+      // Issue #1573: prescribe the flag form migrate-paths parses.
+      final fix = 'zfa tdd migrate-paths --feature $feature';
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
