@@ -68,3 +68,29 @@
 - The resolver's criterion-token skip is shared with make/gen cell
   tokenization; any tightening must be scoped to the plan-time author
   surface, not the cell shape.
+
+## Recorded evidence (excerpts — raw logs are `*.log`, gitignored)
+
+Red run (`tdd/red-1537.log`, deletion mutant applied, 2026-09-13):
+
+```
+MUTANT RESIDUE CHECK (all must be False): [False, False, False, False]
+00:00 +0 -3: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/commands/plan_command_bug_1481_test.dart: #1537: the fatal
+  dead-end machinery is LIVE (criterion-only trace bindings) a
+  persistence-marked FR with a criterion-only traces binding renders the
+  fatal route line and the tally (default flags, exit 0)
+  ... the flag route — --allow-unit-fallback reaches the same tally ...
+  ... the verdict envelope counts the dead end (dead_end_behaviors == 1)
+```
+
+Green run (`tdd/green-1537.log`, machinery restored from HEAD):
+
+```
+machinery sites restored: 5
+Analyzing plan_command.dart, plan_command_bug_1481_test.dart...
+No issues found!
+00:00 +11: All tests passed!
+```
