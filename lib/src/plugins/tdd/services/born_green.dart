@@ -26,6 +26,20 @@ library;
 /// attestation header is `zfa:tdd: <behaviorId>:hand`.
 const String bornGreenHandTokenPrefix = 'zfa:tdd:';
 
+/// The journal marker the born-green green entry carries in its
+/// `- evidence:` field (issue #1542). The `make --born-green` transition
+/// writes it (the entry's [CycleLogEntry.redEvidence] renders as the
+/// `- evidence:` line), and the run driver's refactor evidence check keys
+/// on it to accept green-only certification for born-green behaviors —
+/// red is defined out of existence by the #1411 transition (green
+/// certified WITHOUT a prior red), so demanding a red entry would
+/// dead-end every born-green behavior at refactor. ONE wording source for
+/// the writer and the reader: the prose around the token may evolve, the
+/// token may not. The marker lives OUTSIDE the evidence hash-chain
+/// payload (the `- evidence:` additive precedent, issue #959), so the
+/// #828 chain contract is untouched.
+const String bornGreenEvidenceMarker = 'issue #1411 born-green hand transition';
+
 /// The exact attestation header line the hand author adds to the test
 /// when completing the designed hand step (issue #1411). Rendered
 /// verbatim by the run driver's hand-off message and make's refusal so

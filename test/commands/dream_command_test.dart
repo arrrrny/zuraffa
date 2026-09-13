@@ -334,6 +334,62 @@ A page that lists the user's favorite deals, sorted by expiration.
     expect(out2, contains('--max-retries must be an integer'));
     expect(exitCode, ExitProtocol.usage);
   });
+
+  test('spec 1520 FR-6: a .zfa.json tdd.tmpDir root is honoured without '
+      '--project', () async {
+    await seedCycleLog();
+    final cfgRoot = Directory(p.join(tmp.path, 'cfg-root'))
+      ..createSync(recursive: true);
+    File(
+      p.join(tmp.path, '.zfa.json'),
+    ).writeAsStringSync('{"tdd": {"tmpDir": "${cfgRoot.path}"}}');
+
+    // Observe the configured root WHILE the run is live: the scratch must
+    // be created inside it, then disposed at run end.
+    final observedScratches = <String>[];
+    final fx = spawner();
+    final previousCwd = Directory.current.path;
+    Directory.current = tmp.path;
+    addTearDown(() => Directory.current = previousCwd);
+
+    Future<ProcessResult> zfaSpy(List<String> argv, String cwd) {
+      observedScratches.addAll(
+        cfgRoot
+            .listSync()
+            .map((e) => p.basename(e.path))
+            .where((n) => n.startsWith('zfa-')),
+      );
+      return fx.zfa(argv, cwd);
+    }
+
+    final code = await DreamRunner.execute(
+      description: description,
+      feature: feature,
+      llmClient: llm([(spec: validSpec, plan: validPlan)]),
+      zfaSpawner: zfaSpy,
+      procSpawner: fx.proc,
+      emit: emitted.add,
+    );
+
+    expect(code, 0, reason: emitted.join('\n'));
+    expect(
+      observedScratches,
+      isNotEmpty,
+      reason:
+          'without --project the project root resolves to the nearest '
+          'specs/ ancestor, so the .zfa.json tdd.tmpDir tier still names '
+          'the scratch root — pre-fix projectRoot was null and dream '
+          'silently ignored the configuration (spec 1520 FR-6 / SC-2)',
+    );
+    expect(
+      cfgRoot
+          .listSync()
+          .map((e) => p.basename(e.path))
+          .where((n) => n.startsWith('zfa-')),
+      isEmpty,
+      reason: 'dream deletes its own scratch at run end (spec 1520 FR-3)',
+    );
+  });
 }
 
 // ---------------------------------------------------------------------
