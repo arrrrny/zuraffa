@@ -42,6 +42,7 @@
 /// through `git ls-files` (read-only) and restores deleted tracked files.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -122,13 +123,15 @@ class TrackedGeneratedOutputGuard {
   /// throwing into the build's failure paths.
   Future<Set<String>> gitTrackedFiles() async {
     try {
-      final result = await Process.run('git', const [
-        'ls-files',
-        '-z',
-      ], workingDirectory: projectRoot);
+      final result = await Process.run(
+        'git',
+        const ['ls-files', '-z'],
+        workingDirectory: projectRoot,
+        stdoutEncoding: null,
+      );
       if (result.exitCode != 0) return const <String>{};
       final tracked = <String>{};
-      for (final raw in (result.stdout as String).split('\x00')) {
+      for (final raw in utf8.decode(result.stdout as List<int>).split('\x00')) {
         final path = raw.replaceAll(p.separator, '/');
         if (path.isEmpty) continue;
         if (_isGeneratedName(path, generatedSuffixes)) tracked.add(path);
@@ -144,7 +147,7 @@ class TrackedGeneratedOutputGuard {
   Future<TrackedGeneratedSnapshot> capture() async {
     final tracked = await gitTrackedFiles();
     if (tracked.isEmpty) {
-      return const TrackedGeneratedSnapshot(enabled: false);
+      return TrackedGeneratedSnapshot.disabled;
     }
     final files = <String, List<int>>{};
     for (final path in tracked) {
@@ -254,13 +257,15 @@ class TrackedGeneratedOutputGuard {
   /// called on the already-failing path. Empty set when git is unavailable.
   static Set<String> trackedFilesSync(String projectRoot) {
     try {
-      final result = Process.runSync('git', const [
-        'ls-files',
-        '-z',
-      ], workingDirectory: projectRoot);
+      final result = Process.runSync(
+        'git',
+        const ['ls-files', '-z'],
+        workingDirectory: projectRoot,
+        stdoutEncoding: null,
+      );
       if (result.exitCode != 0) return const <String>{};
       final tracked = <String>{};
-      for (final raw in (result.stdout as String).split('\x00')) {
+      for (final raw in utf8.decode(result.stdout as List<int>).split('\x00')) {
         final path = raw.replaceAll(p.separator, '/');
         if (path.isEmpty) continue;
         if (_isGeneratedName(path, kGeneratedSuffixes)) tracked.add(path);
