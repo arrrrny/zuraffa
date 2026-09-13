@@ -1,21 +1,24 @@
-# TDD test list — Bug #1512 acceptance vacuous composition
+# TDD test list — Bug #1544 run parks forever on first blocked contract
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| A-1512-a1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | an undeclared acceptance row emits the parameterless void-safe capture | FR-1512, BehaviorTestWriter._captureInvocation | GREEN |
-| A-1512-a2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | a directly-injected scalar shape is inert for acceptance (no threaded args, no returned result) | FR-1512, BehaviorTestWriter._captureInvocation | GREEN |
-| A-1512-a3 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | a directly-injected entity-return shape is inert too | FR-1512, BehaviorTestWriter._captureInvocation | GREEN |
-| A-1512-a4 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | acceptance | the paired subject is the parameterless void runner the test call matches | FR-1512, SubjectWriter acceptance stub | GREEN |
-| A-1512-b1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the undeclared acceptance fallback carries the acceptance token, never the vacuous-guard marker | FR-1512, BehaviorTestWriter._deriveAssertion | GREEN |
-| A-1512-b2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the acceptance fallback does not reuse the unit-lane comment block | FR-1512, vacuous_guard.acceptanceFallbackGuardComment | GREEN |
-| A-1512-c1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | a plain scenario row plans the spec-052 composition lane (tdd compose → build) | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an incidental capitalised word does not fabricate an entity | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c3 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | a capitalised word alone never drives the entity pipeline | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c4 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an explicit `entity <Name>` prose signal plans the #758 entity pipeline (entity create → make → wire → build) | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c5 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an explicit `create <Name>` prose signal plans the entity pipeline too | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c6 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | an explicit target wins the entity derivation | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c7 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the honest #758 refusal stays (CRUD prose, no entity) | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-c8 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | non-acceptance rows keep the generic misfire | FR-1512, GenerationPlanner.plan | GREEN |
-| A-1512-d1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the unit scalar capture is byte-for-byte (inferred annotation, threaded args, isA<T>, no marker, no acceptance token) | FR-1512, unit-lane guardrail | GREEN |
-| A-1512-d2 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | unit | the undeclared unit fallback guard stays unmarked (#1308 two-class dispatch) | FR-1512, unit-lane guardrail | GREEN |
-| A-1512-e1 | test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart | integration | the emitted acceptance test+subject pair compiles and fails through an assertion (slow) | FR-1512, compile proof | GREEN |
+| A-1544-a1 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | a blocked contract parks and the run drives the remaining contracts to their own verdicts, then stops result=blocked | FR-1544 (continue past blocked), RunDriverCore._driveBehavior #1007 arm | GREEN |
+| A-1544-a2 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | resume skips an unchanged blocked behavior with receipt and still drives the rest | FR-1544 (skip unchanged blocked, `skipped: still blocked since <ts>`), RunDriverCore._unchangedBlockedSince | GREEN |
+| A-1544-a3 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | resume re-drives a blocked behavior when the seam file changed since the verdict (fail open) | FR-1544 (change signal: seam file), RunDriverCore._isNewerThan | GREEN |
+| A-1544-a4 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | resume re-drives a blocked behavior when the implementation changed since the verdict (lib/ newer than blocked_at) | FR-1544 (change signal: implementation), RunDriverCore._treeChangedAfter | GREEN |
+| A-1544-a5 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | acceptance | a missing blocked receipt fails open — resume re-drives the blocked behavior honestly | FR-1544 (fail open — never fabricate `blocked since`), ContractBlockedReceipt.fromFile | GREEN |
+| A-1544-b1 | test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart | unit | a red behavior still resumes at make beside a skipped blocked contract (non-blocked resume untouched) | FR-1544 constraint (must not break non-blocked resume), RunDriverCore._stepsFor | GREEN |
+| U-1544-c1 | test/plugins/tdd/commands/contract_kind_1007_test.dart | unit | the #1007 single-row pin survives: one blocked contract still stops result=blocked blocked=1 stopped_at=contract:A1:verify-red, never spawning make | #1007 compatibility, RunDriverCore end-of-pass blocked terminal | GREEN |
+| U-1544-c2 | test/plugins/tdd/commands/run_engine_command_test.dart + run_skin_command_test.dart | unit | the engine/skin lane commands over the shared core keep their gate and receipt contracts | spec 1008 compatibility | GREEN |
+
+## Red evidence (pre-fix, this session)
+
+A-1544-a1: the run terminated at `contract:A1 verify-red -> blocked` —
+`gen contract:A2` never spawned (A2..An unreachable; the reported symptom).
+
+A-1544-a2 (and b1's skip half): the resume re-spawned
+`verify-red contract:A1` — no skip receipt existed.
+
+A-1544-a3/a4/a5 were written as pins for the fail-open directions and pass
+in both worlds (pre-fix re-drive is the only behavior; post-fix it is the
+change-signal path).
