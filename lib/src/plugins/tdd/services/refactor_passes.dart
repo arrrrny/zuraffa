@@ -32,6 +32,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 
+import '../../../core/generation/tracked_generated_output_guard.dart';
 import '../models/refactor_action.dart';
 import 'step_runner.dart';
 import 'tdd_timeout.dart';
@@ -195,6 +196,7 @@ class RefactorPassesResult {
     required this.actions,
     required this.stopped,
     required this.failedPass,
+    this.refusalReason,
   });
 
   /// Every recorded action, in registry order. Includes the failing pass
@@ -202,12 +204,21 @@ class RefactorPassesResult {
   final List<RefactorAction> actions;
 
   /// True when the registry stopped early because a pass failed (non-zero
-  /// exit or process did not start).
+  /// exit or process did not start) — or because it REFUSED to continue:
+  /// the build pass deleted a git-tracked generated-name file whose
+  /// restoration was impossible (spec 1540 restore-or-refuse), and
+  /// re-proving a broken tree would be dishonest evidence.
   final bool stopped;
 
   /// The name of the pass that failed and stopped the registry, or null
   /// when all passes completed.
   final String? failedPass;
+
+  /// Spec 1540: when the registry refused to continue after a pass deleted
+  /// a git-tracked generated-name file that could not be restored, this
+  /// carries the refusal + the exact manual restore remedy. Null on every
+  /// other code path (plain failures keep their exit-code semantics).
+  final String? refusalReason;
 
   /// True when every pass completed successfully (no stop, no failure).
   bool get completed => !stopped;
@@ -284,6 +295,15 @@ class RefactorPasses {
   ///   4. Compute `filesChanged` from the symmetric diff.
   ///   5. Record the [RefactorAction].
   ///   6. On non-zero exit or `startedProcess: false`, stop remaining passes.
+  ///
+  /// Spec 1540 (restore-or-refuse): the `build` pass is additionally
+  /// bracketed by a git-tracked generated-name snapshot/restore — a build
+  /// that deletes a hand-authored placeholder (issue #1540) gets it restored
+  /// byte-identical BEFORE the after-snapshot (so the restoration never
+  /// pollutes `filesChanged` or the attribution check), the restoration is
+  /// recorded in the action's output as evidence, and an IMPOSSIBLE
+  /// restoration stops the registry with [RefactorPassesResult.refusalReason]
+  /// naming the exact `git checkout --` remedy instead of deleting-and-"passing".
   Future<RefactorPassesResult> run() async {
     final actions = <RefactorAction>[];
     final specs = await passSpecs;
@@ -292,12 +312,55 @@ class RefactorPasses {
         projectRoot,
         trees: const ['lib'],
       );
+      // Spec 1540: only the build pass runs codegen whose cleanup can
+      // orphan a hand-authored placeholder; format/fix never delete files.
+      final trackedGuard = spec.name == 'build'
+          ? TrackedGeneratedOutputGuard(projectRoot: projectRoot)
+          : null;
+      final trackedSnapshot = trackedGuard == null
+          ? null
+          : await trackedGuard.capture();
       final invocation = RefactorPassInvocation(
         passName: spec.name,
         command: spec.command,
         workingDirectory: projectRoot,
       );
       final outcome = await _executor.run(invocation);
+
+      // Spec 1540: restore before the after-snapshot so a successful
+      // restoration is invisible to the diff (byte-identical to `before`)
+      // and visible only in the recorded evidence.
+      var passOutput = outcome.output;
+      String? refusalReason;
+      if (trackedGuard != null && trackedSnapshot != null) {
+        final deleted = trackedGuard.detectDeleted(trackedSnapshot);
+        if (deleted.isNotEmpty) {
+          final restore = await trackedGuard.restore(trackedSnapshot, deleted);
+          if (restore.restored.isNotEmpty) {
+            passOutput = passOutput.isEmpty
+                ? '[1540] restored ${restore.restored.length} git-tracked '
+                      'generated-name file(s) deleted by the build pass: '
+                      '${restore.restored.join(', ')}'
+                : '$passOutput\n[1540] restored ${restore.restored.length} '
+                      'git-tracked generated-name file(s) deleted by the build '
+                      'pass: ${restore.restored.join(', ')}';
+          }
+          if (restore.failed.isNotEmpty) {
+            final remedy = TrackedGeneratedOutputGuard.restoreRemedyLines(
+              restore.failed,
+            ).join('\n');
+            refusalReason =
+                '[1540] refused: the build pass deleted git-tracked '
+                'generated-name file(s) it could not restore '
+                '(${restore.failed.join(', ')}).\n$remedy';
+            // The unrestorable deletion is part of the pass's net effect.
+            passOutput = passOutput.isEmpty
+                ? refusalReason
+                : '$passOutput\n$refusalReason';
+          }
+        }
+      }
+
       final after = await TreeSnapshot.capture(
         projectRoot,
         trees: const ['lib'],
@@ -312,10 +375,21 @@ class RefactorPasses {
           command: spec.command,
           exitCode: outcome.exitCode,
           filesChanged: filesChanged,
-          output: outcome.output,
+          output: passOutput,
           timedOut: outcome.timedOut,
         ),
       );
+      // Spec 1540 restore-or-refuse: an unrestorable tracked deletion
+      // refuses the registry (misfire-stop on `build`) with the remedy —
+      // never a silent delete-and-continue on a broken tree.
+      if (refusalReason != null) {
+        return RefactorPassesResult(
+          actions: actions,
+          stopped: true,
+          failedPass: spec.name,
+          refusalReason: refusalReason,
+        );
+      }
       // Misfire-stop (FR-010): non-zero exit OR process did not start.
       if (outcome.exitCode != 0 || !outcome.startedProcess) {
         return RefactorPassesResult(

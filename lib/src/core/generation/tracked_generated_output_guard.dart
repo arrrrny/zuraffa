@@ -44,9 +44,15 @@ library;
 
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 /// The documentation page every remedy message references (FR-9).
 const String kHandAuthoredPlaceholderDoc =
     'docs/hand-authored-g-dart-placeholders.md';
+
+/// The generated-name suffixes the build step already special-cases
+/// (`verifyDeclaredPartsOrFail`, `hasGeneratedOutputs`).
+const List<String> kGeneratedSuffixes = <String>['.g.dart', '.zorphy.dart'];
 
 /// One pre-build snapshot of git-tracked generated-name files.
 ///
@@ -97,8 +103,7 @@ class TrackedGeneratedOutputGuard {
     String? projectRoot,
     List<String>? generatedSuffixes,
   }) : projectRoot = projectRoot ?? Directory.current.path,
-       generatedSuffixes =
-           generatedSuffixes ?? const <String>['.g.dart', '.zorphy.dart'];
+       generatedSuffixes = generatedSuffixes ?? kGeneratedSuffixes;
 
   /// Absolute project root every operation is rooted at.
   final String projectRoot;
@@ -106,24 +111,64 @@ class TrackedGeneratedOutputGuard {
   /// Filename suffixes treated as generated-name outputs.
   final List<String> generatedSuffixes;
 
-  /// Every path tracked in git's index under [projectRoot], relative to
-  /// [projectRoot] with forward slashes.
+  static bool _isGeneratedName(String path, List<String> suffixes) =>
+      suffixes.any(path.endsWith);
+
+  /// Every generated-name path tracked in git's index under [projectRoot],
+  /// relative to [projectRoot] with forward slashes.
   ///
   /// Empty set when git is unavailable, [projectRoot] is not inside a work
   /// tree, or git fails for any reason — the guard is disabled, never
   /// throwing into the build's failure paths.
-  Future<Set<String>> gitTrackedFiles() async => const <String>{};
+  Future<Set<String>> gitTrackedFiles() async {
+    try {
+      final result = await Process.run('git', const [
+        'ls-files',
+        '-z',
+      ], workingDirectory: projectRoot);
+      if (result.exitCode != 0) return const <String>{};
+      final tracked = <String>{};
+      for (final raw in (result.stdout as String).split('\x00')) {
+        final path = raw.replaceAll(p.separator, '/');
+        if (path.isEmpty) continue;
+        if (_isGeneratedName(path, generatedSuffixes)) tracked.add(path);
+      }
+      return tracked;
+    } on ProcessException {
+      return const <String>{};
+    }
+  }
 
   /// Snapshot every tracked generated-name file that currently exists,
   /// capturing exact bytes.
-  Future<TrackedGeneratedSnapshot> capture() =>
-      Future<TrackedGeneratedSnapshot>.value(
-        const TrackedGeneratedSnapshot(),
-      );
+  Future<TrackedGeneratedSnapshot> capture() async {
+    final tracked = await gitTrackedFiles();
+    if (tracked.isEmpty) {
+      return const TrackedGeneratedSnapshot(enabled: false);
+    }
+    final files = <String, List<int>>{};
+    for (final path in tracked) {
+      try {
+        final file = File(p.join(projectRoot, path));
+        if (!file.existsSync()) continue;
+        files[path] = await file.readAsBytes();
+      } catch (_) {
+        // An unreadable file cannot be snapshotted — it cannot be restored
+        // either, so it is simply not protected (same honesty as the gates).
+      }
+    }
+    return TrackedGeneratedSnapshot(files: files, enabled: true);
+  }
 
   /// Snapshot members that no longer exist on disk (deleted by the build).
-  List<String> detectDeleted(TrackedGeneratedSnapshot snapshot) =>
-      const <String>[];
+  List<String> detectDeleted(TrackedGeneratedSnapshot snapshot) {
+    final deleted =
+        snapshot.files.keys
+            .where((path) => !File(p.join(projectRoot, path)).existsSync())
+            .toList()
+          ..sort();
+    return deleted;
+  }
 
   /// Restore the exact pre-build bytes of [paths] from [snapshot].
   ///
@@ -132,26 +177,97 @@ class TrackedGeneratedOutputGuard {
   Future<TrackedGeneratedRestoreResult> restore(
     TrackedGeneratedSnapshot snapshot,
     List<String> paths,
-  ) async => const TrackedGeneratedRestoreResult();
+  ) async {
+    final restored = <String>[];
+    final failed = <String>[];
+    for (final path in paths) {
+      final bytes = snapshot.files[path];
+      if (bytes == null) {
+        failed.add(path);
+        continue;
+      }
+      try {
+        await File(p.join(projectRoot, path)).writeAsBytes(bytes, flush: true);
+        restored.add(path);
+      } catch (_) {
+        failed.add(path);
+      }
+    }
+    return TrackedGeneratedRestoreResult(restored: restored, failed: failed);
+  }
 
   /// Resolves the convention-derived owning library of a generated-name
   /// [path]: `lib/x/engine_event.g.dart` → `lib/x/engine_event.dart`
   /// (json_serializable reserves `<lib>.g.dart` per library). Returns null
   /// when the path does not carry a generated suffix.
-  static String? owningLibraryFor(String path) => null;
+  static String? owningLibraryFor(String path) {
+    for (final suffix in kGeneratedSuffixes) {
+      if (path.endsWith(suffix)) {
+        return '${path.substring(0, path.length - suffix.length)}.dart';
+      }
+    }
+    return null;
+  }
 
   /// The spec-1540 remedy lines for [paths]: the exact manual restore
   /// command, the recurring-deletion prevention (both `build.yaml` builder
   /// exclusions), and the documentation reference. Pure function — no I/O.
-  static List<String> restoreRemedyLines(List<String> paths) =>
-      const <String>[];
+  static List<String> restoreRemedyLines(List<String> paths) {
+    if (paths.isEmpty) return const <String>[];
+    final lines = <String>[
+      '--> fix (spec 1540): the build deleted git-tracked generated-name '
+          'file(s) it did not generate:',
+    ];
+    for (final path in paths) {
+      lines
+        ..add('       - $path')
+        ..add('         restore it manually with: git checkout -- $path');
+    }
+    final owner = owningLibraryFor(paths.first);
+    if (owner != null) {
+      lines.addAll(<String>[
+        '   A git-tracked generated-name file with no owning generator run is a '
+            'hand-authored placeholder — build_runner cleanup deletes it on '
+            'every build.',
+        '   Prevent the recurring deletion by excluding the owning library from '
+            'BOTH builders in build.yaml:',
+        '       json_serializable:',
+        '         generate_for:',
+        '           exclude: [$owner]',
+        '       source_gen:combining_builder:',
+        '         generate_for:',
+        '           exclude: [$owner]',
+      ]);
+    }
+    lines.add(
+      '   See $kHandAuthoredPlaceholderDoc for the hand-authored-placeholder '
+      'pattern.',
+    );
+    return lines;
+  }
 
-  /// Synchronously resolves which of [relativePaths] are tracked in git's
+  /// Synchronously resolves which generated-name paths are tracked in git's
   /// index under [projectRoot] (ONE `git ls-files -z` subprocess).
   ///
   /// Used by the completeness gate (`verifyDeclaredPartsOrFail`), whose
   /// `bool` signature existing tests rely on must not become async; only
   /// called on the already-failing path. Empty set when git is unavailable.
-  static Set<String> trackedFilesSync(String projectRoot) =>
-      const <String>{};
+  static Set<String> trackedFilesSync(String projectRoot) {
+    try {
+      final result = Process.runSync('git', const [
+        'ls-files',
+        '-z',
+      ], workingDirectory: projectRoot);
+      if (result.exitCode != 0) return const <String>{};
+      final tracked = <String>{};
+      for (final raw in (result.stdout as String).split('\x00')) {
+        final path = raw.replaceAll(p.separator, '/');
+        if (path.isEmpty) continue;
+        if (_isGeneratedName(path, kGeneratedSuffixes)) tracked.add(path);
+      }
+      return tracked;
+    } on ProcessException {
+      return const <String>{};
+    }
+  }
 }

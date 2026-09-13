@@ -8,6 +8,7 @@
 // A4 (regenerated tracked file never flagged), U1-U7 (test-list.md).
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -41,20 +42,16 @@ Future<void> _git(
 Future<void> _initRepo(Directory root) async {
   await _git(root, ['init']);
   await _git(root, ['add', '-A']);
-  await _git(
-    root,
-    [
-      '-c',
-      'user.name=spec1540',
-      '-c',
-      'user.email=spec1540@example.com',
-      'commit',
-      '-m',
-      'init',
-      '--allow-empty',
-    ],
-    allowFailure: true,
-  );
+  await _git(root, [
+    '-c',
+    'user.name=spec1540',
+    '-c',
+    'user.email=spec1540@example.com',
+    'commit',
+    '-m',
+    'init',
+    '--allow-empty',
+  ], allowFailure: true);
 }
 
 Future<void> main() async {
@@ -96,10 +93,7 @@ Future<void> main() async {
       await _initRepo(sandbox);
       final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
       final tracked = await guard.gitTrackedFiles();
-      expect(
-        tracked,
-        contains('lib/src/engine/events/engine_event.g.dart'),
-      );
+      expect(tracked, contains('lib/src/engine/events/engine_event.g.dart'));
       expect(tracked, isNot(contains('lib/notes.md')));
     }, skip: gitOk ? false : 'git binary unavailable');
 
@@ -110,16 +104,25 @@ Future<void> main() async {
         'lib/src/engine/events/engine_event.g.dart',
         content,
       );
-      await seedPlaceholder('lib/untracked.g.dart', '// scratch\n');
       final snapshot = await captureInRepo();
+      // Scratch output created AFTER the snapshot (and never tracked): the
+      // guard's membership is the git index, so this is never captured.
+      await seedPlaceholder('lib/untracked.g.dart', '// scratch\n');
       expect(snapshot.enabled, isTrue);
-      expect(snapshot.files, contains('lib/src/engine/events/engine_event.g.dart'));
+      expect(
+        snapshot.files,
+        contains('lib/src/engine/events/engine_event.g.dart'),
+      );
       expect(snapshot.files, isNot(contains('lib/untracked.g.dart')));
-      expect(String.fromCharCodes(snapshot.files['lib/src/engine/events/engine_event.g.dart']!), content);
+      expect(
+        utf8.decode(
+          snapshot.files['lib/src/engine/events/engine_event.g.dart']!,
+        ),
+        content,
+      );
     }, skip: gitOk ? false : 'git binary unavailable');
 
-    test('U3: capture() is disabled (empty) outside a git work tree',
-        () async {
+    test('U3: capture() is disabled (empty) outside a git work tree', () async {
       await seedPlaceholder('lib/engine_event.g.dart', '// x\n');
       final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
       final tracked = await guard.gitTrackedFiles();
@@ -130,17 +133,20 @@ Future<void> main() async {
       expect(guard.detectDeleted(snapshot), isEmpty);
     }, skip: gitOk ? false : 'git binary unavailable');
 
-    test('A3: non-git project → capture/detect/restore are silent no-ops',
-        () async {
-      await seedPlaceholder('lib/engine_event.g.dart', '// x\n');
-      final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
-      final snapshot = await guard.capture();
-      final deleted = guard.detectDeleted(snapshot);
-      final result = await guard.restore(snapshot, deleted);
-      expect(deleted, isEmpty);
-      expect(result.restored, isEmpty);
-      expect(result.failed, isEmpty);
-    }, skip: gitOk ? false : 'git binary unavailable');
+    test(
+      'A3: non-git project → capture/detect/restore are silent no-ops',
+      () async {
+        await seedPlaceholder('lib/engine_event.g.dart', '// x\n');
+        final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
+        final snapshot = await guard.capture();
+        final deleted = guard.detectDeleted(snapshot);
+        final result = await guard.restore(snapshot, deleted);
+        expect(deleted, isEmpty);
+        expect(result.restored, isEmpty);
+        expect(result.failed, isEmpty);
+      },
+      skip: gitOk ? false : 'git binary unavailable',
+    );
 
     test('A4: regenerated tracked .g.dart (exists pre and post) is never '
         'flagged or rewritten', () async {
@@ -154,8 +160,11 @@ Future<void> main() async {
       await file.writeAsString('// GENERATED — regenerated this build\n');
       final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
       final deleted = guard.detectDeleted(snapshot);
-      expect(deleted, isEmpty,
-          reason: 'a file that exists post-build is not a deletion');
+      expect(
+        deleted,
+        isEmpty,
+        reason: 'a file that exists post-build is not a deletion',
+      );
       expect(
         file.readAsStringSync(),
         '// GENERATED — regenerated this build\n',
@@ -163,15 +172,18 @@ Future<void> main() async {
       );
     }, skip: gitOk ? false : 'git binary unavailable');
 
-    test('U4: detectDeleted() returns only snapshot members absent on disk',
-        () async {
-      await seedPlaceholder('lib/a.g.dart', '// a\n');
-      await seedPlaceholder('lib/b.g.dart', '// b\n');
-      final snapshot = await captureInRepo();
-      await File(p.join(sandbox.path, 'lib', 'a.g.dart')).delete();
-      final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
-      expect(guard.detectDeleted(snapshot), ['lib/a.g.dart']);
-    }, skip: gitOk ? false : 'git binary unavailable');
+    test(
+      'U4: detectDeleted() returns only snapshot members absent on disk',
+      () async {
+        await seedPlaceholder('lib/a.g.dart', '// a\n');
+        await seedPlaceholder('lib/b.g.dart', '// b\n');
+        final snapshot = await captureInRepo();
+        await File(p.join(sandbox.path, 'lib', 'a.g.dart')).delete();
+        final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
+        expect(guard.detectDeleted(snapshot), ['lib/a.g.dart']);
+      },
+      skip: gitOk ? false : 'git binary unavailable',
+    );
 
     test('U5/A1: restore() writes the exact pre-build bytes back '
         '(unstaged edits preserved)', () async {
@@ -180,11 +192,12 @@ Future<void> main() async {
         'lib/src/engine/events/engine_event.g.dart',
         committed,
       );
-      final snapshot = await captureInRepo();
-      // Unstaged hand edit AFTER the snapshot (the content the build must
-      // not be allowed to lose) — then the build deletes the file.
+      // Unstaged hand edit BEFORE the snapshot: the real timeline — the
+      // operator's edits exist pre-build, so the pre-build capture must
+      // carry them (then the build deletes the file).
       const unstaged = '// committed placeholder\n// hand edit (uncommitted)\n';
       await file.writeAsString(unstaged);
+      final snapshot = await captureInRepo();
       await file.delete();
       final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
       final result = await guard.restore(
@@ -196,18 +209,23 @@ Future<void> main() async {
       expect(
         file.readAsStringSync(),
         unstaged,
-        reason: 'restore writes captured pre-build bytes, not git index '
+        reason:
+            'restore writes captured pre-build bytes, not git index '
             'content — unstaged edits survive',
       );
     }, skip: gitOk ? false : 'git binary unavailable');
 
     test('U6: restore() reports failure when the parent directory is gone '
         '(never creates directories)', () async {
-      final file = await seedPlaceholder('lib/events/engine_event.g.dart', '//\n');
+      final file = await seedPlaceholder(
+        'lib/events/engine_event.g.dart',
+        '//\n',
+      );
       final snapshot = await captureInRepo();
       // The build anomaly removes the whole directory.
-      await Directory(p.join(sandbox.path, 'lib', 'events'))
-          .delete(recursive: true);
+      await Directory(
+        p.join(sandbox.path, 'lib', 'events'),
+      ).delete(recursive: true);
       final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
       final result = await guard.restore(
         snapshot,
@@ -220,12 +238,17 @@ Future<void> main() async {
 
     test('U7: restoreRemedyLines names git checkout, both builder '
         'exclusions, and the doc page', () {
-      final lines = TrackedGeneratedOutputGuard.restoreRemedyLines(
-        const ['lib/src/engine/events/engine_event.g.dart'],
-      );
+      final lines = TrackedGeneratedOutputGuard.restoreRemedyLines(const [
+        'lib/src/engine/events/engine_event.g.dart',
+      ]);
       final text = lines.join('\n');
-      expect(text, contains('git checkout -- '
-          'lib/src/engine/events/engine_event.g.dart'));
+      expect(
+        text,
+        contains(
+          'git checkout -- '
+          'lib/src/engine/events/engine_event.g.dart',
+        ),
+      );
       expect(text, contains('json_serializable'));
       expect(text, contains('source_gen:combining_builder'));
       expect(

@@ -24,8 +24,7 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 
 import 'helpers/tdd_fixture.dart';
 
-const _placeholderRel =
-    'lib/src/engine/events/engine_event.g.dart';
+const _placeholderRel = 'lib/src/engine/events/engine_event.g.dart';
 const _placeholderContent =
     '// hand-authored placeholder (spec 1540 fixture) — part of engine_event\n';
 
@@ -40,8 +39,9 @@ Future<void> _git(Directory cwd, List<String> args) async {
 /// tracked in the index (the signal the guard protects).
 Future<void> _initRepo(Directory root) async {
   // Keep the fixture repo lean: never track the pub resolution cache.
-  await File('${root.path}/.gitignore')
-      .writeAsString('.dart_tool/\npubspec.lock\n');
+  await File(
+    '${root.path}/.gitignore',
+  ).writeAsString('.dart_tool/\npubspec.lock\n');
   await _git(root, ['init']);
   await _git(root, ['add', '-A']);
   await _git(root, [
@@ -64,13 +64,13 @@ Future<void> main() async {
   late String fakeZfa;
 
   List<String> refactorArgs(TddFixture f, {String? zfaBin}) => [
-        'tdd',
-        'refactor',
-        '--project',
-        f.root.path,
-        '--zfa-bin',
-        zfaBin ?? fakeZfa,
-      ];
+    'tdd',
+    'refactor',
+    '--project',
+    f.root.path,
+    '--zfa-bin',
+    zfaBin ?? fakeZfa,
+  ];
 
   /// Seeds the green fixture + the git-tracked placeholder.
   Future<void> seedGreenWithTrackedPlaceholder() async {
@@ -106,13 +106,23 @@ Future<void> main() async {
     final out = await runner.runCapturing(refactorArgs(fx));
 
     final placeholder = File(p.join(fx.root.path, _placeholderRel));
-    expect(placeholder.existsSync(), isTrue,
-        reason: 'the refactor build pass must restore the tracked '
-            'placeholder the build deleted');
-    expect(placeholder.readAsStringSync(), _placeholderContent,
-        reason: 'restore is byte-identical to the pre-pass content');
-    expect(out, contains('[1540] restored'),
-        reason: 'the restoration is recorded in the pass evidence');
+    expect(
+      placeholder.existsSync(),
+      isTrue,
+      reason:
+          'the refactor build pass must restore the tracked '
+          'placeholder the build deleted',
+    );
+    expect(
+      placeholder.readAsStringSync(),
+      _placeholderContent,
+      reason: 'restore is byte-identical to the pre-pass content',
+    );
+    expect(
+      out,
+      contains('[1540] restored'),
+      reason: 'the restoration is recorded in the pass evidence',
+    );
     expect(
       out,
       contains(RegExp(r'refactor: feature=\S+ outcome=(clean|refactored)')),
@@ -129,9 +139,7 @@ Future<void> main() async {
     fakeZfa = await fx.writeFakeZfaBin(
       logPath: fx.fakeZfaLogPath,
       sideEffectByArgv: {
-        'build': [
-          'rm -rf "${p.join(fx.root.path, 'lib', 'src', 'engine')}"',
-        ],
+        'build': ['rm -rf "${p.join(fx.root.path, 'lib', 'src', 'engine')}"'],
       },
     );
 
@@ -139,10 +147,16 @@ Future<void> main() async {
     final out = await runner.runCapturing(refactorArgs(fx));
 
     expect(File(p.join(fx.root.path, _placeholderRel)).existsSync(), isFalse);
-    expect(out, contains('git checkout -- $_placeholderRel'),
-        reason: 'the refusal names the exact manual restore command');
+    expect(
+      out,
+      contains('git checkout -- $_placeholderRel'),
+      reason: 'the refusal names the exact manual restore command',
+    );
     expect(out, contains('refused'));
-    expect(exitCode, isNot(0),
-        reason: 'a refusal must never exit 0 — the tree is broken');
+    expect(
+      exitCode,
+      isNot(0),
+      reason: 'a refusal must never exit 0 — the tree is broken',
+    );
   }, skip: gitOk ? false : 'git binary unavailable');
 }

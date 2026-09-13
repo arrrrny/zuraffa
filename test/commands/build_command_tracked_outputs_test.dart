@@ -90,21 +90,29 @@ Future<void> main() async {
     test('U8: recovery restores the deletion and prints the FR-3 message '
         '(path, owning library, both excludes, doc ref)', () async {
       const placeholder = 'lib/src/engine/events/engine_event.g.dart';
-      await snapshotWithPlaceholder(placeholder, '// placeholder\n');
+      // Snapshot BEFORE the deletion (the pre-build timeline).
+      final snapshot = await snapshotWithPlaceholder(
+        placeholder,
+        '// placeholder\n',
+      );
       await File(p.join(sandbox.path, placeholder)).delete();
       final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
-      final snapshot = await guard.capture();
 
       final out = await capturePrint(
         () => command.recoverTrackedGeneratedOutputs(guard, snapshot),
       );
 
       expect(File(p.join(sandbox.path, placeholder)).existsSync(), isTrue);
-      expect(File(p.join(sandbox.path, placeholder)).readAsStringSync(),
-          '// placeholder\n');
+      expect(
+        File(p.join(sandbox.path, placeholder)).readAsStringSync(),
+        '// placeholder\n',
+      );
       expect(out, contains(placeholder));
-      expect(out, contains('lib/src/engine/events/engine_event.dart'),
-          reason: 'convention-derived owning library is named');
+      expect(
+        out,
+        contains('lib/src/engine/events/engine_event.dart'),
+        reason: 'convention-derived owning library is named',
+      );
       expect(out, contains('json_serializable'));
       expect(out, contains('source_gen:combining_builder'));
       expect(out, contains(kHandAuthoredPlaceholderDoc));
@@ -113,38 +121,51 @@ Future<void> main() async {
     test('U9/A2: recovery REFUSES (returns false, prints the git checkout '
         'remedy) when the deletion cannot be restored', () async {
       const placeholder = 'lib/events/engine_event.g.dart';
-      await snapshotWithPlaceholder(placeholder, '// placeholder\n');
+      // Snapshot BEFORE the removal (the pre-build timeline).
+      final snapshot = await snapshotWithPlaceholder(
+        placeholder,
+        '// placeholder\n',
+      );
       // Simulate the larger anomaly: the whole directory is gone, so the
       // restore cannot write the file back.
-      await Directory(p.join(sandbox.path, 'lib', 'events'))
-          .delete(recursive: true);
+      await Directory(
+        p.join(sandbox.path, 'lib', 'events'),
+      ).delete(recursive: true);
       final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
-      final snapshot = await guard.capture();
 
       var verdict = true;
       final out = await capturePrint(() async {
         verdict = await command.recoverTrackedGeneratedOutputs(guard, snapshot);
       });
 
-      expect(verdict, isFalse,
-          reason: 'a failed restore must refuse, not report success');
+      expect(
+        verdict,
+        isFalse,
+        reason: 'a failed restore must refuse, not report success',
+      );
       expect(out, contains('git checkout -- $placeholder'));
       expect(out, contains(kHandAuthoredPlaceholderDoc));
       expect(File(p.join(sandbox.path, placeholder)).existsSync(), isFalse);
     }, skip: gitOk ? false : 'git binary unavailable');
 
-    test('recovery is a silent no-op when nothing tracked was deleted',
-        () async {
-      await snapshotWithPlaceholder('lib/a.g.dart', '// a\n');
-      final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
-      final snapshot = await guard.capture();
+    test(
+      'recovery is a silent no-op when nothing tracked was deleted',
+      () async {
+        await snapshotWithPlaceholder('lib/a.g.dart', '// a\n');
+        final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
+        final snapshot = await guard.capture();
 
-      final out = await capturePrint(
-        () => command.recoverTrackedGeneratedOutputs(guard, snapshot),
-      );
-      expect(out, isEmpty,
-          reason: 'no deletions → no spec-1540 output on the happy path');
-    }, skip: gitOk ? false : 'git binary unavailable');
+        final out = await capturePrint(
+          () => command.recoverTrackedGeneratedOutputs(guard, snapshot),
+        );
+        expect(
+          out,
+          isEmpty,
+          reason: 'no deletions → no spec-1540 output on the happy path',
+        );
+      },
+      skip: gitOk ? false : 'git binary unavailable',
+    );
   });
 
   group('verifyDeclaredPartsOrFail spec-1540 remedy (US2/A5)', () {
@@ -169,8 +190,14 @@ Future<void> main() async {
       required bool trackPart,
     }) async {
       final source = File(
-        p.join(sandbox.path, 'lib', 'src', 'engine', 'events',
-            'engine_event.dart'),
+        p.join(
+          sandbox.path,
+          'lib',
+          'src',
+          'engine',
+          'events',
+          'engine_event.dart',
+        ),
       );
       await source.create(recursive: true);
       await source.writeAsString('''
@@ -197,22 +224,25 @@ sealed class EngineEvent {
       }
     }
 
-    test('A5a: tracked missing part → remedy names git checkout + doc',
-        () async {
-      await seedSource(partName: 'engine_event.g.dart', trackPart: true);
-      var verdict = true;
-      final out = await capturePrint(() async {
-        verdict = command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path);
-      });
-      expect(verdict, isFalse);
-      expect(
-        out,
-        contains(
-          'git checkout -- lib/src/engine/events/engine_event.g.dart',
-        ),
-      );
-      expect(out, contains(kHandAuthoredPlaceholderDoc));
-    }, skip: gitOk ? false : 'git binary unavailable');
+    test(
+      'A5a: tracked missing part → remedy names git checkout + doc',
+      () async {
+        await seedSource(partName: 'engine_event.g.dart', trackPart: true);
+        var verdict = true;
+        final out = await capturePrint(() async {
+          verdict = command.verifyDeclaredPartsOrFail(
+            projectRoot: sandbox.path,
+          );
+        });
+        expect(verdict, isFalse);
+        expect(
+          out,
+          contains('git checkout -- lib/src/engine/events/engine_event.g.dart'),
+        );
+        expect(out, contains(kHandAuthoredPlaceholderDoc));
+      },
+      skip: gitOk ? false : 'git binary unavailable',
+    );
 
     test('A5b: untracked missing part → message unchanged (no spec-1540 '
         'remedy)', () async {
@@ -227,20 +257,23 @@ sealed class EngineEvent {
       expect(out, contains('engine_event.dart -> engine_event.g.dart'));
     }, skip: gitOk ? false : 'git binary unavailable');
 
-    test('A5c: non-git project with missing part → unchanged message',
-        () async {
-      final source = File(
-        p.join(sandbox.path, 'lib', 'engine_event.dart'),
-      );
-      await source.create(recursive: true);
-      await source.writeAsString("part 'engine_event.g.dart';\n");
-      var verdict = true;
-      final out = await capturePrint(() async {
-        verdict = command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path);
-      });
-      expect(verdict, isFalse);
-      expect(out, isNot(contains('git checkout --')));
-    }, skip: gitOk ? false : 'git binary unavailable');
+    test(
+      'A5c: non-git project with missing part → unchanged message',
+      () async {
+        final source = File(p.join(sandbox.path, 'lib', 'engine_event.dart'));
+        await source.create(recursive: true);
+        await source.writeAsString("part 'engine_event.g.dart';\n");
+        var verdict = true;
+        final out = await capturePrint(() async {
+          verdict = command.verifyDeclaredPartsOrFail(
+            projectRoot: sandbox.path,
+          );
+        });
+        expect(verdict, isFalse);
+        expect(out, isNot(contains('git checkout --')));
+      },
+      skip: gitOk ? false : 'git binary unavailable',
+    );
   });
 
   group('hand-authored placeholder docs (US4/A8)', () {
@@ -252,8 +285,7 @@ sealed class EngineEvent {
           'hand-authored-g-dart-placeholders.md',
         ),
       );
-      expect(doc.existsSync(), isTrue,
-          reason: '${doc.path} must exist (FR-9)');
+      expect(doc.existsSync(), isTrue, reason: '${doc.path} must exist (FR-9)');
       final text = doc.readAsStringSync();
       expect(text, contains('json_serializable'));
       expect(text, contains('source_gen:combining_builder'));
