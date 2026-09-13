@@ -3566,9 +3566,12 @@ class MakeCommand extends Command<void> {
   /// (`tdd/test-list.md`), and the implementation (`lib/`, recursive) must
   /// all be OLDER than the verdict. False — the arm stands down and the
   /// existing refusal applies — when ANY watched input is newer (the
-  /// unblock signal) or a probe errors out (fail open, the same discipline
-  /// as the run driver's unchanged-blocked-since probe: an unreadable file
-  /// is a change, never a silence).
+  /// unblock signal), when a watched file is GONE, or when a probe errors
+  /// out (fail open, the same discipline as the run driver's
+  /// unchanged-blocked-since probe: an unreadable file is a change, never a
+  /// silence). A missing seam must count as a change — reading absence as
+  /// "unchanged" would name a hand surface that is not on disk, where the
+  /// driver's `_unchangedBlockedSince` re-drives instead.
   Future<bool> _blockedWorldUnchangedSince(
     DateTime blockedAt, {
     required String projectRoot,
@@ -3577,7 +3580,7 @@ class MakeCommand extends Command<void> {
   }) async {
     bool isNewerThan(File file) {
       try {
-        if (!file.existsSync()) return false;
+        if (!file.existsSync()) return true;
         return file.lastModifiedSync().isAfter(blockedAt);
       } on FileSystemException {
         return true;

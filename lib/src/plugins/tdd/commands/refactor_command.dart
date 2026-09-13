@@ -179,9 +179,26 @@ class RefactorCommand extends Command<void> {
           'pass (pre-existing-failure economics, the same discipline issue '
           '#922 gave the baseline), so it cannot refuse or regress the '
           'phase-2 refactors of the behaviors that ARE green. Repeatable. '
-          'A NEW failure in any other file still refuses, an unparseable '
-          'transcript still fails closed, and without the flag the '
-          'absolute-green contract applies (spec 048 FR-001).',
+          'GRANULARITY: this flag alone tolerates every failure in the named '
+          'FILE; pair it with --parked-failure to pin the tolerance to the '
+          'failure the verdict actually recorded. A NEW failure in any other '
+          'file still refuses, an unparseable transcript still fails closed, '
+          'and without the flag the absolute-green contract applies '
+          '(spec 048 FR-001).',
+    );
+    argParser.addMultiOption(
+      'parked-failure',
+      valueHelp: 'identifier',
+      help:
+          'A failing-test identifier a parked BLOCKED verdict RECORDED '
+          '(issue #1589, review fix) — the `<path>: <test name>` shape the '
+          'verdict receipt\'s transcript carries. When handed, a failure '
+          'inside a handed --parked-seam is tolerated ONLY if its identifier '
+          'matches one of these, so a SECOND, new failure inside the same '
+          'seam file still refuses (the parked verdict\'s own red is the '
+          'known red — nothing else). Seams with no attested identifier '
+          'keep the coarser file-level tolerance of --parked-seam alone. '
+          'Repeatable; driver-only.',
     );
     argParser.addOption(
       'timeout',
@@ -331,6 +348,11 @@ class RefactorCommand extends Command<void> {
             .where((s) => s.trim().isNotEmpty)
             .map((s) => p.normalize(s.trim()).replaceAll(r'\', '/'))
             .toSet(),
+        parkedFailures:
+            (argResults?['parked-failure'] as List<String>? ?? const [])
+                .where((s) => s.trim().isNotEmpty)
+                .map((s) => s.trim())
+                .toSet(),
         scratchEnv: scratch?.childEnvironment(),
         passBatch: argResults?['pass-batch'] as bool? ?? false,
         exemptBehaviorIds: _parseExemptBehaviors(
@@ -380,6 +402,7 @@ class RefactorCommand extends Command<void> {
     bool fullReproof = false,
     String? suiteBaselinePath,
     Set<String> parkedSeams = const {},
+    Set<String> parkedFailures = const {},
     Map<String, String>? scratchEnv,
     bool passBatch = false,
     List<String> exemptBehaviorIds = const [],
@@ -522,11 +545,12 @@ class RefactorCommand extends Command<void> {
       // run's BLOCKED verdict attests its own failing test file — is
       // known red by the same economics as the #1588 registry exemption,
       // with or without a baseline. The registry matches by registered
-      // test path prefix; the seam matches by file, so both feed the
-      // same gate.
+      // test path prefix; the seam matches by file (or, when the verdict
+      // attested the failing identifier, by that identifier alone —
+      // review fix), so both feed the same gate.
       bool exemptFailure(String failingId) =>
           exemptBehaviorFor(failingId) != null ||
-          _isParkedSeamFailure(failingId, parkedSeams);
+          _isParkedSeamFailure(failingId, parkedSeams, parkedFailures);
 
       // Issue #1588: the driver-only pass-batch fast path. A valid ledger
       // (same suite template, same baseline content, same suite
@@ -746,7 +770,7 @@ class RefactorCommand extends Command<void> {
             print(
               owner != null
                   ? '   parked-exempt ($owner, issue #1588): $name'
-                  : _isParkedSeamFailure(name, parkedSeams)
+                  : _isParkedSeamFailure(name, parkedSeams, parkedFailures)
                   ? '   tolerated (parked contract seam, issue #1589): $name'
                   : '   tolerated: $name',
             );
@@ -1461,27 +1485,76 @@ class RefactorCommand extends Command<void> {
       parseFailingTestNames(output);
 
   /// Issue #1589: whether a failing-test identifier lives inside a handed
-  /// parked seam — the file part of the identifier (everything before the
-  /// first `:`, `loading ` stripped) boundary-matches one of the parked
-  /// seam paths the driving run attested. The same file-suffix match the
-  /// make's #731 scoping uses (the `/` boundary keeps `u2_test.dart` from
-  /// matching `xu2_test.dart`), so absolute/relative and Windows/POSIX
-  /// path shapes compare equal.
-  bool _isParkedSeamFailure(String identifier, Set<String> parkedSeams) {
+  /// parked seam and is the red that seam's verdict ATTESTED.
+  ///
+  /// Review fix: the exemption is pinned to the failure the BLOCKED verdict
+  /// recorded. [parkedFailures] carries those identifiers (the verdict
+  /// receipt's transcript, `--parked-failure`); when the seam has at least
+  /// one, only an identifier match is tolerated — a SECOND, new failure
+  /// inside the same seam file refuses, so the gate cannot certify a
+  /// regression the parked verdict never saw. A seam the driver could not
+  /// attest (no parseable identifier in its receipt) keeps the coarser
+  /// file-level match, stated in the `--parked-seam` help text.
+  ///
+  /// Both comparisons tolerate path-shape drift (absolute vs relative,
+  /// Windows vs POSIX) the same way make's #731 scoping does: identifiers
+  /// compare as normalized `<file>: <name>` strings, and a shorter path
+  /// prefix on either side matches at the `/` boundary, so `u2_test.dart`
+  /// never matches `xu2_test.dart`.
+  bool _isParkedSeamFailure(
+    String identifier,
+    Set<String> parkedSeams,
+    Set<String> parkedFailures,
+  ) {
     if (parkedSeams.isEmpty) return false;
-    var s = identifier.trim();
-    const loading = 'loading ';
-    if (s.startsWith(loading)) s = s.substring(loading.length);
-    final idx = s.indexOf(':');
-    if (idx > 0) s = s.substring(0, idx);
-    final file = p.normalize(s.trim()).replaceAll(r'\', '/');
-    for (final seam in parkedSeams) {
-      if (file == seam || file.endsWith('/$seam') || seam.endsWith('/$file')) {
-        return true;
-      }
+    final normalized = _normalizeFailureIdentifier(identifier);
+    final file = _filePartOf(normalized);
+    final seam = _matchingParkedSeam(file, parkedSeams);
+    if (seam == null) return false;
+    final attested = <String>[
+      for (final pin in parkedFailures)
+        if (_matchingParkedSeam(_filePartOf(_normalizeFailureIdentifier(pin)), {
+              seam,
+            }) !=
+            null)
+          _normalizeFailureIdentifier(pin),
+    ];
+    if (attested.isEmpty) return true;
+    for (final pin in attested) {
+      if (_sameFailureIdentifier(normalized, pin)) return true;
     }
     return false;
   }
+
+  /// The parked seam [file] belongs to, or null — the file-suffix match
+  /// (see [_isParkedSeamFailure]) against the handed seam paths.
+  String? _matchingParkedSeam(String file, Set<String> parkedSeams) {
+    for (final seam in parkedSeams) {
+      if (file == seam || file.endsWith('/$seam') || seam.endsWith('/$file')) {
+        return seam;
+      }
+    }
+    return null;
+  }
+
+  /// The file part of a failing-test identifier: everything before the
+  /// first `:`, with the `loading ` prefix stripped.
+  String _filePartOf(String identifier) {
+    final idx = identifier.indexOf(':');
+    return idx > 0 ? identifier.substring(0, idx).trim() : identifier;
+  }
+
+  String _normalizeFailureIdentifier(String identifier) {
+    var s = identifier.trim();
+    const loading = 'loading ';
+    if (s.startsWith(loading)) s = s.substring(loading.length).trim();
+    return s.replaceAll(r'\', '/');
+  }
+
+  /// Whether two normalized failure identifiers name the same test,
+  /// tolerating a shorter path prefix on either side.
+  bool _sameFailureIdentifier(String a, String b) =>
+      a == b || a.endsWith('/$b') || b.endsWith('/$a');
 
   /// Append the re-proof verdict + transcript tail to the feature's
   /// cycle-log (spec 1333 FR-3) on every non-green verdict: the failed

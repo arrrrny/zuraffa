@@ -49,9 +49,17 @@ class HandSurface {
 
   /// The seam file path for [behaviorId], project-relative POSIX. The
   /// existing #827 namespaced file wins (`test/tdd/<feature>/<snake>_test.dart`),
-  /// the legacy flat fallback second (`test/tdd/<snake>_test.dart`), and
-  /// the canonical expected path when neither exists yet (the stop must
-  /// stay actionable even for a seam that has not landed on disk).
+  /// the legacy flat fallback second (`test/tdd/<snake>_test.dart`) — the
+  /// SAME two resolutions the run driver's `_existingGeneratedTestPath` and
+  /// the routing provenance preflight use, the `contract:` prefix retained
+  /// (`contract:A1` -> `contract_a1_test.dart`).
+  ///
+  /// When neither exists yet the canonical expected path is returned, so the
+  /// stop stays actionable for a seam that has not landed on disk. That
+  /// fallback is DISPLAY ONLY: a caller handing a path to a gate (the
+  /// driver's `--parked-seam`) must resolve through existence first (see
+  /// `_existingSeamRelativePath`), otherwise the gate would tolerate a file
+  /// the verdict never saw parked.
   static String seamPathFor({
     required String projectRoot,
     required String feature,
@@ -61,14 +69,9 @@ class HandSurface {
       RegExp(r'[^a-z0-9]+'),
       '_',
     );
-    const prefix = 'contract:';
-    var bare = behaviorId;
-    if (bare.startsWith(prefix)) bare = bare.substring(prefix.length);
-    final bareSnake = bare.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
     final candidates = [
       p.join(projectRoot, 'test', 'tdd', feature, '${snakeId}_test.dart'),
       p.join(projectRoot, 'test', 'tdd', '${snakeId}_test.dart'),
-      p.join(projectRoot, 'test', 'tdd', feature, '${bareSnake}_test.dart'),
     ];
     for (final candidate in candidates) {
       if (File(candidate).existsSync()) {

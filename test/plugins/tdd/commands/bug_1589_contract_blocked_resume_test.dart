@@ -291,6 +291,107 @@ void main() {
           );
         }
       });
+
+      test('a PERSISTED parked verdict (a cold resume) attests its recorded '
+          'failure to the refactor spawn', () async {
+        // The resume shape seeded directly: the run starts with A1 already
+        // BLOCKED and its verdict receipt on disk, so the skip arm is the
+        // only thing that parks the seam — a pristine argv log then proves
+        // the attestation came from the persisted receipt, not from a
+        // parking this run observed itself.
+        final verdictAt = DateTime.now().toUtc().subtract(
+          const Duration(hours: 1),
+        );
+        await seedBlockedReceipt(fx, 'contract:A1', verdictAt);
+        final before = verdictAt.subtract(const Duration(hours: 1));
+        File(seedSeamFile(fx, 'contract:A1')).setLastModifiedSync(before);
+        File(fx.testListPath).setLastModifiedSync(before);
+        await fx.seedRunState(
+          states: {'contract:A1': 'blocked', 'U1': 'pending'},
+        );
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'run',
+          feature,
+          '--project',
+          fx.root.path,
+          '--zfa-bin',
+          fx.fakeZfaBin,
+        ]);
+        takeExitCode();
+
+        expect(
+          out,
+          contains('contract:A1 verify-red -> skipped (still blocked since'),
+          reason: out,
+        );
+
+        final refactorArgv = fx
+            .stepArgvLog()
+            .where((line) => line.contains(' refactor '))
+            .toList();
+        expect(refactorArgv, isNotEmpty, reason: fx.stepArgvLog().join('\n'));
+        for (final line in refactorArgv) {
+          expect(line, contains('--parked-seam'), reason: line);
+          expect(
+            line,
+            contains('test/tdd/$feature/contract_a1_test.dart'),
+            reason: line,
+          );
+          // Review fix: the persisted verdict's own recorded failure rides
+          // along, so the gate's tolerance is pinned to the known red
+          // rather than to the whole seam file.
+          expect(line, contains('--parked-failure'), reason: line);
+          expect(
+            line,
+            contains('User.validateEmail blocked contract'),
+            reason: line,
+          );
+        }
+      });
+
+      test('a parked contract with NO seam file on disk hands no '
+          '--parked-seam — the flag never names an unattested file', () async {
+        // Review fix: `seamPathFor` can synthesise a plausible path when no
+        // candidate exists, and the pre-fix driver seeded that guess
+        // unconditionally — a genuine failure in whatever file it named
+        // would then be tolerated by the phase-2 gate. The handoff is now
+        // existence-gated, so an unattested seam contributes nothing.
+        final verdictAt = DateTime.now().toUtc().subtract(
+          const Duration(hours: 1),
+        );
+        await seedBlockedReceipt(fx, 'contract:A1', verdictAt);
+        File(
+          fx.testListPath,
+        ).setLastModifiedSync(verdictAt.subtract(const Duration(hours: 1)));
+        File(seedSeamFile(fx, 'contract:A1')).deleteSync();
+        await fx.seedRunState(
+          states: {'contract:A1': 'blocked', 'U1': 'pending'},
+        );
+
+        final runner = CliRunner(exitOnCompletion: false);
+        await runner.runCapturing([
+          'tdd',
+          'run',
+          feature,
+          '--project',
+          fx.root.path,
+          '--zfa-bin',
+          fx.fakeZfaBin,
+        ]);
+        takeExitCode();
+
+        final refactorArgv = fx
+            .stepArgvLog()
+            .where((line) => line.contains(' refactor '))
+            .toList();
+        expect(refactorArgv, isNotEmpty, reason: fx.stepArgvLog().join('\n'));
+        for (final line in refactorArgv) {
+          expect(line, isNot(contains('--parked-seam')), reason: line);
+        }
+      });
     },
   );
 
@@ -443,6 +544,41 @@ void main() {
       expect(takeExitCode(), isNot(0), reason: out);
     });
 
+    test('a MISSING seam file fails OPEN to the existing refusal — absence '
+        'is a change, never a silence', () async {
+      final verdictAt = DateTime.now().toUtc().subtract(
+        const Duration(hours: 1),
+      );
+      await seedBlockedReceipt(fx, 'contract:A1', verdictAt);
+      backdateWorld(verdictAt);
+      // The seam is GONE (deleted, reset, or never written). Review fix:
+      // the pre-fix probe read absence as "unchanged" and prescribed
+      // implementing a hand surface that is not on disk, where the driver's
+      // equivalent probe re-drives instead.
+      File(
+        p.join(fx.root.path, 'test', 'tdd', feature, 'contract_a1_test.dart'),
+      ).deleteSync();
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'make',
+        'contract:A1',
+        '--feature',
+        feature,
+        '--project',
+        fx.root.path,
+      ]);
+
+      // The refusal that fires is `make`'s earlier missing-artifact guard
+      // (the registry record names a file that is gone) — the point of the
+      // fix is only that the implement-seam-first arm did NOT: it must
+      // never prescribe a hand surface that is not on disk.
+      expect(out, isNot(contains('implement seam first')), reason: out);
+      expect(out, isNot(contains('outcome=implement-seam-first')), reason: out);
+      expect(takeExitCode(), isNot(0), reason: out);
+    });
+
     test('a NON-contract behavior without red evidence keeps the existing '
         'refusal (the arm is contract-lane scoped)', () async {
       await fx.registerBehavior(
@@ -493,7 +629,13 @@ Future<void> seedBlockedReceipt(
       contract: 'User.validateEmail',
       command: 'dart test test/tdd/$feature/contract_a1_test.dart',
       exitCode: 1,
-      outputExcerpt: 'Expected: true\n  Actual: false',
+      // The transcript shape the real verify-red records (the first
+      // non-empty lines of the contract test's run) — what the driver
+      // parses for `--parked-failure`.
+      outputExcerpt:
+          '00:00 +0 -1: test/tdd/$feature/contract_a1_test.dart: '
+          'User.validateEmail blocked contract [E]\n'
+          '00:00 +0 -1: Some tests failed.',
       blockedAt: blockedAt.toIso8601String(),
     ),
   );

@@ -9,12 +9,17 @@
 // the pass is silently lost for the whole feature.
 //
 // Fix under test: the driving run hands the parked seams it knows about to
-// every refactor spawn (`--parked-seam <test-path>`), and refactor tolerates
-// suite failures whose file matches a parked seam in BOTH the preflight and
-// the re-proof — pre-existing-failure economics for the parked verdict. The
-// tolerance is surgical (a NEW failure in any other file still refuses /
-// regresses), unparseable transcripts still fail closed, and a flag-less
-// standalone refactor keeps the absolute-green contract (spec 048 FR-001).
+// every refactor spawn (`--parked-seam <test-path>`) plus the failing
+// identifiers each verdict RECORDED (`--parked-failure <identifier>`), and
+// refactor tolerates those failures in BOTH the preflight and the re-proof —
+// pre-existing-failure economics for the parked verdict. The tolerance is
+// surgical: with `--parked-failure` handed, only the verdict's own red is
+// tolerated, so a NEW failure in any other file — or a SECOND, new failure
+// inside the same seam file — still refuses / regresses. A seam whose
+// verdict attested no identifier keeps the coarser file-level tolerance of
+// `--parked-seam` alone. Unparseable transcripts still fail closed, and a
+// flag-less standalone refactor keeps the absolute-green contract
+// (spec 048 FR-001).
 //
 // Fast tier: the profile's suite command is a spy script (the bug #922
 // pattern) — no `dart test` spawn (kernel-cache-safe fixture rule).
@@ -230,7 +235,13 @@ void main() {
       expect(out, contains('outcome=refactored'), reason: out);
       expect(exitCode, 0, reason: out);
       final log = await File(fx.cycleLogPath).readAsString();
-      expect(log, contains('tolerated'), reason: log);
+      // Stale expectation repaired while applying review fixes: the #1588
+      // conflict resolution (HEAD 0672ae04) reworded the parked-exempt
+      // disclosure from "tolerated" to "excluded" — deliberately, so a
+      // parked-exempt failure is never reported as pre-existing red the
+      // baseline recorded — but this assertion was not carried along, which
+      // left the PR's own suite red before any review fix landed.
+      expect(log, contains('1 parked-exempt failure(s) excluded'), reason: log);
     });
 
     test('an UNPARSEABLE red is never parked-tolerated — fail closed '
@@ -256,5 +267,80 @@ void main() {
       expect(out, contains('outcome=not-green'), reason: out);
       expect(exitCode, isNot(0), reason: out);
     });
+
+    test('a handed --parked-failure tolerates exactly the failure the '
+        'verdict attested (outcome=clean)', () async {
+      await seedParkedSeam();
+      await fx.rewriteProfile(
+        singleTemplate: TddFixture.defaultSingleTemplate,
+        suiteTemplate: await fx.writeSpyScript(
+          'attested-red-suite',
+          output:
+              '00:00 +0 -1: test/tdd/$feature/contract_a1_test.dart: '
+              'User.validateEmail blocked contract [E]\n'
+              '00:00 +0 -1: Some tests failed.',
+          exit: '1',
+        ),
+      );
+      await fx.seedAlreadyCleanLib();
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        refactorArgs(
+          extra: [
+            '--parked-seam',
+            'test/tdd/$feature/contract_a1_test.dart',
+            '--parked-failure',
+            'test/tdd/$feature/contract_a1_test.dart: '
+                'User.validateEmail blocked contract',
+          ],
+        ),
+      );
+
+      expect(out, contains('outcome=clean'), reason: out);
+      expect(out, contains('parked contract'), reason: out);
+      expect(exitCode, 0, reason: out);
+    });
+
+    test(
+      'a SECOND, new failure inside the handed parked seam still refuses '
+      '— the tolerance is pinned to the attested failure, not the file',
+      () async {
+        await seedParkedSeam();
+        await fx.rewriteProfile(
+          singleTemplate: TddFixture.defaultSingleTemplate,
+          suiteTemplate: await fx.writeSpyScript(
+            'two-in-seam-suite',
+            output:
+                '00:00 +0 -2: test/tdd/$feature/contract_a1_test.dart: '
+                'User.validateEmail blocked contract [E]\n'
+                '00:00 +0 -1: test/tdd/$feature/contract_a1_test.dart: '
+                'a brand-new assertion [E]\n'
+                '00:00 +0 -2: Some tests failed.',
+            exit: '1',
+          ),
+        );
+        await fx.seedAlreadyCleanLib();
+        final checksumsBefore = fx.checksumTestAndLib();
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(
+          refactorArgs(
+            extra: [
+              '--parked-seam',
+              'test/tdd/$feature/contract_a1_test.dart',
+              '--parked-failure',
+              'test/tdd/$feature/contract_a1_test.dart: '
+                  'User.validateEmail blocked contract',
+            ],
+          ),
+        );
+
+        expect(out, contains('outcome=not-green'), reason: out);
+        expect(out, contains('a brand-new assertion'), reason: out);
+        expect(exitCode, isNot(0), reason: out);
+        expect(fx.checksumTestAndLib(), equals(checksumsBefore));
+      },
+    );
   });
 }

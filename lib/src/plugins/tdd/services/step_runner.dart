@@ -305,6 +305,7 @@ class StepRunner {
     required String projectRoot,
     String? suiteBaselinePath,
     Set<String> parkedSeamPaths = const {},
+    Set<String> parkedFailureIdentifiers = const {},
     List<String> extraArgs = const [],
   }) async {
     if (!stepOrder.contains(step)) {
@@ -337,12 +338,21 @@ class StepRunner {
     // BLOCKED verdict's pre-existing red, the same economics issue #922
     // gave the baseline). The driver only ever passes seams it SAW parked
     // (or loaded from a persisted verdict receipt), so the flag is the
-    // driver's attestation; a flag-less standalone refactor keeps the
+    // driver's attestation. Review fix: the driver also hands the failing
+    // identifiers each verdict RECORDED (`--parked-failure`), so the gate
+    // pins its tolerance to the known red instead of exempting every
+    // failure in the seam file. A flag-less standalone refactor keeps the
     // absolute-green contract (spec 048 FR-001).
     if (step == 'refactor' && parkedSeamPaths.isNotEmpty) {
       for (final seam in parkedSeamPaths) {
         if (seam.isEmpty) continue;
         argv.addAll(['--parked-seam', seam]);
+      }
+    }
+    if (step == 'refactor' && parkedFailureIdentifiers.isNotEmpty) {
+      for (final identifier in parkedFailureIdentifiers) {
+        if (identifier.isEmpty) continue;
+        argv.addAll(['--parked-failure', identifier]);
       }
     }
     // Issue #1159: the driver's deadline is ONE uniform deadline (bug #742)
