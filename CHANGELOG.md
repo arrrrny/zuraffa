@@ -7,6 +7,11 @@
   `import 'package:zuraffa/agent.dart';` where agent symbols are used.
 
 ### Fixed
+- `zfa tdd view` canonicalizes a MISSING subject file through its nearest
+  existing ancestor before the outside-root guard, so a symlinked project
+  root (macOS `/var/folders` → `/private/var/folders`) reports the
+  missing-subject refusal instead of "points outside the project root"
+  (#1603).
 - Generated `hide` combinators verify against the zuraffa barrel surface:
   an unresolved barrel (target without a resolvable `zuraffa` entry at
   generation time) drops the combinator entirely instead of emitting

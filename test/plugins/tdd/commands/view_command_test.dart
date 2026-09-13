@@ -30,6 +30,11 @@
 //         nearest EXISTING ancestor before the outside-root comparison).
 //  U-V12: a recorded subject that genuinely resolves outside the project
 //         root is still refused as outside-root (the #1603 guard).
+//  U-V13: a MISSING subject whose recorded path sits inside the project
+//         but travels out through an in-project directory symlink is
+//         refused as outside-root — the canonicalization above compares
+//         the RESOLVED ancestor, so the guard is tighter than the raw
+//         recorded path suggests (intended, see fix.md).
 library;
 
 import 'dart:convert';
@@ -390,5 +395,39 @@ ${genStyleWidgetStub('A-001').split('\n').skip(1).join('\n')}
 
     expect(exitCode, isNot(0));
     expect(out, contains('points outside the project root'));
+  });
+
+  test('U-V13: a missing subject whose in-project path escapes through a '
+      'directory symlink is refused as outside-root (the #1603 guard, '
+      'tightened by the resolved-ancestor canonicalization)', () async {
+    await fx.registerBehavior(
+      id: 'A-001',
+      description: 'the login page renders',
+      writeTestFile: false,
+    );
+    final registry =
+        jsonDecode(await File(fx.artifactsPath).readAsString())
+            as Map<String, dynamic>;
+    final records = registry['records'] as List<dynamic>;
+    (records.single as Map<String, dynamic>)['subject_path'] =
+        'shared/missing_subject.dart';
+    await File(fx.artifactsPath).writeAsString(jsonEncode(registry));
+
+    // The project contains the escaping link itself, so the recorded path
+    // reads as in-project while its nearest EXISTING ancestor resolves
+    // outside the root — the guard follows the RESOLVED ancestor.
+    final outside = Directory.systemTemp.createTempSync('tdd_outside_');
+    addTearDown(() => outside.deleteSync(recursive: true));
+    final link = Link(p.join(fx.root.path, 'shared'));
+    await link.create(outside.path);
+    addTearDown(() async {
+      if (await FileSystemEntity.isLink(link.path)) await link.delete();
+    });
+
+    final out = await runView();
+
+    expect(exitCode, isNot(0));
+    expect(out, contains('points outside the project root'));
+    expect(out, isNot(contains('missing subject file')));
   });
 }

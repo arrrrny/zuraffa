@@ -70,15 +70,47 @@ static Future<String> _canonicalizeMissingPath(String path) async {
 - `view_command_test.dart` U-V12 — a recorded subject that genuinely resolves
   outside the root is still refused as outside-root (FR-002 guard; green
   pre-fix and post-fix).
+- `view_command_test.dart` U-V13 — a MISSING subject whose recorded path sits
+  inside the project but travels out through an in-project directory symlink
+  (`root/shared -> <dir outside root>`, recorded `shared/missing_subject.dart`)
+  is refused as outside-root (green pre-fix and post-fix).
 - U-V3 (pre-existing) — the original macOS red: now green.
+
+## Intended behavior change: the tightened outside-root guard
+
+Frame the guard as **"the subject's nearest existing ancestor must resolve
+inside the canonical root"** — not "the recorded path string must start with
+the root". The fix resolves an existing ancestor through symlinks, so a
+recorded path that lives inside the project but reaches out through a
+directory symlink the project contains is now refused as outside-root where
+pre-fix it was reported as a missing subject:
+
+| recorded `shared/missing_subject.dart`, `root/shared -> <outside dir>` | pre-fix | post-fix |
+|---|---|---|
+| refusal | `points to a missing subject file` | `points outside the project root` |
+
+That is intended and consistent with FR-002 ("never widens the accepted
+root"): the subject's real location is outside the project, so the
+outside-root message is the accurate one. Exit code and the `zfa tdd gen`
+remediation are unchanged in both shapes. U-V13 pins it.
 
 ## Local Verification
 
 - `dart test test/plugins/tdd/commands/view_command_test.dart -n "U-V1[12]"` (pre-fix) → `+1 -1`: U-V11 red with `points outside the project root`, U-V12 guard green. Evidence: `tdd/cycle-log.md`.
-- `dart test test/plugins/tdd/commands/view_command_test.dart` (post-fix) → `12/12 All tests passed!` including U-V3.
+- `dart test test/plugins/tdd/commands/view_command_test.dart` (post-fix) → `13/13 All tests passed!` including U-V3, U-V11, U-V12, U-V13.
 - `dart test` over the sibling view surface (`bug_1141_view_audit`, `bug_965_view_i18n_generation`, `bug_1141_login_ui_regeneration`, `spec_1142_adaptive_layout`) → `29/29 All tests passed!`
 - `dart analyze lib/src/plugins/tdd/commands/view_command.dart test/plugins/tdd/commands/view_command_test.dart` → `No issues found!`
 - `dart format` on both touched files → `0 changed`.
+
+## Post-review follow-up (PR #1606 review)
+
+- U-V13 added (see above) — closes the review finding that the canonicalization
+  tightens the outside-root guard for a missing subject reached through an
+  in-project directory symlink without a pin.
+- `CHANGELOG.md` — the carried `chore: release 6.2.3` cut (`1ddd479`) is the
+  version that publishes (pub.dev latest is 6.2.2), so the `### Fixed` list now
+  carries the #1603 entry. The `2026-09-11` heading date is the release
+  commit's own author date — not carried over from an `[next]` cut.
 
 ## Deviations from Assessment
 
@@ -96,6 +128,8 @@ static Future<String> _canonicalizeMissingPath(String path) async {
 
 ## Follow-ups
 
-- None required. (Optional: a shared `canonicalizeMissingPath` utility could
-  replace the two private copies in view/wire — deliberately NOT done here to
-  keep the change surgical.)
+- The shared `canonicalizeMissingPath` utility (the two private copies in
+  view/wire) is **not** extracted here — kept surgical. Filed as
+  [#1610](https://github.com/arrrrny/zuraffa/issues/1610), which also records
+  the helper's absolute-input precondition and the missing direct test for the
+  walk-up loop.
