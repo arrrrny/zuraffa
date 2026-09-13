@@ -817,7 +817,9 @@ class RunDriverCore {
           BehaviorState.blocked) {
         continue;
       }
-      if (ContractBlockedReceipt.fromFile(blockedReceiptStore.pathFor(row.id)) ==
+      if (ContractBlockedReceipt.fromFile(
+            blockedReceiptStore.pathFor(row.id),
+          ) ==
           null) {
         continue;
       }
@@ -1119,7 +1121,11 @@ class RunDriverCore {
       // stopped_at, exit code) is the #1007/#1544 one.
       for (final row in blockedRows) {
         print(
-          '   ${HandSurface.hintLine(behaviorId: row.id, seamPath: HandSurface.seamPathFor(projectRoot: projectRoot, feature: feature, behaviorId: row.id), contract: row.traces)}',
+          '   ${HandSurface.hintLine(
+            behaviorId: row.id,
+            seamPath: HandSurface.seamPathFor(projectRoot: projectRoot, feature: feature, behaviorId: row.id),
+            contract: row.traces,
+          )}',
         );
       }
       print(
@@ -1969,7 +1975,9 @@ class RunDriverCore {
             feature: feature,
             behaviorId: row.id,
           );
-          print('   ${HandSurface.hintLine(behaviorId: row.id, seamPath: parkedSeam, contract: row.traces)}');
+          print(
+            '   ${HandSurface.hintLine(behaviorId: row.id, seamPath: parkedSeam, contract: row.traces)}',
+          );
           print(
             '   parked — the run continues with the remaining behaviors '
             '(issue #1544)',

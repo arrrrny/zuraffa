@@ -258,11 +258,10 @@ class RefactorCommand extends Command<void> {
         timeout: timeoutOverride,
         fullReproof: argResults?['full-reproof'] as bool? ?? false,
         suiteBaselinePath: argResults?['suite-baseline'] as String?,
-        parkedSeams:
-            (argResults?['parked-seam'] as List<String>? ?? const [])
-                .where((s) => s.trim().isNotEmpty)
-                .map((s) => p.normalize(s.trim()).replaceAll(r'\', '/'))
-                .toSet(),
+        parkedSeams: (argResults?['parked-seam'] as List<String>? ?? const [])
+            .where((s) => s.trim().isNotEmpty)
+            .map((s) => p.normalize(s.trim()).replaceAll(r'\', '/'))
+            .toSet(),
         scratchEnv: scratch?.childEnvironment(),
       );
     } finally {
@@ -420,7 +419,8 @@ class RefactorCommand extends Command<void> {
         // also a known red — the same pre-existing-failure economics, with
         // or without a baseline. The tolerance is surgical: any NEW
         // failure outside the handed seams still refuses.
-        final preflightSnapshot = (suiteBaseline != null || parkedSeams.isNotEmpty)
+        final preflightSnapshot =
+            (suiteBaseline != null || parkedSeams.isNotEmpty)
             ? const SuiteGuard().fromRunRecord(
                 record: preflight,
                 capturedAt: DateTime.now().toUtc().toIso8601String(),
@@ -442,8 +442,7 @@ class RefactorCommand extends Command<void> {
         if (preflightSnapshot != null &&
             preflightSnapshot.parseable &&
             newFailures.isEmpty) {
-          preflightTolerated =
-              preflightSnapshot.failedTests.length;
+          preflightTolerated = preflightSnapshot.failedTests.length;
           if (suiteBaseline != null) {
             print(
               '   suite is RED but every failure is pre-existing at '
@@ -1084,13 +1083,9 @@ class RefactorCommand extends Command<void> {
     if (s.startsWith(loading)) s = s.substring(loading.length);
     final idx = s.indexOf(':');
     if (idx > 0) s = s.substring(0, idx);
-    final file = p
-        .normalize(s.trim())
-        .replaceAll(r'\', '/');
+    final file = p.normalize(s.trim()).replaceAll(r'\', '/');
     for (final seam in parkedSeams) {
-      if (file == seam ||
-          file.endsWith('/$seam') ||
-          seam.endsWith('/$file')) {
+      if (file == seam || file.endsWith('/$seam') || seam.endsWith('/$file')) {
         return true;
       }
     }

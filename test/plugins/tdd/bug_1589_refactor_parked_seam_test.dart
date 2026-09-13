@@ -77,7 +77,8 @@ void main() {
         singleTemplate: TddFixture.defaultSingleTemplate,
         suiteTemplate: await fx.writeSpyScript(
           'parked-red-suite',
-          output: '00:00 +0 -1: test/tdd/$feature/contract_a1_test.dart: '
+          output:
+              '00:00 +0 -1: test/tdd/$feature/contract_a1_test.dart: '
               'User.validateEmail blocked contract [E]\n'
               '00:00 +0 -1: Some tests failed.',
           exit: '1',
@@ -88,10 +89,9 @@ void main() {
 
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(
-        refactorArgs(extra: [
-          '--parked-seam',
-          'test/tdd/$feature/contract_a1_test.dart',
-        ]),
+        refactorArgs(
+          extra: ['--parked-seam', 'test/tdd/$feature/contract_a1_test.dart'],
+        ),
       );
 
       expect(out, contains('outcome=clean'), reason: out);
@@ -101,14 +101,14 @@ void main() {
     });
 
     test('WITHOUT the flag the same red still refuses — the flag-less '
-        'standalone contract stays absolute-green (spec 048 FR-001)',
-        () async {
+        'standalone contract stays absolute-green (spec 048 FR-001)', () async {
       await seedParkedSeam();
       await fx.rewriteProfile(
         singleTemplate: TddFixture.defaultSingleTemplate,
         suiteTemplate: await fx.writeSpyScript(
           'parked-red-suite',
-          output: '00:00 +0 -1: test/tdd/$feature/contract_a1_test.dart: '
+          output:
+              '00:00 +0 -1: test/tdd/$feature/contract_a1_test.dart: '
               'User.validateEmail blocked contract [E]\n'
               '00:00 +0 -1: Some tests failed.',
           exit: '1',
@@ -130,7 +130,8 @@ void main() {
         singleTemplate: TddFixture.defaultSingleTemplate,
         suiteTemplate: await fx.writeSpyScript(
           'mixed-red-suite',
-          output: '00:00 +0 -1: test/tdd/$feature/contract_a1_test.dart: '
+          output:
+              '00:00 +0 -1: test/tdd/$feature/contract_a1_test.dart: '
               'User.validateEmail blocked contract [E]\n'
               '00:00 +0 -1: test/other/fresh_test.dart: fresh genuine '
               'failure [E]\n'
@@ -143,10 +144,9 @@ void main() {
 
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(
-        refactorArgs(extra: [
-          '--parked-seam',
-          'test/tdd/$feature/contract_a1_test.dart',
-        ]),
+        refactorArgs(
+          extra: ['--parked-seam', 'test/tdd/$feature/contract_a1_test.dart'],
+        ),
       );
 
       expect(out, contains('outcome=not-green'), reason: out);
@@ -173,7 +173,8 @@ void main() {
         singleTemplate: TddFixture.defaultSingleTemplate,
         suiteTemplate: await fx.writeSpyScript(
           'mixed-baseline-suite',
-          output: '00:00 +0 -1: test/other/legacy_test.dart: legacy failure [E]\n'
+          output:
+              '00:00 +0 -1: test/other/legacy_test.dart: legacy failure [E]\n'
               '00:00 +0 -1: test/tdd/$feature/contract_a1_test.dart: '
               'User.validateEmail blocked contract [E]\n'
               '00:00 +0 -1: Some tests failed.',
@@ -184,12 +185,14 @@ void main() {
 
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(
-        refactorArgs(extra: [
-          '--suite-baseline',
-          fx.runBaselinePath,
-          '--parked-seam',
-          'test/tdd/$feature/contract_a1_test.dart',
-        ]),
+        refactorArgs(
+          extra: [
+            '--suite-baseline',
+            fx.runBaselinePath,
+            '--parked-seam',
+            'test/tdd/$feature/contract_a1_test.dart',
+          ],
+        ),
       );
 
       expect(out, contains('outcome=clean'), reason: out);
@@ -208,7 +211,8 @@ void main() {
         singleTemplate: TddFixture.defaultSingleTemplate,
         suiteTemplate: await fx.writeSpyScript(
           'parked-both-suite',
-          output: '00:00 +0 -1: test/tdd/$feature/contract_a1_test.dart: '
+          output:
+              '00:00 +0 -1: test/tdd/$feature/contract_a1_test.dart: '
               'User.validateEmail blocked contract [E]\n'
               '00:00 +0 -1: Some tests failed.',
           exit: '1',
@@ -218,10 +222,9 @@ void main() {
 
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(
-        refactorArgs(extra: [
-          '--parked-seam',
-          'test/tdd/$feature/contract_a1_test.dart',
-        ]),
+        refactorArgs(
+          extra: ['--parked-seam', 'test/tdd/$feature/contract_a1_test.dart'],
+        ),
       );
 
       expect(out, contains('outcome=refactored'), reason: out);
@@ -245,10 +248,9 @@ void main() {
 
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(
-        refactorArgs(extra: [
-          '--parked-seam',
-          'test/tdd/$feature/contract_a1_test.dart',
-        ]),
+        refactorArgs(
+          extra: ['--parked-seam', 'test/tdd/$feature/contract_a1_test.dart'],
+        ),
       );
 
       expect(out, contains('outcome=not-green'), reason: out);

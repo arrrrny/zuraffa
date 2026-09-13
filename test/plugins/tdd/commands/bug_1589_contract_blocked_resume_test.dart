@@ -157,138 +157,142 @@ void main() {
     });
   });
 
-  group('run: phase-2 refactor spawns carry the parked seams (issue #1589)',
-      () {
-    late TddFixture fx;
+  group(
+    'run: phase-2 refactor spawns carry the parked seams (issue #1589)',
+    () {
+      late TddFixture fx;
 
-    setUp(() async {
-      fx = await TddFixture.create(featureName: feature, writeProfile: false);
-      await fx.writeFakeZfa();
-      await fx.seedTestList([
-        (
-          id: 'contract:A1',
-          description:
-              'User.validateEmail(String email) -> bool (entity method '
-              'contract)',
-          traces: 'User.validateEmail',
-          state: 'PENDING',
-          kind: 'contract',
-        ),
-        (
-          id: 'U1',
-          description: 'a unit behavior that drives green',
-          traces: 'FR-001',
-          state: 'PENDING',
-          kind: 'unit',
-        ),
-      ]);
-      await fx.setStepOutcome('verify-red', 'contract:A1', 'blocked');
-      seedSeamFile(fx, 'contract:A1');
-    });
+      setUp(() async {
+        fx = await TddFixture.create(featureName: feature, writeProfile: false);
+        await fx.writeFakeZfa();
+        await fx.seedTestList([
+          (
+            id: 'contract:A1',
+            description:
+                'User.validateEmail(String email) -> bool (entity method '
+                'contract)',
+            traces: 'User.validateEmail',
+            state: 'PENDING',
+            kind: 'contract',
+          ),
+          (
+            id: 'U1',
+            description: 'a unit behavior that drives green',
+            traces: 'FR-001',
+            state: 'PENDING',
+            kind: 'unit',
+          ),
+        ]);
+        await fx.setStepOutcome('verify-red', 'contract:A1', 'blocked');
+        seedSeamFile(fx, 'contract:A1');
+      });
 
-    tearDown(() {
-      fx.dispose();
-      exitCode = 0;
-    });
+      tearDown(() {
+        fx.dispose();
+        exitCode = 0;
+      });
 
-    test('a contract parked THIS run hands its seam to the refactor spawn',
+      test(
+        'a contract parked THIS run hands its seam to the refactor spawn',
         () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing([
-        'tdd',
-        'run',
-        feature,
-        '--project',
-        fx.root.path,
-        '--zfa-bin',
-        fx.fakeZfaBin,
-      ]);
-      takeExitCode();
+          final runner = CliRunner(exitOnCompletion: false);
+          await runner.runCapturing([
+            'tdd',
+            'run',
+            feature,
+            '--project',
+            fx.root.path,
+            '--zfa-bin',
+            fx.fakeZfaBin,
+          ]);
+          takeExitCode();
 
-      // A refactor step spawned beside a parked contract…
-      expect(
-        fx.stepInvocations().any((s) => s.startsWith('refactor ')),
-        isTrue,
-        reason: 'expected a refactor spawn in: ${fx.stepInvocations()}',
+          // A refactor step spawned beside a parked contract…
+          expect(
+            fx.stepInvocations().any((s) => s.startsWith('refactor ')),
+            isTrue,
+            reason: 'expected a refactor spawn in: ${fx.stepInvocations()}',
+          );
+          // …and EVERY refactor spawn carries the parked seam so the gate can
+          // tolerate the parked contract's failing seam test (pre-existing-
+          // failure economics, issue #1589).
+          final refactorArgv = fx
+              .stepArgvLog()
+              .where((line) => line.contains(' refactor '))
+              .toList();
+          expect(refactorArgv, isNotEmpty, reason: fx.stepArgvLog().join('\n'));
+          for (final line in refactorArgv) {
+            expect(line, contains('--parked-seam'), reason: line);
+            expect(
+              line,
+              contains('test/tdd/$feature/contract_a1_test.dart'),
+              reason: line,
+            );
+          }
+        },
       );
-      // …and EVERY refactor spawn carries the parked seam so the gate can
-      // tolerate the parked contract's failing seam test (pre-existing-
-      // failure economics, issue #1589).
-      final refactorArgv = fx
-          .stepArgvLog()
-          .where((line) => line.contains(' refactor '))
-          .toList();
-      expect(refactorArgv, isNotEmpty, reason: fx.stepArgvLog().join('\n'));
-      for (final line in refactorArgv) {
-        expect(line, contains('--parked-seam'), reason: line);
-        expect(
-          line,
-          contains('test/tdd/$feature/contract_a1_test.dart'),
-          reason: line,
+
+      test('a still-blocked SKIP on resume hands the seam to the refactor '
+          'spawn too (the persisted parking, not just this run\'s)', () async {
+        // Run 1 parks A1 and persists the blocked verdict's receipt (as the
+        // real verify-red child writes it).
+        final runner = CliRunner(exitOnCompletion: false);
+        await runner.runCapturing([
+          'tdd',
+          'run',
+          feature,
+          '--project',
+          fx.root.path,
+          '--zfa-bin',
+          fx.fakeZfaBin,
+        ]);
+        takeExitCode();
+        final verdictAt = DateTime.now().toUtc().subtract(
+          const Duration(hours: 1),
         );
-      }
-    });
+        await seedBlockedReceipt(fx, 'contract:A1', verdictAt);
+        final seamPath = seedSeamFile(fx, 'contract:A1');
+        final before = verdictAt.subtract(const Duration(hours: 1));
+        File(seamPath).setLastModified(before);
+        File(fx.testListPath).setLastModified(before);
 
-    test('a still-blocked SKIP on resume hands the seam to the refactor '
-        'spawn too (the persisted parking, not just this run\'s)', () async {
-      // Run 1 parks A1 and persists the blocked verdict's receipt (as the
-      // real verify-red child writes it).
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing([
-        'tdd',
-        'run',
-        feature,
-        '--project',
-        fx.root.path,
-        '--zfa-bin',
-        fx.fakeZfaBin,
-      ]);
-      takeExitCode();
-      final verdictAt = DateTime.now().toUtc().subtract(
-        const Duration(hours: 1),
-      );
-      await seedBlockedReceipt(fx, 'contract:A1', verdictAt);
-      final seamPath = seedSeamFile(fx, 'contract:A1');
-      final before = verdictAt.subtract(const Duration(hours: 1));
-      File(seamPath).setLastModified(before);
-      File(fx.testListPath).setLastModified(before);
+        fx.clearStepInvocations();
 
-      fx.clearStepInvocations();
+        // Run 2 (resume): A1 is skipped (still blocked since …), U1 still
+        // drives — and its refactor spawn must still carry A1's seam.
+        final out2 = await runner.runCapturing([
+          'tdd',
+          'run',
+          feature,
+          '--project',
+          fx.root.path,
+          '--zfa-bin',
+          fx.fakeZfaBin,
+        ]);
+        takeExitCode();
 
-      // Run 2 (resume): A1 is skipped (still blocked since …), U1 still
-      // drives — and its refactor spawn must still carry A1's seam.
-      final out2 = await runner.runCapturing([
-        'tdd',
-        'run',
-        feature,
-        '--project',
-        fx.root.path,
-        '--zfa-bin',
-        fx.fakeZfaBin,
-      ]);
-      takeExitCode();
-
-      // The skip fired (the persisted parking is in the world run 2 sees).
-      expect(
-        out2,
-        contains('contract:A1 verify-red -> skipped (still blocked since'),
-        reason: out2,
-      );
-
-      final refactorArgv = fx
-          .stepArgvLog()
-          .where((line) => line.contains(' refactor '))
-          .toList();
-      expect(refactorArgv, isNotEmpty, reason: fx.stepArgvLog().join('\n'));
-      for (final line in refactorArgv) {
+        // The skip fired (the persisted parking is in the world run 2 sees).
         expect(
-          line,
-          contains('test/tdd/$feature/contract_a1_test.dart'),
-          reason: line,
+          out2,
+          contains('contract:A1 verify-red -> skipped (still blocked since'),
+          reason: out2,
         );
-      }
-    });
-  });
+
+        final refactorArgv = fx
+            .stepArgvLog()
+            .where((line) => line.contains(' refactor '))
+            .toList();
+        expect(refactorArgv, isNotEmpty, reason: fx.stepArgvLog().join('\n'));
+        for (final line in refactorArgv) {
+          expect(
+            line,
+            contains('test/tdd/$feature/contract_a1_test.dart'),
+            reason: line,
+          );
+        }
+      });
+    },
+  );
 
   group('make: blocked verdict accepted as precondition (issue #1589)', () {
     late TddFixture fx;
@@ -330,9 +334,9 @@ void main() {
     /// unchanged-world predicate agrees.
     void backdateWorld(DateTime verdictAt) {
       final before = verdictAt.subtract(const Duration(hours: 1));
-      File(p.join(fx.featureDir, 'tdd', 'test-list.md')).setLastModified(
-        before,
-      );
+      File(
+        p.join(fx.featureDir, 'tdd', 'test-list.md'),
+      ).setLastModified(before);
       for (final dir in [
         Directory(p.join(fx.root.path, 'lib')),
         Directory(p.join(fx.root.path, 'test')),
@@ -345,8 +349,7 @@ void main() {
     }
 
     test('a parked contract (receipt + unchanged world) refuses with the '
-        'plain "implement seam first" stop naming the hand surface',
-        () async {
+        'plain "implement seam first" stop naming the hand surface', () async {
       final verdictAt = DateTime.now().toUtc().subtract(
         const Duration(hours: 1),
       );
@@ -378,7 +381,11 @@ void main() {
         reason: out,
       );
       // The misleading dead-end remedy is GONE for this shape.
-      expect(out, isNot(contains('has no certified-red evidence')), reason: out);
+      expect(
+        out,
+        isNot(contains('has no certified-red evidence')),
+        reason: out,
+      );
       expect(takeExitCode(), isNot(0), reason: out);
       // No green evidence was appended (the contract lane is untouched —
       // the cycle never rides a blocked contract into green).
