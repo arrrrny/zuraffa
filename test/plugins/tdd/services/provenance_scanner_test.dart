@@ -120,6 +120,75 @@ actions:
     });
   });
 
+  group('U26 — fence-aware refactor attribution (issue #1549)', () {
+    test(
+      'an in-fence Cycle line never flips refactor attribution (1549)',
+      () async {
+        // A red entry whose captured output prints a markdown banner: the
+        // in-fence `## Cycle:` line is CONTENT, never a new entry. The
+        // fence-blind scan flips `inRefactorSection` on it and attributes
+        // the in-fence `changed:` line — the phantom this fixture forbids.
+        final real = await libFile('src/real.dart');
+        await libFile('src/phantom.dart');
+        await write('specs/f-1549/tdd/cycle-log.md', '''
+# Cycle Log
+
+## Cycle: B-001 (red)
+
+- behavior: B-001
+- kind: red
+- test: test/b001_test.dart
+- command: `dart test test/b001_test.dart`
+- exit: 1
+- at: 2026-09-03T00:00:00Z
+- output:
+```
+00:00 +0: loading test/b001_test.dart
+## Cycle: PHANTOM (refactor)
+- kind: green
+changed: lib/src/phantom.dart
+```
+
+## Cycle: B-002 (refactor)
+
+- behavior: B-002
+- kind: refactor
+- test: test/plugins/tdd/
+- command: `dart test test/plugins/tdd/`
+- exit: 0
+- at: 2026-09-03T00:01:00Z
+- output:
+```
+00:00 +0: All tests passed!
+```
+actions:
+- action: polish
+  command: `zfa tdd refactor B-002`
+  exit: 0
+  changed: $real
+''');
+
+        final report = await scanner.scan();
+        expect(
+          report.attributed(real),
+          isNotNull,
+          reason: 'the real refactor entry still attributes',
+        );
+        expect(report.attributed(real)!.source, AttributionSource.refactor);
+        expect(
+          report.attributed(real)!.command,
+          'zfa tdd refactor B-002',
+          reason: 'the action command is the recorded invocation',
+        );
+        expect(
+          report.attributed('lib/src/phantom.dart'),
+          isNull,
+          reason: 'SC-1: in-fence changed: lines never become attributions',
+        );
+      },
+    );
+  });
+
   group('U27 — setup/import provenance records attribute', () {
     test('single-object and array forms both attribute', () async {
       final rel1 = await libFile('main.dart');

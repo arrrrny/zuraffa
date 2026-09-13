@@ -247,6 +247,67 @@ void main() {
     },
   );
 
+  test(
+    '1549: an in-fence Cycle line never greens a phantom behavior',
+    () async {
+      // A red entry whose captured output embeds a sample cycle-log: the
+      // in-fence `## Cycle: PHANTOM (green)` + `- kind: green` pair must
+      // never credit PHANTOM (the fence-blind scan set currentBehavior from
+      // the phantom header). The real green sibling completes the feature.
+      await writeArtifacts('f-1549', [
+        ('B-020', 'lib/p20/thing.dart'),
+        ('B-021', 'lib/p21/thing.dart'),
+      ]);
+      await writeFile('lib/p20/thing.dart', 'class Thing20 {}\n');
+      await writeFile('lib/p21/thing.dart', 'class Thing21 {}\n');
+      await writeReceipt(['lib/p20/thing.dart', 'lib/p21/thing.dart']);
+      await writeFile(
+        'specs/f-1549/tdd/cycle-log.md',
+        '# Cycle Log\n'
+            '\n'
+            '## Cycle: B-020 (red)\n'
+            '\n'
+            '- behavior: B-020\n'
+            '- kind: red\n'
+            '- classification: assertion_failure\n'
+            '- test: test/p20_thing_test.dart\n'
+            '- command: `dart test test/p20_thing_test.dart`\n'
+            '- exit: 1\n'
+            '- at: 2026-09-03T00:00:00Z\n'
+            '- output:\n'
+            '```\n'
+            '00:00 +0: loading test/p20_thing_test.dart\n'
+            '## Cycle: PHANTOM (green)\n'
+            '- kind: green\n'
+            '```\n'
+            '\n'
+            '## Cycle: B-021 (green)\n'
+            '\n'
+            '- behavior: B-021\n'
+            '- kind: green\n'
+            '- test: test/p21_thing_test.dart\n'
+            '- command: `dart test test/p21_thing_test.dart`\n'
+            '- exit: 0\n'
+            '- at: 2026-09-03T00:01:00Z\n'
+            '- output:\n'
+            '```\n'
+            '00:00 +0: All tests passed!\n'
+            '```\n',
+      );
+
+      final features = await read();
+      final feature = features.firstWhere((f) => f.feature == 'f-1549');
+      expect(
+        feature.state,
+        FeatureRealizationState.completeReal,
+        reason:
+            'SC-3: the phantom header never greens a phantom behavior; the '
+            'in-fence `- kind: green` line credits the section\'s own real '
+            'behavior — masking in-fence field-shaped lines is deferred',
+      );
+    },
+  );
+
   test('an empty corpus with no receipts yields an empty list, never a crash '
       '(edge case)', () async {
     final features = await read();
