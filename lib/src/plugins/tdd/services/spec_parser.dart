@@ -68,10 +68,13 @@ class EntityField {
 
 /// One entity declared by the spec's `Key Entities` section (bug #829):
 /// the name is the bullet's bold head (generic suffixes stripped to a
-/// valid Dart identifier), the fields are the backticked `name: Type`
-/// pairs the spec carries (empty when the prose declares none). Bug
-/// #919: `purpose` is the third column of the zuraffa-1.0 template's
-/// table form; empty for legacy bullet declarations.
+/// valid Dart identifier), the fields are the `name: Type` pairs the
+/// spec carries (empty when the prose declares none). Bug #919:
+/// `purpose` is the third column of the zuraffa-1.0 template's table
+/// form; empty for legacy bullet declarations. Issue #1486: in table
+/// cells the pairs no longer require backticks — plain prose pairs
+/// (`| Task | id: String, title: String |`) parse too, mixed freely
+/// with the backticked form.
 class SpecEntity {
   const SpecEntity({
     required this.name,
@@ -85,6 +88,28 @@ class SpecEntity {
 
   @override
   String toString() => 'SpecEntity(name: $name, fields: $fields)';
+}
+
+/// Issue #1486: a Key Entities fields cell that SHOWS pair evidence —
+/// a backticked span or an `identifier:` shape — but still parsed to
+/// zero fields. The #1486 failure mode was silence: the cell's pairs
+/// were dropped, the entity generated field-less, and the first signal
+/// was a vacuous-green deep into the run. The record names the row, the
+/// verbatim cell, and the 1-based spec line so plan can refuse the
+/// silence before anything generates against the empty entity.
+class SpecEntityFieldAnomaly {
+  const SpecEntityFieldAnomaly({
+    required this.entity,
+    required this.cell,
+    required this.line,
+  });
+
+  final String entity;
+  final String cell;
+  final int line;
+
+  @override
+  String toString() => 'SpecEntityFieldAnomaly($entity, line $line: `$cell`)';
 }
 
 /// One FR's declaration-level routing facts (feature 1484): what the
@@ -447,6 +472,45 @@ class SpecParser {
     r'`([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^`]+)`',
   );
 
+  /// Issue #1486: the `name: Type` pair shape a fields cell carries,
+  /// backticked or not. Applied to (a) the raw content of each backtick
+  /// span and (b) each top-level comma-separated fragment of the
+  /// unbackticked text, it is exactly the old backticked grammar for
+  /// backticked spans (name must open the span, type runs to the
+  /// closing backtick) and the new plain-prose grammar for the rest.
+  static final RegExp _fieldPairShape = RegExp(
+    r'^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.+)$',
+  );
+
+  /// Issue #1486: positive evidence that a fields cell TRIES to declare
+  /// pairs — any backtick span, or any `identifier:` shape. Evidence
+  /// that mints no pair is a spec-authoring bug the plan names
+  /// (see [SpecEntityFieldAnomaly]), never silence. The shape is applied
+  /// per fragment and per span, so a cell that mints one pair and
+  /// starves another is reported too.
+  static final RegExp _fieldCellEvidence = RegExp(
+    r'`|[A-Za-z_][A-Za-z0-9_]*\s*:',
+  );
+
+  /// Issue #1486: a `;`-separated declaration hiding inside a pair's
+  /// type (`id: String; title: String`). The cell split only knows
+  /// commas, so the second pair never gets its turn — the type swallows
+  /// it. Matching the separator AND the following `identifier:` keeps a
+  /// harmless trailing `;` (`id: String;`) from being called a drop.
+  static final RegExp _swallowedPair = RegExp(
+    r';\s*[A-Za-z_][A-Za-z0-9_]*\s*:',
+  );
+
+  /// Issue #1486: the `final` member shape of an entity Dart file —
+  /// what phase-0's reuse path compares the plan's declared fields
+  /// against (`final String id;`, `final Map<String, int> counters;`,
+  /// `late final String x;`). Assignment-initialised locals (`final x
+  /// = 3;`) are excluded by the `=`, constructor params don't carry
+  /// `final`. Best-effort by design: it feeds a reuse warning only.
+  static final RegExp _dartFinalMember = RegExp(
+    r'\bfinal\s+([^;=]+?)\s+([A-Za-z_][A-Za-z0-9_]*)\s*;',
+  );
+
   static final RegExp _dartIdentifier = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
 
   /// A Key Entities table header (bug #919): the zuraffa-1.0 template
@@ -618,6 +682,37 @@ class SpecParser {
       );
     }
     return dependencies;
+  }
+
+  /// The spec's declared-routing surface (issue #1388): the text of the
+  /// Layer Contracts section — the declarations a behavior's `traces:`
+  /// cell resolves against.
+  ///
+  /// Section recognition ([_matchesSectionHeading] over
+  /// [_layerContractsHeading]) and the walk (any heading closes the
+  /// section) are exactly [parseLayerContracts]'s, so the surface is the
+  /// text the contract parser itself reads: a qualified heading
+  /// (`## Layer Contracts — epic-level`) or an entity-escaped one is the
+  /// same section, and content after the next heading is not part of it.
+  ///
+  /// A spec without that section yields the empty string: no declared
+  /// routing, so nothing for a routing fingerprint to cover. Callers
+  /// hash this (never the whole `spec.md`) precisely so prose that
+  /// declares no routing — typo fixes, comment edits, acceptance-scenario
+  /// wording — cannot be mistaken for a routing change.
+  String layerContractsSection(String specMd) {
+    final section = StringBuffer();
+    var inSection = false;
+    for (final line in normalizeSpecText(specMd).split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('#')) {
+        if (inSection) break;
+        inSection = _matchesSectionHeading(trimmed, _layerContractsHeading);
+        continue;
+      }
+      if (inSection) section.writeln(line);
+    }
+    return section.toString();
   }
 
   /// Extract the declared layer contracts (bug #919): the bold layer
@@ -928,16 +1023,25 @@ class SpecParser {
         for (final method in methods) {
           try {
             signatures.add(Signature.parse(method));
-          } on FormatException {
+          } on FormatException catch (error) {
             // A malformed signature refuses on FUNCTION rows (their
             // return type drives subject generation); other layers
             // preserve methods verbatim for their existing consumers.
+            // SPEC 1536: a parameter-syntax refusal is its own
+            // exception TYPE (FR-005) carrying its OWN named remedy
+            // (the supported grammar + fix) so the row refuses at plan
+            // time instead of emitting a pair that can only die at
+            // verify-red; the missing-`-> Return` refusal keeps its
+            // legacy message byte-for-byte.
             if (kind == ContractRowKind.function) {
+              final remedy = error is ParameterSyntaxException
+                  ? error.message
+                  : '   --> fix: add the `-> Return` part.';
               throw StateError(
                 'contract row "$name" declares a malformed signature '
                 '"$method" — declared signatures must be '
                 '`name(Params) -> Return` (spec line $lineNo).\n'
-                '   --> fix: add the `-> Return` part.',
+                '$remedy',
               );
             }
           }
@@ -1357,13 +1461,25 @@ class SpecParser {
   /// #829 remediation 1: plan must surface them so the loop can create
   /// and wire them). Bug #919: the zuraffa-1.0 template declares
   /// entities as a 3-column table — rows are parsed alongside the legacy
-  /// bullets, and a section may mix both forms.
-  List<SpecEntity> parseKeyEntities(String specMd) {
+  /// bullets, and a section may mix both forms. Issue #1486: table
+  /// fields cells accept unbackticked `name: Type` pairs (mixed freely
+  /// with the backticked form); bullet prose keeps the strict
+  /// backticked-only grammar so ordinary prose colons cannot invent
+  /// fields. When [anomalies] is provided it receives one
+  /// [SpecEntityFieldAnomaly] per table cell that showed pair evidence
+  /// but still parsed to zero fields — the caller decides how loudly to
+  /// refuse the silence.
+  List<SpecEntity> parseKeyEntities(
+    String specMd, {
+    List<SpecEntityFieldAnomaly>? anomalies,
+  }) {
     final entities = <SpecEntity>[];
     var inSection = false;
     var tableMode = false;
     var tableColumns = 0;
+    var lineNo = 0;
     for (final line in normalizeSpecText(specMd).split('\n')) {
+      lineNo++;
       final trimmed = line.trim();
       if (trimmed.startsWith('#')) {
         inSection = _matchesSectionHeading(trimmed, _keyEntitiesHeading);
@@ -1400,12 +1516,18 @@ class SpecParser {
             name = name.substring(0, genericStart).trim();
           }
           if (!_dartIdentifier.hasMatch(name)) continue;
-          final fields = _fieldPair
-              .allMatches(m.group(2) ?? '')
-              .map(
-                (f) => EntityField(name: f.group(1)!, type: f.group(2)!.trim()),
-              )
-              .toList();
+          // Issue #1486: table cells carry the pair covenant — accept
+          // backticked, plain, and mixed pairs; report every pair the
+          // cell DROPPED instead of losing it silently. The guard is no
+          // longer all-or-nothing: a cell that mints one pair and
+          // starves another is the same silence, one step in.
+          final cell = m.group(2) ?? '';
+          final (fields, dropped) = _parseFieldCell(cell);
+          if (anomalies != null && dropped > 0) {
+            anomalies.add(
+              SpecEntityFieldAnomaly(entity: name, cell: cell, line: lineNo),
+            );
+          }
           entities.add(
             SpecEntity(
               name: name,
@@ -1427,6 +1549,11 @@ class SpecParser {
       if (genericStart > 0) name = name.substring(0, genericStart).trim();
       if (!_dartIdentifier.hasMatch(name)) continue;
       final prose = m.group(2) ?? '';
+      // Bullet prose stays backticked-only (issue #1486): the bullet's
+      // free prose may carry ordinary colons (`Note: this file is
+      // generated`), so only the explicit `` `name: Type` `` covenant
+      // may mint fields here. Table cells are the pair-dedicated
+      // grammar — see [_parseFieldCell].
       final fields = _fieldPair
           .allMatches(prose)
           .map((f) => EntityField(name: f.group(1)!, type: f.group(2)!.trim()))
@@ -1434,6 +1561,113 @@ class SpecParser {
       entities.add(SpecEntity(name: name, fields: fields));
     }
     return entities;
+  }
+
+  /// Issue #1486: parse a Key Entities fields cell into pairs, accepting
+  /// the backticked `` `name: Type` ``, the plain `name: Type`, and any
+  /// mix of both, in source order. Backwards compatible by construction:
+  /// a backticked span parses exactly as the old [_fieldPair] grammar
+  /// (the name must open the span, the type runs to the closing
+  /// backtick, commas inside are the type's own), while the unbackticked
+  /// text between spans is split on top-level commas only — a comma
+  /// nested in `<...>`/`(...)` belongs to its type (`Map<String, int>`).
+  ///
+  /// Returns the minted fields AND the count of pairs the cell dropped:
+  /// a fragment or span that shows pair evidence but mints nothing, or a
+  /// pair whose type swallowed a further declaration
+  /// (`id: String; title: String`). A non-zero count is the partial
+  /// starvation `parseKeyEntities` reports — the #1486 silence is not
+  /// only the wholly empty cell.
+  static (List<EntityField>, int) _parseFieldCell(String cell) {
+    final fields = <EntityField>[];
+    var dropped = 0;
+    var inBackticks = false;
+    final span = StringBuffer();
+
+    // Plain-pair fragments: split at depth-0 commas, then apply the
+    // `name: Type` shape. Fragments without the shape are skipped —
+    // purposeful prose in a dedicated cell is tolerated, minted never.
+    void flushOutside() {
+      final text = span.toString();
+      span.clear();
+      var depth = 0;
+      var start = 0;
+      for (var i = 0; i < text.length; i++) {
+        final ch = text[i];
+        if (ch == '<' || ch == '(') {
+          depth++;
+        } else if (ch == '>' || ch == ')') {
+          if (depth > 0) depth--;
+        } else if (ch == ',' && depth == 0) {
+          dropped += _addFieldFragment(fields, text.substring(start, i));
+          start = i + 1;
+        }
+      }
+      dropped += _addFieldFragment(fields, text.substring(start));
+    }
+
+    for (var i = 0; i < cell.length; i++) {
+      final ch = cell[i];
+      if (ch != '`') {
+        span.write(ch);
+        continue;
+      }
+      if (inBackticks) {
+        // Closing backtick: the span content parses under the pair
+        // grammar, with the span's OUTER whitespace tolerated — the
+        // plain path trims, so the two halves of one cell grammar now
+        // agree and a padded ` id: String` still mints its pair. Raw
+        // content is tried first, so the old grammar's fidelity holds
+        // (`a: ` still yields its empty type). A span that mints no
+        // pair at all is a dropped candidate, never silence.
+        final raw = span.toString();
+        final m =
+            _fieldPairShape.firstMatch(raw) ??
+            _fieldPairShape.firstMatch(raw.trim());
+        if (m != null) {
+          fields.add(EntityField(name: m.group(1)!, type: m.group(2)!.trim()));
+        } else {
+          dropped++;
+        }
+        span.clear();
+      } else {
+        // Opening backtick: the text before it is outside the span —
+        // flush it as plain-pair fragments so the next span never
+        // inherits a stale `, ` prefix (which would anchor-fail the
+        // shape and silently drop the pair — the #1486 failure shape).
+        flushOutside();
+      }
+      inBackticks = !inBackticks;
+    }
+    // A trailing unbackticked tail — or an unterminated backtick span,
+    // which degrades to plain-pair parsing rather than vanishing (the
+    // exact silence #1486 forbids).
+    flushOutside();
+    return (fields, dropped);
+  }
+
+  /// Mint one plain-pair fragment and return how many pairs it DROPPED:
+  /// zero when it minted its pair and no declaration was left inside the
+  /// type. A fragment that carries the `identifier:` shape but mints
+  /// nothing is a dropped pair, not prose; and a pair whose type still
+  /// carries a `;`-separated declaration (`id: String; title: String`)
+  /// swallowed the second one, because the split only knows commas.
+  static int _addFieldFragment(List<EntityField> fields, String fragment) {
+    final trimmed = fragment.trim();
+    final m = _fieldPairShape.firstMatch(trimmed);
+    if (m == null) return _fieldCellEvidence.hasMatch(trimmed) ? 1 : 0;
+    fields.add(EntityField(name: m.group(1)!, type: m.group(2)!.trim()));
+    return _swallowedPair.hasMatch(m.group(2)!) ? 1 : 0;
+  }
+
+  /// Issue #1486: the field NAMES an entity Dart file on disk declares —
+  /// the shape phase-0's reuse path compares the plan's declared fields
+  /// against, so a pre-fix field-less entity reused by a later run is
+  /// named instead of starved silently. Best-effort by design: it feeds
+  /// a print-only warning, never a gate; a file that is not an entity
+  /// class simply yields fewer (or no) names.
+  static List<String> entityFieldNamesFromDartSource(String source) {
+    return [for (final m in _dartFinalMember.allMatches(source)) m.group(2)!];
   }
 
   /// Issue #1196: one FR declaration line, in EITHER grammar the

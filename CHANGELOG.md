@@ -7,6 +7,31 @@
   `import 'package:zuraffa/agent.dart';` where agent symbols are used.
 
 ### Fixed
+- Generated `hide` combinators verify against the zuraffa barrel surface:
+  an unresolved barrel (target without a resolvable `zuraffa` entry at
+  generation time) drops the combinator entirely instead of emitting
+  unverified names — `hide Task, TaskPatch` no longer fails `zfa build`'s
+  own analyze gate with `undefined_hidden_name` warnings. The collector
+  also honors `show`/`hide` combinators on export lines and resolves
+  nested directory-relative barrels (#1530).
+- `zfa make` ensures `zuraffa: ^6.0.0` under the target pubspec's
+  `dependencies:` (offline-safe textual patch, idempotent,
+  comment-preserving) when the files it wrote import
+  `package:zuraffa/...` — the core package was never declared for
+  Flutter targets wiring only `zuraffa_flutter`/`zuraffa_ui`, so
+  generated imports fired `depend_on_referenced_packages` (#1530).
+- `green-with-failed-build` make receipts print the failed build output's
+  analyzer `warning -` lines verbatim (or an explicit no-warnings line) —
+  the tolerated class is never a quiet default (#1530).
+- `zfa tdd refactor` no longer deadlocks on a warnings-only analyze-gate
+  refusal: the pass registry's build gate is errors-only (warnings are the
+  `dart fix --apply` pass's input), the verdict is logged with its accurate
+  counts, and the `analyze-gate: warnings-blocking` profile opt-in restores
+  the legacy refusal (#1472). When the build pass's resolved zfa binary
+  provably reports a version other than the driving CLI's, it is bypassed
+  for the driving CLI's own entrypoint — and only then: an equal, unprovable,
+  or unresolvable version keeps the previous resolution, and the replacement
+  itself must prove the driving version too (#1472)
 - Contract-lane generated tests import `flutter_test` on Flutter hosts and
   resolve the subject through a `package:` URI under `lib/`; the stale-stub
   re-render keeps the package import instead of reverting to the relative

@@ -337,6 +337,22 @@ Lanes:
     expect(envelope['details']['result'], 'complete');
   });
 
+  test('an invalid --heartbeat is rejected BEFORE the mode branch', () async {
+    // Review finding #1599: the parse sits beside --timeout, above the
+    // conformance-mode branch, so this conformance lane (adaptive_slots
+    // declared) rejects the value with the same runner-error path every
+    // other mode uses instead of running with it silently ignored.
+    final out = await drive(const ['--heartbeat', 'abc']);
+
+    expect(exitCode, 2, reason: out);
+    expect(out, contains('invalid --heartbeat "abc"'), reason: out);
+    expect(
+      out,
+      contains('run-skin: feature=$feature lane=skin result=runner-error'),
+      reason: 'the shared rejection path: summary line + exit 2',
+    );
+  });
+
   test('a feature with no SKIN lane is an honest empty complete', () async {
     // Rewrite the spec with no SKIN lane and drop the W1 row. With no
     // SKIN declaration (no adaptive slots) the composed driver runs the

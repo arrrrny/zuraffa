@@ -322,7 +322,14 @@ class PlanCommand extends Command<void> {
     // Bug #829: extract the spec's Key Entities so the loop can create
     // and wire them (run phase 0 + the entity pipeline routing read
     // this section back through TestListReader.readEntities).
-    final entities = const SpecParser().parseKeyEntities(specMd);
+    // Issue #1486: cells that SHOW pair evidence but still parse to
+    // zero fields are collected — the vacuous-green seed must be named
+    // at plan time, not discovered 28 minutes into a run.
+    final keyEntityAnomalies = <SpecEntityFieldAnomaly>[];
+    final entities = const SpecParser().parseKeyEntities(
+      specMd,
+      anomalies: keyEntityAnomalies,
+    );
     // Issue #1381: a declared-but-unparseable `## Key Entities` section
     // used to vanish silently — the run-engine cert gate then saw zero
     // CORE entities and passed trivially. Name the loss.
@@ -337,6 +344,20 @@ class PlanCommand extends Command<void> {
         'no entities were extracted (check the table header grammar: '
         '`| Entity | Fields | Purpose |`). The engine cert gate will see '
         'zero CORE entities (issue #1381).',
+      );
+    }
+    // Issue #1486: a per-row sibling of the #1381 warning — the section
+    // extracted entities, but one row's fields cell shows pair evidence
+    // (a backtick span or an `identifier:` shape) that parsing dropped,
+    // wholly or partially. The entity is created without those pairs;
+    // name the row and the cell instead of letting the run vacuous-green
+    // later.
+    for (final anomaly in keyEntityAnomalies) {
+      print(
+        'zfa tdd plan: WARNING — Key Entities row `${anomaly.entity}` '
+        '(spec line ${anomaly.line}) declares field pairs that parsing '
+        'dropped (cell: `${anomaly.cell}`) — fix the field grammar or the '
+        'entity will be created without them (issue #1486).',
       );
     }
 
@@ -2099,6 +2120,19 @@ class PlanCommand extends Command<void> {
   /// (a unit behavior with no declared contract trace: the classifier
   /// cannot invent the row name, so `zfa tdd make` will dead-end on it),
   /// distinct from the repairable scenario-classified fallbacks.
+  ///
+  /// SPEC 1537 (issue #1537): the fatal class SURVIVED feature #1484 — an
+  /// inline `traces:` line binding ONLY criterion-shaped tokens (`FR-001`,
+  /// the resolver's `_criterionToken` skip) survives the `traceTokens`
+  /// filter, binds non-empty (so #1484 keeps the unit row instead of
+  /// routing a manual declaration), and passes the resolver without
+  /// dangling: `kind == null` -> `RoutingUndeclared` -> `decision == unit`
+  /// -> `!repairable`. The #1480 gate hides the route on the default path,
+  /// but persistence-marked fallbacks are exempt and
+  /// `--allow-unit-fallback` skips the gate — both reach `deadEnds`. The
+  /// class is LIVE, pinned by the `#1537` group in
+  /// `plan_command_bug_1481_test.dart` (red against the deletion mutant,
+  /// green on HEAD) — do NOT delete it as dead code.
   ({
     Map<String, List<String>> lines,
     Map<String, BehaviorKind> fallbackKinds,
@@ -2190,6 +2224,13 @@ class PlanCommand extends Command<void> {
       // CONTRACT TRACE no classifier can invent: make will dead-end on
       // it. Identical prefixes hid a transient self-healing condition
       // behind a permanently fatal one.
+      //
+      // SPEC 1537: post-#1484 the unit-kind `RoutingUndeclared` source is
+      // the criterion-only trace binding (`traces: FR-001` — the tokens
+      // survive the filter and the resolver's criterion skip), NOT the
+      // retired no-binding default (that routes manual). Reachable via the
+      // persistence-marked exemption or `--allow-unit-fallback`; pinned
+      // live by the `#1537` group in `plan_command_bug_1481_test.dart`.
       final repairable =
           decision == BehaviorKind.acceptance ||
           decision == BehaviorKind.widget;
@@ -2228,6 +2269,13 @@ class PlanCommand extends Command<void> {
   /// unit `make`. Prints nothing when every behavior carries a declared
   /// trace (the common case after the marker migration has healed the
   /// scenario lane).
+  ///
+  /// SPEC 1537: this tally is REACHABLE, not retired — a criterion-only
+  /// trace binding (`traces: FR-001`) still routes a unit behavior through
+  /// the fatal `!repairable` class when the #1480 gate exempts it
+  /// (persistence-marked) or is waived (`--allow-unit-fallback`). The
+  /// `#1537` group in `plan_command_bug_1481_test.dart` fails if this
+  /// line is deleted — the Option-A "dead code" claim was disproved.
   void _printDeadEndTally(List<String> deadEndIds) {
     if (deadEndIds.isEmpty) return;
     final n = deadEndIds.length;

@@ -1,4 +1,5 @@
-/// Vacuous-green detection for the UNIT lane (issue #1259).
+/// Vacuous-green detection for the UNIT and ACCEPTANCE lanes (issues
+/// #1259, #1488).
 ///
 /// Bug #1259: the engine lane certified vacuous greens — a unit test
 /// whose only assertion was the UnimplementedError guard
@@ -15,6 +16,16 @@
 /// the guard fails — honest red), but green must require at least one
 /// assertion on the observable outcome named by the behavior
 /// description.
+///
+/// Issue #1488: the SAME refusal covers ACCEPTANCE rows. Their paired
+/// subject is a parameterless `void` scenario runner that the composition
+/// lane never rewrites the test for (the 044 ownership contract), so a
+/// guard-only acceptance test stays guard-only for its whole life and
+/// every post-compose green it certifies is proof-free. The remedy is
+/// lane-branched: the acceptance capture only ever resolves `null`, so
+/// the unit-lane "assert the observable outcome at the capture" advice
+/// cannot be carried out there — the acceptance branch prescribes the
+/// traced re-plan/re-gen path ([vacuousGuardFallbackRemedyFor]).
 ///
 /// Issue #1512: this module also carries the ACCEPTANCE lane's two
 /// vocabulary constants ([acceptanceFallbackGuardToken] and
@@ -242,8 +253,9 @@ final RegExp _anyExpect = RegExp(
   r'\bexpect(?:Later|Async[0-6]?)?\s*\(|\bfail\s*\(',
 );
 
-/// Whether [content] is a vacuous-green UNIT test (issue #1259): the
-/// assertion set is only the UnimplementedError guard (or empty).
+/// Whether [content] is a vacuous-green test (issues #1259, #1488 — the
+/// UNIT and ACCEPTANCE lanes): the assertion set is only the
+/// UnimplementedError guard (or empty).
 ///
 /// Two detection layers, mirroring the widget lane's `contentIsScaffolded`:
 ///   1. the machine-readable [vacuousGuardMarker] the gen template emits

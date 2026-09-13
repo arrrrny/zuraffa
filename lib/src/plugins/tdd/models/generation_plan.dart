@@ -248,6 +248,14 @@ class GenerationStep {
   /// observability; never used in decisions.
   final StepTelemetry? telemetry;
 
+  /// Issue #1587: true when the step was SKIPPED by the build-skip
+  /// scheduling gate — the terminal `build` step of a plan whose
+  /// generation wrote nothing a builder consumes. The captured step is
+  /// synthetic (exit 0, [output] carries the skip note): no subprocess
+  /// was spawned, and the audit stays honest about that. Every
+  /// executed step (including a real build) carries the default false.
+  final bool buildSkipped;
+
   const GenerationStep({
     required this.command,
     required this.exitCode,
@@ -256,6 +264,7 @@ class GenerationStep {
     this.timedOut = false,
     this.killClass = GenerationKillClass.none,
     this.telemetry,
+    this.buildSkipped = false,
   });
 
   /// The machine-parseable verdict class for a killed step
@@ -341,12 +350,22 @@ class GenerationPlan {
   final List<GenerationStepSpec> steps;
   final String? unexpressibleReason;
 
+  /// Issue #1565: the func-surface branch omitted the `tdd func` step
+  /// because the subject is already gen's contract-derived stub func
+  /// would refuse to rewrite — the ONLY plan shape that drops a func
+  /// step. Make gates its audit note on THIS plan fact (an omission the
+  /// plan actually made), never on the summary-wide predicate: plans
+  /// that never scheduled a func step (entity pipelines, wire,
+  /// acceptance composition) must not claim one was skipped.
+  final bool funcStepSkipped;
+
   GenerationPlan({
     required this.behaviorId,
     required this.feature,
     required this.sourceCriterion,
     required this.steps,
     this.unexpressibleReason,
+    this.funcStepSkipped = false,
   }) : assert(
          (steps.isNotEmpty && unexpressibleReason == null) ||
              (steps.isEmpty && unexpressibleReason != null),

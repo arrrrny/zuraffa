@@ -68,6 +68,30 @@ void main() {
       expect(envelope['fix'], isNotNull, reason: out);
     });
 
+    test('tdd run-engine --json rejects an invalid --heartbeat as runner-error '
+        'with a fix', () async {
+      final (code, out) = await run([
+        'tdd',
+        'run-engine',
+        '917-json-feature',
+        '--project',
+        root.path,
+        '--json',
+        '--heartbeat',
+        'abc',
+      ]);
+      expect(code, 2, reason: out); // the runner-error exit
+      final envelope = lastJsonLine(out);
+      expect(envelope, isNotNull, reason: out);
+      expect(envelope!['schema'], 'zuraffa.verdict.v1');
+      expect(envelope['command'], 'run-engine');
+      // Review finding #1599: the rejection is classified like its
+      // --timeout sibling, not left to the derived fallback label.
+      expect(envelope['exit_class'], 'runner-error', reason: out);
+      expect(envelope['fix'], isNotNull, reason: out);
+      expect(envelope['fix'], contains('--heartbeat'), reason: out);
+    });
+
     test('tdd status --json closes with a verdict.v1 envelope', () async {
       final (code, out) = await run([
         'tdd',

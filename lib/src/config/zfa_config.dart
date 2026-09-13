@@ -16,29 +16,35 @@ class ZfaConfig {
     'macos',
   ];
 
+  /// Issue #1496: the clean-architecture stack is the DEFAULT tier — a
+  /// fresh `zfa config init` project must scaffold a runnable slice on a
+  /// bare `zfa make <Entity>` instead of resolving zero plugins ("No
+  /// active plugins to run."). The opt-in tier (presentation extras,
+  /// storage backends, tooling lanes) stays false and is enabled per
+  /// project via .zfa.json, `--with=<plugin>`, or a preset.
   static const Map<String, bool> _builtinPluginDefaults = {
-    'repository': false,
-    'provider': false,
-    'usecase': false,
-    'presenter': false,
-    'controller': false,
+    'repository': true,
+    'provider': true,
+    'usecase': true,
+    'presenter': true,
+    'controller': true,
     'view': false,
     'feature': false,
     'state': false,
     'observer': false,
-    'test': false,
+    'test': true,
     'gym': false,
-    'mock': false,
-    'di': false,
-    'datasource': false,
+    'mock': true,
+    'di': true,
+    'datasource': true,
     'service': false,
-    'route': false,
-    'cache': false,
+    'route': true,
+    'cache': true,
     'sqlite': false,
     'gql': false,
     'graphql': false,
     'skin': false,
-    'method_append': false,
+    'method_append': true,
     'xray': false,
     // 029-agent-plugin-mcp-wrappers: the AgentPlugin is dormant by
     // default. Activation happens via `zfa make Foo --agent` (flag
@@ -300,6 +306,30 @@ class ZfaConfig {
     }
   }
 
+  /// Issue #1596 review: [load] collapses "no `.zfa.json`" and "`.zfa.json`
+  /// exists but could not be parsed" onto the same result, so a write path
+  /// cannot tell that it is about to replace a file it failed to read —
+  /// dropping the user's `presets`, `aliases`, `ui`, `features` and `tdd`
+  /// sections in favour of generated defaults. Write paths call this before
+  /// persisting and refuse with the CLI's standard `--> fix:` guidance when it
+  /// returns non-null.
+  static String? unparseableConfigMessage({String? projectRoot}) {
+    final root = projectRoot ?? Directory.current.path;
+    final configFile = File(p.join(root, '.zfa.json'));
+    if (!configFile.existsSync()) return null;
+    try {
+      if (jsonDecode(configFile.readAsStringSync()) is Map<String, dynamic>) {
+        return null;
+      }
+    } catch (_) {
+      // Falls through to the refusal below.
+    }
+    return '❌ Refusing to overwrite ${configFile.path}: the existing '
+        '.zfa.json could not be parsed, and saving would replace it with '
+        'defaults (dropping its presets/aliases/ui/features/tdd sections).\n'
+        '   --> fix: repair or delete ${configFile.path}, then re-run.';
+  }
+
   factory ZfaConfig.fromJson(Map<String, dynamic> json) {
     final plugins = _map(json['plugins']);
     final planning = _map(json['planning']);
@@ -395,23 +425,68 @@ class ZfaConfig {
     if (rawTdd != null) 'tdd': rawTdd,
   };
 
-  static Future<void> init({String? projectRoot}) async {
+  static Future<void> init({String? projectRoot, bool minimal = false}) async {
     final root = projectRoot ?? Directory.current.path;
     final configFile = File(p.join(root, '.zfa.json'));
 
     if (configFile.existsSync()) {
       print('ℹ️  Configuration file already exists: ${configFile.path}');
+      // Issue #1496 item 6 (PR #1579 review): a config whose
+      // plugins.defaults entries are all `false` is almost certainly an
+      // artifact of the pre-fix `config init`, not a deliberate all-off
+      // choice — the map is exactly what the old defaults wrote. Report
+      // it instead of silently accepting it as intent.
+      final existingDefaults = load(projectRoot: root)?.pluginDefaults;
+      if (existingDefaults != null &&
+          existingDefaults.isNotEmpty &&
+          existingDefaults.values.every((enabled) => !enabled)) {
+        print('   ⚠️  plugins.defaults is all-false — the pre-#1496 default,');
+        print('      most likely, rather than an explicit opt-out.');
+        print(
+          '      Enable the stack with `zfa config set <plugin>ByDefault true`',
+        );
+        print(
+          '      (e.g. repositoryByDefault, usecaseByDefault, diByDefault)',
+        );
+        print('      or keep the all-off behavior deliberately.');
+      }
       return;
     }
 
-    await save(ZfaConfig(), projectRoot: root);
+    // Issue #1496: `--minimal` keeps the pre-#1496 all-off map for teams
+    // who opt every default out and select plugins per command.
+    await save(minimal ? ZfaConfig.minimal() : ZfaConfig(), projectRoot: root);
     print('✅ Created configuration file: ${configFile.path}');
+    if (minimal) {
+      print('   Minimal mode: every plugin defaults off — pass');
+      print('   --preset=crud or --with=<plugin> to select plugins.');
+    } else {
+      print(
+        '   Clean-architecture stack (di, datasource, repository, usecase,',
+      );
+      print(
+        '   mock, test, method_append, route, provider, presenter, controller,',
+      );
+      print('   cache) is enabled by default; a bare `zfa make` scaffolds it.');
+      print('   Opt-in plugins (view, state, sqlite, graphql, ...) stay off —');
+      print('   enable them with --with=<plugin> or `zfa config set`.');
+    }
     print('   Canonical generation defaults now live under plugins.defaults.');
     print(
       '   v5 uses fixed generation paths under lib/src/domain and lib/src/domain/entities.',
     );
     print(
       '   Adaptive layout scaffolding can be enabled under ui.adaptiveLayouts with targets from ui.layoutTargets.',
+    );
+  }
+
+  /// Issue #1496: the all-off config — the pre-#1496 default map, now the
+  /// explicit `zfa config init --minimal` surface. Every builtin plugin is
+  /// written `false` so plan resolution selects only what the command line
+  /// (or preset) names.
+  factory ZfaConfig.minimal() {
+    return ZfaConfig(
+      pluginDefaults: {for (final id in _builtinPluginDefaults.keys) id: false},
     );
   }
 
