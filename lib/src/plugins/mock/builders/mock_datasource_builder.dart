@@ -1,8 +1,6 @@
-import 'package:analyzer/dart/ast/ast.dart' show ClassDeclaration;
 import 'package:code_builder/code_builder.dart';
 
 import '../../../core/ast/append_executor.dart';
-import '../../../core/ast/ast_helper.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
@@ -31,6 +29,9 @@ import 'mock_type_helper.dart';
 ///     idempotent append path, ledger `updated`, with a notice naming
 ///     the missing members — the drift never reaches the analyze gate
 ///     as a compile error (`non_abstract_class_inherits_abstract_member`).
+///     The repair is strictly additive: members the mock already
+///     declares are not re-emitted, so customized bodies survive
+///     (issue #1570 review).
 /// `--force` regeneration, `--append` idempotent member addition, and
 /// `--revert` undo/delete keep their pre-existing contracts.
 class MockDataSourceBuilder {
@@ -274,7 +275,28 @@ class MockDataSourceBuilder {
         }
       }
 
+      // Issue #1570 review: the repaired mock's implemented member set
+      // is read through the detector's shared primitive (same scope as
+      // the drift check — the mock class only), and a shape-drift
+      // repair is strictly ADDITIVE: members the mock already declares
+      // are never re-emitted (the append strategy replaces same-name
+      // members, which would clobber customized bodies — the finding's
+      // verified `get` case). The explicit `appendToExisting` path
+      // keeps its pre-existing append-or-replace contract.
+      final existingMembers =
+          MockStalenessDetector.implementedMemberNamesIn(
+            updated,
+            '${entityName}MockDataSource',
+          ) ??
+          const <String>{};
+
       for (final method in methods) {
+        final methodName = method.name;
+        if (shapeDrift &&
+            methodName != null &&
+            existingMembers.contains(methodName)) {
+          continue;
+        }
         final methodSource = specLibrary.emitSpec(method);
         final request = AppendRequest.method(
           source: updated,
@@ -285,6 +307,7 @@ class MockDataSourceBuilder {
             ? appendExecutor.undo(request)
             : appendExecutor.execute(request);
         updated = result.source;
+        if (methodName != null) existingMembers.add(methodName);
       }
 
       // Issue #1570: the config-driven method set above covers the
@@ -294,11 +317,9 @@ class MockDataSourceBuilder {
       // implementations for exactly those missing members from the
       // interface's own shapes so the repaired mock always covers the
       // full declared surface.
-      final existingMembers = _implementedMemberNames(updated);
       for (final member in missingInterfaceMembers) {
         if (existingMembers.contains(member.fieldName)) continue;
         final method = _mockMethodImplForMissingMember(
-          config: config,
           entityName: entityName,
           member: member,
         );
@@ -312,6 +333,7 @@ class MockDataSourceBuilder {
             ? appendExecutor.undo(request)
             : appendExecutor.execute(request);
         updated = result.source;
+        existingMembers.add(member.fieldName);
       }
 
       final written = await FileUtils.writeFile(
@@ -378,36 +400,26 @@ class MockDataSourceBuilder {
     );
   }
 
-  /// Issue #1570: the mock class's implemented member names, read from
-  /// the (possibly already-appended) source via the same AST primitives
-  /// the certification uses. Unparseable sources contribute nothing —
-  /// the append executor remains the authority on what lands.
-  Set<String> _implementedMemberNames(String source) {
-    try {
-      final unit = const AstHelper().parseSource(source).unit;
-      if (unit == null) return const {};
-      final names = <String>{};
-      for (final node in unit.declarations) {
-        if (node is ClassDeclaration) {
-          names.addAll(
-            const AstHelper().findMethods(node).map((m) => m.name.toString()),
-          );
-        }
-      }
-      return names;
-    } catch (_) {
-      return const {};
-    }
-  }
-
   /// Issue #1570: builds a mock implementation for one missing
   /// interface member from the interface's own extracted shape
   /// ([ParsedUseCaseInfo]). Body patterns mirror what the lane already
   /// emits for the known CRUD shapes: log → delay → sample fixture /
-  /// Future.value / Stream.fromFuture. Returns null for shapes this
-  /// lane cannot honestly implement (no return type to speak of).
+  /// Future.value / Stream.fromFuture.
+  ///
+  /// The signature mirrors the interface declaration: no `params`
+  /// argument when the member declares none, and a getter body when the
+  /// interface member is a getter (issue #1570 review — an always-required
+  /// `params` is `invalid_override` for `dispose()` and
+  /// `conflicting_method_and_field` for `Stream<bool> get isInitialized`).
+  /// The stream body's delayed future is typed `Future<$returns>` so
+  /// `Stream.fromFuture` yields `Stream<T>` (a `Future<void>` yields
+  /// `Stream<void>` and fails `argument_type_not_assignable`).
+  ///
+  /// Returns null for shapes this lane cannot honestly implement: the
+  /// only getter shape the interface writer emits is the `--init`
+  /// `Stream<bool> get isInitialized`; any other getter is left to the
+  /// certification gate's report instead of fabricating a body.
   Method? _mockMethodImplForMissingMember({
-    required GeneratorConfig config,
     required String entityName,
     required ParsedUseCaseInfo member,
   }) {
@@ -417,6 +429,21 @@ class MockDataSourceBuilder {
     final isStream = member.useCaseType == 'stream';
     final isVoid = baseReturns == 'void' || baseReturns == 'dynamic';
     final paramsType = member.paramsType ?? 'NoParams';
+
+    if (member.isGetter) {
+      if (!isStream || baseReturns != 'bool') return null;
+      return Method(
+        (m) => m
+          ..name = member.fieldName
+          ..type = MethodType.getter
+          ..returns = refer('Stream<bool>')
+          ..annotations.add(refer('override'))
+          ..lambda = true
+          ..body = refer(
+            'Stream',
+          ).property('value').call([literalBool(true)]).code,
+      );
+    }
 
     final returnType = isStream ? 'Stream<$returns>' : 'Future<$returns>';
 
@@ -449,7 +476,7 @@ class MockDataSourceBuilder {
           refer('Stream')
               .property('fromFuture')
               .call([
-                refer('Future<void>').property('delayed').call([
+                refer('Future<$returns>').property('delayed').call([
                   refer('_delay'),
                   Method(
                     (mm) => mm
@@ -479,12 +506,16 @@ class MockDataSourceBuilder {
         ..returns = refer(returnType)
         ..annotations.add(refer('override'))
         ..modifier = isStream ? null : MethodModifier.async
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
-          ),
+        ..requiredParameters.addAll(
+          member.parameterCount == 0
+              ? const []
+              : [
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(paramsType),
+                  ),
+                ],
         )
         ..body = isStream ? streamBody : futureBody,
     );
@@ -531,7 +562,11 @@ class MockDataSourceBuilder {
                     refer('Stream')
                         .property('fromFuture')
                         .call([
-                          refer('Future<void>').property('delayed').call([
+                          // Issue #1570 review: the delayed future must be
+                          // typed Future<$returns> — Future<void> yields
+                          // Stream<void> and fails argument_type_not_assignable
+                          // against the declared Stream<$returns>.
+                          refer('Future<$returns>').property('delayed').call([
                             refer('_delay'),
                             Method(
                               (mm) => mm

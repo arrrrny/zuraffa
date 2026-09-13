@@ -73,3 +73,23 @@
 - [x] **T012** (P3) document the repaired lane contract in the
   builder's doc comment (shape-check staleness vs existence skip;
   #1570 cross-reference) — no behavior. [SC-005]
+
+## 4. Review round (PR #1614 findings) — after green
+
+- [x] **T013** (P1) carry the member's declaration shape out of
+  interface extraction (`parameterCount` + `isGetter` on
+  `ParsedUseCaseInfo`, populated by `MethodExtractor`) and mirror it in
+  the synthesized repair: no `params` argument for parameter-less
+  members, a getter body for the `--init` `Stream<bool> get
+  isInitialized`; type the stream bodies `Future<$returns>` (drift
+  synthesis AND the custom-usecase stream branch); make the drift
+  repair strictly additive (never re-emit an implemented member);
+  read the implemented-member set through the detector's shared
+  primitive. [FR-002, FR-003, FR-005]
+- [x] **T014** (P1) review-round tests: U1 detector-exactness
+  (in-sync + helpers → empty; missing → exactly one), A5 additive
+  repair (customized body survives), the U2 compile bar with a REAL
+  scoped `dart analyze` over the repaired pair
+  (`mock_datasource_builder_1570_compile_test.dart`), and the
+  certify-gate A6 re-base (signature-level drift + state-conditional
+  analyzer stub). [FR-002, FR-003, FR-005]

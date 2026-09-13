@@ -93,7 +93,7 @@ The repair is part of the generation run itself — the mock is healed before ma
 
 | Entity | Fields | Purpose |
 | -- | -- | -- |
-| ParsedUseCaseInfo | `fieldName: String`, `paramsType: String`, `returnsType: String`, `useCaseType: String` | One interface member's extracted shape — the unit of drift the repair appends |
+| ParsedUseCaseInfo | `fieldName: String`, `paramsType: String`, `returnsType: String`, `useCaseType: String`, `parameterCount: int`, `isGetter: bool` | One interface member's extracted shape — the unit of drift the repair appends. `parameterCount`/`isGetter` carry the declaration shape `paramsType` cannot express (`'NoParams'` means both "no parameter" and a real `NoParams params` parameter), so a repaired member mirrors the interface (review round) |
 | GeneratedFile | `path: String`, `type: String`, `action: String` | Ledger entry; the repair emits `updated` where the old code emitted `skipped` |
 
 ## Success Criteria

@@ -23,7 +23,7 @@ import '../../../models/parsed_usecase_info.dart';
 ///
 /// Fail-open: when the interface surface (file / class) or the mock
 /// class cannot be read or parsed, the detector returns an empty list
-/// — the lane keeps its pre-#1571 skip behavior instead of fabricating
+/// — the lane keeps its pre-#1570 skip behavior instead of fabricating
 /// members from nothing. Extra (invented) mock members are NOT drift:
 /// only missing members are repairable (removing them is the
 /// certification gate's report, never this lane's decision).
@@ -52,21 +52,36 @@ abstract final class MockStalenessDetector {
     // 2. Implemented members of the mock class (AST — same parse as
     //    MockCertificationService.certify's implementedMethods).
     if (!await fs.exists(mockPath)) return const [];
-    final helper = const AstHelper();
-    final parseResult = await helper.parseFile(mockPath, fileSystem: fs);
-    final unit = parseResult.unit;
-    if (unit == null) return const [];
-    final classNode = helper.findClass(unit, mockClass);
-    if (classNode == null) return const [];
-    final implemented = helper
-        .findMethods(classNode)
-        .map((m) => m.name.toString())
-        .toSet();
+    final mockSource = await fs.read(mockPath);
+    final implemented = implementedMemberNamesIn(mockSource, mockClass);
+    if (implemented == null) return const [];
 
     // 3. Drift = interface members the mock never declared.
     return [
       for (final member in interfaceMembers)
         if (!implemented.contains(member.fieldName)) member,
     ];
+  }
+
+  /// The member names [className] declares in [source], read with the
+  /// same AST primitives the certification uses (`AstHelper.findMethods`
+  /// over the mock class). Returns null when the source does not parse
+  /// or the class is absent — the fail-open signal callers rely on.
+  ///
+  /// Shared by the drift repair path (the builder's "already
+  /// implemented" set) so the two reads can never diverge: FR-003 says
+  /// the repair and the detector share the certification's primitives
+  /// (issue #1570 review — the builder previously re-implemented this
+  /// scan over every class in the file).
+  static Set<String>? implementedMemberNamesIn(
+    String source,
+    String className,
+  ) {
+    final helper = const AstHelper();
+    final unit = helper.parseSource(source).unit;
+    if (unit == null) return null;
+    final classNode = helper.findClass(unit, className);
+    if (classNode == null) return null;
+    return helper.findMethods(classNode).map((m) => m.name.toString()).toSet();
   }
 }

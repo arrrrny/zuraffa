@@ -76,3 +76,54 @@ Result: recorded in `tdd/verification.md` (real run, actual counts) —
 the mock lane change must not move the datasource writers, the method
 append lane, the certification/certify-gate suites, or the create
 capability contracts.
+
+---
+
+## Cycle 3 — PR #1614 review round: synthesized shapes must compile
+
+**Date**: 2026-09-13 · **Pool task**: `5bd7be01-2162-4fca-9176-ab22929c63e5`
+
+The automated review (`zuraffa-review[bot]`, commit `30eefff9`) found
+that the repair only emits correct code for the shapes the tests
+covered; three other shapes the interface writer really emits produce
+non-compiling output — the same build-gate-red class this feature
+exists to remove. Findings: stream bodies typed `Future<void>`
+(🔴), synthesized signatures ignoring parameter-less members and
+getters (🟠), the drift path re-emitting config members through the
+append-or-replace loop (🔵 clobber), a dead `config` parameter +
+unreachable null fallback (🔵), a duplicated/weaker implemented-member
+scan (🔵), the `pre-#1571` typo (🔵), and verification docs claiming
+U1/U2 coverage that was not in the PR (🟡).
+
+RED recorded with a REAL scoped `dart analyze` over the repaired
+interface + mock pair (`test/plugins/mock/mock_datasource_builder_1570_compile_test.dart`,
+new): 5 issues — `invalid_override` on `dispose(NoParams params)`,
+`argument_type_not_assignable` ×3 (`Future<void>` stream bodies),
+`conflicting_method_and_field` on the getter-as-method
+`isInitialized`. The A5/U1 tests were added alongside; the certify-gate
+A6 was re-based on signature-level drift with a state-conditional
+analyzer stub (name-level shape drift is repaired before the gate now,
+so only signature drift reaches A6's refusal path).
+
+GREEN implementation (same cycle): `ParsedUseCaseInfo` gains
+`parameterCount` + `isGetter` (populated by
+`MethodExtractor.extractMethodsFromInterface`); the drain synthesizes
+mirrored signatures (no `params` when the interface declares none;
+getter body for `--init`'s `Stream<bool> get isInitialized`, null
+fallback for any other getter); stream bodies delay through
+`Future<$returns>` in both the drift synthesis and the custom-usecase
+stream branch; the drift repair skips members the mock already
+declares (strictly additive — customized bodies survive) and reads the
+implemented-member set through `MockStalenessDetector`'s shared
+primitive; the dead `config` parameter is dropped; the `#1571` typo is
+fixed.
+
+### Cycle 3 GREEN evidence
+
+- `dart test test/plugins/mock/mock_datasource_builder_1570_compile_test.dart`
+  → `All tests passed!` (2/2), including the real `dart analyze` over
+  the repaired pair (exit 0).
+- `dart test test/plugins/mock/mock_datasource_builder_1570_test.dart`
+  → `All tests passed!` (15/15; +A5 +U1×2).
+- `dart test test/plugins/mock/mock_certify_gate_test.dart` →
+  `All tests passed!` (4/4, re-based A6).

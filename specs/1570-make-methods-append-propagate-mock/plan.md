@@ -79,7 +79,16 @@ heal without `--force`.
    missing members from their `ParsedUseCaseInfo` shapes (same body
    patterns the builder already emits: `logger.info` → delay →
    `sampleList` / `sample<Entity>` / `Future.value()`; Stream members →
-   `Stream.fromFuture`).
+   `Stream.fromFuture` with a `Future<T>`-typed delay).
+   - Review round: the repair is strictly ADDITIVE (members the mock
+     already declares are never re-emitted — the append strategy
+     replaces same-name members, clobbering customized bodies), and the
+     synthesized signatures mirror the interface declaration
+     (parameter-less members carry no `params`; the `--init`
+     `Stream<bool> get isInitialized` stays a getter). Parameter count
+     and getter-ness travel on `ParsedUseCaseInfo` from
+     `MethodExtractor.extractMethodsFromInterface` (`'NoParams'`
+     paramsType alone cannot express either).
 3. **Interfaces touched**: none outside the mock plugin. The detector
    is exercised through `generateMockDataSource` (the public lane
    entry) so the contract surface stays `GeneratedFile`.
@@ -120,7 +129,8 @@ lib/src/plugins/mock/
 └── services/mock_staleness_detector.dart   # NEW: shape-check staleness detection (fail-open)
 
 test/plugins/mock/
-└── mock_datasource_builder_1570_test.dart  # NEW: behaviors A1-A3, U1-U8
+├── mock_datasource_builder_1570_test.dart          # NEW: repair / precedence / honesty behaviors + U1 detector exactness
+└── mock_datasource_builder_1570_compile_test.dart  # NEW (review round): U2 — real scoped `dart analyze` over the repaired pair
 ```
 
 **Structure Decision**: single-package change inside the mock plugin;
