@@ -22,7 +22,19 @@
 /// invocation; for each pass, the registry captures a [RefactorAction] with
 /// `filesChanged` computed from a per-pass before/after tree-snapshot diff
 /// scoped to `lib/`. The first failing pass stops the remaining passes
-/// (spec 048 FR-010 — misfire-stop).
+/// (spec 048 FR-010 — misfire-stop) — with ONE issue #1472 exception: the
+/// build pass's WARNINGS-ONLY analyze-gate refusal (0 error(s) and >=1
+/// warning(s), the #1407 machine contract cross-checked through the shared
+/// `BuildCommand` parser) is logged with its accurate counts and does not
+/// stop the registry — warnings are the `dart fix` pass's input, not
+/// compile failures, and the pass that would clean them must run. Analyzer
+/// errors, any other failure class, a spawn failure, or a timeout keep the
+/// honest misfire-stop. The TDD profile's `analyze-gate: warnings-blocking`
+/// opt-in (read by the command, handed in as [RefactorPasses.warningsBlocking])
+/// restores the legacy refusal. The build pass's zfa entrypoint is pinned
+/// to the version driving the run ([_pinToDrivingVersion]): a system zfa
+/// on PATH whose `--version` provably disagrees with the running CLI is
+/// bypassed in favor of the driving CLI's own entrypoint.
 ///
 /// The command (not this service) is responsible for the test-directory
 /// immutability check and the overall `lib/` attribution check; this
@@ -32,6 +44,8 @@ library;
 import 'dart:async';
 import 'dart:io';
 
+import '../../../commands/build_command.dart';
+import '../../../version.dart';
 import '../models/refactor_action.dart';
 import 'step_runner.dart';
 import 'tdd_timeout.dart';
@@ -222,6 +236,7 @@ class RefactorPasses {
     String? zfaBinOverride,
     Map<String, String>? environment,
     Duration? passTimeout,
+    this.warningsBlocking = false,
   }) : _executor = executor ?? DefaultProcessExecutor(timeout: passTimeout),
        _passSpecsFuture =
            passSpecs ??
@@ -232,6 +247,11 @@ class RefactorPasses {
 
   /// Project root the passes operate on.
   final String projectRoot;
+
+  /// Issue #1472 (SC-5): the TDD profile's `analyze-gate:` strictness —
+  /// true restores the legacy warnings-blocking refusal for the build
+  /// pass. Default is errors-only (fail-open to the fix).
+  final bool warningsBlocking;
 
   final ProcessExecutor _executor;
   final Future<List<RefactorPassSpec>> _passSpecsFuture;
@@ -317,7 +337,35 @@ class RefactorPasses {
         ),
       );
       // Misfire-stop (FR-010): non-zero exit OR process did not start.
+      // Issue #1472: ONE arm tolerates a failed build pass — the analyze
+      // gate's own WARNINGS-ONLY refusal. The gate (issues #395/#1035)
+      // refuses the tree on errors OR warnings; a hand-implemented subject
+      // with one unused import then misfire-stopped the registry and the
+      // `dart fix --apply` pass — the only pass that would remove exactly
+      // that lint — never ran (deadlock). When the failed pass IS `build`,
+      // the process ran to completion (no spawn failure, no #742 timeout),
+      // and its output proves the refusal was the gate's own verdict with
+      // 0 error(s) and >=1 warning(s) (cross-checked through the shared
+      // `BuildCommand.countAnalyzerIssues` parser — the single #1035
+      // line-format contract), the verdict is logged with its accurate
+      // counts (warnings are the fix pass's input, not "did not compile
+      // cleanly") and the registry CONTINUES to format → fix. The recorded
+      // action keeps the true exit code and raw output. A build verdict
+      // carrying analyzer errors, any non-gate failure class, a spawn
+      // failure, or a timeout keeps the honest misfire-stop byte-
+      // identically — and `warningsBlocking` (the TDD profile's
+      // `analyze-gate: warnings-blocking`, issue #1407's opt-in) skips the
+      // arm entirely, restoring the legacy refusal.
       if (outcome.exitCode != 0 || !outcome.startedProcess) {
+        final toleratedWarningsOnlyRefusal = spec.name == 'build' &&
+            !warningsBlocking &&
+            outcome.startedProcess &&
+            !outcome.timedOut &&
+            _isWarningsOnlyBuildGateRefusal(outcome.output);
+        if (toleratedWarningsOnlyRefusal) {
+          _logWarningsOnlyGateRefusal(outcome.output);
+          continue;
+        }
         return RefactorPassesResult(
           actions: actions,
           stopped: true,
@@ -330,6 +378,72 @@ class RefactorPasses {
       stopped: false,
       failedPass: null,
     );
+  }
+
+  /// The build command's analyze-gate refusal verdict (issue #1472). The
+  /// message has exactly ONE writer — the build command's post-build
+  /// analyze gate (issues #395/#1035):
+  /// `❌ dart analyze reported <E> error(s) and <W> warning(s) — generated
+  /// code does not compile cleanly.` — and carries the counts the gate
+  /// decided on. The same machine contract the make's errors-only gate
+  /// reads (issue #1407); the two interpretations can never drift apart
+  /// because both read this one line.
+  static final RegExp _analyzeGateRefusalPattern = RegExp(
+    r'dart analyze reported (\d+) error\(s\) and (\d+) warning\(s\)',
+  );
+
+  /// Issue #1472: whether [buildOutput] is the build command's
+  /// analyze-gate refusal on WARNINGS ONLY — 0 error(s) and at least one
+  /// warning — i.e. the tree compiles (0 errors) and the build pass
+  /// failed only because the #1035 gate treats warnings as fatal.
+  ///
+  /// Requires BOTH of:
+  ///
+  ///   - the gate's own refusal message naming 0 errors (the single
+  ///     writer documented on [_analyzeGateRefusalPattern]). A build
+  ///     failure without that message is some other failure class
+  ///     (build_runner, DDA routes, post-build verifiers) and keeps the
+  ///     misfire-stop unchanged;
+  ///   - the shared analyzer line-format parser
+  ///     ([BuildCommand.countAnalyzerIssues], the #1035 single contract)
+  ///     finds NO `error -` lines in the raw output. If the gate message
+  ///     and the parser disagree, the honest misfire-stop stands
+  ///     (safe-failure, never a silent pass).
+  static bool _isWarningsOnlyBuildGateRefusal(String buildOutput) {
+    final match = _analyzeGateRefusalPattern.firstMatch(buildOutput);
+    if (match == null) return false;
+    final errors = int.tryParse(match.group(1)!) ?? -1;
+    final warnings = int.tryParse(match.group(2)!) ?? -1;
+    if (errors != 0 || warnings < 1) return false;
+    return !BuildCommand.analyzeReportsError(buildOutput);
+  }
+
+  /// Issue #1472 (SC-3): log the tolerated warnings-only gate refusal —
+  /// the verdict naming the accurate counts (0 error(s), N warning(s) —
+  /// warnings are the dart fix pass's input, NOT a compile failure), then
+  /// the analyzer `warning -` lines themselves. A voluminous verdict logs
+  /// a capped sample plus a remainder count so the transcript stays
+  /// readable.
+  static void _logWarningsOnlyGateRefusal(String buildOutput) {
+    final match = _analyzeGateRefusalPattern.firstMatch(buildOutput)!;
+    final warnings = int.parse(match.group(2)!);
+    print(
+      '   analyze gate: 0 error(s), $warnings warning(s) — warnings are '
+      'non-blocking for the refactor build pass (issue #1472, errors-only '
+      'gate): the dart fix pass runs next.',
+    );
+    final warningLines = RegExp(
+      r'^\s*warning\s*-\s.*$',
+      multiLine: true,
+    ).allMatches(buildOutput).map((m) => m.group(0)!.trim()).toList();
+    const maxLogged = 10;
+    for (final line in warningLines.take(maxLogged)) {
+      print('   $line');
+    }
+    final remainder = warningLines.length - maxLogged;
+    if (remainder > 0) {
+      print('   ... $remainder more warning(s)');
+    }
   }
 }
 
@@ -411,11 +525,94 @@ Future<String> zfaBuildCommand({
     return 'zfa build';
   }
 
+  // Issue #1472: pin the build pass to the zfa version driving this run.
+  entrypoint = await _pinToDrivingVersion(entrypoint, env);
+
   if (entrypoint.endsWith('.dart')) {
     return '${quoteIfNeeded(Platform.resolvedExecutable)} '
         '${quoteIfNeeded(entrypoint)} build';
   }
   return '${quoteIfNeeded(entrypoint)} build';
+}
+
+/// Issue #1472: the `--version` output line of a zfa entrypoint —
+/// `zfa v<semver>` (the single writer is the CliRunner version command).
+final RegExp _zfaVersionLinePattern = RegExp(r'^zfa v(\S+)', multiLine: true);
+
+/// Probe [entrypoint]'s `--version` and return the parsed version string,
+/// or null when UNPROVABLE: the spawn fails, the process exits non-zero,
+/// prints nothing, or prints no `zfa v<semver>` line. Silence rules per
+/// issue #1184's model — an advisory/pinning check must never break the
+/// invocation and must never act on unprovable input, so every failure
+/// mode degrades to null and the caller keeps the current resolution.
+/// A `.dart` entrypoint runs through the current VM (`dart <path>
+/// --version`); a compiled binary runs directly. Bounded by
+/// [TddTimeouts.defaultProbe] so a hung candidate cannot stall the
+/// refactor.
+Future<String?> _probeZfaVersion(String entrypoint) async {
+  try {
+    final result = entrypoint.endsWith('.dart')
+        ? await runTimed(
+            Platform.resolvedExecutable,
+            [entrypoint, '--version'],
+            timeout: TddTimeouts.defaultProbe,
+          )
+        : await runTimed(
+            entrypoint,
+            const ['--version'],
+            timeout: TddTimeouts.defaultProbe,
+          );
+    if (result.exitCode != 0) return null;
+    final stdoutText = (result.stdout as String? ?? '').trim();
+    if (stdoutText.isEmpty) return null;
+    final match = _zfaVersionLinePattern.firstMatch(stdoutText);
+    if (match == null) return null;
+    return match.group(1);
+  } catch (_) {
+    // ProcessException (not executable / missing), ProcessTimeoutException
+    // (hung candidate), anything else — unprovable, never fatal.
+    return null;
+  }
+}
+
+/// Issue #1472: pin the build pass to the zfa version driving the run.
+///
+/// The #717 chain above prefers the system zfa on PATH whenever the
+/// running-from-source tiers fail to resolve (e.g. the global `-C` chdir
+/// re-anchoring `Platform.script`, issue #1371). A stale system install
+/// then executes the build pass with a DIFFERENT gate than the CLI
+/// driving the run. Probe the candidate: a provably different version
+/// re-resolves through the UNSUPPRESSED chain (the real package tier) —
+/// the driving CLI's own entrypoint, whose version is by definition the
+/// driving version — and logs one honest line. An equal or unprovable
+/// version keeps the #717 resolution byte-identically, and an
+/// unresolvable driving entrypoint (StateError) fails open to the #717
+/// candidate rather than crashing the refactor.
+Future<String> _pinToDrivingVersion(
+  String entrypoint,
+  Map<String, String> env,
+) async {
+  final candidateVersion = await _probeZfaVersion(entrypoint);
+  if (candidateVersion == null || candidateVersion == version) {
+    return entrypoint;
+  }
+  try {
+    final driving = await StepRunner.resolveEntrypoint(
+      script: Platform.script,
+      resolvedExecutable: Platform.resolvedExecutable,
+      environment: env,
+    );
+    if (driving == entrypoint) return entrypoint;
+    print(
+      '   build pass: system zfa on PATH is v$candidateVersion — pinned to '
+      'the driving CLI v$version (issue #1472).',
+    );
+    return driving;
+  } on StateError {
+    // The driving entrypoint cannot be resolved — keep the #717
+    // candidate (fail-open to current behavior, never crash).
+    return entrypoint;
+  }
 }
 
 /// Build the command line for a pre-resolved entrypoint (bug #689).
