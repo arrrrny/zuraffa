@@ -76,7 +76,9 @@ Run-level only (the triage scope):
    #1308 named-hand-step shape, which already feeds the journal
    violation), prints resume guidance (`--born-green`), and the summary
    line gains `hand_steps=N`. Journal violations carry
-   `hand-step=<id> (<reason>)` like the #992 widget skips.
+   `parked-hand-step=<id> (<reason>)` like the #992 widget skips (its
+   own token — `hand-step=<id>:hand — …` stays the #1308/#1323/#1373/
+   #1411 remedy grammar).
 4. Two-signal gate (FR-001 discipline): a REAL generation failure on a
    seam behavior (marker absent) and the marker on a NON-seam behavior
    both keep the honest generic stop.

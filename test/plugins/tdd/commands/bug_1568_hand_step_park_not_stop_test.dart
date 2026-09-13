@@ -131,6 +131,68 @@ void main() {
             'driven in the same run, invocations:\n'
             '${fx.stepInvocations().join('\n')}',
       );
+
+      // Review fix: the parked stop carries the park's OWN journal
+      // vocabulary. The #1308 `hand-step=<id>:hand — …` remedy
+      // prescribes replacing a guard the generated entity-return
+      // subject need not contain, so `_handStepViolationFor` (which
+      // ALWAYS returns a string — its fallback is the vacuous-guard
+      // remedy) must stand down for the behavior this pass parked.
+      final journal = _journalText(fx);
+      expect(journal, contains('parked-hand-step=U1'));
+      expect(
+        journal,
+        isNot(contains('hand-step=U1:hand')),
+        reason:
+            'the #1308 vacuous-guard remedy must not fire for a park, '
+            'journal:\n$journal',
+      );
+    });
+
+    test('U-1568-4: a LATER behavior\'s real generation failure keeps the '
+        'parked hand-step on record', () async {
+      // Review fix: the in-loop stop paths used to call `_finish`
+      // without the parked set, so a pass that parked U1 and then
+      // stopped for an unrelated U2 lost both `hand_steps=N` from the
+      // summary line and the journal's park record.
+      await fx.setStepOutcome('make', 'U1', 'hand-step-red');
+      await fx.setStepOutcome('make', 'U2', 'crash-no-marker');
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'run',
+        '008-scan',
+        '--project',
+        fx.root.path,
+        '--zfa-bin',
+        fx.fakeZfaBin,
+      ]);
+
+      expect(out, contains('hand step: U1:hand'));
+      expect(
+        out,
+        contains('stopped_at=U2:make'),
+        reason:
+            'U2 has no still-failing marker — the honest generic stop '
+            'stands, output:\n$out',
+      );
+      expect(
+        out,
+        contains('hand_steps=1'),
+        reason:
+            'the parked hand-step must survive a later unrelated stop, '
+            'output:\n$out',
+      );
+
+      final journal = _journalText(fx);
+      expect(
+        journal,
+        contains('parked-hand-step=U1'),
+        reason:
+            'the journal must still record the behavior this pass '
+            'deliberately parked, journal:\n$journal',
+      );
     });
 
     test('U-1568-2: a REAL generation failure on a seam behavior (no '
@@ -191,3 +253,9 @@ void main() {
     });
   });
 }
+
+/// The feature's unified journal as raw text — the violation lines are
+/// asserted as substrings, so the raw JSON is enough (no decode, no
+/// escaping surprises in the ASCII park vocabulary).
+String _journalText(TddFixture fx) =>
+    File(p.join(fx.featureDir, 'tdd', 'journal.json')).readAsStringSync();

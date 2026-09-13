@@ -396,6 +396,10 @@ class RunEngineCommand extends Command<void> {
         counts: outcome.counts,
         stoppedAt: outcome.stoppedAt,
         skippedWidgetIds: outcome.skippedWidgetIds,
+        // Issue #1568 (review fix): the engine lane is the only lane that
+        // can park a hand-step, so its terminal summary must carry the
+        // same `hand_steps=N` token `zfa tdd run` prints.
+        handStepIds: outcome.handStepIds,
       ),
     );
     exitCode = outcome.exitCode;

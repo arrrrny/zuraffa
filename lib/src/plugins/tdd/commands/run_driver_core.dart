@@ -580,31 +580,28 @@ class RunDriverCore {
     final skipped = rows
         .where((r) => current.behaviorStates[r.id] == BehaviorState.done)
         .length;
-    // Issue #1568: the planner's hand-step forecast resolved to ids —
-    // the same seam cost the announce prints (SPEC 1489), kept as the
-    // run-level verdict: a make failure on one of these behaviors is
-    // the designed hand step, not a generation defect. Computed once
-    // against the entity registry NOW (entities created since planning
-    // lift their behaviors out of the forecast).
-    final handStepSeamIds = await _entityReturnSeamIds(
-      projectRoot: projectRoot,
-      featureName: feature,
-      featureDir: featureDir,
-      rows: rows,
-    );
     if (announce) {
       print('zfa tdd $label: feature $feature — ${rows.length} behavior(s)');
       if (skipped > 0) print('   $skipped already done — skipping');
       // SPEC 1489: the unit lane's hand-step forecast — the same seam
-      // cost `zfa tdd plan` surfaced. Output-only: the loop, the
+      // cost `zfa tdd plan` surfaced. Output-only here: the announce
+      // reads the entity registry as it stands now, and the loop, the
       // BehaviorState transitions and the two-phase driver semantics
-      // are untouched.
+      // stay untouched. Issue #1568's park gate resolves the SAME
+      // forecast lazily on the failure path instead (after phase-0 has
+      // created the pass's declared entities) — see `_driveBehavior`.
       final unitRowCount = rows
           .where((r) => r.kind == BehaviorKind.unit)
           .length;
       if (unitRowCount > 0) {
+        final seamIds = await _entityReturnSeamIds(
+          projectRoot: projectRoot,
+          featureName: feature,
+          featureDir: featureDir,
+          rows: rows,
+        );
         final seamLine = UnitContractShape.entityReturnSeamCostLine(
-          seams: handStepSeamIds.length,
+          seams: seamIds.length,
           total: unitRowCount,
         );
         if (seamLine != null) print('   $seamLine');
@@ -970,7 +967,6 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
-        handStepSeamIds: handStepSeamIds,
         handSteps: handSteps,
       );
       if (result.stop != null) {
@@ -986,6 +982,12 @@ class RunDriverCore {
           journalStartedAt: journalStartedAt,
           projectRoot: projectRoot,
           skippedWidgets: skippedWidgets,
+          // Issue #1568 (review fix): the parked hand-steps ride every
+          // stop path, not just the terminal hand-step branch — a later
+          // behavior's genuine failure must not drop the record of the
+          // behavior this pass deliberately parked (`hand_steps=N` in
+          // the summary, `parked-hand-step=` in the journal).
+          handSteps: handSteps,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
         );
@@ -1046,7 +1048,6 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
-        handStepSeamIds: handStepSeamIds,
         handSteps: handSteps,
       );
       if (result.stop != null) {
@@ -1062,6 +1063,12 @@ class RunDriverCore {
           journalStartedAt: journalStartedAt,
           projectRoot: projectRoot,
           skippedWidgets: skippedWidgets,
+          // Issue #1568 (review fix): the parked hand-steps ride every
+          // stop path, not just the terminal hand-step branch — a later
+          // behavior's genuine failure must not drop the record of the
+          // behavior this pass deliberately parked (`hand_steps=N` in
+          // the summary, `parked-hand-step=` in the journal).
+          handSteps: handSteps,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
         );
@@ -1114,7 +1121,6 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
-        handStepSeamIds: handStepSeamIds,
         handSteps: handSteps,
         // Issue #1588: the phase-2 refactor pass is the batch — every
         // spawn opts into the pass-batch ledger and hands the lane's
@@ -1134,6 +1140,12 @@ class RunDriverCore {
           journalStartedAt: journalStartedAt,
           projectRoot: projectRoot,
           skippedWidgets: skippedWidgets,
+          // Issue #1568 (review fix): the parked hand-steps ride every
+          // stop path, not just the terminal hand-step branch — a later
+          // behavior's genuine failure must not drop the record of the
+          // behavior this pass deliberately parked (`hand_steps=N` in
+          // the summary, `parked-hand-step=` in the journal).
+          handSteps: handSteps,
           stoppedAt: result.stop!.stoppedAt,
           message: result.stop!.message,
         );
@@ -1433,8 +1445,21 @@ class RunDriverCore {
         // entity/void vacuous-green seam) carries the hand-step violation
         // — what to write (the outcome assertion) and where (the
         // generated test file).
+        //
+        // Review fix on #1568: a PARKED hand-step is NOT a #1308 stop.
+        // The #1308 remedy prescribes replacing a placeholder guard, a
+        // scaffolded marker or a born-green header — none of which the
+        // generated subject of an entity-return seam need contain — so
+        // emitting it for a park would prescribe a change that does not
+        // apply. The park carries its own `parked-hand-step=` line below;
+        // the lookup stands down only for the behavior this pass parked,
+        // so a `:hand` stop for any OTHER behavior keeps the remedy.
         final handStepViolation =
-            stoppedAt != null && stoppedAt.endsWith(':hand')
+            stoppedAt != null &&
+                stoppedAt.endsWith(':hand') &&
+                !handSteps.containsKey(
+                  stoppedAt.substring(0, stoppedAt.lastIndexOf(':')),
+                )
             ? _handStepViolationFor(
                 stoppedAt,
                 receipts.featureDir,
@@ -1456,8 +1481,13 @@ class RunDriverCore {
           for (final id in skippedWidgets.keys)
             'skipped-widget=$id (${skippedWidgets[id]})',
           // Issue #1568: the parked hand-steps ride the journal the same
-          // way the #992 widget skips do — machine-greppable, named.
-          for (final id in handSteps.keys) 'hand-step=$id (${handSteps[id]})',
+          // way the #992 widget skips do — machine-greppable, named. The
+          // token is its OWN (`parked-hand-step=`): `hand-step=<id>:hand
+          // — <sentence>` is the long-standing #1308/#1323/#1373/#1411
+          // remedy grammar (review fix), and a consumer grepping
+          // `hand-step=` must not have to parse two field shapes.
+          for (final id in handSteps.keys)
+            'parked-hand-step=$id (${handSteps[id]})',
         ];
         await journalWriter.append(
           JournalEntry(
@@ -1800,11 +1830,12 @@ class RunDriverCore {
     required String feature,
     required Set<String> greenEvidenceIds,
     Set<String>? unblockedThisRun,
-    // Issue #1568: the planner's hand-step forecast ids (the run-level
-    // park gate) and the hand-steps recorded THIS pass (the end-of-pass
-    // summary names them). Required: every lane passes both so a missed
-    // call site can never silently disable the park.
-    required Set<String> handStepSeamIds,
+    // Issue #1568: the hand-steps recorded THIS pass — the end-of-pass
+    // summary names them and `_finish` journals them. Required: every
+    // lane passes it so a missed call site can never silently drop the
+    // park record. (The park gate's forecast ids are NOT threaded — the
+    // arm resolves them itself, on the failure path, so the registry
+    // read is fresh; see below.)
     required Map<String, String> handSteps,
 
     /// Issue #1588: the phase-2b refactor pass opts its spawns into the
@@ -2531,10 +2562,24 @@ class RunDriverCore {
         // the seam forecast contains the behavior AND make's own
         // transcript carries the still-failing-target-test shape — a
         // real generation bug keeps the honest generic stop.
+        //
+        // Review fix: the forecast is resolved HERE, on the failure
+        // path, not once before the loop. Phase-0 has already created
+        // the pass's declared entities by now, so a behavior whose
+        // entity this same pass generated is correctly OUT of the set —
+        // the pre-phase-0 read the announce prints is stale for it, and
+        // the arm's premise ("no mechanical implementation surface") no
+        // longer holds. Cost: one lookup per failed make, not one per
+        // unit behavior.
         if (step == 'make' &&
             result.outcome == 'generation-error' &&
-            handStepSeamIds.contains(row.id) &&
-            result.output.contains('still fails after generation')) {
+            result.output.contains('still fails after generation') &&
+            (await _entityReturnSeamIds(
+              projectRoot: projectRoot,
+              featureName: feature,
+              featureDir: featureDir,
+              rows: rows,
+            )).contains(row.id)) {
           updated = updated.advance(row.id, state);
           await store.save(updated, activeBehaviorIds: activeIds);
           await tx.clear();

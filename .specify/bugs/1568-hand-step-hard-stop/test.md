@@ -8,7 +8,8 @@
 
 | Suite | Command | Result |
 | ----- | ------- | ------ |
-| New bug suite (RED pre-fix: U-1568-1 failed — run stopped at U1, U2 never driven) | `dart test test/plugins/tdd/commands/bug_1568_hand_step_park_not_stop_test.dart` | 3/3 pass |
+| New bug suite (RED pre-fix: U-1568-1 failed — run stopped at U1, U2 never driven) | `dart test test/plugins/tdd/commands/bug_1568_hand_step_park_not_stop_test.dart` | 4/4 pass |
+| Review-fix round, PR #1619 (U-1568-1 + the new U-1568-4 proven RED against the pre-fix lib) | `dart test test/plugins/tdd/commands/bug_1568_hand_step_park_not_stop_test.dart` | 4/4 pass |
 | #1544 parking contract | `dart test test/plugins/tdd/commands/bug_1544_run_continue_after_blocked_test.dart` | pass |
 | SPEC 1489 forecast | `dart test test/plugins/tdd/services/unit_contract_shape_1489_test.dart` | pass |
 | Driver fast-tier neighbors (corpus run, #1471, timeout receipts, path format) | `dart test <4 suites>` | 34/34 pass |
