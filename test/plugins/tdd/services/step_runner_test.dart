@@ -11,6 +11,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/services/step_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/services/tdd_timeout.dart';
 
 /// Records the spawn and replies with a canned [ProcessResult].
 class _RecordingSpawner {
@@ -348,6 +349,68 @@ void main() {
       expect(result.outcome, 'runner-error');
       expect(result.exitCode, -1);
       expect(result.output, contains('spawn failed'));
+    },
+  );
+
+  test(
+    'spec 1529 U7: a timeout kill populates the structured timeoutReceipt',
+    () async {
+      final runner = StepRunner(
+        zfaBin: '/fake/bin/zfa',
+        spawner: (command, workingDirectory) =>
+            throw ProcessTimeoutException(
+              executable: command.first,
+              arguments: command.sublist(1),
+              timeout: const Duration(minutes: 25),
+              workingDirectory: workingDirectory,
+              output: 'zfa tdd make: behavior U8\n',
+              elapsed: const Duration(minutes: 25, seconds: 2),
+              descendantArgvs: const ['/usr/bin/flutter_tester'],
+            ),
+      );
+
+      final result = await runner.run(
+        step: 'make',
+        behaviorId: 'U8',
+        feature: feature,
+        projectRoot: projectRoot,
+      );
+
+      expect(result.success, isFalse);
+      expect(result.outcome, 'runner-error');
+      expect(result.exitCode, -1);
+      // The structured diagnostics ride the result — the driver writes
+      // the receipt from them.
+      expect(result.timeoutReceipt, isNotNull);
+      expect(result.timeoutReceipt!.behaviorId, 'U8');
+      expect(result.timeoutReceipt!.argv, contains('make'));
+      expect(
+        result.timeoutReceipt!.elapsed,
+        const Duration(minutes: 25, seconds: 2),
+      );
+      expect(result.timeoutReceipt!.deadline, const Duration(minutes: 25));
+      expect(result.timeoutReceipt!.phase.phase, 'running');
+      expect(result.timeoutReceipt!.outputTail, contains('behavior U8'));
+    },
+  );
+
+  test(
+    'spec 1529 U7: non-timeout outcomes leave the timeoutReceipt null',
+    () async {
+      final spawner = _RecordingSpawner(
+        () => _result(stdout: 'make: behavior=B-001 outcome=green\n'),
+      );
+      final runner = runnerWith(spawner);
+
+      final result = await runner.run(
+        step: 'make',
+        behaviorId: 'B-001',
+        feature: feature,
+        projectRoot: projectRoot,
+      );
+
+      expect(result.success, isTrue);
+      expect(result.timeoutReceipt, isNull);
     },
   );
 

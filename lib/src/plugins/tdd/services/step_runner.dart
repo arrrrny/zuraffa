@@ -37,6 +37,7 @@ import 'dart:isolate';
 import 'package:path/path.dart' as p;
 
 import 'tdd_timeout.dart';
+import 'step_timeout_receipt.dart';
 
 /// Spawn hook so fast-tier tests can drive the parser without real
 /// processes (the slow tier exercises the real spawn path with the
@@ -58,6 +59,7 @@ class StepResult {
     required this.output,
     required this.command,
     this.verdictKind,
+    this.timeoutReceipt,
   });
 
   final String step;
@@ -89,6 +91,13 @@ class StepResult {
 
   /// The step's combined stdout + stderr (for failure reports).
   final String output;
+
+  /// Spec 1529 (U7): the structured timeout diagnostics when the step
+  /// child was killed at the deadline — argv, actual elapsed, deadline,
+  /// phase inference, captured output tail. The run driver writes the
+  /// durable receipt (`make.<id>.timeout.json`) from this data; every
+  /// non-timeout path leaves it null.
+  final StepTimeoutInfo? timeoutReceipt;
 
   @override
   String toString() =>
@@ -316,6 +325,15 @@ class StepRunner {
     } on ProcessTimeoutException catch (e) {
       // Bug #742: the step child outlived the deadline and was killed.
       // runner-error, never a hang, never a silent success.
+      //
+      // Spec 1529 (U7): the kill is no longer diagnose-blind — the
+      // structured diagnostics (argv, ACTUAL elapsed, deadline, phase,
+      // captured tail) ride the result; the driver writes the durable
+      // receipt from them.
+      final phase = inferTimeoutPhase(
+        descendantArgvs: e.descendantArgvs,
+        output: e.output,
+      );
       return StepResult(
         step: step,
         behaviorId: behaviorId,
@@ -324,6 +342,16 @@ class StepRunner {
         success: false,
         output: e.toString(),
         command: commandLine,
+        timeoutReceipt: StepTimeoutInfo(
+          behaviorId: behaviorId,
+          step: step,
+          argv: command,
+          elapsed: e.elapsed,
+          deadline: e.timeout,
+          phase: phase,
+          outputTail: e.output,
+          workingDirectory: e.workingDirectory,
+        ),
       );
     } on ProcessException catch (e) {
       return StepResult(

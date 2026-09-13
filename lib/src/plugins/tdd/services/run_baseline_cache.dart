@@ -39,9 +39,15 @@ class RunBaselineCache {
       p.join(featureDir, 'tdd', fileName);
 
   /// Persist [snapshot] for the feature and return the written path.
+  ///
+  /// Spec 1529: [durationMs] records the wall time of the capture that
+  /// produced the snapshot so a REUSE run can scale the per-step budget
+  /// from the measured baseline without re-measuring. Older cache
+  /// readers ignore the key.
   Future<String> write({
     required String featureDir,
     required SuiteSnapshot snapshot,
+    int? durationMs,
   }) async {
     final file = File(pathFor(featureDir: featureDir));
     await file.parent.create(recursive: true);
@@ -52,9 +58,25 @@ class RunBaselineCache {
         'failedTests': snapshot.failedTests.toList(),
         'capturedAt': snapshot.capturedAt,
         'parseable': snapshot.parseable,
+        'duration_ms': ?durationMs,
       }),
     );
     return file.path;
+  }
+
+  /// The recorded capture duration in milliseconds, or null when the
+  /// file is missing/unreadable or predates spec 1529 (no key) — the
+  /// budget derivation then degrades to the floor (safe failure).
+  Future<int?> readDurationMs(String path) async {
+    try {
+      final json = jsonDecode(await File(path).readAsString());
+      if (json is! Map<String, dynamic>) return null;
+      final value = json['duration_ms'];
+      if (value is! int || value <= 0) return null;
+      return value;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Load a cached snapshot. Returns null when the file is missing,

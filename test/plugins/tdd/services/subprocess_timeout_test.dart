@@ -11,6 +11,7 @@ library;
 
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/plugins/tdd/models/cycle_entry.dart';
@@ -550,6 +551,83 @@ void main() {
         // No green evidence may be appended for a timed-out make.
         final log = File(fx.cycleLogPath).readAsStringSync();
         expect(log, isNot(contains('kind: green')));
+      },
+    );
+  });
+
+  group('runTimed kill diagnostics — spec 1529 (U4)', () {
+    test(
+      'the timeout exception carries the ACTUAL elapsed wall time',
+      () async {
+        final (dir, sleeperPath) = await makeSleeper();
+        ProcessTimeoutException? caught;
+        final sw = Stopwatch()..start();
+        try {
+          await runTimed(
+            Platform.resolvedExecutable,
+            [sleeperPath],
+            workingDirectory: dir.path,
+            timeout: hangTimeout,
+          );
+        } on ProcessTimeoutException catch (e) {
+          caught = e;
+        }
+        sw.stop();
+        expect(caught, isNotNull);
+        // The measured elapsed must be REAL (at least the deadline, and
+        // within a generous tolerance of the observed wall time) — not
+        // a parroting of the configured deadline alone.
+        expect(caught!.elapsed, greaterThanOrEqualTo(hangTimeout));
+        expect(
+          caught.elapsed,
+          lessThanOrEqualTo(sw.elapsed + const Duration(seconds: 2)),
+        );
+      },
+    );
+
+    test(
+      'the timeout exception carries the descendant snapshot (best-effort)',
+      () async {
+        // The child spawns a GRANDCHILD (the real misfire's shape: the
+        // make step child sits inside a `flutter test` grandchild), then
+        // waits for it forever — the kill lands on the child while the
+        // tree below it is observable.
+        final (grandchildDir, grandchildPath) = await makeSleeper();
+        final (dir, parentPath) = await _script(
+          "import 'dart:io';\n\n"
+          "Future<void> main(List<String> args) async {\n"
+          "  final grandchild = await Process.start(Platform.resolvedExecutable, [args[0]]);\n"
+          "  await grandchild.exitCode;\n"
+          "}",
+        );
+        ProcessTimeoutException? caught;
+        try {
+          await runTimed(
+            Platform.resolvedExecutable,
+            [parentPath, grandchildPath],
+            workingDirectory: dir.path,
+            timeout: hangTimeout,
+          );
+        } on ProcessTimeoutException catch (e) {
+          caught = e;
+        }
+        expect(caught, isNotNull);
+        // On POSIX the snapshot observed the real tree: the grandchild
+        // sleeper's script path shows up in some descendant argv.
+        if (Platform.isWindows) {
+          expect(caught!.descendantArgvs, isEmpty);
+        } else {
+          expect(caught!.descendantArgvs, isNotEmpty);
+          expect(
+            caught.descendantArgvs.join('\n'),
+            contains(p.basename(grandchildDir.path)),
+            reason: 'the still-running grandchild is observable',
+          );
+          // The #742 kill lands on the DIRECT child only (the tree-kill
+          // is issue #1520's companion work) — reap the orphan here so
+          // the test leaves no process behind.
+          await Process.run('pkill', ['-f', grandchildPath]);
+        }
       },
     );
   });
