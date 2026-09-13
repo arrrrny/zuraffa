@@ -10,6 +10,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'cycle_log_entry_sections.dart';
+
 /// Where an attribution came from (scan priority order).
 enum AttributionSource { registry, refactor, provenance, carveout }
 
@@ -165,6 +167,15 @@ class ProvenanceScanner {
 
   /// `specs/*/tdd/cycle-log.md`: refactor entries' `actions:` blocks and
   /// their `changed:` file lists attribute to the recorded command.
+  ///
+  /// Fence-aware (issue #1549): sections come from the shared
+  /// `splitCycleLogSections()` splitter via the entry-sections iterator, so
+  /// an in-fence `## Cycle:` line (a banner a test printed into its
+  /// captured output) can no longer flip `inRefactorSection` and turn
+  /// in-fence `changed:` lines into file attributions. The per-section
+  /// state machine is unchanged: a `(refactor)` header arms it, action
+  /// `command:` lines update the recorded invocation, `changed:` lists
+  /// attribute.
   Future<void> _collectRefactorAttributions(
     Map<String, Attribution> files,
   ) async {
@@ -174,36 +185,37 @@ class ProvenanceScanner {
       if (featureDir is! Directory) continue;
       final cycleLog = File(p.join(featureDir.path, 'tdd', 'cycle-log.md'));
       if (!await cycleLog.exists()) continue;
-      final lines = (await cycleLog.readAsString()).split('\n');
-      var inRefactorSection = false;
+      final entries = parseCycleLogEntrySections(await cycleLog.readAsString());
+      // Cross-entry persistence, as before: a well-formed actions block
+      // carries its own `command:` line, but the feature name remains the
+      // fallback for a block that records none.
       var currentCommand = p.basename(featureDir.path);
-      for (final line in lines) {
-        final trimmed = line.trim();
-        if (trimmed.startsWith('## Cycle:')) {
-          inRefactorSection = trimmed.endsWith('(refactor)');
-          continue;
-        }
-        if (trimmed.startsWith('command: `') && trimmed.endsWith('`')) {
-          currentCommand = trimmed.substring(
-            'command: `'.length,
-            trimmed.length - 1,
-          );
-          continue;
-        }
-        if (inRefactorSection && trimmed.startsWith('changed:')) {
-          final list = trimmed.substring('changed:'.length).trim();
-          for (final raw in list.split(',')) {
-            final candidate = raw.trim();
-            if (candidate.isEmpty || candidate == '(none)') continue;
-            final rel = normalize(candidate);
-            if (!rel.startsWith('lib/')) continue;
-            files.putIfAbsent(
-              rel,
-              () => Attribution(
-                source: AttributionSource.refactor,
-                command: currentCommand,
-              ),
+      for (final entry in entries) {
+        final inRefactorSection = entry.kind == 'refactor';
+        for (final line in entry.bodyLines) {
+          final trimmed = line.trim();
+          if (trimmed.startsWith('command: `') && trimmed.endsWith('`')) {
+            currentCommand = trimmed.substring(
+              'command: `'.length,
+              trimmed.length - 1,
             );
+            continue;
+          }
+          if (inRefactorSection && trimmed.startsWith('changed:')) {
+            final list = trimmed.substring('changed:'.length).trim();
+            for (final raw in list.split(',')) {
+              final candidate = raw.trim();
+              if (candidate.isEmpty || candidate == '(none)') continue;
+              final rel = normalize(candidate);
+              if (!rel.startsWith('lib/')) continue;
+              files.putIfAbsent(
+                rel,
+                () => Attribution(
+                  source: AttributionSource.refactor,
+                  command: currentCommand,
+                ),
+              );
+            }
           }
         }
       }
