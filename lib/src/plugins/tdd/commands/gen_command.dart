@@ -87,6 +87,7 @@ import '../services/contract_test_writer.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/generated_shape.dart';
+import '../services/gen_reuse_fingerprint.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
 import '../services/vacuous_guard.dart';
@@ -994,6 +995,20 @@ class GenCommand extends Command<void> {
             fromDir: p.dirname(testPath),
           );
 
+    // Issue #1388: the gen reuse fingerprint — sha256 over the resolved
+    // lane-plan traces cell + the feature's spec.md. Every record gen
+    // writes arms it, so the NEXT gen can tell whether the declared
+    // routing changed since the owned pair was generated. Without it the
+    // reuse decision is blind to routing changes that do not alter the
+    // rendered bytes (a traces cell gaining a no-signature contract row
+    // — the 004-login-ui `adaptive_layouts` shape), and the recovery
+    // loop the guard-only stop prescribes (add traces → re-plan →
+    // re-gen) dead-ends at the re-gen step with verdict=reused.
+    final genFingerprint = GenReuseFingerprint.forFeature(
+      featureDir: featureDir,
+      tracesCell: behavior.sourceCriterion,
+    );
+
     // Build the proposed record, then preflight ownership without changing
     // the registry. The record is appended only after both writes succeed.
     var record = ArtifactRecord(
@@ -1006,6 +1021,7 @@ class GenCommand extends Command<void> {
       testOwnership: dryRun ? Ownership.planned : Ownership.created,
       subjectOwnership: dryRun ? Ownership.planned : Ownership.created,
       createdAt: DateTime.now().toUtc().toIso8601String(),
+      genFingerprint: genFingerprint,
     );
 
     // Bug #840: adopt mode tracks which unowned files were verified and
@@ -1297,31 +1313,135 @@ class GenCommand extends Command<void> {
     // guard-only pair) reports `verdict=regenerated` instead of `reused`
     // — the stale-guard re-gen is the command-surfaced remedy the issue
     // names, and a bare `reused` verdict hid it.
-    var staleness = (regenerated: false, contractDrift: false);
+    //
+    // Issue #1388: the byte-compare above is blind to declared-routing
+    // changes that do NOT alter the rendered bytes (a traces cell gaining
+    // a no-signature contract row — a layout-surface/entity/dependency
+    // row), and a pair whose subject progressed past the stub stage
+    // exits the staleness path early by design (never clobber real
+    // work). The reuse fingerprint closes both holes: a stored
+    // fingerprint that differs from the current one (the lane-plan
+    // traces cell or spec.md changed since generation) FORCES the
+    // re-render past the byte-equality short-circuit — and when the
+    // machinery still declines (progressed subject, ffi harness), reuse
+    // is REFUSED with the actual escape hatch (`zfa tdd reset
+    // <feature>`) instead of silently reusing a pair that predates the
+    // routing change.
+    var staleness = (
+      regenerated: false,
+      contractDrift: false,
+      fingerprintDrift: false,
+    );
     if (record.testOwnership == Ownership.reused &&
         record.subjectOwnership == Ownership.reused &&
         !dryRun) {
-      staleness = await _regenerateStaleStub(
-        behavior: effectiveBehavior,
-        featureName: featureName,
-        testPath: testPath,
-        subjectPath: subjectPath,
-        golden: goldenGate,
-        platformContext: platformContext,
-        widgetShell: widgetShell,
-        i18nKeys: i18nKeys,
-        i18nImport: i18nImport,
-        i18nExpansion: i18nExpansion,
-        contractShape: contractShape,
-        bounded: bounded,
-        flutterTest: flutterTest,
-        // Issue #1518: the staleness mirror renders through the same
-        // writers and PRINTS the same warning — it gets the same seam
-        // context so one gen output never carries two different
-        // remedies.
-        projectRoot: cwd,
-        featureDir: featureDir,
-      );
+      // Issue #1388: the fingerprint gate. Records written before the
+      // fingerprint existed carry none — the gate stays open for them
+      // (the field arms on the next created/regenerated record; never
+      // retro-invalidate a shipped registry).
+      final fingerprintDrift =
+          record.genFingerprint != null &&
+          record.genFingerprint != genFingerprint;
+      if (fingerprintDrift) {
+        final forced = await _regenerateStaleStub(
+          behavior: effectiveBehavior,
+          featureName: featureName,
+          testPath: testPath,
+          subjectPath: subjectPath,
+          golden: goldenGate,
+          platformContext: platformContext,
+          widgetShell: widgetShell,
+          i18nKeys: i18nKeys,
+          i18nImport: i18nImport,
+          i18nExpansion: i18nExpansion,
+          contractShape: contractShape,
+          bounded: bounded,
+          flutterTest: flutterTest,
+          // Issue #1518: the staleness mirror renders through the same
+          // writers and PRINTS the same warning — it gets the same seam
+          // context so one gen output never carries two different
+          // remedies.
+          projectRoot: cwd,
+          featureDir: featureDir,
+          // Issue #1388: the routing changed since generation — the
+          // byte-equality short-circuit must not keep the stale pair.
+          forceRebuild: true,
+        );
+        staleness = (
+          regenerated: forced.regenerated,
+          contractDrift: forced.contractDrift,
+          fingerprintDrift: true,
+        );
+        if (staleness.regenerated) {
+          // The pair now reflects the current routing: refresh the
+          // stored digest so the drift fires once per change and
+          // stable reuse resumes (FR-006 idempotency for the
+          // unchanged class).
+          await bounded(
+            registry.refreshGenFingerprint(
+              behaviorId: behavior.id,
+              genFingerprint: genFingerprint,
+            ),
+            'registry fingerprint refresh',
+          );
+          record = record.copyWithGenFingerprint(genFingerprint);
+        } else {
+          // The regeneration machinery declined: the subject progressed
+          // past the stub stage (real implementation — never clobbered)
+          // or the pair is an ffi harness (never auto-regenerated).
+          // Refuse the reuse honestly and name the escape hatch the
+          // issue's workaround had to discover by hand.
+          final reason =
+              'the owned pair for "$behaviorId" predates a '
+              'declared-routing change (reuse fingerprint drifted: the '
+              'lane-plan traces cell or spec.md changed since '
+              'generation) and gen cannot auto-regenerate it — the '
+              'subject has progressed past the stub stage or the pair '
+              'is an ffi harness, and regenerating would clobber real '
+              'work (issue #1388)';
+          print('zfa tdd gen: reuse refused — $reason.');
+          print(
+            '   --> fix: zfa tdd reset $featureName — drop the '
+            "feature's registry-owned artifacts, re-run "
+            '`zfa tdd plan $featureName` + `zfa tdd gen $behaviorId`, '
+            'then re-apply the implementation.',
+          );
+          _printVerdict(
+            behaviorId: behavior.id,
+            verdict: 'refused',
+            reason: reason,
+          );
+          exitCode = 1;
+          return 'refused';
+        }
+      } else {
+        final checked = await _regenerateStaleStub(
+          behavior: effectiveBehavior,
+          featureName: featureName,
+          testPath: testPath,
+          subjectPath: subjectPath,
+          golden: goldenGate,
+          platformContext: platformContext,
+          widgetShell: widgetShell,
+          i18nKeys: i18nKeys,
+          i18nImport: i18nImport,
+          i18nExpansion: i18nExpansion,
+          contractShape: contractShape,
+          bounded: bounded,
+          flutterTest: flutterTest,
+          // Issue #1518: the staleness mirror renders through the same
+          // writers and PRINTS the same warning — it gets the same seam
+          // context so one gen output never carries two different
+          // remedies.
+          projectRoot: cwd,
+          featureDir: featureDir,
+        );
+        staleness = (
+          regenerated: checked.regenerated,
+          contractDrift: checked.contractDrift,
+          fingerprintDrift: false,
+        );
+      }
     }
 
     // Print the structured result. Use `print` (not `stdout.writeln`) so
@@ -1331,6 +1451,10 @@ class GenCommand extends Command<void> {
         staleness.contractDrift
             ? 'note: traces cell gained a contract token since generation '
                   '— pair regenerated (issue #1320)'
+            : staleness.fingerprintDrift
+            ? 'note: declared routing changed since the owned pair was '
+                  'generated (traces cell or spec) — pair regenerated '
+                  '(issue #1388)'
             : 'note: binary updated, stub regenerated',
       );
     }
@@ -1355,7 +1479,8 @@ class GenCommand extends Command<void> {
         ? 'adopted'
         : dryRun
         ? 'planned'
-        : staleness.regenerated && staleness.contractDrift
+        : staleness.regenerated &&
+              (staleness.contractDrift || staleness.fingerprintDrift)
         ? 'regenerated'
         : record.testOwnership == Ownership.reused
         ? 'reused'
@@ -1781,6 +1906,19 @@ class GenCommand extends Command<void> {
     bool flutterTest = false,
     String? projectRoot,
     String? featureDir,
+
+    /// Issue #1388: the reuse fingerprint drifted — the declared routing
+    /// changed since the owned pair was generated. The byte-equality
+    /// short-circuit must NOT keep the on-disk pair in that case: the
+    /// pair is re-rendered and rewritten even when the current binary
+    /// would produce identical bytes (the drift is the ROUTING's, not
+    /// the render's — a no-signature contract row changes nothing the
+    /// writers can see), so the verdict honestly reports
+    /// `regenerated` and the stored fingerprint refreshes. Every other
+    /// guard stays: ffi harnesses are never auto-regenerated, progressed
+    /// subjects are never clobbered, and a failed rewrite still rolls
+    /// back.
+    bool forceRebuild = false,
   }) async {
     // Bug #835: an ffi harness is NEVER auto-regenerated. Its contract
     // seams are the implementer's wiring point — partial wiring (the
@@ -1885,7 +2023,9 @@ class GenCommand extends Command<void> {
         File(testPath).readAsString(),
         'staleness: read on-disk test',
       );
-      if (expectedSubject == onDiskSubject && expectedTest == onDiskTest) {
+      if (!forceRebuild &&
+          expectedSubject == onDiskSubject &&
+          expectedTest == onDiskTest) {
         return (regenerated: false, contractDrift: false);
       }
       // Issue #1320: the drift cause — the cell gained a contract token

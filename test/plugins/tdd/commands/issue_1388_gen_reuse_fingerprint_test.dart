@@ -175,13 +175,7 @@ Future<String> migrateAndGen(
     '--project',
     fx.root.path,
   ]);
-  return runner.runCapturing([
-    'tdd',
-    'gen',
-    'U1',
-    '--project',
-    fx.root.path,
-  ]);
+  return runner.runCapturing(['tdd', 'gen', 'U1', '--project', fx.root.path]);
 }
 
 /// Strip `gen_fingerprint` from [id]'s record — simulating a record
@@ -200,277 +194,307 @@ Future<void> stripFingerprint(TddFixture fx, String id) async {
 }
 
 void main() {
-  group('issue #1388 — gen reuse fingerprint invalidates on routing change', () {
-    late TddFixture fx;
-    final runner = CliRunner(exitOnCompletion: false);
+  group(
+    'issue #1388 — gen reuse fingerprint invalidates on routing change',
+    () {
+      late TddFixture fx;
+      final runner = CliRunner(exitOnCompletion: false);
 
-    setUp(() async {
-      fx = await TddFixture.create(featureName: '1388-repro');
-    });
+      setUp(() async {
+        fx = await TddFixture.create(featureName: '1388-repro');
+      });
 
-    tearDown(() {
-      fx.dispose();
-      exitCode = 0;
-    });
+      tearDown(() {
+        fx.dispose();
+        exitCode = 0;
+      });
 
-    test('U1: signature-row traces migration regenerates the pair with '
-        'the declared assertion and no guard-only warning', () async {
-      final seeded = await seedGuardOnlyPair(runner, fx, selfTracedSpec);
-      expect(
-        contentIsVacuousGreen(seeded.testContent),
-        isTrue,
-        reason: 'the untraced pair is the guard-only candidate',
-      );
+      test('U1: signature-row traces migration regenerates the pair with '
+          'the declared assertion and no guard-only warning', () async {
+        final seeded = await seedGuardOnlyPair(runner, fx, selfTracedSpec);
+        expect(
+          contentIsVacuousGreen(seeded.testContent),
+          isTrue,
+          reason: 'the untraced pair is the guard-only candidate',
+        );
 
-      final second = await migrateAndGen(runner, fx, signatureTracedSpec);
-      expect(exitCode, 0, reason: 'the re-gen must succeed: $second');
-      expect(
-        second,
-        contains('verdict=regenerated'),
-        reason:
-            'the traces cell gained a contract token — gen must '
-            'regenerate, never report the stale pair reused:\n$second',
-      );
-      expect(
-        second,
-        isNot(contains(vacuousGuardWarningToken)),
-        reason:
-            'the regenerated pair derives a real outcome assertion — no '
-            'guard-only warning may survive the migration:\n$second',
-      );
-      final after = await fx.registryRecordOf('U1');
-      final testAfter = await File(
-        fixturePath(fx, after['test_path'] as String),
-      ).readAsString();
-      expect(
-        testAfter,
-        contains('expect(result, isA<String>())'),
-        reason: 'the regenerated test asserts the DECLARED outcome',
-      );
-      expect(
-        contentCarriesVacuousGuardMarker(testAfter),
-        isFalse,
-        reason: 'the regenerated test carries no guard-only marker',
-      );
-    });
-
-    test('U2: no-signature-row traces migration regenerates the pair even '
-        'though the rendered bytes are identical (the issue shape)', () async {
-      final seeded = await seedGuardOnlyPair(runner, fx, selfTracedSpec);
-      expect(
-        contentIsVacuousGreen(seeded.testContent),
-        isTrue,
-        reason: 'the untraced pair is the guard-only candidate',
-      );
-
-      final second = await migrateAndGen(runner, fx, noSignatureTracedSpec);
-      expect(exitCode, 0, reason: 'the re-gen must succeed: $second');
-      expect(
-        second,
-        contains('verdict=regenerated'),
-        reason:
-            'the declared routing changed for U1 (the traces cell gained '
-            'a no-signature row) — gen must invalidate the reuse through '
-            'the front door instead of reporting the stale guard-only '
-            'pair `reused` (issue #1388):\n$second',
-      );
-      final after = await fx.registryRecordOf('U1');
-      final testAfter = await File(
-        fixturePath(fx, after['test_path'] as String),
-      ).readAsString();
-      expect(
-        testAfter,
-        seeded.testContent,
-        reason:
-            'the render is byte-identical (no signature resolves) — the '
-            'invalidation is the fingerprint\'s job, not the writers\'',
-      );
-      expect(
-        contentCarriesVacuousGuardMarker(testAfter),
-        isFalse,
-        reason: 'the unit fallback pair never carries the marker',
-      );
-    });
-
-    test('U3: drift + progressed subject refuses reuse naming '
-        '`zfa tdd reset` — the owned pair is never clobbered', () async {
-      final seeded = await seedGuardOnlyPair(runner, fx, selfTracedSpec);
-
-      // The subject progressed past the stub stage (real implementation
-      // landed) — auto-regeneration would clobber real work.
-      final subjectFile = File(
-        fixturePath(fx, seeded.record['subject_path'] as String),
-      );
-      final subject = await subjectFile.readAsString();
-      await subjectFile.writeAsString(
-        subject.replaceFirst(
-          RegExp(r'=> throw UnimplementedError\([^;]*\);'),
-          "=> 'text/event-stream';",
-        ),
-      );
-
-      final second = await migrateAndGen(runner, fx, signatureTracedSpec);
-      expect(
-        exitCode,
-        1,
-        reason:
-            'the drifted pair cannot be regenerated (progressed subject) '
-            'and must not be reported `reused` — gen refuses:\n$second',
-      );
-      expect(second, contains('--> fix:'));
-      expect(
-        second,
-        contains('zfa tdd reset 1388-repro'),
-        reason:
-            'the refusal names the ACTUAL escape hatch with the feature '
-            'reference (issue #1388):\n$second',
-      );
-      expect(second, contains('verdict=refused'));
-
-      // The owned pair is untouched: the refusal never clobbers real
-      // work and never rewrites the registry record.
-      final subjectAfter = await subjectFile.readAsString();
-      expect(
-        subjectAfter,
-        contains("=> 'text/event-stream';"),
-        reason: 'the progressed subject survives the refusal verbatim',
-      );
-      final after = await fx.registryRecordOf('U1');
-      expect(
-        after['test_path'],
-        seeded.record['test_path'],
-        reason: 'the registry record is unchanged by the refusal',
-      );
-    });
-
-    test('U4: the fingerprint arms on created records — deterministic '
-        'for identical routing, distinct for different routing', () async {
-      final seeded = await seedGuardOnlyPair(runner, fx, selfTracedSpec);
-      final fingerprint = seeded.record['gen_fingerprint'] as String?;
-      expect(
-        fingerprint,
-        isNotNull,
-        reason:
-            'gen must persist the reuse fingerprint on the created '
-            'record (issue #1388): '
-            '${seeded.record.keys.toList()}',
-      );
-      expect(
-        RegExp(r'^[0-9a-f]{64}$').hasMatch(fingerprint!),
-        isTrue,
-        reason: 'the fingerprint is a sha256 hex digest: $fingerprint',
-      );
-
-      // Identical routing inputs (same spec, same traces cell) hash to
-      // the same fingerprint in a fresh project.
-      final twin = await TddFixture.create(featureName: '1388-repro');
-      try {
-        final twinSeeded = await seedGuardOnlyPair(
-          runner,
-          twin,
-          selfTracedSpec,
+        final second = await migrateAndGen(runner, fx, signatureTracedSpec);
+        expect(exitCode, 0, reason: 'the re-gen must succeed: $second');
+        expect(
+          second,
+          contains('verdict=regenerated'),
+          reason:
+              'the traces cell gained a contract token — gen must '
+              'regenerate, never report the stale pair reused:\n$second',
         );
         expect(
-          twinSeeded.record['gen_fingerprint'],
-          fingerprint,
-          reason: 'the fingerprint is a pure function of the routing '
-              'inputs (traces cell + spec.md), not of the project',
+          second,
+          isNot(contains(vacuousGuardWarningToken)),
+          reason:
+              'the regenerated pair derives a real outcome assertion — no '
+              'guard-only warning may survive the migration:\n$second',
         );
-      } finally {
-        twin.dispose();
-      }
+        final after = await fx.registryRecordOf('U1');
+        final testAfter = await File(
+          fixturePath(fx, after['test_path'] as String),
+        ).readAsString();
+        expect(
+          testAfter,
+          contains('expect(result, isA<String>())'),
+          reason: 'the regenerated test asserts the DECLARED outcome',
+        );
+        expect(
+          contentCarriesVacuousGuardMarker(testAfter),
+          isFalse,
+          reason: 'the regenerated test carries no guard-only marker',
+        );
+      });
 
-      // A different routing input hashes differently.
-      final migrated = await migrateAndGen(runner, fx, signatureTracedSpec);
-      expect(migrated, contains('verdict=regenerated'), reason: migrated);
-      final after = await fx.registryRecordOf('U1');
-      expect(
-        after['gen_fingerprint'],
-        isNot(fingerprint),
-        reason:
-            'the traces migration changed the routing inputs — the '
-            'stored fingerprint must differ after the regeneration',
-      );
-    });
+      test('U2: no-signature-row traces migration regenerates the pair and '
+          'reports verdict=regenerated (the issue shape)', () async {
+        final seeded = await seedGuardOnlyPair(runner, fx, selfTracedSpec);
+        expect(
+          contentIsVacuousGreen(seeded.testContent),
+          isTrue,
+          reason: 'the untraced pair is the guard-only candidate',
+        );
 
-    test('U5: the drift fires ONCE per change — the refreshed '
-        'fingerprint reuses again', () async {
-      await seedGuardOnlyPair(runner, fx, selfTracedSpec);
+        final second = await migrateAndGen(runner, fx, noSignatureTracedSpec);
+        expect(exitCode, 0, reason: 'the re-gen must succeed: $second');
+        expect(
+          second,
+          contains('verdict=regenerated'),
+          reason:
+              'the declared routing changed for U1 (the traces cell gained '
+              'a no-signature row) — gen must invalidate the reuse through '
+              'the front door instead of reporting the stale guard-only '
+              'pair `reused` (issue #1388):\n$second',
+        );
+        final after = await fx.registryRecordOf('U1');
+        final testAfter = await File(
+          fixturePath(fx, after['test_path'] as String),
+        ).readAsString();
+        // The render keeps the guard-only SHAPE (a no-signature row
+        // resolves no declared outcome — the #1420 class) but reflects the
+        // CURRENT routing: the criterion echo carries the migrated cell.
+        expect(
+          contentIsVacuousGreen(testAfter),
+          isTrue,
+          reason:
+              'no signature resolves for the no-signature row — the pair '
+              'stays the honest guard shape',
+        );
+        expect(
+          testAfter,
+          contains("group('U1 (FR-001, RouteFlags)'"),
+          reason:
+              'the regenerated pair reflects the CURRENT traces cell, not '
+              'the one the pair was generated under',
+        );
+        expect(
+          contentCarriesVacuousGuardMarker(testAfter),
+          isFalse,
+          reason: 'the unit fallback pair never carries the marker',
+        );
+      });
 
-      final second = await migrateAndGen(runner, fx, signatureTracedSpec);
-      expect(
-        second,
-        contains('verdict=regenerated'),
-        reason: 'the migration must invalidate the reuse:\n$second',
-      );
+      test('U3: drift + progressed subject refuses reuse naming '
+          '`zfa tdd reset` — the owned pair is never clobbered', () async {
+        final seeded = await seedGuardOnlyPair(runner, fx, selfTracedSpec);
 
-      final third = await runner.runCapturing([
-        'tdd',
-        'gen',
-        'U1',
-        '--project',
-        fx.root.path,
-      ]);
-      expect(exitCode, 0, reason: 'the third gen must succeed: $third');
-      expect(
-        third,
-        contains('verdict=reused'),
-        reason:
-            'the regeneration refreshed the stored fingerprint — the '
-            'drift fires once per routing change and stable reuse '
-            'resumes (FR-006 idempotency):\n$third',
-      );
-    });
+        // The subject progressed past the stub stage (real implementation
+        // landed — body and its stub doc-comment rewritten, the shape the
+        // #683 progressed-artifact rule protects).
+        final subjectFile = File(
+          fixturePath(fx, seeded.record['subject_path'] as String),
+        );
+        final progressed = (await subjectFile.readAsString())
+            .replaceFirst(
+              RegExp(r'=> throw UnimplementedError\([^;]*\);'),
+              "=> 'text/event-stream';",
+            )
+            .replaceFirst(
+              '/// Throws [UnimplementedError] until the real implementation '
+                  "lands.\n",
+              '',
+            );
+        expect(
+          progressed.contains('UnimplementedError'),
+          isFalse,
+          reason:
+              'the progressed subject must not mention the stub error at '
+              'all — that is the guard the staleness machinery keys on',
+        );
+        await subjectFile.writeAsString(progressed);
 
-    test('U6: unchanged routing and legacy records keep byte-identical '
-        'reuse', () async {
-      final seeded = await seedGuardOnlyPair(runner, fx, selfTracedSpec);
+        final second = await migrateAndGen(runner, fx, signatureTracedSpec);
+        expect(
+          exitCode,
+          1,
+          reason:
+              'the drifted pair cannot be regenerated (progressed subject) '
+              'and must not be reported `reused` — gen refuses:\n$second',
+        );
+        expect(second, contains('--> fix:'));
+        expect(
+          second,
+          contains('zfa tdd reset 1388-repro'),
+          reason:
+              'the refusal names the ACTUAL escape hatch with the feature '
+              'reference (issue #1388):\n$second',
+        );
+        expect(second, contains('verdict=refused'));
 
-      final second = await runner.runCapturing([
-        'tdd',
-        'gen',
-        'U1',
-        '--project',
-        fx.root.path,
-      ]);
-      expect(exitCode, 0, reason: 'the second gen must succeed: $second');
-      expect(
-        second,
-        contains('verdict=reused'),
-        reason:
-            'genuinely unchanged routing must keep the FR-006 reuse '
-            'idempotency (issue #1388 must not break it):\n$second',
-      );
-      final afterReuse = await fx.registryRecordOf('U1');
-      final testAfterReuse = await File(
-        fixturePath(fx, afterReuse['test_path'] as String),
-      ).readAsString();
-      expect(
-        testAfterReuse,
-        seeded.testContent,
-        reason: 'the reuse is byte-identical',
-      );
+        // The owned pair is untouched: the refusal never clobbers real
+        // work and never rewrites the registry record.
+        final subjectAfter = await subjectFile.readAsString();
+        expect(
+          subjectAfter,
+          contains("=> 'text/event-stream';"),
+          reason: 'the progressed subject survives the refusal verbatim',
+        );
+        final after = await fx.registryRecordOf('U1');
+        expect(
+          after['test_path'],
+          seeded.record['test_path'],
+          reason: 'the registry record is unchanged by the refusal',
+        );
+      });
 
-      // A record written by a pre-#1388 binary carries no fingerprint:
-      // the gate stays open for it (no mass invalidation of shipped
-      // registries).
-      await stripFingerprint(fx, 'U1');
-      final third = await runner.runCapturing([
-        'tdd',
-        'gen',
-        'U1',
-        '--project',
-        fx.root.path,
-      ]);
-      expect(exitCode, 0, reason: 'the legacy-record gen must succeed: $third');
-      expect(
-        third,
-        contains('verdict=reused'),
-        reason:
-            'legacy records without gen_fingerprint keep reusing — the '
-            'fingerprint arms going forward, it never retro-invalidates:\n'
-            '$third',
-      );
-    });
-  });
+      test('U4: the fingerprint arms on created records — deterministic '
+          'for identical routing, distinct for different routing', () async {
+        final seeded = await seedGuardOnlyPair(runner, fx, selfTracedSpec);
+        final fingerprint = seeded.record['gen_fingerprint'] as String?;
+        expect(
+          fingerprint,
+          isNotNull,
+          reason:
+              'gen must persist the reuse fingerprint on the created '
+              'record (issue #1388): '
+              '${seeded.record.keys.toList()}',
+        );
+        expect(
+          RegExp(r'^[0-9a-f]{64}$').hasMatch(fingerprint!),
+          isTrue,
+          reason: 'the fingerprint is a sha256 hex digest: $fingerprint',
+        );
+
+        // Identical routing inputs (same spec, same traces cell) hash to
+        // the same fingerprint in a fresh project.
+        final twin = await TddFixture.create(featureName: '1388-repro');
+        try {
+          final twinSeeded = await seedGuardOnlyPair(
+            runner,
+            twin,
+            selfTracedSpec,
+          );
+          expect(
+            twinSeeded.record['gen_fingerprint'],
+            fingerprint,
+            reason:
+                'the fingerprint is a pure function of the routing '
+                'inputs (traces cell + spec.md), not of the project',
+          );
+        } finally {
+          twin.dispose();
+        }
+
+        // A different routing input hashes differently.
+        final migrated = await migrateAndGen(runner, fx, signatureTracedSpec);
+        expect(migrated, contains('verdict=regenerated'), reason: migrated);
+        final after = await fx.registryRecordOf('U1');
+        expect(
+          after['gen_fingerprint'],
+          isNot(fingerprint),
+          reason:
+              'the traces migration changed the routing inputs — the '
+              'stored fingerprint must differ after the regeneration',
+        );
+      });
+
+      test('U5: the drift fires ONCE per change — the refreshed '
+          'fingerprint reuses again', () async {
+        await seedGuardOnlyPair(runner, fx, selfTracedSpec);
+
+        final second = await migrateAndGen(runner, fx, signatureTracedSpec);
+        expect(
+          second,
+          contains('verdict=regenerated'),
+          reason: 'the migration must invalidate the reuse:\n$second',
+        );
+
+        final third = await runner.runCapturing([
+          'tdd',
+          'gen',
+          'U1',
+          '--project',
+          fx.root.path,
+        ]);
+        expect(exitCode, 0, reason: 'the third gen must succeed: $third');
+        expect(
+          third,
+          contains('verdict=reused'),
+          reason:
+              'the regeneration refreshed the stored fingerprint — the '
+              'drift fires once per routing change and stable reuse '
+              'resumes (FR-006 idempotency):\n$third',
+        );
+      });
+
+      test('U6: unchanged routing and legacy records keep byte-identical '
+          'reuse', () async {
+        final seeded = await seedGuardOnlyPair(runner, fx, selfTracedSpec);
+
+        final second = await runner.runCapturing([
+          'tdd',
+          'gen',
+          'U1',
+          '--project',
+          fx.root.path,
+        ]);
+        expect(exitCode, 0, reason: 'the second gen must succeed: $second');
+        expect(
+          second,
+          contains('verdict=reused'),
+          reason:
+              'genuinely unchanged routing must keep the FR-006 reuse '
+              'idempotency (issue #1388 must not break it):\n$second',
+        );
+        final afterReuse = await fx.registryRecordOf('U1');
+        final testAfterReuse = await File(
+          fixturePath(fx, afterReuse['test_path'] as String),
+        ).readAsString();
+        expect(
+          testAfterReuse,
+          seeded.testContent,
+          reason: 'the reuse is byte-identical',
+        );
+
+        // A record written by a pre-#1388 binary carries no fingerprint:
+        // the gate stays open for it (no mass invalidation of shipped
+        // registries).
+        await stripFingerprint(fx, 'U1');
+        final third = await runner.runCapturing([
+          'tdd',
+          'gen',
+          'U1',
+          '--project',
+          fx.root.path,
+        ]);
+        expect(
+          exitCode,
+          0,
+          reason: 'the legacy-record gen must succeed: $third',
+        );
+        expect(
+          third,
+          contains('verdict=reused'),
+          reason:
+              'legacy records without gen_fingerprint keep reusing — the '
+              'fingerprint arms going forward, it never retro-invalidates:\n'
+              '$third',
+        );
+      });
+    },
+  );
 }
