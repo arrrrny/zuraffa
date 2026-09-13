@@ -179,6 +179,13 @@ List<_DirectiveTarget> _collectTargets(Set<String> published) {
   for (final rel in published) {
     if (!rel.startsWith('lib/') || !rel.endsWith('.dart')) continue;
     final text = File(p.join(_pkgRoot, rel)).readAsStringSync();
+    // A file carrying the @@TOKEN@@ placeholder convention is a
+    // generator template embedded in lib/ (plugin_scaffold.dart, #1601):
+    // its export-looking lines — including placeholder-free ones like
+    // `export 'src/register.dart';` inside the adapter-package template —
+    // are stamped into a consumer monorepo, so none of them is a
+    // directive of THIS package.
+    if (text.contains('@@')) continue;
     for (final m in _directiveRe.allMatches(text)) {
       final uri = m.group(3)!;
       // A real Dart export/part URI is a plain string literal — it cannot
