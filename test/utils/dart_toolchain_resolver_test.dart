@@ -44,14 +44,8 @@ void main() {
         environment: {},
         home: null,
       );
-      expect(withoutRoot.where((c) => c.contains('FLUTTER_ROOT')), isEmpty);
-      expect(
-        withoutRoot.where(
-          (c) => c.contains('/bin/dart') && !c.startsWith('/usr/local'),
-        ),
-        isEmpty,
-        reason: 'without env roots there are no rooted candidates',
-      );
+      // No roots declared and no home: only the neutral hint remains.
+      expect(withoutRoot, ['/usr/local/flutter/bin/dart']);
     });
 
     test('c3: derives HOME candidates from the injected home', () {
@@ -71,6 +65,20 @@ void main() {
           home: null,
         );
         expect(candidates.take(4), [
+          '/sdk-a/dart',
+          '/sdk-a/bin/dart',
+          '/sdk-b/dart',
+          '/sdk-b/bin/dart',
+        ]);
+
+        // The separator is injectable, so the Windows (`;`) branch is
+        // exercisable on POSIX too.
+        final windowsStyle = DartToolchainResolver.candidatePaths(
+          environment: const {'ZURAFFA_TOOLCHAIN_HINTS': '/sdk-a;/sdk-b'},
+          home: null,
+          hintsSeparator: ';',
+        );
+        expect(windowsStyle.take(4), [
           '/sdk-a/dart',
           '/sdk-a/bin/dart',
           '/sdk-b/dart',
@@ -113,9 +121,10 @@ void main() {
     late Map<String, List<String>> whichHits;
     late Map<String, String> symlinks;
 
+    // No explicit `home:` — the resolver must derive it from the injected
+    // environment, so the whole suite stays hermetic (no process HOME).
     DartToolchainResolver build() => DartToolchainResolver(
       environment: env,
-      home: env['HOME'],
       which: (exe) async => whichHits[exe] ?? const [],
       fileExists: (path) async => existingFiles.contains(path),
       resolveSymlink: (path) => symlinks[path] ?? path,

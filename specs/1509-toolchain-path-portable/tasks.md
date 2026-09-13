@@ -56,18 +56,18 @@ delegates). T011–T014 are non-behavioural hardening and traceability.
       test/plugins/tdd/make_command_test.dart` → no new failures vs. the
       recorded 5-failure environment baseline; clean dart-test kernel
       cache before and after. Traces: SC-004.
-- [ ] **T010** Run the SC-001 grep
+- [x] **T010** Run the SC-001 grep
       (`grep -r '/opt/flutter/bin/dart' --include='*.dart' --include='*.sh' --include='*.yaml' .`)
       → zero matches; record in tdd/verification.md. Traces: SC-001,
       SC-006.
-- [ ] **T011** [P] Record red→green evidence and toolchain used in
+- [x] **T011** [P] Record red→green evidence and toolchain used in
       `specs/1509-toolchain-path-portable/tdd/verification.md`
       (test-first order, baseline comparison, environment description —
       the issue #1509 environment class reproduces here). Traces: SC-006.
-- [ ] **T012** Mirror the test-list at the repo-root `tdd/test-list.md`
+- [x] **T012** Mirror the test-list at the repo-root `tdd/test-list.md`
       (current-feature convention) with final states. Traces: repo
       convention.
-- [ ] **T013** Stage-level commits + push per the report protocol;
+- [x] **T013** Stage-level commits + push per the report protocol;
       final PR body with verification summary, `Closes #1509`. Traces:
       report protocol.
 - [ ] **T014** Disk housekeeping: remove dart-test kernel caches

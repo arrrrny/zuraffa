@@ -43,7 +43,9 @@ class DartToolchainResolver {
     Future<bool> Function(String path)? fileExists,
     String Function(String path)? resolveSymlink,
   }) : _environment = environment ?? Platform.environment,
-       _home = home ?? Platform.environment['HOME'],
+       // Derive the HOME default from the SAME map (injected or process)
+       // so injecting an environment stays hermetic — no process HOME leak.
+       _home = home ?? (environment ?? Platform.environment)['HOME'],
        _which = which ?? _defaultWhich,
        _fileExists = fileExists ?? ((path) => File(path).exists()),
        _resolveSymlink =
@@ -64,12 +66,19 @@ class DartToolchainResolver {
 
   /// The environment-declared candidate directories, each probed as
   /// `<dir>/dart` and `<dir>/bin/dart`, in declared order.
-  static List<String> _hintDirs(Map<String, String> environment) {
+  ///
+  /// [separator] defaults to the platform list separator (`;` Windows,
+  /// `:` elsewhere) and is injectable so the Windows branch stays
+  /// reachable from tests on POSIX.
+  static List<String> _hintDirs(
+    Map<String, String> environment, [
+    String? separator,
+  ]) {
     final hints = environment['ZURAFFA_TOOLCHAIN_HINTS'];
     if (hints == null || hints.isEmpty) return const [];
-    final separator = Platform.isWindows ? ';' : ':';
+    final effectiveSeparator = separator ?? (Platform.isWindows ? ';' : ':');
     return hints
-        .split(separator)
+        .split(effectiveSeparator)
         .map((dir) => dir.trim())
         .where((dir) => dir.isNotEmpty)
         .toList(growable: false);
@@ -81,13 +90,16 @@ class DartToolchainResolver {
   /// Guarantees (FR-005 of spec 1509): no machine-specific absolute
   /// paths — every entry is either env-derived (`ZURAFFA_TOOLCHAIN_HINTS`,
   /// `FLUTTER_ROOT`, home-derived) or the neutral `/usr/local/flutter`
-  /// generic hint. The banned literal from issue #1509 is never emitted.
+  /// generic hint. The banned literal from issue #1509 is never emitted
+  /// as a source constant (declaring it via `ZURAFFA_TOOLCHAIN_HINTS`
+  /// derives it from the environment, by design).
   static List<String> candidatePaths({
     required Map<String, String> environment,
     required String? home,
+    String? hintsSeparator,
   }) {
     final candidates = <String>[];
-    for (final dir in _hintDirs(environment)) {
+    for (final dir in _hintDirs(environment, hintsSeparator)) {
       candidates
         ..add(p.join(dir, 'dart'))
         ..add(p.join(dir, 'bin', 'dart'));

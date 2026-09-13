@@ -3,9 +3,10 @@
 // Pins the measurable success criterion SC-001: the documented-but-
 // unavailable toolchain path from issue #1509 — the '/opt/flutter' dart
 // binary — must not appear as a contiguous literal in any tracked *.dart,
-// *.sh or *.yaml file. The toolchain is PATH-resolved; machine-specific
-// SDK locations are declared through the environment (ZURAFFA_DART_BIN,
-// ZURAFFA_TOOLCHAIN_HINTS, FLUTTER_ROOT), never through source literals.
+// *.sh, *.yaml or *.yml file. The toolchain is PATH-resolved;
+// machine-specific SDK locations are declared through the environment
+// (ZURAFFA_DART_BIN, ZURAFFA_TOOLCHAIN_HINTS, FLUTTER_ROOT), never
+// through source literals.
 //
 // NOTE: this file composes the banned path from fragments (and so does
 // the acceptance test in dart_toolchain_resolver_test.dart) so that the
@@ -28,10 +29,11 @@ const _bannedLiteral =
     'dart';
 
 /// File extensions the SC-001 grep covers.
-const _scannedExtensions = {'.dart', '.sh', '.yaml'};
+const _scannedExtensions = {'.dart', '.sh', '.yaml', '.yml'};
 
-/// Directories never scanned (generated / vendored / VCS internals),
-/// mirroring what `git ls-files` would exclude.
+/// Directories never scanned (generated / VCS internals). This is a
+/// filesystem walk, not `git ls-files`: untracked or ignored scratch
+/// files are still visited, so a dirty tree can surface them here.
 const _skippedDirNames = {'.git', '.dart_tool'};
 
 List<String> _trackedToolchainSourcesSync(Directory root) {
