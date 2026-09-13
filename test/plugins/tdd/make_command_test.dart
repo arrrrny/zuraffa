@@ -502,6 +502,131 @@ void main() {
       expect(cycleLog, contains('## Cycle: U3 (green)'));
     });
 
+    test('A-1530-11: the green-with-failed-build receipt prints the failed '
+        'build output\'s analyzer warning lines verbatim (issue #1530 — '
+        'the tolerated class is never a quiet default)', () async {
+      // Issue #1530 state: the terminal build step fails with analyzer
+      // WARNING lines in its output (the undefined_hidden_name class the
+      // generator emitted). The #737 per-behavior guard tolerates the
+      // failure and the make records green-with-failed-build — but the
+      // receipt never showed WHAT the build warned about, so the drift
+      // was invisible per step. The receipt must print each `warning -`
+      // line verbatim.
+      const description = 'returns 52 when invoked with no args';
+      await fx.seedCertifiedRed(
+        id: 'U3',
+        description: description,
+        testContent: TddFixture.subjectDrivenTest(
+          'U3',
+          description,
+          expected: 52,
+        ),
+      );
+      const warningLine =
+          "warning - lib/src/data/datasources/task/task_datasource.dart:5:7 "
+          "• The name Task is not defined in the imported library • "
+          "undefined_hidden_name";
+      const warningLine2 =
+          "warning - lib/src/data/datasources/task/task_mock_datasource.dart:5:7 "
+          "• The name TaskPatch is not defined in the imported library • "
+          "undefined_hidden_name";
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd func': fx.overwriteSubjectCommands(
+            'U3',
+            TddFixture.subjectReturning('U3', 52),
+          ),
+        },
+        exitByArgv: {'build': 1},
+        stdoutByArgv: {
+          'build': [
+            'Analyzing zuraffa_1530_receipt_fixture...',
+            warningLine,
+            warningLine2,
+            '2 issues found.',
+          ],
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U3', zfaBin: zfaBin),
+      );
+
+      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(
+        out,
+        contains(
+          'make: behavior=U3 outcome=green-with-failed-build '
+          'feature=${fx.featureName}',
+        ),
+        reason: 'the tolerated accounting is unchanged (out:\n$out)',
+      );
+      // The verbatim warnings block (issue #1530 FR-008).
+      expect(
+        out,
+        contains(warningLine),
+        reason:
+            'the receipt must print the failed build output\'s warning '
+            'lines verbatim so drift is visible per step:\n$out',
+      );
+      expect(out, contains(warningLine2));
+    });
+
+    test('A-1530-12: a tolerated build failure with NO warning lines '
+        'prints the explicit no-warnings line (issue #1530)', () async {
+      // The build failed for a non-analyzer reason; the receipt must
+      // say so explicitly instead of leaving the step transcript to
+      // imply the analyzer was silent by accident.
+      const description = 'returns 53 when invoked with no args';
+      await fx.seedCertifiedRed(
+        id: 'U3',
+        description: description,
+        testContent: TddFixture.subjectDrivenTest(
+          'U3',
+          description,
+          expected: 53,
+        ),
+      );
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'tdd func': fx.overwriteSubjectCommands(
+            'U3',
+            TddFixture.subjectReturning('U3', 53),
+          ),
+        },
+        exitByArgv: {'build': 1},
+        stdoutByArgv: {
+          'build': [
+            'Build runner failed: some other reason',
+            'exit code 69',
+          ],
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U3', zfaBin: zfaBin),
+      );
+
+      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(
+        out,
+        contains(
+          'make: behavior=U3 outcome=green-with-failed-build '
+          'feature=${fx.featureName}',
+        ),
+      );
+      expect(
+        out,
+        contains('no analyzer warnings reported'),
+        reason: 'the receipt must state the analyzer was silent '
+            'explicitly:\n$out',
+      );
+    });
+
     test('a failed terminal build whose output reports analyzer errors is '
         'NOT tolerated: the make stops with generation-error and appends no '
         'green entry (issue #942 — green accounting stays honest)', () async {

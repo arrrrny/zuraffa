@@ -1608,6 +1608,10 @@ class MakeCommand extends Command<void> {
             'per-behavior guard); recording it as green-with-failed-build '
             '(issue #942).',
           );
+          // Issue #1530 (FR-008): the tolerated class must never be a
+          // quiet default — surface the failed build's analyzer warnings
+          // verbatim in the receipt so the drift is visible per step.
+          _printToleratedBuildWarnings(failed.output);
           postRun = toleratedRun;
           buildStepTolerated = true;
         } else if (!warningsOnlyGateRefusal) {
@@ -2281,6 +2285,39 @@ class MakeCommand extends Command<void> {
       r'^\s*warning\s*-\s.*$',
       multiLine: true,
     ).allMatches(buildOutput).map((m) => m.group(0)!.trim()).toList();
+    const maxLogged = 10;
+    for (final line in warningLines.take(maxLogged)) {
+      print('   $line');
+    }
+    final remainder = warningLines.length - maxLogged;
+    if (remainder > 0) {
+      print('   ... $remainder more warning(s)');
+    }
+  }
+
+  /// Issue #1530 (FR-008): the `green-with-failed-build` receipt's
+  /// warnings block — the tolerated class is never a quiet default.
+  /// Prints the analyzer `warning -` lines from the failed build output
+  /// verbatim (the #1407 presentation contract: a capped sample plus a
+  /// remainder count so the transcript stays readable), or an explicit
+  /// no-warnings line when the output carries none (the build failed
+  /// for another reason). Print-only: the #942/#737 grading that chose
+  /// this path is untouched.
+  static void _printToleratedBuildWarnings(String buildOutput) {
+    final warningLines = RegExp(
+      r'^\s*warning\s*-\s.*$',
+      multiLine: true,
+    ).allMatches(buildOutput).map((m) => m.group(0)!.trim()).toList();
+    if (warningLines.isEmpty) {
+      print(
+        '   no analyzer warnings reported — the build failed for '
+        'another reason (see output above).',
+      );
+      return;
+    }
+    print(
+      '   analyzer warnings in the failed build output (verbatim):',
+    );
     const maxLogged = 10;
     for (final line in warningLines.take(maxLogged)) {
       print('   $line');
