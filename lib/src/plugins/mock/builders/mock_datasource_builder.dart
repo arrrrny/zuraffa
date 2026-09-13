@@ -1,15 +1,19 @@
+import 'package:analyzer/dart/ast/ast.dart' show ClassDeclaration;
 import 'package:code_builder/code_builder.dart';
 
 import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/ast_helper.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
+import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../services/mock_staleness_detector.dart';
 import 'mock_type_helper.dart';
 
 class MockDataSourceBuilder {
@@ -40,6 +44,42 @@ class MockDataSourceBuilder {
     final filePath =
         '$outputDir/data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart';
     final fileExists = await fileSystem.exists(filePath);
+
+    // Issue #1570: shape-check staleness detection — the skip decision
+    // is the interface/mock member-set comparison (the certification's
+    // structural check, like the tdd lane's stale-mirror comparison),
+    // not "file exists → skip". When the certified mock implements a
+    // strict subset of the interface (created earlier by `mock create`
+    // or a make run with a smaller --methods= set), the mock is STALE:
+    // repair it through the idempotent append path below instead of
+    // skipping, so interface and implementer cannot drift apart (the
+    // non_abstract_class_inherits_abstract_member / build-gate-red
+    // failure class). The check arms exactly where the old code had
+    // the existence-based skip: an existing file the fresh path would
+    // refuse. Append / force / revert runs keep their own contracts.
+    final missingInterfaceMembers =
+        fileExists &&
+            !config.appendToExisting &&
+            !options.force &&
+            !config.revert
+        ? await MockStalenessDetector.detectMockStaleness(
+            interfacePath:
+                '$outputDir/data/datasources/$entitySnake/${entitySnake}_datasource.dart',
+            interfaceClass: '${entityName}DataSource',
+            mockPath: filePath,
+            mockClass: '${entityName}MockDataSource',
+            fileSystem: fileSystem,
+          )
+        : const <ParsedUseCaseInfo>[];
+    final shapeDrift = missingInterfaceMembers.isNotEmpty;
+    if (shapeDrift) {
+      print(
+        '🔧 Shape drift detected: ${entityName}MockDataSource is missing '
+        '${missingInterfaceMembers.map((m) => m.fieldName).join(", ")} '
+        'declared by ${entityName}DataSource — repairing '
+        '$filePath (issue #1570)',
+      );
+    }
 
     // Issue #942: the mock datasource imports the entity file AND the
     // framework mock barrel unprefixed. When the entity's name matches a
@@ -181,7 +221,7 @@ class MockDataSourceBuilder {
 
     methods.addAll(_generateMockDataSourceMethods(config));
 
-    if (config.appendToExisting && fileExists) {
+    if ((config.appendToExisting || shapeDrift) && fileExists) {
       final existing = await fileSystem.read(filePath);
       var updated = existing;
 
@@ -229,7 +269,35 @@ class MockDataSourceBuilder {
             : appendExecutor.execute(request);
         updated = result.source;
       }
-      return FileUtils.writeFile(
+
+      // Issue #1570: the config-driven method set above covers the
+      // requested --methods= surface; the shape drift may name members
+      // the interface carries that this run's config does not (e.g.
+      // `mock create` after an unrelated append). Synthesize
+      // implementations for exactly those missing members from the
+      // interface's own shapes so the repaired mock always covers the
+      // full declared surface.
+      final existingMembers = _implementedMemberNames(updated);
+      for (final member in missingInterfaceMembers) {
+        if (existingMembers.contains(member.fieldName)) continue;
+        final method = _mockMethodImplForMissingMember(
+          config: config,
+          entityName: entityName,
+          member: member,
+        );
+        if (method == null) continue;
+        final request = AppendRequest.method(
+          source: updated,
+          className: '${entityName}MockDataSource',
+          memberSource: specLibrary.emitSpec(method),
+        );
+        final result = config.revert
+            ? appendExecutor.undo(request)
+            : appendExecutor.execute(request);
+        updated = result.source;
+      }
+
+      final written = await FileUtils.writeFile(
         filePath,
         updated,
         'mock_datasource',
@@ -238,6 +306,20 @@ class MockDataSourceBuilder {
         verbose: options.verbose,
         fileSystem: fileSystem,
       );
+      // Issue #1570: a shape-drift repair is an UPDATE (extend the
+      // member set), not a wholesale overwrite — the ledger says so the
+      // same way the method-append lane's mock writer does. The
+      // user-requested append path (appendToExisting) keeps its
+      // pre-existing action contract untouched.
+      if (shapeDrift && written.action == 'overwritten') {
+        return GeneratedFile(
+          path: written.path,
+          type: written.type,
+          action: 'updated',
+          content: written.content,
+        );
+      }
+      return written;
     }
 
     final clazz = Class(
@@ -276,6 +358,118 @@ class MockDataSourceBuilder {
       revert: config.revert,
       skipRevertIfExisted: true,
       fileSystem: fileSystem,
+    );
+  }
+
+  /// Issue #1570: the mock class's implemented member names, read from
+  /// the (possibly already-appended) source via the same AST primitives
+  /// the certification uses. Unparseable sources contribute nothing —
+  /// the append executor remains the authority on what lands.
+  Set<String> _implementedMemberNames(String source) {
+    try {
+      final unit = const AstHelper().parseSource(source).unit;
+      if (unit == null) return const {};
+      final names = <String>{};
+      for (final node in unit.declarations) {
+        if (node is ClassDeclaration) {
+          names.addAll(
+            const AstHelper().findMethods(node).map((m) => m.name.toString()),
+          );
+        }
+      }
+      return names;
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Issue #1570: builds a mock implementation for one missing
+  /// interface member from the interface's own extracted shape
+  /// ([ParsedUseCaseInfo]). Body patterns mirror what the lane already
+  /// emits for the known CRUD shapes: log → delay → sample fixture /
+  /// Future.value / Stream.fromFuture. Returns null for shapes this
+  /// lane cannot honestly implement (no return type to speak of).
+  Method? _mockMethodImplForMissingMember({
+    required GeneratorConfig config,
+    required String entityName,
+    required ParsedUseCaseInfo member,
+  }) {
+    final returns = member.returnsType ?? 'void';
+    final baseReturns = returns.replaceAll('?', '');
+    final isList = baseReturns.startsWith('List<');
+    final isStream = member.useCaseType == 'stream';
+    final isVoid = baseReturns == 'void' || baseReturns == 'dynamic';
+    final paramsType = member.paramsType ?? 'NoParams';
+
+    final returnType = isStream ? 'Stream<$returns>' : 'Future<$returns>';
+
+    final futureBody = Block(
+      (b) => b
+        ..statements.addAll([
+          refer('logger').property('info').call([
+            literalString('${member.fieldName} called'),
+          ]).statement,
+          refer(
+            'Future',
+          ).property('delayed').call([refer('_delay')]).awaited.statement,
+          if (isList) ...[
+            refer(
+              '${entityName}MockData',
+            ).property('sampleList').returned.statement,
+          ] else if (isVoid) ...[
+            refer('Future').property('value').call([]).returned.statement,
+          ] else ...[
+            refer(
+              '${entityName}MockData',
+            ).property('sample$entityName').returned.statement,
+          ],
+        ]),
+    );
+
+    final streamBody = Block(
+      (b) => b
+        ..statements.add(
+          refer('Stream')
+              .property('fromFuture')
+              .call([
+                refer('Future<void>').property('delayed').call([
+                  refer('_delay'),
+                  Method(
+                    (mm) => mm
+                      ..lambda = true
+                      ..body = isList
+                          ? refer(
+                              '${entityName}MockData',
+                            ).property('sampleList').code
+                          : (isVoid
+                                ? refer(
+                                    'Future',
+                                  ).property('value').call([]).code
+                                : refer(
+                                    '${entityName}MockData',
+                                  ).property('sample$entityName').code),
+                  ).closure,
+                ]),
+              ])
+              .returned
+              .statement,
+        ),
+    );
+
+    return Method(
+      (m) => m
+        ..name = member.fieldName
+        ..returns = refer(returnType)
+        ..annotations.add(refer('override'))
+        ..modifier = isStream ? null : MethodModifier.async
+        ..requiredParameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer(paramsType),
+          ),
+        )
+        ..body = isStream ? streamBody : futureBody,
     );
   }
 

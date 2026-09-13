@@ -169,24 +169,30 @@ void main() {
     exitCode = exitCodeAtEntry;
   }, timeout: const Timeout(Duration(minutes: 3)));
 
-  test(
-    'U5: the certifier names interface members missing from the mock class',
-    () async {
-      MockCertifier.analyzeRunnerOverride = (files, cwd) async {
-        return (exitCode: 0, output: '');
-      };
-      await runCli(['mock', 'create', 'Product']);
-      exitCode = exitCodeAtEntry;
-      await driftMockByRemoving('toggle');
+  test('U5: mock create repairs a drifted mock before the gate (issue #1570) '
+      '— certification records conformance', () async {
+    MockCertifier.analyzeRunnerOverride = (files, cwd) async {
+      return (exitCode: 0, output: '');
+    };
+    await runCli(['mock', 'create', 'Product']);
+    exitCode = exitCodeAtEntry;
+    await driftMockByRemoving('toggle');
 
-      final out = await runCli(['mock', 'create', 'Product', '--certify']);
-      expect(exitCode, 1);
-      expect(out, contains('--> fix: implement the missing'));
-      expect(out, contains('toggle'));
-      exitCode = exitCodeAtEntry;
-    },
-    timeout: const Timeout(Duration(minutes: 3)),
-  );
+    // Issue #1570: the mock lane's skip decision is a shape check —
+    // a mock missing interface members is repaired (not skipped on
+    // "file exists"), so the certifier observes a conforming mock:
+    // the drift is healed BEFORE the gate instead of dead-ending it.
+    final out = await runCli(['mock', 'create', 'Product', '--certify']);
+    expect(exitCode, 0, reason: 'the repaired mock conforms — output:\n$out');
+    expect(out, isNot(contains('--> fix: implement the missing')));
+    final src = await mockDatasource().readAsString();
+    expect(
+      src,
+      contains('toggle'),
+      reason: 'the repaired mock implements the missing member',
+    );
+    exitCode = exitCodeAtEntry;
+  }, timeout: const Timeout(Duration(minutes: 3)));
 }
 
 Future<void> _scaffoldProduct(String root) async {
