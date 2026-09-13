@@ -873,9 +873,15 @@ class _ConfigCommand extends Command<void> {
   @override
   String get description => 'Manage ZFA configuration';
 
+  // Issue #1496: `config init --minimal` — the config subcommand handles
+  // its own flags, so pass everything through unparsed (same pattern as
+  // _InitializeCommand).
+  @override
+  ArgParser get argParser => ArgParser.allowAnything();
+
   @override
   Future<void> run() async {
-    await config.ConfigCommand().execute(argResults!.rest.toList());
+    await config.ConfigCommand().execute(argResults!.arguments);
   }
 }
 

@@ -1,11 +1,14 @@
 ---
 name: speckit-tdd-verify
-description: Audit TDD discipline by delegating to zfa tdd verify (mutation testing, evidence integrity); the LLM interprets the verdict and drives remediation
+description: Audit TDD discipline by delegating to zfa tdd verify (mutation testing,
+  evidence integrity); the LLM interprets the verdict and drives remediation
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: tdd:commands/speckit.tdd.verify.md
+  author: d0whc3r
+  source: extension:tdd
 ---
+
+# Tdd Verify Skill
 
 # TDD Verify (zfa-delegating)
 
