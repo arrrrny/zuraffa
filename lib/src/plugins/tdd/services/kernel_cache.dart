@@ -1,5 +1,6 @@
 /// Kernel-cache housekeeping shared by the TDD driving commands
-/// (`tdd refactor` and `tdd run`) — spec 1333 FR-2; issue #1507.
+/// (`tdd refactor` and `tdd run`) — spec 1333 FR-2; issue #1507; spec 1520
+/// FR-5/FR-7.
 ///
 /// Lives in the plugin's `services/` layer (not on either command) because
 /// the sweep is a shared contract between the two commands, not a
@@ -10,35 +11,64 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'scratch_tmpdir.dart';
+
+/// The janitor's age floor (spec 1520 FR-5): a `dart_test.kernel.*` entry
+/// younger than this is NEVER swept, even when its mtime predates the
+/// command start — an entry written minutes ago may belong to a concurrent
+/// runner (or one that just crashed and is about to be re-read); only
+/// genuinely old garbage is reclaimed.
+const Duration defaultKernelAgeGuard = Duration(hours: 1);
+
 /// Clear the dart test incremental kernel cache (spec 1333 FR-2; issue
-/// #1507): the project's `.dart_tool/test/` directory and stale shared
-/// `$TMPDIR/dart_test.kernel.*` entries — BOTH files and directories.
+/// #1507; spec 1520): the project's `.dart_tool/test/` directory and stale
+/// shared temp `dart_test.kernel.*` entries — BOTH files and directories.
 /// The leaked entries are per-invocation DIRECTORIES full of dill files,
 /// so the pre-#1507 `entity is File` match never fired (dead code) and a
-/// long TDD loop leaked 51 GB in ~80 minutes; directory entries are now
-/// deleted recursively.
+/// long TDD loop leaked 51 GB in ~80 minutes; directory entries are
+/// deleted recursively. Top-level `zfa-*` scratch directories (spec 1520
+/// FR-1) are swept here too, so a scratch orphaned by a killed run is
+/// reclaimed instead of accumulating forever.
 ///
-/// Three guards keep live runners safe:
+/// The temp sweep covers the ambient temp root (TMPDIR/TEMP/TMP, else
+/// `Directory.systemTemp`) AND the configured scratch root
+/// (`ZFA_TMPDIR` / `.zfa.json` `tdd.tmpDir`, spec 1520 FR-7) when one is
+/// set — deduped, both under the same guard stack. With spec 1520's
+/// per-run scratch the ambient root only holds HISTORICAL leaks (live runs
+/// write inside their own scratch, deleted at run end), so the sweep is
+/// the mop for pre-1520 garbage, not the isolation mechanism.
+///
+/// Four guards keep live runners safe:
 ///
 /// 1. Issue #1507 commandStartedAt guard — entries created or updated
 ///    after [commandStartedAt] may belong to a concurrent runner and are
 ///    left untouched.
-/// 2. Liveness guard — a kernel entry whose path appears in ANY live
+/// 2. Spec 1520 age floor — entries younger than [ageGuard]
+///    (default [defaultKernelAgeGuard], ~1 hour) are left untouched even
+///    when their mtime predates the command start: an entry written
+///    minutes ago by a now-crashed agent may still be referenced.
+/// 3. Liveness guard — a kernel entry whose path appears in ANY live
 ///    process's argv (the dart test runner's own frontend-server child
 ///    holds `--output-dill=<tmp>/dart_test.kernel.<rand>/output.dill` for
-///    the whole invocation) is skipped. Without it, sweeping at cycle
-///    start inside a process that is itself nested under a live `dart
-///    test` (the repo's own in-process test fleet) deletes the outer
+///    the whole invocation) is skipped; a `zfa-*` scratch dir is skipped
+///    when any live kernel dir lives inside it. Without it, sweeping at
+///    cycle start inside a process that is itself nested under a live
+///    `dart test` (the repo's own in-process test fleet) deletes the outer
 ///    runner's kernel mid-run and its loader crashes at close with a
 ///    PathNotFoundException copying the incremental dill back. The probe
 ///    reads `/proc/<pid>/cmdline` on Linux and `ps -ww -Ao pid=,args=` on
-///    macOS; on any other platform it degrades to the commandStartedAt
-///    guard alone.
-/// 3. Project-cycle ownership guard (issue #1507 review finding CR-1) —
+///    macOS; on any other platform it degrades to the mtime guards alone.
+/// 4. Project-cycle ownership guard (issue #1507 review finding CR-1) —
 ///    `.dart_tool/test/` is shared by every cycle in a project, so it is
 ///    only deleted when no other live TDD cycle owns the project (see
 ///    [_foreignCycleActive]). The kernel entries above stay protected by
 ///    the stricter per-entry guards, so they are swept regardless.
+///
+/// [environment] (default `Platform.environment`) and [now] (default the
+/// sweep instant) are injectable so fast-tier tests can drive the guard
+/// stack hermetically — no shared-user-TMPDIR state is ever touched.
+/// [liveKernelDirs] overrides the liveness probe the same way (default: the
+/// real process scan).
 ///
 /// Best-effort overall: a clear failure prints a note and never crashes
 /// the command; the caller simply re-runs and the classifier grades the
@@ -48,10 +78,16 @@ import 'package:path/path.dart' as p;
 Future<void> clearDartTestKernelCache(
   String projectRoot, {
   required DateTime commandStartedAt,
+  Map<String, String>? environment,
+  DateTime? now,
+  Duration ageGuard = defaultKernelAgeGuard,
+  Set<String>? liveKernelDirs,
 }) async {
   var cleared = 0;
   var freedBytes = 0;
-  final liveKernelDirs = _liveKernelDirRefs();
+  final liveDirs = liveKernelDirs == null
+      ? _liveKernelDirRefs()
+      : liveKernelDirs.map(p.canonicalize).toSet();
   // A foreign live cycle owns this project's shared test cache — leave it
   // alone (finding CR-1). Read BEFORE marking ourselves so a live owner's
   // marker is never overwritten.
@@ -75,51 +111,29 @@ Future<void> clearDartTestKernelCache(
   } catch (e) {
     print('   kernel cache clear (project .dart_tool/test/) failed: $e');
   }
-  final tmpRoot =
-      Platform.environment['TMPDIR'] ??
-      Platform.environment['TEMP'] ??
-      Platform.environment['TMP'] ??
-      Directory.systemTemp.path;
-  try {
-    final tmpDir = Directory(tmpRoot);
-    if (await tmpDir.exists()) {
-      await for (final entity in tmpDir.list()) {
-        if (!p.basename(entity.path).startsWith('dart_test.kernel.')) {
-          continue;
-        }
-        // Issue #1507: the leaked entries are DIRECTORIES too — match
-        // both shapes and delete directories recursively.
-        try {
-          if (liveKernelDirs.contains(p.canonicalize(entity.path))) {
-            // A live dart test runner still holds this kernel (its
-            // frontend-server child references it in argv) — deleting it
-            // would crash that runner's loader at close.
-            continue;
-          }
-          // Note: `lastModified()` is an instance method on File only —
-          // the pre-#1507 code reached it through type promotion and
-          // could never stat a directory. FileStat.modified works for
-          // both shapes.
-          final modifiedAt = (await entity.stat()).modified;
-          if (!modifiedAt.isBefore(commandStartedAt)) {
-            // An entry created or updated during this command may be
-            // pinned by a concurrent runner — skipped; the next suite
-            // run re-derives it.
-            continue;
-          }
-          freedBytes += await _entrySize(entity);
-          await (entity is Directory
-              ? entity.delete(recursive: true)
-              : entity.delete());
-          cleared++;
-        } catch (_) {
-          // A kernel entry pinned by a concurrent runner is skipped —
-          // the next suite run re-derives it.
-        }
-      }
-    }
-  } catch (e) {
-    print('   kernel cache clear (TMPDIR) failed: $e');
+
+  // Spec 1520: the temp sweep runs over BOTH the ambient temp root and the
+  // configured scratch root, deduped — every root under the full guard
+  // stack (liveness, commandStartedAt, age floor). The configured root is
+  // resolved ONCE: two calls could read different `.zfa.json` contents
+  // (and the `!`-asserted second one could throw on a mid-sweep null).
+  final env = environment ?? Platform.environment;
+  final effectiveNow = now ?? DateTime.now();
+  final ageFloor = effectiveNow.subtract(ageGuard);
+  final configured = scratchConfiguredRoot(projectRoot, environment: env);
+  final roots = <String>{
+    p.canonicalize(scratchEffectiveTempRoot(env)),
+    if (configured != null) p.canonicalize(configured),
+  };
+  for (final rootPath in roots) {
+    final swept = await _sweepTempKernelEntries(
+      rootPath,
+      commandStartedAt: commandStartedAt,
+      ageFloor: ageFloor,
+      liveKernelDirs: liveDirs,
+    );
+    cleared += swept.$1;
+    freedBytes += swept.$2;
   }
   if (cleared > 0) {
     print(
@@ -127,6 +141,88 @@ Future<void> clearDartTestKernelCache(
       'freed ${(freedBytes / (1024 * 1024)).toStringAsFixed(1)} MB',
     );
   }
+}
+
+/// Sweep ONE temp root's top-level kernel entries under the full guard
+/// stack: `dart_test.kernel.*` files and directories (#1507's leaks) AND
+/// `zfa-*` scratch directories orphaned by a run that died without its
+/// `finally` (spec 1520 FR-5 — the sweep must not seal a leak class it
+/// used to mop up, or #1507's unbounded growth returns through the
+/// scratch). Returns `(cleared, freedBytes)` — best-effort: a root that
+/// does not exist sweeps to zero, an entry pinned by a concurrent runner
+/// (or deleted mid-walk) is skipped.
+Future<(int, int)> _sweepTempKernelEntries(
+  String rootPath, {
+  required DateTime commandStartedAt,
+  required DateTime ageFloor,
+  required Set<String> liveKernelDirs,
+}) async {
+  var cleared = 0;
+  var freedBytes = 0;
+  try {
+    final root = Directory(rootPath);
+    if (!await root.exists()) return (cleared, freedBytes);
+    await for (final entity in root.list()) {
+      final base = p.basename(entity.path);
+      final isKernel = base.startsWith('dart_test.kernel.');
+      // A scratch dir left behind by a run that never reached its
+      // `finally` is sealed from the #1507 sweep by its `zfa-` prefix —
+      // matched explicitly so crash debris is still reclaimed.
+      final isScratch =
+          !isKernel &&
+          entity is Directory &&
+          base.startsWith(defaultScratchPrefix);
+      if (!isKernel && !isScratch) continue;
+      // Issue #1507: the leaked entries are DIRECTORIES too — match
+      // both shapes and delete directories recursively.
+      try {
+        final canonical = p.canonicalize(entity.path);
+        // A live dart test runner's frontend-server child references its
+        // kernel in argv for the whole invocation. For a `zfa-*` scratch
+        // that reference is `<scratch>/dart_test.kernel.<rand>/...`, so
+        // liveness for a scratch means "any live kernel dir lives
+        // inside it" — deleting it would crash that runner's loader at
+        // close.
+        final live = isScratch
+            ? liveKernelDirs.any((kernel) => p.isWithin(canonical, kernel))
+            : liveKernelDirs.contains(canonical);
+        if (live) {
+          continue;
+        }
+        // Note: `lastModified()` is an instance method on File only —
+        // the pre-#1507 code reached it through type promotion and
+        // could never stat a directory. FileStat.modified works for
+        // both shapes.
+        final modifiedAt = (await entity.stat()).modified;
+        if (!modifiedAt.isBefore(commandStartedAt)) {
+          // An entry created or updated during this command may be
+          // pinned by a concurrent runner — skipped; the next suite
+          // run re-derives it. (The #1507 guard — spec 1520 leaves it
+          // authoritative over the age floor: B12.)
+          continue;
+        }
+        if (!modifiedAt.isBefore(ageFloor)) {
+          // Spec 1520 age floor (FR-5): the entry predates the command
+          // start but is YOUNGER than the age guard — it may belong to
+          // a concurrent runner that started before this one, or to a
+          // crashed run whose kernel is about to be re-read. Never
+          // garbage; left untouched. (B10.)
+          continue;
+        }
+        freedBytes += await _entrySize(entity);
+        await (entity is Directory
+            ? entity.delete(recursive: true)
+            : entity.delete());
+        cleared++;
+      } catch (_) {
+        // A kernel entry pinned by a concurrent runner is skipped —
+        // the next suite run re-derives it.
+      }
+    }
+  } catch (e) {
+    print('   kernel cache clear ($rootPath) failed: $e');
+  }
+  return (cleared, freedBytes);
 }
 
 /// Best-effort byte total of a kernel cache entry (a file, or a directory

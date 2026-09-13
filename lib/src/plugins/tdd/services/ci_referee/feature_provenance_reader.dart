@@ -33,6 +33,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../../core/project/receipt_store.dart';
+import '../cycle_log_entry_sections.dart';
 import 'feature_provenance.dart';
 
 class FeatureProvenanceReader {
@@ -125,24 +126,28 @@ class FeatureProvenanceReader {
   }
 
   /// Behavior ids with green cycle-log evidence for [feature].
+  ///
+  /// Fence-aware (issue #1549): entries come from the shared
+  /// `splitCycleLogSections()` splitter via the entry-sections iterator, so
+  /// `currentBehavior` can no longer be set from an in-fence `## Cycle:`
+  /// line (a banner a test printed into its captured output) — a following
+  /// `- kind: green` line attributes to the section's REAL behavior, never
+  /// to a phantom header. The body field grammar is unchanged.
   Future<Set<String>> _readGreenBehaviors(String feature) async {
     final cycleLog = File(
       p.join(projectRoot, 'specs', feature, 'tdd', 'cycle-log.md'),
     );
     if (!await cycleLog.exists()) return const {};
     final greens = <String>{};
-    final lines = (await cycleLog.readAsString()).split('\n');
-    var currentBehavior = '';
-    for (final line in lines) {
-      final trimmed = line.trim();
-      if (trimmed.startsWith('## Cycle:')) {
-        // `## Cycle: <behavior> (green|red|refactor)`
-        final header = trimmed.substring('## Cycle:'.length).trim();
-        currentBehavior = header.split(' ').first;
-      } else if (trimmed.startsWith('- kind:') &&
-          trimmed.endsWith('green') &&
-          currentBehavior.isNotEmpty) {
-        greens.add(currentBehavior);
+    final entries = parseCycleLogEntrySections(await cycleLog.readAsString());
+    for (final entry in entries) {
+      if (entry.behavior.isEmpty) continue;
+      final isGreen = entry.bodyLines.any((line) {
+        final trimmed = line.trim();
+        return trimmed.startsWith('- kind:') && trimmed.endsWith('green');
+      });
+      if (isGreen) {
+        greens.add(entry.behavior);
       }
     }
     return greens;
