@@ -1924,7 +1924,7 @@ class MakeCommand extends Command<void> {
       // entity file is included — the chain's `entity create` step
       // writes it before the plugin transaction, so it never appears in
       // the transaction's generated-file list.
-      sourceFiles: [
+      sourceFiles: {
         slice.entityFile,
         ...files
             .map((file) => file.path)
@@ -1933,7 +1933,7 @@ class MakeCommand extends Command<void> {
                   ? p.relative(path, from: projectRoot)
                   : path,
             ),
-      ].toSet().toList(),
+      }.toList(),
     );
     final v2ReceiptPath = p.relative(v2ReceiptFile.path, from: projectRoot);
 

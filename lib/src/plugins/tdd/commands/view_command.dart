@@ -80,6 +80,7 @@ import '../services/feature_path_resolver.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
+import '../services/path_canonicalizer.dart';
 import '../services/platform_layout_contract.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/test_list_reader.dart';
@@ -229,13 +230,23 @@ class ViewCommand extends Command<void> {
     try {
       canonicalRoot = await Directory(normalizedCwd).resolveSymbolicLinks();
     } on FileSystemException {
-      canonicalRoot = normalizedCwd;
+      // Symmetric with the subject side below: a root that cannot resolve
+      // is canonicalized through its nearest EXISTING ancestor, never left
+      // raw (review of #1611).
+      canonicalRoot = await canonicalizeMissingPath(normalizedCwd);
     }
     String canonicalSubject;
     try {
       canonicalSubject = await File(subjectPath).resolveSymbolicLinks();
     } on FileSystemException {
-      canonicalSubject = subjectPath;
+      // A missing subject file (the U-V3 artifact case) has nothing to
+      // resolve: canonicalize through its nearest EXISTING ancestor and
+      // re-append the remaining segments. Taking the raw path here made
+      // a symlinked temp root (`/var/folders` → `/private/var/folders`
+      // on macOS) read the project's own recorded path as "outside the
+      // project root" — the wrong refusal branch (issue #1603; the same
+      // fix wire carries since pull/1516 review, c1e287da).
+      canonicalSubject = await canonicalizeMissingPath(subjectPath);
     }
     if (!p.equals(canonicalRoot, canonicalSubject) &&
         !p.isWithin(canonicalRoot, canonicalSubject)) {
