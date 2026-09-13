@@ -86,18 +86,28 @@ All were proven pre-existing by running them against pristine `master`
    a pristine master worktree: the committed subject is a GENERATED STUB whose
    header states the pair is honest-red on first execution — by design, in the
    slow tier.
-3. `test/plugins/tdd/scenarios/` — slow-tier acceptance scenarios (real
+x. `test/plugins/tdd/scenarios/` — slow-tier acceptance scenarios (real
    subprocess temp projects); excluded on cloud agents per dart_test.yaml's
    own policy, not run here.
-4. NEW pre-existing master breakage found during this audit (NOT from this
-   branch): `bug_1397_path_form_mismatch_test.dart` (slow-tagged) fails 1/10
+4. NEW pre-existing master breakages found during this audit (NOT from this
+   branch; each proven on a pristine master worktree):
+   - `bug_1388_gen_traces_fingerprint_test.dart` B1 — `PathNotFoundException`
+     on a legacy flat-path fixture, identical on master e9b1f62f.
+   - During this audit master merged #1609, which committed a NEW drifted
+     registry (`specs/1444-setup-zuraffa-app/tdd/artifacts.json`, A5+A7
+     absolute) — live proof the corruption keeps flowing; this branch's
+     migration re-ran and repaired it (2 records), and the A5 census guard
+     caught it automatically.
+   - the slow-tagged `bug_1397_path_form_mismatch_test.dart` fixture — the
+     #1528 auto-init preflight misfires in its pubspec-less fixture, identical
+     on master 9faa78c0. `bug_1397_path_form_mismatch_test.dart` (slow-tagged) fails 1/10
    after the #1528 auto-init preflight landed — its pubspec-less fixture
    trips `zfa tdd init misfire → setup-error`. Reproduced identically on a
    pristine master worktree (9faa78c0). This PR's own suite seeds the TDD
    profile (the #1518 house pattern) and is unaffected; the #1397 fixture
    needs the same one-line seed — filed separately, out of this PR's scope
    (one PR per bug).
-5. A single whole-tree `dart test test/plugins/tdd/` invocation is not usable
+6. A single whole-tree `dart test test/plugins/tdd/` invocation is not usable
    on this disk class (kernel cache overflows; dart_test.yaml documents the
    chunked runner for this) — the chunked runner was used instead.
 
