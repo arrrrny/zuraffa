@@ -28,6 +28,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../utils/string_utils.dart';
@@ -116,16 +117,35 @@ class MockCertificationSandbox {
   static bool Function() flutterOnPath = _flutterExecutableOnPathDefault;
 
   /// Scans a PATH-style string for a flutter executable file.
+  ///
+  /// Existence alone is not capability (#1600 review): a `flutter` file
+  /// without an execute bit cannot start a process, so a PATH entry
+  /// holding one is NOT a usable SDK. Requiring the bit keeps the
+  /// "no usable flutter" and "no flutter at all" shapes on the SAME
+  /// degradation branch instead of the former landing on a red run.
   static bool flutterExecutableOnPath(
     String pathEnv, {
     String delimiter = ':',
   }) {
     for (final dir in pathEnv.split(delimiter)) {
       if (dir.isEmpty) continue;
-      if (File(p.join(dir, 'flutter')).existsSync()) return true;
+      final flutter = File(p.join(dir, 'flutter'));
+      if (flutter.existsSync() && _isExecutable(flutter)) return true;
       if (File(p.join(dir, 'flutter.bat')).existsSync()) return true;
     }
     return false;
+  }
+
+  /// POSIX executability of [file] — the `0o111` execute bits. Windows
+  /// carries no exec bit, so the answer there is existence-derived (the
+  /// `.bat` entry above covers the real Windows launcher).
+  static bool _isExecutable(File file) {
+    if (Platform.isWindows) return true;
+    try {
+      return file.statSync().mode & 0x49 != 0;
+    } on FileSystemException {
+      return false;
+    }
   }
 
   static bool _flutterExecutableOnPathDefault() => flutterExecutableOnPath(
@@ -259,17 +279,23 @@ dev_dependencies:
       // 5. analyze — errors fail certification outright. Infos are
       //    not fatal by default in the Dart SDK; warnings are demoted so
       //    only real errors block (the sandbox has no analysis_options,
-      //    so lints never apply).
+      //    so lints never apply). `flutter analyze` defaults
+      //    `--fatal-infos` ON while `dart analyze` defaults it off, so the
+      //    Flutter lane demotes infos too — both lanes block on the same
+      //    severities (#1600 review).
       final analyze = await _run(
         toolchain,
-        ['analyze', '.', '--no-fatal-warnings'],
+        [
+          'analyze',
+          '.',
+          '--no-fatal-warnings',
+          if (flutterTest) '--no-fatal-infos',
+        ],
         sandbox.path,
         testTimeout,
       );
       final analyzeIssues = _countAnalyzeIssues(analyze.stdout);
-      final analyzeErrors = _countAnalyzeErrors(
-        analyze.stdout + analyze.stderr,
-      );
+      final analyzeErrors = countAnalyzeErrors(analyze.stdout + analyze.stderr);
       logs.add(
         '$toolchain analyze: $analyzeIssues issue(s), '
         '$analyzeErrors error(s)',
@@ -563,9 +589,17 @@ dev_dependencies:
     return match != null ? int.parse(match.group(1)!) : 0;
   }
 
-  int _countAnalyzeErrors(String output) {
+  /// Errors in analyzer output, across BOTH toolchain line grammars:
+  /// `dart analyze`    → `error - <path>:<l>:<c> - <message> - <code>`
+  /// `flutter analyze` → `error • <message> • <path>:<l>:<c> • <code>`
+  /// Matching only the `-` separator silently counted 0 for every
+  /// Flutter-lane error, so `analyzeClean` went vacuous there (#1600
+  /// review). Public for the string-level behavior that pins both
+  /// grammars without an SDK.
+  @visibleForTesting
+  static int countAnalyzeErrors(String output) {
     return RegExp(
-      r'^\s*(error|ERROR)\s*-\s',
+      r'^\s*(error|ERROR)\s*(?:-|•)\s',
       multiLine: true,
     ).allMatches(output).length;
   }
