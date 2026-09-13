@@ -1049,7 +1049,7 @@ const _behaviorSectionMarkers = [
 /// exists, not demand a dialect. Lane-split meta-indexes contribute
 /// their engine/skin lane plan files' rows too.
 ///
-/// Fence-aware (issue #1575): headers come from [_fenceAwareLines], so a
+/// Fence-aware (issue #1575): headers come from [fenceAwareLines], so a
 /// `## ` line inside a fenced code block (a markdown banner inside a
 /// fenced example — the #1467 phantom-section defect on a different
 /// input file) can no longer flip `inBehaviorSection`: post-fence
@@ -1071,7 +1071,8 @@ List<String> _behaviorIdsOf(String raw, String featureDir) {
 
   for (final source in sources) {
     var inBehaviorSection = false;
-    for (final (:line, :header) in _fenceAwareLines(source)) {
+    for (final walk in fenceAwareLines(source)) {
+      final header = walk.header;
       if (header != null) {
         final lowered = header.toLowerCase();
         inBehaviorSection = _behaviorSectionMarkers.any(
@@ -1079,7 +1080,7 @@ List<String> _behaviorIdsOf(String raw, String featureDir) {
         );
         continue;
       }
-      final trimmed = line.trim();
+      final trimmed = walk.raw.trim();
       if (!inBehaviorSection) continue;
       if (!trimmed.startsWith('|')) continue;
       final cells = trimmed.split('|').map((c) => c.trim()).toList();
@@ -1102,40 +1103,4 @@ List<String> _behaviorIdsOf(String raw, String featureDir) {
     }
   }
   return ids;
-}
-
-/// The fence-aware line walk of one test-list source (issue #1575) —
-/// routed through the #1467 splitter: [splitCycleLogSections] cuts the
-/// content at column-0 `## ` lines OUTSIDE fenced code blocks; each
-/// section's first line is its header. The splitter consumed the `## `
-/// prefix as the boundary separator (a byte-0 header keeps its prefix,
-/// mirroring the legacy `raw.split('\n## ')` byte contract), so the
-/// header text is the line's right-trimmed remainder — byte-equal to the
-/// legacy `trimmed.substring(3)` for every column-0 header. A bare `## `
-/// heading (empty remainder) is emitted as a body line: the legacy walk
-/// ignored those too. Yields every line verbatim plus the header text
-/// for section-header lines (null for body lines).
-List<({String line, String? header})> _fenceAwareLines(String source) {
-  final lines = <({String line, String? header})>[];
-  final sections = splitCycleLogSections(source);
-  for (var s = 0; s < sections.length; s++) {
-    final sectionLines = sections[s].split('\n');
-    for (var i = 0; i < sectionLines.length; i++) {
-      final line = sectionLines[i];
-      String? header;
-      if (i == 0) {
-        if (s == 0) {
-          // Byte-compat: only chunk 0 can carry a `## ` prefix; legacy
-          // semantics apply to line 1 verbatim.
-          final trimmed = line.trim();
-          header = trimmed.startsWith('## ') ? trimmed.substring(3) : null;
-        } else {
-          final text = line.trimRight();
-          header = text.isEmpty ? null : text;
-        }
-      }
-      lines.add((line: line, header: header));
-    }
-  }
-  return lines;
 }
