@@ -85,25 +85,36 @@ when spec 1007 gave blocked behaviors their own re-entry window.
 
 ## Proposed Remediation
 
-Extend the #1324 green-evidence guard to include the blocked state (success
-criterion 1 of the feature spec): when the cycle-log carries
-current-generation green evidence backed by the certified test file on disk
-AND the computed window is the blocked re-entry (`start == 1`), resume at
-`make` (index 2) — the drift-skip / adoption transition (#694/#1331 via
-#1162) re-certifies the born-green hand honestly and the run converges to
-`result=complete` without manual re-entry (success criterion 3).
+Extend the #1324 green-evidence guard to include the blocked state for the
+born-green-certified class (success criterion 1 of the feature spec): when
+the cycle-log carries current-generation green evidence backed by the
+certified test file on disk, the certification binds the current subject
+(review #1608 — its `- subject-hash:` must equal the registered subject
+file's sha256), and the behavior is the born-green-certified blocked class,
+resume at `refactor` (index 3) — where the existing #1542 evidence check
+accepts the green-only born-green certification. The flagless `make` the
+driver spawns cannot converge this class (it refuses `not-certified-red`:
+contract-lane reds are BLOCKED-never-RED per issue #1007 and born-green
+certifications are green-WITHOUT-red per issue #1411), so the refactor
+window is the convergent one and the run reaches `result=complete` without
+manual re-entry (success criterion 3).
 
 Scope guards:
 
-- Fix ONLY the green-evidence guard scope in `_stepsFor`. The born-green
-  certification, the BLOCKED verdict, and the state machine are untouched.
+- Fix ONLY the green-evidence guard's inputs and condition in `_stepsFor`.
+  The born-green certification, the BLOCKED verdict, and the state machine
+  are untouched.
 - Behaviors without backed green evidence keep the exact pre-#1592 windows
   (the #1324 SC-4 compat rule): the guard requires `hasGreenEvidence &&
   greenTestBacked` to fire at all, so normal (non-born-green) blocked
   resume — no green evidence — is bit-for-bit unchanged.
 - The #1324 `start == 0` arm keeps its exact mapping (`pending → 2`,
-  otherwise `3`); the extension adds the `start == 1 && state == blocked`
-  case only.
+  otherwise `3`); the extension adds the blocked state for the
+  born-green-certified class only, landing those behaviors at `refactor`.
+- The certification must bind the current subject: a hashless or
+  mismatched `- subject-hash:` keeps the pre-#1592 window (the honest
+  ladder re-drives and the #1411 arm re-prescribes the re-certification
+  command).
 
 ## Risks & Considerations
 
@@ -114,11 +125,16 @@ Scope guards:
   certified test file is gone keeps the pre-#1592 window (re-enters
   verify-red; the #1324 stale-artifacts contract stands — covered by a
   dedicated regression test).
-- **Convergence semantics**: resuming at make exercises make's OWN
-  re-certification transitions (#694 skip / #1331 adoption) — no new
-  certification path is introduced, and the refactor step still runs, so
-  the red→green→refactor honesty ledger (#682, with the #1542 contract/born-
-  green carve-outs) is unchanged.
+- **Convergence semantics**: resuming at `refactor` exercises the existing
+  #1542 born-green evidence acceptance — no new certification path is
+  introduced, and the refactor step still runs, so the red→green→refactor
+  honesty ledger (#682, with the #1542 contract/born-green carve-outs) is
+  unchanged.
+- **Stale certifications**: a certification whose subject hash no longer
+  matches the tree (the subject was edited after `make --born-green`)
+  cannot take the window — the pre-#1592 window stands and the run stops
+  with the re-certification prescription instead of completing on a stale
+  certification (review #1608).
 - **Adjacent windows**: an in-flight interruption INSIDE the blocked
   verify-red step (in-flight marker `verify-red`) computes `start == 1` via
   the in-flight override too — the same wedge, same fix. The extension

@@ -28,8 +28,8 @@ zfa tdd run calculator              # exact same stop at step 3, same instructio
 
 A born-green-certified blocked behavior must converge to `result=complete`
 without manual re-entry: the run recognizes the backed green evidence and
-resumes the cycle at `make` (the drift-skip / adoption transition,
-issues #694/#1162), which re-certifies honestly, and the feature completes.
+resumes the cycle at `refactor`, where the existing #1542 evidence check
+accepts the certification and the feature completes.
 
 ## Actual Behavior
 

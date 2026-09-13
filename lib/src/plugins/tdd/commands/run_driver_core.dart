@@ -45,6 +45,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/behavior.dart';
@@ -535,12 +536,22 @@ class RunDriverCore {
       evidence,
       projectRoot,
     );
+    // Review #1608: the registry resolves each behavior's registered
+    // subject path — the born-green subject binding below (and every
+    // later phase) reads it, so it is constructed once, here.
+    final registry = ArtifactRegistry(featureDir: featureDir);
     // Issue #1592: the behaviors whose LAST green entry certifies the
-    // born-green hand transition (the #1411 journal marker) — the class
-    // whose blocked re-entry converges at refactor (the #1542 evidence
-    // check), never at the flagless make that refuses not-certified-red.
+    // born-green hand transition (the #1411 journal marker) AND binds the
+    // current subject — the class whose blocked re-entry converges at
+    // refactor (the #1542 evidence check), never at the flagless make
+    // that refuses not-certified-red. Review #1608: the certification is
+    // a SHORTCUT over the honest verify-red -> make re-drive, so it must
+    // pin the subject shape it exercised (the #1036/#1587 rule) — a
+    // hashless or mismatched entry keeps the pre-#1592 window.
     final bornGreenCertifiedBehaviors = await _bornGreenCertifiedBehaviors(
       evidence,
+      registry: registry,
+      projectRoot: projectRoot,
     );
 
     var current = _reconcile(
@@ -875,7 +886,6 @@ class RunDriverCore {
     }
 
     // --- Phase 1: the uniform cycle in list order, with the deferrals.
-    final registry = ArtifactRegistry(featureDir: featureDir);
     // Issue #1544 (review fix): the rows whose BLOCKED verdict THIS run's
     // verify-red lifted (`unexpected-green` against a blocked contract).
     // That arm keeps the persisted state at BLOCKED, so the phase-2a guard
@@ -1617,6 +1627,20 @@ class RunDriverCore {
     // pinned window) and blocked claims without backed green evidence
     // keep the exact pre-#1592 window — the #1007 re-entry at verify-red
     // is unchanged.
+    //
+    // Review #1608 (CodeRabbit): `bornGreenCertified` is only true when
+    // the certification BINDS the current subject — the caller
+    // (_bornGreenCertifiedBehaviors) requires the certifying entry's
+    // `- subject-hash:` to match the registered subject file's sha256
+    // (the #1036/#1587 byte-identical-subject rule). A subject edited
+    // after `make --born-green` therefore keeps the pre-#1592 window and
+    // falls back to the honest ladder instead of completing on a stale
+    // certification.
+    // Review #1608 (zuraffa-review): the refactor child's own suite gate
+    // stays baseline-relative (#741/#922) — a certified test already red
+    // at the run-start baseline is tolerated by that pre-existing design;
+    // the subject binding above is what keeps a drifted subject out of
+    // this window.
     if (hasGreenEvidence &&
         greenTestBacked &&
         (start == 0 ||
@@ -2591,26 +2615,62 @@ class RunDriverCore {
   /// certifies the born-green hand transition — the entry's `- evidence:`
   /// field carries the shared journal marker the `make --born-green`
   /// transition writes (`bornGreenEvidenceMarker`, issue #1411), anchored
-  /// to the note's start (the review #1566 probe). The append-order
-  /// last-green rule is the same one [CycleEvidence.bornGreenCertified]
-  /// applies — a later plain green entry supersedes an earlier born-green
-  /// certification, and the run driver keys the #1592 refactor re-entry
-  /// on exactly the certification the #1542 refactor evidence check
-  /// accepts.
+  /// to the note's start (the review #1566 probe) — AND whose
+  /// certification binds the current subject. The append-order last-green
+  /// rule lives in [CycleEvidence.bornGreenCertifiedEntries] (review
+  /// #1608: one home); this pass adds the binding the #1592 refactor
+  /// re-entry requires, so the run driver keys the window on the
+  /// certification the #1542 refactor evidence check accepts, restricted
+  /// to the entries whose subject is still the one the transition
+  /// certified.
   Future<Set<String>> _bornGreenCertifiedBehaviors(
-    CycleEvidence evidence,
-  ) async {
-    final lastGreen = <String, ParsedCycleEntry>{};
-    for (final entry in await evidence.entries()) {
-      if (entry.kind != 'green') continue;
-      lastGreen[entry.behaviorId] = entry;
+    CycleEvidence evidence, {
+    required ArtifactRegistry registry,
+    required String projectRoot,
+  }) async {
+    final certified = <String>{};
+    for (final MapEntry(key: behaviorId, value: entry)
+        in (await evidence.bornGreenCertifiedEntries()).entries) {
+      if (await _bornGreenSubjectBinds(
+        entry,
+        behaviorId: behaviorId,
+        registry: registry,
+        projectRoot: projectRoot,
+      )) {
+        certified.add(behaviorId);
+      }
     }
-    return {
-      for (final MapEntry(key: behaviorId, value: entry) in lastGreen.entries)
-        if (entry.evidence != null &&
-            entry.evidence!.startsWith(bornGreenEvidenceMarker))
-          behaviorId,
-    };
+    return certified;
+  }
+
+  /// Review #1608 (CodeRabbit): whether the born-green certification
+  /// still binds the CURRENT subject — the refactor re-entry is a
+  /// short-cut over the honest verify-red -> make re-drive, so the
+  /// certification must pin the subject shape it exercised (the same
+  /// "the subject the certification ran against is byte-identical" rule
+  /// the make dedup requires, issue #1587, and the make drift check
+  /// applies, issue #1036). The recorded `- subject-hash:` (a 64-hex
+  /// sha256 — [ParsedCycleEntry.subjectHash] only parses that shape) must
+  /// equal the registered subject file's current sha256; a hashless or
+  /// mismatched entry refuses the short-cut and the behavior keeps the
+  /// pre-#1592 window (verify-red re-grades, the flagless make refuses
+  /// `not-certified-red`, and the #1411 arm re-prescribes the
+  /// `--born-green` command, whose re-run re-certifies honestly).
+  Future<bool> _bornGreenSubjectBinds(
+    ParsedCycleEntry entry, {
+    required String behaviorId,
+    required ArtifactRegistry registry,
+    required String projectRoot,
+  }) async {
+    final certified = entry.subjectHash;
+    if (certified == null) return false;
+    final record = await registry.findRecord(behaviorId);
+    if (record == null) return false;
+    final subjectPath = normalizeArtifactPath(projectRoot, record.subjectPath);
+    final subjectFile = File(subjectPath);
+    if (!await subjectFile.exists()) return false;
+    return sha256.convert(await subjectFile.readAsBytes()).toString() ==
+        certified;
   }
 
   Future<bool> _hasPendingWithArtifacts(
@@ -2975,6 +3035,13 @@ class RunDriverCore {
         // refactor with no green evidence at all still misfires), and
         // every other class keeps the exact red→green→refactor triple
         // (the bug #682 honesty contract).
+        //
+        // Review #1608: this arm is the certification ACCEPTANCE (the
+        // #1542 contract — hashless legacy entries included); the #1592
+        // re-entry gate is deliberately stricter (the guard also
+        // requires the certification's `- subject-hash:` to bind the
+        // current subject), so the refactor window can never be entered
+        // on a certification this check would reject.
         final redDefinedOutOfExistence =
             (hasGreen && kind == BehaviorKind.contract) ||
             (hasGreen &&

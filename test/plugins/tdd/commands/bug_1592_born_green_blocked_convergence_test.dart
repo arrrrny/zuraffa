@@ -53,11 +53,20 @@
 //   U-1592-5 — ported from the earlier B4 draft: unbacked green
 //              evidence against a drifting subject keeps the #1324
 //              stale-artifacts stop and prescription, byte-for-byte.
+//   U-1592-6 — review #1608 (CodeRabbit): a certification whose
+//              `- subject-hash:` is ABSENT (the legacy/unbound shape)
+//              does not take the refactor short-cut — the pre-#1592
+//              window stands (verify-red re-drives, the #1411 hand stop
+//              re-prescribes --born-green, whose re-run re-certifies).
+//   U-1592-7 — review #1608 (CodeRabbit): a certification whose
+//              `- subject-hash:` no longer matches the EDITED subject
+//              (stale cert) refuses the short-cut the same way.
 library;
 
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
@@ -90,10 +99,14 @@ void main() {
   /// Seed a green-evidence entry for [behaviorId] exactly like the
   /// issue #1411 `make --born-green` transition appends it: the
   /// `- evidence:` field starts with the born-green journal marker
-  /// (the anchored #1566 probe) and the `- test:` line names [testPath].
+  /// (the anchored #1566 probe), the `- test:` line names [testPath],
+  /// and the `- subject-hash:` line carries [subjectHash] — the sha256
+  /// the transition stamps for the subject it certified (review #1608;
+  /// omit for the legacy hashless shapes U-1592-6 pins).
   Future<void> seedBornGreenEvidence(
     String behaviorId, {
     required String testPath,
+    String? subjectHash,
   }) async {
     final file = File(fx.cycleLogPath);
     if (!await file.exists()) {
@@ -106,7 +119,7 @@ void main() {
 - behavior: $behaviorId
 - kind: green
 - evidence: $bornGreenEvidenceMarker — no prior red evidence exists (the hand step preceded the first certification); green certified from the passing target test with the vacuous-guard marker absent and the $behaviorId:hand attestation header present
-- criterion: FR-003
+${subjectHash == null ? '' : '- subject-hash: $subjectHash\n'}- criterion: FR-003
 - test: $testPath
 - exit: 0
 - at: 2026-08-30T00:00:00.000Z
@@ -126,6 +139,21 @@ void main() {
   /// the path the driver's born-green probes resolve).
   String namespacedTestPath() =>
       p.join(fx.root.path, 'test', 'tdd', feature, 'contract_a7_test.dart');
+
+  /// The implemented subject on disk, at the path the registry records —
+  /// the file whose sha256 the certification binds (review #1608).
+  const subjectContent = 'library;\n\nint contractA7Value() => 42;\n';
+
+  Future<void> writeSubject(String content) async {
+    final file = File(fx.subjectPathOf(id));
+    await file.parent.create(recursive: true);
+    await file.writeAsString(content);
+  }
+
+  /// The current subject file's sha256 — the value a real
+  /// `make --born-green` stamps as `- subject-hash:`.
+  String subjectSha() =>
+      sha256.convert(File(fx.subjectPathOf(id)).readAsBytesSync()).toString();
 
   setUp(() async {
     fx = await TddFixture.create(featureName: feature);
@@ -156,11 +184,20 @@ void main() {
       testContent: attestedTestContent('the declared contract holds'),
       testPath: namespacedTestPath(),
     );
+    // The hand-implemented subject the transition certified — written
+    // before the certification, so its sha256 is the `- subject-hash:`
+    // the green entry binds (review #1608).
+    await writeSubject(subjectContent);
     // The state `zfa tdd run` parked: BLOCKED (the #1007 verdict).
     await fx.seedRunState(states: {id: 'blocked'});
     // The certification `make --born-green` wrote: green evidence on the
-    // journal, backed by the attested test file on disk.
-    await seedBornGreenEvidence(id, testPath: namespacedTestPath());
+    // journal, backed by the attested test file on disk, bound to the
+    // subject's sha256.
+    await seedBornGreenEvidence(
+      id,
+      testPath: namespacedTestPath(),
+      subjectHash: subjectSha(),
+    );
     // The real-world step transcripts on re-drive: verify-red grades the
     // already-passing contract test unexpected-green, and the flagless
     // make the driver spawns refuses not-certified-red (no red evidence
@@ -360,4 +397,90 @@ void main() {
       reason: 'the #1324 prescription is unchanged',
     );
   });
+
+  test(
+    'U-1592-6 (issue #1592 review #1608): a born-green certification '
+    'whose `- subject-hash:` is ABSENT (the legacy/unbound shape) does '
+    'NOT take the refactor short-cut — the pre-#1592 window stands',
+    () async {
+      await fx.seedTestList([
+        (
+          id: id,
+          description: 'the declared contract holds',
+          traces: 'FR-003',
+          state: 'PENDING',
+          kind: 'contract',
+        ),
+      ]);
+      await fx.registerBehavior(
+        id: id,
+        description: 'the declared contract holds',
+        testContent: attestedTestContent('the declared contract holds'),
+        testPath: namespacedTestPath(),
+      );
+      await fx.seedRunState(states: {id: 'blocked'});
+      // The legacy hashless certification — nothing binds the subject the
+      // transition exercised, so the short-cut must refuse (review #1608).
+      await seedBornGreenEvidence(id, testPath: namespacedTestPath());
+      await fx.setStepOutcome('verify-red', id, 'unexpected-green');
+      await fx.setStepOutcome('make', id, 'not-certified-red');
+
+      final out = await drive();
+
+      // The pre-#1592 window: verify-red re-drives, the flagless make
+      // refuses, and the #1411 arm re-prescribes the --born-green command —
+      // whose re-run re-certifies honestly with the binding stamped.
+      expect(exitCode, 1, reason: out);
+      expect(fx.stepInvocations(), ['verify-red $id', 'make $id'], reason: out);
+      expect(out, contains('stopped_at=$id:hand'), reason: out);
+      expect(out, contains('--born-green` — then re-run'), reason: out);
+      final state = await readState();
+      expect(state['behavior_states'][id], 'blocked', reason: out);
+    },
+  );
+
+  test(
+    'U-1592-7 (issue #1592 review #1608): a born-green certification '
+    'whose subject was EDITED after certification (the recorded hash no '
+    'longer binds) refuses the short-cut — the pre-#1592 window stands',
+    () async {
+      await fx.seedTestList([
+        (
+          id: id,
+          description: 'the declared contract holds',
+          traces: 'FR-003',
+          state: 'PENDING',
+          kind: 'contract',
+        ),
+      ]);
+      await fx.registerBehavior(
+        id: id,
+        description: 'the declared contract holds',
+        testContent: attestedTestContent('the declared contract holds'),
+        testPath: namespacedTestPath(),
+      );
+      await writeSubject(subjectContent);
+      await fx.seedRunState(states: {id: 'blocked'});
+      // The certification bound the ORIGINAL subject...
+      await seedBornGreenEvidence(
+        id,
+        testPath: namespacedTestPath(),
+        subjectHash: subjectSha(),
+      );
+      // ...and the subject was edited afterwards: a stale certification
+      // must not complete through the #1592 window.
+      await writeSubject('library;\n\nint contractA7Value() => 7;\n');
+      await fx.setStepOutcome('verify-red', id, 'unexpected-green');
+      await fx.setStepOutcome('make', id, 'not-certified-red');
+
+      final out = await drive();
+
+      expect(exitCode, 1, reason: out);
+      expect(fx.stepInvocations(), ['verify-red $id', 'make $id'], reason: out);
+      expect(out, contains('stopped_at=$id:hand'), reason: out);
+      expect(out, contains('--born-green` — then re-run'), reason: out);
+      final state = await readState();
+      expect(state['behavior_states'][id], 'blocked', reason: out);
+    },
+  );
 }

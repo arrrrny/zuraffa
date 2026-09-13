@@ -24,12 +24,27 @@ the #1542 evidence check already accepts the green-only born-green
 certification. The run converges to `result=complete` without manual
 re-entry, and the next run re-enters at refactor only.
 
+"Converges" here means the run stops stopping: a born-green behavior has
+green but no red, so `_reconcile`'s #682 rule maps the post-refactor `done`
+back to `green` — the class never reaches a terminal `done`, and every
+future `zfa tdd run` re-executes refactor for it. That is the steady state
+the pre-existing `green` class already has (pinned by U-1542-4), and the
+endless re-entry is safe while refactor stays idempotent.
+
+Review #1608 (CodeRabbit): the certification must BIND the current subject
+to take the window — the certifying entry's `- subject-hash:` (a 64-hex
+sha256) must equal the registered subject file's current sha256. A
+hashless or mismatched certification keeps the pre-#1592 window: the run
+re-drives the honest ladder and the #1411 arm re-prescribes
+`--born-green`, whose re-run re-certifies against the current subject.
+
 ## Changes
 
 | File | Change | Notes |
 |------|--------|-------|
-| `lib/src/plugins/tdd/commands/run_driver_core.dart` | modified | `_stepsFor` gains the `bornGreenCertified` input and the guard's scope extends: `start == 0 \|\| (state == blocked && bornGreenCertified)`; the caller computes the born-green-certified id set once (`_bornGreenCertifiedBehaviors`, the last-green append-order rule + the anchored `bornGreenEvidenceMarker` probe, mirroring `CycleEvidence.bornGreenCertified`) |
-| `test/plugins/tdd/commands/bug_1592_born_green_blocked_convergence_test.dart` | added (merged suite) | U-1592-1..5 — the convergence proof + the regression guards (reconciles the earlier B-draft suites on this branch; see Deviations) |
+| `lib/src/plugins/tdd/commands/run_driver_core.dart` | modified | `_stepsFor` gains the `bornGreenCertified` input and the guard's scope extends: `start == 0 \|\| (state == blocked && bornGreenCertified)`; the caller computes the born-green-certified id set once (`_bornGreenCertifiedBehaviors`, on the `bornGreenCertifiedEntries` batch) and requires the certification to BIND the current subject (review #1608: the entry's `- subject-hash:` must equal the registered subject file's sha256; hashless or mismatched entries refuse the short-cut) |
+| `lib/src/plugins/tdd/services/cycle_evidence.dart` | modified | `bornGreenCertifiedEntries()` (review #1608): the batch form of `bornGreenCertified` — one append-order pass, the last-green + anchored-marker rule kept in one home, with the per-behavior probe delegating to it |
+| `test/plugins/tdd/commands/bug_1592_born_green_blocked_convergence_test.dart` | added (merged suite) | U-1592-1..5 — the convergence proof + the regression guards (reconciles the earlier B-draft suites on this branch; see Deviations) — plus U-1592-6/7 (review #1608: the hashless and the edited-subject certifications refuse the short-cut) |
 
 ## Diff Highlights
 
@@ -50,6 +65,13 @@ the flagless make the driver spawns has no certified red to pass the
 precondition gate, so a make-resume would re-stop at `not-certified-red`
 forever.
 
+Review #1608 adds the binding behind that flag: `_bornGreenCertifiedBehaviors`
+builds the set from `CycleEvidence.bornGreenCertifiedEntries()` and keeps
+only the certifications whose recorded `- subject-hash:` equals the
+registered subject file's current sha256 — a hashless or stale
+certification never reaches the flag, so the short-cut cannot complete on
+a subject the certification never exercised.
+
 ## Tests Added or Updated
 
 - `.../bug_1592_born_green_blocked_convergence_test.dart::U-1592-1` — the
@@ -64,6 +86,15 @@ forever.
 - `::U-1592-5` (ported from the earlier B4 draft) — unbacked green evidence
   against a drifting subject keeps the #1324 stale-artifacts stop and
   prescription byte-for-byte.
+- `::U-1592-6` (review #1608) — a hashless born-green certification does
+  not take the refactor short-cut: the pre-#1592 window stands and the
+  #1411 arm re-prescribes the re-certification command.
+- `::U-1592-7` (review #1608) — a certification whose subject was edited
+  after `make --born-green` (the recorded hash no longer binds) refuses
+  the short-cut the same way.
+- `::U-1592-1` (review #1608) — the fixture now writes the subject and
+  seeds the transition's real `- subject-hash:` shape, so the convergence
+  proof exercises the subject binding.
 
 ## Local Verification
 
