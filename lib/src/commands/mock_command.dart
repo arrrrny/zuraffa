@@ -730,6 +730,12 @@ Future<void> _runMockGeneration({
   // on-disk bytes — a dry run certifies nothing.
   MockCertification? certification;
   String? receiptPath;
+  // Issue #1539 (PR #1616 review finding 1): the machine envelope must
+  // disclose the unverified compiler verdict too — a `--json` consumer
+  // cannot otherwise tell "the compiler verdict was obtained" from "the
+  // compiler never ran", the exact silent-pass shape this fix exists to
+  // prevent. Null unless the crash path left the certification standing.
+  String? analyzeUnverified;
   if (!dryRun) {
     try {
       certification = await MockCertificationService.certify(
@@ -779,6 +785,29 @@ Future<void> _runMockGeneration({
       }
       exitCode = 1;
     } else {
+      // Issue #1539: a crashed analyze on BOTH passes (retried once)
+      // leaves the structural certification standing — the exit must not
+      // contradict the persisted (conforms) receipt. The unverified
+      // compiler verdict is disclosed loudly, never a silent pass: on the
+      // human path here, and in the `--json` envelope below.
+      //
+      // The wording comes from the shared formatter (PR #1616 review
+      // finding 6) so `mock verify` cannot drift from it, and the receipt
+      // clause reports the best-effort write's actual outcome (finding 4)
+      // instead of asserting a receipt that was never persisted.
+      analyzeUnverified = report.analyzeUnverified;
+      if (analyzeUnverified != null) {
+        for (final line in analyzeUnverifiedNotice(
+          entity: entity,
+          registryId: certification.registryId,
+          crashOutput: analyzeUnverified,
+          subject: 'mock certification: $entity — ',
+          hasReceipt: true,
+          receiptWritten: receiptPath != null,
+        )) {
+          _emit(jsonMode, line);
+        }
+      }
       _emit(
         jsonMode,
         '✅ mock certification: $entity conforms to '
@@ -797,6 +826,7 @@ Future<void> _runMockGeneration({
         fixturesDir: _fixturesDirFor(files, jsonMock: jsonMock),
         certification: certification?.withReceipt(receiptPath),
         receiptPath: receiptPath,
+        analyzeUnverified: analyzeUnverified,
       ),
     );
     return;
@@ -845,6 +875,11 @@ Future<void> _runMockGeneration({
 /// The `--json` envelope (issue #970 order 2; SPEC 1105 canonical shape):
 /// the mock surface (files[], actions, fixturesDir, certification) lives
 /// in the canonical envelope's `details` map.
+///
+/// [analyzeUnverified] is the issue #1539 crash output when the scoped
+/// analyze never produced a compiler verdict; it is emitted next to the
+/// certification so a machine consumer can tell a compiler-verified mock
+/// from one certified on structure alone (PR #1616 review finding 1).
 VerdictEnvelope _buildEnvelope({
   required String commandLine,
   required String entity,
@@ -852,6 +887,7 @@ VerdictEnvelope _buildEnvelope({
   required String? fixturesDir,
   required MockCertification? certification,
   required String? receiptPath,
+  required String? analyzeUnverified,
 }) {
   final actions = <String, int>{
     'created': 0,
@@ -893,6 +929,11 @@ VerdictEnvelope _buildEnvelope({
       'actions': actions,
       'fixturesDir': fixturesDir,
       'certification': certification?.toEnvelopeJson(),
+      // Issue #1539 (PR #1616 review finding 1): non-null only in the
+      // double-crash shape, mirroring `mock verify --json`. Absent (not
+      // null) in every other run so the published details key set for a
+      // plain generation is unchanged.
+      'analyzeUnverified': ?analyzeUnverified,
     },
   );
 }
