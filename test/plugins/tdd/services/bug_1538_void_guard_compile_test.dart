@@ -369,7 +369,22 @@ dependencies:
         isNot(contains('undefined name')),
         reason: combined,
       );
-      expect(combined, allOf(contains('Expected:'), contains('Actual:')));
+      // The emitted test's own name is the identity that proves an
+      // ASSERTION ran: a load/compile failure never reaches a reporter
+      // that names the test, so seeing the name means the pair executed.
+      // `Expected:`/`Actual:` is package:test's reporter wording, not the
+      // behavior's — it moves with the reporter (`--reporter=json`) and
+      // matcher versions, so it cannot carry this proof.
+      final emittedName = RegExp(
+        r"test\('([^']*)'",
+      ).firstMatch(File(testPath).readAsStringSync())!.group(1)!;
+      expect(
+        combined,
+        contains(emittedName),
+        reason:
+            'the runner named the emitted test, so the pair RAN and failed '
+            'through an assertion:\n$combined',
+      );
     },
     tags: 'slow',
     timeout: const Timeout(Duration(minutes: 3)),
