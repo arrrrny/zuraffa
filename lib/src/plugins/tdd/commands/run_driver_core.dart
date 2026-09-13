@@ -460,6 +460,13 @@ class RunDriverCore {
       evidence,
       projectRoot,
     );
+    // Issue #1592: the behaviors whose LAST green entry certifies the
+    // born-green hand transition (the #1411 journal marker) — the class
+    // whose blocked re-entry converges at refactor (the #1542 evidence
+    // check), never at the flagless make that refuses not-certified-red.
+    final bornGreenCertifiedBehaviors = await _bornGreenCertifiedBehaviors(
+      evidence,
+    );
 
     var current = _reconcile(
       loaded ?? RunState.empty(feature),
@@ -736,6 +743,7 @@ class RunDriverCore {
           hasGenArtifacts: hasGenArtifacts,
           hasGreenEvidence: greenEvidence.contains(row.id),
           greenTestBacked: certifiedGreenBacked.contains(row.id),
+          bornGreenCertified: bornGreenCertifiedBehaviors.contains(row.id),
         ),
         progressSuffix: '',
         deferralAllowed: true,
@@ -1376,6 +1384,7 @@ class RunDriverCore {
     required bool hasGenArtifacts,
     bool hasGreenEvidence = false,
     bool greenTestBacked = false,
+    bool bornGreenCertified = false,
   }) {
     const full = ['gen', 'verify-red', 'make', 'refactor'];
     var start = switch (state) {
@@ -1405,28 +1414,29 @@ class RunDriverCore {
     // (the #694 skip / #1331 adoption transitions re-certify honestly),
     // refactor for a green/mocked claim. Behaviors without backed green
     // evidence keep the exact pre-#1324 windows (SC-4).
-    if (start == 0 && hasGreenEvidence && greenTestBacked) {
+    //
+    // Issue #1592: the guard's scope extends to the BLOCKED state for
+    // the born-green-certified class — the behavior whose LAST green
+    // entry certifies the #1411 hand transition. The #1007 blocked arm
+    // re-enters at index 1 (verify-red), so a born-green-certified
+    // blocked contract skipped the `start == 0` guard and re-drove
+    // verify-red -> make forever: verify-red unexpected-greens the
+    // already-passing test, the flagless make refuses not-certified-red
+    // (no certified red can exist for the lane / the born-green class),
+    // and the #1411 stop arm prescribes the `--born-green` command that
+    // ALREADY ran — the transition never converges. A born-green-
+    // certified blocked behavior re-enters at refactor instead, where
+    // the #1542 evidence check already accepts the green-only born-green
+    // certification: the run completes without manual re-entry. The
+    // marker-less blocked shapes (a plain green-only contract, U-1542-1's
+    // pinned window) and blocked claims without backed green evidence
+    // keep the exact pre-#1592 window — the #1007 re-entry at verify-red
+    // is unchanged.
+    if (hasGreenEvidence &&
+        greenTestBacked &&
+        (start == 0 ||
+            (state == BehaviorState.blocked && bornGreenCertified))) {
       start = state == BehaviorState.pending ? 2 : 3;
-    }
-    // Issue #1592: the #1324 guard's scope — start == 0 — misses the
-    // BLOCKED re-entry window (spec 1007: blocked => 1). A
-    // born-green-certified blocked behavior (the #1411 hand transition
-    // certified out-of-band via `zfa tdd make <id> --born-green`) re-entered
-    // at verify-red, whose already-green test unexpected-greens; make
-    // refuses not-certified-red and the #1411 hand-stop re-prescribes the
-    // exact --born-green command that already ran — the transition never
-    // converged. With current-generation green evidence backed on disk the
-    // blocked cycle resumes at make — the drift-skip / adoption transition
-    // (#694/#1162) re-certifies honestly and the run converges to
-    // result=complete without manual re-entry. Behaviors without backed
-    // green evidence keep the exact pre-#1592 windows: a normal
-    // (non-born-green) blocked resume never carries green evidence, so its
-    // window is bit-for-bit unchanged (SC-4).
-    if (start == 1 &&
-        state == BehaviorState.blocked &&
-        hasGreenEvidence &&
-        greenTestBacked) {
-      start = 2;
     }
     return full.sublist(start.clamp(0, full.length));
   }
@@ -2303,6 +2313,32 @@ class RunDriverCore {
       if (File(resolved).existsSync()) backed.add(behaviorId);
     }
     return backed;
+  }
+
+  /// Issue #1592: the behavior ids whose LAST green evidence entry
+  /// certifies the born-green hand transition — the entry's `- evidence:`
+  /// field carries the shared journal marker the `make --born-green`
+  /// transition writes (`bornGreenEvidenceMarker`, issue #1411), anchored
+  /// to the note's start (the review #1566 probe). The append-order
+  /// last-green rule is the same one [CycleEvidence.bornGreenCertified]
+  /// applies — a later plain green entry supersedes an earlier born-green
+  /// certification, and the run driver keys the #1592 refactor re-entry
+  /// on exactly the certification the #1542 refactor evidence check
+  /// accepts.
+  Future<Set<String>> _bornGreenCertifiedBehaviors(
+    CycleEvidence evidence,
+  ) async {
+    final lastGreen = <String, ParsedCycleEntry>{};
+    for (final entry in await evidence.entries()) {
+      if (entry.kind != 'green') continue;
+      lastGreen[entry.behaviorId] = entry;
+    }
+    return {
+      for (final MapEntry(key: behaviorId, value: entry) in lastGreen.entries)
+        if (entry.evidence != null &&
+            entry.evidence!.startsWith(bornGreenEvidenceMarker))
+          behaviorId,
+    };
   }
 
   Future<bool> _hasPendingWithArtifacts(
