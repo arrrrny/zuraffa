@@ -1108,3 +1108,20 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 0;
     return raw.split('\n').where((l) => l.trim().isNotEmpty).toList();
   }
 }
+
+/// A symlink alias of [fx]'s root: passing the ALIAS as `--project`
+/// reproduces the macOS symlinked-root shape (`/var/folders` →
+/// `/private/var/folders`) deterministically on every POSIX platform
+/// (issue #1603). The alias is a DIFFERENT path string than the resolved
+/// root, so a raw-vs-canonical comparison misreads containment exactly
+/// like macOS does. Callers own the alias's lifetime — register
+/// `addTearDown(() => Link(aliasPath).deleteSync())`.
+Future<String> symlinkRootAlias(TddFixture fx) async {
+  final aliasPath = p.join(
+    Directory.systemTemp.path,
+    'tdd_alias_${DateTime.now().microsecondsSinceEpoch}_'
+    '${fx.featureName.replaceAll(RegExp('[^a-zA-Z0-9]'), '')}',
+  );
+  await Link(aliasPath).create(fx.root.path);
+  return aliasPath;
+}

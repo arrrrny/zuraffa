@@ -1,11 +1,10 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
+import '../package/pub_dev.dart';
 import '../version.dart';
 
 /// CLI command to check for and apply updates to the zfa CLI.
 class UpdateCommand extends Command<void> {
-  static const _pubDevUrl = 'https://pub.dev/api/packages/zuraffa';
   static const _timeout = Duration(seconds: 15);
 
   @override
@@ -95,29 +94,11 @@ class UpdateCommand extends Command<void> {
     }
   }
 
-  /// Fetch the latest version string from the pub.dev API.
-  Future<String> _fetchLatestVersion() async {
-    final client = HttpClient()..connectionTimeout = _timeout;
-    try {
-      final request = await client.getUrl(Uri.parse(_pubDevUrl));
-      request.headers.set('User-Agent', 'zfa update');
-      final response = await request.close().timeout(_timeout);
-
-      if (response.statusCode != 200) {
-        throw HttpException(
-          'pub.dev returned ${response.statusCode}',
-          uri: Uri.parse(_pubDevUrl),
-        );
-      }
-
-      final body = await response.transform(utf8.decoder).join();
-      final json = jsonDecode(body) as Map<String, dynamic>;
-      final latest = json['latest'] as Map<String, dynamic>?;
-      return latest?['version'] as String? ?? 'unknown';
-    } finally {
-      client.close(force: true);
-    }
-  }
+  /// Fetch the latest version string from the pub.dev API — the shared
+  /// [latestZuraffaVersion] lookup (`User-Agent`, bounded body read, and
+  /// `close(force: true)` included).
+  Future<String> _fetchLatestVersion() =>
+      latestZuraffaVersion(timeout: _timeout);
 
   /// Compare two semantic versions.
   /// Returns negative if [a] < [b], zero if equal, positive if [a] > [b].

@@ -80,6 +80,7 @@ import '../services/feature_path_resolver.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
+import '../services/path_canonicalizer.dart';
 import '../services/platform_layout_contract.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/test_list_reader.dart';
@@ -229,7 +230,10 @@ class ViewCommand extends Command<void> {
     try {
       canonicalRoot = await Directory(normalizedCwd).resolveSymbolicLinks();
     } on FileSystemException {
-      canonicalRoot = normalizedCwd;
+      // Symmetric with the subject side below: a root that cannot resolve
+      // is canonicalized through its nearest EXISTING ancestor, never left
+      // raw (review of #1611).
+      canonicalRoot = await canonicalizeMissingPath(normalizedCwd);
     }
     String canonicalSubject;
     try {
@@ -242,7 +246,7 @@ class ViewCommand extends Command<void> {
       // on macOS) read the project's own recorded path as "outside the
       // project root" — the wrong refusal branch (issue #1603; the same
       // fix wire carries since pull/1516 review, c1e287da).
-      canonicalSubject = await _canonicalizeMissingPath(subjectPath);
+      canonicalSubject = await canonicalizeMissingPath(subjectPath);
     }
     if (!p.equals(canonicalRoot, canonicalSubject) &&
         !p.isWithin(canonicalRoot, canonicalSubject)) {
@@ -1041,28 +1045,6 @@ $layoutStubs''';
   /// Strip newlines from a description for safe single-line comment use.
   static String _commentSafe(String description) =>
       description.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
-
-  /// Canonicalize [path] when the file itself does not exist yet: walk up
-  /// to the nearest EXISTING ancestor, resolve THAT through symlinks, and
-  /// re-append the remaining (missing) segments. Returns [path] unchanged
-  /// when no ancestor resolves (issue #1603 / pull/1516 review: a symlinked
-  /// temp root must not make the project's own recorded subject path
-  /// compare as outside the project root).
-  static Future<String> _canonicalizeMissingPath(String path) async {
-    var dir = Directory(p.dirname(path));
-    final tail = <String>[p.basename(path)];
-    while (true) {
-      try {
-        final resolved = await dir.resolveSymbolicLinks();
-        return p.joinAll([resolved, ...tail.reversed]);
-      } on FileSystemException {
-        final parent = dir.parent;
-        if (parent.path == dir.path) return path;
-        tail.add(p.basename(dir.path));
-        dir = parent;
-      }
-    }
-  }
 
   Future<_Resolved?> _resolve(
     String cwd,
