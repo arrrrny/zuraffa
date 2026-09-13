@@ -1,19 +1,30 @@
-# TDD test list — Bug #1495 registry-owns-missing-file recovery
+# TDD test list — Bug #1470 artifacts.json silently swallows corruption
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| A-1495-a1 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | acceptance | the owned-and-missing gen refusal names the repair command (`gen <id> --repair`), never the refusing command; the record stays until an explicit repair | FR-1495.2 (actionable refusal), artifact_registry.OwnershipConflict | GREEN |
-| A-1495-a2 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | acceptance | `gen <id> --repair` drops the stale record and regenerates the gone pair — verdict `repaired`, audit-logged (action "repair"), exactly one record after | FR-1495.1 (repair flag), gen_command._generate | GREEN |
-| A-1495-a3 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | acceptance | a shape-verified surviving half is kept byte-identical and only the gone half is regenerated (adopt discipline) | FR-1495.1, gen_command repair branch | GREEN |
-| A-1495-b1 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | unit | the exists-unowned refusal names `--adopt` — the resolving command for the opposite drift direction (#840) | FR-1495.2, OwnershipConflict.toString | GREEN |
-| A-1495-b2 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | unit | `--repair` on the exists-unowned direction refuses and names `--adopt` (no stale record to drop; adopt contract untouched) | FR-1495.3 (no adopt regression), gen_command repair branch | GREEN |
-| A-1495-b3 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | unit | `--adopt` on the owned-and-missing state still refuses ("nothing unowned to adopt") — the #840 contract is unchanged | FR-1495.3, gen_command adopt branch | GREEN |
-| A-1495-c1 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | integration | `doctor <feature> --repair` garbage-collects every record whose files are gone and keeps healthy records — audit-logged, exit 0 | FR-1495.4 (doctor GC), doctor_command | GREEN |
-| A-1495-c2 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | integration | `doctor --repair` refuses a HALF-missing record (the survivor is still owned — GC would orphan it); prescribes reset, drops nothing | FR-1495.4 safety bound, doctor_command | GREEN |
-| A-1495-c3 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | integration | without `--repair` the fully-gone drift still exits 1 and the fix line names the surgical `doctor <feature> --repair` command | FR-1495.2, doctor_command prescription | GREEN |
-| A-1495-c4 | test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart | integration | `doctor --repair` on a healthy feature is a no-op success (nothing to collect) | FR-1495.4, doctor_command | GREEN |
-| A-1495-d1 | test/plugins/tdd/services/artifact_registry_test.dart | unit | dropRecords removes exactly the named records and keeps the rest (parseable registry, feature label preserved) | FR-1495.1 primitive, ArtifactRegistry.dropRecords | GREEN |
-| A-1495-d2 | test/plugins/tdd/services/artifact_registry_test.dart | unit | dropRecords drops every named id in one write | ArtifactRegistry.dropRecords | GREEN |
-| A-1495-d3 | test/plugins/tdd/services/artifact_registry_test.dart | unit | dropRecords with an unknown id is a no-op (empty drop) | ArtifactRegistry.dropRecords | GREEN |
-| A-1495-d4 | test/plugins/tdd/services/artifact_registry_test.dart | unit | dropRecords never touches files on disk (registry-only) | ArtifactRegistry.dropRecords | GREEN |
-| A-1495-r1 | test/plugins/tdd/bug_840_recovery_commands_test.dart | regression | doctor's fully-gone prescription is the surgical `doctor <feature> --repair` (updated from `reset` — the #1495 remedy) | FR-1495.2, doctor_command | GREEN |
+| U-1470-a1 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | loadAll throws ArtifactRegistryCorruptException on invalid JSON (pre-fix: silently returned []) | issue #1470 root cause (L293–294 swallow), FR-012 corrupt-vs-missing split | GREEN |
+| U-1470-a2 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | register refuses to re-register through a corrupt registry; corrupt bytes survive untouched on disk (pre-fix: Ownership.created + rewrite destroyed B-001/B-002) | issue #1470 impact (duplicate artifacts, silent data loss), preflight ownership gate | GREEN |
+| U-1470-a3 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | findRecord (reader path) also refuses a corrupt registry | issue #1470 (every reader funnels through _loadRecords) | GREEN |
+| U-1470-a4 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | the exception names artifacts.json, contains the full registry path, and prescribes recovery | RunStateCorruptException message discipline (U9), issue #1470 expected behavior | GREEN |
+| U-1470-a5 | test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart | unit | a MISSING registry is still an empty one (loadAll → [], findRecord → null) — corrupt ≠ missing | FR-012 (unchanged, pinned) | GREEN |
+
+## Red evidence (pre-fix, this session)
+
+Behavioral probe against pre-fix code (output preserved verbatim in
+`.specify/bugs/1470-artifacts-json-corruption-silent/red-evidence.md`):
+
+- RED-1: `loadAll()` on a corrupt registry returned 0 records, no exception.
+- RED-2: `register(B-003)` returned `Ownership.created` / `created` with no
+  corruption diagnosis.
+- RED-3: the registry rewrite left only `[B-003]` — B-001/B-002 ownership
+  records silently destroyed.
+
+The committed suite's pre-fix state was a compile-level RED
+(`'ArtifactRegistryCorruptException' isn't a type`).
+
+## Suite placement note
+
+The behaviors are unit tests in the registry's own service suite
+(`test/plugins/tdd/services/`), colocated with `artifact_registry_test.dart`.
+They are fast-tier (no `slow`/`flutter` tags) and run in the default
+`dart test` selection and in the chunked sweep.
