@@ -1,109 +1,122 @@
-# tdd.verify — Bug #1495 registry-owns-missing-file recovery
+# tdd.verify — Bug #1470 artifacts.json silently swallows corruption
 
 - **Verified**: 2026-09-13, this session, on
-  `fix/1495-registry-owns-missing-file-recovery` (working tree, pre-push)
-- **Toolchain**: Dart 3.13.3 (stable) on linux_x64 (cloud sandbox)
-- **Scope**: the three changed source files
-  (`artifact_registry.dart`, `gen_command.dart`, `doctor_command.dart`),
-  the new bug-1495 suite, the extended registry suite, and the mapped
-  regression suites below — then the chunked regression sweep summary.
+  `fix/1470-artifacts-json-corruption-silent` (working tree, pre-push)
+- **Toolchain**: Dart 3.13.3 (stable) on linux_x64
+- **Scope**: `lib/src/plugins/tdd/services/artifact_registry.dart` (+28/−2)
+  and the new
+  `test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart`,
+  then the chunked fast-suite sweep below.
 
 ## Verdict: PASS
 
-## 1. What the fix ships
+## 1. Static analysis
 
-1. `zfa tdd gen <id> --repair` — drops the stale registry record when the
-   registry RECORDS a file missing from disk and regenerates the pair.
-   Surviving halves are kept only after the same generated-shape
-   verification `--adopt` uses; the repair is audit-logged
-   (`action: "repair"`) to `specs/<feature>/tdd/audit.log`; verdict
-   `repaired`.
-2. Actionable refusals — `OwnershipConflict` now carries a direction
-   (`ownedButMissing` / `existsUnowned` / `pathMismatch`) and the remedy
-   text names the RESOLVING command: `gen <id> --repair` /
-   `gen <id> --adopt` / `doctor <feature>`. The circular
-   "Run `zfa tdd gen <behavior-id>` after resolving the conflict" remedy
-   is gone from every direction.
-3. `zfa tdd doctor <feature> --repair` — garbage-collects every registry
-   record whose BOTH files are gone (relocation-probe aware), keeps every
-   healthy record, touches no file, audit-logs, exits 0 with verdict
-   `repaired`. Half-missing records are never collected (reset remains
-   their prescription); the flagless diagnosis names the surgical fix.
-4. `ArtifactRegistry.dropRecords` — the surgical, atomic (write-and-
-   rename) registry primitive both repair paths build on.
+```
+dart analyze lib/src/plugins/tdd/services/artifact_registry.dart \
+             test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart
+→ No issues found!
 
-Constraints honored: the FR-008 ownership contract (preflight refuses by
-default), the `--adopt` logic, and the state machine are unchanged.
+dart analyze            (whole repo)
+→ 112 issues found      (all `info`)
+→ errors/warnings: 0    (baseline: 0 — no new warnings)
+```
 
-## 2. RED evidence (pre-fix)
+The whole-repo count is identical to the pre-change baseline measured on
+this branch's parent state (112 info lints, 0 errors, 0 warnings).
 
-`dart test test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart --preset=all`
-→ `00:08 +2 -9` — raw output committed at
-`.specify/bugs/1495-registry-owns-missing-file-recovery/red-evidence.txt`.
+## 2. The bug suite (REAL run in this session)
 
-Key RED observations:
+```
+dart test test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart
+→ 00:00 +5: All tests passed!
+```
 
-- owned-and-missing gen output contained the circular remedy
-  "Run `zfa tdd gen <behavior-id>` after resolving the conflict." (A-1495-a1)
-- `gen <id> --repair` → `Could not find an option named "--repair"`, exit 2
-- `doctor <feature> --repair` → same usage error (A-1495-c1)
-- flagless doctor fix line named only `zfa tdd reset <feature>` (A-1495-c3)
+REQUIRED checks — the issue's expected behaviors are PROVED by real runs,
+not inspection:
 
-## 3. GREEN evidence (post-fix, this run)
+- **Corrupt file is loud (U-1470-a1/a3)**: `loadAll` and `findRecord` on a
+  truncated/garbled `artifacts.json` throw `ArtifactRegistryCorruptException`
+  — pre-fix they returned `[]`/`null` silently (probe RED-1).
+- **No re-registration through corruption (U-1470-a2)**: `register` on a
+  corrupt registry throws; the corrupt bytes are untouched on disk — pre-fix
+  the call returned `Ownership.created` and the rewrite destroyed the prior
+  records (probe RED-2/RED-3).
+- **Actionable message (U-1470-a4)**: the thrown message contains
+  `artifacts.json`, the full `registryPath`, and a recovery prescription.
+- **Missing ≠ corrupt (U-1470-a5)**: absent registry still loads as `[]`
+  (FR-012 unchanged).
+- **RED honesty**: pre-fix probe output and the compile-level RED are
+  preserved in `.specify/bugs/1470-artifacts-json-corruption-silent/red-evidence.md`.
 
-| Command | Result |
-|---------|--------|
-| `dart test test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart --preset=all` | **+10 ~1 — All tests passed!** |
-| `dart test test/plugins/tdd/services/artifact_registry_test.dart --preset=all` | **All tests passed** (25 existing + 4 new dropRecords) |
-| `dart test test/plugins/tdd/commands/bug_1397_path_form_mismatch_test.dart --preset=all` | **All tests passed** |
-| `dart analyze` over all six changed .dart files | **No issues found!** |
-| `dart format` over the changed files | 4 reformatted, re-analyzed clean, suite re-run green |
+## 3. Registry-adjacent suites (one command, real run)
 
-The one skipped test is the RED-only flag-absence documentation test
-(`skip:` marker in-source; its evidence lives in `red-evidence.txt`).
+```
+dart test test/plugins/tdd/services/artifact_registry_test.dart \
+          test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart \
+          test/plugins/tdd/bug_1357_registry_path_reanchor_test.dart \
+          test/plugins/tdd/services/mutation_scope_test.dart \
+          test/plugins/tdd/services/spec_fuzz_auditor_test.dart \
+          test/plugins/tdd/services/behavior_kind_trace_test.dart \
+          test/plugins/tdd/services/mutation_auditor_test.dart
+→ 00:01 +68: All tests passed!
+```
 
-## 4. Chunked regression sweep (no-new-failures protocol)
+## 4. Chunked fast-suite sweep (repo policy, real runs)
 
-`dart_test.yaml` mandates the chunked runner on constrained hosts
-(whole-tree kernel cache overflows small disks), so suites were run as
-focused chunks with baseline comparison — the pristine baseline captured
-by `git stash`-ing this branch's changes:
+`dart_test.yaml` on this repo: the default `dart test` suite is the FAST
+tier; slow tiers are tag-excluded and a whole-tree single invocation
+overflows small disks (kernel cache), so the sanctioned path is
+`tools/run_tests_chunked.sh` semantics — per-folder chunks, kernel cache
+cleared between chunks, flutter-tagged tests excluded. All runs below are
+real `dart test <chunk> --exclude-tags flutter` invocations this session.
 
-| Chunk | Pristine baseline | With fix | New failures |
-|-------|-------------------|----------|--------------|
-| `bug_840_recovery_commands_test.dart` | +4 -5 | +4 -5 | 0 |
-| `bug_874_doctor_cross_feature_adoption_test.dart` | +7 -4 | +7 -4 | 0 |
-| `gen_command_test.dart` | +17 -1 | +17 -1 | 0 |
-| `gen_command_{theme,platform,ffi_835}_test.dart` + `bug_1518_gen_command_seam_test.dart` | +11 -1 | +11 -1 | 0 |
-| `bug_1397_path_form_mismatch_test.dart` | all pass | all pass | 0 |
-| `artifact_registry_test.dart` | all pass | all pass | 0 |
+- **107 chunks PASSED, 6,946 tests passed, 0 genuine failures.**
+- 5 folders correctly SKIP ("No tests ran"): every test in them carries a
+  slow-tier tag (`slow` / `integration` / `benchmark`) which the fast tier
+  excludes by design — the repo script treats this as SKIP, not failure
+  (verified per-folder: `@Tags(['slow'])` etc. on every contained test).
+- Highlight chunks (pass counts from the run log):
 
-The 11 pre-existing failures reproduce identically before and after
-(host-environment fixtures: temp-project `dart test` spawns and template
-assertions unrelated to the ownership paths); the ownership-conflict,
-adopt, doctor, and registry suites specific to this fix are fully green.
+| chunk | result |
+| ----- | ------ |
+| test/plugins/tdd/commands | +546 passed |
+| test/plugins/tdd/services (root files, incl. the new suite + artifact_registry_test) | +905 passed |
+| test/plugins/tdd (root files, incl. bug_1357 reanchor) | +519 passed |
+| test/plugins/tdd/models | +81 passed |
+| test/plugins/tdd/theater | +15 passed |
+| test/commands | +375 passed |
+| test/simulation | +210 passed |
+| test/core (root files) | +465 passed, 1 skipped |
+| test/zap | +76 passed |
 
-One deliberate expectation update, recorded in the test's comment:
-`bug_840_recovery_commands_test.dart` → "doctor prescribes reset when the
-registry records files missing from disk" — its record is FULLY gone, so
-per issue #1495 the prescription is now the surgical
-`zfa tdd doctor <feature> --repair` (the heavy `reset` remains prescribed
-for half-missing records, covered by A-1495-c2).
+One runner artifact, not a test failure: my chunk list carried a trailing
+blank line, producing one `dart test ""` → `Failed to load ""` entry. It is
+the empty path, not a test; every real chunk passed. (The committed repo
+runner `tools/run_tests_chunked.sh` builds its list differently and is not
+affected; I did not modify it — the one-file lib/ constraint stands.)
 
-## 5. Kernel cache hygiene
+## 5. Format + hygiene
 
-`rm -rf .dart_tool/test/ && rm -f $TMPDIR/dart_test.kernel.*` executed
-before the analyze sweep and again after the final suite run (the
-dart_test.yaml disk-pressure protocol for cloud agents).
+```
+dart format lib/.../artifact_registry.dart test/.../bug_1470_artifacts_json_corruption_test.dart
+→ Formatted 2 files (1 changed)   # one file reformatted, then:
+dart format --output=none --set-exit-if-changed <same two files>
+→ exit 0 (clean)
+→ bug suite re-run after formatting: +5: All tests passed!
+```
 
-## 6. Honest caveats
+- Kernel caches cleared before/after sweeps
+  (`rm -rf .dart_tool/test/`, `rm -f $TMPDIR/dart_test.kernel.*`).
+- Disk headroom after the sweep: 8.0G free (no leakage).
+- `git status` vs origin/master: 1 lib file modified, 1 test file added,
+  artifacts + tdd docs added. No stray files.
 
-- The sandbox has no Flutter SDK: suites requiring `flutter_test`
-  (example/ package resolution) are out of scope for this run; none of
-  the touched code paths depend on Flutter.
-- The heavy `gen_command_test.dart` honest-red chunk spawns `dart test`
-  in temp fixtures; on this host it shows the same single pre-existing
-  failure as the pristine tree (verified, not assumed).
-- `--reclaim` (the issue's parenthetical alternative name) is NOT
-  implemented: `args` has no flag aliases and `--repair` is the primary
-  name in the issue.
+## 6. Environment caveats
+
+- No Flutter SDK on this host: flutter-tagged tests are excluded by the
+  repo's own chunked-runner policy; `example/` is not resolvable here and
+  is untouched by this fix.
+- Slow tiers (regression/integration/property/benchmark presets) not run —
+  per `dart_test.yaml` header they fill several GB under /tmp on small
+  agents; the fast tier is the sanctioned CI/cloud baseline.
