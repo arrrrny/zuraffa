@@ -1,18 +1,21 @@
-# TDD test list — Bug 1588 phase-2 refactor batch + parked exempt
+# TDD test list — Bug #1486 Key Entities fields silently dropped without backticks
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| T-1588-exempt-1 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | a parked behavior's red test does not poison the gate — `--exempt-behaviors C1` lets the refactor proceed (exit 0), exclusion named honestly | SC-2, FR-1588-2 | GREEN |
-| T-1588-exempt-2 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | without the flag the refusal stands — the absolute-green contract is preserved for a flag-less standalone refactor | FR-001 (048), FR-1588-2 | GREEN |
-| T-1588-exempt-3 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | unit | the exemption never masks a NON-exempt failure — a second red test outside the exempt set still refuses, failure named | FR-1588-2, U18 (safe failure) | GREEN |
-| T-1588-exempt-4 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | unit | an exempt id with no registered artifact is ignored (fail-open) and does not weaken the gate | FR-1588-2 | GREEN |
-| T-1588-batch-1 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | the second `--pass-batch` invocation of an unchanged tree inherits the gate — zero suite runs, exit 0, ledger recorded, hit named | SC-1, SC-3, FR-1588-1 | GREEN |
-| T-1588-batch-2 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | unit | tree drift invalidates the ledger — the next `--pass-batch` invocation re-runs the full pipeline | FR-1588-1 (safe failure) | GREEN |
-| T-1588-batch-3 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | unit | a flag-less invocation never reads the ledger — the standalone contract keeps the full pipeline | FR-001 (048), FR-1588-1 | GREEN |
-| T-1588-driver-1 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | the phase-2b refactor spawn carries `--pass-batch` and the parked ids as `--exempt-behaviors`; greens reach done, the park stays blocked | SC-1, SC-2, FR-1588-1/2 | GREEN |
-| T-1588-driver-2 | test/plugins/tdd/commands/bug_1588_phase2_refactor_batch_and_parked_exempt_test.dart | acceptance | with no parked behaviors the spawn carries `--pass-batch` and NO `--exempt-behaviors`; per-behavior spawns preserved | FR-1588-1 | GREEN |
+| A-1486-b1 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a 3-column row with plain pairs parses ALL fields — the issue's exact repro (`Task`, `id/title/isCompleted/createdAt`), purpose intact | FR-1486, SpecParser.parseKeyEntities, _parseFieldCell | GREEN (RED pre-fix) |
+| A-1486-b2 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | the 2-column table (#1381 grammar) accepts plain pairs | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
+| A-1486-b3 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a mixed cell (backticked + plain) parses both, in source order | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
+| A-1486-b4 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | GUARD: the backticked 3-col grammar is unchanged (names + purpose) | FR-1486, backwards compat | GREEN |
+| A-1486-b5 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | generic types with top-level commas survive the plain split (`Map<String, int>`, `List<List<int>>` verbatim) | FR-1486, depth-aware comma split | GREEN (RED pre-fix) |
+| A-1486-b6 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | nullable types parse as plain pairs (`String?`) | FR-1486, SpecParser._parseFieldCell | GREEN (RED pre-fix) |
+| A-1486-b7 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | evidence-but-zero cells are REPORTED, never silent: `1id: String` and a prose backtick span yield anomalies (entity, verbatim cell, 1-based line); no-evidence and parsing cells yield none | FR-1486, SpecEntityFieldAnomaly | GREEN (compile-red pre-fix) |
+| A-1486-b8 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | GUARD: bullet prose keeps the strict backticked-only grammar — plain prose invents NOTHING | FR-1486, false-positive guard | GREEN |
+| A-1486-b9 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | `entityFieldNamesFromDartSource` reads the on-disk entity shape (final/late final in; constructor params and assignment-initialised locals out) | FR-1486, phase-0 reuse mismatch | GREEN (compile-red pre-fix) |
+| A-1486-b10 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a PARTIALLY dropped cell is REPORTED too: `id: String, 2ndField: int` mints `id` and announces the drop; `id: String; title: String` announces the type-swallowed second pair | FR-1486, SpecEntityFieldAnomaly, partial drop | GREEN (RED pre-fix) |
+| A-1486-b11 | test/plugins/tdd/services/bug_1486_entity_fields_backtick_parsing_test.dart | unit | a whitespace-padded backticked span (`` ` id: String` ``) mints its pair like the plain path — and drops nothing, so reports nothing | FR-1486, span trim parity | GREEN (RED pre-fix) |
+| A-1486-b12 | test/plugins/tdd/run_command_test.dart | integration | the phase-0 reuse branch's field-mismatch warning is ASSERTED (not merely executed): plan declares `id, title`, the reused entity file declares only `id` → stdout names both sets, the file is untouched | FR-1486, `_logPhaseZeroFieldMismatch` | GREEN |
 
-Red evidence: recorded before implementation — the RED run of the bug file
-against the un-patched tree scored 1 passed / 8 failed (the 8 new-contract
-assertions; the contract guard T-1588-exempt-2 is expected green both
-ways). See `.specify/bugs/1588-phase2-refactor-batch-and-parked-exempt/test.md`.
+Signal paths (print-only, asserted by the suites above + the #1381 plan suite):
+
+- plan: `SpecEntityFieldAnomaly` rows → per-row `zfa tdd plan: WARNING` (#1486 sibling of #1381's zero-entity warning) — plan_command.dart
+- run: phase-0 reuse branch logs declared-vs-on-disk field mismatch — run_driver_core.dart `_logPhaseZeroFieldMismatch`, asserted by A-1486-b12 (`run_command_test.dart` U-829d2)
