@@ -25,8 +25,11 @@
 //     migrate-paths: migrated=0 ...                (bug dir unreachable)
 //
 // Contract under test:
-// 1. Doctor emits `fix: 'zfa tdd migrate-paths --feature $feature'` — and
-//    the closing test EXECUTES the prescribed command and asserts
+// 1. Doctor emits `fix: 'zfa tdd migrate-paths --feature <resolved-ref>'`
+//    — the flag form carrying the REFERENCE the resolver diagnosed, not
+//    the bare name (a bare name re-resolves to specs/<name> whenever that
+//    directory exists, so a collision would migrate a different registry)
+//    — and the closing test EXECUTES the prescribed command and asserts
 //    migrated > 0 (the prescription is verified by execution, not string
 //    shape), after which doctor reports healthy.
 // 2. `migrate-paths` covers `.specify/bugs/<slug>/tdd/artifacts.json` —
@@ -54,6 +57,12 @@ void main() {
 
   late String absTestPath;
   late String absSubjectPath;
+
+  /// The same-named `specs/<slug>` collision fixture's recorded pair — a
+  /// DIFFERENT feature that merely shares the slug (the issue #1573
+  /// ref-vs-name case: a bare-name prescription re-resolves here).
+  late String absSpecsTestPath;
+  late String absSpecsSubjectPath;
 
   const relTestPath = 'test/tdd/$slug/a1_test.dart';
   const relSubjectPath = 'lib/tdd/$slug/a1_subject.dart';
@@ -170,6 +179,43 @@ void main() {
         as String;
   }
 
+  /// The same-named `specs/<slug>` registry's stored test path — the value
+  /// a bare-name prescription would wrongly rewrite.
+  String storedSpecsTestPath() {
+    final raw = File(
+      p.join(tmpDir.path, 'specs', slug, 'tdd', 'artifacts.json'),
+    ).readAsStringSync();
+    final decoded = jsonDecode(raw) as Map<String, dynamic>;
+    return ((decoded['records'] as List).single
+            as Map<String, dynamic>)['test_path']
+        as String;
+  }
+
+  /// Seed a DIFFERENT feature at `specs/<slug>` (the same slug as the bug
+  /// feature) carrying its own machine-absolute drift. With both
+  /// directories present, a bare-name prescription re-resolves to THIS
+  /// registry through `resolveWithPin`, leaving the diagnosed bug registry
+  /// drifted — the ref-vs-name defect of issue #1573.
+  Future<void> seedSameNamedSpecsFeature() async {
+    absSpecsTestPath = p.join(tmpDir.path, 'test/tdd/$slug/s1_test.dart');
+    absSpecsSubjectPath = p.join(tmpDir.path, 'lib/tdd/$slug/s1_subject.dart');
+    final tddDir = Directory(p.join(tmpDir.path, 'specs', slug, 'tdd'));
+    await tddDir.create(recursive: true);
+    for (final abs in [absSpecsTestPath, absSpecsSubjectPath]) {
+      final file = File(abs);
+      await file.parent.create(recursive: true);
+      await file.writeAsString('// prior artifact — no imports\n');
+    }
+    await File(p.join(tddDir.path, 'artifacts.json')).writeAsString(
+      registryJson(
+        feature: slug,
+        testPath: absSpecsTestPath,
+        subjectPath: absSpecsSubjectPath,
+        behaviorId: 'S1',
+      ),
+    );
+  }
+
   /// The last non-empty stdout line — the recovery commands' JSON verdict
   /// contract (bug #840).
   Map<String, dynamic> verdict(String out) {
@@ -224,12 +270,17 @@ void main() {
       expect(v['prescription'], 'migrate');
       expect(
         v['fix'],
-        'zfa tdd migrate-paths --feature $slug',
+        'zfa tdd migrate-paths --feature .specify/bugs/$slug',
         reason:
-            'the prescription must be the flag form — the positional '
-            'form is silently discarded by migrate-paths (issue #1573)',
+            'the prescription must name the RESOLVED REFERENCE in the '
+            'flag form — the positional form is silently discarded by '
+            'migrate-paths, and a bare name would re-resolve to '
+            'specs/<slug> on a collision (issue #1573)',
       );
-      expect(fixLine(out), contains('zfa tdd migrate-paths --feature $slug'));
+      expect(
+        fixLine(out),
+        contains('zfa tdd migrate-paths --feature .specify/bugs/$slug'),
+      );
 
       // SC-4: EXECUTE the prescribed command (the tokenized `--> fix:`
       // payload; `--project` is test-harness plumbing, the same way the
@@ -239,7 +290,7 @@ void main() {
       final tokens = command.split(RegExp(r'\s+'));
       expect(tokens.take(3), ['zfa', 'tdd', 'migrate-paths']);
       expect(tokens[3], '--feature');
-      expect(tokens[4], slug);
+      expect(tokens[4], '.specify/bugs/$slug');
       final migrateOut = await runner.runCapturing([
         ...tokens.sublist(1),
         '--project',
@@ -370,6 +421,97 @@ void main() {
             'the normalized relative form is the one value the drift '
             'line must NOT show (the recorded form IS the finding)',
       );
+    });
+
+    test('on a specs/<slug> collision the prescribed command migrates '
+        'the DIAGNOSED bug registry, not the same-named specs/ one', () async {
+      await seedBugFeature();
+      await seedArtifacts();
+      await seedSameNamedSpecsFeature();
+      final runner = CliRunner(exitOnCompletion: false);
+
+      final out = await runner.runCapturing(doctorArgs());
+      final v = verdict(out);
+      expect(v['verdict'], 'drift', reason: out);
+      expect(
+        v['fix'],
+        'zfa tdd migrate-paths --feature .specify/bugs/$slug',
+        reason:
+            'the prescription must name the REFERENCE the doctor '
+            'diagnosed — a bare name re-resolves to specs/<slug> '
+            'whenever that directory exists (issue #1573)',
+      );
+
+      final command = fixLine(out).split(' — ').first.trim();
+      final tokens = command.split(RegExp(r'\s+'));
+      final migrateOut = await runner.runCapturing([
+        ...tokens.sublist(1),
+        '--project',
+        tmpDir.path,
+      ]);
+      expect(migrateOut, contains('migrated=1'), reason: migrateOut);
+      expect(storedBugTestPath(), relTestPath, reason: migrateOut);
+      expect(
+        storedSpecsTestPath(),
+        absSpecsTestPath,
+        reason:
+            'the migration must not rewrite a DIFFERENT feature that '
+            'merely shares the slug (issue #1573)',
+      );
+
+      // The loop closes on the DIAGNOSED registry.
+      final healed = await runner.runCapturing(doctorArgs());
+      expect(verdict(healed)['verdict'], 'healthy', reason: healed);
+    });
+
+    test('the flag-less sweep covers a bug-only project (no specs/ '
+        'directory) without crashing', () async {
+      // `_scanSpecsRegistries` returns a `const []` when `specs/` is
+      // absent, so the sweep's `addAll` threw
+      // `Unsupported operation: Cannot add to an unmodifiable list` on a
+      // project that carries bug registries but no specs/ — exactly the
+      // shape the doctor's flag-less multi-owner prescription targets.
+      await seedBugFeature();
+      await seedArtifacts();
+      expect(
+        Directory(p.join(tmpDir.path, 'specs')).existsSync(),
+        isFalse,
+        reason: 'the fixture must not seed a specs/ directory',
+      );
+      final runner = CliRunner(exitOnCompletion: false);
+
+      final out = await runner.runCapturing([
+        'tdd',
+        'migrate-paths',
+        '--project',
+        tmpDir.path,
+      ]);
+
+      expect(out, contains('migrated=1'), reason: out);
+      expect(storedBugTestPath(), relTestPath, reason: out);
+    });
+
+    test('the pinned feature directory reaches the bug registry when '
+        'specs/<slug> is absent', () async {
+      // The third route `_resolveFlaggedRegistry` relies on:
+      // `TddFeaturePaths.resolveWithPin`'s `.specify/feature.json` pin
+      // fallback, consulted for a plain name whose legacy `specs/<name>`
+      // directory does not exist — the branch the `withPin` fixture seeds.
+      await seedBugFeature(withPin: true);
+      await seedArtifacts();
+      final runner = CliRunner(exitOnCompletion: false);
+
+      final out = await runner.runCapturing([
+        'tdd',
+        'migrate-paths',
+        '--feature',
+        slug,
+        '--project',
+        tmpDir.path,
+      ]);
+
+      expect(out, contains('migrated=1'), reason: out);
+      expect(storedBugTestPath(), relTestPath, reason: out);
     });
   });
 }

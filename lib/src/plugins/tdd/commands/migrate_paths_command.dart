@@ -885,7 +885,13 @@ class MigratePathsCommand extends Command<void> {
     if (featureFlag != null && featureFlag.isNotEmpty) {
       return [_resolveFlaggedRegistry(cwd, featureFlag)];
     }
-    final entries = _scanSpecsRegistries(cwd);
+    // Growable copy: `_scanSpecsRegistries` returns a `const []` when the
+    // project carries no `specs/` directory, and `addAll` on a const list
+    // throws `Unsupported operation: Cannot add to an unmodifiable list`
+    // even when the argument iterable is empty. A bug-only project (bug
+    // registries, no specs/) reaches exactly this path through the
+    // doctor's flag-less multi-owner prescription.
+    final entries = List<_RegistryEntry>.of(_scanSpecsRegistries(cwd));
     // Issue #1573: the sweep covers the bug extension's registries too —
     // a project can carry machine-absolute forms under
     // .specify/bugs/<slug>/tdd/ that a specs/-only scan never examined.
