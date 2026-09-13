@@ -11,3 +11,14 @@
   behaviors are missing-API red pre-fix. Slow tier: B9 only.
 - Derivation: LLM-guided fallback (`.zfa.json` absent in the framework
   repo; `zfa tdd plan` needs project wiring) per tdd-plan skill Step 0.
+
+## Cycle C1 — the plugin scaffold engine (B1–B8, B10, B11)
+
+- **RED** (batch, recorded before any implementation):
+  `dart test test/package_sdk/plugin_scaffold_test.dart`
+  → `00:00 +0 -1: Some tests failed.` — loading failure:
+  `package:zuraffa/src/package/plugin_scaffold.dart` /
+  `plugin_family_names.dart` do not exist (missing-API red for B1–B8,
+  B10, B11; B9 e2e file not yet written — separate cycle).
+- **GREEN**: implement `PluginFamilyNames` + `PluginScaffold` +
+  `package plugin` subcommand (below).

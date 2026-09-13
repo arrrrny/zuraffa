@@ -1,6 +1,11 @@
-import 'package:args/command_runner.dart';
+import 'dart:io';
 
+import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
+
+import '../core/module/post_scaffold_gate.dart';
 import '../package/package_scaffold.dart';
+import '../package/plugin_scaffold.dart';
 
 /// Thrown by [PackageCommand] for operator-fixable failures (invalid
 /// names, existing targets, bad options). The CLI surfaces the message
@@ -18,6 +23,8 @@ class PackageCommandException implements Exception {
 ///
 /// Subcommands:
 /// - `create <name>` — scaffold a new Zuraffa-native reusable package.
+/// - `create-plugin <name>` — scaffold a publish-ready federated plugin
+///   monorepo (issue #1604).
 class PackageCommand extends Command<void> {
   @override
   String get name => 'package';
@@ -30,6 +37,7 @@ class PackageCommand extends Command<void> {
 
   PackageCommand() {
     addSubcommand(_PackageCreateCommand());
+    addSubcommand(_PackageCreatePluginCommand());
   }
 }
 
@@ -133,5 +141,182 @@ class _PackageCreateCommand extends Command<void> {
       // FR-014: clear error, non-zero exit, existing content untouched.
       throw PackageCommandException(e.message);
     }
+  }
+}
+
+class _PackageCreatePluginCommand extends Command<void> {
+  @override
+  String get name => 'create-plugin';
+
+  @override
+  String get description =>
+      'Create a publish-ready federated plugin monorepo (app-facing '
+      'package, shared platform envelope core, and android/ios/macos '
+      'adapters with the zikzak publish pipeline) — the shape '
+      'zuraffa_auth and zuraffa_permissions follow (issue #1604)';
+
+  @override
+  String get invocation => 'zfa package create-plugin <name> [options]';
+
+  _PackageCreatePluginCommand() {
+    argParser.addOption(
+      'output',
+      abbr: 'o',
+      help:
+          'Parent directory the monorepo is created in (default: current '
+          'directory).',
+      defaultsTo: '.',
+    );
+    argParser.addOption(
+      'platforms',
+      help:
+          'Comma-separated adapter platforms to scaffold '
+          '(android, ios, macos).',
+      defaultsTo: 'android,ios,macos',
+    );
+    argParser.addOption(
+      'description',
+      help: 'Package description (pubspec.yaml + READMEs).',
+    );
+    argParser.addOption(
+      'zuraffa-path',
+      help:
+          'Pin zuraffa as a path dependency (local checkout) instead of the '
+          'published version — for developing packages against a local '
+          'zuraffa tree.',
+    );
+    argParser.addFlag(
+      'no-gate',
+      help:
+          'Skip the post-scaffold `dart pub get` + `dart analyze` gate per '
+          'package.',
+    );
+    argParser.addFlag(
+      'dry-run',
+      negatable: false,
+      help: 'Preview the scaffold without writing files.',
+    );
+  }
+
+  @override
+  Future<void> run() async {
+    final rest = argResults!.rest;
+    if (rest.isEmpty) {
+      usageException(
+        'Plugin name is required: zfa package create-plugin <name>',
+      );
+    }
+    final name = rest.first;
+    if (rest.length > 1) {
+      usageException(
+        'Unexpected extra argument(s): ${rest.sublist(1).join(' ')}. '
+        'Usage: zfa package create-plugin <name> [options]',
+      );
+    }
+
+    final platforms = _parsePlatforms(argResults!['platforms'] as String);
+    final outputParent = argResults!['output'] as String;
+    final description = argResults!['description'] as String?;
+    final zuraffaPath = argResults!['zuraffa-path'] as String?;
+    final dryRun = argResults!['dry-run'] as bool;
+    final runGate = !(argResults!['no-gate'] as bool);
+
+    print(
+      '\nZuraffa federated plugin: $name '
+      '(${platforms.map((platform) => platform.label).join(', ')})',
+    );
+    print('=' * 40);
+
+    try {
+      final result = await PluginScaffold().create(
+        name: name,
+        outputParent: outputParent,
+        platforms: platforms,
+        description: description,
+        zuraffaPath: zuraffaPath,
+        dryRun: dryRun,
+      );
+
+      if (dryRun) {
+        print(
+          '\n[dry-run] Would create ${result.createdFiles.length} files '
+          'in ${result.rootPath}:',
+        );
+        for (final rel in result.createdFiles) {
+          print('   • $rel');
+        }
+        return;
+      }
+
+      print('   Created monorepo: ${result.rootPath}');
+      print('   Packages: ${result.packagePaths.length}');
+      print('   Files: ${result.createdFiles.length}');
+
+      if (runGate) {
+        print('\n── Post-scaffold gate (pub get + analyze per package) ──');
+        for (final packagePath in result.packagePaths) {
+          final gate = PostScaffoldGate(
+            packageDir: packagePath,
+            packageName: p.basename(packagePath),
+          );
+          final ok = await gate.run();
+          if (!ok) exitCode = 1;
+        }
+      } else {
+        print(
+          '\n(skipping post-scaffold gate — run `dart pub get` + '
+          '`dart analyze` in each package yourself)',
+        );
+      }
+
+      print('\n── Next steps ──');
+      print('   cd ${result.rootPath}');
+      print(
+        '   git init && git add -A && git commit -m '
+        '"feat: initial federated scaffold"',
+      );
+      print('   dart test in each packages/<name> for the full green board');
+      print(
+        '   Publish: write release notes into CHANGELOG.md, then '
+        './scripts/prepare_for_publish.sh <version>',
+      );
+      print('');
+    } on PackageScaffoldException catch (e) {
+      // FR-014: clear error, non-zero exit, existing content untouched.
+      throw PackageCommandException(e.message);
+    }
+  }
+
+  /// Parses and normalizes the --platforms option: unknown platforms are
+  /// operator errors; the returned list follows the android, ios, macos
+  /// declaration order regardless of input order.
+  List<PluginPlatform> _parsePlatforms(String raw) {
+    final requested = raw
+        .split(',')
+        .map((part) => part.trim().toLowerCase())
+        .where((part) => part.isNotEmpty)
+        .toSet();
+    if (requested.isEmpty) {
+      usageException(
+        'No platforms requested — use --platforms android,ios,macos.',
+      );
+    }
+    final unknown = requested
+        .where(
+          (part) => PluginPlatform.values.every(
+            (platform) => platform.dirSuffix != part,
+          ),
+        )
+        .toList();
+    if (unknown.isNotEmpty) {
+      usageException(
+        'Unknown platform(s): ${unknown.join(', ')}. '
+        'Supported: ${PluginPlatform.values.map((p) => p.dirSuffix).join(', ')}.',
+      );
+    }
+    return [
+      for (final platform in PluginPlatform.values)
+        if (requested.contains(platform.dirSuffix)) platform,
+    ];
   }
 }
