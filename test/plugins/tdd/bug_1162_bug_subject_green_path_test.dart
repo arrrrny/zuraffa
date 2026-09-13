@@ -16,8 +16,11 @@
 //      a green against the certified red shape itself) are still refused.
 //   3. The placeholder refusal classes are PRESERVED: the #1036
 //      func-scaffold rewrite class and the scaffolded marker still refuse.
-//   4. A bug feature's unexpressible acceptance make composes against
-//      stub-only unit subjects (the bug extension's sanctioned path).
+//   4. A bug feature's unexpressible acceptance make is REFUSED
+//      vacuous-green before the composition fallback runs (inverted by
+//      issue #1488: the guard-only acceptance test certifies nothing,
+//      so the stub-only compose green — the pre-#1488 sanctioned path —
+//      is the proof-free class the widened gate refuses).
 //
 // Slow tier: spawns real `dart test` subprocesses in throwaway projects.
 @Tags(['slow'])
@@ -290,8 +293,20 @@ int a2_value() => 0;
   });
 
   group('bug 1162: the unexpressible path for bug features', () {
-    test('A-1162e: a bug feature\'s unexpressible acceptance make composes '
-        'against stub-only unit subjects and certifies green', () async {
+    test('A-1162e (inverted by issue #1488): a bug feature\'s unexpressible '
+        'acceptance make is REFUSED vacuous-green before the composition '
+        'fallback runs — a guard-only acceptance test never certifies '
+        'green', () async {
+      // Pre-#1488 this pin held that the composition fallback certified
+      // green against stub-only unit anchors. Issue #1488 widens the
+      // #1259 vacuous-green refusal to the acceptance lane: the composed
+      // subject references the anchors WITHOUT calling them (a no-op
+      // body), the paired test's only assertion is the UnimplementedError
+      // guard, so the certified green was proof-free. The gate now fires
+      // at make step 3c — BEFORE generation planning — so the compose
+      // step never runs and no green evidence is appended. The author
+      // completes the designed hand step (a real outcome assertion) and
+      // re-runs make; the composition flow then certifies honestly.
       final fx2 = await TddFixture.create(
         featureName: 'bug-1162-fixture',
         // Scoped GREEN suite: the baseline must produce a usable
@@ -347,9 +362,9 @@ void main() {
         ),
       ]);
 
-      // The composition step's side effect: the composed subject
-      // references the stub anchor WITHOUT calling it (the sanctioned
-      // pipeline shape) — non-throwing, so the acceptance test passes.
+      // The composition step's side effect is IRRELEVANT now — the
+      // vacuous-green refusal precedes generation planning, so the fake
+      // zfa bin must never be invoked.
       final zfaBin = await fx2.writeFakeZfaBin(
         logPath: fx2.fakeZfaLogPath,
         sideEffectByArgv: {
@@ -372,17 +387,27 @@ void a1_value() {
       final out = await runner.runCapturing(
         makeArgs1162(fx2, id: 'A1', zfaBin: zfaBin),
       );
-      expect(exitCode, 0, reason: out);
-      expect(out, contains('stub-only'));
-      expect(out, contains('outcome=green'));
+      expect(
+        exitCode,
+        isNot(0),
+        reason: 'a guard-only acceptance green must not certify: $out',
+      );
+      expect(out, contains('outcome=vacuous-green'));
+      expect(out, contains('UnimplementedError guard'));
 
-      // Green evidence appended for the acceptance behavior.
+      // No green evidence appended for the acceptance behavior.
       final cycleLog = await File(fx2.cycleLogPath).readAsString();
-      expect(cycleLog, contains('## Cycle: A1 (green)'));
-      // The plan executed the compose step against the stub anchor: the
-      // fake zfa bin logged the compose argv (the pipeline spawned it).
-      final fakeLog = await File(fx2.fakeZfaLogPath).readAsString();
-      expect(fakeLog, contains('compose'));
+      expect(cycleLog, isNot(contains('## Cycle: A1 (green)')));
+      // The refusal precedes generation planning: the fake zfa bin was
+      // never spawned (no compose dispatch). Review #1595: the log's
+      // ABSENCE is the assertion — substituting `''` for a missing file
+      // let this pin pass without an artifact, the same vacuous-pass shape
+      // the #1488 gate exists to remove.
+      expect(
+        File(fx2.fakeZfaLogPath).existsSync(),
+        isFalse,
+        reason: 'the fake zfa bin was never spawned: $out',
+      );
     });
   });
 }

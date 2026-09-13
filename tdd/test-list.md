@@ -1,15 +1,15 @@
-# TDD test list — Bug #1575 fence-blind line-scanners outside the cycle-log
+# TDD test list — Bug #1488 acceptance vacuous green
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| A-1575-a1 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | an in-fence `## Inner loop:` banner does not re-kind the enclosing section (A2 stays acceptance) | FR-1575, TestListReader._parseRows | GREEN |
-| A-1575-a2 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | an in-fence `## Key entities` banner does not switch the walk into the declarative section (U2 parses, no silent vanish) | FR-1575, TestListReader._parseRows | GREEN |
-| A-1575-a3 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | readEntities: an in-fence header does not close the Key entities section (post-fence entity row survives) | FR-1575, TestListReader.readEntities | GREEN |
-| A-1575-a4 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | readDependencies: an in-fence header does not close the External dependencies section (post-fence dependency row survives) | FR-1575, TestListReader.readDependencies | GREEN |
-| A-1575-a5 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | acceptance | readLayerContracts: an in-fence header does not close the Layer contracts section (post-fence contract bullet survives, layer kept) | FR-1575, TestListReader.readLayerContracts | GREEN |
-| U-1575-b1 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | unit | a well-formed list without fences parses unchanged (hard constraint: no regression for canonical inputs) | FR-1575, TestListReader._parseRows | GREEN |
-| U-1575-b2 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | unit | the committed 004 corpus shape (in-fence `## Baseline (...)` banner) parses identically before and after the fix | FR-1575, TestListReader._parseRows | GREEN |
-| U-1575-b3 | test/plugins/tdd/services/test_list_reader_1575_fence_test.dart | unit | a malformed row after a fence reports its honest absolute line number (bug #984 line-naming contract stays byte-identical) | FR-1575, TestListReader._parseDataRow | GREEN |
-| U-1575-c1 | test/core/proof_chain_checker_1575_fence_test.dart | unit | an in-fence header does not drop post-fence behavior ids from the coverage audit (B2 gap reported) | FR-1575, _behaviorIdsOf | GREEN |
-| U-1575-c2 | test/core/proof_chain_checker_1575_fence_test.dart | unit | a fenced `## Behaviors` example fabricates no phantom audit ids (PHANTOM never reported, declarations stay declarations) | FR-1575, _behaviorIdsOf | GREEN |
-| U-1575-c3 | test/core/proof_chain_checker_1575_fence_test.dart | unit | a well-formed behaviors table audits exactly as before (hard constraint: no regression for the coverage check) | FR-1575, _behaviorIdsOf | GREEN |
+| A-1488-a1 | test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart | acceptance | an acceptance test whose only assertion is the UnimplementedError guard cannot certify green — even when it passes (exit 1, outcome=vacuous-green, no green evidence) | FR-1488, MakeCommand step 3c gate | GREEN |
+| A-1488-a2 | test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart | acceptance | the acceptance test WITH an outcome assertion still certifies green — the refusal keys on the assertion set, not the lane | FR-1488, contentIsVacuousGreen backstop | GREEN |
+| A-1488-a3 | test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart | acceptance | kindless/legacy rows keep the fail-open skip transition — no resolvable kind, no refusal | FR-1488, #1259 fail-open contract | GREEN |
+| U-1488-u1 | test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart | unit | the unit lane refusal is unchanged — a guard-only unit test is still refused (#1259 U1 mirror) | FR-1488, unit-lane scope preserved | GREEN |
+| U-1259-u3i | test/plugins/tdd/bug_1259_vacuous_green_test.dart | acceptance | INVERTED (cites #1488): acceptance rows are IN the vacuous-green refusal scope — the legacy skip pin now refuses | FR-1488, bug_1259 U3 | GREEN |
+| A-1162ei | test/plugins/tdd/bug_1162_bug_subject_green_path_test.dart | acceptance | INVERTED (cites #1488): the unexpressible acceptance make is refused vacuous-green before the composition fallback runs (no compose dispatch) | FR-1488, bug_1162 A-1162e | GREEN |
+| R-1259-u1u2 | test/plugins/tdd/bug_1259_vacuous_green_test.dart | unit | regression guard: the unit-lane U1/U2 pins pass byte-for-byte (refusal + assertion-set keying unchanged) | FR-1488, unit-lane scope preserved | GREEN |
+| R-052-compose | test/plugins/tdd/make_command_test.dart | acceptance | regression guard: spec-052 compose-fallback acceptance greens (A13/U19, A13b) survive — real-assertion fixtures unaffected | FR-1488, spec 052 composition lane | GREEN |
+| R-1345-redrive | test/plugins/tdd/bug_1345_placeholder_re_drive_test.dart | acceptance | regression guard: the tombstoned acceptance placeholder re-drive still re-enters compose (real-assertion fixture; the widened gate does not pre-empt it) | FR-1488, issue #1345 re-entry | GREEN |
+| R-1488-analyze | tool | unit | `dart analyze` on the five changed files reports No issues found | FR-1488, no new warnings | GREEN |
+| R-1488-format | tool | unit | `dart format .` reports 2764 files, 0 changed (tree format-clean) | FR-1488, formatter clean | GREEN |
