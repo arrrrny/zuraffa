@@ -47,11 +47,16 @@ reproducing the live writer behind the committed
 1. Guard suite:
    `dart test test/plugins/tdd/commands/bug_1574_gen_relative_paths_test.dart`
    → `00:00 +6: All tests passed!`
-2. Targeted regression battery (6 suites: #1574, #1397, #1573,
+2. Targeted regression battery pre-rebase (6 suites: #1574, #1397, #1573,
    artifact_registry, #1357 reanchor, #1470 corruption):
-   → `00:02 +46: All tests passed!`
-3. Full changed-scope chunk: `dart test test/plugins/tdd/commands/`
-   → `05:34 +584: All tests passed!`
+   → `00:02 +46: All tests passed!`; post-rebase re-run: guard 6/6 +
+   #1573/artifact_registry/#1357 → `00:01 +33: All tests passed!` (#1397's
+   slow-tier suite now fails 1/10 on PRISTINE master too — the #1528
+   auto-init preflight misfires in its pubspec-less fixture; proven on a
+   master worktree, pre-existing, out of this PR's scope).
+3. Full changed-scope chunk (re-run after rebasing onto the moved master,
+   9faa78c0, and re-proving the guard suite): `dart test
+   test/plugins/tdd/commands/` → `07:17 +601: All tests passed!`
 4. `dart analyze lib/src/plugins/tdd/commands/gen_command.dart
    lib/src/plugins/tdd/services/artifact_registry.dart
    test/plugins/tdd/commands/bug_1574_gen_relative_paths_test.dart`

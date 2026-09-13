@@ -42,6 +42,31 @@ void main() {
   /// Seeds `specs/<feature>` (specs lane) or `.specify/bugs/<feature>`
   /// (bug lane) with the minimum a unit-lane gen needs to resolve A1.
   Future<Directory> seedFeature(Directory root, {required bool bugLane}) async {
+    // Issue #1528: gen's entry preflight is a SILENT NO-OP when the TDD
+    // profile exists (no writes at all — no pubspec read, no baseline
+    // writes) — seed it so these tests keep pinning gen's own behavior
+    // in a pubspec-less fixture (same pattern as
+    // bug_1518_gen_command_seam_test.dart).
+    final memoryDir = Directory(p.join(root.path, '.specify', 'memory'));
+    memoryDir.createSync(recursive: true);
+    File(p.join(memoryDir.path, 'tdd-profile.md')).writeAsStringSync('''
+# TDD Profile — fixture
+
+## Commands
+
+- Single test: `dart test {file} --plain-name "{name}"`
+- Full suite: `dart test`
+
+## Keys (machine-readable)
+
+```yaml
+runner: dart
+single: 'dart test {file} --plain-name "{name}"'
+suite: 'dart test'
+file: 'dart test {file}'
+coverage: 'dart test --coverage'
+```
+''');
     final specDir = bugLane
         ? Directory(p.join(root.path, '.specify', 'bugs', feature))
         : Directory(p.join(root.path, 'specs', feature));

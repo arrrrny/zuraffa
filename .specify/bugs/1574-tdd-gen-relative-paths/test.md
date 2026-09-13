@@ -32,19 +32,15 @@
 
 ### 3. Regression scope (changed code: gen_command.dart, artifact_registry.dart)
 
-- Targeted suites:
-  `dart test test/plugins/tdd/commands/bug_1574_gen_relative_paths_test.dart
-  test/plugins/tdd/commands/bug_1397_path_form_mismatch_test.dart
-  test/plugins/tdd/commands/bug_1573_doctor_migrate_prescription_test.dart
-  test/plugins/tdd/services/artifact_registry_test.dart
-  test/plugins/tdd/bug_1357_registry_path_reanchor_test.dart
-  test/plugins/tdd/services/bug_1470_artifacts_json_corruption_test.dart`
-  → **46/46 pass**.
-- Full changed-scope chunk: `dart test test/plugins/tdd/commands/` →
-  **584/584 pass** (`00:05:34 +584: All tests passed!`). This includes every
-  ownership-gate suite (#835/#840/#1495/#1380/#1375), the doctor/migrate
-  suites (#1397/#1573), the gen seam suites (#1272/#1518) and the run-driver
-  handoff suites.
+- Targeted suites (pre-rebase master): **46/46 pass** (#1574, #1397 7/7,
+  #1573, artifact_registry, #1357 reanchor, #1470 corruption).
+- Full changed-scope chunk (re-run after rebasing onto the moved master,
+  9faa78c0): `dart test test/plugins/tdd/commands/` → **601/601 pass**
+  (`07:17 +601: All tests passed!`). This includes every ownership-gate
+  suite (#835/#840/#1495/#1380/#1375), the doctor/migrate suites (#1573),
+  the gen seam suites (#1272/#1518) and the run-driver handoff suites.
+- Regression battery re-run post-rebase: guard suite **6/6**;
+  #1573 + artifact_registry + #1357 reanchor **33/33**.
 - Wider fast tier via the repo's disk-safe chunked runner
   (`tools/run_tests_chunked.sh`, kernel cache cleared per chunk): all chunks
   pass EXCEPT the pre-existing environment failures listed below —
@@ -93,7 +89,15 @@ All were proven pre-existing by running them against pristine `master`
 3. `test/plugins/tdd/scenarios/` — slow-tier acceptance scenarios (real
    subprocess temp projects); excluded on cloud agents per dart_test.yaml's
    own policy, not run here.
-4. A single whole-tree `dart test test/plugins/tdd/` invocation is not usable
+4. NEW pre-existing master breakage found during this audit (NOT from this
+   branch): `bug_1397_path_form_mismatch_test.dart` (slow-tagged) fails 1/10
+   after the #1528 auto-init preflight landed — its pubspec-less fixture
+   trips `zfa tdd init misfire → setup-error`. Reproduced identically on a
+   pristine master worktree (9faa78c0). This PR's own suite seeds the TDD
+   profile (the #1518 house pattern) and is unaffected; the #1397 fixture
+   needs the same one-line seed — filed separately, out of this PR's scope
+   (one PR per bug).
+5. A single whole-tree `dart test test/plugins/tdd/` invocation is not usable
    on this disk class (kernel cache overflows; dart_test.yaml documents the
    chunked runner for this) — the chunked runner was used instead.
 
