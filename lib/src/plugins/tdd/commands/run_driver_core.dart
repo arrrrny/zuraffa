@@ -92,6 +92,7 @@ class RunDriverOutcome {
     required this.drove,
     required this.counts,
     required this.skippedWidgetIds,
+    this.handStepIds = const [],
     this.stoppedAt,
     this.message,
     this.lane,
@@ -119,6 +120,11 @@ class RunDriverOutcome {
   /// Counts over the DRIVEN rows (the lane subset; lane-null = all rows)
   /// under [state] — the receipt counts and the lane summary counts.
   final Map<String, int> counts;
+
+  /// The behavior ids the run parked at the designed hand-step (issue
+  /// #1568: the planner's seam forecast + make's still-failing red) —
+  /// named in the end-of-run summary (`hand_steps=N`).
+  final List<String> handStepIds;
 
   /// `behavior:step` when the run stopped, else null.
   final String? stoppedAt;
@@ -574,27 +580,31 @@ class RunDriverCore {
     final skipped = rows
         .where((r) => current.behaviorStates[r.id] == BehaviorState.done)
         .length;
+    // Issue #1568: the planner's hand-step forecast resolved to ids —
+    // the same seam cost the announce prints (SPEC 1489), kept as the
+    // run-level verdict: a make failure on one of these behaviors is
+    // the designed hand step, not a generation defect. Computed once
+    // against the entity registry NOW (entities created since planning
+    // lift their behaviors out of the forecast).
+    final handStepSeamIds = await _entityReturnSeamIds(
+      projectRoot: projectRoot,
+      featureName: feature,
+      featureDir: featureDir,
+      rows: rows,
+    );
     if (announce) {
       print('zfa tdd $label: feature $feature — ${rows.length} behavior(s)');
       if (skipped > 0) print('   $skipped already done — skipping');
       // SPEC 1489: the unit lane's hand-step forecast — the same seam
-      // cost `zfa tdd plan` surfaced, recomputed against the entity
-      // registry NOW (entities created since planning lift their
-      // behaviors out of the forecast). Output-only: the loop, the
+      // cost `zfa tdd plan` surfaced. Output-only: the loop, the
       // BehaviorState transitions and the two-phase driver semantics
       // are untouched.
       final unitRowCount = rows
           .where((r) => r.kind == BehaviorKind.unit)
           .length;
       if (unitRowCount > 0) {
-        final seams = await _entityReturnSeamForecast(
-          projectRoot: projectRoot,
-          featureName: feature,
-          featureDir: featureDir,
-          rows: rows,
-        );
         final seamLine = UnitContractShape.entityReturnSeamCostLine(
-          seams: seams,
+          seams: handStepSeamIds.length,
           total: unitRowCount,
         );
         if (seamLine != null) print('   $seamLine');
@@ -647,6 +657,11 @@ class RunDriverCore {
     // stop. The map is keyed by behavior id (transcript + summary) and
     // gates phases 2a/2b so a skipped behavior is never re-driven.
     final skippedWidgets = <String, String>{};
+
+    // Issue #1568: the behaviors this pass parked at the designed
+    // hand-step (planner seam forecast + make's still-failing red), with
+    // the reason recorded for the end-of-pass summary and the journal.
+    final handSteps = <String, String>{};
 
     String? suiteBaselinePath;
     final anyMakeOutstanding = rows.any(
@@ -955,6 +970,8 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
+        handStepSeamIds: handStepSeamIds,
+        handSteps: handSteps,
       );
       if (result.stop != null) {
         return _finish(
@@ -999,6 +1016,11 @@ class RunDriverCore {
       // re-driving its make would refuse "no gen artifacts" and stop the
       // run for a behavior the operator already chose to skip.
       if (skippedWidgets.containsKey(row.id)) continue;
+      // Issue #1568: a hand-stepped behavior already burned its phase-1
+      // make — the designed hand step cannot succeed mechanically, so
+      // re-attempting it in phase 2 would just re-print the park. The
+      // behavior keeps its honest red; the end-of-pass summary names it.
+      if (handSteps.containsKey(row.id)) continue;
 
       final inFlightStep = current.inFlightBehaviorId == row.id
           ? current.inFlightStep
@@ -1024,6 +1046,8 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
+        handStepSeamIds: handStepSeamIds,
+        handSteps: handSteps,
       );
       if (result.stop != null) {
         return _finish(
@@ -1090,6 +1114,8 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
+        handStepSeamIds: handStepSeamIds,
+        handSteps: handSteps,
         // Issue #1588: the phase-2 refactor pass is the batch — every
         // spawn opts into the pass-batch ledger and hands the lane's
         // parked BLOCKED ids as exempt from the gate.
@@ -1181,6 +1207,57 @@ class RunDriverCore {
         projectRoot: projectRoot,
         skippedWidgets: skippedWidgets,
         stoppedAt: '${blockedRows.first.id}:verify-red',
+        message: null,
+      );
+    }
+    // Issue #1568: the hand-stepped behaviors are the pass's terminal
+    // condition beside the blocked ones — the run names them, prints any
+    // bounded-progress skips beside them, and stops with
+    // `stopped_at=<id>:hand` (the #1308 named-hand-step stop shape) and
+    // `hand_steps=N` in the summary. Bounded, resumable progress
+    // (FR-007), never a fake DONE (FR-008): the hand-stepped behaviors
+    // keep their honest red, the driven ones their verdicts.
+    if (handSteps.isNotEmpty) {
+      if (skippedRefactors.isNotEmpty) {
+        print(
+          'zfa tdd $label: refactor skipped for '
+          '${skippedRefactors.keys.join(', ')} — '
+          '${skippedRefactors.values.toSet().join(' / ')}',
+        );
+      }
+      if (skippedWidgets.isNotEmpty) {
+        print(
+          'zfa tdd $label: widget-lane skipped for '
+          '${skippedWidgets.keys.join(', ')} — '
+          '${skippedWidgets.values.toSet().join(' / ')}',
+        );
+      }
+      print(
+        'zfa tdd $label: hand-step for ${handSteps.keys.join(', ')} — '
+        'the planner declared these unit behaviors hand-step '
+        '(entity-return contract subjects): make cannot implement them '
+        'mechanically (issue #1568)',
+      );
+      print(
+        '   resume: implement the subject by hand (or certify a '
+        'hand-implemented subject with `zfa tdd make <id> --born-green`), '
+        'then re-run `zfa tdd $label $feature` — the mechanical '
+        'behaviors were driven this pass',
+      );
+      return _finish(
+        result: 'stopped',
+        exitCode: _exitStopped,
+        rows: allRows,
+        state: current,
+        drove: true,
+        lane: lane,
+        laneRows: rows,
+        receipts: receipts,
+        journalStartedAt: journalStartedAt,
+        projectRoot: projectRoot,
+        skippedWidgets: skippedWidgets,
+        handSteps: handSteps,
+        stoppedAt: '${handSteps.keys.first}:hand',
         message: null,
       );
     }
@@ -1309,6 +1386,7 @@ class RunDriverCore {
     required String journalStartedAt,
     required String projectRoot,
     Map<String, String> skippedWidgets = const {},
+    Map<String, String> handSteps = const {},
     String? stoppedAt,
     String? message,
     Map<String, int>? mockCounts,
@@ -1377,6 +1455,9 @@ class RunDriverCore {
                 'outcome=${failure.outcome} exit=${failure.exitCode}',
           for (final id in skippedWidgets.keys)
             'skipped-widget=$id (${skippedWidgets[id]})',
+          // Issue #1568: the parked hand-steps ride the journal the same
+          // way the #992 widget skips do — machine-greppable, named.
+          for (final id in handSteps.keys) 'hand-step=$id (${handSteps[id]})',
         ];
         await journalWriter.append(
           JournalEntry(
@@ -1430,6 +1511,7 @@ class RunDriverCore {
       drove: drove,
       counts: counts,
       skippedWidgetIds: skippedWidgets.keys.toList(),
+      handStepIds: handSteps.keys.toList(),
       stoppedAt: stoppedAt,
       message: message,
       lane: lane,
@@ -1439,7 +1521,8 @@ class RunDriverCore {
   /// The machine summary line the commands print as their final line
   /// (FR-009/FR-010, shape unchanged; lane commands carry `lane=`):
   /// `run: feature=<f> result=<r> pending=<n> red=<n> green=<n> done=<n>`
-  /// plus ` stopped_at=<behavior>:<step>` when stopped.
+  /// plus ` hand_steps=<n>` when the pass parked hand-steps (issue
+  /// #1568) and ` stopped_at=<behavior>:<step>` when stopped.
   static String summaryLine({
     required String label,
     required String feature,
@@ -1448,6 +1531,7 @@ class RunDriverCore {
     String? lane,
     String? stoppedAt,
     List<String> skippedWidgetIds = const [],
+    List<String> handStepIds = const [],
   }) {
     final lanePart = lane == null ? '' : ' lane=$lane';
     // Issue #1007: the BLOCKED contract verdict is counted on its own
@@ -1462,6 +1546,7 @@ class RunDriverCore {
         'green=${counts['green']} done=${counts['done']}'
         '$blockedPart'
         '${skippedWidgetIds.isNotEmpty ? ' skipped-widget=${skippedWidgetIds.length}' : ''}'
+        '${handStepIds.isNotEmpty ? ' hand_steps=${handStepIds.length}' : ''}'
         '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}';
   }
 
@@ -1715,6 +1800,12 @@ class RunDriverCore {
     required String feature,
     required Set<String> greenEvidenceIds,
     Set<String>? unblockedThisRun,
+    // Issue #1568: the planner's hand-step forecast ids (the run-level
+    // park gate) and the hand-steps recorded THIS pass (the end-of-pass
+    // summary names them). Required: every lane passes both so a missed
+    // call site can never silently disable the park.
+    required Set<String> handStepSeamIds,
+    required Map<String, String> handSteps,
 
     /// Issue #1588: the phase-2b refactor pass opts its spawns into the
     /// feature pass-batch ledger (--pass-batch) and hands the lane's
@@ -2424,6 +2515,52 @@ class RunDriverCore {
             refactorBlocked: false,
           );
         }
+        // Issue #1568: a make failure on a behavior the planner already
+        // declared HAND-STEP (the entity-return seam forecast, SPEC
+        // 1489) is the DESIGNED non-green state, not a generation
+        // defect: the subject is a gen contract-derived stub (issue
+        // #1259) with no mechanical implementation surface, so the
+        // target test failing "after generation" is the honest red the
+        // forecast pre-declared. Grading it generation-error stopped
+        // the whole run at the first hand-step and left every
+        // mechanical behavior behind it unreachable (the #1544
+        // hard-stop family). The behavior keeps its honest red, the
+        // pass continues with the remaining behaviors, and the
+        // end-of-pass summary names the hand-steps (`hand_steps=N`,
+        // `stopped_at=<id>:hand`). Two signals must agree (FR-001):
+        // the seam forecast contains the behavior AND make's own
+        // transcript carries the still-failing-target-test shape — a
+        // real generation bug keeps the honest generic stop.
+        if (step == 'make' &&
+            result.outcome == 'generation-error' &&
+            handStepSeamIds.contains(row.id) &&
+            result.output.contains('still fails after generation')) {
+          updated = updated.advance(row.id, state);
+          await store.save(updated, activeBehaviorIds: activeIds);
+          await tx.clear();
+          handSteps[row.id] =
+              'entity-return contract subject (planner seam forecast, '
+              'SPEC 1489)';
+          print(
+            'zfa tdd $label: step failed — behavior=${row.id} step=$step '
+            'outcome=${result.outcome}',
+          );
+          _printOutputExcerpt(result.output);
+          print(
+            '   hand step: ${row.id}:hand — the planner declared this '
+            'behavior hand-step (entity-return contract subject): make '
+            'cannot implement it mechanically; the failing target test '
+            'is the honest red (issue #1568).',
+          );
+          print(
+            '   parked — the run continues with the remaining behaviors '
+            '(issue #1568). Certify the hand implementation '
+            'deliberately: implement the subject, then run '
+            '`zfa tdd make ${row.id} --born-green`, and re-run '
+            '`zfa tdd $label $feature`.',
+          );
+          return (state: updated, stop: null, refactorBlocked: false);
+        }
         // Honest stop (FR-007).
         final isRunnerError = result.outcome == 'runner-error';
         // Issue #1329: the error-outcome path records the same
@@ -3068,19 +3205,20 @@ class RunDriverCore {
   // invoking command label.
   // -------------------------------------------------------------------
 
-  /// The unit lane's hand-step forecast (SPEC 1489): how many of the
-  /// lane's unit behaviors have a declared contract returning an entity
-  /// that does not exist on disk yet. Best-effort by contract: any
-  /// resolution failure contributes a silent zero — the forecast is
-  /// observability, never a run stopper, and it never touches the state.
-  Future<int> _entityReturnSeamForecast({
+  /// The unit lane's hand-step forecast (SPEC 1489): WHICH of the lane's
+  /// unit behaviors have a declared contract returning an entity that
+  /// does not exist on disk yet. Best-effort by contract: any resolution
+  /// failure contributes an empty set — the forecast is observability
+  /// and (issue #1568) the run-level park gate, never a run stopper, and
+  /// it never touches the state.
+  Future<Set<String>> _entityReturnSeamIds({
     required String projectRoot,
     required String featureName,
     required String featureDir,
     required List<BehaviorRow> rows,
   }) async {
     final unitRows = rows.where((r) => r.kind == BehaviorKind.unit).toList();
-    if (unitRows.isEmpty) return 0;
+    if (unitRows.isEmpty) return const {};
     try {
       final declared = <Signature?>[
         for (final row in unitRows)
@@ -3091,13 +3229,17 @@ class RunDriverCore {
             behaviorId: row.id,
           ),
       ];
-      final seams = await UnitContractShape.countEntityReturnSeamsResolved(
-        declared: declared,
-        cwd: projectRoot,
-      );
-      return seams;
+      final seamIndices =
+          await UnitContractShape.entityReturnSeamIndicesResolved(
+            declared: declared,
+            cwd: projectRoot,
+          );
+      return {
+        for (final index in seamIndices)
+          if (index >= 0 && index < unitRows.length) unitRows[index].id,
+      };
     } on Exception {
-      return 0;
+      return const {};
     }
   }
 

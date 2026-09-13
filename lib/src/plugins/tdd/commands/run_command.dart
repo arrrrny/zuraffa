@@ -934,6 +934,7 @@ class RunCommand extends Command<void> {
         ),
         stoppedAt: outcome.stoppedAt,
         skippedWidgetIds: outcome.skippedWidgetIds,
+        handStepIds: outcome.handStepIds,
       ),
     );
     // Issue #969: carry the shipped exit taxonomy into the envelope —
