@@ -89,3 +89,18 @@
 - Mitigation: scheduled retry automation (every 20 min, ≤ 15 runs) re-runs
   the idempotent publish script and, once all five are live at 1.2.0,
   finishes `push_to_master.sh -f` (merge + tag + push).
+
+## Cycle C6 — rate-limit window analysis + extended retry horizon
+
+- pub.dev's "package-created" limit is account-wide and rolling (24h).
+  Visible creations in the current window: 7 packages uploaded today
+  19:28–19:38 UTC (the parallel file_picker/wasm/ffi/dashboard batch — the
+  zuraffa_ocr family is equally blocked, NOT LIVE), plus ~5 older ones.
+- Slots therefore free progressively as those creations age out; the
+  earliest realistic slots are the early-morning UTC hours of 2026-09-14,
+  with the 19:28+ batch freeing from ~19:28 UTC.
+- Retry mechanisms extended to cover the window: background loop
+  (72 attempts × 15 min ≈ 18h, auto-runs push_to_master on success) +
+  scheduled automation every 30 min (≤ 36 runs). Both are idempotent and
+  race-safe (publish.sh skips live versions; duplicate uploads are rejected
+  harmlessly).
