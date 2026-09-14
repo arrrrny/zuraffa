@@ -7,10 +7,11 @@ library;
 /// Returns a machine-readable shape label for [value].
 String shapeOf(dynamic value) => switch (value) {
   null => 'void',
-  Map => 'map',
-  List => 'list',
-  String => 'string',
-  num || bool => 'scalar',
+  Map _ => 'map',
+  List _ => 'list',
+  String _ => 'string',
+  num _ => 'scalar',
+  bool _ => 'scalar',
   _ => 'value',
 };
 
