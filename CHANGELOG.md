@@ -1,3 +1,8 @@
+## [6.3.0] - 2026-09-14
+
+### Changed
+- Updated zorphy and zorphy_annotation dependencies to 2.4.0 for enhanced stability and performance
+
 ## [6.2.3] - 2026-09-11
 
 ### Changed
