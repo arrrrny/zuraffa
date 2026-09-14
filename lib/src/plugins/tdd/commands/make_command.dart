@@ -1134,17 +1134,21 @@ class MakeCommand extends Command<void> {
         // is unexpressible there (the capture only ever resolves `null`),
         // and the acceptance fallback deliberately carries NO
         // `$vacuousGuardMarker` (issue #1512 — its absence is the run
-        // driver's `:make` vs `:hand` discriminator). The honest remedy for
-        // the acceptance row is the traced re-plan/re-gen path the gen-time
-        // warning and the run driver already prescribe for fallback-routed
-        // rows (`vacuousGuardFallbackRemedyFor`), single-sourced here so
-        // the three surfaces cannot drift.
+        // driver's `:make` vs `:hand` discriminator).
+        // Issue #1626: the acceptance branch names the HAND STEP — the
+        // traces/re-plan/re-gen remedy it used to prescribe provably
+        // LOOPS on the acceptance lane (the lane ignores the contract
+        // shape, issue #1512, so re-gen can never add a real acceptance
+        // assertion and the #1488 gate refuses again). The named path is
+        // the measured working one: the outcome assertion OUTSIDE the
+        // capture + the scenario runner implemented in the subject + the
+        // attestation header + `--born-green`, with BOTH file paths
+        // (project-relative posix — the author must know where to edit).
+        // Single-sourced in `acceptanceVacuousHandStepRemedyFor` so the
+        // make refusal and the run driver's stop cannot drift.
         final acceptanceLane = vacuousRowKind == BehaviorKind.acceptance;
         final remedy = acceptanceLane
-            ? '${vacuousGuardFallbackRemedyFor(
-                lanePlanPath: lanePlanSeamPath(projectRoot: cwd, featureDir: target.featureDir),
-                testListPath: p.relative(p.join(target.featureDir, 'tdd', 'test-list.md'), from: cwd),
-              )}.'
+            ? '${acceptanceVacuousHandStepRemedyFor(behaviorId: record.behaviorId, testPath: _relPosix(testPath, cwd), subjectPath: _relPosix(record.subjectPath, cwd))}.'
             : 'add at least one assertion on the observable outcome named by '
                   'the behavior description ("$description"), remove the '
                   '$vacuousGuardMarker marker if present, and re-run make.';

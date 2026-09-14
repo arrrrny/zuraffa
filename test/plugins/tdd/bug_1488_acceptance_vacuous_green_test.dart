@@ -34,8 +34,8 @@
 //        #1259 fail-open contract is unchanged for legacy projects).
 //   A4 — the remediation proven against the artifact `gen` ACTUALLY
 //        emits: gen's guard-only acceptance test → make refuses with the
-//        acceptance-lane (traced re-plan/re-gen) remedy → an assertion
-//        outside the capture lands → make certifies green.
+//        hand-step remedy (#1626) → an assertion outside the capture
+//        lands → make certifies green.
 //   U1 — the unit lane refusal is byte-for-byte unchanged (issue #1259
 //        U1 mirror): a guard-only unit test is still refused.
 library;
@@ -45,6 +45,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/services/born_green.dart';
 
 import 'helpers/tdd_fixture.dart';
 
@@ -186,15 +187,45 @@ void main() {
       expect(out, contains('outcome=vacuous-green'));
       expect(out, contains('UnimplementedError guard'));
       expect(out, contains('issue #1488'));
-      // Review #1595: the acceptance lane gets the TRACED re-plan/re-gen
-      // remedy — not the unit-lane "assert the observable outcome at the
-      // capture", which the void scenario runner cannot carry.
+      // Issue #1626: the acceptance refusal names the HAND STEP — the
+      // traces/re-plan/re-gen remedy it used to print provably loops
+      // (the acceptance lane ignores the contract shape, issue #1512),
+      // so the working path is now the named one: an assertion on the
+      // observable outcome OUTSIDE the capture, the scenario runner
+      // implemented in the subject, the attestation header, and the
+      // born-green certification — with BOTH file paths.
       expect(
         out,
-        contains('re-run zfa tdd plan'),
+        contains('OUTSIDE the capture'),
+        reason: 'the acceptance remedy names the hand step: $out',
+      );
+      expect(
+        out,
+        contains('implement the scenario runner in'),
+        reason: 'the acceptance remedy names the scenario runner: $out',
+      );
+      expect(
+        out,
+        contains('test/a_1488_test.dart'),
+        reason: 'the refusal names the test path: $out',
+      );
+      expect(
+        out,
+        contains('lib/a_1488_subject.dart'),
+        reason: 'the refusal names the subject path: $out',
+      );
+      expect(out, contains(handStepHeader('A-1488')), reason: out);
+      expect(
+        out,
+        contains('`zfa tdd make A-1488 --born-green`'),
+        reason: 'the refusal names the born-green certification: $out',
+      );
+      expect(
+        out,
+        isNot(contains('re-run zfa tdd plan')),
         reason:
-            'the acceptance-lane remedy is the traced re-plan/re-gen path: '
-            '$out',
+            'the traces remedy provably loops on the acceptance lane '
+            '(issue #1626) — it must be gone: $out',
       );
       expect(
         out,
@@ -290,13 +321,35 @@ void main() {
       // The honest red the generated pair starts from (the stub throws).
       await fx.seedRedEvidence('A-1488');
 
-      // 2. make refuses the generated artifact itself.
+      // 2. make refuses the generated artifact itself — with the #1626
+      //    hand-step remedy (the acceptance refusal of the gen-emitted
+      //    fallback names the working path, not the looping traces one).
       final refused = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', 'A-1488', '--project', fx.root.path]);
       expect(exitCode, 1, reason: 'refusal out: $refused');
       expect(refused, contains('outcome=vacuous-green'));
-      expect(refused, contains('re-run zfa tdd gen'));
+      expect(refused, contains('OUTSIDE the capture'), reason: refused);
+      expect(
+        refused,
+        contains('implement the scenario runner in'),
+        reason: refused,
+      );
+      expect(
+        refused,
+        contains('lib/tdd/090-tdd-fixture/a_1488_subject.dart'),
+        reason: 'the refusal names the gen-recorded subject path: $refused',
+      );
+      expect(
+        refused,
+        contains('`zfa tdd make A-1488 --born-green`'),
+        reason: refused,
+      );
+      expect(
+        refused,
+        isNot(contains('re-run zfa tdd gen')),
+        reason: 'the looping traces remedy is gone (issue #1626): $refused',
+      );
 
       // 3. The prescribed remedy applied by hand: the scenario runner
       //    implemented (what the composition lane lands) and ONE assertion

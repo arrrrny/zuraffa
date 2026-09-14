@@ -2502,13 +2502,6 @@ class RunDriverCore {
               refactorBlocked: false,
             );
           }
-          print(
-            '   the generated test is GUARD-ONLY [$vacuousGuardWarningToken] '
-            '— the behavior is fallback-routed (no traces: to a declared '
-            'contract row), so gen could not derive a real outcome '
-            'assertion and make refuses it vacuous-green (issue #1259, '
-            '#1308).',
-          );
           // Issue #1483: name the seam that EXISTS for the feature shape
           // the message is talking to — the lane plan's traces cell only
           // when the lane plan pair is actually on disk; the legacy
@@ -2517,6 +2510,66 @@ class RunDriverCore {
           // exist there and never will). The full path is printed (the
           // feature dir is not obvious from a bare filename). Messaging
           // only — the detection, the stop and the loop are untouched.
+          //
+          // Issue #1626: the traces/re-plan/re-gen remedy above is
+          // UNIT/fallback vocabulary — it WORKS there, and those rows keep
+          // it. An ACCEPTANCE row cannot consume it: the lane ignores the
+          // contract shape by design (issue #1512), so re-plan/re-gen can
+          // never add a real acceptance assertion and the author who
+          // follows the printed advice loops forever. The acceptance arm
+          // names the HAND STEP instead — the outcome assertion OUTSIDE
+          // the capture, the scenario runner implemented in the subject,
+          // the attestation header, `--born-green` — with BOTH file paths
+          // (test + subject, project-relative posix). Messaging only: the
+          // stop stays `stopped_at=<id>:make` (the honest fallback-routed
+          // class, #1512) and the state advance is untouched. The wording
+          // is single-sourced in `acceptanceVacuousHandStepRemedyFor` so
+          // this stop and make's own refusal cannot drift.
+          if (row.kind == BehaviorKind.acceptance) {
+            final relTestPath = testPath != null
+                ? p.relative(testPath, from: projectRoot).replaceAll('\\', '/')
+                : p
+                      .join(
+                        'test',
+                        'tdd',
+                        feature,
+                        '${_snakeCase(row.id)}_test.dart',
+                      )
+                      .replaceAll('\\', '/');
+            final subjectRelPath = await _acceptanceSubjectRelPath(
+              registry: registry,
+              projectRoot: projectRoot,
+              feature: feature,
+              behaviorId: row.id,
+            );
+            print(
+              '   the generated test is the ACCEPTANCE guard-only fallback '
+              '[$acceptanceFallbackGuardToken] — the acceptance lane '
+              'ignores the contract shape (issue #1512), so re-plan/re-gen '
+              'can never add a real acceptance assertion and make refuses '
+              'it vacuous-green (issue #1488).',
+            );
+            print(
+              '   --> fix: ${acceptanceVacuousHandStepRemedyFor(behaviorId: row.id, testPath: relTestPath, subjectPath: subjectRelPath)}',
+            );
+            return (
+              state: updated,
+              stop: (
+                result: 'stopped',
+                stoppedAt: '${row.id}:make',
+                exitCode: _exitStopped,
+                message: null,
+              ),
+              refactorBlocked: false,
+            );
+          }
+          print(
+            '   the generated test is GUARD-ONLY [$vacuousGuardWarningToken] '
+            '— the behavior is fallback-routed (no traces: to a declared '
+            'contract row), so gen could not derive a real outcome '
+            'assertion and make refuses it vacuous-green (issue #1259, '
+            '#1308).',
+          );
           print(
             '   --> fix: ${_vacuousFallbackRemedy(projectRoot: projectRoot, featureDir: featureDir)}',
           );
@@ -3337,6 +3390,34 @@ class RunDriverCore {
       from: projectRoot,
     ),
   );
+
+  /// Issue #1626: the SUBJECT path the acceptance hand-step remedy names —
+  /// where the author implements the scenario runner. The artifact
+  /// registry record is the single path contract (the same source gen
+  /// writes); a missing/unreadable registry (direct-library runs, legacy
+  /// fixtures) fails open to the conventional gen layout
+  /// (`lib/tdd/<feature>/<snake-id>_subject.dart`) so the remedy always
+  /// names a real, editable location. Project-relative POSIX, like every
+  /// path the stop messages print.
+  Future<String> _acceptanceSubjectRelPath({
+    required ArtifactRegistry registry,
+    required String projectRoot,
+    required String feature,
+    required String behaviorId,
+  }) async {
+    final record = await registry.findRecord(behaviorId);
+    if (record != null) {
+      return p
+          .relative(
+            normalizeArtifactPath(projectRoot, record.subjectPath),
+            from: projectRoot,
+          )
+          .replaceAll('\\', '/');
+    }
+    return p
+        .join('lib', 'tdd', feature, '${_snakeCase(behaviorId)}_subject.dart')
+        .replaceAll('\\', '/');
+  }
 
   BehaviorState _maxState(BehaviorState a, BehaviorState b) =>
       a.index >= b.index ? a : b;
