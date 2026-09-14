@@ -104,3 +104,14 @@
   scheduled automation every 30 min (≤ 36 runs). Both are idempotent and
   race-safe (publish.sh skips live versions; duplicate uploads are rejected
   harmlessly).
+
+## Cycle C7 — B6 COMPLETE: full family live on pub.dev
+
+- **2026-09-14 19:32 UTC** (right in the predicted batch window): the
+  targeted retry loop (5-min cadence) published the remaining four packages.
+  **All five live at 1.2.0**: `html_to_markdown_ffi`,
+  `html_to_markdown_ffi_platform`, `html_to_markdown_ffi_android`,
+  `html_to_markdown_ffi_ios`, `html_to_markdown_ffi_macos`.
+- `push_to_master.sh -f` exit 0: publish-1.2.0 merged into master
+  (542dd2d "Merge publish-1.2.0 into master"), tag `1.2.0` pushed to origin,
+  branch deleted. Working tree clean on master.

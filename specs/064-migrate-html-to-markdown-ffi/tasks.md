@@ -121,7 +121,7 @@
 - [x] T029 [P] CHANGELOG: root entry `## 1.2.0` (migration notes); `prepare_for_publish.sh` propagates into packages.
 - [x] T030 [P] `dart doc` clean pass; pubspec homepages (`https://zuraffa.com` per family convention); license files present everywhere.
 - [x] T031 Family board full: per package `dart pub get` + `dart analyze --no-fatal-warnings` + `dart test` + `dart pub publish --dry-run` — all exit 0 (quickstart.md §4).
-- [ ] T032 Publish: `./scripts/prepare_for_publish.sh 1.2.0` → `git push origin publish-1.2.0` → `bash scripts/publish.sh` → `bash scripts/push_to_master.sh -f` (issue goal: publish to pub.dev).
+- [x] T032 Publish: `./scripts/prepare_for_publish.sh 1.2.0` → `git push origin publish-1.2.0` → `bash scripts/publish.sh` → `bash scripts/push_to_master.sh -f` (issue goal: publish to pub.dev).
 - [x] T033 Record delivery evidence in `tdd/cycle-log.md`; run the audit (`/skill:speckit-tdd-verify`) and remediate until green.
 
 ---
