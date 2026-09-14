@@ -2525,22 +2525,26 @@ class RunDriverCore {
           // class, #1512) and the state advance is untouched. The wording
           // is single-sourced in `acceptanceVacuousHandStepRemedyFor` so
           // this stop and make's own refusal cannot drift.
+          //
+          // Issue #1626 (review): BOTH paths come from the same rule —
+          // `acceptanceHandStepPathsFor`, shared with make's refusal. The
+          // artifact registry record is the single path contract (the
+          // generated TEST is read from the record exactly like the
+          // SUBJECT, issue #1397 anchoring included): probing the disk
+          // alone made the remedy name a synthetic conventional test path
+          // for a row whose registered `testPath` sits elsewhere, and
+          // editing that file leaves the registered artifact unchanged —
+          // the same "which file do I edit?" failure this issue fixes on
+          // the subject side. The disk probe stays as the registry-less
+          // fallback (the legacy flat layout).
           if (row.kind == BehaviorKind.acceptance) {
-            final relTestPath = testPath != null
-                ? p.relative(testPath, from: projectRoot).replaceAll('\\', '/')
-                : p
-                      .join(
-                        'test',
-                        'tdd',
-                        feature,
-                        '${_snakeCase(row.id)}_test.dart',
-                      )
-                      .replaceAll('\\', '/');
-            final subjectRelPath = await _acceptanceSubjectRelPath(
-              registry: registry,
+            final record = await registry.findRecord(row.id);
+            final handStepPaths = acceptanceHandStepPathsFor(
+              behaviorId: row.id,
               projectRoot: projectRoot,
               feature: feature,
-              behaviorId: row.id,
+              knownTestPath: record?.testPath ?? testPath,
+              knownSubjectPath: record?.subjectPath,
             );
             print(
               '   the generated test is the ACCEPTANCE guard-only fallback '
@@ -2550,7 +2554,7 @@ class RunDriverCore {
               'it vacuous-green (issue #1488).',
             );
             print(
-              '   --> fix: ${acceptanceVacuousHandStepRemedyFor(behaviorId: row.id, testPath: relTestPath, subjectPath: subjectRelPath)}',
+              '   --> fix: ${acceptanceVacuousHandStepRemedyFor(behaviorId: row.id, testPath: handStepPaths.testPath, subjectPath: handStepPaths.subjectPath)}',
             );
             return (
               state: updated,
@@ -3391,34 +3395,12 @@ class RunDriverCore {
     ),
   );
 
-  /// Issue #1626: the SUBJECT path the acceptance hand-step remedy names —
-  /// where the author implements the scenario runner. The artifact
-  /// registry record is the single path contract (the same source gen
-  /// writes); a missing/unreadable registry (direct-library runs, legacy
-  /// fixtures) fails open to the conventional gen layout
-  /// (`lib/tdd/<feature>/<snake-id>_subject.dart`) so the remedy always
-  /// names a real, editable location. Project-relative POSIX, like every
-  /// path the stop messages print.
-  Future<String> _acceptanceSubjectRelPath({
-    required ArtifactRegistry registry,
-    required String projectRoot,
-    required String feature,
-    required String behaviorId,
-  }) async {
-    final record = await registry.findRecord(behaviorId);
-    if (record != null) {
-      return p
-          .relative(
-            normalizeArtifactPath(projectRoot, record.subjectPath),
-            from: projectRoot,
-          )
-          .replaceAll('\\', '/');
-    }
-    return p
-        .join('lib', 'tdd', feature, '${_snakeCase(behaviorId)}_subject.dart')
-        .replaceAll('\\', '/');
-  }
-
+  /// Issue #1626 (review): the acceptance hand-step paths are resolved by
+  /// the ONE shared rule in `vacuous_guard.dart`
+  /// ([acceptanceHandStepPathsFor]) — make's refusal and this stop must not
+  /// name different files. The registry record is the single path contract
+  /// for BOTH the test and the subject (issue #1397 anchoring included);
+  /// the disk probe stays the registry-less fallback.
   BehaviorState _maxState(BehaviorState a, BehaviorState b) =>
       a.index >= b.index ? a : b;
 

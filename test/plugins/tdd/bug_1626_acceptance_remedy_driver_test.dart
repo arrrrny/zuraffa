@@ -16,9 +16,15 @@
 //   U-1626-d2 — a unit/fallback row's stop keeps the traces remedy (the
 //        #1483 wording, kind-cell rows) — contract preservation
 //        (criterion 3: the traces remedy WORKS on the unit lane).
+//   U-1626-d3 — a row whose artifact-registry record carries a
+//        NON-conventional test path (and subject path) is named by the
+//        RECORDED paths, not by a synthetic conventional one (review
+//        finding: the disk probe alone left the author editing a file that
+//        is not the registered artifact).
 @Tags(['slow'])
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -134,7 +140,21 @@ esac
     /// generated test at the #827 namespaced layout (guard-only content —
     /// NO vacuous-guard marker, so the stop lands in the marker-absent
     /// branch), and the fake make outcome.
-    Future<void> seedVacuousStop(String feature, String id, String kind) async {
+    ///
+    /// When [recordedTestPath] is given the row ALSO gets an
+    /// artifact-registry record (the #1397 portable project-relative POSIX
+    /// form) and the generated test lands at that recorded path instead of
+    /// the conventional layout — the registered non-conventional shape a
+    /// real `gen` can produce. [recordedSubjectPath] writes a minimal
+    /// scenario-runner subject at its recorded path so the record is
+    /// truthful about what is on disk.
+    Future<void> seedVacuousStop(
+      String feature,
+      String id,
+      String kind, {
+      String? recordedTestPath,
+      String? recordedSubjectPath,
+    }) async {
       await writeBug1626FakeZfa();
       await fx.seedTestList([
         (
@@ -147,7 +167,9 @@ esac
       ]);
       final snake = id.toLowerCase().replaceAll('-', '_');
       final testFile = File(
-        p.join(fx.root.path, 'test', 'tdd', feature, '${snake}_test.dart'),
+        recordedTestPath == null
+            ? p.join(fx.root.path, 'test', 'tdd', feature, '${snake}_test.dart')
+            : p.join(fx.root.path, recordedTestPath),
       );
       await testFile.parent.create(recursive: true);
       // The acceptance fallback shape (#1512): the guard WITHOUT the
@@ -169,6 +191,35 @@ void main() {
   });
 }
 ''');
+      if (recordedSubjectPath != null) {
+        final subjectFile = File(p.join(fx.root.path, recordedSubjectPath));
+        await subjectFile.parent.create(recursive: true);
+        await subjectFile.writeAsString(
+          'library;\n\nvoid subject_$snake() {}\n',
+        );
+      }
+      if (recordedTestPath != null) {
+        await Directory(p.join(fx.featureDir, 'tdd')).create(recursive: true);
+        await File(fx.artifactsPath).writeAsString(
+          jsonEncode({
+            'feature': feature,
+            'records': [
+              {
+                'behavior_id': id,
+                'feature': feature,
+                'source_criterion': 'FR-001',
+                'test_path': recordedTestPath,
+                'subject_path': recordedSubjectPath,
+                'runnable_test_name':
+                    '$recordedTestPath::$id::the $id behavior',
+                'test_ownership': 'created',
+                'subject_ownership': 'created',
+                'created_at': '2026-09-01T00:00:00.000Z',
+              },
+            ],
+          }),
+        );
+      }
       await File(
         p.join(fx.fakeZfaDir, 'config', 'make-$id'),
       ).writeAsString('vacuous-green');
@@ -257,6 +308,53 @@ void main() {
         reason: out,
       );
       expect(remedyLine(out), isNot(contains('--born-green')), reason: out);
+    });
+
+    test('U-1626-d3: a REGISTERED non-conventional test path is the one the '
+        'stop names (the registry record is the path contract)', () async {
+      const feature = '1626-acceptance-registry';
+      const recordedTestPath = 'test/a1_1626_custom_test.dart';
+      const recordedSubjectPath = 'lib/scenarios/a1_1626_subject.dart';
+      fx = await TddFixture.create(featureName: feature);
+      addTearDown(fx.dispose);
+      await seedVacuousStop(
+        feature,
+        'A1',
+        'acceptance',
+        recordedTestPath: recordedTestPath,
+        recordedSubjectPath: recordedSubjectPath,
+      );
+
+      final out = await drive(feature);
+
+      // The machine contract is untouched by the path fix.
+      expect(out, contains('stopped_at=A1:make'), reason: out);
+      expect(remedyLine(out), contains('OUTSIDE the capture'), reason: out);
+      // THE FIX: BOTH paths are the recorded ones. The disk probe alone
+      // saw nothing at the recorded test path, so the pre-fix stop named a
+      // synthetic conventional `test/tdd/<feature>/a1_test.dart` — a file
+      // the author could edit forever without touching the artifact make
+      // refuses.
+      expect(
+        remedyLine(out),
+        contains(recordedTestPath),
+        reason: 'the stop must name the REGISTERED test path: $out',
+      );
+      expect(
+        remedyLine(out),
+        contains(recordedSubjectPath),
+        reason: 'the stop must name the REGISTERED subject path: $out',
+      );
+      expect(
+        remedyLine(out),
+        isNot(contains(p.join('test', 'tdd', feature, 'a1_test.dart'))),
+        reason: 'the synthetic conventional test path must not be named: $out',
+      );
+      expect(
+        remedyLine(out),
+        contains('`zfa tdd make A1 --born-green`'),
+        reason: out,
+      );
     });
   });
 }

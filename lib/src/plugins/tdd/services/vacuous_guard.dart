@@ -40,6 +40,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'artifact_registry.dart';
 import 'born_green.dart';
 import 'lane_split.dart';
 
@@ -132,8 +133,10 @@ String vacuousGuardFallbackRemedyFor({
 ///   4. certify the hand transition with `zfa tdd make <id> --born-green`.
 ///
 /// Both file paths are printed project-relative (the author must know
-/// where to edit — issue #1626 criterion 4), and the attestation header is
-/// rendered verbatim so the copy step is mechanical (the #1411 arm's
+/// where to edit — issue #1626 criterion 4), resolved by the ONE shared
+/// [acceptanceHandStepPathsFor] rule so make's refusal and the run
+/// driver's stop cannot name different files, and the attestation header
+/// is rendered verbatim so the copy step is mechanical (the #1411 arm's
 /// precedent). Unit/fallback rows keep [vacuousGuardFallbackRemedyFor]
 /// where the traces path WORKS (issue #1626 criterion 3).
 String acceptanceVacuousHandStepRemedyFor({
@@ -148,6 +151,67 @@ String acceptanceVacuousHandStepRemedyFor({
       '`zfa tdd make $behaviorId --born-green` — traces/re-plan/re-gen '
       'cannot produce a real acceptance assertion (the acceptance lane '
       'ignores the contract shape, issue #1512)';
+}
+
+/// Issue #1626 (review): the two file paths
+/// [acceptanceVacuousHandStepRemedyFor] names — the generated test the
+/// author asserts in and the subject the author implements the scenario
+/// runner in — as project-relative POSIX paths.
+///
+/// ONE resolver shared by the two surfaces that print that remedy — make's
+/// step-3c refusal (`make_command`) and the run driver's marker-absent
+/// stop (`run_driver_core`) — the #1483/#1518 precedent: the WORDING is
+/// single-sourced in [acceptanceVacuousHandStepRemedyFor], and the path
+/// RULE must not drift either (make always holds the registry record; the
+/// driver may run registry-less and probe the disk first).
+///
+/// [knownTestPath] / [knownSubjectPath] are the paths the caller already
+/// KNOWS for the row: the artifact registry record's recorded path — the
+/// single path contract gen writes, in either the portable
+/// project-relative POSIX form or a machine-absolute one, both resolved by
+/// [normalizeArtifactPath] (issue #1397) — else the location the caller
+/// resolved on disk. A null argument (no record AND nothing on disk) falls
+/// back to the conventional gen layout, so the remedy always names an
+/// editable location instead of a path that need not exist.
+///
+/// The fail-open is the ABSENT record, not a damaged store: `findRecord`
+/// returns null only when the registry FILE is missing (direct-library
+/// runs, legacy fixtures). A corrupt or unreadable registry THROWS
+/// (bug #1470 — a corrupt registry is not an empty one), and the callers
+/// have already probed the record for the row before they print the
+/// remedy (the driver's `hasGenArtifacts` probe), so no new crash surface
+/// is opened here.
+({String testPath, String subjectPath}) acceptanceHandStepPathsFor({
+  required String behaviorId,
+  required String projectRoot,
+  required String feature,
+  String? knownTestPath,
+  String? knownSubjectPath,
+}) {
+  String? relPosix(String? known) => known == null
+      ? null
+      : p
+            .relative(
+              normalizeArtifactPath(projectRoot, known),
+              from: projectRoot,
+            )
+            .replaceAll(r'\', '/');
+  final snakeId = behaviorId.toLowerCase().replaceAll(
+    RegExp(r'[^a-z0-9]+'),
+    '_',
+  );
+  return (
+    testPath:
+        relPosix(knownTestPath) ??
+        p
+            .join('test', 'tdd', feature, '${snakeId}_test.dart')
+            .replaceAll(r'\', '/'),
+    subjectPath:
+        relPosix(knownSubjectPath) ??
+        p
+            .join('lib', 'tdd', feature, '${snakeId}_subject.dart')
+            .replaceAll(r'\', '/'),
+  );
 }
 
 /// Issue #1518: the lane-plan seam path for [featureDir] under
