@@ -49,9 +49,9 @@
 
 ### Tests for User Story 1 (MANDATORY — write FIRST, prove RED)
 
-- [ ] T008 [P] [US1] Write the dependency-manifest pin: `test/core/lean_core_pin_test.dart` asserts root `pubspec.yaml` `dependencies:` contains none of `graphql/gql/minio/opentelemetry` (FR-001..003) — RED before the manifest trim
-- [ ] T009 [P] [US1] Extend the pin: no file under `lib/` imports any of the four packages, and `lib/zuraffa.dart`'s export closure contains no heavy symbol (FR-004) — RED before the moves
-- [ ] T010 [P] [US1] Pin `TraceObserver` seam behavior: `test/core/trace_observer_test.dart` — default observer yields null trace/span ids; hook context assembly reads it (not OtelTracer) — RED before T005/T006
+- [ ] T008 [P] [US1] [behavior: U1] Write the dependency-manifest pin: `test/core/lean_core_pin_test.dart` asserts root `pubspec.yaml` `dependencies:` contains none of `graphql/gql/minio/opentelemetry` (FR-001..003) — RED before the manifest trim
+- [ ] T009 [P] [US1] [behavior: U2] Extend the pin: no file under `lib/` imports any of the four packages, and `lib/zuraffa.dart`'s export closure contains no heavy symbol (FR-004) — RED before the moves
+- [ ] T010 [P] [US1] [behavior: U3] Pin `TraceObserver` seam behavior: `test/core/trace_observer_test.dart` — default observer yields null trace/span ids; hook context assembly reads it (not OtelTracer) — RED before T005/T006
 
 ### Implementation for User Story 1
 
@@ -74,8 +74,8 @@
 
 ### Tests for User Story 2 (MANDATORY — write FIRST, prove RED)
 
-- [ ] T017 [P] [US2] Write the gate tests: `test/plugins/plugin_gate/plugin_gate_test.dart` — not-enabled → refusal exit + guidance naming `zfa plugin enable <name>` (FR-008); enabled-not-resolvable → refusal naming the package + `dart pub get`; enabled+resolvable → delegation proceeds (spy seam, FR-007); refusal happens before any artifact write
-- [ ] T018 [P] [US2] Write the trace-hook integration pin: with the observability companion registered (fixture path dep), `HookContext` trace ids flow as before the split — RED until the registration path exists
+- [ ] T017 [P] [US2] [behavior: U6] Write the gate tests: `test/plugins/plugin_gate/plugin_gate_test.dart` — not-enabled → refusal exit + guidance naming `zfa plugin enable <name>` (FR-008); enabled-not-resolvable → refusal naming the package + `dart pub get`; enabled+resolvable → delegation proceeds (spy seam, FR-007); refusal happens before any artifact write
+- [ ] T018 [P] [US2] [behavior: A2] Write the trace-hook integration pin: with the observability companion registered (fixture path dep), `HookContext` trace ids flow as before the split — RED until the registration path exists
 
 ### Implementation for User Story 2
 
@@ -95,7 +95,7 @@
 
 ### Tests for User Story 3 (MANDATORY — write FIRST, prove RED)
 
-- [ ] T022 [P] [US3] Write `test/plugins/plugin_gate/plugin_command_test.dart`: `zfa plugin list` renders name/state/package/resolvable (exit 0 always, FR-005); `zfa plugin enable <name>` writes `.zfa.json` additively (FR-006); unknown id refuses naming the catalog; re-enable is no-op success; disable reports what stays behind
+- [ ] T022 [P] [US3] [behavior: U5] Write `test/plugins/plugin_gate/plugin_command_test.dart`: `zfa plugin list` renders name/state/package/resolvable (exit 0 always, FR-005); `zfa plugin enable <name>` writes `.zfa.json` additively (FR-006); unknown id refuses naming the catalog; re-enable is no-op success; disable reports what stays behind
 
 ### Implementation for User Story 3
 
@@ -103,6 +103,16 @@
 - [ ] T024 [US3] Wire the graphql gate (T019) and observability/storage docs to the same catalog so guidance text cannot drift
 
 **Checkpoint**: All user stories independently functional
+
+---
+
+## Phase 5b: Behavior tasks inserted by tdd.plan (LLM-guided fallback)
+
+- [ ] T030 [P] [US2] [behavior: U4] Pin the catalog: `test/plugins/plugin_gate/plugin_gate_test.dart` — the three catalog ids resolve to their backing packages; an unknown id refuses naming the catalog (FR-005/FR-006)
+- [ ] T031 [P] [US3] [behavior: U7] Pin list rendering: `zfa plugin list` renders one line per capability with name/enabled/backing-package/resolvable and always exits 0 (FR-005)
+- [ ] T032 [US1] [behavior: A1] Fresh-consumer acceptance: in a temp package, add the trimmed core via path dep, resolve, assert zero heavy packages in the resolution and `dart analyze lib` clean in core (SC-001/SC-002)
+- [ ] T033 [US2] [behavior: A3] Disabled-path acceptance: drive a capability entry point in a project without enablement — non-zero exit, exact guidance, no partial artifacts (FR-008/SC-003)
+- [ ] T034 [P] [US1] [behavior: A4] Companion health: `dart pub get` + `dart analyze` + `dart test` green in each of packages/zuraffa_graphql, packages/zuraffa_storage, packages/zuraffa_observability (SC-002)
 
 ---
 
