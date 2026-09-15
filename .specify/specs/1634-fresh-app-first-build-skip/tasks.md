@@ -46,12 +46,12 @@ extension's red-green-refactor loop, tdd/test-list.md); N = non-behavioral.
 
 ## Phase C — non-behavioral (implement phase)
 
-- [ ] **T005 (N)** Class doc for `BuildRelevance`: extend the #1624
+- [x] **T005 (N)** Class doc for `BuildRelevance`: extend the #1624
   section with the first-build static decision (the marker fail-open's
   cost, the static scan's trigger set and its `build.yaml` rationale,
   the pubspec-not-a-trigger rationale, the copied-tree coverage
   boundary) — the honesty conventions the file already carries.
-- [ ] **T006 (N)** `dart format` on changed files; `dart analyze` on
+- [x] **T006 (N)** `dart format` on changed files; `dart analyze` on
   every changed file reports no issues; changed-file tests green
   (SC-5); post-test kernel-cache cleanup.
 
