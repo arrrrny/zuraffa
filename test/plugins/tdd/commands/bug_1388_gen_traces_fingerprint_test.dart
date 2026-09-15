@@ -19,8 +19,11 @@
 //
 // Behaviors:
 //   B1 — traces drift (the cell gains a contract token: `FR-007` →
-//        `FR-007, adaptive_layouts` via a contracts/*.md trace) → the
-//        regenerated test carries the new routing in its group.
+//        `FR-007, adaptive_layouts`, via the designed hand-delta seam —
+//        a hand-edit of the test-list traces cell; a contracts/*.md
+//        trace is refused for an FR that also carries an inline
+//        self-trace, #1480) → the regenerated test carries the new
+//        routing in its group.
 //   B2 — no drift (gen again on unchanged routing) → the pair is
 //        reused untouched (guard).
 
