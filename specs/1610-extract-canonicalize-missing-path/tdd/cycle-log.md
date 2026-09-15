@@ -1,9 +1,32 @@
-# Cycle Log
+# Cycle Log: Extract canonicalizeMissingPath — documented precondition + direct walk-up test (chore #1610)
 
-Feature: 1610-extract-canonicalize-missing-path (issue #1610)
+Append only. Newest last. Every entry's `red` block is the evidence that the
+test existed and failed before the implementation.
+
 Environment: Dart 3.13.4 stable, Linux x64 (uid 1001), kernel cache cleared
 before each targeted run (`rm -rf .dart_tool/test/`,
 `rm -f $TMPDIR/dart_test.kernel.*`).
+
+## Baseline
+
+- suite: `dart test test/plugins/tdd/commands/view_command_test.dart
+  test/plugins/tdd/wire_command_test.dart
+  test/plugins/tdd/commands/func_command_test.dart` (default preset) →
+  **10 passed** — the +10 is func_command_test.dart ONLY: view and wire
+  carry `@Tags(['slow'])` and the default preset excludes the slow tag, so
+  those two files ran ZERO tests (a load-time "Does not exist" misread was
+  ruled out: the wire file lives at `test/plugins/tdd/wire_command_test.dart`,
+  NOT under `commands/` — path corrected and re-run)
+- suite (corrected tiers): `dart test --preset=all
+  test/plugins/tdd/commands/view_command_test.dart` → **15 passed, 0 failed**;
+  `dart test --preset=all test/plugins/tdd/wire_command_test.dart` →
+  **16 passed, 0 failed**; `dart test
+  test/plugins/tdd/commands/func_command_test.dart` → **10 passed, 0 failed**
+- commit: `f220b6a3`
+- recorded: cycle 0, before any change — suite_baseline: green
+- note: the slow-tier requirement for the pin suites is recorded in
+  tdd/test-list.md "Verification commands" so verify runs the pins under
+  `--preset=all`
 
 ## Cycle: T001 — direct walk-up pins (characterization baseline)
 
@@ -93,9 +116,7 @@ U1 Actual:   '/tmp/tdd_canon_root_SLYTZX_alias/missing/subject.dart'
 
 - behaviors: U6 (gate aggregation), A3–A6 acceptance surface
 - command: see the recorded invocations below (slow-tagged command suites
-  run under `--preset=all` because `dart_test.yaml`'s default preset
-  excludes `slow` and would vacuously pass 0 tests on these file-level
-  `@Tags(['slow'])` files)
+  run under `--preset=all` per the Baseline note; func runs default-tier)
 - at: 2026-09-16
 - result: RECORDED IN `tdd/verification.md` (final runs over the finished
   tree: new suite + view + wire + func + analyze + format)
