@@ -68,3 +68,17 @@
   'build' / Actual: []`), so the fake zfa build spawn it expects is
   already absent on master before this branch. Out of scope; flagging
   for the maintainer.
+
+## Cycle C4 — verify remediation (M1 + M7 survived pass 1, now killed)
+
+- **Audit pass 1**: mutation sampling — M2/M3/M4/M5 killed (U1c, U3's
+  two arms, U5b); M1 (test-digest comparison dropped) SURVIVED `+12`
+  and M7 (suite-template comparison dropped) SURVIVED `+8`: no test
+  drifted `test/` alone or varied the template between record and
+  spawn. Verdict FAIL; remediation tasks R1/R2 appended to tasks.md.
+- **Remediation**: U7 (test/ drift after the make → pipeline) and U8
+  (record's suite template differing from the resolved template →
+  pipeline) added to the command-level suite.
+- **Mutant re-run**: M1 → `+9 -1` (U7 red) — KILLED; M7 → `+9 -1` (U8
+  red) — KILLED. Restoration `cmp`-verified; suite re-run green `+10`.
+- Final audit verdict: PASS (6/6 mutants killed, one remediation pass).

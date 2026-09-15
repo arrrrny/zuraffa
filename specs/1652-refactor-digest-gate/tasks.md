@@ -95,3 +95,12 @@ the shared-helpers decision.
 US1 (T001 + T002 + T101 + T102 + T103) delivers the perf fix end to end:
 make-green records the post-state, the next spawn inherits it, drift
 falls back. US2 pins the safety envelope; US3 the record's honesty.
+
+## 4. Phase 4: TDD remediation (verify pass 1: M1 + M7 survived)
+
+- [x] **R1** (P1) [behavior: U7] command-level suite — a `test/` drift
+  after the make re-runs the full pipeline (kills M1: both trees are
+  load-bearing in `matches()`). [FR-003]
+- [x] **R2** (P1) [behavior: U8] command-level suite — a suite-template
+  difference between the record and the spawn re-runs the full pipeline
+  (kills M7). [FR-003]

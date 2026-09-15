@@ -27,6 +27,8 @@ One per functional requirement in `spec.md`.
 | U4 | test/plugins/tdd/commands/bug_1652_refactor_make_post_state_test.dart | unit | ledger precedence: a matching `pass-batch.json` (the #1588 full-pipeline proof) inherits via its own evidence line even when the record also matches; the record never overwrites it. | FR-007 | DONE |
 | U5 | test/plugins/tdd/run_driver_1652_make_post_state_test.dart | unit | the driver records make's certified post-state on make-green: the record exists with `lib`/`test` digests matching the on-disk trees and a verdict naming the behavior + outcome; the #741 already-green skip writes nothing new; a forced write failure is a warning and the run completes. | FR-001 / FR-006 / AC-9 | DONE |
 | U6 | test/plugins/tdd/run_driver_1652_make_post_state_test.dart | unit | a stale record (tree changed after the make) no longer matches the tree: recomputed digests differ — the record describes one moment and is inert. | FR-006 / AC-10 | DONE |
+| U7 | test/plugins/tdd/commands/bug_1652_refactor_make_post_state_test.dart | unit | U7 (verify remediation, kills M1): a `test/` drift after the make re-runs the full pipeline — BOTH trees are load-bearing. | FR-003 / AC-2 | DONE |
+| U8 | test/plugins/tdd/commands/bug_1652_refactor_make_post_state_test.dart | unit | U8 (verify remediation, kills M7): a suite-template change between the make and the spawn is a different gate — the full pipeline runs. | FR-003 / AC-4 | DONE |
 
 ## Red protocol
 

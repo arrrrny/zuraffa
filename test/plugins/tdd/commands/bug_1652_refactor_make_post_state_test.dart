@@ -285,6 +285,44 @@ coverage: 'dart test --coverage'
       expect(fullReproof, isNot(contains('make-post-state')));
     });
 
+    test('U7 (verify remediation, kills M1): a test/ drift after the make '
+        're-runs the full pipeline — both trees are load-bearing', () async {
+      await writeRecord();
+      // Drift the test/ tree only (still a valid, formatted test).
+      await File(
+        p.join(fx.root.path, 'test', 'later_test.dart'),
+      ).writeAsString('void main() {}\n');
+
+      final out = await runRefactor(extraArgs: ['--pass-batch']);
+
+      expect(exitCode, 0, reason: out);
+      expect(await suiteSpawnCount(), greaterThanOrEqualTo(1), reason: out);
+      expect(out, isNot(contains('make-post-state')));
+    });
+
+    test(
+      'U8 (verify remediation, kills M7): a suite-template change between '
+      'the make and the spawn is a different gate — the full pipeline runs',
+      () async {
+        // The record claims the make's evidence ran under a DIFFERENT
+        // suite template than this invocation resolves: not the same
+        // gate, never inherited.
+        await writeRecord();
+        final recordPath = p.join(fx.featureDir, 'tdd', 'make-post-state.json');
+        final record =
+            jsonDecode(await File(recordPath).readAsString())
+                as Map<String, dynamic>;
+        record['suite'] = 'dart test --preset=other';
+        await File(recordPath).writeAsString(jsonEncode(record));
+
+        final out = await runRefactor(extraArgs: ['--pass-batch']);
+
+        expect(exitCode, 0, reason: out);
+        expect(await suiteSpawnCount(), greaterThanOrEqualTo(1), reason: out);
+        expect(out, isNot(contains('make-post-state')));
+      },
+    );
+
     test('U4: a matching pass-batch ledger keeps precedence — its full-'
         'pipeline proof is the inherited gate, not the make record', () async {
       final libNow = await TreeSnapshot.capture(
