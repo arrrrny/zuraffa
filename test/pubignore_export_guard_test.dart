@@ -23,6 +23,7 @@
 // rooted at [root], applying `<root>/.pubignore` with gitignore semantics.
 // `.git` and `.dart_tool` are skipped unconditionally (pub never publishes
 // them); every other path is governed solely by the ignore rules.
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -173,12 +174,33 @@ String? _resolveTarget(String sourceRel, String uri) {
   return p.posix.normalize(p.posix.join(dir, uri));
 }
 
+/// Blank out triple-quoted string bodies before directive scanning.
+///
+/// `export '…'`-shaped TEMPLATE text lives inside `'''` literals in lib/
+/// generators — #1604's plugin_scaffold.dart renders its emitted consumer
+/// barrel from one, complete with `export 'src/register.dart';` lines. The
+/// directive regex must only see real code. A line that sits inside a span
+/// is dropped whole (an export directive is never part of a template body
+/// in the house style); fence lines themselves are kept.
+String _codeOutsideTripleQuotedStrings(String source) {
+  final out = <String>[];
+  var inside = false;
+  for (final line in const LineSplitter().convert(source)) {
+    final fenceCount = (line.length - line.replaceAll("'''", '').length) ~/ 3;
+    out.add(inside ? '' : line);
+    if (fenceCount.isOdd) inside = !inside;
+  }
+  return out.join('\n');
+}
+
 /// Scan every published `lib/**/*.dart` for export/part directives.
 List<_DirectiveTarget> _collectTargets(Set<String> published) {
   final targets = <_DirectiveTarget>[];
   for (final rel in published) {
     if (!rel.startsWith('lib/') || !rel.endsWith('.dart')) continue;
-    final text = File(p.join(_pkgRoot, rel)).readAsStringSync();
+    final text = _codeOutsideTripleQuotedStrings(
+      File(p.join(_pkgRoot, rel)).readAsStringSync(),
+    );
     for (final m in _directiveRe.allMatches(text)) {
       final uri = m.group(3)!;
       // A real Dart export/part URI is a plain string literal — it cannot
@@ -186,7 +208,11 @@ List<_DirectiveTarget> _collectTargets(Set<String> published) {
       // templates embedded in lib/ (e.g. package_scaffold.dart emits
       // `export 'src/module/${name}_package_module.dart';` into consumer
       // projects); they are not directives of THIS package.
-      if (uri.contains(r'$')) continue;
+      // Same class: the `@@TOKEN@@` placeholder family — #1604's
+      // plugin_scaffold.dart renders its emitted consumer barrel from a
+      // template whose `export 'src/@@NOUN@@_exception.dart';` lines are
+      // text, not this package's directives.
+      if (uri.contains(r'$') || uri.contains('@@')) continue;
       targets.add(
         _DirectiveTarget(rel, m.group(1)!, uri, _resolveTarget(rel, uri)),
       );

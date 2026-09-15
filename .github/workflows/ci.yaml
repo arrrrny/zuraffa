@@ -13,7 +13,11 @@ env:
 
 jobs:
   dart_core:
-    timeout-minutes: 30
+    # 45 (was 30): the fast suite outgrew the old budget — the #1629 run was
+    # canceled at 30m17s and the same command took 41 minutes locally. The
+    # durable fix is sharding (tools/run_tests_chunked.sh); this only
+    # un-reds the lane until that lands.
+    timeout-minutes: 45
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

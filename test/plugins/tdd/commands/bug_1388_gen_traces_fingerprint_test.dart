@@ -80,6 +80,13 @@ void main() {
   test(
     'B1: traces drift forces regeneration carrying the new routing',
     () async {
+      // KNOWN RED (issue #1633): this test seeds the registry by hand, so
+      // the record carries no `gen_fingerprint` — and the #1388 gate keeps
+      // reuse for legacy records by contract (the sibling suite pins that
+      // as U6). The drift this test asserts can therefore never fire until
+      // the fixture bootstraps through a real plan + gen (the sibling's
+      // `seedGuardOnlyPair` shape). The namespaced-path fix below is still
+      // correct: when the drift fires, this is the file gen writes.
       final runner = CliRunner(exitOnCompletion: false);
       final output = await runner.runCapturing([
         'tdd',
@@ -92,7 +99,13 @@ void main() {
       ]);
       expect(exitCode, 0, reason: output);
 
-      final testFile = File(fx.testPathOf('A1')).readAsStringSync();
+      // gen computes the NAMESPACED test layout (`test/tdd/<feature>/…`) —
+      // the same path the registry record in setUp registers. The flat
+      // `test/a1_test.dart` read predates the namespaced migration and
+      // never sees the regenerated file.
+      final testFile = File(
+        p.join(fx.root.path, 'test', 'tdd', fx.featureName, 'a1_test.dart'),
+      ).readAsStringSync();
       expect(
         testFile,
         contains('adaptive_layouts'),
