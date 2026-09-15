@@ -359,9 +359,8 @@ void main() {
     File markerFile() => File(p.join(root.path, marker));
     File baselineFile() => File(p.join(root.path, baselineRel));
 
-    Future<String?> gate() => BuildRelevance.refactorBuildSkipNote(
-      projectRoot: root.path,
-    );
+    Future<String?> gate() =>
+        BuildRelevance.refactorBuildSkipNote(projectRoot: root.path);
 
     /// Marker backdated one hour: any file written "now" by the test is
     /// unambiguously newer than it.
@@ -393,10 +392,9 @@ void main() {
     /// them — the currency the gate's baseline must speak (FR-003).
     Future<Map<String, String>> fingerprintConfigDigests() async {
       final fp = await BuildRelevance.fingerprint(projectRoot: root.path);
-      return Map.of(fp)
-        ..removeWhere(
-          (key, _) => !BuildRelevance.buildConfigFiles.contains(key),
-        );
+      return Map.of(fp)..removeWhere(
+        (key, _) => !BuildRelevance.buildConfigFiles.contains(key),
+      );
     }
 
     void seedBaseline({
@@ -454,7 +452,8 @@ void main() {
       expect(
         await gate(),
         BuildRelevance.refactorBuildSkippedNote,
-        reason: 'a byte-identical no-op refresh must not force the '
+        reason:
+            'a byte-identical no-op refresh must not force the '
             'build pass (issue #1637)',
       );
     });
@@ -480,7 +479,8 @@ void main() {
       // it is the fingerprint mechanism's digest (FR-003).
       final fp = await BuildRelevance.fingerprint(projectRoot: root.path);
       final baseline =
-          jsonDecode(baselineFile().readAsStringSync()) as Map<dynamic, dynamic>;
+          jsonDecode(baselineFile().readAsStringSync())
+              as Map<dynamic, dynamic>;
       expect(baseline['digests']['pubspec.lock'], fp['pubspec.lock']);
     });
 
@@ -504,7 +504,8 @@ void main() {
         reason: 'a corrupt baseline never fabricates a skip',
       );
       final afterCorrupt =
-          jsonDecode(baselineFile().readAsStringSync()) as Map<dynamic, dynamic>;
+          jsonDecode(baselineFile().readAsStringSync())
+              as Map<dynamic, dynamic>;
       expect(
         afterCorrupt['version'],
         1,
@@ -520,7 +521,8 @@ void main() {
         reason: 'an unknown baseline version never fabricates a skip',
       );
       final afterVersion =
-          jsonDecode(baselineFile().readAsStringSync()) as Map<dynamic, dynamic>;
+          jsonDecode(baselineFile().readAsStringSync())
+              as Map<dynamic, dynamic>;
       expect(afterVersion['version'], 1);
     });
 
@@ -539,7 +541,8 @@ void main() {
       expect(
         await gate(),
         isNull,
-        reason: 'validity needs a completed build (marker strictly '
+        reason:
+            'validity needs a completed build (marker strictly '
             'newer); equality means the digests were never consumed',
       );
     });
@@ -594,31 +597,37 @@ void main() {
       expect(
         await gate(),
         BuildRelevance.refactorBuildSkippedNote,
-        reason: 'fingerprint-derived digests and baseline digests are '
+        reason:
+            'fingerprint-derived digests and baseline digests are '
             'the same currency — the fingerprint mechanism is reused',
       );
     });
 
-    test('a baseline with one wrong config digest still runs the build',
-        () async {
-      writeMarker();
-      writeConfig('pubspec.yaml', 'name: x\n');
-      writeConfig('pubspec.lock', 'lock: v1\n');
-      final digests = await fingerprintConfigDigests();
-      digests['pubspec.lock'] = 'deadbeef00000000'; // corrupt ONE entry
-      seedBaseline(
-        markerMillis: markerFile().statSync().modified.millisecondsSinceEpoch,
-        digests: digests,
-      );
-      bumpMarker();
-      writeConfig('pubspec.yaml', 'name: x\n'); // matches baseline
-      writeConfig('pubspec.lock', 'lock: v1\n'); // newer, WRONG baseline digest
-      expect(
-        await gate(),
-        isNull,
-        reason: 'the tier clears per file, never wholesale',
-      );
-    });
+    test(
+      'a baseline with one wrong config digest still runs the build',
+      () async {
+        writeMarker();
+        writeConfig('pubspec.yaml', 'name: x\n');
+        writeConfig('pubspec.lock', 'lock: v1\n');
+        final digests = await fingerprintConfigDigests();
+        digests['pubspec.lock'] = 'deadbeef00000000'; // corrupt ONE entry
+        seedBaseline(
+          markerMillis: markerFile().statSync().modified.millisecondsSinceEpoch,
+          digests: digests,
+        );
+        bumpMarker();
+        writeConfig('pubspec.yaml', 'name: x\n'); // matches baseline
+        writeConfig(
+          'pubspec.lock',
+          'lock: v1\n',
+        ); // newer, WRONG baseline digest
+        expect(
+          await gate(),
+          isNull,
+          reason: 'the tier clears per file, never wholesale',
+        );
+      },
+    );
 
     test('a cleared config tier plus a newer plain .dart file still skips '
         '(mixed tree)', () async {
@@ -628,12 +637,14 @@ void main() {
       expect(await gate(), isNull); // record
       bumpMarker();
       writeConfig('pubspec.lock', 'lock: v1\n'); // byte-identical refresh
-      File(p.join(root.path, 'lib', 'plain.dart'))
-          .writeAsStringSync('int answer() => 42;\n'); // plain rewrite
+      File(
+        p.join(root.path, 'lib', 'plain.dart'),
+      ).writeAsStringSync('int answer() => 42;\n'); // plain rewrite
       expect(
         await gate(),
         BuildRelevance.refactorBuildSkippedNote,
-        reason: 'cleared configs + un-annotated plain Dart = nothing '
+        reason:
+            'cleared configs + un-annotated plain Dart = nothing '
             'builder-facing changed',
       );
     });
@@ -646,12 +657,14 @@ void main() {
       expect(await gate(), isNull);
 
       final baseline =
-          jsonDecode(baselineFile().readAsStringSync()) as Map<dynamic, dynamic>;
+          jsonDecode(baselineFile().readAsStringSync())
+              as Map<dynamic, dynamic>;
       expect(baseline['version'], 1);
       expect(
         baseline['markerMtimeMillis'],
         markerFile().statSync().modified.millisecondsSinceEpoch,
-        reason: 'the recorded marker mtime is the PRE-build marker the '
+        reason:
+            'the recorded marker mtime is the PRE-build marker the '
             'validity rule compares against',
       );
       final digests = baseline['digests'] as Map<dynamic, dynamic>;
