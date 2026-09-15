@@ -10,7 +10,8 @@ import 'package:zuraffa/zuraffa.dart' show SimulationSpanCapture, SpanSnapshot;
 /// network. Moved here from the core simulation module by
 /// spec 1653-trim-heavy-deps (issue #1661): core consumes the light
 /// [SimulationSpanCapture] seam, the vendor-typed exporter lives here.
-final class OtelAdapter implements otel_sdk.SpanExporter, SimulationSpanCapture {
+final class OtelAdapter
+    implements otel_sdk.SpanExporter, SimulationSpanCapture {
   final List<SpanSnapshot> _captured = <SpanSnapshot>[];
   bool _shutdown = false;
 

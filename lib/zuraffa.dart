@@ -219,6 +219,7 @@ export 'src/core/hook_registry.dart' show HookRegistry;
 /// Failure hooks — backward-compatible layer delegating to ArtifactPublisher.
 export 'src/core/failure_hooks.dart'
     show FailureHook, FailureHookManager, FailureContext;
+
 /// Lightweight S3-compatible MinIO client with AWS Signature V4.
 
 /// Unified TDD journal (spec 1113, issue #1113): the one machine-
@@ -890,7 +891,6 @@ class Zuraffa {
   // Failure and Log Reporting
   // ============================================================
 
-
   /// Register a failure reporter.
   ///
   /// Failures from all UseCases and FailureHandlers will be
@@ -935,7 +935,6 @@ class Zuraffa {
   static Future<void> removeFailureReporter(String id) async {
     await FailureReporterRegistry.instance.unregister(id);
   }
-
 
   /// Flush all pending failure reports.
   static Future<void> flushFailureReports() async {
@@ -988,7 +987,6 @@ class Zuraffa {
   static void unregisterArtifactHook(String id) {
     ArtifactPublisher.instance.unregister(id);
   }
-
 
   /// Publish an artifact to all registered hooks (fire-and-forget).
   ///
@@ -1181,7 +1179,6 @@ class Zuraffa {
   static void unregisterFailureHook(String id) {
     FailureHookManager().unregister(id);
   }
-
 
   /// Dispose all artifact and failure hooks.
   ///

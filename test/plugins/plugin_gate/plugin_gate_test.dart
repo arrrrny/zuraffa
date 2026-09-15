@@ -59,21 +59,22 @@ void main() {
     void seedPackageConfig(List<String> packages) {
       final dotTool = Directory(p.join(tmp.path, '.dart_tool'))
         ..createSync(recursive: true);
-      File(
-        p.join(dotTool.path, 'package_config.json'),
-      ).writeAsStringSync(
+      File(p.join(dotTool.path, 'package_config.json')).writeAsStringSync(
         jsonEncode({
           'configVersion': 2,
           'packages': [
             for (final name in packages)
-              {'name': name, 'rootUri': 'file:///x/$name', 'languageVersion': '3.11'},
+              {
+                'name': name,
+                'rootUri': 'file:///x/$name',
+                'languageVersion': '3.11',
+              },
           ],
         }),
       );
     }
 
-    test('not enabled → refusal names the enable command and the package',
-        () {
+    test('not enabled → refusal names the enable command and the package', () {
       seedPackageConfig([]);
       final refusal = PluginGate.refusalFor(
         'graphql',

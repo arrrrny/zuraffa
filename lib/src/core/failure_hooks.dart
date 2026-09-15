@@ -280,4 +280,3 @@ extension ResultFailureHooks<S, F extends AppFailure> on Result<S, F> {
     });
   }
 }
-

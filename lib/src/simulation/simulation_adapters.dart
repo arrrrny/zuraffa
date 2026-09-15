@@ -24,7 +24,6 @@ library;
 
 import 'dart:async';
 
-
 // ---------------------------------------------------------------------------
 // Shared error surfaces
 // ---------------------------------------------------------------------------
@@ -613,6 +612,7 @@ final class AdMobAdapter implements AdContract {
     callbacks.onAdDismissed?.call();
   }
 }
+
 /// One span captured by a [SimulationSpanCapture] implementation.
 ///
 /// Vendor-free by design (spec 1653-trim-heavy-deps): `status` carries the

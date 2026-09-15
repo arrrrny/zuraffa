@@ -9,7 +9,7 @@ import 'package:opentelemetry/sdk.dart' as otel_sdk;
 import 'package:test/test.dart';
 import 'package:zuraffa_observability/zuraffa_observability.dart';
 
-  void main() {
+void main() {
   group('OtelAdapter (capture-and-assert exporter)', () {
     test('captures spans produced through the real SDK pipeline', () async {
       final otel = OtelAdapter();

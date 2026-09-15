@@ -64,9 +64,7 @@ class PluginCommand {
           );
           final state = enabled ? 'enabled ' : 'disabled';
           final pkg = resolvable ? 'resolvable' : 'not added';
-          print(
-            '$state  ${entry.name}  package: ${entry.package}  ($pkg)',
-          );
+          print('$state  ${entry.name}  package: ${entry.package}  ($pkg)');
         }
         return;
       case 'enable':
@@ -156,7 +154,6 @@ class PluginCommand {
         exit(1);
     }
   }
-
 
   /// Spec 1653 (issue #1661): persist `capabilities.<name>` in the
   /// project's `.zfa.json` — a RAW additive read-modify-write so every

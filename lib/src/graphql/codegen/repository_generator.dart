@@ -2,7 +2,6 @@ import 'package:code_builder/code_builder.dart' as cb;
 import 'package:dart_style/dart_style.dart';
 import 'package:zuraffa/zuraffa.dart';
 
-
 /// Generates repository interfaces and implementations.
 ///
 /// Creates:

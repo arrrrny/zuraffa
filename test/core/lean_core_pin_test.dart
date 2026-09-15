@@ -62,10 +62,11 @@ void main() {
       test('dependencies: does not contain $pkg', () {
         // The `dependencies:` block ends at the next top-level key
         // (`dev_dependencies:`, `executables:`, ...).
-        final depsBlock = RegExp(
-          r'^dependencies:\n((?:[ \t]+.*\n|\n)*?)(?=^\w|\z)',
-          multiLine: true,
-        ).firstMatch(pubspec)?.group(1) ??
+        final depsBlock =
+            RegExp(
+              r'^dependencies:\n((?:[ \t]+.*\n|\n)*?)(?=^\w|\z)',
+              multiLine: true,
+            ).firstMatch(pubspec)?.group(1) ??
             '';
         expect(
           depsBlock,
@@ -90,8 +91,10 @@ void main() {
         final content = entity.readAsStringSync();
         for (final pkg in heavyPackages) {
           if (content.contains("import 'package:$pkg/")) {
-            offenders.add('${p.relative(entity.path, from: root)} '
-                '(package:$pkg)');
+            offenders.add(
+              '${p.relative(entity.path, from: root)} '
+              '(package:$pkg)',
+            );
           }
         }
       }
@@ -110,9 +113,7 @@ void main() {
       final barrel = File(
         p.join(root, 'lib', 'zuraffa.dart'),
       ).readAsStringSync();
-      final offenders = heavyBarrelMarkers
-          .where(barrel.contains)
-          .toList();
+      final offenders = heavyBarrelMarkers.where(barrel.contains).toList();
       expect(
         offenders,
         isEmpty,

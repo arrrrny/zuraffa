@@ -34,38 +34,45 @@ void main() {
           as Map<String, dynamic>;
 
   group('U5: enable persists capabilities additively (FR-006)', () {
-    test('enable writes capabilities.<name>: true, preserving other keys',
-        () async {
-      File(
-        p.join(tmp.path, '.zfa.json'),
-      ).writeAsStringSync(jsonEncode({'formatByDefault': true}));
+    test(
+      'enable writes capabilities.<name>: true, preserving other keys',
+      () async {
+        File(
+          p.join(tmp.path, '.zfa.json'),
+        ).writeAsStringSync(jsonEncode({'formatByDefault': true}));
 
-      final out = await drive(['plugin', 'enable', 'graphql']);
+        final out = await drive(['plugin', 'enable', 'graphql']);
 
-      expect(exitCode, 0, reason: out);
-      final config = readConfig();
-      expect(
-        (config['capabilities'] as Map<String, dynamic>)['graphql'],
-        true,
-        reason: out,
-      );
-      expect(
-        config['formatByDefault'],
-        true,
-        reason: 'the write must be additive — other keys untouched',
-      );
-    });
+        expect(exitCode, 0, reason: out);
+        final config = readConfig();
+        expect(
+          (config['capabilities'] as Map<String, dynamic>)['graphql'],
+          true,
+          reason: out,
+        );
+        expect(
+          config['formatByDefault'],
+          true,
+          reason: 'the write must be additive — other keys untouched',
+        );
+      },
+    );
 
-    test('re-enabling an enabled plugin is an explicit no-op success',
-        () async {
-      await drive(['plugin', 'enable', 'graphql']);
-      final out = await drive(['plugin', 'enable', 'graphql']);
+    test(
+      're-enabling an enabled plugin is an explicit no-op success',
+      () async {
+        await drive(['plugin', 'enable', 'graphql']);
+        final out = await drive(['plugin', 'enable', 'graphql']);
 
-      expect(exitCode, 0, reason: out);
-      expect(out, contains('already enabled'), reason: out);
-      final config = readConfig();
-      expect((config['capabilities'] as Map<String, dynamic>)['graphql'], true);
-    });
+        expect(exitCode, 0, reason: out);
+        expect(out, contains('already enabled'), reason: out);
+        final config = readConfig();
+        expect(
+          (config['capabilities'] as Map<String, dynamic>)['graphql'],
+          true,
+        );
+      },
+    );
 
     test('an unknown id refuses non-zero naming the catalog', () async {
       final out = await drive(['plugin', 'enable', 'nope']);
@@ -86,7 +93,10 @@ void main() {
 
       expect(exitCode, 0, reason: out);
       final config = readConfig();
-      expect((config['capabilities'] as Map<String, dynamic>)['storage'], false);
+      expect(
+        (config['capabilities'] as Map<String, dynamic>)['storage'],
+        false,
+      );
     });
   });
 

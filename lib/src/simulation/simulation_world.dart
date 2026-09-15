@@ -402,7 +402,8 @@ final class SimulationWorld {
       final armed = !otel.isShutdown;
       final capturedSomething = otel.captured.isNotEmpty;
       final allExpectedPresent =
-          expected.every((span) => otel.byName(span) != null) || !capturedSomething;
+          expected.every((span) => otel.byName(span) != null) ||
+          !capturedSomething;
       results.add(
         PlayResult(
           family: 'otel',
