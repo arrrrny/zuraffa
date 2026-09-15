@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Tests for `PipelineRunner` (spec 047-tdd-make T006/T009,
 // U8-U13 / FR-006).
 //

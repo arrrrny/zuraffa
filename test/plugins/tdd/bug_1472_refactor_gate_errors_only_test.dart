@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Issue #1472 — the refactor pass's build gate must gate on ERRORS only.
 //
 // The refactor pass registry (`RefactorPasses`, spec 048) runs

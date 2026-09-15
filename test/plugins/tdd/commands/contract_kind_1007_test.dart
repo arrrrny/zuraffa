@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Issue #1007 — contract tests as a first-class `zfa tdd` test kind.
 //
 // A contract test is different from a unit test: it proves an

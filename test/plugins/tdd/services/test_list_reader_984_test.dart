@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Bug 984: `zfa tdd run` aborted on bare ` |` separator lines between
 // test-list table sections, treating them as malformed rows ("expected 4
 // columns ... found 0"). A line whose only table cells are empty is

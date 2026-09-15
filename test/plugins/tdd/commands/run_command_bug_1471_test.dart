@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Bug #1471: `zfa tdd run <ref>` (and run-engine / run-skin / doctor /
 // verify) hardcoded `<root>/specs/<feature>` and refused any reference
 // containing `/`, so the bug extension's TDD mode — which pins

@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // No `slow` tag: this suite is a fast in-process fixture test (CliRunner
 // spawns no subprocesses) so the default CI tier runs the #1574 guard on
 // every build — the same reasoning as bug_1573_doctor_migrate_prescription_test.

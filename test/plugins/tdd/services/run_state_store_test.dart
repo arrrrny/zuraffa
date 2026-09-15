@@ -1,5 +1,7 @@
-// Tests for RunStateStore (spec 049-tdd-run, U7-U11 / T006).
+@Tags(['e2e'])
 library;
+
+// Tests for RunStateStore (spec 049-tdd-run, U7-U11 / T006).
 
 import 'dart:convert';
 import 'dart:io';

@@ -11,8 +11,16 @@
 // Behaviors:
 //   B1 — traces drift (record 'FR-007' vs row 'FR-007, adaptive_layouts')
 //        → the regenerated test carries the new routing in its group.
-//   B2 — no drift (record criterion == row traces) → the pair is reused
-//        untouched (guard).
+//   B2 — no drift → an idempotent re-gen reuses the pair untouched
+//        (guard).
+//
+// Born-red repair (2026-09-15, #1632 follow-up): the suite landed on
+// master red — it seeded a progressed (UnimplementedError-free) subject
+// the staleness guard must never clobber, declared no contract surface
+// for `adaptive_layouts` to resolve, and read the flat `testPathOf`
+// path while registering the namespaced one. The fixtures now mirror
+// the real gen history: a guard-only pre-drift pair, a faithful
+// UnimplementedError stub, and a spec.md declaring the row.
 
 import 'dart:convert';
 import 'dart:io';
@@ -26,8 +34,58 @@ import '../helpers/tdd_fixture.dart';
 void main() {
   late TddFixture fx;
 
+  Future<(int, String)> gen() async {
+    final output = await CliRunner(exitOnCompletion: false).runCapturing([
+      'tdd',
+      'gen',
+      'A1',
+      '--feature',
+      fx.featureName,
+      '--project',
+      fx.root.path,
+    ]);
+    return (exitCode, output);
+  }
+
+  /// The namespaced test path gen computes for the registered record —
+  /// the ownership preflight compares the two, so the record must carry
+  /// this form (never the helper's flat `testPathOf` default).
+  File testFileOf() =>
+      File(p.join(fx.root.path, 'test', 'tdd', fx.featureName, 'a1_test.dart'));
+
+  /// The guard-only pair gen renders when the traces cell resolves no
+  /// declared contract row — the pre-drift on-disk state B1 simulates.
+  String guardOnlyTest(String feature) =>
+      '''
+import 'package:test/test.dart';
+
+import 'package:tdd_fixture/tdd/$feature/a1_subject.dart' as subject;
+
+void main() {
+  test('create entity Login with email', () {
+    final result = subject.adaptiveLayouts();
+    expect(result, isNot(isA<UnimplementedError>()));
+  });
+}
+''';
+
   setUp(() async {
     fx = await TddFixture.create();
+    // The declared surface the drifted traces cell resolves (#1388's
+    // fingerprint hashes the lane-plan traces cell + this spec surface —
+    // with nothing declared the render stays guard-only and B1's
+    // precondition is unreachable).
+    await Directory(fx.featureDir).create(recursive: true);
+    await File(p.join(fx.featureDir, 'spec.md')).writeAsString('''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: ${fx.featureName}
+
+## Layer Contracts
+
+**Function**:
+- `adaptive_layouts`: `resolve(double width) -> String`
+''');
     // The registry record must carry the namespaced test path gen
     // computes (the ownership preflight compares the two).
     await fx.registerBehavior(
@@ -40,6 +98,7 @@ void main() {
         fx.featureName,
         'a1_test.dart',
       ),
+      testContent: guardOnlyTest(fx.featureName),
     );
     // Re-align the record's subject path to the namespaced layout gen
     // computes (registerBehavior records the flat lib/ form).
@@ -57,10 +116,14 @@ void main() {
     Directory(
       p.join(fx.root.path, 'lib', 'tdd', fx.featureName),
     ).createSync(recursive: true);
+    // A faithful gen stub: the staleness mirror's progressed-artifact
+    // guard never clobbers a subject past the stub stage, so the seed
+    // must carry the UnimplementedError the real stub throws.
     File(
       p.join(fx.root.path, 'lib', 'tdd', fx.featureName, 'a1_subject.dart'),
     ).writeAsStringSync(
-      '// GENERATED STUB — zfa tdd gen A1\n// behavior_id: A1\n',
+      '// GENERATED STUB — zfa tdd gen A1\n// behavior_id: A1\n'
+      'throw UnimplementedError();\n',
     );
     await File(p.join(fx.featureDir, 'tdd', 'test-list.md')).writeAsString(
       '# Test List: ${fx.featureName}\n\n'
@@ -80,19 +143,10 @@ void main() {
   test(
     'B1: traces drift forces regeneration carrying the new routing',
     () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing([
-        'tdd',
-        'gen',
-        'A1',
-        '--feature',
-        fx.featureName,
-        '--project',
-        fx.root.path,
-      ]);
-      expect(exitCode, 0, reason: output);
+      final (code, output) = await gen();
+      expect(code, 0, reason: output);
 
-      final testFile = File(fx.testPathOf('A1')).readAsStringSync();
+      final testFile = testFileOf().readAsStringSync();
       expect(
         testFile,
         contains('adaptive_layouts'),
@@ -108,20 +162,17 @@ void main() {
     },
   );
 
-  test('B2: no traces drift reuses the pair untouched (guard)', () async {
-    final runner = CliRunner(exitOnCompletion: false);
-    final output = await runner.runCapturing([
-      'tdd',
-      'gen',
-      'A1',
-      '--feature',
-      fx.featureName,
-      '--project',
-      fx.root.path,
-    ]);
-    expect(exitCode, 0, reason: output);
+  test('B2: no drift reuses the pair untouched (guard)', () async {
+    // First gen renders the pair from the matching traces cell and arms
+    // the record's reuse fingerprint.
+    final (firstCode, firstOutput) = await gen();
+    expect(firstCode, 0, reason: firstOutput);
+    // Second gen with nothing changed: the byte-equality short-circuit
+    // reuses the pair — no regeneration note, no rewrite.
+    final (secondCode, secondOutput) = await gen();
+    expect(secondCode, 0, reason: secondOutput);
     expect(
-      output,
+      secondOutput,
       isNot(contains('traces cell gained a contract token')),
       reason: 'the registered criterion already matches the row',
     );

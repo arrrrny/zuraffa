@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 /// Unit suite for `ZfaExecutable` — the no-JIT compiled-child contract.
 ///
 /// Policy under test: NOTHING spawns the zfa CLI in JIT mode. A `.dart`

@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Bug 1198 (part of #908 P0) — template self-hosting: `mock` template
 // (the mock-first realization bar — #908 P0).
 //

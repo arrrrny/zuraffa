@@ -173,20 +173,33 @@ String? _resolveTarget(String sourceRel, String uri) {
   return p.posix.normalize(p.posix.join(dir, uri));
 }
 
+/// Directive-shaped lines inside triple-quoted template strings
+/// (`_render(r'''…''')` barrels the plugin scaffold emits into GENERATED
+/// projects — #1621) are inert data of THIS package, not its directives:
+/// strip the string regions before scanning so the guard judges only
+/// real code, whatever the template line happens to name.
+final RegExp _tripleQuotedRegion = RegExp(
+  "r?'''[\\s\\S]*?'''|r?\"\"\"[\\s\\S]*?\"\"\"",
+);
+
 /// Scan every published `lib/**/*.dart` for export/part directives.
 List<_DirectiveTarget> _collectTargets(Set<String> published) {
   final targets = <_DirectiveTarget>[];
   for (final rel in published) {
     if (!rel.startsWith('lib/') || !rel.endsWith('.dart')) continue;
-    final text = File(p.join(_pkgRoot, rel)).readAsStringSync();
+    final text = File(
+      p.join(_pkgRoot, rel),
+    ).readAsStringSync().replaceAll(_tripleQuotedRegion, '');
     for (final m in _directiveRe.allMatches(text)) {
       final uri = m.group(3)!;
       // A real Dart export/part URI is a plain string literal — it cannot
       // contain string interpolation. URIs with `$` are code-generation
       // templates embedded in lib/ (e.g. package_scaffold.dart emits
       // `export 'src/module/${name}_package_module.dart';` into consumer
-      // projects); they are not directives of THIS package.
-      if (uri.contains(r'$')) continue;
+      // projects); they are not directives of THIS package. Same class:
+      // the @@NOUN@@/@@PLATFORM_FILE@@ placeholder vocabulary the plugin
+      // scaffold templates emit (#1621).
+      if (uri.contains(r'$') || uri.contains('@@')) continue;
       targets.add(
         _DirectiveTarget(rel, m.group(1)!, uri, _resolveTarget(rel, uri)),
       );

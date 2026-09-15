@@ -22,6 +22,22 @@
 //   B4 — the dart_core fast-lane selector parsed out of ci.yaml excludes
 //        every e2e-tagged file.
 //
+// Issue #1632 (the dart_core fast-lane overflow — the job cancelled at
+// its 30-minute ceiling because ~116 heavyweight suites were never
+// tagged): two pins close the drift permanently.
+//
+//   B5 — the fast-lane budget census: every fast-lane-eligible test
+//        file (no `slow`/`e2e`/`flutter` tag) that matches a heavyweight
+//        criterion — spawns external processes, or is an
+//        analyzer/compile self-hosting gate — carries an exclusion tag.
+//        Process-spawning/temp-project suites take `e2e` (#1510
+//        semantics: honest under direct invocation, off the CI fast
+//        lane, selected by --preset=all); in-process slow suites take
+//        `slow`.
+//   B6 — the tier invariant: every `regression`-tagged file also carries
+//        `slow` (the tier's default-lane exclusion is the `slow` tag —
+//        a tier-only tag leaks the file into every default `dart test`).
+//
 // Behaviors:
 //   B1 — every regression-tier test file carries the `regression` tag.
 //   B2 — dart_test.yaml defines the regression preset (include_tags
@@ -146,6 +162,62 @@ void main() {
       );
     }
   });
+
+  test('B5: the fast-lane budget census — no untagged heavyweight suite '
+      'rides the dart_core lane (#1632)', () {
+    final offenders = <String>[];
+    for (final entry in _fastLaneEligibleFiles().entries) {
+      final file = entry.key;
+      // The census must not flag itself: this file's own source embeds
+      // the spawn-marker pattern text it scans for.
+      if (file == 'test/tier_integrity_test.dart') continue;
+      final source = File(file).readAsStringSync();
+      final spawns = _spawnMarkerRe.hasMatch(source);
+      final compileGate =
+          _compileGateRe.hasMatch(file) || file.contains('self_hosting');
+      if (spawns || compileGate) {
+        offenders.add(
+          '$file — ${spawns ? 'spawns external processes' : 'compile/self-hosting gate'} '
+          '(carries: ${entry.value.join(', ')})',
+        );
+      }
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'fast-lane-eligible files that spawn external processes or run '
+          'analyzer/compile self-hosting gates must carry `e2e` '
+          '(process-spawning/temp-project suites, the #1510 semantics) or '
+          '`slow` (in-process slow suites) — the untagged drift is what '
+          'cancelled dart_core at its 30-minute ceiling (#1632):\n'
+          '${offenders.join('\n')}',
+    );
+  });
+
+  test('B6: every regression-tagged file is kept off the CI fast lane '
+      'by `slow` or `e2e` (#1632)', () {
+    final leaks = <String>[];
+    for (final entity in Directory('test').listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('_test.dart')) continue;
+      final tags = _suiteTags(entity.path);
+      if (tags.contains('regression') &&
+          !tags.contains('slow') &&
+          !tags.contains('e2e')) {
+        leaks.add(entity.path);
+      }
+    }
+    expect(
+      leaks,
+      isEmpty,
+      reason:
+          'a regression tag alone leaves the file eligible for the '
+          'dart_core CI lane — the tier rides the default-lane '
+          '`slow` exclusion (the corpus convention) or the #1510 '
+          '`e2e` weight tag:\n'
+          '${leaks.join('\n')}',
+    );
+  });
 }
 
 /// Every `_test.dart` file under `test/` whose suite-level `@Tags`
@@ -154,6 +226,46 @@ Map<String, Set<String>> _e2eTaggedFiles() =>
     _cachedE2eFiles ??= _scanE2eTaggedFiles();
 
 Map<String, Set<String>>? _cachedE2eFiles;
+
+/// The suite-level `@Tags` annotation's tag set of [path] (empty when the
+/// file declares none).
+final RegExp _tagsAnnotationRe = RegExp(r'@Tags\(\[([^\]]*)\]\)');
+
+Set<String> _suiteTags(String path) {
+  final annotation = _tagsAnnotationRe.firstMatch(
+    File(path).readAsStringSync(),
+  );
+  if (annotation == null) return const {};
+  return RegExp(
+    "'([^']*)'",
+  ).allMatches(annotation.group(1)!).map((match) => match.group(1)!).toSet();
+}
+
+/// Source markers proving a suite drives EXTERNAL processes: the spawn
+/// helpers (`run_zfa_source.dart` and friends) or direct `Process` use.
+final RegExp _spawnMarkerRe = RegExp(
+  r'Process\.run|Process\.start|run_zfa_source|runZfaSource|'
+  r'zfaExecutable|dartTest\(|runZfa\(',
+);
+
+/// Path markers of the analyzer/compile gate family: suites whose
+/// assertions compile or resolve generated code in-process.
+final RegExp _compileGateRe = RegExp(r'_compile_test\.dart$');
+
+/// Every `_test.dart` file under `test/` that the dart_core fast lane
+/// RUNS — its tag set is disjoint from the exclusion vocabulary
+/// (`slow` via dart_test.yaml's default, `flutter || e2e` via the CI
+/// selector) — mapped to its tag set.
+Map<String, Set<String>> _fastLaneEligibleFiles() {
+  final eligible = <String, Set<String>>{};
+  for (final entity in Directory('test').listSync(recursive: true)) {
+    if (entity is! File || !entity.path.endsWith('_test.dart')) continue;
+    final tags = _suiteTags(entity.path);
+    if (tags.intersection({'slow', 'e2e', 'flutter'}).isNotEmpty) continue;
+    eligible[entity.path] = tags;
+  }
+  return eligible;
+}
 
 Map<String, Set<String>> _scanE2eTaggedFiles() {
   final tagged = <String, Set<String>>{};
