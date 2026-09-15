@@ -1,149 +1,122 @@
-# tdd.verify — Bug #1648 the tier-2 python3 emitter must be compact like the rest of the cascade
+# tdd.verify — Bug #1655 the static first-build skip is unreachable for zfa setup-created apps
 
 - **Verified**: 2026-09-15, this session, on
-  `fix/1648-read-evidence-python3-spaced-json` (working tree, pre-push)
+  `fix/1655-setup-build-yaml-static-skip-unreachable` (working tree, pre-push)
 - **Toolchain**: Dart 3.13.4 (stable) on linux_x64 (the task's "Dart 3.13+"
-  floor; the repo pins `sdk: ^3.11.0`); bash bash-5.2 (linux) with a jq-less
-  symlink-farm PATH simulating the stock-macOS-bash-3.2 quadrant; python3
-  3.13.5; shellcheck 0.10.0; jq 1.7
-- **Scope**: `.specify/scripts/bash/read-cycle-evidence.sh` (tier-2 separators
-  + rationale comment), the new E6 case in
-  `.specify/scripts/bash/tests/test_read_evidence.sh` (E1–E5 byte-identical),
-  bug artifacts under `.specify/bugs/1648-read-evidence-python3-spaced-json/`
-- **Mode**: LLM-guided fallback (`zfa` binary absent, no `.zfa.json` — same
-  as the #1636/#1626 verifications)
+  floor; the repo pins `sdk: ^3.11.0`)
+- **Scope**: `lib/src/plugins/tdd/services/build_relevance.dart` (the static
+  first-build trigger + docs + skip note), `lib/src/core/dependencies/
+  dependency_wirer.dart` (template provenance header — doc + string const,
+  no executable-code change), the new #1655 tests in
+  `test/plugins/tdd/services/build_relevance_test.dart`, and the marker pin
+  in `test/core/dependencies/dependency_wirer_test.dart`.
 
 ## Verdict: PASS
 
 ## 1. Static analysis
 
 ```
-shellcheck -x -S warning on the four boundary scripts (run_tests.sh Gate 1)
-→ shellcheck OK: sync-behaviors-to-tasks.sh
-→ shellcheck OK: read-tdd-profile.sh
-→ shellcheck OK: read-cycle-evidence.sh      ← the modified script
-→ shellcheck OK: tick-behavior-task.sh
-```
+dart analyze lib/src/plugins/tdd/services/build_relevance.dart
+             lib/src/core/dependencies/dependency_wirer.dart
+             test/plugins/tdd/services/build_relevance_test.dart
+             test/core/dependencies/dependency_wirer_test.dart
+→ No issues found!          (re-checked after dart format)
 
-```
-dart format --output=none --set-exit-if-changed .
-→ Formatted 2869 files (0 changed) in 7.60 seconds.   exit 0
-```
-
-```
 dart analyze            (whole repo)
-→ 106 issues found      (matches the pre-existing info-level baseline
-recorded by the #1636 verification: 106, 0 errors, 0 warnings)
+→ 106 issues found      (0 errors, 0 warnings — all `info`)
 ```
 
-Zero `.dart` files changed on this branch (`git diff --name-only … -- '*.dart'`
-is empty), so the scoped `dart analyze $(git diff --name-only HEAD -- '*.dart')`
-gate has an empty file set by construction; the whole-repo run above proves no
-baseline drift.
+Zero findings from the changed/new files; the whole-repo count is the
+pre-existing info-level baseline drift (106 here, same order as the 106 the
+#1636 verification recorded), not this change.
 
 ## 2. TDD discipline (REAL runs in this session)
 
-- RED, pre-fix (verbatim in
-  `.specify/bugs/1648-read-evidence-python3-spaced-json/red-evidence.md`):
+- RED, pre-fix (verbatim in `.specify/bugs/1655-setup-build-yaml-static-
+  skip-unreachable/red-evidence.md`):
 
 ```
-Testing E6: tier-2 python3 emits compact JSON — no spaced separators (#1648)
-  ✓ PASS: E6 succeeds (exit code)
-  ✗ FAIL: E6 compact envelope (raw output)
-      haystack did not contain: [{"evidence":[{"phase":"RED"]
-  ✗ FAIL: E6 compact field pairing (raw output)
-      haystack did not contain: ["behavior_id":"U9"]
-jq-present: SUITE cases_passed=5 cases_failed=1 cases_skipped=0
-jq-less:    SUITE cases_passed=5 cases_failed=1 cases_skipped=1
+dart test test/plugins/tdd/services/build_relevance_test.dart
+→ 00:00 +30 -1: Some tests failed.
+  U-1655-b1 Expected: 'refactor build pass skipped: build_runner has never
+     run here …' (staticFirstBuildSkippedNote)
+     Actual:   <null>        ← the gate ran the first build on a pristine
+                               zfa setup build.yaml: the issue's bug
 ```
-
-The red was proven in BOTH jq quadrants (tier-2 is selected by python3
-presence, not jq presence), and the direct emitter diff on one fixture showed
-the exact divergence: tier-2 `{"evidence": [{"phase": "RED", ...}]}` (spaced)
-vs tier-3 `{"evidence":[{"phase":"RED",...}]}` (compact).
 
 - GREEN, post-fix:
 
 ```
-jq-present: SUITE cases_passed=6 cases_failed=0 cases_skipped=0
-jq-less:    SUITE cases_passed=6 cases_failed=0 cases_skipped=1
-            (the 1 skip is E5 JSON-parseability — jq absent, t_skip by design)
+dart test test/plugins/tdd/services/build_relevance_test.dart
+→ 00:00 +31: All tests passed!
 ```
 
-The fix was applied only after E6 was proven red; no assertion was edited to
-make it pass retroactively (E1–E5 are byte-identical to the pre-fix tree —
-`git diff` between the red and green commits touches only
-`read-cycle-evidence.sh`).
+The fix was applied only after the repro test was proven red; no test was
+edited to make it pass retroactively. U-1655-b2/b3/b4/b5 (the guard tests)
+passed both pre- and post-fix, proving the fix did not need them loosened.
 
 ## 3. Regression suites (REAL runs in this session)
 
 ```
-bash .specify/scripts/bash/tests/run_tests.sh          (jq-present, shellcheck 0.10.0)
-→ shellcheck OK on all four boundary scripts
-→ Passed: 25/25   Failed: 0/25
-→ VERDICT: ALL GREEN
+dart test test/plugins/tdd/services/ test/core/dependencies/
+→ 01:40 +1151: All tests passed!
+   (includes refactor_passes_test.dart — the #1624/#1634 build-gate suites
+   asserting staticFirstBuildSkippedNote — every step_runner/neighbor
+   suite, and the dependency_wirer/build_yaml_guard/preflight suites)
 
-PATH=<farm minus jq> bash .specify/scripts/bash/tests/run_tests.sh
-                                                    (jq-less + shellcheck)
-→ Passed: 25/25   Failed: 0/25   Skipped: 1 (E5 parseability, by design)
+dart test test/core/dependencies/dependency_wirer_test.dart
+          test/commands/build_yaml_guard_test.dart
+          test/commands/builder_dependency_preflight_test.dart
+          test/plugins/tdd/services/refactor_passes_test.dart
+→ 00:05 +45: All tests passed!
+   (the three template consumers: setup's writer, the build guard, the
+   YAML-parsing preflight — header addition proven safe for the parser)
+
+dart test test/commands/build_command_unit_test.dart --preset=all
+→ 00:19 +48: All tests passed!
+   (slow tier — the build command writes the template; byte-identity
+   between guard scaffold and const still holds)
+
+dart test test/commands/
+→ 06:11 +401: All tests passed!
 ```
 
-A transient T7 failure in the first jq-less runner pass was a **sandbox
-artifact, not a code path**: the jq-less PATH farm lacked `stat`, which
-`test_tick_behavior.sh` T7 uses to assert permission bits; adding `stat` to
-the farm cleared it (7/7). No production file involved.
+Chunk/cache hygiene: `.dart_tool/test/` and `/tmp/dart_test.kernel.*` were
+cleaned before and after the runs; disk stayed >80% free throughout.
 
-Dogfood check: the new `tdd/cycle-log.md` parses to the same three
-RED/GREEN/REFACTOR entries through tier-2 and tier-3 of the FIXED script and
-renders in text mode (`Found 3 evidence entries:`).
+## 4. Acceptance criteria audit (issue #1655)
 
-## 4. Mutation sampling (deliberate mutants, no mutation tool wired — per tdd-profile)
+1. **Fresh app's first refactor skips the build pass when no annotated
+   files exist (even with build.yaml present)** — PROVED at the gate level:
+   U-1655-b1 red pre-fix, green post-fix. The fixture is the reported app
+   shape: setup's byte-exact build.yaml + plain Dart under lib/test, no
+   `.dart_tool/build/`, zero annotations. Not proven by running a real
+   `zfa tdd refactor` end-to-end (the fast-tier convention this repo pins
+   for cloud agents; the gate IS the decision the refactor consults, via
+   the unchanged binding refactor_passes_test.dart exercises).
+2. **User-authored build.yaml still forces the build** — PROVED two ways:
+   the pre-existing #1634 user-authored test (custom content) and the new
+   MODIFIED-template test (single-byte divergence → run). Exact content
+   match is deliberately strict; the skip is an optimization, the run is
+   always sound.
+3. **Entrypoint AOT compile eliminated or paid during setup** — PROVED for
+   the static-skip half: with the note returned, the refactor records a
+   synthetic skipped build action and never spawns `zfa build`, so
+   `dart compile aot-snapshot` of build.dart is not reached on this path.
+   (Not re-timed end-to-end; the #1634/#1655 measurements quantify the ~4
+   min cost being avoided.)
+4. **Existing incremental freshness logic unchanged** — PROVED by diff and
+   by tests: zero hunks touch the marker-mtime path (rules 2–6), the
+   asset-graph reader, or the build pass; the entire pre-existing #1624 /
+   #1634 incremental suite ran green unchanged, and
+   `staticFirstBuildSkippedNote`/`refactorBuildSkippedNote` are consumed by
+   const reference (the #1655 note-text update flows through without
+   behavior change).
 
-Mutants injected into `read-cycle-evidence.sh` tier-2, suite run after each,
-script restored byte-identical after each (verified with
-`git diff --quiet -- <script>`):
+## 5. Verdict
 
-| Mutant | Change | jq-present result | jq-less result | Verdict |
-|--------|--------|-------------------|----------------|---------|
-| M1 | `separators=(", ", ": ")` (explicit spaced) | `Passed: 5/6, Failed: 1` — E6 envelope + pairing FAIL | `Passed: 5/6, Failed: 1, Skipped: 1` | KILLED |
-| M2 | separators argument removed (exact pre-fix regression) | `Passed: 5/6, Failed: 1` — E6 kills | not re-run (same kill surface as M1) | KILLED |
-| M3 | `indent=2` (pretty-print regression) | `Passed: 5/6, Failed: 1` — E6 kills | not re-run (same kill surface) | KILLED |
-
-No surviving mutants in the sample; E6 kills the whole spacing-defect family
-it was written for, in both quadrants. Restoration verified — the working
-script's sha1 at audit close matches HEAD (`482852ab88c4…`), `git status` on
-the script clean.
-
-## 5. Acceptance criteria audit (issue #1648)
-
-1. **E1/E2 grep fallbacks pass without jq on stock macOS bash** — PROVED:
-   jq-less suite run `Passed: 6/6, Skipped: 1` post-fix (and they already
-   passed pre-fix via the #1646 normalization; the fix removes the underlying
-   divergence the normalization was masking, and E6 now guards the raw shape).
-2. **The python3 tier either emits compact JSON or tests normalize
-   whitespace** — PROVED (compact side): tier-2 emits
-   `{"evidence":[{"phase":"RED",...}]}`, byte-shape-consistent with tier-3;
-   `jq -e .` accepts it; dogfood cycle-log parses identically through both
-   tiers.
-3. **No regression on jq-present path** — PROVED: jq-present runner
-   `Passed: 25/25 — VERDICT: ALL GREEN`; E1–E5 assertions untouched.
-4. **E5 SKIP still reports correctly** — PROVED: jq-less runs show
-   `⊘ SKIP: E5 JSON parseability (jq absent — nothing verified)` and the
-   runner tallies `Skipped: 1` with the "a skip is NOT a pass" note.
-
-Hard constraint honored — one-sided fix: the diff between the red and green
-commits touches ONLY the production script (+1 line, +4 comment lines); the
-test file changed only by ADDING E6 in the red commit; E1–E5 and the #1646
-workaround are byte-identical throughout.
-
-## 6. Residual notes
-
-- The #1646 normalization in E1/E2 is now redundant but harmless (left
-  untouched on purpose — removing it would be a second, test-side change).
-- The contract's pretty-printed JSON example is illustrative; no doc drift
-  introduced. Compact canonical shape could optionally be pinned in prose in
-  a follow-up.
-- Environment deltas vs the issue's repro (stock macOS bash 3.2): this
-  audit used bash 5.2 on linux with a jq-less PATH farm; the suite targets
-  bash 3.2+ constructs (harness design constraint) and the fallback path
-  exercised is the same one the issue names.
+PASS — the bug is fixed at the gate level with red→green evidence, the
+provenance contract between the template writer and the static skip is
+pinned on both sides, the user-authored/user-edited run-direction is
+pinned, and every touched package's fast tier (1552 tests total across the
+sweeps) ran green in this session.
