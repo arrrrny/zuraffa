@@ -47,6 +47,18 @@
 /// full suite runs at feature completion (`zfa tdd verify`'s preflight)
 /// and nightly (the corpus lane). The ledger only removes REDUNDANT
 /// re-proofs of an unchanged tree within one phase-2 pass.
+///
+/// The ledger's byte-identity precondition is exactly why it can never
+/// inherit during FORWARD progress: every make changes `lib/`, so the
+/// next spawn's tree differs from the last refactor's proved tree by
+/// construction (issue #1652). That rung is served by the sibling
+/// `MakePostState` record (`tdd/make-post-state.json`, written by the
+/// driving run at every make green-application): a `--pass-batch` spawn
+/// checks the ledger FIRST (a refactor-proved full-pipeline gate keeps
+/// precedence) and falls back to the make-certified post-state, whose
+/// inheritance names make's target-test evidence honestly — the full
+/// suite gate itself stays at the phase-2b batch pass, feature
+/// completion, and nightly.
 library;
 
 import 'dart:convert';
@@ -182,7 +194,11 @@ class PassBatchLedger {
           libDigest is! String ||
           testDigest is! String ||
           preflightVerdict is! String ||
-          reproofVerdict is! String) {
+          reproofVerdict is! String ||
+          // A partially-mistyped list (`[42]`) is a corrupt record, not a
+          // coerced `[]` — otherwise it could false-match when the
+          // surviving elements coincide with the effective exempt set.
+          !exempt.every((e) => e is String)) {
         return null;
       }
       return PassBatchLedger(
@@ -190,7 +206,7 @@ class PassBatchLedger {
         suite: suite,
         baselineKey: baselineKey,
         configKey: configKey,
-        exemptBehaviors: exempt.whereType<String>().toList(),
+        exemptBehaviors: List<String>.from(exempt),
         libDigest: libDigest,
         testDigest: testDigest,
         preflightVerdict: preflightVerdict,
