@@ -90,6 +90,7 @@ class HandSurface {
     required String behaviorId,
     required String seamPath,
     String? contract,
+    String? projectRoot,
   }) {
     final contractPart = (contract == null || contract.trim().isEmpty)
         ? ''
