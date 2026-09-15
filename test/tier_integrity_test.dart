@@ -218,6 +218,35 @@ void main() {
           '${leaks.join('\n')}',
     );
   });
+
+  test('B7: the dart_core lane keeps its scoped parallelism and the '
+      '--exclude-tags selector (#1632)', () {
+    final ci = loadYaml(
+      File('.github/workflows/ci.yaml').readAsStringSync(),
+    ) as YamlMap;
+    final steps =
+        ((ci['jobs'] as YamlMap)['dart_core'] as YamlMap)['steps'] as YamlList;
+    String? testRun;
+    for (final step in steps) {
+      final run = (step as YamlMap)['run'];
+      if (run is String && run.contains('dart test test')) testRun = run;
+    }
+    expect(testRun, isNotNull, reason: 'the dart_core test step vanished');
+    expect(
+      testRun,
+      contains('--concurrency=4'),
+      reason:
+          'the pure-Dart unit lane runs on the runner-default parallelism '
+          '(the global concurrency: 1 is a heavy-lane RAM/disk guard); '
+          'dropping the flag re-serializes the lane back over its budget '
+          '(#1632)',
+    );
+    expect(
+      testRun,
+      contains('--exclude-tags'),
+      reason: 'the fast-lane tag selector is the B4-pinned contract',
+    );
+  });
 }
 
 /// Every `_test.dart` file under `test/` whose suite-level `@Tags`
