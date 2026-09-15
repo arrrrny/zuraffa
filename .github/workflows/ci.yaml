@@ -14,9 +14,12 @@ env:
 jobs:
   dart_core:
     # 45 (was 30): the fast suite outgrew the old budget — the #1629 run was
-    # canceled at 30m17s and the same command took 41 minutes locally. The
-    # durable fix is sharding (tools/run_tests_chunked.sh); this only
-    # un-reds the lane until that lands.
+    # canceled at 30m17s and the same command took 41 minutes locally. Left
+    # as headroom: #1632 re-homes the heavyweight suites behind the slow/e2e
+    # tiers and scopes the lane to runner-default parallelism, so the step
+    # should now land far under either budget (the tier-integrity pins keep
+    # it there). Sharding (tools/run_tests_chunked.sh) remains the durable
+    # shape if the lane regrows.
     timeout-minutes: 45
     runs-on: ubuntu-latest
     steps:
@@ -26,7 +29,7 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.2"
+          sdk: "3.13.3"
       - name: "Get dependencies"
         run: dart pub get --no-example
       - name: "Dart Analyze (pure Dart, no Flutter)"
@@ -40,13 +43,15 @@ jobs:
         # Exclude the Flutter-generation tests (tagged `flutter`); those are
         # covered by the `test` (flutter) job below. This keeps `dart_core` a
         # true pure-Dart suite that runs on the Dart SDK only.
-        # Also exclude `e2e` — heavyweight make-command regression suites
-        # (#1510) that drive real `dart test`/`dart pub get` subprocesses in
-        # temp fixtures. They are honest under direct `dart test <file>`
-        # (no longer slow-tagged) but must stay off the fast lane: this job
-        # runs at ~41 of its 45 budgeted minutes, and the e2e suites would
-        # blow it. They run in --preset=regression / --preset=all instead.
-        run: dart test test --exclude-tags "flutter || e2e"
+        # Also exclude `e2e` — heavyweight suites that drive real
+        # `dart test`/`dart pub get` subprocesses in temp fixtures (#1510).
+        # The tier-integrity pins (B5–B7, #1632) keep the untagged drift
+        # out of this lane; `--concurrency=4` scopes the runner's default
+        # parallelism to THIS pure-Dart lane (dart_test.yaml's global
+        # `concurrency: 1` is a RAM/disk guard for the heavy temp-project
+        # lanes, not a unit-lane requirement — without it the serial lane
+        # overflowed the job's budget, #1632).
+        run: dart test test --exclude-tags "flutter || e2e" --concurrency=4
 
   proof_smoke:
     # Issue #807 (proof-carrying generation): generate a sandbox project,
@@ -60,7 +65,7 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.2"
+          sdk: "3.13.3"
       - name: "Get dependencies"
         run: dart pub get --no-example
       - name: "Proof smoke (receipts + proof check gate)"
@@ -83,7 +88,7 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.2"
+          sdk: "3.13.3"
       - name: "Get dependencies"
         run: dart pub get --no-example
       - name: "Spec fuzz demo (seeded weakness: flagged weak, certified strong)"
@@ -105,7 +110,7 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.2"
+          sdk: "3.13.3"
       - name: "Get dependencies"
         run: dart pub get --no-example
       - name: "Template self-hosting gate (pure-Dart lane)"
@@ -150,7 +155,7 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.2"
+          sdk: "3.13.3"
       - name: "Get dependencies"
         # Required so dart format can resolve analysis_options.yaml's
         # `package:lints/recommended.yaml` include; without a package
@@ -234,7 +239,7 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.2"
+          sdk: "3.13.3"
       - name: "Get dependencies"
         run: dart pub get --no-example
       - name: "FFI golden fixture lane (tag-scoped)"

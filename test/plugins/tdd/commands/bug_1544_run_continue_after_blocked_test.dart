@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Issue #1544 — `tdd run` parks forever on the first BLOCKED contract.
 //
 // `blocked` is a legitimate PER-BEHAVIOR verdict (issue #1007: the

@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Spec 069-corpus-economics — T004: baseline cache reuse, corpus-wide.
 //
 // Issue #741 made the run driver cache the full-suite baseline ONCE per

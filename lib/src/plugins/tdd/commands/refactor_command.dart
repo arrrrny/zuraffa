@@ -100,6 +100,7 @@ import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/kernel_cache.dart';
+import '../services/make_post_state.dart';
 import '../services/pass_batch_ledger.dart';
 import '../services/pass_registry_tracker.dart';
 import '../services/refactor_passes.dart';
@@ -622,6 +623,80 @@ class RefactorCommand extends Command<void> {
                   'content, same exempt set.\n'
                   'inherited preflight verdict: ${ledger.preflightVerdict}\n'
                   'inherited re-proof verdict: ${ledger.reproofVerdict}\n'
+                  'applied: 0 actions (pass registry skipped on the '
+                  'unchanged tree).',
+              sourceCriterion: 'FR-008',
+              testPath: 'test/',
+              timestamp: DateTime.now().toUtc().toIso8601String(),
+              isNoOp: true,
+            ),
+          );
+          _printSummary(feature: featureName, outcome: outcome, applied: 0);
+          exitCode = 0;
+          return;
+        }
+
+        // Issue #1652: the make-post-state rung — the record the driving
+        // run writes at every make green-application. A context+tree
+        // match means THIS make just ran its live post-generation green
+        // evidence on exactly this tree, seconds ago, with no external
+        // edit in between (the loop is machine-driven inside one run):
+        // the full pipeline would re-prove what make just proved. The
+        // inheritance is named honestly — the evidence is make's target-
+        // test green, the full suite did NOT run at this tree, and the
+        // full gate still runs at the phase-2b batch pass, feature
+        // completion and nightly (spec 069 T001). The ledger keeps
+        // precedence: a refactor-proved full-pipeline gate (above) is
+        // checked first and this record never overwrites it.
+        final makePost = await MakePostState.read(featureDir);
+        if (makePost != null &&
+            makePost.matches(
+              suite: suiteTemplate,
+              baselineKey: await PassBatchLedger.baselineKeyFor(
+                suiteBaselinePath,
+              ),
+              configKey: await PassBatchLedger.configKeyFor(cwd),
+              exemptBehaviors: effectiveExemptIds,
+              libDigest: PassBatchLedger.treeDigest(libNow),
+              testDigest: PassBatchLedger.treeDigest(testNow),
+            )) {
+          print(
+            'zfa tdd refactor: make-post-state hit (issue #1652) — the '
+            'pipeline is inherited from make\'s certified tree',
+          );
+          print(
+            '   make ${makePost.behaviorId} certified this exact tree at '
+            '${makePost.capturedAt}: ${makePost.greenVerdict}',
+          );
+          print(
+            '   preflight, pass registry and re-proof skipped for this '
+            'behavior (byte-identical lib/ and test/ trees; the full '
+            'suite did NOT run at this tree — the full gate still runs '
+            'at the phase-2b batch pass, feature completion + nightly)',
+          );
+          if (effectiveExemptIds.isNotEmpty) {
+            print(
+              '   parked-exempt behaviors: '
+              '${effectiveExemptIds.join(', ')}',
+            );
+          }
+          outcome = RefactorOutcome.clean;
+          await CycleLog(featureDir).append(
+            CycleLogEntry(
+              behaviorId: '$featureName-refactor',
+              kind: CycleEntryKind.refactor,
+              runnerCommand: suiteTemplate,
+              exitCode: 0,
+              capturedOutput:
+                  'make-post-state: pipeline inherited from make '
+                  '${makePost.behaviorId}\'s certified post-state at '
+                  '${makePost.capturedAt} (issue #1652) — byte-identical '
+                  'lib/ and test/ trees, same suite template, same '
+                  'baseline content, same exempt set.\n'
+                  'inherited green verdict: ${makePost.greenVerdict}\n'
+                  'the full suite did not run at this tree; the full gate '
+                  'still runs at the phase-2b batch pass, feature '
+                  'completion and nightly.\n'
                   'applied: 0 actions (pass registry skipped on the '
                   'unchanged tree).',
               sourceCriterion: 'FR-008',

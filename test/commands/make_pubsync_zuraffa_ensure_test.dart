@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // SPEC 1530 — the make pubsync post-pass ENSURES `zuraffa` when the
 // generated files import `package:zuraffa/...` (FR-007).
 //

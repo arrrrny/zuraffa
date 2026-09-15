@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 // Spec 1194 — make-default emits the mocked tier: plan resolution.
 // https://github.com/arrrrny/zuraffa/issues/1194 (part of #908 P0
 // "make-default→mock + mocked tier").

@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Issue #1482 — the `zfa tdd run` routing-provenance preflight (fast
 // tier, pure service). The driver tier (issue_1482_run_preflight_driver_test.dart)
 // covers the command-level refusal and the --force bypass over a scripted

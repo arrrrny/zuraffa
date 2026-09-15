@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Bug 1198 (part of #908 P0) — the loop is the template's referee:
 // templates that fail the loop BLOCK publish.
 //

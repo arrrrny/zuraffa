@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Bug #1500 — `zfa tdd wire` accepts contract-derived subject stubs and
 // binds entity returns to the generated MockData.
 //

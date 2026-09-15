@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Tests for `zfa tdd make`'s drift-check dedup (issue #1587, criterion
 // 4): the make precondition (target-test re-run before generation) is
 // satisfied from the verify-red certification when the certified red is
