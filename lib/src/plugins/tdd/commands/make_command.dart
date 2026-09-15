@@ -483,9 +483,16 @@ class MakeCommand extends Command<void> {
               featureDir: target.featureDir,
               testPath: testPath,
             )) {
-          final seamPath = p
-              .relative(testPath, from: cwd)
-              .replaceAll(r'\', '/');
+          // Issue #1625: the printed seam is resolved subject-first (the
+          // implementation seam the contract test imports, not the
+          // generated test) and the wire example only prints when the
+          // traced entity exists — the same hand-surface resolution the
+          // run driver's blocked stops use.
+          final seamPath = HandSurface.seamPathFor(
+            projectRoot: cwd,
+            feature: target.featureName,
+            behaviorId: record.behaviorId,
+          );
           final receiptPath = p
               .relative(
                 ContractBlockedReceiptStore(
@@ -501,7 +508,7 @@ class MakeCommand extends Command<void> {
             'from, and the contract lane never certifies one.',
           );
           print(
-            '   ${HandSurface.hintLine(behaviorId: record.behaviorId, seamPath: seamPath, contract: record.sourceCriterion)} — '
+            '   ${HandSurface.hintLine(behaviorId: record.behaviorId, seamPath: seamPath, contract: record.sourceCriterion, projectRoot: cwd)} — '
             'once the implementation satisfies the contract, re-run '
             '`zfa tdd verify-red ${record.behaviorId}` (it reports the '
             'contract satisfied and the run unblocks the cycle).',

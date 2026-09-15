@@ -442,18 +442,18 @@ class VerifyRedCommand extends Command<void> {
       // Issue #1589: the blocked verdict names the hand surface — where
       // the declared contract is implemented (the seam) and the command
       // that binds it (wire) — so the verdict is actionable as written.
+      // Issue #1625: the seam is resolved subject-first (the implementation
+      // seam the contract test imports, not the generated test) and the
+      // wire example only prints when the traced entity exists.
       // Messaging only: the verdict, the receipt and the no-red-evidence
       // contract are the #1007 ones.
-      final seamRel = p
-          .relative(
-            p.isAbsolute(record.testPath)
-                ? record.testPath
-                : p.join(cwd, record.testPath),
-            from: cwd,
-          )
-          .replaceAll(r'\', '/');
+      final seamRel = HandSurface.seamPathFor(
+        projectRoot: cwd,
+        feature: target.featureName,
+        behaviorId: record.behaviorId,
+      );
       stderr.writeln(
-        '   ${HandSurface.hintLine(behaviorId: record.behaviorId, seamPath: seamRel, contract: record.sourceCriterion)}',
+        '   ${HandSurface.hintLine(behaviorId: record.behaviorId, seamPath: seamRel, contract: record.sourceCriterion, projectRoot: cwd)}',
       );
       stderr.writeln('   no red evidence written');
       _printSummary(
