@@ -13,6 +13,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/core/dependencies/dependency_wirer.dart';
 import 'package:zuraffa/src/plugins/tdd/services/build_relevance.dart';
 
 void main() {
@@ -348,12 +349,88 @@ void main() {
       }
     });
 
+    // Issue #1655: this is the USER-AUTHORED shape — its content is not
+    // anything `zfa setup`/`zfa init`/the `zfa build` guard writes — so it
+    // must keep forcing the first build after the #1655 provenance check.
     test('a fresh app with a build.yaml at the root runs the first build '
         '(issue #1634)', () async {
       writeLibFile('a.dart', 'int a() => 1;\n');
       File(
         p.join(root.path, 'build.yaml'),
       ).writeAsStringSync('targets:\n  \$default:\n    builders:\n');
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
+    // Issue #1655: `zfa setup` writes `build.yaml` (byte-identical to
+    // `DependencyWirer.buildYamlContent`) as part of creating the app, so
+    // the #1634 build.yaml-EXISTS trigger is dead code on every
+    // setup-created app — the exact fresh-app TDD shape (spec-driven, zero
+    // annotated files) the static skip exists for. A PRISTINE generated
+    // build.yaml is non-discriminating exactly like the other every-app
+    // config files; the static scan (non-Dart sources, annotations) still
+    // governs.
+    test('a fresh app with the pristine zfa setup build.yaml skips the '
+        'first build statically (issue #1655 — the reported bug)', () async {
+      writeLibFile('a.dart', 'int a() => 1;\n');
+      Directory(p.join(root.path, 'test')).createSync(recursive: true);
+      File(
+        p.join(root.path, 'test', 'a_test.dart'),
+      ).writeAsStringSync('void main() {}\n');
+      File(
+        p.join(root.path, 'build.yaml'),
+      ).writeAsStringSync(DependencyWirer.buildYamlContent);
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        BuildRelevance.staticFirstBuildSkippedNote,
+        reason:
+            'a build.yaml byte-identical to the zfa setup template cannot '
+            'discriminate "nothing builder-facing" — the static scan decides',
+      );
+    });
+
+    test(
+      'the pristine setup build.yaml PLUS a builder-facing annotation '
+      'still runs the first build (issue #1655 — the scan still governs)',
+      () async {
+        writeLibFile('user.dart', '@Zorphy\nclass User {}\n');
+        File(
+          p.join(root.path, 'build.yaml'),
+        ).writeAsStringSync(DependencyWirer.buildYamlContent);
+        expect(
+          await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+          isNull,
+        );
+      },
+    );
+
+    test('a MODIFIED setup-generated build.yaml runs the first build '
+        '(issue #1655 — criterion 2: user-edited still forces)', () async {
+      writeLibFile('a.dart', 'int a() => 1;\n');
+      File(p.join(root.path, 'build.yaml')).writeAsStringSync(
+        '${DependencyWirer.buildYamlContent}\n'
+        '# user: added a custom builder below\n'
+        'custom_builder:\n  enabled: true\n',
+      );
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
+    test('the pristine setup build.yaml PLUS a non-Dart source in a walked '
+        'root still runs the first build (issue #1655 — the scan still '
+        'governs)', () async {
+      writeLibFile('a.dart', 'int a() => 1;\n');
+      Directory(p.join(root.path, 'lib', 'i18n')).createSync(recursive: true);
+      File(
+        p.join(root.path, 'lib', 'i18n', 'strings.i18n.json'),
+      ).writeAsStringSync('{"title": "hi"}\n');
+      File(
+        p.join(root.path, 'build.yaml'),
+      ).writeAsStringSync(DependencyWirer.buildYamlContent);
       expect(
         await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
         isNull,

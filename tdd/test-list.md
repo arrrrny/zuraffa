@@ -1,53 +1,40 @@
-# TDD test list — Bug #1636 the running compiled binary outranks the PATH tier
+# TDD test list — Bug #1655 the static first-build skip is unreachable for zfa setup-created apps
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| U-1636-b1 | test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart | unit | the cache-exe driver (the #864 native-AOT shape, `script == resolvedExecutable`) with a zfa on PATH resolves the RUNNING binary, not the PATH install — the issue's repro at the tier level | issue #1636 criterion 1 | GREEN |
-| U-1636-b2 | test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart | unit | the cache-exe driver with an unusable script (the stale-dill shape) and a zfa on PATH still resolves the running binary | issue #1636 criterion 1 | GREEN |
-| U-1636-b3 | test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart | unit | the `dart run` driver (VM `resolvedExecutable`) keeps the #690 order — the PATH tier still fires (backward compatible) | issue #1636 criterion 2 | GREEN |
-| U-1636-b4 | test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart | unit | the `dartaotruntime` snapshot driver keeps the #690 order — the PATH tier still fires (backward compatible) | issue #1636 criterion 2 | GREEN |
-| U-1636-b5 | test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart | unit | the cache-exe driver with a non-executable PATH candidate resolves the running binary without consulting PATH | issue #1636 criterion 3 (tier order per driver shape) | GREEN |
-| U-1636-p1 | test/plugins/tdd/services/step_runner_test.dart | unit | PATH tier re-labeled tier 5 for a VM driver — unchanged by #1636 | issue #1636 criterion 3 (order documented + pinned) | GREEN |
-| U-1636-p2 | test/plugins/tdd/services/step_runner_test.dart | unit | the running compiled binary is the entrypoint when the script is unusable and nothing is on PATH (tier 4 — the #690 final fallback promoted) | issue #1636 criterion 3 | GREEN |
-| U-1636-p3 | test/plugins/tdd/services/step_runner_test.dart | unit | a usable `Platform.script` still wins for a REAL JIT-snapshot driver (VM `resolvedExecutable`) when nothing is on PATH (tier 6 preserved; the pre-#1636 synthetic mixed shape is unreachable in production per #864) | issue #1636 criterion 3 | GREEN |
-| U-1636-p4 | test/plugins/tdd/services/step_runner_test.dart | unit | a non-executable PATH candidate is skipped: a VM driver with nothing else resolvable throws the honest cannot-resolve error (executable bit contract, #665) | contract preservation | GREEN |
+| U-1655-b1 | test/plugins/tdd/services/build_relevance_test.dart | unit | a fresh app whose build.yaml is byte-identical to `DependencyWirer.buildYamlContent` (what `zfa setup`/`zfa init`/the `zfa build` guard write) with zero builder-facing files skips the first build statically — the issue's exact bug | issue #1655 criterion 1 | RED → GREEN |
+| U-1655-b2 | test/plugins/tdd/services/build_relevance_test.dart | unit | the pristine setup build.yaml PLUS a builder-facing annotation still runs the first build — the provenance fall-through must not swallow the scan's run triggers | criterion 1 (fall-through soundness) | GREEN |
+| U-1655-b3 | test/plugins/tdd/services/build_relevance_test.dart | unit | the pristine setup build.yaml PLUS a non-Dart source in a walked root still runs the first build | criterion 1 (fall-through soundness) | GREEN |
+| U-1655-b4 | test/plugins/tdd/services/build_relevance_test.dart | unit | a MODIFIED setup-generated build.yaml (template + one user edit) runs the first build — exact-match catches a single-byte divergence, so user-edited still forces | issue #1655 criterion 2 | GREEN |
+| U-1655-b5 | test/plugins/tdd/services/build_relevance_test.dart | unit | a USER-AUTHORED build.yaml (custom content, the pre-existing #1634 test) still runs the first build — re-commented as the criterion-2 shape it already pins | issue #1655 criterion 2 | GREEN |
+| U-1655-p1 | test/core/dependencies/dependency_wirer_test.dart | unit | `buildYamlContent` carries the `# zfa:generated` provenance header — the writer/gate marker contract | criterion 2 (marker contract) | GREEN |
+| U-1655-p2 | test/commands/build_yaml_guard_test.dart | unit | `BuildYamlGuard.scaffold` writes byte-identical `DependencyWirer.buildYamlContent` — guard-scaffolded pristine build.yaml is recognized the same as setup's (pre-existing suite, unchanged and green) | incremental-logic unchanged | GREEN |
+| U-1655-p3 | test/plugins/tdd/services/refactor_passes_test.dart | unit | the build pass gate binding + the fresh-app static decision through `RefactorPasses.passSpecs` (pre-existing #1624/#1634 suite, unchanged and green against the updated note const) | criterion 4 | GREEN |
 
 ## Red evidence (pre-fix, this session)
 
 Verbatim runs preserved in
-`.specify/bugs/1636-refactor-build-resolves-path-zfa/red-evidence.md`:
+`.specify/bugs/1655-setup-build-yaml-static-skip-unreachable/red-evidence.md`:
 
-- Suite 1 (new, pre-fix): `00:00 +3 -2: Some tests failed.` — B1 and B2
-  resolved the PATH fixture (`/tmp/zfa1636_path*/zfa`) instead of the
-  driving binary (`/tmp/zfa1636_cache*/zfa_exe`), the issue's exact bug;
-  B3/B4/B5 green pre-fix (the backward-compat guards already held).
+- Suite 1 (new, pre-fix): `dart test test/plugins/tdd/services/build_relevance_test.dart`
+  → `00:00 +30 -1: Some tests failed.` — U-1655-b1 got `Actual: <null>` (the
+  gate ran the first build on a pristine setup build.yaml): the issue's bug,
+  reproduced at the gate level. U-1655-b2/b3/b4/b5 passed pre-fix as
+  contract guards (they pin behavior that must survive the fix).
 
 ## Green evidence (post-fix, this session)
 
-- `dart test test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart`
-  → `00:00 +5: All tests passed!`
-- `dart test test/plugins/tdd/services/` (step_runner, refactor_passes,
-  #1371, and every neighbor)
-  → `01:42 +1104: All tests passed!`
-- `dart test test/plugins/tdd/bug_1472_refactor_gate_acceptance_test.dart
-  test/plugins/tdd/bug_1472_refactor_gate_errors_only_test.dart` (the #1472
-  pin through `zfaBuildCommand`'s delegation)
-  → `00:00 +18: All tests passed!`
-- `dart test test/utils/dart_toolchain_resolver_test.dart
-  test/plugins/tdd/bug_1329_step_failure_diagnostics_test.dart
-  test/plugins/tdd/bug_1159_baseline_timeout_test.dart`
-  → `00:02 +18: All tests passed!`
-- `dart test test/core/no_jit_zfa_spawn_scan_test.dart` (the no-JIT sweep)
-  → `00:00 +5: All tests passed!`
-
-## Suite placement note
-
-The tier suite lives in `test/plugins/tdd/services/` beside its neighbor
-`bug_1371_entrypoint_existence_test.dart` (fast tier, injected
-`script`/`resolvedExecutable`/`environment`, no real binary compiled — the
-same convention the #690 group in `step_runner_test.dart` uses). The build
-pass is exercised through its existing suites: `refactor_passes_test.dart`
-(#689/#717) and the #1472 gate suites prove the delegation and the pin are
-unchanged for every driver shape the tests can reach under `dart test`
-(a VM driver), while the new suite pins the compiled-driver shapes the
-`zfaBuildCommand` call site inherits from `StepRunner.resolveEntrypoint`.
+- `dart test test/plugins/tdd/services/build_relevance_test.dart`
+  → `00:00 +31: All tests passed!`
+- `dart test test/core/dependencies/dependency_wirer_test.dart
+  test/commands/build_yaml_guard_test.dart
+  test/commands/builder_dependency_preflight_test.dart
+  test/plugins/tdd/services/refactor_passes_test.dart`
+  → `00:05 +45: All tests passed!`
+- `dart test test/commands/build_command_unit_test.dart --preset=all`
+  (slow tier; writes the template through the guard paths)
+  → `00:19 +48: All tests passed!`
+- `dart test test/plugins/tdd/services/ test/core/dependencies/`
+  → `01:40 +1151: All tests passed!`
+- `dart test test/commands/`
+  → `06:11 +401: All tests passed!`
