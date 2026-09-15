@@ -2481,7 +2481,16 @@ class GenCommand extends Command<void> {
     final entity = decision.entityName;
     if (decision.surface == GenerationSurface.entityPipeline &&
         entity != null &&
-        entity.isNotEmpty) {
+        entity.isNotEmpty &&
+        // The spec's Key Entities name must be a Dart identifier for the
+        // synthesized `<Entity>() -> <Entity>` to be well-formed (`Share
+        // Attachment`, `Shared-Attachment` are not) — [Signature._shape]
+        // requires the identifier grammar for parsed rows, which this
+        // direct construction would otherwise bypass. A non-identifier
+        // name returns null: the legacy prose fallback keeps the row
+        // (same degradation class as an entity absent from disk) instead
+        // of a silently malformed signature.
+        Signature.isValidIdentifierName(entity)) {
       return Signature(name: entity, parameters: const [], returnType: entity);
     }
     return null;

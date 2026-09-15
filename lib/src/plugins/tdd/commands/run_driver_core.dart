@@ -2635,14 +2635,51 @@ class RunDriverCore {
               behaviorId: row.id,
             );
             if (decision != null) {
+              // Same predicate gen's synthesis gates on
+              // (`_declaredSignatureForGen`: signature-bearing decisions
+              // are the contract lane, entity rows are the row-only
+              // entityPipeline class) so the two single-sourced callers
+              // cannot drift if a future surface ever carries an entity
+              // name.
               final entity = decision.entityName;
-              declaredTraceContext = entity != null && entity.isNotEmpty
+              declaredTraceContext =
+                  decision.signature == null &&
+                      decision.surface == GenerationSurface.entityPipeline &&
+                      entity != null &&
+                      entity.isNotEmpty
                   ? 'the traces cell resolves the declared entity row '
                         '`$entity` (surface: entity pipeline)'
                   : 'the traces cell resolves a declared contract row';
             }
-          } on StateError {
-            declaredTraceContext = null; // malformed spec: legacy wording
+          } on StateError catch (e) {
+            // A MALFORMED declaration must NOT land on the legacy wording:
+            // "no traces: to a declared contract row" + "add traces:" is
+            // precisely the false/impossible advice for the one class the
+            // declaration refusal names (the #920 regression class —
+            // declared_routing.dart's contract). Surface the refusal in
+            // gen's `declaration refused — <message>` shape instead. This
+            // whole block is an already-terminal messaging path (the
+            // vacuous-green stop has happened), so printing the fix line
+            // inside the same stop stays fail-open mechanically — no new
+            // refusal surface — while the null/unreadable cases above keep
+            // the exact legacy wording.
+            print(
+              '   the generated test is GUARD-ONLY '
+              '[$vacuousGuardWarningToken] — the declared-intent '
+              'artifacts for "${row.id}" are malformed, so the traces '
+              'cell cannot be resolved honestly.',
+            );
+            print('   --> fix: declaration refused — ${e.message}');
+            return (
+              state: updated,
+              stop: (
+                result: 'stopped',
+                stoppedAt: '${row.id}:make',
+                exitCode: _exitStopped,
+                message: null,
+              ),
+              refactorBlocked: false,
+            );
           }
           if (declaredTraceContext != null) {
             final declaredTestPath =

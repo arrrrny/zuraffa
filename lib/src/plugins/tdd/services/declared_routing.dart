@@ -62,7 +62,11 @@ class DeclaredRouting {
   /// labeled fallback window; strict surfaces are handled at plan). A
   /// malformed spec declaration throws [StateError]: the caller surfaces
   /// the `--> fix:` message and a non-zero exit instead of a silent prose
-  /// fallback.
+  /// fallback. The run driver's stop-messaging probe (issue #1420) is the
+  /// one fail-open caller by design: it is already a terminal messaging
+  /// path, so it prints this refusal's `--> fix:` line inside the
+  /// vacuous-green stop (gen's `declaration refused` shape) instead of
+  /// rethrowing.
   /// [featureDir] is the already-resolved feature directory (bug
   /// features live under `.specify/bugs/<slug>`, not `specs/<name>`).
   /// When omitted, the legacy `specs/<featureName>` path is used.
