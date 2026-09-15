@@ -1,53 +1,52 @@
----
-feature: 1429-tdd-reset-entity-removal
-loop: inside-out
-profile: .specify/memory/tdd-profile.md
-spec_criteria: 4
-planned_at: c5ed519f
-updated_at: c5ed519f
-suite_baseline: green
----
+# TDD test list — Bug #1664 first refactor after a master bump compiles the zfa CLI (~85s) even when the parent runs from a current installed binary
 
-# Test List — Bug 1429 (tdd reset entity rollback / entity remove / tombstone preflight / SDK warning)
+| id | suite | kind | description | traces | state |
+| -- | ----- | ---- | ----------- | ------ | ----- |
+| U-1664-b1 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a current installed binary (`zfa.build_commit` == checkout HEAD) is returned for the canonical `bin/zfa.dart` candidate — the ~85s compile never happens (the issue's bug) | issue #1664 criteria 1–2 | RED → GREEN |
+| U-1664-b2 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a marker that disagrees with the checkout HEAD forbids the reuse — the stale-install guard | criterion 3 | RED → GREEN |
+| U-1664-b3 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a Dart-VM running executable never reuses (source/test drivers keep the compile-cache contract); rejected before any git probe | criterion 4 (steady state) | RED → GREEN |
+| U-1664-b4 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | no `zfa.build_commit` marker (pre-#1184 install, the `scripts/zfa` cache artifact) — reuse is unprovable, compile as today | fail-open soundness | RED → GREEN |
+| U-1664-b5 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | an empty/whitespace marker — reuse is unprovable | fail-open soundness | RED → GREEN |
+| U-1664-b6 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a failed git probe (not a repo, exit 128) falls through to the compile path | fail-open soundness | RED → GREEN |
+| U-1664-b7 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a non-canonical candidate (a custom `--zfa-bin` fixture script) never reuses the zfa binary; rejected before any git probe | fix-scope guard | RED → GREEN |
+| U-1664-b8 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a missing running executable never reuses | fail-open soundness | RED → GREEN |
+| U-1664-b9 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a VM-driven cache miss still compiles through the injected runner; the compiler fake never sees a git argv (the probe rides its own runner) | wiring unchanged (U2 contract) | GREEN |
 
-Source of truth: https://github.com/arrrrny/zuraffa/issues/1429 and
-`.specify/bugs/1429-tdd-reset-entity-removal/assessment.md`.
+Guard pins (pre-existing, unchanged and green against the fix):
 
-The behaviors below are pinned to the bug workflow (the bug directory is the
-TDD feature). Every behavior maps 1:1 to an acceptance criterion from the
-issue. All tests are new files — they must be RED on `c5ed519f` before the fix
-lands, and GREEN after.
+| id | suite | description |
+| -- | ----- | ----------- |
+| U2/U3/U4/U5 | test/cli/zfa_executable_test.dart | compile-on-miss argv, fresh-cache reuse (criterion 4's cache-wins-first), lib/ and pubspec staleness — the compile-cache contract the probe must not disturb |
+| #1636 B1–B5 | test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart | the StepRunner running-binary tier order — untouched |
+| #1645 | test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart | the PipelineRunner running-binary tier — untouched |
+| #1184 | test/cli/binary_staleness_test.dart | the `zfa.build_commit` marker reader this fix imports (`zfaBuildCommitMarker`) — unchanged |
 
-## Behaviors
+## Red evidence (pre-fix, this session)
 
-| id | behavior | traces | state |
-| -- | -------- | ------ | ----- |
-| A1 | `zfa tdd reset <feature>` reverts the phase-0 entity scaffolds declared by the feature's test list (deletes the canonical per-entity directory) and prunes the entity receipts belonging to those declared names; entities NOT declared by the feature (foreign scaffolds + their receipts) are never touched; the JSON verdict reports `reverted_entities` | AC-1 | RED |
-| A2 | Reset heals the poisoned intermediate state from the issue: declared entity whose scaffold was hand-deleted but whose `entity_create` receipt remains → reset prunes the receipt and a subsequent `ProofChecker.check()` is green (no permanent `deleted` finding) | AC-1, AC-3 | RED |
-| A3 | Reset without declared entities keeps its verdict shape and prunes nothing (backward compatibility for legacy features without a Key Entities section) | AC-1 | RED |
-| B1 | `zfa entity remove -n <Name>` deletes the entity scaffold directory and writes a tombstone receipt: `command: 'entity remove'`, `capability: 'remove'`, `entity: <Name>`, file entry `action: 'delete'` for the scaffold path | AC-2 | RED |
-| B2 | `zfa entity remove` is the documented recovery path from the issue: when the scaffold is already hand-deleted but entity receipts remain, remove still succeeds and writes the tombstone (no hand-editing the provenance store) | AC-2, AC-3 | RED |
-| B3 | `zfa entity remove` refuses an entity that never existed (no scaffold, no receipts) with a non-zero exit and the machine-actionable fix line | AC-2 | RED |
-| C1 | `ProofChecker` (and therefore `ReceiptPreflight` / `zfa proof check` / `zfa tdd verify`) treats a missing artifact whose LATEST receipt entry carries `action: 'delete'` as provenance, not drift: no `deleted` finding, report ok; the same missing artifact WITHOUT a tombstone still reports `deleted` (baseline poisoning reproduced first) | AC-3 | RED |
-| C2 | Tombstone tolerance stays honest under latest-wins: recreating the file after a tombstone with different bytes still flags drift (`modified`), never a silent pass | AC-3 | RED |
-| D1 | `zfa entity create -n PlatformException` (a Flutter SDK type name) emits a `⚠️` collision warning naming `package:flutter` and still creates the entity (warning, never a refusal — phase-0 inherits the warning because it spawns the real `zfa entity create`) | AC-4 | RED |
-| D2 | `zfa entity create -n Product` emits no SDK-collision warning (negative control) | AC-4 | RED |
+Verbatim runs preserved in
+`.specify/bugs/1664-first-refactor-cli-compile/red-evidence.md`:
 
-## Mappings
+- Suite 1 (new, pre-fix):
+  `dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`
+  → `00:00 +0 -1: Some tests failed.` — the file fails to LOAD:
+  `Error: Member not found: 'ZfaExecutable.currentInstalledBinary'`. The
+  compile-error red is the honest first red for a NEW seam: it proves the
+  child binary resolution has NO installed-binary awareness — the issue's
+  root cause. With the API's logic in place pre-fix, U-1664-b1 would have
+  returned null (compile as today) instead of the running binary.
 
-- A1–A3 → `test/plugins/tdd/bug_1429_reset_entity_rollback_test.dart` (in-process
-  `CliRunner(exitOnCompletion: false)` + `TddFixture`, `--json` verdict parsing)
-- B1–B3, D1–D2 → `test/commands/bug_1429_entity_remove_test.dart`
-  (`runZfaSource` subprocess tier — `entity` calls `exit()` on error paths)
-- C1–C2 → `test/core/proof/bug_1429_tombstone_preflight_test.dart`
-  (unit tier: `ProofChecker` + `ReceiptPreflight` against a seeded
-  `.zfa/receipts/` store)
+## Green evidence (post-fix, this session)
 
-## Cycle log (summary — full evidence in `.specify/bugs/1429-tdd-reset-entity-removal/test.md`)
-
-- Cycle 1 (A1–A3, B1–B3, C1–C2, D1–D2): RED recorded against `c5ed519f`.
-- Cycle 2: minimal fix — reset entity rollback (reset_command.dart +
-  entity_lookup.dart `locateEntityScaffold`), `zfa entity remove` +
-  tombstone (entity_command.dart), tombstone-aware `ProofChecker`
-  (proof_checker.dart), Flutter SDK collision warning (flutter_symbols.dart +
-  entity_command.dart). GREEN recorded.
+- `dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`
+  → `00:00 +9: All tests passed!`
+- `dart test test/cli/zfa_executable_test.dart
+  test/cli/binary_staleness_test.dart
+  test/plugins/tdd/services/step_runner_test.dart
+  test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
+  test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart
+  test/plugins/tdd/services/refactor_passes_test.dart`
+  → `00:16 +82: All tests passed!`
+- `dart test test/cli/ test/core/ --exclude-tags "flutter || e2e"`
+  → `00:57 +901 (1 skipped): All tests passed!`
+- `dart test test/plugins/tdd/services/`
+  → `01:44 +1135: All tests passed!`
