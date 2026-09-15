@@ -16,7 +16,7 @@ suites were green in PR #1611's verification and are re-run in T002).
 
 ## T001: Red-list — direct walk-up pins (new test file)
 
-- [ ] T001 [P] [US2] Create `test/plugins/tdd/services/path_canonicalizer_test.dart`
+- [ ] T001 [US2] Create `test/plugins/tdd/services/path_canonicalizer_test.dart`
       pinning the four behaviors (FR-004) against the CURRENT
       `canonicalizeMissingPath` — POSIX-safe `Directory.systemTemp` fixtures,
       `package:path` for expectation building, Windows symlink skip via the
@@ -87,6 +87,12 @@ suites were green in PR #1611's verification and are re-run in T002).
     the existing #1603/pull-1516 rationale intact
   - ZERO executable-line changes: `git diff` on the file touches comments
     only; no `assert`, no absolutization, no signature change
+  - CALL-SITE RE-CHECK (US1/A2): re-read every `canonicalizeMissingPath`
+    call site (`view_command.dart`, `wire_command.dart`,
+    `func_command.dart`) and confirm each absolutizes before calling
+    (`p.normalize(p.absolute(cwd))` + relative-subject join) so the
+    documented precondition matches reality — note the confirmation in the
+    commit message body
 - Tests: re-run the new test file + the three command suites (docs cannot
   break behavior — the suites prove it)
 

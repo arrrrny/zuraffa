@@ -172,8 +172,8 @@ corresponding deliberate mutant (mutation evidence recorded).
   one-segment boundary, and the root-boundary walk
 - **FR-005**: The canonicalization LOGIC must not change: the walk-up
   algorithm, its symlink resolution, its fallback, and the view/wire/func
-  command behavior stay byte-for-byte semantically identical to master
-  (994daeb1's shape)
+  command behavior stay semantically identical to master (994daeb1's shape)
+  — executable lines unchanged; only doc comments may differ on the helper
 
 ## Layer Contracts
 
