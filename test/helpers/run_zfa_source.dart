@@ -68,6 +68,47 @@ Duration get zfaDefaultChildTimeout =>
 /// environment variable (issue #1187).
 Duration get zfaCompileTimeout => scaleDuration(kZfaCompileBaseTimeout);
 
+/// Base budget for EVERY cold source spawn (issue #1623).
+///
+/// Under the documented degraded-environment escape hatch
+/// (`ZFA_ALLOW_JIT=1` — the only path that spawns `dart bin/zfa.dart`), the
+/// child pays the Dart VM front-end + JIT compile of the whole package
+/// before it runs a single command: **84s measured cold start alone** on
+/// the host that filed #1623 (`time dart bin/zfa.dart --version` → 1m24s).
+/// Warm caches are no guarantee either — **71s measured WARM** — so every
+/// source spawn gets the dedicated budget (~2.9x headroom over the cold
+/// measurement) instead of gambling on in-file spawn order; an earlier
+/// spent-once model budgeted only the first spawn and was removed after
+/// the PR #1638 review measured the warm start. 240s also stays BELOW the
+/// enclosing const test ceilings at scale 1.0 (B9b's 6-minute `Timeout`,
+/// B9's 8-minute ceiling), preserving the guard-fires-before-the-ceiling
+/// invariant; higher scales are an explicit operator choice (pair with
+/// `--timeout xN`, see `test/README.md`).
+const Duration kZfaColdSourceBaseTimeout = Duration(seconds: 240);
+
+/// Effective cold source spawn budget: [kZfaColdSourceBaseTimeout]
+/// (240s) stretched by [zfaTestTimeoutScale]. Like every budget here, the
+/// scale only ever RELAXES it (>= 240s at any valid scale).
+Duration get zfaColdSourceChildTimeout =>
+    scaleDuration(kZfaColdSourceBaseTimeout);
+
+/// The budget a `runZfaSource` spawn spends, derived from the spawn shape
+/// (issue #1623). Pure and subprocess-free so the matrix is unit-testable
+/// (see `test/helpers/zfa_test_timeout_scale_test.dart`).
+///
+/// - [explicit] — a caller-passed timeout: returned VERBATIM. Explicit
+///   budgets are never auto-scaled (documented in `test/README.md`);
+///   callers wanting scale-aware custom budgets use [scaleDuration].
+/// - [sourceSpawn] — the resolved entrypoint is a Dart source (the
+///   `ZFA_ALLOW_JIT=1` shape, `ZfaExecutable.isDartScript`): its JIT start
+///   exceeds the 75s guard even warm (84s cold / 71s warm measured,
+///   issue #1623), so EVERY source spawn takes the cold budget.
+Duration resolveChildTimeout({Duration? explicit, required bool sourceSpawn}) {
+  if (explicit != null) return explicit;
+  if (sourceSpawn) return zfaColdSourceChildTimeout;
+  return zfaDefaultChildTimeout;
+}
+
 /// The absolute zuraffa project root, resolved once via [initZfaSourceBin].
 ///
 /// Used as the subprocess `workingDirectory` so the child process never
@@ -157,11 +198,21 @@ Future<ProcessResult> runZfaSource(
   // Default budget: 75s base x ZFA_TEST_TIMEOUT_SCALE (issue #1187). Nullable
   // parameter (instead of a const default) because the scaled budget is
   // computed at isolate start, not a compile-time constant.
-  final childTimeout = timeout ?? zfaDefaultChildTimeout;
+  //
+  // Issue #1623: a source spawn (the ZFA_ALLOW_JIT=1 shape, where the
+  // child pays an 84s-measured cold JIT start before doing any work — 71s
+  // even warm) takes the dedicated 240s cold budget on EVERY spawn; the
+  // flat 75s guard cannot cover it. The decision is pure
+  // (resolveChildTimeout).
+  final sourceSpawn = ZfaExecutable.isDartScript(exe!);
+  final childTimeout = resolveChildTimeout(
+    explicit: timeout,
+    sourceSpawn: sourceSpawn,
+  );
 
   // AOT fast path (milliseconds per spawn); the `dart <script>` shape only
   // exists under ZFA_ALLOW_JIT=1 (enforced by commandFor).
-  final command = ZfaExecutable.commandFor(exe!, args);
+  final command = ZfaExecutable.commandFor(exe, args);
 
   // Child guard MUST be shorter than the enclosing test *group* timeout (see
   // `xray_mock_cli_test.dart:38`). A hanging/over-slow spawn is killed here and
