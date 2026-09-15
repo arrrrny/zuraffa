@@ -16,7 +16,7 @@ suites were green in PR #1611's verification and are re-run in T002).
 
 ## T001: Red-list — direct walk-up pins (new test file)
 
-- [ ] T001 [US2] Create `test/plugins/tdd/services/path_canonicalizer_test.dart`
+- [x] T001 [US2] Create `test/plugins/tdd/services/path_canonicalizer_test.dart`
       pinning the four behaviors (FR-004) against the CURRENT
       `canonicalizeMissingPath` — POSIX-safe `Directory.systemTemp` fixtures,
       `package:path` for expectation building, Windows symlink skip via the
@@ -43,7 +43,7 @@ suites were green in PR #1611's verification and are re-run in T002).
 
 ## T001m: Mutation sampling — recorded red evidence (SC-3)
 
-- [ ] T001m [US2] Deliberate-mutant runs against
+- [x] T001m [US2] Deliberate-mutant runs against
       `lib/src/plugins/tdd/services/path_canonicalizer.dart`, each mutation
       applied → targeted test run → RESTORED byte-identical (`git checkout`
       between mutants; mutant states NEVER committed):
@@ -61,7 +61,7 @@ suites were green in PR #1611's verification and are re-run in T002).
 
 ## T002: Green — targeted suites green with zero executable diffs
 
-- [ ] T002 [US2] Run and record: new test file green;
+- [x] T002 [US2] Run and record: new test file green;
       `view_command_test.dart` green (U-V3, U-V11/U-V12/U-V13, U-1603a/b
       pins intact); `wire_command_test.dart` green (U-W3, U-1603e intact);
       `func_command_test.dart` green (U-1603c, U-F5 — run-only, untouched);
@@ -73,7 +73,7 @@ suites were green in PR #1611's verification and are re-run in T002).
 
 ## T003: Non-behavioral — precondition documentation (config/docs)
 
-- [ ] T003 [US1] `lib/src/plugins/tdd/services/path_canonicalizer.dart` —
+- [x] T003 [US1] `lib/src/plugins/tdd/services/path_canonicalizer.dart` —
       doc comments ONLY (FR-001, FR-002, SC-1):
   - Library doc: name the ABSOLUTE-input precondition and WHY (the walk-up
     resolves against the filesystem; a relative input silently joins the
@@ -98,11 +98,11 @@ suites were green in PR #1611's verification and are re-run in T002).
 
 ## T004: Verify — analyze, format, verification artifact
 
-- [ ] T004 `dart analyze` on the touched scope
+- [x] T004 `dart analyze` on the touched scope
       (`lib/src/plugins/tdd/ test/plugins/tdd/`) → No issues found;
       `dart format .` → zero remaining diffs (CI format gate);
       clean kernel/test caches pre-test per the repo's PRE-TEST ritual
-- [ ] T004 Write
+- [x] T004 Write
       `specs/1610-extract-canonicalize-missing-path/tdd/verification.md`
       from the REAL runs: pass/fail counts, per-mutant red/green evidence
       table, FR/SC coverage matrix, suite-baseline statement, honest
