@@ -118,3 +118,33 @@ error - build_relevance_test.dart:291:24 - The getter
   non-Dart/config, unchanged tree) and every #1587 make-gate test pass
   byte-identical — the first-build decision is the only behavior this
   issue changed.
+
+## Cycle: V1 (verification seam — added during /speckit.tdd.verify)
+
+- behavior: S1b end-to-end (US1 acceptance scenario 2 — FR-7)
+- kind: verify-seam (declared: NOT a red and NOT the driving cycle — the
+  implementation had already gone green in T002/T003 through the
+  composition of the binding test (decision) + the injected-gate test
+  (recording mechanics). This cycle closes the seam between them at
+  verification time, in the open, rather than over-claiming coverage.)
+- classification: pass (after one FIXTURE fix, no product change)
+- criterion: SC-1, FR-7 (spec.md)
+- test: `test/plugins/tdd/services/refactor_passes_test.dart` —
+  `issue #1634: a fresh app shape runs the registry through the REAL
+  gate — the build pass is recorded as a synthetic skip and never
+  spawned; format/fix still run`
+- in-cycle honesty note: the FIRST run of this test FAILED — but the
+  defect was in the FIXTURE, not the gate: a skipped pass consumes NO
+  `_FakeExecutor` outcome slot, so the build's programmed loud failure
+  was consumed by `format`, which then misfire-stopped the registry
+  (executor saw `['format']`, expected `['format', 'fix']`). The
+  fixture was corrected (outcomes queue aligned with the spawning
+  passes; the `invocations` assertion is the spawn-guard). No product
+  code changed in this cycle.
+- command: `dart test test/plugins/tdd/services/refactor_passes_test.dart`
+- exit: 0
+- at: 2026-09-15T15:55:00Z
+- output:
+```
+00:00 +14: All tests passed!
+```

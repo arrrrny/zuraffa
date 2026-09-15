@@ -400,6 +400,58 @@ void main() {
       }
     });
 
+    test('issue #1634: a fresh app shape runs the registry through the REAL '
+        'gate — the build pass is recorded as a synthetic skip and never '
+        'spawned; format/fix still run', () async {
+      // Verification seam (recorded as V1 in tdd/cycle-log.md): the
+      // binding test above proves the gate's DECISION; the injected-gate
+      // test above proves the RECORDING mechanics. This test joins them
+      // end-to-end — US1 acceptance scenario 2 — on a fresh-app-shaped
+      // scratch (no .dart_tool/build/, nothing builder-facing, a plain
+      // subject under lib/) with the real default gate and a fake
+      // executor: if the build pass spawned despite the gate, the
+      // invocation assertion below would catch it.
+      final project = await _ScratchProject.create();
+      try {
+        await project.writeLibFile('a.dart', 'int a() => 1;\n');
+        final executor = _FakeExecutor([
+          // NOTE: a skipped pass consumes NO executor slot — the outcomes
+          // queue aligns with the passes that actually spawn (format,
+          // fix). If the build pass spawned anyway, it would consume the
+          // 'format ok' outcome AND appear in `invocations` — both
+          // asserted against below.
+          _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+          _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+        ]);
+        final passes = RefactorPasses(
+          project.root.path,
+          executor: executor,
+          ensureCompiled: _fakeCompile,
+        );
+        final result = await passes.run();
+
+        // The build pass: recorded skipped with the static note, never
+        // handed to the executor (its programmed loud failure is unused).
+        final build = result.actions.first;
+        expect(build.name, 'build');
+        expect(build.skipped, isTrue);
+        expect(build.exitCode, 0);
+        expect(build.filesChanged, isEmpty);
+        expect(build.output, BuildRelevance.staticFirstBuildSkippedNote);
+        // format and fix still ran, unskipped, in registry order.
+        expect(executor.invocations.map((i) => i.passName).toList(), [
+          'format',
+          'fix',
+        ]);
+        expect(result.actions[1].skipped, isFalse);
+        expect(result.actions[2].skipped, isFalse);
+        expect(result.stopped, isFalse);
+        expect(result.failedPass, isNull);
+      } finally {
+        project.dispose();
+      }
+    });
+
     test('a pass that does not start misfire-stops the registry', () async {
       final project = await _ScratchProject.create();
       try {

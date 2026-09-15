@@ -57,7 +57,7 @@ extension's red-green-refactor loop, tdd/test-list.md); N = non-behavioral.
 
 ## Phase D — verification + landing
 
-- [ ] **T007 (T, verify)** Run `/speckit.tdd.verify`: REAL test runs on
+- [x] **T007 (T, verify)** Run `/speckit.tdd.verify`: REAL test runs on
   this branch (changed files), full SC audit with actual pass/fail
   counts, unrelated pre-existing failures flagged; produce
   `tdd/verification.md` from the recorded runs (never copied or
