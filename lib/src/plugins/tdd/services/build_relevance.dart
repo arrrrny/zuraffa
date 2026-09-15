@@ -334,9 +334,7 @@ class BuildRelevance {
           // static scan's error straight to the caller — bypassing this
           // catch — and a decode hiccup would abort the refactor instead
           // of failing the decision toward RUN (issue #1634 S6).
-          return await _staticFirstBuildSkipNote(
-            projectRoot: projectRoot,
-          );
+          return await _staticFirstBuildSkipNote(projectRoot: projectRoot);
         }
         return null;
       }
@@ -398,9 +396,7 @@ class BuildRelevance {
         if (entity is! File) continue;
         if (entity.path.endsWith('.g.dart.part')) continue;
         if (!entity.path.endsWith('.dart')) return null;
-        if (builderFacingAnnotation.hasMatch(
-          await entity.readAsString(),
-        )) {
+        if (builderFacingAnnotation.hasMatch(await entity.readAsString())) {
           return null;
         }
       }

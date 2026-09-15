@@ -326,18 +326,20 @@ void main() {
       );
     });
 
-    test('a build directory without the asset-graph marker still runs the '
-        'build (issue #1634 — the static path is only for no state at all)',
-        () async {
-      writeLibFile('a.dart', 'int a() => 1;\n');
-      Directory(
-        p.join(root.path, '.dart_tool', 'build'),
-      ).createSync(recursive: true);
-      expect(
-        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
-        isNull,
-      );
-    });
+    test(
+      'a build directory without the asset-graph marker still runs the '
+      'build (issue #1634 — the static path is only for no state at all)',
+      () async {
+        writeLibFile('a.dart', 'int a() => 1;\n');
+        Directory(
+          p.join(root.path, '.dart_tool', 'build'),
+        ).createSync(recursive: true);
+        expect(
+          await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+          isNull,
+        );
+      },
+    );
 
     test('a non-UTF8 file fails the static decision toward RUN, never '
         'throws (issue #1634 — the #1587 error contract)', () async {
