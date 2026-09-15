@@ -72,13 +72,14 @@ subprocess timeout budgets sized for CI-class hardware:
 - **75s** — default per-spawn child guard (`runZfaSource`); the guard is
   killed with a named `TimeoutException` diagnostic so a wedged spawn fails
   fast instead of eating the enclosing test timeout (issue #531).
-- **240s** — the FIRST cold source spawn of an isolate, under the
-  documented degraded-environment escape hatch (`ZFA_ALLOW_JIT=1`, the only
+- **240s** — EVERY source spawn, under the documented
+  degraded-environment escape hatch (`ZFA_ALLOW_JIT=1`, the only
   path that spawns `dart bin/zfa.dart`): the child pays the Dart VM
   front-end + JIT compile of the whole package before running a single
   command — **84s measured cold start alone** on the host that filed
-  issue #1623, longer than the 75s guard. Later source spawns ride warm
-  OS/VM caches inside the 75s guard (issue #1623).
+  issue #1623, longer than the 75s guard, and a warm start was measured at
+  71s — so every source spawn takes the cold budget instead of gambling on
+  warm caches or in-file spawn order (issue #1623).
 - **100s** — one-time AOT compile of `bin/zfa.dart` in `setUpAll`
   (`initZfaSourceBin`). When this budget is exceeded — or the compile fails
   for any reason — the build fails LOUDLY: `ZfaCompilationException`
@@ -103,8 +104,8 @@ ZFA_TEST_TIMEOUT_SCALE=2 dart test test/feature_flags --preset=all
 - Values are multipliers ≥ 1.0; blank/unparsable/NaN/infinite values and
   anything below 1.0 fall back to 1.0 (the scale relaxes budgets, never
   tightens them).
-- The multiplier applies to the helper's 75s child guard, the 240s first
-  cold source spawn budget, the 100s AOT compile budget, and every suite
+- The multiplier applies to the helper's 75s child guard, the 240s cold
+  source spawn budget, the 100s AOT compile budget, and every suite
   `Timeout` built through `scaleDuration(...)` (the `feature_flags` suite
   declares these as 3-minute base ceilings so they grow together with the
   child guard — the guard must stay shorter than the enclosing test
@@ -129,7 +130,7 @@ ZFA_TEST_TIMEOUT_SCALE=2 dart test test/feature_flags --preset=all
 On a host where `dart compile exe bin/zfa.dart` needs 2m38s, the 100s AOT
 budget fails the file loudly in `setUpAll` — the fix is the scale, not a
 per-test timeout override. Export the variable in the JOB environment so
-every budget (75s guard, 240s first cold source spawn, 100s AOT compile)
+every budget (75s guard, 240s cold source spawn, 100s AOT compile)
 stretches together, and pair it with `--timeout xN` when the tier's fixed
 `dart_test.yaml` ceilings are also too tight:
 
@@ -137,7 +138,7 @@ stretches together, and pair it with `--timeout xN` when the tier's fixed
 # .github/workflows/integration.yml (shape)
 env:
   ZFA_TEST_TIMEOUT_SCALE: '2'   # every helper budget x2: 150s guard,
-                                # 480s first cold spawn, 200s AOT compile
+                                # 480s cold source spawn, 200s AOT compile
 steps:
   - run: dart test --preset=integration --timeout x4 test/package_sdk
 ```

@@ -93,11 +93,18 @@ void main() {
         greaterThanOrEqualTo(const Duration(seconds: 100)),
       );
     });
+
+    test('scaleDuration stretches an arbitrary base proportionally', () {
+      expect(
+        scaleDuration(const Duration(minutes: 3)),
+        Duration(milliseconds: (3 * 60 * 1000 * processScale).round()),
+      );
+    });
   });
 
   group('cold source spawn budget', () {
     test(
-      'R1: first cold source spawn budget is 240s stretched by the process scale',
+      'R1: cold source spawn budget is 240s stretched by the process scale',
       () {
         final expected = Duration(
           milliseconds: (240 * 1000 * processScale).round(),
@@ -112,74 +119,41 @@ void main() {
     );
 
     test(
-      'R2: the FIRST source spawn spends the cold budget instead of the 75s guard',
+      'R2: EVERY source spawn spends the cold budget instead of the 75s guard',
       () {
-        final cold = resolveChildTimeout(
-          explicit: null,
-          sourceSpawn: true,
-          coldBudgetAvailable: true,
-        );
+        final cold = resolveChildTimeout(explicit: null, sourceSpawn: true);
         expect(cold, zfaColdSourceChildTimeout);
         expect(
           cold,
           isNot(zfaDefaultChildTimeout),
           reason:
-              'a cold JIT start alone was measured at 84s (issue #1623) — '
-              'longer than the 75s guard — so the first source spawn must '
-              'spend the dedicated cold budget',
+              'a JIT start was measured at 84s cold (issue #1623) and 71s '
+              'even warm — at or above the 75s guard — so every source '
+              'spawn must spend the dedicated cold budget',
         );
       },
     );
 
-    test(
-      'R3: later source spawns and compiled-binary spawns spend the default 75s guard',
-      () {
-        // The cold budget is spent once per isolate: later source spawns
-        // ride warm OS/VM caches inside the 75s guard.
-        expect(
-          resolveChildTimeout(
-            explicit: null,
-            sourceSpawn: true,
-            coldBudgetAvailable: false,
-          ),
-          zfaDefaultChildTimeout,
-        );
-        // Compiled-binary spawns are milliseconds — never the cold budget.
-        expect(
-          resolveChildTimeout(
-            explicit: null,
-            sourceSpawn: false,
-            coldBudgetAvailable: true,
-          ),
-          zfaDefaultChildTimeout,
-        );
-        expect(
-          resolveChildTimeout(
-            explicit: null,
-            sourceSpawn: false,
-            coldBudgetAvailable: false,
-          ),
-          zfaDefaultChildTimeout,
-        );
-      },
-    );
+    test('R3: compiled-binary spawns spend the default 75s guard', () {
+      // AOT spawns are milliseconds — never the cold budget. Source spawns
+      // always take the cold budget (R2): a warm JIT start does not
+      // reliably fit the 75s guard, so there is no spent-once fallback.
+      expect(
+        resolveChildTimeout(explicit: null, sourceSpawn: false),
+        zfaDefaultChildTimeout,
+      );
+    });
 
     test('R4: an explicit caller timeout wins verbatim on every path', () {
       const explicit = Duration(seconds: 33);
       for (final sourceSpawn in [true, false]) {
-        for (final coldBudgetAvailable in [true, false]) {
-          expect(
-            resolveChildTimeout(
-              explicit: explicit,
-              sourceSpawn: sourceSpawn,
-              coldBudgetAvailable: coldBudgetAvailable,
-            ),
-            explicit,
-            reason:
-                'explicit budgets are never auto-scaled (documented in '
-                'test/README.md) — the resolver returns them verbatim',
-          );
-        }
+        expect(
+          resolveChildTimeout(explicit: explicit, sourceSpawn: sourceSpawn),
+          explicit,
+          reason:
+              'explicit budgets are never auto-scaled (documented in '
+              'test/README.md) — the resolver returns them verbatim',
+        );
       }
     });
   });

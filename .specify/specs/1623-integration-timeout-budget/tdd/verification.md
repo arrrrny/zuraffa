@@ -50,9 +50,9 @@ Source: `tdd/cycle-log.md` (append-only).
 
 | suite | scale 1.0 | scale 4.0 | delta vs master |
 | ----- | --------- | --------- | --------------- |
-| test/helpers/zfa_test_timeout_scale_test.dart | 12/12 | 12/12 | +4 (R1–R4) |
+| test/helpers/zfa_test_timeout_scale_test.dart | 13/13 | 13/13 | +4 (R1–R4 + restored scaleDuration pin; see §9) |
 | test/cli/zfa_executable_test.dart | 19/19 | n/a (no env dependence) | +1 (U11 pin) |
-| combined | 31/31 | — | +5 |
+| combined | 32/32 | — | +5 (see §9) |
 
 ## 4. Success-criteria audit
 
@@ -125,3 +125,34 @@ bumps the dev const to 6.4.0 (or wherever the next release lands).
   bin/zfa.dart` child on this host (that requires `ZFA_ALLOW_JIT=1` and a
   deliberately degraded environment); its budget DECISION is pinned by the
   R1–R4 matrix, and the real spawn path was exercised through the AOT lane.
+
+## 9. Review-fix round (PR #1638 review findings)
+
+- Finding "scaleDuration proportionality pin deleted": the master pin is
+  RESTORED inside `group('scaled budgets')` (same expectation shape as
+  master, computed from the live process scale). Suite count 12 → 13;
+  §3's "delta vs master: +4" is again exact.
+- Finding "spent-once model rests on an unverified warm-start assumption":
+  MEASURED on this host — after a warm-up run, `time dart bin/zfa.dart
+  --version` → **1m11.252s warm** (the warm-up run itself: 57.8s; the
+  #1623 host was slower, 84s cold). 71s warm against the 75s default
+  guard invalidates the spent-once model, so per the review's decision
+  rule the stronger fix landed: `resolveChildTimeout` now budgets EVERY
+  source spawn at `zfaColdSourceChildTimeout`; the `coldBudgetAvailable`
+  parameter and the isolate-global `_zfaColdSourceBudgetSpent` flag are
+  removed (source spawns exist only under `ZFA_ALLOW_JIT=1`, so the CI
+  AOT lane is untouched). R2/R3 re-landed for the new contract; the
+  README bullet, slow-CI example, and test-list rows updated to match.
+- Nitpick applied by supersession: the spent-once mark line
+  (`if (coldBudgetAvailable && timeout == null) ...`) is gone entirely
+  with the flag.
+- Out-of-scope speckit re-install churn REVERTED to master:
+  `.agents/skills/speckit-tdd-plan/SKILL.md`,
+  `.specify/templates/spec-template.md`, `.specify/init-options.json`,
+  `.specify/integrations/zed.manifest.json` (the PR's own spec artifacts
+  under `.specify/specs/1623-integration-timeout-budget/` are untouched).
+- Evidence (this round, this host): `dart analyze` on the touched Dart
+  files → `No issues found!`; scale suite → **13/13** unset and **13/13**
+  with `ZFA_TEST_TIMEOUT_SCALE=4`; executable suite → **19/19**;
+  `dart format --output=none --set-exit-if-changed` on the touched files
+  → 0 changed after one canonical-format pass.

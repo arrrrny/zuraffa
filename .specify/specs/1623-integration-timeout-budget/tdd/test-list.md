@@ -25,9 +25,9 @@ artifact.
 
 | id | behavior                                                                                                                                         | traces | kind    | state | test                                                                                                                                                                              |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R1  | `zfaColdSourceChildTimeout` is 240s stretched by the process scale and is `>= 240s` at every valid scale (the scale relaxes, never tightens)       | SC-3   | example | DONE  | `test/helpers/zfa_test_timeout_scale_test.dart::cold source spawn budget: first cold source spawn budget is 240s stretched by the process scale`                                    |
-| R2  | `resolveChildTimeout` spends the COLD budget on the first source spawn (sourceSpawn + coldBudgetAvailable + no explicit timeout) — not the 75s guard | SC-3   | example | DONE  | `...zfa_test_timeout_scale_test.dart::cold source spawn budget: the FIRST source spawn spends the cold budget instead of the 75s guard`                                             |
-| R3  | `resolveChildTimeout` spends the default 75s guard on later source spawns (budget already spent) and on every compiled-binary spawn                  | SC-3   | example | DONE  | `...zfa_test_timeout_scale_test.dart::cold source spawn budget: later source spawns and compiled-binary spawns spend the default 75s guard`                                         |
+| R1  | `zfaColdSourceChildTimeout` is 240s stretched by the process scale and is `>= 240s` at every valid scale (the scale relaxes, never tightens)       | SC-3   | example | DONE  | `test/helpers/zfa_test_timeout_scale_test.dart::cold source spawn budget: cold source spawn budget is 240s stretched by the process scale`                                          |
+| R2  | `resolveChildTimeout` spends the COLD budget on EVERY source spawn (sourceSpawn + no explicit timeout) — not the 75s guard (warm JIT start measured 71s vs the 75s guard; the spent-once model was removed in the PR #1638 review-fix round) | SC-3   | example | DONE  | `...zfa_test_timeout_scale_test.dart::cold source spawn budget: EVERY source spawn spends the cold budget instead of the 75s guard`                                                 |
+| R3  | `resolveChildTimeout` spends the default 75s guard on every compiled-binary spawn (source spawns always take the cold budget)                        | SC-3   | example | DONE  | `...zfa_test_timeout_scale_test.dart::cold source spawn budget: compiled-binary spawns spend the default 75s guard`                                                                 |
 | R4  | `resolveChildTimeout` returns an explicit caller timeout verbatim on every path (explicit budgets are never auto-scaled — documented semantics)      | SC-3   | example | DONE  | `...zfa_test_timeout_scale_test.dart::cold source spawn budget: an explicit caller timeout wins verbatim on every path`                                                             |
 
 ## Regression pins (green-before-write by design — 06ecc54 shipped them)
@@ -50,10 +50,11 @@ artifact.
   ceilings at scale 1.0 (the guard fires before the ceiling): asserted by
   R1's `>= 240s` clamp direction plus the constant's documented value —
   a suite-level ceiling is not unit-hostable without the integration run.
-- The spent-once semantics of `_zfaColdSourceBudgetSpent` are exercised
-  through `resolveChildTimeout`'s `coldBudgetAvailable` parameter (pure);
-  the mutable flag itself is 3 lines of wiring inside `runZfaSource`,
-  covered by E1 end-to-end and `dart analyze`.
+- The spent-once semantics were REMOVED in the PR #1638 review-fix round:
+  a warm JIT start measured 71s against the 75s guard, so
+  `resolveChildTimeout` has no `coldBudgetAvailable` parameter and EVERY
+  source spawn takes the cold budget (R2/R3 re-landed for that contract);
+  the isolate-global `_zfaColdSourceBudgetSpent` flag is gone.
 - Explicit-timeout call sites (B9's per-package pub get/analyze/test
   budgets live on a LOCAL `_runSupervised`, not `runZfaSource`) are
   untouched by the matrix — R4 pins the resolver's verbatim passthrough.
