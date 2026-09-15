@@ -67,8 +67,11 @@ void main() {
       );
 
       expect(result, p.join(resolvedRoot, 'missing', 'subject.dart'));
-      expect(result, isNot(startsWith(aliasPath)),
-          reason: 'the raw alias form must never leak into the result');
+      expect(
+        result,
+        isNot(startsWith(aliasPath)),
+        reason: 'the raw alias form must never leak into the result',
+      );
     },
     onPlatform: {'windows': const Skip('symlink creation may need privileges')},
   );
@@ -106,8 +109,9 @@ void main() {
       // ancestor (`link_parent`), resolves it to `real_parent`, and
       // re-appends exactly one segment.
       Directory(p.join(root.path, 'real_parent')).createSync();
-      Link(p.join(root.path, 'link_parent'))
-          .createSync(p.join(root.path, 'real_parent'));
+      Link(
+        p.join(root.path, 'link_parent'),
+      ).createSync(p.join(root.path, 'real_parent'));
       addTearDown(() {
         final link = Link(p.join(root.path, 'link_parent'));
         if (FileSystemEntity.isLinkSync(link.path)) link.deleteSync();
