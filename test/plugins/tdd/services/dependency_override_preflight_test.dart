@@ -1,4 +1,3 @@
-@Tags(['e2e'])
 // Bug #1303 — the dependency_overrides path preflight (service unit tests).
 //
 // `tdd make` / `tdd run` spend minutes compiling before a stale

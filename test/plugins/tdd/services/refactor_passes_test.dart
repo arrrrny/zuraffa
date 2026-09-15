@@ -1,4 +1,3 @@
-@Tags(['e2e'])
 // Tests for the RefactorPasses service (spec 048-tdd-refactor, T006 + T010;
 // behaviors U1, U2, U3, U4, U5).
 //

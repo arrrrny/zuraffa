@@ -1,10 +1,11 @@
-@Tags(['e2e'])
 // Tests for StepRunner (spec 049-tdd-run, U12-U18 / T007).
 //
 // Fast tier: the spawn hook is injected, so these drive the contract
-// parsing without real sub-processes. The slow tier (run_command_test,
-// scenarios) exercises the real spawn path through the fixture's fake
-// zfa binary.
+// parsing without real sub-processes — the suite's only real child is the
+// fixture's short-lived `Process.run('chmod', …)` probe, which the B5
+// census (#1632) discounts as a trivial probe, so the suite stays on the
+// default CI lane. The slow tier (run_command_test, scenarios) exercises
+// the real spawn path through the fixture's fake zfa binary.
 library;
 
 import 'dart:io';

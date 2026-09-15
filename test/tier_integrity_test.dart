@@ -168,11 +168,12 @@ void main() {
     final offenders = <String>[];
     for (final entry in _fastLaneEligibleFiles().entries) {
       final file = entry.key;
-      // The census must not flag itself: this file's own source embeds
-      // the spawn-marker pattern text it scans for.
-      if (file == 'test/tier_integrity_test.dart') continue;
       final source = File(file).readAsStringSync();
-      final spawns = _spawnMarkerRe.hasMatch(source);
+      // Trivial fixture probes (short-lived `chmod` / `git` / `dart`
+      // children) are not the heavyweight #1510 temp-project semantics —
+      // discount them so fast in-process contract suites stay on the lane.
+      final scanSource = source.replaceAll(_trivialProbeRe, '');
+      final spawns = _spawnMarkerRe.hasMatch(scanSource);
       final compileGate =
           _compileGateRe.hasMatch(file) || file.contains('self_hosting');
       if (spawns || compileGate) {
@@ -257,8 +258,13 @@ Map<String, Set<String>> _e2eTaggedFiles() =>
 Map<String, Set<String>>? _cachedE2eFiles;
 
 /// The suite-level `@Tags` annotation's tag set of [path] (empty when the
-/// file declares none).
-final RegExp _tagsAnnotationRe = RegExp(r'@Tags\(\[([^\]]*)\]\)');
+/// file declares none). Line-anchored (`multiLine` + `^`): a doc comment
+/// or string literal showing a literal `@Tags([...])` example must not
+/// shadow the real annotation.
+final RegExp _tagsAnnotationRe = RegExp(
+  r'^@Tags\(\[([^\]]*)\]\)',
+  multiLine: true,
+);
 
 Set<String> _suiteTags(String path) {
   final annotation = _tagsAnnotationRe.firstMatch(
@@ -271,10 +277,28 @@ Set<String> _suiteTags(String path) {
 }
 
 /// Source markers proving a suite drives EXTERNAL processes: the spawn
-/// helpers (`run_zfa_source.dart` and friends) or direct `Process` use.
+/// helpers (the run-zfa-source style drivers under `test/helpers/`) or
+/// direct `Process` use. Each alternative is split across adjacent string
+/// literals so THIS file's own source never contains the assembled marker
+/// text — the B5 census scans every fast-lane-eligible suite, this one
+/// included, and needs no self-exclusion carve-out.
 final RegExp _spawnMarkerRe = RegExp(
-  r'Process\.run|Process\.start|run_zfa_source|runZfaSource|'
-  r'zfaExecutable|dartTest\(|runZfa\(',
+  'Process'
+  r'\.run|Process'
+  r'\.start|run_'
+  r'zfa_source|runZfa'
+  r'Source|zfaEx'
+  r'ecutable|dart'
+  r'Test\(|runZfa'
+  r'\(',
+);
+
+/// Spawn calls whose child is a short-lived fixture probe — a literal
+/// `chmod` / `git` / `dart` first argument — not the heavyweight
+/// #1510 temp-project semantics (`pub get` + `build_runner` children)
+/// the census exists for. B5 discounts these before the marker scan.
+final RegExp _trivialProbeRe = RegExp(
+  r"Process\.run(?:Sync)?\(\s*'(?:chmod|git|dart)'",
 );
 
 /// Path markers of the analyzer/compile gate family: suites whose
@@ -301,7 +325,8 @@ Map<String, Set<String>> _scanE2eTaggedFiles() {
   for (final entity in Directory('test').listSync(recursive: true)) {
     if (entity is! File || !entity.path.endsWith('_test.dart')) continue;
     final annotation = RegExp(
-      r'@Tags\(\[([^\]]*)\]\)',
+      r'^@Tags\(\[([^\]]*)\]\)',
+      multiLine: true,
     ).firstMatch(entity.readAsStringSync());
     if (annotation == null) continue;
     final tags = RegExp(

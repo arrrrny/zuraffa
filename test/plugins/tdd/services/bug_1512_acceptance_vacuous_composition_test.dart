@@ -1,4 +1,3 @@
-@Tags(['e2e'])
 // Bug #1512 — the acceptance lane is a vacuous composition seam.
 //
 // Three pins, one per root cause:

@@ -163,6 +163,7 @@ void main() {
     // the record's reuse fingerprint.
     final (firstCode, firstOutput) = await gen();
     expect(firstCode, 0, reason: firstOutput);
+    final before = File(fx.namespacedTestPathOf('A1')).readAsStringSync();
     // Second gen with nothing changed: the byte-equality short-circuit
     // reuses the pair — no regeneration note, no rewrite.
     final (secondCode, secondOutput) = await gen();
@@ -171,6 +172,11 @@ void main() {
       secondOutput,
       isNot(contains('traces cell gained a contract token')),
       reason: 'the registered criterion already matches the row',
+    );
+    expect(
+      File(fx.namespacedTestPathOf('A1')).readAsStringSync(),
+      before,
+      reason: 'the no-drift second gen must not rewrite the pair',
     );
   });
 }
