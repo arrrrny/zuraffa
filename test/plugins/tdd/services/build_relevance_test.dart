@@ -268,12 +268,87 @@ void main() {
       File(p.join(root.path, 'lib', name)).writeAsStringSync(content);
     }
 
-    test('a missing marker runs the build — the project has never been '
-        'built here', () async {
+    // Issue #1634: a MISSING marker is no longer a blanket fail-open.
+    // The old #1624 test asserted exactly that fail-open ("a missing
+    // marker runs the build — the project has never been built here");
+    // the fresh-app static decision below replaces it: when
+    // `.dart_tool/build/` does not exist at all, the gate decides
+    // STATICALLY from a source scan, and only a builder-facing signal
+    // (annotation, non-Dart source in a root, build.yaml) runs the
+    // build. The `writeMarker`-based incremental tests further below
+    // are byte-identical to #1624 — the first-build decision is the
+    // only thing this issue changes.
+
+    test('a fresh app with nothing builder-facing skips the first build '
+        'statically (issue #1634)', () async {
+      writeLibFile('a.dart', 'int a() => 1;\n');
+      Directory(p.join(root.path, 'test')).createSync(recursive: true);
+      File(
+        p.join(root.path, 'test', 'a_test.dart'),
+      ).writeAsStringSync('void main() {}\n');
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        BuildRelevance.staticFirstBuildSkippedNote,
+      );
+    });
+
+    test('a fresh app with a builder-facing annotation runs the first '
+        'build (issue #1634)', () async {
+      writeLibFile('user.dart', '@JsonSerializable\nclass User {}\n');
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
+    test('a fresh app with a non-Dart source in a walked root runs the '
+        'first build (issue #1634)', () async {
+      Directory(p.join(root.path, 'lib', 'i18n')).createSync(recursive: true);
+      File(
+        p.join(root.path, 'lib', 'i18n', 'strings.i18n.json'),
+      ).writeAsStringSync('{"title": "hi"}\n');
       writeLibFile('a.dart', 'int a() => 1;\n');
       expect(
         await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
         isNull,
+      );
+    });
+
+    test('a fresh app with a build.yaml at the root runs the first build '
+        '(issue #1634)', () async {
+      writeLibFile('a.dart', 'int a() => 1;\n');
+      File(
+        p.join(root.path, 'build.yaml'),
+      ).writeAsStringSync('targets:\n  \$default:\n    builders:\n');
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
+    test('a build directory without the asset-graph marker still runs the '
+        'build (issue #1634 — the static path is only for no state at all)',
+        () async {
+      writeLibFile('a.dart', 'int a() => 1;\n');
+      Directory(
+        p.join(root.path, '.dart_tool', 'build'),
+      ).createSync(recursive: true);
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
+    test('a non-UTF8 file fails the static decision toward RUN, never '
+        'throws (issue #1634 — the #1587 error contract)', () async {
+      Directory(p.join(root.path, 'lib')).createSync(recursive: true);
+      File(p.join(root.path, 'lib', 'broken.dart'))
+        ..createSync()
+        ..writeAsBytesSync([0xFF, 0xFE, 0x00, 0x01]);
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+        reason: 'a decode error must fail the decision toward RUN',
       );
     });
 
