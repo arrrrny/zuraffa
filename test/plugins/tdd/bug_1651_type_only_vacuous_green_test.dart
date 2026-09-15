@@ -117,6 +117,42 @@ void main() {
       expect(contentIsVacuousGreen(legacyTypeOnlyTest()), isTrue);
     });
 
+    test('U1d: an expectLater bare type-only assertion set is vacuous '
+        '(review of #1667 — the strip is not `expect`-only)', () {
+      const content = '''
+void main() {
+  test('adds', () {
+    expectLater(result, isA<int>());
+  });
+}
+''';
+      expect(contentIsVacuousGreen(content), isTrue);
+    });
+
+    test('U1e: a type-only assertion with a trailing named argument is '
+        'vacuous (review of #1667 — reason never changes the matcher)', () {
+      const content = '''
+void main() {
+  test('adds', () {
+    expect(result, isA<int>(), reason: 'the dummy passes the type check');
+  });
+}
+''';
+      expect(contentIsVacuousGreen(content), isTrue);
+    });
+
+    test('U1f: a type-only assertion whose first argument is a '
+        'call expression is vacuous (review of #1667)', () {
+      const content = '''
+void main() {
+  test('adds', () {
+    expect(subject.f(), isA<int>());
+  });
+}
+''';
+      expect(contentIsVacuousGreen(content), isTrue);
+    });
+
     test('U2a: an equals assertion keeps the test real', () {
       const content = '''
 void main() {
@@ -172,6 +208,18 @@ void main() {
 void main() {
   test('adds', () {
     expect(result, isA<List<int>>());
+  });
+}
+''';
+      expect(contentIsVacuousGreen(content), isFalse);
+    });
+
+    test('U2f: a first argument with a top-level comma keeps the test '
+        'real (the accepted strip boundary — review of #1667)', () {
+      const content = '''
+void main() {
+  test('adds', () {
+    expect(g(1, 2), isA<int>());
   });
 }
 ''';

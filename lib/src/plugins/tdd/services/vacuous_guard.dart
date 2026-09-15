@@ -389,10 +389,23 @@ final RegExp _guardExpect = RegExp(
 /// both FAIL on a dummy, so both discriminate; composite/generic types
 /// (`isA<List<int>>()`) and entity types (whose subjects cannot be
 /// dummied — #1517 leaves the throw in place) stay real.
+///
+/// Review of #1667: the shape also covers the hand-authored variants —
+/// `expectLater(x, isA<T>())`, a trailing named argument
+/// (`expect(x, isA<T>(), reason: '...')` — reason/skip/timeout are the
+/// expect/expectLater named set and never change the matcher), and a
+/// first argument that is any comma-free expression
+/// (`expect(subject.f(), isA<T>())`). Accepted boundary: a first
+/// argument containing a top-level comma (`expect(g(1, 2), isA<T>())`)
+/// cannot be anchored without balanced-paren matching and stays counted
+/// — the miss is conservative (a real expectation is never falsely
+/// stripped; pinned as U2f).
 final RegExp _typeOnlyScalarExpect = RegExp(
-  r'expect\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*,\s*'
+  r'\bexpect(?:Later)?\s*\(\s*[^,]*,\s*'
   r'isA\s*<\s*(?:String|int|num|double|bool)\s*>'
-  r'\s*\(\s*\)\s*\)\s*;?',
+  r'\s*\(\s*\)'
+  r'(?:\s*,\s*(?:reason|skip|timeout)\s*:\s*[^)]*)?'
+  r'\s*\)\s*;?',
 );
 
 /// Every remaining expectation counts: `expect(`, `expectLater(`,

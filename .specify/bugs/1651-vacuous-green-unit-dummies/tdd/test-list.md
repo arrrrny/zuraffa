@@ -17,7 +17,7 @@ naming and structure; the four superseded legacy pins are updated in place.
 | U1 | `contentIsVacuousGreen` classifies scalar-type-only assertion sets as vacuous — bare `expect(result, isA<int>())`, the guard + type-only pair, and the legacy marker-less generated shape | FR-002 | unit | DONE | test/plugins/tdd/bug_1651_type_only_vacuous_green_test.dart |
 | U2 | `contentIsVacuousGreen` keeps value-discriminating assertion sets real — `equals(...)`, `throwsA(...)`, `isNot(isA<...>())`, and entity-type `isA<T>()` each keep the verdict non-vacuous | FR-002 | unit | DONE | test/plugins/tdd/bug_1651_type_only_vacuous_green_test.dart |
 | U3 | `BehaviorTestWriter` emits the typed outcome assertion WITH the `zfa:tdd: vacuous-guard` marker + the #1651 remedy comment for a scalar-declared contract (the entity/void marker discipline, extended) | FR-001 | unit | DONE | test/plugins/tdd/bug_1651_type_only_vacuous_green_test.dart |
-| U4 | `zfa tdd make` refuses the issue's exact repro — gen (typed assertion, marker) → func fills `return 0;` → test passes → make exits 1 with `outcome=vacuous-green` | FR-001, FR-003 | unit | DONE | test/plugins/tdd/bug_1651_type_only_vacuous_green_test.dart |
+| U4 | `zfa tdd make` refuses the issue's exact repro — gen (typed assertion, marker) → func fills `return 0;` → test passes → make exits 1 with `outcome=vacuous-green` | FR-001, FR-003 | unit | DONE | test/plugins/tdd/commands/bug_1651_make_dummy_green_refusal_test.dart |
 
 ## Acceptance behaviors
 
