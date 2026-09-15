@@ -52,6 +52,15 @@ void main() {
     return CorpusDifferentialCommand(
       plugin,
       scratchRoot: scratchRoot,
+      // No-JIT policy: the ref worktree's entrypoint is COMPILED before any
+      // step spawns it (`ZfaExecutable.ensureCompiled`). The fixture's stub
+      // `bin/zfa.dart` is scripted, not real code, so the compile is faked
+      // here: each worktree's artifact is derived from the candidate path,
+      // which keeps the `wt-from` / `wt-to` label the fakes key on.
+      ensureCompiled: (candidate, {sourceRoot, runner, environment}) async =>
+          candidate.endsWith('/bin/zfa.dart')
+          ? candidate.substring(0, candidate.length - 4) // -> .../bin/zfa
+          : candidate,
       gitRunner: (args, cwd) async {
         final argv = args.join(' ');
         recordedGit.add(argv);
@@ -86,7 +95,11 @@ void main() {
           }
           return ok('Got dependencies!');
         }
-        final bin = command[1].toString();
+        // No-JIT policy: a zfa step now spawns the compiled worktree
+        // artifact as the executable itself (`command.first`), not
+        // `dart <worktree>/bin/zfa.dart` — the label rides the same
+        // worktree path either way.
+        final bin = command.first.toString();
         final label = bin.contains('wt-from')
             ? 'wt-from'
             : bin.contains('wt-to')
