@@ -221,9 +221,9 @@ void main() {
 
   test('B7: the dart_core lane keeps its scoped parallelism and the '
       '--exclude-tags selector (#1632)', () {
-    final ci = loadYaml(
-      File('.github/workflows/ci.yaml').readAsStringSync(),
-    ) as YamlMap;
+    final ci =
+        loadYaml(File('.github/workflows/ci.yaml').readAsStringSync())
+            as YamlMap;
     final steps =
         ((ci['jobs'] as YamlMap)['dart_core'] as YamlMap)['steps'] as YamlList;
     String? testRun;
