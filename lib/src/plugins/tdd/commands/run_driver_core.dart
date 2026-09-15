@@ -2502,13 +2502,6 @@ class RunDriverCore {
               refactorBlocked: false,
             );
           }
-          print(
-            '   the generated test is GUARD-ONLY [$vacuousGuardWarningToken] '
-            '— the behavior is fallback-routed (no traces: to a declared '
-            'contract row), so gen could not derive a real outcome '
-            'assertion and make refuses it vacuous-green (issue #1259, '
-            '#1308).',
-          );
           // Issue #1483: name the seam that EXISTS for the feature shape
           // the message is talking to — the lane plan's traces cell only
           // when the lane plan pair is actually on disk; the legacy
@@ -2517,6 +2510,70 @@ class RunDriverCore {
           // exist there and never will). The full path is printed (the
           // feature dir is not obvious from a bare filename). Messaging
           // only — the detection, the stop and the loop are untouched.
+          //
+          // Issue #1626: the traces/re-plan/re-gen remedy above is
+          // UNIT/fallback vocabulary — it WORKS there, and those rows keep
+          // it. An ACCEPTANCE row cannot consume it: the lane ignores the
+          // contract shape by design (issue #1512), so re-plan/re-gen can
+          // never add a real acceptance assertion and the author who
+          // follows the printed advice loops forever. The acceptance arm
+          // names the HAND STEP instead — the outcome assertion OUTSIDE
+          // the capture, the scenario runner implemented in the subject,
+          // the attestation header, `--born-green` — with BOTH file paths
+          // (test + subject, project-relative posix). Messaging only: the
+          // stop stays `stopped_at=<id>:make` (the honest fallback-routed
+          // class, #1512) and the state advance is untouched. The wording
+          // is single-sourced in `acceptanceVacuousHandStepRemedyFor` so
+          // this stop and make's own refusal cannot drift.
+          //
+          // Issue #1626 (review): BOTH paths come from the same rule —
+          // `acceptanceHandStepPathsFor`, shared with make's refusal. The
+          // artifact registry record is the single path contract (the
+          // generated TEST is read from the record exactly like the
+          // SUBJECT, issue #1397 anchoring included): probing the disk
+          // alone made the remedy name a synthetic conventional test path
+          // for a row whose registered `testPath` sits elsewhere, and
+          // editing that file leaves the registered artifact unchanged —
+          // the same "which file do I edit?" failure this issue fixes on
+          // the subject side. The disk probe stays as the registry-less
+          // fallback (the legacy flat layout).
+          if (row.kind == BehaviorKind.acceptance) {
+            final record = await registry.findRecord(row.id);
+            final handStepPaths = acceptanceHandStepPathsFor(
+              behaviorId: row.id,
+              projectRoot: projectRoot,
+              feature: feature,
+              knownTestPath: record?.testPath ?? testPath,
+              knownSubjectPath: record?.subjectPath,
+            );
+            print(
+              '   the generated test is the ACCEPTANCE guard-only fallback '
+              '[$acceptanceFallbackGuardToken] — the acceptance lane '
+              'ignores the contract shape (issue #1512), so re-plan/re-gen '
+              'can never add a real acceptance assertion and make refuses '
+              'it vacuous-green (issue #1488).',
+            );
+            print(
+              '   --> fix: ${acceptanceVacuousHandStepRemedyFor(behaviorId: row.id, testPath: handStepPaths.testPath, subjectPath: handStepPaths.subjectPath)}',
+            );
+            return (
+              state: updated,
+              stop: (
+                result: 'stopped',
+                stoppedAt: '${row.id}:make',
+                exitCode: _exitStopped,
+                message: null,
+              ),
+              refactorBlocked: false,
+            );
+          }
+          print(
+            '   the generated test is GUARD-ONLY [$vacuousGuardWarningToken] '
+            '— the behavior is fallback-routed (no traces: to a declared '
+            'contract row), so gen could not derive a real outcome '
+            'assertion and make refuses it vacuous-green (issue #1259, '
+            '#1308).',
+          );
           print(
             '   --> fix: ${_vacuousFallbackRemedy(projectRoot: projectRoot, featureDir: featureDir)}',
           );
@@ -3338,6 +3395,12 @@ class RunDriverCore {
     ),
   );
 
+  /// Issue #1626 (review): the acceptance hand-step paths are resolved by
+  /// the ONE shared rule in `vacuous_guard.dart`
+  /// ([acceptanceHandStepPathsFor]) — make's refusal and this stop must not
+  /// name different files. The registry record is the single path contract
+  /// for BOTH the test and the subject (issue #1397 anchoring included);
+  /// the disk probe stays the registry-less fallback.
   BehaviorState _maxState(BehaviorState a, BehaviorState b) =>
       a.index >= b.index ? a : b;
 

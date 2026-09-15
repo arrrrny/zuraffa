@@ -1134,17 +1134,21 @@ class MakeCommand extends Command<void> {
         // is unexpressible there (the capture only ever resolves `null`),
         // and the acceptance fallback deliberately carries NO
         // `$vacuousGuardMarker` (issue #1512 — its absence is the run
-        // driver's `:make` vs `:hand` discriminator). The honest remedy for
-        // the acceptance row is the traced re-plan/re-gen path the gen-time
-        // warning and the run driver already prescribe for fallback-routed
-        // rows (`vacuousGuardFallbackRemedyFor`), single-sourced here so
-        // the three surfaces cannot drift.
+        // driver's `:make` vs `:hand` discriminator).
+        // Issue #1626: the acceptance branch names the HAND STEP — the
+        // traces/re-plan/re-gen remedy it used to prescribe provably
+        // LOOPS on the acceptance lane (the lane ignores the contract
+        // shape, issue #1512, so re-gen can never add a real acceptance
+        // assertion and the #1488 gate refuses again). The named path is
+        // the measured working one: the outcome assertion OUTSIDE the
+        // capture + the scenario runner implemented in the subject + the
+        // attestation header + `--born-green`, with BOTH file paths
+        // (project-relative posix — the author must know where to edit).
+        // Single-sourced in `acceptanceVacuousHandStepRemedyFor` so the
+        // make refusal and the run driver's stop cannot drift.
         final acceptanceLane = vacuousRowKind == BehaviorKind.acceptance;
         final remedy = acceptanceLane
-            ? '${vacuousGuardFallbackRemedyFor(
-                lanePlanPath: lanePlanSeamPath(projectRoot: cwd, featureDir: target.featureDir),
-                testListPath: p.relative(p.join(target.featureDir, 'tdd', 'test-list.md'), from: cwd),
-              )}.'
+            ? '${_acceptanceHandStepRemedy(record: record, projectRoot: cwd, feature: target.featureName)}.'
             : 'add at least one assertion on the observable outcome named by '
                   'the behavior description ("$description"), remove the '
                   '$vacuousGuardMarker marker if present, and re-run make.';
@@ -3358,6 +3362,32 @@ class MakeCommand extends Command<void> {
     final idx = s.indexOf(':');
     if (idx > 0) s = s.substring(0, idx);
     return s.trim();
+  }
+
+  /// Issue #1626: the acceptance hand-step remedy with both file paths —
+  /// resolved by the ONE shared rule ([acceptanceHandStepPathsFor]) that
+  /// the run driver's marker-absent stop also uses, so make's refusal and
+  /// the driver's `--> fix:` line cannot name different files. This surface
+  /// always holds the artifact registry record, so both paths are the
+  /// RECORDED ones — the conventional-layout fallback inside the resolver
+  /// only serves registry-less runs.
+  String _acceptanceHandStepRemedy({
+    required ArtifactRecord record,
+    required String projectRoot,
+    required String feature,
+  }) {
+    final paths = acceptanceHandStepPathsFor(
+      behaviorId: record.behaviorId,
+      projectRoot: projectRoot,
+      feature: feature,
+      knownTestPath: record.testPath,
+      knownSubjectPath: record.subjectPath,
+    );
+    return acceptanceVacuousHandStepRemedyFor(
+      behaviorId: record.behaviorId,
+      testPath: paths.testPath,
+      subjectPath: paths.subjectPath,
+    );
   }
 
   /// Project-relative POSIX normalization (spec 1529): the form the
