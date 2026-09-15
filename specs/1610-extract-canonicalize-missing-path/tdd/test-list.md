@@ -1,9 +1,27 @@
-# Test List: 1610-extract-canonicalize-missing-path
+---
+feature: 1610-extract-canonicalize-missing-path
+loop: inside-out
+profile: .specify/memory/tdd-profile.md
+spec_criteria: 4
+planned_at: f220b6a3
+updated_at: bbb497d1
+suite_baseline: green
+---
+
+# Test List: Extract canonicalizeMissingPath — documented precondition + direct walk-up test (chore #1610)
 
 Derivation source: `spec.md` (US1/US2 acceptance scenarios + FR-001..FR-005,
 SC-1..SC-4) and `tasks.md` (T001 behaviors U1–U4, T001m mutants M1–M3).
 The helper predates the contract registry (no declared contract rows for
 `path_canonicalizer`), so unit-lane routes use the labeled legacy fallback.
+
+The behavior under test is the shared walk-up loop in
+`lib/src/plugins/tdd/services/path_canonicalizer.dart` — which ancestor it
+resolves, what it re-appends, and in WHAT ORDER — plus (non-test) the doc
+comment that states its absolute-input precondition. The loop is
+inside-out: this is a pure filesystem utility with no user-visible surface
+of its own. All unit behaviors are fast-tier temp-fixture tests; symlink
+scenarios skip on Windows per the repo's `onPlatform` convention.
 
 ## Outer loop: acceptance behaviors
 
@@ -29,29 +47,88 @@ Not applicable — no UI surface in this chore.
 
 ## Inner loop: unit behaviors
 
-One per pinned helper behavior (tasks.md T001) plus the mutation-strength
-row (T001m) and the gate-aggregation row (T002/T004).
+### `lib/src/plugins/tdd/services/path_canonicalizer.dart`
 
-| id | behavior | traces | state |
-| -- | -------- | ------ | ----- |
-| U1 | Nearest existing ancestor resolves through a SYMLINK: fixture root aliased by a symlink; missing subject `<alias>/missing/subject.dart` → result starts with the RESOLVED root, never the alias form; segments re-appended. | FR-004, SC-2 | PENDING |
-| U2 | Tail-order assertion the command pins cannot make: `root/missing_a/missing_b/subject.dart` (both middle segments missing) → EXACTLY `<resolvedRoot>/missing_a/missing_b/subject.dart` — dropping `.reversed` yields `.../subject.dart/missing_b/missing_a` and FAILS. | FR-004, SC-2 | PENDING |
-| U3 | One-segment boundary: direct parent exists and is a symlinked directory → parent's symlink resolved, basename re-appended. | FR-004, SC-2 | PENDING |
-| U4 | Root-boundary walk: missing path directly under the resolved root → resolved root + basename; the no-ancestor fallback (input unchanged) asserted UNTESTABLE-BY-PUBLIC-SURFACE in a comment (defensive branch; POSIX root always resolves — no fake seam per the hard constraint). | FR-004, FR-002, SC-2 | PENDING |
-| U5 | Mutation strength (T001m): M1 (drop `.reversed`) kills U2; M2 (skip walk-up — return `path` on first FileSystemException) kills U1+U2; M3 (drop the basename re-append) kills U1+U2+U3; each restore returns the suite to GREEN; mutant states never committed. | FR-005, SC-3 | PENDING |
-| U6 | Gate aggregation (T002/T004): new suite green; view_command_test.dart (U-V3, U-V11/U-V12/U-V13, U-1603a/b), wire_command_test.dart (U-W3, U-1603e), func_command_test.dart (U-1603c, U-F5) green; `dart analyze` clean on touched scope; `dart format .` zero diffs; `git diff` shows no executable-line change. | FR-003, FR-005, SC-4 | PENDING |
+| id | behavior | traces | kind | state | test |
+| --- | --- | --- | --- | --- | --- |
+| U1 | A missing path whose nearest EXISTING ancestor is reached through a symlink alias resolves to the SYMLINK-RESOLVED ancestor form plus the re-appended missing segments — never the raw alias form (asserts A3). | SC-2, FR-004 | example | PENDING | `test/plugins/tdd/services/path_canonicalizer_test.dart::resolves the nearest existing ancestor through a symlinked root and re-appends the missing segments` |
+| U2 | A missing path TWO segments deep (`missing_a/missing_b/subject.dart` over an existing root) re-appends the missing segments in ORIGINAL order — the exact-match assertion that FAILS if `tail.reversed` is dropped (the distinguishing power the command pins lack; asserts A4). | SC-2, SC-3, FR-004 | example | PENDING | `test/plugins/tdd/services/path_canonicalizer_test.dart::re-appends nested missing segments in original order (tail order)` |
+| U3 | A missing path whose DIRECT parent is an existing symlinked DIRECTORY resolves the parent's symlink and re-appends exactly the basename (one-segment tail boundary; asserts A5). | SC-2, FR-004 | example | PENDING | `test/plugins/tdd/services/path_canonicalizer_test.dart::resolves a symlinked direct parent and re-appends the basename` |
+| U4 | A missing path directly under the root (`<alias>/<missing>` where the alias resolves to the root) resolves to `<resolvedRoot>/<missing>` — the walk-up loop's NORMAL exit at the filesystem-root boundary; the no-ancestor fallback (input unchanged) is documented, NOT unit-hosted (defensive branch, POSIX-unreachable, no fake seam per the hard constraint; asserts A6's first half). | SC-2, FR-004, FR-002 | example | PENDING | `test/plugins/tdd/services/path_canonicalizer_test.dart::walks zero ancestors for a path directly under the root` |
+| U5 | Mutation strength (T001m): each deliberate mutant is applied → targeted run → restored byte-identical (mutant states never committed); see the mutant matrix below. | FR-005, SC-3 | example | PENDING | `deliberate-mutant runs recorded in tdd/cycle-log.md` |
+| U6 | Gate aggregation (T002/T004): new suite green; view pins (U-V3, U-V11/U-V12/U-V13, U-1603a/b), wire pins (U-W3, U-1603e), func pins (U-1603c, U-F5) green; `dart analyze` clean on touched scope; `dart format .` zero diffs; `git diff` shows no executable-line change on the helper (asserts A6's second half). | FR-003, FR-005, SC-4 | example | PENDING | `dart test --preset=all test/plugins/tdd/commands/view_command_test.dart test/plugins/tdd/wire_command_test.dart` + `dart test test/plugins/tdd/commands/func_command_test.dart` |
+
+### Deliberate-mutant matrix (U5 / SC-3)
+
+The behaviors already exist on master (994daeb1) — every U-behavior above is
+green the moment it is written, so red evidence comes from the sanctioned
+deliberate-mutant procedure (tdd-profile: "Mutation tool: none wired ...
+falls back to deliberate-mutant sampling").
+
+| mutant id | mutant (in `path_canonicalizer.dart`) | must go RED | restored GREEN |
+| --- | --- | --- | --- |
+| M1 | drop `.reversed`: `...tail.reversed` → `...tail` | U2 | U1, U3, U4 |
+| M2 | skip the walk-up: return `path` on the first `FileSystemException` | U1, U2 | U3, U4 |
+| M3 | drop the basename re-append: `joinAll([resolved])` | U1, U2, U3, U4 | — |
+
+## Run-verified regression pins (characterization, NOT edited)
+
+| id | behavior | traces | kind | state | test |
+| --- | --- | --- | --- | --- | --- |
+| P1 | view pins stay green: U-V3, U-V11/U-V12/U-V13, U-1603a/U-1603b (and the rest of the file) | SC-4, A6 | characterization | PENDING | `dart test --preset=all test/plugins/tdd/commands/view_command_test.dart` |
+| P2 | wire pins stay green: U-W3, U-1603e (and the rest of the file) | SC-4, A6 | characterization | PENDING | `dart test --preset=all test/plugins/tdd/wire_command_test.dart` |
+| P3 | func (third consumer) stays green: U-1603c, U-F5 and file | SC-4, A6 | characterization | PENDING | `dart test test/plugins/tdd/commands/func_command_test.dart` |
+
+## Documentation behavior (non-test, US1/FR-001/FR-002/SC-1)
+
+| id | behavior | traces | verified by |
+| --- | --- | --- | --- |
+| D1 | The helper's doc comment names: (a) the ABSOLUTE-input precondition, (b) the relative-input silent CWD-join failure mode, (c) the input-UNCHANGED no-ancestor fallback (asserts A1; A2's call-site re-read is T003's CALL-SITE RE-CHECK) | SC-1, FR-001, FR-002 | T003 read-through + comments-only `git diff` check (no executable change — FR-005) |
 
 ## Routing provenance
 
 route: A1 -> acceptance lane [fallback: docs audit — no suite run; verified by file read + git diff in T003/T004]
 route: A2 -> acceptance lane [fallback: call-site re-read audit — verified in T003 CALL-SITE RE-CHECK]
 route: A3 -> acceptance lane [fallback: legacy description classifier matched — asserted by U1 at the helper level]
-route: A4 -> acceptance lane [fallback: legacy description classifier matched — asserted by U2 + killed mutant M1]
-route: A5 -> acceptance lane [fallback: legacy description classifier matched — asserted by U3]
-route: A6 -> acceptance lane [fallback: legacy description classifier matched — asserted by U4 + U6 pin regression]
-route: U1 -> unit lane [fallback: legacy description classifier matched — no declared contract row for path_canonicalizer]
-route: U2 -> unit lane [fallback: legacy description classifier matched — no declared contract row for path_canonicalizer]
-route: U3 -> unit lane [fallback: legacy description classifier matched — no declared contract row for path_canonicalizer]
-route: U4 -> unit lane [fallback: legacy description classifier matched — no declared contract row for path_canonicalizer]
-route: U5 -> unit lane [fallback: mutation-sampling evidence, not a suite run]
-route: U6 -> unit lane [fallback: gate aggregation, not a suite run]
+route: A4 -> acceptance lane [fallback: legacy description classifier matched — asserted by U2 at the helper level]
+route: A5 -> acceptance lane [fallback: legacy description classifier matched — asserted by U3 at the helper level]
+route: A6 -> acceptance lane [fallback: legacy description classifier matched — asserted by U4 + U6/P1-P3 gates]
+
+## Invariants and edge cases still to place
+
+- The no-ancestor-resolves fallback (`parent.path == dir.path` → return
+  `path`) is DEFENSIVE and unreachable through the public surface on POSIX:
+  the filesystem root always resolves, so the loop exits normally at the
+  root. Pinned as documented contract (D1c) + the U4 root-boundary
+  behavior; NOT unit-hosted (a filesystem seam would restructure the
+  helper — forbidden by the chore's constraint).
+- Relative input is OUT OF CONTRACT (documented failure mode: silent
+  CWD-join). Deliberately not asserted at runtime and not pinned by a test
+  that would freeze the CWD-join misbehavior as API.
+- Windows: U1/U3 create symlinks → `onPlatform: {'windows': Skip(...)}`,
+  matching U-1603a's convention.
+
+## Out of scope
+
+- Asserting or absolutizing inside the helper: behavior change, forbidden
+  by the chore constraint (spec Out-of-scope).
+- A `@visibleForTesting` filesystem seam: restructures the helper for a
+  POSIX-unreachable branch (spec Out-of-scope).
+- func_command.dart edits: already imports the shared helper (spec
+  Out-of-scope; P3 runs it read-only).
+
+## Verification commands
+
+Copied verbatim from `.specify/memory/tdd-profile.md` at planning time
+(adjusted for the tier reality discovered at baseline: the view/wire pin
+suites carry `@Tags(['slow'])` and run ZERO tests under the default preset —
+they require `--preset=all`; func is fast-tier and runs bare):
+
+- Single test: `dart test <file> --plain-name "<name>"`
+- New unit pins: `dart test test/plugins/tdd/services/path_canonicalizer_test.dart`
+- Pin suites (slow tier): `dart test --preset=all test/plugins/tdd/commands/view_command_test.dart test/plugins/tdd/wire_command_test.dart`
+- Third consumer (fast tier): `dart test test/plugins/tdd/commands/func_command_test.dart`
+- Static analysis (scope): `dart analyze lib/src/plugins/tdd/services/ test/plugins/tdd/services/`
+- Format gate: `dart format --output=none --set-exit-if-changed lib/src/plugins/tdd/services/ test/plugins/tdd/services/`
+- Full suite: `dart test` — do NOT run for feature work (tdd-profile);
+  scoped subsets above are the contract
