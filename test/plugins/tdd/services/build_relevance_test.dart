@@ -420,6 +420,18 @@ void main() {
       );
     });
 
+    test('a line-ending-churned setup template runs the first build '
+        '(issue #1655 — editor churn re-owns the file)', () async {
+      writeLibFile('a.dart', 'int a() => 1;\n');
+      File(p.join(root.path, 'build.yaml')).writeAsStringSync(
+        DependencyWirer.buildYamlContent.replaceAll('\n', '\r\n'),
+      );
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
     test('the pristine setup build.yaml PLUS a non-Dart source in a walked '
         'root still runs the first build (issue #1655 — the scan still '
         'governs)', () async {
