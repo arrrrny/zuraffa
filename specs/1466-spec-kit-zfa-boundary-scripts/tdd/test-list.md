@@ -168,5 +168,6 @@ These behaviors trace to the Given/When/Then scenarios in the user stories.
 
 **V1**: README documents all four integration points with arguments and JSON shapes
 **Criterion**: SC-4 + US3-1..3 - README.md names sync/read-profile/read-evidence/tick with skill-step mappings, argument tables, exit contracts
-**Status**: PENDING
+**Status**: DONE
+**Evidence**: README.md written at .specify/scripts/bash/README.md naming all four scripts with the skill-step integration map, argument tables, JSON shapes, exit contracts, and fallback rules (verified by inspection against the suite's executed calls)
 **Note**: non-behavioral (markdown) — verified by inspection + link-check against test suite coverage, not by a RED cycle.
