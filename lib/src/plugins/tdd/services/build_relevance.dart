@@ -84,7 +84,12 @@
 /// presence cannot discriminate "nothing builder-facing". After a static
 /// skip there is still no state, so every later refactor re-enters the
 /// static scan until a real build creates the graph: self-consistent,
-/// and the build happens exactly when a builder-facing file appears.
+/// and the build happens exactly when a builder-facing file appears. The
+/// cost of that re-scan is a full content read of every Dart file under
+/// the roots on each refactor (the incremental path reads mtimes only) —
+/// negligible for a fresh app, a per-refactor full-tree read for a large
+/// no-graph tree, and still orders of magnitude cheaper than the
+/// entrypoint AOT compile the skip avoids.
 ///
 /// The price of having no "before" state is the deletion blind spot, and
 /// the gate does NOT pretend otherwise: [canSkipTerminalBuild] runs on any
@@ -123,6 +128,26 @@ class BuildRelevance {
     '.zfa.json',
     '.dart_tool/package_config.json',
   };
+
+  /// The four source roots every tree walk covers: [fingerprint]'s
+  /// content hash, the refactor gate's incremental mtime walk, and the
+  /// #1634 static first-build scan. One constant, not three inline
+  /// literals (issue #1634 review): the static scan's SKIP is only sound
+  /// if it covers exactly what the incremental walk considers, so the
+  /// consumers must not be able to drift apart.
+  static const List<String> _walkedRoots = <String>[
+    'lib',
+    'test',
+    'bin',
+    'tool',
+  ];
+
+  /// The shared walk filter for [_walkedRoots]: files only, and never
+  /// `*.g.dart.part` (build_runner's transient pre-output, not a real
+  /// source). Returns the entity as a [File] so the callers' reads keep
+  /// the type promotion — the same idiom all three walks apply.
+  static File? _walkedSource(FileSystemEntity entity) =>
+      entity is File && !entity.path.endsWith('.g.dart.part') ? entity : null;
 
   /// The builder-facing annotations `zfa build`'s stages consume: the
   /// zorphy entity builder, json_serializable, the hive_ce generators,
@@ -178,7 +203,8 @@ class BuildRelevance {
   ///
   /// It claims what the static scan PROVES — no builder-facing
   /// annotation, no non-Dart source inside the walked roots, and no
-  /// `build.yaml` anywhere in the project — and states the boundaries
+  /// `build.yaml` at the project root (the only location build_runner
+  /// reads config from) — and states the boundaries
   /// honestly: the skipped `zfa build`'s whole-project
   /// `dart analyze lib/` stage was skipped with it (these plain-Dart
   /// writes were not analyzer-graded), and a tree whose generated
@@ -207,7 +233,7 @@ class BuildRelevance {
     required String projectRoot,
   }) async {
     final hashes = <String, String>{};
-    for (final dir in const ['lib', 'test', 'bin', 'tool']) {
+    for (final dir in _walkedRoots) {
       final directory = Directory(p.join(projectRoot, dir));
       if (!directory.existsSync()) continue;
       await _hashTree(directory, projectRoot, hashes);
@@ -341,15 +367,15 @@ class BuildRelevance {
       final markerModified = marker.statSync().modified;
 
       final newer = <String>[];
-      for (final dir in const ['lib', 'test', 'bin', 'tool']) {
+      for (final dir in _walkedRoots) {
         final directory = Directory(p.join(projectRoot, dir));
         if (!directory.existsSync()) continue;
         await for (final entity in directory.list(recursive: true)) {
-          if (entity is! File) continue;
-          if (entity.path.endsWith('.g.dart.part')) continue;
-          if (entity.statSync().modified.isBefore(markerModified)) continue;
+          final file = _walkedSource(entity);
+          if (file == null) continue;
+          if (file.statSync().modified.isBefore(markerModified)) continue;
           newer.add(
-            p.relative(entity.path, from: projectRoot).replaceAll(r'\', '/'),
+            p.relative(file.path, from: projectRoot).replaceAll(r'\', '/'),
           );
         }
       }
@@ -389,14 +415,14 @@ class BuildRelevance {
     required String projectRoot,
   }) async {
     if (File(p.join(projectRoot, 'build.yaml')).existsSync()) return null;
-    for (final dir in const ['lib', 'test', 'bin', 'tool']) {
+    for (final dir in _walkedRoots) {
       final directory = Directory(p.join(projectRoot, dir));
       if (!directory.existsSync()) continue;
       await for (final entity in directory.list(recursive: true)) {
-        if (entity is! File) continue;
-        if (entity.path.endsWith('.g.dart.part')) continue;
-        if (!entity.path.endsWith('.dart')) return null;
-        if (builderFacingAnnotation.hasMatch(await entity.readAsString())) {
+        final file = _walkedSource(entity);
+        if (file == null) continue;
+        if (!file.path.endsWith('.dart')) return null;
+        if (builderFacingAnnotation.hasMatch(await file.readAsString())) {
           return null;
         }
       }
@@ -410,12 +436,12 @@ class BuildRelevance {
     Map<String, String> hashes,
   ) async {
     await for (final entity in directory.list(recursive: true)) {
-      if (entity is! File) continue;
-      if (entity.path.endsWith('.g.dart.part')) continue;
+      final file = _walkedSource(entity);
+      if (file == null) continue;
       final relative = p
-          .relative(entity.path, from: projectRoot)
+          .relative(file.path, from: projectRoot)
           .replaceAll(r'\', '/');
-      hashes[relative] = _digestOf(await entity.readAsBytes());
+      hashes[relative] = _digestOf(await file.readAsBytes());
     }
   }
 

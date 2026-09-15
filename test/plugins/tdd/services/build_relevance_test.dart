@@ -314,6 +314,40 @@ void main() {
       );
     });
 
+    // Issue #1634 review (finding 4): the tests above place their
+    // fixtures only under `lib/`, so a typo'd walked-root entry would
+    // ship green. Every root must independently fire BOTH static run
+    // triggers; each fixture is removed before the next iteration so the
+    // roots stay isolated. The root list here is deliberately its own
+    // literal — an independent audit of the production constant, not a
+    // copy of it.
+    test('every walked root independently fires the static triggers '
+        '(non-Dart + annotation — issue #1634 review)', () async {
+      const triggers = <String, Map<String, String>>{
+        'non-Dart source': {'i18n/strings.i18n.json': '{"title": "hi"}\n'},
+        'builder-facing annotation': {'a.dart': '@Zorphy\nclass A {}\n'},
+      };
+      for (final walked in const ['lib', 'test', 'bin', 'tool']) {
+        for (final trigger in triggers.entries) {
+          for (final fixture in trigger.value.entries) {
+            final file = File(p.join(root.path, walked, fixture.key))
+              ..createSync(recursive: true)
+              ..writeAsStringSync(fixture.value);
+            expect(
+              await BuildRelevance.refactorBuildSkipNote(
+                projectRoot: root.path,
+              ),
+              isNull,
+              reason:
+                  'a ${trigger.key} under $walked/ must run the first '
+                  'build',
+            );
+            file.deleteSync();
+          }
+        }
+      }
+    });
+
     test('a fresh app with a build.yaml at the root runs the first build '
         '(issue #1634)', () async {
       writeLibFile('a.dart', 'int a() => 1;\n');

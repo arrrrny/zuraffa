@@ -96,3 +96,75 @@ Source: `tdd/cycle-log.md` T001.
 `tdd/cycle-log.md`, this file — all under
 `.specify/specs/1634-fresh-app-first-build-skip/`, committed on the
 feature branch alongside the implementation.
+
+## 9. Post-review round (PR #1641 review, 2026-09-15)
+
+### 9a. Real-scaffold gate run (review finding 1 — closes the synthetic-only evidence gap)
+
+The reviewer's finding: every SC-1 row above traces to `_ScratchProject`
+fixtures, so US1's headline was never checked against a REAL `zfa setup`
+output — the exact app class issue #1634 measured. Closed with the
+requested real run on this branch (zfa v6.3.0, AOT binary via
+`scripts/zfa`, fresh `zfa setup calculator`, flutter default):
+
+- Scaffold facts: `build.yaml` EXISTS at the app root (written
+  unconditionally by setup step 3, `DependencyWirer.ensureProjectStructure`
+  → `buildYamlContent` — zorphy + json_serializable +
+  `source_gen:combining_builder` registration); ZERO builder-facing
+  annotations under `lib/test/bin/tool`; ZERO non-Dart files under the
+  walked roots.
+- Gate verdict on the real scaffold: **RUN** (`refactorBuildSkipNote`
+  → null — the build pass spawns and pays the one-time entrypoint AOT
+  compile).
+- Control: the IDENTICAL tree with only `build.yaml` removed → **SKIP**
+  (`staticFirstBuildSkippedNote`).
+
+Probe (run as an untracked one-off `dart run` script against the
+scaffold; not committed — recreation is two lines):
+
+```dart
+import 'package:zuraffa/src/plugins/tdd/services/build_relevance.dart';
+
+Future<void> main(List<String> args) async {
+  final note = await BuildRelevance.refactorBuildSkipNote(
+    projectRoot: args.first,
+  );
+  print(note ?? 'RUN (null note)');
+}
+```
+
+**Verdict: US1 does NOT fire on a standard `zfa setup`/`zfa init` app.**
+The scaffold-written `build.yaml` alone trips the static scan's root
+`build.yaml` rule (1c) — its "presence without a graph means a builder
+was configured" premise does not hold for scaffolded apps, where setup
+writes the file BEFORE any build exists. Everything else about the
+scaffold is skip-shaped (no annotations, no non-Dart sources in the
+walked roots — the control proves the skip fires the moment the file is
+absent). The gate behaved fail-safe (RUN) exactly as designed; whether a
+scaffold-written `build.yaml` should discriminate is a SEMANTICS
+DECISION left to the maintainer and is deliberately NOT changed in this
+commit — the review thread asked for the real evidence, which this
+section records. Consequence if unchanged: #1634's remedy 1 lands only
+for trees without a root `build.yaml` (e.g. bare `flutter create`/`dart
+create` apps), and the standard zuraffa flow keeps paying the ~4 min
+AOT compile on its first refactor.
+
+### 9b. Review-fix changes in this commit (findings 2–5)
+
+- `build_relevance.dart`: the walked-roots list and the `is! File` /
+  `*.g.dart.part` filter idiom, previously inlined in THREE methods
+  (`fingerprint`, the incremental mtime walk, the static first-build
+  scan), are now one `static const List<String> _walkedRoots` + one
+  `_walkedSource` filter (finding 2); class doc gained the static
+  re-scan cost sentence (finding 3); `staticFirstBuildSkippedNote`'s doc
+  now says "at the project root" instead of "anywhere in the project"
+  (finding 5). Decision logic is byte-identical — a pure extraction.
+- `build_relevance_test.dart`: +1 parameterized test — every walked root
+  (`lib/test/bin/tool`) must independently fire BOTH static run triggers
+  (non-Dart source, builder-facing annotation), each fixture isolated
+  per iteration (finding 4).
+- Re-run after the fixes: `dart test
+  test/plugins/tdd/services/build_relevance_test.dart` → **27/27**
+  (26 + the new audit test); `test/plugins/tdd/services/refactor_passes_test.dart`
+  → **14/14** (unchanged); `dart analyze` on both files → `No issues
+  found!`; `dart format lib test` → clean.
