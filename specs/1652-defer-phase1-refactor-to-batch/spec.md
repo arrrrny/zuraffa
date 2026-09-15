@@ -66,45 +66,41 @@ preserved verbatim.
 1. **Given** a forward run where a behavior's make certifies it green
    during the phase-1 drive (the reported zcalc shape: gen → verify-red
    → make in one uninterrupted pass), **When** the drive reaches that
-   behavior's refactor step, **Then** the refactor is DEFERRED to the
-   phase-2 batch pass — no `zfa tdd refactor` subprocess is spawned in
-   phase 1 (absent from the zfa argv log), the driver prints the
-   existing `[run] <id> refactor -> deferred (phase 2)` line, and the
-   per-behavior cycle pays zero preflight/registry cost after make.
+   behavior's refactor step, **Then** the driver defers the refactor to the phase-2 batch pass instead of spawning any refactor subprocess in phase 1, printing the existing deferral line.
+   The deferral pays zero preflight/registry cost after make: between
+   the make-green and the refactor step no human and no external
+   process touched the tree, so the preflight would re-prove what the
+   run itself just proved.
    **Type**: acceptance
 2. **Given** the same run reaching the phase-2b batch pass with N green
-   behaviors, **When** the batch refactors the behaviors in list order,
-   **Then** the full-suite gate still fires at most once per lane per
-   run — the first batch spawn either pays the full pipeline and
-   records the pass-batch ledger (#1588/#1624, untouched) or inherits
-   make's post-state record when it matches (PR #1662, untouched), and
-   every subsequent batch spawn on the byte-stable tree inherits the
-   gate — all N spawns carry `--pass-batch`.
+   behaviors, **When** the batch refactors the behaviors in list order, **Then** the batch spawns one refactor per green behavior, each carrying the pass-batch opt-in, and the full-suite gate still fires at most once per lane per run.
+   The first batch spawn either pays the full pipeline and records the
+   pass-batch ledger (#1588/#1624, untouched) or inherits make's
+   post-state record when it matches (PR #1662, untouched), and every
+   subsequent batch spawn on the byte-stable tree inherits the gate.
    **Type**: acceptance
 3. **Given** a resumed run where a behavior re-enters phase 1 directly
    at refactor (its state is already green/mocked from a previous run,
    no make runs in this drive), **When** the suite is otherwise fully
-   green with no pending-with-artifacts behaviors, **Then** the refactor
-   runs in phase 1 exactly as before — the pre-#1652 window for
-   non-forward re-entry is unchanged (SC-3 for resume shapes; the
-   #1624 phase-1 spawn still carries `--pass-batch`).
+   green with no pending-with-artifacts behaviors, **Then** the refactor runs in phase 1 exactly as before this feature, carrying the pass-batch opt-in.
+   The pre-feature window for non-forward re-entry is unchanged (SC-3
+   for resume shapes; the issue-1624 phase-1 spawn contract is
+   preserved verbatim).
    **Type**: acceptance
 4. **Given** a hand-stepped behavior (#1568: make stopped
    `generation-error` on a planner-declared hand-step seam) or a
    blocked contract (#1007/#1544: verify-red parked it), **When** the
-   run drives the remaining behaviors, **Then** neither shape's refactor
-   behavior changes — hand-steps keep their honest red with
+   run drives the remaining behaviors, **Then** neither shape's refactor behavior changes and neither ever reaches the new deferral arm.
+   Hand-steps keep their honest red with
    `stopped_at=<id>:hand`/`hand_steps=N` reporting, blocked contracts
-   keep their park with `result=blocked blocked=N`, and neither ever
-   reaches the new deferral arm (make never succeeded for them).
+   keep their park with `result=blocked blocked=N`, and make never
+   succeeded for either shape.
    **Type**: acceptance
 5. **Given** a forward run where a LATER behavior's make fails (honest
-   stop) before phase 2b, **When** the run stops, **Then** the already-
-   made behaviors keep their green state with deferred refactors — no
-   refactor evidence is fabricated, no phase-2b pass runs, and the
-   resume re-drives them through the same deferral into a later batch
-   pass (bounded, resumable progress, FR-007; never a fake DONE,
-   FR-008).
+   stop) before phase 2b, **When** the run stops, **Then** the already-made behaviors keep their green state with deferred refactors and no phase-2b pass runs.
+   No refactor evidence is fabricated, and the resume re-drives them
+   through the same deferral into a later batch pass (bounded,
+   resumable progress, FR-007; never a fake DONE, FR-008).
    **Type**: acceptance
 
 ## Functional Requirements
@@ -119,20 +115,28 @@ preserved verbatim.
   the same `[run] <id> refactor -> deferred (phase 2)` line, the same
   phase-2b re-drive, the same state advance semantics — so the phase-2b
   pass, the ledger, and the journal see no new shapes.
+  **Type**: manual (driver-level contract; exercised by the acceptance
+  suite against the real run driver, not by a derived unit behavior)
 - **FR-003**: A phase-1 refactor reached WITHOUT a same-drive make (the
   resume re-entry window from `_stepsFor`) MUST keep its pre-#1652
   deferral predicate (suite has reds OR pending-with-artifacts) and run
   in phase 1 when the suite is fully green, carrying `--pass-batch`
-  (#1624) as before.
+  (issue 1624) as before.
+  **Type**: manual (driver-level contract; exercised by the acceptance
+  suite against the real run driver, not by a derived unit behavior)
 - **FR-004**: The deferral predicate evaluation MUST remain
   suite-global in the existing direction: the new same-drive-make
   condition may only cause an EARLIER deferral (fewer phase-1 spawns),
   never suppress a deferral the old predicate already produced.
+  **Type**: manual (driver-level contract; exercised by the acceptance
+  suite against the real run driver, not by a derived unit behavior)
 - **FR-005**: No state machine transitions change: `refactor` success
   still lands DONE via the existing `_targetStateFor`, a deferred
   refactor still leaves the behavior at its pre-deferral state (green),
   and the completion gate (`allDone`) still requires every behavior
   DONE through the phase-2b pass.
+  **Type**: manual (driver-level contract; exercised by the acceptance
+  suite against the real run driver, not by a derived unit behavior)
 
 ## Hard Constraints
 
