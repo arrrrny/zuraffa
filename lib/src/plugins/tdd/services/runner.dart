@@ -379,7 +379,10 @@ class SingleTestRunner {
   /// Post-process a scalar pulled from a `single:` key or the `- Single
   /// test:` bullet (issue #1535): unescape the YAML double-quoted style's
   /// escape sequences, normalize the legacy placeholders, then reject any
-  /// UNKNOWN placeholder spelling at LOAD time. The two failure modes that
+  /// UNKNOWN placeholder spelling at LOAD time. Regex quantifier braces
+  /// (`{2}`, `{1,3}`) are exempt — they are regex syntax, not placeholders,
+  /// so a `--name "(ab){2}"` template stays expressible. The two failure
+  /// modes that
   /// used to survive loading here and surface downstream as load-error /
   /// runner-error (exit 79) on an honest red — a misclassification that
   /// dead-ended `zfa tdd run` on a profile the toolchain itself accepted.
@@ -392,11 +395,15 @@ class SingleTestRunner {
     var template = doubleQuoted ? _yamlUnescapeDoubleQuoted(scalar) : scalar;
     template = _normalize(template.trim());
     final unknown = <String>[];
+    // Regex quantifier braces carry no letters, so they can never be a
+    // placeholder spelling — whitelist them to keep `--name "(ab){2}"`
+    // templates expressible (review of PR #1665).
+    final quantifier = RegExp(r'^\{\d+(?:,\d+)?\}$');
     for (final match in RegExp(r'\{[^{}]*\}|<[^<>]*>').allMatches(template)) {
       final token = match.group(0)!;
-      if (token != '{file}' && token != '{name}' && !unknown.contains(token)) {
-        unknown.add(token);
-      }
+      if (token == '{file}' || token == '{name}') continue;
+      if (quantifier.hasMatch(token)) continue;
+      if (!unknown.contains(token)) unknown.add(token);
     }
     if (unknown.isNotEmpty) {
       throw StateError(
@@ -437,7 +444,10 @@ class SingleTestRunner {
   /// must survive byte-for-byte), which is exactly why the quote style is
   /// tracked during extraction. An escape NOT in the YAML table is kept
   /// verbatim — lenient where YAML itself would error, so a template like
-  /// `--name "\d+"` survives a double-quoted authoring style.
+  /// `--name "\d+"` survives a double-quoted authoring style. The same
+  /// leniency covers a `\x`/`\u`/`\U` form whose hex resolves above the
+  /// Unicode max (0x10FFFF): kept verbatim instead of a raw `RangeError`
+  /// from `writeCharCode`.
   String _yamlUnescapeDoubleQuoted(String scalar) {
     if (!scalar.contains(r'\')) return scalar;
     const simple = <String, int>{
@@ -483,7 +493,9 @@ class SingleTestRunner {
       };
       if (hexDigits > 0) {
         final code = _hexCodePointAt(scalar, i + 2, hexDigits);
-        if (code != null) {
+        // > 0x10FFFF is invalid Unicode (YAML 1.2 forbids it): keep the
+        // escape verbatim rather than a raw RangeError from writeCharCode.
+        if (code != null && code <= 0x10FFFF) {
           out.writeCharCode(code);
           i += 2 + hexDigits;
           continue;

@@ -129,6 +129,83 @@ void main() {
     });
   });
 
+  group(
+    '#1535 YAML §5.7 hex table + verbatim leniency (AC-1 unit coverage)',
+    () {
+      test(
+        'unescapes the x/u/U hex forms including a non-BMP code point',
+        () async {
+          final fx = await TddFixture.create(writeProfile: false);
+          try {
+            final template = await loadSingleFromKeys(
+              fx.root,
+              r'single: "echo \x41\u00e9\U0001F600"'
+              '\n'
+              r"suite: 'dart test'"
+              '\n'
+              r"file: 'dart test {file}'",
+            );
+            expect(template, 'echo Aé😀');
+          } finally {
+            fx.dispose();
+          }
+        },
+      );
+
+      test('keeps an escape outside the YAML table verbatim', () async {
+        final fx = await TddFixture.create(writeProfile: false);
+        try {
+          final template = await loadSingleFromKeys(
+            fx.root,
+            r'single: "dart test {file} --name \"\d+ items\""'
+            '\n'
+            r"suite: 'dart test'"
+            '\n'
+            r"file: 'dart test {file}'",
+          );
+          expect(template, r'dart test {file} --name "\d+ items"');
+        } finally {
+          fx.dispose();
+        }
+      });
+
+      test('keeps malformed hex verbatim', () async {
+        final fx = await TddFixture.create(writeProfile: false);
+        try {
+          final template = await loadSingleFromKeys(
+            fx.root,
+            r'single: "echo \xZZ"'
+            '\n'
+            r"suite: 'dart test'"
+            '\n'
+            r"file: 'dart test {file}'",
+          );
+          expect(template, r'echo \xZZ');
+        } finally {
+          fx.dispose();
+        }
+      });
+
+      test('keeps a hex escape resolving above the Unicode max verbatim '
+          '(no RangeError)', () async {
+        final fx = await TddFixture.create(writeProfile: false);
+        try {
+          final template = await loadSingleFromKeys(
+            fx.root,
+            r'single: "echo \UFFFFFFFF"'
+            '\n'
+            r"suite: 'dart test'"
+            '\n'
+            r"file: 'dart test {file}'",
+          );
+          expect(template, r'echo \UFFFFFFFF');
+        } finally {
+          fx.dispose();
+        }
+      });
+    },
+  );
+
   group('#1535 unknown placeholder rejection at load time (AC-2)', () {
     test('rejects unknown placeholder <test name> at load time naming accepted '
         'placeholders', () async {
@@ -168,6 +245,48 @@ void main() {
             r"file: 'dart test {file}'",
           );
           expect(template, 'dart test {file} --plain-name "{name}"');
+        } finally {
+          fx.dispose();
+        }
+      },
+    );
+
+    test(
+      'regex quantifier braces in a --name template are not placeholders',
+      () async {
+        final fx = await TddFixture.create(writeProfile: false);
+        try {
+          final template = await loadSingleFromKeys(
+            fx.root,
+            r'single: "dart test {file} --name \"(ab){2}\""'
+            '\n'
+            r"suite: 'dart test'"
+            '\n'
+            r"file: 'dart test {file}'",
+          );
+          expect(template, 'dart test {file} --name "(ab){2}"');
+        } finally {
+          fx.dispose();
+        }
+      },
+    );
+
+    test(
+      'regex quantifier braces survive in a single-quoted --name template',
+      () async {
+        final fx = await TddFixture.create(writeProfile: false);
+        try {
+          final template = await loadSingleFromKeys(
+            fx.root,
+            "single: 'dart test {file} --name "
+            '"(ab){2}"'
+            "'"
+            '\n'
+            r"suite: 'dart test'"
+            '\n'
+            r"file: 'dart test {file}'",
+          );
+          expect(template, 'dart test {file} --name "(ab){2}"');
         } finally {
           fx.dispose();
         }
