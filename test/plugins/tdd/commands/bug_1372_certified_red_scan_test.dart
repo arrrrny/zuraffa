@@ -1,3 +1,6 @@
+@Tags(['slow'])
+library;
+
 // Issue #1372 — `_hasCertifiedRed` early-returned on the FIRST
 // behavior-matching cycle-log section, so a stale `kind: error` section
 // from an earlier failed attempt permanently shadowed a later certified

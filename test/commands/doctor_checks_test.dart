@@ -26,6 +26,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/commands/doctor_checks.dart';
+import '../helpers/cwd_mutex.dart';
 
 const _tddDevDeps = {'mocktail', 'coverage', 'mutation_test'};
 
@@ -92,12 +93,20 @@ Future<File> _writeBaseline(
 }
 
 Future<T> _withDir<T>(String path, Future<T> Function() body) async {
+  // The sandbox chdir runs inside the shared cross-isolate CWD lock (the
+  // same file CliRunner's `-C` windows serialize through, issue #1096):
+  // under the #1632 `-j4` lane, an unserialized window lets a sibling's
+  // chdir flip the process CWD mid-doctor, and the `saved` capture can
+  // land inside a sibling's temp fixture — a directory its teardown
+  // deletes before this restore.
+  await CwdMutex.acquire();
   final saved = Directory.current;
   Directory.current = path;
   try {
     return await body();
   } finally {
     Directory.current = saved;
+    CwdMutex.release();
   }
 }
 
@@ -462,7 +471,7 @@ void main() {
         final runner = CliRunner(exitOnCompletion: false);
         final out = await runner.runCapturing(['doctor']);
         expect(out, contains('[FAIL] deps'));
-        expect(exitCode, 1);
+        expect(CliRunner.lastDispatchedExitCode, 1);
       });
 
       final healthy = await _sandbox();
@@ -478,7 +487,7 @@ void main() {
       await _withDir(healthy.path, () async {
         final runner = CliRunner(exitOnCompletion: false);
         await runner.runCapturing(['doctor']);
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
       });
     });
 
@@ -493,7 +502,7 @@ void main() {
           final runner = CliRunner(exitOnCompletion: false);
           final out = await runner.runCapturing(['doctor', '--migration-only']);
           expect(out.contains('Environment Checks'), isFalse);
-          expect(exitCode, 0);
+          expect(CliRunner.lastDispatchedExitCode, 0);
         });
       },
     );
@@ -509,7 +518,7 @@ void main() {
         final out = await runner.runCapturing(['doctor', '--dry-run']);
         expect(out, contains('would fix: dart pub add dev:mocktail'));
         expect(out, contains('would fix'));
-        expect(exitCode, 1);
+        expect(CliRunner.lastDispatchedExitCode, 1);
       });
 
       expect(

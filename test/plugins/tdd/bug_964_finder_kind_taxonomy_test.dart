@@ -524,7 +524,7 @@ Widget subject_${id.toLowerCase().replaceAll('-', '_')}() => throw Unimplemented
         '--project',
         fx.root.path,
       ]);
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('A4')).readAsString();
       expect(
         subject,
@@ -552,7 +552,7 @@ Widget subject_${id.toLowerCase().replaceAll('-', '_')}() => throw Unimplemented
         '--project',
         fx.root.path,
       ]);
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('A3')).readAsString();
       expect(subject, isNot(contains("Text('An error occurred')")));
       // No assertions rendered anything → the behavior-id marker text
@@ -575,7 +575,7 @@ Widget subject_${id.toLowerCase().replaceAll('-', '_')}() => throw Unimplemented
           '--project',
           fx.root.path,
         ]);
-        expect(exitCode, 0, reason: 'out: $out');
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
         final subject = await File(fx.subjectPathOf('A1')).readAsString();
         expect(subject, contains("Text('Welcome back')"));
       },
@@ -597,7 +597,6 @@ Widget subject_${id.toLowerCase().replaceAll('-', '_')}() => throw Unimplemented
 
     tearDown(() {
       fx.dispose();
-      exitCode = 0;
     });
 
     /// Register a behavior whose test file is a WIDGET test in the
@@ -659,7 +658,7 @@ void main() {
         reason: 'out: $out',
       );
       expect(out, contains('route-outcome'));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       // The certified lie must never land in the ledger.
       expect(File(fx.cycleLogPath).existsSync(), isFalse);
     });
@@ -829,7 +828,7 @@ void main() {
         ),
         reason: 'out: $out',
       );
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
     });
 
     test(
@@ -873,7 +872,7 @@ void main() {
               'scaffolded tests are already excluded from green accounting; '
               'their reds stay the bootstrap honest red — out: $out',
         );
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
       },
     );
 
@@ -914,7 +913,7 @@ void main() {
         contains('classification=assertion certified=true'),
         reason: 'out: $out',
       );
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
     });
   });
 }

@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Bug 1198 (part of #908 P0) — template self-hosting: `route` template.
 //
 // Trust-tier loop against the fixture entity: structural (route table +

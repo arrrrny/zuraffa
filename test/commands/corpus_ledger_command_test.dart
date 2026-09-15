@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Command-level tests for `zfa corpus ledger` — epic #1017 CORPUS-WALK,
 // child issue "#1017 zfa corpus ledger --target=zik_zak — ledger as merge
 // gate".

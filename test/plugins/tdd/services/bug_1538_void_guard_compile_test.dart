@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 // Issue #1538 — a VOID-returning traced contract emitted a NON-COMPILING
 // guard test. `UnitContractShape.of` treats `void` as a renderable scalar,
 // so the paired subject stub renders the declared return verbatim

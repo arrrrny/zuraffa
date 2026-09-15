@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Spec 1117 (issue #1117) — Service generator, engine trust tier:
 // COMPILE bar.
 //

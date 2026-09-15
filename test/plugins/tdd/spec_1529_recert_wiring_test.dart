@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Spec 1529 (US3) — the make command WIRES the trimmed re-certification.
 //
 // With a run-cached full-suite baseline and a neighbor test that imports

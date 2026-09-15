@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 // Spec 1002 — the `zfa engine check <Entity>` top-level verb.
 //
 // New verb: resolves all getIt<T>() calls in the generated engine against

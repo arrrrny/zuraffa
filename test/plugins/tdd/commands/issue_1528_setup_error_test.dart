@@ -1,3 +1,6 @@
+@Tags(['slow'])
+library;
+
 // Issue #1528 — fresh-project first run stops with classification=unresolved
 // on a missing TDD profile: a SETUP condition misclassified, and the
 // idempotent fix (`tdd init`) not auto-applied.

@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 /// Bug #915 — the differential harness: fixture parity between mock and
 /// real adapters.
 ///

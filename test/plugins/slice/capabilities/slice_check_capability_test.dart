@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Spec 1114 — slice compliance check tests.
 //
 // `zfa slice check <feature-id>` validates:

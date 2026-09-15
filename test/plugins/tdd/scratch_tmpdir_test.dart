@@ -1,5 +1,5 @@
 @TestOn('linux || mac-os')
-@Tags(['regression'])
+@Tags(['regression', 'e2e'])
 // Spec 1520 — per-run scratch TMPDIR (issue #1520).
 //
 // Every `dart test` child of a tdd command writes a
