@@ -187,4 +187,135 @@ Filesystem     1K-blocks      Used Available Capacity iused      ifree %iused  M
       expect(freeBytesFromDfOutput(output), 137295040 * 1024);
     },
   );
+
+  // C6 — the preflight's fail-open branches (PR #1650 review finding 2):
+  // FR-003's "the preflight is skipped when free space cannot be
+  // determined" lives entirely on these paths — every one of them must
+  // return null (go, unguarded) instead of throwing or refusing. The
+  // `dfRunner` stub makes the branch hermetic: no real volume, no real
+  // process; a stub that throws StateError proves `df` never even spawns.
+  group('C6: fullSuiteBaselinePreflight fail-open branches', () {
+    /// A `ProcessResult` shaped like a real `df -k <path>` run.
+    ProcessResult dfRun(int exitCode, String stdout) =>
+        ProcessResult(0, exitCode, stdout, '');
+
+    const dfBlock = '''
+Filesystem     1K-blocks      Used Available Capacity iused      ifree %iused  Mounted on
+/dev/disk1s4s1 244121328 105678288 137295040    44% 1287967 1372167533    0%   /
+''';
+
+    void seedSuites(int n) {
+      final testDir = Directory(p.join(root.path, 'test'))
+        ..createSync(recursive: true);
+      for (var i = 0; i < n; i++) {
+        File(
+          p.join(testDir.path, 'suite${i}_test.dart'),
+        ).writeAsStringSync('void main() {}');
+      }
+    }
+
+    test(
+      'C6a: a missing test/ dir skips the preflight (df never spawns)',
+      () async {
+        expect(
+          await fullSuiteBaselinePreflight(
+            root.path,
+            environment: env,
+            dfRunner: (args) => throw StateError('df must not spawn'),
+          ),
+          isNull,
+        );
+      },
+    );
+
+    test(
+      'C6b: a suite-less tree skips the preflight (df never spawns)',
+      () async {
+        Directory(p.join(root.path, 'test')).createSync(recursive: true);
+        File(
+          p.join(root.path, 'test', 'helpers.dart'),
+        ).writeAsStringSync('void f() {}');
+        expect(
+          await fullSuiteBaselinePreflight(
+            root.path,
+            environment: env,
+            dfRunner: (args) => throw StateError('df must not spawn'),
+          ),
+          isNull,
+        );
+      },
+    );
+
+    test('C6c: a nonzero df exit skips the preflight (null)', () async {
+      seedSuites(2);
+      expect(
+        await fullSuiteBaselinePreflight(
+          root.path,
+          environment: env,
+          dfRunner: (args) async => dfRun(1, ''),
+        ),
+        isNull,
+      );
+    });
+
+    test('C6d: unparseable df output skips the preflight (null)', () async {
+      seedSuites(2);
+      expect(
+        await fullSuiteBaselinePreflight(
+          root.path,
+          environment: env,
+          dfRunner: (args) async => dfRun(0, 'not a df block\n'),
+        ),
+        isNull,
+      );
+    });
+
+    test('C6e: an unlaunchable df (ProcessException) skips the preflight '
+        '(review finding 1 regression — never a crash)', () async {
+      seedSuites(2);
+      expect(
+        await fullSuiteBaselinePreflight(
+          root.path,
+          environment: env,
+          dfRunner: (args) =>
+              throw const ProcessException('df', ['-k'], 'no such binary'),
+        ),
+        isNull,
+      );
+    });
+
+    test(
+      'C6f: a fixture tree with ample free space passes (null message)',
+      () async {
+        seedSuites(2);
+        expect(
+          await fullSuiteBaselinePreflight(
+            root.path,
+            environment: env,
+            dfRunner: (args) async => dfRun(0, dfBlock),
+          ),
+          isNull,
+        );
+      },
+    );
+
+    test(
+      'C6g: a fixture tree over the estimate is refused with a remedy',
+      () async {
+        seedSuites(2);
+        final message = await fullSuiteBaselinePreflight(
+          root.path,
+          environment: env,
+          dfRunner: (args) async => dfRun(
+            0,
+            'Filesystem 1K-blocks Used Available Capacity Mounted on\n'
+            '/dev/disk1 244121328 105678288 1024 44% /\n',
+          ),
+        );
+        expect(message, isNotNull);
+        expect(message, contains('--> fix:'));
+        expect(message, contains('2 suites'));
+      },
+    );
+  });
 }

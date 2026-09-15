@@ -69,14 +69,31 @@ class DiskPreflightRefusal implements Exception {
   String toString() => message;
 }
 
+/// The `df` spawn seam (PR #1650 review finding 2): the preflight's
+/// fail-open branches are pinned hermetically by stubbing this — no real
+/// volume or process is touched.
+typedef DfRunner = Future<ProcessResult> Function(List<String> arguments);
+
+Future<ProcessResult> _launchDf(List<String> arguments) =>
+    Process.run('df', arguments);
+
 /// The preflight for an UNSCOPED (whole-tree) baseline capture: counts the
 /// project's suites, reads the temp volume's free space via `df -k`, and
 /// returns [diskPreflightMessage]'s verdict. Null = go (or cannot tell —
-/// a missing `df`, a Windows runner, or a suite-less tree never blocks the
-/// loop; the sweep then runs unguarded exactly as before #1642).
+/// a missing/unlaunchable `df`, a Windows runner, or a suite-less tree
+/// never blocks the loop; the sweep then runs unguarded exactly as before
+/// #1642).
+///
+/// The suite estimate counts EVERY `*_test.dart` under `test/` — exact for
+/// an unfiltered profile `suite:` template (plain `dart test`, this repo's
+/// default). A filtered template (`--tags`, a preset, a path) spawns fewer
+/// suites than counted, so the preflight errs on the refusing side and may
+/// block a run that would have fit; deriving the count from the template is
+/// a tracked follow-up, not a correctness bug (PR #1650 review finding 3).
 Future<String?> fullSuiteBaselinePreflight(
   String projectRoot, {
   Map<String, String>? environment,
+  DfRunner dfRunner = _launchDf,
 }) async {
   if (!Platform.isLinux && !Platform.isMacOS) return null;
   var suiteCount = 0;
@@ -87,7 +104,16 @@ Future<String?> fullSuiteBaselinePreflight(
   }
   if (suiteCount == 0) return null;
   final tmpRoot = scratchEffectiveTempRoot(environment ?? Platform.environment);
-  final df = await Process.run('df', ['-k', tmpRoot]);
+  final ProcessResult df;
+  try {
+    df = await dfRunner(['-k', tmpRoot]);
+  } on ProcessException {
+    // A `df` that cannot be LAUNCHED never reaches the exitCode check —
+    // without this catch the ProcessException escapes the baseline
+    // capture's `on StateError` guard and crashes the run, contradicting
+    // the never-blocks-the-loop contract (PR #1650 review finding 1).
+    return null;
+  }
   if (df.exitCode != 0) return null;
   final freeBytes = freeBytesFromDfOutput(df.stdout as String);
   if (freeBytes == null) return null;

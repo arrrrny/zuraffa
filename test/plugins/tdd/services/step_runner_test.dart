@@ -482,7 +482,8 @@ void main() {
     Future<Uri?> noPackageUri(Uri packageUri) async => null;
     const staleScript = '/build/stale/zfa.dart.dill';
 
-    test('resolves the system-installed zfa on PATH (tier 4)', () async {
+    test('resolves the system-installed zfa on PATH for a VM driver '
+        '(tier 5 — the #690 PATH tier, unchanged by #1636)', () async {
       final systemZfa = await executableFile('zfa690_path', 'zfa');
 
       final bin = await StepRunner.resolveEntrypoint(
@@ -497,8 +498,9 @@ void main() {
       expect(bin, systemZfa.path);
     });
 
-    test('final fallback is Platform.resolvedExecutable for a compiled zfa '
-        'binary not on PATH (tier 6)', () async {
+    test('the running compiled binary is the entrypoint when the script is '
+        'unusable and nothing is on PATH (tier 4 — the #690 final fallback, '
+        'promoted ahead of PATH by #1636)', () async {
       final compiled = await executableFile('zfa690_exe', 'zfa');
 
       final bin = await StepRunner.resolveEntrypoint(
@@ -511,14 +513,18 @@ void main() {
       expect(bin, compiled.path);
     });
 
-    test('a usable Platform.script still wins over the resolvedExecutable '
-        'fallback when nothing is on PATH (tier 5 preserved)', () async {
-      final compiled = await executableFile('zfa690_exe2', 'zfa');
+    test('a usable Platform.script still wins for a JIT-snapshot driver '
+        'when nothing is on PATH (tier 6 preserved)', () async {
       final snapshot = await executableFile('zfa690_snap', 'zfa.jit');
 
       final bin = await StepRunner.resolveEntrypoint(
+        // The real JIT-snapshot driver shape: the snapshot is the script,
+        // the driving executable is the VM — so the #1636 running-binary
+        // tier cannot fire and the usable script is returned (without
+        // tier 6 this input would throw the cannot-resolve error, since
+        // the VM names are never a valid entrypoint).
         script: Uri.file(snapshot.path),
-        resolvedExecutable: compiled.path,
+        resolvedExecutable: '/usr/bin/dart',
         environment: {'PATH': '/usr/bin:/bin'},
         resolvePackageUri: noPackageUri,
       );
@@ -546,21 +552,26 @@ void main() {
     });
 
     test('a non-executable PATH candidate is skipped (executable bit '
-        'checked, mirroring #665)', () async {
+        'checked, mirroring #665) — a VM driver with nothing else '
+        'resolvable throws', () async {
       final dir = await Directory.systemTemp.createTemp('zfa690_nox');
       addTearDown(() => dir.delete(recursive: true));
       final notExecutable = File(p.join(dir.path, 'zfa'));
       await notExecutable.writeAsString('#!/bin/sh\nexit 0\n');
-      final compiled = await executableFile('zfa690_exe3', 'zfa');
 
-      final bin = await StepRunner.resolveEntrypoint(
-        script: Uri.file(staleScript),
-        resolvedExecutable: compiled.path,
-        environment: {'PATH': dir.path},
-        resolvePackageUri: noPackageUri,
+      await expectLater(
+        StepRunner.resolveEntrypoint(
+          script: Uri.file(staleScript),
+          // A VM driver keeps the #1636 running-binary tier off, so the
+          // PATH lookup IS consulted — and must reject the candidate
+          // that lacks the executable bit.
+          resolvedExecutable: '/usr/bin/dart',
+          environment: {'PATH': dir.path},
+          resolvePackageUri: noPackageUri,
+        ),
+        throwsA(isA<StateError>()),
+        reason: 'the non-executable PATH candidate is never returned',
       );
-
-      expect(bin, compiled.path, reason: 'falls through to tier 6');
     });
 
     test('run() spawns steps through the resolved entrypoint', () async {

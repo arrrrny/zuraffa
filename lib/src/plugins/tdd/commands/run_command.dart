@@ -242,14 +242,29 @@ class RunCommand extends Command<void> {
       // Issue #1642: the full-suite disk preflight refused an UNSCOPED
       // baseline whose estimated kernel-snapshot footprint exceeds the
       // temp volume's free space. The refusal (with its `--> fix:`
-      // remedies) is already printed at the capture site; the run stops
-      // BEFORE the baseline spawned, so nothing leaks. The scratch is
-      // still disposed by the finally below.
+      // remedies) is already printed at the capture site — re-printing
+      // its first line here would duplicate the numbers back-to-back.
+      // The run stops BEFORE the baseline spawned, so nothing leaks; the
+      // scratch is still disposed by the finally below.
       print(
         'zfa tdd run: stopped before the baseline — '
-        '${e.message.split('\n').first}',
+        'see the disk preflight refusal above',
       );
-      exitCode = 1;
+      // SPEC 917: the envelope must distinguish this stop from a red
+      // suite — the exit class names the refusal and `fix` carries the
+      // remedy line, the way the #1303/#1528 sibling preflight stops do
+      // (PR #1650 review finding 4b).
+      _verdict
+        ..exitClass = 'disk-preflight-refused'
+        ..outcome = VerdictOutcome.error
+        ..details['preflight'] =
+            'disk preflight refused the full-suite baseline (issue #1642)'
+        ..fix = e.message
+            .split('\n')
+            .where((line) => line.trimLeft().startsWith('--> fix:'))
+            .map((line) => line.trim())
+            .firstOrNull;
+      exitCode = _exitStopped;
     } finally {
       await scratch?.dispose();
     }
