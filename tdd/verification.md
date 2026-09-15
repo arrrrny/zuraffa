@@ -1,100 +1,121 @@
-# tdd.verify — Bug #1626 acceptance vacuous-green refusal names the hand step
+# tdd.verify — Bug #1636 the running compiled binary outranks the PATH tier
 
-- **Verified**: 2026-09-14, this session, on
-  `fix/1626-acceptance-vacuous-remedy` (working tree, pre-push)
-- **Toolchain**: Dart 3.13.3 (stable) on linux_x64
-- **Scope**: `lib/src/plugins/tdd/services/vacuous_guard.dart`,
-  `lib/src/plugins/tdd/commands/make_command.dart`,
-  `lib/src/plugins/tdd/commands/run_driver_core.dart`, and the suites
-  `test/plugins/tdd/bug_1626_acceptance_vacuous_remedy_test.dart` (new),
-  `test/plugins/tdd/bug_1626_acceptance_remedy_driver_test.dart` (new),
-  `test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart` (re-pointed).
+- **Verified**: 2026-09-15, this session, on
+  `fix/1636-refactor-build-resolves-path-zfa` (working tree, pre-push)
+- **Toolchain**: Dart 3.13.4 (stable) on linux_x64 (the task's "Dart 3.13+"
+  floor; the repo pins `sdk: ^3.11.0`)
+- **Scope**: `lib/src/plugins/tdd/services/step_runner.dart` (the tier
+  reorder + docs), `lib/src/plugins/tdd/services/refactor_passes.dart`
+  (doc-only), the new suite
+  `test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart`, and
+  the re-labeled/re-shaped `test/plugins/tdd/services/step_runner_test.dart`.
 
 ## Verdict: PASS
 
 ## 1. Static analysis
 
 ```
-dart analyze <3 changed lib files + 3 test files>
+dart analyze lib/src/plugins/tdd/services/step_runner.dart
+             lib/src/plugins/tdd/services/refactor_passes.dart
+             test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
+             test/plugins/tdd/services/step_runner_test.dart
 → No issues found!          (re-checked after dart format)
 
 dart analyze            (whole repo)
-→ 111 issues found      (all `info`)
-→ errors/warnings: 0
+→ 106 issues found      (0 errors, 0 warnings — all `info`)
 ```
 
-Zero findings from the changed/new files; the whole-repo info count is the
-pre-existing baseline drift, not this change.
+Zero findings from the changed/new files; the whole-repo count is the
+pre-existing info-level baseline drift (106 here vs 111 recorded by the
+#1626 verification), not this change.
 
-## 2. The bug suites (REAL runs in this session)
+## 2. TDD discipline (REAL runs in this session)
 
-```
-dart test test/plugins/tdd/bug_1626_acceptance_vacuous_remedy_test.dart
-→ 00:01 +4: All tests passed!
-
-dart test --preset=all test/plugins/tdd/bug_1626_acceptance_remedy_driver_test.dart
-→ 00:13 +2: All tests passed!
-
-dart test --preset=all test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart
-→ 00:21 +5: All tests passed!
-```
-
-Total: 11 passed, 0 failed, across the fast tier and the slow driver tier.
-Red evidence for the SAME suites (pre-fix) is preserved verbatim in
-`.specify/bugs/1626-acceptance-vacuous-remedy/red-evidence.md`.
-
-## 3. Format gate
+- RED, pre-fix (verbatim in `.specify/bugs/1636-refactor-build-resolves-path-zfa/red-evidence.md`):
 
 ```
-dart format --output=none --set-exit-if-changed .
-→ Formatted 2861 files (0 changed)   exit 0
+dart test test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
+→ 00:00 +3 -2: Some tests failed.
+  B1 Expected: '/tmp/zfa1636_cacheNSSXIE/zfa_exe'
+     Actual:   '/tmp/zfa1636_pathLAZCWU/zfa'      ← the PATH install won
+  B2 Expected: '/tmp/zfa1636_cache2CMNPFE/zfa_exe'
+     Actual:   '/tmp/zfa1636_path2OUCSPU/zfa'     ← the PATH install won
 ```
 
-## 4. REQUIRED checks — the issue's success criteria PROVED by real runs
+- GREEN, post-fix:
 
-- **Criterion 1 (the refusal distinguishes acceptance from unit rows)**:
-  the acceptance refusal prints the hand-step vocabulary and the unit refusal
-  prints the pre-existing lane wording in the SAME session (U-1626-a1 vs
-  U-1626-a3), with `isNot` guards pinning no cross-lane leakage both ways.
-- **Criterion 2 (the hand step is named)**: the refusal asserts all four
-  elements — "write an assertion on the observable outcome OUTSIDE the
-  capture", "implement the scenario runner in", the verbatim attestation
-  header `// zfa:tdd: A1:hand — hand step completed before first red
-  certification (issue #1411)` (via `handStepHeader(id)`), and
-  "`zfa tdd make A1 --born-green`" — at the make surface (U-1626-a1;
-  #1488 A1/A4) AND on the real RunDriverCore stop transcript (U-1626-d1,
-  fake-zfa scripted `zfa tdd run`).
-- **Criterion 3 (unit/fallback rows keep the traces wording)**: U-1626-d2
-  pins the exact #1483 stop line (`hand-edit the test list
-  (specs/<feature>/tdd/test-list.md) traces cell`); U-1626-a3 pins the make
-  unit-lane wording; the untouched #1483 shape + driver suites, #1308,
-  #1320 (U8) and #1518 (seam + forward-driver) suites all pass.
-- **Criterion 4 (both paths in the refusal)**: the make surface asserts the
-  registry-recorded paths (`test/a1_test.dart`, `lib/a1_subject.dart`,
-  gen-recorded `lib/tdd/090-tdd-fixture/a_1488_subject.dart` in A4); the
-  driver surface asserts the namespaced test path and the conventional
-  subject fallback (`lib/tdd/<feature>/a1_subject.dart`) when no registry
-  record exists. Both resolution modes are pinned by real runs.
+```
+dart test test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
+→ 00:00 +5: All tests passed!
+```
 
-## 5. Machine-contract preservation (real assertions, not inspection)
+The fix was applied only after the repro tests were proven red; no test
+was edited to make it pass retroactively. B3/B4/B5 (the backward-compat
+guards) passed both pre- and post-fix, proving the fix did not need them
+loosened.
 
-- `stopped_at=A1:make` preserved for the acceptance stop — asserted
-  positively AND `isNot(stopped_at=A1:hand)` (U-1626-d1).
-- No green evidence for a refused vacuous green (#1488 A1 asserts the
-  cycle-log stays clean).
-- The #1488 gate scope, the #1512 marker-absence discipline, the #1411
-  born-green mechanics and the #1308 marker discrimination are untouched —
-  pinned green by the UNMODIFIED assertions in the #1488 suite (A2/A3/U1),
-  bug_1259_vacuous_green_test.dart, and the #1483/#1518 suites.
+## 3. Regression suites (REAL runs in this session)
 
-## 6. Unrelated pre-existing failure (flagged, NOT introduced here)
+```
+dart test test/plugins/tdd/services/
+→ 01:42 +1104: All tests passed!
+   (includes step_runner_test.dart, refactor_passes_test.dart — the
+   #689/#717 build-pass suites, bug_1371_entrypoint_existence_test.dart,
+   pipeline/runner suites, and every services neighbor)
 
-`test/plugins/tdd/make_command_1036_test.dart` — A-1036a fails `+4 -1`
-identically on the CLEAN tree (verified via `git stash` round-trip); the
-fixture has no test list, so the vacuous-green arm this fix touches is never
-reached — pipeline-behavior drift outside this bug's surfaces.
+dart test test/plugins/tdd/bug_1472_refactor_gate_acceptance_test.dart
+          test/plugins/tdd/bug_1472_refactor_gate_errors_only_test.dart
+→ 00:00 +18: All tests passed!
+   (the #1472 pin driven through zfaBuildCommand's delegation:
+   candidate==driving keeps the resolution; provably-different versions
+   still swap; unresolvable replacements fail open — acceptance
+   criterion 4)
 
-## 7. Housekeeping
+dart test test/utils/dart_toolchain_resolver_test.dart
+          test/plugins/tdd/bug_1329_step_failure_diagnostics_test.dart
+          test/plugins/tdd/bug_1159_baseline_timeout_test.dart
+→ 00:02 +18: All tests passed!
 
-Dart-test kernel caches cleaned before/after phases; peak disk ~14% of a
-9.9G volume.
+dart test test/core/no_jit_zfa_spawn_scan_test.dart
+→ 00:00 +5: All tests passed!
+   (the no-JIT sweep: the promoted tier returns a compiled binary, never
+   a VM spawn — the directive the bug cites is now enforced at the tier
+   that matters)
+```
+
+Chunked execution note: the one-attempt whole-directory run
+(`test/plugins/tdd/ --exclude-tags "flutter || e2e"`) was abandoned — its
+kernel cache ballooned until the filesystem hit 100% and the run was
+killed at the 10-minute tool ceiling (a disk-housekeeping incident, not a
+test failure). The suites above were then run in chunks with
+`.dart_tool/test/` + `/tmp/dart_test.kernel.*` cleaned between chunks;
+every chunk completed green.
+
+## 4. Acceptance criteria audit (issue #1636)
+
+1. **Compiled driving CLI → build pass uses the same binary** — PROVED at
+   the tier level: B1/B2 red pre-fix, green post-fix; the build pass
+   resolves through `StepRunner.resolveEntrypoint` (delegation unchanged,
+   `refactor_passes.dart` code untouched). Not proven by spawning a real
+   compiled binary end-to-end (the fast-tier convention this repo pins;
+   the compile-cache shape is exercised via injected driver facts).
+2. **`dart run` (VM) drivers keep the PATH tier** — PROVED: B3/B4 green,
+   plus the re-labeled #690 PATH-tier test, plus the #717 build-pass test
+   ("executes the system zfa on PATH") green under `dart test` itself.
+3. **Tier order documented and tested per driver shape** — PROVED: the
+   doc comments renumber the chain (1-3 source → 4 running binary →
+   5 PATH → 6 script) with the #1636 rationale; B1-B5 + the re-labeled
+   #690 group cover cache-exe, stale-dill, `dart run`, `dartaotruntime`,
+   and JIT-snapshot driver shapes.
+4. **The #1472 version pin still fires for same-binary upgrades** —
+   PROVED by the untouched pin code + the #1472 gate suites (18 tests):
+   with the fix a compiled driver's candidate IS the driving binary, so
+   the probe returns equal and no swap fires (the honest no-op), while a
+   provably-different candidate version still swaps.
+
+## 5. Verdict
+
+PASS — the bug is fixed at the tier level with red→green evidence, the
+documented order matches the implemented order, the backward-compat and
+pin contracts are pinned by suites that ran green in this session, and
+the changed files carry zero analyzer findings.
