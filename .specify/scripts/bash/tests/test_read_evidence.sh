@@ -198,4 +198,23 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+t_case "E6: tier-2 python3 emits compact JSON — no spaced separators (#1648)"
+
+# Tier 2 (python3) serves --json whenever python3 is present, jq or not, so
+# all emitters must agree on one canonical shape: tier 3 emits compact JSON
+# (jq -cn per entry; manual interpolation), and the grep fallbacks assert
+# compact fixed strings. Spaced tier-2 output false-fails those fallbacks in
+# the jq-less quadrant (arrrrny/zuraffa#1648). Asserts the RAW output — no
+# whitespace normalization here, that would mask the defect.
+if command -v python3 >/dev/null 2>&1; then
+    out="$(bash "$READ_EVIDENCE" "$ROOT/e1-cycle-log.md" --json)"
+    rc=$?
+    t_assert_exit "E6 succeeds" 0 "$rc"
+    t_assert_contains "E6 compact envelope (raw output)" "$out" '{"evidence":[{"phase":"RED"'
+    t_assert_contains "E6 compact field pairing (raw output)" "$out" '"behavior_id":"U9"'
+else
+    t_skip "E6 compact JSON (python3 absent — tier-2 never runs)"
+fi
+
+# ---------------------------------------------------------------------------
 t_report
