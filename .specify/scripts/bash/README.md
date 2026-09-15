@@ -5,7 +5,7 @@ skills would otherwise perform on shared markdown by LLM freehand. Issue
 #1466: every read/parse/tick at the boundary between spec-kit and zfa goes
 through a script, not through an agent rewriting a file.
 
-The four scripts live in this directory (`​.specify/scripts/bash/`), use
+The four scripts live in this directory (`.specify/scripts/bash/`), use
 `set -euo pipefail`, source `common.sh` for shared helpers (feature-path
 resolution, repo-root detection), parse with the **three-tier cascade
 (jq → python3 → grep/sed)** — first available tier wins — and emit JSON when

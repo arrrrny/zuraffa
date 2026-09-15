@@ -100,13 +100,25 @@ TASKS="$ROOT/s3-tasks.md"
 make_test_list "$LIST" A1 "first" U1 "middle" A1 "second"
 cp /dev/null "$TASKS"
 printf '# Tasks\n\n- [ ] untouched\n' > "$TASKS"
-before="$(md5sum "$TASKS" | cut -d' ' -f1)"
+before="$(t_file_hash "$TASKS")"
 
 err="$(bash "$SYNC" "$LIST" "$TASKS" 2>&1 >/dev/null)"
 rc=$?
 t_assert_exit "S3 duplicate exits non-zero" 2 "$rc"
 t_assert_contains "S3 error names the duplicate" "$err" "Duplicate behavior ID 'A1'"
-t_assert_eq "S3 tasks.md unchanged" "$before" "$(md5sum "$TASKS" | cut -d' ' -f1)"
+t_assert_eq "S3 tasks.md unchanged" "$before" "$(t_file_hash "$TASKS")"
+
+# The README documents the --json error contract for this exact path.
+out="$(bash "$SYNC" "$LIST" "$TASKS" --json 2>/dev/null)"
+rc=$?
+t_assert_exit "S3 JSON mode also exits 2" 2 "$rc"
+if t_have_jq; then
+    t_assert_eq "S3 JSON status=error" "error" "$(t_json_get "$out" '.status')"
+    t_assert_contains "S3 JSON error names the duplicate" "$(t_json_get "$out" '.error')" "Duplicate behavior ID 'A1'"
+else
+    t_assert_contains "S3 JSON error shape (grep fallback)" "$out" '"status":"error"'
+fi
+t_assert_eq "S3 tasks.md unchanged after JSON error" "$before" "$(t_file_hash "$TASKS")"
 
 # ---------------------------------------------------------------------------
 t_case "S4: malformed behavior ID skipped with warning; valid ones still sync"

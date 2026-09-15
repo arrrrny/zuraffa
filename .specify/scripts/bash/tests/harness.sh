@@ -26,6 +26,7 @@ fi
 
 T_CASES_PASS=0
 T_CASES_FAIL=0
+T_SKIPS=0
 T_CURRENT=""
 T_CASE_FAILED=0
 T_FAILED_IDS=()
@@ -59,6 +60,13 @@ t_pass() {
 t_fail() {
     T_CASE_FAILED=1
     echo "  ✗ FAIL: $1"
+}
+
+# A skipped assertion: the environment lacks the tier needed to actually
+# verify it (e.g. jq absent). Printed and tallied — never silently a PASS.
+t_skip() { # <desc>
+    T_SKIPS=$((T_SKIPS + 1))
+    echo "  ⊘ SKIP: $1"
 }
 
 t_assert_eq() { # <desc> <expected> <actual>
@@ -107,6 +115,25 @@ t_json_get() { # <json> <jq-expr> -> value or empty
     printf '%s' "$1" | jq -r "$2" 2>/dev/null
 }
 
+# POSIX cksum — present on stock macOS and Linux alike, so an "unchanged
+# file" assertion always hashes something (md5sum is GNU/coreutils-only).
+t_file_hash() { # <path> -> checksum
+    cksum "$1" | cut -d' ' -f1
+}
+
+# Permission bits across both target platforms: BSD stat (stock macOS)
+# first, GNU stat (Linux) as fallback. The octal guard rejects any stray
+# output a wrong stat flavor might produce before falling back.
+t_file_mode() { # <path> -> octal permission bits
+    local m
+    m="$(stat -f '%Lp' "$1" 2>/dev/null)"
+    if [[ "$m" =~ ^[0-7]{3,4}$ ]]; then
+        printf '%s\n' "$m"
+    else
+        stat -c '%a' "$1"
+    fi
+}
+
 # Temp fixture root. Caller registers cleanup: trap 'rm -rf "$ROOT"' EXIT
 t_fixture_dir() {
     mktemp -d "${TMPDIR:-/tmp}/boundary-suite-XXXXXX"
@@ -118,10 +145,13 @@ t_report() {
     echo ""
     echo "----------------------------------------"
     local total=$((T_CASES_PASS + T_CASES_FAIL))
-    echo "  File Summary: Passed: $T_CASES_PASS/$total, Failed: $T_CASES_FAIL/$total"
+    echo "  File Summary: Passed: $T_CASES_PASS/$total, Failed: $T_CASES_FAIL/$total, Skipped: $T_SKIPS"
     if [[ $T_CASES_FAIL -gt 0 ]]; then
         echo "  Failed cases: ${T_FAILED_IDS[*]}"
     fi
-    echo "SUITE cases_passed=$T_CASES_PASS cases_failed=$T_CASES_FAIL"
+    if [[ $T_SKIPS -gt 0 ]]; then
+        echo "  NOTE: $T_SKIPS assertion(s) skipped — the environment lacked a verification tier; a skip is NOT a pass"
+    fi
+    echo "SUITE cases_passed=$T_CASES_PASS cases_failed=$T_CASES_FAIL cases_skipped=$T_SKIPS"
     [[ $T_CASES_FAIL -eq 0 ]]
 }

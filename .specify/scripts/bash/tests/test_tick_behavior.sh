@@ -48,12 +48,12 @@ TASKS="$ROOT/t2-tasks.md"
 cat > "$TASKS" <<'EOF'
 - [x] done deal [behavior: U1]
 EOF
-before="$(md5sum "$TASKS" | cut -d' ' -f1)"
+before="$(t_file_hash "$TASKS")"
 
 out="$(bash "$TICK" "$TASKS" --behavior U1 --json)"
 rc=$?
 t_assert_exit "T2 exits 0" 0 "$rc"
-t_assert_eq "T2 file unchanged" "$before" "$(md5sum "$TASKS" | cut -d' ' -f1)"
+t_assert_eq "T2 file unchanged" "$before" "$(t_file_hash "$TASKS")"
 if t_have_jq; then
     t_assert_eq "T2 status=already_done" "already_done" "$(t_json_get "$out" '.status')"
 else
@@ -69,13 +69,13 @@ TASKS="$ROOT/t3-tasks.md"
 cat > "$TASKS" <<'EOF'
 - [ ] present [behavior: U1]
 EOF
-before="$(md5sum "$TASKS" | cut -d' ' -f1)"
+before="$(t_file_hash "$TASKS")"
 
 err="$(bash "$TICK" "$TASKS" --behavior Z9 2>&1 >/dev/null)"
 rc=$?
 t_assert_exit "T3 exits non-zero" 1 "$rc"
 t_assert_contains "T3 error names the behavior" "$err" "Behavior 'Z9' not found"
-t_assert_eq "T3 file unchanged" "$before" "$(md5sum "$TASKS" | cut -d' ' -f1)"
+t_assert_eq "T3 file unchanged" "$before" "$(t_file_hash "$TASKS")"
 
 # ---------------------------------------------------------------------------
 t_case "T4: duplicate markers — first ticked, warning emitted, second untouched"
@@ -143,7 +143,7 @@ chmod 644 "$TASKS"
 bash "$TICK" "$TASKS" --behavior U1 >/dev/null 2>&1
 rc=$?
 t_assert_exit "T7 tick succeeds" 0 "$rc"
-t_assert_eq "T7 mode still 644" "644" "$(stat -c '%a' "$TASKS")"
+t_assert_eq "T7 mode still 644" "644" "$(t_file_mode "$TASKS")"
 
 # ---------------------------------------------------------------------------
 t_report

@@ -62,6 +62,7 @@ fi
 
 total_passed=0
 total_failed=0
+total_skipped=0
 files_failed=0
 
 for tf in "${test_files[@]}"; do
@@ -76,9 +77,10 @@ for tf in "${test_files[@]}"; do
     fi
 
     suite_line="$(grep -E '^SUITE cases_passed=' "$out_file" | tail -n 1 || true)"
-    if [[ "$suite_line" =~ ^SUITE\ cases_passed=([0-9]+)\ cases_failed=([0-9]+)$ ]]; then
+    if [[ "$suite_line" =~ ^SUITE\ cases_passed=([0-9]+)\ cases_failed=([0-9]+)(\ cases_skipped=([0-9]+))?$ ]]; then
         total_passed=$((total_passed + BASH_REMATCH[1]))
         total_failed=$((total_failed + BASH_REMATCH[2]))
+        total_skipped=$((total_skipped + ${BASH_REMATCH[4]:-0}))
     else
         # A test file that never printed a SUITE line is itself broken.
         echo "ERROR: $(basename "$tf") produced no SUITE summary line" >&2
@@ -95,6 +97,9 @@ echo "  Test Summary"
 echo "=========================================="
 echo "Passed: $total_passed/$total"
 echo "Failed: $total_failed/$total"
+if [[ $total_skipped -gt 0 ]]; then
+    echo "Skipped: $total_skipped — the environment lacked a verification tier; a skip is NOT a pass"
+fi
 
 if [[ $total_failed -ne 0 || $files_failed -ne 0 ]]; then
     echo ""
