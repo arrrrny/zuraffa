@@ -13,7 +13,14 @@ env:
 
 jobs:
   dart_core:
-    timeout-minutes: 30
+    # 45 (was 30): the fast suite outgrew the old budget — the #1629 run was
+    # canceled at 30m17s and the same command took 41 minutes locally. Left
+    # as headroom: #1632 re-homes the heavyweight suites behind the slow/e2e
+    # tiers and scopes the lane to runner-default parallelism, so the step
+    # should now land far under either budget (the tier-integrity pins keep
+    # it there). Sharding (tools/run_tests_chunked.sh) remains the durable
+    # shape if the lane regrows.
+    timeout-minutes: 45
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,12 +45,12 @@ jobs:
         # true pure-Dart suite that runs on the Dart SDK only.
         # Also exclude `e2e` — heavyweight suites that drive real
         # `dart test`/`dart pub get` subprocesses in temp fixtures (#1510).
-        # The tier-integrity pins (B5/B6, #1632) keep the untagged drift
+        # The tier-integrity pins (B5–B7, #1632) keep the untagged drift
         # out of this lane; `--concurrency=4` scopes the runner's default
         # parallelism to THIS pure-Dart lane (dart_test.yaml's global
         # `concurrency: 1` is a RAM/disk guard for the heavy temp-project
         # lanes, not a unit-lane requirement — without it the serial lane
-        # overflowed the job's 30-minute budget, #1632).
+        # overflowed the job's budget, #1632).
         run: dart test test --exclude-tags "flutter || e2e" --concurrency=4
 
   proof_smoke:

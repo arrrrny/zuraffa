@@ -47,12 +47,6 @@ void main() {
     return (exitCode, output);
   }
 
-  /// The namespaced test path gen computes for the registered record —
-  /// the ownership preflight compares the two, so the record must carry
-  /// this form (never the helper's flat `testPathOf` default).
-  File testFileOf() =>
-      File(p.join(fx.root.path, 'test', 'tdd', fx.featureName, 'a1_test.dart'));
-
   /// The guard-only pair gen renders when the traces cell resolves no
   /// declared contract row — the pre-drift on-disk state B1 simulates.
   String guardOnlyTest(String feature) =>
@@ -91,13 +85,7 @@ void main() {
     await fx.registerBehavior(
       id: 'A1',
       description: 'create entity Login with email',
-      testPath: p.join(
-        fx.root.path,
-        'test',
-        'tdd',
-        fx.featureName,
-        'a1_test.dart',
-      ),
+      testPath: fx.namespacedTestPathOf('A1'),
       testContent: guardOnlyTest(fx.featureName),
     );
     // Re-align the record's subject path to the namespaced layout gen
@@ -143,10 +131,18 @@ void main() {
   test(
     'B1: traces drift forces regeneration carrying the new routing',
     () async {
+      // Unlike #1633's analysis of the hand-seeded shape, this fixture arms
+      // the drift through the STUB-staleness path (not the legacy-record
+      // fingerprint gate): the seeded subject is a faithful UnimplementedError
+      // stub and the on-disk pair is the guard-only render, so gen's
+      // staleness mirror re-renders, finds the drift, and classifies it as
+      // the #1320 contract-drift regeneration.
       final (code, output) = await gen();
       expect(code, 0, reason: output);
 
-      final testFile = testFileOf().readAsStringSync();
+      // gen computes the NAMESPACED test layout (`test/tdd/<feature>/…`) —
+      // the same path the registry record in setUp registers.
+      final testFile = File(fx.namespacedTestPathOf('A1')).readAsStringSync();
       expect(
         testFile,
         contains('adaptive_layouts'),

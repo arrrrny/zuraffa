@@ -1283,14 +1283,18 @@ class RunDriverCore {
       );
       // Issue #1589: the resume instructions are followable as written —
       // each parked contract's stop names its hand surface (the seam file
-      // + the wire command). Messaging only: the stop contract (result,
-      // stopped_at, exit code) is the #1007/#1544 one.
+      // + the wire command). Issue #1625: the seam is the subject stub
+      // (the implementation seam, not the generated test) and the wire
+      // example only prints when the traced entity exists. Messaging only:
+      // the stop contract (result, stopped_at, exit code) is the
+      // #1007/#1544 one.
       for (final row in blockedRows) {
         print(
           '   ${HandSurface.hintLine(
             behaviorId: row.id,
             seamPath: HandSurface.seamPathFor(projectRoot: projectRoot, feature: feature, behaviorId: row.id),
             contract: row.traces,
+            projectRoot: projectRoot,
           )}',
         );
       }
@@ -2301,15 +2305,18 @@ class RunDriverCore {
           // Issue #1589: name the hand surface — where the declared
           // contract is implemented (the seam) and the command that binds
           // it (wire), so the parked verdict is actionable as written.
-          // Messaging only: the verdict, the state advance and the park
-          // semantics are the #1007/#1544 ones.
+          // Issue #1625: the seam is the subject stub (the implementation
+          // seam, not the generated test) and the wire example only prints
+          // when the traced entity exists. Messaging only: the verdict,
+          // the state advance and the park semantics are the #1007/#1544
+          // ones.
           final parkedSeam = HandSurface.seamPathFor(
             projectRoot: projectRoot,
             feature: feature,
             behaviorId: row.id,
           );
           print(
-            '   ${HandSurface.hintLine(behaviorId: row.id, seamPath: parkedSeam, contract: row.traces)}',
+            '   ${HandSurface.hintLine(behaviorId: row.id, seamPath: parkedSeam, contract: row.traces, projectRoot: projectRoot)}',
           );
           print(
             '   parked — the run continues with the remaining behaviors '

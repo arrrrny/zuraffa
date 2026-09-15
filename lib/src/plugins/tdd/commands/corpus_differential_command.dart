@@ -34,6 +34,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
+import '../../../cli/zfa_executable.dart';
 import '../models/differential_vector.dart';
 import '../services/differential_corpus.dart';
 import '../services/differential_ref_runner.dart';
@@ -48,9 +49,11 @@ class CorpusDifferentialCommand extends Command<void> {
     DifferentialSpawner? spawner,
     DifferentialGitRunner? gitRunner,
     Directory? scratchRoot,
+    ZfaEnsureCompiled? ensureCompiled,
   }) : _spawnerOverride = spawner,
        _gitRunnerOverride = gitRunner,
-       _scratchRootOverride = scratchRoot {
+       _scratchRootOverride = scratchRoot,
+       _ensureCompiledOverride = ensureCompiled {
     argParser.addFlag(
       'json',
       help:
@@ -107,6 +110,13 @@ class CorpusDifferentialCommand extends Command<void> {
   final DifferentialSpawner? _spawnerOverride;
   final DifferentialGitRunner? _gitRunnerOverride;
   final Directory? _scratchRootOverride;
+
+  /// No-JIT compile seam (see `ZfaExecutable`): the ref worktree's
+  /// `bin/zfa.dart` is AOT compiled before any step spawns it. Tests inject
+  /// a fake so a scripted stub entrypoint is never really compiled — the
+  /// #1629 review flagged exactly this path (the differential command's own
+  /// tests script `wt-from`/`wt-to` stubs).
+  final ZfaEnsureCompiled? _ensureCompiledOverride;
 
   @override
   String get name => 'differential';
@@ -240,6 +250,7 @@ class CorpusDifferentialCommand extends Command<void> {
       gitRunner: _gitRunnerOverride,
       budget: Duration(seconds: budgetSeconds),
       childEnvironment: scratch?.childEnvironment(),
+      ensureCompiled: _ensureCompiledOverride,
     );
 
     // Ref resolution + worktree materialization + setup.
