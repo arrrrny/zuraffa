@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "feature": "zero-route-gorouter-launch",
+  "lane": "engine",
+  "verdict": "red",
+  "result": "stopped",
+  "behaviors": [
+    "A3",
+    "A4",
+    "A5",
+    "A6",
+    "A8"
+  ],
+  "counts": {
+    "total": 5,
+    "pending": 4,
+    "red": 1,
+    "green": 0,
+    "done": 0
+  },
+  "stopped_at": "A3:make",
+  "at": "2026-09-15T22:16:08.908936Z"
+}

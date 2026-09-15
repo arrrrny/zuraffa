@@ -611,7 +611,8 @@ class SetupCommand extends Command<void> {
 
     // 1. app_router.dart
     final appRouterPath = path.join(outputDir, 'routing', 'app_router.dart');
-    final appRouterContent = builder.buildAppRouter();
+    // #1673: the day-zero placeholder's AppBar shows the app title.
+    final appRouterContent = builder.buildAppRouter(title: appName);
     files.add((path: appRouterPath, content: appRouterContent));
 
     // 2. the shell widget (<name>.dart, ZuraffaApp shell)

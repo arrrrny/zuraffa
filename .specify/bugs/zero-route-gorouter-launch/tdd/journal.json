@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "feature": "zero-route-gorouter-launch",
+  "entries": [
+    {
+      "feature": "zero-route-gorouter-launch",
+      "cycle": "engine",
+      "phase": "drive",
+      "started_at": "2026-09-15T22:15:16.023277Z",
+      "finished_at": "2026-09-15T22:16:08.933828Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "stopped_at=A3:make"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "stopped",
+      "behaviors": [
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A8"
+      ],
+      "counts": {
+        "total": 5,
+        "pending": 4,
+        "red": 1,
+        "green": 0,
+        "done": 0
+      },
+      "stopped_at": "A3:make"
+    },
+    {
+      "feature": "zero-route-gorouter-launch",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-15T22:15:14.878065Z",
+      "finished_at": "2026-09-15T22:16:08.981595Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane stopped at A3:make",
+        "engine lane result=stopped — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "stopped",
+      "behaviors": [],
+      "stopped_at": null
+    }
+  ]
+}
