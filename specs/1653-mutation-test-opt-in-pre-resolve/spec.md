@@ -88,39 +88,39 @@ current master via the standalone refactor path. Related context: #1528
 
 ## Functional requirements
 
-- **FR-1**: `PubspecDevDependenciesPatcher` gains `includeMutationTest`
+- **FR-001**: `PubspecDevDependenciesPatcher` gains `includeMutationTest`
   (named parameter, DEFAULT FALSE); when false, neither
   `flutterDevDependencies` nor `dartDevDependencies` injects
   `mutation_test`; when true, the writer adds `mutation_test: ^1.8.0`
   exactly as before. The static maps keep their `mutation_test` entries
   (the #755 pin contract is asserted unchanged).
             traces: PubspecDevDependenciesPatcher
-- **FR-2**: `TddBaselineInit.ensure` gains `mutation` (default false) and
+- **FR-002**: `TddBaselineInit.ensure` gains `mutation` (default false) and
   threads it to the patcher; the #1528 preflight keeps the default
   (non-mutation) auto-init.
             traces: TddBaselineInit
-- **FR-3**: `zfa tdd init` exposes `--mutation` (negatable: false) whose
+- **FR-003**: `zfa tdd init` exposes `--mutation` (negatable: false) whose
   only effect is forwarding the opt-in to `ensure`.
             traces: InitCommand
-- **FR-4**: when the dependency writers newly added entries, init runs the
+- **FR-004**: when the dependency writers newly added entries, init runs the
   target's resolver with a hard deadline, prints
   `✓ pub resolution: <command> (<elapsed>)`, and returns; when nothing was
   added, the resolver does not spawn.
             traces: TddBaselineInit
-- **FR-5**: a resolver run that exits non-zero fails the init sequence
+- **FR-005**: a resolver run that exits non-zero fails the init sequence
   (misfire naming the resolver output); a missing resolver binary warns
   loudly and does not fail the sequence.
             traces: TddBaselineInit
-- **FR-6**: `RefactorCommand` measures the three phases and prints
+- **FR-006**: `RefactorCommand` measures the three phases and prints
   `phase timings: preflight=<d> registry=<d> re-proof=<d>` on the green
   path; the FR-009 summary line format is byte-unchanged.
             traces: RefactorCommand
-- **FR-7**: the refactor cycle-log entry renders
+- **FR-007**: the refactor cycle-log entry renders
   `- phases: preflight=<d> registry=<d> re-proof=<d>` and each recorded
   action renders `  duration: <d>`; both lines are additive and outside
   the chain-hash payload (schema v1 preserved).
             traces: CycleLogEntry
-- **FR-8**: `RefactorPasses` records each pass's wall duration into its
+- **FR-008**: `RefactorPasses` records each pass's wall duration into its
   `RefactorAction` (null for a scheduling-skipped pass — nothing ran).
             traces: RefactorAction
 
