@@ -98,6 +98,13 @@ coverage: 'dart test --coverage'
   String testPathOf(String id) =>
       p.join(root.path, 'test', '${_snake(id)}_test.dart');
 
+  /// Absolute NAMESPACED test path for a behavior id — the
+  /// `test/tdd/<feature>/<id>_test.dart` layout `zfa tdd gen` computes
+  /// (the canonical form `migrate_paths_command` writes). Suites reading a
+  /// generated test must use this, not [testPathOf]'s flat default.
+  String namespacedTestPathOf(String id) =>
+      p.join(root.path, 'test', 'tdd', featureName, '${_snake(id)}_test.dart');
+
   String _snake(String id) => id.toLowerCase().replaceAll('-', '_');
 
   /// Register a behavior: writes its test file (unless [writeTestFile] is
