@@ -208,7 +208,7 @@ case "\$STEP" in
     cat > "$subjectPath" <<'ZFA_GREEN'
 ${implementedSubject(id).trim()}
 ZFA_GREEN
-    sleep 30
+    sleep 5
     exit 0
     ;;
   *)

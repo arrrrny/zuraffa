@@ -425,7 +425,22 @@ class MakeCommand extends Command<void> {
     final interruptedRecovery =
         await interruptMarker.pendingFor(record.behaviorId) != null;
     _interruptMarker = interruptMarker;
-    await interruptMarker.begin(behavior: record.behaviorId);
+    try {
+      await interruptMarker.begin(behavior: record.behaviorId);
+    } on FileSystemException catch (e) {
+      // Best-effort by contract (issue #1398 review): a marker-write
+      // failure (read-only feature dir, disk full) must not escape run()
+      // as a raw stack trace — that bypasses the FR-010 summary funnel
+      // (no summary line, no envelope verdict, no clear). Warn and run
+      // WITHOUT this make's own write-ahead record: a mid-flight death of
+      // THIS run then reads as absence on resume, while a surviving
+      // PREVIOUS crash marker keeps its adoption arm below.
+      print(
+        '   interrupt marker: write failed (${e.message}) — proceeding '
+        'WITHOUT the write-ahead crash record; a mid-flight death of '
+        'this make will read as absence on resume (no adoption).',
+      );
+    }
     if (interruptedRecovery) {
       print(
         '   interrupt marker: the previous make of "${record.behaviorId}" '
@@ -1367,6 +1382,18 @@ class MakeCommand extends Command<void> {
           'appended evidence binds the current subject shape, so any '
           'post-adoption drift still refuses.',
         );
+        if (reDrive) {
+          // Accounting note (issue #1398 review): when a crash marker AND
+          // a #1331 reset tombstone are both present, the interrupt arm
+          // wins the outcome label — the same adoption legitimizes the
+          // tombstone re-drive, so the accounting says so out loud.
+          print(
+            '   note: a reset tombstone for this behavior is also present '
+            '(issue #1331) — the crash-interrupt signal wins the outcome '
+            'label (adopted-interrupted); the same adoption covers the '
+            'tombstone re-drive.',
+          );
+        }
       } else if (reDrive && !placeholderOnDisk) {
         adoptedReDrive = true;
         print(

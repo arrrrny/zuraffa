@@ -71,9 +71,9 @@ class MakeInterruptMarker {
   }
 
   /// The in-progress marker left by a PREVIOUS make of [behavior], or null
-  /// when the marker is missing, unparseable, names another behavior, or is
-  /// not in progress — every non-marker shape behaves exactly like absence
-  /// (fail closed: never blocks, never adopts).
+  /// when the marker is missing, unreadable, unparseable, names another
+  /// behavior, or is not in progress — every non-marker shape behaves
+  /// exactly like absence (fail closed: never blocks, never adopts).
   Future<Map<String, dynamic>?> pendingFor(String behavior) async {
     final file = File(path);
     if (!await file.exists()) return null;
@@ -87,21 +87,23 @@ class MakeInterruptMarker {
       return decoded;
     } on FormatException {
       return null;
+    } on FileSystemException {
+      // A marker that exists but cannot be READ — permissions, or the
+      // deletion race between exists() and readAsString() — is the corrupt
+      // class too: fail closed exactly like an unparseable body (invalid
+      // UTF-8 already lands in FormatException; this closes the I/O hole).
+      return null;
     }
   }
 
   /// Consume the marker: remove it after a graceful make exit reached the
   /// disk. Idempotent and best-effort — a marker clear must never fail a
   /// make; a missing marker is already the committed state.
-  Future<void> clear() async {
-    final file = File(path);
-    try {
-      if (await file.exists()) await file.delete();
-    } on FileSystemException {
-      // Best-effort by contract: a locked or vanished file must not fail
-      // the make that already finished its work.
-    }
-  }
+  ///
+  /// One contract, one implementation: this delegates to [clearSync] (the
+  /// form the make command's summary funnel prints through) so the two
+  /// signatures can never drift apart in error handling.
+  Future<void> clear() async => clearSync();
 
   /// The synchronous form of [clear] — the make command's summary funnel
   /// (`_printSummary`) is a sync method every terminal path prints through
