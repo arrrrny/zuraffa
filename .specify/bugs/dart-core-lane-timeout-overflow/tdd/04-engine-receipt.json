@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "feature": "dart-core-lane-timeout-overflow",
+  "lane": "engine",
+  "verdict": "red",
+  "result": "stopped",
+  "behaviors": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "U1",
+    "U2",
+    "U3",
+    "U4",
+    "contract:A1",
+    "contract:A2"
+  ],
+  "counts": {
+    "total": 10,
+    "pending": 9,
+    "red": 1,
+    "green": 0,
+    "done": 0
+  },
+  "stopped_at": "A1:make",
+  "at": "2026-09-15T12:08:51.602540Z"
+}

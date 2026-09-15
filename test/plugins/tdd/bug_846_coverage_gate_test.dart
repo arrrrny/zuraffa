@@ -69,7 +69,6 @@ void main() {
 
   tearDown(() {
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
-    exitCode = 0;
   });
 
   Future<void> writeSpec(String spec) async {
@@ -101,7 +100,7 @@ void main() {
         final out = await runPlan();
 
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           2,
           reason: 'uncovered FR-002 must fail the gate:\n$out',
         );
@@ -148,7 +147,7 @@ void main() {
       final out = await runPlan();
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         0,
         reason: 'table-format FR routes (issue #1196):\n$out',
       );
@@ -180,7 +179,11 @@ void main() {
 
         final out = await runPlan();
 
-        expect(exitCode, 2, reason: 'undeclared non-automatable AC:\n$out');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          2,
+          reason: 'undeclared non-automatable AC:\n$out',
+        );
         expect(out, contains('AC-2'), reason: out);
       },
     );
@@ -198,7 +201,7 @@ void main() {
       final out = await runPlan();
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         2,
         reason: 'manual declaration requires an owner:\n$out',
       );
@@ -223,7 +226,7 @@ void main() {
 
       final out = await runPlan();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final matrix = File(p.join(featureDir, 'tdd', 'traceability.md'));
       expect(matrix.existsSync(), isTrue, reason: out);
       final content = matrix.readAsStringSync();
@@ -248,7 +251,7 @@ void main() {
 
         final out = await runPlan();
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final list = File(
           p.join(featureDir, 'tdd', 'test-list.md'),
         ).readAsStringSync();
@@ -285,7 +288,7 @@ void main() {
 ''';
         await writeSpec(spec);
         final planOut = await runPlan();
-        expect(exitCode, 0, reason: planOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: planOut);
 
         // Spec edited AFTER the plan: the contract hash no longer matches.
         await writeSpec(
@@ -294,7 +297,11 @@ void main() {
 
         final out = await runVerify();
 
-        expect(exitCode, 3, reason: 'drift must exit 3:\n$out');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          3,
+          reason: 'drift must exit 3:\n$out',
+        );
         expect(out.toLowerCase(), contains('drift'), reason: out);
         expect(
           out.toLowerCase(),
@@ -317,14 +324,18 @@ void main() {
 - **FR-001**: The system MUST return 42 when invoked with no args
 ''');
       final planOut = await runPlan();
-      expect(exitCode, 0, reason: planOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: planOut);
 
       await runVerify();
 
       // No drift: verify proceeds past the hash check (it then reports
       // the mutation audit state, which for this bare fixture is not a
       // drift exit).
-      expect(exitCode, isNot(3), reason: 'no spec edit, no drift');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        isNot(3),
+        reason: 'no spec edit, no drift',
+      );
     });
   });
 
@@ -368,7 +379,7 @@ void main() {
       final out = await status();
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         1,
         reason: 'a corpus with open gaps is NEVER complete:\n$out',
       );

@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Spec 069-corpus-economics — T002: batched gen / verify-red.
 //
 // The TDD loop spawns one `dart test` per behavior (verify-red runs the

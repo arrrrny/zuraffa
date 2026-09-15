@@ -421,11 +421,17 @@ void main() {
   ///
   /// Scalar declared returns assert the declared outcome type
   /// (`expect(result, isA<bool>())`) — an assertion ON the observable
-  /// outcome surface the spec declared, never the bare guard. Entity
-  /// declared returns cannot reference the declared type before it
-  /// exists, so the red surface starts at the guard — but the guard
-  /// carries the [vacuousGuardMarker] so `make` refuses green until the
-  /// author replaces it with a real outcome assertion.
+  /// outcome surface the spec declared, never the bare guard. Issue
+  /// #1651: a type check alone is still a VACUOUS green — the #1517
+  /// func pass fills the subject with `return 0;`, which satisfies it —
+  /// so the SCALAR typed assertion carries the [vacuousGuardMarker]
+  /// ([typeOnlyVacuousGuardComment]) and `make` refuses the dummy-body
+  /// green until the author replaces it with an outcome-VALUE assertion.
+  /// An EXISTING entity return's `isA<Entity>()` carries NO marker
+  /// (review of #1667): the #1517 dummy cannot satisfy an entity type —
+  /// the assertion fails red on its own, so it discriminates. A MISSING
+  /// entity keeps `scalarOutcome` false — the red surface starts at the
+  /// guard, which carries the same marker with the same contract.
   String _declaredAssertion(
     Behavior b,
     String target,
@@ -433,7 +439,11 @@ void main() {
   ) {
     final capture = _captureInvocation(b, target, shape);
     if (shape.scalarOutcome) {
+      final marker = isAssertableScalarType(shape.declaredReturn)
+          ? '      $typeOnlyVacuousGuardComment\n'
+          : '';
       return '$capture\n'
+          '$marker'
           '      expect(result, isA<${shape.declaredReturn}>());';
     }
     return '$capture\n'

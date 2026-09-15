@@ -123,7 +123,6 @@ void main() {
 
     tearDown(() {
       fx.dispose();
-      exitCode = 0;
     });
 
     Future<void> seedKeyedContract() async {
@@ -196,7 +195,7 @@ Widget subject_a_001() => throw UnimplementedError('not implemented');
         'de',
       ]);
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final de = await File(
         '${fx.root.path}/lib/i18n/strings_de.i18n.json',
       ).readAsString();
@@ -236,7 +235,7 @@ Widget subject_a_001() => throw UnimplementedError('not implemented');
           fx.root.path,
         ]);
 
-        expect(exitCode, 0, reason: 'out: $out');
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
         expect(
           File('${fx.root.path}/lib/i18n/strings_de.i18n.json').existsSync(),
           isTrue,

@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Issue #1589 — blocked contracts dead-end the documented resume path and
 // poison the phase-2 refactor pass.
 //

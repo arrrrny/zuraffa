@@ -339,7 +339,8 @@ void main() {
 
   group('bug #1512 guardrails: the unit lane stays byte-for-byte', () {
     test('a unit scalar capture keeps the inferred annotation, the '
-        'threaded args, and the isA<T>() assertion — no marker', () async {
+        'threaded args, and the isA<T>() assertion — now marker-carried '
+        '(issue #1651)', () async {
       final dir = Directory.systemTemp.createTempSync('bug_1512_unit_');
       addTearDown(() => dir.deleteSync(recursive: true));
       final testPath = p.join(dir.path, 'test', 'tdd', 'u1_test.dart');
@@ -363,7 +364,12 @@ void main() {
       expect(content, isNot(contains('final Object? result')));
       expect(content, contains("return subject.subject_u1(r'sample');"));
       expect(content, contains('expect(result, isA<bool>())'));
-      expect(content, isNot(contains(vacuousGuardMarker)));
+      // Issue #1651: the type-only assertion is satisfiable by the #1517
+      // func dummy, so it carries the vacuous-guard marker (the unit
+      // capture's SHAPE is byte-for-byte unchanged otherwise — the
+      // guardrail's original concern, the acceptance void-safe capture,
+      // is untouched).
+      expect(content, contains(vacuousGuardMarker));
       expect(content, isNot(contains(acceptanceFallbackGuardToken)));
     });
 

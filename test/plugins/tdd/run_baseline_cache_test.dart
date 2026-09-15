@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Issue #741 — the TDD run driver and make command run the FULL suite
 // (`dart test` of the whole project) once per behavior (baseline +
 // guard = 2 suite runs per behavior; 39 U* behaviors → 78 full-suite
