@@ -91,6 +91,29 @@
 /// no-graph tree, and still orders of magnitude cheaper than the
 /// entrypoint AOT compile the skip avoids.
 ///
+/// Issue #1637 — the config tier of that gate learns content hashing.
+/// The #1624 comparison is raw mtime, and a no-op config refresh beats
+/// it: the preflight suite's implicit `pub get` rewrites `pubspec.lock`
+/// and `.dart_tool/package_config.json` byte-identically AFTER the last
+/// real build, so on every refactor that follows a suite run the config
+/// files are "newer" than the marker and the ~26-31s build pass runs
+/// even though nothing builder-facing changed. The gate now keeps the
+/// mtime comparison as the cheap pre-filter and falls back — only for
+/// the config files inside the newer set — to a content digest compared
+/// against a gate-owned baseline,
+/// `.dart_tool/zfa/build_config_baseline.json`: the config digests plus
+/// the marker mtime observed when the gate last let the build run. The
+/// baseline is trusted only when the CURRENT marker is STRICTLY newer
+/// than the recorded one — the marker moves only when a build
+/// completes, so a trusted baseline means a completed build consumed
+/// exactly the recorded digests; a failed or never-spawned build leaves
+/// the record untrusted and the decision fails toward RUN. The digest
+/// is the [fingerprint] mechanism's own (`_digestOf` over
+/// [buildConfigFiles]), so fingerprint-derived and baseline digests are
+/// the same currency. The skip path never rewrites the baseline —
+/// recording with the current marker mtime would self-invalidate the
+/// record until the next build.
+///
 /// The price of having no "before" state is the deletion blind spot, and
 /// the gate does NOT pretend otherwise: [canSkipTerminalBuild] runs on any
 /// deletion (its rule 1), but a path removed since the last build is
@@ -110,12 +133,25 @@
 /// run.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
 class BuildRelevance {
   const BuildRelevance._();
+
+  /// The gate-owned config baseline for the refactor gate's config
+  /// tier (issue #1637), relative to the project root. Lives under
+  /// `.dart_tool/zfa/` — the repo's zfa-owned state area — so a `pub`
+  /// or build_runner cache wipe costs only one fail-safe build run,
+  /// never a wrong skip.
+  static const String _configBaselinePath =
+      '.dart_tool/zfa/build_config_baseline.json';
+
+  /// The baseline schema version. A record written by a different
+  /// schema is untrusted → run (fail-safe).
+  static const int _configBaselineVersion = 1;
 
   /// Build config files whose change always requires a build (builder
   /// registration, dependency graph, analyzer options, feature flags).
@@ -183,10 +219,13 @@ class BuildRelevance {
   /// make gate's fingerprint diff can; [canSkipTerminalBuild] rule 1).
   static const String refactorBuildSkippedNote =
       'refactor build pass skipped: every file newer than the build_runner '
-      'asset graph is un-annotated plain Dart (issue #1624) — nothing '
-      'newer than that asset graph can feed a builder. A path DELETED since '
-      'that build is invisible to this gate (it has no pre-build '
-      'fingerprint to diff against), so the skip is not evidence that the '
+      'asset graph is un-annotated plain Dart, or a config file whose '
+      'bytes are identical to the digests the last completed build '
+      'consumed (issue #1637) — nothing newer than that asset graph can '
+      'feed a builder. A path DELETED since '
+      'that build is invisible to this gate (its content baseline covers '
+      'only config files; sources have no pre-build fingerprint to diff '
+      'against), so the skip is not evidence that the '
       'tree\'s generated outputs are all still on disk. The whole-project '
       '`dart analyze lib/` stage `zfa build` also runs was skipped with it, '
       'so these plain-Dart writes were not analyzer-graded.';
@@ -238,6 +277,23 @@ class BuildRelevance {
       if (!directory.existsSync()) continue;
       await _hashTree(directory, projectRoot, hashes);
     }
+    for (final config in buildConfigFiles) {
+      final file = File(p.join(projectRoot, config));
+      if (!file.existsSync()) continue;
+      hashes[config] = _digestOf(await file.readAsBytes());
+    }
+    return hashes;
+  }
+
+  /// Fingerprint ONLY the config tier: the [buildConfigFiles] digests,
+  /// keyed by their project-relative POSIX paths — the config slice of
+  /// [fingerprint], same `_digestOf` digest (issue #1637: the refactor
+  /// gate's digest fallback and this mechanism must speak one currency,
+  /// so the fallback reuses the mechanism instead of adding a hash).
+  static Future<Map<String, String>> configFingerprint({
+    required String projectRoot,
+  }) async {
+    final hashes = <String, String>{};
     for (final config in buildConfigFiles) {
       final file = File(p.join(projectRoot, config));
       if (!file.existsSync()) continue;
@@ -335,11 +391,34 @@ class BuildRelevance {
   ///   3. Collect every file under `lib/`, `test/`, `bin/`, `tool/`
   ///      (skipping `*.g.dart.part`) plus [buildConfigFiles] whose mtime
   ///      is NOT before the marker's — the conservative `>=` direction.
+  ///      This mtime comparison stays the cheap pre-filter (issue #1637).
   ///   4. No such file → skip (nothing has been written since the last
   ///      build).
-  ///   5. Any such file that is a config file, is not `.dart`, or whose
-  ///      RAW content matches [builderFacingAnnotation] → run.
-  ///   6. Otherwise (every newer file is un-annotated plain Dart) → skip.
+  ///   5. CONFIG TIER (issue #1637): every newer config file falls back
+  ///      from mtime to a content digest, compared against the
+  ///      gate-owned baseline (`.dart_tool/zfa/build_config_baseline.json`):
+  ///        5a. baseline missing / corrupt / unknown version / whose
+  ///            recorded marker mtime is not STRICTLY older than the
+  ///            current marker → untrusted → run (fail-safe), and
+  ///            record a fresh baseline of the current config digests
+  ///            so the next completed build validates them;
+  ///        5b. trusted baseline + every newer config's digest matches
+  ///            → the tier is CLEARED (a byte-identical refresh — the
+  ///            implicit `pub get` case — cannot feed a builder);
+  ///        5c. trusted baseline + any digest mismatch → run (a real
+  ///            config change), and record a fresh baseline.
+  ///   6. Any remaining newer file that is not `.dart`, or whose RAW
+  ///      content matches [builderFacingAnnotation] → run.
+  ///   7. Otherwise (every newer file is un-annotated plain Dart or a
+  ///      cleared config) → skip.
+  ///
+  /// The baseline records the config digests TOGETHER WITH the marker
+  /// mtime observed at record time, and is trusted only when the current
+  /// marker is strictly newer: the marker moves only when a build
+  /// completes, so validity proves a completed build consumed exactly
+  /// the recorded digests. The skip path NEVER rewrites the baseline —
+  /// recording with the current marker mtime would self-invalidate the
+  /// record until the next build.
   ///
   /// Every filesystem/read error → null (run): a hiccup must never
   /// fabricate a skip, exactly like [shouldSkipTerminalBuild].
@@ -387,8 +466,44 @@ class BuildRelevance {
       }
       if (newer.isEmpty) return refactorBuildSkippedNote;
 
+      // Issue #1637: the config tier — the mtime pre-filter above says
+      // "maybe changed"; the digest fallback against the baseline says
+      // "actually changed" (run) or "byte-identical refresh" (clear).
+      final newerConfigs = newer
+          .where(buildConfigFiles.contains)
+          .toList(growable: false);
+      if (newerConfigs.isNotEmpty) {
+        final baseline = _loadConfigBaseline(projectRoot, markerModified);
+        if (baseline == null) {
+          // Missing, corrupt, or never validated by a completed build —
+          // fail toward RUN and record the digests the upcoming build
+          // will consume.
+          await _recordConfigBaseline(projectRoot, markerModified);
+          return null;
+        }
+        final digests = await configFingerprint(projectRoot: projectRoot);
+        var cleared = true;
+        for (final path in newerConfigs) {
+          final current = digests[path];
+          final recorded = baseline[path];
+          // A config that vanished between the walk and the hash, or a
+          // key the baseline never saw, is a mismatch — never a skip.
+          if (current == null || recorded != current) {
+            cleared = false;
+            break;
+          }
+        }
+        if (!cleared) {
+          await _recordConfigBaseline(projectRoot, markerModified);
+          return null;
+        }
+        // Cleared: the newer configs are byte-identical to the digests
+        // the last completed build consumed. Fall through to the
+        // non-config shapes — the skip note at the bottom claims this.
+      }
+
       for (final path in newer) {
-        if (buildConfigFiles.contains(path)) return null;
+        if (buildConfigFiles.contains(path)) continue;
         if (!path.endsWith('.dart')) return null;
         if (builderFacingAnnotation.hasMatch(
           await File(p.join(projectRoot, path)).readAsString(),
@@ -401,6 +516,71 @@ class BuildRelevance {
       // Fail toward RUN: a decode error, an unreadable stat, a file that
       // vanished mid-walk — none of them may fabricate a skip.
       return null;
+    }
+  }
+
+  /// The gate-owned baseline for the config tier (issue #1637),
+  /// `.dart_tool/zfa/build_config_baseline.json`: the config digests
+  /// plus the marker mtime observed at record time. Returns the recorded
+  /// digest map ONLY when the record is parseable, is the current
+  /// version, and its marker mtime is STRICTLY older than the current
+  /// marker's (a completed build moved the marker after the digests were
+  /// current — a failed or never-spawned build never validates the
+  /// record). Every read/parse error → null (untrusted → run).
+  static Map<String, String>? _loadConfigBaseline(
+    String projectRoot,
+    DateTime markerModified,
+  ) {
+    try {
+      final file = File(p.join(projectRoot, _configBaselinePath));
+      if (!file.existsSync()) return null;
+      final decoded = jsonDecode(file.readAsStringSync());
+      if (decoded is! Map) return null;
+      if (decoded['version'] != _configBaselineVersion) return null;
+      final markerMillis = decoded['markerMtimeMillis'];
+      final digests = decoded['digests'];
+      if (markerMillis is! int || digests is! Map) return null;
+      // STRICTLY older: the record's marker must be a build that
+      // COMPLETED before now — equality means no build ran since the
+      // digests were recorded, so nothing consumed them yet.
+      if (!(markerMillis < markerModified.millisecondsSinceEpoch)) {
+        return null;
+      }
+      final result = <String, String>{};
+      for (final entry in digests.entries) {
+        if (entry.key is! String || entry.value is! String) return null;
+        result[entry.key as String] = entry.value as String;
+      }
+      return result;
+    } catch (_) {
+      // Torn write, garbage bytes, unreadable file — untrusted → run.
+      return null;
+    }
+  }
+
+  /// Best-effort baseline recording: the current config digests plus the
+  /// PRE-build marker mtime. Written only when the gate decides the
+  /// build must RUN because of a config file, so the marker a
+  /// successfully completing build writes afterwards is strictly newer
+  /// and validates the record. Never throws — a failed record costs one
+  /// extra fail-safe build later, never a wrong skip.
+  static Future<void> _recordConfigBaseline(
+    String projectRoot,
+    DateTime markerModified,
+  ) async {
+    try {
+      final digests = await configFingerprint(projectRoot: projectRoot);
+      final file = File(p.join(projectRoot, _configBaselinePath));
+      await file.parent.create(recursive: true);
+      await file.writeAsString(
+        const JsonEncoder.withIndent('  ').convert({
+          'version': _configBaselineVersion,
+          'markerMtimeMillis': markerModified.millisecondsSinceEpoch,
+          'digests': digests,
+        }),
+      );
+    } catch (_) {
+      // Best effort: the next decision fails toward RUN without it.
     }
   }
 
