@@ -134,3 +134,15 @@ $ dart test --preset=all test/plugins/tdd/bug_1420_vacuous_stop_declared_trace_t
   post-restore greens re-confirmed.
 - Static analysis (4 changed lib files + 4 new test files): No issues.
   `dart format --set-exit-if-changed .`: 2876 files, 0 changed, exit 0.
+
+## Cycle C5 — review-fix rebase (53b0ffc0) and re-confirmation
+
+- The PR's review bot pushed 53b0ffc0 (identifier gate on the
+  synthesized signature; the malformed-declaration arm in the stop;
+  the shared entity-row predicate between gen and the stop probe).
+  The re-verification branch was rebased onto it.
+- On the rebased HEAD: the four new #1420 suites green again (fast
+  `+8`, driver R1 `+1`, #1308 driver `+5`), analyze clean on the five
+  changed lib files, and the mutation sample re-run with all four
+  mutants killed (M1 `+1 -2`, M2 `+3 -1`, M3 `+0 -1`, M4 `+0 -1`),
+  each restored and re-confirmed green.

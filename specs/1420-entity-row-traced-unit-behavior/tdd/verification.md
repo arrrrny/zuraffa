@@ -229,17 +229,32 @@ $ git diff --stat   → empty
 ### Mutation sampling (second session; one mutant at a time, restored after each)
 
 The first session's verification carried no mutation table; this audit
-ran it. Region: the three behavior-bearing seams of the fix.
+ran it — TWICE: once against 3969939a, and again against the
+review-comment fix 53b0ffc0 (the identifier gate on the synthesis, the
+malformed-declaration arm in the stop, the shared entity-row predicate)
+after this branch was rebased onto it. Region: the three
+behavior-bearing seams of the fix.
 
 | Mutant | Change | Killed by | Result |
 | --- | --- | --- | --- |
-| M1 | `_declaredSignatureForGen` returns null unconditionally (synthesis disabled) | bug_1420_entity_row_gen_test G1+G2 | **killed** — `+1 -2` (G3 survives: the undeclared pin is independent) |
-| M2 | `declaredRoutingFor` returns only decisions WITH a signature | declared_routing_1420_test D1 | **killed** — `+3 -1` |
-| M3 | the run driver's declaredTraceContext probe disabled (`decision != null && false`) | bug_1420_vacuous_stop_declared_trace_test R1 | **killed** — `+0 -1` (the false "no traces" claim prints again) |
-| M4 | `vacuousGuardDeclaredTraceRemedyFor` returns the legacy "add traces:" text | vacuous_guard_1420_test V1 | **killed** — `+0 -1` |
+| M1 | `_declaredSignatureForGen` returns null unconditionally (synthesis disabled) | bug_1420_entity_row_gen_test G1+G2 | **killed** — `+1 -2` (G3 survives: the undeclared pin is independent); re-confirmed on 53b0ffc0 |
+| M2 | `declaredRoutingFor` returns only decisions WITH a signature | declared_routing_1420_test D1 | **killed** — `+3 -1`; re-confirmed on 53b0ffc0 |
+| M3 | the run driver's declaredTraceContext probe disabled (`decision != null && false`) | bug_1420_vacuous_stop_declared_trace_test R1 | **killed** — `+0 -1` (the false "no traces" claim prints again); re-confirmed on 53b0ffc0 |
+| M4 | `vacuousGuardDeclaredTraceRemedyFor` returns the legacy "add traces:" text | vacuous_guard_1420_test V1 | **killed** — `+0 -1`; re-confirmed on 53b0ffc0 |
 
 Post-restore confirmation: the 4 new suites green again (+8 fast, +1
 driver) — the recorded greens are the real code, not mutant residue.
+
+### Review-fix rebase (53b0ffc0) — re-verification
+
+The branch was rebased onto 53b0ffc0 (review comments on #1671: the
+`Signature.isValidIdentifierName` gate for non-identifier Key Entities
+names, the malformed-declaration arm in the stop messaging, the shared
+entity-row predicate). On the rebased HEAD: the 4 new suites green
+(`+8` fast, `+1` driver — plus the #1308 driver suite green, `+5` with
+R1), `dart analyze` on the five changed lib files clean, and the four
+mutants re-killed (table above). The review fix tightens the same
+contracts this document verified; no success-criteria verdict changes.
 
 ### Honest limits of this verification
 
