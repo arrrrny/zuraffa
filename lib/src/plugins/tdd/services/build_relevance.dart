@@ -76,12 +76,19 @@
 /// reason about INCREMENTAL freshness — not about "nothing here can ever
 /// feed a builder" — so [refactorBuildSkipNote] decides STATICALLY from
 /// a source scan: any builder-facing annotation, any non-Dart source
-/// inside the walked roots, or any `build.yaml` at the project root runs
-/// the first build (creating the graph the incremental gate then uses);
-/// a tree with none of those skips it via [staticFirstBuildSkippedNote]
-/// and never pays the AOT compile. The other [buildConfigFiles] are
-/// deliberately not static triggers — they exist on every app, so their
-/// presence cannot discriminate "nothing builder-facing". After a static
+/// inside the walked roots, or any user-authored `build.yaml` at the
+/// project root runs the first build (creating the graph the incremental
+/// gate then uses); a tree with none of those skips it via
+/// [staticFirstBuildSkippedNote] and never pays the AOT compile. The
+/// other [buildConfigFiles] are deliberately not static triggers — they
+/// exist on every app, so their presence cannot discriminate "nothing
+/// builder-facing". Issue #1655 extends that same standard to setup's
+/// own `build.yaml`: `zfa setup`/`zfa init`/the `zfa build` guard write
+/// a byte-identical registration into every app they touch, so a
+/// PRISTINE generated build.yaml is as non-discriminating as its
+/// absence — only content that is not that template (user-authored,
+/// user-edited, or an older template's output) runs the first build.
+/// After a static
 /// skip there is still no state, so every later refactor re-enters the
 /// static scan until a real build creates the graph: self-consistent,
 /// and the build happens exactly when a builder-facing file appears. The
@@ -137,6 +144,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+
+import '../../../core/dependencies/dependency_wirer.dart';
 
 class BuildRelevance {
   const BuildRelevance._();
@@ -256,12 +265,15 @@ class BuildRelevance {
       'refactor build pass skipped: build_runner has never run here (no '
       '.dart_tool/build/ state) and the static source scan found nothing a '
       'first build could emit — no builder-facing annotation, no non-Dart '
-      'source inside lib/test/bin/tool, no build.yaml (issue #1634) — so '
-      'the one-time build_runner entrypoint AOT compile is not paid. If a '
-      'builder-facing file appears, the next refactor runs the first build '
-      'and creates the asset graph. The whole-project `dart analyze lib/` '
-      'stage `zfa build` also runs was skipped with it, so these '
-      'plain-Dart writes were not analyzer-graded.';
+      'source inside lib/test/bin/tool, and no user-authored build.yaml (a '
+      'build.yaml byte-identical to the one `zfa setup`/`zfa init`/the '
+      '`zfa build` guard generate is not user-authored — issues #1634 '
+      '#1655) — so the one-time '
+      'build_runner entrypoint AOT compile is not paid. If a builder-facing '
+      'file appears, the next refactor runs the first build and creates the '
+      'asset graph. The whole-project `dart analyze lib/` stage `zfa build` '
+      'also runs was skipped with it, so these plain-Dart writes were not '
+      'analyzer-graded.';
 
   /// Fingerprint the build-relevant tree: a content digest per file,
   /// keyed by project-relative POSIX paths. Covers the Dart source dirs
@@ -377,10 +389,16 @@ class BuildRelevance {
   ///          (slang translation sources, assets) → run.
   ///      1b. Any `.dart` file whose RAW content matches
   ///          [builderFacingAnnotation] (comments count) → run.
-  ///      1c. Any `build.yaml` at the project root (builder
-  ///          registration — `zfa build`'s guard auto-scaffolds one on
-  ///          the first build, so its presence without a graph means a
-  ///          builder was configured or `.dart_tool` was cleaned) → run.
+  ///      1c. Any `build.yaml` at the project root whose content is NOT
+  ///          the pristine generated registration (issue #1655:
+  ///          [DependencyWirer.buildYamlContent], which `zfa setup`,
+  ///          `zfa init`, and `zfa build`'s guard write byte-for-byte —
+  ///          a pristine one ships to every app they create and so
+  ///          cannot discriminate, while its builders have nothing to
+  ///          feed on before the first annotated source exists;
+  ///          user-authored, user-edited, or older-template content
+  ///          still means a builder was configured or `.dart_tool` was
+  ///          cleaned) → run.
   ///      1d. Otherwise → skip statically. The other [buildConfigFiles]
   ///          are deliberately NOT triggers: they exist on EVERY app
   ///          (fresh or not), so their mere presence cannot
@@ -589,12 +607,27 @@ class BuildRelevance {
   /// walk mirrors the incremental one (same roots, same `*.g.dart.part`
   /// skip) but reads CONTENT instead of mtimes: any non-Dart file or any
   /// [builderFacingAnnotation] match runs the build; any `build.yaml` at
-  /// the project root runs it too. All errors propagate to the caller's
-  /// catch — the decision fails toward RUN, never fabricates a skip.
+  /// the project root that is NOT the pristine generated template runs it
+  /// too (issue #1655 — see [_isPristineGeneratedBuildYaml]). All errors
+  /// propagate to the caller's catch — the decision fails toward RUN,
+  /// never fabricates a skip.
   static Future<String?> _staticFirstBuildSkipNote({
     required String projectRoot,
   }) async {
-    if (File(p.join(projectRoot, 'build.yaml')).existsSync()) return null;
+    final buildYaml = File(p.join(projectRoot, 'build.yaml'));
+    if (buildYaml.existsSync()) {
+      // Issue #1655: EXISTENCE alone is the one #1634 trigger whose
+      // precondition `zfa setup` itself defeats — setup writes build.yaml
+      // as a standard step, so on every setup-created app this branch used
+      // to return null (run) before the scan, making the static skip dead
+      // code exactly where it matters most (fresh app, zero annotated
+      // files). Read the content: a pristine generated registration has
+      // nothing to feed on and falls through to the scan; anything else is
+      // user-owned and runs. A read/decode error THROWS out of here — the
+      // caller's catch fails the decision toward RUN.
+      final content = await buildYaml.readAsString();
+      if (!_isPristineGeneratedBuildYaml(content)) return null;
+    }
     for (final dir in _walkedRoots) {
       final directory = Directory(p.join(projectRoot, dir));
       if (!directory.existsSync()) continue;
@@ -609,6 +642,21 @@ class BuildRelevance {
     }
     return staticFirstBuildSkippedNote;
   }
+
+  /// Issue #1655: a build.yaml is NON-DISCRIMINATING for the static
+  /// first-build decision only when it is byte-identical to
+  /// [DependencyWirer.buildYamlContent] — the single template `zfa setup`,
+  /// `zfa init`, and the `zfa build` guard (`BuildYamlGuard.scaffold`)
+  /// write, i.e. marker-bearing (`# zfa:generated` header) AND unmodified.
+  /// Existence alone cannot discriminate "nothing builder-facing": setup
+  /// ships the file to every app it creates, the same standard the #1634
+  /// doc applies to the other every-app config files. Anything else —
+  /// user-authored, user-edited (a single byte), or written by an older
+  /// CLI whose template differed — is user-owned and keeps the #1634
+  /// behavior: run the first build. The exact match is deliberately
+  /// strict: the skip is an optimization, the run is always sound.
+  static bool _isPristineGeneratedBuildYaml(String content) =>
+      content == DependencyWirer.buildYamlContent;
 
   static Future<void> _hashTree(
     Directory directory,
