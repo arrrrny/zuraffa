@@ -232,6 +232,16 @@ class MockBuilder {
         // path cannot fire from the mock lane), and revert keeps the
         // revert contract (the guard does not fire over it — the same
         // precedence the #1570 staleness arming uses).
+        //
+        // Invariant (PR #1649 review): this guard arms on `config.force`,
+        // but the writer's overwrite path fires on `options.force`
+        // (DataSourceInterfaceBuilder.generate → FileUtils.writeFile(force:
+        // options.force)). The two cannot diverge on real call paths —
+        // MockPlugin.generate re-delegates with GeneratorOptions mirrored
+        // from config whenever they disagree — and a future direct
+        // MockBuilder caller must preserve that mirroring, or a
+        // guard-fired writer invocation is silently skipped (ledger
+        // `skipped`, no regeneration).
         if (!await fileSystem.exists(interfacePath) ||
             (config.force && !config.revert)) {
           files.add(await interfaceBuilder.generate(config));

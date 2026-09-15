@@ -23,6 +23,8 @@ void main() {
     required String zuraffaCore,
     String? mockBarrel,
     String? mockImpl,
+    String? mockDeep,
+    String? mockDeepImpl,
   }) {
     final zuraffaRoot = p.join(tmp.path, 'zuraffa');
     Directory(p.join(zuraffaRoot, 'lib', 'src')).createSync(recursive: true);
@@ -41,6 +43,22 @@ void main() {
       File(
         p.join(zuraffaRoot, 'lib', 'src', 'mock.dart'),
       ).writeAsStringSync(mockImpl);
+    }
+    if (mockDeep != null) {
+      Directory(
+        p.join(zuraffaRoot, 'lib', 'src', 'mock'),
+      ).createSync(recursive: true);
+      File(
+        p.join(zuraffaRoot, 'lib', 'src', 'mock', 'deep.dart'),
+      ).writeAsStringSync(mockDeep);
+    }
+    if (mockDeepImpl != null) {
+      Directory(
+        p.join(zuraffaRoot, 'lib', 'src', 'mock'),
+      ).createSync(recursive: true);
+      File(
+        p.join(zuraffaRoot, 'lib', 'src', 'mock', 'deep_impl.dart'),
+      ).writeAsStringSync(mockDeepImpl);
     }
     final dotTool = Directory(p.join(tmp.path, '.dart_tool'));
     dotTool.createSync(recursive: true);
@@ -203,5 +221,90 @@ void main() {
       ]);
       expect(ZuraffaBarrelExports.filter(['MockThing']), isEmpty);
     });
+  });
+
+  group('R1 — PR #1649 review: threading + in-package subpaths', () {
+    test('nested barrels inherit the outer statement show (FR-002)', () {
+      fixture(
+        zuraffaCore: 'class Credentials {}\n',
+        mockBarrel: "export 'src/mock.dart';\n",
+        mockImpl: "export 'mock/deep.dart' show DeepThing;\n",
+        mockDeep: "export 'deep_impl.dart';\n",
+        mockDeepImpl: 'class DeepThing {}\nclass DeepHidden {}\n',
+      );
+      ZuraffaBarrelExports.seed(tmp.path);
+
+      expect(ZuraffaBarrelExports.filterMock(['DeepThing']), ['DeepThing']);
+      expect(
+        ZuraffaBarrelExports.filterMock(['DeepHidden']),
+        isEmpty,
+        reason:
+            'the outer show restricts what the nested barrel contributes '
+            'too — collecting DeepHidden would emit a hidden name the '
+            'mock barrel does not export (undefined_hidden_name)',
+      );
+    });
+
+    test('nested barrels inherit the outer statement hide (FR-002)', () {
+      fixture(
+        zuraffaCore: 'class Credentials {}\n',
+        mockBarrel: "export 'src/mock.dart';\n",
+        mockImpl: "export 'mock/deep.dart' hide DeepHidden;\n",
+        mockDeep: "export 'deep_impl.dart';\n",
+        mockDeepImpl: 'class DeepThing {}\nclass DeepHidden {}\n',
+      );
+      ZuraffaBarrelExports.seed(tmp.path);
+
+      expect(ZuraffaBarrelExports.filterMock(['DeepThing']), ['DeepThing']);
+      expect(
+        ZuraffaBarrelExports.filterMock(['DeepHidden']),
+        isEmpty,
+        reason: 'the outer hide subtracts from nested contributions too',
+      );
+    });
+
+    test('inherited show intersects the bare zuraffa union', () {
+      fixture(
+        zuraffaCore: 'class Credentials {}\nclass CredentialsPatch {}\n',
+        mockBarrel: "export 'src/mock.dart';\n",
+        mockImpl: "export 'mock/deep.dart' show Credentials;\n",
+        mockDeep: "export 'package:zuraffa/zuraffa.dart';\n",
+      );
+      ZuraffaBarrelExports.seed(tmp.path);
+
+      expect(
+        ZuraffaBarrelExports.filterMock(['Credentials', 'CredentialsPatch']),
+        ['Credentials'],
+        reason:
+            'the bare zuraffa re-export under an outer show contributes '
+            'only the shown slice of the zuraffa surface',
+      );
+    });
+
+    test(
+      'in-package package:zuraffa/<subpath> targets resolve like the zuraffa walk',
+      () {
+        fixture(
+          zuraffaCore: 'class Credentials {}\nclass CredentialsPatch {}\n',
+          mockBarrel: "export 'src/mock.dart';\n",
+          mockImpl:
+              "export 'package:zuraffa/src/core.dart';\nclass MockThing {}\n",
+        );
+        ZuraffaBarrelExports.seed(tmp.path);
+
+        expect(
+          ZuraffaBarrelExports.filterMock([
+            'Credentials',
+            'CredentialsPatch',
+            'MockThing',
+          ]),
+          ['Credentials', 'CredentialsPatch', 'MockThing'],
+          reason:
+              'a mock barrel refactored to module re-exports keeps '
+              'contributing those modules — skipping them would silently '
+              'lose the #942 collision hides for every name behind them',
+        );
+      },
+    );
   });
 }

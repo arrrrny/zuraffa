@@ -351,23 +351,31 @@ class ZuraffaBarrelExports {
   /// `src/mock/mock.dart` bare-re-exporting all of `zuraffa.dart` — an
   /// accident of the current barrel layout). Local declarations along
   /// the relative-export chain are collected with the same
-  /// combinator-aware, depth-capped rules the zuraffa walk uses. A
-  /// `package:zuraffa/zuraffa.dart` re-export statement contributes from
+  /// combinator-aware, depth-capped rules the zuraffa walk uses, threading
+  /// the effective combinators into nested barrels the same way (#1530
+  /// FR-002 carryover — unthreaded, a nested contribution bypasses the
+  /// outer `show`/`hide` and over-collects, the unsafe direction here: a
+  /// kept-but-not-exported name becomes an `undefined_hidden_name` hide).
+  /// A `package:zuraffa/zuraffa.dart` re-export statement contributes from
   /// [zuraffaNames] (already resolved): a BARE statement unions the
   /// whole zuraffa surface (what the current `lib/src/mock/mock.dart`
   /// layout asserts), a combinator-carrying statement contributes only
-  /// its shown slice. Other `package:` targets stay skipped — collecting
-  /// their surface would over-collect (the walker cannot see their
-  /// combinators), and under-collection is the safe direction: it can
-  /// only lose #942 protection for an exotic name, never emit an
-  /// unverified hide.
+  /// its shown slice — both intersected with any inherited combinators.
+  /// Other in-package `package:zuraffa/<subpath>` targets resolve to
+  /// files exactly like the zuraffa walk resolves them; only EXTERNAL
+  /// `package:` targets stay skipped — collecting their surface would
+  /// over-collect (the walker cannot see their combinators), and
+  /// under-collection is the safe direction: it can only lose #942
+  /// protection for an exotic name, never emit an unverified hide.
   static void _collectMockSurface(
     String barrelPath,
     String packageRoot,
     Set<String> zuraffaNames,
     Set<String> mockNames,
-    int depth,
-  ) {
+    int depth, {
+    Set<String>? inheritedShow,
+    Set<String> inheritedHide = const {},
+  }) {
     if (depth > 3) return;
     final barrel = File(barrelPath);
     if (!barrel.existsSync()) return;
@@ -376,21 +384,56 @@ class ZuraffaBarrelExports {
     for (final (target, tail) in _exportStatements(barrel.readAsLinesSync())) {
       final shown = _combinatorNames(tail, 'show');
       final hidden = _combinatorNames(tail, 'hide') ?? const <String>{};
+      // Issue #1530 (FR-002 carryover): the statement's combinators
+      // intersect with the ones inherited from an enclosing barrel
+      // statement — `export 'index.dart' show X;` restricts what the
+      // nested barrel contributes too. Without the threading, a nested
+      // contribution bypasses the outer `show`/`hide` and OVER-collects,
+      // the unsafe direction for this walker: a kept-but-not-exported
+      // name becomes an `undefined_hidden_name` hide — the exact warning
+      // class issue #1418 removes.
+      final effectiveShow = inheritedShow == null
+          ? shown
+          : (shown == null ? inheritedShow : inheritedShow.intersection(shown));
+      final effectiveHide = {...inheritedHide, ...hidden};
 
       if (target == 'package:zuraffa/zuraffa.dart') {
-        if (shown == null) {
+        if (effectiveShow == null) {
           // Bare, or hide-only: the zuraffa surface comes through whole,
-          // minus anything the statement hides.
+          // minus anything the statement (or an enclosing barrel) hides.
           mockNames.addAll(zuraffaNames);
         } else {
-          mockNames.addAll(zuraffaNames.where(shown.contains));
+          mockNames.addAll(zuraffaNames.where(effectiveShow.contains));
         }
-        mockNames.removeAll(hidden);
+        mockNames.removeAll(effectiveHide);
         continue;
       }
-      if (target.startsWith('package:')) continue;
-
-      final path = p.normalize(p.join(barrelDir, target));
+      String path;
+      if (target.startsWith('package:zuraffa/')) {
+        // In-package subpath targets resolve to files exactly like the
+        // zuraffa walk's `startsWith('package:zuraffa/')` branch: a mock
+        // barrel refactored to
+        // `export 'package:zuraffa/src/<module>.dart';`-style module
+        // re-exports keeps contributing that module's surface — skipping
+        // it would silently lose the #942 collision hides for every name
+        // behind it.
+        path = p.normalize(
+          p.join(
+            packageRoot,
+            'lib',
+            target.replaceFirst('package:zuraffa/', ''),
+          ),
+        );
+      } else if (target.startsWith('package:')) {
+        // External re-exports stay skipped: collecting THEIR surface
+        // would over-collect (the walker cannot see their combinators),
+        // and under-collection is the safe direction — it can only lose
+        // #942 protection for an exotic name, never emit an unverified
+        // hide.
+        continue;
+      } else {
+        path = p.normalize(p.join(barrelDir, target));
+      }
       final file = File(path);
       if (!file.existsSync()) continue;
       final fileLines = file.readAsLinesSync();
@@ -402,10 +445,12 @@ class ZuraffaBarrelExports {
         }
         final name = _declaredType(fileLine);
         if (name == null || name.isEmpty) continue;
-        if (shown != null && !shown.contains(name)) continue;
-        if (hidden.contains(name)) continue;
+        if (effectiveShow != null && !effectiveShow.contains(name)) continue;
+        if (effectiveHide.contains(name)) continue;
         mockNames.add(name);
       }
+      // Follow nested barrels one more level, threading the effective
+      // combinators down (issue #1530 FR-002 carryover).
       if (depth < 2 && hasNestedExports) {
         _collectMockSurface(
           file.path,
@@ -413,6 +458,8 @@ class ZuraffaBarrelExports {
           zuraffaNames,
           mockNames,
           depth + 1,
+          inheritedShow: effectiveShow,
+          inheritedHide: effectiveHide,
         );
       }
     }
