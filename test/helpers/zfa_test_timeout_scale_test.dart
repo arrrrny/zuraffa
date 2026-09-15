@@ -101,4 +101,60 @@ void main() {
       );
     });
   });
+
+  group('cold source spawn budget', () {
+    test(
+      'R1: cold source spawn budget is 240s stretched by the process scale',
+      () {
+        final expected = Duration(
+          milliseconds: (240 * 1000 * processScale).round(),
+        );
+        expect(zfaColdSourceChildTimeout, expected);
+        expect(
+          zfaColdSourceChildTimeout,
+          greaterThanOrEqualTo(const Duration(seconds: 240)),
+          reason: 'scale can only relax, never tighten, the validated budget',
+        );
+      },
+    );
+
+    test(
+      'R2: EVERY source spawn spends the cold budget instead of the 75s guard',
+      () {
+        final cold = resolveChildTimeout(explicit: null, sourceSpawn: true);
+        expect(cold, zfaColdSourceChildTimeout);
+        expect(
+          cold,
+          isNot(zfaDefaultChildTimeout),
+          reason:
+              'a JIT start was measured at 84s cold (issue #1623) and 71s '
+              'even warm — at or above the 75s guard — so every source '
+              'spawn must spend the dedicated cold budget',
+        );
+      },
+    );
+
+    test('R3: compiled-binary spawns spend the default 75s guard', () {
+      // AOT spawns are milliseconds — never the cold budget. Source spawns
+      // always take the cold budget (R2): a warm JIT start does not
+      // reliably fit the 75s guard, so there is no spent-once fallback.
+      expect(
+        resolveChildTimeout(explicit: null, sourceSpawn: false),
+        zfaDefaultChildTimeout,
+      );
+    });
+
+    test('R4: an explicit caller timeout wins verbatim on every path', () {
+      const explicit = Duration(seconds: 33);
+      for (final sourceSpawn in [true, false]) {
+        expect(
+          resolveChildTimeout(explicit: explicit, sourceSpawn: sourceSpawn),
+          explicit,
+          reason:
+              'explicit budgets are never auto-scaled (documented in '
+              'test/README.md) — the resolver returns them verbatim',
+        );
+      }
+    });
+  });
 }
