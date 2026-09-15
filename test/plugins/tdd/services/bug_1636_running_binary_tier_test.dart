@@ -26,7 +26,8 @@
 //   B4 — the `dartaotruntime` snapshot driver: the PATH tier keeps firing
 //        (backward compat).
 //   B5 — the cache-exe driver with a NON-executable PATH candidate: the
-//        running binary wins; the PATH lookup is not even consulted.
+//        running binary wins; the non-executable PATH candidate never
+//        wins (the test pins the outcome, not the tier order).
 
 import 'dart:io';
 
@@ -121,26 +122,31 @@ void main() {
       expect(bin, pathInstall.path);
     });
 
-    test('B5: the cache-exe driver with a non-executable PATH candidate '
-        'resolves the running binary without consulting PATH', () async {
-      final dir = await Directory.systemTemp.createTemp('zfa1636_nox');
-      addTearDown(() => dir.delete(recursive: true));
-      final notExecutable = File(p.join(dir.path, 'zfa'));
-      await notExecutable.writeAsString('#!/bin/sh\nexit 0\n');
-      final driving = await executableFile('zfa1636_cache3', 'zfa_exe');
+    test(
+      'B5: the cache-exe driver with a non-executable PATH candidate '
+      'resolves the running binary — the PATH candidate never wins',
+      () async {
+        final dir = await Directory.systemTemp.createTemp('zfa1636_nox');
+        addTearDown(() => dir.delete(recursive: true));
+        final notExecutable = File(p.join(dir.path, 'zfa'));
+        await notExecutable.writeAsString('#!/bin/sh\nexit 0\n');
+        final driving = await executableFile('zfa1636_cache3', 'zfa_exe');
 
-      final bin = await StepRunner.resolveEntrypoint(
-        script: Uri.file(staleScript),
-        resolvedExecutable: driving.path,
-        environment: {'PATH': dir.path},
-        resolvePackageUri: noPackageUri,
-      );
+        final bin = await StepRunner.resolveEntrypoint(
+          script: Uri.file(staleScript),
+          resolvedExecutable: driving.path,
+          environment: {'PATH': dir.path},
+          resolvePackageUri: noPackageUri,
+        );
 
-      expect(
-        bin,
-        driving.path,
-        reason: 'the running-binary tier resolves before PATH is read',
-      );
-    });
+        expect(
+          bin,
+          driving.path,
+          reason:
+              'the non-executable PATH candidate never wins; this test '
+              'pins the outcome, not the tier order',
+        );
+      },
+    );
   });
 }

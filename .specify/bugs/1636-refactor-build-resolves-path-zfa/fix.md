@@ -89,3 +89,4 @@ which is the intended fix.
   `StepRunner.resolveEntrypoint` (the build pass's path), so the pipeline
   chain is left untouched — worth a dedicated issue if the same
   same-version hazard matters for `tdd make`/`gen` spawns.
+  → Filed as #1645.
