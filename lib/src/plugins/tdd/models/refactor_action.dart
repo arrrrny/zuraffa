@@ -72,6 +72,7 @@ class RefactorAction {
     required this.output,
     this.timedOut = false,
     this.skipped = false,
+    this.duration,
   });
 
   /// Pass name: `build`, `format`, or `fix`.
@@ -102,6 +103,13 @@ class RefactorAction {
   /// and [output] carries the gate's skip note. Consumers must not read
   /// a skipped action as an executed pass.
   final bool skipped;
+
+  /// Issue #1653: the pass's wall duration — the per-pass heartbeat that
+  /// makes a stuck step distinguishable from a fast one in the receipt.
+  /// Null when the pass never spawned (a scheduling-skipped synthetic —
+  /// nothing ran, nothing to time) and on every legacy-shaped caller
+  /// that does not measure.
+  final Duration? duration;
 
   @override
   String toString() =>
