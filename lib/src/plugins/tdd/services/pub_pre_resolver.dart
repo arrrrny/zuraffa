@@ -145,8 +145,7 @@ class PubPreResolver {
         workingDirectory: projectRoot,
       );
       watch.stop();
-      final output =
-          '${result.stdout}${result.stderr}'.trim();
+      final output = '${result.stdout}${result.stderr}'.trim();
       return PubPreResolveReport(
         ran: true,
         ok: result.exitCode == 0,
@@ -164,7 +163,8 @@ class PubPreResolver {
         ok: false,
         binary: binary,
         args: List<String>.unmodifiable(pubGetArgs),
-        unavailableReason: '$binary could not be started: '
+        unavailableReason:
+            '$binary could not be started: '
             '${e.message}',
       );
     } on ProcessTimeoutException catch (e) {

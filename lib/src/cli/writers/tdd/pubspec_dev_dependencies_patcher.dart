@@ -7,7 +7,10 @@ import 'dart:io';
 import 'package:yaml/yaml.dart';
 
 class PubspecDevDependenciesPatcher {
-  const PubspecDevDependenciesPatcher({this.isFlutter, this.includeMutationTest = false});
+  const PubspecDevDependenciesPatcher({
+    this.isFlutter,
+    this.includeMutationTest = false,
+  });
 
   /// Issue #1370: null (the default) means DETECT — the pubspec carries
   /// the answer (`dependencies.flutter: sdk: flutter`), so a caller that
@@ -111,8 +114,7 @@ class PubspecDevDependenciesPatcher {
                 ? flutterDevDependencies
                 : dartDevDependencies)
             .keys
-            .where((pkg) =>
-                pkg != 'mutation_test' || includeMutationTest)
+            .where((pkg) => pkg != 'mutation_test' || includeMutationTest)
             .toList();
       }
       final raw = await file.readAsString();

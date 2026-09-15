@@ -347,11 +347,9 @@ dev_dependencies:
       );
     });
 
-    test(
-      'flutter-mode ensure writes mutation_test: ^1.8.0 into pubspec.yaml '
-      'when opted in (issue #1653: includeMutationTest: true)',
-      () async {
-        await writePubspec('''
+    test('flutter-mode ensure writes mutation_test: ^1.8.0 into pubspec.yaml '
+        'when opted in (issue #1653: includeMutationTest: true)', () async {
+      await writePubspec('''
 name: myapp
 environment:
   sdk: ^3.11.0
@@ -360,51 +358,47 @@ dependencies: {}
 
 dev_dependencies: {}
 ''');
-        final patcher = const PubspecDevDependenciesPatcher(
-          isFlutter: true,
-          includeMutationTest: true,
-        );
-        await patcher.ensure(tmpDir.path);
-        final raw = await File(
-          p.join(tmpDir.path, 'pubspec.yaml'),
-        ).readAsString();
-        final doc = loadYaml(raw) as YamlMap;
-        final devDeps = doc['dev_dependencies'] as YamlMap;
-        expect(devDeps['mutation_test'], '^1.8.0');
-        expect(devDeps['coverage'], '^1.15.1');
-        expect(
-          devDeps.containsKey('mocktail'),
-          isFalse,
-          reason: 'mocktail must not be written into generated pubspecs',
-        );
-      },
-    );
+      final patcher = const PubspecDevDependenciesPatcher(
+        isFlutter: true,
+        includeMutationTest: true,
+      );
+      await patcher.ensure(tmpDir.path);
+      final raw = await File(
+        p.join(tmpDir.path, 'pubspec.yaml'),
+      ).readAsString();
+      final doc = loadYaml(raw) as YamlMap;
+      final devDeps = doc['dev_dependencies'] as YamlMap;
+      expect(devDeps['mutation_test'], '^1.8.0');
+      expect(devDeps['coverage'], '^1.15.1');
+      expect(
+        devDeps.containsKey('mocktail'),
+        isFalse,
+        reason: 'mocktail must not be written into generated pubspecs',
+      );
+    });
 
-    test(
-      'dart-mode ensure writes mutation_test: ^1.8.0 into pubspec.yaml '
-      'when opted in (issue #1653: includeMutationTest: true)',
-      () async {
-        await writePubspec('''
+    test('dart-mode ensure writes mutation_test: ^1.8.0 into pubspec.yaml '
+        'when opted in (issue #1653: includeMutationTest: true)', () async {
+      await writePubspec('''
 name: myapp
 environment:
   sdk: ^3.11.0
 
 dev_dependencies: {}
 ''');
-        final patcher = const PubspecDevDependenciesPatcher(
-          isFlutter: false,
-          includeMutationTest: true,
-        );
-        await patcher.ensure(tmpDir.path);
-        final raw = await File(
-          p.join(tmpDir.path, 'pubspec.yaml'),
-        ).readAsString();
-        final doc = loadYaml(raw) as YamlMap;
-        final devDeps = doc['dev_dependencies'] as YamlMap;
-        expect(devDeps['mutation_test'], '^1.8.0');
-        expect(devDeps['coverage'], '^1.15.1');
-        expect(devDeps.containsKey('mocktail'), isFalse);
-      },
-    );
+      final patcher = const PubspecDevDependenciesPatcher(
+        isFlutter: false,
+        includeMutationTest: true,
+      );
+      await patcher.ensure(tmpDir.path);
+      final raw = await File(
+        p.join(tmpDir.path, 'pubspec.yaml'),
+      ).readAsString();
+      final doc = loadYaml(raw) as YamlMap;
+      final devDeps = doc['dev_dependencies'] as YamlMap;
+      expect(devDeps['mutation_test'], '^1.8.0');
+      expect(devDeps['coverage'], '^1.15.1');
+      expect(devDeps.containsKey('mocktail'), isFalse);
+    });
   });
 }

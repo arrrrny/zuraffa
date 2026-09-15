@@ -46,8 +46,9 @@ class _DelayingExecutor implements ProcessExecutor {
 Directory _scratch() {
   final dir = Directory.systemTemp.createTempSync('bug_1653_passes_');
   Directory(p.join(dir.path, 'lib')).createSync(recursive: true);
-  File(p.join(dir.path, 'lib', 'main.dart'))
-      .writeAsStringSync('void main() {}\n');
+  File(
+    p.join(dir.path, 'lib', 'main.dart'),
+  ).writeAsStringSync('void main() {}\n');
   return dir;
 }
 
@@ -81,23 +82,25 @@ void main() {
       }
     });
 
-    test('a scheduling-skipped pass records NO duration (nothing ran)',
-        () async {
-      final project = _scratch();
-      try {
-        final passes = RefactorPasses(
-          project.path,
-          executor: _DelayingExecutor(Duration.zero),
-          buildSkipGate: () async => 'nothing to build (test gate)',
-        );
-        final result = await passes.run();
-        final build = result.actions.first;
-        expect(build.skipped, isTrue);
-        expect(build.duration, isNull);
-      } finally {
-        project.deleteSync(recursive: true);
-      }
-    });
+    test(
+      'a scheduling-skipped pass records NO duration (nothing ran)',
+      () async {
+        final project = _scratch();
+        try {
+          final passes = RefactorPasses(
+            project.path,
+            executor: _DelayingExecutor(Duration.zero),
+            buildSkipGate: () async => 'nothing to build (test gate)',
+          );
+          final result = await passes.run();
+          final build = result.actions.first;
+          expect(build.skipped, isTrue);
+          expect(build.duration, isNull);
+        } finally {
+          project.deleteSync(recursive: true);
+        }
+      },
+    );
   });
 
   group('bug #1653 — receipt rendering (FR-007)', () {
@@ -142,28 +145,27 @@ void main() {
       CycleLogEntry entry({
         Map<String, Duration>? phases,
         Duration? actionDuration,
-      }) =>
-          CycleLogEntry(
-            behaviorId: 'feat-refactor',
-            kind: CycleEntryKind.refactor,
-            runnerCommand: 'dart test',
+      }) => CycleLogEntry(
+        behaviorId: 'feat-refactor',
+        kind: CycleEntryKind.refactor,
+        runnerCommand: 'dart test',
+        exitCode: 0,
+        capturedOutput: 'preflight: green\nre-proof: green\n',
+        sourceCriterion: 'FR-007',
+        testPath: 'test/',
+        timestamp: '2026-09-16T00:00:00.000Z',
+        refactorActions: [
+          RefactorAction(
+            name: 'format',
+            command: 'dart format lib/',
             exitCode: 0,
-            capturedOutput: 'preflight: green\nre-proof: green\n',
-            sourceCriterion: 'FR-007',
-            testPath: 'test/',
-            timestamp: '2026-09-16T00:00:00.000Z',
-            refactorActions: [
-              RefactorAction(
-                name: 'format',
-                command: 'dart format lib/',
-                exitCode: 0,
-                filesChanged: const [],
-                output: 'ok',
-                duration: actionDuration,
-              ),
-            ],
-            phaseDurations: phases,
-          );
+            filesChanged: const [],
+            output: 'ok',
+            duration: actionDuration,
+          ),
+        ],
+        phaseDurations: phases,
+      );
 
       final legacy = entry();
       final timed = entry(
@@ -187,14 +189,8 @@ void main() {
       // The chain payload covers behavior/kind/exit/command/criterion/test/
       // timestamp — identical for both entries.
       expect(
-        CycleLog.chainHashFor(
-          legacy,
-          prevHash: CycleLog.genesisHash,
-        ),
-        CycleLog.chainHashFor(
-          timed,
-          prevHash: CycleLog.genesisHash,
-        ),
+        CycleLog.chainHashFor(legacy, prevHash: CycleLog.genesisHash),
+        CycleLog.chainHashFor(timed, prevHash: CycleLog.genesisHash),
         reason:
             'the duration lines are additive evidence OUTSIDE the chain-hash '
             'payload — the hash must not move when they are added',
