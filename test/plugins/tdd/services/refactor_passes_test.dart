@@ -283,6 +283,68 @@ void main() {
       }
     });
 
+    // Issue #1624: a spec's skipGate can prove a pass has nothing to do.
+    // The pass must be recorded as a synthetic skipped action — never
+    // spawned — and the registry must continue to the remaining passes.
+    test('a spec whose skipGate returns a note is recorded as skipped and '
+        'never handed to the executor', () async {
+      final project = await _ScratchProject.create();
+      try {
+        final executor = _FakeExecutor([
+          _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+          _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+        ]);
+        final passes = RefactorPasses(
+          project.root.path,
+          executor: executor,
+          passSpecs: Future.value([
+            RefactorPassSpec(
+              name: 'build',
+              command: 'zfa build',
+              skipGate: () async => 'skipped: nothing to build (test)',
+            ),
+            const RefactorPassSpec(name: 'format', command: 'dart format lib/'),
+            const RefactorPassSpec(
+              name: 'fix',
+              command: 'dart fix --apply lib/',
+            ),
+          ]),
+        );
+        final result = await passes.run();
+
+        // The executor never saw the gated pass.
+        expect(executor.invocations.map((i) => i.passName).toList(), [
+          'format',
+          'fix',
+        ]);
+        expect(result.actions, hasLength(3));
+        final build = result.actions.first;
+        expect(build.name, 'build');
+        expect(build.skipped, isTrue);
+        expect(build.filesChanged, isEmpty);
+        expect(build.exitCode, 0);
+        expect(build.output, 'skipped: nothing to build (test)');
+        // The remaining passes still ran and are NOT marked skipped.
+        expect(result.actions[1].skipped, isFalse);
+        expect(result.actions[2].skipped, isFalse);
+        expect(result.stopped, isFalse);
+      } finally {
+        project.dispose();
+      }
+    });
+
+    test('the default pass set attaches a skip gate to the build pass only '
+        '(issue #1624)', () async {
+      final passes = RefactorPasses(
+        '/tmp/unused',
+        ensureCompiled: _fakeCompile,
+      );
+      final specs = await passes.passSpecs;
+      expect(specs.firstWhere((s) => s.name == 'build').skipGate, isNotNull);
+      expect(specs.firstWhere((s) => s.name == 'format').skipGate, isNull);
+      expect(specs.firstWhere((s) => s.name == 'fix').skipGate, isNull);
+    });
+
     test('a pass that does not start misfire-stops the registry', () async {
       final project = await _ScratchProject.create();
       try {

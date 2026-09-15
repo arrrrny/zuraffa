@@ -71,6 +71,7 @@ class RefactorAction {
     required this.filesChanged,
     required this.output,
     this.timedOut = false,
+    this.skipped = false,
   });
 
   /// Pass name: `build`, `format`, or `fix`.
@@ -93,6 +94,14 @@ class RefactorAction {
   /// True when the pass was killed by the per-command timeout (bug #742):
   /// the pass launched but outlived the deadline (tooling failure).
   final bool timedOut;
+
+  /// Issue #1624: true when the pass was NOT spawned at all — a
+  /// scheduling gate proved it had nothing to do (`build`, when no
+  /// builder-consumable input is newer than the build_runner asset
+  /// graph). The action is synthetic: `exitCode: 0`, `filesChanged: []`,
+  /// and [output] carries the gate's skip note. Consumers must not read
+  /// a skipped action as an executed pass.
+  final bool skipped;
 
   @override
   String toString() =>

@@ -1038,6 +1038,16 @@ class RunDriverCore {
         feature: feature,
         greenEvidenceIds: greenEvidence,
         handSteps: handSteps,
+        // Issue #1624: the phase-1 per-behavior refactor opts into the
+        // pass-batch ledger too. Phase 1 was the remaining spawn shape
+        // that never did, so every behavior's refactor re-paid the whole
+        // pipeline (~85-190s) even though the previous one just proved
+        // the identical tree. The ledger's byte-identity check is what
+        // makes this safe: only a byte-identical `lib/` + `test/` tree
+        // under the same suite/baseline/config/exempt set inherits a
+        // previously proven gate, so a phase-1 spawn that changed
+        // anything re-runs the full pipeline.
+        batchRefactor: true,
       );
       if (result.stop != null) {
         return _finish(
@@ -1921,11 +1931,13 @@ class RunDriverCore {
     // read is fresh; see below.)
     required Map<String, String> handSteps,
 
-    /// Issue #1588: the phase-2b refactor pass opts its spawns into the
-    /// feature pass-batch ledger (--pass-batch) and hands the lane's
-    /// parked BLOCKED behavior ids as --exempt-behaviors, so their
-    /// designed red tests cannot poison the refactor gate. Phase-1
-    /// refactors and every other step keep the default (no batch flags).
+    /// Issue #1588: the refactor pass opts its spawns into the feature
+    /// pass-batch ledger (--pass-batch) and hands the lane's parked
+    /// BLOCKED behavior ids as --exempt-behaviors, so their designed red
+    /// tests cannot poison the refactor gate. Issue #1624: BOTH refactor
+    /// call sites — the phase-1 per-behavior refactor and the phase-2b
+    /// batch — pass true; the ledger's byte-identity check is what makes
+    /// that safe. Every other step keeps the default (no batch flags).
     bool batchRefactor = false,
   }) async {
     var updated = current;
@@ -2897,12 +2909,13 @@ class RunDriverCore {
     _ => throw ArgumentError.value(step, 'step', 'unknown TDD step'),
   };
 
-  /// Issue #1588: the batch context the phase-2b refactor pass hands every
-  /// spawn — `--pass-batch` (the ledger opt-in) plus the lane's parked
-  /// BLOCKED behavior ids as `--exempt-behaviors` (their red tests are the
+  /// Issue #1588: the batch context a refactor pass hands every spawn —
+  /// `--pass-batch` (the ledger opt-in) plus the lane's parked BLOCKED
+  /// behavior ids as `--exempt-behaviors` (their red tests are the
   /// designed park state, #1007/#1544, and must not poison the gate the
-  /// baseline cannot know about). Sorted for a stable ledger key and
-  /// stable spawn argv.
+  /// baseline cannot know about). Issue #1624: every refactor spawn —
+  /// phase 1 and phase 2b — carries these args. Sorted for a stable
+  /// ledger key and stable spawn argv.
   List<String> _refactorBatchArgs(List<BehaviorRow> rows, RunState state) {
     final blocked = [
       for (final r in rows)

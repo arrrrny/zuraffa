@@ -211,8 +211,10 @@ coverage: 'dart test --coverage'
       final first = await runRefactor(extraArgs: ['--pass-batch']);
       expect(exitCode, 0, reason: first);
       final spawnsAfterFirst = await suiteSpawnCount();
-      // The first invocation pays the pipeline: preflight + re-proof.
-      expect(spawnsAfterFirst, greaterThanOrEqualTo(2), reason: first);
+      // The first invocation pays the preflight; the re-proof is
+      // INHERITED because the pass registry changed no file (issue
+      // #1624) — so exactly ONE suite spawn, not two.
+      expect(spawnsAfterFirst, greaterThanOrEqualTo(1), reason: first);
 
       final second = await runRefactor(extraArgs: ['--pass-batch']);
       expect(exitCode, 0, reason: second);
@@ -334,6 +336,43 @@ coverage: 'dart test --coverage'
         greaterThan(spawnsAfterFirst),
         reason: second,
       );
+    });
+
+    // Issue #1624: the pass registry changed NO file, so the tree the
+    // re-proof would grade is byte-identical to the one the preflight
+    // just certified — the re-proof child is not spawned at all.
+    test('bug 1624: no pass changed a file — the re-proof child is NOT '
+        'spawned and the preflight verdict is inherited', () async {
+      final before = fx.checksumTestAndLib();
+      final out = await runRefactor();
+
+      expect(exitCode, 0, reason: out);
+      expect(out, contains('outcome=clean'), reason: out);
+      // THE economics assertion: one suite spawn (the preflight) only.
+      expect(await suiteSpawnCount(), 1, reason: out);
+      // The inheritance is named honestly, never a fabricated green.
+      expect(out.toLowerCase(), contains('inherited'), reason: out);
+      expect(out, contains('1624'), reason: out);
+      // The cycle-log evidence records the inherited verdict.
+      final log = await File(
+        p.join(fx.featureDir, 'tdd', 'cycle-log.md'),
+      ).readAsString();
+      expect(log, contains('inherited from the preflight'), reason: log);
+      expect(log, contains('issue #1624'), reason: log);
+      // Nothing changed.
+      expect(fx.checksumTestAndLib(), equals(before));
+    });
+
+    test('bug 1624: --full-reproof still spawns the re-proof even when no '
+        'pass changed a file', () async {
+      final out = await runRefactor(extraArgs: ['--full-reproof']);
+
+      expect(exitCode, 0, reason: out);
+      // An explicit request for the strongest proof is always answered by
+      // running it: preflight + re-proof.
+      expect(await suiteSpawnCount(), 2, reason: out);
+      expect(out, contains('--full-reproof'), reason: out);
+      expect(out.toLowerCase(), isNot(contains('inherited')), reason: out);
     });
   });
 
@@ -568,6 +607,55 @@ coverage: 'dart test --coverage'
               as Map<String, dynamic>;
       expect(state['A1'], 'done');
       expect(state['U1'], 'done');
+    });
+
+    // Issue #1624: the phase-1 (per-behavior) refactor spawn was the one
+    // shape that never opted into the ledger — every behavior re-paid the
+    // whole pipeline. A lone green behavior whose refactor is NOT
+    // deferred drives its refactor in phase 1, and that spawn must carry
+    // the batch opt-in too.
+    test('bug 1624: a phase-1 refactor spawn carries --pass-batch', () async {
+      await dfx.seedTestList([
+        (
+          id: 'A1',
+          description: 'green unit behavior',
+          traces: 'FR-001',
+          state: 'PENDING',
+          kind: 'unit',
+        ),
+      ]);
+      await dfx.registerBehavior(
+        id: 'A1',
+        description: 'green unit behavior',
+        writeTestFile: false,
+      );
+      await dfx.seedRedEvidence('A1');
+      await dfx.seedGreenEvidence('A1');
+      await dfx.seedRunState(states: {'A1': 'green'});
+
+      final out = await drive();
+
+      expect(exitCode, 0, reason: out);
+      final refactorSpawns = (await argvLog())
+          .where((l) => l.startsWith('tdd refactor A1'))
+          .toList();
+      // Nothing defers A1's refactor — this IS the phase-1 spawn.
+      expect(refactorSpawns, hasLength(1), reason: out);
+      expect(
+        refactorSpawns.single,
+        contains('--pass-batch'),
+        reason: refactorSpawns.single,
+      );
+      expect(
+        refactorSpawns.single,
+        isNot(contains('--exempt-behaviors')),
+        reason: refactorSpawns.single,
+      );
+      final state =
+          (jsonDecode(await File(dfx.runStatePath).readAsString())
+                  as Map<String, dynamic>)['behavior_states']
+              as Map<String, dynamic>;
+      expect(state['A1'], 'done');
     });
   });
 }

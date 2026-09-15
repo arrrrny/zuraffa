@@ -235,4 +235,96 @@ void main() {
       );
     });
   });
+
+  // Issue #1624: the REFACTOR's build-pass gate. It has no "before"
+  // fingerprint to diff (the refactor did not write the tree), so it
+  // decides from build_runner's own state marker —
+  // `.dart_tool/build/asset_graph.json`. Only files NOT older than that
+  // marker can hold input build_runner has not consumed.
+  group('refactorBuildSkipNote (issue #1624)', () {
+    late Directory root;
+    final marker = p.join('.dart_tool', 'build', 'asset_graph.json');
+
+    setUp(() {
+      root = Directory.systemTemp.createTempSync('refactor_build_gate_');
+    });
+    tearDown(() {
+      root.deleteSync(recursive: true);
+    });
+
+    /// Write the build_runner marker backdated one hour: any file written
+    /// "now" by the test is unambiguously newer than it.
+    void writeMarker() {
+      final file = File(p.join(root.path, marker))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('{}');
+      file.setLastModifiedSync(
+        DateTime.now().subtract(const Duration(hours: 1)),
+      );
+    }
+
+    void writeLibFile(String name, String content) {
+      Directory(p.join(root.path, 'lib')).createSync(recursive: true);
+      File(p.join(root.path, 'lib', name)).writeAsStringSync(content);
+    }
+
+    test('a missing marker runs the build — the project has never been '
+        'built here', () async {
+      writeLibFile('a.dart', 'int a() => 1;\n');
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
+    test('a newer annotated .dart file runs the build', () async {
+      writeMarker();
+      writeLibFile('user.dart', '@JsonSerializable\nclass User {}\n');
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
+    test('a newer plain .dart file skips the build', () async {
+      writeMarker();
+      writeLibFile('plain.dart', 'int answer() => 42;\n');
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        BuildRelevance.refactorBuildSkippedNote,
+      );
+    });
+
+    test('a newer non-Dart write runs the build', () async {
+      writeMarker();
+      Directory(p.join(root.path, 'lib')).createSync(recursive: true);
+      File(p.join(root.path, 'lib', 'data.txt')).writeAsStringSync('x\n');
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
+    test('a newer build-config write runs the build', () async {
+      writeMarker();
+      File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: x\n');
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
+    test('a tree unchanged since the marker skips the build', () async {
+      writeMarker();
+      writeLibFile('plain.dart', 'int answer() => 42;\n');
+      // Backdate the write behind the marker: nothing is newer.
+      File(
+        p.join(root.path, 'lib', 'plain.dart'),
+      ).setLastModifiedSync(DateTime.now().subtract(const Duration(hours: 2)));
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        BuildRelevance.refactorBuildSkippedNote,
+      );
+    });
+  });
 }

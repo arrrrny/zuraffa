@@ -38,6 +38,16 @@
 /// on PATH whose `--version` provably disagrees with the running CLI is
 /// bypassed in favor of the driving CLI's own entrypoint.
 ///
+/// Issue #1624 — the build pass's scheduling gate. The refactor's
+/// whole-project `zfa build` (build_runner + the whole-project `dart
+/// analyze lib/`) is pure overhead on a feature whose generation writes
+/// only plain Dart. A [RefactorPassSpec] may carry a `skipGate`; when it
+/// returns a note the pass is recorded as a synthetic skipped action
+/// (`skipped: true`, `filesChanged: []`, the note as `output`) and never
+/// spawned. Only the `build` spec carries one (see
+/// [BuildRelevance.refactorBuildSkipNote]) — `format` and `fix` are cheap
+/// and always worth running.
+///
 /// The command (not this service) is responsible for the test-directory
 /// immutability check and the overall `lib/` attribution check; this
 /// service only records what each pass did.
@@ -51,6 +61,7 @@ import '../../../cli/zfa_executable.dart';
 import '../../../core/generation/tracked_generated_output_guard.dart';
 import '../../../version.dart';
 import '../models/refactor_action.dart';
+import 'build_relevance.dart';
 import 'step_runner.dart';
 import 'tdd_timeout.dart';
 import 'tree_snapshot.dart';
@@ -208,10 +219,23 @@ class DefaultProcessExecutor implements ProcessExecutor {
 
 /// One pass spec: name, command, and the executor invocation.
 class RefactorPassSpec {
-  const RefactorPassSpec({required this.name, required this.command});
+  const RefactorPassSpec({
+    required this.name,
+    required this.command,
+    this.skipGate,
+  });
 
   final String name;
   final String command;
+
+  /// Issue #1624: an optional scheduling gate. A non-null result is a
+  /// skip note — the pass is recorded as a synthetic skipped action
+  /// (`skipped: true`, `filesChanged: []`) and never spawned; null runs
+  /// the pass. Only the `build` spec carries one:
+  /// [RefactorPasses.defaultPassSpecs] attaches
+  /// [BuildRelevance.refactorBuildSkipNote] when the registry was
+  /// constructed with a project root.
+  final Future<String?> Function()? skipGate;
 }
 
 /// The result of running the full pass registry.
@@ -259,6 +283,7 @@ class RefactorPasses {
     Duration? passTimeout,
     this.warningsBlocking = false,
     ZfaEnsureCompiled? ensureCompiled,
+    Future<String?> Function()? buildSkipGate,
   }) : _executor =
            executor ??
            DefaultProcessExecutor(
@@ -268,9 +293,11 @@ class RefactorPasses {
        _passSpecsFuture =
            passSpecs ??
            defaultPassSpecs(
+             projectRoot: projectRoot,
              zfaBinOverride: zfaBinOverride,
              environment: environment,
              ensureCompiled: ensureCompiled,
+             buildSkipGate: buildSkipGate,
            );
 
   /// Project root the passes operate on.
@@ -305,18 +332,37 @@ class RefactorPasses {
   /// [ensureCompiled] is the no-JIT seam handed to [zfaBuildCommand] —
   /// tests inject a fake so resolving a source entrypoint does not AOT
   /// compile the real package.
+  ///
+  /// Issue #1624: [projectRoot] binds the build pass's build-relevance
+  /// gate ([BuildRelevance.refactorBuildSkipNote]); [buildSkipGate]
+  /// replaces it outright for tests. Only the `build` spec carries a
+  /// gate — `format` and `fix` are cheap and always worth running.
   static Future<List<RefactorPassSpec>> defaultPassSpecs({
+    String? projectRoot,
     String? zfaBinOverride,
     Map<String, String>? environment,
     ZfaEnsureCompiled? ensureCompiled,
+    Future<String?> Function()? buildSkipGate,
   }) async {
     final buildCommand = await zfaBuildCommand(
       zfaBinOverride: zfaBinOverride,
       environment: environment,
       ensureCompiled: ensureCompiled,
     );
+    // Issue #1624: the build pass is gated by build relevance. A caller
+    // may inject its own gate; with none given, the real gate is bound to
+    // [projectRoot]. A null root (the unit-test shape that only resolves a
+    // command without a project tree) attaches no gate, so the pass runs
+    // exactly as before.
+    final gate =
+        buildSkipGate ??
+        (projectRoot == null
+            ? null
+            : () => BuildRelevance.refactorBuildSkipNote(
+                projectRoot: projectRoot,
+              ));
     return [
-      RefactorPassSpec(name: 'build', command: buildCommand),
+      RefactorPassSpec(name: 'build', command: buildCommand, skipGate: gate),
       const RefactorPassSpec(name: 'format', command: 'dart format lib/'),
       const RefactorPassSpec(name: 'fix', command: 'dart fix --apply lib/'),
     ];
@@ -332,6 +378,9 @@ class RefactorPasses {
   /// Run every pass in order, stopping at the first failure.
   ///
   /// For each pass:
+  ///   0. (Issue #1624) Ask the spec's `skipGate`, when it has one: a
+  ///      non-null note records a synthetic skipped action and continues
+  ///      to the next spec — no snapshot, no tracked guard, no spawn.
   ///   1. Capture a before snapshot of `lib/`.
   ///   2. Invoke the executor with the pass's command.
   ///   3. Capture an after snapshot of `lib/`.
@@ -351,6 +400,24 @@ class RefactorPasses {
     final actions = <RefactorAction>[];
     final specs = await passSpecs;
     for (final spec in specs) {
+      // Issue #1624: a gated pass that proves it has nothing to do is
+      // recorded as a synthetic skipped action and never spawned. No
+      // snapshot is captured and the #1540 tracked guard is not armed —
+      // both only make sense around a process that actually ran.
+      final skipNote = spec.skipGate == null ? null : await spec.skipGate!();
+      if (skipNote != null) {
+        actions.add(
+          RefactorAction(
+            name: spec.name,
+            command: spec.command,
+            exitCode: 0,
+            filesChanged: const [],
+            output: skipNote,
+            skipped: true,
+          ),
+        );
+        continue;
+      }
       final before = await TreeSnapshot.capture(
         projectRoot,
         trees: const ['lib'],

@@ -147,7 +147,10 @@ exit 255
         singleTemplate: TddFixture.defaultSingleTemplate,
         suiteTemplate: suite,
       );
-      await fx.seedAlreadyCleanLib();
+      // A malformed (but valid) lib file: `dart format` changes it, so the
+      // pass registry DID change a file and the re-proof is not inherited
+      // (issue #1624) — this scenario needs the re-proof to run.
+      await fx.seedMalformedLib();
 
       final out = await runRefactor();
 
@@ -202,7 +205,9 @@ exit 255
         singleTemplate: TddFixture.defaultSingleTemplate,
         suiteTemplate: suite,
       );
-      await fx.seedAlreadyCleanLib();
+      // As B3: the format pass changes this file, so the re-proof runs
+      // instead of being inherited (issue #1624).
+      await fx.seedMalformedLib();
 
       final out = await runRefactor();
 
@@ -242,7 +247,9 @@ exit 1
         singleTemplate: TddFixture.defaultSingleTemplate,
         suiteTemplate: suite,
       );
-      await fx.seedAlreadyCleanLib();
+      // As B3: the format pass changes this file, so the re-proof runs
+      // instead of being inherited (issue #1624).
+      await fx.seedMalformedLib();
 
       final out = await runRefactor();
 
@@ -285,7 +292,13 @@ exit 1
       expect(exitCode, 0);
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, contains('- no-op: true'));
-      expect(log, contains('re-proof verdict: green (exit 0)'));
+      // Issue #1624: a clean no-op changed no file, so the re-proof is
+      // INHERITED — the diagnostics line + tail still land in the
+      // evidence entry, and the verdict names the inheritance honestly
+      // instead of a green the command did not observe.
+      expect(log, contains('re-proof verdict:'), reason: log);
+      expect(log, contains('inherited from the preflight'), reason: log);
+      expect(log, contains('issue #1624'), reason: log);
       expect(log, contains('re-proof retries: 0'));
       expect(log, contains('re-proof output tail (stdout+stderr, truncated):'));
     });

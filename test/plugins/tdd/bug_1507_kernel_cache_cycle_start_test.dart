@@ -15,7 +15,8 @@
 //        directories recursively;
 //   C2 — the sweep runs at the START of every TDD cycle in BOTH the
 //        refactor and the run command. Proven with a HEALTHY green cycle:
-//        the counter shows preflight + re-proof only (2), so the retry
+//        the counter shows the preflight only (1 — the re-proof is
+//        inherited when no pass changed a file, issue #1624), so the retry
 //        machinery never fired and the only sweep that can have deleted
 //        the seeded entries is the cycle-start one;
 //   C3 — the sweep logs what it reclaimed:
@@ -135,9 +136,10 @@ void main() {
   }
 
   /// Write a counting suite script that NEVER fails ([when] can never
-  /// hold) — the preflight and the re-proof both run it green, so the
-  /// cycle is healthy and the retry machinery never fires. The counter
-  /// proves the invocation count afterwards.
+  /// hold) — the preflight runs it green, the cycle is healthy, and the
+  /// retry machinery never fires. (The re-proof is inherited when the
+  /// pass registry changed no file — issue #1624 — so the counter proves
+  /// the preflight was the ONLY invocation.)
   Future<String> writeNeverFailingSuite(String name) async {
     await Directory(fx.spyDir).create(recursive: true);
     final scriptPath = p.join(fx.spyDir, name);
@@ -217,11 +219,12 @@ exit 0
       expect(exitCode, 0, reason: out);
       expect(
         counter.readAsStringSync().trim(),
-        '2',
+        '1',
         reason:
-            'preflight + re-proof — the retry machinery never fired, '
-            'so the only sweep that can have deleted the seeded entries '
-            'is the cycle-start one (C2)',
+            'the preflight only — the pass registry changed no file, so '
+            'the re-proof is inherited (issue #1624) and the retry '
+            'machinery never fired; the only sweep that can have deleted '
+            'the seeded entries is the cycle-start one (C2)',
       );
       expect(
         staleDir.existsSync(),
