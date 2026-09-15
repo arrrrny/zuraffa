@@ -51,134 +51,138 @@ int takeExitCode() {
 const feature = '004-calculator';
 
 void main() {
-  group('seamPathFor: the subject seam wins over the test file (issue #1625)',
-      () {
-    late Directory root;
+  group(
+    'seamPathFor: the subject seam wins over the test file (issue #1625)',
+    () {
+      late Directory root;
 
-    setUp(() {
-      root = Directory.systemTemp.createTempSync('tdd_1625_seam_');
-    });
+      setUp(() {
+        root = Directory.systemTemp.createTempSync('tdd_1625_seam_');
+      });
 
-    tearDown(() {
-      root.deleteSync(recursive: true);
-    });
+      tearDown(() {
+        root.deleteSync(recursive: true);
+      });
 
-    test('an existing subject is named over an existing test', () {
-      final subject = File(
-        p.join(root.path, 'lib', 'tdd', feature, 'contract_a1_subject.dart'),
-      )..createSync(recursive: true);
-      File(
-        p.join(root.path, 'test', 'tdd', feature, 'contract_a1_test.dart'),
-      ).createSync(recursive: true);
+      test('an existing subject is named over an existing test', () {
+        final subject = File(
+          p.join(root.path, 'lib', 'tdd', feature, 'contract_a1_subject.dart'),
+        )..createSync(recursive: true);
+        File(
+          p.join(root.path, 'test', 'tdd', feature, 'contract_a1_test.dart'),
+        ).createSync(recursive: true);
 
-      final seam = HandSurface.seamPathFor(
-        projectRoot: root.path,
-        feature: feature,
-        behaviorId: 'contract:A1',
-      );
+        final seam = HandSurface.seamPathFor(
+          projectRoot: root.path,
+          feature: feature,
+          behaviorId: 'contract:A1',
+        );
 
-      expect(seam, 'lib/tdd/$feature/contract_a1_subject.dart');
-      expect(
-        p.join(root.path, seam),
-        subject.path,
-        reason: 'the named file is the one on disk',
-      );
-    });
+        expect(seam, 'lib/tdd/$feature/contract_a1_subject.dart');
+        expect(
+          p.join(root.path, seam),
+          subject.path,
+          reason: 'the named file is the one on disk',
+        );
+      });
 
-    test('a test-only project still names the existing test (fallback)', () {
-      File(
-        p.join(root.path, 'test', 'tdd', feature, 'contract_a1_test.dart'),
-      ).createSync(recursive: true);
+      test('a test-only project still names the existing test (fallback)', () {
+        File(
+          p.join(root.path, 'test', 'tdd', feature, 'contract_a1_test.dart'),
+        ).createSync(recursive: true);
 
-      final seam = HandSurface.seamPathFor(
-        projectRoot: root.path,
-        feature: feature,
-        behaviorId: 'contract:A1',
-      );
+        final seam = HandSurface.seamPathFor(
+          projectRoot: root.path,
+          feature: feature,
+          behaviorId: 'contract:A1',
+        );
 
-      expect(seam, 'test/tdd/$feature/contract_a1_test.dart');
-    });
+        expect(seam, 'test/tdd/$feature/contract_a1_test.dart');
+      });
 
-    test('nothing on disk: the canonical display fallback is the SUBJECT '
-        'path — the file the operator creates implements in', () {
-      final seam = HandSurface.seamPathFor(
-        projectRoot: root.path,
-        feature: feature,
-        behaviorId: 'contract:A1',
-      );
+      test('nothing on disk: the canonical display fallback is the SUBJECT '
+          'path — the file the operator creates implements in', () {
+        final seam = HandSurface.seamPathFor(
+          projectRoot: root.path,
+          feature: feature,
+          behaviorId: 'contract:A1',
+        );
 
-      expect(seam, 'lib/tdd/$feature/contract_a1_subject.dart');
-    });
-  });
+        expect(seam, 'lib/tdd/$feature/contract_a1_subject.dart');
+      });
+    },
+  );
 
-  group('hintLine: the wire hint is gated on entity existence (issue #1625)',
-      () {
-    late Directory root;
+  group(
+    'hintLine: the wire hint is gated on entity existence (issue #1625)',
+    () {
+      late Directory root;
 
-    setUp(() {
-      root = Directory.systemTemp.createTempSync('tdd_1625_hint_');
-    });
+      setUp(() {
+        root = Directory.systemTemp.createTempSync('tdd_1625_hint_');
+      });
 
-    tearDown(() {
-      root.deleteSync(recursive: true);
-    });
+      tearDown(() {
+        root.deleteSync(recursive: true);
+      });
 
-    test('entity exists: the with-entity wire example is printed', () {
-      File(
-        p.join(
-          root.path,
-          'lib',
-          'src',
-          'domain',
-          'entities',
-          'user',
-          'user.dart',
-        ),
-      ).createSync(recursive: true);
+      test('entity exists: the with-entity wire example is printed', () {
+        File(
+          p.join(
+            root.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'user',
+            'user.dart',
+          ),
+        ).createSync(recursive: true);
 
-      final hint = HandSurface.hintLine(
-        behaviorId: 'contract:A1',
-        seamPath: 'lib/tdd/$feature/contract_a1_subject.dart',
-        contract: 'User.validateEmail',
-        projectRoot: root.path,
-      );
+        final hint = HandSurface.hintLine(
+          behaviorId: 'contract:A1',
+          seamPath: 'lib/tdd/$feature/contract_a1_subject.dart',
+          contract: 'User.validateEmail',
+          projectRoot: root.path,
+        );
 
-      expect(hint, contains('zfa tdd wire contract:A1 --entity User'));
-    });
+        expect(hint, contains('zfa tdd wire contract:A1 --entity User'));
+      });
 
-    test('entity MISSING: the hand-implement instruction is printed instead '
-        '— never a wire command that would fail', () {
-      final hint = HandSurface.hintLine(
-        behaviorId: 'contract:A1',
-        seamPath: 'lib/tdd/$feature/contract_a1_subject.dart',
-        contract: 'User.validateEmail',
-        projectRoot: root.path,
-      );
+      test('entity MISSING: the hand-implement instruction is printed instead '
+          '— never a wire command that would fail', () {
+        final hint = HandSurface.hintLine(
+          behaviorId: 'contract:A1',
+          seamPath: 'lib/tdd/$feature/contract_a1_subject.dart',
+          contract: 'User.validateEmail',
+          projectRoot: root.path,
+        );
 
-      expect(
-        hint,
-        contains('lib/tdd/$feature/contract_a1_subject.dart'),
-        reason: hint,
-      );
-      expect(hint, contains('zfa entity create -n User'), reason: hint);
-      expect(
-        hint,
-        isNot(contains('e.g. `zfa tdd wire contract:A1 --entity User`')),
-        reason: hint,
-      );
-    });
+        expect(
+          hint,
+          contains('lib/tdd/$feature/contract_a1_subject.dart'),
+          reason: hint,
+        );
+        expect(hint, contains('zfa entity create -n User'), reason: hint);
+        expect(
+          hint,
+          isNot(contains('e.g. `zfa tdd wire contract:A1 --entity User`')),
+          reason: hint,
+        );
+      });
 
-    test('undotted contract: no entity to check, the bare wire example '
-        'stands (unchanged #1589 degradation)', () {
-      final hint = HandSurface.hintLine(
-        behaviorId: 'contract:A1',
-        seamPath: 'lib/tdd/$feature/contract_a1_subject.dart',
-        projectRoot: root.path,
-      );
+      test('undotted contract: no entity to check, the bare wire example '
+          'stands (unchanged #1589 degradation)', () {
+        final hint = HandSurface.hintLine(
+          behaviorId: 'contract:A1',
+          seamPath: 'lib/tdd/$feature/contract_a1_subject.dart',
+          projectRoot: root.path,
+        );
 
-      expect(hint, contains('zfa tdd wire contract:A1'));
-    });
-  });
+        expect(hint, contains('zfa tdd wire contract:A1'));
+      });
+    },
+  );
 
   group('run: the blocked stop names the subject seam (issue #1625)', () {
     late TddFixture fx;
@@ -247,11 +251,7 @@ void main() {
         fx.fakeZfaBin,
       ]);
 
-      expect(
-        out,
-        contains('zfa entity create -n Calculator'),
-        reason: out,
-      );
+      expect(out, contains('zfa entity create -n Calculator'), reason: out);
       expect(
         out,
         isNot(contains('e.g. `zfa tdd wire contract:A1 --entity Calculator`')),
@@ -264,48 +264,52 @@ void main() {
       expect(takeExitCode(), 1, reason: out);
     });
 
-    test('with the entity on disk the with-entity wire example is printed',
-        () async {
-      seedEntity(fx, 'Calculator');
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing([
-        'tdd',
-        'run',
-        feature,
-        '--project',
-        fx.root.path,
-        '--zfa-bin',
-        fx.fakeZfaBin,
-      ]);
-      takeExitCode();
+    test(
+      'with the entity on disk the with-entity wire example is printed',
+      () async {
+        seedEntity(fx, 'Calculator');
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'run',
+          feature,
+          '--project',
+          fx.root.path,
+          '--zfa-bin',
+          fx.fakeZfaBin,
+        ]);
+        takeExitCode();
 
-      expect(
-        out,
-        contains('zfa tdd wire contract:A1 --entity Calculator'),
-        reason: out,
-      );
-    });
+        expect(
+          out,
+          contains('zfa tdd wire contract:A1 --entity Calculator'),
+          reason: out,
+        );
+      },
+    );
 
-    test('the terminal result=blocked block names the subject seam too',
-        () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing([
-        'tdd',
-        'run',
-        feature,
-        '--project',
-        fx.root.path,
-        '--zfa-bin',
-        fx.fakeZfaBin,
-      ]);
-      takeExitCode();
+    test(
+      'the terminal result=blocked block names the subject seam too',
+      () async {
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'run',
+          feature,
+          '--project',
+          fx.root.path,
+          '--zfa-bin',
+          fx.fakeZfaBin,
+        ]);
+        takeExitCode();
 
-      expect(
-        out,
-        contains('seam lib/tdd/$feature/contract_a1_subject.dart'),
-        reason: out,
-      );
-    });
+        expect(
+          out,
+          contains('seam lib/tdd/$feature/contract_a1_subject.dart'),
+          reason: out,
+        );
+      },
+    );
   });
 
   group('verify-red + make: the blocked refusal names the subject seam '

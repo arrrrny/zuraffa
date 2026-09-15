@@ -86,6 +86,9 @@ void main() {
       // name the file that exists).
       seedSeamFile(fx, 'contract:A1');
       seedSeamFile(fx, 'contract:A2');
+      // Issue #1625: the with-entity wire hint prints only when the traced
+      // entity exists — these pins exercise the entity-present shape.
+      seedEntity(fx, 'User');
     });
 
     tearDown(() {
@@ -423,6 +426,9 @@ void main() {
           kind: 'contract',
         ),
       ]);
+      // Issue #1625: the with-entity wire hint prints only when the traced
+      // entity exists — the pins below exercise the entity-present shape.
+      seedEntity(fx, 'User');
     });
 
     tearDown(() {
@@ -654,4 +660,24 @@ String seedSeamFile(TddFixture fx, String behaviorId) {
   file.createSync(recursive: true);
   file.writeAsStringSync('// kind: contract\nvoid main() {}\n');
   return file.path;
+}
+
+/// Create the generated entity file exactly where `zfa entity create`
+/// writes it (`lib/src/domain/entities/<snake>/<snake>.dart`) — the
+/// existence the #1625 entity-gated wire hint keys on.
+void seedEntity(TddFixture fx, String entityName) {
+  final snake = entityName.toLowerCase();
+  final file = File(
+    p.join(
+      fx.root.path,
+      'lib',
+      'src',
+      'domain',
+      'entities',
+      snake,
+      '$snake.dart',
+    ),
+  );
+  file.createSync(recursive: true);
+  file.writeAsStringSync('class $entityName {}\n');
 }
