@@ -322,7 +322,17 @@ class ResetCommand extends Command<void> {
       );
     }
     // Issue #1429: the phase-0 entity rollback is announced BEFORE
-    // acting, like every other reset effect — the diff-summary contract.
+    // acting, like every other reset effect — the diff-summary contract
+    // (receipts first, matching the act order below).
+    if (entityReceiptsToPrune.isNotEmpty) {
+      print(
+        '  will prune ${entityReceiptsToPrune.length} entity receipt(s) '
+        'from .zfa/receipts/:',
+      );
+      for (final record in entityReceiptsToPrune) {
+        print('    - ${record.fileName} (entity ${record.receipt.entity})');
+      }
+    }
     if (entityPlans.isNotEmpty) {
       print(
         '  will revert ${entityPlans.length} declared phase-0 entity '
@@ -333,15 +343,6 @@ class ResetCommand extends Command<void> {
           '    - ${plan.name}'
           '${plan.file != null ? ' (${_displayPath(cwd, plan.file!)})' : ' (no scaffold on disk)'}',
         );
-      }
-    }
-    if (entityReceiptsToPrune.isNotEmpty) {
-      print(
-        '  will prune ${entityReceiptsToPrune.length} entity receipt(s) '
-        'from .zfa/receipts/:',
-      );
-      for (final record in entityReceiptsToPrune) {
-        print('    - ${record.fileName} (entity ${record.receipt.entity})');
       }
     }
 
@@ -404,14 +405,60 @@ class ResetCommand extends Command<void> {
     final runStateFile = File(p.join(featureDir, 'tdd', 'run-state.json'));
     if (await runStateFile.exists()) await runStateFile.delete();
 
-    // Issue #1429: revert the phase-0 entity scaffolds. The canonical
-    // per-entity directory is deleted whole (the scaffold source plus
-    // any sibling generated part files); a fallback match outside the
-    // canonical layout deletes the FILE only (locateEntityScaffold
-    // classifies). The same outcome-validation contract as the behavior
-    // files: a deletion that did not land is named, and the reset
-    // REFUSES (exit 1) so the operator re-runs instead of silently
-    // losing ownership of the survivors.
+    // Issue #1429: prune the declared entities' receipts FIRST — before
+    // any scaffold is deleted. Receipts gone while the scaffold still
+    // lives is a strictly safer intermediate than the reverse (live
+    // receipts pointing at freshly deleted scaffolds would fire
+    // permanent `deleted` findings on every `zfa proof check` until a
+    // re-run heals it), and a scaffold deletion that fails afterwards
+    // lands in the existing refusal path. Best-effort with honesty: a
+    // receipt that refuses to be pruned is named and fails the reset.
+    final prunedReceipts = <String>[];
+    var receiptPruneFailures = 0;
+    for (final record in entityReceiptsToPrune) {
+      final receiptFile = File(
+        p.join(receiptStore.directory.path, record.fileName),
+      );
+      if (!receiptFile.existsSync()) continue;
+      try {
+        await receiptFile.delete();
+        prunedReceipts.add(record.fileName);
+      } on FileSystemException {
+        receiptPruneFailures++;
+        print(
+          '  reset validation: FAILED to prune receipt '
+          '${record.fileName} — it survives in .zfa/receipts/',
+        );
+      }
+    }
+    if (receiptPruneFailures > 0) {
+      _printVerdict(
+        feature: feature,
+        verdict: 'refused',
+        reason: '$receiptPruneFailures entity receipt(s) survived pruning',
+        droppedRecords: records.length,
+        foreignKept: foreignKept,
+        invalidatedBehaviors: droppedIds,
+        deletedFiles: actuallyDeleted
+            .map((path_) => _displayPath(cwd, path_))
+            .toList(),
+        pathDrift: pathDrift,
+        prunedReceipts: prunedReceipts,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // Issue #1429: revert the phase-0 entity scaffolds — AFTER their
+    // receipts are pruned, so no failure window leaves receipts pointing
+    // at deleted scaffolds. The canonical per-entity directory is
+    // deleted whole (the scaffold source plus any sibling generated part
+    // files); a fallback match outside the canonical layout deletes the
+    // FILE only (locateEntityScaffold classifies). The same
+    // outcome-validation contract as the behavior files: a deletion that
+    // did not land is named, and the reset REFUSES (exit 1) so the
+    // operator re-runs instead of silently losing ownership of the
+    // survivors.
     final revertedEntities = <String>[];
     final entitySurvivors = <String>[];
     for (final plan in entityPlans) {
@@ -448,47 +495,6 @@ class ResetCommand extends Command<void> {
         reason:
             '${entitySurvivors.length} entity scaffold(s) survived '
             'deletion',
-        droppedRecords: records.length,
-        foreignKept: foreignKept,
-        invalidatedBehaviors: droppedIds,
-        deletedFiles: actuallyDeleted
-            .map((path_) => _displayPath(cwd, path_))
-            .toList(),
-        pathDrift: pathDrift,
-        revertedEntities: revertedEntities,
-      );
-      exitCode = 1;
-      return;
-    }
-
-    // Issue #1429: prune the declared entities' receipts from the global
-    // store. With BOTH the scaffold and its receipts gone, nothing
-    // references the missing paths — the preflight stays green (no
-    // permanent `deleted` findings). Best-effort with honesty: a receipt
-    // that refuses to be pruned is named and fails the reset.
-    final prunedReceipts = <String>[];
-    var receiptPruneFailures = 0;
-    for (final record in entityReceiptsToPrune) {
-      final receiptFile = File(
-        p.join(receiptStore.directory.path, record.fileName),
-      );
-      if (!receiptFile.existsSync()) continue;
-      try {
-        await receiptFile.delete();
-        prunedReceipts.add(record.fileName);
-      } on FileSystemException {
-        receiptPruneFailures++;
-        print(
-          '  reset validation: FAILED to prune receipt '
-          '${record.fileName} — it survives in .zfa/receipts/',
-        );
-      }
-    }
-    if (receiptPruneFailures > 0) {
-      _printVerdict(
-        feature: feature,
-        verdict: 'refused',
-        reason: '$receiptPruneFailures entity receipt(s) survived pruning',
         droppedRecords: records.length,
         foreignKept: foreignKept,
         invalidatedBehaviors: droppedIds,

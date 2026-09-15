@@ -117,6 +117,7 @@ shape. Verified red on the untouched base commit before any edit.
 - The tombstone uses the stable receipt name `entity-remove-<snake>.json`
   (refreshed in place, the `mock-<entity>.json` precedent), so repeated
   removes do not accumulate documents.
-- A file recreated after a tombstone with byte-identical content passes
-  the digest check (the content is proven either way); with any other
-  bytes it flags `modified` — verified by C2.
+- A file recreated after a tombstone carries the empty-content digest
+  (`_handleRemove` deletes the scaffold before `digestFor` runs), so any
+  non-empty recreation flags `modified` — verified by C2 (different
+  bytes → modified; never a silent pass).

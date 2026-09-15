@@ -654,6 +654,17 @@ ${missing.map((d) => '   • $d').join('\n')}
       return crypto.sha256.convert(const <int>[]).toString();
     }
 
+    // Covered paths that still exist at tombstone time (prior-receipt
+    // stragglers outside the deleted scaffold) record their real byte
+    // length so the receipt describes reality; absent paths record 0.
+    int bytesFor(String path) {
+      final file = File(p.join(Directory.current.path, path));
+      if (file.existsSync()) {
+        return file.lengthSync();
+      }
+      return 0;
+    }
+
     // Act: delete the scaffold, then ship the tombstone.
     if (scaffoldDirExists) {
       await Directory(scaffold.dir!).delete(recursive: true);
@@ -677,7 +688,7 @@ ${missing.map((d) => '   • $d').join('\n')}
             path: path,
             action: 'delete',
             sha256: digestFor(path),
-            bytes: 0,
+            bytes: bytesFor(path),
           ),
         )
         .toList();
