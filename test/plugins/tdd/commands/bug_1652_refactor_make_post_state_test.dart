@@ -142,6 +142,26 @@ coverage: 'dart test --coverage'
       exitCode = 0;
     });
 
+    test('T1 (tripwire): the fixture\'s make-generated tree is dart '
+        'format-clean — the premise the inherited rung rests on', () async {
+      // With the make-post-state record, on an unchanged tree BOTH the
+      // phase-1 spawn and the first phase-2b spawn inherit — the pass
+      // registry (dart format / dart fix) runs nowhere between
+      // make-green and the feature-completion gate. That is safe only
+      // while make-generated output stays format/fix-clean (research
+      // R2's one-time measurement). Pin the premise on the fixture
+      // tree so a drift here turns red instead of silently
+      // accumulating until feature completion.
+      final result = await Process.run('dart', [
+        'format',
+        '--output=none',
+        '--set-exit-if-changed',
+        p.join(fx.root.path, 'lib'),
+        p.join(fx.root.path, 'test'),
+      ]);
+      expect(result.exitCode, 0, reason: '${result.stdout}${result.stderr}');
+    });
+
     test(
       'A1: a --pass-batch refactor on the make-certified tree inherits the '
       'pipeline — zero suite spawns, honest evidence, ledger untouched',
@@ -257,6 +277,28 @@ coverage: 'dart test --coverage'
         expect(await suiteSpawnCount(), greaterThan(spawnsBefore), reason: out);
         expect(out, isNot(contains('make-post-state')));
       }
+    });
+
+    test('U2b: a partially-mistyped exempt list is a corrupt record — the '
+        'full pipeline runs (no silent whereType coercion)', () async {
+      await writeRecord();
+      // Corrupt one element of an otherwise-valid record: `[42]` must
+      // read as mistyped, not coerce to `[]` — otherwise the record
+      // inherits when the surviving list coincides with the effective
+      // exempt set.
+      final recordPath = p.join(fx.featureDir, 'tdd', 'make-post-state.json');
+      final record =
+          jsonDecode(await File(recordPath).readAsString())
+              as Map<String, dynamic>;
+      record['exempt_behaviors'] = <int>[42];
+      await File(recordPath).writeAsString(jsonEncode(record));
+      final spawnsBefore = await suiteSpawnCount();
+
+      final out = await runRefactor(extraArgs: ['--pass-batch']);
+
+      expect(exitCode, 0, reason: out);
+      expect(await suiteSpawnCount(), greaterThan(spawnsBefore), reason: out);
+      expect(out, isNot(contains('make-post-state')));
     });
 
     test('U3: a flag-less standalone refactor never reads the record, and '

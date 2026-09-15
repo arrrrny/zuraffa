@@ -3009,12 +3009,7 @@ class RunDriverCore {
       );
       // The same exempt set the batch refactor args hand the spawn: the
       // currently-blocked behavior ids, canonical order.
-      final blocked = [
-        for (final r in rows)
-          if ((state.behaviorStates[r.id] ?? BehaviorState.pending) ==
-              BehaviorState.blocked)
-            r.id,
-      ]..sort();
+      final blocked = _blockedIds(rows, state);
       final record = MakePostState(
         capturedAt: DateTime.now().toUtc().toIso8601String(),
         behaviorId: behaviorId,
@@ -3037,13 +3032,21 @@ class RunDriverCore {
     }
   }
 
-  List<String> _refactorBatchArgs(List<BehaviorRow> rows, RunState state) {
-    final blocked = [
+  /// The currently-blocked behavior ids in canonical order — the exempt
+  /// set shared by the make-post-state record and the refactor spawn's
+  /// `--exempt-behaviors`, so both sides of the #1652 gate compute it
+  /// from one place.
+  List<String> _blockedIds(List<BehaviorRow> rows, RunState state) {
+    return [
       for (final r in rows)
         if ((state.behaviorStates[r.id] ?? BehaviorState.pending) ==
             BehaviorState.blocked)
           r.id,
     ]..sort();
+  }
+
+  List<String> _refactorBatchArgs(List<BehaviorRow> rows, RunState state) {
+    final blocked = _blockedIds(rows, state);
     return [
       '--pass-batch',
       if (blocked.isNotEmpty) ...['--exempt-behaviors', blocked.join(',')],

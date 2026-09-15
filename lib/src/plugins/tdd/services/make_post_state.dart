@@ -178,7 +178,11 @@ class MakePostState {
           exempt is! List ||
           libDigest is! String ||
           testDigest is! String ||
-          greenVerdict is! String) {
+          greenVerdict is! String ||
+          // A partially-mistyped list (`[42]`) is a corrupt record, not a
+          // coerced `[]` — otherwise it could false-match when the
+          // surviving elements coincide with the effective exempt set.
+          !exempt.every((e) => e is String)) {
         return null;
       }
       return MakePostState(
@@ -187,7 +191,7 @@ class MakePostState {
         suite: suite,
         baselineKey: baselineKey,
         configKey: configKey,
-        exemptBehaviors: exempt.whereType<String>().toList(),
+        exemptBehaviors: List<String>.from(exempt),
         libDigest: libDigest,
         testDigest: testDigest,
         greenVerdict: greenVerdict,
