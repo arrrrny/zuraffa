@@ -108,3 +108,29 @@ $ dart test --preset=all test/plugins/tdd/bug_1420_vacuous_stop_declared_trace_t
               (`zfa tdd gen U1`), and NEVER claims
               "no traces: to a declared contract row" / "add traces:"
 ```
+
+## Cycle C4 — cold-context re-verification (second session; no code changes)
+
+- Environment reset between sessions: Dart 3.13.4 reinstalled, pub get
+  re-run, TMPDIR pinned, kernel cache cleared per run.
+- All 9 new #1420 behaviors re-run green TWICE (fast: `+8`; driver R1:
+  `+1`), including after each mutation restore.
+- Slow driver pin suites (1420 R1 + 1308 driver + 1483 driver): `+8`
+  green.
+- Regression scope re-run with a pre-fix base worktree (71396336) for
+  every failure: fast 15-file command `+117 -3` (bug_1500 ×3 —
+  pre-existing), bug_1259 `+3 -4` (pre-existing; its `slow` tag had
+  silently excluded it from the first session's fast-tier command),
+  services `+1138 -2` (pre-existing), commands `+626 ~1 -10`
+  (pre-existing), models/scenarios/theater/economics/tier2 `+232 -4`
+  (pre-existing), func/run/two_cycle/071 groups `+12 -1`
+  (pre-existing). ZERO regressions introduced by the change; the
+  failures are one environment family (fixture `dart test` baselines
+  exit -1 in this sandbox; the bug_1259 record-path reads).
+- Mutation sampling (first session's verification lacked the table):
+  M1 synthesis disabled → killed (G1+G2); M2 accessor drops
+  surface/entity decisions → killed (D1); M3 stop probe disabled →
+  killed (R1); M4 remedy wording regressed → killed (V1). All restored;
+  post-restore greens re-confirmed.
+- Static analysis (4 changed lib files + 4 new test files): No issues.
+  `dart format --set-exit-if-changed .`: 2876 files, 0 changed, exit 0.

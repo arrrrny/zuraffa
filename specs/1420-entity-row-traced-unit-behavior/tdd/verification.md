@@ -7,6 +7,17 @@
 10GB-agent discipline; slow driver suites via `--preset=all <files>`). Every
 number below is an ACTUAL recorded run on this branch.
 
+> **Re-verification note (cold-context audit, second session).** Every run
+> below was RE-EXECUTED on the merged branch HEAD (3969939a) with Dart
+> 3.13.4 (linux x64) and recorded in the "Independent re-verification"
+> section at the end of this document. Two claims in the first-session
+> record did not reproduce and are corrected there: the fast-tier command's
+> "All passed" (3 pre-existing failures surfaced on re-run) and the
+> bug_1259 entry (its `slow` tag silently excluded it from the fast-tier
+> command; run explicitly on re-verification). Every failure observed in
+> either session was reproduced at the pre-fix base commit (71396336) and
+> is therefore pre-existing, not introduced by this change.
+
 ## Red → Green evidence
 
 Full cycles with captured output: `tdd/cycle-log.md`. Summary:
@@ -127,3 +138,121 @@ $ git diff --stat   → zero remaining formatting diffs
   detection): UNTOUCHED — bug_1259 + bug_1488 suites green; the change is
   the ARTIFACTS the gate evaluates (a real assertion or the traced marker),
   never the gate.
+
+---
+
+## Independent re-verification (second session, cold context)
+
+Environment: this cloud workspace was reset between sessions — the Dart
+SDK was reinstalled (3.13.4 stable, linux x64), `dart pub get` re-run
+(no dependency_overrides; the documented removal stands), `TMPDIR`
+pinned clone-locally, kernel cache cleared between runs. Base for
+pre-existing checks: the pre-fix commit 71396336 (a git worktree; the
+branch's lib/ changes are absent there by construction).
+
+### Re-run of the new #1420 suites — ALL GREEN
+
+```
+$ dart test test/plugins/tdd/services/declared_routing_1420_test.dart \
+            test/plugins/tdd/services/vacuous_guard_1420_test.dart \
+            test/plugins/tdd/commands/bug_1420_entity_row_gen_test.dart
+00:12 +8: All tests passed!
+
+$ dart test --preset=all test/plugins/tdd/bug_1420_vacuous_stop_declared_trace_test.dart
+00:00 +1: All tests passed!
+```
+(9 behaviors: D1–D4, G1–G3, V1, R1 — every new suite green, twice across
+the session, including after the mutation restores.)
+
+### Re-run of the slow driver pin suites — ALL GREEN
+
+```
+$ dart test --preset=all test/plugins/tdd/bug_1420_vacuous_stop_declared_trace_test.dart \
+            test/plugins/tdd/issue_1308_vacuous_guard_remedy_driver_test.dart \
+            test/plugins/tdd/bug_1483_vacuous_green_remedy_driver_test.dart
+00:02 +8: All tests passed!
+```
+
+### Correction to the first-session record: the fast-tier command
+
+The first session recorded `00:31 +120: All tests passed!` for the
+15-file fast command. On re-run in this environment it is
+`+117 -3: Some tests failed.` — the three failures
+(bug_1500_wire_contract_subject_test.dart U-1500m/U-1500n/U-1500u) are
+PRE-EXISTING: reproduced byte-identically at the pre-fix base
+(`00:00 +18 -3`), in the wire mock-data-binding fixtures, untouched by
+this change. Correction two: `bug_1259_vacuous_green_test.dart` is
+`@Tags(['slow'])` and was silently EXCLUDED from the fast-tier command
+(the first session's "+120" therefore never ran it). Run explicitly:
+
+```
+$ dart test --preset=all test/plugins/tdd/bug_1259_vacuous_green_test.dart
++3 -4: Some tests failed.      # U2, U4, U5, U6
+# base 71396336: identical +3 -4 (U2 expected 0 got 1; U4/U5 PathNotFound
+# on the record path; U6 make refusal) — all pre-existing, none in the
+# #1420 surfaces.
+```
+
+### Chunked regression scope (changed-code neighborhood) and the base check
+
+Every chunk below was run on the branch HEAD; each failing test was then
+re-run at the pre-fix base — every failure reproduced there, so the
+change introduces ZERO regressions. The failures share one family: the
+fixture projects' real `dart test` subprocesses cannot produce a usable
+baseline in this sandbox (`baseline exit -1`) or read the registry
+record's relative path against the runner cwd (the bug_1259 U4/U5 shape).
+
+| Chunk (branch HEAD) | Result | Pre-existing at base? |
+| --- | --- | --- |
+| services (all) | `+1138 -2` | YES — test_list_reader_984 (stderr-capture), mutation_verifier (config error): both red at base |
+| commands (all) | `+626 ~1 -10` | YES — run_command_bug_1471 ×1, bug_1551 ×5, bug_1320 U7, issue_1528 ×2, plan_traces_cell_1310 U6: all red at base (the first session recorded these same 10 under make_command_test's environment; the failing set is environment-dependent, the count family is not) |
+| models + scenarios + theater + corpus_economics + ci_referee + tier2_firestore | `+232 -4` | YES — corpus_economics/incremental_verify ×4: red at base |
+| func_command + func_declared_signature + run_command + two_cycle + declared_071 + strict_071 | `+12 -1` (top-level groups also green: run_command_test, two_cycle_run_commands_test, strict_071) | YES — make_command_declared_071's suite-baseline test (`baseline exit -1`): red at base |
+
+(The first session's recorded chunk numbers — +636/+1140/+203/+33 — were
+captured in a workspace whose subprocess toolchain could run the fixture
+`dart test` baselines; this sandbox cannot, which shifts the pre-existing
+failure distribution between sessions. The in-process suites — the
+population this change can affect — are green in BOTH sessions.)
+
+### Static analysis + formatting (re-run)
+
+```
+$ dart analyze <4 changed lib files + 4 new test files>
+Analyzing ... No issues found!
+
+$ dart format --set-exit-if-changed .
+Formatted 2876 files (0 changed) in 7.74 seconds.   → exit 0
+$ git diff --stat   → empty
+```
+
+### Mutation sampling (second session; one mutant at a time, restored after each)
+
+The first session's verification carried no mutation table; this audit
+ran it. Region: the three behavior-bearing seams of the fix.
+
+| Mutant | Change | Killed by | Result |
+| --- | --- | --- | --- |
+| M1 | `_declaredSignatureForGen` returns null unconditionally (synthesis disabled) | bug_1420_entity_row_gen_test G1+G2 | **killed** — `+1 -2` (G3 survives: the undeclared pin is independent) |
+| M2 | `declaredRoutingFor` returns only decisions WITH a signature | declared_routing_1420_test D1 | **killed** — `+3 -1` |
+| M3 | the run driver's declaredTraceContext probe disabled (`decision != null && false`) | bug_1420_vacuous_stop_declared_trace_test R1 | **killed** — `+0 -1` (the false "no traces" claim prints again) |
+| M4 | `vacuousGuardDeclaredTraceRemedyFor` returns the legacy "add traces:" text | vacuous_guard_1420_test V1 | **killed** — `+0 -1` |
+
+Post-restore confirmation: the 4 new suites green again (+8 fast, +1
+driver) — the recorded greens are the real code, not mutant residue.
+
+### Honest limits of this verification
+
+- NOT proven here: an end-to-end `zfa tdd run` green cycle with a REAL
+  binary and build_runner (the fixture subprocesses cannot run in this
+  sandbox — the pre-existing family above). The wire-leg of the entity
+  pipeline (gen pair → `mock create` sample → wired subject → `isA<Entity>()`
+  green) is pinned at the unit level (U-1500 suites + the synthesized
+  header's parseability via wire's own stub-header fallback) and by
+  U-1420-G1's compile-shaped assertions, not by a full in-sandbox run.
+- The 10 first-session "make_command_test" pre-existing failures were
+  not reproduced as such in this environment (that file passed inside
+  the commands chunk); the equivalent 10-failure set surfaced in
+  neighboring fixture-subprocess suites instead. Both sets verified
+  pre-existing; the distribution is environment-dependent, recorded as
+  such.
