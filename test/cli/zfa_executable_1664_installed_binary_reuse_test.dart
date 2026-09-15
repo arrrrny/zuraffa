@@ -338,5 +338,74 @@ void main() {
         );
       },
     );
+
+    test('U-1664-b10: a COMPILED parent wired through the public seam reuses '
+        'the installed binary — the probe fires and the compile short-'
+        'circuits BEFORE the build lock (production wiring pinned)', () async {
+      final root = await Directory.systemTemp.createTemp('zfa1664_b10_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      await File(p.join(root.path, 'bin', 'zfa.dart'))
+          .create(recursive: true)
+          .then((f) => f.writeAsString('void main() {}\n'));
+      await File(
+        p.join(root.path, 'pubspec.yaml'),
+      ).writeAsString('name: fixture\n');
+
+      // A REAL git repo so the production default git probe (no injected
+      // ZfaGitRunner — that is the point of a wiring test) resolves HEAD.
+      await Process.run('git', [
+        'init',
+        '--quiet',
+      ], workingDirectory: root.path);
+      Future<ProcessResult> git(List<String> args) =>
+          Process.run('git', ['-C', root.path, ...args]);
+      await git(['add', '-A']);
+      await git([
+        '-c',
+        'user.name=fixture',
+        '-c',
+        'user.email=fixture@local',
+        'commit',
+        '--quiet',
+        '-m',
+        'x',
+      ]);
+      final head = await git(['rev-parse', 'HEAD']);
+      final headSha = '${head.stdout}'.trim();
+
+      // The bug's exact shape: an installed binary whose marker equals
+      // the checkout HEAD, standing in for Platform.resolvedExecutable.
+      final bin = await installDir(
+        'b10',
+        exeName: 'zfa',
+        markerCommit: headSha,
+      );
+
+      final compileCalls = <List<String>>[];
+      Future<ProcessResult> compile(List<String> argv, String cwd) async {
+        compileCalls.add(argv);
+        final out = argv[argv.indexOf('--output') + 1];
+        await File(out).writeAsString('compiled');
+        return ProcessResult(1, 0, '', '');
+      }
+
+      final result = await ZfaExecutable.ensureCompiled(
+        p.join(root.path, 'bin', 'zfa.dart'),
+        sourceRoot: root.path,
+        runner: compile,
+        runningExecutable: p.join(bin.path, 'zfa'),
+      );
+
+      expect(
+        result,
+        p.join(bin.path, 'zfa'),
+        reason: 'the wiring consults the reuse probe and returns the install',
+      );
+      expect(
+        compileCalls,
+        isEmpty,
+        reason: 'the reuse short-circuits before the build lock and compile',
+      );
+    });
   });
 }

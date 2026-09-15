@@ -48,7 +48,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-import 'binary_staleness.dart' show zfaBuildCommitMarker;
+import 'binary_staleness.dart' show isVmExecutableName, zfaBuildCommitMarker;
 
 /// The ONE explicit JIT escape hatch. When it is exactly `1`, a `.dart`
 /// entrypoint is spawned through the Dart VM (the pre-policy behavior) and
@@ -96,6 +96,16 @@ Future<ProcessResult> _defaultGitProbe(
 /// Runs one compiler command in [workingDirectory]. Injectable so unit
 /// tests never invoke a real `dart compile exe`.
 typedef ZfaCompileRunner =
+    Future<ProcessResult> Function(List<String> argv, String workingDirectory);
+
+/// Runs the reuse probe's ONE git command (`git rev-parse HEAD`) in
+/// [workingDirectory]. Deliberately a SEPARATE typedef from
+/// [ZfaCompileRunner] so the type system enforces the design note below:
+/// a compiler fake cannot be handed to the probe and polluted with git
+/// argv — that misuse is now a compile error, not a latent test bug.
+/// Structurally identical to [ZfaCompileRunner], so existing fakes keep
+/// compiling.
+typedef ZfaGitRunner =
     Future<ProcessResult> Function(List<String> argv, String workingDirectory);
 
 /// The `ensureCompiled` seam every spawn site takes: resolves a candidate
@@ -207,12 +217,17 @@ class ZfaExecutable {
   ///
   /// [runner] replaces the real compiler (unit-test seam); [environment]
   /// replaces `Platform.environment` for both the escape hatch and the
-  /// issue #1187 timeout scale.
+  /// issue #1187 timeout scale; [runningExecutable] stands in for
+  /// `Platform.resolvedExecutable` in the #1664 reuse probe so tests can
+  /// drive a fake COMPILED parent through this public seam (the production
+  /// wiring otherwise reads the driver inline and has no hermetic
+  /// compiled-parent shape).
   static Future<String> ensureCompiled(
     String candidate, {
     String? sourceRoot,
     ZfaCompileRunner? runner,
     Map<String, String>? environment,
+    String? runningExecutable,
   }) async {
     if (!isDartScript(candidate)) return candidate;
     final env = environment ?? Platform.environment;
@@ -231,6 +246,7 @@ class ZfaExecutable {
       sourceRoot: root,
       runner: runner ?? _defaultCompile,
       environment: env,
+      runningExecutable: runningExecutable,
     );
   }
 
@@ -271,7 +287,7 @@ class ZfaExecutable {
     required String candidate,
     required String sourceRoot,
     required String runningExecutable,
-    ZfaCompileRunner? runner,
+    ZfaGitRunner? runner,
   }) async {
     if (!_isCanonicalEntrypoint(candidate, sourceRoot)) return null;
     if (_isVmExecutablePath(runningExecutable)) return null;
@@ -306,15 +322,13 @@ class ZfaExecutable {
   }
 
   /// Whether [path] names a Dart VM executable rather than a compiled zfa
-  /// binary — the same exclusion `BinaryStaleness.binaryDir` applies: any
-  /// `dart*` name (the VM, `dart.exe`, `dartaotruntime`, `dartvm`) and the
-  /// `flutter_tester` harness. A VM driver must never reuse an installed
-  /// binary: source/test contexts compile the driven tree into the shared
-  /// cache.
-  static bool _isVmExecutablePath(String path) {
-    final base = p.basename(path).toLowerCase();
-    return base.startsWith('dart') || base == 'flutter_tester';
-  }
+  /// binary — [isVmExecutableName] (`binary_staleness.dart`), the SAME
+  /// exclusion `BinaryStaleness.binaryDir` applies, shared rather than
+  /// duplicated so the two predicates cannot diverge. A VM driver must
+  /// never reuse an installed binary: source/test contexts compile the
+  /// driven tree into the shared cache.
+  static bool _isVmExecutablePath(String path) =>
+      isVmExecutableName(p.basename(path));
 
   /// The source root that anchors [candidate]'s compile cache, or null when
   /// the candidate sits inside no Dart package at all.
@@ -392,6 +406,7 @@ class ZfaExecutable {
     required String sourceRoot,
     required ZfaCompileRunner runner,
     required Map<String, String> environment,
+    String? runningExecutable,
   }) async {
     final cacheDir = Directory(
       p.join(sourceRoot, p.joinAll(kZfaBinaryCacheDir)),
@@ -424,9 +439,22 @@ class ZfaExecutable {
     final installed = await currentInstalledBinary(
       candidate: candidate,
       sourceRoot: sourceRoot,
-      runningExecutable: Platform.resolvedExecutable,
+      runningExecutable: runningExecutable ?? Platform.resolvedExecutable,
     );
-    if (installed != null) return installed;
+    if (installed != null) {
+      // The commit-equality guard proves the COMMIT, not the working tree:
+      // when the cache is missing/stale BECAUSE OF uncommitted edits under
+      // [sourceRoot], children would silently run pre-edit code. One
+      // advisory line on the #1184 warning channel (stderr) makes that
+      // "why doesn't my child see my edit" case self-answering.
+      stderr.writeln(
+        'zfa: children reuse installed binary $installed '
+        '(zfa.build_commit == HEAD); uncommitted edits under '
+        '$sourceRoot are NOT included — re-run scripts/rebuild.sh '
+        'to bake them in.',
+      );
+      return installed;
+    }
 
     await cacheDir.create(recursive: true);
 
