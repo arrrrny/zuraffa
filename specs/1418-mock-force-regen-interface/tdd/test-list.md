@@ -9,17 +9,17 @@
 
 | ID | Behavior | Serves (acceptance criterion) | State |
 |----|----------|-------------------------------|-------|
-| T1 | `--force` with a changed `--methods` selection regenerates the datasource INTERFACE together with the mock — the stale `list(NoParams)` member is replaced by `getList(ListQueryParams<Deal>)` (the issue's exact two-run sequence, driven through MockPlugin) | AC1 `--force` regenerates both interface and mock when `--methods` changes | red |
-| T2 | Non-force run against an existing interface leaves the interface BYTE-IDENTICAL (the #417 create-if-absent contract is preserved for the non-force path) | AC4 no regressions on non-force path | red (guard) |
-| T3 | `--append` (+force) does not regenerate the interface (append keeps its own contract, same precedence as the #1570 staleness arming) | AC4 no regressions | red (guard) |
-| T4 | `--force` on an ABSENT interface still creates it (the #417 emission path survives the guard change) | AC4 no regressions | red (guard) |
-| T5 | The `--force`-regenerated pair (interface + mock, methods changed `list` → `getList`) is structurally conforming: `MockStalenessDetector` reports no missing members, and a REAL scoped `dart analyze` over the fixture `lib/` exits 0 | AC3 certification passes on a `--force`-regenerated pair with changed methods | red |
-| T6 | `filterMock` resolves the MOCK barrel's own surface: a bare `export 'package:zuraffa/zuraffa.dart';` re-export unions the core surface (the current `lib/src/mock/mock.dart` layout) | AC2 hide emission verifies the library it imports | red (missing API) |
-| T7 | A name the mock barrel does NOT export is dropped from the hide list — a diverged/restricted mock barrel (`show`-restricted re-export) never emits an `undefined_hidden_name` | AC2 | red (missing API) |
-| T8 | Mock-barrel-local declarations along the relative export chain verify (`src/mock/mock.dart` local classes) | AC2 | red (missing API) |
-| T9 | Unresolved mock barrel (no `lib/mock.dart` in the resolved package) → empty hide list, no combinator (#1530 FR-001 carryover) | AC2 | red (missing API) |
-| T10 | Builder-level: the mock datasource's `package:zuraffa/mock.dart` import hides `Credentials` ONLY when the MOCK barrel exports it (diverged-surface fixture emits no `hide Credentials`) | AC2 | red |
-| T11 | `seedForTest` seeds BOTH surfaces (existing seeded tests — #942 byte-exact pins — stay green unchanged) | AC4 | red (missing API) |
+| T1 | `--force` with a changed `--methods` selection regenerates the datasource INTERFACE together with the mock — the stale `list(NoParams)` member is replaced by `getList(ListQueryParams<Deal>)` (the issue's exact two-run sequence, driven through MockPlugin) | AC1 `--force` regenerates both interface and mock when `--methods` changes | green |
+| T2 | Non-force run against an existing interface leaves the interface BYTE-IDENTICAL (the #417 create-if-absent contract is preserved for the non-force path) | AC4 no regressions on non-force path | green (guard preserved) |
+| T3 | `--append` (+force) does not regenerate the interface (append keeps its own contract, same precedence as the #1570 staleness arming) | AC4 no regressions | green (guard preserved) |
+| T4 | `--force` on an ABSENT interface still creates it (the #417 emission path survives the guard change) | AC4 no regressions | green (guard preserved) |
+| T5 | The `--force`-regenerated pair (interface + mock, methods changed `list` → `getList`) is structurally conforming: `MockStalenessDetector` reports no missing members, and a REAL scoped `dart analyze` over the fixture `lib/` exits 0 | AC3 certification passes on a `--force`-regenerated pair with changed methods | green |
+| T6 | `filterMock` resolves the MOCK barrel's own surface: a bare `export 'package:zuraffa/zuraffa.dart';` re-export unions the core surface (the current `lib/src/mock/mock.dart` layout) | AC2 hide emission verifies the library it imports | green (API applied) |
+| T7 | A name the mock barrel does NOT export is dropped from the hide list — a diverged/restricted mock barrel (`show`-restricted re-export) never emits an `undefined_hidden_name` | AC2 | green (API applied) |
+| T8 | Mock-barrel-local declarations along the relative export chain verify (`src/mock/mock.dart` local classes) | AC2 | green (API applied) |
+| T9 | Unresolved mock barrel (no `lib/mock.dart` in the resolved package) → empty hide list, no combinator (#1530 FR-001 carryover) | AC2 | green (API applied) |
+| T10 | Builder-level: the mock datasource's `package:zuraffa/mock.dart` import hides `Credentials` ONLY when the MOCK barrel exports it (diverged-surface fixture emits no `hide Credentials`) | AC2 | green |
+| T11 | `seedForTest` seeds BOTH surfaces (existing seeded tests — #942 byte-exact pins — stay green unchanged) | AC4 | green (API applied) |
 
 ## Regression pins (already green, must stay green)
 

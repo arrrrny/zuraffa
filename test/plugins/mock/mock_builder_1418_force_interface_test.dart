@@ -94,13 +94,8 @@ void main() {
     fileSystem: fs,
   );
 
-  String interfacePath() => p.join(
-    outputDir,
-    'data',
-    'datasources',
-    'deal',
-    'deal_datasource.dart',
-  );
+  String interfacePath() =>
+      p.join(outputDir, 'data', 'datasources', 'deal', 'deal_datasource.dart');
 
   String mockPath() => p.join(
     outputDir,
@@ -112,16 +107,25 @@ void main() {
 
   /// Run 1 of the reproduction: a fresh certified pair for `list`.
   Future<void> seedListPair() async {
-    await (await plugin(force: true)).generateWithContext(
-      context(methods: const ['list'], force: true),
+    await (await plugin(
+      force: true,
+    )).generateWithContext(context(methods: const ['list'], force: true));
+    expect(
+      File(interfacePath()).existsSync(),
+      isTrue,
+      reason: 'precondition: run 1 writes the interface',
     );
-    expect(File(interfacePath()).existsSync(), isTrue,
-        reason: 'precondition: run 1 writes the interface');
-    expect(File(mockPath()).existsSync(), isTrue,
-        reason: 'precondition: run 1 writes the mock');
+    expect(
+      File(mockPath()).existsSync(),
+      isTrue,
+      reason: 'precondition: run 1 writes the mock',
+    );
     final interface = File(interfacePath()).readAsStringSync();
-    expect(interface, contains('list(NoParams'),
-        reason: 'precondition: run 1 interface declares list(NoParams)');
+    expect(
+      interface,
+      contains('list(NoParams'),
+      reason: 'precondition: run 1 interface declares list(NoParams)',
+    );
   }
 
   test('T1: --force with a changed --methods regenerates the interface '
@@ -129,9 +133,9 @@ void main() {
     await seedListPair();
 
     // Run 2 — the issue's failing command: --methods getList --force.
-    final files = await (await plugin(force: true)).generateWithContext(
-      context(methods: const ['getList'], force: true),
-    );
+    final files = await (await plugin(
+      force: true,
+    )).generateWithContext(context(methods: const ['getList'], force: true));
 
     final interface = File(interfacePath()).readAsStringSync();
     expect(
@@ -152,8 +156,11 @@ void main() {
     );
 
     final mock = File(mockPath()).readAsStringSync();
-    expect(mock, contains('getList(ListQueryParams<Deal>'),
-        reason: 'the mock always regenerated from the current --methods');
+    expect(
+      mock,
+      contains('getList(ListQueryParams<Deal>'),
+      reason: 'the mock always regenerated from the current --methods',
+    );
 
     // The run reports the interface among its outputs (overwritten).
     expect(
@@ -205,9 +212,9 @@ void main() {
 
   test('T4: --force on an absent interface still creates it '
       '(the #417 emission path survives)', () async {
-    final files = await (await plugin(force: true)).generateWithContext(
-      context(methods: const ['getList'], force: true),
-    );
+    final files = await (await plugin(
+      force: true,
+    )).generateWithContext(context(methods: const ['getList'], force: true));
 
     expect(File(interfacePath()).existsSync(), isTrue);
     expect(File(mockPath()).existsSync(), isTrue);
@@ -224,9 +231,9 @@ void main() {
       '(no missing members either direction)', () async {
     await seedListPair();
 
-    await (await plugin(force: true)).generateWithContext(
-      context(methods: const ['getList'], force: true),
-    );
+    await (await plugin(
+      force: true,
+    )).generateWithContext(context(methods: const ['getList'], force: true));
 
     // The certification's structural primitive: the same comparison the
     // --certify gate runs. Both directions must be clean — the mock

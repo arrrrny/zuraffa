@@ -71,11 +71,12 @@ class FailingMockProviderBuilder {
     final filePath = failingProviderPath(entityName, outputDir);
 
     // Issue #942 parity: hide exactly the entity's own symbols when the
-    // zuraffa barrel exports colliding names, so the entity's local
+    // mock barrel exports colliding names, so the entity's local
     // definitions win resolution (the same contract the mock datasource
-    // import applies).
+    // import applies). Issue #1418: verified against the MOCK barrel's
+    // own surface — the import's actual library.
     final barrelHide = <String>{
-      if (config.isEntityBased) ...EntityUtils.barrelHideNames(entityName),
+      if (config.isEntityBased) ...EntityUtils.mockBarrelHideNames(entityName),
     }.toList();
 
     final directives = [

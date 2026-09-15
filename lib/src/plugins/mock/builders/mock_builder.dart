@@ -206,6 +206,24 @@ class MockBuilder {
         //   * RepositoryPlugin's #406 fallback ran first → file exists → skip.
         //   * MockPlugin runs first / alone → file missing → MockBuilder
         //     emits it here.
+        //
+        // Issue #1418: --force must regenerate the WHOLE generated pair.
+        // The old guard was pure create-if-absent: an existing interface
+        // was never invalidated by --force (nor by a --methods change),
+        // while the mock body always regenerated from the current
+        // --methods — the pair drifted and `--certify` dead-ended on
+        // `Missing concrete implementation of '<Entity>DataSource.<old>'`
+        // no matter how many times --force re-ran. Under
+        // `force && !append && !revert` the interface writer is invoked on
+        // an existing file too; its fresh-write path
+        // (`exists && (appendToExisting || !force)` → false) overwrites
+        // the interface from the CURRENT config.methods — the same
+        // contract the mock body follows, so certification proves a
+        // conforming pair. Non-force keeps the #417 create-if-absent
+        // contract byte-for-byte (the writer is not invoked on an
+        // existing file, so its append path cannot fire from the mock
+        // lane), and append/revert keep their own contracts (the same
+        // precedence the #1570 staleness arming applies).
         final interfaceEntityName = config.repo != null
             ? config.repo!.replaceAll('Repository', '')
             : config.name;
@@ -217,7 +235,10 @@ class MockBuilder {
           interfaceSnake,
           '${interfaceSnake}_datasource.dart',
         );
-        if (!await fileSystem.exists(interfacePath)) {
+        final forceRegeneratesInterface =
+            options.force && !config.appendToExisting && !config.revert;
+        if (!await fileSystem.exists(interfacePath) ||
+            forceRegeneratesInterface) {
           files.add(await interfaceBuilder.generate(config));
         }
         files.add(await dataSourceBuilder.generateMockDataSource(config));

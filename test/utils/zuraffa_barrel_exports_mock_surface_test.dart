@@ -38,16 +38,14 @@ Future<Directory> seedFixturePackage({
 }) async {
   final root = Directory.systemTemp.createTempSync('zfa_mock_surface_');
   final zuraffaRoot = p.join(root.path, 'zuraffa');
-  Directory(p.join(zuraffaRoot, 'lib', 'src', 'mock')).createSync(
-    recursive: true,
-  );
-  File(p.join(zuraffaRoot, 'lib', 'zuraffa.dart')).writeAsStringSync(
-    coreBarrel,
-  );
+  Directory(
+    p.join(zuraffaRoot, 'lib', 'src', 'mock'),
+  ).createSync(recursive: true);
+  File(
+    p.join(zuraffaRoot, 'lib', 'zuraffa.dart'),
+  ).writeAsStringSync(coreBarrel);
   if (mockBarrel != null) {
-    File(p.join(zuraffaRoot, 'lib', 'mock.dart')).writeAsStringSync(
-      mockBarrel,
-    );
+    File(p.join(zuraffaRoot, 'lib', 'mock.dart')).writeAsStringSync(mockBarrel);
   }
   extraFiles.forEach((relative, content) {
     final file = File(p.join(zuraffaRoot, 'lib', relative));
@@ -144,10 +142,9 @@ void main() {
         },
       );
 
-      expect(
-        EntityUtils.mockBarrelHideNames('MockSurfaceProbe'),
-        ['MockSurfaceProbe'],
-      );
+      expect(EntityUtils.mockBarrelHideNames('MockSurfaceProbe'), [
+        'MockSurfaceProbe',
+      ]);
     });
 
     test('T9: unresolved mock barrel (no lib/mock.dart) drops the hide '
@@ -191,8 +188,13 @@ void main() {
         p.join(outputDir, 'domain', 'entities', 'credentials'),
       ).create(recursive: true);
       await File(
-        p.join(outputDir, 'domain', 'entities', 'credentials',
-            'credentials.dart'),
+        p.join(
+          outputDir,
+          'domain',
+          'entities',
+          'credentials',
+          'credentials.dart',
+        ),
       ).writeAsString('''
 class Credentials {
   final String id;
@@ -212,66 +214,69 @@ class CredentialsPatch {
       if (workspace.existsSync()) workspace.deleteSync(recursive: true);
     });
 
-    test('T10: the mock datasource hides Credentials from '
-        'package:zuraffa/mock.dart only when the MOCK barrel exports it',
-        () async {
-      // Diverged surface: the CORE barrel exports Credentials (so the
-      // legacy core-surface check would emit the hide), but the MOCK
-      // barrel restricts its re-export past it.
-      fixture = await seedFixturePackage(
-        coreBarrel: _coreBarrel,
-        mockBarrel: "export 'src/mock/mock.dart';\n",
-        extraFiles: {
-          'src/core.dart': _coreSource,
-          'src/mock/mock.dart':
-              "export 'package:zuraffa/zuraffa.dart' show Unrelated;\n",
-        },
-      );
-
-      final files = await MockPlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(force: true),
-        fileSystem: FileSystem.create(root: workspace.path),
-      ).generateWithContext(
-        PluginContext(
-          core: CoreConfig(
-            name: 'Credentials',
-            projectRoot: workspace.path,
-            outputDir: outputDir,
-            force: true,
-          ),
-          data: <String, dynamic>{
-            'mock': true,
-            'data': true,
-            'methods': const ['get', 'update', 'toggle'],
-            'id-field': 'id',
-            'id-field-type': 'String',
-            'query-field': 'id',
+    test(
+      'T10: the mock datasource hides Credentials from '
+      'package:zuraffa/mock.dart only when the MOCK barrel exports it',
+      () async {
+        // Diverged surface: the CORE barrel exports Credentials (so the
+        // legacy core-surface check would emit the hide), but the MOCK
+        // barrel restricts its re-export past it.
+        fixture = await seedFixturePackage(
+          coreBarrel: _coreBarrel,
+          mockBarrel: "export 'src/mock/mock.dart';\n",
+          extraFiles: {
+            'src/core.dart': _coreSource,
+            'src/mock/mock.dart':
+                "export 'package:zuraffa/zuraffa.dart' show Unrelated;\n",
           },
-          discovery: DiscoveryEngine(
-            projectRoot: workspace.path,
-            fileSystem: FileSystem.create(root: workspace.path),
-          ),
-          fileSystem: FileSystem.create(root: workspace.path),
-        ),
-      );
+        );
 
-      final mockDs = files
-          .map((f) => f.path)
-          .firstWhere((path) => path.endsWith('mock_datasource.dart'));
-      final content = File(
-        p.isAbsolute(mockDs) ? mockDs : p.join(workspace.path, mockDs),
-      ).readAsStringSync();
+        final files =
+            await MockPlugin(
+              outputDir: outputDir,
+              options: const GeneratorOptions(force: true),
+              fileSystem: FileSystem.create(root: workspace.path),
+            ).generateWithContext(
+              PluginContext(
+                core: CoreConfig(
+                  name: 'Credentials',
+                  projectRoot: workspace.path,
+                  outputDir: outputDir,
+                  force: true,
+                ),
+                data: <String, dynamic>{
+                  'mock': true,
+                  'data': true,
+                  'methods': const ['get', 'update', 'toggle'],
+                  'id-field': 'id',
+                  'id-field-type': 'String',
+                  'query-field': 'id',
+                },
+                discovery: DiscoveryEngine(
+                  projectRoot: workspace.path,
+                  fileSystem: FileSystem.create(root: workspace.path),
+                ),
+                fileSystem: FileSystem.create(root: workspace.path),
+              ),
+            );
 
-      expect(
-        content,
-        isNot(contains('hide Credentials')),
-        reason:
-            '#1418: the mock.dart import must not hide a name the mock '
-            'barrel does not export — an unverified hide is the '
-            'undefined_hidden_name warning that fails the analyze gate '
-            '(out:\n$content)',
-      );
-    });
+        final mockDs = files
+            .map((f) => f.path)
+            .firstWhere((path) => path.endsWith('mock_datasource.dart'));
+        final content = File(
+          p.isAbsolute(mockDs) ? mockDs : p.join(workspace.path, mockDs),
+        ).readAsStringSync();
+
+        expect(
+          content,
+          isNot(contains('hide Credentials')),
+          reason:
+              '#1418: the mock.dart import must not hide a name the mock '
+              'barrel does not export — an unverified hide is the '
+              'undefined_hidden_name warning that fails the analyze gate '
+              '(out:\n$content)',
+        );
+      },
+    );
   });
 }

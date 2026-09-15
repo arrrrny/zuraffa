@@ -12,11 +12,15 @@
 ///
 /// Seeded once per generation (`seed`, called from
 /// `PluginManager.buildContext`); builders then filter through
-/// [filter]. The resolution itself is DEFERRED to the first read.
-/// Unresolved (no seed, no resolvable `package_config.json` entry, or a
-/// missing barrel file → an empty name set) makes [filter] return an
-/// EMPTY list: callers emit no `hide` combinator at all (issue #1530
-/// FR-001 removed the legacy keep-all fallback).
+/// [filter] — or, for generated files that import
+/// `package:zuraffa/mock.dart`, through [filterMock] (issue #1418),
+/// which verifies against the MOCK barrel's own resolved surface
+/// instead of assuming the zuraffa re-export. The resolution itself is
+/// DEFERRED to the first read. Unresolved (no seed, no resolvable
+/// `package_config.json` entry, or a missing barrel file → an empty
+/// name set) makes [filter]/[filterMock] return an EMPTY list: callers
+/// emit no `hide` combinator at all (issue #1530 FR-001 removed the
+/// legacy keep-all fallback).
 library;
 
 import 'dart:convert';
@@ -25,9 +29,16 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 class ZuraffaBarrelExports {
-  ZuraffaBarrelExports._(this.names);
+  ZuraffaBarrelExports._(this.names, this.mockNames);
 
+  /// The surface `package:zuraffa/zuraffa.dart` exports.
   final Set<String> names;
+
+  /// The surface `package:zuraffa/mock.dart` exports (issue #1418): the
+  /// mock barrel's own export chain walked from `lib/mock.dart` — for
+  /// the current package layout a bare re-export of the zuraffa barrel
+  /// plus the mock-local declarations.
+  final Set<String> mockNames;
 
   static ZuraffaBarrelExports? _seeded;
   static String? _projectRoot;
@@ -42,9 +53,12 @@ class ZuraffaBarrelExports {
     _resolved = false;
   }
 
-  /// Test seam: seed with an explicit name set.
+  /// Test seam: seed with an explicit name set. BOTH surfaces are
+  /// seeded identically — a test that pins a surface intends "these
+  /// names are verified" for whichever library the emission site
+  /// imports (issue #1418).
   static void seedForTest(Set<String> names) {
-    _seeded = ZuraffaBarrelExports._(names);
+    _seeded = ZuraffaBarrelExports._({...names}, {...names});
     _projectRoot = null;
     _resolved = true;
   }
@@ -92,6 +106,27 @@ class ZuraffaBarrelExports {
     return hides.where(seed.names.contains).toList();
   }
 
+  /// Filters [hides] to names `package:zuraffa/mock.dart` actually
+  /// exports (issue #1418).
+  ///
+  /// The mock lane's generated files hide the entity's own symbols from
+  /// the MOCK barrel (`import 'package:zuraffa/mock.dart' hide …`), but
+  /// [filter] verifies against the `zuraffa.dart` surface — correctness
+  /// rested on `src/mock/mock.dart` bare-re-exporting the full zuraffa
+  /// surface, an accident of the current barrel layout. [filterMock]
+  /// verifies against the mock barrel's own resolved surface: a name
+  /// the mock barrel does not export is dropped (an unverified hide is
+  /// an `undefined_hidden_name` warning, and `zfa build`'s analyze gate
+  /// fails on warnings); the bare re-export union keeps the #942
+  /// collision protection; an UNRESOLVED surface returns an EMPTY
+  /// list — no combinator at all (#1530 FR-001 carryover). Use
+  /// [filter] for imports of `package:zuraffa/zuraffa.dart` itself.
+  static List<String> filterMock(Iterable<String> hides) {
+    final seed = current;
+    if (seed == null) return const [];
+    return hides.where(seed.mockNames.contains).toList();
+  }
+
   static ZuraffaBarrelExports? _resolve(String projectRoot) {
     try {
       final config = File(
@@ -116,7 +151,17 @@ class ZuraffaBarrelExports {
       }
       final names = <String>{};
       _collectFromBarrel(p.join(root, 'lib', 'zuraffa.dart'), root, names, 0);
-      return ZuraffaBarrelExports._(names);
+      // Issue #1418: resolve the MOCK barrel's own surface too — the
+      // mock lane hides from `package:zuraffa/mock.dart`, so the
+      // verified set for THAT import comes from walking `lib/mock.dart`
+      // (whose re-export of the zuraffa barrel unions the core surface,
+      // and whose local declarations verify), not from assuming the
+      // zuraffa re-export. A missing mock barrel resolves to an EMPTY
+      // set — [filterMock] then drops every hide (#1530 FR-001
+      // carryover).
+      final mockNames = <String>{};
+      _collectFromBarrel(p.join(root, 'lib', 'mock.dart'), root, mockNames, 0);
+      return ZuraffaBarrelExports._(names, mockNames);
     } on FileSystemException {
       return null;
     } on FormatException {

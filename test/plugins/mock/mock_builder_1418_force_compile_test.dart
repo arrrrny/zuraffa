@@ -40,10 +40,7 @@ void main() {
 
   setUpAll(() async {
     fx = await EngineTierFixture.create(name: 'mock_1418_force_fixture');
-    await fx.write(
-      'lib/src/domain/entities/deal/deal.dart',
-      _entitySource,
-    );
+    await fx.write('lib/src/domain/entities/deal/deal.dart', _entitySource);
 
     // Run 1 — the pair as first created (`mock create Deal --methods list`).
     final fs = FileSystem.create();
@@ -67,10 +64,7 @@ void main() {
           'id-field-type': 'String',
           'query-field': 'id',
         },
-        discovery: DiscoveryEngine(
-          projectRoot: fx.root.path,
-          fileSystem: fs,
-        ),
+        discovery: DiscoveryEngine(projectRoot: fx.root.path, fileSystem: fs),
         fileSystem: fs,
       ),
     );
@@ -102,10 +96,7 @@ void main() {
           'id-field-type': 'String',
           'query-field': 'id',
         },
-        discovery: DiscoveryEngine(
-          projectRoot: fx.root.path,
-          fileSystem: fs2,
-        ),
+        discovery: DiscoveryEngine(projectRoot: fx.root.path, fileSystem: fs2),
         fileSystem: fs2,
       ),
     );
@@ -116,7 +107,8 @@ void main() {
     expect(
       interface,
       contains('getList(ListQueryParams<Deal>'),
-      reason: '#1418: --force regenerates the interface from the current '
+      reason:
+          '#1418: --force regenerates the interface from the current '
           '--methods (out:\n$interface)',
     );
 

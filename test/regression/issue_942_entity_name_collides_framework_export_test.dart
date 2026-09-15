@@ -87,6 +87,20 @@ dev_dependencies:
     await File(
       p.join(zuraffaRoot, 'lib', 'src', 'core.dart'),
     ).writeAsString('class Credentials {}\nclass CredentialsPatch {}\n');
+    // Issue #1418: the mock lane's hide is verified against the MOCK
+    // barrel's own surface (`package:zuraffa/mock.dart`), so the fixture
+    // package ships the mock barrel exactly like the real package does —
+    // a bare re-export of the zuraffa barrel — and the #942 byte-exact
+    // pins below keep asserting the hide.
+    await File(
+      p.join(zuraffaRoot, 'lib', 'mock.dart'),
+    ).writeAsString("export 'src/mock/mock.dart';\n");
+    await Directory(
+      p.join(zuraffaRoot, 'lib', 'src', 'mock'),
+    ).create(recursive: true);
+    await File(
+      p.join(zuraffaRoot, 'lib', 'src', 'mock', 'mock.dart'),
+    ).writeAsString("export 'package:zuraffa/zuraffa.dart';\n");
     final dotTool = Directory(p.join(barrelFixture.path, '.dart_tool'));
     await dotTool.create(recursive: true);
     await File(p.join(dotTool.path, 'package_config.json')).writeAsString(

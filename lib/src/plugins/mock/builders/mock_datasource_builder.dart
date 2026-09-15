@@ -108,11 +108,15 @@ class MockDataSourceBuilder {
     // barrel import hides exactly those symbols and the entity's own
     // definitions win resolution. With no locally-imported entity types
     // the hide list is empty and the import is emitted unchanged.
+    // Issue #1418: the hide is verified against the MOCK barrel's own
+    // surface — the import's actual library — not against zuraffa.dart
+    // (an unverified hide is an `undefined_hidden_name` warning, and
+    // `zfa build`'s analyze gate fails on warnings).
     final barrelHide = <String>{
-      if (config.isEntityBased) ...EntityUtils.barrelHideNames(entityName),
+      if (config.isEntityBased) ...EntityUtils.mockBarrelHideNames(entityName),
       if (config.isCustomUseCase && config.returnsType != null)
         for (final type in EntityUtils.extractEntityTypes(config.returnsType!))
-          ...EntityUtils.barrelHideNames(type),
+          ...EntityUtils.mockBarrelHideNames(type),
     }.toList();
 
     final directives = [
