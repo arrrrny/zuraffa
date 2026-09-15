@@ -21,6 +21,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../cli/zfa_executable.dart';
 import '../../../core/project/project_root.dart';
 import 'replay_events.dart';
 import 'replay_history.dart';
@@ -180,15 +181,34 @@ class ReplayRunner {
       );
     }
     final budget = timeout ?? TddTimeouts.defaultPipelineStep;
+    // No-JIT policy: the compiled entrypoint every recorded zfa command is
+    // re-anchored onto, resolved ONCE for the whole run. Null only when no
+    // compiled artifact can be produced — the recorded pair is then kept
+    // verbatim (spec 0806's never-fabricate contract) and the step fails
+    // honestly instead of being given a VM spawn behind the policy's back.
+    final compiledAnchor = await _compiledReplayAnchor(
+      zfaBin: zfaBin,
+      runningScript: runningScript,
+    );
+    // A `.dart` --zfa-bin is handed over as the compiled anchor instead of
+    // the raw override: passing it through `zfaBin` would re-introduce the
+    // very VM spawn the policy removes.
+    final rawOverride =
+        (zfaBin != null &&
+            zfaBin.isNotEmpty &&
+            !ZfaExecutable.isDartScript(zfaBin))
+        ? zfaBin
+        : null;
     for (final step in behavior.genSteps) {
       var command = step.command;
       // Spec 0806 FR-004: re-resolve a machine-absolute recorded
       // entrypoint pair when it is locally broken.
       command = ReplayPaths.reAnchorEntrypoint(
         command,
-        zfaBin: zfaBin,
+        zfaBin: rawOverride,
         resolvedDart: resolvedDart,
         runningScript: runningScript,
+        compiledEntrypoint: compiledAnchor,
         // Probe relative recorded entrypoints against the SANDBOX (the
         // execution cwd), not the CLI's launch directory — re-anchoring
         // must not depend on where the operator ran `zfa replay`.
@@ -671,6 +691,46 @@ class ReplayRunner {
     final base = p.basename(path);
     if (base != 'zfa.dart' && base != 'zuraffa.dart') return null;
     return path;
+  }
+
+  /// The COMPILED entrypoint recorded zfa commands are re-anchored onto
+  /// (the no-JIT policy): the `--zfa-bin` override when given (compiled
+  /// through [ZfaExecutable.ensureCompiled] when it is a `.dart` source),
+  /// else the running CLI's own tree — its AOT artifact when this CLI runs
+  /// from source, or [Platform.resolvedExecutable] itself when this CLI IS
+  /// the compiled binary (the bug #690 final tier; the Dart VM is never
+  /// returned).
+  ///
+  /// Returns null when nothing can be compiled — the caller then keeps the
+  /// recorded pair verbatim rather than fabricating an entrypoint
+  /// (spec 0806 FR-004) or falling back to a JIT spawn.
+  static Future<String?> _compiledReplayAnchor({
+    required String? zfaBin,
+    required String? runningScript,
+  }) async {
+    final candidate = (zfaBin != null && zfaBin.isNotEmpty)
+        ? zfaBin
+        : runningScript;
+    if (candidate == null || candidate.isEmpty) {
+      // Compiled CLI: the running executable IS zfa (never the VM).
+      final executable = Platform.resolvedExecutable;
+      final base = p.basename(executable).toLowerCase();
+      if (base == 'dart' ||
+          base == 'dart.exe' ||
+          base == 'dartaotruntime' ||
+          base == 'dartaotruntime.exe') {
+        return null;
+      }
+      return executable;
+    }
+    if (!ZfaExecutable.isDartScript(candidate)) return candidate;
+    try {
+      return await ZfaExecutable.ensureCompiled(candidate);
+    } on ZfaCompilationException {
+      // The running tree cannot be compiled — unprovable, so the recorded
+      // pair is kept (never a JIT spawn invented here).
+      return null;
+    }
   }
 
   /// The human rendering of one stage result (contracts/replay.md).

@@ -28,9 +28,13 @@
 ///    when locally broken: an explicit `--zfa-bin` replaces any zfa
 ///    entrypoint form; otherwise a missing recorded dart re-resolves to the
 ///    running dart and a missing zfa script to the running CLI's
-///    entrypoint. A fully resolvable recorded pair runs as recorded
-///    (determinism); an unresolvable one is left as recorded so the spawn
-///    fails honestly as a runner-error.
+///    entrypoint. When the caller passes the running CLI's COMPILED
+///    artifact (`compiledEntrypoint`) the pair collapses into it — the
+///    no-JIT policy, so a recorded `<dart> <zfa.dart>` pair never spawns
+///    the script through the VM. A fully resolvable recorded pair runs as
+///    recorded (determinism) for callers that pass no compiled anchor; an
+///    unresolvable one is left as recorded so the spawn fails honestly as
+///    a runner-error.
 ///
 /// Pure functions throughout; [reAnchorEntrypoint] takes an injectable
 /// `exists` predicate and platform seams so tests never depend on the host
@@ -131,18 +135,27 @@ class ReplayPaths {
   /// machine-absolute pair (`<dart> <zfa.dart>` — both tokens dropped, the
   /// recorded args kept).
   ///
+  /// [compiledEntrypoint] is the no-JIT anchor: when the caller has the
+  /// running CLI's COMPILED artifact (or the compiled `--zfa-bin`), a
+  /// recorded pair collapses into that single token — the recorded
+  /// `<dart>` prefix never reaches the spawn, so replay cannot execute the
+  /// zfa script through the VM.
+  ///
   /// Without `--zfa-bin`, a pair whose recorded dart binary or zfa script
   /// does not exist locally ([exists]) re-resolves the missing token:
   /// dart → [resolvedDart] (default: the running CLI's
   /// `Platform.resolvedExecutable`), zfa → [runningScript] (the running
   /// CLI's entrypoint; null leaves the recorded script as-is so the spawn
   /// fails honestly). A fully resolvable recorded pair runs as recorded —
-  /// determinism preserved for same-machine replay.
+  /// determinism preserved for same-machine replay, and only for callers
+  /// that passed no [compiledEntrypoint] (a pure-function contract from
+  /// spec 0806: an entrypoint is never fabricated).
   static String reAnchorEntrypoint(
     String command, {
     String? zfaBin,
     String? resolvedDart,
     String? runningScript,
+    String? compiledEntrypoint,
     bool Function(String path)? exists,
   }) {
     final existsLocally = exists ?? (path) => File(path).existsSync();
@@ -163,6 +176,12 @@ class ReplayPaths {
     if (zfaBin != null && zfaBin.isNotEmpty) {
       // Precedence: the explicit override replaces the whole pair.
       return [zfaBin, ...tokens.skip(2)].join(' ');
+    }
+
+    // No-JIT policy: the compiled anchor replaces the whole pair — both
+    // recorded tokens (the VM and the script) collapse into the artifact.
+    if (compiledEntrypoint != null && compiledEntrypoint.isNotEmpty) {
+      return [compiledEntrypoint, ...tokens.skip(2)].join(' ');
     }
 
     final recordedDart = tokens[0];

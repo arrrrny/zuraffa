@@ -68,11 +68,19 @@ void main() {
     },
   );
 
-  test('U12: a .dart entrypoint is run through dart', () async {
+  test('U12: a .dart entrypoint is compiled and the artifact is spawned '
+      '(no-JIT policy)', () async {
     final spawner = _RecordingSpawner(() => _result());
+    final compiled = <String>[];
     final runner = StepRunner(
       zfaBin: '/pkg/bin/zfa.dart',
       spawner: spawner.call,
+      // The no-JIT seam: the source is AOT compiled before the spawn, so no
+      // real `dart compile exe` and no `dart <script>` child here.
+      ensureCompiled: (candidate, {sourceRoot, runner, environment}) async {
+        compiled.add(candidate);
+        return '/pkg/.dart_tool/zfa_cli_bin/zfa_exe';
+      },
     );
 
     await runner.run(
@@ -82,8 +90,12 @@ void main() {
       projectRoot: projectRoot,
     );
 
-    expect(spawner.commands.single.take(2), ['dart', '/pkg/bin/zfa.dart']);
-    expect(spawner.commands.single.sublist(2), [
+    expect(compiled, ['/pkg/bin/zfa.dart']);
+    expect(
+      spawner.commands.single.first,
+      '/pkg/.dart_tool/zfa_cli_bin/zfa_exe',
+    );
+    expect(spawner.commands.single.sublist(1), [
       'tdd',
       'gen',
       'U1',
@@ -439,10 +451,20 @@ void main() {
     expect(result.outcome, 'missing-summary');
   });
 
-  test('defaultZfaBin resolves this package\'s bin/zfa.dart', () async {
-    final bin = await StepRunner.defaultZfaBin();
-    expect(p.basename(bin), 'zfa.dart');
-    expect(await File(bin).exists(), isTrue);
+  test('defaultZfaBin resolves this package\'s bin/zfa.dart and hands it to '
+      'the no-JIT compiler seam', () async {
+    String? resolved;
+    final bin = await StepRunner.defaultZfaBin(
+      // Injected: resolving for real is fine, compiling the whole package is
+      // not (the seam is what fast-tier tests own).
+      ensureCompiled: (candidate, {sourceRoot, runner, environment}) async {
+        resolved = candidate;
+        return '/compiled/zfa_exe';
+      },
+    );
+    expect(p.basename(resolved!), 'zfa.dart');
+    expect(await File(resolved!).exists(), isTrue);
+    expect(bin, '/compiled/zfa_exe');
   });
 
   group('bug #690: system-binary entrypoint fallback', () {
@@ -544,8 +566,13 @@ void main() {
     test('run() spawns steps through the resolved entrypoint', () async {
       final spawner = _RecordingSpawner(() => _result());
       // No --zfa-bin: the runner must fall through to defaultZfaBin(),
-      // which resolves the system zfa on PATH for this test's inputs.
-      final runner = StepRunner(spawner: spawner.call);
+      // which resolves this package's bin/zfa.dart and hands it to the
+      // injected no-JIT seam (fast tier: never a real `dart compile exe`).
+      final runner = StepRunner(
+        spawner: spawner.call,
+        ensureCompiled: (candidate, {sourceRoot, runner, environment}) async =>
+            '/compiled/zfa_exe',
+      );
 
       await runner.run(
         step: 'gen',
@@ -554,12 +581,10 @@ void main() {
         projectRoot: projectRoot,
       );
 
-      // In the `dart test` context the package tier (3) resolves first,
-      // so the spawn goes through this package's bin/zfa.dart via dart.
-      expect(spawner.commands.single.take(2), [
-        'dart',
-        await StepRunner.defaultZfaBin(),
-      ]);
+      // The spawn goes through the compiled artifact, never
+      // `dart <bin/zfa.dart>`.
+      expect(spawner.commands.single.first, '/compiled/zfa_exe');
+      expect(spawner.commands.single, isNot(contains('dart')));
     });
   });
 }

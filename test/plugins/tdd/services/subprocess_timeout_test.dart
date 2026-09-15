@@ -48,6 +48,26 @@ Future<(Directory, String)> _sleeper() => _script(
 Future<(Directory, String)> _quickExit() =>
     _script('void main() { print("done"); }');
 
+/// A hanging child that is NOT a Dart source.
+///
+/// The no-JIT policy AOT compiles a `.dart` entrypoint before any zfa child
+/// spawns (see `ZfaExecutable`), so a fixture that hands the runner a
+/// `child.dart` no longer gets a `dart <script>` child — the runner has to
+/// be driven with the plain-script shape every other `--zfa-bin` fixture
+/// uses. The "hang → killed → runner-error" contract under test does not
+/// depend on what the child runs.
+///
+/// `exec sleep` keeps the hanging child a SINGLE process: a shell that forks
+/// a `sleep` grandchild leaves that grandchild holding the inherited stdout
+/// pipe after the kill, and the runner's post-kill drain never completes.
+Future<(Directory, String)> _hangingScript() async {
+  final dir = await Directory.systemTemp.createTemp('tdd_timeout_script_');
+  final file = File('${dir.path}/zfa');
+  await file.writeAsString('#!/bin/sh\nexec sleep 3600\n');
+  await Process.run('chmod', ['+x', file.path]);
+  return (dir, file.path);
+}
+
 Future<(Directory, String)> _script(String source) async {
   final dir = await Directory.systemTemp.createTemp('tdd_timeout_');
   final file = File('${dir.path}/child.dart');
@@ -65,6 +85,12 @@ void main() {
 
   Future<(Directory, String)> makeQuick() async {
     final r = await _quickExit();
+    scratch.add(r.$1);
+    return r;
+  }
+
+  Future<(Directory, String)> makeHangingScript() async {
+    final r = await _hangingScript();
     scratch.add(r.$1);
     return r;
   }
@@ -307,7 +333,10 @@ void main() {
     test(
       'a hanging step process is killed and mapped to runner-error',
       () async {
-        final (dir, sleeperPath) = await makeSleeper();
+        // A plain (non-.dart) hanging child: the no-JIT policy compiles a
+        // `.dart` entrypoint, so the fixture is the script shape every
+        // other `--zfa-bin` fake uses.
+        final (dir, sleeperPath) = await makeHangingScript();
         final runner = StepRunner(zfaBin: sleeperPath, timeout: hangTimeout);
         final result = await runner.run(
           step: 'gen',
@@ -327,7 +356,7 @@ void main() {
     test(
       'a hanging corpus step is killed and mapped to runner-error',
       () async {
-        final (dir, sleeperPath) = await makeSleeper();
+        final (dir, sleeperPath) = await makeHangingScript();
         final runner = CorpusStepRunner(
           zfaBin: sleeperPath,
           timeout: hangTimeout,

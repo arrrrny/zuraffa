@@ -187,6 +187,16 @@ class CycleLogEntry {
         } else {
           buf.writeln('  changed: ${action.filesChanged.join(', ')}');
         }
+        // Issue #1624: a scheduling-skipped pass is auditable as such —
+        // the process never spawned, so the evidence says so explicitly
+        // (the same additive-note precedent #1587's skipped build step
+        // uses). The gate's full note stays in the action record.
+        if (action.skipped) {
+          buf.writeln(
+            '  note: skipped — the pass had no build-relevant input '
+            '(issue #1624)',
+          );
+        }
       }
     }
 

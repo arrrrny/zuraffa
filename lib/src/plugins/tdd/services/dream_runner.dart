@@ -39,6 +39,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../agent/runtime/llm_client.dart';
+import '../../../cli/zfa_executable.dart';
 import '../../../core/project/project_root.dart';
 import '../../../core/project/receipt_store.dart';
 import '../../../mcp/capabilities/dream_capability.dart' show DreamNouns;
@@ -645,17 +646,22 @@ class DreamRunner {
   /// The default zfa spawner — [environment] is the run's scratch-TMPDIR
   /// map (spec 1520) merged over the child's inherited environment; null
   /// inherits it unchanged.
+  ///
+  /// No-JIT policy: the entrypoint (the `--zfa-bin` override or the default
+  /// chain, which already compiles inside `StepRunner.defaultZfaBin`) is
+  /// passed through `ZfaExecutable.ensureCompiled`, so a source entrypoint
+  /// becomes the shared AOT artifact; the argv is shaped by
+  /// `ZfaExecutable.commandFor`, so the `dart` prefix survives only under
+  /// `ZFA_ALLOW_JIT=1`.
   static DreamZfaSpawner _defaultZfaSpawner(
     String? zfaBin,
     Map<String, String>? environment,
   ) {
     return (List<String> tail, String cwd) async {
-      final entry = zfaBin ?? await StepRunner.defaultZfaBin();
-      final argv = <String>[
-        if (entry.endsWith('.dart')) Platform.resolvedExecutable,
-        entry,
-        ...tail,
-      ];
+      final entry = zfaBin != null
+          ? await ZfaExecutable.ensureCompiled(zfaBin)
+          : await StepRunner.defaultZfaBin();
+      final argv = ZfaExecutable.commandFor(entry, tail);
       return _timedProcessRun(
         argv,
         cwd,

@@ -49,6 +49,34 @@
 /// analyzed. When the build runs, every downstream guard (#737
 /// tolerance, #942 analyzer errors, #1407 warnings-only refusal) sees a
 /// real executed step.
+///
+/// Issue #1624 — the REFACTOR's build pass. After the #1587 fix made the
+/// make's per-behavior build skippable, `zfa tdd refactor`'s own `build`
+/// pass became the dominant cost of a green behavior (the pass registry
+/// spawns a whole-project `zfa build` per refactor: build_runner + the
+/// whole-project `dart analyze lib/`). On a feature whose generation
+/// writes only plain Dart that pass re-derives nothing. Unlike the make
+/// gate, the refactor gate has no "before" fingerprint to diff against —
+/// the refactor did not write the tree — so it decides from the tree's
+/// relationship to build_runner's own state: the
+/// `.dart_tool/build/asset_graph.json` marker. Only files not older than
+/// that marker can hold input build_runner has not already consumed, and
+/// even then only a builder-facing annotation (or a config / non-Dart
+/// file) makes the pass necessary. [refactorBuildSkipNote] is that gate;
+/// its decision fails toward RUN on every unknown.
+///
+/// The price of having no "before" state is the deletion blind spot, and
+/// the gate does NOT pretend otherwise: [canSkipTerminalBuild] runs on any
+/// deletion (its rule 1), but a path removed since the last build is
+/// simply absent from the walk here, so a deletion alone never forces the
+/// pass. Reading an mtime-ordered graph — whose serialized shape differs
+/// between build_runner versions (a dict at asset-graph version 44, a list
+/// at 47, 0.9–2.3 MB on a real project) — to recover "outputs that should
+/// exist" is not worth the fragility on this path; [refactorBuildSkippedNote]
+/// states the blind spot instead of over-claiming, so the recorded
+/// evidence stays true. What bounds the blast radius is the absolute-green
+/// preflight: deleting a `part` file breaks compilation, so the refactor
+/// refuses before the passes run.
 library;
 
 import 'dart:io';
@@ -89,6 +117,28 @@ class BuildRelevance {
       're-derive identical outputs, and the whole-project `dart analyze '
       'lib/` stage `zfa build` also runs was skipped with it, so these '
       'plain-Dart writes were not analyzer-graded.';
+
+  /// The skip note the refactor's `build` pass records when
+  /// [refactorBuildSkipNote] decides the pass has nothing to do (issue
+  /// #1624). Mirrors [skippedBuildNote]'s honesty: names the issue and
+  /// states the skipped whole-project `dart analyze lib/` stage
+  /// explicitly so a reader never assumes the pass's writes were
+  /// analyzer-graded.
+  ///
+  /// It claims what the gate can actually PROVE — no file newer than the
+  /// asset-graph marker can feed a builder — and not that build_runner
+  /// "would re-derive identical outputs": a path DELETED since that build
+  /// never enters the newer set, so this gate cannot see a deletion (the
+  /// make gate's fingerprint diff can; [canSkipTerminalBuild] rule 1).
+  static const String refactorBuildSkippedNote =
+      'refactor build pass skipped: every file newer than the build_runner '
+      'asset graph is un-annotated plain Dart (issue #1624) — nothing '
+      'newer than that asset graph can feed a builder. A path DELETED since '
+      'that build is invisible to this gate (it has no pre-build '
+      'fingerprint to diff against), so the skip is not evidence that the '
+      'tree\'s generated outputs are all still on disk. The whole-project '
+      '`dart analyze lib/` stage `zfa build` also runs was skipped with it, '
+      'so these plain-Dart writes were not analyzer-graded.';
 
   /// Fingerprint the build-relevant tree: a content digest per file,
   /// keyed by project-relative POSIX paths. Covers the Dart source dirs
@@ -168,6 +218,75 @@ class BuildRelevance {
       // rewrote the subject — the run loop's state machine would never
       // see a graded outcome.
       return false;
+    }
+  }
+
+  /// Issue #1624: the refactor `build` pass's scheduling gate.
+  ///
+  /// Non-null = a skip note (the pass is recorded as a synthetic skipped
+  /// action and never spawned); null = run the build. The refactor did
+  /// not write the tree, so there is no "before" fingerprint to diff
+  /// against — the gate instead compares the tree against build_runner's
+  /// own state marker, `.dart_tool/build/asset_graph.json`:
+  ///
+  ///   1. Marker missing → run (the project has never been built here;
+  ///      nothing proves an existing asset graph).
+  ///   2. Collect every file under `lib/`, `test/`, `bin/`, `tool/`
+  ///      (skipping `*.g.dart.part`) plus [buildConfigFiles] whose mtime
+  ///      is NOT before the marker's — the conservative `>=` direction.
+  ///   3. No such file → skip (nothing has been written since the last
+  ///      build).
+  ///   4. Any such file that is a config file, is not `.dart`, or whose
+  ///      RAW content matches [builderFacingAnnotation] → run.
+  ///   5. Otherwise (every newer file is un-annotated plain Dart) → skip.
+  ///
+  /// Every filesystem/read error → null (run): a hiccup must never
+  /// fabricate a skip, exactly like [shouldSkipTerminalBuild].
+  static Future<String?> refactorBuildSkipNote({
+    required String projectRoot,
+  }) async {
+    try {
+      final marker = File(
+        p.join(projectRoot, '.dart_tool', 'build', 'asset_graph.json'),
+      );
+      if (!marker.existsSync()) return null;
+      final markerModified = marker.statSync().modified;
+
+      final newer = <String>[];
+      for (final dir in const ['lib', 'test', 'bin', 'tool']) {
+        final directory = Directory(p.join(projectRoot, dir));
+        if (!directory.existsSync()) continue;
+        await for (final entity in directory.list(recursive: true)) {
+          if (entity is! File) continue;
+          if (entity.path.endsWith('.g.dart.part')) continue;
+          if (entity.statSync().modified.isBefore(markerModified)) continue;
+          newer.add(
+            p.relative(entity.path, from: projectRoot).replaceAll(r'\', '/'),
+          );
+        }
+      }
+      for (final config in buildConfigFiles) {
+        final file = File(p.join(projectRoot, config));
+        if (!file.existsSync()) continue;
+        if (file.statSync().modified.isBefore(markerModified)) continue;
+        newer.add(config);
+      }
+      if (newer.isEmpty) return refactorBuildSkippedNote;
+
+      for (final path in newer) {
+        if (buildConfigFiles.contains(path)) return null;
+        if (!path.endsWith('.dart')) return null;
+        if (builderFacingAnnotation.hasMatch(
+          await File(p.join(projectRoot, path)).readAsString(),
+        )) {
+          return null;
+        }
+      }
+      return refactorBuildSkippedNote;
+    } catch (_) {
+      // Fail toward RUN: a decode error, an unreadable stat, a file that
+      // vanished mid-walk — none of them may fabricate a skip.
+      return null;
     }
   }
 

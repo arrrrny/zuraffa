@@ -17,10 +17,29 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/zfa_executable.dart';
 import 'package:zuraffa/src/plugins/tdd/models/differential_vector.dart';
 import 'package:zuraffa/src/plugins/tdd/services/differential_corpus.dart';
 import 'package:zuraffa/src/plugins/tdd/services/differential_ref_runner.dart';
 import 'package:zuraffa/src/plugins/tdd/services/tdd_timeout.dart';
+
+/// The no-JIT compiler seam these unit tests inject: the ref worktree's
+/// `bin/zfa.dart` resolves to the artifact under that worktree's own
+/// `.dart_tool` cache (never a `dart <script>` child). Everything that is
+/// not a Dart source passes through unchanged.
+Future<String> _fakeCompile(
+  String candidate, {
+  String? sourceRoot,
+  ZfaCompileRunner? runner,
+  Map<String, String>? environment,
+}) async => candidate.endsWith('.dart')
+    ? p.join(
+        p.dirname(p.dirname(candidate)),
+        '.dart_tool',
+        'zfa_cli_bin',
+        'zfa_exe',
+      )
+    : candidate;
 
 ProcessResult ok(String stdout) => ProcessResult(1, 0, stdout, '');
 ProcessResult fail(String stdout, [String stderr = '']) =>
@@ -138,7 +157,7 @@ void main() {
 
     DifferentialRefRunner runnerWith(
       Future<ProcessResult> Function(List<String> command, String cwd) fake,
-    ) => DifferentialRefRunner(spawner: fake);
+    ) => DifferentialRefRunner(spawner: fake, ensureCompiled: _fakeCompile);
 
     test(
       'a healthy run records complete steps, tokens, and artifacts',
@@ -146,13 +165,13 @@ void main() {
         final runner = runnerWith((command, cwd) async {
           final argv = command.join(' ');
           if (argv.startsWith('dart pub get')) return ok('Got dependencies!');
-          if (argv.contains('bin/zfa.dart') && argv.contains(' gen U1 ')) {
+          if (argv.contains('zfa_exe') && argv.contains(' gen U1 ')) {
             return ok(
               'behavior_id: U1\n'
               '{"behaviorId":"U1","verdict":"created"}\n',
             );
           }
-          if (argv.contains('bin/zfa.dart') && argv.contains(' gen U2 ')) {
+          if (argv.contains('zfa_exe') && argv.contains(' gen U2 ')) {
             return ok(
               'behavior_id: U2\n'
               '{"behaviorId":"U2","verdict":"created"}\n',

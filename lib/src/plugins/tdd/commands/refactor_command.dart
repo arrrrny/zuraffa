@@ -922,6 +922,21 @@ class RefactorCommand extends Command<void> {
         return;
       }
 
+      // Issue #1624 — the redundant re-proof. When the pass registry
+      // changed NO file, the tree the re-proof would grade is
+      // byte-identical to the tree the preflight certified moments ago
+      // (the before-snapshots at step 4 were taken AFTER the preflight),
+      // so the preflight verdict stands and the suite is NOT spawned
+      // again. `--full-reproof` never inherits — an explicit request for
+      // the strongest proof is always answered by running it — and a
+      // pass that FAILED (`stopped`, including a #742 timeout) keeps its
+      // existing failure path unchanged.
+      final registryChangedNothing = passResult.actions.every(
+        (a) => a.filesChanged.isEmpty,
+      );
+      final reproofInherited =
+          !passResult.stopped && registryChangedNothing && !fullReproof;
+
       // Spec 069 T001 (incremental verification): persist the
       // pass-registry-changed files, then scope the re-proof to the
       // covering tests of those files. The FULL suite still runs at
@@ -954,12 +969,19 @@ class RefactorCommand extends Command<void> {
       // each candidate's test is exercised by construction; every other
       // green path is the full suite. A failed re-proof returns above, so
       // a refused/misfired/regressed pass never reconciles.
-      final refreshCandidates = await SubjectEvidenceRefresh.candidates(
-        projectRoot: cwd,
-        featureName: featureName,
-        changedPaths: libChanged,
-        artifacts: artifacts,
-      );
+      //
+      // Issue #1624: the inherited-re-proof path changed no file, so
+      // there is no subject to re-bind — the candidate set is empty by
+      // construction and the reconciliation below is not reached (it
+      // rides the `applied != 0` branch).
+      final refreshCandidates = reproofInherited
+          ? const <SubjectRefreshCandidate>[]
+          : await SubjectEvidenceRefresh.candidates(
+              projectRoot: cwd,
+              featureName: featureName,
+              changedPaths: libChanged,
+              artifacts: artifacts,
+            );
       final coveringTests = fullReproof
           ? const <String>{}
           : PassRegistryTracker.coveringTestsFor(
@@ -978,44 +1000,80 @@ class RefactorCommand extends Command<void> {
       //    to a registered artifact (spec 069 T001); the full suite
       //    otherwise (and under --full-reproof). On regression, name the
       //    regressed tests, exit non-zero, write no success evidence.
+      //
+      //    Issue #1624: when the registry changed nothing the re-proof is
+      //    INHERITED — the CLI prints so, and the synthetic record below
+      //    carries the inherited verdict so every downstream verdict line
+      //    and the pass-batch ledger name the inheritance honestly
+      //    instead of a fabricated "green".
       String reproofCommand;
-      if (scopedReproof) {
-        // Quote each path so a feature directory with spaces survives
-        // the suite runner's whitespace split (same token contract as
-        // zfaBuildCommand's quoteIfNeeded + the pass executor's
-        // quote-aware tokenizer, bug #689; spec 069 T001).
-        reproofCommand = [
-          suiteTemplate,
-          ...reproofPaths.map((path) => '"$path"'),
-        ].join(' ');
-        print(
-          'zfa tdd refactor: re-proof: scoped '
-          '(${reproofPaths.length} covering test(s) for '
-          '${libChanged.length} changed file(s))',
-        );
-        print('   command: $reproofCommand');
-      } else {
+      SuiteRunRecord reproof;
+      if (reproofInherited) {
         reproofCommand = suiteTemplate;
-        if (fullReproof) {
-          print('zfa tdd refactor: re-proof: full (--full-reproof)');
-        } else if (libChanged.isNotEmpty) {
+        print(
+          'zfa tdd refactor: re-proof skipped — inherited from the '
+          'preflight (the pass registry changed no file; issue #1624)',
+        );
+        reproof = SuiteRunRecord(
+          command: suiteTemplate,
+          exitCode: 0,
+          output:
+              're-proof inherited from the preflight: the pass registry '
+              'changed no file, so the tree is byte-identical to the one the '
+              'preflight certified moments earlier (issue #1624).',
+          // No suite process ran — the verdict is the preflight's. Say so
+          // on the record (issue #1624 review): `startedProcess: true`
+          // claimed a launch that never happened, and `inherited` is what
+          // lets the failure gates below read the distinction instead of
+          // the field that means "the executable started".
+          startedProcess: false,
+          inherited: true,
+        );
+      } else {
+        if (scopedReproof) {
+          // Quote each path so a feature directory with spaces survives
+          // the suite runner's whitespace split (same token contract as
+          // zfaBuildCommand's quoteIfNeeded + the pass executor's
+          // quote-aware tokenizer, bug #689; spec 069 T001).
+          reproofCommand = [
+            suiteTemplate,
+            ...reproofPaths.map((path) => '"$path"'),
+          ].join(' ');
           print(
-            'zfa tdd refactor: re-proof: full (changed set not fully '
-            'attributable to registered artifacts — safe fallback)',
+            'zfa tdd refactor: re-proof: scoped '
+            '(${reproofPaths.length} covering test(s) for '
+            '${libChanged.length} changed file(s))',
           );
+          print('   command: $reproofCommand');
         } else {
-          print('zfa tdd refactor: re-proof suite');
+          reproofCommand = suiteTemplate;
+          if (fullReproof) {
+            print('zfa tdd refactor: re-proof: full (--full-reproof)');
+          } else if (libChanged.isNotEmpty) {
+            print(
+              'zfa tdd refactor: re-proof: full (changed set not fully '
+              'attributable to registered artifacts — safe fallback)',
+            );
+          } else {
+            print('zfa tdd refactor: re-proof suite');
+          }
+          print('   command: $reproofCommand');
         }
-        print('   command: $reproofCommand');
+        reproof = await runner.runSuite(
+          suiteTemplate: reproofCommand,
+          workingDirectory: cwd,
+          timeout: timeout,
+          environment: scratchEnv,
+        );
+        print('   re-proof exit: ${reproof.exitCode}');
       }
-      var reproof = await runner.runSuite(
-        suiteTemplate: reproofCommand,
-        workingDirectory: cwd,
-        timeout: timeout,
-        environment: scratchEnv,
-      );
-      print('   re-proof exit: ${reproof.exitCode}');
 
+      // Issue #1624 review: an inherited re-proof is a SYNTHETIC record —
+      // no suite process of its own ran (`startedProcess: false`,
+      // `inherited: true`), and the preflight's green is the verdict. Both
+      // gates below therefore read `hasVerdict` (launched OR inherited),
+      // not `startedProcess`; the inherited green would otherwise be
+      // graded as "the suite never launched".
       // Issue #1333 — a transient dart test runner failure (the
       // incremental kernel-cache race: exit 255, "Cannot retrieve length
       // of file", dart_test.kernel ENOENT) is an INFRA-level failure, not
@@ -1028,7 +1086,7 @@ class RefactorCommand extends Command<void> {
       // long suite needs a larger --timeout, not a re-run).
       var reproofRetries = 0;
       while (!reproof.timedOut &&
-          (!reproof.startedProcess || reproof.exitCode != 0) &&
+          (!reproof.hasVerdict || reproof.exitCode != 0) &&
           reproofRetries < _maxReproofRetries &&
           classifyReproofFailure(
                 exitCode: reproof.exitCode,
@@ -1082,7 +1140,7 @@ class RefactorCommand extends Command<void> {
         return;
       }
 
-      if (!reproof.startedProcess || reproof.exitCode != 0) {
+      if (!reproof.hasVerdict || reproof.exitCode != 0) {
         // Issue #1333: classify the failure BEFORE the baseline tolerance
         // check — an infra-level runner failure is neither tolerated red
         // nor a regression; the retries above have been exhausted and the
@@ -1264,7 +1322,10 @@ class RefactorCommand extends Command<void> {
         );
       }
 
-      final reproofNote = scopedReproof
+      final reproofNote = reproofInherited
+          ? 're-proof: inherited from the preflight (the pass registry '
+                'changed no file; issue #1624)'
+          : scopedReproof
           ? 're-proof: scoped (${reproofPaths.length} covering test(s) '
                 'for ${libChanged.length} changed file(s); spec 069 T001 — '
                 'the full gate runs at feature completion + nightly)'
@@ -1278,7 +1339,13 @@ class RefactorCommand extends Command<void> {
           ? 'tolerated $preflightTolerated pre-existing failure(s) '
                 '(issue #922)'
           : 'green';
-      final reproofVerdict = reproofTolerated > 0
+      // Issue #1624: an inherited re-proof never claims a verdict it did
+      // not observe — it names the inheritance, and the pass-batch ledger
+      // (written below on the driver path) records this label too.
+      final reproofVerdict = reproofInherited
+          ? 'inherited from the preflight — the pass registry changed no '
+                'file (issue #1624)'
+          : reproofTolerated > 0
           ? 'tolerated $reproofTolerated pre-existing failure(s) '
                 '(issue #922)'
           : 'green';

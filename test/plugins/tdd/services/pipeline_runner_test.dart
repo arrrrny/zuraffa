@@ -490,34 +490,40 @@ esac
       },
     );
 
-    test(
-      'U15: tier 2 — running from source keeps dart <bin/zfa.dart>',
-      () async {
-        final logPath = fx.fakeZfaLogPath;
-        final fakeDart = await fx.writeFakeZfaBin(
-          logPath: logPath,
-          name: 'dart-vm',
-        );
-        final sourceScript = p.join(fx.root.path, 'bin', 'zfa.dart');
-        await File(sourceScript).create(recursive: true);
+    test('U15: tier 2 — running from source compiles bin/zfa.dart and spawns '
+        'the artifact (no-JIT policy)', () async {
+      final logPath = fx.fakeZfaLogPath;
+      final fakeCompiled = await fx.writeFakeZfaBin(
+        logPath: logPath,
+        name: 'zfa-compiled',
+      );
+      final sourceScript = p.join(fx.root.path, 'bin', 'zfa.dart');
+      await File(sourceScript).create(recursive: true);
+      final compiled = <String>[];
 
-        const runner = PipelineRunner();
-        final result = await runner.runPlan(
-          plan: await singleStepPlan(fx),
-          workingDirectory: fx.root.path,
-          scriptPathOverride: sourceScript,
-          resolvedExecutableOverride: fakeDart,
-          pathEnvOverride: '/nonexistent-zfa-path-dir',
-        );
+      const runner = PipelineRunner();
+      final result = await runner.runPlan(
+        plan: await singleStepPlan(fx),
+        workingDirectory: fx.root.path,
+        scriptPathOverride: sourceScript,
+        resolvedExecutableOverride: '/nonexistent/dart-vm',
+        pathEnvOverride: '/nonexistent-zfa-path-dir',
+        // The no-JIT seam: the source is AOT compiled before the spawn, so
+        // no real `dart compile exe` and no `dart <script>` child here.
+        ensureCompiled: (candidate, {sourceRoot, runner, environment}) async {
+          compiled.add(candidate);
+          return fakeCompiled;
+        },
+      );
 
-        expect(result.completed, isTrue);
-        expect(result.entrypoint, '$fakeDart $sourceScript');
-        final log = await fx.readFakeZfaLog();
-        expect(log, hasLength(1));
-        // The fake VM received the source script as its first argument.
-        expect(log.single, '$sourceScript make Todo');
-      },
-    );
+      expect(compiled, [sourceScript]);
+      expect(result.completed, isTrue);
+      expect(result.entrypoint, fakeCompiled);
+      final log = await fx.readFakeZfaLog();
+      expect(log, hasLength(1));
+      // The compiled artifact ran alone — no VM, no recorded script token.
+      expect(log.single, 'make Todo');
+    });
 
     test('U16: tier 3 — zfa on PATH wins over the snapshot fallback', () async {
       final logPath = fx.fakeZfaLogPath;
