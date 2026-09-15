@@ -19,7 +19,7 @@ void main() {
   /// resolver from it. [zuraffaCore] declares the zuraffa surface;
   /// [mockBarrel]/[mockImpl] shape the mock barrel's export chain
   /// (mock.dart → src/mock.dart).
-  Directory _fixture({
+  Directory fixture({
     required String zuraffaCore,
     String? mockBarrel,
     String? mockImpl,
@@ -72,7 +72,7 @@ void main() {
     test(
       '(a) diverged mock barrel: zuraffa-only names are NOT hidden from mock.dart',
       () {
-        _fixture(
+        fixture(
           zuraffaCore: 'class Credentials {}\nclass CredentialsPatch {}\n',
           mockBarrel: "export 'src/mock.dart';\n",
           mockImpl: 'class MockThing {}\n',
@@ -97,7 +97,7 @@ void main() {
     );
 
     test('(b) bare re-export: the zuraffa union keeps the #942 protection', () {
-      _fixture(
+      fixture(
         zuraffaCore: 'class Credentials {}\nclass CredentialsPatch {}\n',
         mockBarrel: "export 'src/mock.dart';\n",
         mockImpl:
@@ -116,7 +116,7 @@ void main() {
     });
 
     test('(c) show-combinator re-export: only the shown names union', () {
-      _fixture(
+      fixture(
         zuraffaCore: 'class Credentials {}\nclass CredentialsPatch {}\n',
         mockBarrel: "export 'src/mock.dart';\n",
         mockImpl: "export 'package:zuraffa/zuraffa.dart' show Credentials;\n",
@@ -142,7 +142,7 @@ void main() {
   group('U5 — mock-surface walk semantics', () {
     test('missing lib/mock.dart → mock surface is empty (no combinator)', () {
       // zuraffa barrel resolves, but no mock barrel exists in the package.
-      _fixture(zuraffaCore: 'class Credentials {}\n');
+      fixture(zuraffaCore: 'class Credentials {}\n');
       ZuraffaBarrelExports.seed(tmp.path);
 
       expect(ZuraffaBarrelExports.filter(['Credentials']), ['Credentials']);
@@ -150,7 +150,7 @@ void main() {
     });
 
     test('external package re-exports stay excluded from the mock surface', () {
-      _fixture(
+      fixture(
         zuraffaCore: 'class Credentials {}\n',
         mockBarrel: "export 'src/mock.dart';\n",
         mockImpl:
@@ -170,7 +170,7 @@ void main() {
     });
 
     test('combinators on the mock chain honor show/hide', () {
-      _fixture(
+      fixture(
         zuraffaCore: 'class Credentials {}\n',
         mockBarrel: "export 'src/mock.dart' show MockThing hide Hidden;\n",
         mockImpl: 'class MockThing {}\nclass Hidden {}\n',
@@ -188,7 +188,7 @@ void main() {
     });
 
     test('filter is unchanged by the mock-surface addition', () {
-      _fixture(
+      fixture(
         zuraffaCore: 'class Credentials {}\nclass CredentialsPatch {}\n',
         mockBarrel: "export 'src/mock.dart';\n",
         mockImpl: 'class MockThing {}\n',

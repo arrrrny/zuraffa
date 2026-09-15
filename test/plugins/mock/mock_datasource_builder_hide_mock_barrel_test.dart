@@ -44,7 +44,7 @@ void main() {
   /// from the zuraffa barrel (the synthetic future state the filter's
   /// contract guards against); when true it bare-re-exports zuraffa.dart
   /// (today's real layout).
-  void _seedSurface({required bool bareReexport}) {
+  void seedSurface({required bool bareReexport}) {
     final zuraffaRoot = '${tempDir.path}/fixture_zuraffa';
     Directory('$zuraffaRoot/lib/src').createSync(recursive: true);
     File(
@@ -81,7 +81,7 @@ void main() {
     ZuraffaBarrelExports.seed(tempDir.path);
   }
 
-  Future<String> _generate() async {
+  Future<String> generateEmission() async {
     final config = GeneratorConfig(
       name: 'Credentials',
       outputDir: outputDir,
@@ -102,9 +102,9 @@ void main() {
   test(
     'diverged mock barrel: entity names absent from it are NOT hidden from mock.dart',
     () async {
-      _seedSurface(bareReexport: false);
+      seedSurface(bareReexport: false);
 
-      final source = await _generate();
+      final source = await generateEmission();
 
       expect(
         _mockImportWithHide('[^;]*').hasMatch(source),
@@ -121,9 +121,9 @@ void main() {
   test(
     'bare re-export: the #942 collision hide survives on the mock import',
     () async {
-      _seedSurface(bareReexport: true);
+      seedSurface(bareReexport: true);
 
-      final source = await _generate();
+      final source = await generateEmission();
 
       expect(
         _mockImportWithHide(
