@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Tests for `zfa tdd make`'s build-skip scheduling (issue #1587):
 // the make plan's terminal `zfa build` step is skipped when the
 // behavior's generation wrote nothing a builder consumes (plain-Dart

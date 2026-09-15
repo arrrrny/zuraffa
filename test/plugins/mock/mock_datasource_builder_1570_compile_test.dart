@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // U2 (issue #1570, review round): the repair's synthesized implementations
 // must COMPILE for every member shape the interface writer emits — the
 // compile bar the fast unit file cannot provide (a name-only assertion

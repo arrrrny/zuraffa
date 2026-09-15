@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Tests for `ComposeCommand` (spec 052-acceptance-make-composition,
 // T006: A3..A8 acceptance + U9..U16 unit behaviors).
 //

@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Issue #1320 — the declared-assertion path is unreachable END-TO-END:
 // plan never surfaces the bound contract row's METHOD in the unit traces
 // cell (`traces: RouteContentType` keeps the cell row-only, so the

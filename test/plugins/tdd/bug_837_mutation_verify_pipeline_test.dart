@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Bug #837 — mutation verify pipeline: preflight semantics + runnable at
 // corpus scale.
 //

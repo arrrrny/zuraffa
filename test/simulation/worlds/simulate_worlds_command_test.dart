@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 /// Spec 968 — `zfa simulate init/run/certify/verify-world` (A1–A10): the
 /// scenario-worlds command surface, end to end.
 ///
