@@ -95,11 +95,10 @@ class CliRunner {
   /// finishing between this run's teardown and the caller's
   /// `expect(exitCode, ...)` read clobbers the value this invocation
   /// produced (the same cross-suite shared-state family as the
-  /// `Directory.current` race, issue #1096). The `finally` re-apply
-  /// below narrows that window to a few instructions but cannot close
-  /// it. [lastDispatchedExitCode] is a Dart static — per-isolate
-  /// storage — so callers that need the HERMETIC value read this
-  /// instead of the global. Set on every [runCapturing] exit path.
+  /// `Directory.current` race, issue #1096). [lastDispatchedExitCode] is
+  /// a Dart static — per-isolate storage — so callers that need the
+  /// HERMETIC value read this instead of the global. Set on every
+  /// [runCapturing] exit path, inside the body-wide exit-span hold.
   static int lastDispatchedExitCode = 0;
 
   CliRunner({
@@ -543,19 +542,22 @@ class CliRunner {
     }
   }
 
-  /// Separate cross-isolate lock serializing the PROCESS-GLOBAL
-  /// `dart:io exitCode` write spans of [runCapturing]: the hermetic reset
-  /// at dispatch, the dispatched-code snapshot after the runner returns,
-  /// and the final re-apply. `Directory.current` and `exitCode` fail in
-  /// the same way (issue #1096 family): `dart test` runs suites as
-  /// concurrent isolates of ONE VM while both are process-wide, and a
-  /// sibling dispatch's reset/re-apply landing between THIS dispatch's
-  /// command completion and its snapshot poisons the hermetic
-  /// `lastDispatchedExitCode` too — observed on the #1632 `-j4` lane as
-  /// an issue-1309 dispatch whose output showed a clean plan while the
-  /// snapshot read a sibling's refusal code. A separate file (not the
-  /// CWD lock) keeps these microsecond spans from queueing behind a
-  /// long `-C` window.
+  /// Separate cross-isolate lock held across the WHOLE [runCapturing]
+  /// dispatch — reset, command body, snapshot, re-apply — so the
+  /// PROCESS-GLOBAL `dart:io exitCode` has exactly one writer at a time
+  /// among concurrent isolates. `Directory.current` and `exitCode` fail
+  /// in the same way (issue #1096 family): `dart test` runs suites as
+  /// concurrent isolates of ONE VM while both are process-wide. Micro-
+  /// spans around only the three runner-side writes were tried first
+  /// (#1632) and proven insufficient by the lane itself: a SUCCESSFUL
+  /// command never writes the global, so its code has to survive the
+  /// entire command body, and every sibling dispatch's writes landed
+  /// freely in that window (the rotating 1309/doctor-U14/skin/
+  /// 965/1365/1481/846 false codes). A separate file (not the CWD lock)
+  /// keeps the two lock orders from ever nesting: this hold is taken
+  /// BEFORE the dispatch while the body may take the CWD lock for a
+  /// `-C` window — same-file locking would risk a hold-and-wait cycle
+  /// between two concurrent dispatches.
   static File get _exitSpanLockFile =>
       File(p.join(Directory.systemTemp.path, 'zfa_exit_lock_$pid.lock'));
 
@@ -688,6 +690,22 @@ class CliRunner {
       );
     }
     _active = true;
+    // Hold the exit-span lock across the WHOLE dispatch — reset, command
+    // body, snapshot, re-apply — not around the three writes alone. The
+    // #1632 `-j4` lane proved micro-spans insufficient: a SUCCESSFUL
+    // command never writes the global at all, so its code (the reset's 0)
+    // must survive the ENTIRE command body, and a sibling's writes
+    // landing anywhere in that body-length window poisoned the snapshot
+    // (the rotating 1309/doctor-U14/skin/965/1365/1481/846 false codes).
+    // With every dispatch body-wide-excluded, the only writers left are
+    // sibling COMMAND bodies — which run inside their own dispatch's
+    // hold, so they cannot overlap either. Bare-CommandRunner test
+    // dispatches (skin_command_test) join the same exclusion through
+    // test/helpers/exit_span_mutex.dart. Cost: CLI-driving dispatches
+    // serialize against each other (fixtures, file IO and non-CLI work
+    // still parallelize); a dispatch longer than 30s degrades to the
+    // stale-break protocol instead of hanging the waiters.
+    await _acquireExitSpanLock();
     // Reset the global exitCode so each runCapturing invocation is
     // hermetic — `dart:io exit(N)` inside the dispatched command sets
     // exitCode and would otherwise leak across runs (a prior test
@@ -695,17 +713,13 @@ class CliRunner {
     // later test that reads `exitCode`). The runner's own exit status
     // is preserved through the `_runDispatched` path, which uses its
     // own `_exit(exitCode)` to honor whatever the command set.
-    await _acquireExitSpanLock();
     exitCode = 0;
-    _releaseExitSpanLock();
     // Spec 1008: dart:io's exitCode is PROCESS-GLOBAL, not per-isolate —
-    // `dart test` runs test files as concurrent isolates of one process,
-    // so a sibling isolate's command finishing between this run's
-    // dispatch and the caller's `exitCode` read clobbers the value this
-    // invocation produced. Snapshot the dispatched code and re-apply it
-    // as the last operation before returning, restoring the hermeticity
-    // the reset above promises (the residual window is a few
-    // instructions instead of the whole teardown).
+    // `dart test` runs test files as concurrent isolates of one process.
+    // The dispatched code is snapshotted after the runner returns and
+    // re-applied in the finally, so the caller reads either the hermetic
+    // [lastDispatchedExitCode] or the global re-apply — both inside the
+    // body-wide hold above.
     var dispatchedExitCode = 0;
     final output = <String>[];
     try {
@@ -756,14 +770,14 @@ class CliRunner {
             () async {
               try {
                 await _runner.run(args);
-                // The snapshot reads the SHARED global, so it happens in
-                // an exit span: a sibling dispatch's reset/re-apply
-                // landing in the gap between our command's own write and
-                // this read would poison `lastDispatchedExitCode` (the
-                // #1632 `-j4` lane's issue-1309 false exit-2).
-                await _acquireExitSpanLock();
+                // Snapshot the dispatched code. Inside the body-wide
+                // exit-span hold this read cannot observe a sibling's
+                // write (every dispatcher — runCapturing or the
+                // ExitSpanMutex test seam — holds the same lock for its
+                // whole window); taken synchronously so the command's
+                // final write and this read share one event-loop turn
+                // even in the degraded stale-break case.
                 dispatchedExitCode = exitCode;
-                _releaseExitSpanLock();
               } on UsageException catch (e) {
                 output.add('❌ ${e.message}');
                 output.add(e.usage);
@@ -795,11 +809,9 @@ class CliRunner {
     } finally {
       _active = false;
       // Re-apply this invocation's own exit code AFTER the teardown (the
-      // CWD restore, the zone unwind) — the narrowest window a sibling
-      // isolate can clobber. The write itself is an exit span so sibling
-      // snapshots never observe a half-finished teardown (issue #1096
-      // family).
-      await _acquireExitSpanLock();
+      // CWD restore, the zone unwind) — still inside the body-wide hold,
+      // so no sibling write can land between the snapshot and this
+      // publish (issue #1096 family).
       exitCode = dispatchedExitCode;
       // The hermetic snapshot: per-isolate static, immune to the sibling
       // clobber the global re-apply above stays exposed to (bug #1107).

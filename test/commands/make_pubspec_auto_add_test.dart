@@ -30,6 +30,8 @@ import 'package:zuraffa/src/commands/entity_command.dart';
 import 'package:zuraffa/src/commands/make_command.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_registry.dart';
 
+import '../helpers/cwd_mutex.dart';
+
 /// Records spawned `pub add` commands; [simulate] applies the effect a real
 /// `pub add` would have on the sandbox pubspec.
 class _RecordingRunner {
@@ -103,6 +105,10 @@ void main() {
   });
 
   setUp(() async {
+    // Issue #1632 dart_core lane: serialize the process-global chdir
+    // window through the same cross-isolate lock CliRunner's `-C`
+    // windows use (the entity_builder_preflight_test.dart pattern).
+    await CwdMutex.acquire();
     dir = await Directory.systemTemp.createTemp('zfa-1265-make-');
     prevCwd = Directory.current.path;
     Directory.current = dir.path;
@@ -122,6 +128,7 @@ dev_dependencies:
 
   tearDown(() async {
     Directory.current = prevCwd;
+    CwdMutex.release();
     try {
       await dir.delete(recursive: true);
     } catch (_) {}
