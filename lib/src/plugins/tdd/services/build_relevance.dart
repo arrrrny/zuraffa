@@ -65,6 +65,27 @@
 /// file) makes the pass necessary. [refactorBuildSkipNote] is that gate;
 /// its decision fails toward RUN on every unknown.
 ///
+/// Issue #1634 — the FIRST build. The marker-mtime relationship needs a
+/// marker, and a fresh app has none until its first build completes, so
+/// the #1624 gate's missing-marker fail-open paid the one-time
+/// build_runner entrypoint AOT compile (~4 min measured: `gen_snapshot`
+/// compiling an ~18.5 MB `build.dart.aot`) inside the FIRST refactor —
+/// exactly on the app state where skipping matters most, for features
+/// whose builders emit nothing. When there is no build_runner state at
+/// all (no `.dart_tool/build/` directory), the graph is only needed to
+/// reason about INCREMENTAL freshness — not about "nothing here can ever
+/// feed a builder" — so [refactorBuildSkipNote] decides STATICALLY from
+/// a source scan: any builder-facing annotation, any non-Dart source
+/// inside the walked roots, or any `build.yaml` at the project root runs
+/// the first build (creating the graph the incremental gate then uses);
+/// a tree with none of those skips it via [staticFirstBuildSkippedNote]
+/// and never pays the AOT compile. The other [buildConfigFiles] are
+/// deliberately not static triggers — they exist on every app, so their
+/// presence cannot discriminate "nothing builder-facing". After a static
+/// skip there is still no state, so every later refactor re-enters the
+/// static scan until a real build creates the graph: self-consistent,
+/// and the build happens exactly when a builder-facing file appears.
+///
 /// The price of having no "before" state is the deletion blind spot, and
 /// the gate does NOT pretend otherwise: [canSkipTerminalBuild] runs on any
 /// deletion (its rule 1), but a path removed since the last build is
@@ -74,9 +95,14 @@
 /// at 47, 0.9–2.3 MB on a real project) — to recover "outputs that should
 /// exist" is not worth the fragility on this path; [refactorBuildSkippedNote]
 /// states the blind spot instead of over-claiming, so the recorded
-/// evidence stays true. What bounds the blast radius is the absolute-green
-/// preflight: deleting a `part` file breaks compilation, so the refactor
-/// refuses before the passes run.
+/// evidence stays true. The static first-build decision has the mirrored
+/// honesty ([staticFirstBuildSkippedNote]): it proves what the CONTENT
+/// scan covered and nothing else — a tree whose generated outputs exist
+/// without `.dart_tool/` (copied without build state) and whose sources
+/// reference them un-annotated is outside its model. What bounds the blast
+/// radius in both cases is the absolute-green preflight: a missing `part`
+/// target breaks compilation, so the refactor refuses before the passes
+/// run.
 library;
 
 import 'dart:io';
@@ -139,6 +165,38 @@ class BuildRelevance {
       'tree\'s generated outputs are all still on disk. The whole-project '
       '`dart analyze lib/` stage `zfa build` also runs was skipped with it, '
       'so these plain-Dart writes were not analyzer-graded.';
+
+  /// The skip note the refactor's `build` pass records when
+  /// [refactorBuildSkipNote] decides STATICALLY — build_runner has no
+  /// state in the project at all (no `.dart_tool/build/` directory) and
+  /// the source scan found nothing a first build could emit (issue
+  /// #1634). This is the note that spares a fresh app's FIRST refactor
+  /// the one-time build_runner entrypoint AOT compile (~4 min measured)
+  /// the #1624 gate could never skip: the gate used to fail open on the
+  /// missing marker, paying the full first build for features that
+  /// generate nothing.
+  ///
+  /// It claims what the static scan PROVES — no builder-facing
+  /// annotation, no non-Dart source inside the walked roots, and no
+  /// `build.yaml` anywhere in the project — and states the boundaries
+  /// honestly: the skipped `zfa build`'s whole-project
+  /// `dart analyze lib/` stage was skipped with it (these plain-Dart
+  /// writes were not analyzer-graded), and a tree whose generated
+  /// outputs are present WITHOUT `.dart_tool/` (copied without build
+  /// state) and whose sources reference them un-annotated is outside
+  /// this scan's model — the absolute-green preflight bounds that case
+  /// (a missing `part` target breaks compilation before the passes
+  /// run), the same blast-radius bound the incremental note leans on.
+  static const String staticFirstBuildSkippedNote =
+      'refactor build pass skipped: build_runner has never run here (no '
+      '.dart_tool/build/ state) and the static source scan found nothing a '
+      'first build could emit — no builder-facing annotation, no non-Dart '
+      'source inside lib/test/bin/tool, no build.yaml (issue #1634) — so '
+      'the one-time build_runner entrypoint AOT compile is not paid. If a '
+      'builder-facing file appears, the next refactor runs the first build '
+      'and creates the asset graph. The whole-project `dart analyze lib/` '
+      'stage `zfa build` also runs was skipped with it, so these '
+      'plain-Dart writes were not analyzer-graded.';
 
   /// Fingerprint the build-relevant tree: a content digest per file,
   /// keyed by project-relative POSIX paths. Covers the Dart source dirs
@@ -221,7 +279,8 @@ class BuildRelevance {
     }
   }
 
-  /// Issue #1624: the refactor `build` pass's scheduling gate.
+  /// Issue #1624: the refactor `build` pass's scheduling gate; issue
+  /// #1634: the FIRST-build decision is no longer a blanket fail-open.
   ///
   /// Non-null = a skip note (the pass is recorded as a synthetic skipped
   /// action and never spawned); null = run the build. The refactor did
@@ -229,16 +288,32 @@ class BuildRelevance {
   /// against — the gate instead compares the tree against build_runner's
   /// own state marker, `.dart_tool/build/asset_graph.json`:
   ///
-  ///   1. Marker missing → run (the project has never been built here;
-  ///      nothing proves an existing asset graph).
-  ///   2. Collect every file under `lib/`, `test/`, `bin/`, `tool/`
+  ///   1. Marker missing AND `.dart_tool/build/` absent (issue #1634) →
+  ///      decide STATICALLY from a source scan, without consulting any
+  ///      graph (see [staticFirstBuildSkippedNote]):
+  ///      1a. Any non-Dart file under `lib/`, `test/`, `bin/`, `tool/`
+  ///          (slang translation sources, assets) → run.
+  ///      1b. Any `.dart` file whose RAW content matches
+  ///          [builderFacingAnnotation] (comments count) → run.
+  ///      1c. Any `build.yaml` at the project root (builder
+  ///          registration — `zfa build`'s guard auto-scaffolds one on
+  ///          the first build, so its presence without a graph means a
+  ///          builder was configured or `.dart_tool` was cleaned) → run.
+  ///      1d. Otherwise → skip statically. The other [buildConfigFiles]
+  ///          are deliberately NOT triggers: they exist on EVERY app
+  ///          (fresh or not), so their mere presence cannot
+  ///          discriminate "nothing builder-facing" and would disable
+  ///          the static skip forever — re-creating the #1634 cost.
+  ///   2. Marker missing but `.dart_tool/build/` present (a mid-build
+  ///      or partially cleaned state) → run (unknown — fail toward RUN).
+  ///   3. Collect every file under `lib/`, `test/`, `bin/`, `tool/`
   ///      (skipping `*.g.dart.part`) plus [buildConfigFiles] whose mtime
   ///      is NOT before the marker's — the conservative `>=` direction.
-  ///   3. No such file → skip (nothing has been written since the last
+  ///   4. No such file → skip (nothing has been written since the last
   ///      build).
-  ///   4. Any such file that is a config file, is not `.dart`, or whose
+  ///   5. Any such file that is a config file, is not `.dart`, or whose
   ///      RAW content matches [builderFacingAnnotation] → run.
-  ///   5. Otherwise (every newer file is un-annotated plain Dart) → skip.
+  ///   6. Otherwise (every newer file is un-annotated plain Dart) → skip.
   ///
   /// Every filesystem/read error → null (run): a hiccup must never
   /// fabricate a skip, exactly like [shouldSkipTerminalBuild].
@@ -249,7 +324,22 @@ class BuildRelevance {
       final marker = File(
         p.join(projectRoot, '.dart_tool', 'build', 'asset_graph.json'),
       );
-      if (!marker.existsSync()) return null;
+      if (!marker.existsSync()) {
+        // Issue #1634: no build_runner state at all — the graph is only
+        // needed to reason about INCREMENTAL freshness, not about
+        // "nothing here can ever feed a builder". Decide statically.
+        final buildDir = Directory(p.join(projectRoot, '.dart_tool', 'build'));
+        if (!buildDir.existsSync()) {
+          // `await` is LOAD-BEARING: a bare `return future` would hand the
+          // static scan's error straight to the caller — bypassing this
+          // catch — and a decode hiccup would abort the refactor instead
+          // of failing the decision toward RUN (issue #1634 S6).
+          return await _staticFirstBuildSkipNote(
+            projectRoot: projectRoot,
+          );
+        }
+        return null;
+      }
       final markerModified = marker.statSync().modified;
 
       final newer = <String>[];
@@ -288,6 +378,34 @@ class BuildRelevance {
       // vanished mid-walk — none of them may fabricate a skip.
       return null;
     }
+  }
+
+  /// Issue #1634: the static first-build decision — a source scan of the
+  /// build-relevant trees with NO graph consulted (there is none). The
+  /// walk mirrors the incremental one (same roots, same `*.g.dart.part`
+  /// skip) but reads CONTENT instead of mtimes: any non-Dart file or any
+  /// [builderFacingAnnotation] match runs the build; any `build.yaml` at
+  /// the project root runs it too. All errors propagate to the caller's
+  /// catch — the decision fails toward RUN, never fabricates a skip.
+  static Future<String?> _staticFirstBuildSkipNote({
+    required String projectRoot,
+  }) async {
+    if (File(p.join(projectRoot, 'build.yaml')).existsSync()) return null;
+    for (final dir in const ['lib', 'test', 'bin', 'tool']) {
+      final directory = Directory(p.join(projectRoot, dir));
+      if (!directory.existsSync()) continue;
+      await for (final entity in directory.list(recursive: true)) {
+        if (entity is! File) continue;
+        if (entity.path.endsWith('.g.dart.part')) continue;
+        if (!entity.path.endsWith('.dart')) return null;
+        if (builderFacingAnnotation.hasMatch(
+          await entity.readAsString(),
+        )) {
+          return null;
+        }
+      }
+    }
+    return staticFirstBuildSkippedNote;
   }
 
   static Future<void> _hashTree(

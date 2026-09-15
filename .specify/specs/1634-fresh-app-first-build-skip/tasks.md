@@ -9,7 +9,7 @@ extension's red-green-refactor loop, tdd/test-list.md); N = non-behavioral.
 
 ## Phase A — MVP: the static first-build decision (P1)
 
-- [ ] **T001 (T, red→green)** Rewrite the #1624 "missing marker runs the
+- [x] **T001 (T, red→green)** Rewrite the #1624 "missing marker runs the
   build" test into the fresh-app static matrix and ADD the static
   decision tests before any implementation change:
   `test/plugins/tdd/services/build_relevance_test.dart`, group
@@ -24,14 +24,14 @@ extension's red-green-refactor loop, tdd/test-list.md); N = non-behavioral.
     (US3/SC-3)
   - S6 no graph + unreadable (non-UTF-8) file → null (US3/SC-3)
   Red is recorded in tdd/cycle-log.md BEFORE implementing.
-- [ ] **T002 (T, green)** Implement the static branch in
+- [x] **T002 (T, green)** Implement the static branch in
   `lib/src/plugins/tdd/services/build_relevance.dart`:
   `refactorBuildSkipNote` — when the marker is missing AND
   `.dart_tool/build/` does not exist, run the static scan (FR-1..FR-3);
   marker missing but directory present → null (FR-4); errors → null
   (FR-6). Add `staticFirstBuildSkippedNote` (D4). The incremental path
   below the marker check is byte-identical (FR-5).
-- [ ] **T003 (T, green)** Update the binding test's first assertion in
+- [x] **T003 (T, green)** Update the binding test's first assertion in
   `test/plugins/tdd/services/refactor_passes_test.dart` (line ~357):
   the scratch project now proves the static skip through the bound
   gate (`staticFirstBuildSkippedNote`), keeping the second half (the
@@ -39,7 +39,7 @@ extension's red-green-refactor loop, tdd/test-list.md); N = non-behavioral.
 
 ## Phase B — incremental-path integrity (P2)
 
-- [ ] **T004 (T, pin)** Verify the pre-existing #1624 incremental group
+- [x] **T004 (T, pin)** Verify the pre-existing #1624 incremental group
   passes UNMODIFIED (byte-identical test source; SC-4/FR-5):
   `dart test test/plugins/tdd/services/build_relevance_test.dart` —
   recorded as a pin (NOT a fabricated red) in tdd/cycle-log.md.
