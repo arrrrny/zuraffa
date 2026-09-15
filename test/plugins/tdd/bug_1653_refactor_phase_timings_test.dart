@@ -208,7 +208,11 @@ void main() {
       final fx = await TddFixture.create();
       final fakeZfa = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
       try {
-        await fx.seedAlreadyCleanLib();
+        // Malformed lib: the format/fix passes CHANGE files, so the re-proof
+        // is NOT inherited (#1624) — the phase actually runs and records a
+        // duration. (A clean no-op refactor honestly records none: the
+        // re-proof was inherited, no suite ran.)
+        await fx.seedMalformedLib();
         final runner = CliRunner(exitOnCompletion: false);
         final out = await runner.runCapturing([
           'tdd',

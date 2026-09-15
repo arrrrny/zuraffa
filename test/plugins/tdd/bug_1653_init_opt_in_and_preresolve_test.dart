@@ -66,7 +66,7 @@ YamlMap _devDeps(Directory dir) {
   final doc =
       loadYaml(File(p.join(dir.path, 'pubspec.yaml')).readAsStringSync())
           as YamlMap;
-  return (doc['dev_dependencies'] as YamlMap?) ?? const YamlMap();
+  return (doc['dev_dependencies'] as YamlMap?) ?? YamlMap();
 }
 
 void main() {
@@ -108,7 +108,12 @@ void main() {
           isFalse,
         );
         expect(_devDeps(dir).containsKey('mutation_test'), isFalse);
-        expect(_devDeps(dir)['flutter_test'], 'sdk: flutter');
+        // flutter_test's value parses as the nested sdk mapping.
+        final flutterTest = _devDeps(dir)['flutter_test'];
+        expect(
+          flutterTest is YamlMap && flutterTest['sdk'] == 'flutter',
+          isTrue,
+        );
         expect(_devDeps(dir)['coverage'], '^1.15.1');
       } finally {
         dir.deleteSync(recursive: true);
