@@ -894,10 +894,7 @@ class BuildCommand extends Command {
     String capped(List<String> paths) {
       final named = paths.take(cap).join(', ');
       final remainder = paths.length - cap;
-      return [
-        named,
-        if (remainder > 0) ' (+$remainder more)',
-      ].join();
+      return [named, if (remainder > 0) ' (+$remainder more)'].join();
     }
 
     final offenders = analyzerOffendingPaths(analyzeOutput);

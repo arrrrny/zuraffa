@@ -44,7 +44,9 @@ void main() {
   /// The cycle-log's `## `-delimited error section for [behavior].
   Future<String> errorSection(String behavior) async {
     final raw = await File(fx.cycleLogPath).readAsString();
-    return raw.split('\n## ').firstWhere(
+    return raw
+        .split('\n## ')
+        .firstWhere(
           (s) =>
               s.contains('- kind: error') &&
               s.contains('- behavior: $behavior'),
@@ -78,47 +80,40 @@ void main() {
     exitCode = 0;
   });
 
-  test(
-    'U-1412-1: a failing refactor step shows the failing-pass tail in the '
-    'console excerpt, never the passing preflight head (SC-1)',
-    () async {
-      await fx.setStepOutcome('refactor', 'B-001', 'flood');
+  test('U-1412-1: a failing refactor step shows the failing-pass tail in the '
+      'console excerpt, never the passing preflight head (SC-1)', () async {
+    await fx.setStepOutcome('refactor', 'B-001', 'flood');
 
-      final out = await drive();
+    final out = await drive();
 
-      // The stop contract is unchanged (FR-007).
-      expect(exitCode, isNot(0), reason: out);
-      expect(
-        out,
-        contains('stopped_at=B-001:refactor'),
-        reason: out,
-      );
+    // The stop contract is unchanged (FR-007).
+    expect(exitCode, isNot(0), reason: out);
+    expect(out, contains('stopped_at=B-001:refactor'), reason: out);
 
-      // The DIAGNOSTIC TAIL is visible: the failing pass is named with
-      // its exit code and the misfire-stop verdict (AC-2 of the issue).
-      expect(out, contains('pass: build'), reason: out);
-      expect(
-        RegExp(r'^\s*exit: 1$', multiLine: true).hasMatch(out),
-        isTrue,
-        reason: 'the failing pass exit code must be visible: $out',
-      );
-      expect(out, contains('pass "build" failed — misfire-stop.'), reason: out);
+    // The DIAGNOSTIC TAIL is visible: the failing pass is named with
+    // its exit code and the misfire-stop verdict (AC-2 of the issue).
+    expect(out, contains('pass: build'), reason: out);
+    expect(
+      RegExp(r'^\s*exit: 1$', multiLine: true).hasMatch(out),
+      isTrue,
+      reason: 'the failing pass exit code must be visible: $out',
+    );
+    expect(out, contains('pass "build" failed — misfire-stop.'), reason: out);
 
-      // The PASSING PREFLIGHT HEAD is gone: pre-fix, take(3) printed
-      // exactly the preflight block — the issue's contradiction
-      // (`runner-error` next to `preflight exit: 0`).
-      expect(
-        out,
-        isNot(contains('preflight exit: 0')),
-        reason: 'the passing preflight head must not be the excerpt: $out',
-      );
-      expect(
-        out,
-        isNot(contains('preflight noise line 1')),
-        reason: 'the head noise must be dropped: $out',
-      );
-    },
-  );
+    // The PASSING PREFLIGHT HEAD is gone: pre-fix, take(3) printed
+    // exactly the preflight block — the issue's contradiction
+    // (`runner-error` next to `preflight exit: 0`).
+    expect(
+      out,
+      isNot(contains('preflight exit: 0')),
+      reason: 'the passing preflight head must not be the excerpt: $out',
+    );
+    expect(
+      out,
+      isNot(contains('preflight noise line 1')),
+      reason: 'the head noise must be dropped: $out',
+    );
+  });
 
   test(
     'U-1412-2: a transcript deeper than the excerpt carries the honest '
@@ -136,26 +131,19 @@ void main() {
     },
   );
 
-  test(
-    'U-1412-3: a short failed transcript prints its lines with NO marker '
-    '(SC-3 — the common small-failure case is content-unchanged)',
-    () async {
-      await fx.setStepOutcome('refactor', 'B-001', 'boom');
+  test('U-1412-3: a short failed transcript prints its lines with NO marker '
+      '(SC-3 — the common small-failure case is content-unchanged)', () async {
+    await fx.setStepOutcome('refactor', 'B-001', 'boom');
 
-      final out = await drive();
-      expect(exitCode, isNot(0), reason: out);
+    final out = await drive();
+    expect(exitCode, isNot(0), reason: out);
 
-      // The failing transcript IS the summary line — it must survive the
-      // excerpt verbatim.
-      expect(
-        out,
-        contains('refactor: behavior=B-001 outcome=boom'),
-        reason: out,
-      );
-      // No truncation happened — no marker.
-      expect(out, isNot(contains('truncated')), reason: out);
-    },
-  );
+    // The failing transcript IS the summary line — it must survive the
+    // excerpt verbatim.
+    expect(out, contains('refactor: behavior=B-001 outcome=boom'), reason: out);
+    // No truncation happened — no marker.
+    expect(out, isNot(contains('truncated')), reason: out);
+  });
 
   test(
     'U-1412-4: the RECORDED evidence path is byte-identical to #1329 — '
@@ -174,9 +162,9 @@ void main() {
       // The tail carries the failing pass; the head is dropped —
       // line-anchored (noise lines share prefixes).
       bool hasNoise(int i) => RegExp(
-            '^preflight noise line $i\$',
-            multiLine: true,
-          ).hasMatch(section);
+        '^preflight noise line $i\$',
+        multiLine: true,
+      ).hasMatch(section);
       expect(section, contains('pass "build" failed — misfire-stop.'));
       // The 3 preflight head lines shift the noise index: noise line i is
       // transcript line i+3, so the last-200 window (transcript 52..251)
@@ -189,8 +177,9 @@ void main() {
       // record the run UI re-reads).
       final entries = await readJournal();
       final stopped = [
-        ...((entries['entries'] as List).cast<Map<String, dynamic>>())
-            .where((e) => e['cycle'] == 'engine' && e['phase'] == 'drive'),
+        ...((entries['entries'] as List).cast<Map<String, dynamic>>()).where(
+          (e) => e['cycle'] == 'engine' && e['phase'] == 'drive',
+        ),
       ].last;
       final error = stopped['error'] as Map<String, dynamic>;
       expect(error['step'], 'refactor');

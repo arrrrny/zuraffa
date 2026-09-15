@@ -816,19 +816,15 @@ Analyzing lib/...
    warning - lib/src/hand.dart:7:7 - Warn. - other_lint
 2 issues found.''';
         final lines = BuildCommand.analyzeGateRemedyLines(out);
-        expect(
-          lines,
-          [
-            'generator output offending (.g.dart/.zorphy.dart): '
-                'lib/src/models/user.zorphy.dart',
-            'hand-authored offending (not generator output): lib/src/hand.dart',
-            'Fix the named files, or run with --no-analyze to skip this check.',
-          ],
-        );
+        expect(lines, [
+          'generator output offending (.g.dart/.zorphy.dart): '
+              'lib/src/models/user.zorphy.dart',
+          'hand-authored offending (not generator output): lib/src/hand.dart',
+          'Fix the named files, or run with --no-analyze to skip this check.',
+        ]);
       });
 
-      test('more than 3 offenders per group cap with a +N more remainder',
-          () {
+      test('more than 3 offenders per group cap with a +N more remainder', () {
         const out = '''
 Analyzing lib/...
    warning - lib/a.dart:1:1 - W1. - l
