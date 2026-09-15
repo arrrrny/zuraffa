@@ -44,7 +44,7 @@ jobs:
         # (#1510) that drive real `dart test`/`dart pub get` subprocesses in
         # temp fixtures. They are honest under direct `dart test <file>`
         # (no longer slow-tagged) but must stay off the fast lane: this job
-        # runs at ~22 of its 30 budgeted minutes, and the e2e suites would
+        # runs at ~41 of its 45 budgeted minutes, and the e2e suites would
         # blow it. They run in --preset=regression / --preset=all instead.
         run: dart test test --exclude-tags "flutter || e2e"
 
