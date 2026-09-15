@@ -23,6 +23,7 @@
 // rooted at [root], applying `<root>/.pubignore` with gitignore semantics.
 // `.git` and `.dart_tool` are skipped unconditionally (pub never publishes
 // them); every other path is governed solely by the ignore rules.
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -173,12 +174,60 @@ String? _resolveTarget(String sourceRel, String uri) {
   return p.posix.normalize(p.posix.join(dir, uri));
 }
 
+/// Blank out triple-quoted string bodies before directive scanning.
+///
+/// `export '…'`-shaped TEMPLATE text lives inside `'''` and `"""` literals
+/// in lib/ generators — #1604's plugin_scaffold.dart renders its emitted
+/// consumer barrel from one, complete with `export 'src/register.dart';`
+/// lines, and seven lib/ files fence their templates with triple-double
+/// quotes (e.g. api_bridge_builder.dart, graphql_builder.dart). The
+/// directive regex must only see real code. WHICH fence is open is tracked,
+/// so a `'''` body cannot be closed by a `"""` and vice versa; text inside
+/// an open span is dropped, fence tokens themselves are kept.
+String _codeOutsideTripleQuotedStrings(String source) {
+  const single = "'''";
+  const double = '"""';
+  var open = ''; // '' → code; otherwise the fence kind that is open.
+  final out = <String>[];
+  for (final line in const LineSplitter().convert(source)) {
+    final kept = StringBuffer();
+    var rest = line;
+    while (rest.isNotEmpty) {
+      if (open.isEmpty) {
+        final s = rest.indexOf(single);
+        final d = rest.indexOf(double);
+        if (s < 0 && d < 0) {
+          kept.write(rest);
+          break;
+        }
+        final opensSingle = s >= 0 && (d < 0 || s < d);
+        final at = opensSingle ? s : d;
+        kept.write(rest.substring(0, at + 3));
+        open = opensSingle ? single : double;
+        rest = rest.substring(at + 3);
+      } else {
+        final at = rest.indexOf(open);
+        if (at < 0) {
+          rest = ''; // still inside: the remainder is body → blanked
+          break;
+        }
+        rest = rest.substring(at + 3); // drop the body, rescan after the close
+        open = '';
+      }
+    }
+    out.add(kept.toString());
+  }
+  return out.join('\n');
+}
+
 /// Scan every published `lib/**/*.dart` for export/part directives.
 List<_DirectiveTarget> _collectTargets(Set<String> published) {
   final targets = <_DirectiveTarget>[];
   for (final rel in published) {
     if (!rel.startsWith('lib/') || !rel.endsWith('.dart')) continue;
-    final text = File(p.join(_pkgRoot, rel)).readAsStringSync();
+    final text = _codeOutsideTripleQuotedStrings(
+      File(p.join(_pkgRoot, rel)).readAsStringSync(),
+    );
     for (final m in _directiveRe.allMatches(text)) {
       final uri = m.group(3)!;
       // A real Dart export/part URI is a plain string literal — it cannot
@@ -186,7 +235,11 @@ List<_DirectiveTarget> _collectTargets(Set<String> published) {
       // templates embedded in lib/ (e.g. package_scaffold.dart emits
       // `export 'src/module/${name}_package_module.dart';` into consumer
       // projects); they are not directives of THIS package.
-      if (uri.contains(r'$')) continue;
+      // Same class: the `@@TOKEN@@` placeholder family — #1604's
+      // plugin_scaffold.dart renders its emitted consumer barrel from a
+      // template whose `export 'src/@@NOUN@@_exception.dart';` lines are
+      // text, not this package's directives.
+      if (uri.contains(r'$') || uri.contains('@@')) continue;
       targets.add(
         _DirectiveTarget(rel, m.group(1)!, uri, _resolveTarget(rel, uri)),
       );
@@ -220,6 +273,62 @@ void main() {
           'breakage for consumers (bug 1307 class):\n'
           '${missing.join('\n')}',
     );
+  });
+
+  // Review-finding pin (latent failure mode): the blanking state machine's
+  // only possible bug direction is REMOVING input — the guard checks less
+  // and stays green. These tests pin that the scan still sees the real
+  // directives and that template bodies drop out.
+  test('scan sanity: blanking keeps the real directives in view', () {
+    final targets = _collectTargets(_wouldPublishSet());
+    expect(targets, isNotEmpty);
+    expect(
+      targets.map((t) => t.resolved),
+      contains('lib/src/core/benchmark/benchmark_contract.dart'),
+      reason: 'lib/zuraffa.dart:295 exports this file; B2 pins that it ships',
+    );
+  });
+
+  test('blanking: template bodies drop out, post-fence directives stay', () {
+    final src = [
+      "const b = r'''",
+      "export 'src/ghost.dart';",
+      "''';",
+      "export 'src/real.dart';",
+    ].join('\n');
+    final code = _codeOutsideTripleQuotedStrings(src);
+    expect(code, isNot(contains('ghost')));
+    expect(code, contains("export 'src/real.dart';"));
+  });
+
+  test('blanking: triple-double template bodies drop out too', () {
+    // Seven lib/ files fence templates with """ (e.g. api_bridge_builder,
+    // graphql_builder) — invisible today only because their exports
+    // interpolate. A non-interpolated export in one must not re-red the
+    // lane the way #1604 did.
+    final src = [
+      'const t = """',
+      "export 'src/ghost.dart';",
+      '""";',
+      "export 'src/real.dart';",
+    ].join('\n');
+    final code = _codeOutsideTripleQuotedStrings(src);
+    expect(code, isNot(contains('ghost')));
+    expect(code, contains("export 'src/real.dart';"));
+  });
+
+  test("blanking: a ''' body is not closed by a \"\"\" fence", () {
+    final src = [
+      "const b = r'''",
+      "export 'src/ghost.dart';",
+      '"""',
+      "export 'src/other_ghost.dart';",
+      "''';",
+      "export 'src/real.dart';",
+    ].join('\n');
+    final code = _codeOutsideTripleQuotedStrings(src);
+    expect(code, isNot(contains('ghost')));
+    expect(code, contains("export 'src/real.dart';"));
   });
 
   test(
