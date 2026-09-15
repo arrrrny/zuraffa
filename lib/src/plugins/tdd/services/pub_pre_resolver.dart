@@ -15,7 +15,8 @@
 ///
 /// This service spawns the project's resolver (`dart pub get --no-example`,
 /// or `flutter pub get --no-example` for a Flutter target) under a hard
-/// deadline ([TddTimeouts.defaultPipelineStep]) and reports the outcome plus
+/// deadline ([PubPreResolver.timeout], default
+/// [TddTimeouts.defaultPipelineStep]) and reports the outcome plus
 /// the elapsed wall time, which the caller prints — the cost is paid at
 /// init time, loudly and visibly, instead of being deferred.
 ///
@@ -81,13 +82,17 @@ class PubPreResolveReport {
 }
 
 /// The timed-spawn signature [PubPreResolver] uses — a seam so unit tests
-/// inject a fake runner and never spawn a real `pub get`.
+/// inject a fake runner and never spawn a real `pub get`. The [timeout]
+/// named parameter carries the resolver's configured deadline to the
+/// runner — the default runner enforces it; an injected runner receives
+/// it and decides whether to honor it.
 typedef PubPreResolveRunner =
     Future<ProcessResult> Function(
       String executable,
       List<String> args, {
       String? workingDirectory,
       Map<String, String>? environment,
+      Duration? timeout,
     });
 
 class PubPreResolver {
@@ -99,8 +104,11 @@ class PubPreResolver {
   /// The injectable spawn seam (tests pass a recording fake).
   final PubPreResolveRunner runProcess;
 
-  /// The hard deadline for the resolver child (bug #742 discipline: the
-  /// default spawn primitive kills at the deadline).
+  /// The hard deadline for the resolver child (bug #742 discipline).
+  /// Threaded through the runner seam on every [resolve] call — the
+  /// default runner enforces it via [runTimed]; an injected runner
+  /// receives it as the `timeout` parameter and decides whether to
+  /// honor it.
   final Duration timeout;
 
   static const String dartBinary = 'dart';
@@ -111,30 +119,34 @@ class PubPreResolver {
   /// resolution — the same convention TddFixture uses for its fixtures.
   static const List<String> pubGetArgs = ['pub', 'get', '--no-example'];
 
-  /// The default [runProcess]: the #742 timed spawn primitive.
+  /// The default [runProcess]: the #742 timed spawn primitive. The
+  /// [timeout] argument carries the resolver's configured deadline —
+  /// [PubPreResolver.resolve] passes the instance field through, so a
+  /// custom deadline is honored instead of being silently replaced by
+  /// [TddTimeouts.defaultPipelineStep].
   static Future<ProcessResult> defaultRunProcess(
     String executable,
     List<String> args, {
     String? workingDirectory,
     Map<String, String>? environment,
+    Duration? timeout,
   }) {
     return runTimed(
       executable,
       args,
       workingDirectory: workingDirectory,
-      timeout: TddTimeouts.defaultPipelineStep,
+      timeout: timeout ?? TddTimeouts.defaultPipelineStep,
       environment: environment,
     );
   }
 
   /// Resolve [projectRoot]'s dependency graph. [isFlutter] selects the
-  /// resolver flavor (`flutter pub get` vs `dart pub get`). [onLine] is
-  /// unused by the service itself (the caller owns all printing); it is
-  /// accepted so callers can pass one sink uniformly.
+  /// resolver flavor (`flutter pub get` vs `dart pub get`). The instance
+  /// [PubPreResolver.timeout] deadline rides the runner seam (bug #742
+  /// discipline: the default spawn primitive kills at the deadline).
   Future<PubPreResolveReport> resolve({
     required String projectRoot,
     required bool isFlutter,
-    void Function(String line)? onLine,
   }) async {
     final binary = isFlutter ? flutterBinary : dartBinary;
     final watch = Stopwatch()..start();
@@ -143,6 +155,7 @@ class PubPreResolver {
         binary,
         List<String>.of(pubGetArgs),
         workingDirectory: projectRoot,
+        timeout: timeout,
       );
       watch.stop();
       final output = '${result.stdout}${result.stderr}'.trim();

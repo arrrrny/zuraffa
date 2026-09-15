@@ -18,10 +18,15 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
 import 'package:zuraffa/src/plugins/tdd/services/baseline_init.dart';
 import 'package:zuraffa/src/plugins/tdd/services/pub_pre_resolver.dart';
+import 'package:zuraffa/src/plugins/tdd/services/tdd_timeout.dart';
 import 'package:yaml/yaml.dart';
 
 /// A fake process runner for [PubPreResolver]: records invocations, returns
-/// the programmed result. No real `pub get` in unit tests.
+/// the programmed result. No real `pub get` in unit tests. The configured
+/// `timeout` is recorded so tests can pin that the resolver's deadline
+/// rides the runner seam (review finding on 1a0e33a: the instance field
+/// was dead config — the static default hardcoded the 10-minute pipeline
+/// step and never saw it).
 class _FakePubRunner {
   _FakePubRunner({
     this.exitCode = 0,
@@ -36,16 +41,19 @@ class _FakePubRunner {
   final List<String> executables = [];
   final List<List<String>> argvs = [];
   final List<String?> workingDirs = [];
+  final List<Duration?> timeouts = [];
 
   Future<ProcessResult> run(
     String executable,
     List<String> args, {
     String? workingDirectory,
     Map<String, String>? environment,
+    Duration? timeout,
   }) async {
     executables.add(executable);
     argvs.add(args);
     workingDirs.add(workingDirectory);
+    timeouts.add(timeout);
     if (throwOnStart) {
       throw const ProcessException('flutter', ['pub', 'get'], 'spawn failed');
     }
@@ -369,6 +377,40 @@ dev_dependencies:
       );
       expect(silentNoStart.unavailable, isFalse);
     });
+
+    test(
+      'the configured timeout rides the runner seam (1a0e33a review '
+      'finding: the instance field was dead config — the static default '
+      'hardcoded TddTimeouts.defaultPipelineStep and never saw it)',
+      () async {
+        final dir = _dartFixture();
+        try {
+          const deadline = Duration(minutes: 2);
+          final custom = _FakePubRunner();
+          final r = await PubPreResolver(
+            runProcess: custom.run,
+            timeout: deadline,
+          ).resolve(projectRoot: dir.path, isFlutter: false);
+          expect(r.ok, isTrue);
+          expect(
+            custom.timeouts.single,
+            deadline,
+            reason:
+                'the instance deadline must reach the runner seam — a '
+                'PubPreResolver(timeout:) override the default runner never '
+                'sees is silently ignored config',
+          );
+          final def = _FakePubRunner();
+          final r2 = await PubPreResolver(
+            runProcess: def.run,
+          ).resolve(projectRoot: dir.path, isFlutter: false);
+          expect(r2.ok, isTrue);
+          expect(def.timeouts.single, TddTimeouts.defaultPipelineStep);
+        } finally {
+          dir.deleteSync(recursive: true);
+        }
+      },
+    );
   });
 
   group('bug #1653 — zfa tdd init --mutation (FR-003)', () {

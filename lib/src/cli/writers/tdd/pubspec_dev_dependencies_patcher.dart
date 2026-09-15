@@ -110,12 +110,9 @@ class PubspecDevDependenciesPatcher {
     // the dry-run is previewing what the TDD baseline writers would emit).
     if (dryRun) {
       if (!await file.exists()) {
-        return (_resolveIsFlutter(isFlutterOverride ?? isFlutter, file)
-                ? flutterDevDependencies
-                : dartDevDependencies)
-            .keys
-            .where((pkg) => pkg != 'mutation_test' || includeMutationTest)
-            .toList();
+        return _wantedSet(
+          _resolveIsFlutter(isFlutterOverride ?? isFlutter, file),
+        ).keys.toList();
       }
       final raw = await file.readAsString();
       final doc = loadYaml(raw);
