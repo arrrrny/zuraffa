@@ -238,6 +238,18 @@ class RunCommand extends Command<void> {
     );
     try {
       await _runDriven(scratch?.childEnvironment());
+    } on DiskPreflightRefusal catch (e) {
+      // Issue #1642: the full-suite disk preflight refused an UNSCOPED
+      // baseline whose estimated kernel-snapshot footprint exceeds the
+      // temp volume's free space. The refusal (with its `--> fix:`
+      // remedies) is already printed at the capture site; the run stops
+      // BEFORE the baseline spawned, so nothing leaks. The scratch is
+      // still disposed by the finally below.
+      print(
+        'zfa tdd run: stopped before the baseline — '
+        '${e.message.split('\n').first}',
+      );
+      exitCode = 1;
     } finally {
       await scratch?.dispose();
     }

@@ -20,6 +20,98 @@ import 'scratch_tmpdir.dart';
 /// genuinely old garbage is reclaimed.
 const Duration defaultKernelAgeGuard = Duration(hours: 1);
 
+/// The measured per-suite kernel-snapshot footprint a full-suite `dart test`
+/// sweep needs in the temp volume (issue #1642 evidence: ~765 suites ×
+/// ~69 MB self-contained `test.dart_N.dill` ≈ 50 GB per invocation).
+const int defaultPerSuiteKernelSnapshotBytes = 69 * 1024 * 1024;
+
+/// Headroom the full-suite disk preflight (issue #1642) requires ON TOP of
+/// the estimated snapshot footprint — the sweep must not die on ENOSPC two
+/// suites before the end.
+const int defaultPreflightMarginBytes = 2 * 1024 * 1024 * 1024;
+
+/// The full-suite disk preflight (issue #1642 requested fix 3): null when
+/// [freeBytes] covers the estimated temp footprint ([suiteCount] ×
+/// [perSuiteBytes] + [marginBytes]); otherwise a `--> fix:` remedy message
+/// naming the numbers and the three honest escapes (scope the baseline,
+/// free space, or the chunked runner) — the loop fails FAST instead of
+/// dying on ENOSPC mid-sweep and leaking everything it compiled.
+String? diskPreflightMessage({
+  required int freeBytes,
+  required int suiteCount,
+  int perSuiteBytes = defaultPerSuiteKernelSnapshotBytes,
+  int marginBytes = defaultPreflightMarginBytes,
+}) {
+  final estimate = suiteCount * perSuiteBytes + marginBytes;
+  if (freeBytes >= estimate) return null;
+  final freeGb = (freeBytes / (1024 * 1024 * 1024)).toStringAsFixed(1);
+  final estimateGb = (estimate / (1024 * 1024 * 1024)).toStringAsFixed(1);
+  return 'disk preflight: $freeBytes bytes ($freeGb GB) free on the temp '
+      'volume is under the estimated full-suite footprint '
+      '($suiteCount suites × ${perSuiteBytes ~/ (1024 * 1024)} MB + '
+      '${marginBytes ~/ (1024 * 1024 * 1024)} GB margin = $estimateGb GB) — '
+      'a full-suite sweep would die on ENOSPC mid-run and leak every '
+      'snapshot it compiled (issue #1642).\n'
+      '   --> fix: scope the baseline (`--baseline-scope <dir>`), free '
+      'space on the temp volume, or run the chunked suite '
+      '(`tools/run_tests_chunked.sh`) instead.';
+}
+
+/// Thrown by the driver when the full-suite disk preflight refuses: the run
+/// stops BEFORE the baseline spawns, so nothing leaks. Caught (and turned
+/// into an honest stop) by the run command, never by the driver's own
+/// baseline StateError guard (which means "no template" — a silent skip
+/// would re-arm the ENOSPC leak).
+class DiskPreflightRefusal implements Exception {
+  DiskPreflightRefusal(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+/// The preflight for an UNSCOPED (whole-tree) baseline capture: counts the
+/// project's suites, reads the temp volume's free space via `df -k`, and
+/// returns [diskPreflightMessage]'s verdict. Null = go (or cannot tell —
+/// a missing `df`, a Windows runner, or a suite-less tree never blocks the
+/// loop; the sweep then runs unguarded exactly as before #1642).
+Future<String?> fullSuiteBaselinePreflight(
+  String projectRoot, {
+  Map<String, String>? environment,
+}) async {
+  if (!Platform.isLinux && !Platform.isMacOS) return null;
+  var suiteCount = 0;
+  final testDir = Directory(p.join(projectRoot, 'test'));
+  if (!testDir.existsSync()) return null;
+  for (final entity in testDir.listSync(recursive: true, followLinks: false)) {
+    if (entity is File && entity.path.endsWith('_test.dart')) suiteCount++;
+  }
+  if (suiteCount == 0) return null;
+  final tmpRoot = scratchEffectiveTempRoot(environment ?? Platform.environment);
+  final df = await Process.run('df', ['-k', tmpRoot]);
+  if (df.exitCode != 0) return null;
+  final freeBytes = freeBytesFromDfOutput(df.stdout as String);
+  if (freeBytes == null) return null;
+  return diskPreflightMessage(freeBytes: freeBytes, suiteCount: suiteCount);
+}
+
+/// The free bytes of the volume a `df -k <path>` output block reports —
+/// the `Available` column of the LAST line (the mounted row), in 1K blocks.
+/// Null when the shape is unreadable (the preflight then skips — best
+/// effort, never fatal).
+int? freeBytesFromDfOutput(String output) {
+  final rows = output
+      .split('\n')
+      .map((l) => l.trim())
+      .where((l) => l.isNotEmpty)
+      .toList();
+  if (rows.length < 2) return null;
+  final cells = rows.last.split(RegExp(r'\s+'));
+  if (cells.length < 4) return null;
+  final blocks = int.tryParse(cells[3]);
+  if (blocks == null) return null;
+  return blocks * 1024;
+}
+
 /// Clear the dart test incremental kernel cache (spec 1333 FR-2; issue
 /// #1507; spec 1520): the project's `.dart_tool/test/` directory and stale
 /// shared temp `dart_test.kernel.*` entries — BOTH files and directories.
@@ -164,7 +256,13 @@ Future<(int, int)> _sweepTempKernelEntries(
     if (!await root.exists()) return (cleared, freedBytes);
     await for (final entity in root.list()) {
       final base = p.basename(entity.path);
-      final isKernel = base.startsWith('dart_test.kernel.');
+      // Issue #1642 incident 1: hung `flutter test` runs orphan the same
+      // shape of temp garbage under a second prefix (`flutter_tools.*`
+      // dirs with 138 MB `listener.dart.dill` files) — the same leak
+      // class, so the same guard stack reclaims it.
+      final isKernel =
+          base.startsWith('dart_test.kernel.') ||
+          base.startsWith('flutter_tools.');
       // A scratch dir left behind by a run that never reached its
       // `finally` is sealed from the #1507 sweep by its `zfa-` prefix —
       // matched explicitly so crash debris is still reclaimed.
@@ -260,10 +358,16 @@ Future<int> _entrySize(FileSystemEntity entity) async {
   return total;
 }
 
-/// Matches the absolute kernel-dir path inside an argv element, with or
-/// without a flag prefix: the path starts at a `/` that is not part of a
-/// `flag=` value boundary (`/tmp/dart_test.kernel.<rand>`).
-final RegExp _kernelDirInArgv = RegExp(r'/[^=\s]*dart_test\.kernel\.[^/\s]*');
+/// Matches the absolute kernel/tool temp-dir path inside an argv element,
+/// with or without a flag prefix: the path starts at a `/` that is not part
+/// of a `flag=` value boundary. Both leak families are protected —
+/// `dart_test.kernel.<rand>` (the dart test runner's frontend-server child
+/// holds `--output-dill=<tmp>/dart_test.kernel.<rand>/output.dill`) and
+/// `flutter_tools.<rand>` (a hung `flutter test`'s tool artifacts, issue
+/// #1642 incident 1).
+final RegExp _kernelDirInArgv = RegExp(
+  r'/[^=\s]*(?:dart_test\.kernel|flutter_tools)\.[^/\s]*',
+);
 
 /// The set of canonicalized `dart_test.kernel.*` directory paths currently
 /// referenced by ANY live process's argv.
