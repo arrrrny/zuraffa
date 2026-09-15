@@ -217,7 +217,23 @@ class MockBuilder {
           interfaceSnake,
           '${interfaceSnake}_datasource.dart',
         );
-        if (!await fileSystem.exists(interfacePath)) {
+        // Issue #1418: --force must regenerate the WHOLE generated pair.
+        // The old guard was pure create-if-absent: an existing interface
+        // was never invalidated by --force (nor by a --methods change),
+        // while the mock body always regenerated from the current
+        // --methods — the pair drifted and `--certify` dead-ended on
+        // `Missing concrete implementation`. Under `force && !revert` the
+        // interface writer is invoked unconditionally and its fresh-write
+        // path (exists && (append || !force) → else force overwrite)
+        // regenerates the interface from the current config.methods — the
+        // same pattern the datasource and repository plugins already use.
+        // Non-force keeps the #417 create-if-absent contract byte-for-byte
+        // (the writer is not invoked on an existing file, so its append
+        // path cannot fire from the mock lane), and revert keeps the
+        // revert contract (the guard does not fire over it — the same
+        // precedence the #1570 staleness arming uses).
+        if (!await fileSystem.exists(interfacePath) ||
+            (config.force && !config.revert)) {
           files.add(await interfaceBuilder.generate(config));
         }
         files.add(await dataSourceBuilder.generateMockDataSource(config));
