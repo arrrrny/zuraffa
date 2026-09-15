@@ -10,7 +10,7 @@ the shared-helpers decision.
 
 ## 1. Behavioural (TDD red → green first) — MANDATORY, driven by the loop before T101
 
-- [ ] **T001** [behavior: A1] (P1) [US1] [behavior: A1] `test/plugins/tdd/commands/bug_1652_refactor_make_post_state_test.dart`
+- [ ] **T001** [behavior: A1] (P1) [US1] `test/plugins/tdd/commands/bug_1652_refactor_make_post_state_test.dart`
   — the inheritance hit: a recorded make post-state matching the current
   tree + context + a `--pass-batch` refactor spawn → ZERO suite spawns
   (logging-wrapper count unchanged), exit 0, `outcome=clean`, the
