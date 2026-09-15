@@ -2140,9 +2140,11 @@ class RunDriverCore {
         if (step == 'make' &&
             (result.outcome == 'skipped' ||
                 result.outcome == 'adopted' ||
-                result.outcome == 'adopted-placeholder')) {
+                result.outcome == 'adopted-placeholder' ||
+                result.outcome == 'adopted-interrupted')) {
           final adopted = result.outcome == 'adopted';
           final placeholderReDrive = result.outcome == 'adopted-placeholder';
+          final adoptedInterrupted = result.outcome == 'adopted-interrupted';
           if (!await _hasEvidence(evidence.greenEvidence, row.id)) {
             await CycleLog(featureDir).append(
               CycleLogEntry(
@@ -2155,6 +2157,17 @@ class RunDriverCore {
                           'on-disk subject and the last reset tombstone '
                           'invalidated the surviving certification (issue '
                           '#1331); green evidence recorded by the run '
+                          'driver (bug #986) because make did not write it. '
+                          'Exit code ${result.exitCode} disagrees with the '
+                          'outcome token; the token is the terminal '
+                          'classification.\n'
+                          '${result.output.split('\n').take(2).join('\n')}'
+                    : adoptedInterrupted
+                    ? 'adopted-interrupted — the target test already passes '
+                          'against the subject the previous make mutated '
+                          'before it died mid-flight; the write-ahead '
+                          'interrupt marker legitimized the adoption '
+                          '(issue #1398); green evidence recorded by the run '
                           'driver (bug #986) because make did not write it. '
                           'Exit code ${result.exitCode} disagrees with the '
                           'outcome token; the token is the terminal '
@@ -2197,6 +2210,8 @@ class RunDriverCore {
                 ? 'adopted'
                 : placeholderReDrive
                 ? 'adopted-placeholder'
+                : adoptedInterrupted
+                ? 'adopted-interrupted'
                 : 'green',
             exitCode: result.exitCode,
           );
@@ -2206,6 +2221,11 @@ class RunDriverCore {
                   ? '   exit code ${result.exitCode} disagrees with '
                         'outcome=adopted — the token is the terminal #1331 '
                         'adopted re-drive transition; advancing.'
+                  : adoptedInterrupted
+                  ? '   exit code ${result.exitCode} disagrees with '
+                        'outcome=adopted-interrupted — the token is the '
+                        'terminal #1398 crash-recovery adoption transition; '
+                        'advancing.'
                   : placeholderReDrive
                   ? '   exit code ${result.exitCode} disagrees with '
                         'outcome=adopted-placeholder — the token is the '

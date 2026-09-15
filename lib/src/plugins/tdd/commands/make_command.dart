@@ -91,6 +91,7 @@ import '../services/entity_lookup.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/generation_planner.dart';
 import '../services/hand_delta_receipt.dart';
+import '../services/make_interrupt.dart';
 import '../services/journal.dart';
 import '../services/nuance_receipts.dart';
 import '../services/pipeline_runner.dart';
@@ -256,6 +257,13 @@ class MakeCommand extends Command<void> {
   /// Issue #969: the envelope carrier the wrapper reads on exit.
   final VerdictContext _verdict = VerdictContext();
 
+  /// Issue #1398: the write-ahead interrupt marker this make owns — set
+  /// after target resolution (before any subject-mutating work), consumed
+  /// by [_printSummary] so every graceful exit path clears it and only
+  /// process death leaves one behind. Null before resolution and on
+  /// resolution failures: nothing to write, nothing to clear.
+  MakeInterruptMarker? _interruptMarker;
+
   @override
   String get name => 'make';
 
@@ -402,6 +410,29 @@ class MakeCommand extends Command<void> {
     print('zfa tdd make: behavior ${record.behaviorId}');
     print('   feature: ${target.featureName}');
     print('   test: ${record.testPath}');
+
+    // ---------------------------------------------------------------
+    // Issue #1398: the write-ahead interrupt marker. Read the PREVIOUS
+    // make's crash record BEFORE overwriting it with this make's own —
+    // read-before-overwrite is the only discrimination needed (a make
+    // never adopts its own marker; the recorded pid is auditability
+    // only, never a liveness probe). The marker lands BEFORE any work
+    // that can mutate the subject, so a make killed mid-flight leaves
+    // the durable "I was here, I did not finish" record the resume
+    // needs to tell the honest crash class from a dishonest hand-edit.
+    // ---------------------------------------------------------------
+    final interruptMarker = MakeInterruptMarker(featureDir: target.featureDir);
+    final interruptedRecovery =
+        await interruptMarker.pendingFor(record.behaviorId) != null;
+    _interruptMarker = interruptMarker;
+    await interruptMarker.begin(behavior: record.behaviorId);
+    if (interruptedRecovery) {
+      print(
+        '   interrupt marker: the previous make of "${record.behaviorId}" '
+        'died mid-flight (issue #1398) — its subject mutation is the '
+        "driver's own half-made work, distinguishable from a hand-edit.",
+      );
+    }
 
     final testPath = p.isAbsolute(record.testPath)
         ? record.testPath
@@ -1288,6 +1319,10 @@ class MakeCommand extends Command<void> {
     // green-basis drift whose evidence postdates the reset, a feature
     // with no tombstone, the born-green placeholders — keeps refusing.
     var adoptedReDrive = false;
+    // Issue #1398: WHICH adoption applies — the #1331 tombstone re-drive
+    // or the crash-interrupt recovery — decides the EXPLICIT outcome
+    // token the summary prints (accounting stays distinguishable).
+    var adoptedReDriveFlavor = MakeOutcome.adopted;
     // Issue #1345: the placeholder re-drive class — a tombstoned
     // ACCEPTANCE-kind re-drive whose on-disk subject IS the born-green
     // compose-pipeline placeholder (the exact bytes gen emits, the input
@@ -1301,17 +1336,38 @@ class MakeCommand extends Command<void> {
     var placeholderReDrive = false;
     if (alreadyGreen) {
       final reDrive = await _tombstonedReDrive(target.featureDir, record);
-      // A tombstone invalidates the certified HASH basis, not the #1036
-      // subject-shape guard: a born-green placeholder subject (scaffolded
-      // marker, still-throwing stubs) must never be adopted into green —
-      // the passing test would be vacuous against it. Placeholders take
-      // the #1345 re-entry (acceptance rows) or keep the drift refusal
-      // below.
-      final placeholderOnDisk = reDrive
+      // Issue #1398: the crash-interrupt recovery class — the write-ahead
+      // marker proves the PREVIOUS make of this behavior died mid-flight
+      // (process death: external timeout SIGKILL, OOM) with the subject
+      // already mutated to its green shape and no green evidence written.
+      // The resumed make adopts the passing subject through the SAME
+      // #1331 adoption mechanics (green evidence binding the CURRENT
+      // subject hash — any post-adoption drift still refuses) instead of
+      // dead-ending the resume at the #1036 subject-drift refusal, and
+      // the outcome is EXPLICITLY `adopted-interrupted`.
+      final interruptRecovery = interruptedRecovery;
+      // A tombstone or a crash marker invalidates the certified HASH
+      // basis, but neither invalidates the #1036 subject-shape guard: a
+      // born-green placeholder subject (scaffolded marker, still-throwing
+      // stubs) must never be adopted into green — the passing test would
+      // be vacuous against it. Placeholders keep the refusal below (the
+      // #1345 compose re-entry for the tombstoned acceptance class is
+      // untouched).
+      final placeholderOnDisk = (reDrive || interruptRecovery)
           ? await _subjectIsBornGreenPlaceholderOnDisk(cwd, record)
           : false;
-      final adoptable = reDrive && !placeholderOnDisk;
-      if (adoptable) {
+      if (interruptRecovery && !placeholderOnDisk) {
+        adoptedReDrive = true;
+        adoptedReDriveFlavor = MakeOutcome.adoptedInterrupted;
+        print(
+          '   resume-after-interruption adoption (issue #1398): the '
+          'interrupt marker proves the previous make died mid-flight — '
+          'the passing target test re-certifies green against the '
+          'subject it mutated (outcome=adopted-interrupted); the '
+          'appended evidence binds the current subject shape, so any '
+          'post-adoption drift still refuses.',
+        );
+      } else if (reDrive && !placeholderOnDisk) {
         adoptedReDrive = true;
         print(
           '   re-drive adoption (issue #1331): the last reset tombstone '
@@ -1353,6 +1409,14 @@ class MakeCommand extends Command<void> {
             '   re-drive adoption withheld: the on-disk subject is a '
             'born-green placeholder, so the passing target test proves '
             'nothing (issue #1036) — the subject-drift refusal stands.',
+          );
+        } else if (interruptRecovery) {
+          print(
+            '   resume-after-interruption adoption withheld (issue '
+            '#1398): the interrupt marker proves the previous make died '
+            'mid-flight, but the on-disk subject is a born-green '
+            'placeholder — a marker never legitimizes a vacuous subject '
+            '(issue #1036) — the subject-drift refusal stands.',
           );
         }
         // Issue #1036: the skip transition must verify the subject under
@@ -2375,7 +2439,7 @@ class MakeCommand extends Command<void> {
       outcome: buildStepTolerated
           ? MakeOutcome.greenWithFailedBuild
           : alreadyGreen
-          ? (adoptedReDrive ? MakeOutcome.adopted : MakeOutcome.skipped)
+          ? (adoptedReDrive ? adoptedReDriveFlavor : MakeOutcome.skipped)
           : placeholderReDrive
           ? MakeOutcome.adoptedPlaceholder
           : MakeOutcome.green,
@@ -3804,6 +3868,15 @@ class MakeCommand extends Command<void> {
     required String feature,
   }) {
     print('make: behavior=$behavior outcome=${outcome.label} feature=$feature');
+    // Issue #1398: the summary line is the every-exit-path funnel (FR-010
+    // of spec 047-tdd-make) — the exact point every graceful make exit
+    // passes through. Clearing the write-ahead interrupt marker HERE is
+    // what makes the marker a crash record: a graceful exit (green,
+    // skipped, adopted, adopted-interrupted, refusal, generation-error,
+    // preflight) consumes it; only process death leaves one behind. The
+    // clear is synchronous and best-effort — it must never fail the make
+    // that already finished its work.
+    _interruptMarker?.clearSync();
     // Issue #969: the outcome label IS the exit class (shipped
     // taxonomy, carried verbatim into the envelope).
     _verdict
@@ -3817,6 +3890,9 @@ class MakeCommand extends Command<void> {
         // Issue #1345: compose-placeholder re-entry exits 0 with green
         // evidence — the terminal success grades as pass.
         MakeOutcome.adoptedPlaceholder => VerdictOutcome.pass,
+        // Issue #1398: the crash-interrupt recovery re-certified green —
+        // the same pass class as the #1331 adoption, its own exit class.
+        MakeOutcome.adoptedInterrupted => VerdictOutcome.pass,
         MakeOutcome.skipped => VerdictOutcome.stopped,
         _ => VerdictOutcome.fail,
       }
