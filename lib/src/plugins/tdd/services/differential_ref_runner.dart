@@ -7,7 +7,10 @@
 /// 1. the entry's `project/` scaffold is copied into a fresh scratch
 ///    dir and its dependencies resolved (`dart pub get`);
 /// 2. each step spawns through the ref's worktree entrypoint
-///    (`dart <worktree>/bin/zfa.dart <argv> --project <scratch>`) or,
+///    (`<worktree>/.dart_tool/zfa_cli_bin/zfa_exe <argv> --project
+///    <scratch>` — the worktree's `bin/zfa.dart` is AOT compiled once
+///    through `ZfaExecutable.ensureCompiled`, the no-JIT policy; the
+///    pre-policy shape was `dart <worktree>/bin/zfa.dart <argv>`) or,
 ///    for `dart ...` steps, directly in the scratch project, under one
 ///    wall-clock budget (the #742 primitive — a child that outlives it
 ///    is killed and the step records the `hang` outcome, the #744
@@ -27,6 +30,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../../cli/zfa_executable.dart';
 import '../models/differential_vector.dart';
 import 'differential_corpus.dart';
 import 'tdd_timeout.dart';
@@ -80,12 +84,19 @@ class DifferentialRefRunner {
   /// instead of the shared user TMPDIR. Null (the default) preserves the
   /// inherit-`Platform.environment` behavior; injected spawner fakes keep
   /// their own contract.
+  ///
+  /// [ensureCompiled] is the no-JIT seam: the ref worktree's
+  /// `bin/zfa.dart` is AOT compiled (cache inside that worktree) before any
+  /// step spawns, so the differential never drives a ref through the Dart
+  /// VM. Tests inject a fake so no real `dart compile exe` runs.
   DifferentialRefRunner({
     DifferentialSpawner? spawner,
     DifferentialGitRunner? gitRunner,
     Duration? budget,
     Map<String, String>? childEnvironment,
+    ZfaEnsureCompiled? ensureCompiled,
   }) : budget = budget ?? defaultDifferentialBudget,
+       _ensureCompiled = ensureCompiled ?? ZfaExecutable.ensureCompiled,
        _spawner =
            spawner ??
            ((List<String> command, String workingDirectory) => runTimed(
@@ -110,6 +121,7 @@ class DifferentialRefRunner {
 
   final DifferentialSpawner _spawner;
   final DifferentialGitRunner _gitRunner;
+  final ZfaEnsureCompiled _ensureCompiled;
 
   /// Resolves a ref to its commit sha; an unknown ref throws
   /// [DifferentialRefException].
@@ -215,7 +227,11 @@ class DifferentialRefRunner {
       );
     }
 
-    final worktreeBin = p.join(worktreePath, 'bin', 'zfa.dart');
+    // No-JIT policy: the ref worktree's source entrypoint is compiled once
+    // into that worktree's own cache, and every step rep spawned from it.
+    final worktreeBin = await _ensureCompiled(
+      p.join(worktreePath, 'bin', 'zfa.dart'),
+    );
     final steps = <StepVector>[];
     for (final step in entry.steps) {
       steps.add(await _runStep(step, worktreeBin, scratchProject));
@@ -238,13 +254,14 @@ class DifferentialRefRunner {
     if (step.argv.first == 'dart') {
       command = [...step.argv];
     } else {
-      command = [
-        'dart',
-        worktreeBin,
+      // `worktreeBin` is the ref worktree's COMPILED entrypoint (the no-JIT
+      // policy); `commandFor` keeps the `dart` prefix reachable only under
+      // the `ZFA_ALLOW_JIT=1` escape hatch.
+      command = ZfaExecutable.commandFor(worktreeBin, [
         ...step.argv,
         '--project',
         scratchProject.path,
-      ];
+      ]);
     }
 
     final ProcessResult process;

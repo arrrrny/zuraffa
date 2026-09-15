@@ -40,13 +40,28 @@ which zfa && zfa --version
 cat "$(which zfa).build_commit" 2>/dev/null || echo "no build stamp"
 ```
 
-- Binary is normally at `~/.local/bin/zfa`. If it is stale, rebuild from the
-  zuraffa repo:
+- Binary is normally at `~/.local/bin/zfa`. If it is stale, reinstall from the
+  zuraffa repo — **`scripts/rebuild.sh` installs the system binary; it is not
+  part of the dev loop**:
 
 ```bash
-cd ~/Developer/zuraffa && dart pub get --offline && dart compile exe bin/zfa.dart -o ~/.local/bin/zfa
-git rev-parse HEAD > ~/.local/bin/zfa.build_commit
+cd ~/Developer/zuraffa && scripts/rebuild.sh
 ```
+
+- **The dev/TDD loop always runs a COMPILED zfa** (the no-JIT policy: nothing
+  may spawn the zfa CLI through the Dart VM — a `dart bin/zfa.dart …` child
+  pays the full front-end + JIT compile per spawn, ~20s cold, issue #531).
+  While iterating on zuraffa source, drive the CLI through the repo launcher,
+  which compiles once into `.dart_tool/zfa_cli_bin/zfa_exe` (the shared cache
+  `ZfaExecutable` and the test helper use) and reuses it until the source
+  changes:
+
+```bash
+cd ~/Developer/zuraffa && scripts/zfa tdd run 090-my-feature --project /tmp/proj
+```
+
+  `dart bin/zfa.dart` is reserved for `dart test` itself (the test runner
+  spawns the source directly); never use it as the loop's entrypoint.
 
 - Every `zfa tdd` subcommand accepts `--json` and emits a versioned verdict
   envelope (`zfa tdd verdicts` prints the schema). Script against the exit code

@@ -1,0 +1,99 @@
+#!/bin/bash
+#
+# The sanctioned dev-loop entry for the zfa CLI (the no-JIT policy).
+#
+# Nothing may spawn the zfa CLI in JIT mode: a `dart bin/zfa.dart …` child
+# pays the VM front-end + full-package JIT compile before it runs a single
+# command, and it silently runs whatever the source tree happens to be at
+# that moment. This launcher keeps ONE compiled artifact under the shared
+# cache (`.dart_tool/zfa_cli_bin/zfa_exe` — the same path
+# `lib/src/cli/zfa_executable.dart` and `test/helpers/run_zfa_source.dart`
+# use), rebuilds it only when the source is newer, and execs it.
+#
+#   scripts/zfa tdd run 090-my-feature --project /tmp/proj
+#
+# Rules of the loop:
+#   - use `scripts/zfa …` (or the installed ~/.local/bin/zfa) — never
+#     `dart bin/zfa.dart …`;
+#   - `dart bin/zfa.dart` is reserved for `dart test` itself;
+#   - `scripts/rebuild.sh` INSTALLS the system binary — it is not the loop.
+#
+# The rebuild is serialized (flock where available) and staged through a temp
+# sibling + atomic rename, so a concurrent invocation can never exec a
+# half-written binary (issue #644, Linux ETXTBSY).
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CACHE_DIR="$ROOT/.dart_tool/zfa_cli_bin"
+EXE="$CACHE_DIR/zfa_exe"
+TMP="$CACHE_DIR/zfa_exe.tmp"
+LOCK_FILE="$CACHE_DIR/build.lock"
+
+# True when the cached artifact is missing or older than the CLI source:
+# anything under bin/, anything under lib/src/, or the pubspec pair (the same
+# freshness contract `ZfaExecutable` enforces at runtime, issue #1184).
+needs_build() {
+  [ ! -f "$EXE" ] && return 0
+  if [ -n "$(find "$ROOT/bin" "$ROOT/lib/src" -type f -newer "$EXE" -print -quit 2>/dev/null)" ]; then
+    return 0
+  fi
+  for f in "$ROOT/pubspec.yaml" "$ROOT/pubspec.lock"; do
+    if [ -f "$f" ] && [ "$f" -nt "$EXE" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+release_lock() {
+  if [ -n "${LOCKED_FLOCK:-}" ]; then
+    flock -u 9 || true
+  elif [ -n "${LOCKED_MKDIR:-}" ]; then
+    rmdir "$LOCK_FILE.lockdir" 2>/dev/null || true
+  fi
+}
+
+# Serialize the build across concurrent invocations. macOS ships no flock(1),
+# so fall back to an atomic mkdir mutex with a bounded wait — the atomic
+# rename below is what actually keeps a partial binary from being exec'd, this
+# only avoids duplicate compiles.
+acquire_lock() {
+  mkdir -p "$CACHE_DIR"
+  if command -v flock >/dev/null 2>&1; then
+    exec 9>"$LOCK_FILE"
+    flock 9
+    LOCKED_FLOCK=1
+    return 0
+  fi
+  local waited=0
+  while ! mkdir "$LOCK_FILE.lockdir" 2>/dev/null; do
+    sleep 0.1
+    waited=$((waited + 1))
+    if [ "$waited" -gt 3000 ]; then
+      echo "zfa: waiting on $LOCK_FILE.lockdir (another build may be stuck) — continuing" >&2
+      break
+    fi
+  done
+  LOCKED_MKDIR=1
+}
+
+if needs_build; then
+  if [ ! -f "$ROOT/.dart_tool/package_config.json" ]; then
+    echo "zfa: $ROOT/.dart_tool/package_config.json is missing — run 'dart pub get --no-example' first" >&2
+    exit 1
+  fi
+  acquire_lock
+  trap release_lock EXIT
+  # Re-check under the lock: another invocation may have just built it.
+  if needs_build; then
+    echo "🔨 compiling zfa (scripts/zfa → $EXE)" >&2
+    rm -f "$TMP"
+    dart compile exe "$ROOT/bin/zfa.dart" --output "$TMP" >&2
+    mv -f "$TMP" "$EXE"
+  fi
+  release_lock
+  trap - EXIT
+fi
+
+exec "$EXE" "$@"

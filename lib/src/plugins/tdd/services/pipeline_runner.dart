@@ -5,7 +5,10 @@
 /// Responsibilities:
 ///   1. Resolve the zfa entrypoint: `--zfa-bin` override → running
 ///      CLI's `Platform.script` when launched from source (a `file://`
-///      URL ending in `/bin/zfa.dart` or `/bin/zuraffa.dart`) → `zfa`
+///      URL ending in `/bin/zfa.dart` or `/bin/zuraffa.dart`; the source
+///      is AOT compiled through `ZfaExecutable.ensureCompiled` and the
+///      compiled artifact runs alone — the no-JIT policy, the pre-policy
+///      shape was `dart <that path>`) → `zfa`
 ///      on PATH → fallback to `Platform.resolvedExecutable` with
 ///      `Platform.script` path (handles compiled-snapshot / global-activate
 ///      case; a native AOT executable resolves to itself alone — bug
@@ -25,6 +28,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../../cli/zfa_executable.dart';
 import '../models/generation_plan.dart';
 import 'build_relevance.dart';
 import 'tdd_timeout.dart';
@@ -203,6 +207,12 @@ class PipelineRunner {
   /// step executed), the fingerprint is dropped and execution proceeds
   /// byte-identically to today. The flag defaults to false — callers
   /// that do not opt in keep spawning every step unchanged (FR-008).
+  ///
+  /// [ensureCompiled] is the no-JIT seam: a resolution that lands on a
+  /// Dart SOURCE entrypoint (tier 2's `bin/zfa.dart`, or a tier-4
+  /// `Platform.script` that is a `.dart` file) is AOT compiled through
+  /// [ZfaExecutable.ensureCompiled] and the artifact runs alone. Tests
+  /// inject a fake so no real `dart compile exe` runs.
   Future<PipelineResult> runPlan({
     required GenerationPlan plan,
     required String workingDirectory,
@@ -213,6 +223,7 @@ class PipelineRunner {
     String? resolvedExecutableOverride,
     String? pathEnvOverride,
     bool skipUnchangedBuild = false,
+    ZfaEnsureCompiled? ensureCompiled,
   }) async {
     if (!plan.isExpressible) {
       return PipelineResult(
@@ -229,6 +240,7 @@ class PipelineRunner {
       scriptPathOverride: scriptPathOverride,
       resolvedExecutableOverride: resolvedExecutableOverride,
       pathEnvOverride: pathEnvOverride,
+      ensureCompiled: ensureCompiled,
     );
 
     final memoryLimitKb = resolveStepMemoryLimitKb(Platform.environment);
@@ -393,6 +405,11 @@ class PipelineRunner {
   ///
   /// The `*Override` parameters are platform-fact test seams (bug #864);
   /// see [runPlan].
+  ///
+  /// [ensureCompiled] is the no-JIT seam: every resolution that lands on a
+  /// Dart SOURCE entrypoint is compiled before it is returned, so the
+  /// returned [`_ResolvedEntrypoint`] is always a compiled binary (or the
+  /// explicit `--zfa-bin` override, which the caller owns).
   Future<_ResolvedEntrypoint> _resolveEntrypoint({
     required String? zfaBinOverride,
     required String workingDirectory,
@@ -400,7 +417,9 @@ class PipelineRunner {
     String? scriptPathOverride,
     String? resolvedExecutableOverride,
     String? pathEnvOverride,
+    ZfaEnsureCompiled? ensureCompiled,
   }) async {
+    final compile = ensureCompiled ?? ZfaExecutable.ensureCompiled;
     // 1. Explicit override.
     if (zfaBinOverride != null && zfaBinOverride.isNotEmpty) {
       final f = File(zfaBinOverride);
@@ -423,12 +442,14 @@ class PipelineRunner {
     final String? scriptPath = scriptPathOverride ?? _platformScriptPath();
     if (scriptPath != null) {
       final base = p.basename(scriptPath);
-      // bin/zfa.dart or bin/zuraffa.dart — invoke via the dart binary.
+      // bin/zfa.dart or bin/zuraffa.dart — the source is AOT compiled once
+      // and the artifact is invoked alone (no-JIT policy; the pre-policy
+      // shape was `<dart> <script>`).
       if (base == 'zfa.dart' || base == 'zuraffa.dart') {
+        final compiled = await compile(scriptPath);
         return _ResolvedEntrypoint(
-          executable: resolvedExecutable,
-          arguments: [scriptPath],
-          displayCommand: '$resolvedExecutable $scriptPath',
+          executable: compiled,
+          displayCommand: compiled,
         );
       }
       // Non-standard basename: fall through to PATH lookup (tier 3),
@@ -461,6 +482,15 @@ class PipelineRunner {
       // script/snapshot cases (source, JIT snapshot, global activate),
       // which is why the equality check — not the basename — decides.
       final isNativeExecutable = p.equals(scriptPath, resolvedExecutable);
+      if (!isNativeExecutable && ZfaExecutable.isDartScript(scriptPath)) {
+        // A Dart SOURCE script reached the snapshot tier: compile it rather
+        // than running it through the VM (no-JIT policy).
+        final compiled = await compile(scriptPath);
+        return _ResolvedEntrypoint(
+          executable: compiled,
+          displayCommand: compiled,
+        );
+      }
       return _ResolvedEntrypoint(
         executable: resolvedExecutable,
         arguments: isNativeExecutable ? const [] : [scriptPath],

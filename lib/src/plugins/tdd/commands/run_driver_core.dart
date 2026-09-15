@@ -81,6 +81,7 @@ import '../services/vacuous_guard.dart';
 import '../services/widget_scaffold.dart' show scaffoldedMarker;
 import '../services/tdd_transaction.dart';
 import '../../../core/dependencies/builder_dependency_preflight.dart';
+import '../../../cli/zfa_executable.dart';
 
 /// One lane invocation's machine outcome — everything the commands need to
 /// print their summary line, set the exit code, and (for the meta driver)
@@ -210,6 +211,12 @@ class RunDriverCore {
   /// while the run drives, and the final `verdict.v1` envelope still
   /// closes the output. Null (the default): no events, legacy output.
   void Function(StepStreamEvent event)? onStepEvent;
+
+  /// The no-JIT seam (see `ZfaExecutable`): every child entrypoint the
+  /// driver spawns itself — the phase-0 `zfa entity create` step (bug
+  /// #829) — is resolved to a compiled artifact first. Settable so tests
+  /// inject a fake compiler instead of running a real `dart compile exe`.
+  ZfaEnsureCompiled ensureCompiled = ZfaExecutable.ensureCompiled;
 
   // Issue #1590 (progress liveness): per-invocation output tuning, set by
   // [drive] (the same instance-state pattern as the stream context — drive
@@ -3519,13 +3526,16 @@ class RunDriverCore {
     required String feature,
     Map<String, String>? childEnvironment,
   }) async {
-    final entry = zfaBin ?? await StepRunner.defaultZfaBin();
+    // No-JIT policy (see `ZfaExecutable`): the phase-0 child is a compiled
+    // binary. The `--zfa-bin` override is compiled here too; the default
+    // chain already compiles inside `defaultZfaBin`.
+    final entry = zfaBin != null
+        ? await ensureCompiled(zfaBin)
+        : await StepRunner.defaultZfaBin(ensureCompiled: ensureCompiled);
     final deadline = timeout ?? TddTimeouts.defaultPipelineStep;
 
     Future<ProcessResult> spawn(List<String> args) {
-      final command = entry.endsWith('.dart')
-          ? ['dart', entry, ...args]
-          : [entry, ...args];
+      final command = ZfaExecutable.commandFor(entry, args);
       return runTimed(
         command.first,
         command.sublist(1),

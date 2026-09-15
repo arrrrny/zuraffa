@@ -12,7 +12,20 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/zfa_executable.dart';
 import 'package:zuraffa/src/plugins/tdd/services/refactor_passes.dart';
+
+/// The no-JIT compiler seam these unit tests inject: the build pass resolves
+/// a `.dart` entrypoint (this package's `bin/zfa.dart`) whenever no fixture
+/// PATH / `--zfa-bin` wins, and AOT-compiling the real package is NOT a unit
+/// test's job. Everything that is not a Dart source passes through
+/// unchanged — the fixture fake bins' contract.
+Future<String> _fakeCompile(
+  String candidate, {
+  String? sourceRoot,
+  ZfaCompileRunner? runner,
+  Map<String, String>? environment,
+}) async => candidate.endsWith('.dart') ? '/fake/compiled/zfa' : candidate;
 
 /// A fake process executor that records every invocation and returns
 /// programmed outcomes in order.
@@ -77,7 +90,11 @@ void main() {
             _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
             _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
           ]);
-          final passes = RefactorPasses(project.root.path, executor: executor);
+          final passes = RefactorPasses(
+            project.root.path,
+            executor: executor,
+            ensureCompiled: _fakeCompile,
+          );
           final result = await passes.run();
 
           expect(executor.invocations.map((i) => i.passName).toList(), [
@@ -117,7 +134,11 @@ void main() {
             ),
             _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
           ]);
-          final passes = RefactorPasses(project.root.path, executor: executor);
+          final passes = RefactorPasses(
+            project.root.path,
+            executor: executor,
+            ensureCompiled: _fakeCompile,
+          );
           final result = await passes.run();
 
           expect(result.actions, hasLength(3));
@@ -177,7 +198,11 @@ void main() {
           // fix never runs.
           _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
         ]);
-        final passes = RefactorPasses(project.root.path, executor: executor);
+        final passes = RefactorPasses(
+          project.root.path,
+          executor: executor,
+          ensureCompiled: _fakeCompile,
+        );
         final result = await passes.run();
 
         expect(result.actions, hasLength(2));
@@ -205,7 +230,11 @@ void main() {
             _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
             _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
           ]);
-          final passes = RefactorPasses(project.root.path, executor: executor);
+          final passes = RefactorPasses(
+            project.root.path,
+            executor: executor,
+            ensureCompiled: _fakeCompile,
+          );
           final result = await passes.run();
 
           for (final action in result.actions) {
@@ -236,7 +265,11 @@ void main() {
           ),
           _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
         ]);
-        final passes = RefactorPasses(project.root.path, executor: executor);
+        final passes = RefactorPasses(
+          project.root.path,
+          executor: executor,
+          ensureCompiled: _fakeCompile,
+        );
         final result = await passes.run();
 
         final format = result.actions[1];
@@ -260,7 +293,11 @@ void main() {
             startedProcess: false,
           ),
         ]);
-        final passes = RefactorPasses(project.root.path, executor: executor);
+        final passes = RefactorPasses(
+          project.root.path,
+          executor: executor,
+          ensureCompiled: _fakeCompile,
+        );
         final result = await passes.run();
 
         expect(result.actions, hasLength(1));
@@ -272,7 +309,12 @@ void main() {
     });
 
     test('the default pass set is exactly build, format, fix', () async {
-      final passes = RefactorPasses('/tmp/unused');
+      // No fixture PATH → the chain resolves this package's own
+      // bin/zfa.dart; the seam keeps the unit test from compiling it.
+      final passes = RefactorPasses(
+        '/tmp/unused',
+        ensureCompiled: _fakeCompile,
+      );
       expect((await passes.passSpecs).map((s) => s.name).toList(), [
         'build',
         'format',
@@ -331,7 +373,9 @@ void main() {
       test(
         'the default command never names the nonexistent bin/zfa.dart',
         () async {
-          final build = (await RefactorPasses.defaultPassSpecs()).first;
+          final build = (await RefactorPasses.defaultPassSpecs(
+            ensureCompiled: _fakeCompile,
+          )).first;
           expect(build.name, 'build');
           expect(
             build.command,

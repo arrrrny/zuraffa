@@ -41,6 +41,29 @@ zfa build
 - **Do not invent alternate folder structures.** Zuraffa v5 assumes a fixed domain root.
 - **Always run `dart pub get --no-example` before formatting, then `dart format lib test` before every commit and push.** Formatting without package resolution (a fresh clone has none) makes `dart format` fail to resolve `analysis_options.yaml`'s `package:lints/recommended.yaml` include — it spams a `Package resolution error` warning per file and rewrites hundreds of unrelated files (#1506). CI enforces `dart format --set-exit-if-changed lib test` — any unformatted file blocks the build. Run pub get, format, stage the results, then commit. Never push without formatting first.
 
+## No-JIT rule: every zfa child is a COMPILED binary
+
+NOTHING may spawn the zfa CLI in JIT mode. `dart <path>/bin/zfa.dart …` pays the Dart
+VM front-end plus a full-package JIT compile before the child runs a single command
+(~20s cold per spawn — issue #531 measured it), and it makes the child run whatever
+the tree happens to be at that moment.
+
+- **Dev/TDD loop entrypoint is `scripts/zfa …`** (or the installed `~/.local/bin/zfa`).
+  It compiles the source once into `.dart_tool/zfa_cli_bin/zfa_exe` — the same cache
+  `lib/src/cli/zfa_executable.dart` and `test/helpers/run_zfa_source.dart` use — and
+  reuses it while the source is unchanged.
+- **`dart bin/zfa.dart` is reserved for `dart test` itself.** Never use it as the loop's
+  entrypoint, and never hand it to a child process.
+- **`scripts/rebuild.sh` installs the system binary; it is not part of the loop.**
+- **In code, never hand-roll the argv.** Resolve the entrypoint through
+  `ZfaExecutable.ensureCompiled` (a `.dart` candidate is AOT compiled; a compile that
+  cannot happen throws — there is no silent fallback) and shape the child argv through
+  `ZfaExecutable.commandFor` (the `dart` prefix is reachable only under the explicit
+  `ZFA_ALLOW_JIT=1` escape hatch, for degraded environments that cannot run
+  `dart compile exe`).
+- `test/core/no_jit_zfa_spawn_scan_test.dart` sweeps `lib/src` for the old shapes and
+  fails the build if one returns.
+
 ## STOP-ON-ROADBLOCK RULE (HARD, NON-NEGOTIABLE — HARDCODED)
 
 **The FIRST time a `zfa` command errors, OR succeeds but produces output other than

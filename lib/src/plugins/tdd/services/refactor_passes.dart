@@ -13,7 +13,9 @@
 ///      use via [PipelineRunner] (FR-004 / U11): `--zfa-bin` override →
 ///      the running CLI from source (Platform.script basename
 ///      zfa.dart/zuraffa.dart) → `zfa` on PATH → the dart+script
-///      fallback.
+///      fallback. A source resolution is AOT compiled through
+///      `ZfaExecutable.ensureCompiled` before the pass runs — no-JIT
+///      policy: the build child is a compiled binary.
 ///   2. `format` — `dart format lib/`
 ///   3. `fix`    — `dart fix --apply lib/`
 ///
@@ -45,6 +47,7 @@ import 'dart:async';
 import 'dart:io';
 
 import '../../../commands/build_command.dart';
+import '../../../cli/zfa_executable.dart';
 import '../../../core/generation/tracked_generated_output_guard.dart';
 import '../../../version.dart';
 import '../models/refactor_action.dart';
@@ -255,6 +258,7 @@ class RefactorPasses {
     Map<String, String>? environment,
     Duration? passTimeout,
     this.warningsBlocking = false,
+    ZfaEnsureCompiled? ensureCompiled,
   }) : _executor =
            executor ??
            DefaultProcessExecutor(
@@ -266,6 +270,7 @@ class RefactorPasses {
            defaultPassSpecs(
              zfaBinOverride: zfaBinOverride,
              environment: environment,
+             ensureCompiled: ensureCompiled,
            );
 
   /// Project root the passes operate on.
@@ -296,13 +301,19 @@ class RefactorPasses {
   /// Async because the build entrypoint search reads files; tests can
   /// inject a pre-resolved [RefactorPassSpec.list] via the [passSpecs]
   /// constructor parameter to avoid awaiting the resolution.
+  ///
+  /// [ensureCompiled] is the no-JIT seam handed to [zfaBuildCommand] —
+  /// tests inject a fake so resolving a source entrypoint does not AOT
+  /// compile the real package.
   static Future<List<RefactorPassSpec>> defaultPassSpecs({
     String? zfaBinOverride,
     Map<String, String>? environment,
+    ZfaEnsureCompiled? ensureCompiled,
   }) async {
     final buildCommand = await zfaBuildCommand(
       zfaBinOverride: zfaBinOverride,
       environment: environment,
+      ensureCompiled: ensureCompiled,
     );
     return [
       RefactorPassSpec(name: 'build', command: buildCommand),
@@ -483,17 +494,22 @@ class RefactorPasses {
 /// then `Platform.resolvedExecutable`. The explicit `--zfa-bin`
 /// override is honored first.
 ///
-/// The returned path is shaped into a command line: a `.dart` source is
-/// run with `dart <path> build`; a compiled binary is invoked directly
-/// as `<path> build`. Tokens that contain spaces are quoted; the
-/// executor's quote-aware tokenizer keeps them as single argv entries.
+/// The returned path is shaped into a command line: a compiled binary is
+/// invoked directly as `<path> build`. A `.dart` source is AOT compiled
+/// first (`ZfaExecutable.ensureCompiled` — the no-JIT policy) and the
+/// artifact is invoked directly; the `dart <path> build` shape survives
+/// only under the `ZFA_ALLOW_JIT=1` escape hatch. Tokens that contain
+/// spaces are quoted; the executor's quote-aware tokenizer keeps them as
+/// single argv entries.
 ///
 /// [environment] lets tests inject a fixture PATH; production callers
 /// pass null and the chain reads `Platform.environment` itself.
 /// [resolveDrivingEntrypoint] is the same kind of seam for the #1472 pin:
 /// it replaces [StepRunner.resolveEntrypoint] as the source of the driving
 /// CLI's own entrypoint, so tests can prove a fixture replacement instead
-/// of spawning the real `bin/zfa.dart`.
+/// of spawning the real `bin/zfa.dart`. [ensureCompiled] is the no-JIT
+/// compiler seam (defaults to [ZfaExecutable.ensureCompiled]); fast-tier
+/// tests inject a fake so no real `dart compile exe` runs.
 ///
 /// This is async because [StepRunner.resolveEntrypoint] performs file
 /// I/O checks. The pass registry ([RefactorPasses.defaultPassSpecs]) is
@@ -503,13 +519,20 @@ Future<String> zfaBuildCommand({
   String? zfaBinOverride,
   Map<String, String>? environment,
   ZfaEntrypointResolver? resolveDrivingEntrypoint,
+  ZfaEnsureCompiled? ensureCompiled,
 }) async {
   String quoteIfNeeded(String token) =>
       token.contains(' ') || token.contains('\t') ? '"$token"' : token;
 
+  final env = environment ?? Platform.environment;
+  final compile = ensureCompiled ?? ZfaExecutable.ensureCompiled;
+
   // Tier 1 — explicit override (mirrors PipelineRunner / StepRunner tier 1).
+  // No-JIT policy: a `.dart` override is compiled too, so `--zfa-bin` can
+  // never leak a VM spawn.
   if (zfaBinOverride != null && zfaBinOverride.isNotEmpty) {
-    return '${quoteIfNeeded(zfaBinOverride)} build';
+    final compiled = await compile(zfaBinOverride, environment: env);
+    return '${quoteIfNeeded(compiled)} build';
   }
 
   // Tiers 2+ — delegate to the canonical chain. Tests inject a fixture
@@ -525,7 +548,6 @@ Future<String> zfaBuildCommand({
   // documented order: `--zfa-bin` override → running-from-source →
   // `zfa` on PATH → dart+script fallbacks. `make` / `gen` / `verify-red`
   // / `tdd run` keep the shared chain unchanged.
-  final env = environment ?? Platform.environment;
   String entrypoint;
   try {
     entrypoint = await StepRunner.resolveEntrypoint(
@@ -541,18 +563,23 @@ Future<String> zfaBuildCommand({
     return 'zfa build';
   }
 
+  // No-JIT policy: compile BEFORE the #1472 probe, so both sides of the
+  // version comparison are compiled binaries (the probe of a source
+  // entrypoint would itself be a JIT spawn).
+  entrypoint = await compile(entrypoint, environment: env);
+
   // Issue #1472: pin the build pass to the zfa version driving this run.
   entrypoint = await _pinToDrivingVersion(
     entrypoint,
     env,
     resolveDrivingEntrypoint: resolveDrivingEntrypoint,
+    ensureCompiled: ensureCompiled,
   );
 
-  if (entrypoint.endsWith('.dart')) {
-    return '${quoteIfNeeded(Platform.resolvedExecutable)} '
-        '${quoteIfNeeded(entrypoint)} build';
-  }
-  return '${quoteIfNeeded(entrypoint)} build';
+  final argv = ZfaExecutable.commandFor(entrypoint, const [
+    'build',
+  ], environment: env);
+  return argv.map(quoteIfNeeded).join(' ');
 }
 
 /// The entrypoint resolver the pin uses for the driving CLI's own tree —
@@ -578,20 +605,26 @@ final RegExp _zfaVersionLinePattern = RegExp(r'^zfa v(\S+)', multiLine: true);
 /// issue #1184's model — an advisory/pinning check must never break the
 /// invocation and must never act on unprovable input, so every failure
 /// mode degrades to null and the caller keeps the current resolution.
-/// A `.dart` entrypoint runs through the current VM (`dart <path>
-/// --version`); a compiled binary runs directly. Bounded by
+/// [entrypoint] is expected to be compiled (the caller resolves through
+/// `ZfaExecutable.ensureCompiled` first); the argv is still shaped through
+/// `ZfaExecutable.commandFor`, so a source entrypoint either rides the
+/// `ZFA_ALLOW_JIT=1` escape hatch or reads as unprovable rather than
+/// spawning the VM behind the policy's back. Bounded by
 /// [TddTimeouts.defaultProbe] so a hung candidate cannot stall the
 /// refactor.
-Future<String?> _probeZfaVersion(String entrypoint) async {
+Future<String?> _probeZfaVersion(
+  String entrypoint,
+  Map<String, String> environment,
+) async {
   try {
-    final result = entrypoint.endsWith('.dart')
-        ? await runTimed(Platform.resolvedExecutable, [
-            entrypoint,
-            '--version',
-          ], timeout: TddTimeouts.defaultProbe)
-        : await runTimed(entrypoint, const [
-            '--version',
-          ], timeout: TddTimeouts.defaultProbe);
+    final command = ZfaExecutable.commandFor(entrypoint, const [
+      '--version',
+    ], environment: environment);
+    final result = await runTimed(
+      command.first,
+      command.sublist(1),
+      timeout: TddTimeouts.defaultProbe,
+    );
     if (result.exitCode != 0) return null;
     final stdoutText = (result.stdout as String? ?? '').trim();
     if (stdoutText.isEmpty) return null;
@@ -600,7 +633,8 @@ Future<String?> _probeZfaVersion(String entrypoint) async {
     return match.group(1);
   } catch (_) {
     // ProcessException (not executable / missing), ProcessTimeoutException
-    // (hung candidate), anything else — unprovable, never fatal.
+    // (hung candidate), a StateError from the no-JIT gate, anything else —
+    // unprovable, never fatal.
     return null;
   }
 }
@@ -625,21 +659,31 @@ Future<String?> _probeZfaVersion(String entrypoint) async {
 /// [resolveDrivingEntrypoint] is the test seam: production resolves
 /// through [StepRunner.resolveEntrypoint]; the pin's tests inject a
 /// fixture entrypoint so the real `bin/zfa.dart` (whose cold JIT compile
-/// outlives the probe bound) never has to be spawned.
+/// outlives the probe bound) never has to be spawned. [ensureCompiled] is
+/// the matching no-JIT seam for the replacement the resolver returns — a
+/// resolved `bin/zfa.dart` is compiled before it is probed, so neither
+/// side of the swap can be a JIT spawn. A replacement that cannot be
+/// compiled is unprovable, exactly like an unresolvable one: the #717
+/// candidate is kept rather than crashing the refactor.
 Future<String> _pinToDrivingVersion(
   String entrypoint,
   Map<String, String> env, {
   ZfaEntrypointResolver? resolveDrivingEntrypoint,
+  ZfaEnsureCompiled? ensureCompiled,
 }) async {
-  final candidateVersion = await _probeZfaVersion(entrypoint);
+  final candidateVersion = await _probeZfaVersion(entrypoint, env);
   if (candidateVersion == null || candidateVersion == version) {
     return entrypoint;
   }
   final resolve = resolveDrivingEntrypoint ?? StepRunner.resolveEntrypoint;
   try {
-    final driving = await resolve(
+    final resolvedDriving = await resolve(
       script: Platform.script,
       resolvedExecutable: Platform.resolvedExecutable,
+      environment: env,
+    );
+    final driving = await (ensureCompiled ?? ZfaExecutable.ensureCompiled)(
+      resolvedDriving,
       environment: env,
     );
     if (driving == entrypoint) return entrypoint;
@@ -647,7 +691,7 @@ Future<String> _pinToDrivingVersion(
     // sibling checkout, a snapshot built from an older tree, a
     // `-C`-anchored launch) must never be pinned on the strength of the
     // candidate's disagreement alone.
-    final drivingVersion = await _probeZfaVersion(driving);
+    final drivingVersion = await _probeZfaVersion(driving, env);
     if (drivingVersion != version) return entrypoint;
     print(
       '   build pass: resolved build zfa is v$candidateVersion — pinned to '
@@ -658,6 +702,11 @@ Future<String> _pinToDrivingVersion(
     // The driving entrypoint cannot be resolved — keep the #717
     // candidate (fail-open to current behavior, never crash).
     return entrypoint;
+  } on ZfaCompilationException {
+    // The driving entrypoint resolved to a source tree that cannot be
+    // compiled. That is unprovable input, not a JIT justification: keep
+    // the #717 candidate rather than spawning a VM child.
+    return entrypoint;
   }
 }
 
@@ -666,12 +715,20 @@ Future<String> _pinToDrivingVersion(
 /// Useful when the entrypoint has already been resolved (e.g. by an
 /// earlier `await zfaBuildCommand`) and the caller only needs the
 /// shape step. Synchronous; does no I/O.
-String zfaBuildCommandSync({required String entrypoint}) {
+///
+/// No-JIT policy: [entrypoint] is expected to be compiled already (it must
+/// have come out of `zfaBuildCommand`). A `.dart` entrypoint is only
+/// accepted under the `ZFA_ALLOW_JIT=1` escape hatch; otherwise
+/// `ZfaExecutable.commandFor` throws, loudly, instead of shaping a VM
+/// command.
+String zfaBuildCommandSync({
+  required String entrypoint,
+  Map<String, String>? environment,
+}) {
   String quoteIfNeeded(String token) =>
       token.contains(' ') || token.contains('\t') ? '"$token"' : token;
-  if (entrypoint.endsWith('.dart')) {
-    return '${quoteIfNeeded(Platform.resolvedExecutable)} '
-        '${quoteIfNeeded(entrypoint)} build';
-  }
-  return '${quoteIfNeeded(entrypoint)} build';
+  final argv = ZfaExecutable.commandFor(entrypoint, const [
+    'build',
+  ], environment: environment);
+  return argv.map(quoteIfNeeded).join(' ');
 }

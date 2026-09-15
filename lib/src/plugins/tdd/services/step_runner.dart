@@ -20,7 +20,9 @@
 /// The entrypoint is the `--zfa-bin` override when given (U18), else
 /// resolved via `Platform.script` with `Isolate.resolvePackageUri` as
 /// fallback (handles both normal CLI runs and test contexts). A `.dart`
-/// entrypoint is run through `dart`; anything else is executed directly.
+/// entrypoint is AOT compiled through `ZfaExecutable.ensureCompiled` before
+/// it is spawned (the no-JIT policy): every child is a compiled binary, and
+/// the `dart <script>` shape survives only under `ZFA_ALLOW_JIT=1`.
 ///
 /// Bug #690: when zfa is installed as a system binary (compiled exe or
 /// pub-global snapshot), neither the script path nor the package path
@@ -36,6 +38,7 @@ import 'dart:isolate';
 
 import 'package:path/path.dart' as p;
 
+import '../../../cli/zfa_executable.dart';
 import 'tdd_timeout.dart';
 import 'step_timeout_receipt.dart';
 
@@ -68,7 +71,8 @@ class StepResult {
 
   /// The spawned command line, joined for display (issue #1329): the
   /// argv the runner actually executed — the entrypoint (with the `dart`
-  /// prefix when it is a `.dart` script), the step argv, and the baseline
+  /// prefix only under the `ZFA_ALLOW_JIT=1` escape hatch, see
+  /// `ZfaExecutable.commandFor`), the step argv, and the baseline
   /// / timeout flags when handed off. Recorded verbatim by the run
   /// driver's error-outcome path so a failed step's evidence names what
   /// ran; never parsed (a display rendering, not a shell-quotable
@@ -111,13 +115,20 @@ class StepRunner {
   /// [StepResult] instead of hanging the driver forever. Defaults to
   /// [TddTimeouts.defaultStepProcess]. Injected [spawner] fakes are the
   /// caller's responsibility (fast-tier tests), as before.
+  ///
+  /// [ensureCompiled] is the no-JIT seam: it resolves a `.dart` entrypoint
+  /// to the AOT-compiled artifact before the child is shaped
+  /// ([ZfaExecutable.ensureCompiled] by default). Fast-tier tests inject a
+  /// fake so no real `dart compile exe` runs.
   StepRunner({
     this.zfaBin,
     StepSpawner? spawner,
     Duration? timeout,
     this.childEnvironment,
     this.onChildLine,
+    ZfaEnsureCompiled? ensureCompiled,
   }) : timeout = timeout ?? TddTimeouts.defaultStepProcess,
+       _ensureCompiled = ensureCompiled ?? ZfaExecutable.ensureCompiled,
        _spawner =
            spawner ??
            ((List<String> command, String workingDirectory) =>
@@ -137,6 +148,7 @@ class StepRunner {
   final Duration timeout;
 
   final StepSpawner _spawner;
+  final ZfaEnsureCompiled _ensureCompiled;
 
   /// Injected child environment (spec 1520): the caller's per-run scratch
   /// TMPDIR map (`ScratchTmpDir.childEnvironment`) handed to EVERY spawned
@@ -184,11 +196,26 @@ class StepRunner {
   ///   6. `Platform.resolvedExecutable` when it is not the Dart VM — the
   ///      running binary IS the system-installed zfa (bug #690, the final
   ///      `resolvedExecutable`+`script` fallback #665 introduced).
-  static Future<String> defaultZfaBin() {
-    return resolveEntrypoint(
+  ///
+  /// The resolved path is then passed through [ensureCompiled] (the no-JIT
+  /// policy): a source resolution (`bin/zfa.dart` — tiers 1-3, the shape a
+  /// source run and a `dart test` context produce) becomes the shared AOT
+  /// artifact, while an already-compiled binary or a system install is
+  /// returned unchanged. [environment] is the map both the resolution and
+  /// the compile read (the `ZFA_ALLOW_JIT` escape hatch, the issue #1187
+  /// scale); null reads `Platform.environment`.
+  static Future<String> defaultZfaBin({
+    ZfaEnsureCompiled? ensureCompiled,
+    Map<String, String>? environment,
+  }) async {
+    final resolved = await resolveEntrypoint(
       script: Platform.script,
       resolvedExecutable: Platform.resolvedExecutable,
-      environment: Platform.environment,
+      environment: environment ?? Platform.environment,
+    );
+    return (ensureCompiled ?? ZfaExecutable.ensureCompiled)(
+      resolved,
+      environment: environment,
     );
   }
 
@@ -311,7 +338,11 @@ class StepRunner {
     if (!stepOrder.contains(step)) {
       throw ArgumentError.value(step, 'step', 'unknown TDD step');
     }
-    final entry = _resolvedEntry ??= zfaBin ?? await defaultZfaBin();
+    // No-JIT policy: the `--zfa-bin` override is compiled here too, so a
+    // `.dart` override can never reach the spawner un-compiled.
+    final entry = _resolvedEntry ??= zfaBin != null
+        ? await _ensureCompiled(zfaBin!)
+        : await defaultZfaBin(ensureCompiled: _ensureCompiled);
     final argv = [
       'tdd',
       step,
@@ -374,9 +405,10 @@ class StepRunner {
     if (extraArgs.isNotEmpty) {
       argv.addAll(extraArgs);
     }
-    final command = entry.endsWith('.dart')
-        ? ['dart', entry, ...argv]
-        : [entry, ...argv];
+    // No-JIT policy: `commandFor` shapes the child argv — the `dart` prefix
+    // is reachable only under the explicit `ZFA_ALLOW_JIT=1` escape hatch,
+    // which is also the only way a `.dart` entry survives `ensureCompiled`.
+    final command = ZfaExecutable.commandFor(entry, argv);
     // Issue #1329: the display rendering every StepResult carries — the
     // driver's error-outcome recording records what actually ran.
     final commandLine = command.join(' ');
