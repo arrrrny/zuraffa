@@ -64,13 +64,14 @@ void main() {
         // (`dev_dependencies:`, `executables:`, ...).
         final depsBlock =
             RegExp(
-              r'^dependencies:\n((?:[ \t]+.*\n|\n)*?)(?=^\w|\z)',
+              r'^dependencies:.*?(?=^\w)',
               multiLine: true,
-            ).firstMatch(pubspec)?.group(1) ??
+              dotAll: true,
+            ).firstMatch(pubspec)?.group(0) ??
             '';
         expect(
           depsBlock,
-          isNot(contains(RegExp('^  $pkg:'))),
+          isNot(contains(RegExp('^  $pkg:', multiLine: true))),
           reason:
               'issue #1661: $pkg is a heavyweight optional integration — '
               'it belongs to its companion package under packages/, not '
