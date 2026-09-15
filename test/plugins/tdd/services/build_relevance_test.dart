@@ -533,7 +533,8 @@ void main() {
       expect(
         await gate(),
         isNull,
-        reason: 'an unknown baseline version never fabricates a skip, '
+        reason:
+            'an unknown baseline version never fabricates a skip, '
             'not even with fully matching digests',
       );
       final afterVersion =

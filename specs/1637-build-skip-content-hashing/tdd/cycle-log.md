@@ -57,3 +57,23 @@ existed and failed before the implementation.
 - commit: (this commit)
 
 
+
+## Cycle 3 (verify round): A3 strengthened — M5 mutant killed
+
+- audit: `/speckit.tdd.verify` mutation sampling found one surviving
+  mutant (M5: baseline version check removed) — the original
+  wrong-version sub-case was survivable because its version-999 record
+  also failed the digest comparison, so the version gate itself was
+  never the barrier.
+- red: M5 applied → 1 failed (the strengthened expectation). Applied
+  against the pre-strengthening test the same mutant survived (32
+  passed) — recorded as the round's red.
+- green: A3's wrong-version sub-case now seeds a record whose digests
+  MATCH and whose marker mtime IS strictly older, so the version gate
+  is the only barrier between it and a skip. Post-fix: 32/32 green,
+  M5 KILLED (+31 −1). Full mutation table: 5/5 killed
+  (M1 strictness, M2 inverted comparison, M3 empty snapshot, M4 skip
+  path rewrite, M5 version gate) — see `tdd/verification.md`.
+- suite: full verify protocol re-run → analyze clean, 46/46 targeted
+  green, `dart format .` clean (2864 files, only this feature's file
+  touched), 1111/1111 services sweep, 8/8 #1587 make-gate suites.
