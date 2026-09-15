@@ -27,6 +27,16 @@
 /// cannot be carried out there — the acceptance branch prescribes the
 /// traced re-plan/re-gen path ([vacuousGuardFallbackRemedyFor]).
 ///
+/// Issue #1651: the SCALAR TYPE-ONLY shape joins the vacuity class. The
+/// #1259 remediation replaced the bare guard with a typed assertion
+/// (`expect(result, isA<int>())`) for scalar-declared contracts — but the
+/// #1517 func pass fills the subject with `return 0;`, which SATISFIES a
+/// type check, so the terminal dummy-body green persisted. The typed
+/// emission now carries the [vacuousGuardMarker]
+/// ([typeOnlyVacuousGuardComment], the entity/void branch's discipline),
+/// and the content backstop strips scalar type-only expects so legacy
+/// marker-less tests are refused mechanically.
+///
 /// Issue #1512: this module also carries the ACCEPTANCE lane's two
 /// vocabulary constants ([acceptanceFallbackGuardToken] and
 /// [acceptanceFallbackGuardComment]). The acceptance lane shares the
@@ -107,6 +117,31 @@ String vacuousGuardFallbackRemedyFor({
       're-run zfa tdd gen, re-run zfa tdd run — or hand-edit the '
       '$seamNoun ($seamPath) traces cell to FR-00N, Row.method and '
       're-run zfa tdd gen (the designed hand-delta seam)';
+}
+
+/// Issue #1420: the remedy for the marker-absent vacuous-green stop when the
+/// row's traces cell DOES resolve declared contract row(s) — the
+/// [vacuousGuardFallbackRemedyFor] wording would be FALSE ("no traces" — the
+/// trace exists) and IMPOSSIBLE to follow (`add traces:` / the
+/// `FR-00N, Row.method` hand-delta: a Key Entity row declares no methods to
+/// name). The accurate paths:
+///
+/// * re-run `zfa tdd gen <id>` — the regenerated pair carries the declared
+///   surface (the typed entity-surface assertion, or the traced
+///   [vacuousGuardMarker] when the entity is absent at gen); a stale
+///   guard-only pair predating the declared-trace engagement is the #1388
+///   stale-artifact class and regenerates on re-gen;
+/// * or the hand step — write the assertion on the observable outcome in the
+///   generated test, remove the marker if present, re-run make.
+String vacuousGuardDeclaredTraceRemedyFor({
+  required String behaviorId,
+  required String testPath,
+}) {
+  return 're-run `zfa tdd gen $behaviorId` to regenerate the pair from the '
+      'declared trace (the stale guard-only pair predates the '
+      'declared-trace engagement, issue #1420), or write an assertion on '
+      'the observable outcome in $testPath, remove the $vacuousGuardMarker '
+      'marker if present, and re-run make';
 }
 
 /// Issue #1626: the exact remedy the make refusal (step 3c) and the run
@@ -339,6 +374,23 @@ String vacuousGuardHandStepViolation({
     '$testPath with an assertion on the observable outcome, remove the '
     'marker, then re-run make (issue #1308)';
 
+/// Issue #1651: the comment block the gen test template emits alongside
+/// [vacuousGuardMarker] when the assertion set is the SCALAR TYPE-ONLY
+/// shape — `expect(result, isA<int>())` on the declared return type,
+/// called with representative arguments. The #1517 func pass fills the
+/// subject with a dummy (`return 0;`) that SATISFIES a type check, so a
+/// green here proves nothing about the outcome value — the same vacuity
+/// class the bare guard is, and the same marker/remedy discipline
+/// applies (the marker is the run driver's `stopped_at=<id>:hand`
+/// discriminator).
+const String typeOnlyVacuousGuardComment =
+    '''// $vacuousGuardMarker (issue #1651): the assertion below checks the
+      // declared return TYPE only — a func-scaffolded dummy (`return 0;`)
+      // satisfies it, so a green here proves nothing about the outcome
+      // value. Replace it with an assertion on the observable outcome
+      // named by the behavior description (the spec's scenario values),
+      // remove this marker, and re-run make.''';
+
 /// The guard-shaped expects the detector strips before counting: the
 /// capture-guard the gen template emits (`expect(result,
 /// isNot(isA<UnimplementedError>()))`) and the throwsA variant the
@@ -350,6 +402,35 @@ final RegExp _guardExpect = RegExp(
   r'expect\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*,\s*'
   r'isNot\s*\(\s*(?:throwsA\s*\(\s*)?isA\s*<\s*UnimplementedError\s*>'
   r'\s*\(\s*\)\s*\)\s*\)\s*;?',
+);
+
+/// Issue #1651: the SCALAR TYPE-ONLY expects the detector also strips —
+/// `expect(x, isA<T>())` with T one of the dummy-satisfiable scalar
+/// types ({String, int, num, double, bool}, the `#1517` func scaffold's
+/// literal set). A `return 0;` dummy satisfies a type check, so a test
+/// whose assertions reduce to these proves nothing about the outcome
+/// value. Precision guards: `isNot(isA<T>())` (the second argument
+/// starts with `isNot`) and `throwsA(isA<T>())` (wrapped) do NOT match —
+/// both FAIL on a dummy, so both discriminate; composite/generic types
+/// (`isA<List<int>>()`) and entity types (whose subjects cannot be
+/// dummied — #1517 leaves the throw in place) stay real.
+///
+/// Review of #1667: the shape also covers the hand-authored variants —
+/// `expectLater(x, isA<T>())`, a trailing named argument
+/// (`expect(x, isA<T>(), reason: '...')` — reason/skip/timeout are the
+/// expect/expectLater named set and never change the matcher), and a
+/// first argument that is any comma-free expression
+/// (`expect(subject.f(), isA<T>())`). Accepted boundary: a first
+/// argument containing a top-level comma (`expect(g(1, 2), isA<T>())`)
+/// cannot be anchored without balanced-paren matching and stays counted
+/// — the miss is conservative (a real expectation is never falsely
+/// stripped; pinned as U2f).
+final RegExp _typeOnlyScalarExpect = RegExp(
+  r'\bexpect(?:Later)?\s*\(\s*[^,]*,\s*'
+  r'isA\s*<\s*(?:String|int|num|double|bool)\s*>'
+  r'\s*\(\s*\)'
+  r'(?:\s*,\s*(?:reason|skip|timeout)\s*:\s*[^)]*)?'
+  r'\s*\)\s*;?',
 );
 
 /// Every remaining expectation counts: `expect(`, `expectLater(`,
@@ -370,10 +451,13 @@ final RegExp _anyExpect = RegExp(
 ///      alongside a since-added real assertion still refuses: the remedy
 ///      is removing the marker, exactly like the scaffolded lane);
 ///   2. content-based backstop for hand-authored and legacy-generated
-///      tests: strip the guard-shaped expects; zero remaining
-///      expectations is a vacuous assertion set.
+///      tests: strip the guard-shaped expects AND the scalar type-only
+///      expects (issue #1651 — a `return 0;` dummy satisfies a type
+///      check); zero remaining expectations is a vacuous assertion set.
 bool contentIsVacuousGreen(String content) {
   if (content.contains(vacuousGuardMarker)) return true;
-  final withoutGuards = content.replaceAll(_guardExpect, '');
+  final withoutGuards = content
+      .replaceAll(_guardExpect, '')
+      .replaceAll(_typeOnlyScalarExpect, '');
   return !_anyExpect.hasMatch(withoutGuards);
 }

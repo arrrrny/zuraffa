@@ -98,9 +98,19 @@ dev_dependencies:
   build_runner: ^2.4.0
   json_serializable: ^6.7.0
   coverage: ^1.15.1
-  mutation_test: ^1.8.0
+  mutation_test: ^1.8.0    # opt-in (issue #1653): `zfa tdd init --mutation` injects it
   zorphy: ^2.3.1
 ```
+
+> **Issue #1653**: the baseline `zfa tdd init` no longer injects
+> `mutation_test` — it is the `tdd verify` lane's tool, and its
+> analyzer-versioned graph deferred a multi-minute cold cost into the first
+> analyze-class pass on every fresh project. Opt in with
+> `zfa tdd init --mutation` (idempotent: it adds just the missing dep to an
+> already-initialized project), or `dart pub add dev:mutation_test`. When
+> init injects ANY dependency entry it now also runs the resolver itself and
+> prints the elapsed time — the cold cost is paid at init time, not
+> discovered inside the first refactor of a `zfa tdd run`.
 
 Then `dart pub get --offline` (or `flutter pub get`).
 

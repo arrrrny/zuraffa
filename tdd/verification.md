@@ -11,7 +11,13 @@
 
 ## Verdict: PASS
 
-## 1. Static analysis
+## 1. TDD discipline (red → green → verify)
+
+The loop was driven with the bug directory as the TDD feature. Ten
+behaviors were pinned in `tdd/test-list.md` BEFORE the fix, mapped 1:1 to
+the issue's four acceptance criteria, and every test in the red set was
+observed failing against base `c5ed519f` for exactly the reason the issue
+describes — never for a setup error.
 
 ```
 dart analyze lib/src/cli/zfa_executable.dart
@@ -65,7 +71,7 @@ VM driver, missing/empty marker, git failure, non-canonical candidate,
 missing exe) pin the fail-open direction — every unprovable input compiles
 as before.
 
-## 3. Regression suites (REAL runs in this session)
+## 5. Regression audit (all green, real runs)
 
 ```
 dart test test/cli/zfa_executable_test.dart test/cli/binary_staleness_test.dart

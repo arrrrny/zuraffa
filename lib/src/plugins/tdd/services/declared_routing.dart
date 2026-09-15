@@ -49,18 +49,28 @@ class DeclaredRouting {
     return files;
   }
 
-  /// The declared signature for [behaviorId], resolved from the
-  /// feature's test-list trace cell against the spec's contract rows.
-  /// Null when the behavior is undeclared or any artifact is missing
-  /// or unreadable — callers fall back to their legacy inference (the
+  /// Issue #1420: the FULL declared routing decision for [behaviorId],
+  /// resolved from the feature's test-list trace cell against the spec's
+  /// contract rows — the surface, the entity name, and the signature
+  /// together, so a caller can serve every declared aspect (gen's
+  /// row-only entity-trace synthesis; the run driver's stop-messaging
+  /// probe) without dropping the aspects `declaredSignatureFor` never
+  /// carried.
+  ///
+  /// Null when the behavior is undeclared or any artifact is missing or
+  /// unreadable — callers fall back to their legacy inference (the
   /// labeled fallback window; strict surfaces are handled at plan). A
-  /// malformed spec declaration throws [StateError]: the caller
-  /// surfaces the `--> fix:` message and a non-zero exit instead of a
-  /// silent prose fallback.
+  /// malformed spec declaration throws [StateError]: the caller surfaces
+  /// the `--> fix:` message and a non-zero exit instead of a silent prose
+  /// fallback. The run driver's stop-messaging probe (issue #1420) is the
+  /// one fail-open caller by design: it is already a terminal messaging
+  /// path, so it prints this refusal's `--> fix:` line inside the
+  /// vacuous-green stop (gen's `declaration refused` shape) instead of
+  /// rethrowing.
   /// [featureDir] is the already-resolved feature directory (bug
   /// features live under `.specify/bugs/<slug>`, not `specs/<name>`).
   /// When omitted, the legacy `specs/<featureName>` path is used.
-  static Future<Signature?> declaredSignatureFor({
+  static Future<RoutingDecision?> declaredRoutingFor({
     required String cwd,
     required String featureName,
     required String behaviorId,
@@ -105,7 +115,34 @@ class DeclaredRouting {
       row: RoutingRow(behaviorId: behaviorId, traces: traces),
       declarations: declarations,
     );
-    if (result is RoutingDecision) return result.signature;
-    return null;
+    return result is RoutingDecision ? result : null;
   }
+
+  /// The declared signature for [behaviorId], resolved from the
+  /// feature's test-list trace cell against the spec's contract rows.
+  /// Null when the behavior is undeclared or any artifact is missing
+  /// or unreadable — callers fall back to their legacy inference (the
+  /// labeled fallback window; strict surfaces are handled at plan). A
+  /// malformed spec declaration throws [StateError]: the caller
+  /// surfaces the `--> fix:` message and a non-zero exit instead of a
+  /// silent prose fallback.
+  /// [featureDir] is the already-resolved feature directory (bug
+  /// features live under `.specify/bugs/<slug>`, not `specs/<name>`).
+  /// When omitted, the legacy `specs/<featureName>` path is used.
+  ///
+  /// Issue #1420: the reads ride [declaredRoutingFor] — the ONE
+  /// resolution source — and this method keeps its exact legacy result:
+  /// the resolved signature, or null when the decision carries none
+  /// (the row-only entity class among them).
+  static Future<Signature?> declaredSignatureFor({
+    required String cwd,
+    required String featureName,
+    required String behaviorId,
+    String? featureDir,
+  }) async => (await declaredRoutingFor(
+    cwd: cwd,
+    featureName: featureName,
+    behaviorId: behaviorId,
+    featureDir: featureDir,
+  ))?.signature;
 }

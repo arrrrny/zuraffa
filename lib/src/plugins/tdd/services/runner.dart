@@ -116,12 +116,17 @@ class SingleTestRunner {
       dotAll: true,
     ).firstMatch(raw);
     if (keysBlock != null) {
-      final single = _firstMatchValue(
+      final single = _matchQuotedScalar(
         r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))\s*$''',
         keysBlock.group(1)!,
       );
-      if (single != null && single.isNotEmpty) {
-        return _normalize(single.trim());
+      if (single != null && single.value.trim().isNotEmpty) {
+        return _prepareSingleScalar(
+          single.value.trim(),
+          doubleQuoted: single.doubleQuoted,
+          workingDirectory: workingDirectory,
+          profilePath: profilePath,
+        );
       }
     }
 
@@ -141,29 +146,44 @@ class SingleTestRunner {
     if (frontmatterBlock != null) {
       final frontmatter = frontmatterBlock.group(1)!;
       // Try top-level `single:` first.
-      var single = _firstMatchValue(
+      var single = _matchQuotedScalar(
         r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))\s*$''',
         frontmatter,
       );
-      if (single != null && single.isNotEmpty) {
-        return _normalize(single.trim());
+      if (single != null && single.value.trim().isNotEmpty) {
+        return _prepareSingleScalar(
+          single.value.trim(),
+          doubleQuoted: single.doubleQuoted,
+          workingDirectory: workingDirectory,
+          profilePath: profilePath,
+        );
       }
       // Fall back to `stacks: <label>:\s+single:` nesting (keys are
       // indented under their nesting labels; drop ^ anchor so any indentation
       // level is matched). Also handles bare top-level `single:` in flat YAML.
-      final nestedSingle = _firstMatchValue(
+      final nestedSingle = _matchQuotedScalar(
         r'''^\s*single:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))''',
         frontmatter,
       );
-      if (nestedSingle != null && nestedSingle.isNotEmpty) {
-        return _normalize(nestedSingle.trim());
+      if (nestedSingle != null && nestedSingle.value.trim().isNotEmpty) {
+        return _prepareSingleScalar(
+          nestedSingle.value.trim(),
+          doubleQuoted: nestedSingle.doubleQuoted,
+          workingDirectory: workingDirectory,
+          profilePath: profilePath,
+        );
       }
     }
 
     // 2. Human-facing bullet.
-    final bullet = RegExp(r'-\s*Single test:\s*`([^`]+)`').firstMatch(raw);
-    if (bullet != null && bullet.group(1)!.trim().isNotEmpty) {
-      return _normalize(bullet.group(1)!.trim());
+    final bulletValue = _firstMatchValue(r'-\s*Single test:\s*`([^`]+)`', raw);
+    if (bulletValue != null && bulletValue.trim().isNotEmpty) {
+      return _prepareSingleScalar(
+        bulletValue.trim(),
+        doubleQuoted: false,
+        workingDirectory: workingDirectory,
+        profilePath: profilePath,
+      );
     }
 
     throw StateError(
@@ -194,12 +214,15 @@ class SingleTestRunner {
       dotAll: true,
     ).firstMatch(raw);
     if (keysBlock != null) {
-      final suite = _firstMatchValue(
+      final suite = _matchQuotedScalar(
         r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))\s*$''',
         keysBlock.group(1)!,
       );
-      if (suite != null && suite.isNotEmpty) {
-        return suite.trim();
+      if (suite != null && suite.value.trim().isNotEmpty) {
+        return _prepareSuiteScalar(
+          suite.value.trim(),
+          doubleQuoted: suite.doubleQuoted,
+        );
       }
     }
 
@@ -216,29 +239,36 @@ class SingleTestRunner {
     if (frontmatterBlock != null) {
       final frontmatter = frontmatterBlock.group(1)!;
       // Try top-level `suite:` first.
-      var suite = _firstMatchValue(
+      var suite = _matchQuotedScalar(
         r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))\s*$''',
         frontmatter,
       );
-      if (suite != null && suite.isNotEmpty) {
-        return suite.trim();
+      if (suite != null && suite.value.trim().isNotEmpty) {
+        return _prepareSuiteScalar(
+          suite.value.trim(),
+          doubleQuoted: suite.doubleQuoted,
+        );
       }
       // Fall back to `stacks: <label>:\s+suite:` nesting.
-      final nestedSuite = _firstMatchValue(
+      final nestedSuite = _matchQuotedScalar(
         r'''^\s*suite:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))''',
         frontmatter,
       );
-      if (nestedSuite != null && nestedSuite.isNotEmpty) {
-        return nestedSuite.trim();
+      if (nestedSuite != null && nestedSuite.value.trim().isNotEmpty) {
+        return _prepareSuiteScalar(
+          nestedSuite.value.trim(),
+          doubleQuoted: nestedSuite.doubleQuoted,
+        );
       }
     }
 
     // 2. Human-facing bullet — pick the first `- Full suite` line.
-    final bullet = RegExp(
+    final bulletValue = _firstMatchValue(
       r'-\s*Full suite[^\n]*?:\s*`([^`]+)`',
-    ).firstMatch(raw);
-    if (bullet != null && bullet.group(1)!.trim().isNotEmpty) {
-      return bullet.group(1)!.trim();
+      raw,
+    );
+    if (bulletValue != null && bulletValue.trim().isNotEmpty) {
+      return bulletValue.trim();
     }
 
     throw StateError(
@@ -271,12 +301,15 @@ class SingleTestRunner {
       dotAll: true,
     ).firstMatch(raw);
     if (keysBlock != null) {
-      final file = _firstMatchValue(
+      final file = _matchQuotedScalar(
         r'''^\s*file:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))\s*$''',
         keysBlock.group(1)!,
       );
-      if (file != null && file.isNotEmpty) {
-        return _normalize(file.trim());
+      if (file != null && file.value.trim().isNotEmpty) {
+        return _prepareFileScalar(
+          file.value.trim(),
+          doubleQuoted: file.doubleQuoted,
+        );
       }
     }
 
@@ -286,21 +319,25 @@ class SingleTestRunner {
       dotAll: true,
     ).firstMatch(raw);
     if (frontmatterBlock != null) {
-      final file = _firstMatchValue(
+      final file = _matchQuotedScalar(
         r'''^\s*file:\s*(?:"(.+?)"|'(.+?)'|([^\s#]+(?:[ \t]+[^\s#]+)*))''',
         frontmatterBlock.group(1)!,
       );
-      if (file != null && file.isNotEmpty) {
-        return _normalize(file.trim());
+      if (file != null && file.value.trim().isNotEmpty) {
+        return _prepareFileScalar(
+          file.value.trim(),
+          doubleQuoted: file.doubleQuoted,
+        );
       }
     }
 
     // 2. Human-facing bullet — the first `- Whole file` line.
-    final bullet = RegExp(
+    final bulletValue = _firstMatchValue(
       r'-\s*Whole file[^\n]*?:\s*`([^`]+)`',
-    ).firstMatch(raw);
-    if (bullet != null && bullet.group(1)!.trim().isNotEmpty) {
-      return _normalize(bullet.group(1)!.trim());
+      raw,
+    );
+    if (bulletValue != null && bulletValue.trim().isNotEmpty) {
+      return _normalize(bulletValue.trim());
     }
 
     throw StateError(
@@ -339,21 +376,189 @@ class SingleTestRunner {
       .replaceAll('<file>', '{file}')
       .replaceAll('<name>', '{name}');
 
-  /// Match a YAML scalar that may be double-quoted, single-quoted, or
-  /// unquoted. Returns the first captured group that matched, or null.
+  /// Post-process a scalar pulled from a `single:` key or the `- Single
+  /// test:` bullet (issue #1535): unescape the YAML double-quoted style's
+  /// escape sequences, normalize the legacy placeholders, then reject any
+  /// UNKNOWN placeholder spelling at LOAD time. Regex quantifier braces
+  /// (`{2}`, `{1,3}`) are exempt — they are regex syntax, not placeholders,
+  /// so a `--name "(ab){2}"` template stays expressible. The two failure
+  /// modes that
+  /// used to survive loading here and surface downstream as load-error /
+  /// runner-error (exit 79) on an honest red — a misclassification that
+  /// dead-ended `zfa tdd run` on a profile the toolchain itself accepted.
+  String _prepareSingleScalar(
+    String scalar, {
+    required bool doubleQuoted,
+    required String workingDirectory,
+    required String profilePath,
+  }) {
+    var template = doubleQuoted ? _yamlUnescapeDoubleQuoted(scalar) : scalar;
+    template = _normalize(template.trim());
+    final unknown = <String>[];
+    // Regex quantifier braces carry no letters, so they can never be a
+    // placeholder spelling — whitelist them to keep `--name "(ab){2}"`
+    // templates expressible (review of PR #1665).
+    final quantifier = RegExp(r'^\{\d+(?:,\d+)?\}$');
+    for (final match in RegExp(r'\{[^{}]*\}|<[^<>]*>').allMatches(template)) {
+      final token = match.group(0)!;
+      if (token == '{file}' || token == '{name}') continue;
+      if (quantifier.hasMatch(token)) continue;
+      if (!unknown.contains(token)) unknown.add(token);
+    }
+    if (unknown.isNotEmpty) {
+      throw StateError(
+        'zfa tdd verify-red: unknown placeholder ${unknown.join(', ')} in '
+        'the `single:` command template of '
+        '${p.join(workingDirectory, profilePath)}. Accepted placeholders: '
+        '{file}, {name} (the legacy <path>/<file>/<name> spellings are '
+        'normalized automatically). Rewrite the `single:` value with an '
+        'accepted placeholder, then re-run.',
+      );
+    }
+    return template;
+  }
+
+  /// Post-process a scalar pulled from a `file:` key (issue #1535):
+  /// double-quoted escapes unescaped, legacy placeholders normalized. No
+  /// unknown-placeholder rejection — the batched lane substitutes only
+  /// `{file}`, and a rejected load here would not change any classification
+  /// the single lane does not already catch.
+  String _prepareFileScalar(String scalar, {required bool doubleQuoted}) =>
+      _normalize(
+        doubleQuoted ? _yamlUnescapeDoubleQuoted(scalar) : scalar,
+      ).trim();
+
+  /// Post-process a scalar pulled from a `suite:` key (issue #1535):
+  /// double-quoted escapes unescaped verbatim-style — the suite carries no
+  /// placeholders, so nothing is normalized or validated.
+  String _prepareSuiteScalar(String scalar, {required bool doubleQuoted}) =>
+      (doubleQuoted ? _yamlUnescapeDoubleQuoted(scalar) : scalar).trim();
+
+  /// Unescape the escape sequences YAML allows inside a DOUBLE-QUOTED
+  /// scalar (YAML 1.2 §5.7): `\"` → `"`, `\\` → `\`, the C0 escapes
+  /// (`\t`, `\n`, `\r`, …), and the `\x..` / `\u....` / `\U........` hex
+  /// forms.
   ///
-  /// Instance method by design (issue #695): all six call sites invoke it
-  /// unqualified from instance methods, so a `static` declaration is a
-  /// static/instance mismatch that breaks compilation downstream.
-  String? _firstMatchValue(String pattern, String input) {
+  /// Single-quoted and unquoted scalars NEVER reach this method — their
+  /// backslashes are literal data (a single-quoted `'...\d...'` template
+  /// must survive byte-for-byte), which is exactly why the quote style is
+  /// tracked during extraction. An escape NOT in the YAML table is kept
+  /// verbatim — lenient where YAML itself would error, so a template like
+  /// `--name "\d+"` survives a double-quoted authoring style. The same
+  /// leniency covers a `\x`/`\u`/`\U` form whose hex resolves above the
+  /// Unicode max (0x10FFFF): kept verbatim instead of a raw `RangeError`
+  /// from `writeCharCode`.
+  String _yamlUnescapeDoubleQuoted(String scalar) {
+    if (!scalar.contains(r'\')) return scalar;
+    const simple = <String, int>{
+      '0': 0x00,
+      'a': 0x07,
+      'b': 0x08,
+      't': 0x09,
+      'n': 0x0A,
+      'v': 0x0B,
+      'f': 0x0C,
+      'r': 0x0D,
+      'e': 0x1B,
+      ' ': 0x20,
+      '"': 0x22,
+      '/': 0x2F,
+      r'\': 0x5C,
+      'N': 0x85,
+      '_': 0xA0,
+      'L': 0x2028,
+      'P': 0x2029,
+    };
+    final out = StringBuffer();
+    var i = 0;
+    while (i < scalar.length) {
+      final c = scalar[i];
+      if (c != r'\' || i + 1 >= scalar.length) {
+        out.write(c);
+        i++;
+        continue;
+      }
+      final marker = scalar[i + 1];
+      final simpleCode = simple[marker];
+      if (simpleCode != null) {
+        out.writeCharCode(simpleCode);
+        i += 2;
+        continue;
+      }
+      final hexDigits = switch (marker) {
+        'x' => 2,
+        'u' => 4,
+        'U' => 8,
+        _ => 0,
+      };
+      if (hexDigits > 0) {
+        final code = _hexCodePointAt(scalar, i + 2, hexDigits);
+        // > 0x10FFFF is invalid Unicode (YAML 1.2 forbids it): keep the
+        // escape verbatim rather than a raw RangeError from writeCharCode.
+        if (code != null && code <= 0x10FFFF) {
+          out.writeCharCode(code);
+          i += 2 + hexDigits;
+          continue;
+        }
+      }
+      // Unknown or malformed escape: keep it verbatim.
+      out.write(c);
+      out.write(marker);
+      i += 2;
+    }
+    return out.toString();
+  }
+
+  /// Parse [digits] hex characters at [start] into a code point, or null
+  /// when they are missing or not hex (the caller then keeps the escape
+  /// verbatim).
+  int? _hexCodePointAt(String s, int start, int digits) {
+    if (start + digits > s.length) return null;
+    var value = 0;
+    for (var i = start; i < start + digits; i++) {
+      final digit = int.tryParse(s[i], radix: 16);
+      if (digit == null) return null;
+      value = value * 16 + digit;
+    }
+    return value;
+  }
+
+  /// Match a YAML scalar that may be double-quoted, single-quoted, or
+  /// unquoted, and report WHICH style matched (issue #1535): the
+  /// double-quoted style is the only one whose backslash sequences are
+  /// escapes, so the caller can unescape exactly those values. Returns
+  /// null when [pattern] matches nothing.
+  ///
+  /// The value is the first captured group that matched (the three
+  /// alternatives of the profile-scalar grammar, in order).
+  ({String value, bool doubleQuoted})? _matchQuotedScalar(
+    String pattern,
+    String input,
+  ) {
     final match = RegExp(pattern, multiLine: true).firstMatch(input);
     if (match == null) return null;
-    for (var i = 1; i <= match.groupCount; i++) {
-      final g = match.group(i);
-      if (g != null && g.isNotEmpty) return g;
+    final doubleQuoted = match.group(1);
+    if (doubleQuoted != null && doubleQuoted.isNotEmpty) {
+      return (value: doubleQuoted, doubleQuoted: true);
+    }
+    final singleQuoted = match.group(2);
+    if (singleQuoted != null && singleQuoted.isNotEmpty) {
+      return (value: singleQuoted, doubleQuoted: false);
+    }
+    final bare = match.group(3);
+    if (bare != null && bare.isNotEmpty) {
+      return (value: bare, doubleQuoted: false);
     }
     return null;
   }
+
+  /// Match a YAML scalar and return the raw captured value, or null.
+  ///
+  /// Instance method by design (issue #695): the call sites invoke it
+  /// unqualified from instance methods, so a `static` declaration is a
+  /// static/instance mismatch that breaks compilation downstream.
+  String? _firstMatchValue(String pattern, String input) =>
+      _matchQuotedScalar(pattern, input)?.value;
 
   /// Run exactly one test through the template.
   ///
