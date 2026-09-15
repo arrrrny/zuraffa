@@ -853,14 +853,14 @@ class BuildCommand extends Command {
   @visibleForTesting
   static List<String> analyzerOffendingPaths(String analyzeOutput) {
     final re = RegExp(r'^\s*(?:error|warning)\s*-\s*(.+?):\d+:\d+\s*-\s');
-    final seen = <String>[];
+    final seen = <String>{};
     for (final line in analyzeOutput.split('\n')) {
       final match = re.firstMatch(line);
       if (match == null) continue;
       final path = match.group(1)!;
-      if (!seen.contains(path)) seen.add(path);
+      seen.add(path);
     }
-    return seen;
+    return seen.toList();
   }
 
   /// Whether [path] is generator output — the generated-name suffixes the
@@ -894,7 +894,7 @@ class BuildCommand extends Command {
     String capped(List<String> paths) {
       final named = paths.take(cap).join(', ');
       final remainder = paths.length - cap;
-      return [named, if (remainder > 0) ' (+$remainder more)'].join();
+      return remainder > 0 ? '$named (+$remainder more)' : named;
     }
 
     final offenders = analyzerOffendingPaths(analyzeOutput);
