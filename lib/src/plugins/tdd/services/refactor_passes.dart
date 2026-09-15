@@ -555,11 +555,12 @@ class RefactorPasses {
 /// Resolve the `build` pass command line (bug #689).
 ///
 /// Delegates the entrypoint search to [StepRunner.resolveEntrypoint]
-/// (the same tier-2-through-tier-6 chain bug #690 added for the TDD
-/// step runner): `bin/zfa.dart` in the running CLI's tree, the package
-/// path fallback, then a system `zfa` on PATH, then `Platform.script`,
-/// then `Platform.resolvedExecutable`. The explicit `--zfa-bin`
-/// override is honored first.
+/// (the tier chain bug #690 added for the TDD step runner):
+/// `bin/zfa.dart` in the running CLI's tree, the package path fallback,
+/// then — for a compiled (non-VM) driving binary — the RUNNING binary
+/// itself (bug #1636: a same-version/different-code PATH install is
+/// invisible to the #1472 pin), then a system `zfa` on PATH, then
+/// `Platform.script`. The explicit `--zfa-bin` override is honored first.
 ///
 /// The returned path is shaped into a command line: a compiled binary is
 /// invoked directly as `<path> build`. A `.dart` source is AOT compiled
@@ -612,8 +613,9 @@ Future<String> zfaBuildCommand({
   // the system CLI and never creates `bin/zfa.dart` in the target
   // project, so the build pass calls the system zfa directly (Option
   // B, issue #717). Suppressing the package tier leaves this pass the
-  // documented order: `--zfa-bin` override → running-from-source →
-  // `zfa` on PATH → dart+script fallbacks. `make` / `gen` / `verify-red`
+  // documented order: `--zfa-bin` override → running-from-source → the
+  // running compiled binary (bug #1636) → `zfa` on PATH → dart+script
+  // fallbacks. `make` / `gen` / `verify-red`
   // / `tdd run` keep the shared chain unchanged.
   String entrypoint;
   try {

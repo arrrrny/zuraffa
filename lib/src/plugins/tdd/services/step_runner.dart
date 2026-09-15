@@ -28,8 +28,14 @@
 /// pub-global snapshot), neither the script path nor the package path
 /// resolves. The chain therefore adds the same system-binary tiers
 /// #665 gave `PipelineRunner`: a concrete PATH lookup of `zfa`, and a
-/// final `Platform.resolvedExecutable` fallback (the running binary
-/// itself, when it is not the Dart VM).
+/// `Platform.resolvedExecutable` fallback (the running binary itself,
+/// when it is not the Dart VM).
+///
+/// Bug #1636: the running-binary tier outranks the PATH tier. When the
+/// driving process IS a compiled (non-VM) executable — the `scripts/zfa`
+/// compile-cache artifact, or an install dir earlier/later on PATH — it is
+/// definitionally what the operator invoked, and a same-version /
+/// different-code PATH install is invisible to the #1472 version pin.
 library;
 
 import 'dart:convert';
@@ -190,12 +196,21 @@ class StepRunner {
   ///      of `bin/`.
   ///   3. `Isolate.resolvePackageUri` fallback — handles test contexts where
   ///      `Platform.script` points at the test runner.
-  ///   4. The system-installed `zfa` binary, resolved concretely from PATH
+  ///   4. `Platform.resolvedExecutable` when it is a compiled (non-Dart-VM)
+  ///      executable — the RUNNING binary (bug #1636). It is definitionally
+  ///      what the operator invoked, so it outranks the PATH tier: a
+  ///      same-version/different-code PATH install (the `scripts/zfa`
+  ///      compile-cache artifact driving the run, an install dir elsewhere
+  ///      on PATH) is invisible to the #1472 version pin. This is the #690
+  ///      final `resolvedExecutable`+`script` fallback promoted ahead of
+  ///      PATH, its condition unchanged.
+  ///   5. The system-installed `zfa` binary, resolved concretely from PATH
   ///      (bug #690 — the same tier #665 added to `PipelineRunner`).
-  ///   5. `Platform.script` as a usable file (compiled snapshot).
-  ///   6. `Platform.resolvedExecutable` when it is not the Dart VM — the
-  ///      running binary IS the system-installed zfa (bug #690, the final
-  ///      `resolvedExecutable`+`script` fallback #665 introduced).
+  ///   6. `Platform.script` as a usable file (compiled snapshot).
+  ///
+  /// VM drivers (`dart run`, `dart test`, a `dartaotruntime` snapshot
+  /// launch) fail the tier-4 non-VM check and keep the exact #690/#717
+  /// order below — backward compatible (issue #1636 acceptance criterion 2).
   ///
   /// The resolved path is then passed through [ensureCompiled] (the no-JIT
   /// policy): a source resolution (`bin/zfa.dart` — tiers 1-3, the shape a
@@ -220,8 +235,9 @@ class StepRunner {
   }
 
   /// The [defaultZfaBin] chain over injected inputs — visible for testing
-  /// so every tier (including the bug #690 system-binary fallbacks) can be
-  /// exercised without compiling a real binary.
+  /// so every tier (including the bug #690 system-binary fallbacks and the
+  /// bug #1636 running-binary tier) can be exercised without compiling a
+  /// real binary.
   static Future<String> resolveEntrypoint({
     required Uri script,
     required String resolvedExecutable,
@@ -258,25 +274,30 @@ class StepRunner {
       );
       if (await File(bin).exists()) return bin;
     }
-    // Fallback (bug #690): the system-installed `zfa` binary on PATH —
-    // resolved concretely, no shell, mirroring #665's tier for the
-    // pipeline runner. This is the tier that makes a system-installed
-    // zfa work without --zfa-bin.
-    final onPath = _findExecutableOnPath('zfa', environment['PATH']);
-    if (onPath != null) return onPath;
-    // Fallback: Platform.script as a usable file (compiled snapshot).
-    if (script.scheme == 'file') {
-      final scriptPath = script.toFilePath();
-      if (await File(scriptPath).exists()) return scriptPath;
-    }
-    // Final fallback (bug #690): Platform.resolvedExecutable — the same
-    // resolvedExecutable+script fallback #665 introduced. When this
-    // process runs as a compiled system binary, the executable IS the
-    // zfa entrypoint; use it directly. The Dart VM names are excluded so
-    // a source/test context never spawns the bare VM with step argv.
+    // Tier 4 (bug #1636): the RUNNING binary. When this process runs as a
+    // compiled (non-VM) executable, the executable IS the zfa entrypoint —
+    // the same resolvedExecutable fallback bug #690 introduced, promoted
+    // AHEAD of the PATH tier: the PATH install may predate the driving
+    // build while carrying the same version string, which the #1472 pin
+    // cannot distinguish, so the only safe resolution for a compiled
+    // driver is the binary driving the run. The Dart VM names are excluded
+    // so a source/test/snapshot context (dart run, dart test,
+    // dartaotruntime) never spawns the bare VM with step argv and keeps
+    // the exact #690/#717 order below.
     if (!_isDartVmName(p.basename(resolvedExecutable)) &&
         await File(resolvedExecutable).exists()) {
       return resolvedExecutable;
+    }
+    // Tier 5 (bug #690): the system-installed `zfa` binary on PATH —
+    // resolved concretely, no shell, mirroring #665's tier for the
+    // pipeline runner. This is the tier that makes a system-installed
+    // zfa work without --zfa-bin for a VM driver.
+    final onPath = _findExecutableOnPath('zfa', environment['PATH']);
+    if (onPath != null) return onPath;
+    // Tier 6: Platform.script as a usable file (compiled snapshot).
+    if (script.scheme == 'file') {
+      final scriptPath = script.toFilePath();
+      if (await File(scriptPath).exists()) return scriptPath;
     }
     throw StateError(
       'cannot resolve the zfa entrypoint (package:zuraffa is not on the '
