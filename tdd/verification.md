@@ -1,122 +1,122 @@
-# tdd.verify — Bug #1655 the static first-build skip is unreachable for zfa setup-created apps
+# tdd.verify — Bug #1429 tdd reset doesn't revert phase-0 entity_create — no receipted entity-removal verb, permanent proof-preflight `deleted` finding
 
 - **Verified**: 2026-09-15, this session, on
-  `fix/1655-setup-build-yaml-static-skip-unreachable` (working tree, pre-push)
-- **Toolchain**: Dart 3.13.4 (stable) on linux_x64 (the task's "Dart 3.13+"
-  floor; the repo pins `sdk: ^3.11.0`)
-- **Scope**: `lib/src/plugins/tdd/services/build_relevance.dart` (the static
-  first-build trigger + docs + skip note), `lib/src/core/dependencies/
-  dependency_wirer.dart` (template provenance header — doc + string const,
-  no executable-code change), the new #1655 tests in
-  `test/plugins/tdd/services/build_relevance_test.dart`, and the marker pin
-  in `test/core/dependencies/dependency_wirer_test.dart`.
+  `fix/1429-tdd-reset-entity-removal` (working tree, pre-push)
+- **Toolchain**: Dart 3.13.4 (stable) on linux_x64 (the repo pins
+  `sdk: ^3.11.0`); `dart test` with the repo's `dart_test.yaml` presets
+  (fast tier by default, `--preset=all` for slow-tagged regression files)
+- **Scope**: `lib/src/plugins/tdd/commands/reset_command.dart` (phase-0
+  entity rollback + receipt pruning), `lib/src/plugins/tdd/services/
+  entity_lookup.dart` (`locateEntityScaffold`), `lib/src/commands/
+  entity_command.dart` (`zfa entity remove` + tombstone + SDK-collision
+  warning), `lib/src/core/proof/proof_checker.dart` (tombstone guard),
+  `lib/src/utils/flutter_symbols.dart` (`flutterSdkTypeNames`), plus the
+  three new test files and the per-bug artifacts
+  (`.specify/bugs/1429-tdd-reset-entity-removal/`, `tdd/test-list.md`).
 
 ## Verdict: PASS
 
-## 1. Static analysis
+## 1. TDD discipline (red → green → verify)
+
+The loop was driven with the bug directory as the TDD feature. Ten
+behaviors were pinned in `tdd/test-list.md` BEFORE the fix, mapped 1:1 to
+the issue's four acceptance criteria, and every test in the red set was
+observed failing against base `c5ed519f` for exactly the reason the issue
+describes — never for a setup error.
 
 ```
-dart analyze lib/src/plugins/tdd/services/build_relevance.dart
-             lib/src/core/dependencies/dependency_wirer.dart
-             test/plugins/tdd/services/build_relevance_test.dart
-             test/core/dependencies/dependency_wirer_test.dart
-→ No issues found!          (re-checked after dart format)
+RED  (pre-fix):  dart test test/core/proof/bug_1429_tombstone_preflight_test.dart
+                 test/plugins/tdd/bug_1429_reset_entity_rollback_test.dart
+                 → 00:02 +2 -3: Some tests failed.
+                 dart test test/commands/bug_1429_entity_remove_test.dart
+                 → 00:00 +1 -4: Some tests failed.
+                 (A1: scaffold survived reset; A2: preflight still poisoned;
+                  C1: "artifact reported by entity remove is missing";
+                  B1/B2/B3: "Unknown subcommand: remove"; D1: no warning)
 
-dart analyze            (whole repo)
-→ 106 issues found      (0 errors, 0 warnings — all `info`)
+GREEN (post-fix): dart test test/core/proof/bug_1429_tombstone_preflight_test.dart
+                  test/plugins/tdd/bug_1429_reset_entity_rollback_test.dart
+                  → 00:02 +5: All tests passed!
+                  dart test test/commands/bug_1429_entity_remove_test.dart
+                  → 00:40 +5: All tests passed!
 ```
 
-Zero findings from the changed/new files; the whole-repo count is the
-pre-existing info-level baseline drift (106 here, same order as the 106 the
-#1636 verification recorded), not this change.
+The guards that passed pre-fix (A3 legacy verdict shape, C2 honest
+latest-wins drift, D2 warning negative control) still pass post-fix — the
+fix added no behavior regression and no vacuous green.
 
-## 2. TDD discipline (REAL runs in this session)
-
-- RED, pre-fix (verbatim in `.specify/bugs/1655-setup-build-yaml-static-
-  skip-unreachable/red-evidence.md`):
+## 2. Static analysis
 
 ```
-dart test test/plugins/tdd/services/build_relevance_test.dart
-→ 00:00 +30 -1: Some tests failed.
-  U-1655-b1 Expected: 'refactor build pass skipped: build_runner has never
-     run here …' (staticFirstBuildSkippedNote)
-     Actual:   <null>        ← the gate ran the first build on a pristine
-                               zfa setup build.yaml: the issue's bug
+dart analyze lib/src/commands/entity_command.dart \
+             lib/src/plugins/tdd/commands/reset_command.dart \
+             lib/src/plugins/tdd/services/entity_lookup.dart \
+             lib/src/core/proof/proof_checker.dart \
+             lib/src/utils/flutter_symbols.dart \
+             test/plugins/tdd/bug_1429_reset_entity_rollback_test.dart \
+             test/commands/bug_1429_entity_remove_test.dart \
+             test/core/proof/bug_1429_tombstone_preflight_test.dart
+→ No issues found!
 ```
 
-- GREEN, post-fix:
+`dart format` applied to all changed files.
+
+## 3. Acceptance criteria audit
+
+| # | Criterion | Result | Proof |
+| - | --------- | ------ | ----- |
+| 1 | `zfa tdd reset <feature>` rolls back phase-0 entity scaffolds — deletes the scaffold files AND retires the `entity_create` receipts | PASS | A1 (scaffold dir deleted, receipts pruned, foreign entity + receipt untouched, `reverted_entities`/`pruned_receipts` in the `--json` verdict) and A2 (the issue's hand-deleted intermediate state: reset prunes the stale receipt and a subsequent `ProofChecker.check()` is green) |
+| 2 | `zfa entity remove <name>` (or equivalent) produces a tombstone receipt | PASS | B1 (scaffold dir deleted; receipt `command: 'entity remove'`, `capability: 'remove'`, file entry `action: 'delete'`, stable name `entity-remove-<snake>.json`); B2 (hand-deleted recovery — the issue's documented workaround is now a first-class verb); B3 (refuses an unknown entity with the fix line) |
+| 3 | Proof preflight gracefully handles entity deletion — no permanent `deleted` findings | PASS | C1 (poisoned baseline reproduced first, then green via `ProofChecker` AND `ReceiptPreflight` after the tombstone); C2 (honesty guard: recreated bytes after a tombstone still flag `modified`) |
+| 4 | Entity names conflicting with Flutter SDK types emit a warning | PASS | D1 (`zfa entity create -n PlatformException` prints `⚠️` naming package:flutter and still creates; phase-0 inherits the warning because it spawns the real verb); D2 (negative control: `Product` warns nothing) |
+
+## 4. Scope-constraint audit
+
+- Proof preflight scoping logic UNCHANGED: `ReceiptPreflight.check` and
+  `verify_command._proofPreflightDrift` are untouched; the checker change
+  is one guard keyed on the existing receipt `action` field, not new
+  scoping.
+- Entity scaffold generation UNCHANGED: `EntityCreator`, the phase-0 spawn
+  path, and the convergent no-op are untouched; reset/remove only DELETE
+  what phase-0 already wrote (via the same lookup helpers phase-0 uses).
+- One bug, one PR: every changed file traces to one of the four criteria.
+
+## 5. Regression audit (all green, real runs)
 
 ```
-dart test test/plugins/tdd/services/build_relevance_test.dart
-→ 00:00 +31: All tests passed!
+dart test test/plugins/tdd/services/receipt_preflight_test.dart
+          test/commands/bug_1378_proof_prune_test.dart
+          test/commands/proof_command_test.dart        → +24: All tests passed!
+dart test --preset=all test/plugins/tdd/bug_1264_reset_done_state_phantom_test.dart
+          test/plugins/tdd/bug_1331_reset_half_state_test.dart
+          test/plugins/tdd/commands/bug_1380_reset_namespace_guard_test.dart
+          test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart
+                                                       → +25 ~1: All tests passed!
+dart test test/commands/entity_receipt_test.dart test/commands/entity_help_test.dart
+          test/commands/entity_convergent_test.dart
+          test/core/proof/proof_check_valid_test.dart  → +7: passed
+dart test test/commands/entity_create_primitive_types_test.dart
+          test/commands/entity_builder_preflight_test.dart
+          test/commands/entity_cli_exit_code_test.dart
+          test/commands/entity_format_scope_1506_test.dart
+                                                       → +15: All tests passed!
+dart test test/utils/                                 → +138: All tests passed!
 ```
 
-The fix was applied only after the repro test was proven red; no test was
-edited to make it pass retroactively. U-1655-b2/b3/b4/b5 (the guard tests)
-passed both pre- and post-fix, proving the fix did not need them loosened.
+Pre-existing, unrelated red (master, unchanged by this fix):
+`bug_840_recovery_commands_test.dart` (slow tier) — its expectations predate
+the namespaced artifact layout and the current `details`-nested envelope
+shape. Verified red on the untouched base commit before any edit.
 
-## 3. Regression suites (REAL runs in this session)
+## 6. Remaining risks / notes for reviewers
 
-```
-dart test test/plugins/tdd/services/ test/core/dependencies/
-→ 01:40 +1151: All tests passed!
-   (includes refactor_passes_test.dart — the #1624/#1634 build-gate suites
-   asserting staticFirstBuildSkippedNote — every step_runner/neighbor
-   suite, and the dependency_wirer/build_yaml_guard/preflight suites)
-
-dart test test/core/dependencies/dependency_wirer_test.dart
-          test/commands/build_yaml_guard_test.dart
-          test/commands/builder_dependency_preflight_test.dart
-          test/plugins/tdd/services/refactor_passes_test.dart
-→ 00:05 +45: All tests passed!
-   (the three template consumers: setup's writer, the build guard, the
-   YAML-parsing preflight — header addition proven safe for the parser)
-
-dart test test/commands/build_command_unit_test.dart --preset=all
-→ 00:19 +48: All tests passed!
-   (slow tier — the build command writes the template; byte-identity
-   between guard scaffold and const still holds)
-
-dart test test/commands/
-→ 06:11 +401: All tests passed!
-```
-
-Chunk/cache hygiene: `.dart_tool/test/` and `/tmp/dart_test.kernel.*` were
-cleaned before and after the runs; disk stayed >80% free throughout.
-
-## 4. Acceptance criteria audit (issue #1655)
-
-1. **Fresh app's first refactor skips the build pass when no annotated
-   files exist (even with build.yaml present)** — PROVED at the gate level:
-   U-1655-b1 red pre-fix, green post-fix. The fixture is the reported app
-   shape: setup's byte-exact build.yaml + plain Dart under lib/test, no
-   `.dart_tool/build/`, zero annotations. Not proven by running a real
-   `zfa tdd refactor` end-to-end (the fast-tier convention this repo pins
-   for cloud agents; the gate IS the decision the refactor consults, via
-   the unchanged binding refactor_passes_test.dart exercises).
-2. **User-authored build.yaml still forces the build** — PROVED two ways:
-   the pre-existing #1634 user-authored test (custom content) and the new
-   MODIFIED-template test (single-byte divergence → run). Exact content
-   match is deliberately strict; the skip is an optimization, the run is
-   always sound.
-3. **Entrypoint AOT compile eliminated or paid during setup** — PROVED for
-   the static-skip half: with the note returned, the refactor records a
-   synthetic skipped build action and never spawns `zfa build`, so
-   `dart compile aot-snapshot` of build.dart is not reached on this path.
-   (Not re-timed end-to-end; the #1634/#1655 measurements quantify the ~4
-   min cost being avoided.)
-4. **Existing incremental freshness logic unchanged** — PROVED by diff and
-   by tests: zero hunks touch the marker-mtime path (rules 2–6), the
-   asset-graph reader, or the build pass; the entire pre-existing #1624 /
-   #1634 incremental suite ran green unchanged, and
-   `staticFirstBuildSkippedNote`/`refactorBuildSkippedNote` are consumed by
-   const reference (the #1655 note-text update flows through without
-   behavior change).
-
-## 5. Verdict
-
-PASS — the bug is fixed at the gate level with red→green evidence, the
-provenance contract between the template writer and the static skip is
-pinned on both sides, the user-authored/user-edited run-direction is
-pinned, and every touched package's fast tier (1552 tests total across the
-sweeps) ran green in this session.
+- Reset scopes receipt pruning by the feature's DECLARED entity names
+  (entity receipts carry no `input['feature']`); a shared entity is
+  self-healing because phase-0 re-creates and re-receipts it on the next
+  run (`entity create` is convergent).
+- The tombstone uses the stable receipt name `entity-remove-<snake>.json`
+  (refreshed in place, the `mock-<entity>.json` precedent), so repeated
+  removes do not accumulate documents.
+- A file recreated after a tombstone with byte-identical content passes
+  the digest check (the content is proven either way); with any other
+  bytes it flags `modified` — verified by C2.
