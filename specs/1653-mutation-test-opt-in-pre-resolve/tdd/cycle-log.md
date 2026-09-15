@@ -36,3 +36,37 @@ test/plugins/tdd/bug_1653_refactor_phase_timings_test.dart:121:13: Error: No nam
 - prev-hash: genesis
 - hash: 58ed829ee474f262e27411bc4a4fb52d02f0caa7a6fd5db5c5cf33df2ea3b24f
 
+## Cycle: 1653-init-opt-in (green)
+
+- behavior: 1653-init-opt-in
+- kind: green
+- criterion: FR-001, FR-002, FR-003, FR-004, FR-005
+- test: test/plugins/tdd/bug_1653_init_opt_in_and_preresolve_test.dart
+- command: `dart test --preset=all test/plugins/tdd/bug_1653_init_opt_in_and_preresolve_test.dart`
+- exit: 0
+- at: 2026-09-16T01:30:00.000Z
+- output:
+```
+16/16 passed (+16: All tests passed!) — default init injects no mutation_test; --mutation injects ^1.8.0; pre-resolve fires on newly-added deps (dart pub get --no-example, duration printed), skips on idempotent pass, misfires on non-zero resolver exit, warns on missing binary; unavailable-semantics hardening test added from the mutation survivor.
+```
+- schema: 1
+- prev-hash: 81ec9e07c776b5a65aa820aacfd21c5e0fe6c6cd9f8b25b26e1e4fbad7f1655b
+- hash: 15298455abbcb5de96697bb6d9ee0e0922d4987dcd30d894621b8cd3e0b1e61e
+
+## Cycle: 1653-refactor-timings (green)
+
+- behavior: 1653-refactor-timings
+- kind: green
+- criterion: FR-006, FR-007, FR-008
+- test: test/plugins/tdd/bug_1653_refactor_phase_timings_test.dart
+- command: `dart test --preset=all test/plugins/tdd/bug_1653_refactor_phase_timings_test.dart`
+- exit: 0
+- at: 2026-09-16T01:31:00.000Z
+- output:
+```
+5/5 passed (+5: All tests passed!) — per-pass duration recorded (>= the programmed delay), null for scheduling-skipped; - phases: + duration: render additively; legacy entry chain hash unchanged; E2E green refactor prints 'phase timings: preflight=6.8s registry=0.3s re-proof=...' and the receipt carries them; FR-009 summary line byte-unchanged.
+```
+- schema: 1
+- prev-hash: 58ed829ee474f262e27411bc4a4fb52d02f0caa7a6fd5db5c5cf33df2ea3b24f
+- hash: 6012d626b8afeffba9e7cc13cba625b1edaccdac1e7adaf045cfee5066fa8d94
+

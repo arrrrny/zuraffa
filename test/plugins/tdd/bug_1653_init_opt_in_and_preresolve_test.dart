@@ -324,6 +324,40 @@ dev_dependencies:
         dir.deleteSync(recursive: true);
       }
     });
+
+    test('unavailable semantics: a report whose resolver RAN is never '
+        '"unavailable" even with a stray reason (mutation-hardening: the '
+        '&&-to-|| survivor of the resolver-only audit)', () {
+      // ran: true + reason set — the resolver RAN, so the caller MUST take
+      // the misfire branch (report.ok == false), never the warn-skip. The
+      // `||` mutant would classify this as unavailable and downgrade a real
+      // resolution failure to a warning.
+      final ranWithReason = PubPreResolveReport(
+        ran: true,
+        ok: false,
+        binary: 'dart',
+        exitCode: 1,
+        output: 'version solving failed',
+        unavailableReason: 'stray diagnostic',
+      );
+      expect(ranWithReason.unavailable, isFalse);
+      // ran: false + reason — the canonical unavailable shape.
+      const didNotStart = PubPreResolveReport(
+        ran: false,
+        ok: false,
+        binary: 'flutter',
+        unavailableReason: 'flutter could not be started',
+      );
+      expect(didNotStart.unavailable, isTrue);
+      // ran: false WITHOUT a reason is not a provable unavailable either —
+      // the caller's unavailable branch keys on the reason being present.
+      const silentNoStart = PubPreResolveReport(
+        ran: false,
+        ok: false,
+        binary: 'dart',
+      );
+      expect(silentNoStart.unavailable, isFalse);
+    });
   });
 
   group('bug #1653 — zfa tdd init --mutation (FR-003)', () {
