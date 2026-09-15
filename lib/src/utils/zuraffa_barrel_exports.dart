@@ -12,15 +12,11 @@
 ///
 /// Seeded once per generation (`seed`, called from
 /// `PluginManager.buildContext`); builders then filter through
-/// [filter] — or, for generated files that import
-/// `package:zuraffa/mock.dart`, through [filterMock] (issue #1418),
-/// which verifies against the MOCK barrel's own resolved surface
-/// instead of assuming the zuraffa re-export. The resolution itself is
-/// DEFERRED to the first read. Unresolved (no seed, no resolvable
-/// `package_config.json` entry, or a missing barrel file → an empty
-/// name set) makes [filter]/[filterMock] return an EMPTY list: callers
-/// emit no `hide` combinator at all (issue #1530 FR-001 removed the
-/// legacy keep-all fallback).
+/// [filter]. The resolution itself is DEFERRED to the first read.
+/// Unresolved (no seed, no resolvable `package_config.json` entry, or a
+/// missing barrel file → an empty name set) makes [filter] return an
+/// EMPTY list: callers emit no `hide` combinator at all (issue #1530
+/// FR-001 removed the legacy keep-all fallback).
 library;
 
 import 'dart:convert';
@@ -31,13 +27,15 @@ import 'package:path/path.dart' as p;
 class ZuraffaBarrelExports {
   ZuraffaBarrelExports._(this.names, this.mockNames);
 
-  /// The surface `package:zuraffa/zuraffa.dart` exports.
+  /// The names `package:zuraffa/zuraffa.dart` exports (the walk target of
+  /// [filter] — the interface writer and every non-mock emission site).
   final Set<String> names;
 
-  /// The surface `package:zuraffa/mock.dart` exports (issue #1418): the
-  /// mock barrel's own export chain walked from `lib/mock.dart` — for
-  /// the current package layout a bare re-export of the zuraffa barrel
-  /// plus the mock-local declarations.
+  /// The names `package:zuraffa/mock.dart` exports (issue #1418): the mock
+  /// barrel's own local declaration surface, unioned with [names] exactly
+  /// when the mock chain carries a BARE (combinator-free)
+  /// `export 'package:zuraffa/zuraffa.dart';` — the walk target of
+  /// [filterMock] (the two mock-barrel emission sites).
   final Set<String> mockNames;
 
   static ZuraffaBarrelExports? _seeded;
@@ -53,10 +51,9 @@ class ZuraffaBarrelExports {
     _resolved = false;
   }
 
-  /// Test seam: seed with an explicit name set. BOTH surfaces are
-  /// seeded identically — a test that pins a surface intends "these
-  /// names are verified" for whichever library the emission site
-  /// imports (issue #1418).
+  /// Test seam: seed with an explicit name set. Both surfaces are seeded
+  /// identically — a test that pins a surface intends "these names are
+  /// verified" for whichever library the emission site imports.
   static void seedForTest(Set<String> names) {
     _seeded = ZuraffaBarrelExports._({...names}, {...names});
     _projectRoot = null;
@@ -114,13 +111,12 @@ class ZuraffaBarrelExports {
   /// [filter] verifies against the `zuraffa.dart` surface — correctness
   /// rested on `src/mock/mock.dart` bare-re-exporting the full zuraffa
   /// surface, an accident of the current barrel layout. [filterMock]
-  /// verifies against the mock barrel's own resolved surface: a name
-  /// the mock barrel does not export is dropped (an unverified hide is
-  /// an `undefined_hidden_name` warning, and `zfa build`'s analyze gate
+  /// verifies against the mock barrel's own resolved surface: a name the
+  /// mock barrel does not export is dropped (an unverified hide is an
+  /// `undefined_hidden_name` warning, and `zfa build`'s analyze gate
   /// fails on warnings); the bare re-export union keeps the #942
-  /// collision protection; an UNRESOLVED surface returns an EMPTY
-  /// list — no combinator at all (#1530 FR-001 carryover). Use
-  /// [filter] for imports of `package:zuraffa/zuraffa.dart` itself.
+  /// collision protection; an UNRESOLVED surface returns an EMPTY list —
+  /// no combinator at all (#1530 FR-001 carryover).
   static List<String> filterMock(Iterable<String> hides) {
     final seed = current;
     if (seed == null) return const [];
@@ -151,16 +147,18 @@ class ZuraffaBarrelExports {
       }
       final names = <String>{};
       _collectFromBarrel(p.join(root, 'lib', 'zuraffa.dart'), root, names, 0);
-      // Issue #1418: resolve the MOCK barrel's own surface too — the
-      // mock lane hides from `package:zuraffa/mock.dart`, so the
-      // verified set for THAT import comes from walking `lib/mock.dart`
-      // (whose re-export of the zuraffa barrel unions the core surface,
-      // and whose local declarations verify), not from assuming the
-      // zuraffa re-export. A missing mock barrel resolves to an EMPTY
-      // set — [filterMock] then drops every hide (#1530 FR-001
-      // carryover).
+      // Issue #1418: resolve the MOCK barrel's surface too — the mock
+      // lane hides from `package:zuraffa/mock.dart`, so the verified set
+      // for that import must come from walking `lib/mock.dart`, not from
+      // assuming the zuraffa re-export.
       final mockNames = <String>{};
-      _collectFromBarrel(p.join(root, 'lib', 'mock.dart'), root, mockNames, 0);
+      _collectMockSurface(
+        p.join(root, 'lib', 'mock.dart'),
+        root,
+        names,
+        mockNames,
+        0,
+      );
       return ZuraffaBarrelExports._(names, mockNames);
     } on FileSystemException {
       return null;
@@ -199,28 +197,8 @@ class ZuraffaBarrelExports {
     // every top-level declaration of the target file (re-emitting
     // exactly the unverified hides issue #1530 removes). Whitespace is
     // collapsed so a wrapped name list reads as one list.
-    Iterable<(String, String)> exportStatements(List<String> lines) sync* {
-      final buf = StringBuffer();
-      var open = false;
-      for (final line in lines) {
-        final trimmed = line.trim();
-        if (!open) {
-          if (!trimmed.startsWith('export ')) continue;
-          open = true;
-          buf.clear();
-        }
-        buf.write(trimmed.replaceAll(RegExp(r'\s+'), ' '));
-        buf.write(' ');
-        final text = buf.toString();
-        if (!text.contains(';')) continue;
-        open = false;
-        final start = text.indexOf("'");
-        if (start < 0) continue;
-        final end = text.indexOf("'", start + 1);
-        if (end < 0) continue;
-        yield (text.substring(start + 1, end), text.substring(end + 1));
-      }
-    }
+    Iterable<(String, String)> exportStatements(List<String> lines) =>
+        _exportStatements(lines);
 
     // The names of one combinator (`show a, b` / `hide c`) — null when
     // the keyword is absent (issue #1530 FR-002). The capture stops at a
@@ -228,32 +206,10 @@ class ZuraffaBarrelExports {
     // Alpha hide Beta` is one legal statement, and letting the capture
     // run to the `;` would swallow `hide Beta` into the `show` list, so
     // Alpha — genuinely exported — would stop verifying.
-    Set<String>? combinatorNames(String tail, String keyword) {
-      final match = RegExp(
-        '\\b$keyword\\s+([^;]*?)(?=\\s+(?:show|hide)\\b|\\s*;)',
-      ).firstMatch(tail);
-      if (match == null) return null;
-      return match
-          .group(1)!
-          .split(',')
-          .map((s) => s.trim())
-          .where((s) => s.isNotEmpty)
-          .toSet();
-    }
+    Set<String>? combinatorNames(String tail, String keyword) =>
+        _combinatorNames(tail, keyword);
 
-    String? declaredType(String line) {
-      final trimmed = line.trim();
-      for (final keyword in ['class ', 'mixin ', 'enum ', 'typedef ']) {
-        if (trimmed.startsWith(keyword)) {
-          final rest = trimmed
-              .substring(keyword.length)
-              .replaceAll('<', ' ')
-              .replaceAll('>', ' ');
-          return rest.trim().split(RegExp(r'\s+')).first;
-        }
-      }
-      return null;
-    }
+    String? declaredType(String line) => _declaredType(line);
 
     for (final (target, tail) in exportStatements(barrel.readAsLinesSync())) {
       // Issue #1530 (FR-002): honor the statement's combinators — a
@@ -307,6 +263,200 @@ class ZuraffaBarrelExports {
           file.path,
           packageRoot,
           names,
+          depth + 1,
+          inheritedShow: effectiveShow,
+          inheritedHide: effectiveHide,
+        );
+      }
+    }
+  }
+
+  /// Parses `export '<uri>' …;` STATEMENTS into the quoted target plus
+  /// the combinator tail (everything after the closing quote).
+  ///
+  /// Combinators belong to the STATEMENT, not the line: dart_style wraps
+  /// long `export`s — this repo's own `lib/zuraffa.dart` uses that form
+  /// four times — so accumulate to the terminating `;` before reading
+  /// the tail. A line-scoped parse sees an empty tail for the wrapped
+  /// form, treats the statement as unrestricted, and collects every
+  /// top-level declaration of the target file (re-emitting exactly the
+  /// unverified hides issue #1530 removes). Whitespace is collapsed so a
+  /// wrapped name list reads as one list.
+  static Iterable<(String, String)> _exportStatements(
+    List<String> lines,
+  ) sync* {
+    final buf = StringBuffer();
+    var open = false;
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (!open) {
+        if (!trimmed.startsWith('export ')) continue;
+        open = true;
+        buf.clear();
+      }
+      buf.write(trimmed.replaceAll(RegExp(r'\s+'), ' '));
+      buf.write(' ');
+      final text = buf.toString();
+      if (!text.contains(';')) continue;
+      open = false;
+      final start = text.indexOf("'");
+      if (start < 0) continue;
+      final end = text.indexOf("'", start + 1);
+      if (end < 0) continue;
+      yield (text.substring(start + 1, end), text.substring(end + 1));
+    }
+  }
+
+  /// The names of one combinator (`show a, b` / `hide c`) — null when the
+  /// keyword is absent (issue #1530 FR-002). The capture stops at a
+  /// sibling combinator keyword or the statement terminator: `show Alpha
+  /// hide Beta` is one legal statement, and letting the capture run to
+  /// the `;` would swallow `hide Beta` into the `show` list, so Alpha —
+  /// genuinely exported — would stop verifying.
+  static Set<String>? _combinatorNames(String tail, String keyword) {
+    final match = RegExp(
+      '\\b$keyword\\s+([^;]*?)(?=\\s+(?:show|hide)\\b|\\s*;)',
+    ).firstMatch(tail);
+    if (match == null) return null;
+    return match
+        .group(1)!
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toSet();
+  }
+
+  static String? _declaredType(String line) {
+    final trimmed = line.trim();
+    for (final keyword in ['class ', 'mixin ', 'enum ', 'typedef ']) {
+      if (trimmed.startsWith(keyword)) {
+        final rest = trimmed
+            .substring(keyword.length)
+            .replaceAll('<', ' ')
+            .replaceAll('>', ' ');
+        return rest.trim().split(RegExp(r'\s+')).first;
+      }
+    }
+    return null;
+  }
+
+  /// Resolves the surface `package:zuraffa/mock.dart` exports (issue
+  /// #1418) into [mockNames], walking the mock barrel's own export chain
+  /// from [barrelPath].
+  ///
+  /// The mock lane hides the entity's own symbols from
+  /// `package:zuraffa/mock.dart`; the verified set for THAT import must
+  /// come from walking the mock barrel, not from assuming the zuraffa
+  /// surface (the old single-walk correctness rested on
+  /// `src/mock/mock.dart` bare-re-exporting all of `zuraffa.dart` — an
+  /// accident of the current barrel layout). Local declarations along
+  /// the relative-export chain are collected with the same
+  /// combinator-aware, depth-capped rules the zuraffa walk uses, threading
+  /// the effective combinators into nested barrels the same way (#1530
+  /// FR-002 carryover — unthreaded, a nested contribution bypasses the
+  /// outer `show`/`hide` and over-collects, the unsafe direction here: a
+  /// kept-but-not-exported name becomes an `undefined_hidden_name` hide).
+  /// A `package:zuraffa/zuraffa.dart` re-export statement contributes from
+  /// [zuraffaNames] (already resolved): a BARE statement unions the
+  /// whole zuraffa surface (what the current `lib/src/mock/mock.dart`
+  /// layout asserts), a combinator-carrying statement contributes only
+  /// its shown slice — both intersected with any inherited combinators.
+  /// Other in-package `package:zuraffa/<subpath>` targets resolve to
+  /// files exactly like the zuraffa walk resolves them; only EXTERNAL
+  /// `package:` targets stay skipped — collecting their surface would
+  /// over-collect (the walker cannot see their combinators), and
+  /// under-collection is the safe direction: it can only lose #942
+  /// protection for an exotic name, never emit an unverified hide.
+  static void _collectMockSurface(
+    String barrelPath,
+    String packageRoot,
+    Set<String> zuraffaNames,
+    Set<String> mockNames,
+    int depth, {
+    Set<String>? inheritedShow,
+    Set<String> inheritedHide = const {},
+  }) {
+    if (depth > 3) return;
+    final barrel = File(barrelPath);
+    if (!barrel.existsSync()) return;
+    final barrelDir = p.dirname(barrelPath);
+
+    for (final (target, tail) in _exportStatements(barrel.readAsLinesSync())) {
+      final shown = _combinatorNames(tail, 'show');
+      final hidden = _combinatorNames(tail, 'hide') ?? const <String>{};
+      // Issue #1530 (FR-002 carryover): the statement's combinators
+      // intersect with the ones inherited from an enclosing barrel
+      // statement — `export 'index.dart' show X;` restricts what the
+      // nested barrel contributes too. Without the threading, a nested
+      // contribution bypasses the outer `show`/`hide` and OVER-collects,
+      // the unsafe direction for this walker: a kept-but-not-exported
+      // name becomes an `undefined_hidden_name` hide — the exact warning
+      // class issue #1418 removes.
+      final effectiveShow = inheritedShow == null
+          ? shown
+          : (shown == null ? inheritedShow : inheritedShow.intersection(shown));
+      final effectiveHide = {...inheritedHide, ...hidden};
+
+      if (target == 'package:zuraffa/zuraffa.dart') {
+        if (effectiveShow == null) {
+          // Bare, or hide-only: the zuraffa surface comes through whole,
+          // minus anything the statement (or an enclosing barrel) hides.
+          mockNames.addAll(zuraffaNames);
+        } else {
+          mockNames.addAll(zuraffaNames.where(effectiveShow.contains));
+        }
+        mockNames.removeAll(effectiveHide);
+        continue;
+      }
+      String path;
+      if (target.startsWith('package:zuraffa/')) {
+        // In-package subpath targets resolve to files exactly like the
+        // zuraffa walk's `startsWith('package:zuraffa/')` branch: a mock
+        // barrel refactored to
+        // `export 'package:zuraffa/src/<module>.dart';`-style module
+        // re-exports keeps contributing that module's surface — skipping
+        // it would silently lose the #942 collision hides for every name
+        // behind it.
+        path = p.normalize(
+          p.join(
+            packageRoot,
+            'lib',
+            target.replaceFirst('package:zuraffa/', ''),
+          ),
+        );
+      } else if (target.startsWith('package:')) {
+        // External re-exports stay skipped: collecting THEIR surface
+        // would over-collect (the walker cannot see their combinators),
+        // and under-collection is the safe direction — it can only lose
+        // #942 protection for an exotic name, never emit an unverified
+        // hide.
+        continue;
+      } else {
+        path = p.normalize(p.join(barrelDir, target));
+      }
+      final file = File(path);
+      if (!file.existsSync()) continue;
+      final fileLines = file.readAsLinesSync();
+      var hasNestedExports = false;
+      for (final fileLine in fileLines) {
+        if (fileLine.trim().startsWith('export ')) {
+          hasNestedExports = true;
+          continue;
+        }
+        final name = _declaredType(fileLine);
+        if (name == null || name.isEmpty) continue;
+        if (effectiveShow != null && !effectiveShow.contains(name)) continue;
+        if (effectiveHide.contains(name)) continue;
+        mockNames.add(name);
+      }
+      // Follow nested barrels one more level, threading the effective
+      // combinators down (issue #1530 FR-002 carryover).
+      if (depth < 2 && hasNestedExports) {
+        _collectMockSurface(
+          file.path,
+          packageRoot,
+          zuraffaNames,
+          mockNames,
           depth + 1,
           inheritedShow: effectiveShow,
           inheritedHide: effectiveHide,

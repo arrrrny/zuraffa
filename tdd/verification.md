@@ -1,24 +1,25 @@
-# tdd.verify — Bug #1636 the running compiled binary outranks the PATH tier
+# tdd.verify — Bug #1655 the static first-build skip is unreachable for zfa setup-created apps
 
 - **Verified**: 2026-09-15, this session, on
-  `fix/1636-refactor-build-resolves-path-zfa` (working tree, pre-push)
+  `fix/1655-setup-build-yaml-static-skip-unreachable` (working tree, pre-push)
 - **Toolchain**: Dart 3.13.4 (stable) on linux_x64 (the task's "Dart 3.13+"
   floor; the repo pins `sdk: ^3.11.0`)
-- **Scope**: `lib/src/plugins/tdd/services/step_runner.dart` (the tier
-  reorder + docs), `lib/src/plugins/tdd/services/refactor_passes.dart`
-  (doc-only), the new suite
-  `test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart`, and
-  the re-labeled/re-shaped `test/plugins/tdd/services/step_runner_test.dart`.
+- **Scope**: `lib/src/plugins/tdd/services/build_relevance.dart` (the static
+  first-build trigger + docs + skip note), `lib/src/core/dependencies/
+  dependency_wirer.dart` (template provenance header — doc + string const,
+  no executable-code change), the new #1655 tests in
+  `test/plugins/tdd/services/build_relevance_test.dart`, and the marker pin
+  in `test/core/dependencies/dependency_wirer_test.dart`.
 
 ## Verdict: PASS
 
 ## 1. Static analysis
 
 ```
-dart analyze lib/src/plugins/tdd/services/step_runner.dart
-             lib/src/plugins/tdd/services/refactor_passes.dart
-             test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
-             test/plugins/tdd/services/step_runner_test.dart
+dart analyze lib/src/plugins/tdd/services/build_relevance.dart
+             lib/src/core/dependencies/dependency_wirer.dart
+             test/plugins/tdd/services/build_relevance_test.dart
+             test/core/dependencies/dependency_wirer_test.dart
 → No issues found!          (re-checked after dart format)
 
 dart analyze            (whole repo)
@@ -26,96 +27,96 @@ dart analyze            (whole repo)
 ```
 
 Zero findings from the changed/new files; the whole-repo count is the
-pre-existing info-level baseline drift (106 here vs 111 recorded by the
-#1626 verification), not this change.
+pre-existing info-level baseline drift (106 here, same order as the 106 the
+#1636 verification recorded), not this change.
 
 ## 2. TDD discipline (REAL runs in this session)
 
-- RED, pre-fix (verbatim in `.specify/bugs/1636-refactor-build-resolves-path-zfa/red-evidence.md`):
+- RED, pre-fix (verbatim in `.specify/bugs/1655-setup-build-yaml-static-
+  skip-unreachable/red-evidence.md`):
 
 ```
-dart test test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
-→ 00:00 +3 -2: Some tests failed.
-  B1 Expected: '/tmp/zfa1636_cacheNSSXIE/zfa_exe'
-     Actual:   '/tmp/zfa1636_pathLAZCWU/zfa'      ← the PATH install won
-  B2 Expected: '/tmp/zfa1636_cache2CMNPFE/zfa_exe'
-     Actual:   '/tmp/zfa1636_path2OUCSPU/zfa'     ← the PATH install won
+dart test test/plugins/tdd/services/build_relevance_test.dart
+→ 00:00 +30 -1: Some tests failed.
+  U-1655-b1 Expected: 'refactor build pass skipped: build_runner has never
+     run here …' (staticFirstBuildSkippedNote)
+     Actual:   <null>        ← the gate ran the first build on a pristine
+                               zfa setup build.yaml: the issue's bug
 ```
 
 - GREEN, post-fix:
 
 ```
-dart test test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
-→ 00:00 +5: All tests passed!
+dart test test/plugins/tdd/services/build_relevance_test.dart
+→ 00:00 +31: All tests passed!
 ```
 
-The fix was applied only after the repro tests were proven red; no test
-was edited to make it pass retroactively. B3/B4/B5 (the backward-compat
-guards) passed both pre- and post-fix, proving the fix did not need them
-loosened.
+The fix was applied only after the repro test was proven red; no test was
+edited to make it pass retroactively. U-1655-b2/b3/b4/b5 (the guard tests)
+passed both pre- and post-fix, proving the fix did not need them loosened.
 
 ## 3. Regression suites (REAL runs in this session)
 
 ```
-dart test test/plugins/tdd/services/
-→ 01:42 +1104: All tests passed!
-   (includes step_runner_test.dart, refactor_passes_test.dart — the
-   #689/#717 build-pass suites, bug_1371_entrypoint_existence_test.dart,
-   pipeline/runner suites, and every services neighbor)
+dart test test/plugins/tdd/services/ test/core/dependencies/
+→ 01:40 +1151: All tests passed!
+   (includes refactor_passes_test.dart — the #1624/#1634 build-gate suites
+   asserting staticFirstBuildSkippedNote — every step_runner/neighbor
+   suite, and the dependency_wirer/build_yaml_guard/preflight suites)
 
-dart test test/plugins/tdd/bug_1472_refactor_gate_acceptance_test.dart
-          test/plugins/tdd/bug_1472_refactor_gate_errors_only_test.dart
-→ 00:00 +18: All tests passed!
-   (the #1472 pin driven through zfaBuildCommand's delegation:
-   candidate==driving keeps the resolution; provably-different versions
-   still swap; unresolvable replacements fail open — acceptance
-   criterion 4)
+dart test test/core/dependencies/dependency_wirer_test.dart
+          test/commands/build_yaml_guard_test.dart
+          test/commands/builder_dependency_preflight_test.dart
+          test/plugins/tdd/services/refactor_passes_test.dart
+→ 00:05 +45: All tests passed!
+   (the three template consumers: setup's writer, the build guard, the
+   YAML-parsing preflight — header addition proven safe for the parser)
 
-dart test test/utils/dart_toolchain_resolver_test.dart
-          test/plugins/tdd/bug_1329_step_failure_diagnostics_test.dart
-          test/plugins/tdd/bug_1159_baseline_timeout_test.dart
-→ 00:02 +18: All tests passed!
+dart test test/commands/build_command_unit_test.dart --preset=all
+→ 00:19 +48: All tests passed!
+   (slow tier — the build command writes the template; byte-identity
+   between guard scaffold and const still holds)
 
-dart test test/core/no_jit_zfa_spawn_scan_test.dart
-→ 00:00 +5: All tests passed!
-   (the no-JIT sweep: the promoted tier returns a compiled binary, never
-   a VM spawn — the directive the bug cites is now enforced at the tier
-   that matters)
+dart test test/commands/
+→ 06:11 +401: All tests passed!
 ```
 
-Chunked execution note: the one-attempt whole-directory run
-(`test/plugins/tdd/ --exclude-tags "flutter || e2e"`) was abandoned — its
-kernel cache ballooned until the filesystem hit 100% and the run was
-killed at the 10-minute tool ceiling (a disk-housekeeping incident, not a
-test failure). The suites above were then run in chunks with
-`.dart_tool/test/` + `/tmp/dart_test.kernel.*` cleaned between chunks;
-every chunk completed green.
+Chunk/cache hygiene: `.dart_tool/test/` and `/tmp/dart_test.kernel.*` were
+cleaned before and after the runs; disk stayed >80% free throughout.
 
-## 4. Acceptance criteria audit (issue #1636)
+## 4. Acceptance criteria audit (issue #1655)
 
-1. **Compiled driving CLI → build pass uses the same binary** — PROVED at
-   the tier level: B1/B2 red pre-fix, green post-fix; the build pass
-   resolves through `StepRunner.resolveEntrypoint` (delegation unchanged,
-   `refactor_passes.dart` code untouched). Not proven by spawning a real
-   compiled binary end-to-end (the fast-tier convention this repo pins;
-   the compile-cache shape is exercised via injected driver facts).
-2. **`dart run` (VM) drivers keep the PATH tier** — PROVED: B3/B4 green,
-   plus the re-labeled #690 PATH-tier test, plus the #717 build-pass test
-   ("executes the system zfa on PATH") green under `dart test` itself.
-3. **Tier order documented and tested per driver shape** — PROVED: the
-   doc comments renumber the chain (1-3 source → 4 running binary →
-   5 PATH → 6 script) with the #1636 rationale; B1-B5 + the re-labeled
-   #690 group cover cache-exe, stale-dill, `dart run`, `dartaotruntime`,
-   and JIT-snapshot driver shapes.
-4. **The #1472 version pin still fires for same-binary upgrades** —
-   PROVED by the untouched pin code + the #1472 gate suites (18 tests):
-   with the fix a compiled driver's candidate IS the driving binary, so
-   the probe returns equal and no swap fires (the honest no-op), while a
-   provably-different candidate version still swaps.
+1. **Fresh app's first refactor skips the build pass when no annotated
+   files exist (even with build.yaml present)** — PROVED at the gate level:
+   U-1655-b1 red pre-fix, green post-fix. The fixture is the reported app
+   shape: setup's byte-exact build.yaml + plain Dart under lib/test, no
+   `.dart_tool/build/`, zero annotations. Not proven by running a real
+   `zfa tdd refactor` end-to-end (the fast-tier convention this repo pins
+   for cloud agents; the gate IS the decision the refactor consults, via
+   the unchanged binding refactor_passes_test.dart exercises).
+2. **User-authored build.yaml still forces the build** — PROVED two ways:
+   the pre-existing #1634 user-authored test (custom content) and the new
+   MODIFIED-template test (single-byte divergence → run). Exact content
+   match is deliberately strict; the skip is an optimization, the run is
+   always sound.
+3. **Entrypoint AOT compile eliminated or paid during setup** — PROVED for
+   the static-skip half: with the note returned, the refactor records a
+   synthetic skipped build action and never spawns `zfa build`, so
+   `dart compile aot-snapshot` of build.dart is not reached on this path.
+   (Not re-timed end-to-end; the #1634/#1655 measurements quantify the ~4
+   min cost being avoided.)
+4. **Existing incremental freshness logic unchanged** — PROVED by diff and
+   by tests: zero hunks touch the marker-mtime path (rules 2–6), the
+   asset-graph reader, or the build pass; the entire pre-existing #1624 /
+   #1634 incremental suite ran green unchanged, and
+   `staticFirstBuildSkippedNote`/`refactorBuildSkippedNote` are consumed by
+   const reference (the #1655 note-text update flows through without
+   behavior change).
 
 ## 5. Verdict
 
-PASS — the bug is fixed at the tier level with red→green evidence, the
-documented order matches the implemented order, the backward-compat and
-pin contracts are pinned by suites that ran green in this session, and
-the changed files carry zero analyzer findings.
+PASS — the bug is fixed at the gate level with red→green evidence, the
+provenance contract between the template writer and the static skip is
+pinned on both sides, the user-authored/user-edited run-direction is
+pinned, and every touched package's fast tier (1552 tests total across the
+sweeps) ran green in this session.

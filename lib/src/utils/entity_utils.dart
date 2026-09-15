@@ -147,11 +147,10 @@ class EntityUtils {
   /// `src/mock/mock.dart` unions the zuraffa surface, so today's #942
   /// protection carries over unchanged; a diverged or restricted mock
   /// barrel drops the names it does not actually export — an unverified
-  /// hide is the `undefined_hidden_name` warning that fails `zfa
-  /// build`'s analyze gate). An unresolved surface yields an EMPTY
-  /// list — no combinator (#1530 FR-001 carryover). Use
-  /// [barrelHideNames] for imports of `package:zuraffa/zuraffa.dart`
-  /// itself.
+  /// hide is the `undefined_hidden_name` warning that fails `zfa build`'s
+  /// analyze gate). An unresolved surface yields an EMPTY list — no
+  /// combinator (#1530 FR-001 carryover). Use [barrelHideNames] for
+  /// imports of `package:zuraffa/zuraffa.dart` itself.
   static List<String> mockBarrelHideNames(String entityName) =>
       ZuraffaBarrelExports.filterMock(<String>[
         entityName,

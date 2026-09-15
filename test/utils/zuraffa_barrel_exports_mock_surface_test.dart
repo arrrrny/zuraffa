@@ -1,280 +1,308 @@
-// Issue #1418 (secondary): the mock lane's generated files attach their
-// `hide` combinator to the `package:zuraffa/mock.dart` import, but the
-// names were verified against the `zuraffa.dart` surface
-// (`EntityUtils.barrelHideNames` → `ZuraffaBarrelExports.filter`).
-// Correctness rested on `src/mock/mock.dart` bare-re-exporting the full
-// core surface — an accident of the current barrel layout. A mock barrel
-// that diverges (a restricted re-export, a dropped re-export) would emit
-// unverified hides again — the exact `undefined_hidden_name` warning
-// class that fails `zfa build`'s analyze gate.
-//
-// The mock lane must verify against the library the import actually
-// names: `EntityUtils.mockBarrelHideNames` → `ZuraffaBarrelExports.filterMock`,
-// resolved from the resolved zuraffa package's `lib/mock.dart` export
-// chain.
-library;
-
+// Issue #1418 (secondary): the mock lane hides names from
+// `package:zuraffa/mock.dart` but verifies them against the `zuraffa.dart`
+// surface only — the actually-imported library's export surface is never
+// walked. These tests pin `filterMock`: a name the mock barrel does not
+// export is never hidden from it, the bare re-export union keeps the #942
+// protection, and an unresolved surface drops the combinator entirely
+// (#1530 FR-001 carryover).
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
-import 'package:zuraffa/src/core/context/file_system.dart';
-import 'package:zuraffa/src/core/generator_options.dart';
-import 'package:zuraffa/src/core/plugin_system/discovery_engine.dart';
-import 'package:zuraffa/src/core/plugin_system/plugin_context.dart';
-import 'package:zuraffa/src/plugins/mock/mock_plugin.dart';
-import 'package:zuraffa/src/utils/entity_utils.dart';
 import 'package:zuraffa/src/utils/zuraffa_barrel_exports.dart';
 
-/// Builds a fixture "target project" whose resolved `zuraffa` package
-/// ships the given barrel files. [mockBarrel] is the `lib/mock.dart`
-/// content (null = the package ships no mock barrel at all — the
-/// unresolved case).
-Future<Directory> seedFixturePackage({
-  required String coreBarrel,
-  String? mockBarrel,
-  Map<String, String> extraFiles = const {},
-}) async {
-  final root = Directory.systemTemp.createTempSync('zfa_mock_surface_');
-  final zuraffaRoot = p.join(root.path, 'zuraffa');
-  Directory(
-    p.join(zuraffaRoot, 'lib', 'src', 'mock'),
-  ).createSync(recursive: true);
-  File(
-    p.join(zuraffaRoot, 'lib', 'zuraffa.dart'),
-  ).writeAsStringSync(coreBarrel);
-  if (mockBarrel != null) {
-    File(p.join(zuraffaRoot, 'lib', 'mock.dart')).writeAsStringSync(mockBarrel);
-  }
-  extraFiles.forEach((relative, content) {
-    final file = File(p.join(zuraffaRoot, 'lib', relative));
-    file.parent.createSync(recursive: true);
-    file.writeAsStringSync(content);
-  });
-  final dotTool = Directory(p.join(root.path, '.dart_tool'));
-  dotTool.createSync(recursive: true);
-  File(p.join(dotTool.path, 'package_config.json')).writeAsStringSync(
-    jsonEncode({
-      'configVersion': 2,
-      'packages': [
-        {
-          'name': 'zuraffa',
-          'rootUri': Uri.file(zuraffaRoot).toString(),
-          'packageUri': 'lib/',
-        },
-      ],
-    }),
-  );
-  ZuraffaBarrelExports.seed(root.path);
-  return root;
-}
-
-const _coreBarrel = "export 'src/core.dart';\n";
-const _coreSource = 'class Credentials {}\nclass CredentialsPatch {}\n';
-
 void main() {
+  late Directory tmp;
+
+  /// Builds a fake target project + fake zuraffa package and seeds the
+  /// resolver from it. [zuraffaCore] declares the zuraffa surface;
+  /// [mockBarrel]/[mockImpl] shape the mock barrel's export chain
+  /// (mock.dart → src/mock.dart).
+  Directory fixture({
+    required String zuraffaCore,
+    String? mockBarrel,
+    String? mockImpl,
+    String? mockDeep,
+    String? mockDeepImpl,
+  }) {
+    final zuraffaRoot = p.join(tmp.path, 'zuraffa');
+    Directory(p.join(zuraffaRoot, 'lib', 'src')).createSync(recursive: true);
+    File(
+      p.join(zuraffaRoot, 'lib', 'zuraffa.dart'),
+    ).writeAsStringSync("export 'src/core.dart';\n");
+    File(
+      p.join(zuraffaRoot, 'lib', 'src', 'core.dart'),
+    ).writeAsStringSync(zuraffaCore);
+    if (mockBarrel != null) {
+      File(
+        p.join(zuraffaRoot, 'lib', 'mock.dart'),
+      ).writeAsStringSync(mockBarrel);
+    }
+    if (mockImpl != null) {
+      File(
+        p.join(zuraffaRoot, 'lib', 'src', 'mock.dart'),
+      ).writeAsStringSync(mockImpl);
+    }
+    if (mockDeep != null) {
+      Directory(
+        p.join(zuraffaRoot, 'lib', 'src', 'mock'),
+      ).createSync(recursive: true);
+      File(
+        p.join(zuraffaRoot, 'lib', 'src', 'mock', 'deep.dart'),
+      ).writeAsStringSync(mockDeep);
+    }
+    if (mockDeepImpl != null) {
+      Directory(
+        p.join(zuraffaRoot, 'lib', 'src', 'mock'),
+      ).createSync(recursive: true);
+      File(
+        p.join(zuraffaRoot, 'lib', 'src', 'mock', 'deep_impl.dart'),
+      ).writeAsStringSync(mockDeepImpl);
+    }
+    final dotTool = Directory(p.join(tmp.path, '.dart_tool'));
+    dotTool.createSync(recursive: true);
+    File(p.join(dotTool.path, 'package_config.json')).writeAsStringSync(
+      jsonEncode({
+        'configVersion': 2,
+        'packages': [
+          {
+            'name': 'zuraffa',
+            'rootUri': Uri.file(zuraffaRoot).toString(),
+            'packageUri': 'lib/',
+          },
+        ],
+      }),
+    );
+    return tmp;
+  }
+
+  setUp(() {
+    tmp = Directory.systemTemp.createTempSync('barrel_mock_surface_');
+  });
+
   tearDown(() {
     ZuraffaBarrelExports.reset();
+    tmp.deleteSync(recursive: true);
   });
 
-  group('mock barrel surface resolution (#1418)', () {
-    late Directory fixture;
+  group('A5 — filterMock verifies the library the mock lane imports', () {
+    test(
+      '(a) diverged mock barrel: zuraffa-only names are NOT hidden from mock.dart',
+      () {
+        fixture(
+          zuraffaCore: 'class Credentials {}\nclass CredentialsPatch {}\n',
+          mockBarrel: "export 'src/mock.dart';\n",
+          mockImpl: 'class MockThing {}\n',
+        );
+        ZuraffaBarrelExports.seed(tmp.path);
 
-    tearDown(() {
-      if (fixture.existsSync()) fixture.deleteSync(recursive: true);
-    });
+        // The zuraffa-barrel filter keeps both (they ARE exported there).
+        expect(
+          ZuraffaBarrelExports.filter(['Credentials', 'CredentialsPatch']),
+          ['Credentials', 'CredentialsPatch'],
+        );
+        // The mock barrel exports neither → the mock import hides nothing.
+        expect(
+          ZuraffaBarrelExports.filterMock(['Credentials', 'CredentialsPatch']),
+          isEmpty,
+        );
+        // Mock-local names stay hidden (verified against the right surface).
+        expect(ZuraffaBarrelExports.filterMock(['MockThing']), ['MockThing']);
+        // …and the zuraffa filter never saw MockThing.
+        expect(ZuraffaBarrelExports.filter(['MockThing']), isEmpty);
+      },
+    );
 
-    test('T6: a bare zuraffa re-export unions the core surface (the '
-        'current lib/src/mock/mock.dart layout)', () async {
-      fixture = await seedFixturePackage(
-        coreBarrel: _coreBarrel,
-        mockBarrel: "export 'src/mock/mock.dart';\n",
-        extraFiles: {
-          'src/core.dart': _coreSource,
-          'src/mock/mock.dart': "export 'package:zuraffa/zuraffa.dart';\n",
-        },
+    test('(b) bare re-export: the zuraffa union keeps the #942 protection', () {
+      fixture(
+        zuraffaCore: 'class Credentials {}\nclass CredentialsPatch {}\n',
+        mockBarrel: "export 'src/mock.dart';\n",
+        mockImpl:
+            "export 'package:zuraffa/zuraffa.dart';\n"
+            'const bool zuraffaMockLibrary = true;\n',
       );
+      ZuraffaBarrelExports.seed(tmp.path);
 
       expect(
-        EntityUtils.mockBarrelHideNames('Credentials'),
+        ZuraffaBarrelExports.filterMock(['Credentials', 'CredentialsPatch']),
         ['Credentials', 'CredentialsPatch'],
         reason:
-            'the #942 collision protection carries over through the mock '
-            'barrel: the bare re-export unions the core surface',
+            'the bare re-export makes the zuraffa surface part of the mock '
+            'surface — the collision hide survives on the mock lane',
       );
     });
 
-    test('T7: a name the mock barrel does not export is dropped '
-        '(show-restricted re-export)', () async {
-      fixture = await seedFixturePackage(
-        coreBarrel: _coreBarrel,
-        mockBarrel: "export 'src/mock/mock.dart';\n",
-        extraFiles: {
-          'src/core.dart': _coreSource,
-          // The mock barrel restricts its re-export: Credentials does not
-          // come through the mock import — hiding it there is an
-          // undefined_hidden_name warning.
-          'src/mock/mock.dart':
-              "export 'package:zuraffa/zuraffa.dart' show Unrelated;\n",
-        },
+    test('(c) show-combinator re-export: only the shown names union', () {
+      fixture(
+        zuraffaCore: 'class Credentials {}\nclass CredentialsPatch {}\n',
+        mockBarrel: "export 'src/mock.dart';\n",
+        mockImpl: "export 'package:zuraffa/zuraffa.dart' show Credentials;\n",
       );
+      ZuraffaBarrelExports.seed(tmp.path);
 
       expect(
-        EntityUtils.mockBarrelHideNames('Credentials'),
-        isEmpty,
+        ZuraffaBarrelExports.filterMock(['Credentials', 'CredentialsPatch']),
+        ['Credentials'],
         reason:
-            'the hide is attached to package:zuraffa/mock.dart — a name '
-            'that library does not export must never be emitted',
+            'a combinator-carrying re-export contributes only what it '
+            'actually re-exports',
       );
     });
 
-    test('T8: mock-barrel-local declarations along the relative export '
-        'chain verify', () async {
-      fixture = await seedFixturePackage(
-        coreBarrel: _coreBarrel,
-        mockBarrel: "export 'src/mock/mock.dart';\n",
-        extraFiles: {
-          'src/core.dart': _coreSource,
-          'src/mock/mock.dart':
-              "export 'package:zuraffa/zuraffa.dart';\n"
-              'class MockSurfaceProbe {}\n',
-        },
-      );
-
-      expect(EntityUtils.mockBarrelHideNames('MockSurfaceProbe'), [
-        'MockSurfaceProbe',
-      ]);
-    });
-
-    test('T9: unresolved mock barrel (no lib/mock.dart) drops the hide '
-        'entirely (#1530 FR-001 carryover)', () async {
-      fixture = await seedFixturePackage(coreBarrel: _coreBarrel);
-
-      expect(
-        EntityUtils.mockBarrelHideNames('Credentials'),
-        isEmpty,
-        reason:
-            'an unresolved surface yields an EMPTY list — no hide '
-            'combinator at all, never an unverified name',
-      );
-    });
-
-    test('T11: seedForTest seeds both surfaces (existing seeded pins '
-        'keep their byte-exact behavior)', () async {
+    test('(d) unresolved surface: both filters drop the combinator', () {
       ZuraffaBarrelExports.reset();
-      ZuraffaBarrelExports.seedForTest({'Probe', 'ProbePatch'});
-
-      expect(EntityUtils.barrelHideNames('Probe'), ['Probe', 'ProbePatch']);
-      expect(
-        EntityUtils.mockBarrelHideNames('Probe'),
-        ['Probe', 'ProbePatch'],
-        reason:
-            'a test that pins a surface intends "these names are '
-            'verified" for whichever library the emission site imports',
-      );
+      expect(ZuraffaBarrelExports.filterMock(['Credentials']), isEmpty);
+      expect(ZuraffaBarrelExports.filter(['Credentials']), isEmpty);
     });
   });
 
-  group('mock lane emission verifies the library it imports (#1418)', () {
-    late Directory fixture;
-    late Directory workspace;
-    late String outputDir;
+  group('U5 — mock-surface walk semantics', () {
+    test('missing lib/mock.dart → mock surface is empty (no combinator)', () {
+      // zuraffa barrel resolves, but no mock barrel exists in the package.
+      fixture(zuraffaCore: 'class Credentials {}\n');
+      ZuraffaBarrelExports.seed(tmp.path);
 
-    setUp(() async {
-      workspace = await Directory.systemTemp.createTemp('zfa_mock_lane_');
-      outputDir = p.join(workspace.path, 'lib', 'src');
-      await Directory(
-        p.join(outputDir, 'domain', 'entities', 'credentials'),
-      ).create(recursive: true);
-      await File(
-        p.join(
-          outputDir,
-          'domain',
-          'entities',
-          'credentials',
-          'credentials.dart',
-        ),
-      ).writeAsString('''
-class Credentials {
-  final String id;
-  const Credentials({required this.id});
-}
-
-class CredentialsPatch {
-  final String? id;
-  const CredentialsPatch({this.id});
-}
-''');
+      expect(ZuraffaBarrelExports.filter(['Credentials']), ['Credentials']);
+      expect(ZuraffaBarrelExports.filterMock(['Credentials']), isEmpty);
     });
 
-    tearDown(() {
-      ZuraffaBarrelExports.reset();
-      if (fixture.existsSync()) fixture.deleteSync(recursive: true);
-      if (workspace.existsSync()) workspace.deleteSync(recursive: true);
+    test('external package re-exports stay excluded from the mock surface', () {
+      fixture(
+        zuraffaCore: 'class Credentials {}\n',
+        mockBarrel: "export 'src/mock.dart';\n",
+        mockImpl:
+            "export 'package:some_other_pkg/exports.dart';\n"
+            'class MockThing {}\n',
+      );
+      ZuraffaBarrelExports.seed(tmp.path);
+
+      expect(
+        ZuraffaBarrelExports.filterMock(['ExternalThing']),
+        isEmpty,
+        reason:
+            'the walker cannot see external combinators — under-'
+            'collection is the safe direction (#1530 FR-003 doctrine)',
+      );
+      expect(ZuraffaBarrelExports.filterMock(['MockThing']), ['MockThing']);
+    });
+
+    test('combinators on the mock chain honor show/hide', () {
+      fixture(
+        zuraffaCore: 'class Credentials {}\n',
+        mockBarrel: "export 'src/mock.dart' show MockThing hide Hidden;\n",
+        mockImpl: 'class MockThing {}\nclass Hidden {}\n',
+      );
+      ZuraffaBarrelExports.seed(tmp.path);
+
+      expect(ZuraffaBarrelExports.filterMock(['MockThing']), ['MockThing']);
+      expect(
+        ZuraffaBarrelExports.filterMock(['Hidden']),
+        isEmpty,
+        reason:
+            'the barrel line hides it — hiding it from mock.dart would '
+            'be an undefined_hidden_name warning',
+      );
+    });
+
+    test('filter is unchanged by the mock-surface addition', () {
+      fixture(
+        zuraffaCore: 'class Credentials {}\nclass CredentialsPatch {}\n',
+        mockBarrel: "export 'src/mock.dart';\n",
+        mockImpl: 'class MockThing {}\n',
+      );
+      ZuraffaBarrelExports.seed(tmp.path);
+
+      // filter still verifies against zuraffa.dart — the interface writer
+      // and every other emission site keep their contract (FR-005).
+      expect(ZuraffaBarrelExports.filter(['Credentials']), ['Credentials']);
+      expect(ZuraffaBarrelExports.filter(['CredentialsPatch']), [
+        'CredentialsPatch',
+      ]);
+      expect(ZuraffaBarrelExports.filter(['MockThing']), isEmpty);
+    });
+  });
+
+  group('R1 — PR #1649 review: threading + in-package subpaths', () {
+    test('nested barrels inherit the outer statement show (FR-002)', () {
+      fixture(
+        zuraffaCore: 'class Credentials {}\n',
+        mockBarrel: "export 'src/mock.dart';\n",
+        mockImpl: "export 'mock/deep.dart' show DeepThing;\n",
+        mockDeep: "export 'deep_impl.dart';\n",
+        mockDeepImpl: 'class DeepThing {}\nclass DeepHidden {}\n',
+      );
+      ZuraffaBarrelExports.seed(tmp.path);
+
+      expect(ZuraffaBarrelExports.filterMock(['DeepThing']), ['DeepThing']);
+      expect(
+        ZuraffaBarrelExports.filterMock(['DeepHidden']),
+        isEmpty,
+        reason:
+            'the outer show restricts what the nested barrel contributes '
+            'too — collecting DeepHidden would emit a hidden name the '
+            'mock barrel does not export (undefined_hidden_name)',
+      );
+    });
+
+    test('nested barrels inherit the outer statement hide (FR-002)', () {
+      fixture(
+        zuraffaCore: 'class Credentials {}\n',
+        mockBarrel: "export 'src/mock.dart';\n",
+        mockImpl: "export 'mock/deep.dart' hide DeepHidden;\n",
+        mockDeep: "export 'deep_impl.dart';\n",
+        mockDeepImpl: 'class DeepThing {}\nclass DeepHidden {}\n',
+      );
+      ZuraffaBarrelExports.seed(tmp.path);
+
+      expect(ZuraffaBarrelExports.filterMock(['DeepThing']), ['DeepThing']);
+      expect(
+        ZuraffaBarrelExports.filterMock(['DeepHidden']),
+        isEmpty,
+        reason: 'the outer hide subtracts from nested contributions too',
+      );
+    });
+
+    test('inherited show intersects the bare zuraffa union', () {
+      fixture(
+        zuraffaCore: 'class Credentials {}\nclass CredentialsPatch {}\n',
+        mockBarrel: "export 'src/mock.dart';\n",
+        mockImpl: "export 'mock/deep.dart' show Credentials;\n",
+        mockDeep: "export 'package:zuraffa/zuraffa.dart';\n",
+      );
+      ZuraffaBarrelExports.seed(tmp.path);
+
+      expect(
+        ZuraffaBarrelExports.filterMock(['Credentials', 'CredentialsPatch']),
+        ['Credentials'],
+        reason:
+            'the bare zuraffa re-export under an outer show contributes '
+            'only the shown slice of the zuraffa surface',
+      );
     });
 
     test(
-      'T10: the mock datasource hides Credentials from '
-      'package:zuraffa/mock.dart only when the MOCK barrel exports it',
-      () async {
-        // Diverged surface: the CORE barrel exports Credentials (so the
-        // legacy core-surface check would emit the hide), but the MOCK
-        // barrel restricts its re-export past it.
-        fixture = await seedFixturePackage(
-          coreBarrel: _coreBarrel,
-          mockBarrel: "export 'src/mock/mock.dart';\n",
-          extraFiles: {
-            'src/core.dart': _coreSource,
-            'src/mock/mock.dart':
-                "export 'package:zuraffa/zuraffa.dart' show Unrelated;\n",
-          },
+      'in-package package:zuraffa/<subpath> targets resolve like the zuraffa walk',
+      () {
+        fixture(
+          zuraffaCore: 'class Credentials {}\nclass CredentialsPatch {}\n',
+          mockBarrel: "export 'src/mock.dart';\n",
+          mockImpl:
+              "export 'package:zuraffa/src/core.dart';\nclass MockThing {}\n",
         );
-
-        final files =
-            await MockPlugin(
-              outputDir: outputDir,
-              options: const GeneratorOptions(force: true),
-              fileSystem: FileSystem.create(root: workspace.path),
-            ).generateWithContext(
-              PluginContext(
-                core: CoreConfig(
-                  name: 'Credentials',
-                  projectRoot: workspace.path,
-                  outputDir: outputDir,
-                  force: true,
-                ),
-                data: <String, dynamic>{
-                  'mock': true,
-                  'data': true,
-                  'methods': const ['get', 'update', 'toggle'],
-                  'id-field': 'id',
-                  'id-field-type': 'String',
-                  'query-field': 'id',
-                },
-                discovery: DiscoveryEngine(
-                  projectRoot: workspace.path,
-                  fileSystem: FileSystem.create(root: workspace.path),
-                ),
-                fileSystem: FileSystem.create(root: workspace.path),
-              ),
-            );
-
-        final mockDs = files
-            .map((f) => f.path)
-            .firstWhere((path) => path.endsWith('mock_datasource.dart'));
-        final content = File(
-          p.isAbsolute(mockDs) ? mockDs : p.join(workspace.path, mockDs),
-        ).readAsStringSync();
+        ZuraffaBarrelExports.seed(tmp.path);
 
         expect(
-          content,
-          isNot(contains('hide Credentials')),
+          ZuraffaBarrelExports.filterMock([
+            'Credentials',
+            'CredentialsPatch',
+            'MockThing',
+          ]),
+          ['Credentials', 'CredentialsPatch', 'MockThing'],
           reason:
-              '#1418: the mock.dart import must not hide a name the mock '
-              'barrel does not export — an unverified hide is the '
-              'undefined_hidden_name warning that fails the analyze gate '
-              '(out:\n$content)',
+              'a mock barrel refactored to module re-exports keeps '
+              'contributing those modules — skipping them would silently '
+              'lose the #942 collision hides for every name behind them',
         );
       },
     );

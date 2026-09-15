@@ -1,5 +1,5 @@
 @TestOn('linux || mac-os')
-@Tags(['regression'])
+@Tags(['regression', 'e2e'])
 // Bug #1507 — `zfa tdd` leaks `$TMPDIR/dart_test.kernel.*` directories
 // without bound (51 GB / 869 dill files in ~80 minutes on the reporter's
 // machine; Docker Desktop died of ENOSPC). The built-in cleanup

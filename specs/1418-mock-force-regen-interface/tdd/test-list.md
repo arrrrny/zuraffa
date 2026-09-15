@@ -1,37 +1,47 @@
-# Test List — 1418-mock-force-regen-interface
+---
+feature: 1418-mock-force-regen-interface
+loop: outside-in
+profile: .specify/memory/tdd-profile.md
+---
 
-- **feature**: 1418-mock-force-regen-interface
-- **source**: https://github.com/arrrrny/zuraffa/issues/1418
-- **kind**: bug
-- **mode**: red-green-refactor (engine tier)
+# Test List: 1418-mock-force-regen-interface
 
-## Behaviors
+## Outer loop: acceptance behaviors
 
-| ID | Behavior | Serves (acceptance criterion) | State |
-|----|----------|-------------------------------|-------|
-| T1 | `--force` with a changed `--methods` selection regenerates the datasource INTERFACE together with the mock — the stale `list(NoParams)` member is replaced by `getList(ListQueryParams<Deal>)` (the issue's exact two-run sequence, driven through MockPlugin) | AC1 `--force` regenerates both interface and mock when `--methods` changes | green |
-| T2 | Non-force run against an existing interface leaves the interface BYTE-IDENTICAL (the #417 create-if-absent contract is preserved for the non-force path) | AC4 no regressions on non-force path | green (guard preserved) |
-| T3 | `--append` (+force) does not regenerate the interface (append keeps its own contract, same precedence as the #1570 staleness arming) | AC4 no regressions | green (guard preserved) |
-| T4 | `--force` on an ABSENT interface still creates it (the #417 emission path survives the guard change) | AC4 no regressions | green (guard preserved) |
-| T5 | The `--force`-regenerated pair (interface + mock, methods changed `list` → `getList`) is structurally conforming: `MockStalenessDetector` reports no missing members, and a REAL scoped `dart analyze` over the fixture `lib/` exits 0 | AC3 certification passes on a `--force`-regenerated pair with changed methods | green |
-| T6 | `filterMock` resolves the MOCK barrel's own surface: a bare `export 'package:zuraffa/zuraffa.dart';` re-export unions the core surface (the current `lib/src/mock/mock.dart` layout) | AC2 hide emission verifies the library it imports | green (API applied) |
-| T7 | A name the mock barrel does NOT export is dropped from the hide list — a diverged/restricted mock barrel (`show`-restricted re-export) never emits an `undefined_hidden_name` | AC2 | green (API applied) |
-| T8 | Mock-barrel-local declarations along the relative export chain verify (`src/mock/mock.dart` local classes) | AC2 | green (API applied) |
-| T9 | Unresolved mock barrel (no `lib/mock.dart` in the resolved package) → empty hide list, no combinator (#1530 FR-001 carryover) | AC2 | green (API applied) |
-| T10 | Builder-level: the mock datasource's `package:zuraffa/mock.dart` import hides `Credentials` ONLY when the MOCK barrel exports it (diverged-surface fixture emits no `hide Credentials`) | AC2 | green |
-| T11 | `seedForTest` seeds BOTH surfaces (existing seeded tests — #942 byte-exact pins — stay green unchanged) | AC4 | green (API applied) |
+One per acceptance scenario in `spec.md`.
 
-## Regression pins (already green, must stay green)
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| A1 | stale interface (declares `list(NoParams)`) + `MockBuilder.generate` with `force: true, methods: [getList]` → interface regenerated from the current methods: declares `getList(ListQueryParams<Entity>)`, no longer declares `list(NoParams)`, ledger action `overwritten` (SC-001, FR-001). | US1-AC-1 | RED |
+| A2 | the force-regenerated pair conforms: interface member set ⊆ mock implemented member set (extraction via the certification's own primitives), missing set empty — the structural gate the certification runs would pass on this pair (SC-001, FR-003). | US1-AC-2 | RED |
+| A3 | non-force run on the same drifted tree leaves the interface byte-identical (create-if-absent preserved for the interface writer; mock side keeps the #1570 ledger `updated`) (SC-002, FR-002). | US2-AC-1 | RED |
+| A4 | absent interface: force and non-force runs each emit it once (`created`); the mock's import target exists after the run (#417 guarantee) (FR-002). | US1-AC-3, US2-AC-2 | RED |
+| A5 | mock-barrel hide semantics (SC-004, FR-004/005): (a) diverged mock barrel (no bare zuraffa re-export) → `filterMock` drops zuraffa-only names while `filter` keeps them; (b) bare re-export present → `filterMock` keeps the zuraffa union (#942 preserved); (c) combinator-carrying (`show`) mock re-export → only shown names union; (d) unresolved surface → both filters return empty (no combinator). | US3-AC-1..3 | RED |
+| A6 | emission-level: the generated mock datasource's `package:zuraffa/mock.dart` import carries a `hide` clause containing ONLY mock-barrel-verified names — an entity name absent from the surface never appears in any `hide` (SC-004, FR-004). | US3-AC-1 | RED |
 
-| ID | Pin | File |
-|----|-----|------|
-| R1 | #942 mock datasource hides Credentials from `package:zuraffa/mock.dart` | test/regression/issue_942_entity_name_collides_framework_export_test.dart (fixture gains a mock.dart barrel mirroring the real package) |
-| R2 | #1530 unverified hides never emitted (datasource lane) | test/plugins/datasource/barrel_hide_unverified_1530_test.dart |
-| R3 | #1570 shape-drift repair (non-force) | test/plugins/mock/mock_datasource_builder_1570_test.dart |
-| R4 | #417 interface emitted beside the mock | test/regression/issue_417_mock_datasource_missing_interface_test.dart |
+## Inner loop: unit behaviors
 
-## Out of scope (hard constraints)
+One per functional requirement in `spec.md`.
 
-- Certification logic (`MockCertifier`, `MockCertificationService.gate`) — unchanged; T5 only USES it as proof.
-- Entity pipeline — unchanged.
-- The contract-test `unused_import` warning (`test/mock/<entity>/..._contract_test.dart`) is a certification-emission concern, explicitly excluded by the constraint "fix the mock create force path and hide emission only".
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| U1 | force + dry-run: no file bytes change anywhere in the tree; the would-be regeneration is visible in the returned ledger (FR-006). | FR-006 | RED |
+| U2 | force + revert: the interface regeneration guard does not fire over revert — revert keeps its pre-change contract (FR-007). | FR-007 | RED |
+| U3 | `repo: <Entity>Repository` config: the force-regenerated interface lands at the repo-derived path the guard computed (no second interface file) and declares the regenerated members (edge case). | FR-001 | RED |
+| U4 | idempotence: two consecutive force runs on the same config produce byte-stable interface AND mock output (SC-003) (edge case). | FR-001 | RED |
+| U5 | `filterMock` unit semantics at the resolver level (beyond A5's seeded cases): mock-local declarations along the chain (e.g. a type declared in `src/mock/mock.dart` itself) survive; `package:` targets other than the zuraffa barrel stay excluded; depth-capped chains stop cleanly (FR-004). | FR-004 | RED |
+| U6 | `filter` (zuraffa surface) behavior is byte-for-byte unchanged by the mock-surface addition — the existing #1530 suite + #942 suite pass untouched (SC-005 regression guard — covered by the existing suites staying green, not by a new test file). | FR-005 | GUARD |
+
+## Mutation targets
+
+- `mock_builder.dart` guard: flip `config.force` (drop it) → A1 fails;
+  drop `!config.revert` → U2 fails; restore pure `!exists` → A1 fails.
+- `mock_builder.dart` guard: drop the `!exists` disjunct → A4 fails
+  (absent interface no longer emitted).
+- `zuraffa_barrel_exports.dart`: union the zuraffa surface
+  UNCONDITIONALLY (ignore the bare-re-export check) → A5(a)/(c) fail.
+- `zuraffa_barrel_exports.dart`: make `filterMock` return the input
+  unfiltered → A5(a)/A6 fail; return empty always → A5(b) fails.
+- Emission site: revert `mock_datasource_builder.dart` to the zuraffa
+  filter → A6 fails (name verified only toward zuraffa leaks into the
+  mock.dart hide when the surfaces diverge).

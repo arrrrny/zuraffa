@@ -110,8 +110,8 @@ class MockDataSourceBuilder {
     // the hide list is empty and the import is emitted unchanged.
     // Issue #1418: the hide is verified against the MOCK barrel's own
     // surface — the import's actual library — not against zuraffa.dart
-    // (an unverified hide is an `undefined_hidden_name` warning, and
-    // `zfa build`'s analyze gate fails on warnings).
+    // (an unverified hide is an undefined_hidden_name warning, and zfa
+    // build's analyze gate fails on warnings).
     final barrelHide = <String>{
       if (config.isEntityBased) ...EntityUtils.mockBarrelHideNames(entityName),
       if (config.isCustomUseCase && config.returnsType != null)

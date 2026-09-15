@@ -1,4 +1,4 @@
-@Tags(['regression'])
+@Tags(['regression', 'slow', 'e2e'])
 library;
 
 // Regression tests for issue #942:
@@ -91,7 +91,7 @@ dev_dependencies:
     // barrel's own surface (`package:zuraffa/mock.dart`), so the fixture
     // package ships the mock barrel exactly like the real package does —
     // a bare re-export of the zuraffa barrel — and the #942 byte-exact
-    // pins below keep asserting the hide.
+    // pin below keeps asserting the hide.
     await File(
       p.join(zuraffaRoot, 'lib', 'mock.dart'),
     ).writeAsString("export 'src/mock/mock.dart';\n");

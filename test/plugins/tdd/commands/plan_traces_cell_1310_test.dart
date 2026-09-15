@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Issue #1310 — the plan→gen declared-signature path is unreachable:
 // `zfa tdd plan` writes only the criterion id (FR-001) into the
 // test-list / lane-plan traces cell, while

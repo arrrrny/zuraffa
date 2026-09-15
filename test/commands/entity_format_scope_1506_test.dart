@@ -20,6 +20,8 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/entity_command.dart';
 import 'package:zuraffa/src/core/format/format_runner.dart';
 
+import '../helpers/cwd_mutex.dart';
+
 class _RecordingFormatRunner {
   _RecordingFormatRunner([List<String>? recorder])
     : invocations = recorder ?? <String>[];
@@ -87,6 +89,10 @@ void main() {
   var prevCwd = Directory.current.path;
 
   setUp(() async {
+    // Issue #1632 dart_core lane: serialize the process-global chdir
+    // window through the same cross-isolate lock CliRunner's `-C`
+    // windows use (the entity_builder_preflight_test.dart pattern).
+    await CwdMutex.acquire();
     dir = await Directory.systemTemp.createTemp('zfa_1506_entity_');
     prevCwd = Directory.current.path;
     Directory.current = dir.path;
@@ -104,7 +110,7 @@ dev_dependencies:
 
   tearDown(() async {
     Directory.current = prevCwd;
-    exitCode = 0;
+    CwdMutex.release();
     if (dir.existsSync()) {
       try {
         await dir.delete(recursive: true);

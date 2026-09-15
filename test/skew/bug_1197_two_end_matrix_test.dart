@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 import 'dart:io';
 
 import 'package:code_builder/code_builder.dart';

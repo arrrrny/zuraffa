@@ -3,6 +3,7 @@ import 'package:path/path.dart' as path;
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/context/file_system.dart';
+import '../../../core/transaction/generation_transaction.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
@@ -206,24 +207,6 @@ class MockBuilder {
         //   * RepositoryPlugin's #406 fallback ran first → file exists → skip.
         //   * MockPlugin runs first / alone → file missing → MockBuilder
         //     emits it here.
-        //
-        // Issue #1418: --force must regenerate the WHOLE generated pair.
-        // The old guard was pure create-if-absent: an existing interface
-        // was never invalidated by --force (nor by a --methods change),
-        // while the mock body always regenerated from the current
-        // --methods — the pair drifted and `--certify` dead-ended on
-        // `Missing concrete implementation of '<Entity>DataSource.<old>'`
-        // no matter how many times --force re-ran. Under
-        // `force && !append && !revert` the interface writer is invoked on
-        // an existing file too; its fresh-write path
-        // (`exists && (appendToExisting || !force)` → false) overwrites
-        // the interface from the CURRENT config.methods — the same
-        // contract the mock body follows, so certification proves a
-        // conforming pair. Non-force keeps the #417 create-if-absent
-        // contract byte-for-byte (the writer is not invoked on an
-        // existing file, so its append path cannot fire from the mock
-        // lane), and append/revert keep their own contracts (the same
-        // precedence the #1570 staleness arming applies).
         final interfaceEntityName = config.repo != null
             ? config.repo!.replaceAll('Repository', '')
             : config.name;
@@ -235,10 +218,49 @@ class MockBuilder {
           interfaceSnake,
           '${interfaceSnake}_datasource.dart',
         );
-        final forceRegeneratesInterface =
-            options.force && !config.appendToExisting && !config.revert;
+        // Issue #1418: --force must regenerate the WHOLE generated pair.
+        // The old guard was pure create-if-absent: an existing interface
+        // was never invalidated by --force (nor by a --methods change),
+        // while the mock body always regenerated from the current
+        // --methods — the pair drifted and `--certify` dead-ended on
+        // `Missing concrete implementation`. Under `force && !revert` the
+        // interface writer is invoked unconditionally and its fresh-write
+        // path (exists && (append || !force) → else force overwrite)
+        // regenerates the interface from the current config.methods — the
+        // same pattern the datasource and repository plugins already use.
+        // Non-force keeps the #417 create-if-absent contract byte-for-byte
+        // (the writer is not invoked on an existing file, so its append
+        // path cannot fire from the mock lane), and revert keeps the
+        // revert contract (the guard does not fire over it — the same
+        // precedence the #1570 staleness arming uses).
+        //
+        // Invariant (PR #1649 review): this guard arms on `config.force`,
+        // but the writer's overwrite path fires on `options.force`
+        // (DataSourceInterfaceBuilder.generate → FileUtils.writeFile(force:
+        // options.force)). The two cannot diverge on real call paths —
+        // MockPlugin.generate re-delegates with GeneratorOptions mirrored
+        // from config whenever they disagree — and a future direct
+        // MockBuilder caller must preserve that mirroring, or a
+        // guard-fired writer invocation is silently skipped (ledger
+        // `skipped`, no regeneration).
+        // PR #1649 follow-up (A-1530-6): under `force && !revert` the
+        // writer must not fire when THIS RUN already owns the file — a
+        // combined `make Product datasource --with mock --force` has the
+        // datasource plugin's own force-overwrite of the same interface
+        // pending in the shared transaction, and GenerationTransaction
+        // rejects two operations for one path ("Multiple operations for
+        // …"). Standalone `mock create --force` has no pending claim and
+        // still regenerates. Same "check current transaction first" seam
+        // as DiscoveryEngine; raw-path equality mirrors the transaction's
+        // own duplicate detection (both writers emit the identical joined
+        // path).
+        final interfacePending =
+            GenerationTransaction.current?.operations.any(
+              (op) => op.path == interfacePath,
+            ) ??
+            false;
         if (!await fileSystem.exists(interfacePath) ||
-            forceRegeneratesInterface) {
+            (config.force && !config.revert && !interfacePending)) {
           files.add(await interfaceBuilder.generate(config));
         }
         files.add(await dataSourceBuilder.generateMockDataSource(config));

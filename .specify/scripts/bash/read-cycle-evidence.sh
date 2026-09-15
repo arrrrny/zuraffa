@@ -182,7 +182,11 @@ for entry in split_entries(content):
         "evidence_text": extract_body(entry["body"], "Evidence"),
     })
 
-print(json.dumps({"evidence": records}, ensure_ascii=False))
+# Compact separators (",", ":") keep tier-2 byte-shape-consistent with the
+# other emitters of the cascade (jq -cn per entry and the tier-3 manual
+# interpolation both emit compact JSON), so the grep fallbacks and any
+# fixed-string consumers see one canonical shape. #1648.
+print(json.dumps({"evidence": records}, ensure_ascii=False, separators=(",", ":")))
 PY
 }
 
