@@ -33,6 +33,7 @@ void main() {
   late Directory scratchRoot;
   late TddPlugin plugin;
   final recordedGit = <String>[];
+  final compiledCandidates = <String>[];
 
   /// Builds the command under test with the fake layers wired in.
   ///
@@ -56,11 +57,17 @@ void main() {
       // step spawns it (`ZfaExecutable.ensureCompiled`). The fixture's stub
       // `bin/zfa.dart` is scripted, not real code, so the compile is faked
       // here: each worktree's artifact is derived from the candidate path,
-      // which keeps the `wt-from` / `wt-to` label the fakes key on.
-      ensureCompiled: (candidate, {sourceRoot, runner, environment}) async =>
-          candidate.endsWith('/bin/zfa.dart')
-          ? candidate.substring(0, candidate.length - 4) // -> .../bin/zfa
-          : candidate,
+      // which keeps the `wt-from` / `wt-to` label the fakes key on. Every
+      // candidate is recorded so the seam's contract — the ref worktree's
+      // entrypoint, and nothing else — is asserted rather than assumed.
+      ensureCompiled: (candidate, {sourceRoot, runner, environment}) async {
+        compiledCandidates.add(candidate);
+        // Strip the FULL `.dart` suffix: `length - 4` would leave the
+        // separator (`.../bin/zfa.`) behind.
+        return candidate.endsWith('/bin/zfa.dart')
+            ? candidate.substring(0, candidate.length - '.dart'.length)
+            : candidate;
+      },
       gitRunner: (args, cwd) async {
         final argv = args.join(' ');
         recordedGit.add(argv);
@@ -104,7 +111,11 @@ void main() {
             ? 'wt-from'
             : bin.contains('wt-to')
             ? 'wt-to'
-            : 'none';
+            // Every non-pubget spawn is a step against a ref worktree's
+            // compiled artifact. An unrecognized target means the seam's
+            // contract broke, and every label-keyed branch below would be
+            // skipped silently — fail loudly instead of reporting a match.
+            : throw StateError('unexpected zfa spawn target: $bin');
         return stepSpawn(command, cwd, label);
       },
     );
@@ -147,6 +158,7 @@ void main() {
     scratchRoot = Directory(p.join(temp.path, 'scratch-root'))..createSync();
     plugin = TddPlugin();
     recordedGit.clear();
+    compiledCandidates.clear();
   });
 
   tearDown(() {
@@ -260,6 +272,36 @@ void main() {
     ]);
     expect(exitCode, 0);
   });
+
+  test(
+    'the no-JIT compile seam is handed each ref worktree entrypoint',
+    () async {
+      await writeCorpus();
+      final cmd = commandWith(
+        stepSpawn: (command, cwd, label) async =>
+            ok('{"behaviorId":"U1","verdict":"created"}\n'),
+      );
+      final runner = CommandRunner('zfa-test', 'test')..addCommand(cmd);
+      await runner.run([
+        'differential',
+        '--from',
+        'origin/master',
+        '--project',
+        repoRoot.path,
+      ]);
+      // Pins the contract this command's seam exists for: the runner compiles
+      // the ref worktree's source entrypoint, so the forwarded seam must
+      // receive exactly those two candidates — never null, never the
+      // project's own entrypoint.
+      expect(
+        compiledCandidates,
+        unorderedEquals([
+          p.join(scratchRoot.path, 'wt-from', 'bin', 'zfa.dart'),
+          p.join(scratchRoot.path, 'wt-to', 'bin', 'zfa.dart'),
+        ]),
+      );
+    },
+  );
 
   test('a repaired hang (baseline hang → head complete): exit 0, '
       'reported as an improvement, never a gate failure', () async {

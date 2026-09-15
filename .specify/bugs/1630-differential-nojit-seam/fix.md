@@ -5,7 +5,7 @@
 | File | Change |
 |------|--------|
 | `lib/src/plugins/tdd/commands/corpus_differential_command.dart` | Constructor gains `ZfaEnsureCompiled? ensureCompiled` (the same no-JIT seam shape `step_runner` / `pipeline_runner` / `corpus_step_runner` carry), stored as `_ensureCompiledOverride` and forwarded to `DifferentialRefRunner(ensureCompiled: …)`. Production passes nothing → the default `ZfaExecutable.ensureCompiled` still applies (unchanged behavior). |
-| `test/plugins/tdd/commands/corpus_differential_command_test.dart` | Injects the fake compile seam (`candidate.replaceAll('/bin/zfa.dart', '/bin/zfa')` shape — derives the worktree artifact from the candidate so the `wt-from` / `wt-to` labels the fakes key on survive), and reads the worktree executable from `command.first` (a zfa step now spawns the compiled artifact itself, not `dart <worktree>/bin/zfa.dart`). |
+| `test/plugins/tdd/commands/corpus_differential_command_test.dart` | Injects the fake compile seam (strips the full `.dart` suffix from the candidate, so the artifact stays derived from the worktree path the `wt-from` / `wt-to` labels key on), records every candidate the seam is handed and asserts them against both worktree entrypoints, and reads the worktree executable from `command.first` (a zfa step now spawns the compiled artifact itself, not `dart <worktree>/bin/zfa.dart`). An unrecognized spawn target throws instead of degrading to a `'none'` label, which would skip every label-keyed branch silently. |
 
 ## Why this shape
 
