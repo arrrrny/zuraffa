@@ -45,12 +45,31 @@
 
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
-void main() {
-  final tierDir = Directory('test/regression');
-  final configFile = File('dart_test.yaml');
+import 'helpers/project_root.dart';
+
+/// Repo root, resolved once via the CWD-independent [findProjectRoot].
+late String _repoRoot;
+
+/// `.github/workflows/ci.yaml` under the repo root (never the CWD).
+File get _ciWorkflowFile =>
+    File(p.join(_repoRoot, '.github', 'workflows', 'ci.yaml'));
+
+Future<void> main() async {
+  // The dart_core lane runs suites as concurrent isolates of one VM (the
+  // #1632 `--concurrency=4` scoping), so the process-global
+  // Directory.current can point inside a sibling suite's temp fixture —
+  // or at a fixture a sibling already deleted — while THIS suite runs.
+  // Every structural path these pins read is therefore resolved ONCE
+  // against the repo root through findProjectRoot() (the same immunity
+  // the self-hosting gates rely on), never against the process CWD.
+  _repoRoot = await findProjectRoot();
+  final tierDir = Directory(p.join(_repoRoot, 'test', 'regression'));
+  final configFile = File(p.join(_repoRoot, 'dart_test.yaml'));
+  final testDir = Directory(p.join(_repoRoot, 'test'));
 
   final tierFiles = tierDir
       .listSync(recursive: true)
@@ -128,9 +147,7 @@ void main() {
   test('B4: the dart_core fast lane excludes every e2e-tagged file', () {
     final e2eFiles = _e2eTaggedFiles();
     expect(e2eFiles, isNotEmpty);
-    final ci =
-        loadYaml(File('.github/workflows/ci.yaml').readAsStringSync())
-            as YamlMap;
+    final ci = loadYaml(_ciWorkflowFile.readAsStringSync()) as YamlMap;
     final steps =
         ((ci['jobs'] as YamlMap)['dart_core'] as YamlMap)['steps'] as YamlList;
     String? fastLaneExclude;
@@ -199,7 +216,7 @@ void main() {
   test('B6: every regression-tagged file is kept off the CI fast lane '
       'by `slow` or `e2e` (#1632)', () {
     final leaks = <String>[];
-    for (final entity in Directory('test').listSync(recursive: true)) {
+    for (final entity in testDir.listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('_test.dart')) continue;
       final tags = _suiteTags(entity.path);
       if (tags.contains('regression') &&
@@ -222,9 +239,7 @@ void main() {
 
   test('B7: the dart_core lane keeps its scoped parallelism and the '
       '--exclude-tags selector (#1632)', () {
-    final ci =
-        loadYaml(File('.github/workflows/ci.yaml').readAsStringSync())
-            as YamlMap;
+    final ci = loadYaml(_ciWorkflowFile.readAsStringSync()) as YamlMap;
     final steps =
         ((ci['jobs'] as YamlMap)['dart_core'] as YamlMap)['steps'] as YamlList;
     String? testRun;
@@ -311,7 +326,8 @@ final RegExp _compileGateRe = RegExp(r'_compile_test\.dart$');
 /// selector) — mapped to its tag set.
 Map<String, Set<String>> _fastLaneEligibleFiles() {
   final eligible = <String, Set<String>>{};
-  for (final entity in Directory('test').listSync(recursive: true)) {
+  final testDir = Directory(p.join(_repoRoot, 'test'));
+  for (final entity in testDir.listSync(recursive: true)) {
     if (entity is! File || !entity.path.endsWith('_test.dart')) continue;
     final tags = _suiteTags(entity.path);
     if (tags.intersection({'slow', 'e2e', 'flutter'}).isNotEmpty) continue;
@@ -322,7 +338,8 @@ Map<String, Set<String>> _fastLaneEligibleFiles() {
 
 Map<String, Set<String>> _scanE2eTaggedFiles() {
   final tagged = <String, Set<String>>{};
-  for (final entity in Directory('test').listSync(recursive: true)) {
+  final testDir = Directory(p.join(_repoRoot, 'test'));
+  for (final entity in testDir.listSync(recursive: true)) {
     if (entity is! File || !entity.path.endsWith('_test.dart')) continue;
     final annotation = RegExp(
       r'^@Tags\(\[([^\]]*)\]\)',
