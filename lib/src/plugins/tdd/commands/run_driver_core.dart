@@ -2611,6 +2611,76 @@ class RunDriverCore {
               refactorBlocked: false,
             );
           }
+          // Issue #1420: the "no traces" claim is a FACT about the traces
+          // cell, not a constant — probe the declared routing (the same
+          // single-sourced resolution gen consumes) before printing it. A
+          // traces cell that resolves declared contract row(s) — the
+          // issue's class: a Key Entity row passed through row-only — makes
+          // the fallback wording FALSE (the trace exists) and its remedy
+          // IMPOSSIBLE (entity rows declare no methods to qualify). The
+          // declared-trace arm names the declared class and the re-gen /
+          // hand-step remedy instead; the machine contract is untouched
+          // (the stop stays `stopped_at=<id>:make` — marker presence, not
+          // the traces cell, is the `:hand` discriminator).
+          //
+          // Fail-open: an unreadable/missing artifact resolves to nothing
+          // declared and keeps the exact legacy wording — the probe must
+          // never turn a messaging fix into a new refusal surface.
+          String? declaredTraceContext;
+          try {
+            final decision = await DeclaredRouting.declaredRoutingFor(
+              cwd: projectRoot,
+              featureName: feature,
+              featureDir: featureDir,
+              behaviorId: row.id,
+            );
+            if (decision != null) {
+              final entity = decision.entityName;
+              declaredTraceContext = entity != null && entity.isNotEmpty
+                  ? 'the traces cell resolves the declared entity row '
+                        '`$entity` (surface: entity pipeline)'
+                  : 'the traces cell resolves a declared contract row';
+            }
+          } on StateError {
+            declaredTraceContext = null; // malformed spec: legacy wording
+          }
+          if (declaredTraceContext != null) {
+            final declaredTestPath =
+                _existingGeneratedTestPath(
+                  projectRoot: projectRoot,
+                  feature: feature,
+                  behaviorId: row.id,
+                ) ??
+                p.join(
+                  'test',
+                  'tdd',
+                  feature,
+                  '${_snakeCase(row.id)}_test.dart',
+                );
+            print(
+              '   the generated test is GUARD-ONLY '
+              '[$vacuousGuardWarningToken] — $declaredTraceContext, but the '
+              'pair predates gen\'s declared-trace engagement, so gen could '
+              'not derive a real outcome assertion and make refuses it '
+              'vacuous-green (issue #1420, #1259).',
+            );
+            print(
+              '   --> fix: ${vacuousGuardDeclaredTraceRemedyFor(
+                behaviorId: row.id,
+                testPath: p.relative(declaredTestPath, from: projectRoot).replaceAll(r'\', '/'),
+              )}',
+            );
+            return (
+              state: updated,
+              stop: (
+                result: 'stopped',
+                stoppedAt: '${row.id}:make',
+                exitCode: _exitStopped,
+                message: null,
+              ),
+              refactorBlocked: false,
+            );
+          }
           print(
             '   the generated test is GUARD-ONLY [$vacuousGuardWarningToken] '
             '— the behavior is fallback-routed (no traces: to a declared '

@@ -97,6 +97,7 @@ import 'package:yaml/yaml.dart';
 import '../../../cli/exit_protocol.dart';
 
 import '../models/channel_scenario.dart';
+import '../models/routing.dart';
 import '../models/verdict_envelope.dart';
 import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
@@ -923,8 +924,13 @@ class GenCommand extends Command<void> {
     UnitContractShape? contractShape;
     if (effectiveBehavior.kind == BehaviorKind.unit) {
       try {
-        final declared = await bounded(
-          DeclaredRouting.declaredSignatureFor(
+        // Issue #1420: the FULL declared decision — the surface and the
+        // entity name ride alongside the signature, so the row-only
+        // entity class (a Key Entities trace: no methods to qualify, the
+        // declared surface rides the entity pipeline by design) stops
+        // reading as "undeclared" at this seam.
+        final decision = await bounded(
+          DeclaredRouting.declaredRoutingFor(
             cwd: cwd,
             featureName: featureName,
             featureDir: featureDir,
@@ -932,6 +938,20 @@ class GenCommand extends Command<void> {
           ),
           'resolve declared contract',
         );
+        // Issue #1420: the row-only ENTITY synthesis — a trace whose
+        // decision carries surface: entityPipeline and an entity name but
+        // no signature declares the ENTITY as the behavior's surface (the
+        // #920 principle: the declaration is served, never prose). The
+        // synthesized `<Entity>() -> <Entity>` feeds the EXISTING
+        // contract-shape machinery (SPEC 1489), which serves both arms:
+        // the entity on disk → the typed entity-surface assertion
+        // (`isA<Entity>()`) whose green the declared entity pipeline can
+        // honestly earn; the entity absent → the SPEC 1489 degradation
+        // and the traced `zfa:tdd: vacuous-guard` marker (the #1308/#1320
+        // hand-delta seam). A decision WITH a signature (the contract
+        // lane) keeps the exact legacy shape below — the synthesis never
+        // fires there.
+        final declared = _declaredSignatureForGen(decision);
         // SPEC 1489: the shape is resolved against the entity registry —
         // an entity phase-0 created before gen spawned (or a pre-existing
         // one) renders with its declared type, import included; entities
@@ -2435,6 +2455,36 @@ class GenCommand extends Command<void> {
     if (b.sourceCriterion.isEmpty) missing.add('source criterion');
     if (b.target.isEmpty) missing.add('target');
     return missing;
+  }
+
+  /// Issue #1420: the signature gen derives from the declared routing
+  /// decision — the resolved signature verbatim when the decision carries
+  /// one (the contract lane, byte-identical to the pre-#1420 seam), or the
+  /// synthesized declared ENTITY-surface signature `<Entity>() -> <Entity>`
+  /// when the decision is the row-only entity class: surface
+  /// `entityPipeline`, an entity name, no signature (a Key Entities trace —
+  /// entity rows declare no methods, `_qualifiedTraces` passes them through
+  /// row-only by design). Null for every other decision (undeclared rows,
+  /// storage/dependency surfaces): the legacy prose fallback keeps them.
+  ///
+  /// The synthesized signature is a DECLARATION, not an invention (#920):
+  /// the spec declares the entity as the behavior's surface, and the
+  /// contract-shape machinery (SPEC 1489) serves the mechanically
+  /// assertable declared surface — `isA<Entity>()` when the entity exists
+  /// on disk, the traced `zfa:tdd: vacuous-guard` hand-delta seam (the
+  /// #1308/#1320 entity path) when it does not. Richer entity-VALUE
+  /// assertions are the author's hand step; gen never invents them.
+  static Signature? _declaredSignatureForGen(RoutingDecision? decision) {
+    if (decision == null) return null;
+    final signature = decision.signature;
+    if (signature != null) return signature;
+    final entity = decision.entityName;
+    if (decision.surface == GenerationSurface.entityPipeline &&
+        entity != null &&
+        entity.isNotEmpty) {
+      return Signature(name: entity, parameters: const [], returnType: entity);
+    }
+    return null;
   }
 
   String _toSnakeCase(String s) {
