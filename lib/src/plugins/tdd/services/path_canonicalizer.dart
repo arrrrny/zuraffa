@@ -11,11 +11,12 @@
 /// coincidence (review of #1611).
 ///
 /// Precondition (issue #1610): inputs MUST be ABSOLUTE. The walk-up
-/// resolves against the real filesystem, so a relative input makes
-/// `Directory(p.dirname(path))` collapse to `.` (the process CWD) and the
-/// result is silently CWD-joined — a CWD-dependent answer with no error
-/// surfaced, exactly the silent-wrong-result class the containment guard
-/// exists to prevent. Every call site absolutizes first
+/// resolves against the real filesystem, so a relative input resolves
+/// the walk against the process CWD (a bare filename's dirname even
+/// collapses to `.`, the CWD itself) and the result is silently
+/// CWD-joined — a CWD-dependent answer with no error surfaced, exactly
+/// the silent-wrong-result class the containment guard exists to prevent.
+/// Every call site absolutizes first
 /// (`p.normalize(p.absolute(...))`, joining recorded relative subjects
 /// onto the absolute project root); keep doing the same in new callers.
 library;
@@ -33,15 +34,16 @@ import 'package:path/path.dart' as p;
 ///
 /// [path] MUST be absolute — absolutize first, e.g.
 /// `p.normalize(p.absolute(...))` or join onto the absolute project root,
-/// as every call site does. For a relative input the dirname collapses to
-/// `.` (the process CWD) and the result is silently CWD-joined.
+/// as every call site does. A relative input resolves the walk against
+/// the process CWD (a bare filename's dirname even collapses to `.`,
+/// the CWD itself), so the result is silently CWD-joined.
 ///
 /// Fallback contract: when NO ancestor resolves the walk returns [path]
 /// UNCHANGED. That branch is defensive and unreachable through the public
 /// surface on POSIX (the filesystem root itself always resolves); it is
-/// asserted by the direct unit tests only as the walk-up exhaustion
-/// contract (see
-/// `test/plugins/tdd/services/path_canonicalizer_test.dart`).
+/// NOT asserted by the direct unit tests — only referenced there (see
+/// U4's note in `test/plugins/tdd/services/path_canonicalizer_test.dart`)
+/// since no public input can reach it.
 Future<String> canonicalizeMissingPath(String path) async {
   var dir = Directory(p.dirname(path));
   final tail = <String>[p.basename(path)];
