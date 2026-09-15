@@ -38,6 +38,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/plugins/tdd/services/contract_blocked_receipt.dart';
+import 'package:zuraffa/src/plugins/tdd/services/entity_lookup.dart';
 
 import '../helpers/tdd_fixture.dart';
 
@@ -666,7 +667,7 @@ String seedSeamFile(TddFixture fx, String behaviorId) {
 /// writes it (`lib/src/domain/entities/<snake>/<snake>.dart`) — the
 /// existence the #1625 entity-gated wire hint keys on.
 void seedEntity(TddFixture fx, String entityName) {
-  final snake = entityName.toLowerCase();
+  final snake = toSnakeCase(entityName);
   final file = File(
     p.join(
       fx.root.path,

@@ -35,6 +35,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/plugins/tdd/services/contract_blocked_receipt.dart';
+import 'package:zuraffa/src/plugins/tdd/services/entity_lookup.dart';
 import 'package:zuraffa/src/plugins/tdd/services/hand_surface.dart';
 
 import '../helpers/tdd_fixture.dart';
@@ -445,7 +446,7 @@ void seedSubject(TddFixture fx, String behaviorId) {
 /// Seed a generated entity file exactly where `zfa entity create` writes it
 /// (`lib/src/domain/entities/<snake>/<snake>.dart`).
 void seedEntity(TddFixture fx, String entityName) {
-  final snake = entityName.toLowerCase();
+  final snake = toSnakeCase(entityName);
   final file = File(
     p.join(
       fx.root.path,
