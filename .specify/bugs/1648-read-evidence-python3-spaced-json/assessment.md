@@ -1,7 +1,7 @@
 # Bug Assessment: read-cycle-evidence.sh python3 tier emits spaced JSON — jq-less E1/E2 grep fallbacks false-fail
 
 - **Slug**: 1648-read-evidence-python3-spaced-json
-- **Created**: 2026-09-16
+- **Created**: 2026-09-15
 - **Source**: https://github.com/arrrrny/zuraffa/issues/1648
 - **Verdict**: valid (reproduced on this branch, see below)
 - **Severity**: low (test-suite only; no production behavior bug)

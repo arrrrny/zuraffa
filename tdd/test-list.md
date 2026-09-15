@@ -6,8 +6,9 @@
 | U-1648-p1 | .specify/scripts/bash/tests/test_read_evidence.sh::E1 | unit | pre-existing: RED/GREEN/REFACTOR entries parse into JSON with the right fields — jq tier asserts via jq queries, jq-less tier via grep fallbacks (PR #1646 normalization, untouched by this fix) | issue #1648 criterion 1 (no regression) | GREEN |
 | U-1648-p2 | .specify/scripts/bash/tests/test_read_evidence.sh::E2 | unit | pre-existing: malformed entries skipped with a warning, valid entries kept — both tiers | issue #1648 criterion 3 (no regression) | GREEN |
 | U-1648-p3 | .specify/scripts/bash/tests/test_read_evidence.sh::E3 | unit | pre-existing: zero-entry log yields `{"evidence":[]}` and exit 0 — both tiers | issue #1648 criterion 3 (no regression) | GREEN |
-| U-1648-p4 | .specify/scripts/bash/tests/test_read_evidence.sh::E5 | unit | pre-existing: text mode summarizes entries; JSON parseability is asserted via `jq -e` when jq is present and reports SKIP (never a silent pass) when jq is absent | issue #1648 criterion 4 | GREEN (SKIP verified) |
-| U-1648-p5 | .specify/scripts/bash/tests/run_tests.sh | unit | full boundary-suite runner: shellcheck gate on the four boundary scripts (incl. the modified read-cycle-evidence.sh) + all four test files aggregate green | issue #1648 criterion 3 (no regression) | GREEN |
+| U-1648-p4 | .specify/scripts/bash/tests/test_read_evidence.sh::E4 | unit | pre-existing: missing cycle-log fails loudly — exits 1 with `cycle-log.md not found` on stderr | issue #1648 criterion 3 (no regression) | GREEN |
+| U-1648-p5 | .specify/scripts/bash/tests/test_read_evidence.sh::E5 | unit | pre-existing: text mode summarizes entries; JSON parseability is asserted via `jq -e` when jq is present and reports SKIP (never a silent pass) when jq is absent | issue #1648 criterion 4 | GREEN (SKIP verified) |
+| U-1648-p6 | .specify/scripts/bash/tests/run_tests.sh | unit | full boundary-suite runner: shellcheck gate on the four boundary scripts (incl. the modified read-cycle-evidence.sh) + all four test files aggregate green | issue #1648 criterion 3 (no regression) | GREEN |
 
 ## Red evidence (pre-fix, this session)
 

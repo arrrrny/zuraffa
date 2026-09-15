@@ -1,7 +1,7 @@
 # Bug Issue: read-cycle-evidence.sh python3 tier emits spaced JSON; test grep-fallbacks expect compact — jq-less suite run fails E1
 
 - **Slug**: 1648-read-evidence-python3-spaced-json
-- **Fetched**: 2026-09-16
+- **Fetched**: 2026-09-15
 - **Issue**: 1648
 - **URL**: https://github.com/arrrrny/zuraffa/issues/1648
 - **State**: open
