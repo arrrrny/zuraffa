@@ -692,6 +692,17 @@ case "$STEP" in
         echo "make: behavior=$ID outcome=adopted-placeholder feature=$FEATURE"
         exit 0
         ;;
+      adopt-interrupted)
+        # Issue #1398 crash-recovery adoption: green evidence appended
+        # (like `ok`/`adopt`) but the summary outcome is
+        # `adopted-interrupted` and the process exits 0 — exactly what
+        # the real `zfa tdd make` prints when the write-ahead interrupt
+        # marker proved the previous make died mid-flight and the resumed
+        # make adopted the passing subject.
+        printf '\n## Cycle: %s (green)\n\n- behavior: %s\n- kind: green\n- criterion: FR-003\n- exit: 0\n- at: 2026-08-30T00:00:00.000Z\n' "$ID" "$ID" >> "$CYCLE"
+        echo "make: behavior=$ID outcome=adopted-interrupted feature=$FEATURE"
+        exit 0
+        ;;
       ok-no-evidence)
         echo "make: behavior=$ID outcome=green feature=$FEATURE"
         exit 0

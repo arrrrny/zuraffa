@@ -554,6 +554,12 @@ class StepRunner {
                   // compose/make phase-2 and re-certified from the
                   // pipeline's actual output (green evidence appended by
                   // make itself).
+                  // `adopted-interrupted` is the issue #1398 crash-recovery
+                  // adoption — the write-ahead interrupt marker proved the
+                  // PREVIOUS make died mid-flight (process death) after
+                  // mutating the subject, and the resumed make adopted the
+                  // passing subject (green evidence appended by make
+                  // itself).
                   // `born-green` is the issue #1411 hand-first
                   // transition — the designed hand step (real outcome
                   // assertion, marker removed, subject
@@ -567,6 +573,7 @@ class StepRunner {
                       outcome == 'green-with-failed-build' ||
                       outcome == 'adopted' ||
                       outcome == 'adopted-placeholder' ||
+                      outcome == 'adopted-interrupted' ||
                       outcome == 'born-green'
                 : outcome == 'clean' || outcome == 'refactored');
         return StepResult(
