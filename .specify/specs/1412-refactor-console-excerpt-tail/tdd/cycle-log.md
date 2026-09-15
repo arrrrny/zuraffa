@@ -94,3 +94,61 @@ No issues found!
   the failing-pass block (`pass: build`, `exit: 1`, `pass "build" failed —
   misfire-stop.`) with the honest `last 10 of 251 lines` marker, and the
   preflight head is gone.
+
+## Cycle: T003 (red)
+
+- behavior: R5, R6
+- kind: red
+- classification: compileError (the API under test does not exist yet)
+- criterion: SC-5 (spec.md)
+- test: `test/commands/build_command_unit_test.dart` — groups
+  `analyzerOffendingPaths (issue #1412)` and
+  `analyzeGateRemedyLines (issue #1412)` (7 tests)
+- command: `dart test --preset=all test/commands/build_command_unit_test.dart`
+- exit: 1
+- at: 2026-09-15T15:35:00Z
+- output:
+```
+test/commands/build_command_unit_test.dart:762:36: Error: Member not found:
+  'BuildCommand.analyzerOffendingPaths'.
+test/commands/build_command_unit_test.dart:787:36: Error: Member not found:
+  'BuildCommand.analyzeGateRemedyLines'.
+  ... (7 Member-not-found errors: 2x analyzerOffendingPaths,
+   5x analyzeGateRemedyLines)
+00:00 +0 -1: Some tests failed.
+  (file failed to load)
+```
+- reading: the ownership extractor and the remedy builder do not exist at
+  HEAD — `verifyAnalyzeOrFail` hardcodes the single "Fix the generator"
+  remedy regardless of the offenders' ownership. A first green attempt
+  slipped mechanically (`capped` declared `List<String>` while joining —
+  caught by `dart analyze` as return_of_invalid_type, fixed before the
+  green run below); the recorded red is the intended undefined-API load
+  failure.
+
+## Cycle: T003 (green)
+
+- behavior: R5, R6
+- kind: green
+- classification: null
+- criterion: SC-5 (spec.md)
+- test: `test/commands/build_command_unit_test.dart` — full file
+  (55 tests: 7 new + 48 pre-existing incl. the real-analyzer
+  `verifyAnalyzeOrFail` integration test)
+- command: `dart test --preset=all test/commands/build_command_unit_test.dart`
+- exit: 0
+- at: 2026-09-15T15:40:00Z
+- output:
+```
+Analyzing build_command.dart...
+No issues found!
+106 issues found.
+   dart analyze: 106 info lints (style) — info severity does not fail the
+   analyze gate (issue #1035).
+00:19 +55: All tests passed!
+```
+- reading: the verdict's count line is byte-identical (only the remedy lines
+  under it changed — the `#1407`/`#1472` pattern readers are untouched), the
+  generated-only and unparseable cases keep the existing "Fix the generator"
+  wording, and the hand-authored case names the files with the matched
+  remedy. The pre-existing #1035/#415 groups stay green on the same run.

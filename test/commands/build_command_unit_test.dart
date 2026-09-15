@@ -749,6 +749,111 @@ Analyzing lib/...
       });
     });
 
+    group('analyzerOffendingPaths (issue #1412 — ownership evidence)', () {
+      test('extracts deduped paths from error/warning lines in first-seen '
+          'order', () {
+        const out = '''
+Analyzing lib/...
+   error - lib/src/a.dart:1:1 - Boom. - uri_does_not_exist
+   warning - lib/src/b.dart:2:2 - Warn. - some_lint
+   warning - lib/src/b.dart:2:2 - Warn again. - other_lint
+   info - lib/src/c.dart:3:3 - Style. - lint_code
+5 issues found.''';
+        expect(BuildCommand.analyzerOffendingPaths(out), [
+          'lib/src/a.dart',
+          'lib/src/b.dart',
+        ]);
+      });
+
+      test('info lines and severity words in prose never fabricate '
+          'offenders (the #1035 line-anchored discipline)', () {
+        const out = '''
+Analyzing lib/...
+   info - lib/tdd/x_subject.dart:18:6 - Snake name. - non_constant_identifier_names
+   info - lib/src/error_path.dart:1:1 - warning error words in prose. - lint_code
+39 issues found.''';
+        expect(BuildCommand.analyzerOffendingPaths(out), isEmpty);
+      });
+    });
+
+    group('analyzeGateRemedyLines (issue #1412 — ownership-aware remedy)', () {
+      test('hand-authored-only offenders name the files and drop the '
+          '"Fix the generator" misdirection', () {
+        const out = '''
+Analyzing lib/...
+   warning - lib/features/splash/view/splash_page.dart:12:9 - Unused import. - unused_import
+   warning - lib/core/theme.dart:5:7 - Dead null aware expression. - dead_null_aware_expression
+2 issues found.''';
+        final lines = BuildCommand.analyzeGateRemedyLines(out);
+        expect(lines, hasLength(2));
+        expect(
+          lines.first,
+          'hand-authored offending (not generator output): '
+          'lib/features/splash/view/splash_page.dart, lib/core/theme.dart',
+        );
+        expect(
+          lines.last,
+          'Fix the named files, or run with --no-analyze to skip this check.',
+        );
+      });
+
+      test('generated-only offenders keep the existing "Fix the generator" '
+          'remedy', () {
+        const out = '''
+Analyzing lib/...
+   warning - lib/src/models/user.zorphy.dart:10:1 - Warn. - some_lint
+   warning - lib/src/mappers/user_mapper.g.dart:3:3 - Warn. - other_lint
+2 issues found.''';
+        expect(BuildCommand.analyzeGateRemedyLines(out), [
+          'Fix the generator or run with --no-analyze to skip this check.',
+        ]);
+      });
+
+      test('mixed offenders name both ownership groups', () {
+        const out = '''
+Analyzing lib/...
+   warning - lib/src/models/user.zorphy.dart:10:1 - Warn. - some_lint
+   warning - lib/src/hand.dart:7:7 - Warn. - other_lint
+2 issues found.''';
+        final lines = BuildCommand.analyzeGateRemedyLines(out);
+        expect(
+          lines,
+          [
+            'generator output offending (.g.dart/.zorphy.dart): '
+                'lib/src/models/user.zorphy.dart',
+            'hand-authored offending (not generator output): lib/src/hand.dart',
+            'Fix the named files, or run with --no-analyze to skip this check.',
+          ],
+        );
+      });
+
+      test('more than 3 offenders per group cap with a +N more remainder',
+          () {
+        const out = '''
+Analyzing lib/...
+   warning - lib/a.dart:1:1 - W1. - l
+   warning - lib/b.dart:1:1 - W2. - l
+   warning - lib/c.dart:1:1 - W3. - l
+   warning - lib/d.dart:1:1 - W4. - l
+   warning - lib/e.dart:1:1 - W5. - l
+5 issues found.''';
+        final lines = BuildCommand.analyzeGateRemedyLines(out);
+        expect(
+          lines.first,
+          'hand-authored offending (not generator output): '
+          'lib/a.dart, lib/b.dart, lib/c.dart (+2 more)',
+        );
+      });
+
+      test('no parseable offenders fall back to the existing generator '
+          'remedy (the gate verdict stands, the message stays honest)', () {
+        const out = 'Analyzing lib/...\nNo issues found!';
+        expect(BuildCommand.analyzeGateRemedyLines(out), [
+          'Fix the generator or run with --no-analyze to skip this check.',
+        ]);
+      });
+    });
+
     group('verifyAnalyzeOrFail (issue #415 flag; issue #1035 severity gate)', () {
       test(
         'runs `dart analyze lib` without the rejected --fatal-infos=value '
