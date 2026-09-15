@@ -543,6 +543,60 @@ class CliRunner {
     }
   }
 
+  /// Separate cross-isolate lock serializing the PROCESS-GLOBAL
+  /// `dart:io exitCode` write spans of [runCapturing]: the hermetic reset
+  /// at dispatch, the dispatched-code snapshot after the runner returns,
+  /// and the final re-apply. `Directory.current` and `exitCode` fail in
+  /// the same way (issue #1096 family): `dart test` runs suites as
+  /// concurrent isolates of ONE VM while both are process-wide, and a
+  /// sibling dispatch's reset/re-apply landing between THIS dispatch's
+  /// command completion and its snapshot poisons the hermetic
+  /// `lastDispatchedExitCode` too — observed on the #1632 `-j4` lane as
+  /// an issue-1309 dispatch whose output showed a clean plan while the
+  /// snapshot read a sibling's refusal code. A separate file (not the
+  /// CWD lock) keeps these microsecond spans from queueing behind a
+  /// long `-C` window.
+  static File get _exitSpanLockFile =>
+      File(p.join(Directory.systemTemp.path, 'zfa_exit_lock_$pid.lock'));
+
+  /// Acquires the exit-span lock — same protocol as [_acquireCwdLock]
+  /// (exclusive-create, 30s stale-lock break, degraded mode).
+  static Future<void> _acquireExitSpanLock() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 30));
+    var lockBroken = false;
+    while (true) {
+      try {
+        _exitSpanLockFile.createSync(exclusive: true);
+        return;
+      } on FileSystemException {
+        final expired = DateTime.now().isAfter(deadline);
+        if (!expired) {
+          await Future<void>.delayed(const Duration(milliseconds: 2));
+          continue;
+        }
+        if (!lockBroken) {
+          lockBroken = true;
+          try {
+            _exitSpanLockFile.deleteSync();
+          } on FileSystemException {
+            // Unbreakable — degraded mode below.
+          }
+          continue;
+        }
+        return;
+      }
+    }
+  }
+
+  /// Releases the exit-span lock (best-effort, same as [_releaseCwdLock]).
+  static void _releaseExitSpanLock() {
+    try {
+      _exitSpanLockFile.deleteSync();
+    } on FileSystemException {
+      // Already gone (another waiter broke a stale lock).
+    }
+  }
+
   /// Returns [path] if it exists on disk, otherwise the nearest ancestor
   /// that does (falling back to the filesystem root). Used by the `-C`
   /// scope restore so a concurrently-deleted working directory cannot
@@ -641,7 +695,9 @@ class CliRunner {
     // later test that reads `exitCode`). The runner's own exit status
     // is preserved through the `_runDispatched` path, which uses its
     // own `_exit(exitCode)` to honor whatever the command set.
+    await _acquireExitSpanLock();
     exitCode = 0;
+    _releaseExitSpanLock();
     // Spec 1008: dart:io's exitCode is PROCESS-GLOBAL, not per-isolate —
     // `dart test` runs test files as concurrent isolates of one process,
     // so a sibling isolate's command finishing between this run's
@@ -700,7 +756,14 @@ class CliRunner {
             () async {
               try {
                 await _runner.run(args);
+                // The snapshot reads the SHARED global, so it happens in
+                // an exit span: a sibling dispatch's reset/re-apply
+                // landing in the gap between our command's own write and
+                // this read would poison `lastDispatchedExitCode` (the
+                // #1632 `-j4` lane's issue-1309 false exit-2).
+                await _acquireExitSpanLock();
                 dispatchedExitCode = exitCode;
+                _releaseExitSpanLock();
               } on UsageException catch (e) {
                 output.add('❌ ${e.message}');
                 output.add(e.usage);
@@ -733,11 +796,15 @@ class CliRunner {
       _active = false;
       // Re-apply this invocation's own exit code AFTER the teardown (the
       // CWD restore, the zone unwind) — the narrowest window a sibling
-      // isolate can clobber.
+      // isolate can clobber. The write itself is an exit span so sibling
+      // snapshots never observe a half-finished teardown (issue #1096
+      // family).
+      await _acquireExitSpanLock();
       exitCode = dispatchedExitCode;
       // The hermetic snapshot: per-isolate static, immune to the sibling
       // clobber the global re-apply above stays exposed to (bug #1107).
       lastDispatchedExitCode = dispatchedExitCode;
+      _releaseExitSpanLock();
     }
 
     return output.isEmpty ? '' : '${output.join('\n')}\n';
