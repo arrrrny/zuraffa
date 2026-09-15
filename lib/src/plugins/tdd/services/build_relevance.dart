@@ -65,6 +65,62 @@
 /// file) makes the pass necessary. [refactorBuildSkipNote] is that gate;
 /// its decision fails toward RUN on every unknown.
 ///
+/// Issue #1634 — the FIRST build. The marker-mtime relationship needs a
+/// marker, and a fresh app has none until its first build completes, so
+/// the #1624 gate's missing-marker fail-open paid the one-time
+/// build_runner entrypoint AOT compile (~4 min measured: `gen_snapshot`
+/// compiling an ~18.5 MB `build.dart.aot`) inside the FIRST refactor —
+/// exactly on the app state where skipping matters most, for features
+/// whose builders emit nothing. When there is no build_runner state at
+/// all (no `.dart_tool/build/` directory), the graph is only needed to
+/// reason about INCREMENTAL freshness — not about "nothing here can ever
+/// feed a builder" — so [refactorBuildSkipNote] decides STATICALLY from
+/// a source scan: any builder-facing annotation, any non-Dart source
+/// inside the walked roots, or any user-authored `build.yaml` at the
+/// project root runs the first build (creating the graph the incremental
+/// gate then uses); a tree with none of those skips it via
+/// [staticFirstBuildSkippedNote] and never pays the AOT compile. The
+/// other [buildConfigFiles] are deliberately not static triggers — they
+/// exist on every app, so their presence cannot discriminate "nothing
+/// builder-facing". Issue #1655 extends that same standard to setup's
+/// own `build.yaml`: `zfa setup`/`zfa init`/the `zfa build` guard write
+/// a byte-identical registration into every app they touch, so a
+/// PRISTINE generated build.yaml is as non-discriminating as its
+/// absence — only content that is not that template (user-authored,
+/// user-edited, or an older template's output) runs the first build.
+/// After a static
+/// skip there is still no state, so every later refactor re-enters the
+/// static scan until a real build creates the graph: self-consistent,
+/// and the build happens exactly when a builder-facing file appears. The
+/// cost of that re-scan is a full content read of every Dart file under
+/// the roots on each refactor (the incremental path reads mtimes only) —
+/// negligible for a fresh app, a per-refactor full-tree read for a large
+/// no-graph tree, and still orders of magnitude cheaper than the
+/// entrypoint AOT compile the skip avoids.
+///
+/// Issue #1637 — the config tier of that gate learns content hashing.
+/// The #1624 comparison is raw mtime, and a no-op config refresh beats
+/// it: the preflight suite's implicit `pub get` rewrites `pubspec.lock`
+/// and `.dart_tool/package_config.json` byte-identically AFTER the last
+/// real build, so on every refactor that follows a suite run the config
+/// files are "newer" than the marker and the ~26-31s build pass runs
+/// even though nothing builder-facing changed. The gate now keeps the
+/// mtime comparison as the cheap pre-filter and falls back — only for
+/// the config files inside the newer set — to a content digest compared
+/// against a gate-owned baseline,
+/// `.dart_tool/zfa/build_config_baseline.json`: the config digests plus
+/// the marker mtime observed when the gate last let the build run. The
+/// baseline is trusted only when the CURRENT marker is STRICTLY newer
+/// than the recorded one — the marker moves only when a build
+/// completes, so a trusted baseline means a completed build consumed
+/// exactly the recorded digests; a failed or never-spawned build leaves
+/// the record untrusted and the decision fails toward RUN. The digest
+/// is the [fingerprint] mechanism's own (`_digestOf` over
+/// [buildConfigFiles]), so fingerprint-derived and baseline digests are
+/// the same currency. The skip path never rewrites the baseline —
+/// recording with the current marker mtime would self-invalidate the
+/// record until the next build.
+///
 /// The price of having no "before" state is the deletion blind spot, and
 /// the gate does NOT pretend otherwise: [canSkipTerminalBuild] runs on any
 /// deletion (its rule 1), but a path removed since the last build is
@@ -74,17 +130,37 @@
 /// at 47, 0.9–2.3 MB on a real project) — to recover "outputs that should
 /// exist" is not worth the fragility on this path; [refactorBuildSkippedNote]
 /// states the blind spot instead of over-claiming, so the recorded
-/// evidence stays true. What bounds the blast radius is the absolute-green
-/// preflight: deleting a `part` file breaks compilation, so the refactor
-/// refuses before the passes run.
+/// evidence stays true. The static first-build decision has the mirrored
+/// honesty ([staticFirstBuildSkippedNote]): it proves what the CONTENT
+/// scan covered and nothing else — a tree whose generated outputs exist
+/// without `.dart_tool/` (copied without build state) and whose sources
+/// reference them un-annotated is outside its model. What bounds the blast
+/// radius in both cases is the absolute-green preflight: a missing `part`
+/// target breaks compilation, so the refactor refuses before the passes
+/// run.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../../core/dependencies/dependency_wirer.dart';
+
 class BuildRelevance {
   const BuildRelevance._();
+
+  /// The gate-owned config baseline for the refactor gate's config
+  /// tier (issue #1637), relative to the project root. Lives under
+  /// `.dart_tool/zfa/` — the repo's zfa-owned state area — so a `pub`
+  /// or build_runner cache wipe costs only one fail-safe build run,
+  /// never a wrong skip.
+  static const String _configBaselinePath =
+      '.dart_tool/zfa/build_config_baseline.json';
+
+  /// The baseline schema version. A record written by a different
+  /// schema is untrusted → run (fail-safe).
+  static const int _configBaselineVersion = 1;
 
   /// Build config files whose change always requires a build (builder
   /// registration, dependency graph, analyzer options, feature flags).
@@ -97,6 +173,26 @@ class BuildRelevance {
     '.zfa.json',
     '.dart_tool/package_config.json',
   };
+
+  /// The four source roots every tree walk covers: [fingerprint]'s
+  /// content hash, the refactor gate's incremental mtime walk, and the
+  /// #1634 static first-build scan. One constant, not three inline
+  /// literals (issue #1634 review): the static scan's SKIP is only sound
+  /// if it covers exactly what the incremental walk considers, so the
+  /// consumers must not be able to drift apart.
+  static const List<String> _walkedRoots = <String>[
+    'lib',
+    'test',
+    'bin',
+    'tool',
+  ];
+
+  /// The shared walk filter for [_walkedRoots]: files only, and never
+  /// `*.g.dart.part` (build_runner's transient pre-output, not a real
+  /// source). Returns the entity as a [File] so the callers' reads keep
+  /// the type promotion — the same idiom all three walks apply.
+  static File? _walkedSource(FileSystemEntity entity) =>
+      entity is File && !entity.path.endsWith('.g.dart.part') ? entity : null;
 
   /// The builder-facing annotations `zfa build`'s stages consume: the
   /// zorphy entity builder, json_serializable, the hive_ce generators,
@@ -132,13 +228,52 @@ class BuildRelevance {
   /// make gate's fingerprint diff can; [canSkipTerminalBuild] rule 1).
   static const String refactorBuildSkippedNote =
       'refactor build pass skipped: every file newer than the build_runner '
-      'asset graph is un-annotated plain Dart (issue #1624) — nothing '
-      'newer than that asset graph can feed a builder. A path DELETED since '
-      'that build is invisible to this gate (it has no pre-build '
-      'fingerprint to diff against), so the skip is not evidence that the '
+      'asset graph is un-annotated plain Dart, or a config file whose '
+      'bytes are identical to the digests the last completed build '
+      'consumed (issue #1637) — nothing newer than that asset graph can '
+      'feed a builder. A path DELETED since '
+      'that build is invisible to this gate (its content baseline covers '
+      'only config files; sources have no pre-build fingerprint to diff '
+      'against), so the skip is not evidence that the '
       'tree\'s generated outputs are all still on disk. The whole-project '
       '`dart analyze lib/` stage `zfa build` also runs was skipped with it, '
       'so these plain-Dart writes were not analyzer-graded.';
+
+  /// The skip note the refactor's `build` pass records when
+  /// [refactorBuildSkipNote] decides STATICALLY — build_runner has no
+  /// state in the project at all (no `.dart_tool/build/` directory) and
+  /// the source scan found nothing a first build could emit (issue
+  /// #1634). This is the note that spares a fresh app's FIRST refactor
+  /// the one-time build_runner entrypoint AOT compile (~4 min measured)
+  /// the #1624 gate could never skip: the gate used to fail open on the
+  /// missing marker, paying the full first build for features that
+  /// generate nothing.
+  ///
+  /// It claims what the static scan PROVES — no builder-facing
+  /// annotation, no non-Dart source inside the walked roots, and no
+  /// `build.yaml` at the project root (the only location build_runner
+  /// reads config from) — and states the boundaries
+  /// honestly: the skipped `zfa build`'s whole-project
+  /// `dart analyze lib/` stage was skipped with it (these plain-Dart
+  /// writes were not analyzer-graded), and a tree whose generated
+  /// outputs are present WITHOUT `.dart_tool/` (copied without build
+  /// state) and whose sources reference them un-annotated is outside
+  /// this scan's model — the absolute-green preflight bounds that case
+  /// (a missing `part` target breaks compilation before the passes
+  /// run), the same blast-radius bound the incremental note leans on.
+  static const String staticFirstBuildSkippedNote =
+      'refactor build pass skipped: build_runner has never run here (no '
+      '.dart_tool/build/ state) and the static source scan found nothing a '
+      'first build could emit — no builder-facing annotation, no non-Dart '
+      'source inside lib/test/bin/tool, and no user-authored build.yaml (a '
+      'build.yaml byte-identical to the one `zfa setup`/`zfa init`/the '
+      '`zfa build` guard generate is not user-authored — issues #1634 '
+      '#1655) — so the one-time '
+      'build_runner entrypoint AOT compile is not paid. If a builder-facing '
+      'file appears, the next refactor runs the first build and creates the '
+      'asset graph. The whole-project `dart analyze lib/` stage `zfa build` '
+      'also runs was skipped with it, so these plain-Dart writes were not '
+      'analyzer-graded.';
 
   /// Fingerprint the build-relevant tree: a content digest per file,
   /// keyed by project-relative POSIX paths. Covers the Dart source dirs
@@ -149,11 +284,28 @@ class BuildRelevance {
     required String projectRoot,
   }) async {
     final hashes = <String, String>{};
-    for (final dir in const ['lib', 'test', 'bin', 'tool']) {
+    for (final dir in _walkedRoots) {
       final directory = Directory(p.join(projectRoot, dir));
       if (!directory.existsSync()) continue;
       await _hashTree(directory, projectRoot, hashes);
     }
+    for (final config in buildConfigFiles) {
+      final file = File(p.join(projectRoot, config));
+      if (!file.existsSync()) continue;
+      hashes[config] = _digestOf(await file.readAsBytes());
+    }
+    return hashes;
+  }
+
+  /// Fingerprint ONLY the config tier: the [buildConfigFiles] digests,
+  /// keyed by their project-relative POSIX paths — the config slice of
+  /// [fingerprint], same `_digestOf` digest (issue #1637: the refactor
+  /// gate's digest fallback and this mechanism must speak one currency,
+  /// so the fallback reuses the mechanism instead of adding a hash).
+  static Future<Map<String, String>> configFingerprint({
+    required String projectRoot,
+  }) async {
+    final hashes = <String, String>{};
     for (final config in buildConfigFiles) {
       final file = File(p.join(projectRoot, config));
       if (!file.existsSync()) continue;
@@ -221,7 +373,8 @@ class BuildRelevance {
     }
   }
 
-  /// Issue #1624: the refactor `build` pass's scheduling gate.
+  /// Issue #1624: the refactor `build` pass's scheduling gate; issue
+  /// #1634: the FIRST-build decision is no longer a blanket fail-open.
   ///
   /// Non-null = a skip note (the pass is recorded as a synthetic skipped
   /// action and never spawned); null = run the build. The refactor did
@@ -229,16 +382,61 @@ class BuildRelevance {
   /// against — the gate instead compares the tree against build_runner's
   /// own state marker, `.dart_tool/build/asset_graph.json`:
   ///
-  ///   1. Marker missing → run (the project has never been built here;
-  ///      nothing proves an existing asset graph).
-  ///   2. Collect every file under `lib/`, `test/`, `bin/`, `tool/`
+  ///   1. Marker missing AND `.dart_tool/build/` absent (issue #1634) →
+  ///      decide STATICALLY from a source scan, without consulting any
+  ///      graph (see [staticFirstBuildSkippedNote]):
+  ///      1a. Any non-Dart file under `lib/`, `test/`, `bin/`, `tool/`
+  ///          (slang translation sources, assets) → run.
+  ///      1b. Any `.dart` file whose RAW content matches
+  ///          [builderFacingAnnotation] (comments count) → run.
+  ///      1c. Any `build.yaml` at the project root whose content is NOT
+  ///          the pristine generated registration (issue #1655:
+  ///          [DependencyWirer.buildYamlContent], which `zfa setup`,
+  ///          `zfa init`, and `zfa build`'s guard write byte-for-byte —
+  ///          a pristine one ships to every app they create and so
+  ///          cannot discriminate, while its builders have nothing to
+  ///          feed on before the first annotated source exists;
+  ///          user-authored, user-edited, or older-template content
+  ///          still means a builder was configured or `.dart_tool` was
+  ///          cleaned) → run.
+  ///      1d. Otherwise → skip statically. The other [buildConfigFiles]
+  ///          are deliberately NOT triggers: they exist on EVERY app
+  ///          (fresh or not), so their mere presence cannot
+  ///          discriminate "nothing builder-facing" and would disable
+  ///          the static skip forever — re-creating the #1634 cost.
+  ///   2. Marker missing but `.dart_tool/build/` present (a mid-build
+  ///      or partially cleaned state) → run (unknown — fail toward RUN).
+  ///   3. Collect every file under `lib/`, `test/`, `bin/`, `tool/`
   ///      (skipping `*.g.dart.part`) plus [buildConfigFiles] whose mtime
   ///      is NOT before the marker's — the conservative `>=` direction.
-  ///   3. No such file → skip (nothing has been written since the last
+  ///      This mtime comparison stays the cheap pre-filter (issue #1637).
+  ///   4. No such file → skip (nothing has been written since the last
   ///      build).
-  ///   4. Any such file that is a config file, is not `.dart`, or whose
-  ///      RAW content matches [builderFacingAnnotation] → run.
-  ///   5. Otherwise (every newer file is un-annotated plain Dart) → skip.
+  ///   5. CONFIG TIER (issue #1637): every newer config file falls back
+  ///      from mtime to a content digest, compared against the
+  ///      gate-owned baseline (`.dart_tool/zfa/build_config_baseline.json`):
+  ///        5a. baseline missing / corrupt / unknown version / whose
+  ///            recorded marker mtime is not STRICTLY older than the
+  ///            current marker → untrusted → run (fail-safe), and
+  ///            record a fresh baseline of the current config digests
+  ///            so the next completed build validates them;
+  ///        5b. trusted baseline + every newer config's digest matches
+  ///            → the tier is CLEARED (a byte-identical refresh — the
+  ///            implicit `pub get` case — cannot feed a builder);
+  ///        5c. trusted baseline + any digest mismatch → run (a real
+  ///            config change), and record a fresh baseline.
+  ///   6. Any remaining newer file that is not `.dart`, or whose RAW
+  ///      content matches [builderFacingAnnotation] → run.
+  ///   7. Otherwise (every newer file is un-annotated plain Dart or a
+  ///      cleared config) → skip.
+  ///
+  /// The baseline records the config digests TOGETHER WITH the marker
+  /// mtime observed at record time, and is trusted only when the current
+  /// marker is strictly newer: the marker moves only when a build
+  /// completes, so validity proves a completed build consumed exactly
+  /// the recorded digests. The skip path NEVER rewrites the baseline —
+  /// recording with the current marker mtime would self-invalidate the
+  /// record until the next build.
   ///
   /// Every filesystem/read error → null (run): a hiccup must never
   /// fabricate a skip, exactly like [shouldSkipTerminalBuild].
@@ -249,19 +447,32 @@ class BuildRelevance {
       final marker = File(
         p.join(projectRoot, '.dart_tool', 'build', 'asset_graph.json'),
       );
-      if (!marker.existsSync()) return null;
+      if (!marker.existsSync()) {
+        // Issue #1634: no build_runner state at all — the graph is only
+        // needed to reason about INCREMENTAL freshness, not about
+        // "nothing here can ever feed a builder". Decide statically.
+        final buildDir = Directory(p.join(projectRoot, '.dart_tool', 'build'));
+        if (!buildDir.existsSync()) {
+          // `await` is LOAD-BEARING: a bare `return future` would hand the
+          // static scan's error straight to the caller — bypassing this
+          // catch — and a decode hiccup would abort the refactor instead
+          // of failing the decision toward RUN (issue #1634 S6).
+          return await _staticFirstBuildSkipNote(projectRoot: projectRoot);
+        }
+        return null;
+      }
       final markerModified = marker.statSync().modified;
 
       final newer = <String>[];
-      for (final dir in const ['lib', 'test', 'bin', 'tool']) {
+      for (final dir in _walkedRoots) {
         final directory = Directory(p.join(projectRoot, dir));
         if (!directory.existsSync()) continue;
         await for (final entity in directory.list(recursive: true)) {
-          if (entity is! File) continue;
-          if (entity.path.endsWith('.g.dart.part')) continue;
-          if (entity.statSync().modified.isBefore(markerModified)) continue;
+          final file = _walkedSource(entity);
+          if (file == null) continue;
+          if (file.statSync().modified.isBefore(markerModified)) continue;
           newer.add(
-            p.relative(entity.path, from: projectRoot).replaceAll(r'\', '/'),
+            p.relative(file.path, from: projectRoot).replaceAll(r'\', '/'),
           );
         }
       }
@@ -273,8 +484,44 @@ class BuildRelevance {
       }
       if (newer.isEmpty) return refactorBuildSkippedNote;
 
+      // Issue #1637: the config tier — the mtime pre-filter above says
+      // "maybe changed"; the digest fallback against the baseline says
+      // "actually changed" (run) or "byte-identical refresh" (clear).
+      final newerConfigs = newer
+          .where(buildConfigFiles.contains)
+          .toList(growable: false);
+      if (newerConfigs.isNotEmpty) {
+        final baseline = _loadConfigBaseline(projectRoot, markerModified);
+        if (baseline == null) {
+          // Missing, corrupt, or never validated by a completed build —
+          // fail toward RUN and record the digests the upcoming build
+          // will consume.
+          await _recordConfigBaseline(projectRoot, markerModified);
+          return null;
+        }
+        final digests = await configFingerprint(projectRoot: projectRoot);
+        var cleared = true;
+        for (final path in newerConfigs) {
+          final current = digests[path];
+          final recorded = baseline[path];
+          // A config that vanished between the walk and the hash, or a
+          // key the baseline never saw, is a mismatch — never a skip.
+          if (current == null || recorded != current) {
+            cleared = false;
+            break;
+          }
+        }
+        if (!cleared) {
+          await _recordConfigBaseline(projectRoot, markerModified);
+          return null;
+        }
+        // Cleared: the newer configs are byte-identical to the digests
+        // the last completed build consumed. Fall through to the
+        // non-config shapes — the skip note at the bottom claims this.
+      }
+
       for (final path in newer) {
-        if (buildConfigFiles.contains(path)) return null;
+        if (buildConfigFiles.contains(path)) continue;
         if (!path.endsWith('.dart')) return null;
         if (builderFacingAnnotation.hasMatch(
           await File(p.join(projectRoot, path)).readAsString(),
@@ -290,18 +537,139 @@ class BuildRelevance {
     }
   }
 
+  /// The gate-owned baseline for the config tier (issue #1637),
+  /// `.dart_tool/zfa/build_config_baseline.json`: the config digests
+  /// plus the marker mtime observed at record time. Returns the recorded
+  /// digest map ONLY when the record is parseable, is the current
+  /// version, and its marker mtime is STRICTLY older than the current
+  /// marker's (a completed build moved the marker after the digests were
+  /// current — a failed or never-spawned build never validates the
+  /// record). Every read/parse error → null (untrusted → run).
+  static Map<String, String>? _loadConfigBaseline(
+    String projectRoot,
+    DateTime markerModified,
+  ) {
+    try {
+      final file = File(p.join(projectRoot, _configBaselinePath));
+      if (!file.existsSync()) return null;
+      final decoded = jsonDecode(file.readAsStringSync());
+      if (decoded is! Map) return null;
+      if (decoded['version'] != _configBaselineVersion) return null;
+      final markerMillis = decoded['markerMtimeMillis'];
+      final digests = decoded['digests'];
+      if (markerMillis is! int || digests is! Map) return null;
+      // STRICTLY older: the record's marker must be a build that
+      // COMPLETED before now — equality means no build ran since the
+      // digests were recorded, so nothing consumed them yet.
+      if (!(markerMillis < markerModified.millisecondsSinceEpoch)) {
+        return null;
+      }
+      final result = <String, String>{};
+      for (final entry in digests.entries) {
+        if (entry.key is! String || entry.value is! String) return null;
+        result[entry.key as String] = entry.value as String;
+      }
+      return result;
+    } catch (_) {
+      // Torn write, garbage bytes, unreadable file — untrusted → run.
+      return null;
+    }
+  }
+
+  /// Best-effort baseline recording: the current config digests plus the
+  /// PRE-build marker mtime. Written only when the gate decides the
+  /// build must RUN because of a config file, so the marker a
+  /// successfully completing build writes afterwards is strictly newer
+  /// and validates the record. Never throws — a failed record costs one
+  /// extra fail-safe build later, never a wrong skip.
+  static Future<void> _recordConfigBaseline(
+    String projectRoot,
+    DateTime markerModified,
+  ) async {
+    try {
+      final digests = await configFingerprint(projectRoot: projectRoot);
+      final file = File(p.join(projectRoot, _configBaselinePath));
+      await file.parent.create(recursive: true);
+      await file.writeAsString(
+        const JsonEncoder.withIndent('  ').convert({
+          'version': _configBaselineVersion,
+          'markerMtimeMillis': markerModified.millisecondsSinceEpoch,
+          'digests': digests,
+        }),
+      );
+    } catch (_) {
+      // Best effort: the next decision fails toward RUN without it.
+    }
+  }
+
+  /// Issue #1634: the static first-build decision — a source scan of the
+  /// build-relevant trees with NO graph consulted (there is none). The
+  /// walk mirrors the incremental one (same roots, same `*.g.dart.part`
+  /// skip) but reads CONTENT instead of mtimes: any non-Dart file or any
+  /// [builderFacingAnnotation] match runs the build; any `build.yaml` at
+  /// the project root that is NOT the pristine generated template runs it
+  /// too (issue #1655 — see [_isPristineGeneratedBuildYaml]). All errors
+  /// propagate to the caller's catch — the decision fails toward RUN,
+  /// never fabricates a skip.
+  static Future<String?> _staticFirstBuildSkipNote({
+    required String projectRoot,
+  }) async {
+    final buildYaml = File(p.join(projectRoot, 'build.yaml'));
+    if (buildYaml.existsSync()) {
+      // Issue #1655: EXISTENCE alone is the one #1634 trigger whose
+      // precondition `zfa setup` itself defeats — setup writes build.yaml
+      // as a standard step, so on every setup-created app this branch used
+      // to return null (run) before the scan, making the static skip dead
+      // code exactly where it matters most (fresh app, zero annotated
+      // files). Read the content: a pristine generated registration has
+      // nothing to feed on and falls through to the scan; anything else is
+      // user-owned and runs. A read/decode error THROWS out of here — the
+      // caller's catch fails the decision toward RUN.
+      final content = await buildYaml.readAsString();
+      if (!_isPristineGeneratedBuildYaml(content)) return null;
+    }
+    for (final dir in _walkedRoots) {
+      final directory = Directory(p.join(projectRoot, dir));
+      if (!directory.existsSync()) continue;
+      await for (final entity in directory.list(recursive: true)) {
+        final file = _walkedSource(entity);
+        if (file == null) continue;
+        if (!file.path.endsWith('.dart')) return null;
+        if (builderFacingAnnotation.hasMatch(await file.readAsString())) {
+          return null;
+        }
+      }
+    }
+    return staticFirstBuildSkippedNote;
+  }
+
+  /// Issue #1655: a build.yaml is NON-DISCRIMINATING for the static
+  /// first-build decision only when it is byte-identical to
+  /// [DependencyWirer.buildYamlContent] — the single template `zfa setup`,
+  /// `zfa init`, and the `zfa build` guard (`BuildYamlGuard.scaffold`)
+  /// write, i.e. marker-bearing (`# zfa:generated` header) AND unmodified.
+  /// Existence alone cannot discriminate "nothing builder-facing": setup
+  /// ships the file to every app it creates, the same standard the #1634
+  /// doc applies to the other every-app config files. Anything else —
+  /// user-authored, user-edited (a single byte), or written by an older
+  /// CLI whose template differed — is user-owned and keeps the #1634
+  /// behavior: run the first build. The exact match is deliberately
+  /// strict: the skip is an optimization, the run is always sound.
+  static bool _isPristineGeneratedBuildYaml(String content) =>
+      content == DependencyWirer.buildYamlContent;
+
   static Future<void> _hashTree(
     Directory directory,
     String projectRoot,
     Map<String, String> hashes,
   ) async {
     await for (final entity in directory.list(recursive: true)) {
-      if (entity is! File) continue;
-      if (entity.path.endsWith('.g.dart.part')) continue;
+      final file = _walkedSource(entity);
+      if (file == null) continue;
       final relative = p
-          .relative(entity.path, from: projectRoot)
+          .relative(file.path, from: projectRoot)
           .replaceAll(r'\', '/');
-      hashes[relative] = _digestOf(await entity.readAsBytes());
+      hashes[relative] = _digestOf(await file.readAsBytes());
     }
   }
 

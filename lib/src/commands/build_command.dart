@@ -787,7 +787,7 @@ class BuildCommand extends Command {
         '\n❌ dart analyze reported ${counts.errors} error(s) and '
         '${counts.warnings} warning(s) — generated code does not compile '
         'cleanly.\n'
-        '   Fix the generator or run with --no-analyze to skip this check.',
+        '${analyzeGateRemedyLines(stdout).map((l) => '   $l').join('\n')}',
       );
       return false;
     }
@@ -839,6 +839,79 @@ class BuildCommand extends Command {
   /// the parser can be verified without spawning `dart analyze`.
   static bool analyzeReportsError(String analyzeOutput) =>
       countAnalyzerIssues(analyzeOutput).errors > 0;
+
+  /// The offending file paths in [analyzeOutput] (issue #1412) — the
+  /// `path:line:col` field of every ERROR- or WARNING-severity line in the
+  /// #1035 single line format:
+  ///   `   error - path:line:col - message - code`
+  /// deduplicated in first-seen order. Info-level lints are style, never
+  /// ownership evidence (issue #1035), and severity words inside messages
+  /// or the summary line can never fabricate an offender (the same
+  /// line-anchored discipline as [countAnalyzerIssues]). Exposed for unit
+  /// testing so the extractor can be verified without spawning
+  /// `dart analyze`.
+  @visibleForTesting
+  static List<String> analyzerOffendingPaths(String analyzeOutput) {
+    final re = RegExp(r'^\s*(?:error|warning)\s*-\s*(.+?):\d+:\d+\s*-\s');
+    final seen = <String>{};
+    for (final line in analyzeOutput.split('\n')) {
+      final match = re.firstMatch(line);
+      if (match == null) continue;
+      final path = match.group(1)!;
+      seen.add(path);
+    }
+    return seen.toList();
+  }
+
+  /// Whether [path] is generator output — the generated-name suffixes the
+  /// build command itself owns (`.zorphy.dart` / `.g.dart`; the same
+  /// convention the zorphy-annotation scan uses). Anything else is
+  /// hand-authored.
+  static bool _isGeneratedPath(String path) =>
+      path.endsWith('.zorphy.dart') || path.endsWith('.g.dart');
+
+  /// The analyze gate's ownership-aware remedy lines (issue #1412): the
+  /// gate's verdict (the count line above) is a read contract of the
+  /// #1407/#1472 readers and never changes, but the remedy under it must
+  /// follow the offenders' OWNERSHIP — "Fix the generator" misdirects the
+  /// operator when the warnings are in hand-authored files.
+  ///
+  /// Returns one of:
+  ///
+  ///   - all offenders generated (or none parseable — the verdict stands,
+  ///     the remedy stays honest): the existing single line
+  ///     `Fix the generator or run with --no-analyze to skip this check.`
+  ///   - any hand-authored offender: a `generator output offending:` line
+  ///     (when generated offenders exist), a `hand-authored offending
+  ///     (not generator output):` line naming the files (capped at 3 with
+  ///     a `+N more` remainder), and `Fix the named files, ...`.
+  ///
+  /// Pure and `@visibleForTesting` — unit-testable without spawning
+  /// `dart analyze` (the same convention as [countAnalyzerIssues]).
+  @visibleForTesting
+  static List<String> analyzeGateRemedyLines(String analyzeOutput) {
+    const cap = 3;
+    String capped(List<String> paths) {
+      final named = paths.take(cap).join(', ');
+      final remainder = paths.length - cap;
+      return remainder > 0 ? '$named (+$remainder more)' : named;
+    }
+
+    final offenders = analyzerOffendingPaths(analyzeOutput);
+    final generated = offenders.where(_isGeneratedPath).toList();
+    final handAuthored = offenders.where((f) => !_isGeneratedPath(f)).toList();
+    if (handAuthored.isEmpty) {
+      return ['Fix the generator or run with --no-analyze to skip this check.'];
+    }
+    return [
+      if (generated.isNotEmpty)
+        'generator output offending (.g.dart/.zorphy.dart): '
+            '${capped(generated)}',
+      'hand-authored offending (not generator output): '
+          '${capped(handAuthored)}',
+      'Fix the named files, or run with --no-analyze to skip this check.',
+    ];
+  }
 
   /// Counts the `error -` severity lines in [analyzeOutput] — the same
   /// line format [analyzeReportsError] matches (see its doc). For

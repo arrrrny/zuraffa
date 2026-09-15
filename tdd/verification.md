@@ -1,100 +1,122 @@
-# tdd.verify — Bug #1626 acceptance vacuous-green refusal names the hand step
+# tdd.verify — Bug #1655 the static first-build skip is unreachable for zfa setup-created apps
 
-- **Verified**: 2026-09-14, this session, on
-  `fix/1626-acceptance-vacuous-remedy` (working tree, pre-push)
-- **Toolchain**: Dart 3.13.3 (stable) on linux_x64
-- **Scope**: `lib/src/plugins/tdd/services/vacuous_guard.dart`,
-  `lib/src/plugins/tdd/commands/make_command.dart`,
-  `lib/src/plugins/tdd/commands/run_driver_core.dart`, and the suites
-  `test/plugins/tdd/bug_1626_acceptance_vacuous_remedy_test.dart` (new),
-  `test/plugins/tdd/bug_1626_acceptance_remedy_driver_test.dart` (new),
-  `test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart` (re-pointed).
+- **Verified**: 2026-09-15, this session, on
+  `fix/1655-setup-build-yaml-static-skip-unreachable` (working tree, pre-push)
+- **Toolchain**: Dart 3.13.4 (stable) on linux_x64 (the task's "Dart 3.13+"
+  floor; the repo pins `sdk: ^3.11.0`)
+- **Scope**: `lib/src/plugins/tdd/services/build_relevance.dart` (the static
+  first-build trigger + docs + skip note), `lib/src/core/dependencies/
+  dependency_wirer.dart` (template provenance header — doc + string const,
+  no executable-code change), the new #1655 tests in
+  `test/plugins/tdd/services/build_relevance_test.dart`, and the marker pin
+  in `test/core/dependencies/dependency_wirer_test.dart`.
 
 ## Verdict: PASS
 
 ## 1. Static analysis
 
 ```
-dart analyze <3 changed lib files + 3 test files>
+dart analyze lib/src/plugins/tdd/services/build_relevance.dart
+             lib/src/core/dependencies/dependency_wirer.dart
+             test/plugins/tdd/services/build_relevance_test.dart
+             test/core/dependencies/dependency_wirer_test.dart
 → No issues found!          (re-checked after dart format)
 
 dart analyze            (whole repo)
-→ 111 issues found      (all `info`)
-→ errors/warnings: 0
+→ 106 issues found      (0 errors, 0 warnings — all `info`)
 ```
 
-Zero findings from the changed/new files; the whole-repo info count is the
-pre-existing baseline drift, not this change.
+Zero findings from the changed/new files; the whole-repo count is the
+pre-existing info-level baseline drift (106 here, same order as the 106 the
+#1636 verification recorded), not this change.
 
-## 2. The bug suites (REAL runs in this session)
+## 2. TDD discipline (REAL runs in this session)
 
-```
-dart test test/plugins/tdd/bug_1626_acceptance_vacuous_remedy_test.dart
-→ 00:01 +4: All tests passed!
-
-dart test --preset=all test/plugins/tdd/bug_1626_acceptance_remedy_driver_test.dart
-→ 00:13 +2: All tests passed!
-
-dart test --preset=all test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart
-→ 00:21 +5: All tests passed!
-```
-
-Total: 11 passed, 0 failed, across the fast tier and the slow driver tier.
-Red evidence for the SAME suites (pre-fix) is preserved verbatim in
-`.specify/bugs/1626-acceptance-vacuous-remedy/red-evidence.md`.
-
-## 3. Format gate
+- RED, pre-fix (verbatim in `.specify/bugs/1655-setup-build-yaml-static-
+  skip-unreachable/red-evidence.md`):
 
 ```
-dart format --output=none --set-exit-if-changed .
-→ Formatted 2861 files (0 changed)   exit 0
+dart test test/plugins/tdd/services/build_relevance_test.dart
+→ 00:00 +30 -1: Some tests failed.
+  U-1655-b1 Expected: 'refactor build pass skipped: build_runner has never
+     run here …' (staticFirstBuildSkippedNote)
+     Actual:   <null>        ← the gate ran the first build on a pristine
+                               zfa setup build.yaml: the issue's bug
 ```
 
-## 4. REQUIRED checks — the issue's success criteria PROVED by real runs
+- GREEN, post-fix:
 
-- **Criterion 1 (the refusal distinguishes acceptance from unit rows)**:
-  the acceptance refusal prints the hand-step vocabulary and the unit refusal
-  prints the pre-existing lane wording in the SAME session (U-1626-a1 vs
-  U-1626-a3), with `isNot` guards pinning no cross-lane leakage both ways.
-- **Criterion 2 (the hand step is named)**: the refusal asserts all four
-  elements — "write an assertion on the observable outcome OUTSIDE the
-  capture", "implement the scenario runner in", the verbatim attestation
-  header `// zfa:tdd: A1:hand — hand step completed before first red
-  certification (issue #1411)` (via `handStepHeader(id)`), and
-  "`zfa tdd make A1 --born-green`" — at the make surface (U-1626-a1;
-  #1488 A1/A4) AND on the real RunDriverCore stop transcript (U-1626-d1,
-  fake-zfa scripted `zfa tdd run`).
-- **Criterion 3 (unit/fallback rows keep the traces wording)**: U-1626-d2
-  pins the exact #1483 stop line (`hand-edit the test list
-  (specs/<feature>/tdd/test-list.md) traces cell`); U-1626-a3 pins the make
-  unit-lane wording; the untouched #1483 shape + driver suites, #1308,
-  #1320 (U8) and #1518 (seam + forward-driver) suites all pass.
-- **Criterion 4 (both paths in the refusal)**: the make surface asserts the
-  registry-recorded paths (`test/a1_test.dart`, `lib/a1_subject.dart`,
-  gen-recorded `lib/tdd/090-tdd-fixture/a_1488_subject.dart` in A4); the
-  driver surface asserts the namespaced test path and the conventional
-  subject fallback (`lib/tdd/<feature>/a1_subject.dart`) when no registry
-  record exists. Both resolution modes are pinned by real runs.
+```
+dart test test/plugins/tdd/services/build_relevance_test.dart
+→ 00:00 +31: All tests passed!
+```
 
-## 5. Machine-contract preservation (real assertions, not inspection)
+The fix was applied only after the repro test was proven red; no test was
+edited to make it pass retroactively. U-1655-b2/b3/b4/b5 (the guard tests)
+passed both pre- and post-fix, proving the fix did not need them loosened.
 
-- `stopped_at=A1:make` preserved for the acceptance stop — asserted
-  positively AND `isNot(stopped_at=A1:hand)` (U-1626-d1).
-- No green evidence for a refused vacuous green (#1488 A1 asserts the
-  cycle-log stays clean).
-- The #1488 gate scope, the #1512 marker-absence discipline, the #1411
-  born-green mechanics and the #1308 marker discrimination are untouched —
-  pinned green by the UNMODIFIED assertions in the #1488 suite (A2/A3/U1),
-  bug_1259_vacuous_green_test.dart, and the #1483/#1518 suites.
+## 3. Regression suites (REAL runs in this session)
 
-## 6. Unrelated pre-existing failure (flagged, NOT introduced here)
+```
+dart test test/plugins/tdd/services/ test/core/dependencies/
+→ 01:40 +1151: All tests passed!
+   (includes refactor_passes_test.dart — the #1624/#1634 build-gate suites
+   asserting staticFirstBuildSkippedNote — every step_runner/neighbor
+   suite, and the dependency_wirer/build_yaml_guard/preflight suites)
 
-`test/plugins/tdd/make_command_1036_test.dart` — A-1036a fails `+4 -1`
-identically on the CLEAN tree (verified via `git stash` round-trip); the
-fixture has no test list, so the vacuous-green arm this fix touches is never
-reached — pipeline-behavior drift outside this bug's surfaces.
+dart test test/core/dependencies/dependency_wirer_test.dart
+          test/commands/build_yaml_guard_test.dart
+          test/commands/builder_dependency_preflight_test.dart
+          test/plugins/tdd/services/refactor_passes_test.dart
+→ 00:05 +45: All tests passed!
+   (the three template consumers: setup's writer, the build guard, the
+   YAML-parsing preflight — header addition proven safe for the parser)
 
-## 7. Housekeeping
+dart test test/commands/build_command_unit_test.dart --preset=all
+→ 00:19 +48: All tests passed!
+   (slow tier — the build command writes the template; byte-identity
+   between guard scaffold and const still holds)
 
-Dart-test kernel caches cleaned before/after phases; peak disk ~14% of a
-9.9G volume.
+dart test test/commands/
+→ 06:11 +401: All tests passed!
+```
+
+Chunk/cache hygiene: `.dart_tool/test/` and `/tmp/dart_test.kernel.*` were
+cleaned before and after the runs; disk stayed >80% free throughout.
+
+## 4. Acceptance criteria audit (issue #1655)
+
+1. **Fresh app's first refactor skips the build pass when no annotated
+   files exist (even with build.yaml present)** — PROVED at the gate level:
+   U-1655-b1 red pre-fix, green post-fix. The fixture is the reported app
+   shape: setup's byte-exact build.yaml + plain Dart under lib/test, no
+   `.dart_tool/build/`, zero annotations. Not proven by running a real
+   `zfa tdd refactor` end-to-end (the fast-tier convention this repo pins
+   for cloud agents; the gate IS the decision the refactor consults, via
+   the unchanged binding refactor_passes_test.dart exercises).
+2. **User-authored build.yaml still forces the build** — PROVED two ways:
+   the pre-existing #1634 user-authored test (custom content) and the new
+   MODIFIED-template test (single-byte divergence → run). Exact content
+   match is deliberately strict; the skip is an optimization, the run is
+   always sound.
+3. **Entrypoint AOT compile eliminated or paid during setup** — PROVED for
+   the static-skip half: with the note returned, the refactor records a
+   synthetic skipped build action and never spawns `zfa build`, so
+   `dart compile aot-snapshot` of build.dart is not reached on this path.
+   (Not re-timed end-to-end; the #1634/#1655 measurements quantify the ~4
+   min cost being avoided.)
+4. **Existing incremental freshness logic unchanged** — PROVED by diff and
+   by tests: zero hunks touch the marker-mtime path (rules 2–6), the
+   asset-graph reader, or the build pass; the entire pre-existing #1624 /
+   #1634 incremental suite ran green unchanged, and
+   `staticFirstBuildSkippedNote`/`refactorBuildSkippedNote` are consumed by
+   const reference (the #1655 note-text update flows through without
+   behavior change).
+
+## 5. Verdict
+
+PASS — the bug is fixed at the gate level with red→green evidence, the
+provenance contract between the template writer and the static skip is
+pinned on both sides, the user-authored/user-edited run-direction is
+pinned, and every touched package's fast tier (1552 tests total across the
+sweeps) ran green in this session.

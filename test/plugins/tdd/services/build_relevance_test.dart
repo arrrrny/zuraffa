@@ -9,10 +9,12 @@
 // else keeps the build running exactly as before.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/core/dependencies/dependency_wirer.dart';
 import 'package:zuraffa/src/plugins/tdd/services/build_relevance.dart';
 
 void main() {
@@ -268,12 +270,211 @@ void main() {
       File(p.join(root.path, 'lib', name)).writeAsStringSync(content);
     }
 
-    test('a missing marker runs the build — the project has never been '
-        'built here', () async {
+    // Issue #1634: a MISSING marker is no longer a blanket fail-open.
+    // The old #1624 test asserted exactly that fail-open ("a missing
+    // marker runs the build — the project has never been built here");
+    // the fresh-app static decision below replaces it: when
+    // `.dart_tool/build/` does not exist at all, the gate decides
+    // STATICALLY from a source scan, and only a builder-facing signal
+    // (annotation, non-Dart source in a root, build.yaml) runs the
+    // build. The `writeMarker`-based incremental tests further below
+    // are byte-identical to #1624 — the first-build decision is the
+    // only thing this issue changes.
+
+    test('a fresh app with nothing builder-facing skips the first build '
+        'statically (issue #1634)', () async {
+      writeLibFile('a.dart', 'int a() => 1;\n');
+      Directory(p.join(root.path, 'test')).createSync(recursive: true);
+      File(
+        p.join(root.path, 'test', 'a_test.dart'),
+      ).writeAsStringSync('void main() {}\n');
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        BuildRelevance.staticFirstBuildSkippedNote,
+      );
+    });
+
+    test('a fresh app with a builder-facing annotation runs the first '
+        'build (issue #1634)', () async {
+      writeLibFile('user.dart', '@JsonSerializable\nclass User {}\n');
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
+    test('a fresh app with a non-Dart source in a walked root runs the '
+        'first build (issue #1634)', () async {
+      Directory(p.join(root.path, 'lib', 'i18n')).createSync(recursive: true);
+      File(
+        p.join(root.path, 'lib', 'i18n', 'strings.i18n.json'),
+      ).writeAsStringSync('{"title": "hi"}\n');
       writeLibFile('a.dart', 'int a() => 1;\n');
       expect(
         await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
         isNull,
+      );
+    });
+
+    // Issue #1634 review (finding 4): the tests above place their
+    // fixtures only under `lib/`, so a typo'd walked-root entry would
+    // ship green. Every root must independently fire BOTH static run
+    // triggers; each fixture is removed before the next iteration so the
+    // roots stay isolated. The root list here is deliberately its own
+    // literal — an independent audit of the production constant, not a
+    // copy of it.
+    test('every walked root independently fires the static triggers '
+        '(non-Dart + annotation — issue #1634 review)', () async {
+      const triggers = <String, Map<String, String>>{
+        'non-Dart source': {'i18n/strings.i18n.json': '{"title": "hi"}\n'},
+        'builder-facing annotation': {'a.dart': '@Zorphy\nclass A {}\n'},
+      };
+      for (final walked in const ['lib', 'test', 'bin', 'tool']) {
+        for (final trigger in triggers.entries) {
+          for (final fixture in trigger.value.entries) {
+            final file = File(p.join(root.path, walked, fixture.key))
+              ..createSync(recursive: true)
+              ..writeAsStringSync(fixture.value);
+            expect(
+              await BuildRelevance.refactorBuildSkipNote(
+                projectRoot: root.path,
+              ),
+              isNull,
+              reason:
+                  'a ${trigger.key} under $walked/ must run the first '
+                  'build',
+            );
+            file.deleteSync();
+          }
+        }
+      }
+    });
+
+    // Issue #1655: this is the USER-AUTHORED shape — its content is not
+    // anything `zfa setup`/`zfa init`/the `zfa build` guard writes — so it
+    // must keep forcing the first build after the #1655 provenance check.
+    test('a fresh app with a build.yaml at the root runs the first build '
+        '(issue #1634)', () async {
+      writeLibFile('a.dart', 'int a() => 1;\n');
+      File(
+        p.join(root.path, 'build.yaml'),
+      ).writeAsStringSync('targets:\n  \$default:\n    builders:\n');
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
+    // Issue #1655: `zfa setup` writes `build.yaml` (byte-identical to
+    // `DependencyWirer.buildYamlContent`) as part of creating the app, so
+    // the #1634 build.yaml-EXISTS trigger is dead code on every
+    // setup-created app — the exact fresh-app TDD shape (spec-driven, zero
+    // annotated files) the static skip exists for. A PRISTINE generated
+    // build.yaml is non-discriminating exactly like the other every-app
+    // config files; the static scan (non-Dart sources, annotations) still
+    // governs.
+    test('a fresh app with the pristine zfa setup build.yaml skips the '
+        'first build statically (issue #1655 — the reported bug)', () async {
+      writeLibFile('a.dart', 'int a() => 1;\n');
+      Directory(p.join(root.path, 'test')).createSync(recursive: true);
+      File(
+        p.join(root.path, 'test', 'a_test.dart'),
+      ).writeAsStringSync('void main() {}\n');
+      File(
+        p.join(root.path, 'build.yaml'),
+      ).writeAsStringSync(DependencyWirer.buildYamlContent);
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        BuildRelevance.staticFirstBuildSkippedNote,
+        reason:
+            'a build.yaml byte-identical to the zfa setup template cannot '
+            'discriminate "nothing builder-facing" — the static scan decides',
+      );
+    });
+
+    test(
+      'the pristine setup build.yaml PLUS a builder-facing annotation '
+      'still runs the first build (issue #1655 — the scan still governs)',
+      () async {
+        writeLibFile('user.dart', '@Zorphy\nclass User {}\n');
+        File(
+          p.join(root.path, 'build.yaml'),
+        ).writeAsStringSync(DependencyWirer.buildYamlContent);
+        expect(
+          await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+          isNull,
+        );
+      },
+    );
+
+    test('a MODIFIED setup-generated build.yaml runs the first build '
+        '(issue #1655 — criterion 2: user-edited still forces)', () async {
+      writeLibFile('a.dart', 'int a() => 1;\n');
+      File(p.join(root.path, 'build.yaml')).writeAsStringSync(
+        '${DependencyWirer.buildYamlContent}\n'
+        '# user: added a custom builder below\n'
+        'custom_builder:\n  enabled: true\n',
+      );
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
+    test('a line-ending-churned setup template runs the first build '
+        '(issue #1655 — editor churn re-owns the file)', () async {
+      writeLibFile('a.dart', 'int a() => 1;\n');
+      File(p.join(root.path, 'build.yaml')).writeAsStringSync(
+        DependencyWirer.buildYamlContent.replaceAll('\n', '\r\n'),
+      );
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
+    test('the pristine setup build.yaml PLUS a non-Dart source in a walked '
+        'root still runs the first build (issue #1655 — the scan still '
+        'governs)', () async {
+      writeLibFile('a.dart', 'int a() => 1;\n');
+      Directory(p.join(root.path, 'lib', 'i18n')).createSync(recursive: true);
+      File(
+        p.join(root.path, 'lib', 'i18n', 'strings.i18n.json'),
+      ).writeAsStringSync('{"title": "hi"}\n');
+      File(
+        p.join(root.path, 'build.yaml'),
+      ).writeAsStringSync(DependencyWirer.buildYamlContent);
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+      );
+    });
+
+    test(
+      'a build directory without the asset-graph marker still runs the '
+      'build (issue #1634 — the static path is only for no state at all)',
+      () async {
+        writeLibFile('a.dart', 'int a() => 1;\n');
+        Directory(
+          p.join(root.path, '.dart_tool', 'build'),
+        ).createSync(recursive: true);
+        expect(
+          await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+          isNull,
+        );
+      },
+    );
+
+    test('a non-UTF8 file fails the static decision toward RUN, never '
+        'throws (issue #1634 — the #1587 error contract)', () async {
+      Directory(p.join(root.path, 'lib')).createSync(recursive: true);
+      File(p.join(root.path, 'lib', 'broken.dart'))
+        ..createSync()
+        ..writeAsBytesSync([0xFF, 0xFE, 0x00, 0x01]);
+      expect(
+        await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
+        isNull,
+        reason: 'a decode error must fail the decision toward RUN',
       );
     });
 
@@ -324,6 +525,390 @@ void main() {
       expect(
         await BuildRelevance.refactorBuildSkipNote(projectRoot: root.path),
         BuildRelevance.refactorBuildSkippedNote,
+      );
+    });
+  });
+
+  // Issue #1637: the config tier of the REFACTOR gate learns content
+  // hashing. An implicit `pub get` during the preflight suite refreshes
+  // pubspec.lock / package_config.json byte-identically AFTER the last
+  // real build, so the #1624 mtime-only comparison ("any newer config
+  // file → run") forces the ~26-31s build pass on every refactor that
+  // follows a suite run. The gate now keeps mtime as the cheap
+  // pre-filter and falls back to a content digest for the newer config
+  // files, compared against a gate-owned baseline
+  // (.dart_tool/zfa/build_config_baseline.json) whose recorded marker
+  // mtime must be STRICTLY older than the current marker — validity is
+  // a completed build, not the record's existence.
+  group('refactorBuildSkipNote (issue #1637 config content hashing)', () {
+    late Directory root;
+    final marker = p.join('.dart_tool', 'build', 'asset_graph.json');
+    final baselineRel = p.join(
+      '.dart_tool',
+      'zfa',
+      'build_config_baseline.json',
+    );
+
+    setUp(() {
+      root = Directory.systemTemp.createTempSync('config_hash_gate_');
+    });
+    tearDown(() {
+      root.deleteSync(recursive: true);
+    });
+
+    File markerFile() => File(p.join(root.path, marker));
+    File baselineFile() => File(p.join(root.path, baselineRel));
+
+    Future<String?> gate() =>
+        BuildRelevance.refactorBuildSkipNote(projectRoot: root.path);
+
+    /// Marker backdated one hour: any file written "now" by the test is
+    /// unambiguously newer than it.
+    void writeMarker() {
+      markerFile()
+        ..createSync(recursive: true)
+        ..writeAsStringSync('{}');
+      markerFile().setLastModifiedSync(
+        DateTime.now().subtract(const Duration(hours: 1)),
+      );
+    }
+
+    /// Simulate the marker a COMPLETED build wrote: moved strictly after
+    /// the baseline's recorded marker mtime, but still in the past so
+    /// files written after the bump stay unambiguously newer.
+    void bumpMarker() {
+      markerFile().setLastModifiedSync(
+        DateTime.now().subtract(const Duration(minutes: 30)),
+      );
+    }
+
+    void writeConfig(String relPath, String content) {
+      File(p.join(root.path, relPath))
+        ..createSync(recursive: true)
+        ..writeAsStringSync(content);
+    }
+
+    /// Config digests exactly as the PUBLIC fingerprint mechanism derives
+    /// them — the currency the gate's baseline must speak (FR-003).
+    Future<Map<String, String>> fingerprintConfigDigests() async {
+      final fp = await BuildRelevance.fingerprint(projectRoot: root.path);
+      return Map.of(fp)..removeWhere(
+        (key, _) => !BuildRelevance.buildConfigFiles.contains(key),
+      );
+    }
+
+    void seedBaseline({
+      required int markerMillis,
+      required Map<String, String> digests,
+      int version = 1,
+    }) {
+      baselineFile()
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          jsonEncode({
+            'version': version,
+            'markerMtimeMillis': markerMillis,
+            'digests': digests,
+          }),
+        );
+    }
+
+    test('a byte-identical config refresh after a completed build skips '
+        'the build (the reported #1637 regression)', () async {
+      writeMarker();
+      writeConfig('pubspec.lock', 'name: calc\nlockfile-version: 3\n');
+      writeConfig(
+        p.join('.dart_tool', 'package_config.json'),
+        '{"configVersion":2,"packages":[]}',
+      );
+
+      // First refactor after the fix ships: no baseline exists yet, so
+      // the gate fails toward RUN exactly as #1624 did — and records
+      // the digests the upcoming build will consume.
+      expect(
+        await gate(),
+        isNull,
+        reason: 'no baseline yet — the fail-safe direction is RUN',
+      );
+      expect(
+        baselineFile().existsSync(),
+        isTrue,
+        reason: 'the run decision records the config baseline',
+      );
+
+      // A build completes: the marker moves strictly after the record.
+      bumpMarker();
+
+      // The preflight suite's implicit pub get refreshes BOTH configs
+      // byte-identically — mtimes move, bytes do not.
+      writeConfig('pubspec.lock', 'name: calc\nlockfile-version: 3\n');
+      writeConfig(
+        p.join('.dart_tool', 'package_config.json'),
+        '{"configVersion":2,"packages":[]}',
+      );
+
+      // mtime says "maybe changed", the digest says "unchanged": the
+      // ~26-31s build pass must be skippable now.
+      expect(
+        await gate(),
+        BuildRelevance.refactorBuildSkippedNote,
+        reason:
+            'a byte-identical no-op refresh must not force the '
+            'build pass (issue #1637)',
+      );
+    });
+
+    test('a config file whose content actually changed still runs the '
+        'build and re-records the baseline', () async {
+      writeMarker();
+      writeConfig('pubspec.lock', 'lock: v1\n');
+      expect(await gate(), isNull, reason: 'first call records the baseline');
+
+      // A build completes…
+      bumpMarker();
+      // …then a REAL dependency change rewrites the lock (bytes move).
+      writeConfig('pubspec.lock', 'lock: v2 — real dependency change\n');
+
+      expect(
+        await gate(),
+        isNull,
+        reason: 'a real config change keeps its fail-closed contract',
+      );
+      // The re-recorded baseline carries the NEW digest — the digest of
+      // the content the build that follows will actually consume — and
+      // it is the fingerprint mechanism's digest (FR-003).
+      final fp = await BuildRelevance.fingerprint(projectRoot: root.path);
+      final baseline =
+          jsonDecode(baselineFile().readAsStringSync())
+              as Map<dynamic, dynamic>;
+      expect(baseline['digests']['pubspec.lock'], fp['pubspec.lock']);
+    });
+
+    test('a missing, corrupt, or wrong-version baseline fails toward RUN '
+        'and records a fresh baseline', () async {
+      // Missing.
+      writeMarker();
+      writeConfig('dart_test.yaml', 'presets: {}\n');
+      expect(await gate(), isNull, reason: 'missing baseline never skips');
+      expect(baselineFile().existsSync(), isTrue);
+
+      // Corrupt — garbage bytes must behave like a missing record.
+      baselineFile().writeAsStringSync('\u0000\u00ff not json {{{');
+      writeConfig(
+        'analysis_options.yaml',
+        'include: package:lints/recommended.yaml\n',
+      );
+      expect(
+        await gate(),
+        isNull,
+        reason: 'a corrupt baseline never fabricates a skip',
+      );
+      final afterCorrupt =
+          jsonDecode(baselineFile().readAsStringSync())
+              as Map<dynamic, dynamic>;
+      expect(
+        afterCorrupt['version'],
+        1,
+        reason: 'the corrupt record is replaced by a fresh baseline',
+      );
+
+      // Unknown version — never trusted, EVEN when the record's
+      // digests match the current content and its marker mtime is
+      // strictly older (i.e. the version gate is the ONLY barrier
+      // between the record and a skip — kills mutants that drop the
+      // version check and rely on digest mismatch alone).
+      writeMarker();
+      writeConfig('pubspec.lock', 'lock: v1\n');
+      expect(await gate(), isNull); // record a v1 baseline
+      bumpMarker(); // a build completes — the record's marker is older
+      final trusted =
+          jsonDecode(baselineFile().readAsStringSync())
+              as Map<dynamic, dynamic>;
+      seedBaseline(
+        version: 999,
+        markerMillis: trusted['markerMtimeMillis'] as int,
+        digests: Map<String, String>.from(trusted['digests'] as Map),
+      );
+      writeConfig('pubspec.lock', 'lock: v1\n'); // byte-identical refresh
+      expect(
+        await gate(),
+        isNull,
+        reason:
+            'an unknown baseline version never fabricates a skip, '
+            'not even with fully matching digests',
+      );
+      final afterVersion =
+          jsonDecode(baselineFile().readAsStringSync())
+              as Map<dynamic, dynamic>;
+      expect(afterVersion['version'], 1);
+    });
+
+    test('a baseline whose recorded marker mtime is not strictly older is '
+        'untrusted even with matching digests', () async {
+      writeMarker();
+      writeConfig('pubspec.lock', 'lock: v1\n');
+      final digests = await fingerprintConfigDigests();
+      // Recorded against the CURRENT marker — no completed build has
+      // moved the marker since, so nothing proves the digests were ever
+      // consumed by a real build.
+      seedBaseline(
+        markerMillis: markerFile().statSync().modified.millisecondsSinceEpoch,
+        digests: digests,
+      );
+      expect(
+        await gate(),
+        isNull,
+        reason:
+            'validity needs a completed build (marker strictly '
+            'newer); equality means the digests were never consumed',
+      );
+    });
+
+    test('dart_test.yaml refreshed byte-identically skips the build', () async {
+      writeMarker();
+      writeConfig('dart_test.yaml', 'presets: {}\n');
+      expect(await gate(), isNull);
+      bumpMarker();
+      writeConfig('dart_test.yaml', 'presets: {}\n'); // same bytes, fresh mtime
+      expect(
+        await gate(),
+        BuildRelevance.refactorBuildSkippedNote,
+        reason: 'FR-007: the dart_test.yaml tier is content-hashed too',
+      );
+    });
+
+    test('a real analysis_options.yaml change still runs the build', () async {
+      writeMarker();
+      writeConfig(
+        'analysis_options.yaml',
+        'include: package:lints/recommended.yaml\n',
+      );
+      expect(await gate(), isNull);
+      bumpMarker();
+      writeConfig(
+        'analysis_options.yaml',
+        'include: package:lints/recommended.yaml\nanalyzer:\n  errors:\n    todo: ignore\n',
+      );
+      expect(
+        await gate(),
+        isNull,
+        reason: 'FR-007: a real analysis-options change still forces the pass',
+      );
+    });
+
+    test('a baseline seeded from BuildRelevance.fingerprint digests is '
+        'trusted (mechanism reuse, FR-003)', () async {
+      writeMarker();
+      writeConfig('pubspec.yaml', 'name: x\n');
+      writeConfig('pubspec.lock', 'lock: v1\n');
+      final digests = await fingerprintConfigDigests();
+      expect(digests['pubspec.lock'], isNotNull);
+      // The baseline speaks the fingerprint mechanism's currency, and a
+      // build completed after it was recorded.
+      seedBaseline(
+        markerMillis: markerFile().statSync().modified.millisecondsSinceEpoch,
+        digests: digests,
+      );
+      bumpMarker();
+      writeConfig('pubspec.yaml', 'name: x\n'); // byte-identical refresh
+      expect(
+        await gate(),
+        BuildRelevance.refactorBuildSkippedNote,
+        reason:
+            'fingerprint-derived digests and baseline digests are '
+            'the same currency — the fingerprint mechanism is reused',
+      );
+    });
+
+    test(
+      'a baseline with one wrong config digest still runs the build',
+      () async {
+        writeMarker();
+        writeConfig('pubspec.yaml', 'name: x\n');
+        writeConfig('pubspec.lock', 'lock: v1\n');
+        final digests = await fingerprintConfigDigests();
+        digests['pubspec.lock'] = 'deadbeef00000000'; // corrupt ONE entry
+        seedBaseline(
+          markerMillis: markerFile().statSync().modified.millisecondsSinceEpoch,
+          digests: digests,
+        );
+        bumpMarker();
+        writeConfig('pubspec.yaml', 'name: x\n'); // matches baseline
+        writeConfig(
+          'pubspec.lock',
+          'lock: v1\n',
+        ); // newer, WRONG baseline digest
+        expect(
+          await gate(),
+          isNull,
+          reason: 'the tier clears per file, never wholesale',
+        );
+      },
+    );
+
+    test('a cleared config tier plus a newer plain .dart file still skips '
+        '(mixed tree)', () async {
+      writeMarker();
+      writeConfig('pubspec.lock', 'lock: v1\n');
+      Directory(p.join(root.path, 'lib')).createSync(recursive: true);
+      expect(await gate(), isNull); // record
+      bumpMarker();
+      writeConfig('pubspec.lock', 'lock: v1\n'); // byte-identical refresh
+      File(
+        p.join(root.path, 'lib', 'plain.dart'),
+      ).writeAsStringSync('int answer() => 42;\n'); // plain rewrite
+      expect(
+        await gate(),
+        BuildRelevance.refactorBuildSkippedNote,
+        reason:
+            'cleared configs + un-annotated plain Dart = nothing '
+            'builder-facing changed',
+      );
+    });
+
+    test('the recorded baseline is version-1 JSON with markerMtimeMillis '
+        'and full config digests', () async {
+      writeMarker();
+      writeConfig('pubspec.lock', 'lock: v1\n');
+      writeConfig('.zfa.json', '{"version":1}\n');
+      expect(await gate(), isNull);
+
+      final baseline =
+          jsonDecode(baselineFile().readAsStringSync())
+              as Map<dynamic, dynamic>;
+      expect(baseline['version'], 1);
+      expect(
+        baseline['markerMtimeMillis'],
+        markerFile().statSync().modified.millisecondsSinceEpoch,
+        reason:
+            'the recorded marker mtime is the PRE-build marker the '
+            'validity rule compares against',
+      );
+      final digests = baseline['digests'] as Map<dynamic, dynamic>;
+      expect(digests.keys, containsAll(['pubspec.lock', '.zfa.json']));
+      final fp = await BuildRelevance.fingerprint(projectRoot: root.path);
+      expect(digests['pubspec.lock'], fp['pubspec.lock']);
+      expect(digests['.zfa.json'], fp['.zfa.json']);
+    });
+
+    test('the skip path never rewrites or invalidates the baseline', () async {
+      writeMarker();
+      writeConfig('pubspec.lock', 'lock: v1\n');
+      expect(await gate(), isNull);
+      bumpMarker();
+      writeConfig('pubspec.lock', 'lock: v1\n');
+      expect(await gate(), BuildRelevance.refactorBuildSkippedNote);
+
+      final before = baselineFile().readAsStringSync();
+      expect(
+        await gate(),
+        BuildRelevance.refactorBuildSkippedNote,
+        reason: 'a skip decision must not self-invalidate the baseline',
+      );
+      expect(
+        baselineFile().readAsStringSync(),
+        before,
+        reason: 'FR-006: the skip path never writes the baseline',
       );
     });
   });
