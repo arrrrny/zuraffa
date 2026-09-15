@@ -7,33 +7,33 @@
 **Prerequisites**: plan.md, spec.md; research.md records the #1643 mirror
 decision, the VM-name mirror decision, and the U16/U17 re-shape precedent.
 
-## 1. Behavioural (TDD red → green first)
+## 1. Behavioural (TDD red → green first) — MANDATORY, driven by the loop before T101
 
-- [ ] **T001** (P1) [US1] `test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart`
+- [ ] **T001** (P1) [US1] [behavior: A1] `test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart`
   — B1, the issue's repro at the tier level: cache-exe driver (the #864
   native-AOT shape, `scriptPathOverride == resolvedExecutableOverride`,
   real executable fixture) with a fake `zfa` on PATH →
   `result.entrypoint` is the RUNNING binary, never the PATH install;
   the argv log shows the driving binary spawned the plan's step alone.
   RED pre-fix (PATH install wins). [FR-001, SC-001; spec A1]
-- [ ] **T002** (P1) [US1] same file — B2: cache-exe driver with an
+- [ ] **T002** [behavior: A2] (P1) [US1] same file — B2: cache-exe driver with an
   UNUSABLE script path (stale-snapshot shape) and a `zfa` on PATH →
   the running binary still wins. RED pre-fix. [FR-001; spec A2]
-- [ ] **T003** (P2) [US2] same file — B3: `dart run` driver (VM basename
+- [ ] **T003** [behavior: U2] (P2) [US2] same file — B3: `dart run` driver (VM basename
   `dart`) with a `zfa` on PATH → the PATH install still wins
   (backward compatible; GREEN pre- and post-fix). [FR-002; spec U2.1]
-- [ ] **T004** (P2) [US2] same file — B4: `dartaotruntime` snapshot
+- [ ] **T004** [behavior: U3] (P2) [US2] same file — B4: `dartaotruntime` snapshot
   driver with a `zfa` on PATH → the PATH install still wins
   (backward compatible). [FR-002; spec U2.1]
-- [ ] **T005** (P2) [US1] same file — B5: cache-exe driver with a
+- [ ] **T005** [behavior: U1] (P2) [US1] same file — B5: cache-exe driver with a
   NON-executable PATH candidate → the running binary wins; the
   non-executable PATH candidate never does. [FR-001; spec A3]
-- [ ] **T006** (P2) [US2] `test/plugins/tdd/services/pipeline_runner_test.dart`
+- [ ] **T006** [behavior: U4] (P2) [US2] `test/plugins/tdd/services/pipeline_runner_test.dart`
   — re-shape U16 ("tier 3 — zfa on PATH wins over the snapshot
   fallback"): the fake VM stand-in is renamed `dart-vm` → `dart` (a REAL
   VM name); intent and assertions unchanged. GREEN throughout — this is
   a shape-honesty fix, not a loosening (#1643 precedent). [FR-002, SC-002]
-- [ ] **T007** (P2) [US2] same file — re-shape U17 ("tier 4 — compiled
+- [ ] **T007** [behavior: U5] (P2) [US2] same file — re-shape U17 ("tier 4 — compiled
   snapshot keeps the dart <snapshot> shape"): same rename to a real VM
   name; the `<vm> <snapshot>` spawn shape in the argv log is preserved.
   GREEN throughout. [FR-006, SC-002; spec U2.2]
