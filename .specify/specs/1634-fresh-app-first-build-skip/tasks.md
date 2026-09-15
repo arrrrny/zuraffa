@@ -62,6 +62,6 @@ extension's red-green-refactor loop, tdd/test-list.md); N = non-behavioral.
   counts, unrelated pre-existing failures flagged; produce
   `tdd/verification.md` from the recorded runs (never copied or
   back-dated).
-- [ ] **T008 (N)** Push branch; open the PR against `master`
+- [x] **T008 (N)** Push branch; open the PR against `master`
   (`perf(1634): build-relevance gate — skip first build for fresh apps
   with no builder-facing files`, Closes #1634).
