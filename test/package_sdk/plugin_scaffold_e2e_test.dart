@@ -120,6 +120,13 @@ void main() {
         // the hosted constraint, and the CLI's pub.dev lookup is the one
         // under test. B9 always passes --zuraffa-path (overrides resolve
         // locally), which is exactly why #1615 shipped green.
+        //
+        // No explicit timeout: the helper budgets the spawn (75s default
+        // x ZFA_TEST_TIMEOUT_SCALE; a degraded ZFA_ALLOW_JIT=1 isolate
+        // spends its 240s first cold source spawn budget). #1623's manual
+        // 240s override is gone — slow hosts set the scale instead, and an
+        // AOT build that cannot happen fails LOUDLY in setUpAll (the
+        // no-JIT policy has no silent fallback to out-budget).
         final scaffold = await runZfaSource(
           [
             'package',
@@ -130,11 +137,6 @@ void main() {
             '--no-gate',
           ],
           workingDirectory: tempDir.path,
-          // 240s, not the 75s default: when the AOT build is unavailable
-          // (its 100s budget misses on slow hosts) the spawn falls back to
-          // a cold `dart bin/zfa.dart` start that already exceeds 75s —
-          // arrrrny/zuraffa#1623.
-          timeout: const Duration(seconds: 240),
         );
         expect(
           scaffold.exitCode,

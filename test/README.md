@@ -72,11 +72,23 @@ subprocess timeout budgets sized for CI-class hardware:
 - **75s** — default per-spawn child guard (`runZfaSource`); the guard is
   killed with a named `TimeoutException` diagnostic so a wedged spawn fails
   fast instead of eating the enclosing test timeout (issue #531).
+- **240s** — the FIRST cold source spawn of an isolate, under the
+  documented degraded-environment escape hatch (`ZFA_ALLOW_JIT=1`, the only
+  path that spawns `dart bin/zfa.dart`): the child pays the Dart VM
+  front-end + JIT compile of the whole package before running a single
+  command — **84s measured cold start alone** on the host that filed
+  issue #1623, longer than the 75s guard. Later source spawns ride warm
+  OS/VM caches inside the 75s guard (issue #1623).
 - **100s** — one-time AOT compile of `bin/zfa.dart` in `setUpAll`
-  (`initZfaSourceBin`). When this budget is exceeded the build fails and
-  every spawn in the file silently downgrades to the slow
-  `dart bin/zfa.dart` JIT path — which is how a single slow compile turns
-  into a whole suite of timeout failures.
+  (`initZfaSourceBin`). When this budget is exceeded — or the compile fails
+  for any reason — the build fails LOUDLY: `ZfaCompilationException`
+  (its reason names the budget and this variable), rethrown by
+  `initZfaSourceBin` as a `StateError` that fails the whole file in
+  `setUpAll`. There is NO silent downgrade to the slow JIT path — that was
+  the pre-#531-policy behavior; the no-JIT spawn policy removed it, so a
+  slow compile can no longer turn into a whole suite of bare timeout
+  failures. Raise this variable (or free the disk / fix the SDK) as the
+  diagnostic instructs.
 
 On older hardware (the 2019 Intel Mac baseline of issue #1187) the cold
 frontend-server compile alone can exceed both budgets, and the
@@ -91,12 +103,12 @@ ZFA_TEST_TIMEOUT_SCALE=2 dart test test/feature_flags --preset=all
 - Values are multipliers ≥ 1.0; blank/unparsable/NaN/infinite values and
   anything below 1.0 fall back to 1.0 (the scale relaxes budgets, never
   tightens them).
-- The multiplier applies to the helper's 75s child guard, the 100s AOT
-  compile budget, and every suite `Timeout` built through
-  `scaleDuration(...)` (the `feature_flags` suite declares these as
-  3-minute base ceilings so they grow together with the child guard — the
-  guard must stay shorter than the enclosing test ceiling for its
-  fail-fast diagnostic to fire first).
+- The multiplier applies to the helper's 75s child guard, the 240s first
+  cold source spawn budget, the 100s AOT compile budget, and every suite
+  `Timeout` built through `scaleDuration(...)` (the `feature_flags` suite
+  declares these as 3-minute base ceilings so they grow together with the
+  child guard — the guard must stay shorter than the enclosing test
+  ceiling for its fail-fast diagnostic to fire first).
 - Explicit `timeout:` arguments passed to `runZfaSource(...)` are NOT
   auto-scaled (only the default scales). Callers that want their custom
   budgets to follow the env must pass them through `scaleDuration(...)`
@@ -111,3 +123,32 @@ ZFA_TEST_TIMEOUT_SCALE=2 dart test test/feature_flags --preset=all
   suites outside `feature_flags` that rely on those ceilings and need more
   headroom can pass an additional `--timeout xN` flag to `dart test`
   (e.g. `--timeout x8`) alongside the scale variable.
+
+### Example: a slow CI host (issue #1623's shape)
+
+On a host where `dart compile exe bin/zfa.dart` needs 2m38s, the 100s AOT
+budget fails the file loudly in `setUpAll` — the fix is the scale, not a
+per-test timeout override. Export the variable in the JOB environment so
+every budget (75s guard, 240s first cold source spawn, 100s AOT compile)
+stretches together, and pair it with `--timeout xN` when the tier's fixed
+`dart_test.yaml` ceilings are also too tight:
+
+```yaml
+# .github/workflows/integration.yml (shape)
+env:
+  ZFA_TEST_TIMEOUT_SCALE: '2'   # every helper budget x2: 150s guard,
+                                # 480s first cold spawn, 200s AOT compile
+steps:
+  - run: dart test --preset=integration --timeout x4 test/package_sdk
+```
+
+Rule of thumb: set `ZFA_TEST_TIMEOUT_SCALE` to the smallest value that
+covers the measured compile (2× covers a 200s AOT build); add
+`--timeout xN` only when the enclosing tag ceiling (not the helper budget)
+is what fired. One-off local reproduction of a slow-host failure:
+
+```bash
+ZFA_TEST_TIMEOUT_SCALE=2 dart test --preset=integration --timeout x4 \
+  test/package_sdk/plugin_scaffold_e2e_test.dart -n B9b
+```
+
