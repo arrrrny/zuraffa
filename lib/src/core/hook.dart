@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'failure.dart';
-import 'otel_tracer.dart';
+import 'trace_observer.dart';
 
 // ---------------------------------------------------------------------------
 // HookPhase
@@ -189,7 +189,7 @@ abstract class Hook {
 /// [HookContext] instances. Returns `null` values when OTel is not configured.
 ({String? traceId, String? spanId}) captureTraceContext() {
   return (
-    traceId: OtelTracer.instance.currentTraceId,
-    spanId: OtelTracer.instance.currentSpanId,
+    traceId: TraceObserver.instance.currentTraceId,
+    spanId: TraceObserver.instance.currentSpanId,
   );
 }

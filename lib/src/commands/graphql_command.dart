@@ -1,6 +1,8 @@
 import 'dart:io';
 import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../models/generated_file.dart';
+import '../cli/exit_protocol.dart';
+import '../plugins/plugin_gate/plugin_gate.dart';
 import 'base_plugin_command.dart';
 import 'graphql_diff_command.dart';
 import 'graphql_introspect_command.dart';
@@ -51,6 +53,15 @@ class GraphqlCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
+    // Spec 1653 (issue #1661): the graphql capability is opt-in — the
+    // heavy codegen/client surface lives in package:zuraffa_graphql.
+    // Refuse BEFORE any generation when the gate is not satisfied.
+    final gateRefusal = PluginGate.refusalFor('graphql');
+    if (gateRefusal != null) {
+      print('❌ $gateRefusal');
+      exitCode = ExitProtocol.usage;
+      return;
+    }
     if (argResults?.rest.isEmpty ?? true) {
       reportSubcommandUsage();
       return;

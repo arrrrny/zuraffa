@@ -5,7 +5,6 @@ import 'src/core/failure_reporter.dart';
 import 'src/core/failure_reporter_registry.dart';
 import 'src/core/hook.dart';
 import 'src/core/hook_registry.dart';
-import 'src/core/otel_failure_reporter.dart';
 import 'src/core/otel_log_exporter.dart';
 import 'src/core/retry_policy.dart';
 import 'src/core/zuraffa_bridge_facade.dart';
@@ -204,10 +203,6 @@ export 'src/core/failure_report_queue.dart' show FailureReportQueue;
 export 'src/core/failure_report_store.dart' show FailureReportStore;
 export 'src/core/failure_reporter.dart';
 export 'src/core/failure_reporter_registry.dart' show FailureReporterRegistry;
-export 'src/core/otel_failure_reporter.dart' show OtelFailureReporter;
-export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
-export 'src/core/otel_tracer.dart' show OtelTracer;
-export 'package:opentelemetry/api.dart' hide SpanStatus;
 export 'src/core/retry_policies.dart'
     show ExponentialBackoffRetryPolicy, FixedIntervalRetryPolicy, NoRetryPolicy;
 export 'src/core/retry_policy.dart' show ReportRetryPolicy;
@@ -215,24 +210,16 @@ export 'src/core/retry_policy.dart' show ReportRetryPolicy;
 /// Artifact publisher — general-purpose hook system for publishing
 /// artifacts (HTML, images, files) for any reason (failure, scan, debug).
 export 'src/core/artifact_publisher.dart'
-    show ArtifactPublisher, ArtifactHook, ArtifactContext, MinIOArtifactHook;
+    show ArtifactPublisher, ArtifactHook, ArtifactContext;
 
 /// UseCase Hook system — intercept any UseCase at pre/success/failure phases
 export 'src/core/hook.dart' show Hook, HookPhase, HookContext;
 export 'src/core/hook_registry.dart' show HookRegistry;
-export 'src/core/telemetry_hook.dart' show TelemetryHook;
 
 /// Failure hooks — backward-compatible layer delegating to ArtifactPublisher.
 export 'src/core/failure_hooks.dart'
-    show
-        FailureHook,
-        FailureHookManager,
-        FailureContext,
-        MinIOUploadHook,
-        ResultFailureHooks;
-
+    show FailureHook, FailureHookManager, FailureContext;
 /// Lightweight S3-compatible MinIO client with AWS Signature V4.
-export 'src/core/minio_client.dart' show MinioClient;
 
 /// Unified TDD journal (spec 1113, issue #1113): the one machine-
 /// parseable record of run-engine then run-skin. `JournalReader` is the
@@ -398,6 +385,10 @@ export 'src/core/usecase/zuraffa_usecase.dart';
 export 'src/core/context/zuraffa_context.dart';
 
 /// TelemetryMesh — global trace/span coordinator and auto-instrumentation.
+export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
+export 'src/core/trace_observer.dart' show TraceObserver;
+export 'src/simulation/simulation_adapters.dart'
+    show SpanSnapshot, SimulationSpanCapture;
 export 'src/core/telemetry/telemetry_mesh.dart';
 
 // ============================================================
@@ -530,6 +521,7 @@ export 'src/graphql/types/graphql_type.dart';
 
 // SchemaParser — two-pass introspection JSON parser.
 export 'src/graphql/schema/schema_parser.dart';
+export 'src/graphql/codegen/codegen_types.dart';
 
 // SchemaCache — load/save schema.json with HTTP fetch stub.
 export 'src/graphql/cache/schema_cache.dart';
@@ -554,32 +546,24 @@ export 'src/graphql/mapping/type_mapper.dart';
 export 'src/graphql/document/document_builder.dart';
 
 // GraphQLDocumentBuilder — AST-based .graphql file generation via package:gql.
-export 'src/graphql/gql/graphql_document_builder.dart';
 
 // DocumentsDartGenerator — documents.dart with DocumentNode constants.
-export 'src/graphql/gql/documents_dart_generator.dart';
 
 // NamingUtils — shared naming utilities for consistent variable naming.
-export 'src/graphql/gql/naming_utils.dart';
 
 // GraphQLValidator — validates documents against the cached schema.
-export 'src/graphql/validators/graphql_validator.dart';
 
 // GqlFilePreserver — preserves valid user-edited .graphql files.
-export 'src/graphql/preservers/gql_file_preserver.dart';
 
 // ============================================================
 // V6 GraphQL Client Runtime & Subscriptions
 // ============================================================
 
 // GraphQLClientFactory — assembles GraphQLClient from .zfa.json config.
-export 'src/graphql/client/graphql_client_factory.dart';
 
 // GraphQLClientProvider — singleton lazily-built client provider.
-export 'src/graphql/client/graphql_client_provider.dart';
 
 // SubscriptionStream — GraphQL subscription -> SignalResult streams.
-export 'src/graphql/client/subscription_stream.dart';
 
 // ============================================================
 // V6 GraphQL Codegen — Schema-to-Full-Stack Generation
@@ -595,16 +579,13 @@ export 'src/graphql/codegen/dto_generator.dart';
 export 'src/graphql/codegen/union_generator.dart';
 
 // DatasourceGenerator — package:graphql remote datasource.
-export 'src/graphql/codegen/datasource_generator.dart';
 
 // RepositoryGenerator — interface + impl delegating to datasource.
 export 'src/graphql/codegen/repository_generator.dart';
 
 // DiGenerator — ZuraffaContainer registrations.
-export 'src/graphql/codegen/di_generator.dart';
 
 // SliceOrchestrator — orchestrates all generators for a schema slice.
-export 'src/graphql/codegen/slice_orchestrator.dart';
 
 // ErrorMappingConfig — .zfa.json graphql.errorMapping -> AppFailure mapping.
 export 'src/graphql/codegen/error_mapping_config.dart';
@@ -613,7 +594,6 @@ export 'src/graphql/codegen/error_mapping_config.dart';
 export 'src/graphql/codegen/union_result_handler.dart';
 
 // GraphqlGenerateCommand — `zfa graphql generate` command class.
-export 'src/graphql/codegen/graphql_generate_command.dart';
 
 // GraphQL introspection — fetch and parse remote schemas.
 export 'src/graphql/graphql_introspection_service.dart';
@@ -910,7 +890,6 @@ class Zuraffa {
   // Failure and Log Reporting
   // ============================================================
 
-  static OtelLogExporter? _otelLogExporter;
 
   /// Register a failure reporter.
   ///
@@ -921,7 +900,6 @@ class Zuraffa {
   /// ```dart
   /// void main() {
   ///   Zuraffa.addFailureReporter(
-  ///     OtelFailureReporter(
   ///       collectorEndpoint: Uri.parse('https://otel.example.com/v1/traces'),
   ///       serviceName: 'my_app',
   ///     ),
@@ -958,52 +936,6 @@ class Zuraffa {
     await FailureReporterRegistry.instance.unregister(id);
   }
 
-  /// Convenience: set up OpenTelemetry failure reporting in one call.
-  ///
-  /// ## Example
-  /// ```dart
-  /// void main() {
-  ///   Zuraffa.enableOtelReporting(
-  ///     collectorEndpoint: Uri.parse('https://otel.example.com/v1/traces'),
-  ///     serviceName: 'my_app',
-  ///     apiKey: 'my_api_key',
-  ///   );
-  ///   runApp(MyApp());
-  /// }
-  /// ```
-  static Future<void> enableOtelReporting({
-    required Uri collectorEndpoint,
-    required String serviceName,
-    String? apiKey,
-    ReportRetryPolicy? retryPolicy,
-    int? maxQueueSize,
-    Duration? flushInterval,
-    bool persistFailures = false,
-    bool exportLogs = false,
-    ZuraffaLogLevel remoteLogLevel = ZuraffaLogLevel.warning,
-  }) async {
-    await addFailureReporter(
-      OtelFailureReporter(
-        collectorEndpoint: collectorEndpoint,
-        serviceName: serviceName,
-        apiKey: apiKey,
-      ),
-      retryPolicy: retryPolicy,
-      maxQueueSize: maxQueueSize,
-      flushInterval: flushInterval,
-      persistFailures: persistFailures,
-    );
-
-    if (exportLogs) {
-      _otelLogExporter?.dispose();
-      _otelLogExporter = OtelLogExporter(
-        collectorBaseEndpoint: collectorEndpoint,
-        serviceName: serviceName,
-        apiKey: apiKey,
-        remoteLogLevel: remoteLogLevel,
-      )..start();
-    }
-  }
 
   /// Flush all pending failure reports.
   static Future<void> flushFailureReports() async {
@@ -1013,6 +945,19 @@ class Zuraffa {
   /// Dispose all failure reporters and flush pending reports.
   ///
   /// Call this on app shutdown.
+  /// The remote log exporter wired by [OtelLogExporter]-based setups
+  /// (spec 1653: the exporter is vendor-free and stays in core; the
+  /// observability companion constructs and registers it).
+  static OtelLogExporter? _otelLogExporter;
+
+  /// Register a remote log exporter for disposal with
+  /// [disposeFailureReporters]. The observability companion calls this
+  /// from its enableOtelReporting equivalent.
+  static void registerOtelLogExporter(OtelLogExporter exporter) {
+    _otelLogExporter?.dispose();
+    _otelLogExporter = exporter;
+  }
+
   static Future<void> disposeFailureReporters() async {
     await FailureReporterRegistry.instance.dispose();
     await _otelLogExporter?.dispose();
@@ -1025,12 +970,9 @@ class Zuraffa {
 
   /// Register an artifact hook that reacts to published artifacts.
   ///
-  /// Common hooks include [MinIOArtifactHook] for uploading to storage.
   ///
   /// ## Example
   /// ```dart
-  /// Zuraffa.registerArtifactHook(MinIOArtifactHook(
-  ///   client: MinioClient(
   ///     endpoint: 'http://localhost:9000',
   ///     accessKey: 'minioadmin',
   ///     secretKey: 'minioadmin',
@@ -1047,66 +989,6 @@ class Zuraffa {
     ArtifactPublisher.instance.unregister(id);
   }
 
-  /// Convenience: set up MinIO artifact storage in one call.
-  ///
-  /// Registers a [MinIOArtifactHook] that handles all artifact types —
-  /// HTML on failure, scanned images, debug snapshots, etc.
-  ///
-  /// - [endpoint]: MinIO server URL, e.g. `http://localhost:9000`
-  /// - [accessKey]: S3 access key (MinIO username)
-  /// - [secretKey]: S3 secret key (MinIO password)
-  /// - [bucket]: target bucket name (auto-created on first upload)
-  /// - [region]: AWS region (default: `us-east-1`)
-  /// - [pathPrefix]: optional prefix like `prod/` or `staging/`
-  ///
-  /// ## Example
-  /// ```dart
-  /// void main() async {
-  ///   Zuraffa.setEnvironment(Environment.production);
-  ///   await Zuraffa.enableOtelReporting(
-  ///     collectorEndpoint: Uri.parse('https://otel.example.com/v1/traces'),
-  ///     serviceName: 'my_app',
-  ///   );
-  ///   Zuraffa.enableMinIOArtifacts(
-  ///     endpoint: 'https://minio.myapp.com',
-  ///     accessKey: env.minioAccessKey,
-  ///     secretKey: env.minioSecretKey,
-  ///     bucket: 'artifacts',
-  ///     pathPrefix: 'prod/',
-  ///   );
-  ///   runApp(MyApp());
-  /// }
-  /// ```
-  static void enableMinIOArtifacts({
-    required String endpoint,
-    required String accessKey,
-    required String secretKey,
-    required String bucket,
-    String region = 'us-east-1',
-    bool ensureBucketExists = false,
-    String? pathPrefix,
-    bool includeReasonInKey = true,
-    bool includeSourceInKey = true,
-    Map<String, String> extensionOverrides = const {},
-  }) {
-    registerArtifactHook(
-      MinIOArtifactHook.fromParams(
-        endpoint: endpoint,
-        accessKey: accessKey,
-        secretKey: secretKey,
-        bucket: bucket,
-        region: region,
-        ensureBucketExists: ensureBucketExists,
-        pathPrefix: pathPrefix,
-        includeReasonInKey: includeReasonInKey,
-        includeSourceInKey: includeSourceInKey,
-        extensionOverrides: extensionOverrides,
-      ),
-    );
-    Logger.root.info(
-      'Zuraffa MinIO artifact storage enabled: $endpoint/$bucket',
-    );
-  }
 
   /// Publish an artifact to all registered hooks (fire-and-forget).
   ///
@@ -1225,7 +1107,6 @@ class Zuraffa {
   ///
   /// ## Example
   /// ```dart
-  /// Zuraffa.registerHook(TelemetryHook());
   /// Zuraffa.registerHook(EngagementHook(repository));
   /// ```
   static void registerHook(Hook hook) {
@@ -1301,29 +1182,6 @@ class Zuraffa {
     FailureHookManager().unregister(id);
   }
 
-  /// Convenience: set up MinIO artifact uploads for scrape failures.
-  ///
-  /// @deprecated Use [enableMinIOArtifacts] instead.
-  static void enableMinIOFailureArtifacts({
-    required String endpoint,
-    required String accessKey,
-    required String secretKey,
-    required String bucket,
-    String region = 'us-east-1',
-    bool ensureBucketExists = false,
-    String? pathPrefix,
-    String htmlContentType = 'text/html; charset=utf-8',
-  }) {
-    enableMinIOArtifacts(
-      endpoint: endpoint,
-      accessKey: accessKey,
-      secretKey: secretKey,
-      bucket: bucket,
-      region: region,
-      ensureBucketExists: ensureBucketExists,
-      pathPrefix: pathPrefix,
-    );
-  }
 
   /// Dispose all artifact and failure hooks.
   ///
