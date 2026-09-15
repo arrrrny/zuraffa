@@ -26,12 +26,29 @@
 /// win over the system binary are #665/#690 (`PipelineRunner` /
 /// `StepRunner`), the stale-system-install pin is #1472, the staleness
 /// warning is #1184, and the ETXTBSY race the atomic rename fixes is #644.
+///
+/// Issue #1664: the compile itself is the last place a current compiled
+/// binary can be overlooked. The #1643/#1645 running-binary tiers fix WHICH
+/// candidate the resolution chains pick when the driver is compiled, but a
+/// resolution that still lands on a source `bin/zfa.dart` (the shape an
+/// installed binary whose AOT runtime bakes the source script path into
+/// `Platform.script` produces) was compiled unconditionally on cache
+/// miss/stale — and `scripts/rebuild.sh` wipes `.dart_tool` on every
+/// install, so the miss recurs after every master bump (~85s inside the
+/// first refactor). Now the cache-miss path first asks
+/// [ZfaExecutable.currentInstalledBinary]: when the RUNNING process is a
+/// compiled (non-VM) executable whose `zfa.build_commit` equals the
+/// candidate source root's git HEAD, that binary IS the artifact the
+/// compile would rebuild, and it is returned instead. A marker that
+/// disagrees (or any unprovable input) falls through to the compile.
 library;
 
 import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+
+import 'binary_staleness.dart' show zfaBuildCommitMarker;
 
 /// The ONE explicit JIT escape hatch. When it is exactly `1`, a `.dart`
 /// entrypoint is spawned through the Dart VM (the pre-policy behavior) and
@@ -62,6 +79,19 @@ const String kZfaBinaryTmpName = 'zfa_exe.tmp';
 
 /// File name of the advisory build lock inside [kZfaBinaryCacheDir].
 const String kZfaBuildLockName = 'build.lock';
+
+/// The default `git rev-parse HEAD` runner for the #1664 reuse probe —
+/// deliberately SEPARATE from the compile runner ([ZfaCompileRunner] sites
+/// inject a compiler fake that records argv; the probe's git argv must
+/// never ride it).
+Future<ProcessResult> _defaultGitProbe(
+  List<String> argv,
+  String workingDirectory,
+) => Process.run(
+  argv.first,
+  argv.skip(1).toList(),
+  workingDirectory: workingDirectory,
+);
 
 /// Runs one compiler command in [workingDirectory]. Injectable so unit
 /// tests never invoke a real `dart compile exe`.
@@ -204,6 +234,88 @@ class ZfaExecutable {
     );
   }
 
+  /// The running binary to reuse for children in place of a compile, or
+  /// null when the reuse is unproven and the compile must happen (issue
+  /// #1664).
+  ///
+  /// The probe fires only when ALL of the following hold:
+  ///
+  /// - [candidate] is the canonical package entrypoint of [sourceRoot]
+  ///   (`bin/zfa.dart` / `bin/zuraffa.dart`) — the shape that shares the
+  ///   [kZfaBinaryName] cache slot. A custom `--zfa-bin <path>.dart`
+  ///   fixture keeps its own artifact: replacing a scripted entrypoint
+  ///   with the zfa binary would change what the child runs.
+  /// - [runningExecutable] is a compiled (non-Dart-VM) executable that
+  ///   exists on disk. VM drivers (`dart run`, `dart test`, a
+  ///   `dartaotruntime` snapshot launch) are rejected before any probe
+  ///   work: a source/test context must keep the compile-cache contract
+  ///   (the artifact tests and runtime share).
+  /// - `<dirname(runningExecutable)>/zfa.build_commit` (the marker
+  ///   `scripts/rebuild.sh` records at install time) exists and is
+  ///   non-empty. No marker — a pre-#1184 install, the `scripts/zfa`
+  ///   compile-cache artifact — leaves staleness unprovable.
+  /// - `git rev-parse HEAD` in [sourceRoot] resolves (via [runner]) and
+  ///   EQUALS the marker commit. A mismatch proves the installed binary
+  ///   predates the checkout's current source — the stale-reuse guard
+  ///   (acceptance criterion 3) — and a failed/empty HEAD fails open to
+  ///   the compile.
+  ///
+  /// When every condition holds, the running binary IS the artifact the
+  /// compile would rebuild (same source commit), and returning it skips
+  /// the one-time ~85s AOT build that otherwise lands inside the first
+  /// refactor after every master bump. Fully injectable ([runner] replaces
+  /// the git probe, [runningExecutable] stands in for
+  /// `Platform.resolvedExecutable`) so tests exercise every branch
+  /// hermetically.
+  static Future<String?> currentInstalledBinary({
+    required String candidate,
+    required String sourceRoot,
+    required String runningExecutable,
+    ZfaCompileRunner? runner,
+  }) async {
+    if (!_isCanonicalEntrypoint(candidate, sourceRoot)) return null;
+    if (_isVmExecutablePath(runningExecutable)) return null;
+    final exe = File(runningExecutable);
+    if (!exe.existsSync()) return null;
+    final marker = File(p.join(p.dirname(exe.path), zfaBuildCommitMarker));
+    final String commit;
+    try {
+      if (!marker.existsSync()) return null;
+      commit = marker.readAsStringSync().trim();
+    } on IOException {
+      return null;
+    }
+    if (commit.isEmpty) return null;
+    final String head;
+    try {
+      final result = await (runner ?? _defaultGitProbe)([
+        'git',
+        'rev-parse',
+        'HEAD',
+      ], sourceRoot);
+      if (result.exitCode != 0) return null;
+      head = '${result.stdout}'.trim();
+    } on Object {
+      return null;
+    }
+    if (head.isEmpty) return null;
+    // Strict full-SHA equality: `scripts/rebuild.sh` records the full
+    // `git rev-parse HEAD` output, and anything else (a short form, a
+    // different tree's commit) must not pass on the strength of a prefix.
+    return commit == head ? exe.path : null;
+  }
+
+  /// Whether [path] names a Dart VM executable rather than a compiled zfa
+  /// binary — the same exclusion `BinaryStaleness.binaryDir` applies: any
+  /// `dart*` name (the VM, `dart.exe`, `dartaotruntime`, `dartvm`) and the
+  /// `flutter_tester` harness. A VM driver must never reuse an installed
+  /// binary: source/test contexts compile the driven tree into the shared
+  /// cache.
+  static bool _isVmExecutablePath(String path) {
+    final base = p.basename(path).toLowerCase();
+    return base.startsWith('dart') || base == 'flutter_tester';
+  }
+
   /// The source root that anchors [candidate]'s compile cache, or null when
   /// the candidate sits inside no Dart package at all.
   ///
@@ -298,6 +410,23 @@ class ZfaExecutable {
     if (exeFile.existsSync() && !_isStale(exeFile, candidate, sourceRoot)) {
       return exePath;
     }
+
+    // Issue #1664: the cache is missing or stale — the moment the old path
+    // paid the one-time ~85s `dart compile exe` after every master bump
+    // (rebuild.sh wipes `.dart_tool`, so the miss recurs per install).
+    // When the RUNNING process is itself a compiled install proven current
+    // for this source tree (`.build_commit` == checkout HEAD), that binary
+    // is exactly what the compile would rebuild: reuse it instead. The
+    // fresh-cache verdict above stays first, so the warm-cache steady
+    // state is unchanged; a null probe (VM driver, no/unreadable marker,
+    // git failure, commit mismatch, non-canonical candidate) falls
+    // through to the compile path unchanged.
+    final installed = await currentInstalledBinary(
+      candidate: candidate,
+      sourceRoot: sourceRoot,
+      runningExecutable: Platform.resolvedExecutable,
+    );
+    if (installed != null) return installed;
 
     await cacheDir.create(recursive: true);
 
