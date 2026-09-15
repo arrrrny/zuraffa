@@ -19,8 +19,11 @@
 ///     fallback — carrying the command, exit code and stderr tail
 /// U7  a "successful" compile that wrote no artifact throws too
 /// U8  `ZFA_ALLOW_JIT=1` returns the `.dart` path after ONE warning line
-/// U9  the source root is derived from `<root>/bin/zfa.dart`; an
-///     underivable shape throws
+/// U9  the source root is derived from `<root>/bin/zfa.dart`, or from the
+///     nearest package root above any other `.dart` candidate; a candidate
+///     with no package above it anchors on its own directory — an explicit
+///     `--zfa-bin <path>.dart` is always COMPILED, never refused, and each
+///     non-canonical entrypoint gets its own cache slot
 /// U10 `commandFor` shapes the child argv and throws without the hatch
 library;
 
@@ -298,20 +301,58 @@ void main() {
         ZfaExecutable.sourceRootOf(p.join(root.path, 'bin', 'zuraffa.dart')),
         root.path,
       );
-      expect(ZfaExecutable.sourceRootOf(p.join(root.path, 'zfa.dart')), isNull);
-      expect(ZfaExecutable.sourceRootOf('/tmp/y.dart'), isNull);
     });
 
-    test('U9: an underivable shape throws (no silent JIT)', () async {
-      await expectLater(
-        ZfaExecutable.ensureCompiled('/tmp/not-a-bin-dir/zfa.dart'),
-        throwsA(
-          isA<ZfaCompilationException>().having(
-            (e) => e.reason,
-            'reason',
-            contains('cannot derive the source root'),
-          ),
-        ),
+    test('U9: any other .dart candidate anchors on its own package root — an '
+        'explicit --zfa-bin <path>.dart is compiled, never refused', () async {
+      final root = await _sourceRoot('derive_pkg');
+      final candidate = p.join(root.path, 'tool', 'probe.dart');
+      await File(candidate)
+          .create(recursive: true)
+          .then((f) => f.writeAsString('void main() {}\n'));
+      expect(ZfaExecutable.sourceRootOf(candidate), root.path);
+
+      final compiler = _FakeCompiler();
+      final result = await ZfaExecutable.ensureCompiled(
+        candidate,
+        runner: compiler.call,
+      );
+
+      // Anchored on the candidate's package, in its OWN cache slot: the
+      // canonical `<root>/.dart_tool/zfa_cli_bin/zfa_exe` artifact is left
+      // untouched, so two overrides in one package never share a binary.
+      expect(p.dirname(result), p.dirname(_exePath(root)));
+      expect(result, isNot(_exePath(root)));
+      expect(p.basename(result), startsWith('${kZfaBinaryName}_'));
+      expect(compiler.workingDirectories.single, root.path);
+      expect(File(result).readAsStringSync(), isNotEmpty);
+    });
+
+    test('U9: a candidate with no package above it still compiles against '
+        'its own directory (no silent JIT)', () async {
+      final loose = Directory.systemTemp.createTempSync('zfa_exec_loose_');
+      addTearDown(() {
+        if (loose.existsSync()) loose.deleteSync(recursive: true);
+      });
+      final candidate = p.join(loose.path, 'probe.dart');
+      await File(candidate).writeAsString('void main() {}\n');
+      expect(ZfaExecutable.sourceRootOf(candidate), isNull);
+
+      final compiler = _FakeCompiler();
+      final result = await ZfaExecutable.ensureCompiled(
+        candidate,
+        runner: compiler.call,
+      );
+
+      expect(
+        p.dirname(result),
+        p.join(loose.path, p.joinAll(kZfaBinaryCacheDir)),
+      );
+      expect(compiler.workingDirectories.single, loose.path);
+      expect(
+        ZfaExecutable.isDartScript(result),
+        isFalse,
+        reason: 'the returned entrypoint is always a compiled artifact',
       );
     });
 
@@ -326,7 +367,11 @@ void main() {
         sourceRoot: root.path,
         runner: compiler.call,
       );
-      expect(result, _exePath(root));
+      // The explicit root anchors the cache; the SLOT name follows the
+      // entrypoint (a non-canonical candidate gets a digest slot of its
+      // own), so the directory is what the override pins.
+      expect(p.dirname(result), p.dirname(_exePath(root)));
+      expect(compiler.workingDirectories.single, root.path);
     });
   });
 

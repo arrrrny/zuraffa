@@ -163,15 +163,21 @@ class ZfaExecutable {
   /// - a `.dart` candidate under [kZfaAllowJitEnv] is returned unchanged
   ///   after ONE loud warning line (the only JIT path);
   /// - otherwise the candidate is AOT compiled (once) into
-  ///   `<sourceRoot>/.dart_tool/zfa_cli_bin/zfa_exe` and that path is
+  ///   `<sourceRoot>/.dart_tool/zfa_cli_bin/` and that artifact is
   ///   returned. A compile that fails, times out, or produces nothing
   ///   throws [ZfaCompilationException] — never a silent JIT fallback.
   ///
-  /// [sourceRoot] defaults to the root implied by a `bin/zfa.dart` (or
-  /// `bin/zuraffa.dart`) candidate and is required for any other `.dart`
-  /// path. [runner] replaces the real compiler (unit-test seam);
-  /// [environment] replaces `Platform.environment` for both the escape
-  /// hatch and the issue #1187 timeout scale.
+  /// [sourceRoot] defaults to the root [sourceRootOf] derives — the
+  /// `<root>` of a canonical `bin/zfa.dart` / `bin/zuraffa.dart`
+  /// candidate, or the nearest package root above any other `.dart`
+  /// candidate — and, for a standalone script outside every package, to
+  /// the candidate's own directory. An explicit `--zfa-bin <path>.dart` is
+  /// therefore compiled like any other source entrypoint: no caller has to
+  /// pass a parameter the flag cannot reach.
+  ///
+  /// [runner] replaces the real compiler (unit-test seam); [environment]
+  /// replaces `Platform.environment` for both the escape hatch and the
+  /// issue #1187 timeout scale.
   static Future<String> ensureCompiled(
     String candidate, {
     String? sourceRoot,
@@ -188,17 +194,8 @@ class ZfaExecutable {
       );
       return candidate;
     }
-    final root = sourceRoot ?? sourceRootOf(candidate);
-    if (root == null) {
-      throw ZfaCompilationException(
-        reason:
-            'cannot derive the source root for the source entrypoint '
-            '"$candidate" (expected a "<root>/bin/zfa.dart" path); pass '
-            'sourceRoot explicitly to compile an out-of-tree entrypoint',
-        command: candidate,
-        exitCode: -1,
-      );
-    }
+    final root =
+        sourceRoot ?? sourceRootOf(candidate) ?? _anchorDirOf(candidate);
     return _compileCached(
       candidate: candidate,
       sourceRoot: root,
@@ -207,16 +204,74 @@ class ZfaExecutable {
     );
   }
 
-  /// The source root implied by [candidate], or null when the path is not
-  /// the canonical `<root>/bin/zfa.dart` / `<root>/bin/zuraffa.dart`
-  /// entrypoint shape (the only shape the compile cache can be anchored to).
+  /// The source root that anchors [candidate]'s compile cache, or null when
+  /// the candidate sits inside no Dart package at all.
+  ///
+  ///   1. the canonical `<root>/bin/zfa.dart` / `<root>/bin/zuraffa.dart`
+  ///      entrypoint shape → `<root>`;
+  ///   2. any other `.dart` candidate — an explicit `--zfa-bin <path>.dart`
+  ///      override — → the nearest ancestor holding a `pubspec.yaml`, so
+  ///      the override is compiled against its own package.
+  ///
+  /// Both shapes are DERIVED here rather than demanded from the caller:
+  /// `--zfa-bin` is the only way an operator hands over a source
+  /// entrypoint, none of its call sites can pass a `sourceRoot`, and a
+  /// refusal would abort a documented flag with a remedy the flag cannot
+  /// express.
   static String? sourceRootOf(String candidate) {
     final normalized = p.normalize(candidate);
     final base = p.basename(normalized);
-    if (base != 'zfa.dart' && base != 'zuraffa.dart') return null;
-    final dir = p.dirname(normalized);
-    if (p.basename(dir) != 'bin') return null;
-    return p.dirname(dir);
+    if (base == 'zfa.dart' || base == 'zuraffa.dart') {
+      final dir = p.dirname(normalized);
+      if (p.basename(dir) == 'bin') return p.dirname(dir);
+    }
+    return _packageRootAbove(normalized);
+  }
+
+  /// The last-resort anchor for a `.dart` candidate with no package root
+  /// above it: a standalone script is still COMPILED (never spawned through
+  /// the VM) against its own directory.
+  static String _anchorDirOf(String candidate) =>
+      p.dirname(p.absolute(p.normalize(candidate)));
+
+  /// The nearest ancestor of [candidate] carrying a `pubspec.yaml`, or null
+  /// when the path lives outside every Dart package.
+  static String? _packageRootAbove(String candidate) {
+    var dir = p.dirname(p.absolute(p.normalize(candidate)));
+    while (true) {
+      if (File(p.join(dir, 'pubspec.yaml')).existsSync()) return dir;
+      final parent = p.dirname(dir);
+      if (parent == dir) return null;
+      dir = parent;
+    }
+  }
+
+  /// Whether [candidate] is the canonical package entrypoint of
+  /// [sourceRoot] — the one shape that shares the [kZfaBinaryName] cache
+  /// slot with `scripts/zfa` and `test/helpers/run_zfa_source.dart`.
+  static bool _isCanonicalEntrypoint(String candidate, String sourceRoot) {
+    final normalized = p.normalize(candidate);
+    if (p.dirname(normalized) != p.normalize(p.join(sourceRoot, 'bin'))) {
+      return false;
+    }
+    final base = p.basename(normalized);
+    return base == 'zfa.dart' || base == 'zuraffa.dart';
+  }
+
+  /// A short, stable digest of [text] (FNV-1a, 8 hex chars): enough to give
+  /// each explicit `--zfa-bin` source its own cache slot without pulling a
+  /// crypto package into a pure service.
+  static String _shortDigest(String text) {
+    var hash = 0xcbf29ce484222325;
+    for (final unit in text.codeUnits) {
+      hash ^= unit;
+      hash = (hash * 0x100000001b3) & 0xFFFFFFFFFFFFFFFF;
+    }
+    return hash
+        .toUnsigned(64)
+        .toRadixString(16)
+        .padLeft(16, '0')
+        .substring(0, 8);
   }
 
   /// Compile [candidate] into the shared cache, reusing a fresh artifact.
@@ -229,7 +284,15 @@ class ZfaExecutable {
     final cacheDir = Directory(
       p.join(sourceRoot, p.joinAll(kZfaBinaryCacheDir)),
     );
-    final exePath = p.join(cacheDir.path, kZfaBinaryName);
+    // One slot per entrypoint. The canonical package entrypoint keeps the
+    // shared [kZfaBinaryName] artifact — `scripts/zfa` and
+    // `test/helpers/run_zfa_source.dart` reuse that exact path — while any
+    // other explicit source entrypoint gets its own slot: two `--zfa-bin`
+    // overrides inside one package must never inherit each other's binary.
+    final exeName = _isCanonicalEntrypoint(candidate, sourceRoot)
+        ? kZfaBinaryName
+        : '${kZfaBinaryName}_${_shortDigest(p.normalize(candidate))}';
+    final exePath = p.join(cacheDir.path, exeName);
     final exeFile = File(exePath);
 
     if (exeFile.existsSync() && !_isStale(exeFile, candidate, sourceRoot)) {
@@ -256,7 +319,7 @@ class ZfaExecutable {
       // exec a file that is still being written, and the final path must
       // appear fully-formed or not at all (issue #644) — a concurrent
       // spawner therefore never lands on a partially written binary.
-      final tmpPath = p.join(cacheDir.path, kZfaBinaryTmpName);
+      final tmpPath = p.join(cacheDir.path, '$exeName.tmp');
       final tmpFile = File(tmpPath);
       if (tmpFile.existsSync()) tmpFile.deleteSync();
 

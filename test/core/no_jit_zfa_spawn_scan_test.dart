@@ -52,6 +52,21 @@ const Map<String, String> kSpawnSites = {
       'phase-0 entity orchestration (bug #829)',
 };
 
+/// The registered sites that shape their child argv through
+/// `ZfaExecutable.commandFor`. The two sites NOT listed here spawn the
+/// artifact `ensureCompiled` returned directly, so they have no argv to
+/// shape: `pipeline_runner` runs `entrypoint.executable`, and
+/// `replay_runner` re-anchors recorded command STRINGS onto the compiled
+/// path. A site may only leave this set together with that direct spawn.
+const Set<String> kArgvShapingSites = {
+  'lib/src/plugins/tdd/services/step_runner.dart',
+  'lib/src/plugins/tdd/services/corpus_step_runner.dart',
+  'lib/src/plugins/tdd/services/refactor_passes.dart',
+  'lib/src/plugins/tdd/services/dream_runner.dart',
+  'lib/src/plugins/tdd/services/differential_ref_runner.dart',
+  'lib/src/plugins/tdd/commands/run_driver_core.dart',
+};
+
 /// The Dart-toolchain subcommands a spawn-site argv may legitimately name.
 /// Anything else after a bare `dart` program in those files is another CLI
 /// being run through the VM — which for zfa is exactly what the policy bans.
@@ -75,6 +90,17 @@ List<File> _dartFilesUnder(String dir) {
       .where((f) => f.path.endsWith('.dart'))
       .toList();
 }
+
+/// A reference to the service's compile seam — a call, a tear-off, or the
+/// default of an injected `ZfaEnsureCompiled` alias (`refactor_passes` and
+/// `pipeline_runner` bind it to a local `compile`). Strictly stronger than
+/// the old `contains('ensureCompiled')`: a comment, an unused import or a
+/// parameter name alone no longer satisfies the sweep.
+final RegExp _ensureCompiledSeam = RegExp(r'ZfaExecutable\.ensureCompiled\b');
+
+/// A CALL of the argv-shaping seam (`ensureCompiled` + this pairing is what
+/// makes a spawn site actually route its child through the service).
+final RegExp _commandForCall = RegExp(r'ZfaExecutable\.commandFor\s*\(');
 
 /// Normalizes a path to the repo-root-relative POSIX form (strips a leading
 /// `./`, backslashes to slashes) so set membership checks are stable across
@@ -151,9 +177,35 @@ List<String> _nonToolchainDartArgvs(String source) {
 
 void main() {
   group('no-JIT zfa spawn sweep', () {
+    test('the detectors fire on the pre-policy shapes (positive controls)', () {
+      // Without these, a detector that silently stopped matching after a
+      // refactor would leave every sweep below green with no signal at all.
+      expect(
+        _hasDartTernary("final c = e.endsWith('.dart') ? ['dart', e] : [e];"),
+        isTrue,
+      );
+      expect(
+        _hasDartEntrypointArgv("final c = ['dart', zfaBin, 'tdd'];"),
+        isTrue,
+      );
+      expect(_nonToolchainDartArgvs("final c = ['dart', zfaExe, 'tdd'];"), [
+        "['dart', zfaExe",
+      ]);
+      expect(
+        _nonToolchainDartArgvs("final c = ['dart', 'test', 'x'];"),
+        isEmpty,
+        reason: 'a toolchain call is not an offender',
+      );
+    });
+
     test('no lib/src file shapes a `dart <zfa entry>` child argv', () {
+      final scanned = _dartFilesUnder('lib/src');
+      // A sweep over an empty set passes vacuously: if `lib/src` is ever
+      // renamed, or the test runs from another working directory, fail
+      // loudly instead of going green without reading a single file.
+      expect(scanned, isNotEmpty, reason: 'the sweep read no file at all');
       final offenders = <String>[];
-      for (final file in _dartFilesUnder('lib/src')) {
+      for (final file in scanned) {
         final rel = _normalized(file.path);
         if (rel == kServiceFile) continue;
         final source = file.readAsStringSync();
@@ -197,6 +249,7 @@ void main() {
 
     test('every registered spawn site resolves its child through the '
         'service', () {
+      expect(kSpawnSites, isNotEmpty, reason: 'the registry is empty');
       final missing = <String>[];
       for (final entry in kSpawnSites.entries) {
         final file = File(p.join(repoRoot, entry.key));
@@ -205,23 +258,35 @@ void main() {
           continue;
         }
         final source = file.readAsStringSync();
-        if (!source.contains('ensureCompiled') ||
-            !source.contains('zfa_executable.dart')) {
+        // A reference to the seam, not a mention: an unused import, a
+        // comment or a doc reference used to satisfy the old substring
+        // check while the site still spawned a raw command.
+        if (!_ensureCompiledSeam.hasMatch(source)) {
           missing.add('${entry.key} (${entry.value})');
+          continue;
+        }
+        if (kArgvShapingSites.contains(entry.key) &&
+            !_commandForCall.hasMatch(source)) {
+          missing.add(
+            '${entry.key} (argv not shaped through ZfaExecutable.commandFor)',
+          );
         }
       }
       expect(
         missing,
         isEmpty,
         reason:
-            'every zfa spawn site must import $kServiceFile and resolve '
-            'its entrypoint through ensureCompiled. Missing: $missing',
+            'every zfa spawn site must reference the $kServiceFile seam '
+            '(ZfaExecutable.ensureCompiled) and, where it shapes an argv, '
+            'shape it through ZfaExecutable.commandFor. Missing: $missing',
       );
     });
 
     test('the ZFA_ALLOW_JIT escape hatch is read only by the service', () {
+      final scanned = _dartFilesUnder('lib/src');
+      expect(scanned, isNotEmpty, reason: 'the sweep read no file at all');
       final offenders = <String>[];
-      for (final file in _dartFilesUnder('lib/src')) {
+      for (final file in scanned) {
         final rel = _normalized(file.path);
         if (rel == kServiceFile) continue;
         final source = file.readAsStringSync();

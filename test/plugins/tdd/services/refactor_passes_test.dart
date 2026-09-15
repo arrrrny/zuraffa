@@ -13,6 +13,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/zfa_executable.dart';
+import 'package:zuraffa/src/plugins/tdd/services/build_relevance.dart';
 import 'package:zuraffa/src/plugins/tdd/services/refactor_passes.dart';
 
 /// The no-JIT compiler seam these unit tests inject: the build pass resolves
@@ -335,14 +336,41 @@ void main() {
 
     test('the default pass set attaches a skip gate to the build pass only '
         '(issue #1624)', () async {
-      final passes = RefactorPasses(
-        '/tmp/unused',
-        ensureCompiled: _fakeCompile,
-      );
-      final specs = await passes.passSpecs;
-      expect(specs.firstWhere((s) => s.name == 'build').skipGate, isNotNull);
-      expect(specs.firstWhere((s) => s.name == 'format').skipGate, isNull);
-      expect(specs.firstWhere((s) => s.name == 'fix').skipGate, isNull);
+      final project = await _ScratchProject.create();
+      try {
+        final passes = RefactorPasses(
+          project.root.path,
+          ensureCompiled: _fakeCompile,
+        );
+        final specs = await passes.passSpecs;
+        final buildGate = specs.firstWhere((s) => s.name == 'build').skipGate;
+        expect(buildGate, isNotNull);
+        expect(specs.firstWhere((s) => s.name == 'format').skipGate, isNull);
+        expect(specs.firstWhere((s) => s.name == 'fix').skipGate, isNull);
+
+        // The BINDING is what matters, not its presence: a gate that
+        // answered with a note unconditionally would silently disable the
+        // whole-project build (and its `dart analyze lib/` stage) on every
+        // refactor. Exercise the bound gate against this scratch project.
+        //
+        // No asset-graph marker → the gate lets the build RUN.
+        expect(await buildGate!(), isNull);
+
+        // Marker newer than every source file → the gate records the skip
+        // note (the pass has nothing to do).
+        await project.writeLibFile('foo.dart', 'void main() {}\n');
+        final marker = File(
+          p.join(project.root.path, '.dart_tool', 'build', 'asset_graph.json'),
+        );
+        await marker.create(recursive: true);
+        await marker.writeAsString('{}');
+        marker.setLastModifiedSync(
+          DateTime.now().add(const Duration(seconds: 5)),
+        );
+        expect(await buildGate(), BuildRelevance.refactorBuildSkippedNote);
+      } finally {
+        project.dispose();
+      }
     });
 
     test('a pass that does not start misfire-stops the registry', () async {

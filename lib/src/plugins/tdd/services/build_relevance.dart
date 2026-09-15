@@ -64,6 +64,19 @@
 /// even then only a builder-facing annotation (or a config / non-Dart
 /// file) makes the pass necessary. [refactorBuildSkipNote] is that gate;
 /// its decision fails toward RUN on every unknown.
+///
+/// The price of having no "before" state is the deletion blind spot, and
+/// the gate does NOT pretend otherwise: [canSkipTerminalBuild] runs on any
+/// deletion (its rule 1), but a path removed since the last build is
+/// simply absent from the walk here, so a deletion alone never forces the
+/// pass. Reading an mtime-ordered graph — whose serialized shape differs
+/// between build_runner versions (a dict at asset-graph version 44, a list
+/// at 47, 0.9–2.3 MB on a real project) — to recover "outputs that should
+/// exist" is not worth the fragility on this path; [refactorBuildSkippedNote]
+/// states the blind spot instead of over-claiming, so the recorded
+/// evidence stays true. What bounds the blast radius is the absolute-green
+/// preflight: deleting a `part` file breaks compilation, so the refactor
+/// refuses before the passes run.
 library;
 
 import 'dart:io';
@@ -107,17 +120,25 @@ class BuildRelevance {
 
   /// The skip note the refactor's `build` pass records when
   /// [refactorBuildSkipNote] decides the pass has nothing to do (issue
-  /// #1624). Mirrors [skippedBuildNote]'s honesty: names the issue,
-  /// states that build_runner would re-derive identical outputs, and
+  /// #1624). Mirrors [skippedBuildNote]'s honesty: names the issue and
   /// states the skipped whole-project `dart analyze lib/` stage
   /// explicitly so a reader never assumes the pass's writes were
   /// analyzer-graded.
+  ///
+  /// It claims what the gate can actually PROVE — no file newer than the
+  /// asset-graph marker can feed a builder — and not that build_runner
+  /// "would re-derive identical outputs": a path DELETED since that build
+  /// never enters the newer set, so this gate cannot see a deletion (the
+  /// make gate's fingerprint diff can; [canSkipTerminalBuild] rule 1).
   static const String refactorBuildSkippedNote =
       'refactor build pass skipped: every file newer than the build_runner '
-      'asset graph is un-annotated plain Dart (issue #1624) — build_runner '
-      'would re-derive identical outputs, and the whole-project `dart '
-      'analyze lib/` stage `zfa build` also runs was skipped with it, so '
-      'these plain-Dart writes were not analyzer-graded.';
+      'asset graph is un-annotated plain Dart (issue #1624) — nothing '
+      'newer than that asset graph can feed a builder. A path DELETED since '
+      'that build is invisible to this gate (it has no pre-build '
+      'fingerprint to diff against), so the skip is not evidence that the '
+      'tree\'s generated outputs are all still on disk. The whole-project '
+      '`dart analyze lib/` stage `zfa build` also runs was skipped with it, '
+      'so these plain-Dart writes were not analyzer-graded.';
 
   /// Fingerprint the build-relevant tree: a content digest per file,
   /// keyed by project-relative POSIX paths. Covers the Dart source dirs

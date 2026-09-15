@@ -1021,7 +1021,13 @@ class RefactorCommand extends Command<void> {
               're-proof inherited from the preflight: the pass registry '
               'changed no file, so the tree is byte-identical to the one the '
               'preflight certified moments earlier (issue #1624).',
-          startedProcess: true,
+          // No suite process ran — the verdict is the preflight's. Say so
+          // on the record (issue #1624 review): `startedProcess: true`
+          // claimed a launch that never happened, and `inherited` is what
+          // lets the failure gates below read the distinction instead of
+          // the field that means "the executable started".
+          startedProcess: false,
+          inherited: true,
         );
       } else {
         if (scopedReproof) {
@@ -1062,6 +1068,12 @@ class RefactorCommand extends Command<void> {
         print('   re-proof exit: ${reproof.exitCode}');
       }
 
+      // Issue #1624 review: an inherited re-proof is a SYNTHETIC record —
+      // no suite process of its own ran (`startedProcess: false`,
+      // `inherited: true`), and the preflight's green is the verdict. Both
+      // gates below therefore read `hasVerdict` (launched OR inherited),
+      // not `startedProcess`; the inherited green would otherwise be
+      // graded as "the suite never launched".
       // Issue #1333 — a transient dart test runner failure (the
       // incremental kernel-cache race: exit 255, "Cannot retrieve length
       // of file", dart_test.kernel ENOENT) is an INFRA-level failure, not
@@ -1074,7 +1086,7 @@ class RefactorCommand extends Command<void> {
       // long suite needs a larger --timeout, not a re-run).
       var reproofRetries = 0;
       while (!reproof.timedOut &&
-          (!reproof.startedProcess || reproof.exitCode != 0) &&
+          (!reproof.hasVerdict || reproof.exitCode != 0) &&
           reproofRetries < _maxReproofRetries &&
           classifyReproofFailure(
                 exitCode: reproof.exitCode,
@@ -1128,7 +1140,7 @@ class RefactorCommand extends Command<void> {
         return;
       }
 
-      if (!reproof.startedProcess || reproof.exitCode != 0) {
+      if (!reproof.hasVerdict || reproof.exitCode != 0) {
         // Issue #1333: classify the failure BEFORE the baseline tolerance
         // check — an infra-level runner failure is neither tolerated red
         // nor a regression; the retries above have been exhausted and the

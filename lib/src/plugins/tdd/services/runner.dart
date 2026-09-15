@@ -56,12 +56,29 @@ class SuiteRunRecord {
   /// (bug #742): the process launched but outlived the deadline.
   final bool timedOut;
 
+  /// True for a SYNTHETIC record whose verdict was inherited from an
+  /// earlier certified run rather than produced by a process of its own
+  /// (issue #1624: the refactor's re-proof when the pass registry changed
+  /// no file). Such a record carries [startedProcess] `false` and exit `0`,
+  /// so a consumer that gates on "did a process run" must branch on THIS —
+  /// never on [startedProcess] alone, and never by parsing [output] as a
+  /// transcript.
+  final bool inherited;
+
+  /// True when the record carries a verdict the caller may grade: a suite
+  /// process launched ([startedProcess]), or the verdict was inherited
+  /// from an earlier certified run ([inherited]). Gate on this rather than
+  /// on [startedProcess] so an inherited green is not read as a suite that
+  /// never launched.
+  bool get hasVerdict => startedProcess || inherited;
+
   const SuiteRunRecord({
     required this.command,
     required this.exitCode,
     required this.output,
     required this.startedProcess,
     this.timedOut = false,
+    this.inherited = false,
   });
 
   @override

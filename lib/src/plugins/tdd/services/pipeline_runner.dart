@@ -420,7 +420,13 @@ class PipelineRunner {
     ZfaEnsureCompiled? ensureCompiled,
   }) async {
     final compile = ensureCompiled ?? ZfaExecutable.ensureCompiled;
-    // 1. Explicit override.
+    // 1. Explicit override. A `.dart` override is a SOURCE entrypoint, so
+    //    it goes through the same compile seam as every other source
+    //    entrypoint (issue #1624 review): `Process.run` on a raw `.dart`
+    //    path fails at exec, and the doc below promises that every
+    //    resolution landing on a Dart source is compiled before it is
+    //    returned. A non-`.dart` override (the fake-bin fixtures, an
+    //    installed binary) still passes through verbatim.
     if (zfaBinOverride != null && zfaBinOverride.isNotEmpty) {
       final f = File(zfaBinOverride);
       if (!await f.exists()) {
@@ -430,9 +436,10 @@ class PipelineRunner {
           feature: feature,
         );
       }
+      final compiled = await compile(zfaBinOverride);
       return _ResolvedEntrypoint(
-        executable: zfaBinOverride,
-        displayCommand: zfaBinOverride,
+        executable: compiled,
+        displayCommand: compiled,
       );
     }
 
