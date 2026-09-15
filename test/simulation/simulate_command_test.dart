@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 /// Bug #832 — the `zfa simulate` command (VISION §9 simulation worlds).
 ///
 /// `zfa simulate` spins the golden contract world: `--scaffold` commits

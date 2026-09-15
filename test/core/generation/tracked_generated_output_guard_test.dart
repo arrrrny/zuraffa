@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 // Spec 1540 — TrackedGeneratedOutputGuard unit tests (fast tier).
 //
 // Drives the snapshot/detect/restore contract against REAL `git init`

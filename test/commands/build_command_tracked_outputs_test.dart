@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 // Spec 1540 — build-command restore-or-refuse + completeness-gate remedy
 // tests (fast tier, in-process — the build_command_unit_test.dart pattern).
 //

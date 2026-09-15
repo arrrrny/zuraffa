@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Spec 069-corpus-economics — T001: incremental verification.
 //
 // The refactor re-proof currently runs the FULL suite after every pass

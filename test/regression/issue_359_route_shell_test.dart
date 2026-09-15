@@ -1,4 +1,4 @@
-@Tags(['regression', 'flutter'])
+@Tags(['regression', 'flutter', 'slow'])
 library;
 
 // https://github.com/arrrrny/zuraffa/issues/359

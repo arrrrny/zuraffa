@@ -100,6 +100,7 @@ import '../services/artifact_registry.dart';
 import '../services/cycle_log.dart';
 import '../services/feature_path_resolver.dart';
 import '../services/kernel_cache.dart';
+import '../services/make_post_state.dart';
 import '../services/pass_batch_ledger.dart';
 import '../services/pass_registry_tracker.dart';
 import '../services/refactor_passes.dart';
@@ -427,6 +428,16 @@ class RefactorCommand extends Command<void> {
     // exemption. The evidence entry records them honestly.
     var preflightExempted = 0;
     var reproofExempted = 0;
+    // Issue #1653: per-phase wall durations — preflight (the
+    // absolute-green suite run), registry (the fixed pass batch), and
+    // re-proof (the post-pass suite run(s), #1333 retries included).
+    // Without per-phase heartbeats the 8m32s cold-resolution refactor was
+    // indistinguishable from a stuck step; the receipt now carries the
+    // durations and the green path prints them.
+    final phaseDurations = <String, Duration>{};
+    final preflightWatch = Stopwatch();
+    final registryWatch = Stopwatch();
+    final reproofWatch = Stopwatch();
 
     try {
       // Issue #1507: the kernel sweep is a start-of-cycle obligation, not
@@ -624,17 +635,94 @@ class RefactorCommand extends Command<void> {
           exitCode = 0;
           return;
         }
+
+        // Issue #1652: the make-post-state rung — the record the driving
+        // run writes at every make green-application. A context+tree
+        // match means THIS make just ran its live post-generation green
+        // evidence on exactly this tree, seconds ago, with no external
+        // edit in between (the loop is machine-driven inside one run):
+        // the full pipeline would re-prove what make just proved. The
+        // inheritance is named honestly — the evidence is make's target-
+        // test green, the full suite did NOT run at this tree, and the
+        // full gate still runs at the phase-2b batch pass, feature
+        // completion and nightly (spec 069 T001). The ledger keeps
+        // precedence: a refactor-proved full-pipeline gate (above) is
+        // checked first and this record never overwrites it.
+        final makePost = await MakePostState.read(featureDir);
+        if (makePost != null &&
+            makePost.matches(
+              suite: suiteTemplate,
+              baselineKey: await PassBatchLedger.baselineKeyFor(
+                suiteBaselinePath,
+              ),
+              configKey: await PassBatchLedger.configKeyFor(cwd),
+              exemptBehaviors: effectiveExemptIds,
+              libDigest: PassBatchLedger.treeDigest(libNow),
+              testDigest: PassBatchLedger.treeDigest(testNow),
+            )) {
+          print(
+            'zfa tdd refactor: make-post-state hit (issue #1652) — the '
+            'pipeline is inherited from make\'s certified tree',
+          );
+          print(
+            '   make ${makePost.behaviorId} certified this exact tree at '
+            '${makePost.capturedAt}: ${makePost.greenVerdict}',
+          );
+          print(
+            '   preflight, pass registry and re-proof skipped for this '
+            'behavior (byte-identical lib/ and test/ trees; the full '
+            'suite did NOT run at this tree — the full gate still runs '
+            'at the phase-2b batch pass, feature completion + nightly)',
+          );
+          if (effectiveExemptIds.isNotEmpty) {
+            print(
+              '   parked-exempt behaviors: '
+              '${effectiveExemptIds.join(', ')}',
+            );
+          }
+          outcome = RefactorOutcome.clean;
+          await CycleLog(featureDir).append(
+            CycleLogEntry(
+              behaviorId: '$featureName-refactor',
+              kind: CycleEntryKind.refactor,
+              runnerCommand: suiteTemplate,
+              exitCode: 0,
+              capturedOutput:
+                  'make-post-state: pipeline inherited from make '
+                  '${makePost.behaviorId}\'s certified post-state at '
+                  '${makePost.capturedAt} (issue #1652) — byte-identical '
+                  'lib/ and test/ trees, same suite template, same '
+                  'baseline content, same exempt set.\n'
+                  'inherited green verdict: ${makePost.greenVerdict}\n'
+                  'the full suite did not run at this tree; the full gate '
+                  'still runs at the phase-2b batch pass, feature '
+                  'completion and nightly.\n'
+                  'applied: 0 actions (pass registry skipped on the '
+                  'unchanged tree).',
+              sourceCriterion: 'FR-008',
+              testPath: 'test/',
+              timestamp: DateTime.now().toUtc().toIso8601String(),
+              isNoOp: true,
+            ),
+          );
+          _printSummary(feature: featureName, outcome: outcome, applied: 0);
+          exitCode = 0;
+          return;
+        }
       }
 
       // 3. Run the preflight suite.
       print('zfa tdd refactor: preflight suite');
       print('   command: $suiteTemplate');
+      preflightWatch.start();
       final preflight = await runner.runSuite(
         suiteTemplate: suiteTemplate,
         workingDirectory: cwd,
         timeout: timeout,
         environment: scratchEnv,
       );
+      preflightWatch.stop();
+      phaseDurations['preflight'] = preflightWatch.elapsed;
       print('   preflight exit: ${preflight.exitCode}');
 
       // Issue #922: the driving run hands its cached baseline to spawned
@@ -827,11 +915,20 @@ class RefactorCommand extends Command<void> {
         warningsBlocking: await TddProfileKeys.warningsBlocking(cwd),
         environment: scratchEnv,
       );
+      registryWatch.start();
       final passResult = await passes.run();
+      registryWatch.stop();
+      phaseDurations['registry'] = registryWatch.elapsed;
       for (final action in passResult.actions) {
         print('   pass: ${action.name}');
         print('     command: ${action.command}');
         print('     exit: ${action.exitCode}');
+        // Issue #1653: the per-pass heartbeat — printed next to the exit
+        // code so a stuck pass is visible in the live log too, not only in
+        // the receipt.
+        if (action.duration != null) {
+          print('     duration: ${formatPhaseDuration(action.duration!)}');
+        }
         if (action.filesChanged.isNotEmpty) {
           print('     changed: ${action.filesChanged.join(', ')}');
         } else {
@@ -1008,6 +1105,10 @@ class RefactorCommand extends Command<void> {
       //    instead of a fabricated "green".
       String reproofCommand;
       SuiteRunRecord reproof;
+      // Issue #1653: the re-proof phase's wall time — from the inheritance
+      // decision through the #1333 retry loop (the retries are part of the
+      // phase's cost; the receipt reports the whole phase honestly).
+      reproofWatch.start();
       if (reproofInherited) {
         reproofCommand = suiteTemplate;
         print(
@@ -1112,6 +1213,10 @@ class RefactorCommand extends Command<void> {
           environment: scratchEnv,
         );
         print('   re-proof exit: ${reproof.exitCode} (retry $reproofRetries)');
+      }
+      reproofWatch.stop();
+      if (!reproofInherited) {
+        phaseDurations['re-proof'] = reproofWatch.elapsed;
       }
 
       if (reproof.timedOut) {
@@ -1370,6 +1475,16 @@ class RefactorCommand extends Command<void> {
           're-proof retries: $reproofRetries\n'
           're-proof output tail (stdout+stderr, truncated):\n'
           '${reproofOutputTail(reproof.output)}';
+      // Issue #1653: the per-phase heartbeat, printed on the green path
+      // before the receipt is appended — preflight/registry/re-proof wall
+      // times, so a slow phase is named in the live log (the 8m32s refactor
+      // printed only verdicts; the cold-resolution cost hid inside them).
+      if (phaseDurations.isNotEmpty) {
+        final rendered = phaseDurations.entries
+            .map((e) => '${e.key}=${formatPhaseDuration(e.value)}')
+            .join(' ');
+        print('   phase timings: $rendered');
+      }
       if (applied == 0) {
         // Clean no-op — no fabricated actions.
         print('   no actions applied — clean no-op.');
@@ -1391,6 +1506,7 @@ class RefactorCommand extends Command<void> {
             testPath: 'test/',
             timestamp: DateTime.now().toUtc().toIso8601String(),
             isNoOp: true,
+            phaseDurations: phaseDurations.isEmpty ? null : phaseDurations,
           ),
         );
       } else {
@@ -1418,6 +1534,7 @@ class RefactorCommand extends Command<void> {
             timestamp: DateTime.now().toUtc().toIso8601String(),
             refactorActions: passResult.actions,
             isNoOp: false,
+            phaseDurations: phaseDurations.isEmpty ? null : phaseDurations,
           ),
         );
         print(

@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Spec 1529 driver-level tests — the make step killed at the run
 // driver's deadline leaves an INSPECTABLE receipt (US1 / U8), the
 // explicit budget that looks unsafe draws a LOUD warning (US2 / U13),

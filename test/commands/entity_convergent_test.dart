@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 /// U6 for spec 0806-zfa-replay: `zfa entity create` is a convergent fixed
 /// point — when the target entity file already exists on disk (the tree the
 /// recorded generation step already produced), the command is a no-op with

@@ -1,6 +1,9 @@
-// No `slow` tag: this suite is a fast in-process fixture test (CliRunner
-// spawns no subprocesses) so the default CI tier runs the #1574 guard on
-// every build — the same reasoning as bug_1573_doctor_migrate_prescription_test.
+// Fast lane: this suite is a fast in-process fixture test — CliRunner
+// drives gen in-process; the only subprocess is the fixture's short-lived
+// `Process.runSync('git', …)` probe, which the B5 census (#1632) discounts
+// as a trivial probe — so the default CI tier runs the #1574 guard on
+// every build (the same reasoning as
+// bug_1573_doctor_migrate_prescription_test).
 // Bug #1574 — tdd gen still records machine-absolute test_path/subject_path
 // while the run driver records the relative form — 11 of 18 committed
 // registries are absolute (#1397's corruption is still being written).

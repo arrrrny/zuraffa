@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 // Issue #1360 — an UNDECLARED option on a parser-only-registered
 // subcommand (bug #856's grammar) crashes package:args' error path with
 // a null-check TypeError instead of the clean usage error:

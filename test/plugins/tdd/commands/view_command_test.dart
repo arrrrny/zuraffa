@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Fast unit tests for `ViewCommand` — the deterministic view-builder
 // generator surface for widget-kind behaviors (issue #939).
 //

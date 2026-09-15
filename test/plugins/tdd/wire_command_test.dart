@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Fast unit tests for `WireCommand` — the subject-wiring pipeline step
 // (bug #610; epic 045 precondition 5).
 //

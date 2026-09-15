@@ -68,10 +68,10 @@ if t_have_jq; then
     t_assert_eq "E1 HH:MM timestamp normalized" "2026-09-15T11:00:00" "$(t_json_get "$out" '.evidence[3].timestamp')"
     t_assert_contains "E1 evidence text extracted" "$(t_json_get "$out" '.evidence[0].evidence_text')" "failing test output"
 else
-    # Whitespace-normalize before matching: the python3 tier emits spaced
-    # JSON, jq/tier-3 emit compact — only the field pairing is contractual.
-    # Workaround for arrrrny/zuraffa#1648 (spaced tier-2 output vs compact
-    # fixed-string greps); the production script stays untouched here.
+    # Whitespace-normalize before matching — the #1646 workaround, kept per
+    # fix.md follow-ups. All tiers emit compact JSON since #1648's production
+    # fix, so this is a defensive no-op for spacing; only the field pairing
+    # is contractual. See arrrrny/zuraffa#1648.
     out="$(printf '%s' "$out" | tr -d '[:space:]')"
     t_assert_contains "E1 entries present (grep fallback)" "$out" '"phase":"RED"'
     t_assert_contains "E1 behavior present (grep fallback)" "$out" '"behavior_id":"U9"'
@@ -116,7 +116,8 @@ if t_have_jq; then
     t_assert_eq "E2 only valid entries returned" "2" "$(t_json_get "$out" '.evidence | length')"
     t_assert_eq "E2 valid entries intact" "U1 U2" "$(t_json_get "$out" '.evidence[].behavior_id' | tr '\n' ' ' | sed 's/ $//')"
 else
-    # Same whitespace normalization as E1 — see arrrrny/zuraffa#1648.
+    # Same whitespace normalization as E1 — a defensive no-op since #1648's
+    # production fix made all tiers emit compact JSON (arrrrny/zuraffa#1648).
     t_assert_not_contains "E2 malformed entry excluded (grep fallback)" "$(printf '%s' "$out" | tr -d '[:space:]')" '"behavior_id":"X1"'
 fi
 
@@ -195,6 +196,25 @@ if t_have_jq; then
     fi
 else
     t_skip "E5 JSON parseability (jq absent — nothing verified)"
+fi
+
+# ---------------------------------------------------------------------------
+t_case "E6: tier-2 python3 emits compact JSON — no spaced separators (#1648)"
+
+# Tier 2 (python3) serves --json whenever python3 is present, jq or not, so
+# all emitters must agree on one canonical shape: tier 3 emits compact JSON
+# (jq -cn per entry; manual interpolation), and the grep fallbacks assert
+# compact fixed strings. Spaced tier-2 output false-fails those fallbacks in
+# the jq-less quadrant (arrrrny/zuraffa#1648). Asserts the RAW output — no
+# whitespace normalization here, that would mask the defect.
+if command -v python3 >/dev/null 2>&1; then
+    out="$(bash "$READ_EVIDENCE" "$ROOT/e1-cycle-log.md" --json)"
+    rc=$?
+    t_assert_exit "E6 succeeds" 0 "$rc"
+    t_assert_contains "E6 compact envelope (raw output)" "$out" '{"evidence":[{"phase":"RED"'
+    t_assert_contains "E6 compact field pairing (raw output)" "$out" '"behavior_id":"U9"'
+else
+    t_skip "E6 compact JSON (python3 absent — tier-2 never runs)"
 fi
 
 # ---------------------------------------------------------------------------
