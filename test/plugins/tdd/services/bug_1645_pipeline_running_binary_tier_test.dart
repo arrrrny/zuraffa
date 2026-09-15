@@ -31,12 +31,21 @@
 //   U1 — B5: the cache-exe driver with a NON-executable PATH candidate:
 //        the running binary wins; the non-executable PATH candidate never
 //        wins (the test pins the outcome, not the tier order).
+//   U11 — B6 (verify remediation, kills M2): a non-VM-named executable
+//        MISSING from disk + a zfa on PATH: the PATH install wins — the
+//        promoted tier must not fire on a missing file (the existence
+//        check is load-bearing).
+//   U12 — B7 (verify remediation, kills M4): a `.dart`-suffixed
+//        resolvedExecutable (non-VM basename) routes through the
+//        `ensureCompiled` seam — the entrypoint is the returned artifact,
+//        never the raw source (the no-JIT seam is load-bearing).
 
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/models/generation_plan.dart';
+import 'package:zuraffa/src/cli/zfa_executable.dart';
 import 'package:zuraffa/src/plugins/tdd/services/pipeline_runner.dart';
 
 void main() {
@@ -62,6 +71,7 @@ void main() {
     required String scriptPath,
     required String resolvedExecutable,
     required String pathEnv,
+    ZfaEnsureCompiled? ensureCompiled,
   }) async {
     final wd = await workingDir();
     addTearDown(() => wd.delete(recursive: true));
@@ -79,6 +89,7 @@ void main() {
       scriptPathOverride: scriptPath,
       resolvedExecutableOverride: resolvedExecutable,
       pathEnvOverride: pathEnv,
+      ensureCompiled: ensureCompiled,
     );
   }
 
@@ -129,12 +140,16 @@ void main() {
     test('U2 (B3): the dart run driver (VM) keeps the #665/#690 order — '
         'the PATH tier still fires (backward compatible)', () async {
       final pathInstall = await executableFile('zfa1645_vm', 'zfa');
+      // A REAL VM name AND a real existing file (verify remediation R3):
+      // the stand-in must exist so the running-binary tier's existence
+      // check alone never masks a broken VM-name set.
+      final vm = await executableFile('zfa1645_vmbin', 'dart');
 
       final result = await runSingleStepPlan(
         scriptPath: staleScript,
         // `dart run`: the driving executable is the Dart VM, not a
         // compiled zfa — the running-binary tier must NOT fire.
-        resolvedExecutable: '/usr/bin/dart',
+        resolvedExecutable: vm.path,
         pathEnv: p.dirname(pathInstall.path),
       );
 
@@ -146,12 +161,14 @@ void main() {
         'order — the PATH tier still fires (backward compatible)', () async {
       final pathInstall = await executableFile('zfa1645_aot', 'zfa');
       final snapshot = await executableFile('zfa1645_snap', 'zfa.aot');
+      // A REAL VM name AND a real existing file (verify remediation R3).
+      final vm = await executableFile('zfa1645_aotbin', 'dartaotruntime');
 
       final result = await runSingleStepPlan(
         scriptPath: snapshot.path,
         // A JIT/AOT snapshot launch drives through dartaotruntime — the
         // VM names keep the running-binary tier off.
-        resolvedExecutable: '/usr/bin/dartaotruntime',
+        resolvedExecutable: vm.path,
         pathEnv: p.dirname(pathInstall.path),
       );
 
@@ -185,5 +202,62 @@ void main() {
         );
       },
     );
+
+    test('U11 (B6): a non-VM-named executable MISSING from disk falls through '
+        'to PATH — the promoted tier never fires on a missing file', () async {
+      final pathInstall = await executableFile('zfa1645_path3', 'zfa');
+      final ghostDir = await Directory.systemTemp.createTemp('zfa1645_ghost');
+      addTearDown(() => ghostDir.delete(recursive: true));
+      // A non-VM basename whose file does NOT exist: the existence
+      // check must refuse the promotion and let the PATH tier resolve
+      // (the spec's nonexistent-executable edge case).
+      final missing = p.join(ghostDir.path, 'missing_bin', 'zfa_exe');
+
+      final result = await runSingleStepPlan(
+        scriptPath: staleScript,
+        resolvedExecutable: missing,
+        pathEnv: p.dirname(pathInstall.path),
+      );
+
+      expect(result.completed, isTrue);
+      expect(
+        result.entrypoint,
+        pathInstall.path,
+        reason:
+            'a missing candidate must not be promoted; falling through '
+            'to PATH is the honest resolution',
+      );
+    });
+
+    test('U12 (B7): a .dart-suffixed resolvedExecutable routes through the '
+        'compile seam — the artifact runs, never the raw source', () async {
+      final pathInstall = await executableFile('zfa1645_path4', 'zfa');
+      final source = await executableFile('zfa1645_src', 'tool_main.dart');
+      final artifact = await executableFile('zfa1645_art', 'zfa-compiled');
+      final compiledFrom = <String>[];
+
+      final result = await runSingleStepPlan(
+        scriptPath: staleScript,
+        // Non-VM basename, exists — the promoted tier fires, and a
+        // SOURCE candidate must be compiled before it is returned
+        // (the no-JIT seam, FR-005, now pinned on the new tier).
+        resolvedExecutable: source.path,
+        pathEnv: p.dirname(pathInstall.path),
+        ensureCompiled: (candidate, {sourceRoot, runner, environment}) async {
+          compiledFrom.add(candidate);
+          return artifact.path;
+        },
+      );
+
+      expect(result.completed, isTrue);
+      expect(compiledFrom, [source.path]);
+      expect(
+        result.entrypoint,
+        artifact.path,
+        reason:
+            'the promoted tier resolves through the compile seam: the '
+            'entrypoint is the compiled artifact, never the raw source',
+      );
+    });
   });
 }

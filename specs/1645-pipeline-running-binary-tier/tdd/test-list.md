@@ -35,6 +35,8 @@ One per functional requirement in `spec.md` (plus the re-shape rows).
 | U8 | test/core/no_jit_zfa_spawn_scan_test.dart (existing) | unit | COVERED-EXISTING: the no-JIT sweep — no tier resolution may spawn the bare Dart VM. | FR-005 | COVERED |
 | U9 | test/plugins/tdd/bug_1472_refactor_gate_acceptance_test.dart + bug_1472_refactor_gate_errors_only_test.dart (existing) | unit | COVERED-EXISTING: the #1472 pin contract — equal versions keep, provably-different swap, unresolvable fail open. Untouched by this feature. | FR-007 / AC-9 | COVERED |
 | U10 | test/plugins/tdd/services/pipeline_runner_test.dart (existing) | unit | COVERED-EXISTING: U14 pins native-AOT self-resolution with PATH missing (the binary path is never doubled). | FR-001 / FR-005 | COVERED |
+| U11 | test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart | unit | B6 (remediation, kills M2): a non-VM-named resolvedExecutable MISSING from disk + a `zfa` on PATH → the PATH install wins; the promoted tier never fires on a missing file. | FR-001 / edge: nonexistent executable | DONE |
+| U12 | test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart | unit | B7 (remediation, kills M4): a `.dart`-suffixed resolvedExecutable (non-VM basename, exists) routes through the `ensureCompiled` seam — the injected fake records the candidate; the entrypoint is the returned artifact, never the raw source. | FR-005 | DONE |
 
 ## Red protocol
 

@@ -62,3 +62,26 @@
 - Refactor pass: none needed beyond the format re-flow — the change is
   ordering + docs by design; no duplication introduced (the VM-name
   mirror is documented as deliberate in the plan/research).
+
+## Cycle C4 — verify remediation (M2 + M4 survived pass 1, now killed)
+
+- **Audit pass 1**: mutation sampling on the changed region — M1 killed
+  (A1/A2), M3 killed (C1 red is exactly this state), M5 killed (by the
+  re-shaped U16/U17), but M2 (dropped existence check) and M4 (bypassed
+  compile seam) SURVIVED `+5: All tests passed!`. Verdict FAIL;
+  remediation tasks R1–R3 appended to tasks.md.
+- **Remediation**:
+  - R1 → B6 (U11): missing non-VM-named executable falls through to PATH.
+  - R2 → B7 (U12): a `.dart`-suffixed resolvedExecutable routes through
+    the injected compile seam; the entrypoint is the artifact.
+  - R3 → B3/B4 stand-ins became real existing VM files (`dart`,
+    `dartaotruntime`) instead of `/usr/bin/*` paths.
+- **Mutant re-run** (each applied to `pipeline_runner.dart`, `cmp`-restored):
+  - M2 → `+6 -1` (B6 red) — KILLED
+  - M4 → `+6 -1` (B7 red) — KILLED
+  - M5 → `+5 -2` (B3/B4 red) — KILLED
+- **GREEN**: bug_1645 suite `00:01 +7: All tests passed!`; services
+  `04:31 +1105 ~1: All tests passed!`; #1472 + no-JIT `00:04 +23: All
+  tests passed!`; `dart analyze` changed files: No issues found!;
+  `dart format` applied, suite green after.
+- Final audit verdict: PASS (5/5 mutants killed, one remediation pass).

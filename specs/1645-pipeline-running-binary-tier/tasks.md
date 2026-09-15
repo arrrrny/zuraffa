@@ -67,6 +67,26 @@ decision, the VM-name mirror decision, and the U16/U17 re-shape precedent.
   `dart analyze` on the changed files → zero findings; `dart format`
   clean. [SC-002/SC-003; spec U2.3/U3.1/U3.2]
 
+## 4. Phase 4: TDD remediation (verify pass 1: M2 + M4 survived)
+
+- [x] **R1** (P1) [behavior: B6] `test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart`
+  — B6 (kills M2, the dropped existence check): a non-VM-named
+  resolvedExecutable that does NOT exist on disk + a `zfa` on PATH →
+  the PATH install wins; the promoted tier must not fire on a missing
+  file (spec edge case; FR-001 "exists on disk"). Green under the fix,
+  red under M2. [FR-001]
+- [x] **R2** (P1) [behavior: B7] same file — B7 (kills M4, the bypassed
+  compile seam): a `.dart`-suffixed resolvedExecutable (non-VM basename,
+  exists) with an injected `ensureCompiled` fake → the fake records the
+  candidate and the entrypoint is the returned ARTIFACT, never the raw
+  source (FR-005 on the new tier). Green under the fix, red under M4.
+  [FR-005]
+- [x] **R3** (P2) same file — strengthen U2/U3 (B3/B4): the VM stand-ins
+  become REAL existing executable files named `dart` / `dartaotruntime`
+  (same shape-honesty as U16/U17), so the suite alone kills M5-class
+  mutants without leaning on `/usr/bin/*` existing on the host. Green
+  throughout. [FR-002]
+
 ## Dependencies & Execution Order
 
 - T001–T007 are test-only and independent of T101; T001–T005 are written
