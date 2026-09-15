@@ -512,13 +512,29 @@ void main() {
         reason: 'the corrupt record is replaced by a fresh baseline',
       );
 
-      // Unknown version — never trusted.
-      seedBaseline(version: 999, markerMillis: 1, digests: const {});
-      writeConfig('dart_test.yaml', 'presets: {}\n');
+      // Unknown version — never trusted, EVEN when the record's
+      // digests match the current content and its marker mtime is
+      // strictly older (i.e. the version gate is the ONLY barrier
+      // between the record and a skip — kills mutants that drop the
+      // version check and rely on digest mismatch alone).
+      writeMarker();
+      writeConfig('pubspec.lock', 'lock: v1\n');
+      expect(await gate(), isNull); // record a v1 baseline
+      bumpMarker(); // a build completes — the record's marker is older
+      final trusted =
+          jsonDecode(baselineFile().readAsStringSync())
+              as Map<dynamic, dynamic>;
+      seedBaseline(
+        version: 999,
+        markerMillis: trusted['markerMtimeMillis'] as int,
+        digests: Map<String, String>.from(trusted['digests'] as Map),
+      );
+      writeConfig('pubspec.lock', 'lock: v1\n'); // byte-identical refresh
       expect(
         await gate(),
         isNull,
-        reason: 'an unknown baseline version never fabricates a skip',
+        reason: 'an unknown baseline version never fabricates a skip, '
+            'not even with fully matching digests',
       );
       final afterVersion =
           jsonDecode(baselineFile().readAsStringSync())
