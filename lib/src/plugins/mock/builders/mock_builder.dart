@@ -3,6 +3,7 @@ import 'package:path/path.dart' as path;
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/context/file_system.dart';
+import '../../../core/transaction/generation_transaction.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
@@ -242,8 +243,24 @@ class MockBuilder {
         // MockBuilder caller must preserve that mirroring, or a
         // guard-fired writer invocation is silently skipped (ledger
         // `skipped`, no regeneration).
+        // PR #1649 follow-up (A-1530-6): under `force && !revert` the
+        // writer must not fire when THIS RUN already owns the file — a
+        // combined `make Product datasource --with mock --force` has the
+        // datasource plugin's own force-overwrite of the same interface
+        // pending in the shared transaction, and GenerationTransaction
+        // rejects two operations for one path ("Multiple operations for
+        // …"). Standalone `mock create --force` has no pending claim and
+        // still regenerates. Same "check current transaction first" seam
+        // as DiscoveryEngine; raw-path equality mirrors the transaction's
+        // own duplicate detection (both writers emit the identical joined
+        // path).
+        final interfacePending =
+            GenerationTransaction.current?.operations.any(
+              (op) => op.path == interfacePath,
+            ) ??
+            false;
         if (!await fileSystem.exists(interfacePath) ||
-            (config.force && !config.revert)) {
+            (config.force && !config.revert && !interfacePending)) {
           files.add(await interfaceBuilder.generate(config));
         }
         files.add(await dataSourceBuilder.generateMockDataSource(config));
