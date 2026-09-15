@@ -94,6 +94,11 @@ void main() {
           final passes = RefactorPasses(
             project.root.path,
             executor: executor,
+            // Issue #1634: this test covers registry MECHANICS (order,
+            // recording, diff attribution) — not gating — and its scratch
+            // project holds nothing builder-facing, so the real gate
+            // would now statically skip the build pass. Force it to spawn.
+            buildSkipGate: () async => null,
             ensureCompiled: _fakeCompile,
           );
           final result = await passes.run();
@@ -138,6 +143,11 @@ void main() {
           final passes = RefactorPasses(
             project.root.path,
             executor: executor,
+            // Issue #1634: this test covers registry MECHANICS (order,
+            // recording, diff attribution) — not gating — and its scratch
+            // project holds nothing builder-facing, so the real gate
+            // would now statically skip the build pass. Force it to spawn.
+            buildSkipGate: () async => null,
             ensureCompiled: _fakeCompile,
           );
           final result = await passes.run();
@@ -202,6 +212,10 @@ void main() {
         final passes = RefactorPasses(
           project.root.path,
           executor: executor,
+          // Issue #1634: registry MECHANICS, not gating — force the build
+          // pass to spawn on this nothing-builder-facing scratch (the real
+          // gate would now statically skip it here).
+          buildSkipGate: () async => null,
           ensureCompiled: _fakeCompile,
         );
         final result = await passes.run();
@@ -234,6 +248,11 @@ void main() {
           final passes = RefactorPasses(
             project.root.path,
             executor: executor,
+            // Issue #1634: this test covers registry MECHANICS (order,
+            // recording, diff attribution) — not gating — and its scratch
+            // project holds nothing builder-facing, so the real gate
+            // would now statically skip the build pass. Force it to spawn.
+            buildSkipGate: () async => null,
             ensureCompiled: _fakeCompile,
           );
           final result = await passes.run();
@@ -269,6 +288,10 @@ void main() {
         final passes = RefactorPasses(
           project.root.path,
           executor: executor,
+          // Issue #1634: registry MECHANICS, not gating — force the build
+          // pass to spawn on this nothing-builder-facing scratch (the real
+          // gate would now statically skip it here).
+          buildSkipGate: () async => null,
           ensureCompiled: _fakeCompile,
         );
         final result = await passes.run();
@@ -353,8 +376,12 @@ void main() {
         // whole-project build (and its `dart analyze lib/` stage) on every
         // refactor. Exercise the bound gate against this scratch project.
         //
-        // No asset-graph marker → the gate lets the build RUN.
-        expect(await buildGate!(), isNull);
+        // Issue #1634: the scratch project IS the fresh-app shape — no
+        // `.dart_tool/build/` at all and nothing builder-facing in it — so
+        // the bound gate returns the STATIC first-build skip note (the
+        // build pass is recorded skipped and never spawned; the one-time
+        // entrypoint AOT compile is not paid).
+        expect(await buildGate!(), BuildRelevance.staticFirstBuildSkippedNote);
 
         // Marker newer than every source file → the gate records the skip
         // note (the pass has nothing to do).
@@ -373,6 +400,58 @@ void main() {
       }
     });
 
+    test('issue #1634: a fresh app shape runs the registry through the REAL '
+        'gate — the build pass is recorded as a synthetic skip and never '
+        'spawned; format/fix still run', () async {
+      // Verification seam (recorded as V1 in tdd/cycle-log.md): the
+      // binding test above proves the gate's DECISION; the injected-gate
+      // test above proves the RECORDING mechanics. This test joins them
+      // end-to-end — US1 acceptance scenario 2 — on a fresh-app-shaped
+      // scratch (no .dart_tool/build/, nothing builder-facing, a plain
+      // subject under lib/) with the real default gate and a fake
+      // executor: if the build pass spawned despite the gate, the
+      // invocation assertion below would catch it.
+      final project = await _ScratchProject.create();
+      try {
+        await project.writeLibFile('a.dart', 'int a() => 1;\n');
+        final executor = _FakeExecutor([
+          // NOTE: a skipped pass consumes NO executor slot — the outcomes
+          // queue aligns with the passes that actually spawn (format,
+          // fix). If the build pass spawned anyway, it would consume the
+          // 'format ok' outcome AND appear in `invocations` — both
+          // asserted against below.
+          _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+          _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+        ]);
+        final passes = RefactorPasses(
+          project.root.path,
+          executor: executor,
+          ensureCompiled: _fakeCompile,
+        );
+        final result = await passes.run();
+
+        // The build pass: recorded skipped with the static note, never
+        // handed to the executor (its programmed loud failure is unused).
+        final build = result.actions.first;
+        expect(build.name, 'build');
+        expect(build.skipped, isTrue);
+        expect(build.exitCode, 0);
+        expect(build.filesChanged, isEmpty);
+        expect(build.output, BuildRelevance.staticFirstBuildSkippedNote);
+        // format and fix still ran, unskipped, in registry order.
+        expect(executor.invocations.map((i) => i.passName).toList(), [
+          'format',
+          'fix',
+        ]);
+        expect(result.actions[1].skipped, isFalse);
+        expect(result.actions[2].skipped, isFalse);
+        expect(result.stopped, isFalse);
+        expect(result.failedPass, isNull);
+      } finally {
+        project.dispose();
+      }
+    });
+
     test('a pass that does not start misfire-stops the registry', () async {
       final project = await _ScratchProject.create();
       try {
@@ -386,6 +465,10 @@ void main() {
         final passes = RefactorPasses(
           project.root.path,
           executor: executor,
+          // Issue #1634: registry MECHANICS, not gating — force the build
+          // pass to spawn on this nothing-builder-facing scratch (the real
+          // gate would now statically skip it here).
+          buildSkipGate: () async => null,
           ensureCompiled: _fakeCompile,
         );
         final result = await passes.run();
@@ -506,6 +589,10 @@ void main() {
           final passes = RefactorPasses(
             project.root.path,
             environment: environment,
+            // Issue #1634: the #717 contract is entrypoint RESOLUTION +
+            // execution, not gating — force the build pass to spawn on
+            // this nothing-builder-facing scratch.
+            buildSkipGate: () async => null,
           );
           final result = await passes.run();
 
