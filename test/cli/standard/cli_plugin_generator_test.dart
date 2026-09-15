@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 // Tests for CliGeneratorPlugin — the FR-011 generator.
 //
 // Covers U46-U48 and A5 (SC-005) in the test-list.

@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Spec #972 — honest bare-command grammar for `zfa usecase` (FR-1).
 //
 // Bug #856 established the contract for every PluginCommand whose

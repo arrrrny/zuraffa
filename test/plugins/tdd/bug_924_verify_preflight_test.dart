@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Bug #924 — `zfa tdd verify` hangs on a full-suite baseline with many
 // pre-existing failures; the missing-mutation-config NOT_ASSESSED verdict
 // is never reached because the preflight runs first.

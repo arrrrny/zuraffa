@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Issue #1378 — route-shell / mcp-scaffold receipts record /tmp sandbox
 // artifact paths; after the sandbox is garbage-collected the receipts
 // report permanent `deleted/missing artifact` findings and NO verb can

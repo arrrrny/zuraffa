@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 // Issue #1359 — `zfa sync simulate --scenario offline-flap`: the chaos
 // driver for temporal sync features. Drives the REAL
 // PushOnlySyncStrategy against a scripted failing remote (offline

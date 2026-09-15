@@ -137,4 +137,23 @@ class EntityUtils {
   /// (the legacy unconditional-hide fallback is gone).
   static List<String> barrelHideNames(String entityName) =>
       ZuraffaBarrelExports.filter(<String>[entityName, '${entityName}Patch']);
+
+  /// [barrelHideNames] for generated files that import
+  /// `package:zuraffa/mock.dart` (issue #1418).
+  ///
+  /// The hide combinator is verified against the library it is attached
+  /// to: the mock barrel's own resolved export surface (the bare
+  /// `export 'package:zuraffa/zuraffa.dart';` re-export in
+  /// `src/mock/mock.dart` unions the zuraffa surface, so today's #942
+  /// protection carries over unchanged; a diverged or restricted mock
+  /// barrel drops the names it does not actually export — an unverified
+  /// hide is the `undefined_hidden_name` warning that fails `zfa build`'s
+  /// analyze gate). An unresolved surface yields an EMPTY list — no
+  /// combinator (#1530 FR-001 carryover). Use [barrelHideNames] for
+  /// imports of `package:zuraffa/zuraffa.dart` itself.
+  static List<String> mockBarrelHideNames(String entityName) =>
+      ZuraffaBarrelExports.filterMock(<String>[
+        entityName,
+        '${entityName}Patch',
+      ]);
 }

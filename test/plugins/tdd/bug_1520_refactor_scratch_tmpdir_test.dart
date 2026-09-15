@@ -1,5 +1,5 @@
 @TestOn('linux || mac-os')
-@Tags(['regression'])
+@Tags(['regression', 'e2e'])
 // Spec 1520 — the refactor command's per-run scratch TMPDIR (issue #1520).
 //
 // `tdd refactor` is a driving command (kernel_cache.dart's own header names

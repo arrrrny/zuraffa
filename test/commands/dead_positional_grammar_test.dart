@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Bug #856 contract — dead positional grammar.
 //
 // Every `PluginCommand` auto-registers its capabilities as subcommands, so

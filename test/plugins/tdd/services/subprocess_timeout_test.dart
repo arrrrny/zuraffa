@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Bug #742 regression tests — no TDD subprocess invocation may await its
 // child indefinitely. Every spawn site carries a deadline: a hanging child
 // is killed (SIGKILL) at the deadline, the outcome is a runnerError/timeout

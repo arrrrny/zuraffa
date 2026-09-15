@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Bug #1551 — the acceptance compose precondition hard-stops the run.
 //
 // fix(1512) (commit 7d93b09) gave every acceptance row without an entity

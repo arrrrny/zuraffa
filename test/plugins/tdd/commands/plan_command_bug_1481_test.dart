@@ -141,7 +141,7 @@ void main() {
         final tmp = await _featureDir(_healableSpec);
         try {
           final out = await _plan(tmp);
-          expect(exitCode, 0, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
           // The verdict reflects the spec state as of the END of the
           // invocation — the marker this run wrote is what routes A1.
           expect(
@@ -177,7 +177,7 @@ void main() {
       final tmp = await _featureDir(_healableSpec);
       try {
         final out = await _plan(tmp);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final list = await File(
           p.join(tmp.path, 'specs', '1481-route', 'tdd', 'test-list.md'),
         ).readAsString();
@@ -198,7 +198,7 @@ void main() {
       try {
         await _plan(tmp);
         final out = await _plan(tmp);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('[declared: type marker'));
         expect(out, isNot(contains('[fallback:')));
         expect(
@@ -218,7 +218,7 @@ void main() {
       final tmp = await _featureDir(_healableSpec);
       try {
         final out = await _plan(tmp);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('wrote 1 `**Type**` marker(s) into spec.md'));
         expect(
           out,
@@ -239,7 +239,7 @@ void main() {
         final tmp = await _featureDir(_unboundFrSpec);
         try {
           final out = await _plan(tmp);
-          expect(exitCode, 0, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
           // Feature 1484: an FR with no surviving `traces:` binding is
           // announced as a manual declaration — the pre-1484 fatal unit
           // fallback class is gone for unbound FRs.
@@ -310,7 +310,7 @@ void main() {
       final tmp = await _featureDir(_unboundFrSpec);
       try {
         final out = await _plan(tmp);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         // Feature 1484: each unbound FR is announced individually —
         // manual-routed FRs never reach make as automated unit
         // behaviours, so the dead-end tally no longer applies.
@@ -354,7 +354,7 @@ void main() {
 ''');
       try {
         final out = await _plan(tmp);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         // Feature 1484: one manual-declaration warning per unbound FR,
         // no dead-end tally (manual-routed FRs never dead-end at make —
         // they are exempt from the automated unit lane).
@@ -384,7 +384,7 @@ void main() {
       final tmp = await _featureDir(_healableSpec);
       try {
         final out = await _plan(tmp, ['--no-emit-markers']);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(
           out,
           contains(
