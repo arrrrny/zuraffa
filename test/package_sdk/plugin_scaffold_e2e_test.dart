@@ -127,17 +127,14 @@ void main() {
         // 240s override is gone — slow hosts set the scale instead, and an
         // AOT build that cannot happen fails LOUDLY in setUpAll (the
         // no-JIT policy has no silent fallback to out-budget).
-        final scaffold = await runZfaSource(
-          [
-            'package',
-            'plugin',
-            'hosted_plugin',
-            '--output',
-            tempDir.path,
-            '--no-gate',
-          ],
-          workingDirectory: tempDir.path,
-        );
+        final scaffold = await runZfaSource([
+          'package',
+          'plugin',
+          'hosted_plugin',
+          '--output',
+          tempDir.path,
+          '--no-gate',
+        ], workingDirectory: tempDir.path);
         expect(
           scaffold.exitCode,
           0,

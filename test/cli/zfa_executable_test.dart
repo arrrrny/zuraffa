@@ -254,43 +254,40 @@ void main() {
       );
     });
 
-    test(
-      'U11: a compile that misses its budget deadline raises a loud '
-      'diagnostic naming the scale remedy',
-      () async {
-        // Issue #1623's exact scenario: `dart compile exe` outlives the
-        // budget (2m38s measured on the slow host) and is killed at the
-        // deadline. The diagnostic must name the budget AND the
-        // ZFA_TEST_TIMEOUT_SCALE remedy — never degrade silently.
-        final root = await _sourceRoot('deadline');
-        final candidate = p.join(root.path, 'bin', 'zfa.dart');
+    test('U11: a compile that misses its budget deadline raises a loud '
+        'diagnostic naming the scale remedy', () async {
+      // Issue #1623's exact scenario: `dart compile exe` outlives the
+      // budget (2m38s measured on the slow host) and is killed at the
+      // deadline. The diagnostic must name the budget AND the
+      // ZFA_TEST_TIMEOUT_SCALE remedy — never degrade silently.
+      final root = await _sourceRoot('deadline');
+      final candidate = p.join(root.path, 'bin', 'zfa.dart');
 
-        Future<ProcessResult> neverInTime(
-          List<String> argv,
-          String workingDirectory,
-        ) async {
-          throw TimeoutException('simulated budget kill');
-        }
+      Future<ProcessResult> neverInTime(
+        List<String> argv,
+        String workingDirectory,
+      ) async {
+        throw TimeoutException('simulated budget kill');
+      }
 
-        await expectLater(
-          ZfaExecutable.ensureCompiled(candidate, runner: neverInTime),
-          throwsA(
-            isA<ZfaCompilationException>()
-                .having((e) => e.exitCode, 'exitCode', -1)
-                .having(
-                  (e) => e.reason,
-                  'reason',
-                  allOf(
-                    contains('exceeded its'),
-                    contains('budget'),
-                    contains(kZfaTimeoutScaleEnv),
-                  ),
+      await expectLater(
+        ZfaExecutable.ensureCompiled(candidate, runner: neverInTime),
+        throwsA(
+          isA<ZfaCompilationException>()
+              .having((e) => e.exitCode, 'exitCode', -1)
+              .having(
+                (e) => e.reason,
+                'reason',
+                allOf(
+                  contains('exceeded its'),
+                  contains('budget'),
+                  contains(kZfaTimeoutScaleEnv),
                 ),
-          ),
-        );
-        expect(File(_exePath(root)).existsSync(), isFalse);
-      },
-    );
+              ),
+        ),
+      );
+      expect(File(_exePath(root)).existsSync(), isFalse);
+    });
   });
 
   group('ensureCompiled — escape hatch + source root', () {
