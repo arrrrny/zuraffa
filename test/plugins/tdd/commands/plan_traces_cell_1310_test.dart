@@ -418,15 +418,21 @@ void main() {
         contains('expect(result, isA<bool>())'),
         reason: 'the declared scalar outcome is asserted mechanically',
       );
+      // Issue #1651: the typed assertion alone is satisfiable by the
+      // #1517 func dummy, so it carries the vacuous-guard marker — make
+      // refuses the dummy-body green until an outcome-VALUE assertion
+      // lands.
       expect(
         test,
-        isNot(contains('vacuous-guard')),
-        reason: 'a typed outcome assertion is present — not guard-only',
+        contains('vacuous-guard'),
+        reason:
+            'a type-only assertion cannot discriminate a dummy body '
+            '(issue #1651)',
       );
     });
 
-    test('U6: make certifies green for the planned behavior — the '
-        'vacuous-green dead-end is gone', () async {
+    test('U6 (issue #1651): make refuses the dummy-body scalar pair — '
+        'the type-only assertion is a vacuous green', () async {
       await planRepro();
       final runner = CliRunner(exitOnCompletion: false);
       await runner.runCapturing([
@@ -447,9 +453,11 @@ void main() {
       ]);
       expect(exitCode, 0, reason: 'the gen pair must certify red: $red');
       // The implementation step: the subject returns a dummy bool — the
-      // generated test still asserts the DECLARED outcome, so make must
-      // certify (a guard-only test in this state is exactly the
-      // vacuous-green refusal the issue dead-ends on).
+      // generated test still asserts only the DECLARED TYPE, which the
+      // dummy satisfies. Issue #1651: exactly that certification is the
+      // vacuous-green class — the marker-carrying test must be REFUSED
+      // until the author writes an outcome-VALUE assertion (the
+      // pre-#1651 form of this pin certified the dummy green).
       final record = await fx.registryRecordOf('U1');
       final subjectFile = File(
         fixturePath(fx, record['subject_path'] as String),
@@ -470,13 +478,13 @@ void main() {
         '--project',
         fx.root.path,
       ]);
-      expect(exitCode, 0, reason: 'make must certify: $out');
+      expect(exitCode, 1, reason: 'a dummy-body green must not certify: $out');
       expect(
         out,
-        isNot(contains('outcome=vacuous-green')),
+        contains('outcome=vacuous-green'),
         reason:
-            'the real outcome assertion keeps the run off the '
-            'vacuous-green dead-end',
+            'the type-only assertion is satisfiable by the dummy — the '
+            'marker refuses the green (issue #1651)',
       );
     });
   });
