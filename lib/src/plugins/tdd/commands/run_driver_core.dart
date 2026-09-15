@@ -3785,13 +3785,31 @@ class RunDriverCore {
         '${lines.sublist(lines.length - maxLines).join('\n')}';
   }
 
+  /// The console excerpt depth (issue #1412): the LAST 10 non-empty lines
+  /// of the failed step's captured output. The same tail semantics issue
+  /// #1329 established for the cycle-log/journal ("failures end in the
+  /// error... the head is the least diagnostic part") at a
+  /// console-appropriate depth — for a refactor step the transcript always
+  /// OPENS with the passing preflight block, so a head excerpt shows
+  /// `runner-error` next to `preflight exit: 0` (a contradiction) and
+  /// hides the failing pass the operator needs.
+  static const int _consoleExcerptLines = 10;
+
   void _printOutputExcerpt(String output) {
-    final lines = output
+    // Issue #1412: the excerpt is the diagnostic TAIL, routed through the
+    // SAME _outputTail helper the cycle-log/journal paths record (no
+    // second tail implementation — the honest truncation marker rides
+    // along). Empty lines are filtered BEFORE the tail is taken so blank
+    // padding never consumes excerpt slots (the pre-#1412 excerpt was
+    // compact; it stays compact). Empty output prints nothing.
+    final compact = output
         .split('\n')
         .map((l) => l.trimRight())
         .where((l) => l.isNotEmpty)
-        .take(3);
-    for (final line in lines) {
+        .join('\n');
+    if (compact.isEmpty) return;
+    final tail = _outputTail(compact, maxLines: _consoleExcerptLines);
+    for (final line in tail.split('\n')) {
       print('   $line');
     }
   }

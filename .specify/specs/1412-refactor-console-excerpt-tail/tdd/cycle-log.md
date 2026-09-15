@@ -69,3 +69,28 @@ zfa tdd run: step failed — behavior=B-001 step=refactor outcome=failed
   recorded path fails loudly. The pre-existing #1329 suite (P1) and the
   #1472 gate suite (P2) stay green on master by design and are re-run at
   verification.
+
+## Cycle: T002 (green)
+
+- behavior: R1, R2
+- kind: green
+- classification: null
+- criterion: SC-1, SC-2 (spec.md)
+- test: `test/plugins/tdd/bug_1412_refactor_excerpt_tail_test.dart` — full file
+- command: `dart test test/plugins/tdd/bug_1412_refactor_excerpt_tail_test.dart`
+- exit: 0
+- at: 2026-09-15T15:20:00Z
+- output:
+```
+Analyzing run_driver_core.dart...
+No issues found!
+00:24 +4: All tests passed!
+```
+- reading: the console excerpt now routes through `_outputTail(maxLines: 10)`
+  (the issue #1329 helper, reused verbatim — R2's marker wording proves the
+  reuse) after compacting non-empty lines; `_outputTail` itself and its
+  journal/cycle-log call sites are untouched (R4 stayed green on the same
+  run — the hard constraint holds). The failing refactor's console now shows
+  the failing-pass block (`pass: build`, `exit: 1`, `pass "build" failed —
+  misfire-stop.`) with the honest `last 10 of 251 lines` marker, and the
+  preflight head is gone.
