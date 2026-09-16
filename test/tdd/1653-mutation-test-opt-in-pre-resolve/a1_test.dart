@@ -41,13 +41,15 @@ void main() {
       expect(
         subject.a1ObservedDevDeps,
         isNotEmpty,
-        reason: 'default `zfa tdd init` must ADD the testing baseline '
+        reason:
+            'default `zfa tdd init` must ADD the testing baseline '
             'dev_dependencies (AC-1)',
       );
       expect(
         subject.a1ObservedDevDeps,
         isNot(contains('mutation_test')),
-        reason: 'issue #1653: mutation_test is opt-in (--mutation) and must '
+        reason:
+            'issue #1653: mutation_test is opt-in (--mutation) and must '
             'never ride the default baseline',
       );
     });

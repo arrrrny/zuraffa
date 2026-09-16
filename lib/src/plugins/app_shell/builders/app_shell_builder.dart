@@ -663,32 +663,58 @@ Future<void> _startXRayBridge() async {
         refer('getAllRoutes').call([]),
       );
 
-  /// #1673: the shared `(context, state) => const ZfaDayZeroPlaceholder()`
-  /// closure used by both the empty-table fallback route and the
-  /// `errorBuilder`.
+  /// #1673: the shared `(context, state) => ZfaDayZeroPlaceholder(uri:
+  /// state.uri)` closure used by both the empty-table fallback route and
+  /// the `errorBuilder`. The unmatched location is threaded in so the copy
+  /// stays true once real routes exist (a 404 for a typo'd deep link), not
+  /// just on day zero.
   Expression _placeholderBuilderClosure() => Method(
     (m) => m
       ..requiredParameters.add(Parameter((p) => p..name = 'context'))
       ..requiredParameters.add(Parameter((p) => p..name = 'state'))
       ..lambda = true
-      ..body = refer('const ZfaDayZeroPlaceholder()').code,
+      ..body = refer(
+        'ZfaDayZeroPlaceholder',
+      ).call([], {'uri': refer('state').property('uri')}).code,
   ).closure;
 
-  /// #1673: the day-zero placeholder widget — a Scaffold with the app title
-  /// and a hint to run `zfa route <Entity>`, rendered until the first route
-  /// module is generated.
+  /// #1673: the placeholder widget — a Scaffold with the app title and a
+  /// hint to run `zfa route <Entity>`, rendered for the day-zero home and
+  /// for any location the router cannot match. [ZfaDayZeroPlaceholder.uri]
+  /// carries the location that reached the placeholder, so the copy stays
+  /// true on an app that already has routes (a 404 after a typo'd deep
+  /// link) instead of claiming there are no routes.
   Class _dayZeroPlaceholderClass(String? title) => Class(
     (c) => c
       ..name = 'ZfaDayZeroPlaceholder'
       ..docs.add(
         '/// Day-zero placeholder home (issue #1673): shown until the first\n'
-        '/// `zfa route <Entity>` generates a real route module.',
+        '/// `zfa route <Entity>` generates a real route module, and rendered\n'
+        '/// by the router\'s `errorBuilder` for any unmatched location.\n'
+        '/// [uri] is the location that reached the placeholder.',
       )
       ..extend = refer('StatelessWidget')
+      ..fields.add(
+        Field(
+          (f) => f
+            ..name = 'uri'
+            ..type = refer('Uri')
+            ..modifier = FieldModifier.final$,
+        ),
+      )
       ..constructors.add(
         Constructor(
           (ctor) => ctor
             ..constant = true
+            ..optionalParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'uri'
+                  ..named = true
+                  ..required = true
+                  ..toThis = true,
+              ),
+            )
             ..optionalParameters.add(
               Parameter(
                 (p) => p
@@ -723,7 +749,7 @@ Future<void> _startXRayBridge() async {
                   'body': refer('Center').call([], {
                     'child': refer('Text').call([
                       literalString(
-                        'No routes yet — generate views with `zfa route <Entity>`.',
+                        'No route matched \${uri} — run `zfa route <Entity>` to add views.',
                       ),
                     ]),
                   }),

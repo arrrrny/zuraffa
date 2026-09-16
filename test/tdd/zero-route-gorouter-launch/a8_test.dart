@@ -34,7 +34,7 @@ void main() {
         expect(emitted, contains('errorBuilder: (context, state)'));
         expect(emitted, contains('getAllRoutes().isEmpty'));
         expect(emitted, contains('ZfaDayZeroPlaceholder'));
-        expect(emitted, contains('No routes yet'));
+        expect(emitted, contains(r'No route matched ${uri}'));
         expect(emitted, contains('zfa route <Entity>'));
         expect(emitted, contains("'Todo App'"));
       },
