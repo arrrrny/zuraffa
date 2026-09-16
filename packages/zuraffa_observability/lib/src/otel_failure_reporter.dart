@@ -266,6 +266,10 @@ class OtelFailureReporter extends FailureReporter {
 
   @override
   Future<void> dispose() async {
-    // TracerProviderBase handles flushing pending spans
+    // BatchSpanProcessor buffers spans ended by reportBatch; flush the
+    // global provider so teardown exports them instead of dropping them
+    // (review finding on #1678). TracerProviderBase.forceFlush() is
+    // synchronous in otel 0.18.x — no await needed.
+    globalTracerProvider.forceFlush();
   }
 }

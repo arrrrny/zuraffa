@@ -11,7 +11,7 @@ enablement state.
 | -- | -- | -- | -- |
 | `name` | String | one of the catalog ids: `graphql`, `storage`, `observability` | the capability id used on the CLI and in `.zfa.json` |
 | `package` | String | pub package name: `zuraffa_graphql`, `zuraffa_storage`, `zuraffa_observability` | the companion package the developer adds |
-| `enabled` | bool | persisted per project in `.zfa.json` `plugins:` | explicit opt-in state (FR-006) |
+| `enabled` | bool | persisted per project in `.zfa.json` `capabilities:` | explicit opt-in state (FR-006) |
 | `resolvable` | bool (derived, never persisted) | read from the target project's `package_config.json` at command time | whether the backing package is actually usable right now (FR-007/FR-008) |
 
 Validation rules:

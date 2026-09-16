@@ -22,7 +22,7 @@ observability  enabled   package: zuraffa_observability  (resolvable)
 
 - `<name>` must be a catalog id; unknown names exit non-zero listing the
   catalog.
-- Writes `plugins.<name>: true` into the project's `.zfa.json`
+- Writes `capabilities.<name>: true` into the project's `.zfa.json`
   (additive; other keys untouched).
 - Prints the backing package to add when it is not yet resolvable.
 - Idempotent: enabling an enabled plugin succeeds as an explicit no-op

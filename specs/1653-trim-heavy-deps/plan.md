@@ -30,7 +30,7 @@ lifecycle) with no-op defaults.
 spec Assumptions). REMOVED from core: `graphql`, `gql`, `minio`,
 `opentelemetry` — they move to the companion packages.
 
-**Storage**: N/A for core behavior; `.zfa.json` gains a `plugins:` section
+**Storage**: N/A for core behavior; `.zfa.json` gains a `capabilities:` section
 (enablement persistence); companion packages are standard Dart packages.
 
 **Testing**: `dart test` (fast unit suite by default; `--preset=regression`
@@ -78,7 +78,7 @@ constitution is `AGENTS.md` (the `016` plan precedent):
 
 **Post-design re-check**: the split ADDS packages but keeps every heavy
 runtime class OUT of the core compile closure — no gate violated. The
-`plugins:` section of `.zfa.json` follows the existing `.zfa.json` config
+`capabilities:` section of `.zfa.json` follows the existing `.zfa.json` config
 contract (project memory surface per AGENTS.md).
 
 ## Project Structure

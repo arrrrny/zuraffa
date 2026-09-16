@@ -143,7 +143,7 @@ class _GenerateDelegateCommand extends Command<void> {
   Future<void> run() async {
     final gateRefusal = PluginGate.refusalFor('graphql');
     if (gateRefusal != null) {
-      print('\u274c \u0024gateRefusal');
+      print('❌ $gateRefusal');
       exitCode = ExitProtocol.usage;
       return;
     }

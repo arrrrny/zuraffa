@@ -10,4 +10,12 @@ stays lean.
 zfa plugin enable graphql
 ```
 
-Then add `package:zuraffa_graphql` to your pubspec and run `dart pub get`.
+Then add the repository-local package to your pubspec:
+
+```yaml
+dependencies:
+  zuraffa_graphql:
+    path: packages/zuraffa_graphql
+```
+
+Then run `dart pub get`.

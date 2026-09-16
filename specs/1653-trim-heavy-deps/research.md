@@ -89,7 +89,7 @@ dependencies and keeps the whole feature in one reviewable PR-family.
 
 ## D4 — How does "enabled" persist and how does zfa see it?
 
-**Decision**: `.zfa.json` gains `plugins: {graphql: bool, storage: bool,
+**Decision**: `.zfa.json` gains `capabilities: {graphql: bool, storage: bool,
 observability: bool}` written by `zfa plugin enable <name>` (idempotent);
 `zfa plugin list` renders name/state/backing-package from a static
 in-core registry (`OptionalPlugin` catalog). "Resolvable" = the backing

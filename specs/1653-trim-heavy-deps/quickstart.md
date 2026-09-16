@@ -20,7 +20,7 @@ A fresh consumer adding the core package resolves no heavy package
 
 ```bash
 zfa plugin list                    # three capabilities, disabled, packages named
-zfa plugin enable graphql          # records plugins.graphql: true in .zfa.json
+zfa plugin enable graphql          # records capabilities.graphql: true in .zfa.json
 zfa plugin enable graphql          # no-op success ("already enabled")
 zfa plugin list                    # graphql reports enabled
 cat .zfa.json                      # other keys untouched

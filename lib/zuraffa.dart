@@ -546,25 +546,10 @@ export 'src/graphql/mapping/type_mapper.dart';
 // DocumentBuilder — query/mutation/subscription document generation.
 export 'src/graphql/document/document_builder.dart';
 
-// GraphQLDocumentBuilder — AST-based .graphql file generation via package:gql.
-
-// DocumentsDartGenerator — documents.dart with DocumentNode constants.
-
-// NamingUtils — shared naming utilities for consistent variable naming.
-
-// GraphQLValidator — validates documents against the cached schema.
-
-// GqlFilePreserver — preserves valid user-edited .graphql files.
-
-// ============================================================
-// V6 GraphQL Client Runtime & Subscriptions
-// ============================================================
-
-// GraphQLClientFactory — assembles GraphQLClient from .zfa.json config.
-
-// GraphQLClientProvider — singleton lazily-built client provider.
-
-// SubscriptionStream — GraphQL subscription -> SignalResult streams.
+// The gql-based surfaces (document builder, documents generator, naming
+// utils, validator, file preserver) and the GraphQL client runtime
+// (client factory/provider, subscription streams) moved to
+// package:zuraffa_graphql (spec 1653) — import them from that package.
 
 // ============================================================
 // V6 GraphQL Codegen — Schema-to-Full-Stack Generation
@@ -579,22 +564,14 @@ export 'src/graphql/codegen/dto_generator.dart';
 // UnionGenerator — GraphQL UNION types -> sealed class hierarchies.
 export 'src/graphql/codegen/union_generator.dart';
 
-// DatasourceGenerator — package:graphql remote datasource.
-
 // RepositoryGenerator — interface + impl delegating to datasource.
 export 'src/graphql/codegen/repository_generator.dart';
-
-// DiGenerator — ZuraffaContainer registrations.
-
-// SliceOrchestrator — orchestrates all generators for a schema slice.
 
 // ErrorMappingConfig — .zfa.json graphql.errorMapping -> AppFailure mapping.
 export 'src/graphql/codegen/error_mapping_config.dart';
 
 // UnionResultHandler — union result -> AppFailure/SignalResult codegen.
 export 'src/graphql/codegen/union_result_handler.dart';
-
-// GraphqlGenerateCommand — `zfa graphql generate` command class.
 
 // GraphQL introspection — fetch and parse remote schemas.
 export 'src/graphql/graphql_introspection_service.dart';
@@ -898,12 +875,23 @@ class Zuraffa {
   ///
   /// ## Example
   /// ```dart
+  /// class MyCustomReporter extends FailureReporter {
+  ///   @override
+  ///   String get id => 'my-custom-reporter';
+  ///
+  ///   @override
+  ///   Future<void> reportBatch(List<FailureReport> reports) async {
+  ///     for (final report in reports) {
+  ///       await myHttpClient.post('/errors', body: {
+  ///         'type': report.failure.runtimeType.toString(),
+  ///         'message': report.failure.message,
+  ///       });
+  ///     }
+  ///   }
+  /// }
+  ///
   /// void main() {
-  ///   Zuraffa.addFailureReporter(
-  ///       collectorEndpoint: Uri.parse('https://otel.example.com/v1/traces'),
-  ///       serviceName: 'my_app',
-  ///     ),
-  ///   );
+  ///   Zuraffa.addFailureReporter(MyCustomReporter());
   ///   runApp(MyApp());
   /// }
   /// ```
@@ -941,9 +929,6 @@ class Zuraffa {
     await FailureReporterRegistry.instance.flush();
   }
 
-  /// Dispose all failure reporters and flush pending reports.
-  ///
-  /// Call this on app shutdown.
   /// The remote log exporter wired by [OtelLogExporter]-based setups
   /// (spec 1653: the exporter is vendor-free and stays in core; the
   /// observability companion constructs and registers it).
@@ -957,6 +942,9 @@ class Zuraffa {
     _otelLogExporter = exporter;
   }
 
+  /// Dispose all failure reporters and flush pending reports.
+  ///
+  /// Call this on app shutdown.
   static Future<void> disposeFailureReporters() async {
     await FailureReporterRegistry.instance.dispose();
     await _otelLogExporter?.dispose();
@@ -969,15 +957,21 @@ class Zuraffa {
 
   /// Register an artifact hook that reacts to published artifacts.
   ///
-  ///
   /// ## Example
   /// ```dart
-  ///     endpoint: 'http://localhost:9000',
-  ///     accessKey: 'minioadmin',
-  ///     secretKey: 'minioadmin',
-  ///   ),
-  ///   bucket: 'artifacts',
-  /// ));
+  /// class AlertHook extends ArtifactHook {
+  ///   @override
+  ///   String get id => 'alert';
+  ///
+  ///   @override
+  ///   Future<void> onPublish(ArtifactContext context) async =>
+  ///       alertClient.send(
+  ///         channel: '#app-errors',
+  ///         text: 'Artifact from ${context.source}: ${context.label}',
+  ///       );
+  /// }
+  ///
+  /// Zuraffa.registerArtifactHook(AlertHook());
   /// ```
   static void registerArtifactHook(ArtifactHook hook) {
     ArtifactPublisher.instance.register(hook);

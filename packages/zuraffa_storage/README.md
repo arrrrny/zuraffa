@@ -10,4 +10,12 @@ stays lean.
 zfa plugin enable storage
 ```
 
-Then add `package:zuraffa_storage` to your pubspec and run `dart pub get`.
+Then add the repository-local package to your pubspec:
+
+```yaml
+dependencies:
+  zuraffa_storage:
+    path: packages/zuraffa_storage
+```
+
+Then run `dart pub get`.

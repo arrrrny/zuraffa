@@ -16,8 +16,10 @@ void main() {
     final saved = TraceObserver.instance;
     addTearDown(() => TraceObserver.instance = saved);
 
-    // The seam accepts any observer; the companion's OtelTracer is one.
-    TraceObserver.instance = OtelTracer.instance;
+    // The companion's init() is the only wiring step — exercise it
+    // directly so an empty implementation cannot pass (review finding
+    // on #1678).
+    ZuraffaObservability.init();
 
     expect(TraceObserver.instance, same(OtelTracer.instance));
     expect(TraceObserver.instance, isA<TraceObserver>());

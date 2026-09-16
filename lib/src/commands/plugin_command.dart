@@ -168,14 +168,20 @@ class PluginCommand {
     var doc = <String, dynamic>{};
     if (file.existsSync()) {
       try {
-        doc = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+        final Object? decoded = jsonDecode(file.readAsStringSync());
+        if (decoded is! Map<String, dynamic>) {
+          print('❌ .zfa.json is not valid JSON — fix or re-init it first.');
+          exit(1);
+        }
+        doc = decoded;
       } on FormatException {
         print('❌ .zfa.json is not valid JSON — fix or re-init it first.');
         exit(1);
       }
     }
+    final rawSection = doc['capabilities'];
     final section = Map<String, dynamic>.from(
-      doc['capabilities'] as Map<String, dynamic>? ?? {},
+      rawSection is Map<String, dynamic> ? rawSection : <String, dynamic>{},
     );
     section[name] = enabled;
     doc['capabilities'] = section;

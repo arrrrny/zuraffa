@@ -10,4 +10,12 @@ stays lean.
 zfa plugin enable observability
 ```
 
-Then add `package:zuraffa_observability` to your pubspec and run `dart pub get`.
+Then add the repository-local package to your pubspec:
+
+```yaml
+dependencies:
+  zuraffa_observability:
+    path: packages/zuraffa_observability
+```
+
+Then run `dart pub get`.

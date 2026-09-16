@@ -18,7 +18,10 @@ class ZuraffaObservability {
   }
 
   /// One-call OpenTelemetry failure reporting (the former
-  /// `Zuraffa.enableOtelReporting`).
+  /// `Zuraffa.enableOtelReporting`). When [exportLogs] is true, an
+  /// [OtelLogExporter] is built and registered with
+  /// `Zuraffa.registerOtelLogExporter` so remote log export survives the
+  /// spec-1653 move 1:1 (review finding on #1678).
   static Future<void> enableOtelReporting({
     required Uri collectorEndpoint,
     required String serviceName,
@@ -27,6 +30,8 @@ class ZuraffaObservability {
     int? maxQueueSize,
     Duration? flushInterval,
     bool persistFailures = false,
+    bool exportLogs = false,
+    ZuraffaLogLevel remoteLogLevel = ZuraffaLogLevel.warning,
   }) async {
     await Zuraffa.addFailureReporter(
       OtelFailureReporter(
@@ -39,5 +44,16 @@ class ZuraffaObservability {
       flushInterval: flushInterval,
       persistFailures: persistFailures,
     );
+
+    if (exportLogs) {
+      Zuraffa.registerOtelLogExporter(
+        OtelLogExporter(
+          collectorBaseEndpoint: collectorEndpoint,
+          serviceName: serviceName,
+          apiKey: apiKey,
+          remoteLogLevel: remoteLogLevel,
+        )..start(),
+      );
+    }
   }
 }

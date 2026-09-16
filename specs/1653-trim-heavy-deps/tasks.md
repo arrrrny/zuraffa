@@ -32,7 +32,7 @@
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
 - [x] T003 Create `OptionalPlugin` + `PluginCatalog` model in `lib/src/plugins/plugin_gate/plugin_catalog.dart` per data-model.md (catalog ids `graphql`, `storage`, `observability`; backing packages `zuraffa_graphql`, `zuraffa_storage`, `zuraffa_observability`; unknown id refuses naming the catalog)
-- [x] T004 Create `.zfa.json` plugins-section persistence in `lib/src/plugins/plugin_gate/plugin_config.dart` (read `plugins:<name>:bool`; write is additive, other keys untouched)
+- [x] T004 Create `.zfa.json` capabilities-section persistence in `lib/src/plugins/plugin_gate/plugin_config.dart` (read `capabilities:<name>:bool`; write is additive, other keys untouched)
 - [x] T005 [P] Create light `TraceObserver` seam in `lib/src/core/trace_observer.dart` (`currentTraceId`/`currentSpanId`, null defaults, static instance registry) per data-model.md
 - [x] T006 [P] De-type `lib/src/core/hook.dart`, `lib/src/domain/usecase.dart`, `lib/src/domain/stream_usecase.dart` to read trace fields from `TraceObserver` instead of `OtelTracer.instance` (byte-equal values when tracing active via plugin; null when absent)
 - [x] T007 [P] Flip the failure-reporter default to the no-op reporter in `lib/src/core/failure_reporter_registry.dart` (otel reporter becomes plugin-registered; no core import of `otel_failure_reporter.dart`)
@@ -70,7 +70,7 @@
 
 **Goal**: With a capability enabled and its companion resolvable, the existing zfa workflow runs unchanged; otherwise every entry point refuses with guidance.
 
-**Independent Test**: With `plugins.graphql: true` + companion path-resolvable, the graphql command path completes; with either condition false, it exits non-zero naming the fix.
+**Independent Test**: With `capabilities.graphql: true` + companion path-resolvable, the graphql command path completes; with either condition false, it exits non-zero naming the fix.
 
 ### Tests for User Story 2 (MANDATORY — write FIRST, prove RED)
 

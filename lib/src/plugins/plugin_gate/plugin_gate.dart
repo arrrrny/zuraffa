@@ -26,8 +26,9 @@ class PluginGate {
     final file = File(p.join(root, '.zfa.json'));
     if (!file.existsSync()) return const {};
     try {
-      final doc = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-      final section = doc['capabilities'];
+      final Object? decoded = jsonDecode(file.readAsStringSync());
+      if (decoded is! Map<String, dynamic>) return const {};
+      final section = decoded['capabilities'];
       if (section is! Map<String, dynamic>) return const {};
       return section.map((k, v) => MapEntry(k, v == true));
     } on FormatException {
@@ -46,8 +47,9 @@ class PluginGate {
     final file = File(p.join(root, '.dart_tool', 'package_config.json'));
     if (!file.existsSync()) return false;
     try {
-      final doc = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-      final packages = doc['packages'];
+      final Object? decoded = jsonDecode(file.readAsStringSync());
+      if (decoded is! Map<String, dynamic>) return false;
+      final packages = decoded['packages'];
       if (packages is! List) return false;
       return packages.any(
         (entry) => entry is Map<String, dynamic> && entry['name'] == package,
@@ -69,8 +71,9 @@ class PluginGate {
     final file = File(p.join(root, '.dart_tool', 'package_config.json'));
     if (!file.existsSync()) return null;
     try {
-      final doc = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-      final packages = doc['packages'];
+      final Object? decoded = jsonDecode(file.readAsStringSync());
+      if (decoded is! Map<String, dynamic>) return null;
+      final packages = decoded['packages'];
       if (packages is! List) return null;
       for (final pkg in packages) {
         if (pkg is! Map<String, dynamic> || pkg['name'] != entry.package) {
@@ -92,7 +95,8 @@ class PluginGate {
   }
 
   /// `null` when the capability is usable right now; otherwise the
-  /// guidance message naming the exact fix (FR-008).
+  /// guidance message naming the exact fix (FR-008). Per SPEC 917 every
+  /// refusal ends with a machine-actionable `--> fix:` line.
   static String? refusalFor(
     String name, {
     String? projectRoot,
@@ -102,18 +106,22 @@ class PluginGate {
     if (entry == null) {
       final names = PluginCatalog.all.map((e) => e.name).join(', ');
       return 'Unknown optional capability: $name\n'
-          '   Available capabilities: $names';
+          '   Available capabilities: $names\n'
+          "   --> fix: run 'zfa plugin list' to see the catalog";
     }
     final enabled =
         capabilities?[name] ?? isEnabled(name, projectRoot: projectRoot);
     if (!enabled) {
       return '${entry.name} is an optional capability — run '
           "'zfa plugin enable ${entry.name}' and add "
-          'package:${entry.package}';
+          'package:${entry.package}\n'
+          "   --> fix: zfa plugin enable ${entry.name}";
     }
     if (!isResolvable(entry.package, projectRoot: projectRoot)) {
       return '${entry.package} is enabled but not resolvable in this '
-          'project — add it to pubspec.yaml and run dart pub get';
+          'project — add it to pubspec.yaml and run dart pub get\n'
+          '   --> fix: add package:${entry.package} to pubspec.yaml '
+          'and run dart pub get';
     }
     return null;
   }

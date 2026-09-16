@@ -17,7 +17,7 @@ cannot drive `zfa tdd` on its own development — the
 | U2 | no file under `lib/` imports any of the four heavy packages; `lib/zuraffa.dart`'s export closure contains no heavy symbol (otel api re-export line gone, MinioClient/TelemetryHook/moved-graphql exports gone) | FR-004 | unit | DONE | test/core/lean_core_pin_test.dart |
 | U3 | `TraceObserver` default yields null trace/span ids and the HookContext assembly path reads it (not `OtelTracer.instance`) — core behavior identical when tracing absent | FR-009 | unit | DONE | test/core/trace_observer_test.dart |
 | U4 | `PluginCatalog` resolves the three catalog ids to their backing packages; an unknown id refuses naming the catalog | FR-005, FR-006 | unit | DONE | test/plugins/plugin_gate/plugin_gate_test.dart |
-| U5 | `zfa plugin enable <name>` writes `plugins.<name>: true` into `.zfa.json` additively (other keys untouched); re-enable is an explicit no-op success | FR-006 | unit | DONE | test/plugins/plugin_gate/plugin_command_test.dart |
+| U5 | `zfa plugin enable <name>` writes `capabilities.<name>: true` into `.zfa.json` additively (other keys untouched); re-enable is an explicit no-op success | FR-006 | unit | DONE | test/plugins/plugin_gate/plugin_command_test.dart |
 | U6 | gate refusals: not-enabled → exit non-zero naming `zfa plugin enable <name>` + the package; enabled-not-resolvable → exit non-zero naming the package + `dart pub get`; refusal precedes any artifact write | FR-008 | unit | DONE | test/plugins/plugin_gate/plugin_gate_test.dart |
 | U7 | `zfa plugin list` renders one line per capability with name/enabled/backing-package/resolvable, exit 0 always | FR-005 | unit | DONE | test/plugins/plugin_gate/plugin_command_test.dart |
 
