@@ -17,8 +17,29 @@
 // Acquire in `setUp` (before the chdir) and release in `tearDown` (after
 // the restore — mirroring CliRunner's release-after-restore so the next
 // holder always captures a stable CWD).
+//
+// ORDERING HAZARD — do not run a parallel lane over suites that nest
+// CliRunner dispatches inside this window: `_withDir` takes CWD→EXIT
+// while `CliRunner.runCapturing` takes EXIT→CWD (its `-C` window), a
+// classic hold-and-wait inversion. The old fixed 30-second stale-break
+// was accidentally escaping those deadlocks (at the cost of breaking
+// LIVE holders — the rotating CI reds); heartbeat staleness removed the
+// accidental escape, so a parallel lane would deadlock for real. The
+// dart_core lane is serial for exactly this reason (plus the wider
+// process-global CWD redirection hazard) — see .github/workflows/ci.yaml.
+//
+// Liveness protocol (kept in sync with `CliRunner._acquireCwdLock`): the
+// holder heartbeats the lock file every few seconds, and an acquirer
+// breaks it only when the file goes COLD — proof the holder died
+// mid-window (a killed isolate never runs its `finally`, so the file
+// would otherwise leak and block every later window in the process).
+// The former fixed 30-second break had exactly one failure mode in each
+// direction: it broke LIVE holders whose window outlived 30s under load
+// (the rotating CI reds), and any ceiling long enough to fix that made
+// waiters hit their own test timeouts first.
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -31,50 +52,79 @@ abstract final class CwdMutex {
     p.join(Directory.systemTemp.path, 'zfa_cwd_lock_$pid.lock'),
   );
 
-  /// Acquires the cross-isolate CWD lock, waiting up to 30 seconds for
-  /// the current holder. Same protocol (exclusive-create + stale-lock
-  /// break + degraded mode) as `CliRunner._acquireCwdLock` — keep the two
-  /// in sync.
+  /// How long the lock file may go without a heartbeat before it counts
+  /// as holder death. MUST stay in sync with
+  /// `CliRunner.staleCwdLockAfter`.
+  static const Duration staleAfter = Duration(seconds: 30);
+
+  static const Duration _heartbeatEvery = Duration(seconds: 5);
+
+  static Timer? _heartbeat;
+
+  /// Acquires the cross-isolate CWD lock. Exclusive-create
+  /// (`File.createSync(exclusive: true)`) is the atomic serialization
+  /// point; it works across isolates AND processes. A held lock is broken
+  /// only when its heartbeat went cold (holder death), never while the
+  /// holder is alive.
   static Future<void> acquire() async {
-    final deadline = DateTime.now().add(const Duration(seconds: 30));
-    var lockBroken = false;
     while (true) {
       try {
         _lockFile.createSync(exclusive: true);
+        _startHeartbeat();
         return;
       } on FileSystemException {
-        final expired = DateTime.now().isAfter(deadline);
-        if (!expired) {
-          await Future<void>.delayed(const Duration(milliseconds: 2));
+        final age = _lockAge();
+        if (age != null && age < staleAfter) {
+          // Held by a live holder — wait for its release.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
           continue;
         }
-        if (!lockBroken) {
-          // The holder most likely died mid-window (its isolate killed
-          // by a test timeout). Break the stale lock once rather than
-          // stall the rest of the run.
-          lockBroken = true;
-          try {
-            _lockFile.deleteSync();
-          } on FileSystemException {
-            // Unbreakable — fall through to degraded mode below.
-          }
-          continue;
+        // Cold file: the holder died mid-window. Break and retry.
+        try {
+          _lockFile.deleteSync();
+        } on FileSystemException {
+          // Unbreakable — the retry-create below loses the break race
+          // and the loop re-checks.
         }
-        // Degraded mode: proceed without exclusivity instead of failing
-        // every later sandbox forever.
-        return;
+        try {
+          _lockFile.createSync(exclusive: true);
+          _startHeartbeat();
+          return;
+        } on FileSystemException {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
       }
     }
   }
 
-  /// Releases the lock. Best-effort, exactly like the runner's release: a
-  /// lost release only costs the next holder one 30s wait before it
-  /// breaks the stale file.
+  /// Releases the lock (and the heartbeat). Best-effort: a lost release
+  /// self-heals when the file goes cold and the next acquirer breaks it.
   static void release() {
+    _heartbeat?.cancel();
+    _heartbeat = null;
     try {
       _lockFile.deleteSync();
     } on FileSystemException {
       // Already gone (another waiter broke a stale lock).
+    }
+  }
+
+  static void _startHeartbeat() {
+    _heartbeat?.cancel();
+    _heartbeat = Timer.periodic(_heartbeatEvery, (_) {
+      try {
+        _lockFile.setLastModifiedSync(DateTime.now());
+      } on FileSystemException {
+        // The waiter's break-race deleted the file — best-effort tick.
+      }
+    });
+  }
+
+  static Duration? _lockAge() {
+    try {
+      return DateTime.now().difference(_lockFile.lastModifiedSync());
+    } on FileSystemException {
+      return null; // vanished between the probe and this stat — retry
     }
   }
 }

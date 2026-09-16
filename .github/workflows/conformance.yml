@@ -47,8 +47,12 @@ jobs:
         # (examples/todo_tdd resolves `package:todo_tdd` against the ROOT
         # package config and reports 31 pre-existing uri errors — verified
         # identical on master). Every other workflow scopes the same way
-        # (see ci.yaml, skew-matrix.yaml).
-        run: dart analyze lib test bin
+        # (see ci.yaml, skew-matrix.yaml). `--no-fatal-warnings` matches
+        # ci.yaml's analyze step: the lib/tdd/*_subject.dart fixture
+        # corpora carry ~107 pre-existing info-level lints (generated
+        # subject names) that are not this job's contract — without the
+        # flag the infos fail the step (exit 2) before any gate runs.
+        run: dart analyze lib test bin --no-fatal-warnings
 
       - name: The treaty gate — manifest --verify (drift exits 3)
         run: dart run bin/zfa.dart manifest --verify
