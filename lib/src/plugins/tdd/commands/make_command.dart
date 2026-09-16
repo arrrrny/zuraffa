@@ -3958,6 +3958,12 @@ class MakeCommand extends Command<void> {
         if (entry.kind == 'green') lastGreen = entry;
         if (entry.kind == 'red') lastRed = entry;
       }
+      // Issue #1430 divergence (accepted in fix.md Deviations): unlike
+      // `_subjectDriftRefusal`, this probe ignores a matching LAST
+      // `refresh` re-bind — a post-refresh refusal keeps the marker and
+      // the resume takes the #1398 adoption arm instead of the #1430
+      // accept (same green evidence, only the label differs). Do not fix
+      // one side without the other.
       certified = lastGreen?.subjectHash ?? lastRed?.subjectHash;
     } on FileSystemException {
       return false;
@@ -3971,7 +3977,6 @@ class MakeCommand extends Command<void> {
     required MakeOutcome outcome,
     required String feature,
   }) {
-    print('make: behavior=$behavior outcome=${outcome.label} feature=$feature');
     // Issue #1398: the summary line is the every-exit-path funnel (FR-010
     // of spec 047-tdd-make) — the exact point every graceful make exit
     // passes through. Clearing the write-ahead interrupt marker HERE is
@@ -3992,6 +3997,10 @@ class MakeCommand extends Command<void> {
     // no forged crash record). The clear is synchronous and best-effort —
     // it must never fail the make that already finished its work.
     if (_interruptInherited && _interruptCrashDriftLive()) {
+      // Issue #1669 review: the retention note prints BEFORE the
+      // machine-readable summary line so the summary line stays the
+      // final stdout line on every code path (FR-010). clearSync prints
+      // nothing and never throws (best-effort by contract).
       print(
         '   interrupt marker retained (issue #1669): the on-disk subject '
         'still differs from the certified hash while this make exits '
@@ -4002,6 +4011,7 @@ class MakeCommand extends Command<void> {
     } else {
       _interruptMarker?.clearSync();
     }
+    print('make: behavior=$behavior outcome=${outcome.label} feature=$feature');
     // Issue #969: the outcome label IS the exit class (shipped
     // taxonomy, carried verbatim into the envelope).
     _verdict

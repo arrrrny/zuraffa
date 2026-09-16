@@ -28,6 +28,10 @@
 //       consumed — pinned by the shipped spec-1398 A3 test
 //       (`bug_1398_make_interrupt_recovery_test.dart`), regression-run, not
 //       re-authored here.
+//   A6: inherited marker + implemented crash mutation + a generation-error
+//       refusal (the flaky-target-test arm of the wedge narrative) → the
+//       marker SURVIVES — the keep is refusal-flavor-agnostic: the funnel
+//       branches on `_interruptInherited` + disk state only.
 //
 // Every shape runs the REAL make in-process (CliRunner + TddFixture, the
 // issue #1308 driver-suite convention), like the spec-1398 recovery file.
@@ -45,8 +49,9 @@ import 'helpers/tdd_fixture.dart';
 
 const feature = '090-bug-1669-marker-wedge';
 
-List<String> makeArgs(TddFixture fx, {String? id}) {
+List<String> makeArgs(TddFixture fx, {String? id, String? zfaBin}) {
   final args = <String>['tdd', 'make', '--project', fx.root.path];
+  if (zfaBin != null) args.addAll(['--zfa-bin', zfaBin]);
   if (id != null) args.add(id);
   return args;
 }
@@ -114,6 +119,34 @@ int $symbol() {
 }
 ''';
 }
+
+/// A crash mutation that does NOT pass its own test (returns 41, the test
+/// expects 42): the resumed make reaches the generation pipeline and dies
+/// in it (the generation-error flavor), while the bytes still differ from
+/// the certified stub, so the crash drift is live.
+String brokenSubject(String id) {
+  final symbol = '${id.toLowerCase().replaceAll('-', '_')}_value';
+  return '''
+// GENERATED STUB — `zfa tdd gen $id`.
+// behavior_id: $id
+library;
+
+int $symbol() {
+  final base = 40;
+  final step = 1;
+  return base + step;
+}
+''';
+}
+
+/// The build step's analyze-gate refusal carrying analyzer ERRORS (the
+/// #942 class): whatever the warnings policy, errors keep the honest
+/// `generation-error` stop. (No apostrophes — the fake bin echoes these
+/// through single-quoted shell lines.)
+const generationErrorBuildStdout = [
+  '   error - lib/src/a_subject.dart:5:8 - The name A6Subject is defined in two libraries. - ambiguous_import',
+  '❌ dart analyze reported 1 error(s) and 0 warning(s) — generated code does not compile cleanly.',
+];
 
 /// A subject-driven test that fails on the throwing stub and passes on
 /// the implementation (the honest red→green pair).
@@ -390,5 +423,77 @@ void main() {
         reason: 'the adoption exit consumed the crash record: $out',
       );
     });
+  });
+
+  group('bug 1669: the keep holds on a second refusal flavor (A6)', () {
+    test(
+      'A6: inherited marker + implemented crash mutation + '
+      'generation-error refusal → the marker SURVIVES the graceful exit',
+      () async {
+        final fx = await TddFixture.create(featureName: feature);
+        addTearDown(fx.dispose);
+        addTearDown(() => exitCode = 0);
+        const desc = 'returns 42 when invoked with no args';
+        const id = 'A6';
+        // The certified pair, minted for real (the A3 recipe): the
+        // registry seed's red entry is hashless, so a REAL verify-red run
+        // appends the red certification carrying the stub's subject hash
+        // — the certified basis the funnel probe compares against.
+        await fx.seedCertifiedRed(
+          id: id,
+          description: desc,
+          testContent: subjectDrivenTest(id, desc),
+        );
+        final runner = CliRunner(exitOnCompletion: false);
+        final redOut = await runner.runCapturing(verifyRedArgs(fx, id));
+        expect(exitCode, 0, reason: redOut);
+
+        // The crash residue: the marker AND a mutation the killed make
+        // left mid-flight — a WRONG implementation: it still fails the
+        // target test (the flaky-target-test arm), but its bytes differ
+        // from the certified stub, so the crash drift is live.
+        await writeCrashMarker(fx, id);
+        await File(fx.subjectPathOf(id)).writeAsString(brokenSubject(id));
+
+        // The pipeline dies at the terminal build gate (analyzer errors →
+        // the honest generation-error stop, the #942 class).
+        final zfaBin = await fx.writeFakeZfaBin(
+          logPath: fx.fakeZfaLogPath,
+          stdoutByArgv: {'build': generationErrorBuildStdout},
+          exitByArgv: {'build': 1},
+        );
+
+        final out = await runner.runCapturing(
+          makeArgs(fx, id: id, zfaBin: zfaBin),
+        );
+        expect(exitCode, isNot(0), reason: out);
+        expect(out, contains('outcome=generation-error'), reason: out);
+        // THE FIX on the second flavor: the crash record survives the
+        // non-adopting exit — the keep is refusal-flavor-agnostic.
+        expect(
+          readMarker(fx),
+          isNotNull,
+          reason:
+              'the generation-error must not consume a live crash '
+              'record: $out',
+        );
+        expect(out, contains('issue #1669'), reason: out);
+        // The refusal appended NO green evidence — nothing binds the
+        // broken mutation.
+        final cycleLog = await File(fx.cycleLogPath).readAsString();
+        expect(
+          cycleLog,
+          isNot(contains('## Cycle: $id (green)')),
+          reason:
+              'no green evidence may bind the mutation on a refusal: '
+              '$cycleLog',
+        );
+        // And the mutation itself survives the failed make (the wedge
+        // precondition the kept marker exists for: with the record gone
+        // the next resume would read byte-identical to a hand-edit).
+        final subject = await File(fx.subjectPathOf(id)).readAsString();
+        expect(subject, contains('step = 1'), reason: subject);
+      },
+    );
   });
 }
