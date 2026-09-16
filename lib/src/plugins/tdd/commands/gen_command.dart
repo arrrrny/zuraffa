@@ -111,7 +111,6 @@ import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
 import '../services/profile_preflight.dart';
 import '../services/scenario_example.dart';
-import '../services/spec_parser.dart';
 import '../services/vacuous_guard.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/declared_routing.dart';
@@ -1930,26 +1929,20 @@ class GenCommand extends Command<void> {
   /// derives its assertions from (issue #1651): the FIRST scenario in
   /// the feature's spec whose prose names the declared method. Fail-open
   /// — an unreadable spec or an unparsable shape keeps the legacy
-  /// declared surface (the typed `isA<T>()` fallback).
+  /// declared surface (the typed `isA<T>()` fallback); the read rides
+  /// the shared [DeclaredRouting.scenariosFailOpen] shim (review fix:
+  /// one fail-open posture for gen, make, and the driver).
   static ScenarioExample? _scenarioExampleFor({
     required String cwd,
     required String featureName,
     required String? featureDir,
     required Signature signature,
   }) {
-    try {
-      final dir = featureDir ?? p.join(cwd, 'specs', featureName);
-      final specFile = File(p.join(dir, 'spec.md'));
-      if (!specFile.existsSync()) return null;
-      final examples = SpecParser.parseScenarioExamples(
-        specFile.readAsStringSync(),
-      );
-      return ScenarioResolver.firstForTarget(examples, target: signature.name);
-    } on FileSystemException {
-      return null;
-    } on FormatException {
-      return null;
-    }
+    final dir = featureDir ?? p.join(cwd, 'specs', featureName);
+    return ScenarioResolver.firstForTarget(
+      DeclaredRouting.scenariosFailOpen(dir),
+      target: signature.name,
+    );
   }
 
   /// Whether the host project runs on the Flutter test runner (issue

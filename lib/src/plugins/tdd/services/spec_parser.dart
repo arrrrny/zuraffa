@@ -1860,7 +1860,13 @@ class SpecParser {
   static final RegExp _booleanWord = RegExp(r'\b(true|false)\b');
 
   /// The word characters (plus the decimal point) that disqualify a
-  /// numeric match as a boundary-internal fragment.
+  /// numeric match as a boundary-internal fragment. A sentence-final
+  /// dot does NOT disqualify (`the sum is 5.`, `the quotient 2.5.`):
+  /// the number qualifies when the dot ends the text or is followed by
+  /// whitespace/line end — a dot gluing a longer fragment (`2.5.1`)
+  /// still rejects (review fix, #1651: the common sentence-final prose
+  /// shape used to drop the outcome value and silently fall back to
+  /// the type-only assertion).
   static bool _numericBoundaryOk(String text, RegExpMatch match) {
     final start = match.start;
     final end = match.end;
@@ -1879,37 +1885,61 @@ class SpecParser {
     }
     if (end < text.length) {
       final after = text.substring(end, end + 1);
-      if (RegExp(r'[A-Za-z0-9_.]').hasMatch(after)) return false;
+      if (RegExp(r'[A-Za-z0-9_]').hasMatch(after)) return false;
+      if (after == '.' &&
+          end + 1 < text.length &&
+          !RegExp(r'\s').hasMatch(text.substring(end + 1, end + 2))) {
+        return false;
+      }
     }
     return true;
   }
 
   /// The concrete values in [text], in order of appearance: single-
   /// quoted strings, boundary-checked numbers, and bare boolean words.
+  /// The kinds are collected in separate passes, then the hits are
+  /// stably sorted by match position, so a mixed-kind clause surfaces
+  /// its values exactly in the order the prose carries them (review
+  /// fix, #1651) — positional consumers read appearance order, not
+  /// kind groups.
   static List<ScenarioValue> _valuesIn(String text) {
-    final values = <ScenarioValue>[];
+    final hits = <({int start, int seq, ScenarioValue value})>[];
+    var seq = 0;
     for (final match in _singleQuoted.allMatches(text)) {
       final content = match.group(1)!;
       if (content.trim().isEmpty) continue;
-      values.add(
-        ScenarioValue(kind: ScenarioValueKind.string, literal: content),
-      );
+      hits.add((
+        start: match.start,
+        seq: seq++,
+        value: ScenarioValue(kind: ScenarioValueKind.string, literal: content),
+      ));
     }
     for (final match in _numericToken.allMatches(text)) {
       if (!_numericBoundaryOk(text, match)) continue;
-      values.add(
-        ScenarioValue(kind: ScenarioValueKind.number, literal: match.group(0)!),
-      );
+      hits.add((
+        start: match.start,
+        seq: seq++,
+        value: ScenarioValue(
+          kind: ScenarioValueKind.number,
+          literal: match.group(0)!,
+        ),
+      ));
     }
     for (final match in _booleanWord.allMatches(text)) {
-      values.add(
-        ScenarioValue(
+      hits.add((
+        start: match.start,
+        seq: seq++,
+        value: ScenarioValue(
           kind: ScenarioValueKind.boolean,
           literal: match.group(1)!,
         ),
-      );
+      ));
     }
-    return values;
+    hits.sort((a, b) {
+      final byStart = a.start.compareTo(b.start);
+      return byStart != 0 ? byStart : a.seq.compareTo(b.seq);
+    });
+    return [for (final hit in hits) hit.value];
   }
 
   /// Parses every acceptance scenario block's concrete example values
@@ -1924,15 +1954,28 @@ class SpecParser {
     final md = normalizeSpecText(specMd);
     final lines = md.split('\n');
     // The block walk: a scenario block STARTS at a Given-header line and
-    // runs to the next header. Trailing non-scenario prose joins the
-    // last block — harmless (it contributes no marker segments unless it
-    // carries them, and the acceptance walk reads the same lines).
+    // runs to the next header OR the next section heading (the FR walk's
+    // `_frBlockBoundary`), which CLOSES the block — no further prose
+    // joins it until a new header starts a fresh one. The close matters
+    // for the LAST block: everything after the final scenario
+    // (Functional Requirements prose, non-functional sections, closure
+    // checklists) would otherwise join it — the `then` clause would
+    // absorb the trailing literals ("MUST respond within 200 ms"
+    // contributes 200) and `mentionsTarget` would match method names
+    // from FR prose (`traces: Calculator.add`), deriving the unit
+    // lane's assertions from the wrong scenario (review fix).
     final blocks = <List<String>>[];
+    var closed = false;
     for (final line in lines) {
       if (_scenarioHeader.hasMatch(line)) {
         blocks.add([line]);
-      } else if (blocks.isNotEmpty) {
-        blocks.last.add(line);
+        closed = false;
+      } else if (blocks.isNotEmpty && !closed) {
+        if (_frBlockBoundary.hasMatch(line)) {
+          closed = true;
+        } else {
+          blocks.last.add(line);
+        }
       }
     }
     final examples = <ScenarioExample>[];

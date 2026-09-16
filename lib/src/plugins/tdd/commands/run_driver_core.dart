@@ -68,7 +68,6 @@ import '../services/corpus_baseline_cache.dart';
 import '../services/run_state_store.dart';
 import '../services/runner.dart';
 import '../services/scalar_dummy_subject.dart';
-import '../services/scenario_example.dart';
 import '../services/spec_parser.dart';
 import '../services/step_runner.dart';
 import '../services/contract_blocked_receipt.dart';
@@ -3329,13 +3328,15 @@ class RunDriverCore {
   ///
   /// The classification rides the ONE decision predicate make's 9b gate
   /// uses ([scalarDummyGreenMustRefuse]) so the two surfaces never
-  /// disagree: the declared routing ([DeclaredRouting
-  /// .declaredSignatureFor], the gen-time resolution) and the spec's
-  /// parsed scenarios are resolved here (both fail-open) and the #1310
-  /// floor exempts the declared-routed pair whose scenario carries no
-  /// derivable value. [featureDir] is the already-resolved feature
-  /// directory (bug features live outside `specs/`), [featureName] the
-  /// canonical feature name.
+  /// disagree: the declared routing and the spec's parsed scenarios are
+  /// resolved through the shared fail-open shims
+  /// ([DeclaredRouting.declaredSignatureFailOpen],
+  /// [DeclaredRouting.scenariosFailOpen] — review fix: one posture for
+  /// gen, make, and the driver) and the #1310 floor exempts the
+  /// declared-routed pair whose scenario carries no derivable value.
+  /// [featureDir] is the already-resolved feature directory (bug
+  /// features live outside `specs/`), [featureName] the canonical
+  /// feature name.
   Future<bool> _placeholderGreenDetected({
     required String projectRoot,
     required String featureDir,
@@ -3359,33 +3360,15 @@ class RunDriverCore {
           !contentIsTypeOnlyAssertion(testContent)) {
         return false;
       }
-      ({String method, String returnType})? declared;
-      try {
-        final signature = await DeclaredRouting.declaredSignatureFor(
-          cwd: projectRoot,
-          featureName: featureName,
-          featureDir: featureDir,
-          behaviorId: record.behaviorId,
-        );
-        if (signature != null) {
-          declared = (method: signature.name, returnType: signature.returnType);
-        }
-      } on StateError {
-        declared = null; // malformed declaration: the scaffold-class arm
-      }
-      var scenarios = const <ScenarioExample>[];
-      try {
-        final specFile = File(p.join(featureDir, 'spec.md'));
-        if (specFile.existsSync()) {
-          scenarios = SpecParser.parseScenarioExamples(
-            specFile.readAsStringSync(),
-          );
-        }
-      } on FileSystemException {
-        scenarios = const [];
-      } on FormatException {
-        scenarios = const [];
-      }
+      // Both resolutions fail open (null / empty) via the shared shims
+      // (review fix: one posture for gen, make, and the driver).
+      final declared = await DeclaredRouting.declaredSignatureFailOpen(
+        cwd: projectRoot,
+        featureName: featureName,
+        featureDir: featureDir,
+        behaviorId: record.behaviorId,
+      );
+      final scenarios = DeclaredRouting.scenariosFailOpen(featureDir);
       return scalarDummyGreenMustRefuse(
         subjectSource: subjectContent,
         testSource: testContent,

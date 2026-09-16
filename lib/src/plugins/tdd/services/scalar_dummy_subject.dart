@@ -11,6 +11,21 @@
 ///
 /// The detector recognizes the literal-constant class over a
 /// PARAMETRIZED scalar signature — the exact shape the issue reports.
+/// Two documented boundaries calibrate the class:
+///
+/// - The literal set (`0`, `0.0`, `true`, `false`, a quoted string) is
+///   exactly the writers' dummy vocabulary — the GENERATED surface the
+///   gate certifies. Hand-written placeholder literals outside that
+///   vocabulary (`return 1;`, `return -1;`, `return 42;`,
+///   `return '';`) pass undetected; widening the set is a follow-up if
+///   the goal becomes the whole placeholder family.
+/// - A legitimately constant PARAMETRIZED function
+///   (`int clampLevel(int level) => 0;`) IS matched and will be
+///   refused when not declared-routed — the deliberate complement of
+///   the parameterless exemption below: a per-input contract whose
+///   body ignores its inputs is exactly the vacuity the gate exists
+///   for.
+///
 /// A parameterless constant (`int zero() => 0;`) is NOT the class: a
 /// no-input contract fully implemented by a constant is a legitimate
 /// implementation (and the #1259 suite's own pins depend on the

@@ -138,6 +138,88 @@ Then the quotient 2.0 is returned.
         '20',
       ]);
     });
+
+    test('U10: a sentence-final number parses — the dot ends the '
+        'sentence, not the value (review fix)', () {
+      const spec = '''
+# Spec: punct
+
+1. **Given** the integers 2 and 3, **When** `Calculator.add` is called,
+   **Then** the sum is 5.
+''';
+      final examples = SpecParser.parseScenarioExamples(spec);
+      expect(examples, hasLength(1));
+      expect(examples.single.thenValues.map((v) => v.literal), contains('5'));
+    });
+
+    test('U11: a sentence-final dotted decimal parses; a version-like '
+        'fragment still rejects (review fix)', () {
+      const punctuated = '''
+# Spec: quot
+
+1. **Given** the integers 6 and 3, **When** `Calculator.divide` is called,
+   **Then** the quotient is 2.5.
+''';
+      final parsed = SpecParser.parseScenarioExamples(punctuated);
+      expect(parsed.single.thenValues.map((v) => v.literal), contains('2.5'));
+
+      const fragment = '''
+# Spec: ver
+
+1. **Given** build 2.5.1, **When** `Tool.check` is called,
+   **Then** the check is ok.
+''';
+      final parsedFragment = SpecParser.parseScenarioExamples(fragment);
+      expect(
+        parsedFragment.single.givenValues.map((v) => v.literal),
+        isNot(contains('2.5')),
+      );
+    });
+
+    test('U12: trailing sections never join the last scenario block '
+        '(review fix)', () {
+      const spec = '''
+# Spec: bounded
+
+1. **Given** the integers 2 and 3, **When** `Calculator.add` is called,
+   **Then** the sum is 5.
+
+### Functional Requirements
+
+- FR-1: The system MUST respond within 200 ms and traces: Calculator.add
+''';
+      final examples = SpecParser.parseScenarioExamples(spec);
+      expect(examples, hasLength(1));
+      final e = examples.single;
+      // The FR prose stays OUT of the scenario: the Then values are
+      // exactly the outcome 5 (no 200 from "respond within 200 ms"),
+      // and the trailing `traces: Calculator.add` mention cannot make
+      // `firstForTarget` resolve this scenario for the wrong reasons.
+      expect(e.thenValues.map((v) => v.literal).toList(), <String>['5']);
+    });
+
+    test('U13: mixed-kind values surface in order of appearance '
+        '(review fix)', () {
+      const spec = '''
+# Spec: order
+
+1. **Given** the flag true and the name 'Ada', **When** `Greeter.check`
+   is called, **Then** ok is 'yes' and 0 is never returned.
+''';
+      final examples = SpecParser.parseScenarioExamples(spec);
+      expect(examples, hasLength(1));
+      expect(
+        examples.single.givenValues.map((v) => v.kind).toList(),
+        <ScenarioValueKind>[
+          ScenarioValueKind.boolean,
+          ScenarioValueKind.string,
+        ],
+      );
+      expect(
+        examples.single.thenValues.map((v) => v.literal).toList(),
+        <String>['yes', '0'],
+      );
+    });
   });
 
   group('ScenarioResolver.firstForTarget (issue #1651)', () {

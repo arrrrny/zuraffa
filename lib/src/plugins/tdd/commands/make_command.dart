@@ -112,7 +112,6 @@ import '../services/contract_blocked_receipt.dart';
 import '../services/hand_surface.dart';
 import '../services/vacuous_guard.dart';
 import '../services/scalar_dummy_subject.dart';
-import '../services/scenario_example.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../services/widget_scaffold.dart';
@@ -2358,23 +2357,21 @@ class MakeCommand extends Command<void> {
         if (contentCarriesScalarDummyBody(subjectContent) &&
             contentIsTypeOnlyAssertion(gateTestContent)) {
           // Both resolutions fail open (null / empty): the floor stands
-          // unless the spec positively names a derivable outcome.
-          final gateDeclared = await _gateDeclaredSignature(
+          // unless the spec positively names a derivable outcome — the
+          // shared shims (review fix: one posture for make + the driver).
+          final gateDeclared = await DeclaredRouting.declaredSignatureFailOpen(
             cwd: cwd,
             featureName: target.featureName,
             featureDir: target.featureDir,
             behaviorId: record.behaviorId,
           );
-          final gateScenarios = _gateScenarios(featureDir: target.featureDir);
+          final gateScenarios = DeclaredRouting.scenariosFailOpen(
+            target.featureDir,
+          );
           final mustRefuse = scalarDummyGreenMustRefuse(
             subjectSource: subjectContent,
             testSource: gateTestContent,
-            declared: gateDeclared == null
-                ? null
-                : (
-                    method: gateDeclared.name,
-                    returnType: gateDeclared.returnType,
-                  ),
+            declared: gateDeclared,
             scenarios: gateScenarios,
           );
           if (mustRefuse) {
@@ -2884,48 +2881,6 @@ class MakeCommand extends Command<void> {
       run.startedProcess &&
       run.exitCode == _exitCodeNoTests &&
       run.output.contains('No tests ran');
-
-  /// Issue #1651 (make's 9b gate): the pair's declared signature for the
-  /// #1310 floor decision — the SAME resolution gen performs
-  /// ([DeclaredRouting.declaredSignatureFor]). Null (fail-open) when the
-  /// pair is not declared-routed or any artifact is unreadable; a
-  /// MALFORMED declaration is swallowed here (null) rather than
-  /// crashing make — the gate refuses the scaffold class on null, which
-  /// is the safe arm for a pair gen itself would have refused.
-  static Future<Signature?> _gateDeclaredSignature({
-    required String cwd,
-    required String featureName,
-    required String featureDir,
-    required String behaviorId,
-  }) async {
-    try {
-      return await DeclaredRouting.declaredSignatureFor(
-        cwd: cwd,
-        featureName: featureName,
-        featureDir: featureDir,
-        behaviorId: behaviorId,
-      );
-    } on StateError {
-      return null;
-    }
-  }
-
-  /// Issue #1651 (make's 9b gate): the feature spec's parsed acceptance
-  /// scenarios — the SAME parse the gen-time scenario resolution uses.
-  /// Empty (fail-open) when the spec is missing or unreadable: the
-  /// #1310 floor stands unless the spec positively names a derivable
-  /// outcome.
-  static List<ScenarioExample> _gateScenarios({required String featureDir}) {
-    try {
-      final specFile = File(p.join(featureDir, 'spec.md'));
-      if (!specFile.existsSync()) return const [];
-      return SpecParser.parseScenarioExamples(specFile.readAsStringSync());
-    } on FileSystemException {
-      return const [];
-    } on FormatException {
-      return const [];
-    }
-  }
 
   /// Run the behavior's target test through the profile `single` template
   /// with the issue #1402 zero-match guard.

@@ -15,6 +15,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/routing.dart';
 import 'routing_resolver.dart';
+import 'scenario_example.dart';
 import 'spec_parser.dart';
 import 'test_list_reader.dart';
 
@@ -107,5 +108,53 @@ class DeclaredRouting {
     );
     if (result is RoutingDecision) return result.signature;
     return null;
+  }
+
+  /// Issue #1651 (review): the feature spec's parsed acceptance
+  /// scenarios — the SAME fail-open read gen's scenario-example
+  /// resolution, make's 9b gate, and the run driver's placeholder stop
+  /// consume. ONE shim instead of three per-surface copies: the reads
+  /// and the swallowing posture live here so the surfaces cannot drift
+  /// when the failure posture changes. Empty when the spec is missing,
+  /// unreadable, or unparsable — the #1310 floor stands unless the spec
+  /// positively names a derivable outcome.
+  static List<ScenarioExample> scenariosFailOpen(String featureDir) {
+    try {
+      final specFile = File(p.join(featureDir, 'spec.md'));
+      if (!specFile.existsSync()) return const [];
+      return SpecParser.parseScenarioExamples(specFile.readAsStringSync());
+    } on FileSystemException {
+      return const [];
+    } on FormatException {
+      return const [];
+    }
+  }
+
+  /// Issue #1651 (review): the pair's declared routing mapped to the
+  /// gate predicate's input record — the ONE fail-open shape make's 9b
+  /// gate and the run driver's placeholder stop share. Null when the
+  /// pair is not declared-routed or any artifact is unreadable; a
+  /// MALFORMED declaration (the parser's [StateError]) is swallowed to
+  /// null here — the gate then takes the scaffold-class arm, the safe
+  /// arm for a pair gen itself would have refused.
+  static Future<({String method, String returnType})?>
+  declaredSignatureFailOpen({
+    required String cwd,
+    required String featureName,
+    required String featureDir,
+    required String behaviorId,
+  }) async {
+    try {
+      final signature = await declaredSignatureFor(
+        cwd: cwd,
+        featureName: featureName,
+        featureDir: featureDir,
+        behaviorId: behaviorId,
+      );
+      if (signature == null) return null;
+      return (method: signature.name, returnType: signature.returnType);
+    } on StateError {
+      return null;
+    }
   }
 }
