@@ -67,6 +67,7 @@ abstract final class CwdMutex {
   /// only when its heartbeat went cold (holder death), never while the
   /// holder is alive.
   static Future<void> acquire() async {
+    var breakAttempts = 0;
     while (true) {
       try {
         _lockFile.createSync(exclusive: true);
@@ -80,11 +81,24 @@ abstract final class CwdMutex {
           continue;
         }
         // Cold file: the holder died mid-window. Break and retry.
+        if (++breakAttempts > 3) {
+          // Degraded mode (mirrors CliRunner's valve): the cold file
+          // survived three break rounds (e.g. a foreign user's file this
+          // user cannot delete) — proceed without exclusivity instead of
+          // spinning forever.
+          stderr.writeln(
+            'zfa test: warning: stale CWD lock (${_lockFile.path}) could '
+            'not be broken; continuing WITHOUT exclusion — concurrent '
+            'suites may interleave their working directories.',
+          );
+          return;
+        }
         try {
           _lockFile.deleteSync();
         } on FileSystemException {
-          // Unbreakable — the retry-create below loses the break race
-          // and the loop re-checks.
+          // Unbreakable — the bounded break counter above degrades after
+          // three failed rounds; the retry-create below loses the break
+          // race and the loop re-checks.
         }
         try {
           _lockFile.createSync(exclusive: true);

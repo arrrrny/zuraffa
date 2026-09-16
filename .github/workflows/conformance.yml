@@ -47,12 +47,15 @@ jobs:
         # (examples/todo_tdd resolves `package:todo_tdd` against the ROOT
         # package config and reports 31 pre-existing uri errors — verified
         # identical on master). Every other workflow scopes the same way
-        # (see ci.yaml, skew-matrix.yaml). `--no-fatal-warnings` matches
-        # ci.yaml's analyze step: the lib/tdd/*_subject.dart fixture
-        # corpora carry ~107 pre-existing info-level lints (generated
-        # subject names) that are not this job's contract — without the
-        # flag the infos fail the step (exit 2) before any gate runs.
-        run: dart analyze lib test bin --no-fatal-warnings
+        # (see ci.yaml, skew-matrix.yaml). Warnings stay FATAL here —
+        # unlike ci.yaml, which keeps --no-fatal-warnings. The
+        # lib/tdd/*_subject.dart fixture corpora carry ~106 pre-existing
+        # info-level lints (non_constant_identifier_names on the generated
+        # subject names), but infos do not fail `dart analyze` without
+        # --fatal-infos, and the tree carries no warnings on this head:
+        # masking every future warning to hide one fixture lint cost this
+        # gate its sensitivity for nothing.
+        run: dart analyze lib test bin
 
       - name: The treaty gate — manifest --verify (drift exits 3)
         run: dart run bin/zfa.dart manifest --verify

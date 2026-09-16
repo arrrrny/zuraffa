@@ -537,11 +537,12 @@ class CliRunner {
     }
   }
 
-  /// Acquires the cross-isolate chdir lock, waiting up to ten minutes for
-  /// the current holder. Exclusive-create (`File.createSync(exclusive: true)`)
-  /// is the atomic serialization point; it works across isolates AND
-  /// processes, unlike `RandomAccessFile.lock` (POSIX fcntl locks are
-  /// per-process and cannot arbitrate between isolates of one VM).
+  /// Acquires the cross-isolate chdir lock, waiting for the current holder
+  /// for as long as its heartbeat stays fresh. Exclusive-create
+  /// (`File.createSync(exclusive: true)`) is the atomic serialization
+  /// point; it works across isolates AND processes, unlike
+  /// `RandomAccessFile.lock` (POSIX fcntl locks are per-process and cannot
+  /// arbitrate between isolates of one VM).
   ///
   /// Staleness replaces the deadline: a LIVE holder heartbeats the lock
   /// file every few seconds, so the file going cold is proof the holder
@@ -557,7 +558,13 @@ class CliRunner {
   /// minutes-long ceiling made every waiter hit its own test timeout
   /// first. Heartbeats give both properties: live holders are never
   /// broken, dead holders are recovered within ~[staleCwdLockAfter].
+  ///
+  /// The break path is bounded: if the cold file resists three break
+  /// rounds (a foreign user's file this user cannot delete), the acquire
+  /// degrades — it proceeds WITHOUT exclusivity (pre-#1096 behavior)
+  /// rather than spinning forever.
   static Future<void> _acquireCwdLock() async {
+    var breakAttempts = 0;
     while (true) {
       try {
         _cwdLockFile.createSync(exclusive: true);
@@ -574,11 +581,23 @@ class CliRunner {
         // Cold file: the holder died mid-window (or the file vanished
         // between the probe and this create). Break it and retry — the
         // exclusive-create above is still the only serialization point.
+        if (++breakAttempts > 3) {
+          // Degraded mode: the cold file survived three break rounds
+          // (e.g. a foreign user's file in the shared system temp that
+          // this user cannot delete). Proceed without exclusivity — a
+          // degraded run beats an infinite hang.
+          stderr.writeln(
+            'zfa: warning: stale CWD lock (${_cwdLockFile.path}) could '
+            'not be broken; continuing WITHOUT exclusion — concurrent '
+            'runs may interleave their working directories.',
+          );
+          return;
+        }
         try {
           _cwdLockFile.deleteSync();
         } on FileSystemException {
-          // Unbreakable (e.g. a foreign user's file) — fall through to
-          // degraded mode below.
+          // Unbreakable (e.g. a foreign user's file) — the bounded
+          // break counter above degrades after three failed rounds.
         }
         try {
           _cwdLockFile.createSync(exclusive: true);
@@ -649,7 +668,8 @@ class CliRunner {
   }
 
   /// Acquires the exit-span lock — same protocol as [_acquireCwdLock]
-  /// (exclusive-create, heartbeat-staleness break, degraded mode).
+  /// (exclusive-create, heartbeat-staleness break, bounded-degrade
+  /// fallback when the cold file resists the break).
   static Future<void> _acquireExitSpanLock() async {
     // Heartbeat staleness, not a time ceiling — same rationale as
     // _acquireCwdLock: a fixture-heavy dispatch legitimately holds the
@@ -659,6 +679,7 @@ class CliRunner {
     // 846 false codes), while a minutes-long ceiling made waiters hit
     // their own test timeouts first. The heartbeat proves liveness; only
     // a COLD file (holder killed mid-span) is broken.
+    var breakAttempts = 0;
     while (true) {
       try {
         _exitSpanLockFile.createSync(exclusive: true);
@@ -670,17 +691,30 @@ class CliRunner {
           await Future<void>.delayed(const Duration(milliseconds: 20));
           continue;
         }
+        if (++breakAttempts > 3) {
+          // Degraded mode: the cold file survived three break rounds
+          // (e.g. a foreign user's file in the shared system temp that
+          // this user cannot delete). Proceed without exclusivity — a
+          // degraded run beats an infinite hang.
+          stderr.writeln(
+            'zfa: warning: stale exit-span lock (${_exitSpanLockFile.path}) '
+            'could not be broken; continuing WITHOUT exclusion — concurrent '
+            'runs may interleave their exit-code writes.',
+          );
+          return;
+        }
         try {
           _exitSpanLockFile.deleteSync();
         } on FileSystemException {
-          // Unbreakable — the retry-create below loses the break race and
-          // the loop re-checks.
+          // Unbreakable (e.g. a foreign user's file) — the bounded break
+          // counter above degrades after three failed rounds.
         }
         try {
           _exitSpanLockFile.createSync(exclusive: true);
           _startExitSpanHeartbeat();
           return;
         } on FileSystemException {
+          // Someone else won the break race — loop and re-check.
           await Future<void>.delayed(const Duration(milliseconds: 20));
         }
       }

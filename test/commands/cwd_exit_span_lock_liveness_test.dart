@@ -17,12 +17,15 @@
 //
 // The protocol is now heartbeat staleness: the holder touches the file
 // every few seconds; only a COLD file (holder death) is broken. These
-// pins hold the two halves of the protocol together: recovery from a
-// dead holder stays fast, and the staleness constants cannot drift apart
-// between the duplicated implementations.
+// pins hold the protocol's three guarantees together: recovery from a
+// dead holder stays fast, the staleness constants cannot drift apart
+// between the duplicated implementations, and — the property the CI red
+// wave hinged on — a LIVE holder is never broken while its heartbeat
+// stays fresh.
 library;
 
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -109,5 +112,70 @@ void main() {
         );
       }
     });
+
+    test('CwdMutex: a LIVE holder is never broken while its heartbeat '
+        'stays fresh', () async {
+      final lockFile = File(
+        p.join(Directory.systemTemp.path, 'zfa_cwd_lock_$pid.lock'),
+      );
+      Isolate? contender;
+      addTearDown(() {
+        contender?.kill(priority: Isolate.immediate);
+        CwdMutex.release();
+        if (lockFile.existsSync()) lockFile.deleteSync();
+      });
+
+      await CwdMutex.acquire(); // this isolate: the live holder
+      final mtimeBefore = lockFile.lastModifiedSync();
+
+      // The contender reports on the port ONLY if it ever wins the lock.
+      // While this isolate's heartbeat keeps the file fresh it must never
+      // win — the old fixed-30s protocol broke exactly this holder (the
+      // rotating CI reds this rework exists to fix).
+      final port = ReceivePort();
+      final messages = <Object>[];
+      port.listen((message) => messages.add(message as Object));
+      contender = await Isolate.spawn(_contendCwdLock, port.sendPort);
+
+      // Hold the window PAST the staleness horizon (+ margin): the waiter
+      // must neither acquire nor delete the live holder's file.
+      await Future<void>.delayed(
+        CliRunner.staleCwdLockAfter + const Duration(seconds: 8),
+      );
+      expect(
+        messages,
+        isEmpty,
+        reason:
+            'a LIVE holder (fresh heartbeat) must never be broken — '
+            'the waiter may not acquire while the holder keeps ticking',
+      );
+      expect(
+        lockFile.existsSync(),
+        isTrue,
+        reason: "the holder's lock file must survive the waiter",
+      );
+      expect(
+        lockFile.lastModifiedSync().isAfter(mtimeBefore),
+        isTrue,
+        reason: 'the heartbeat must have kept ticking through the hold',
+      );
+
+      // Release: the waiter must now proceed (well within a few seconds).
+      CwdMutex.release();
+      final sw = Stopwatch()..start();
+      while (messages.isEmpty && sw.elapsed < const Duration(seconds: 10)) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      expect(messages, [
+        'acquired',
+      ], reason: 'once the holder releases, the waiter must acquire');
+    }, tags: 'slow');
   });
+}
+
+/// The contending acquirer under test: reports `'acquired'` on [sp] iff
+/// it ever wins the lock. While it waits it is parked in [CwdMutex]'s
+/// 20 ms poll loop; the test kills the isolate at teardown.
+void _contendCwdLock(SendPort sp) {
+  CwdMutex.acquire().then((_) => sp.send('acquired'));
 }
