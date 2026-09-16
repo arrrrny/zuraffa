@@ -337,15 +337,91 @@ class RunCommand extends Command<void> {
     );
 
     // -----------------------------------------------------------------
+    // Issue #1303 preflight: a stale `dependency_overrides` path entry
+    // would surface only as a raw version-solving dump buried mid-log
+    // after minutes of compiling, with the clean-cache retry burning a
+    // full rebuild on a resolution error no cache clean can fix.
+    // Validate every override path BEFORE the #1528 baseline ensure and
+    // any lane step spawns; refuse with the honest drift verdict (exit 3,
+    // journaled preflight_red — zero steps). The gate runs before the
+    // baseline ensure deliberately: since #1653 the ensure's pub
+    // resolution misfires on exactly this drift, and reporting corrupt
+    // state as a setup-error sends the operator after the wrong remedy
+    // (issue #1303: refuse BEFORE any work).
+    // -----------------------------------------------------------------
+    final overrideReport = await DependencyOverridePreflight(
+      projectRoot: projectRoot,
+    ).check();
+    if (!overrideReport.ok) {
+      for (final finding in overrideReport.findings) {
+        print(DependencyOverridePreflight.findingLine(finding));
+      }
+      print('$kOverrideFixLine `zfa tdd run`');
+      await _journalMeta(
+        featureDir: featureDir,
+        feature: feature,
+        startedAt: journalStartedAt,
+        gateState: 'preflight_red',
+        phase: 'gate',
+        result: 'corrupt-state',
+        violations: [
+          for (final finding in overrideReport.findings)
+            'dependency_overrides["${finding.package}"] path '
+                '"${finding.path}" does not resolve to a package '
+                '(${finding.detail})',
+        ],
+      );
+      print(
+        RunDriverCore.summaryLine(
+          label: label,
+          feature: feature,
+          result: 'corrupt-state',
+          counts: const {
+            'total': 0,
+            'pending': 0,
+            'red': 0,
+            'green': 0,
+            'done': 0,
+          },
+        ),
+      );
+      _verdict
+        ..exitClass = 'corrupt-state'
+        ..outcome = VerdictOutcome.error
+        ..details['preflight'] =
+            'dependency_overrides path validation '
+            'refused the run (issue #1303)';
+      _verdict.explain = TddExplain(
+        command: 'run',
+        features: [feature],
+        lane:
+            'none — the dependency_overrides preflight refused before any '
+            'lane drove (preflight red, issue #1303)',
+        fixHints: [
+          'correct the override path or remove the entry from '
+              'pubspec.yaml, then re-run',
+        ],
+        summary:
+            'Run stopped at the issue-#1303 preflight: a '
+            'dependency_overrides path target does not resolve to a '
+            'package. No step was spawned and no receipt was written; '
+            'the refusal is journaled preflight_red in tdd/journal.json.',
+      );
+      exitCode = _exitCorruptState;
+      return;
+    }
+
+    // -----------------------------------------------------------------
     // Issue #1528 preflight: a missing TDD profile is a SETUP condition —
     // deterministically detectable before any step, with a deterministic
     // idempotent remediation. Without this gate the loop spawned gen/+
     // verify-red children only to stop at the first behavior with the
     // engine-defect-sounding `classification=unresolved` (and an error
     // telling the operator to run the idempotent `tdd init` themselves).
-    // Ensure the baseline HERE — before the #1303 gate and any lane step:
-    // missing profile → the shared idempotent init sequence runs and the
-    // created artifacts are logged; a misfiring writer → fail CLOSED
+    // Ensure the baseline HERE — after the #1303 drift gate, before any
+    // lane step: missing profile → the shared idempotent init sequence
+    // runs and the created artifacts are logged; a misfiring writer →
+    // fail CLOSED
     // (journaled preflight_red, result=setup-error summary, verdict
     // receipt, exit 1, ZERO steps). Unconditional: `--force` bypasses the
     // routing gate only — the baseline is self-healing setup, not a
@@ -423,77 +499,6 @@ class RunCommand extends Command<void> {
             'journaled preflight_red in tdd/journal.json.',
       );
       exitCode = _exitStopped;
-      return;
-    }
-
-    // -----------------------------------------------------------------
-    // Issue #1303 preflight: a stale `dependency_overrides` path entry
-    // would surface only as a raw version-solving dump buried mid-log
-    // after minutes of compiling, with the clean-cache retry burning a
-    // full rebuild on a resolution error no cache clean can fix.
-    // Validate every override path BEFORE the cert gate and any lane
-    // step spawns; refuse with the honest drift verdict (exit 3,
-    // journaled preflight_red — zero steps).
-    // -----------------------------------------------------------------
-    final overrideReport = await DependencyOverridePreflight(
-      projectRoot: projectRoot,
-    ).check();
-    if (!overrideReport.ok) {
-      for (final finding in overrideReport.findings) {
-        print(DependencyOverridePreflight.findingLine(finding));
-      }
-      print('$kOverrideFixLine `zfa tdd run`');
-      await _journalMeta(
-        featureDir: featureDir,
-        feature: feature,
-        startedAt: journalStartedAt,
-        gateState: 'preflight_red',
-        phase: 'gate',
-        result: 'corrupt-state',
-        violations: [
-          for (final finding in overrideReport.findings)
-            'dependency_overrides["${finding.package}"] path '
-                '"${finding.path}" does not resolve to a package '
-                '(${finding.detail})',
-        ],
-      );
-      print(
-        RunDriverCore.summaryLine(
-          label: label,
-          feature: feature,
-          result: 'corrupt-state',
-          counts: const {
-            'total': 0,
-            'pending': 0,
-            'red': 0,
-            'green': 0,
-            'done': 0,
-          },
-        ),
-      );
-      _verdict
-        ..exitClass = 'corrupt-state'
-        ..outcome = VerdictOutcome.error
-        ..details['preflight'] =
-            'dependency_overrides path validation '
-            'refused the run (issue #1303)';
-      _verdict.explain = TddExplain(
-        command: 'run',
-        features: [feature],
-        lane:
-            'none — the dependency_overrides preflight refused before any '
-            'lane drove (preflight red, issue #1303)',
-        fixHints: [
-          'correct the override path or remove the entry from '
-              'pubspec.yaml, then re-run',
-        ],
-        summary:
-            'Run stopped at the issue-#1303 preflight: a '
-            'dependency_overrides path target does not resolve to a '
-            'package. No step was spawned and no receipt was written; '
-            'the refusal is journaled preflight_red in tdd/journal.json.',
-      );
-      exitCode = _exitCorruptState;
       return;
     }
 
