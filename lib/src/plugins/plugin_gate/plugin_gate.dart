@@ -57,6 +57,40 @@ class PluginGate {
     }
   }
 
+  /// The companion package's own `bin/<package>.dart` entrypoint, resolved
+  /// from the project's `package_config.json` `rootUri` — the path the
+  /// core command delegates to (compiled AOT through the `ZfaExecutable`
+  /// no-JIT seam). `null` when the package is not resolvable (the gate's
+  /// job to have refused already).
+  static String? companionEntry(String name, {String? projectRoot}) {
+    final entry = PluginCatalog.find(name);
+    if (entry == null) return null;
+    final root = _resolveRoot(projectRoot);
+    final file = File(p.join(root, '.dart_tool', 'package_config.json'));
+    if (!file.existsSync()) return null;
+    try {
+      final doc = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      final packages = doc['packages'];
+      if (packages is! List) return null;
+      for (final pkg in packages) {
+        if (pkg is! Map<String, dynamic> || pkg['name'] != entry.package) {
+          continue;
+        }
+        final rootUri = pkg['rootUri'] as String?;
+        if (rootUri == null) return null;
+        final packageRoot = Directory(
+          rootUri.startsWith('file://') ? rootUri.substring(7) : rootUri,
+        ).absolute.path;
+        final candidate = p.join(packageRoot, 'bin', '${entry.package}.dart');
+        if (File(candidate).existsSync()) return candidate;
+        return null;
+      }
+      return null;
+    } on FormatException {
+      return null;
+    }
+  }
+
   /// `null` when the capability is usable right now; otherwise the
   /// guidance message naming the exact fix (FR-008).
   static String? refusalFor(

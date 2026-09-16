@@ -1,7 +1,11 @@
+import 'package:args/args.dart';
+import 'package:args/command_runner.dart';
+import 'dart:convert';
 import 'dart:io';
 import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../models/generated_file.dart';
 import '../cli/exit_protocol.dart';
+import '../cli/zfa_executable.dart';
 import '../plugins/plugin_gate/plugin_gate.dart';
 import 'base_plugin_command.dart';
 import 'graphql_diff_command.dart';
@@ -27,6 +31,9 @@ class GraphqlCommand extends PluginCommand {
     argParser.addOption('op-name', help: 'Operation name');
 
     // Register subcommands: introspect (v5), pull + diff (spec 037).
+    // Spec 1653 (issue #1661): `generate` delegates to the companion
+    // (package:zuraffa_graphql) through the ZfaExecutable no-JIT seam.
+    addSubcommand(_GenerateDelegateCommand());
     addSubcommand(IntrospectCommand());
     addSubcommand(PullCommand());
     addSubcommand(DiffCommand());
@@ -62,7 +69,8 @@ class GraphqlCommand extends PluginCommand {
       exitCode = ExitProtocol.usage;
       return;
     }
-    if (argResults?.rest.isEmpty ?? true) {
+    final rest = argResults?.rest ?? const <String>[];
+    if (rest.isEmpty) {
       reportSubcommandUsage();
       return;
     }
@@ -110,5 +118,64 @@ class GraphqlCommand extends PluginCommand {
       );
       exitCode = 1;
     }
+  }
+}
+
+/// Spec 1653 (issue #1661): the `zfa graphql generate` delegate. The
+/// schema-driven full-stack codegen lives in package:zuraffa_graphql —
+/// this thin subcommand enforces the capability gate and then spawns the
+/// companion's `bin/zuraffa_graphql.dart generate <args>` through the
+/// `ZfaExecutable` no-JIT seam, forwarding stdout/stderr and the exit
+/// code verbatim.
+class _GenerateDelegateCommand extends Command<void> {
+  @override
+  String get name => 'generate';
+
+  @override
+  String get description =>
+      'Generate full-stack Dart code from a GraphQL schema (via '
+      'package:zuraffa_graphql)';
+
+  @override
+  ArgParser get argParser => ArgParser.allowAnything();
+
+  @override
+  Future<void> run() async {
+    final gateRefusal = PluginGate.refusalFor('graphql');
+    if (gateRefusal != null) {
+      print('\u274c \u0024gateRefusal');
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    final entry = PluginGate.companionEntry('graphql');
+    if (entry == null) {
+      print(
+        '\u274c zuraffa_graphql is resolvable but its bin entry is missing \u2014 '
+        're-add package:zuraffa_graphql and run dart pub get.',
+      );
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    final exe = await ZfaExecutable.ensureCompiled(entry);
+    final argv = ZfaExecutable.commandFor(exe, [
+      'generate',
+      ...argResults!.arguments,
+    ]);
+    final result = await Process.run(
+      argv.first,
+      argv.sublist(1),
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    );
+    // Forward through `print` (not `stdout.write`) so embedded CliRunner
+    // runs capture the child's transcript the same way a terminal does.
+    result.stdout
+        .toString()
+        .split('\n')
+        .where((l) => l.isNotEmpty)
+        .forEach(print);
+    final errText = result.stderr.toString();
+    if (errText.isNotEmpty) stderr.write(errText);
+    exitCode = result.exitCode;
   }
 }

@@ -5,7 +5,8 @@
 - **Mode**: LLM-guided fallback audit (`ZFA_MISSING` — the zuraffa repo
   cannot drive `zfa tdd verify` on its own development; the #1632/#1651
   precedents)
-- **Verdict**: **PASS_WITH_GAPS**
+- **Verdict**: **PASS** (upgraded from PASS_WITH_GAPS after the
+  enabled-path delegation gap closed — see Addendum)
 
 ## Audit dimensions
 
@@ -64,16 +65,28 @@
   apparent failures were cache load errors, re-verified green after
   cleanup.
 
-## Gaps (why not plain PASS)
+## Addendum (second audit pass, 2026-09-15): gap #1 closed
 
-1. **Delegation depth**: `zfa graphql generate`'s heavy implementation
-   moves to the companion, but the core-side gate currently refuses when
-   the capability is enabled-but-the-companion-missing and the
-   companion's API/CLI is invoked directly by the user; the
-   automatic spawn-through-delegation (core stub → companion binary) is
-   seam-designed (contracts/plugin-gate.md) but not yet
-   process-tested end-to-end.
-2. **Lane run shape**: the default lane was verified in chunks (disk
+The enabled path is now implemented and process-proven end-to-end:
+
+- companion entrypoint `packages/zuraffa_graphql/bin/zuraffa_graphql.dart`
+  (hosts `generate` at top level);
+- `PluginGate.companionEntry` resolves the companion bin from the
+  project's package_config;
+- core `zfa graphql` registers a `generate` delegate subcommand that
+  enforces the gate and spawns the companion through
+  `ZfaExecutable.ensureCompiled`/`commandFor` (no-JIT), forwarding
+  stdout/stderr and the exit code;
+- E2E (`test/graphql/graphql_generate_delegation_e2e_test.dart`, e2e
+  tier): enabled+resolvable fixture → `zfa graphql generate` → exit 0,
+  `✅ Generated`, artifacts written into the project. Mutation-checked:
+  with the gate disabled the refusal pins fail; with the heavy dep
+  reintroduced the manifest pin fails.
+
+Remaining notes (follow-ups, not correctness holes):
+
+
+1. **Lane run shape**: the default lane was verified in chunks (disk
    hazard), not as one `dart test test` invocation.
 3. **Runtime otel family**: `SimulationWorld` otel fixtures now require
    injecting the companion's capture; the legacy no-injection path
