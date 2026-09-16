@@ -492,49 +492,130 @@ class CliRunner {
   static File get _cwdLockFile =>
       File(p.join(Directory.systemTemp.path, 'zfa_cwd_lock_$pid.lock'));
 
-  /// Acquires the cross-isolate chdir lock, waiting up to 30 seconds for the
-  /// current holder. Exclusive-create (`File.createSync(exclusive: true)`)
-  /// is the atomic serialization point; it works across isolates AND
-  /// processes, unlike `RandomAccessFile.lock` (POSIX fcntl locks are
-  /// per-process and cannot arbitrate between isolates of one VM).
+  /// How long a lock file may go without a heartbeat before an acquirer
+  /// treats its holder as dead (killed mid-window by a per-test timeout —
+  /// `dart test` kills the isolate WITHOUT running its `finally`, so the
+  /// file would otherwise leak and block every later window in the
+  /// process). A live holder touches the file every
+  /// [_lockHeartbeatEvery], so a healthy window — however long — is never
+  /// broken; only holder DEATH is.
+  static const Duration staleCwdLockAfter = Duration(seconds: 30);
+
+  /// The heartbeat interval: frequent enough that a live holder's file age
+  /// stays far below [staleCwdLockAfter] even on a loaded runner.
+  static const Duration _lockHeartbeatEvery = Duration(seconds: 5);
+
+  /// The CWD-window heartbeat timer, live only while this isolate holds
+  /// [_cwdLockFile]. Isolate death cancels it implicitly — which is the
+  /// point: the file's mtime goes cold and the next acquirer recovers.
+  static Timer? _cwdLockHeartbeat;
+
+  static void _startCwdLockHeartbeat() {
+    _stopCwdLockHeartbeat();
+    _cwdLockHeartbeat = Timer.periodic(_lockHeartbeatEvery, (_) {
+      try {
+        _cwdLockFile.setLastModifiedSync(DateTime.now());
+      } on FileSystemException {
+        // The waiter's break-race deleted the file — the next heartbeat
+        // tick is best-effort; release still deletes idempotently.
+      }
+    });
+  }
+
+  static void _stopCwdLockHeartbeat() {
+    _cwdLockHeartbeat?.cancel();
+    _cwdLockHeartbeat = null;
+  }
+
+  /// The age of [file]'s last heartbeat, or null when it vanished between
+  /// the probe and this stat (a waiter's break-race won — retry create).
+  static Duration? _lockFileAge(File file) {
+    try {
+      return DateTime.now().difference(file.lastModifiedSync());
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  /// Acquires the cross-isolate chdir lock, waiting for the current holder
+  /// for as long as its heartbeat stays fresh. Exclusive-create
+  /// (`File.createSync(exclusive: true)`) is the atomic serialization
+  /// point; it works across isolates AND processes, unlike
+  /// `RandomAccessFile.lock` (POSIX fcntl locks are per-process and cannot
+  /// arbitrate between isolates of one VM).
+  ///
+  /// Staleness replaces the deadline: a LIVE holder heartbeats the lock
+  /// file every few seconds, so the file going cold is proof the holder
+  /// died mid-window (isolate killed by a per-test timeout — its `finally`
+  /// never runs and the file would otherwise leak for the whole run).
+  /// Under the `--concurrency=4` dart_core lane (#1632) a holder's chdir
+  /// window legitimately spans a fixture-heavy dispatch (real
+  /// `pub get`/`dart test` children), so time-based ceilings were
+  /// un-workable in BOTH directions: the former 30-second break destroyed
+  /// exclusion mid-run (a waiter expired, broke a LIVE holder's lock, and
+  /// the two suites interleaved their process-global CWD writes — the
+  /// rotating doctor/service/dream/theater/usecase CI reds), while a
+  /// minutes-long ceiling made every waiter hit its own test timeout
+  /// first. Heartbeats give both properties: live holders are never
+  /// broken, dead holders are recovered within ~[staleCwdLockAfter].
+  ///
+  /// The break path is bounded: if the cold file resists three break
+  /// rounds (a foreign user's file this user cannot delete), the acquire
+  /// degrades — it proceeds WITHOUT exclusivity (pre-#1096 behavior)
+  /// rather than spinning forever.
   static Future<void> _acquireCwdLock() async {
-    final deadline = DateTime.now().add(const Duration(seconds: 30));
-    var lockBroken = false;
+    var breakAttempts = 0;
     while (true) {
       try {
         _cwdLockFile.createSync(exclusive: true);
+        _startCwdLockHeartbeat();
         return;
       } on FileSystemException {
-        final expired = DateTime.now().isAfter(deadline);
-        if (!expired) {
-          await Future<void>.delayed(const Duration(milliseconds: 2));
+        final age = _lockFileAge(_cwdLockFile);
+        if (age != null && age < staleCwdLockAfter) {
+          // Held by a live holder — wait (it will release; the heartbeat
+          // proves it is alive).
+          await Future<void>.delayed(const Duration(milliseconds: 20));
           continue;
         }
-        if (!lockBroken) {
-          // The holder most likely died mid-window (its isolate killed by a
-          // test timeout, leaving a stale file behind for every later
-          // window of this process). Break the stale lock once rather than
-          // stall the rest of the run.
-          lockBroken = true;
-          try {
-            _cwdLockFile.deleteSync();
-          } on FileSystemException {
-            // Unbreakable (e.g. a foreign user's file) — fall through to
-            // degraded mode below.
-          }
-          continue;
+        // Cold file: the holder died mid-window (or the file vanished
+        // between the probe and this create). Break it and retry — the
+        // exclusive-create above is still the only serialization point.
+        if (++breakAttempts > 3) {
+          // Degraded mode: the cold file survived three break rounds
+          // (e.g. a foreign user's file in the shared system temp that
+          // this user cannot delete). Proceed without exclusivity — a
+          // degraded run beats an infinite hang.
+          stderr.writeln(
+            'zfa: warning: stale CWD lock (${_cwdLockFile.path}) could '
+            'not be broken; continuing WITHOUT exclusion — concurrent '
+            'runs may interleave their working directories.',
+          );
+          return;
         }
-        // Degraded mode: proceed without exclusivity (the pre-#1096
-        // behavior) instead of failing every later invocation forever.
-        return;
+        try {
+          _cwdLockFile.deleteSync();
+        } on FileSystemException {
+          // Unbreakable (e.g. a foreign user's file) — the bounded
+          // break counter above degrades after three failed rounds.
+        }
+        try {
+          _cwdLockFile.createSync(exclusive: true);
+          _startCwdLockHeartbeat();
+          return;
+        } on FileSystemException {
+          // Someone else won the break race — loop and re-check.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
       }
     }
   }
 
   /// Releases the cross-isolate chdir lock. Best-effort: a lost release
-  /// only costs the next window one 30s wait before it breaks the stale
-  /// file.
+  /// self-heals through the heartbeat staleness check (the file goes cold
+  /// and the next acquirer breaks it).
   static void _releaseCwdLock() {
+    _stopCwdLockHeartbeat();
     try {
       _cwdLockFile.deleteSync();
     } on FileSystemException {
@@ -561,37 +642,88 @@ class CliRunner {
   static File get _exitSpanLockFile =>
       File(p.join(Directory.systemTemp.path, 'zfa_exit_lock_$pid.lock'));
 
+  /// How long the exit-span lock file may go without a heartbeat before an
+  /// acquirer treats its holder as dead (see [staleCwdLockAfter] — same
+  /// death mode, the isolate killed mid-span by a per-test timeout).
+  static const Duration staleExitSpanLockAfter = Duration(seconds: 30);
+
+  /// The exit-span heartbeat timer, live only while this isolate holds
+  /// [_exitSpanLockFile] (same death-detection mechanism as the CWD lock's).
+  static Timer? _exitSpanHeartbeat;
+
+  static void _startExitSpanHeartbeat() {
+    _stopExitSpanHeartbeat();
+    _exitSpanHeartbeat = Timer.periodic(_lockHeartbeatEvery, (_) {
+      try {
+        _exitSpanLockFile.setLastModifiedSync(DateTime.now());
+      } on FileSystemException {
+        // The waiter's break-race deleted the file — best-effort tick.
+      }
+    });
+  }
+
+  static void _stopExitSpanHeartbeat() {
+    _exitSpanHeartbeat?.cancel();
+    _exitSpanHeartbeat = null;
+  }
+
   /// Acquires the exit-span lock — same protocol as [_acquireCwdLock]
-  /// (exclusive-create, 30s stale-lock break, degraded mode).
+  /// (exclusive-create, heartbeat-staleness break, bounded-degrade
+  /// fallback when the cold file resists the break).
   static Future<void> _acquireExitSpanLock() async {
-    final deadline = DateTime.now().add(const Duration(seconds: 30));
-    var lockBroken = false;
+    // Heartbeat staleness, not a time ceiling — same rationale as
+    // _acquireCwdLock: a fixture-heavy dispatch legitimately holds the
+    // span for minutes under the `-j4` lane (the former 30-second
+    // stale-break broke LIVE holders and interleaved process-global
+    // exitCode writes — the rotating doctor-U14/1309/skin/965/1365/1481/
+    // 846 false codes), while a minutes-long ceiling made waiters hit
+    // their own test timeouts first. The heartbeat proves liveness; only
+    // a COLD file (holder killed mid-span) is broken.
+    var breakAttempts = 0;
     while (true) {
       try {
         _exitSpanLockFile.createSync(exclusive: true);
+        _startExitSpanHeartbeat();
         return;
       } on FileSystemException {
-        final expired = DateTime.now().isAfter(deadline);
-        if (!expired) {
-          await Future<void>.delayed(const Duration(milliseconds: 2));
+        final age = _lockFileAge(_exitSpanLockFile);
+        if (age != null && age < staleExitSpanLockAfter) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
           continue;
         }
-        if (!lockBroken) {
-          lockBroken = true;
-          try {
-            _exitSpanLockFile.deleteSync();
-          } on FileSystemException {
-            // Unbreakable — degraded mode below.
-          }
-          continue;
+        if (++breakAttempts > 3) {
+          // Degraded mode: the cold file survived three break rounds
+          // (e.g. a foreign user's file in the shared system temp that
+          // this user cannot delete). Proceed without exclusivity — a
+          // degraded run beats an infinite hang.
+          stderr.writeln(
+            'zfa: warning: stale exit-span lock (${_exitSpanLockFile.path}) '
+            'could not be broken; continuing WITHOUT exclusion — concurrent '
+            'runs may interleave their exit-code writes.',
+          );
+          return;
         }
-        return;
+        try {
+          _exitSpanLockFile.deleteSync();
+        } on FileSystemException {
+          // Unbreakable (e.g. a foreign user's file) — the bounded break
+          // counter above degrades after three failed rounds.
+        }
+        try {
+          _exitSpanLockFile.createSync(exclusive: true);
+          _startExitSpanHeartbeat();
+          return;
+        } on FileSystemException {
+          // Someone else won the break race — loop and re-check.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
       }
     }
   }
 
   /// Releases the exit-span lock (best-effort, same as [_releaseCwdLock]).
   static void _releaseExitSpanLock() {
+    _stopExitSpanHeartbeat();
     try {
       _exitSpanLockFile.deleteSync();
     } on FileSystemException {
