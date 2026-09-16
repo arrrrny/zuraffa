@@ -164,6 +164,33 @@ void main() {
       final states = await behaviorStates();
       expect(states['B-001'], 'done');
     });
+
+    test('A1c: the exit-disagreeing skip token (outcome=skipped, exit 1 — '
+        'the bug-986 terminal classification) defers the following refactor '
+        'too', () async {
+      await fx.seedTestList([
+        (
+          id: 'B-001',
+          description: 'already-green behavior',
+          traces: 'FR-001',
+          state: 'PENDING',
+          kind: 'unit',
+        ),
+      ]);
+      await fx.setStepOutcome('make', 'B-001', 'skip-fail');
+
+      final out = await drive();
+
+      expect(exitCode, 0, reason: out);
+      final steps = fx.stepInvocations();
+      final lastMake = steps.lastIndexWhere((l) => l.startsWith('make '));
+      final firstRefactor = steps.indexWhere((l) => l.startsWith('refactor '));
+      expect(firstRefactor, isNot(-1), reason: out);
+      expect(firstRefactor, greaterThan(lastMake), reason: steps.join('\n'));
+      expect(out, contains('[run] B-001 refactor -> deferred (phase 2)'));
+      final states = await behaviorStates();
+      expect(states['B-001'], 'done');
+    });
   });
 
   group('A2 — batch-boundary scheduling and argv contract', () {

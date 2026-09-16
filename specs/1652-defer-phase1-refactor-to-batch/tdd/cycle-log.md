@@ -96,3 +96,22 @@ run: ... result=complete pending=0 red=0 green=0 done=2
   test/plugins/tdd/two_cycle_run_commands_test.dart` → 21 pass.
 - `test/plugins/tdd/run_driver_1652_make_post_state_test.dart`: 4/4 pass
   UNMODIFIED (the #1662 record contract composes with the deferral).
+
+## Cycle: verify — mutation sampling 4/4 killed after one remediation (A1c)
+
+- kind: verification
+- criterion: SC-1..SC-6
+- command: mutation sampling per the tdd-profile rubric (LLM-guided
+  audit; repo not zfa-wired for `tdd verify`) — one mutant at a time
+  against `issue_1652_defer_phase1_refactor_test.dart`, cmp-verified
+  restore after each
+- at: 2026-09-16T02:20:00Z
+- results:
+  - M1 (gate drops the new disjunct): KILLED `+1 -5`
+  - M2 (generic make-success path stops setting the flag): KILLED `+1 -5`
+  - M3 (skip/adopt arm stops setting the flag): pass 1 SURVIVED `+6`
+    → remediation: additive fake-zfa `skip-fail` token (exit-disagreeing
+    skip, the bug-986 shape) + test A1c → re-run KILLED `+0 -1`
+  - M4 (over-deferral: resume window included): KILLED `+4 -1` (A3)
+- restoration: `cmp` verified byte-identical; suite re-run green `+7`
+- full verdict: PASS — see tdd/verification.md
