@@ -24,9 +24,6 @@ library;
 
 import 'dart:async';
 
-import 'package:opentelemetry/api.dart' as otel_api;
-import 'package:opentelemetry/sdk.dart' as otel_sdk;
-
 // ---------------------------------------------------------------------------
 // Shared error surfaces
 // ---------------------------------------------------------------------------
@@ -616,83 +613,43 @@ final class AdMobAdapter implements AdContract {
   }
 }
 
-// ---------------------------------------------------------------------------
-// OTel family (capture-and-assert exporter)
-// ---------------------------------------------------------------------------
-
-/// One span captured by [OtelAdapter].
-final class SpanRecord {
-  const SpanRecord({
+/// One span captured by a [SimulationSpanCapture] implementation.
+///
+/// Vendor-free by design (spec 1653-trim-heavy-deps): `status` carries the
+/// vendor's own status object when a vendor-backed capture is injected
+/// (the observability companion's adapter), and is null for pure
+/// in-memory captures.
+final class SpanSnapshot {
+  const SpanSnapshot({
     required this.name,
-    required this.statusCode,
+    required this.status,
     required this.attributes,
   });
 
   final String name;
-  final otel_api.StatusCode statusCode;
+  final Object? status;
   final Map<String, Object> attributes;
 }
 
-/// Certified OpenTelemetry simulation: a capture-and-assert exporter.
+/// The light capture seam the `otel` simulation family consumes.
 ///
-/// Implements the REAL production [otel_sdk.SpanExporter] interface — the
-/// same interface the live OTLP/collector exporter implements — so
-/// `TelemetryHook`/`OtelTracer` pipelines run unchanged against it and
-/// every span ends up asserted from memory instead of shipped over the
-/// network.
-final class OtelAdapter implements otel_sdk.SpanExporter {
-  final List<SpanRecord> _captured = <SpanRecord>[];
-  bool _shutdown = false;
-
-  /// All captured span records, in export order.
-  List<SpanRecord> get captured => List.unmodifiable(_captured);
+/// Core never names an observability vendor: the companion package
+/// (`package:zuraffa_observability`) ships the vendor-backed capture
+/// (an `otel_sdk.SpanExporter` implementation) and injects it via
+/// `SimulationWorld.load(otelCapture: ...)`.
+abstract class SimulationSpanCapture {
+  /// All captured snapshots, in export order.
+  List<SpanSnapshot> get captured;
 
   /// Names of every captured span, in export order.
-  List<String> get spanNames => List.unmodifiable(_captured.map((r) => r.name));
+  List<String> get spanNames;
 
-  /// The first captured record named [name], or `null`.
-  SpanRecord? byName(String name) {
-    for (final record in _captured) {
-      if (record.name == name) return record;
-    }
-    return null;
-  }
+  /// The first captured snapshot named [name], or `null`.
+  SpanSnapshot? byName(String name);
 
-  /// Whether a span named [name] was captured.
-  bool hasSpan(String name) => byName(name) != null;
-
-  /// Whether [shutdown] was called.
-  bool get isShutdown => _shutdown;
+  /// Whether the capture was shut down (no further spans accepted).
+  bool get isShutdown;
 
   /// Forget everything captured so far (between scenarios).
-  void reset() => _captured.clear();
-
-  @override
-  void export(List<otel_sdk.ReadOnlySpan> spans) {
-    if (_shutdown) return;
-    for (final span in spans) {
-      final attributes = <String, Object>{};
-      for (final key in span.attributes.keys) {
-        final value = span.attributes.get(key);
-        if (value != null) attributes[key] = value;
-      }
-      _captured.add(
-        SpanRecord(
-          name: span.name,
-          statusCode: span.status.code,
-          attributes: attributes,
-        ),
-      );
-    }
-  }
-
-  @override
-  void forceFlush() {
-    // In-memory capture: nothing to flush.
-  }
-
-  @override
-  void shutdown() {
-    _shutdown = true;
-  }
+  void reset();
 }

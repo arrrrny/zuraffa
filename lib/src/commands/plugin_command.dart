@@ -1,9 +1,14 @@
+import 'dart:convert';
 import 'dart:io';
+
+import '../cli/exit_protocol.dart';
 
 import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
 
 import '../cli/plugin_loader.dart';
+import '../plugins/plugin_gate/plugin_catalog.dart';
+import '../plugins/plugin_gate/plugin_gate.dart';
 import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../models/generated_file.dart';
@@ -47,6 +52,20 @@ class PluginCommand {
           final status = plugin.enabled ? '[\u2713]' : '[ ]';
           print('$status ${plugin.id} - ${plugin.name} (${plugin.version})');
         }
+        // Spec 1653 (issue #1661): the optional heavy capabilities and
+        // their companion packages — always listed, never a failure.
+        print('');
+        print('Optional capabilities:');
+        for (final entry in PluginCatalog.all) {
+          final enabled = PluginGate.isEnabled(entry.name, projectRoot: root);
+          final resolvable = PluginGate.isResolvable(
+            entry.package,
+            projectRoot: root,
+          );
+          final state = enabled ? 'enabled ' : 'disabled';
+          final pkg = resolvable ? 'resolvable' : 'not added';
+          print('$state  ${entry.name}  package: ${entry.package}  ($pkg)');
+        }
         return;
       case 'enable':
       case 'disable':
@@ -56,26 +75,65 @@ class PluginCommand {
           exit(1);
         }
         final id = rest.first;
+        final capability = PluginCatalog.find(id);
         final exists = plugins.any((p) => p.id == id);
-        if (!exists) {
+        if (capability == null && !exists) {
           print('Unknown plugin: $id');
-          exit(1);
+          final names = PluginCatalog.all.map((e) => e.name).join(', ');
+          print('   Optional capabilities: $names');
+          // Embedded-dispatch safe (the runner unwinds via exitCode):
+          exitCode = ExitProtocol.usage;
+          return;
         }
-        if (action == 'enable') {
-          config.disabled.remove(id);
-        } else {
-          config.disabled.add(id);
+        // Spec 1653 (issue #1661): the capability facet — persisted in
+        // `.zfa.json` `capabilities:` additively, idempotent on enable.
+        if (capability != null) {
+          final caps = PluginGate.readCapabilities(projectRoot: root);
+          if (action == 'enable' && caps[id] == true) {
+            print('already enabled: $id');
+            final refusal = PluginGate.refusalFor(
+              id,
+              projectRoot: root,
+              capabilities: caps,
+            );
+            if (refusal != null) {
+              print('   $refusal');
+            }
+            return;
+          }
         }
-        // Issue #1586: the save is asynchronous and the CLI runner exits
-        // immediately after this command returns — it must be awaited or
-        // the persisted `.zfa.json` never sees the mutation. A refused save
-        // (an existing `.zfa.json` that could not be parsed) must not be
-        // reported as success.
-        if (!await config.save(projectRoot: root)) {
-          exit(1);
+        if (exists) {
+          if (action == 'enable') {
+            config.disabled.remove(id);
+          } else {
+            config.disabled.add(id);
+          }
+          // Issue #1586: the save is asynchronous and the CLI runner exits
+          // immediately after this command returns — it must be awaited or
+          // the persisted `.zfa.json` never sees the mutation. A refused save
+          // (an existing `.zfa.json` that could not be parsed) must not be
+          // reported as success.
+          if (!await config.save(projectRoot: root)) {
+            exit(1);
+          }
+        }
+        if (capability != null) {
+          await _writeCapability(id, enabled: action == 'enable', root: root);
         }
         final verb = action == 'enable' ? 'Enabled' : 'Disabled';
         print('$verb plugin: $id');
+        if (capability != null && action == 'enable') {
+          final resolvable = PluginGate.isResolvable(
+            capability.package,
+            projectRoot: root,
+          );
+          if (!resolvable) {
+            print(
+              '   Add package:${capability.package} to pubspec.yaml and '
+              'run dart pub get to finish enabling ${capability.name}.',
+            );
+          }
+        }
         return;
       case 'add':
         if (rest.isEmpty) {
@@ -95,6 +153,40 @@ class PluginCommand {
         _printHelp();
         exit(1);
     }
+  }
+
+  /// Spec 1653 (issue #1661): persist `capabilities.<name>` in the
+  /// project's `.zfa.json` — a RAW additive read-modify-write so every
+  /// other key survives untouched.
+  Future<void> _writeCapability(
+    String name, {
+    required bool enabled,
+    String? root,
+  }) async {
+    final dir = root ?? Directory.current.path;
+    final file = File(p.join(dir, '.zfa.json'));
+    var doc = <String, dynamic>{};
+    if (file.existsSync()) {
+      try {
+        final Object? decoded = jsonDecode(file.readAsStringSync());
+        if (decoded is! Map<String, dynamic>) {
+          print('❌ .zfa.json is not valid JSON — fix or re-init it first.');
+          exit(1);
+        }
+        doc = decoded;
+      } on FormatException {
+        print('❌ .zfa.json is not valid JSON — fix or re-init it first.');
+        exit(1);
+      }
+    }
+    final rawSection = doc['capabilities'];
+    final section = Map<String, dynamic>.from(
+      rawSection is Map<String, dynamic> ? rawSection : <String, dynamic>{},
+    );
+    section[name] = enabled;
+    doc['capabilities'] = section;
+    const encoder = JsonEncoder.withIndent('  ');
+    file.writeAsStringSync(encoder.convert(doc));
   }
 
   /// Scaffolds a runtime MCP server into the host app via the

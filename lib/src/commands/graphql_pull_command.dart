@@ -6,6 +6,7 @@ import 'package:args/command_runner.dart';
 import '../graphql/cache/schema_cache.dart';
 import '../graphql/introspection/introspection_client.dart';
 import '../cli/exit_protocol.dart';
+import '../plugins/plugin_gate/plugin_gate.dart';
 
 /// `zfa graphql pull` — fetch a GraphQL schema via introspection and cache
 /// it locally (spec 037 FR-001).
@@ -45,6 +46,15 @@ class PullCommand extends Command<void> {
 
   @override
   Future<void> run() async {
+    // Spec 1653 (issue #1661): the graphql capability is opt-in. Leaf
+    // subcommands dispatch without passing through GraphqlCommand.run(),
+    // so the gate is enforced here too (review finding on #1678).
+    final gateRefusal = PluginGate.refusalFor('graphql');
+    if (gateRefusal != null) {
+      print('❌ $gateRefusal');
+      exitCode = ExitProtocol.usage;
+      return;
+    }
     final endpointArg = argResults?['endpoint'] as String?;
     if (endpointArg == null || endpointArg.isEmpty) {
       print(

@@ -1,3 +1,39 @@
+## [7.0.0] - 2026-09-15
+
+### Breaking — heavy integrations are now opt-in companion packages (issue #1661, spec 1653)
+
+Core zuraffa stays lean: `graphql`, `gql`, `minio` and `opentelemetry` are
+removed from the core manifest, and the core barrel no longer re-exports
+the heavy surfaces. A core-only consumer's resolved graph drops the entire
+GraphQL/S3/OpenTelemetry stacks (the reported +439-lockfile-line growth is
+gone). The capabilities remain available as opt-in plugins:
+
+```bash
+zfa plugin list               # capabilities + packages + states
+zfa plugin enable graphql     # persists capabilities.graphql, names the package
+```
+
+Migration map (old core symbol → new home):
+
+| Old core export | New home |
+| --- | --- |
+| `MinioClient` | `package:zuraffa_storage` |
+| `MinIOArtifactHook` / `MinIOUploadHook` | `package:zuraffa_storage` |
+| `Zuraffa.enableMinIOArtifacts` / `enableMinIOFailureArtifacts` | storage companion's `MinIOArtifactHook` via `Zuraffa.registerArtifactHook` |
+| `TelemetryHook` | `package:zuraffa_observability` |
+| `OtelTracer` | `package:zuraffa_observability` |
+| `OtelFailureReporter` | `package:zuraffa_observability` |
+| `Zuraffa.enableOtelReporting` | `package:zuraffa_observability` → `ZuraffaObservability.enableOtelReporting` |
+| `export 'package:opentelemetry/api.dart'` | import `package:opentelemetry` (via the observability companion) |
+| GraphQL client/gql/codegen classes (`GraphqlClientFactory`, `GraphqlClientProvider`, `SubscriptionStream`, `GraphqlDocumentBuilder`, `DocumentsDartGenerator`, `NamingUtils`, `GqlFilePreserver`, `GraphQLValidator`, `DatasourceGenerator`, `DiGenerator`, `SliceOrchestrator`, `GraphqlGenerateCommand`) | `package:zuraffa_graphql` |
+
+Retained in core: the light seams (`TraceObserver`, `Hook`/`HookContext`,
+failure-reporter registry, artifact publisher + `ArtifactHook`) and all
+pure-Dart GraphQL codegen helpers (schema parser, type mapper, entity/DTO/
+union/repository generators, schema cache/diff/SDL). `OtelLogExporter`
+stays in core (vendor-free); `Zuraffa.registerOtelLogExporter` replaces
+the removed private wiring.
+
 ## [6.3.0] - 2026-09-14
 
 ### Changed
