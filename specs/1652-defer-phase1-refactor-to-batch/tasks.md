@@ -70,6 +70,6 @@ spawns), mirroring the bug-1588 driver-level harness shape.
   `run_driver_1652_make_post_state_test.dart`) UNMODIFIED and record
   the results; run `dart analyze` + `dart format --set-exit-if-changed`
   on the changed files. [SC-4, SC-6]
-- [ ] **T104** (P2) Record the red→green evidence per behavior in
+- [x] **T104** (P2) Record the red→green evidence per behavior in
   `tdd/cycle-log.md`; run `/speckit.tdd.verify` and commit its real
   `tdd/verification.md`. [SC-5 evidence; repo contract]
