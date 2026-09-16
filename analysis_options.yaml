@@ -79,6 +79,13 @@ analyzer:
     # (verified by the pre-fix analyze baseline: zero occurrences outside
     # lib/tdd/**).
     depend_on_referenced_packages: ignore
+    # The same lib/tdd/** self-hosting corpus trips
+    # non_constant_identifier_names (the generated `subject_a1`-style
+    # names): 106 files, zero occurrences outside lib/tdd/** on the same
+    # analyze baseline. No path-scoped form exists, so the lint is
+    # silenced repo-wide here — the identical trade recorded for
+    # depend_on_referenced_packages above (issue #1189).
+    non_constant_identifier_names: ignore
     deprecated_member_use_from_same_package: ignore
     deprecated_member_use: ignore
     invalid_use_of_visible_for_overriding_member: ignore

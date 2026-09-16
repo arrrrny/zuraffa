@@ -182,7 +182,6 @@ void main() {
       // Legacy entries still parse the same: the certified-facts block the
       // chain hash covers is byte-identical between the two shapes up to the
       // additive lines.
-      final legacyMd = legacy.toMarkdown();
       final timedMd = timed.toMarkdown();
       expect(timedMd, contains('- phases:'));
       expect(timedMd, contains('  duration:'));
