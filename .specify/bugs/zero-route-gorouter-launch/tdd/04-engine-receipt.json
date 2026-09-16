@@ -2,8 +2,8 @@
   "schema": 1,
   "feature": "zero-route-gorouter-launch",
   "lane": "engine",
-  "verdict": "red",
-  "result": "stopped",
+  "verdict": "error",
+  "result": "runner-error",
   "behaviors": [
     "A3",
     "A4",
@@ -14,10 +14,10 @@
   "counts": {
     "total": 5,
     "pending": 4,
-    "red": 1,
-    "green": 0,
+    "red": 0,
+    "green": 1,
     "done": 0
   },
-  "stopped_at": "A3:make",
-  "at": "2026-09-15T22:16:08.908936Z"
+  "stopped_at": "A3:refactor",
+  "at": "2026-09-15T23:16:57.548429Z"
 }

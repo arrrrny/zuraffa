@@ -59,6 +59,73 @@
       "result": "stopped",
       "behaviors": [],
       "stopped_at": null
+    },
+    {
+      "feature": "zero-route-gorouter-launch",
+      "cycle": "engine",
+      "phase": "drive",
+      "started_at": "2026-09-15T22:41:49.599920Z",
+      "finished_at": "2026-09-15T23:16:57.603480Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "stopped_at=A3:refactor",
+        "step_error=A3:refactor outcome=runner-error exit=-1"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A8"
+      ],
+      "counts": {
+        "total": 5,
+        "pending": 4,
+        "red": 0,
+        "green": 1,
+        "done": 0
+      },
+      "stopped_at": "A3:refactor",
+      "error": {
+        "behavior": "A3",
+        "step": "refactor",
+        "outcome": "runner-error",
+        "exit_code": -1,
+        "command": "/Users/arrrrny/Developer/zuraffa/.dart_tool/zfa_cli_bin/zfa_exe tdd refactor A3 --feature .specify/bugs/zero-route-gorouter-launch --project /Users/arrrrny/Developer/zuraffa --suite-baseline /Users/arrrrny/Developer/zuraffa/.specify/bugs/zero-route-gorouter-launch/tdd/run-baseline.json --timeout 25.0000 --pass-batch",
+        "output": "Subprocess TIMED OUT after 25m01s and was killed (SIGKILL): `/Users/arrrrny/Developer/zuraffa/.dart_tool/zfa_cli_bin/zfa_exe tdd refactor A3 --feature .specify/bugs/zero-route-gorouter-launch --project /Users/arrrrny/Developer/zuraffa --suite-baseline /Users/arrrrny/Developer/zuraffa/.specify/bugs/zero-route-gorouter-launch/tdd/run-baseline.json --timeout 25.0000 --pass-batch` (working directory: /Users/arrrrny/Developer/zuraffa)\n   captured output before the kill (tail):\n   cleared 1 stale kernel entr(ies), freed 30.6 MB\nzfa tdd refactor: preflight suite\n   command: dart test"
+      }
+    },
+    {
+      "feature": "zero-route-gorouter-launch",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-15T22:41:48.802733Z",
+      "finished_at": "2026-09-15T23:16:57.819099Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane stopped at A3:refactor",
+        "engine lane result=runner-error — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [],
+      "stopped_at": null
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "feature": "zero-route-gorouter-launch",
   "behavior_states": {
-    "A3": "red",
+    "A3": "green",
     "A4": "pending",
     "A5": "pending",
     "A6": "pending",

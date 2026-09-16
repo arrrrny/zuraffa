@@ -650,17 +650,18 @@ Future<void> _startXRayBridge() async {
   /// #1673: the `routes:` argument — `getAllRoutes()` unchanged when the
   /// table has entries; a single placeholder `GoRoute(path: '/')` swapped
   /// in at router-construction time when the day-zero table is empty.
-  Expression _routesArgument() => refer(
-    'getAllRoutes',
-  ).call([]).property('isEmpty').conditional(
-    literalList([
-      refer('GoRoute').call([], {
-        'path': literalString('/'),
-        'builder': _placeholderBuilderClosure(),
-      }),
-    ]),
-    refer('getAllRoutes').call([]),
-  );
+  Expression _routesArgument() => refer('getAllRoutes')
+      .call([])
+      .property('isEmpty')
+      .conditional(
+        literalList([
+          refer('GoRoute').call([], {
+            'path': literalString('/'),
+            'builder': _placeholderBuilderClosure(),
+          }),
+        ]),
+        refer('getAllRoutes').call([]),
+      );
 
   /// #1673: the shared `(context, state) => const ZfaDayZeroPlaceholder()`
   /// closure used by both the empty-table fallback route and the
@@ -712,20 +713,23 @@ Future<void> _startXRayBridge() async {
                   ..type = refer('BuildContext'),
               ),
             )
-            ..body = refer('Scaffold').call([], {
-              'appBar': refer('AppBar').call([], {
-                'title': refer(
-                  'Text',
-                ).call([literalString(title ?? 'Zuraffa App')]),
-              }),
-              'body': refer('Center').call([], {
-                'child': refer('Text').call([
-                  literalString(
-                    'No routes yet — generate views with `zfa route <Entity>`.',
-                  ),
-                ]),
-              }),
-            }).returned.statement,
+            ..body = refer('Scaffold')
+                .call([], {
+                  'appBar': refer('AppBar').call([], {
+                    'title': refer(
+                      'Text',
+                    ).call([literalString(title ?? 'Zuraffa App')]),
+                  }),
+                  'body': refer('Center').call([], {
+                    'child': refer('Text').call([
+                      literalString(
+                        'No routes yet — generate views with `zfa route <Entity>`.',
+                      ),
+                    ]),
+                  }),
+                })
+                .returned
+                .statement,
         ),
       ),
   );

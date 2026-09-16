@@ -13,28 +13,25 @@ import 'package:zuraffa/tdd/zero-route-gorouter-launch/a3_subject.dart'
 
 void main() {
   group('A3 (AC-3)', () {
-    test(
-      'A3 — it carries the same `errorBuilder` / empty-table fallback '
-      'alongside the observer.',
-      () {
-        final Object? result = (() {
-          try {
-            return subject.subject_a3();
-          } on UnimplementedError catch (error) {
-            return error;
-          }
-        })();
-        expect(result, isNot(isA<UnimplementedError>()));
-        // Hand-step assertion (issue #1488 remedy): the skin-audit router
-        // must carry the day-zero `errorBuilder` / empty-table fallback
-        // (issue #1673) ALONGSIDE the #1102 SkinRouteContractObserver.
-        expect(result, isA<String>());
-        final emitted = result! as String;
-        expect(emitted, contains('errorBuilder'));
-        expect(emitted, contains('getAllRoutes().isEmpty'));
-        expect(emitted, contains('ZfaDayZeroPlaceholder'));
-        expect(emitted, contains('SkinRouteContractObserver'));
-      },
-    );
+    test('A3 — it carries the same `errorBuilder` / empty-table fallback '
+        'alongside the observer.', () {
+      final result = (() {
+        try {
+          return subject.subject_a3();
+        } on UnimplementedError catch (error) {
+          return error;
+        }
+      })();
+      expect(result, isNot(isA<UnimplementedError>()));
+      // Hand-step assertion (issue #1488 remedy): the skin-audit router
+      // must carry the day-zero `errorBuilder` / empty-table fallback
+      // (issue #1673) ALONGSIDE the #1102 SkinRouteContractObserver.
+      expect(result, isA<String>());
+      final emitted = result as String;
+      expect(emitted, contains('errorBuilder: (context, state)'));
+      expect(emitted, contains('getAllRoutes().isEmpty'));
+      expect(emitted, contains('ZfaDayZeroPlaceholder'));
+      expect(emitted, contains('SkinRouteContractObserver'));
+    });
   });
 }

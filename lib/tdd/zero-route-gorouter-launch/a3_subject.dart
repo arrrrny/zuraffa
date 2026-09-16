@@ -14,5 +14,4 @@ import 'package:zuraffa/src/plugins/app_shell/builders/app_shell_builder.dart';
 /// `AppShellBuilder.buildAppRouter(skinAudit: true)` output). The paired
 /// test asserts the day-zero `errorBuilder` / empty-table fallback rides
 /// alongside the issue-#1102 `SkinRouteContractObserver`.
-String subject_a3() =>
-    const AppShellBuilder().buildAppRouter(skinAudit: true);
+String subject_a3() => const AppShellBuilder().buildAppRouter(skinAudit: true);
