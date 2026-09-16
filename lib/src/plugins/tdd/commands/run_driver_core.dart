@@ -1989,10 +1989,25 @@ class RunDriverCore {
     // skip — the fresh-test signal of the stale-artifacts contradiction
     // when the following make refuses subject-drift.
     var sawUnexpectedGreen = false;
+    // Issue #1652: whether THIS drive's make certified the behavior green
+    // (either make success arm — the normal green landing or the
+    // #694/#1331/#1345/#1398 skip/adopt transitions). A refactor reached
+    // behind a same-drive make is DEFERRED to the phase-2b batch pass:
+    // between the make-green and the refactor step nothing touched the
+    // tree (the loop is machine-driven), so the eager spawn would only
+    // re-prove what the run itself just proved — and forward progress
+    // changes `lib/` every make, which is exactly why neither the #1624
+    // ledger nor the #1662 record can absorb it per behavior. In phase 2b
+    // all makes are complete and the tree is byte-stable across the
+    // batch, so the gate runs at most once per lane per run. A refactor
+    // reached WITHOUT a same-drive make (the resume re-entry window)
+    // keeps the pre-#1652 predicate below.
+    var madeGreenThisDrive = false;
     for (final step in steps) {
       if (deferralAllowed &&
           step == 'refactor' &&
-          (_hasRedBehavior(rows, updated) ||
+          (madeGreenThisDrive ||
+              _hasRedBehavior(rows, updated) ||
               await _hasPendingWithArtifacts(
                 rows,
                 updated,
@@ -2239,6 +2254,10 @@ class RunDriverCore {
           await store.save(updated, activeBehaviorIds: activeIds);
           await tx.clear();
           state = next;
+          // Issue #1652: the skip/adopt terminal-success arm certified
+          // green this drive — the following refactor defers like a
+          // normal green make's (the skip logic itself is untouched).
+          madeGreenThisDrive = true;
           print(
             '[run] ${row.id} make -> green (${result.outcome})$progressSuffix',
           );
@@ -3088,6 +3107,10 @@ class RunDriverCore {
       await store.save(updated, activeBehaviorIds: activeIds);
       await tx.clear();
       state = next;
+      // Issue #1652: a make that green-applied certified the behavior
+      // this drive — the refactor step right after defers to the
+      // phase-2b batch pass instead of spawning over an untouched tree.
+      if (step == 'make') madeGreenThisDrive = true;
     }
     return (state: updated, stop: null, refactorBlocked: false);
   }

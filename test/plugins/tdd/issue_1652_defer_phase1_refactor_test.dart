@@ -30,10 +30,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
-import 'package:zuraffa/src/plugins/tdd/services/contract_blocked_receipt.dart';
 
 import 'helpers/tdd_fixture.dart';
 
@@ -69,36 +67,6 @@ void main() {
       (jsonDecode(await File(fx.runStatePath).readAsString())
               as Map<String, dynamic>)['behavior_states']
           as Map<String, dynamic>;
-
-  /// The seeded blocked verdict's receipt (the #1544 resume pattern).
-  Future<void> seedBlockedReceipt(String behaviorId, DateTime blockedAt) async {
-    final store = ContractBlockedReceiptStore(projectRoot: fx.root.path);
-    await store.write(
-      ContractBlockedReceipt(
-        behavior: behaviorId,
-        feature: feature,
-        contract: 'User.validateEmail',
-        command: 'dart test test/tdd/$feature/contract_c1_test.dart',
-        exitCode: 1,
-        outputExcerpt: 'Expected: true\n  Actual: false',
-        blockedAt: blockedAt.toIso8601String(),
-      ),
-    );
-  }
-
-  /// The parked contract's seam file (the change-signal probe watches it).
-  String seedSeamFile(String behaviorId) {
-    final snakeId = behaviorId.toLowerCase().replaceAll(
-      RegExp(r'[^a-z0-9]+'),
-      '_',
-    );
-    final file = File(
-      p.join(fx.root.path, 'test', 'tdd', feature, '${snakeId}_test.dart'),
-    );
-    file.createSync(recursive: true);
-    file.writeAsStringSync('// seam\nvoid main() {}\n');
-    return file.path;
-  }
 
   setUp(() async {
     // Fast tier: no profile, so the #741 baseline never spawns a real
@@ -146,7 +114,8 @@ void main() {
       expect(
         firstRefactor,
         greaterThan(lastMake),
-        reason: 'no refactor may spawn before the last make '
+        reason:
+            'no refactor may spawn before the last make '
             '(step log: ${steps.join(', ')})',
       );
       // The deferral is the existing machinery, named per behavior.
@@ -233,7 +202,8 @@ void main() {
       expect(
         firstRefactor,
         greaterThan(lastNonRefactor),
-        reason: 'every non-refactor spawn (gen/verify-red/make) must precede '
+        reason:
+            'every non-refactor spawn (gen/verify-red/make) must precede '
             'every refactor spawn (argv log: ${argv.join(' | ')})',
       );
       // The #1588/#1624 argv contract: every refactor spawn carries the
@@ -295,109 +265,108 @@ void main() {
   });
 
   group('A4 — parked blocked contract composition', () {
-    test('the unit defers in phase 1 and its phase-2b spawn carries '
-        '--exempt-behaviors; the run reports result=blocked blocked=1',
-        () async {
-      await fx.seedTestList([
-        (
-          id: 'U1',
-          description: 'made unit behavior',
-          traces: 'FR-001',
-          state: 'PENDING',
-          kind: 'unit',
-        ),
-        (
-          id: 'contract:C1',
-          description:
-              'User.validateEmail(String email) -> bool (entity method '
-              'contract)',
-          traces: 'User.validateEmail',
-          state: 'PENDING',
-          kind: 'contract',
-        ),
-      ]);
-      // The parked contract: unchanged-blocked receipt + seam file (#1544
-      // resume skip — the parked behavior is skipped, not re-driven).
-      final verdictAt = DateTime.now().toUtc().subtract(
-        const Duration(hours: 1),
-      );
-      await seedBlockedReceipt('contract:C1', verdictAt);
-      final seamPath = seedSeamFile('contract:C1');
-      final before = verdictAt.subtract(const Duration(hours: 1));
-      File(seamPath).setLastModifiedSync(before);
-      File(fx.testListPath).setLastModifiedSync(before);
+    test(
+      'the unit defers in phase 1 and its phase-2b spawn carries '
+      '--exempt-behaviors; the run reports result=blocked blocked=1',
+      () async {
+        await fx.seedTestList([
+          (
+            id: 'U1',
+            description: 'made unit behavior',
+            traces: 'FR-001',
+            state: 'PENDING',
+            kind: 'unit',
+          ),
+          (
+            id: 'contract:C1',
+            description:
+                'User.validateEmail(String email) -> bool (entity method '
+                'contract)',
+            traces: 'User.validateEmail',
+            state: 'PENDING',
+            kind: 'contract',
+          ),
+        ]);
+        // The parked contract: this run's verify-red reports the blocked
+        // verdict (#1007) — the behavior parks at BLOCKED and make/refactor
+        // never spawn for it.
+        await fx.setStepOutcome('verify-red', 'contract:C1', 'blocked');
 
-      final out = await drive();
+        final out = await drive();
 
-      // The blocked behavior parks the run honestly (#1544 semantics):
-      // exit 1, result=blocked — while U1 still reaches done.
-      expect(exitCode, 1, reason: out);
-      expect(out, contains('result=blocked blocked=1'), reason: out);
-      // U1's refactor deferred in phase 1 (no spawn between its make and
-      // the batch pass).
-      expect(out, contains('[run] U1 refactor -> deferred (phase 2)'));
-      final refactorSpawns = (await argvLog())
-          .where((l) => l.startsWith('tdd refactor U1'))
-          .toList();
-      expect(refactorSpawns, hasLength(1), reason: out);
-      expect(
-        refactorSpawns.single,
-        contains('--pass-batch'),
-        reason: refactorSpawns.single,
-      );
-      // The lane's parked BLOCKED id rides the batch spawn (#1588).
-      expect(
-        refactorSpawns.single,
-        contains('--exempt-behaviors contract:C1'),
-        reason: refactorSpawns.single,
-      );
-      final states = await behaviorStates();
-      expect(states['U1'], 'done');
-      expect(states['contract:C1'], 'blocked');
-    });
+        // The blocked behavior parks the run honestly (#1544 semantics):
+        // exit 1, result=blocked — while U1 still reaches done.
+        expect(exitCode, 1, reason: out);
+        expect(out, contains('result=blocked'), reason: out);
+        expect(out, contains('blocked=1'), reason: out);
+        // U1's refactor deferred in phase 1 (no spawn between its make and
+        // the batch pass).
+        expect(out, contains('[run] U1 refactor -> deferred (phase 2)'));
+        final refactorSpawns = (await argvLog())
+            .where((l) => l.startsWith('tdd refactor U1'))
+            .toList();
+        expect(refactorSpawns, hasLength(1), reason: out);
+        expect(
+          refactorSpawns.single,
+          contains('--pass-batch'),
+          reason: refactorSpawns.single,
+        );
+        // The lane's parked BLOCKED id rides the batch spawn (#1588).
+        expect(
+          refactorSpawns.single,
+          contains('--exempt-behaviors contract:C1'),
+          reason: refactorSpawns.single,
+        );
+        final states = await behaviorStates();
+        expect(states['U1'], 'done');
+        expect(states['contract:C1'], 'blocked');
+      },
+    );
   });
 
   group('A5 — honest stop with deferred refactors', () {
-    test('a later make failure stops the run — earlier behaviors stay green '
-        'with deferred refactors, no batch pass, no fabricated evidence',
-        () async {
-      await fx.seedTestList([
-        (
-          id: 'B-001',
-          description: 'first behavior',
-          traces: 'FR-001',
-          state: 'PENDING',
-          kind: 'unit',
-        ),
-        (
-          id: 'B-002',
-          description: 'second behavior',
-          traces: 'FR-001',
-          state: 'PENDING',
-          kind: 'unit',
-        ),
-      ]);
-      await fx.setStepOutcome('make', 'B-002', 'not-certified-red');
+    test(
+      'a later make failure stops the run — earlier behaviors stay green '
+      'with deferred refactors, no batch pass, no fabricated evidence',
+      () async {
+        await fx.seedTestList([
+          (
+            id: 'B-001',
+            description: 'first behavior',
+            traces: 'FR-001',
+            state: 'PENDING',
+            kind: 'unit',
+          ),
+          (
+            id: 'B-002',
+            description: 'second behavior',
+            traces: 'FR-001',
+            state: 'PENDING',
+            kind: 'unit',
+          ),
+        ]);
+        await fx.setStepOutcome('make', 'B-002', 'not-certified-red');
 
-      final out = await drive();
+        final out = await drive();
 
-      // Honest stop at the failing make.
-      expect(exitCode, 1, reason: out);
-      expect(out, contains('stopped_at=B-002:make'), reason: out);
-      // B-001's refactor never spawned — deferred, and the run stopped
-      // before any phase-2b pass.
-      final refactorSpawns = (await argvLog())
-          .where((l) => l.startsWith('tdd refactor '))
-          .toList();
-      expect(refactorSpawns, isEmpty, reason: out);
-      expect(out, contains('[run] B-001 refactor -> deferred (phase 2)'));
-      // B-001 keeps its green state (never a fake DONE, FR-008).
-      final states = await behaviorStates();
-      expect(states['B-001'], 'green');
-      expect(states['B-002'], isNot('done'));
-      // No refactor evidence was fabricated for B-001.
-      final log = await File(fx.cycleLogPath).readAsString();
-      expect(log, isNot(contains('kind: refactor')), reason: log);
-    });
+        // Honest stop at the failing make.
+        expect(exitCode, 1, reason: out);
+        expect(out, contains('stopped_at=B-002:make'), reason: out);
+        // B-001's refactor never spawned — deferred, and the run stopped
+        // before any phase-2b pass.
+        final refactorSpawns = (await argvLog())
+            .where((l) => l.startsWith('tdd refactor '))
+            .toList();
+        expect(refactorSpawns, isEmpty, reason: out);
+        expect(out, contains('[run] B-001 refactor -> deferred (phase 2)'));
+        // B-001 keeps its green state (never a fake DONE, FR-008).
+        final states = await behaviorStates();
+        expect(states['B-001'], 'green');
+        expect(states['B-002'], isNot('done'));
+        // No refactor evidence was fabricated for B-001.
+        final log = await File(fx.cycleLogPath).readAsString();
+        expect(log, isNot(contains('kind: refactor')), reason: log);
+      },
+    );
   });
 }
