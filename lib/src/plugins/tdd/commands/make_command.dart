@@ -111,6 +111,8 @@ import '../services/tdd_timeout.dart';
 import '../services/contract_blocked_receipt.dart';
 import '../services/hand_surface.dart';
 import '../services/vacuous_guard.dart';
+import '../services/scalar_dummy_subject.dart';
+import '../services/scenario_example.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../services/widget_scaffold.dart';
@@ -2311,6 +2313,98 @@ class MakeCommand extends Command<void> {
     }
 
     // ---------------------------------------------------------------
+    // 9b. Placeholder subjects cannot certify green (issue #1651 — the
+    //     successor to the #1259 gate at 3c). A unit subject whose body
+    //     is a scalar dummy (`int add(int a, int b) { return 0; }`, the
+    //     #1517 func scaffold) satisfies every TYPE-only assertion — the
+    //     post-#1259 generated shape (`expect(result, isA<int>())`) — so
+    //     the test passes, green certifies, and the receipt reports
+    //     complete with zero declared-contract code on disk. The gate
+    //     pairs the SUBJECT-side dummy detector with the TEST-side
+    //     type-only classifier: a test that asserts at least one VALUE
+    //     (a scenario literal, `equals(5)`) fails the dummy at runtime
+    //     (the honest red, remediation 1), so only the type-only class
+    //     can reach this point GREEN — and that green proves nothing.
+    //     Scoped to UNIT rows (the acceptance lane's contract is
+    //     untouched; its void scenario runner has no value to assert).
+    //     The refusal reuses the #1259 outcome class (`vacuous-green`) —
+    //     the run driver's stop arms own the loop semantics and the
+    //     receipt schema is unchanged. The skip transition (#694: the
+    //     drift re-run already passed) reaches the same gate — a
+    //     placeholder green cannot sneak in through re-makes either.
+    //
+    //     #1310 reconciliation: the declared floor stands. The pair's
+    //     declared routing + the spec's scenarios are resolved here and
+    //     the ONE decision predicate ([scalarDummyGreenMustRefuse],
+    //     single-sourced with the driver's stop arm) exempts the
+    //     declared-routed pair whose scenario carries no derivable value
+    //     — the typed `isA<T>()` assertion is then the best derivable
+    //     surface and the #1310 dead-end removal certifies it (U6). When
+    //     the scenario DOES name a derivable outcome, remediation 1 made
+    //     the generator emit the discriminating assertion — a type-only
+    //     test is the stale/under-derived theater, refused.
+    // ---------------------------------------------------------------
+    if (vacuousRowKind == BehaviorKind.unit) {
+      final subjectFilePath = p.isAbsolute(record.subjectPath)
+          ? record.subjectPath
+          : p.join(cwd, record.subjectPath);
+      final subjectFileForGate = File(subjectFilePath);
+      if (await subjectFileForGate.exists()) {
+        final subjectContent = await subjectFileForGate.readAsString();
+        final gateTestFile = File(testPath);
+        final gateTestContent = gateTestFile.existsSync()
+            ? await gateTestFile.readAsString()
+            : '';
+        if (contentCarriesScalarDummyBody(subjectContent) &&
+            contentIsTypeOnlyAssertion(gateTestContent)) {
+          // Both resolutions fail open (null / empty): the floor stands
+          // unless the spec positively names a derivable outcome.
+          final gateDeclared = await _gateDeclaredSignature(
+            cwd: cwd,
+            featureName: target.featureName,
+            featureDir: target.featureDir,
+            behaviorId: record.behaviorId,
+          );
+          final gateScenarios = _gateScenarios(featureDir: target.featureDir);
+          final mustRefuse = scalarDummyGreenMustRefuse(
+            subjectSource: subjectContent,
+            testSource: gateTestContent,
+            declared: gateDeclared == null
+                ? null
+                : (
+                    method: gateDeclared.name,
+                    returnType: gateDeclared.returnType,
+                  ),
+            scenarios: gateScenarios,
+          );
+          if (mustRefuse) {
+            final remedy = scalarDummyGreenRemedy(
+              behaviorId: record.behaviorId,
+              testPath: record.testPath,
+              subjectPath: record.subjectPath,
+            );
+            print(
+              'zfa tdd make: behavior "${record.behaviorId}" test is '
+              'VACUOUS-GREEN over a PLACEHOLDER subject — the subject body '
+              'is a scalar dummy (${record.subjectPath}) and the test\'s '
+              'assertion set is type-only (issue #1651). A green here '
+              'proves nothing about the behavior: the dummy satisfies any '
+              '`isA<T>()` check with zero declared-contract code.',
+            );
+            print('   --> fix: $remedy');
+            _printSummary(
+              behavior: record.behaviorId,
+              outcome: MakeOutcome.vacuousGreen,
+              feature: target.featureName,
+            );
+            exitCode = 1;
+            return;
+          }
+        }
+      }
+    }
+
+    // ---------------------------------------------------------------
     // 10. Green evidence append (FR-008). For the issue #694 skip
     //     transition the generation block is explicitly empty and the
     //     evidence command is the drift re-run. Issue #741: on the skip
@@ -2790,6 +2884,48 @@ class MakeCommand extends Command<void> {
       run.startedProcess &&
       run.exitCode == _exitCodeNoTests &&
       run.output.contains('No tests ran');
+
+  /// Issue #1651 (make's 9b gate): the pair's declared signature for the
+  /// #1310 floor decision — the SAME resolution gen performs
+  /// ([DeclaredRouting.declaredSignatureFor]). Null (fail-open) when the
+  /// pair is not declared-routed or any artifact is unreadable; a
+  /// MALFORMED declaration is swallowed here (null) rather than
+  /// crashing make — the gate refuses the scaffold class on null, which
+  /// is the safe arm for a pair gen itself would have refused.
+  static Future<Signature?> _gateDeclaredSignature({
+    required String cwd,
+    required String featureName,
+    required String featureDir,
+    required String behaviorId,
+  }) async {
+    try {
+      return await DeclaredRouting.declaredSignatureFor(
+        cwd: cwd,
+        featureName: featureName,
+        featureDir: featureDir,
+        behaviorId: behaviorId,
+      );
+    } on StateError {
+      return null;
+    }
+  }
+
+  /// Issue #1651 (make's 9b gate): the feature spec's parsed acceptance
+  /// scenarios — the SAME parse the gen-time scenario resolution uses.
+  /// Empty (fail-open) when the spec is missing or unreadable: the
+  /// #1310 floor stands unless the spec positively names a derivable
+  /// outcome.
+  static List<ScenarioExample> _gateScenarios({required String featureDir}) {
+    try {
+      final specFile = File(p.join(featureDir, 'spec.md'));
+      if (!specFile.existsSync()) return const [];
+      return SpecParser.parseScenarioExamples(specFile.readAsStringSync());
+    } on FileSystemException {
+      return const [];
+    } on FormatException {
+      return const [];
+    }
+  }
 
   /// Run the behavior's target test through the profile `single` template
   /// with the issue #1402 zero-match guard.

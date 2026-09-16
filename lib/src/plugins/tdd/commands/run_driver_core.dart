@@ -51,6 +51,7 @@ import 'package:path/path.dart' as p;
 import '../models/behavior.dart';
 import '../models/cycle_entry.dart';
 import '../models/run_state.dart';
+import '../models/artifact_record.dart';
 import '../services/artifact_registry.dart';
 import '../services/arg_placeholder.dart';
 import '../services/born_green.dart';
@@ -66,6 +67,8 @@ import '../services/run_baseline_cache.dart';
 import '../services/corpus_baseline_cache.dart';
 import '../services/run_state_store.dart';
 import '../services/runner.dart';
+import '../services/scalar_dummy_subject.dart';
+import '../services/scenario_example.dart';
 import '../services/spec_parser.dart';
 import '../services/step_runner.dart';
 import '../services/contract_blocked_receipt.dart';
@@ -2593,6 +2596,46 @@ class RunDriverCore {
               refactorBlocked: false,
             );
           }
+          // Issue #1651: the PLACEHOLDER arm — the fallback vocabulary
+          // above says "GUARD-ONLY", which is false for the dummy class:
+          // the test carries a real expect (`isA<int>()`), it just
+          // asserts no VALUE, so the #1517 func-scaffold dummy
+          // (`return 0;`) satisfies it. When the registry record's
+          // subject body is the scalar dummy and the test is type-only,
+          // the stop names the placeholder remedy (make's refusal line,
+          // single-sourced) while the machine contract below is
+          // unchanged. Fail-open on any missing artifact — the fallback
+          // arm keeps serving shapes this probe cannot classify.
+          if (row.kind == BehaviorKind.unit) {
+            final placeholderRecord = await registry.findRecord(row.id);
+            final dummyDetected = await _placeholderGreenDetected(
+              projectRoot: projectRoot,
+              featureDir: featureDir,
+              featureName: feature,
+              record: placeholderRecord,
+            );
+            if (dummyDetected) {
+              print(
+                '   the generated test asserts NO VALUE — its matcher set '
+                'is type-only, and the paired subject body is a scalar '
+                'dummy that satisfies every type check (issue #1651). '
+                'make refuses it vacuous-green.',
+              );
+              print(
+                '   --> fix: ${scalarDummyGreenRemedy(behaviorId: row.id, testPath: placeholderRecord!.testPath, subjectPath: placeholderRecord.subjectPath)}',
+              );
+              return (
+                state: updated,
+                stop: (
+                  result: 'stopped',
+                  stoppedAt: '${row.id}:make',
+                  exitCode: _exitStopped,
+                  message: null,
+                ),
+                refactorBlocked: false,
+              );
+            }
+          }
           print(
             '   the generated test is GUARD-ONLY [$vacuousGuardWarningToken] '
             '— the behavior is fallback-routed (no traces: to a declared '
@@ -3273,6 +3316,82 @@ class RunDriverCore {
     if (testPath == null) return false;
     try {
       return File(testPath).readAsStringSync().contains(scaffoldedMarker);
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  /// Issue #1651: whether the registry [record]'s artifact state is the
+  /// placeholder-green class — the subject body is a scalar dummy AND
+  /// the paired test's assertion set is type-only. Both reads fail OPEN
+  /// (the same contract as the marker probe above): a missing or
+  /// unreadable artifact keeps the fallback arm serving the stop.
+  ///
+  /// The classification rides the ONE decision predicate make's 9b gate
+  /// uses ([scalarDummyGreenMustRefuse]) so the two surfaces never
+  /// disagree: the declared routing ([DeclaredRouting
+  /// .declaredSignatureFor], the gen-time resolution) and the spec's
+  /// parsed scenarios are resolved here (both fail-open) and the #1310
+  /// floor exempts the declared-routed pair whose scenario carries no
+  /// derivable value. [featureDir] is the already-resolved feature
+  /// directory (bug features live outside `specs/`), [featureName] the
+  /// canonical feature name.
+  Future<bool> _placeholderGreenDetected({
+    required String projectRoot,
+    required String featureDir,
+    required String featureName,
+    ArtifactRecord? record,
+  }) async {
+    if (record == null) return false;
+    try {
+      final subjectPath = p.isAbsolute(record.subjectPath)
+          ? record.subjectPath
+          : p.join(projectRoot, record.subjectPath);
+      final testPath = p.isAbsolute(record.testPath)
+          ? record.testPath
+          : p.join(projectRoot, record.testPath);
+      final subjectFile = File(subjectPath);
+      final testFile = File(testPath);
+      if (!subjectFile.existsSync() || !testFile.existsSync()) return false;
+      final subjectContent = await subjectFile.readAsString();
+      final testContent = await testFile.readAsString();
+      if (!contentCarriesScalarDummyBody(subjectContent) ||
+          !contentIsTypeOnlyAssertion(testContent)) {
+        return false;
+      }
+      ({String method, String returnType})? declared;
+      try {
+        final signature = await DeclaredRouting.declaredSignatureFor(
+          cwd: projectRoot,
+          featureName: featureName,
+          featureDir: featureDir,
+          behaviorId: record.behaviorId,
+        );
+        if (signature != null) {
+          declared = (method: signature.name, returnType: signature.returnType);
+        }
+      } on StateError {
+        declared = null; // malformed declaration: the scaffold-class arm
+      }
+      var scenarios = const <ScenarioExample>[];
+      try {
+        final specFile = File(p.join(featureDir, 'spec.md'));
+        if (specFile.existsSync()) {
+          scenarios = SpecParser.parseScenarioExamples(
+            specFile.readAsStringSync(),
+          );
+        }
+      } on FileSystemException {
+        scenarios = const [];
+      } on FormatException {
+        scenarios = const [];
+      }
+      return scalarDummyGreenMustRefuse(
+        subjectSource: subjectContent,
+        testSource: testContent,
+        declared: declared,
+        scenarios: scenarios,
+      );
     } on FileSystemException {
       return false;
     }

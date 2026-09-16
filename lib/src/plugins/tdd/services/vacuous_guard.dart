@@ -377,3 +377,112 @@ bool contentIsVacuousGreen(String content) {
   final withoutGuards = content.replaceAll(_guardExpect, '');
   return !_anyExpect.hasMatch(withoutGuards);
 }
+
+// -------------------------------------------------------------------
+// Issue #1651: the TYPE-ONLY assertion class. `contentIsVacuousGreen`
+// refuses guard-only tests, but the post-#1259 generated shape asserts
+// the return TYPE (`expect(result, isA<int>())`) — a real expect that
+// sails the guard-only gate, yet a func-scaffolded `return 0;` dummy
+// satisfies it and the engine certified a terminal green. Green over a
+// placeholder body requires the test to carry at least one VALUE
+// assertion (the issue's bar: "at least one literal from the behavior
+// description's scenario"); this detector answers "does ANY expect
+// carry a value?".
+// -------------------------------------------------------------------
+
+/// Value-bearing markers inside a matcher expression: a numeric literal
+/// (`equals(5)`), a quoted string (`equals('sample')`), a boolean word
+/// (`equals(true)`), or a constructor call (`equals(Task(...))`). A
+/// matcher with none of these asserts a TYPE or a nullability shape —
+/// the placeholder-satisfiable class.
+final RegExp _quotedString = RegExp("'");
+
+/// Boundary-anchored numeric literal inside a matcher (`equals(42)`,
+/// `greaterThan(0.5)`). The preceding-character check keeps `isA<Foo2>()`
+/// (a type name with a digit) out of the value class.
+final RegExp _numericLiteral = RegExp(r'(^|[^A-Za-z0-9_.])[0-9]');
+
+/// Boolean literals.
+final RegExp _booleanLiteral = RegExp(r'\b(true|false)\b');
+
+/// Constructor/factory calls (`Task(`) — a constructed instance is a
+/// value. `isA<X>()` does NOT match: the `(` belongs to `isA`, not to a
+/// type-named constructor.
+final RegExp _constructorCall = RegExp(r'[A-Z][A-Za-z0-9_]*\s*\(');
+
+/// The declared-boolean outcome pins (`isTrue` / `isFalse`): the
+/// declared-contract branch's legacy assertion for a `bool` scalar
+/// outcome — the assertion the #1310 dead-end removal explicitly
+/// certifies over a dummy `=> false;` body (plan_traces_cell_1310 U6).
+/// They pin the DECLARED value — the twins of `equals(true)` /
+/// `equals(false)` — so they are value matchers, not the type-only
+/// class: the #1651 refusal is the pairing "scalar dummy body + an
+/// assertion set that cannot distinguish ANY implementation", and
+/// `isFalse` distinguishes `false` from everything else.
+final RegExp _declaredBooleanPin = RegExp(r'\bis(?:True|False)\b');
+
+/// The matcher argument of every `expect(`/`expectLater(` call in
+/// [content]: the expression between the FIRST top-level comma and the
+/// matching close paren. Comment-only lines are stripped first (the
+/// generated header prose mentions assertion shapes); guard-shaped
+/// expects are stripped by the same rule [contentIsVacuousGreen] uses.
+List<String> _matcherExpressions(String content) {
+  final codeLines = content
+      .split('\n')
+      .where((line) => !line.trim().startsWith('//'))
+      .join('\n');
+  final withoutGuards = codeLines.replaceAll(_guardExpect, '');
+  final matchers = <String>[];
+  final callStart = RegExp(r'\bexpect(?:Later)?\s*\(');
+  for (final match in callStart.allMatches(withoutGuards)) {
+    var depth = 0;
+    var commaIndex = -1;
+    var end = -1;
+    for (var i = match.end; i < withoutGuards.length; i++) {
+      final ch = withoutGuards[i];
+      if (ch == '(') {
+        depth++;
+      } else if (ch == ')') {
+        if (depth == 0) {
+          end = i;
+          break;
+        }
+        depth--;
+      } else if (ch == ',' && depth == 0 && commaIndex < 0) {
+        commaIndex = i;
+      }
+    }
+    if (end < 0) continue; // unbalanced (interpolated prose) — skip
+    if (commaIndex < 0) continue; // single-argument form — no matcher
+    matchers.add(withoutGuards.substring(commaIndex + 1, end));
+  }
+  return matchers;
+}
+
+/// Whether ONE matcher expression asserts a VALUE (a literal or a
+/// constructed instance) rather than a type/nullability shape.
+bool _isValueMatcher(String matcher) {
+  if (_quotedString.hasMatch(matcher)) return true;
+  if (_numericLiteral.hasMatch(matcher)) return true;
+  if (_booleanLiteral.hasMatch(matcher)) return true;
+  if (_constructorCall.hasMatch(matcher)) return true;
+  if (_declaredBooleanPin.hasMatch(matcher)) return true;
+  return false;
+}
+
+/// Whether [content]'s assertion set is TYPE-ONLY (issue #1651): every
+/// remaining expect's matcher carries no value — pure `isA<T>()` /
+/// `isNotNull` / `isNot(...)` shapes, the set a scalar placeholder body
+/// satisfies. The declared-boolean pins (`isTrue` / `isFalse`) are NOT
+/// this class — they value-pin the declared outcome and keep the #1310
+/// dead-end removal intact. False (fail-open) when no expect survives
+/// the guard strip: an empty assertion set is [contentIsVacuousGreen]'s
+/// class, not this one. A throwsA-shaped matcher classifies type-only,
+/// but a dummy subject never throws, so the gate pairing this detector
+/// with the dummy body check is unreachable there — the classification
+/// only bites when the test actually PASSES on a constant body.
+bool contentIsTypeOnlyAssertion(String content) {
+  final matchers = _matcherExpressions(content);
+  if (matchers.isEmpty) return false;
+  return !matchers.any(_isValueMatcher);
+}
