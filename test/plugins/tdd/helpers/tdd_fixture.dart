@@ -703,6 +703,16 @@ case "$STEP" in
         echo "make: behavior=$ID outcome=adopted-interrupted feature=$FEATURE"
         exit 0
         ;;
+      skip-fail)
+        # Issue #1652 remediation (verify mutant M3): the #693/#694-era
+        # drift contract shape — make's outcome token says `skipped` but
+        # the exit code disagrees (non-zero). The driver's bug-986 arm
+        # grades the token as the terminal classification; the refactor
+        # step that follows must defer like any other green make.
+        printf '\n## Cycle: %s (green)\n\n- behavior: %s\n- kind: green\n- criterion: FR-003\n- exit: 0\n- at: 2026-08-30T00:00:00.000Z\n' "$ID" "$ID" >> "$CYCLE"
+        echo "make: behavior=$ID outcome=skipped feature=$FEATURE"
+        exit 1
+        ;;
       ok-no-evidence)
         echo "make: behavior=$ID outcome=green feature=$FEATURE"
         exit 0
