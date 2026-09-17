@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- cycle_entry-only scope: the receipt rendering + duration formatter
+     (issue #1653). Fast test scope; see tools/run-1653-entry-tests.sh. -->
+<mutations version="1.0">
+  <files>
+    <file>lib/src/plugins/tdd/models/cycle_entry.dart</file>
+  </files>
+  <commands>
+    <command group="test" expected-return="0" working-directory=".">bash tools/run-1653-entry-tests.sh</command>
+  </commands>
+</mutations>

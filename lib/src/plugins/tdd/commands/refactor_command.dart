@@ -428,6 +428,16 @@ class RefactorCommand extends Command<void> {
     // exemption. The evidence entry records them honestly.
     var preflightExempted = 0;
     var reproofExempted = 0;
+    // Issue #1653: per-phase wall durations — preflight (the
+    // absolute-green suite run), registry (the fixed pass batch), and
+    // re-proof (the post-pass suite run(s), #1333 retries included).
+    // Without per-phase heartbeats the 8m32s cold-resolution refactor was
+    // indistinguishable from a stuck step; the receipt now carries the
+    // durations and the green path prints them.
+    final phaseDurations = <String, Duration>{};
+    final preflightWatch = Stopwatch();
+    final registryWatch = Stopwatch();
+    final reproofWatch = Stopwatch();
 
     try {
       // Issue #1507: the kernel sweep is a start-of-cycle obligation, not
@@ -704,12 +714,15 @@ class RefactorCommand extends Command<void> {
       // 3. Run the preflight suite.
       print('zfa tdd refactor: preflight suite');
       print('   command: $suiteTemplate');
+      preflightWatch.start();
       final preflight = await runner.runSuite(
         suiteTemplate: suiteTemplate,
         workingDirectory: cwd,
         timeout: timeout,
         environment: scratchEnv,
       );
+      preflightWatch.stop();
+      phaseDurations['preflight'] = preflightWatch.elapsed;
       print('   preflight exit: ${preflight.exitCode}');
 
       // Issue #922: the driving run hands its cached baseline to spawned
@@ -902,11 +915,20 @@ class RefactorCommand extends Command<void> {
         warningsBlocking: await TddProfileKeys.warningsBlocking(cwd),
         environment: scratchEnv,
       );
+      registryWatch.start();
       final passResult = await passes.run();
+      registryWatch.stop();
+      phaseDurations['registry'] = registryWatch.elapsed;
       for (final action in passResult.actions) {
         print('   pass: ${action.name}');
         print('     command: ${action.command}');
         print('     exit: ${action.exitCode}');
+        // Issue #1653: the per-pass heartbeat — printed next to the exit
+        // code so a stuck pass is visible in the live log too, not only in
+        // the receipt.
+        if (action.duration != null) {
+          print('     duration: ${formatPhaseDuration(action.duration!)}');
+        }
         if (action.filesChanged.isNotEmpty) {
           print('     changed: ${action.filesChanged.join(', ')}');
         } else {
@@ -1083,6 +1105,10 @@ class RefactorCommand extends Command<void> {
       //    instead of a fabricated "green".
       String reproofCommand;
       SuiteRunRecord reproof;
+      // Issue #1653: the re-proof phase's wall time — from the inheritance
+      // decision through the #1333 retry loop (the retries are part of the
+      // phase's cost; the receipt reports the whole phase honestly).
+      reproofWatch.start();
       if (reproofInherited) {
         reproofCommand = suiteTemplate;
         print(
@@ -1187,6 +1213,10 @@ class RefactorCommand extends Command<void> {
           environment: scratchEnv,
         );
         print('   re-proof exit: ${reproof.exitCode} (retry $reproofRetries)');
+      }
+      reproofWatch.stop();
+      if (!reproofInherited) {
+        phaseDurations['re-proof'] = reproofWatch.elapsed;
       }
 
       if (reproof.timedOut) {
@@ -1445,6 +1475,16 @@ class RefactorCommand extends Command<void> {
           're-proof retries: $reproofRetries\n'
           're-proof output tail (stdout+stderr, truncated):\n'
           '${reproofOutputTail(reproof.output)}';
+      // Issue #1653: the per-phase heartbeat, printed on the green path
+      // before the receipt is appended — preflight/registry/re-proof wall
+      // times, so a slow phase is named in the live log (the 8m32s refactor
+      // printed only verdicts; the cold-resolution cost hid inside them).
+      if (phaseDurations.isNotEmpty) {
+        final rendered = phaseDurations.entries
+            .map((e) => '${e.key}=${formatPhaseDuration(e.value)}')
+            .join(' ');
+        print('   phase timings: $rendered');
+      }
       if (applied == 0) {
         // Clean no-op — no fabricated actions.
         print('   no actions applied — clean no-op.');
@@ -1466,6 +1506,7 @@ class RefactorCommand extends Command<void> {
             testPath: 'test/',
             timestamp: DateTime.now().toUtc().toIso8601String(),
             isNoOp: true,
+            phaseDurations: phaseDurations.isEmpty ? null : phaseDurations,
           ),
         );
       } else {
@@ -1493,6 +1534,7 @@ class RefactorCommand extends Command<void> {
             timestamp: DateTime.now().toUtc().toIso8601String(),
             refactorActions: passResult.actions,
             isNoOp: false,
+            phaseDurations: phaseDurations.isEmpty ? null : phaseDurations,
           ),
         );
         print(

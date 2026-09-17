@@ -26,8 +26,8 @@ void main() {
     await file.writeAsString(content);
   }
 
-  test('adds all six missing dev_dependencies '
-      '(bug #716 added `test`; bug #755 dropped unused `mocktail`)', () async {
+  test('adds the default dev_dependencies WITHOUT mutation_test '
+      '(issue #1653: mutation_test is opt-in via --mutation)', () async {
     await writePubspec('''
 name: myapp
 environment:
@@ -43,7 +43,13 @@ dev_dependencies: {}
     // consumers (unresolvable in the graphql → web_socket_channel ^3.0.1
     // graph) — the gen side emits flutter_test imports on Flutter hosts
     // (issue #1351).
-    expect(added.length, 5);
+    //
+    // Issue #1653: `mutation_test` is likewise no longer prescribed — it
+    // is the `tdd verify` lane's tool and an analyzer-versioned package
+    // whose transitive graph deferred a multi-minute cold cost into the
+    // first analyze-class pass on every fresh project. Opt in via
+    // `includeMutationTest: true` (`zfa tdd init --mutation`).
+    expect(added.length, 4);
     expect(added.any((e) => e.startsWith('flutter_test')), isTrue);
     expect(added.any((e) => e.startsWith('test:')), isFalse);
     expect(
@@ -54,7 +60,11 @@ dev_dependencies: {}
     expect(added.any((e) => e.startsWith('build_runner')), isTrue);
     expect(added.any((e) => e.startsWith('json_serializable')), isTrue);
     expect(added.any((e) => e.startsWith('coverage')), isTrue);
-    expect(added.any((e) => e.startsWith('mutation_test')), isTrue);
+    expect(
+      added.any((e) => e.startsWith('mutation_test')),
+      isFalse,
+      reason: 'issue #1653: mutation_test is opt-in, not unconditional',
+    );
     final raw = await File(p.join(tmpDir.path, 'pubspec.yaml')).readAsString();
     final doc = loadYaml(raw) as YamlMap;
     final devDeps = doc['dev_dependencies'] as YamlMap;
@@ -65,10 +75,28 @@ dev_dependencies: {}
         'build_runner',
         'json_serializable',
         'coverage',
-        'mutation_test',
       ]),
     );
     expect(devDeps.containsKey('mocktail'), isFalse);
+  });
+
+  test('includeMutationTest: true restores the full pre-#1653 set', () async {
+    await writePubspec('''
+name: myapp
+environment:
+  sdk: ^3.11.0
+
+dependencies: {}
+
+dev_dependencies: {}
+''');
+    final patcher = const PubspecDevDependenciesPatcher(
+      isFlutter: true,
+      includeMutationTest: true,
+    );
+    final added = await patcher.ensure(tmpDir.path);
+    expect(added.length, 5);
+    expect(added.any((e) => e.startsWith('mutation_test')), isTrue);
   });
 
   test('does not duplicate existing entries', () async {
@@ -87,9 +115,10 @@ dev_dependencies:
     final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
     final added = await patcher.ensure(tmpDir.path);
     // flutter_test and build_runner are pre-declared; the patcher should
-    // add the remaining 3 (json_serializable, coverage, mutation_test —
-    // issue #1370 dropped plain `test` from the Flutter baseline).
-    expect(added.length, 3);
+    // add the remaining 2 (json_serializable, coverage — issue #1370
+    // dropped plain `test` from the Flutter baseline; issue #1653 dropped
+    // unconditional mutation_test).
+    expect(added.length, 2);
     expect(added.any((e) => e.startsWith('flutter_test')), isFalse);
     expect(added.any((e) => e.startsWith('build_runner')), isFalse);
     final raw = await File(p.join(tmpDir.path, 'pubspec.yaml')).readAsString();
@@ -124,8 +153,9 @@ dependencies: {}
     final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
     final added = await patcher.ensure(tmpDir.path);
     // bug #755 dropped mocktail (7 -> 6); issue #1370 dropped plain
-    // `test` (6 -> 5).
-    expect(added.length, 5);
+    // `test` (6 -> 5); issue #1653 dropped unconditional mutation_test
+    // (5 -> 4).
+    expect(added.length, 4);
     final raw = await File(p.join(tmpDir.path, 'pubspec.yaml')).readAsString();
     expect(raw, contains('dev_dependencies:'));
     expect(raw, contains('flutter_test:'));
@@ -317,10 +347,9 @@ dev_dependencies:
       );
     });
 
-    test(
-      'flutter-mode ensure writes mutation_test: ^1.8.0 into pubspec.yaml',
-      () async {
-        await writePubspec('''
+    test('flutter-mode ensure writes mutation_test: ^1.8.0 into pubspec.yaml '
+        'when opted in (issue #1653: includeMutationTest: true)', () async {
+      await writePubspec('''
 name: myapp
 environment:
   sdk: ^3.11.0
@@ -329,44 +358,47 @@ dependencies: {}
 
 dev_dependencies: {}
 ''');
-        final patcher = const PubspecDevDependenciesPatcher(isFlutter: true);
-        await patcher.ensure(tmpDir.path);
-        final raw = await File(
-          p.join(tmpDir.path, 'pubspec.yaml'),
-        ).readAsString();
-        final doc = loadYaml(raw) as YamlMap;
-        final devDeps = doc['dev_dependencies'] as YamlMap;
-        expect(devDeps['mutation_test'], '^1.8.0');
-        expect(devDeps['coverage'], '^1.15.1');
-        expect(
-          devDeps.containsKey('mocktail'),
-          isFalse,
-          reason: 'mocktail must not be written into generated pubspecs',
-        );
-      },
-    );
+      final patcher = const PubspecDevDependenciesPatcher(
+        isFlutter: true,
+        includeMutationTest: true,
+      );
+      await patcher.ensure(tmpDir.path);
+      final raw = await File(
+        p.join(tmpDir.path, 'pubspec.yaml'),
+      ).readAsString();
+      final doc = loadYaml(raw) as YamlMap;
+      final devDeps = doc['dev_dependencies'] as YamlMap;
+      expect(devDeps['mutation_test'], '^1.8.0');
+      expect(devDeps['coverage'], '^1.15.1');
+      expect(
+        devDeps.containsKey('mocktail'),
+        isFalse,
+        reason: 'mocktail must not be written into generated pubspecs',
+      );
+    });
 
-    test(
-      'dart-mode ensure writes mutation_test: ^1.8.0 into pubspec.yaml',
-      () async {
-        await writePubspec('''
+    test('dart-mode ensure writes mutation_test: ^1.8.0 into pubspec.yaml '
+        'when opted in (issue #1653: includeMutationTest: true)', () async {
+      await writePubspec('''
 name: myapp
 environment:
   sdk: ^3.11.0
 
 dev_dependencies: {}
 ''');
-        final patcher = const PubspecDevDependenciesPatcher(isFlutter: false);
-        await patcher.ensure(tmpDir.path);
-        final raw = await File(
-          p.join(tmpDir.path, 'pubspec.yaml'),
-        ).readAsString();
-        final doc = loadYaml(raw) as YamlMap;
-        final devDeps = doc['dev_dependencies'] as YamlMap;
-        expect(devDeps['mutation_test'], '^1.8.0');
-        expect(devDeps['coverage'], '^1.15.1');
-        expect(devDeps.containsKey('mocktail'), isFalse);
-      },
-    );
+      final patcher = const PubspecDevDependenciesPatcher(
+        isFlutter: false,
+        includeMutationTest: true,
+      );
+      await patcher.ensure(tmpDir.path);
+      final raw = await File(
+        p.join(tmpDir.path, 'pubspec.yaml'),
+      ).readAsString();
+      final doc = loadYaml(raw) as YamlMap;
+      final devDeps = doc['dev_dependencies'] as YamlMap;
+      expect(devDeps['mutation_test'], '^1.8.0');
+      expect(devDeps['coverage'], '^1.15.1');
+      expect(devDeps.containsKey('mocktail'), isFalse);
+    });
   });
 }
