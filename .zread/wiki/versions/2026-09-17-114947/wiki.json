@@ -1,0 +1,211 @@
+{
+  "id": "2026-09-17-114947",
+  "generated_at": "2026-09-17T08:49:47.915755Z",
+  "language": "en",
+  "pages": [
+    {
+      "slug": "1-overview",
+      "title": "Overview",
+      "file": "1-overview.md",
+      "section": "Get Started",
+      "level": "Beginner"
+    },
+    {
+      "slug": "2-quick-start",
+      "title": "Quick Start",
+      "file": "2-quick-start.md",
+      "section": "Get Started",
+      "level": "Beginner"
+    },
+    {
+      "slug": "3-project-architecture-and-layout",
+      "title": "Project Architecture \u0026 Layout",
+      "file": "3-project-architecture-and-layout.md",
+      "section": "Get Started",
+      "group": "Foundational Concepts",
+      "level": "Beginner"
+    },
+    {
+      "slug": "4-configuration-and-project-memory-zfa-json-zfa",
+      "title": "Configuration \u0026 Project Memory (.zfa.json, .zfa/)",
+      "file": "4-configuration-and-project-memory-zfa-json-zfa.md",
+      "section": "Get Started",
+      "group": "Foundational Concepts",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "5-canonical-v5-workflow-entity-make-build",
+      "title": "Canonical v5 Workflow (Entity → Make → Build)",
+      "file": "5-canonical-v5-workflow-entity-make-build.md",
+      "section": "Get Started",
+      "level": "Beginner"
+    },
+    {
+      "slug": "6-cli-commands-and-subcommands",
+      "title": "CLI Commands \u0026 Subcommands",
+      "file": "6-cli-commands-and-subcommands.md",
+      "section": "Deep Dive",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "7-plugin-system-architecture",
+      "title": "Plugin System Architecture",
+      "file": "7-plugin-system-architecture.md",
+      "section": "Deep Dive",
+      "group": "Core Systems",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "8-plugin-development-guide",
+      "title": "Plugin Development Guide",
+      "file": "8-plugin-development-guide.md",
+      "section": "Deep Dive",
+      "group": "Core Systems",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "9-code-generation-engine-and-proof-receipts",
+      "title": "Code Generation Engine \u0026 Proof Receipts",
+      "file": "9-code-generation-engine-and-proof-receipts.md",
+      "section": "Deep Dive",
+      "group": "Core Systems",
+      "level": "Advanced"
+    },
+    {
+      "slug": "10-agent-and-skill-ecosystem-speckit-and-kimi-skills",
+      "title": "Agent \u0026 Skill Ecosystem (Speckit \u0026 Kimi Skills)",
+      "file": "10-agent-and-skill-ecosystem-speckit-and-kimi-skills.md",
+      "section": "Deep Dive",
+      "group": "Agent \u0026 AI Layer",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "11-mcp-server-reference",
+      "title": "MCP Server Reference",
+      "file": "11-mcp-server-reference.md",
+      "section": "Deep Dive",
+      "group": "Agent \u0026 AI Layer",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "12-agent-policy-and-runtime-contract",
+      "title": "Agent Policy \u0026 Runtime Contract",
+      "file": "12-agent-policy-and-runtime-contract.md",
+      "section": "Deep Dive",
+      "group": "Agent \u0026 AI Layer",
+      "level": "Advanced"
+    },
+    {
+      "slug": "13-tdd-cycle-and-spec-driven-development",
+      "title": "TDD Cycle \u0026 Spec-Driven Development",
+      "file": "13-tdd-cycle-and-spec-driven-development.md",
+      "section": "Deep Dive",
+      "group": "TDD \u0026 Development Cycle",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "14-testing-infrastructure-and-test-organization",
+      "title": "Testing Infrastructure \u0026 Test Organization",
+      "file": "14-testing-infrastructure-and-test-organization.md",
+      "section": "Deep Dive",
+      "group": "TDD \u0026 Development Cycle",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "15-proof-receipts-and-verification-gates",
+      "title": "Proof Receipts \u0026 Verification Gates",
+      "file": "15-proof-receipts-and-verification-gates.md",
+      "section": "Deep Dive",
+      "group": "TDD \u0026 Development Cycle",
+      "level": "Advanced"
+    },
+    {
+      "slug": "16-zap-protocol-and-engine",
+      "title": "ZAP Protocol \u0026 Engine",
+      "file": "16-zap-protocol-and-engine.md",
+      "section": "Deep Dive",
+      "group": "Advanced Features",
+      "level": "Advanced"
+    },
+    {
+      "slug": "17-simulation-worlds-and-certified-test-environments",
+      "title": "Simulation Worlds \u0026 Certified Test Environments",
+      "file": "17-simulation-worlds-and-certified-test-environments.md",
+      "section": "Deep Dive",
+      "group": "Advanced Features",
+      "level": "Advanced"
+    },
+    {
+      "slug": "18-state-management-and-sync-framework",
+      "title": "State Management \u0026 Sync Framework",
+      "file": "18-state-management-and-sync-framework.md",
+      "section": "Deep Dive",
+      "group": "Advanced Features",
+      "level": "Advanced"
+    },
+    {
+      "slug": "19-skin-contract-and-ui-layer-generation",
+      "title": "Skin Contract \u0026 UI Layer Generation",
+      "file": "19-skin-contract-and-ui-layer-generation.md",
+      "section": "Deep Dive",
+      "group": "Advanced Features",
+      "level": "Advanced"
+    },
+    {
+      "slug": "20-graphql-integration-layer",
+      "title": "GraphQL Integration Layer",
+      "file": "20-graphql-integration-layer.md",
+      "section": "Deep Dive",
+      "group": "Advanced Features",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "21-feature-flags-system",
+      "title": "Feature Flags System",
+      "file": "21-feature-flags-system.md",
+      "section": "Deep Dive",
+      "group": "Advanced Features",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "22-error-handling-and-exit-code-protocol",
+      "title": "Error Handling \u0026 Exit Code Protocol",
+      "file": "22-error-handling-and-exit-code-protocol.md",
+      "section": "Deep Dive",
+      "group": "Operational Concerns",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "23-no-jit-execution-policy",
+      "title": "No-JIT Execution Policy",
+      "file": "23-no-jit-execution-policy.md",
+      "section": "Deep Dive",
+      "group": "Operational Concerns",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "24-benchmarking-and-performance",
+      "title": "Benchmarking \u0026 Performance",
+      "file": "24-benchmarking-and-performance.md",
+      "section": "Deep Dive",
+      "group": "Operational Concerns",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "25-spec-registry-and-corpora",
+      "title": "Spec Registry \u0026 Corpora",
+      "file": "25-spec-registry-and-corpora.md",
+      "section": "Deep Dive",
+      "group": "Operational Concerns",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "26-migration-and-version-strategy-v4-v5-v6",
+      "title": "Migration \u0026 Version Strategy (v4 → v5 → v6)",
+      "file": "26-migration-and-version-strategy-v4-v5-v6.md",
+      "section": "Deep Dive",
+      "group": "Maintenance \u0026 Evolution",
+      "level": "Advanced"
+    }
+  ]
+}
