@@ -8,7 +8,7 @@ import '../core/failure_reporter_registry.dart';
 import '../core/hook.dart';
 import '../core/hook_registry.dart';
 import '../core/loggable.dart';
-import '../core/otel_tracer.dart';
+import '../core/trace_observer.dart';
 import '../core/result.dart';
 
 /// Base UseCase class for Clean Architecture.
@@ -67,8 +67,8 @@ abstract class UseCase<T, Params> with Loggable {
   }) async {
     final startTime = DateTime.now();
     final traceCtx = (
-      traceId: OtelTracer.instance.currentTraceId,
-      spanId: OtelTracer.instance.currentSpanId,
+      traceId: TraceObserver.instance.currentTraceId,
+      spanId: TraceObserver.instance.currentSpanId,
     );
 
     // Shared metadata bag — hooks can write in pre, read in success/failure

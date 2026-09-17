@@ -36,6 +36,8 @@ import 'package:zuraffa/src/plugins/view/view_plugin.dart';
 import 'package:zuraffa/src/plugins/feature/feature_plugin.dart';
 import 'package:zuraffa/src/cli/exit_protocol.dart';
 
+import '../helpers/plugin_gate_seed.dart';
+
 /// Bug #1139 — exit-code sweep (part of EPIC #1132: Machine Contract).
 ///
 /// The CLI's "errors are an API" contract: a command body that reports a
@@ -283,6 +285,11 @@ void main() {
     // carries the same exit-contract below.
 
     test('graphql exits 1 when generation fails', () async {
+      // The capability gate (spec 1653) must be open for the exit contract
+      // to reach the failing generation: unseeded, the refusal fires first
+      // and this pre-existing #1139 case died at exit 2 (PR #1678).
+      final sandbox = await seedGraphqlGate();
+      addTearDown(() => restoreGraphqlGate(sandbox));
       final command = _InjectableGraphqlCommand(
         _FailingGraphqlPlugin(outputDir: 'lib/src'),
       );
@@ -384,6 +391,8 @@ void main() {
       'graphql introspect rejects malformed --headers JSON with exit 2',
       () async {
         exitCode = 0;
+        final sandbox = await seedGraphqlGate();
+        addTearDown(() => restoreGraphqlGate(sandbox));
         await runner.run([
           'graphql',
           'introspect',
@@ -402,6 +411,8 @@ void main() {
       'graphql introspect rejects a URL-less endpoint with exit 2',
       () async {
         exitCode = 0;
+        final sandbox = await seedGraphqlGate();
+        addTearDown(() => restoreGraphqlGate(sandbox));
         await runner.run(['graphql', 'introspect', 'not-a-url']);
         expect(
           exitCode,
@@ -432,7 +443,11 @@ void main() {
   group('#1139 graphql introspect failure exits 1', () {
     late CommandRunner<void> runner;
 
-    setUp(() {
+    setUp(() async {
+      // The graphql leaf commands are capability-gated (spec 1653) — run
+      // them against a seeded enabled+resolvable sandbox.
+      final sandbox = await seedGraphqlGate();
+      addTearDown(() => restoreGraphqlGate(sandbox));
       final out = 'lib/src';
       runner = CommandRunner<void>('zfa', 'test runner');
       runner.addCommand(
