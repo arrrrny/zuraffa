@@ -153,6 +153,16 @@ void main() {
         'mock',
         'test',
       });
+      expect(clones.map((c) => c.layer).toList(), [
+        'route',
+        'di',
+        'mock',
+        'test',
+        'view',
+        'presenter',
+        'controller',
+        'state',
+      ], reason: 'registration order is part of the manifest parity contract');
       expect(
         plugin.capabilities.whereType<ScaffoldFeatureCapability>(),
         hasLength(1),
