@@ -17,8 +17,17 @@
 // Acquire BEFORE the dispatch and release AFTER the read — the same
 // span discipline the runner applies internally, so the two never
 // overlap.
+//
+// Liveness protocol (kept in sync with `CliRunner._acquireExitSpanLock`):
+// the holder heartbeats the lock file every few seconds, and an acquirer
+// breaks it only when the file goes COLD — proof the holder died
+// mid-span (a killed isolate never runs its `finally`). The former fixed
+// 30-second break broke LIVE holders whose span outlived 30s under load;
+// any ceiling long enough to fix that made waiters hit their own test
+// timeouts first.
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -31,50 +40,91 @@ abstract final class ExitSpanMutex {
     p.join(Directory.systemTemp.path, 'zfa_exit_lock_$pid.lock'),
   );
 
-  /// Acquires the cross-isolate exit-span lock, waiting up to 30 seconds
-  /// for the current holder. Same protocol (exclusive-create + stale-lock
-  /// break + degraded mode) as `CliRunner._acquireExitSpanLock` — keep
-  /// the two in sync.
+  /// How long the lock file may go without a heartbeat before it counts
+  /// as holder death. MUST stay in sync with
+  /// `CliRunner.staleExitSpanLockAfter`.
+  static const Duration staleAfter = Duration(seconds: 30);
+
+  static const Duration _heartbeatEvery = Duration(seconds: 5);
+
+  static Timer? _heartbeat;
+
+  /// Acquires the cross-isolate exit-span lock. Exclusive-create is the
+  /// atomic serialization point; a held lock is broken only when its
+  /// heartbeat went cold (holder death), never while the holder is alive.
   static Future<void> acquire() async {
-    final deadline = DateTime.now().add(const Duration(seconds: 30));
-    var lockBroken = false;
+    var breakAttempts = 0;
     while (true) {
       try {
         _lockFile.createSync(exclusive: true);
+        _startHeartbeat();
         return;
       } on FileSystemException {
-        final expired = DateTime.now().isAfter(deadline);
-        if (!expired) {
-          await Future<void>.delayed(const Duration(milliseconds: 2));
+        final age = _lockAge();
+        if (age != null && age < staleAfter) {
+          // Held by a live holder — wait for its release.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
           continue;
         }
-        if (!lockBroken) {
-          // The holder most likely died mid-span (its isolate killed by
-          // a test timeout). Break the stale lock once rather than stall
-          // the rest of the run.
-          lockBroken = true;
-          try {
-            _lockFile.deleteSync();
-          } on FileSystemException {
-            // Unbreakable — fall through to degraded mode below.
-          }
-          continue;
+        // Cold file: the holder died mid-span. Break and retry.
+        if (++breakAttempts > 3) {
+          // Degraded mode (mirrors CliRunner's valve): the cold file
+          // survived three break rounds (e.g. a foreign user's file this
+          // user cannot delete) — proceed without exclusivity instead of
+          // spinning forever.
+          stderr.writeln(
+            'zfa test: warning: stale exit-span lock (${_lockFile.path}) '
+            'could not be broken; continuing WITHOUT exclusion — '
+            'concurrent suites may interleave their exit-code writes.',
+          );
+          return;
         }
-        // Degraded mode: proceed without exclusivity instead of failing
-        // every later dispatch forever.
-        return;
+        try {
+          _lockFile.deleteSync();
+        } on FileSystemException {
+          // Unbreakable — the bounded break counter above degrades after
+          // three failed rounds; the retry-create below loses the break
+          // race and the loop re-checks.
+        }
+        try {
+          _lockFile.createSync(exclusive: true);
+          _startHeartbeat();
+          return;
+        } on FileSystemException {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
       }
     }
   }
 
-  /// Releases the lock. Best-effort, exactly like the runner's release:
-  /// a lost release only costs the next holder one 30s wait before it
-  /// breaks the stale file.
+  /// Releases the lock (and the heartbeat). Best-effort: a lost release
+  /// self-heals when the file goes cold and the next acquirer breaks it.
   static void release() {
+    _heartbeat?.cancel();
+    _heartbeat = null;
     try {
       _lockFile.deleteSync();
     } on FileSystemException {
       // Already gone (another waiter broke a stale lock).
+    }
+  }
+
+  static void _startHeartbeat() {
+    _heartbeat?.cancel();
+    _heartbeat = Timer.periodic(_heartbeatEvery, (_) {
+      try {
+        _lockFile.setLastModifiedSync(DateTime.now());
+      } on FileSystemException {
+        // The waiter's break-race deleted the file — best-effort tick.
+      }
+    });
+  }
+
+  static Duration? _lockAge() {
+    try {
+      return DateTime.now().difference(_lockFile.lastModifiedSync());
+    } on FileSystemException {
+      return null; // vanished between the probe and this stat — retry
     }
   }
 }

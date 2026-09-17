@@ -110,6 +110,7 @@ import '../services/gen_reuse_fingerprint.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
 import '../services/profile_preflight.dart';
+import '../services/scenario_example.dart';
 import '../services/vacuous_guard.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/declared_routing.dart';
@@ -922,6 +923,7 @@ class GenCommand extends Command<void> {
     // refuses gen (errors-are-an-API) instead of silently inventing a
     // disconnected shape. Undeclared behaviors keep the legacy pair.
     UnitContractShape? contractShape;
+    Signature? declaredSignature;
     if (effectiveBehavior.kind == BehaviorKind.unit) {
       try {
         // Issue #1420: the FULL declared decision — the surface and the
@@ -957,6 +959,7 @@ class GenCommand extends Command<void> {
         // one) renders with its declared type, import included; entities
         // that do not exist keep the unconditional Object? degradation.
         if (declared != null) {
+          declaredSignature = declared;
           contractShape = await UnitContractShape.ofResolved(
             declared,
             cwd: cwd,
@@ -969,6 +972,23 @@ class GenCommand extends Command<void> {
           '${e.message}',
         );
       }
+    }
+
+    // Issue #1651: the spec's acceptance scenarios carry the declared
+    // contract's concrete example (`Given 2 and 3 ... Then the sum 5`).
+    // Resolve the scenario naming the declared method and thread it into
+    // the test writer so the generated UNIT test asserts the concrete
+    // outcome instead of the type-only check a `return 0;` dummy
+    // satisfies. Fail-open: an unreadable spec keeps the legacy declared
+    // shape (the writer's fallback surface).
+    ScenarioExample? scenarioExample;
+    if (contractShape != null && declaredSignature != null) {
+      scenarioExample = _scenarioExampleFor(
+        cwd: cwd,
+        featureName: featureName,
+        featureDir: featureDir,
+        signature: declaredSignature,
+      );
     }
 
     // Issue #938 preflight (VISION §4 errors-are-an-API): the zuraffaapp
@@ -1411,6 +1431,7 @@ class GenCommand extends Command<void> {
         i18nImport: i18nImport,
         i18nExpansion: i18nExpansion,
         contractShape: contractShape,
+        scenarioExample: scenarioExample,
         flutterTest: flutterTest,
         // Issue #1518: the guard-only warning's branched remedy needs the
         // seam context (real write path).
@@ -1593,6 +1614,7 @@ class GenCommand extends Command<void> {
           i18nImport: i18nImport,
           i18nExpansion: i18nExpansion,
           contractShape: contractShape,
+          scenarioExample: scenarioExample,
           bounded: bounded,
           flutterTest: flutterTest,
           // Issue #1518: the staleness mirror renders through the same
@@ -1668,6 +1690,7 @@ class GenCommand extends Command<void> {
           i18nImport: i18nImport,
           i18nExpansion: i18nExpansion,
           contractShape: contractShape,
+          scenarioExample: scenarioExample,
           bounded: bounded,
           flutterTest: flutterTest,
           // Issue #1518: the staleness mirror renders through the same
@@ -1863,6 +1886,7 @@ class GenCommand extends Command<void> {
     String? i18nImport,
     List<String> i18nExpansion = const [],
     UnitContractShape? contractShape,
+    ScenarioExample? scenarioExample,
     bool flutterTest = false,
     String? projectRoot,
     String? featureDir,
@@ -1904,6 +1928,11 @@ class GenCommand extends Command<void> {
         // plain-function pair (unit lane); every other lane keeps its
         // own subject contract.
         contractShape: contractShape,
+        // Issue #1651: the scenario-derived assertions ride the same
+        // unit-lane surface — every other kind ignores the example.
+        scenarioExample: behavior.kind == BehaviorKind.unit
+            ? scenarioExample
+            : null,
         // Issue #1518: the seam context the gen-time guard-only
         // warning's branched remedy resolves the hand-delta seam from
         // (the real write AND the staleness mirror print the SAME
@@ -1912,6 +1941,26 @@ class GenCommand extends Command<void> {
         featureDir: featureDir,
       ).write,
       writeSubject: SubjectWriter(contractShape: contractShape).write,
+    );
+  }
+
+  /// The acceptance scenario example the declared unit contract's test
+  /// derives its assertions from (issue #1651): the FIRST scenario in
+  /// the feature's spec whose prose names the declared method. Fail-open
+  /// — an unreadable spec or an unparsable shape keeps the legacy
+  /// declared surface (the typed `isA<T>()` fallback); the read rides
+  /// the shared [DeclaredRouting.scenariosFailOpen] shim (review fix:
+  /// one fail-open posture for gen, make, and the driver).
+  static ScenarioExample? _scenarioExampleFor({
+    required String cwd,
+    required String featureName,
+    required String? featureDir,
+    required Signature signature,
+  }) {
+    final dir = featureDir ?? p.join(cwd, 'specs', featureName);
+    return ScenarioResolver.firstForTarget(
+      DeclaredRouting.scenariosFailOpen(dir),
+      target: signature.name,
     );
   }
 
@@ -2180,6 +2229,7 @@ class GenCommand extends Command<void> {
     String? i18nImport,
     List<String> i18nExpansion = const [],
     UnitContractShape? contractShape,
+    ScenarioExample? scenarioExample,
     bool flutterTest = false,
     String? projectRoot,
     String? featureDir,
@@ -2256,6 +2306,7 @@ class GenCommand extends Command<void> {
         i18nImport: i18nImport,
         i18nExpansion: i18nExpansion,
         contractShape: contractShape,
+        scenarioExample: scenarioExample,
         flutterTest: flutterTest,
         // Issue #1518: the mirror's warning prints the SAME branched
         // remedy as the real write (one wording per gen output).

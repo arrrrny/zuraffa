@@ -119,8 +119,11 @@ enum MakeOutcome {
   /// `green` (generated this make), `skipped` (#694), `adopted` (#1331
   /// tombstone re-drive), and `adopted-placeholder` (#1345). The born-green
   /// placeholder class keeps refusing (a marker never legitimizes a vacuous
-  /// subject); the marker is consumed by every graceful exit, so only
-  /// process death leaves one behind.
+  /// subject); the marker is consumed by every graceful exit that resolves
+  /// the crash — and by issue #1669, KEPT by a non-adopting exit that
+  /// inherited it while the implemented-subject mutation survives — so
+  /// only process death (or a crash mutation still awaiting adoption)
+  /// leaves one behind.
   adoptedInterrupted('adopted-interrupted'),
 
   /// The target test already passes but the subject file's shape no

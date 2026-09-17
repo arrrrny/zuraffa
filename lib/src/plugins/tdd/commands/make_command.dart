@@ -112,6 +112,7 @@ import '../services/tdd_timeout.dart';
 import '../services/contract_blocked_receipt.dart';
 import '../services/hand_surface.dart';
 import '../services/vacuous_guard.dart';
+import '../services/scalar_dummy_subject.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../services/widget_scaffold.dart';
@@ -259,10 +260,28 @@ class MakeCommand extends Command<void> {
 
   /// Issue #1398: the write-ahead interrupt marker this make owns — set
   /// after target resolution (before any subject-mutating work), consumed
-  /// by [_printSummary] so every graceful exit path clears it and only
-  /// process death leaves one behind. Null before resolution and on
-  /// resolution failures: nothing to write, nothing to clear.
+  /// by [_printSummary] so graceful exit paths clear it and only process
+  /// death leaves one behind — with the issue #1669 refinement: a
+  /// NON-adopting exit that inherited a live crash record keeps the marker
+  /// (see [_interruptInherited] / [_interruptDriftContext]). Null before
+  /// resolution and on resolution failures: nothing to write, nothing to
+  /// clear.
   MakeInterruptMarker? _interruptMarker;
+
+  /// Issue #1669: whether THIS make inherited a PREVIOUS make's interrupt
+  /// marker at begin time (the read-before-overwrite signal) — the crash
+  /// provenance the summary funnel's keep-decision requires. A make that
+  /// began clean must never keep a marker: keeping one on a live drift
+  /// would forge a crash record for the dishonest hand-edit class and
+  /// bypass the designed #1036 subject-drift dead-end.
+  bool _interruptInherited = false;
+
+  /// Issue #1669: the drift context the summary funnel reads at clear
+  /// time — cwd, feature dir, and the registry record — captured with the
+  /// marker so `_printSummary` (a sync method) can compare the on-disk
+  /// subject against the certified hash without re-resolving the target.
+  /// Null with [_interruptMarker].
+  (String, String, ArtifactRecord)? _interruptDriftContext;
 
   @override
   String get name => 'make';
@@ -425,6 +444,12 @@ class MakeCommand extends Command<void> {
     final interruptedRecovery =
         await interruptMarker.pendingFor(record.behaviorId) != null;
     _interruptMarker = interruptMarker;
+    // Issue #1669: capture the crash provenance and the drift context the
+    // summary funnel reads at clear time — `_printSummary` is sync and
+    // must not re-resolve the target to compare the on-disk subject
+    // against the certified hash.
+    _interruptInherited = interruptedRecovery;
+    _interruptDriftContext = (cwd, target.featureDir, record);
     try {
       await interruptMarker.begin(behavior: record.behaviorId);
     } on FileSystemException catch (e) {
@@ -1178,7 +1203,30 @@ class MakeCommand extends Command<void> {
         vacuousRowKind == BehaviorKind.acceptance;
     if (vacuousLaneScoped && scaffoldCheckFile.existsSync()) {
       final testContent = await scaffoldCheckFile.readAsString();
-      if (contentIsVacuousGreen(testContent)) {
+      // Issue #1651 (merge reconciliation with master's #1667 rule): a
+      // UNIT pair whose test assertion set is TYPE-ONLY (not the bare
+      // guard) and whose subject body is a scalar dummy is the 9b
+      // PLACEHOLDER class — deferred HERE so the 9b gate adjudicates it
+      // with the pair's declared routing + the spec's scenarios (the
+      // #1310 exemption and the pair-probed placeholder remedy,
+      // single-sourced with the run driver's stop). Without the
+      // deferral this blunt rule shadows 9b wholesale and its
+      // guard-only wording misnames the class.
+      var placeholderClassOnDisk = false;
+      if (vacuousRowKind == BehaviorKind.unit &&
+          contentIsTypeOnlyAssertion(testContent)) {
+        final placeholderProbe = File(
+          p.isAbsolute(record.subjectPath)
+              ? record.subjectPath
+              : p.join(cwd, record.subjectPath),
+        );
+        placeholderClassOnDisk =
+            placeholderProbe.existsSync() &&
+            contentCarriesScalarDummyBody(
+              await placeholderProbe.readAsString(),
+            );
+      }
+      if (!placeholderClassOnDisk && contentIsVacuousGreen(testContent)) {
         final description = _descriptionFor(record);
         // Issue #1488 (review): the remedy is LANE-BRANCHED. The unit-lane
         // remedy is an assertion on the capture's observable outcome; the
@@ -2398,6 +2446,89 @@ class MakeCommand extends Command<void> {
         );
         exitCode = 1;
         return;
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // 9b. Placeholder subjects cannot certify green (issue #1651 — the
+    //     successor to the #1259 gate at 3c). A unit subject whose body
+    //     is a scalar dummy (`int add(int a, int b) { return 0; }`, the
+    //     #1517 func scaffold) satisfies every TYPE-only assertion — the
+    //     post-#1259 generated shape (`expect(result, isA<int>())`) — so
+    //     the test passes, green certifies, and the receipt reports
+    //     complete with zero declared-contract code on disk. The gate
+    //     pairs the SUBJECT-side dummy detector with the TEST-side
+    //     type-only classifier: a test that asserts at least one VALUE
+    //     (a scenario literal, `equals(5)`) fails the dummy at runtime
+    //     (the honest red, remediation 1), so only the type-only class
+    //     can reach this point GREEN — and that green proves nothing.
+    //     Scoped to UNIT rows (the acceptance lane's contract is
+    //     untouched; its void scenario runner has no value to assert).
+    //     The refusal reuses the #1259 outcome class (`vacuous-green`) —
+    //     the run driver's stop arms own the loop semantics and the
+    //     receipt schema is unchanged. The skip transition (#694: the
+    //     drift re-run already passed) reaches the same gate — a
+    //     placeholder green cannot sneak in through re-makes either.
+    //
+    //     Merge reconciliation (review of the #1679 merge): the #1310
+    //     floor exemption is GONE — master's #1667 (step 3c's type-only
+    //     strip, the marker contract) and this pair probe agree on the
+    //     verdict for every placeholder pair, and master's pins flipped
+    //     the old certify-over-dummy expectations to refusals. The pair
+    //     is refused regardless of declared routing or scenario
+    //     derivability; when the spec carries no derivable example, the
+    //     author writes the outcome-VALUE assertion by hand (the refusal
+    //     names the marker and both artifact paths). This gate stays the
+    //     SECOND line for the class 3c defers here — the pair probe
+    //     yields the accurate placeholder wording where 3c's blunt rule
+    //     would misname a type-only test as "only the guard".
+    // ---------------------------------------------------------------
+    if (vacuousRowKind == BehaviorKind.unit) {
+      final subjectFilePath = p.isAbsolute(record.subjectPath)
+          ? record.subjectPath
+          : p.join(cwd, record.subjectPath);
+      final subjectFileForGate = File(subjectFilePath);
+      if (await subjectFileForGate.exists()) {
+        final subjectContent = await subjectFileForGate.readAsString();
+        final gateTestFile = File(testPath);
+        final gateTestContent = gateTestFile.existsSync()
+            ? await gateTestFile.readAsString()
+            : '';
+        final mustRefuse = scalarDummyGreenMustRefuse(
+          subjectSource: subjectContent,
+          testSource: gateTestContent,
+        );
+        if (mustRefuse) {
+          final remedy = scalarDummyGreenRemedy(
+            behaviorId: record.behaviorId,
+            testPath: record.testPath,
+            subjectPath: record.subjectPath,
+          );
+          // Master's #1667 marker contract: a generated type-only
+          // scalar test carries the marker, and the refusal must name
+          // it (the marker is the machine-readable seam the author
+          // removes with the value assertion).
+          final markerNote = gateTestContent.contains(vacuousGuardMarker)
+              ? ' Remove the $vacuousGuardMarker marker once the value '
+                    'assertion lands.'
+              : '';
+          print(
+            'zfa tdd make: behavior "${record.behaviorId}" test is '
+            'VACUOUS-GREEN over a PLACEHOLDER subject — the subject body '
+            'is a scalar dummy (${record.subjectPath}) and the test\'s '
+            'assertion set is type-only (issue #1651). A green here '
+            'proves nothing about the behavior: the dummy satisfies any '
+            '`isA<T>()` check with zero declared-contract code.',
+          );
+          print('   --> fix: $remedy$markerNote');
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.vacuousGreen,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
       }
     }
 
@@ -3889,21 +4020,105 @@ class MakeCommand extends Command<void> {
     }
   }
 
+  /// Issue #1669: the drift signal the summary funnel reads at clear time —
+  /// whether the crash mutation SURVIVES on disk, computed from the CURRENT
+  /// disk state (the subject bytes this run leaves behind), by the same
+  /// green-then-red last-entry certified-hash basis rule the #1036 skip
+  /// guard applies. Sync (the funnel is sync) and fail-open: an unreadable
+  /// subject or log — and hashless legacy evidence with no certified hash —
+  /// read as "drift never existed", so the probe never blocks a make and
+  /// never widens the marker's keep beyond the comparable classes.
+  ///
+  /// The born-green placeholder class is NOT live drift: a marker never
+  /// legitimizes a vacuous subject (issue #1036/#1398), the refusal's own
+  /// remedy (restore the certified shape) resolves that drift, and the
+  /// shipped spec-1398 hygiene contract keeps consuming it (U5/A3).
+  bool _interruptCrashDriftLive() {
+    final context = _interruptDriftContext;
+    if (context == null) return false;
+    final (cwd, featureDir, record) = context;
+    final subjectPath = p.isAbsolute(record.subjectPath)
+        ? record.subjectPath
+        : p.join(cwd, record.subjectPath);
+    List<int> bytes;
+    try {
+      final subjectFile = File(subjectPath);
+      if (!subjectFile.existsSync()) return false;
+      bytes = subjectFile.readAsBytesSync();
+    } on FileSystemException {
+      return false;
+    }
+    try {
+      if (subjectIsBornGreenPlaceholder(utf8.decode(bytes))) return false;
+    } on FormatException {
+      // Undecodable bytes never classify (the predicate never guesses) —
+      // not the placeholder class, so the drift comparison proceeds.
+    }
+    String? certified;
+    try {
+      final logFile = File(p.join(featureDir, 'tdd', 'cycle-log.md'));
+      if (!logFile.existsSync()) return false;
+      ParsedCycleEntry? lastGreen;
+      ParsedCycleEntry? lastRed;
+      for (final entry in parseEntries(logFile.readAsStringSync())) {
+        if (entry.behaviorId != record.behaviorId) continue;
+        if (entry.kind == 'green') lastGreen = entry;
+        if (entry.kind == 'red') lastRed = entry;
+      }
+      // Issue #1430 divergence (accepted in fix.md Deviations): unlike
+      // `_subjectDriftRefusal`, this probe ignores a matching LAST
+      // `refresh` re-bind — a post-refresh refusal keeps the marker and
+      // the resume takes the #1398 adoption arm instead of the #1430
+      // accept (same green evidence, only the label differs). Do not fix
+      // one side without the other.
+      certified = lastGreen?.subjectHash ?? lastRed?.subjectHash;
+    } on FileSystemException {
+      return false;
+    }
+    if (certified == null) return false; // hashless legacy — fail open
+    return sha256.convert(bytes).toString() != certified;
+  }
+
   void _printSummary({
     required String behavior,
     required MakeOutcome outcome,
     required String feature,
   }) {
-    print('make: behavior=$behavior outcome=${outcome.label} feature=$feature');
     // Issue #1398: the summary line is the every-exit-path funnel (FR-010
     // of spec 047-tdd-make) — the exact point every graceful make exit
     // passes through. Clearing the write-ahead interrupt marker HERE is
     // what makes the marker a crash record: a graceful exit (green,
     // skipped, adopted, adopted-interrupted, refusal, generation-error,
-    // preflight) consumes it; only process death leaves one behind. The
-    // clear is synchronous and best-effort — it must never fail the make
-    // that already finished its work.
-    _interruptMarker?.clearSync();
+    // preflight) consumes it; only process death leaves one behind.
+    // Issue #1669: with ONE compound exception — a NON-adopting exit that
+    // INHERITED the marker (crash provenance) while the on-disk subject
+    // still differs from the certified hash and is not the born-green
+    // placeholder class keeps the marker: consuming it there would leave
+    // the crash mutation live with the record gone, and the next resume
+    // would read byte-identical to the dishonest hand-edit class and
+    // dead-end at the #1036 subject-drift refusal (the #1398 wedge, one
+    // refusal later). Every resolving exit still consumes: adopting arms
+    // append green evidence binding the CURRENT subject hash, so the
+    // drift is resolved by the time the funnel runs, and drift-free /
+    // clean-begin refusals never meet the compound (no stale license,
+    // no forged crash record). The clear is synchronous and best-effort —
+    // it must never fail the make that already finished its work.
+    if (_interruptInherited && _interruptCrashDriftLive()) {
+      // Issue #1669 review: the retention note prints BEFORE the
+      // machine-readable summary line so the summary line stays the
+      // final stdout line on every code path (FR-010). clearSync prints
+      // nothing and never throws (best-effort by contract).
+      print(
+        '   interrupt marker retained (issue #1669): the on-disk subject '
+        'still differs from the certified hash while this make exits '
+        'without adopting it — the crash record survives so the next '
+        'resume can still adopt the interrupted subject (issue #1398) '
+        'instead of dead-ending on the #1036 subject-drift refusal.',
+      );
+    } else {
+      _interruptMarker?.clearSync();
+    }
+    print('make: behavior=$behavior outcome=${outcome.label} feature=$feature');
     // Issue #969: the outcome label IS the exit class (shipped
     // taxonomy, carried verbatim into the envelope).
     _verdict

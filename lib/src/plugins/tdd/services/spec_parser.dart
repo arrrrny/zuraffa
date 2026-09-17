@@ -12,6 +12,7 @@ import '../../../models/mock_priority.dart';
 import '../models/behavior.dart';
 import '../models/lane.dart';
 import '../models/routing.dart';
+import 'scenario_example.dart';
 
 /// One row of the zuraffa-1.0 template's `External Dependencies &
 /// Contracts` table (bug #919): the dependency's name, its kind, the
@@ -1813,6 +1814,221 @@ class SpecParser {
       return match.group(1)!.replaceAll('**', '').trim();
     }
     return line.replaceAll('**', '').trim();
+  }
+
+  // -------------------------------------------------------------------
+  // Issue #1651: the acceptance scenarios' concrete example values. The
+  // acceptance lane consumes the Given/When/Then prose; the unit lane
+  // ignored it and invented scaffold representatives `(0, 0)` + a
+  // type-only `isA<T>()` assertion — the vacuity that let a func-
+  // scaffolded `return 0;` dummy certify a terminal green. The parser
+  // below exposes the SAME scenarios' concrete values so the unit test
+  // generator derives example-based assertions.
+  // -------------------------------------------------------------------
+
+  /// The clause markers, bold or plain, word-anchored: a segment runs
+  /// from its marker to the next marker (or the block's end). Anchored
+  /// on whitespace/start so prose like "given" inside a sentence does
+  /// not split segments, and the lookahead requires the marker to start
+  /// a clause (a following space, letter, backtick, or bold-open).
+  static final RegExp _givenMarker = RegExp(
+    r'(?:^|\s)(?:\*\*)?Given(?:\*\*)?(?=[\s`])',
+    caseSensitive: false,
+  );
+  static final RegExp _whenMarker = RegExp(
+    r'(?:^|\s)(?:\*\*)?When(?:\*\*)?(?=[\s`])',
+    caseSensitive: false,
+  );
+  static final RegExp _thenMarker = RegExp(
+    r'(?:^|\s)(?:\*\*)?Then(?:\*\*)?(?=[\s`])',
+    caseSensitive: false,
+  );
+
+  /// Numeric literals with boundary filtering: a sign, digits, an
+  /// optional decimal part. A match is dropped when it sits INSIDE a
+  /// larger token (`FR-1`, `v2.0`, `A1`) — the preceding or following
+  /// character is a word character. The scan is manual (no lookbehind):
+  /// the regex matches `-?\d+(?:\.\d+)?` and the boundaries are checked
+  /// around the match.
+  static final RegExp _numericToken = RegExp(r'-?\d+(?:\.\d+)?');
+
+  /// Single-quoted strings — the strict template's quoted example form
+  /// (`'Alice'`). The content is captured unquoted.
+  static final RegExp _singleQuoted = RegExp(r"'([^']*)'");
+
+  /// Bare boolean words.
+  static final RegExp _booleanWord = RegExp(r'\b(true|false)\b');
+
+  /// The word characters (plus the decimal point) that disqualify a
+  /// numeric match as a boundary-internal fragment. A sentence-final
+  /// dot does NOT disqualify (`the sum is 5.`, `the quotient 2.5.`):
+  /// the number qualifies when the dot ends the text or is followed by
+  /// whitespace/line end — a dot gluing a longer fragment (`2.5.1`)
+  /// still rejects (review fix, #1651: the common sentence-final prose
+  /// shape used to drop the outcome value and silently fall back to
+  /// the type-only assertion).
+  static bool _numericBoundaryOk(String text, RegExpMatch match) {
+    final start = match.start;
+    final end = match.end;
+    if (match.group(0)!.startsWith('-') && start > 0) {
+      final before = text.substring(start - 1, start);
+      // The sign must not glue a hyphenated token (`FR-1`): the char
+      // before the sign being a word char means the whole run is an
+      // identifier fragment.
+      if (before.isNotEmpty && (RegExp(r'[A-Za-z0-9_]').hasMatch(before))) {
+        return false;
+      }
+    }
+    if (start > 0) {
+      final before = text.substring(start - 1, start);
+      if (RegExp(r'[A-Za-z0-9_.]').hasMatch(before)) return false;
+    }
+    if (end < text.length) {
+      final after = text.substring(end, end + 1);
+      if (RegExp(r'[A-Za-z0-9_]').hasMatch(after)) return false;
+      if (after == '.' &&
+          end + 1 < text.length &&
+          !RegExp(r'\s').hasMatch(text.substring(end + 1, end + 2))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// The concrete values in [text], in order of appearance: single-
+  /// quoted strings, boundary-checked numbers, and bare boolean words.
+  /// The kinds are collected in separate passes, then the hits are
+  /// stably sorted by match position, so a mixed-kind clause surfaces
+  /// its values exactly in the order the prose carries them (review
+  /// fix, #1651) — positional consumers read appearance order, not
+  /// kind groups.
+  static List<ScenarioValue> _valuesIn(String text) {
+    final hits = <({int start, int seq, ScenarioValue value})>[];
+    var seq = 0;
+    for (final match in _singleQuoted.allMatches(text)) {
+      final content = match.group(1)!;
+      if (content.trim().isEmpty) continue;
+      hits.add((
+        start: match.start,
+        seq: seq++,
+        value: ScenarioValue(kind: ScenarioValueKind.string, literal: content),
+      ));
+    }
+    for (final match in _numericToken.allMatches(text)) {
+      if (!_numericBoundaryOk(text, match)) continue;
+      hits.add((
+        start: match.start,
+        seq: seq++,
+        value: ScenarioValue(
+          kind: ScenarioValueKind.number,
+          literal: match.group(0)!,
+        ),
+      ));
+    }
+    for (final match in _booleanWord.allMatches(text)) {
+      hits.add((
+        start: match.start,
+        seq: seq++,
+        value: ScenarioValue(
+          kind: ScenarioValueKind.boolean,
+          literal: match.group(1)!,
+        ),
+      ));
+    }
+    hits.sort((a, b) {
+      final byStart = a.start.compareTo(b.start);
+      return byStart != 0 ? byStart : a.seq.compareTo(b.seq);
+    });
+    return [for (final hit in hits) hit.value];
+  }
+
+  /// Parses every acceptance scenario block's concrete example values
+  /// (issue #1651). Blocks follow the SAME walk `_extractAcceptance`
+  /// uses (the #1196 header grammar: bold or plain Given, flat or
+  /// dotted numbering), so the ids align with the behavior rows. A
+  /// block contributes an example when it carries a Given marker;
+  /// When/Then segments are extracted when present. Never throws — a
+  /// spec without scenarios yields an empty list (the declared shapes
+  /// keep their legacy surface).
+  static List<ScenarioExample> parseScenarioExamples(String specMd) {
+    final md = normalizeSpecText(specMd);
+    final lines = md.split('\n');
+    // The block walk: a scenario block STARTS at a Given-header line and
+    // runs to the next header OR the next section heading (the FR walk's
+    // `_frBlockBoundary`), which CLOSES the block — no further prose
+    // joins it until a new header starts a fresh one. The close matters
+    // for the LAST block: everything after the final scenario
+    // (Functional Requirements prose, non-functional sections, closure
+    // checklists) would otherwise join it — the `then` clause would
+    // absorb the trailing literals ("MUST respond within 200 ms"
+    // contributes 200) and `mentionsTarget` would match method names
+    // from FR prose (`traces: Calculator.add`), deriving the unit
+    // lane's assertions from the wrong scenario (review fix).
+    final blocks = <List<String>>[];
+    var closed = false;
+    for (final line in lines) {
+      if (_scenarioHeader.hasMatch(line)) {
+        blocks.add([line]);
+        closed = false;
+      } else if (blocks.isNotEmpty && !closed) {
+        if (_frBlockBoundary.hasMatch(line)) {
+          closed = true;
+        } else {
+          blocks.last.add(line);
+        }
+      }
+    }
+    final examples = <ScenarioExample>[];
+    for (var i = 0; i < blocks.length; i++) {
+      final block = blocks[i].join('\n');
+      final givenMatch = _givenMarker.firstMatch(block);
+      if (givenMatch == null) continue;
+      final whenMatch = _whenMarker.firstMatch(block);
+      final thenMatch = _thenMarker.firstMatch(block);
+      String segment(RegExpMatch? from, RegExpMatch? to) {
+        final start = from == null ? 0 : from.end;
+        final end = to == null ? block.length : to.start;
+        if (end <= start) return '';
+        return block.substring(start, end).replaceAll('**', '').trim();
+      }
+
+      final thenStart = thenMatch?.start;
+      final givenEnd = whenMatch?.start ?? thenStart ?? block.length;
+      final given = block
+          .substring(
+            givenMatch.end,
+            givenEnd < givenMatch.end ? givenMatch.end : givenEnd,
+          )
+          .replaceAll('**', '')
+          .trim();
+      final when = segment(whenMatch, thenMatch);
+      final then = thenMatch == null
+          ? ''
+          : block.substring(thenMatch.end).replaceAll('**', '').trim();
+      // The AC number: the walk's document-wide alignment — the same
+      // number the acceptance behavior rows consume (one per scenario
+      // header, manual ones included).
+      final id = 'A${i + 1}';
+      // Values are extracted from the SIGNATURE-BEARING segments: the
+      // Given clause carries the inputs, the Then clause the outcome.
+      // The leading scenario number ("1.") never leaks: it precedes the
+      // Given marker, outside every segment.
+      final givenValues = _valuesIn(
+        given.startsWith(',') ? given.substring(1).trim() : given,
+      );
+      final thenValues = _valuesIn(then);
+      examples.add(
+        ScenarioExample(
+          id: id,
+          given: given,
+          when: when,
+          then: then,
+          givenValues: givenValues,
+          thenValues: thenValues,
+        ),
+      );
+    }
+    return examples;
   }
 
   /// Whether an FR line carries the `[persistent]` routing tag,
