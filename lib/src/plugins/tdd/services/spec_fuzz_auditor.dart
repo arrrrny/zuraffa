@@ -38,6 +38,8 @@ import '../models/artifact_record.dart';
 import '../models/behavior.dart';
 import '../models/corpus_ledger.dart';
 import '../models/spec_mutation.dart';
+import '../../../core/project/receipt_store.dart';
+import '../../../version.dart';
 import 'artifact_registry.dart';
 import 'behavior_test_writer.dart';
 import 'gap_ledger_store.dart';
@@ -289,6 +291,7 @@ class SpecFuzzAuditor {
     );
 
     await _writeReports(report);
+    await _writeReceipt(report);
     return report;
   }
 
@@ -697,6 +700,80 @@ class SpecFuzzAuditor {
       p.join(dir.path, 'spec-fuzz.md'),
     ).writeAsString(report.toMarkdown());
   }
+
+  /// Spec 1136 lane 5 — the proof-carrying receipt for the round: a
+  /// `proof.v1` document at `.zfa/receipts/spec-fuzz-<feature>.json`
+  /// (latest-wins per `saveNamed`) pinning the committed report bytes
+  /// and the spec the round graded, with the verdict extras merged on
+  /// top. `zfa proof check` digest-walks the reports and re-derives the
+  /// spec binding — tampering with the report or drifting the spec is
+  /// drift.
+  Future<void> _writeReceipt(SpecFuzzReport report) async {
+    final store = ReceiptStore(projectRoot: workingDirectory);
+    final featureRel = p.relative(featureDir, from: workingDirectory);
+    final files = <GenerationReceiptFile>[];
+    for (final name in const ['spec-fuzz.json', 'spec-fuzz.md']) {
+      final file = File(p.join(featureDir, 'tdd', name));
+      if (!await file.exists()) continue;
+      final bytes = await file.readAsBytes();
+      files.add(
+        GenerationReceiptFile(
+          path: p.posix.join(featureRel, 'tdd', name),
+          action: 'create',
+          sha256: crypto.sha256.convert(bytes).toString(),
+          bytes: bytes.length,
+          snapshot: bytes.length <= 16 * 1024
+              ? utf8.decode(bytes)
+              : null,
+        ),
+      );
+    }
+    await store.saveNamed(
+      'spec-fuzz-${_sanitizeReceiptName(featureName)}.json',
+      GenerationReceipt(
+        schema: 'proof.v1',
+        command: 'spec fuzz',
+        target: featureName,
+        repro: 'zfa spec fuzz $featureName --project $workingDirectory',
+        at: DateTime.now().toUtc(),
+        generatorVersion: version,
+        input: {
+          'feature': featureName,
+          'seed': seed,
+          'budget': budget,
+          'operators': [
+            for (final o in operators) o.label,
+          ]..sort(),
+        },
+        spec: report.specHash == null
+            ? null
+            : GenerationReceiptSpec(
+                path: p.posix.join(featureRel, 'spec.md'),
+                sha256: report.specHash!,
+                snapshot: null,
+              ),
+        files: files,
+        plugin: 'tdd',
+        capability: 'spec-fuzz',
+        entity: featureName,
+      ),
+      extra: {
+        'mutations': report.outcomes.length,
+        'killed': report.killedCount,
+        'survived': report.survivedCount,
+        'not_assessed': report.notAssessedCount,
+        'certified': report.certified,
+        'gate': report.gate.name,
+        'seed': report.seed,
+        'budget': report.budget,
+        'fuzz_was_run': report.mutationWasRun,
+        'restoration_verified': report.restorationVerified,
+      },
+    );
+  }
+
+  static String _sanitizeReceiptName(String value) =>
+      value.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_');
 
   SpecFuzzReport _notAssessed(
     String reason, {

@@ -217,6 +217,17 @@ class ProofCheckCommand extends Command<void> {
         'Verified ${report.filesChecked} artifact(s) from '
         '${report.receipts} receipt(s).',
       );
+      // Spec 1136 lane 5: the epic's "validates every receipt" surface,
+      // broken down by kind (world, spec-fuzz, entity, make, tdd,
+      // route, usecase, ...).
+      final kinds = report.receiptKinds;
+      if (kinds != null && kinds.isNotEmpty) {
+        final listed = kinds.entries
+            .map((e) => '${e.key}=${e.value}')
+            .toList()
+          ..sort();
+        print('Receipt kinds verified: ${listed.join(', ')}');
+      }
     }
 
     if (report.findings.isEmpty) {
