@@ -1,52 +1,59 @@
-# TDD test list — Bug #1664 first refactor after a master bump compiles the zfa CLI (~85s) even when the parent runs from a current installed binary
+# TDD test list — Bug #1660 a skipped refactor pass is indistinguishable from an executed one on stdout — print the skip note
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| U-1664-b1 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a current installed binary (`zfa.build_commit` == checkout HEAD) is returned for the canonical `bin/zfa.dart` candidate — the ~85s compile never happens (the issue's bug) | issue #1664 criteria 1–2 | RED → GREEN |
-| U-1664-b2 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a marker that disagrees with the checkout HEAD forbids the reuse — the stale-install guard | criterion 3 | RED → GREEN |
-| U-1664-b3 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a Dart-VM running executable never reuses (source/test drivers keep the compile-cache contract); rejected before any git probe | criterion 4 (steady state) | RED → GREEN |
-| U-1664-b4 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | no `zfa.build_commit` marker (pre-#1184 install, the `scripts/zfa` cache artifact) — reuse is unprovable, compile as today | fail-open soundness | RED → GREEN |
-| U-1664-b5 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | an empty/whitespace marker — reuse is unprovable | fail-open soundness | RED → GREEN |
-| U-1664-b6 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a failed git probe (not a repo, exit 128) falls through to the compile path | fail-open soundness | RED → GREEN |
-| U-1664-b7 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a non-canonical candidate (a custom `--zfa-bin` fixture script) never reuses the zfa binary; rejected before any git probe | fix-scope guard | RED → GREEN |
-| U-1664-b8 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a missing running executable never reuses | fail-open soundness | RED → GREEN |
-| U-1664-b9 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a VM-driven cache miss still compiles through the injected runner; the compiler fake never sees a git argv (the probe rides its own runner) | wiring unchanged (U2 contract) | GREEN |
+| U-1660-1 | test/plugins/tdd/bug_1660_refactor_skip_note_stdout_test.dart | integration | a build pass skipped by the #1624 gate prints `pass: build — SKIPPED (build-relevance gate)` + the gate's full note as a `note:` line on stdout, with the synthetic action's honest facts (exit 0, changed none); executed format/fix passes keep the plain header | spec SC-1/SC-2 | RED → GREEN |
+| U-1660-2 | test/plugins/tdd/bug_1660_refactor_skip_note_stdout_test.dart | integration | an executed build pass prints the legacy shape — plain `   pass: build` header, command/exit lines, NO SKIPPED marker, NO gate note; the fake-zfa invocation log proves a real spawn | spec SC-3 (no regression) | GREEN (guard) |
+| U-1660-3 | test/plugins/tdd/bug_1660_refactor_skip_note_stdout_test.dart | integration | the refactor cycle-log entry mirrors one `note:` line carrying the gate's note inside its output block | spec SC-4 | RED → GREEN |
+
+Fixture design notes:
+
+- The #1624 skip is produced by the REAL gate, never injected: the fixture's
+  completed-build marker (`.dart_tool/build/asset_graph.json`) is stamped
+  strictly newer than every source/config file the gate walks, so the
+  gate's `newer` set is empty and it returns the exact
+  `refactorBuildSkippedNote` the issue describes.
+- The executed-pass guard (U-1660-2) backdates the marker one hour: the
+  config files are newer and the missing #1637 baseline fails the gate
+  toward RUN — its documented fail-safe direction — deterministically, with
+  no mtime-granularity race deciding the test.
+- Gate semantics are untouched (hard constraint): `build_relevance.dart`
+  and `refactor_passes.dart` are not modified; the fix lives entirely in
+  `refactor_command.dart`'s print loop + cycle-log `capturedOutput`.
 
 Guard pins (pre-existing, unchanged and green against the fix):
 
 | id | suite | description |
 | -- | ----- | ----------- |
-| U2/U3/U4/U5 | test/cli/zfa_executable_test.dart | compile-on-miss argv, fresh-cache reuse (criterion 4's cache-wins-first), lib/ and pubspec staleness — the compile-cache contract the probe must not disturb |
-| #1636 B1–B5 | test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart | the StepRunner running-binary tier order — untouched |
-| #1645 | test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart | the PipelineRunner running-binary tier — untouched |
-| #1184 | test/cli/binary_staleness_test.dart | the `zfa.build_commit` marker reader this fix imports (`zfaBuildCommitMarker`) — unchanged |
+| U13–U22, A1–A12 | test/plugins/tdd/refactor_command_test.dart | the refactor command's summary-line, preflight, regression, misfire contracts (A12's fake-zfa assertion is a PRE-EXISTING slow-lane failure on master — the #1634 static skip means the build pass never spawns on a fresh fixture; proven identical via `git stash` A/B, unrelated to this fix) |
+| #1624 binding + recording | test/plugins/tdd/services/refactor_passes_test.dart | the gate is bound to the build spec only; a note records a synthetic skipped action and never spawns — untouched |
+| #1624/#1634/#1637 gate decisions | test/plugins/tdd/services/build_relevance_test.dart | every skip/run decision, config digest tier, and baseline rule — untouched |
+| U-1412-1..4 | test/plugins/tdd/bug_1412_refactor_excerpt_tail_test.dart | the run driver's console-excerpt tail over the refactor transcript (whose pass block now carries the marker) — byte-identical recorded evidence |
+| #1653 | test/plugins/tdd/bug_1653_refactor_phase_timings_test.dart | the per-phase/per-pass duration lines — unchanged |
+| #1540 | test/plugins/tdd/bug_1540_refactor_tracked_restore_test.dart | the tracked-placeholder restore-or-refuse contract and its `[1540]` stdout evidence lines (A6/A7 are PRE-EXISTING slow-lane failures on master for the same #1634 reason as A12; proven identical via `git stash` A/B) |
+| #922, #1311, #1520, #1652, #1588 | bug suites driving refactor | baseline tolerance, receipt refresh, scratch tmpdir, make post-state, pass-batch ledger — all green |
 
 ## Red evidence (pre-fix, this session)
 
-Verbatim runs preserved in
-`.specify/bugs/1664-first-refactor-cli-compile/red-evidence.md`:
+Real run, unmodified master at `a9329746` + the new suite:
 
-- Suite 1 (new, pre-fix):
-  `dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`
-  → `00:00 +0 -1: Some tests failed.` — the file fails to LOAD:
-  `Error: Member not found: 'ZfaExecutable.currentInstalledBinary'`. The
-  compile-error red is the honest first red for a NEW seam: it proves the
-  child binary resolution has NO installed-binary awareness — the issue's
-  root cause. With the API's logic in place pre-fix, U-1664-b1 would have
-  returned null (compile as today) instead of the running binary.
+```
+dart test test/plugins/tdd/bug_1660_refactor_skip_note_stdout_test.dart --preset=all
+→ U-1660-1 [E]:
+    Expected: contains 'pass: build — SKIPPED (build-relevance gate)'
+      Actual: 'zfa tdd refactor: preflight suite\n'
+                '   command: dart test\n'
+                '   preflight exit: 0\n'
+                'zfa tdd refactor: applying passes\n'
+                '   pass: build\n'            ← identical to an executed pass
+                ...
+→ U-1660-2: passed (the executed shape must not change — correct for a guard)
+→ U-1660-3 [E]:
+    Expected: contains 'note: refactor build pass skipped:'
+      Actual: 'Cycle: 090-tdd-fixture-refactor (refactor)\n...' (no note line)
+→ 00:21 +0 -3: Some tests failed.
+```
 
-## Green evidence (post-fix, this session)
-
-- `dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`
-  → `00:00 +9: All tests passed!`
-- `dart test test/cli/zfa_executable_test.dart
-  test/cli/binary_staleness_test.dart
-  test/plugins/tdd/services/step_runner_test.dart
-  test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
-  test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart
-  test/plugins/tdd/services/refactor_passes_test.dart`
-  → `00:16 +82: All tests passed!`
-- `dart test test/cli/ test/core/ --exclude-tags "flutter || e2e"`
-  → `00:57 +901 (1 skipped): All tests passed!`
-- `dart test test/plugins/tdd/services/`
-  → `01:44 +1135: All tests passed!`
+The failing shape IS the issue: the skipped build pass printed
+`pass/command/exit/changed` exactly like an executed no-op pass, and the
+cycle-log entry carried no note.
