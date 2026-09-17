@@ -1,52 +1,51 @@
-# TDD test list — Bug #1664 first refactor after a master bump compiles the zfa CLI (~85s) even when the parent runs from a current installed binary
+# TDD test list — Spec 1395 the day-zero app module declares its deps (fresh consumer analyzes clean after init)
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| U-1664-b1 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a current installed binary (`zfa.build_commit` == checkout HEAD) is returned for the canonical `bin/zfa.dart` candidate — the ~85s compile never happens (the issue's bug) | issue #1664 criteria 1–2 | RED → GREEN |
-| U-1664-b2 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a marker that disagrees with the checkout HEAD forbids the reuse — the stale-install guard | criterion 3 | RED → GREEN |
-| U-1664-b3 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a Dart-VM running executable never reuses (source/test drivers keep the compile-cache contract); rejected before any git probe | criterion 4 (steady state) | RED → GREEN |
-| U-1664-b4 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | no `zfa.build_commit` marker (pre-#1184 install, the `scripts/zfa` cache artifact) — reuse is unprovable, compile as today | fail-open soundness | RED → GREEN |
-| U-1664-b5 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | an empty/whitespace marker — reuse is unprovable | fail-open soundness | RED → GREEN |
-| U-1664-b6 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a failed git probe (not a repo, exit 128) falls through to the compile path | fail-open soundness | RED → GREEN |
-| U-1664-b7 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a non-canonical candidate (a custom `--zfa-bin` fixture script) never reuses the zfa binary; rejected before any git probe | fix-scope guard | RED → GREEN |
-| U-1664-b8 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a missing running executable never reuses | fail-open soundness | RED → GREEN |
-| U-1664-b9 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a VM-driven cache miss still compiles through the injected runner; the compiler fake never sees a git argv (the probe rides its own runner) | wiring unchanged (U2 contract) | GREEN |
+| U-1395-a | test/commands/setup_1395_day_zero_app_deps_test.dart | unit | `zfa setup --dry-run --flutter` previews the app-module runtime deps (`zuraffa_flutter: ^6.0.0`, `get_it: ^9.2.1`) in the SAME pass as the `lib/app.dart` line — the day-zero pass declares what the module imports | spec FR-001 | RED → GREEN |
+| U-1395-b | test/cli/writers/tdd/pubspec_app_dependencies_patcher_1395_dryrun_test.dart | unit | dry-run on a scaffolded-from-scratch project reports BOTH deps and writes nothing (missing pubspec tolerated, disk untouched) | spec FR-001 (preview half) | RED (new-seam compile red) → GREEN |
+| U-1395-c | test/cli/writers/tdd/pubspec_app_dependencies_patcher_1395_dryrun_test.dart | unit | dry-run on an existing pubspec reports ONLY the missing entries and leaves the file byte-identical | spec FR-002 (skip-if-declared) | RED (new-seam compile red) → GREEN |
+| U-1395-d | test/cli/writers/tdd/pubspec_app_dependencies_patcher_1395_dryrun_test.dart | unit | additivity: a wirer-declared `zuraffa_flutter` gains ONLY the missing `get_it`, under `dependencies:` (runtime), never duplicated | spec FR-002 | RED (new-seam compile red) → GREEN |
+| U-1395-e | test/cli/writers/tdd/pubspec_app_dependencies_patcher_1395_dryrun_test.dart | unit | re-running the pass adds nothing — idempotent across commands (setup then `zfa tdd init`'s #1349 self-heal) | spec FR-002 | RED (new-seam compile red) → GREEN |
+| I-1395-a | test/integration/day_zero_smoke_gate_test.dart | integration | fresh `zfa setup`: both deps declared under `dependencies:`, `dart analyze lib` reports 0 errors (the #942 gate severity contract), `zfa tdd init` re-run does not duplicate | spec AC-1 | GREEN (manual session run recorded in verification.md) |
 
 Guard pins (pre-existing, unchanged and green against the fix):
 
 | id | suite | description |
 | -- | ----- | ----------- |
-| U2/U3/U4/U5 | test/cli/zfa_executable_test.dart | compile-on-miss argv, fresh-cache reuse (criterion 4's cache-wins-first), lib/ and pubspec staleness — the compile-cache contract the probe must not disturb |
-| #1636 B1–B5 | test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart | the StepRunner running-binary tier order — untouched |
-| #1645 | test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart | the PipelineRunner running-binary tier — untouched |
-| #1184 | test/cli/binary_staleness_test.dart | the `zfa.build_commit` marker reader this fix imports (`zfaBuildCommitMarker`) — unchanged |
+| #1349 | test/cli/writers/tdd/bug_1349_init_flutter_app_deps_test.dart | the `zfa tdd init` self-heal contract this fix reuses — init adds the pair under `dependencies:`, idempotent, hand-edit preserving, pure-Dart untouched, malformed pubspecs fail loudly |
+| #1349 writer | test/cli/writers/tdd/bug_1349_init_flutter_app_deps_test.dart (writer-level rows) | empty-inline expansion + non-map refusal + non-empty inline flow refusal |
+| baseline sinks | test/plugins/tdd/services/baseline_init_sinks_test.dart | the #1528 shared writer sequence's sink contract — untouched |
+| #1653 | test/plugins/tdd/bug_1653_init_opt_in_and_preresolve_test.dart | mutation opt-in + pre-resolve firing only when deps were newly injected — untouched |
+| #626 | test/commands/setup_command_test.dart + test/cli/writers/tdd/app_module_writer_test.dart | day-zero module writers, dry-run preview shape — extended, not changed |
+| dev-deps patcher | test/cli/writers/tdd/pubspec_dev_dependencies_patcher_test.dart | the dev-deps self-heal this fix's dry-run contract mirrors — untouched |
 
 ## Red evidence (pre-fix, this session)
 
-Verbatim runs preserved in
-`.specify/bugs/1664-first-refactor-cli-compile/red-evidence.md`:
-
-- Suite 1 (new, pre-fix):
-  `dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`
-  → `00:00 +0 -1: Some tests failed.` — the file fails to LOAD:
-  `Error: Member not found: 'ZfaExecutable.currentInstalledBinary'`. The
-  compile-error red is the honest first red for a NEW seam: it proves the
-  child binary resolution has NO installed-binary awareness — the issue's
-  root cause. With the API's logic in place pre-fix, U-1664-b1 would have
-  returned null (compile as today) instead of the running binary.
+- U-1395-a (stash of `setup_command.dart` + patcher, then):
+  `dart test test/commands/setup_1395_day_zero_app_deps_test.dart`
+  → `00:00 +0 -1: Some tests failed.`
+  `Which: does not contain 'zuraffa_flutter: ^6.0.0'` — the day-zero
+  baseline preview names `lib/app.dart` but declares none of the module's
+  runtime deps. Exactly the #1395 gap.
+- U-1395-b…e: the `dryRun` parameter did not exist pre-fix — the file fails
+  at load. The compile-error red is the honest first red for a NEW seam
+  (house convention, recorded for #1664 in this same directory).
+- Manual red (the misfire shape, `zfa setup` on a fresh consumer pre-fix):
+  step 6 wrote `lib/app.dart` while the ONLY pubspec pass added
+  `coverage: ^1.15.1` to dev_dependencies — `get_it` declared by NO pass;
+  the same-pass contract violated.
 
 ## Green evidence (post-fix, this session)
 
-- `dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`
-  → `00:00 +9: All tests passed!`
-- `dart test test/cli/zfa_executable_test.dart
-  test/cli/binary_staleness_test.dart
-  test/plugins/tdd/services/step_runner_test.dart
-  test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
-  test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart
-  test/plugins/tdd/services/refactor_passes_test.dart`
-  → `00:16 +82: All tests passed!`
-- `dart test test/cli/ test/core/ --exclude-tags "flutter || e2e"`
-  → `00:57 +901 (1 skipped): All tests passed!`
-- `dart test test/plugins/tdd/services/`
-  → `01:44 +1135: All tests passed!`
+- `dart test test/commands/setup_1395_day_zero_app_deps_test.dart
+  test/cli/writers/tdd/pubspec_app_dependencies_patcher_1395_dryrun_test.dart`
+  → `00:00 +5: All tests passed!`
+- Neighboring regression suites (writers + setup + baseline-init):
+  `00:22 +72: All tests passed!`
+- Manual end-to-end on a fresh consumer: `zfa setup` step 6 now prints
+  `✓ pubspec.yaml dependencies (app module: added: get_it: ^9.2.1)`
+  (additive — the wirer had already declared `zuraffa_flutter`),
+  `dart analyze lib` → 0 errors, `flutter test` → all green.
+
+Full transcript: `tdd/verification.md`.

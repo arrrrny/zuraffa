@@ -41,11 +41,43 @@ class PubspecAppDependenciesPatcher {
     'get_it': '^9.2.1',
   };
 
+  /// The `'$pkg: $constraint'` entries from [existing] that are not yet
+  /// declared — the same shape both the dry-run preview and the real pass
+  /// return, so the previewed line matches what a real run writes.
+  List<String> _missingEntries(Map<dynamic, dynamic> existing) {
+    final missing = <String>[];
+    appDependencies.forEach((pkg, constraint) {
+      if (!existing.containsKey(pkg)) {
+        missing.add('$pkg: $constraint');
+      }
+    });
+    return missing;
+  }
+
   /// Ensures the day-zero app module's runtime deps are declared under
   /// `dependencies:` in the project pubspec. Returns the entries that
   /// were added (empty when already complete).
-  Future<List<String>> ensure(String projectRoot) async {
+  ///
+  /// [dryRun] mirrors `PubspecDevDependenciesPatcher.ensure`: report what
+  /// WOULD be added without touching disk, tolerating a missing pubspec
+  /// (the project is being scaffolded and the dry-run is previewing what
+  /// the day-zero writers would emit).
+  Future<List<String>> ensure(String projectRoot, {bool dryRun = false}) async {
     final file = File('$projectRoot/pubspec.yaml');
+
+    if (dryRun) {
+      if (!await file.exists()) {
+        return _missingEntries(const {});
+      }
+      final raw = await file.readAsString();
+      final doc = loadYaml(raw);
+      if (doc is! Map) {
+        return _missingEntries(const {});
+      }
+      final existing = (doc['dependencies'] as Map?) ?? const {};
+      return _missingEntries(existing);
+    }
+
     if (!await file.exists()) {
       throw StateError('pubspec.yaml not found at ${file.path}');
     }
@@ -72,12 +104,7 @@ class PubspecAppDependenciesPatcher {
     }
     final existing = (rawExisting as Map?) ?? const {};
 
-    final missing = <String>[];
-    appDependencies.forEach((pkg, constraint) {
-      if (!existing.containsKey(pkg)) {
-        missing.add('$pkg: $constraint');
-      }
-    });
+    final missing = _missingEntries(existing);
 
     if (missing.isEmpty) return missing;
 
