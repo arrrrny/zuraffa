@@ -7,12 +7,12 @@ schema: spec-fuzz.v1
 feature: 004-login-ui
 gate: notAssessed
 certified: false
-mutations: 5
+mutations: 8
 killed: 0
 survived: 4
-not_assessed: 1
+not_assessed: 4
 seed: 0
-budget: 5
+budget: 8
 restoration_verified: true
 -->
 
@@ -24,7 +24,7 @@ restoration_verified: true
 ## Round
 
 - seed: 0
-- budget: 5
+- budget: 8
 - candidates: 8
 - operators: drop, drop-must-not, swap-literal, weaken, widen
 - fuzz_was_run: true
@@ -38,6 +38,9 @@ restoration_verified: true
 | SM-003 | 29 | drop | AC-3:scenario | survived | no pin fired: the plan gates pass, the regenerated suite stays green against the committed implementation, and no committed assertion pins the original value(s) 3, 8 — the test suite does not pin the intent |
 | SM-004 | 48 | drop | AC-6:scenario | survived | no pin fired: the plan gates pass, the regenerated suite stays green against the committed implementation, and no committed assertion pins the original value(s) 2 — the test suite does not pin the intent |
 | SM-005 | 57 | swap-literal | FR-001:literal:`@` | notAssessed | the regenerated test for U1 failed to LOAD (issue #1045): 00:00 +0: loading test/tdd/004-login-ui/u1_test.dart                                                                    … |
+| SM-006 | 57 | swap-literal | FR-001:literal:`.` | notAssessed | the regenerated test for U1 failed to LOAD (issue #1045): 00:00 +0: loading test/tdd/004-login-ui/u1_test.dart                                                                    … |
+| SM-007 | 59 | swap-literal | FR-002:literal:8 | notAssessed | the regenerated test for U2 failed to LOAD (issue #1045): 00:00 +0: loading test/tdd/004-login-ui/u2_test.dart                                                                    … |
+| SM-008 | 59 | widen | FR-002:range:at least 8 | notAssessed | the regenerated test for U2 failed to LOAD (issue #1045): 00:00 +0: loading test/tdd/004-login-ui/u2_test.dart                                                                    … |
 
 ## Survived mutations (spec weaknesses)
 
