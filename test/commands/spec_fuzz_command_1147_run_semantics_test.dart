@@ -4,7 +4,8 @@
 /// The six issue constraints, pinned at the COMMAND boundary on the fast
 /// tier: the real [SpecFuzzCommand] with the auditor's injectable-spawn
 /// seam (the MutationAuditor pattern — no subprocess), driving the honest
-/// fake spawn from the `spec_fuzz_auditor_test.dart` convention:
+/// fake spawn shared with the auditor suite
+/// (`test/helpers/arena_greeter_fixture.dart`):
 ///
 ///   1. the five operators apply deterministically and replayably,
 ///   2. behaviors are re-run against the mutated spec (the P2 pin via
@@ -28,6 +29,7 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/spec_command.dart';
 import 'package:zuraffa/src/plugins/tdd/services/mutation_auditor.dart';
 
+import '../helpers/arena_greeter_fixture.dart';
 import '../helpers/exit_span_mutex.dart';
 
 Future<String> captureOutput(Future<void> Function() body) async {
@@ -43,49 +45,6 @@ Future<String> captureOutput(Future<void> Function() body) async {
   return output.join('\n');
 }
 
-/// The honest fake spawn: reads the test file the writer regenerated,
-/// extracts the `equals(<n>)` pin, and compares it against the paired
-/// subject's return value — green when they match, red otherwise. A
-/// test without an `equals(<n>)` pin is green (the writer's generic
-/// shape passes against implemented subjects).
-Future<ProcessResult> _fakeSpawn(
-  String executable,
-  List<String> args,
-  String workingDirectory,
-  Duration timeout,
-) async {
-  final testPath = args.where((a) => a.endsWith('_test.dart')).first;
-  final abs = p.isAbsolute(testPath)
-      ? testPath
-      : p.join(workingDirectory, testPath);
-  final content = File(abs).readAsStringSync();
-  final equals = RegExp(r'equals\((\d+)\)').firstMatch(content);
-  final subjectMatch = RegExp(
-    r"import\s+'([^']*_subject\.dart)'\s+as\s+subject",
-  ).firstMatch(content);
-  if (equals == null || subjectMatch == null) {
-    return ProcessResult(42, 0, 'All tests passed!', '');
-  }
-  final subjectPath = p.normalize(
-    p.join(p.dirname(abs), subjectMatch.group(1)!),
-  );
-  final subjectContent = File(subjectPath).readAsStringSync();
-  final value = RegExp(r'=>\s*(\d+);').firstMatch(subjectContent);
-  final expected = int.parse(equals.group(1)!);
-  final actual = value == null ? null : int.parse(value.group(1)!);
-  if (actual == expected) {
-    return ProcessResult(42, 0, 'All tests passed!', '');
-  }
-  return ProcessResult(
-    42,
-    1,
-    '00:00 +0: $testPath [E]\n'
-        'Expected: <$expected>\n'
-        '  Actual: <$actual>',
-    '',
-  );
-}
-
 Future<PreflightResult> _greenPreflight(List<String> testPaths) async =>
     PreflightResult(
       exitCode: 0,
@@ -99,303 +58,6 @@ Future<PreflightResult> _redPreflight(List<String> testPaths) async =>
       output: '00:00 +0 -1: Some tests failed.',
       ranTestPaths: testPaths,
     );
-
-/// The arena fixture: a temp project whose spec carries ALL FIVE
-/// mutation element classes (a quoted literal Then -> weaken, an
-/// edge-case scenario -> drop, declared literals/numbers ->
-/// swap-literal, a 0..100 range -> widen, a MUST NOT clause ->
-/// drop-must-not), a registered artifacts registry, gen-shaped tests,
-/// and implemented subjects.
-class _ArenaFixture {
-  _ArenaFixture._(this.root, this.featureName);
-
-  final Directory root;
-  final String featureName;
-
-  String get featureDir => p.join(root.path, 'specs', featureName);
-
-  static const weakSpec = '''
-**Template Version**: `zuraffa-1.0`
-
-# Feature Specification: Arena Greeter (weak)
-
-**Feature Branch**: `arena-greeter`
-
-## User Scenarios & Testing *(mandatory)*
-
-### User Story 1 - A vague greeter (Priority: P1)
-
-**Acceptance Scenarios**:
-
-1. **Given** any user, **When** the greeter greets, **Then** it shows the message 'Hello'.
-   **Type**: acceptance
-2. **Given** an empty name, **When** the greeter greets, **Then** it handles the empty case gracefully.
-   **Type**: acceptance
-
-### Functional Requirements
-
-- **FR-001**: The greeter MUST return a greeting message.
-  traces: Greeter
-- **FR-002**: The greeter MUST NOT fail when the name is empty.
-  traces: Greeter
-- **FR-003**: The greeter MUST accept greeting counts within 0..100.
-  traces: Greeter
-''';
-
-  static const strongSpec = '''
-**Template Version**: `zuraffa-1.0`
-
-# Feature Specification: Arena Greeter (strong)
-
-**Feature Branch**: `arena-greeter`
-
-## User Scenarios & Testing *(mandatory)*
-
-### User Story 1 - A pinned greeter (Priority: P1)
-
-**Acceptance Scenarios**:
-
-1. **Given** any user, **When** the greeter greets, **Then** it returns 42 as the greeting code.
-   **Type**: acceptance
-2. **Given** an empty name, **When** the greeter greets, **Then** it returns 0 as the greeting code.
-   **Type**: acceptance
-
-### Functional Requirements
-
-- **FR-001**: The greeter MUST return 42 as the greeting code when the name is not empty.
-  traces: Greeter
-- **FR-002**: The greeter MUST return 0 when the name is empty; it MUST NOT return 42 in that case.
-  traces: Greeter
-- **FR-003**: The greeter MUST accept greeting counts within 0..100 and MUST return 100 when full.
-  traces: Greeter
-''';
-
-  static String unitTest(String id, String criterion, String description) =>
-      '''
-// GENERATED TEST — `zfa tdd gen $id` (spec 044-test-tdd-generation).
-//
-// behavior_id: $id
-// source_criterion: $criterion
-// description: $description
-library;
-
-import 'package:test/test.dart';
-import '../../../lib/tdd/arena-greeter/${id.toLowerCase()}_subject.dart' as subject;
-
-void main() {
-  group('$id ($criterion)', () {
-    test('$id — $description', () {
-      final result = (() {
-        try {
-          return subject.subjectUnderTest();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
-  });
-}
-''';
-
-  static String acceptanceTest(
-    String id,
-    String criterion,
-    String description,
-  ) =>
-      '''
-// GENERATED TEST — `zfa tdd gen $id` (spec 044-test-tdd-generation).
-//
-// behavior_id: $id
-// source_criterion: $criterion
-// description: $description
-library;
-
-import 'package:test/test.dart';
-import '../../../lib/tdd/arena-greeter/${id.toLowerCase()}_subject.dart' as subject;
-
-void main() {
-  group('$id ($criterion)', () {
-    test('$id — $description', () {
-      final result = (() {
-        try {
-          subject.subjectUnderTest();
-          return null;
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
-  });
-}
-''';
-
-  static String pinnedUnitTest(
-    String id,
-    String criterion,
-    String description,
-    int pin,
-  ) =>
-      '''
-// GENERATED TEST — strengthened by the implementer to pin the declared
-// code (spec 1147 fixture).
-//
-// behavior_id: $id
-// source_criterion: $criterion
-// description: $description
-library;
-
-import 'package:test/test.dart';
-import '../../../lib/tdd/arena-greeter/${id.toLowerCase()}_subject.dart' as subject;
-
-void main() {
-  group('$id ($criterion)', () {
-    test('$id — $description', () {
-      final result = (() {
-        try {
-          return subject.subjectUnderTest();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, equals($pin));
-    });
-  });
-}
-''';
-
-  static String pinnedAcceptanceTest(
-    String id,
-    String criterion,
-    String description,
-    int pin,
-  ) =>
-      '''
-// GENERATED TEST — strengthened by the implementer to pin the declared
-// code (spec 1147 fixture).
-//
-// behavior_id: $id
-// source_criterion: $criterion
-// description: $description
-library;
-
-import 'package:test/test.dart';
-import '../../../lib/tdd/arena-greeter/${id.toLowerCase()}_subject.dart' as subject;
-
-void main() {
-  group('$id ($criterion)', () {
-    test('$id — $description', () {
-      expect(subject.subjectUnderTest(), equals($pin));
-    });
-  });
-}
-''';
-
-  static String subject(int value) =>
-      '''
-// IMPLEMENTED SUBJECT (spec 1147 fixture).
-library;
-
-int subjectUnderTest() => $value;
-''';
-
-  Future<void> write({required String spec, required bool strong}) async {
-    await Directory(p.join(featureDir, 'tdd')).create(recursive: true);
-    await File(p.join(featureDir, 'spec.md')).writeAsString(spec);
-
-    final pins = strong
-        ? const {'a1': 42, 'a2': 0, 'u1': 42, 'u2': 0, 'u3': 100}
-        : const {'a1': null, 'a2': null, 'u1': null, 'u2': null, 'u3': null};
-
-    String testFor(String id, String criterion, String key) {
-      final pin = pins[key];
-      final isAcceptance = id.startsWith('A');
-      if (pin == null) {
-        return isAcceptance
-            ? acceptanceTest(id, criterion, 'generic')
-            : unitTest(id, criterion, 'generic');
-      }
-      return isAcceptance
-          ? pinnedAcceptanceTest(id, criterion, 'pinned', pin)
-          : pinnedUnitTest(id, criterion, 'pinned', pin);
-    }
-
-    final tests = {
-      'a1': testFor('A1', 'AC-1', 'a1'),
-      'a2': testFor('A2', 'AC-2', 'a2'),
-      'u1': testFor('U1', 'FR-001', 'u1'),
-      'u2': testFor('U2', 'FR-002', 'u2'),
-      'u3': testFor('U3', 'FR-003', 'u3'),
-    };
-    for (final entry in tests.entries) {
-      await File(
-        p.join(
-          root.path,
-          'test',
-          'tdd',
-          'arena-greeter',
-          '${entry.key}_test.dart',
-        ),
-      ).create(recursive: true).then((f) => f.writeAsString(entry.value));
-    }
-    for (final entry in {
-      'a1': 42,
-      'a2': 0,
-      'u1': 42,
-      'u2': 0,
-      'u3': 100,
-    }.entries) {
-      await File(
-            p.join(
-              root.path,
-              'lib',
-              'tdd',
-              'arena-greeter',
-              '${entry.key}_subject.dart',
-            ),
-          )
-          .create(recursive: true)
-          .then((f) => f.writeAsString(subject(entry.value)));
-    }
-
-    final records = [
-      _record('A1', 'AC-1', 'a1'),
-      _record('A2', 'AC-2', 'a2'),
-      _record('U1', 'FR-001', 'u1'),
-      _record('U2', 'FR-002', 'u2'),
-      _record('U3', 'FR-003', 'u3'),
-    ];
-    await File(p.join(featureDir, 'tdd', 'artifacts.json')).writeAsString(
-      const JsonEncoder.withIndent(
-        '  ',
-      ).convert({'feature': featureName, 'records': records}),
-    );
-  }
-
-  Map<String, dynamic> _record(
-    String behaviorId,
-    String criterion,
-    String slug,
-  ) => {
-    'behavior_id': behaviorId,
-    'feature': featureName,
-    'source_criterion': criterion,
-    'test_path': 'test/tdd/arena-greeter/${slug}_test.dart',
-    'subject_path': 'lib/tdd/arena-greeter/${slug}_subject.dart',
-    'runnable_test_name': '$behaviorId — arena',
-    'test_ownership': 'created',
-    'subject_ownership': 'created',
-    'created_at': '2026-09-18T00:00:00Z',
-  };
-
-  static Future<_ArenaFixture> create({required bool strong}) async {
-    final root = await Directory.systemTemp.createTemp('spec_fuzz_1147_');
-    final fx = _ArenaFixture._(root, 'arena-greeter');
-    await fx.write(spec: strong ? strongSpec : weakSpec, strong: strong);
-    return fx;
-  }
-}
 
 void main() {
   tearDown(() => exitCode = 0);
@@ -417,7 +79,7 @@ void main() {
         ..addCommand(
           SpecCommand(
             runPreflight: preflight ?? _greenPreflight,
-            spawnTest: _fakeSpawn,
+            spawnTest: fakeSpawn,
           ),
         );
       final output = await captureOutput(
@@ -435,7 +97,7 @@ void main() {
 
   group('run semantics (issue #1147: exit codes)', () {
     test('weak spec: mutants survive, exit 1, certified=false', () async {
-      final fx = await _ArenaFixture.create(strong: false);
+      final fx = await ArenaGreeterFixture.arena(strong: false);
       addTearDown(() => fx.root.delete(recursive: true));
 
       final (out, code) = await runFuzz([
@@ -464,7 +126,7 @@ void main() {
     });
 
     test('strong spec: every mutant killed, exit 0, certified=true', () async {
-      final fx = await _ArenaFixture.create(strong: true);
+      final fx = await ArenaGreeterFixture.arena(strong: true);
       addTearDown(() => fx.root.delete(recursive: true));
 
       final (out, code) = await runFuzz([
@@ -494,7 +156,7 @@ void main() {
   group('report shape (issue #1147: machine-readable weakness report)', () {
     test('rows carry the documented fields {mutation_id, spec_line, '
         'operator, verdict, evidence}', () async {
-      final fx = await _ArenaFixture.create(strong: false);
+      final fx = await ArenaGreeterFixture.arena(strong: false);
       addTearDown(() => fx.root.delete(recursive: true));
 
       await runFuzz([fx.featureName, '--project', fx.root.path, '--no-ledger']);
@@ -525,7 +187,7 @@ void main() {
 
     test('the five declared operators all appear against the '
         'all-element fixture', () async {
-      final fx = await _ArenaFixture.create(strong: false);
+      final fx = await ArenaGreeterFixture.arena(strong: false);
       addTearDown(() => fx.root.delete(recursive: true));
 
       await runFuzz([fx.featureName, '--project', fx.root.path, '--no-ledger']);
@@ -558,7 +220,7 @@ void main() {
     test(
       '--operators weaken,drop judges only the selected operators',
       () async {
-        final fx = await _ArenaFixture.create(strong: false);
+        final fx = await ArenaGreeterFixture.arena(strong: false);
         addTearDown(() => fx.root.delete(recursive: true));
 
         final (out, code) = await runFuzz([
@@ -611,7 +273,7 @@ void main() {
 
   group('budget (issue #1147: --budget N)', () {
     test('--budget 2 caps the judged mutants and is recorded', () async {
-      final fx = await _ArenaFixture.create(strong: false);
+      final fx = await ArenaGreeterFixture.arena(strong: false);
       addTearDown(() => fx.root.delete(recursive: true));
 
       final (out, code) = await runFuzz([
@@ -642,7 +304,7 @@ void main() {
 
   group('replay (issue #1147: deterministic, replayable)', () {
     test('same seed + budget -> byte-identical report', () async {
-      final fx = await _ArenaFixture.create(strong: false);
+      final fx = await ArenaGreeterFixture.arena(strong: false);
       addTearDown(() => fx.root.delete(recursive: true));
 
       final args = [
@@ -669,7 +331,7 @@ void main() {
 
   group('honest refusals (issue #1147: never grade a red loop)', () {
     test('a red preflight is refused, never graded (usage exit)', () async {
-      final fx = await _ArenaFixture.create(strong: false);
+      final fx = await ArenaGreeterFixture.arena(strong: false);
       addTearDown(() => fx.root.delete(recursive: true));
 
       final (out, code) = await runFuzz([
@@ -688,6 +350,63 @@ void main() {
         File(p.join(fx.featureDir, 'tdd', 'spec-fuzz.json')).existsSync(),
         isFalse,
       );
+    });
+  });
+
+  group('fake spawn honesty (the mock grades like the real spawn)', () {
+    test(
+      'a pin mismatch goes red: the mutant is killed (P2:loop-red)',
+      () async {
+        final fx = await ArenaGreeterFixture.arena(strong: true);
+        addTearDown(() => fx.root.delete(recursive: true));
+
+        final (out, code) = await runFuzz([
+          fx.featureName,
+          '--project',
+          fx.root.path,
+          '--no-ledger',
+        ]);
+        expect(code, 0, reason: out);
+        final report =
+            jsonDecode(
+                  await File(
+                    p.join(fx.featureDir, 'tdd', 'spec-fuzz.json'),
+                  ).readAsString(),
+                )
+                as Map<String, dynamic>;
+        final killed = (report['mutations'] as List)
+            .cast<Map<String, dynamic>>()
+            .where((row) => row['verdict'] == 'killed')
+            .toList();
+        expect(killed, isNotEmpty, reason: out);
+        expect(
+          killed.any(
+            (row) => (row['evidence'] as String).contains('P2:loop-red'),
+          ),
+          isTrue,
+          reason:
+              'a pin mismatch (regenerated test red) must kill — got:\n$out',
+        );
+      },
+    );
+
+    test('a regenerated file with no subject import grades as a load '
+        'failure, never a silent green', () async {
+      final dir = await Directory.systemTemp.createTemp('fake_spawn_');
+      addTearDown(() => dir.delete(recursive: true));
+      final testFile = File(p.join(dir.path, 'a1_test.dart'))
+        ..writeAsStringSync(
+          "import 'package:test/test.dart';\n\nvoid main() {}\n",
+        );
+
+      final result = await fakeSpawn(
+        'dart',
+        ['test', testFile.path],
+        dir.path,
+        const Duration(minutes: 1),
+      );
+      expect(result.exitCode, isNonZero);
+      expect(result.stdout, contains('Failed to load'));
     });
   });
 }
