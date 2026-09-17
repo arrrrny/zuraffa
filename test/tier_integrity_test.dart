@@ -59,13 +59,15 @@ File get _ciWorkflowFile =>
     File(p.join(_repoRoot, '.github', 'workflows', 'ci.yaml'));
 
 Future<void> main() async {
-  // The dart_core lane runs suites as concurrent isolates of one VM (the
-  // #1632 `--concurrency=4` scoping), so the process-global
-  // Directory.current can point inside a sibling suite's temp fixture —
-  // or at a fixture a sibling already deleted — while THIS suite runs.
-  // Every structural path these pins read is therefore resolved ONCE
-  // against the repo root through findProjectRoot() (the same immunity
-  // the self-hosting gates rely on), never against the process CWD.
+  // The dart_core lane runs SERIAL by design (#1682): Directory.current
+  // and dart:io exitCode are process-global, so a parallel lane in which
+  // one suite chdirs silently redirects every concurrent suite's
+  // relative-path I/O and exit-code reads into its window. The CLI-driving
+  // suites here still move the process CWD through their own `-C` windows,
+  // and other lanes (chunked/sharded runners, an IDE run) may add
+  // parallelism back. Every structural path these pins read is therefore
+  // resolved ONCE against the repo root through findProjectRoot() (the same
+  // immunity the self-hosting gates rely on), never against the process CWD.
   _repoRoot = await findProjectRoot();
   final tierDir = Directory(p.join(_repoRoot, 'test', 'regression'));
   final configFile = File(p.join(_repoRoot, 'dart_test.yaml'));
@@ -237,8 +239,8 @@ Future<void> main() async {
     );
   });
 
-  test('B7: the dart_core lane keeps its scoped parallelism and the '
-      '--exclude-tags selector (#1632)', () {
+  test('B7: the dart_core lane stays SERIAL and keeps the '
+      '--exclude-tags selector (#1632, #1682)', () {
     final ci = loadYaml(_ciWorkflowFile.readAsStringSync()) as YamlMap;
     final steps =
         ((ci['jobs'] as YamlMap)['dart_core'] as YamlMap)['steps'] as YamlList;
@@ -250,12 +252,15 @@ Future<void> main() async {
     expect(testRun, isNotNull, reason: 'the dart_core test step vanished');
     expect(
       testRun,
-      contains('--concurrency=4'),
+      isNot(contains('--concurrency')),
       reason:
-          'the pure-Dart unit lane runs on the runner-default parallelism '
-          '(the global concurrency: 1 is a heavy-lane RAM/disk guard); '
-          'dropping the flag re-serializes the lane back over its budget '
-          '(#1632)',
+          'the pure-Dart unit lane must stay serial: Directory.current and '
+          'exitCode are process-global and the lane runs suites as isolates '
+          'of one VM, so any parallelism lets one suite chdir siblings into '
+          'its temp fixture and clobber their exit-code reads — the three '
+          'consecutive red master runs (7f89fbc4, 0a3b38e2, 1ab1a426). '
+          'Sharding (tools/run_tests_chunked.sh) is the lever if the lane '
+          'regrows, not concurrency (#1682)',
     );
     expect(
       testRun,

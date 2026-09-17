@@ -324,6 +324,35 @@ dependencies:
       String behaviorId = 'S1256-W9',
       String description = "shows the 'Add to cart' action on the product view",
     }) async {
+      // Issue #1528: gen's entry preflight is a SILENT NO-OP when the TDD
+      // profile exists, but AUTO-INITIALIZES (and pays a real
+      // `flutter pub get`) when it is missing — on a machine with Flutter
+      // on PATH that resolver runs and fails on this fixture's
+      // SDK-constraint-less pubspec, turning the dispatch into a
+      // fail-closed setup-error. Seed the profile so this test pins gen's
+      // own behavior; the missing-profile auto-init path is covered by
+      // commands/issue_1528_setup_error_test.dart (the house convention,
+      // see bug_830_widget_subject_kind_test.dart).
+      final memoryDir = Directory(p.join(tmpDir.path, '.specify', 'memory'));
+      await memoryDir.create(recursive: true);
+      await File(p.join(memoryDir.path, 'tdd-profile.md')).writeAsString('''
+# TDD Profile — fixture
+
+## Commands
+
+- Single test: `dart test {file} --plain-name "{name}"`
+- Full suite: `dart test`
+
+## Keys (machine-readable)
+
+```yaml
+runner: dart
+single: 'dart test {file} --plain-name "{name}"'
+suite: 'dart test'
+file: 'dart test {file}'
+coverage: 'dart test --coverage'
+```
+''');
       final specDir = Directory(p.join(tmpDir.path, 'specs', '1256-widget'));
       await specDir.create(recursive: true);
       await File(p.join(specDir.path, 'spec.md')).writeAsString(

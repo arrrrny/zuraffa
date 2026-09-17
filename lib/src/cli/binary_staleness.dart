@@ -30,6 +30,17 @@ import 'package:path/path.dart' as p;
 /// `zfa` binary; contains the git commit the binary was built from.
 const String zfaBuildCommitMarker = 'zfa.build_commit';
 
+/// Whether [basename] names a Dart VM executable rather than a compiled
+/// zfa binary: any `dart*` name (the VM, `dart.exe`, `dartaotruntime`,
+/// `dartvm`) and the `flutter_tester` harness. Exported so BOTH exclusion
+/// predicates — `BinaryStaleness.binaryDir` (issue #1184) and
+/// `ZfaExecutable`'s reuse probe (issue #1664) — share one copy and
+/// cannot silently diverge when staleness learns a new VM shape.
+bool isVmExecutableName(String basename) {
+  final base = basename.toLowerCase();
+  return base.startsWith('dart') || base == 'flutter_tester';
+}
+
 /// Signature for the process spawner used to resolve the worktree HEAD.
 /// Injectable so tests stay hermetic.
 typedef ZfaStalenessProcessRunner =
@@ -97,24 +108,17 @@ class BinaryStaleness {
   final String? _explicitBinaryDir;
   final ZfaStalenessProcessRunner _processRunner;
 
-  /// Executables that mean "we are NOT running a compiled installed zfa":
-  /// source runs (`dart run bin/zfa.dart`), `dart test`, and pub-global
-  /// snapshots all resolve to the Dart VM, which never carries the
-  /// build-commit marker next to it.
-  static const _vmExecutables = {
-    'dart',
-    'dart.exe',
-    'dartaotruntime',
-    'dartaotruntime.exe',
-    'flutter_tester',
-  };
-
-  /// Directory of the installed binary, or null when running from source.
+  /// Whether the running process is a compiled installed zfa, or a VM
+  /// shape that means "we are NOT running an installed binary" — source
+  /// runs (`dart run bin/zfa.dart`), `dart test`, and pub-global snapshots
+  /// all resolve to the Dart VM, which never carries the build-commit
+  /// marker next to it. The verdict itself lives in [isVmExecutableName],
+  /// shared with the #1664 reuse probe so the two predicates cannot
+  /// diverge.
   String? get binaryDir {
     if (_explicitBinaryDir != null) return _explicitBinaryDir;
     final exe = Platform.resolvedExecutable;
-    final base = p.basename(exe).toLowerCase();
-    if (_vmExecutables.contains(base) || base.startsWith('dart')) return null;
+    if (isVmExecutableName(p.basename(exe))) return null;
     return p.dirname(exe);
   }
 
