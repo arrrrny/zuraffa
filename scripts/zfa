@@ -20,13 +20,19 @@
 #
 # Copy-if-fresh tier: when the repo-local cache is missing or stale, the
 # launcher first checks the system binary (~/.local/bin/zfa, then zfa on
-# PATH). If that binary is newer than every freshness input, it is copied
-# into the cache — turning a 5-minute compile into a 1-second copy while
+# PATH — the first executable candidate that is fresh wins, so a stale local
+# install never shadows a fresher PATH binary). A candidate is fresh when it
+# is newer than every freshness input, and when a `zfa.build_commit` marker
+# sits next to it (scripts/rebuild.sh writes one), the marker must match this
+# checkout's HEAD — the #1664 commit proof, so a binary built from another
+# tree cannot be adopted on mtimes alone. A fresh candidate is copied into
+# the cache — turning a 5-minute compile into a 1-second copy while
 # preserving the no-JIT guarantee (issue #1687).
 #
 # The rebuild is serialized (flock where available) and staged through a temp
 # sibling + atomic rename, so a concurrent invocation can never exec a
-# half-written binary (issue #644, Linux ETXTBSY).
+# half-written binary (issue #644, Linux ETXTBSY). The copy tier stages under
+# its own per-process name and renames the same way.
 
 set -euo pipefail
 
@@ -36,46 +42,91 @@ EXE="$CACHE_DIR/zfa_exe"
 TMP="$CACHE_DIR/zfa_exe.tmp"
 LOCK_FILE="$CACHE_DIR/build.lock"
 
-# True when the cached artifact is missing or older than the CLI source:
+# True when every freshness input is older than the reference artifact —
 # anything under bin/, anything under lib/src/, or the pubspec pair (the same
-# freshness contract `ZfaExecutable` enforces at runtime, issue #1184).
-needs_build() {
-  [ ! -f "$EXE" ] && return 0
-  if [ -n "$(find "$ROOT/bin" "$ROOT/lib/src" -type f -newer "$EXE" -print -quit 2>/dev/null)" ]; then
-    return 0
-  fi
+# freshness contract `ZfaExecutable` enforces at runtime, issue #1184). The
+# copy tier runs this against a system-binary candidate; needs_build runs it
+# against the cache artifact.
+is_fresh_against_tree() {
+  local reference="$1"
   for f in "$ROOT/pubspec.yaml" "$ROOT/pubspec.lock"; do
-    if [ -f "$f" ] && [ "$f" -nt "$EXE" ]; then
-      return 0
-    fi
-  done
-  return 1
-}
-
-# Try to copy the system binary into the cache if it is fresher than all
-# source inputs.  Returns 0 on success (cache is now populated), 1 when no
-# suitable system binary exists or it is stale.
-copy_if_fresh() {
-  local sys_bin=""
-  if [ -f "$HOME/.local/bin/zfa" ]; then
-    sys_bin="$HOME/.local/bin/zfa"
-  elif command -v zfa >/dev/null 2>&1; then
-    sys_bin="$(command -v zfa)"
-  fi
-  [ -z "$sys_bin" ] && return 1
-  # The system binary must be newer than every freshness input — same set
-  # needs_build uses — to guarantee it was compiled from this tree (or newer).
-  for f in "$ROOT/pubspec.yaml" "$ROOT/pubspec.lock"; do
-    if [ -f "$f" ] && [ "$f" -nt "$sys_bin" ]; then
+    if [ -f "$f" ] && [ "$f" -nt "$reference" ]; then
       return 1
     fi
   done
-  if [ -n "$(find "$ROOT/bin" "$ROOT/lib/src" -type f -newer "$sys_bin" -print -quit 2>/dev/null)" ]; then
+  if [ -n "$(find "$ROOT/bin" "$ROOT/lib/src" -type f -newer "$reference" -print -quit 2>/dev/null)" ]; then
     return 1
   fi
+  return 0
+}
+
+# True when the cached artifact is missing or older than the CLI source.
+needs_build() {
+  [ ! -f "$EXE" ] && return 0
+  if is_fresh_against_tree "$EXE"; then
+    return 1
+  fi
+  return 0
+}
+
+# The #1664 commit proof, applied to the copy tier: when a `zfa.build_commit`
+# marker sits next to the candidate (scripts/rebuild.sh writes one), the
+# binary may only be adopted when the marker equals this checkout's HEAD — a
+# binary built in a different worktree or clone is "newer" by mtime without
+# containing this tree's code. A missing marker (pre-#1184 install) leaves
+# the mtime contract in force; a present but disagreeing or unresolvable
+# marker rejects the candidate.
+candidate_is_commit_proven() {
+  local bin="$1"
+  local marker
+  marker="$(dirname "$bin")/zfa.build_commit"
+  [ -f "$marker" ] || return 0
+  local head
+  head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true)"
+  [ -n "$head" ] || return 1
+  [ "$head" = "$(tr -d '[:space:]' 2>/dev/null < "$marker" || true)" ]
+}
+
+# Try to copy a system binary into the cache if it is fresher than all
+# source inputs.  Returns 0 on success (cache is now populated), 1 when no
+# suitable system binary exists or it is stale.
+#
+# Candidates are scanned in order (~/.local/bin/zfa, then zfa on PATH) and
+# the first executable, fresh one wins — a stale local install therefore
+# never shadows a fresher PATH binary.
+copy_if_fresh() {
+  local sys_bin="" cand=""
+  for cand in "$HOME/.local/bin/zfa" "$(command -v zfa 2>/dev/null || true)"; do
+    if [ -z "$cand" ] || [ ! -x "$cand" ]; then
+      continue
+    fi
+    if ! is_fresh_against_tree "$cand"; then
+      continue
+    fi
+    if ! candidate_is_commit_proven "$cand"; then
+      continue
+    fi
+    sys_bin="$cand"
+    break
+  done
+  [ -z "$sys_bin" ] && return 1
+  # Stage privately: a shared staging path collides with the compile path
+  # (which serializes on the lock and renames the same file), so concurrent
+  # cold launches — the exact scenario this tier exists for — could publish a
+  # half-written artifact and break the atomic-rename guarantee (#644).
+  local stage="$TMP.$$"
   mkdir -p "$CACHE_DIR"
-  cp -f "$sys_bin" "$TMP" && mv -f "$TMP" "$EXE"
+  if ! cp -f "$sys_bin" "$stage"; then
+    rm -f "$stage"
+    return 1
+  fi
+  chmod +x "$stage" 2>/dev/null || true
+  if ! mv -f "$stage" "$EXE"; then
+    rm -f "$stage"
+    return 1
+  fi
   echo "zfa: copied fresh system binary ($sys_bin) into cache ($EXE)" >&2
+  return 0
 }
 
 release_lock() {

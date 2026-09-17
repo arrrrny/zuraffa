@@ -2,7 +2,7 @@
 
 - **Slug**: launcher-cache-copy-if-fresh
 - **Implemented**: 2026-09-17
-- **Assessment**: ./assessment.md
+- **Assessment**: none was committed for this chore — tracked in issue #1687 (the dead `./assessment.md` link was dropped per the PR #1688 review)
 - **Status**: applied
 
 ## Summary
@@ -69,4 +69,27 @@ None. The implementation follows the preferred approach exactly.
 ## Follow-ups
 
 - Manual end-to-end test: `scripts/rebuild.sh`, delete `.dart_tool/zfa_cli_bin/zfa_exe`, run `scripts/zfa --version` — should complete in <2s (copy) instead of minutes (compile).
-- Consider adding a shell-level integration test for `copy_if_fresh()` itself.
+
+## Review-fix round (PR #1688 findings 1–5)
+
+The first review of this PR reproduced four defects in the copy tier; the
+launcher was hardened and the tier gained shell-level coverage:
+
+- `copy_if_fresh` never reported a failed `cp`/`mv` (the final `echo` was the
+  return value) — it now checks both steps, cleans the stage, and returns 1 so
+  the caller falls through to the compile branch (`ZFA_NO_REBUILD=1` fails
+  loudly, as documented).
+- The copy staged through the shared `zfa_exe.tmp`, racing the compile path —
+  it now stages under a per-process `zfa_exe.tmp.$$` name and renames
+  atomically.
+- Candidates are scanned in order (~/.local/bin/zfa, then PATH) and the first
+  executable, fresh one wins — a stale local install no longer shadows a
+  fresher PATH binary; non-executable sources are skipped and the staged copy
+  is `chmod +x`ed.
+- A present `zfa.build_commit` marker must equal the checkout HEAD before the
+  candidate is adopted (the #1664 commit proof); a disagreeing or unresolvable
+  marker falls through to compile.
+- New `dart test test/cli/zfa_launcher_copy_if_fresh_test.dart` (9 tests, fast
+  tier) pins copy-on-fresh, stale fall-through, `ZFA_NO_REBUILD=1`, the
+  candidate scan, the marker proof, copy-failure reporting and concurrency
+  (6/9 fail against the pre-fix launcher).
