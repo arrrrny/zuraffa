@@ -195,6 +195,41 @@ coverage: 'dart test --coverage'
       },
     );
 
+    test('A1s (issue #1676): a skip-written record inherits too — the '
+        'refactor side is verdict-agnostic, the evidence printed is the '
+        'skip transition\'s own', () async {
+      // The hand-step flow's terminal state: make `skipped` recorded the
+      // post-state (issue #1676 write-side gate). The consumer matches
+      // context + digests, never the verdict text — the inheritance must
+      // engage and print the HONEST evidence (outcome=skipped), so the
+      // printed trail names the skip transition's certification.
+      await writeRecord(behaviorId: 'U2');
+      final recordPath = p.join(fx.featureDir, 'tdd', 'make-post-state.json');
+      final record =
+          jsonDecode(await File(recordPath).readAsString())
+              as Map<String, dynamic>;
+      record['green_verdict'] =
+          'make U2 outcome=skipped exit 0 '
+          '(skip-transition target-test green evidence on the current '
+          'tree; issue #1676)';
+      await File(recordPath).writeAsString(jsonEncode(record));
+      final ledgerPath = p.join(fx.featureDir, 'tdd', 'pass-batch.json');
+
+      final out = await runRefactor(extraArgs: ['--pass-batch']);
+
+      expect(exitCode, 0, reason: out);
+      // THE economics assertion: the pipeline is inherited — zero suite
+      // spawns (no preflight, no re-proof).
+      expect(await suiteSpawnCount(), 0, reason: out);
+      // The inheritance names the skip transition's own evidence.
+      expect(out, contains('make-post-state'));
+      expect(out, contains('U2'));
+      expect(out, contains('outcome=skipped'));
+      // The record never overwrites the refactor-proved ledger
+      // (FR-007): none existed, none was fabricated.
+      expect(File(ledgerPath).existsSync(), isFalse);
+    });
+
     test('A2: tree drift after the make re-runs the full pipeline — the '
         'drifted tree is never inherited', () async {
       await writeRecord();
