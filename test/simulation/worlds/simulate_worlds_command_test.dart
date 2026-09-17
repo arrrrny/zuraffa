@@ -1247,4 +1247,102 @@ void main() {
       );
     });
   });
+
+  group('spec 1136 lane 1: simulate run --world (deterministic selector)', () {
+    test('W1: --world selects the world by name without a positional', () async {
+      writePin(ws, 'specs/$_feature');
+      final init = await runZfa([
+        'simulate',
+        'init',
+        'test_world',
+        '--project',
+        ws.path,
+      ]);
+      expect(init.$1, 0, reason: init.$2);
+
+      final (code, output) = await runZfa([
+        'simulate',
+        'run',
+        '--world=test_world',
+        '--project',
+        ws.path,
+      ]);
+      expect(code, 0, reason: output);
+      expect(output, contains('simulate-run: scenario=test_world'));
+      expect(output, contains(RegExp(r'world-hash=[0-9a-f]{12}')));
+      expect(
+        File('${ws.path}/.zfa/receipts/world-run-test_world.json')
+            .existsSync(),
+        isTrue,
+        reason: 'the --world run writes the same proof-carrying receipt',
+      );
+    });
+
+    test('W2: two consecutive --world runs prove determinism', () async {
+      writePin(ws, 'specs/$_feature');
+      await runZfa(['simulate', 'init', 'test_world', '--project', ws.path]);
+
+      final first = await runZfa([
+        'simulate',
+        'run',
+        '--world=test_world',
+        '--project',
+        ws.path,
+      ]);
+      expect(first.$1, 0, reason: first.$2);
+      expect(
+        first.$2,
+        isNot(contains('deterministic (digest match)')),
+        reason: 'the first run records; it has no prior digest to prove '
+            'against (seed comes from the manifest)',
+      );
+
+      final second = await runZfa([
+        'simulate',
+        'run',
+        '--world=test_world',
+        '--project',
+        ws.path,
+      ]);
+      expect(second.$1, 0, reason: second.$2);
+      expect(
+        second.$2,
+        contains('deterministic (digest match)'),
+        reason: 'the second --world run reuses the recorded seed and '
+            'proves the digest matches the receipt',
+      );
+    });
+
+    test('W3: --world and a positional scenario together is a usage '
+        'error', () async {
+      writePin(ws, 'specs/$_feature');
+      await runZfa(['simulate', 'init', 'test_world', '--project', ws.path]);
+
+      final (code, output) = await runZfa([
+        'simulate',
+        'run',
+        'test_world',
+        '--world=test_world',
+        '--project',
+        ws.path,
+      ]);
+      expect(code, 2, reason: output);
+      expect(
+        output,
+        contains('choose either --world or the positional scenario'),
+      );
+    });
+
+    test('W4: --help documents --world in the run grammar', () async {
+      final (code, output) = await runZfa([
+        'simulate',
+        'run',
+        '--help',
+        '--project',
+        ws.path,
+      ]);
+      expect(code, 0, reason: output);
+      expect(output, contains('--world'));
+    });
+  });
 }
