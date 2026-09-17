@@ -189,14 +189,20 @@ class $name {
       // verify-red classifies compile-error (`'LoginParams' isn't a type`).
       expect(
         testContent,
-        contains('$paramSnake/$paramSnake.dart'),
+        contains(
+          "import 'package:fixture_app/src/domain/entities/"
+          "$paramSnake/$paramSnake.dart';",
+        ),
         reason: testContent,
       );
       // The return entity's import still rides the test (SPEC 1489 SC-2,
       // unchanged by this fix).
       expect(
         testContent,
-        contains('$returnSnake/$returnSnake.dart'),
+        contains(
+          "import 'package:fixture_app/src/domain/entities/"
+          "$returnSnake/$returnSnake.dart';",
+        ),
         reason: testContent,
       );
       // The shape's documented order: params first (declaration order), then
@@ -235,7 +241,10 @@ class $name {
     // the lifted type even though the RETURN is a plain scalar.
     expect(
       testContent,
-      contains('$paramSnake/$paramSnake.dart'),
+      contains(
+        "import 'package:fixture_app/src/domain/entities/"
+        "$paramSnake/$paramSnake.dart';",
+      ),
       reason: testContent,
     );
     // The scalar return renders the typed assertion — no return entity.
@@ -253,14 +262,18 @@ class $name {
         description: 'add the two submitted integers',
       );
 
-      final out = await runGen();
+      await runGen();
       final testContent = readTest();
 
       // Scalar params take the representative literals — no _argN helper.
       expect(testContent, contains('subject_u1(0, 0)'), reason: testContent);
       expect(testContent, isNot(contains('_arg0()')), reason: testContent);
       // No entity imports at all — the template is the legacy shape.
-      expect(testContent, isNot(contains('domain/entities/')), reason: out);
+      expect(
+        testContent,
+        isNot(contains('domain/entities/')),
+        reason: testContent,
+      );
       expect(
         testContent,
         isNot(contains('$paramSnake/$paramSnake.dart')),

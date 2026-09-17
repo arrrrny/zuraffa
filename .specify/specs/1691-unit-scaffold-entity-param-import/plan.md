@@ -96,11 +96,15 @@ untouched (one PR per spec).
 
 ## Verification run context (provenance for tdd/verification.md)
 
-The `tdd/verification.md` committed with this spec is produced by
-`zfa tdd verify --feature 001-login` inside the login_probe verification
-project (the repro of record), with the FIXED zuraffa source tree — the
-feature whose red/green/mutation evidence the cycle-log records. The
-sandbox disk budget (~9.9GB root fs, dart-test kernel cache ≈ 20-45MB per
-test file) is documented in the verification notes: the repo suite ran in
-file-batches with fresh kernel caches per batch to stay inside the budget
-(the CI lane itself is unchanged and runs unsharded on CI-sized agents).
+`tdd/cycle-log.md` and `tdd/verification.md` are scoped to THIS spec: the
+`T-1691` red/green cycles of the regression test (the red run reverts ONLY
+`behavior_test_writer.dart` to its parent revision `8861d41d`), plus the
+`dart analyze` / `dart format` gates on the touched files. The end-to-end
+probe lane (U4/U5) is the `login_probe` verification project's own cycle log
+(`zfa tdd run 001-login` / `zfa tdd verify --feature 001-login` with the
+FIXED zuraffa source tree), kept verbatim in an appendix of the cycle log and
+labeled with the probe feature's ids. The sandbox disk budget (~9.9GB root
+fs, dart-test kernel cache ≈ 20-45MB per test file) is why the probe
+project's suite ran in file-batches with fresh kernel caches per batch to
+stay inside the budget (the CI lane itself is unchanged and runs unsharded
+on CI-sized agents).

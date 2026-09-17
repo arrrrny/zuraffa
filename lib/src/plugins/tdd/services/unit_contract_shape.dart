@@ -231,14 +231,18 @@ class UnitContractShape {
   /// The import URIs for every EXISTING entity the declared signature
   /// references — params first (declaration order), then the return —
   /// deduplicated. Empty when no entity exists on disk (or the shape is
-  /// legacy). The subject writer emits these so the stub compiles
-  /// against the declared types out of the box (SPEC 1489 SC-2).
+  /// legacy). Both writers emit these so the generated source compiles
+  /// against the declared types out of the box (SPEC 1489 SC-2, widened
+  /// to the paired unit test by issue #1691).
   final List<String> entityImports;
 
   /// The import URIs for the entities the declared RETURN references
-  /// (SPEC 1489). The paired test imports exactly these when its
-  /// assertion references the declared type — never the param entities
-  /// (the `_argN()` placeholders own those), so no unused imports.
+  /// (SPEC 1489) — a subset of [entityImports].
+  ///
+  /// Issue #1691: the paired unit test imports the full [entityImports]
+  /// set (the `_argN()` seam renders the LIFTED param type), so no writer
+  /// consumes this field any more; kept for the shape contract until a
+  /// follow-up removes it.
   final List<String> returnEntityImports;
 
   /// Derive the shape from a parsed [Signature]. Never null: a declared
