@@ -1717,3 +1717,27 @@ To run this test again: /home/z/tools/flutter/bin/cache/dart-sdk/bin/dart test /
 - prev-hash: genesis
 - hash: 4d5b2725c7d8cffe3e884d33c20ec154404fb346ae280c0cd7dc512c2061c1d3
 
+## Cycle: U1 (green)
+
+- behavior: U1
+- kind: green
+- subject-hash: 7fec953024346518ac18e36f21e03145bb3a33c3ccbab7f7ca198aaa179c88e2
+- criterion: FR-001, adaptive_layouts
+- test: test/tdd/004-login-ui/u1_test.dart
+- command: `flutter test test/tdd/004-login-ui/u1_test.dart --plain-name "U1 — The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos)."`
+- exit: 0
+- at: 2026-09-17T22:51:52.198495Z
+- output:
+```
+00:00 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/u1_test.dart
+00:00 +0: U1 (FR-001, adaptive_layouts) U1 — The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos).
+00:00 +1: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: 4d5b2725c7d8cffe3e884d33c20ec154404fb346ae280c0cd7dc512c2061c1d3
+- hash: fa8251f5ab568e20b459e60a21ed4da6eeb6a560d1eb2199a140bfc990239531
+
