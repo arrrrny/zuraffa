@@ -1,154 +1,127 @@
-# tdd.verify — Bug #1664 first refactor after a master bump compiles the zfa CLI (~85s) even when the parent runs from a current installed binary
+# Verification — 1693-mock-cert-format-canonical-digest
 
-- **Verified**: 2026-09-15, this session, on
-  `fix/1664-first-refactor-cli-compile` (working tree, pre-push)
-- **Toolchain**: Dart 3.13.4 (stable) on linux_x64 (the task's "Dart 3.13+"
-  floor; the repo pins `sdk: ^3.11.0`)
-- **Scope**: `lib/src/cli/zfa_executable.dart` (the #1664 reuse probe +
-  `_compileCached` wiring), the new
-  `test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`, and the
-  bug artifacts under `.specify/bugs/1664-first-refactor-cli-compile/`.
+- **Date**: 2026-09-18 (this session, from the actual runs below — no
+  content copied from an earlier spec's file)
+- **Branch**: `fix/1693-mock-cert-format-canonical-digest` (working tree,
+  pre-push; base `a9329746`)
+- **Toolchain**: Dart 3.13.4 (stable) on linux_x64 (the task's "Dart
+  3.13+" floor; the repo pins `sdk: ^3.11.0`)
+- **Scope audited**: `spec.md` (SC-1..SC-5), `plan.md`,
+  `tdd/test-list.md`, the changed code
+  (`lib/src/plugins/mock/certification/cert_registry.dart`,
+  `mock_cert_receipt.dart`, `mock_certifier.dart`, and the new
+  `format_canonical_digest.dart`), the new test files, and the
+  `mutation-test-1693.xml` audit config.
+- **Verify path**: `/speckit.tdd.verify` Step 0 detected `ZFA_MISSING`
+  (this repo is the zuraffa framework itself — no `.zfa.json` consumer
+  wiring), so the command's documented FALLBACK PATH ran: the LLM-guided
+  audit with real in-session red/green/mutation evidence. `zfa tdd
+  verify`'s mutation phase was covered equivalently by the repo's own
+  `mutation_test` tool driven through a spec-scoped config
+  (`mutation-test-1693.xml`) — the same tool `zfa tdd verify` dispatches.
 
 ## Verdict: PASS
 
-## 1. TDD discipline (red → green → verify)
+| id | criterion | verdict | evidence |
+|----|-----------|---------|----------|
+| SC-1 | format-only drift after certification → `certified`, no second certification | PASS | G1 (red→green) + W1; the pre-fix tree refused both (behavioral red captured) |
+| SC-2 | a real entity edit after certification still refuses as `stale` | PASS | G2 + W2 (blocked entity, stale reason, exact fix command); G5 additionally proves the digest overrides a lying-fresh mtime |
+| SC-3 | pre-1693 receipts keep the mtime freshness semantics | PASS | G4/G4b (both directions) + the untouched spec-1110 suite `cert_registry_test.dart` 9/9 |
+| SC-4 | the certifier records the format-canonical digest for both entry points; JSON omits the field when absent | PASS | G6/G7/G8/G8b — both CLI entry points (`mock create --certify`, `mock certify`) flow through the single changed `certify()` choke point; legacy receipts stay byte-stable |
+| SC-5 | existing suites stay green; analyze clean; format clean | PASS | guard suites below; `dart analyze` on all 7 touched files: `No issues found!`; `dart format --set-exit-if-changed .` exit 0 |
 
-The loop was driven with the bug directory as the TDD feature. Ten
-behaviors were pinned in `tdd/test-list.md` BEFORE the fix, mapped 1:1 to
-the issue's four acceptance criteria, and every test in the red set was
-observed failing against base `c5ed519f` for exactly the reason the issue
-describes — never for a setup error.
+## 1. Red → green (this session, base a9329746)
 
-```
-dart analyze lib/src/cli/zfa_executable.dart
-             test/cli/zfa_executable_1664_installed_binary_reuse_test.dart
-→ No issues found!
+- **Red (behavioral, the issue's bug)** — the gate test file was written
+  to compile against the PRE-FIX tree (receipt JSON hand-written with
+  `entity_digest`; the pre-fix loader ignores the unknown key):
+  `dart test test/plugins/mock/certification/spec_1693_gate_format_drift_test.dart`
+  → `00:00 +4 -2: Some tests failed.`
+  G1 failed with format-only drift read as `stale` (the #1693
+  repro at the gate decision point); G5 failed with a lying-fresh mtime
+  accepted. The four guards (G2/G3/G4/G4b) passed, so the red set is
+  exactly the two claims the fix changes.
+- **Red (new seam)** — `dart test
+  test/plugins/mock/certification/spec_1693_receipt_and_certifier_test.dart`
+  → load error: `The getter 'entityDigest' isn't defined for the type
+  'MockCertReceipt'` (+ unresolved `format_canonical_digest.dart`) — the
+  honest first red for a new seam.
+- **Green** — after the fix: the two spec files → `00:00 +11: All tests
+  passed!`; the run-preflight pins → `00:00 +2: All tests passed!`.
 
-dart analyze            (whole repo)
-→ 106 issues found      (0 errors, 0 warnings — all `info`)
-```
+## 2. Semantic-drift case re-run explicitly (spec §4 step 5)
 
-Zero findings from the changed/new files; the whole-repo count is the
-pre-existing info-level baseline drift (106 — the same count the #1655
-verification recorded).
+G2 (unit) and W2 (`tdd run` preflight wiring): a real entity edit after
+certification refuses with `CertRegistryStatus.stale`, reason prefix
+`mock-cert.UserSession.json is stale:`, fix
+`zfa mock create UserSession --certify`. G5 adds the strongest form: a
+receipt re-touched AFTER a real edit (mtime says fresh, digest says
+stale) still refuses. All three ran green in this session.
 
-Format gate:
+## 3. Mutation audit (the `tdd verify` mutation phase, equivalent path)
 
-```
-dart format --output=none --set-exit-if-changed .
-→ Formatted 2878 files (0 changed)      (exit 0 — zero drift repo-wide;
-  the example/ resolution warning is the Flutter-less sandbox, not drift)
-```
-
-## 2. TDD discipline (REAL runs in this session)
-
-- RED, pre-fix (verbatim in
-  `.specify/bugs/1664-first-refactor-cli-compile/red-evidence.md`):
-
-```
-dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart
-→ 00:00 +0 -1: Some tests failed.
-  loading test/cli/zfa_executable_1664_installed_binary_reuse_test.dart [E]
-  Failed to load "...": Member not found:
-    'ZfaExecutable.currentInstalledBinary'
-```
-
-  A compile-error red because the fix introduces a NEW seam: pre-fix there
-  is no installed-binary awareness in the resolution at all — which IS the
-  bug. The behavioral shape (a `.dart` candidate compiled despite a current
-  installed binary) is what U-1664-b1 pins post-fix.
-
-- GREEN, post-fix:
+`dart run mutation_test mutation-test-1693.xml -f md -o
+mutation-test-1693-report` — scoped by line whitelist to the spec-1693
+freshness block of `cert_registry.dart` (lines 193–242) and the digest
+seam `format_canonical_digest.dart` (lines 38–58); test command
+`bash tools/run-1693-mutation-tests.sh` (the three gate suites, `-j 1`,
+kernel-cache hygiene per the repo convention).
 
 ```
-dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart
-→ 00:00 +9: All tests passed!
+Total tests: 16
+Undetected Mutations: 0 (0.00%)
+Timeouts: 0
+Not covered by tests: 0
+Success: true
 ```
 
-The fix was applied only after the repro suite was proven red; no test was
-edited to make it pass retroactively. The guard tests (b2–b8: stale marker,
-VM driver, missing/empty marker, git failure, non-canonical candidate,
-missing exe) pin the fail-open direction — every unprovable input compiles
-as before.
+First pass: `FAILED: 2/16 (12.50%) mutations were not detected!` — both
+survivors were character-level mutations of the stale-reason string
+literal (`mock-cert` → `mock+cert`), which no test pinned. G2/G4 were
+strengthened to assert the reason prefix
+(`startsWith('mock-cert.Login.json is stale:')`) — a legitimate contract
+pin (the refusal receipt and `zfa tdd status` render this string
+verbatim) — and the audit re-ran clean.
 
-## 5. Regression audit (all green, real runs)
+## 4. Gates
 
-```
-dart test test/cli/zfa_executable_test.dart test/cli/binary_staleness_test.dart
-          test/plugins/tdd/services/step_runner_test.dart
-          test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
-          test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart
-          test/plugins/tdd/services/refactor_passes_test.dart
-→ 00:16 +82: All tests passed!
-   (the direct contracts of the changed file and its consumers: the U1–U10
-   compile-cache contract, the #1184 marker reader, the StepRunner chain
-   with the #1636/#1645 running-binary tiers, and the #689/#717/#1472
-   build-pass resolution)
+- `dart analyze` on the 3 changed lib files, the new helper, and the 3
+  new test files → `No issues found!`
+- `dart format .` → re-check `--set-exit-if-changed` exit 0 (zero
+  remaining diffs across 2947 files).
+- Mapped-scope test run (fresh kernel-cache cleanup per §5):
+  `dart test test/plugins/mock/certification/
+  test/plugins/mock/cert_registry_test.dart
+  test/plugins/tdd/commands/spec_1693_run_gate_format_drift_test.dart
+  test/engine/mock_certifier_test.dart` → `00:14 +55: All tests passed!`
+- Adjacent sweep: `run_engine_command_test.dart` + `test/engine/` +
+  `test/plugins/slice/` → `00:19 +217: All tests passed!`
 
-dart test test/cli/ test/core/ --exclude-tags "flutter || e2e"
-→ 00:57 +901 (1 skipped): All tests passed!
+## 5. Pre-existing failures flagged (not introduced, not fixed here)
 
-dart test test/plugins/tdd/services/
-→ 01:44 +1135: All tests passed!
-```
+`test/integration/mock_certification_e2e_test.dart` (tagged `slow`,
+excluded from the default lane) — 2 of 3 tests fail in THIS environment
+with the sandbox unable to resolve `package:zuraffa/zuraffa.dart` /
+`package:zuraffa/mock.dart` inside the throwaway sandbox project.
+Verified pre-existing by `git stash -u` → re-run on base `a9329746` →
+the same `[E]` at the same assertion. The failure is environmental
+(sandbox framework-root resolution against this machine's pub layout),
+not related to the digest change; it was NOT "fixed" to keep the PR
+minimal and honest.
 
-Full `test/plugins/tdd/commands/` scope (subprocess-heavy, `-j 3`): flaky
-under sandbox load BOTH with and without the change — different single
-tests fail per run (post-fix runs: corpus_status_command / bug_1625
-variants; a stashed PRE-FIX run failed four DIFFERENT tests: bug_1141,
-realize_command, corpus_differential, plan_skin_contract). Every flagged
-test passes in isolation with AND without the change (A/B via
-`git stash`, `+16: All tests passed!` both ways). Pre-existing
-environment flakiness, unrelated to this fix — the fix cannot affect a
-`dart test` driver at all (the VM-shape probe rejects before any I/O, the
-U-1664-b9 wiring pin).
+## 6. Constraints audit
 
-Chunk/cache hygiene: `.dart_tool/test/` and `/tmp/dart_test.kernel.*` were
-cleaned before and after every run; one 8.4G kernel-cache buildup was
-found and removed mid-session (the task's disk-housekeeping rule); disk
-stayed ≥86% free after cleanup.
-
-## 4. Acceptance criteria audit (issue #1664)
-
-1. **First refactor after master bump uses an existing compiled binary (no
-   85s compile)** — PROVED at the seam level: U-1664-b1 returns the running
-   binary for the canonical candidate when the marker equals the checkout
-   HEAD, and the wiring sits AFTER the fresh-cache check and BEFORE the
-   build lock, so the would-compile moment (the exact moment
-   `scripts/rebuild.sh`'s `.dart_tool` wipe creates after every install)
-   resolves to the installed binary instead of `dart compile exe`. Not
-   re-timed end-to-end (the fast-tier convention this repo pins for cloud
-   agents); the issue's own measurement (124.6s → 0.4–0.6s steady band)
-   quantifies the cost being avoided.
-2. **Child seam detects the current installed binary and reuses it** —
-   PROVED: `ZfaExecutable.currentInstalledBinary` is the seam, and
-   `_compileCached` consults it with `Platform.resolvedExecutable` on every
-   cache miss/stale verdict — covering EVERY resolution path that funnels
-   into the compile (StepRunner, PipelineRunner, `zfaBuildCommand`, phase-0,
-   dream/replay/differential), which is the choke point the observed
-   compile argv (`dart compile exe <checkout>/bin/zfa.dart --output
-   <checkout>/.dart_tool/zfa_cli_bin/zfa_exe.tmp`) flows through.
-3. **`.build_commit` comparison prevents stale binary reuse** — PROVED:
-   U-1664-b2 (marker != HEAD → null → compile), U-1664-b4/b5 (missing or
-   empty marker → null), U-1664-b6 (unresolvable HEAD → null). Strict
-   full-SHA equality — no prefix/partial acceptance.
-4. **Steady-state refactor time unchanged (0.4–0.6s)** — PROVED by
-   construction and by tests: the fresh-cache verdict (mtime `_isStale`)
-   runs FIRST and is byte-for-byte unchanged (pre-existing U3 pins
-   reuse-without-compiler-call); the probe adds zero subprocesses for VM
-   drivers (rejected before any I/O) and at most one `git rev-parse` +
-   one marker read for a compiled parent on a cache miss — nanoseconds
-   against a 0.4s step. The pre-existing staleness suites (U4/U5) ran green
-   unchanged.
-
-Hard constraints honored: the fix touches only
-`lib/src/cli/zfa_executable.dart` (+ the new test file). No refactor pass
-logic, no build-relevance gate, no CLI entry point changes — verified by
-`git diff --stat` (129 insertions, one file).
-
-## 5. Verdict
-
-PASS — the child binary resolution now prefers a compiled install proven
-current by its `zfa.build_commit` over an 85s AOT compile, every unprovable
-input fails open to the exact pre-fix behavior, the stale-reuse guard is
-pinned by test, and the warm-cache steady state is untouched.
+1. **Format-only drift is not staleness** — G1/W1 (and the digest-first
+   branch replaced the mtime read for receipts that carry
+   `entity_digest`).
+2. **Real entity source changes still detected** — G2/G3/G5/W2; the
+   mutation audit killed all 16 mutants in the changed logic, including
+   the "ignore digest mismatch" and "digest raw bytes" classes.
+3. **No second certification per entity** — the gate returns
+   `certified` on format-only drift; nothing in the fix path re-runs the
+   sandbox.
+4. **Works under Flutter sandbox certification** — the digest is
+   computed in-process by the driving zfa (`dart_style`, a direct
+   dependency); no toolchain subprocess was added to cert or gate, so
+   the Flutter-host path (spec 1600's `flutterTest` sandbox) is
+   untouched and the recorded digest is toolchain-independent.

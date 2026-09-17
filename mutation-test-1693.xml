@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  mutation-test-1693.xml — scopes mutation_test to the spec-1693 change
+  surface: the cert gate's freshness leg (cert_registry.dart, the
+  "Freshness (spec 1693)" block) and the canonical digest seam
+  (format_canonical_digest.dart). Answers "are the spec-1693 tests strong
+  enough to catch regressions in the format-canonical contract?" —
+  e.g. a mutant that ignores the digest mismatch must be killed by the
+  semantic-drift tests, and a mutant that digests RAW bytes (no
+  canonicalization) must be killed by the format-drift test.
+
+  Run:    dart run mutation_test mutation-test-1693.xml -f md -o mutation-test-1693-report
+-->
+<mutations version="1.2">
+  <files>
+    <file>lib/src/plugins/mock/certification/cert_registry.dart
+      <lines begin="193" end="242"/>
+    </file>
+    <file>lib/src/plugins/mock/certification/format_canonical_digest.dart
+      <lines begin="38" end="58"/>
+    </file>
+  </files>
+  <commands>
+    <command group="test" expected-return="0" working-directory=".">bash tools/run-1693-mutation-tests.sh</command>
+  </commands>
+  <threshold failure="100">
+    <score>80</score>
+  </threshold>
+</mutations>

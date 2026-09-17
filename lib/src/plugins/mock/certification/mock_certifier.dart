@@ -18,6 +18,8 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/dependencies/dependency_wirer.dart';
 import '../../../utils/string_utils.dart';
+import 'cert_registry.dart';
+import 'format_canonical_digest.dart';
 import 'mock_cert_receipt.dart';
 import 'mock_certification_sandbox.dart';
 import 'mock_contract_test_writer.dart';
@@ -256,6 +258,14 @@ class MockCertifier {
       run: run,
       methodNames: pinnedMethodNames,
       seed: seed,
+      // Spec 1693: pin the FORMAT-CANONICAL entity source digest so the
+      // cert gate compares canonical forms — the phase-2 refactor's
+      // `dart format` must not read as staleness. Missing entity file
+      // (entity moved or defined elsewhere) → no digest; the gate keeps
+      // the pre-1693 mtime semantics for this receipt.
+      entityDigest: formatCanonicalDigestOfFile(
+        File(p.join(projectRoot, CertRegistry.entityFileRel(entityName))),
+      ),
     );
 
     return MockCertificationOutcome(
