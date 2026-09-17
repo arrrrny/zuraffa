@@ -65,7 +65,6 @@ void main() {
 
   tearDown(() {
     fx.dispose();
-    exitCode = 0;
   });
 
   Future<String> runView({String? id = 'A-001'}) {
@@ -87,7 +86,7 @@ void main() {
 
     final out = await runView();
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     final subject = await File(fx.subjectPathOf('A-001')).readAsString();
     expect(subject, contains('Text(t.auth.signIn),'));
     expect(subject, isNot(contains("Text('Sign in')")));
@@ -230,7 +229,7 @@ void main() {
 
     final out = await runView();
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('malformed i18n key token'));
     expect(out, contains('outcome=runner-error'));
     expect(
@@ -271,7 +270,6 @@ void main() {
         return (subject, i18n);
       } finally {
         fixture.dispose();
-        exitCode = 0;
       }
     }
 
