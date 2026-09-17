@@ -43,6 +43,9 @@ import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../services/skin_contract_emit.dart';
 import '../../../tdd/services/ui_ledger_builder.dart';
+import '../../../tdd/services/typed_ledger_row.dart';
+import '../../../tdd/services/typed_platform_ledger.dart';
+import '../services/typed_ledger_projection.dart';
 import '../../../skin/contract/adaptive_skin_contract.dart';
 import '../../../skin/contract/adaptive_skin_contract_parser.dart';
 import '../../../core/project/project_root.dart';
@@ -1916,6 +1919,17 @@ class PlanCommand extends Command<void> {
   /// every per-slot row NOT-DONE — visible, never omitted) and the
   /// per-platform kind-coverage heatmap. Returns the written paths (for
   /// the plan's digest-bound receipts).
+  ///
+  /// EPIC 3 / issue #1134, lane 3: the same derivation point writes the
+  /// TYPED ledger pair (`tdd/typed-ledger.md` + `tdd/typed-ledger.json`,
+  /// merging #963 and #966): every row is (surface, kind:
+  /// presence|absence|navigation|state|sequence, status:
+  /// traced|untraced) — kinds assigned from the scenario verbs at plan
+  /// time (the production wiring the typed-ledger library has been
+  /// waiting for). Platform slots additionally render the per-layout
+  /// kind-coverage heatmap (exit criterion 2) and per-slot typed rows.
+  /// The 075 artifacts keep their pinned shape — the typed pair is
+  /// additive (zero drift).
   Future<Map<String, String>> _writeUiLedger(
     Directory outDir, {
     required List<LedgerBehaviorInput> behaviors,
@@ -1955,7 +1969,89 @@ class PlanCommand extends Command<void> {
       '$keyRows key row(s)$platformNote) — the UI surface ledger '
       '(issue #1141)',
     );
+
+    // --- the typed ledger pair (issue #1134 lane 3, #963 + #966) ---
+    final typedPaths = await _writeTypedLedger(
+      outDir,
+      behaviors: behaviors,
+      componentTokens: componentTokens,
+      keys: keys,
+      layoutSlots: layoutSlots,
+    );
+    return {mdPath: 'update', jsonPath: 'update', ...typedPaths};
+  }
+
+  /// The typed ledger artifact pair (issue #1134 lane 3): derives the
+  /// declared typed rows ([TypedLedgerProjection] — kinds from the
+  /// scenario verbs, the #964 taxonomy composition), derives them
+  /// through [TypedLedgerBuilder] with EMPTY green evidence (plan-time:
+  /// every row untraced — visible, never omitted; state recomputes at
+  /// read time), and writes `tdd/typed-ledger.md` +
+  /// `tdd/typed-ledger.json`. The JSON carries the epic's status
+  /// vocabulary (`traced|untraced`) ALONGSIDE the library's pinned
+  /// `state` field. Platform layout slots append the per-layout typed
+  /// section + heatmap (exit criterion 2).
+  Future<Map<String, String>> _writeTypedLedger(
+    Directory outDir, {
+    required List<LedgerBehaviorInput> behaviors,
+    required List<String> componentTokens,
+    required I18nKeyTable keys,
+    List<String> layoutSlots = const [],
+  }) async {
+    final declared = TypedLedgerProjection.declaredRows(
+      behaviors: behaviors,
+      componentTokens: componentTokens,
+      keys: keys,
+    );
+    // Plan-time: no green evidence — every row untraced (the declared
+    // inventory; the verify cycle recomputes with real evidence).
+    final typed = TypedLedgerBuilder.derive(
+      declared: declared,
+      greenBehaviors: const {},
+    );
+    var md = TypedLedgerBuilder.toMarkdown(typed);
+    var json = _typedLedgerJsonWithStatus(typed);
+    if (layoutSlots.isNotEmpty) {
+      final platformTyped = TypedPlatformLedger.derive(
+        typedRows: typed,
+        slots: layoutSlots,
+      );
+      md = '$md\n${TypedPlatformLedger.toMarkdown(platformTyped, layoutSlots)}';
+      json = jsonEncode([
+        ...jsonDecode(json) as List<dynamic>,
+        ...jsonDecode(TypedPlatformLedger.toJson(platformTyped))
+            as List<dynamic>,
+      ]);
+    }
+    final mdPath = p.join(outDir.path, 'typed-ledger.md');
+    final jsonPath = p.join(outDir.path, 'typed-ledger.json');
+    await File(mdPath).writeAsString(md);
+    await File(jsonPath).writeAsString(json);
+    final kindSummary = LedgerRowKind.values
+        .where((k) => typed.any((r) => r.kind == k))
+        .map((k) => k.label)
+        .join(', ');
+    print(
+      'zfa tdd plan: wrote $mdPath (${typed.length} typed row(s), '
+      'kinds: $kindSummary${layoutSlots.isEmpty ? '' : ', ${layoutSlots.length} layout slot(s) heatmap'}) '
+      '— the typed UI coverage ledger (issue #1134, merging #963 + #966)',
+    );
     return {mdPath: 'update', jsonPath: 'update'};
+  }
+
+  /// The typed ledger JSON with the epic's `status` vocabulary riding
+  /// each row (`traced|untraced` — issue #1134's row grammar)
+  /// alongside the library's pinned `state` field.
+  static String _typedLedgerJsonWithStatus(List<TypedLedgerRow> typed) {
+    final rows = (jsonDecode(TypedLedgerBuilder.toJson(typed)) as List)
+        .cast<Map<String, dynamic>>();
+    return jsonEncode([
+      for (final row in rows)
+        <String, Object>{
+          ...row,
+          'status': row['state'] == 'DONE' ? 'traced' : 'untraced',
+        },
+    ]);
   }
 
   /// Bug #1261: the visual-contract guidance, printed per SKIN lane

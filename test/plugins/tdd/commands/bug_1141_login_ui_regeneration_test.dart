@@ -169,10 +169,21 @@ void main() {
     // The keyed surface renders the accessor, never the EN literal.
     expect(subject, contains('Text(t.auth.signIn),'));
     expect(subject, isNot(contains("Text('Sign in')")));
-    // ZERO quoted user-facing strings: no Text('...') literal at all.
+    // ZERO quoted USER-FACING strings: no Text('...') literal at all.
+    // (Issue #1134 lane 1: the fixture's `## Skin Contract`
+    // adaptive_slots now drive the AdaptiveViewState skeleton — the
+    // per-slot `TODO: Implement <View> <slot> layout` placeholders are
+    // the adaptive_layout_scaffold_builder SEAM markers, generator
+    // identity the view command's own #1141 audit allow-lists — never
+    // user-facing copy. They are excluded here exactly like the
+    // audit's markerLiterals excludes them.)
     final quoted = RegExp(
       "Text\\(\\s*(['\"])((?:[^'\\\\]|\\\\.)*?)\\1",
-    ).allMatches(subject).map((m) => m.group(2)).toList();
+    )
+        .allMatches(subject)
+        .map((m) => m.group(2))
+        .where((s) => !(s ?? '').startsWith('TODO: Implement '))
+        .toList();
     expect(
       quoted,
       isEmpty,
@@ -180,6 +191,13 @@ void main() {
           'a keyed regeneration carries no hardcoded strings: '
           '$quoted',
     );
+    // The contract-driven skeleton (issue #1134 lane 1, extending
+    // #1004): the Skin Contract's four runtime slots each get a
+    // layout stub in the SAME generated output.
+    expect(subject, contains('class W1ViewMobileLayout'));
+    expect(subject, contains('class W1ViewIosLayout'));
+    expect(subject, contains('class W1ViewAndroidLayout'));
+    expect(subject, contains('class W1ViewMacosLayout'));
     // The host accessor import landed.
     expect(
       subject,
