@@ -44,8 +44,13 @@
 // only because an unrelated MinIO suite's markTestSkipped counted as a
 // matched suite (probe: `dart test --tags ffi <minio file>` → "All tests
 // skipped", exit 0). Moving that suite into packages/zuraffa_storage
-// emptied the lane for real. B8 pins the lane's EFFECTIVE selector to
-// every ffi-tagged suite so the empty-selection class cannot return.
+// emptied the lane for real. The second trap is the fix itself:
+// package:test gives a named preset's selector configuration priority
+// over the CLI selectors, so `--preset=all --tags ffi` un-scoped the lane
+// to the WHOLE tree and was cancelled at its 30-minute ceiling. B8 pins
+// the lane's EFFECTIVE selector to every ffi-tagged suite AND requires
+// the selection to stay bounded, so neither the empty-lane nor the
+// whole-tree class can return.
 //
 // Behaviors:
 //   B1 — every regression-tier test file carries the `regression` tag.
@@ -278,7 +283,8 @@ Future<void> main() async {
     );
   });
 
-  test('B8: the ffi golden lane selects its ffi-tagged content (#1678)', () {
+  test('B8: the ffi golden lane selects its ffi-tagged content and stays '
+      'scoped (#1678)', () {
     final ffiTagged = <String, Set<String>>{};
     for (final entity in testDir.listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('_test.dart')) continue;
@@ -305,9 +311,11 @@ Future<void> main() async {
     }
     expect(laneRun, isNotNull, reason: 'the ffi lane test step vanished');
 
-    // The lane's EFFECTIVE selector: --tags / --preset on the command,
-    // resolved against the preset it names (a preset's exclude_tags
-    // replaces the global one — `--preset=all` sets it to false).
+    // The lane's EFFECTIVE selector. package:test semantics (verified
+    // against a probe package): when a preset is named, the PRESET's
+    // selector configuration wins and the CLI tag selectors are ignored
+    // (`--preset=alpha --tags beta` runs alpha's include_tags). Without a
+    // preset, the CLI selectors apply on top of the global config.
     final presetMatch = RegExp(r'--preset=(\S+)').firstMatch(laneRun!);
     final tagsMatch = RegExp(
       r'''--tags\s+(?:"([^"]*)"|'([^']*)'|(\S+))''',
@@ -315,11 +323,26 @@ Future<void> main() async {
     final preset = presetMatch == null
         ? null
         : presets?[presetMatch.group(1)!] as YamlMap?;
-    final include =
-        (tagsMatch?.group(1) ?? tagsMatch?.group(2) ?? tagsMatch?.group(3)) ??
-        preset?['include_tags'] ??
-        doc['include_tags'];
+    final include = preset != null
+        ? preset['include_tags']
+        : (tagsMatch?.group(1) ?? tagsMatch?.group(2) ?? tagsMatch?.group(3)) ??
+              doc['include_tags'];
     final exclude = preset?['exclude_tags'] ?? doc['exclude_tags'];
+
+    // Boundedness: an include filter or an explicit path argument keeps
+    // the lane scoped. `--preset=all --tags ffi` was neither (the `all`
+    // preset has no include_tags and the CLI tags were ignored) — the
+    // lane ran the WHOLE tree, slow/benchmark/property tiers included,
+    // and was cancelled at its 30-minute ceiling.
+    final bounded = include != null || laneRun.contains('test/');
+    expect(
+      bounded,
+      isTrue,
+      reason:
+          'the ffi lane must scope its selection: a preset without '
+          'include_tags (or a bare --exclude-tags) lets the whole tree '
+          'in — "$laneRun" (include: $include)',
+    );
 
     for (final entry in ffiTagged.entries) {
       expect(
@@ -328,9 +351,9 @@ Future<void> main() async {
         reason:
             '${entry.key} carries `ffi` but the lane selector "$laneRun" '
             '(include: $include, exclude: $exclude) does not select it — '
-            'a vacuous lane: `--tags ffi` alone solved against the '
-            'default `exclude_tags: slow` selected NOTHING, and the job '
-            "stayed green only through an unrelated suite's "
+            'the empty-selection class: `--tags ffi` alone solved against '
+            'the default `exclude_tags: slow` selected NOTHING, and the '
+            "job stayed green only through an unrelated suite's "
             'markTestSkipped (#1678)',
       );
     }

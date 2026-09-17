@@ -267,7 +267,11 @@ jobs:
         # and the job stayed green only because an unrelated MinIO suite's
         # markTestSkipped counted as a matched suite — until #1678 moved
         # that suite into packages/zuraffa_storage and the long-dormant
-        # lane failed honestly. --preset=all lifts the `slow` exclusion;
-        # `--tags ffi` keeps the selection scoped to this lane (it is NOT
-        # --preset=integration).
-        run: dart test --preset=all --tags ffi
+        # lane failed honestly. The lane needs BOTH the tag scoping and
+        # the lift of the `slow` exclusion, and a preset's selector
+        # configuration wins over CLI selectors — `--preset=all --tags
+        # ffi` un-scoped the run to the WHOLE tree (slow/benchmark/
+        # property suites included) and died at this job's 30-minute
+        # ceiling. The dedicated `ffi` preset carries both halves
+        # (dart_test.yaml); it is NOT --preset=integration.
+        run: dart test --preset=ffi

@@ -114,3 +114,14 @@ presets:
   flutter:
     include_tags: flutter
     exclude_tags: "false"
+  ffi:
+    # The ffi_golden_lane's selector (#1678): the include filter AND the
+    # lift of the default `exclude_tags: slow` in one place. A preset's
+    # selector configuration WINS over the CLI selectors (verified:
+    # `--preset=<p> --tags <t>` runs <p>'s include_tags, not <t>'s), so
+    # `dart test --preset=all --tags ffi` was NOT the ffi lane — `all`
+    # has no include_tags, which un-scopes the run to the WHOLE tree
+    # (observed: the job executed slow/benchmark/property suites and hit
+    # its 30-minute ceiling). Keep the lane command as `--preset=ffi`.
+    include_tags: ffi
+    exclude_tags: "false"
