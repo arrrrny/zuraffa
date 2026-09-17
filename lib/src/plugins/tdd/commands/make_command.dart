@@ -113,6 +113,7 @@ import '../services/contract_blocked_receipt.dart';
 import '../services/hand_surface.dart';
 import '../services/vacuous_guard.dart';
 import '../services/scalar_dummy_subject.dart';
+import '../services/scaffold_attempt_forecast.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../services/widget_scaffold.dart';
@@ -1834,6 +1835,68 @@ class MakeCommand extends Command<void> {
         }
       }
 
+      // -------------------------------------------------------------
+      // 6b. The #1689 pre-flight: the func pass's #1517 zero-value
+      //     scaffold can never satisfy the paired test's scenario-
+      //     derived value assertion (#1679). When the plan schedules a
+      //     func step for gen's parametrized scalar stub whose declared
+      //     return scaffolds a literal dummy, and the paired test
+      //     asserts a DIFFERENT concrete outcome, the attempt (func
+      //     write + target test + restore) is provably guaranteed-
+      //     failing work — stop at the hand step BEFORE spending it:
+      //     the same honest stop the post-generation failure prescribed
+      //     (outcome=generation-error, recovery = hand-implement),
+      //     minus the 30–40s. Position: AFTER the drift check (the #694
+      //     skip transition must keep its chance to certify a hand-
+      //     implemented subject — a gate before the drift run would
+      //     refuse makes that should have been skips) and AFTER the
+      //     plan (the gate needs the plan's func fact, and the #1565
+      //     skip must win first) and BEFORE the #1036 snapshot /
+      //     SourceWriteProbe / runPlan (nothing has been mutated here,
+      //     so no restore machinery is needed). Fail-open on every
+      //     unreadable/foreign shape; the gate keys on the scaffold
+      //     being a zero-value literal, so it goes silent by itself
+      //     when func grows real generation (the issue's constraint 4).
+      //     Non-scenaried behaviors (guard-only, type-only + marker)
+      //     carry no equals(<literal>) value assertion and are never
+      //     skipped by it — their fast refusals (3c/9b) stand unchanged.
+      // -------------------------------------------------------------
+      if (vacuousRowKind == BehaviorKind.unit &&
+          !effectivePlan.funcStepSkipped &&
+          effectivePlan.steps.any(
+            (step) =>
+                step.args.length >= 2 &&
+                step.args[0] == 'tdd' &&
+                step.args[1] == 'func',
+          )) {
+        final forecast = await _wouldNeverPassForecast(
+          cwd: cwd,
+          record: record,
+        );
+        if (forecast != null) {
+          print(
+            'zfa tdd make: behavior "${record.behaviorId}" make attempt '
+            'would never pass (issue #1689): the func pass scaffolds the '
+            '#1517 zero-value dummy (`return ${forecast.dummyLiteral};`) '
+            'for the declared `${forecast.returnType}` return, but the '
+            'paired test asserts a different concrete outcome '
+            '(equals(${forecast.expectedLiteral})) — a zero-value scaffold '
+            'can never satisfy a value assertion naming another literal, '
+            'so the attempt is guaranteed-failing work.',
+          );
+          print(
+            '   --> fix: ${wouldNeverPassRemedy(behaviorId: record.behaviorId, subjectPath: record.subjectPath, testPath: record.testPath)}',
+          );
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.wouldNeverPass,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
+      }
+
       // 7. Execute the plan via the pipeline (FR-006, US1 / U8-U13).
       //     Issue #1036: snapshot the subject first — a FAILED make must
       //     leave the subject byte-identical to what it found, so the
@@ -2682,6 +2745,42 @@ class MakeCommand extends Command<void> {
       );
     } on FileSystemException {
       return false;
+    }
+  }
+
+  /// Issue #1689: the pre-flight forecast for the plan's func pass —
+  /// what it will scaffold for this behavior, and the paired test's
+  /// first value assertion that scaffold provably cannot satisfy. Null
+  /// (the attempt runs exactly as before) when the pair is NOT the
+  /// scenario-assertion × zero-scaffold intersection: a missing or
+  /// unreadable subject/test (fail-open — the gate never refuses on
+  /// absence of evidence), a foreign stub shape, a non-literal scaffold,
+  /// or no discriminating value assertion. The predicate itself is
+  /// single-sourced in [forecastMakeAttempt]; this wrapper owns only the
+  /// best-effort file reads (the `_subjectWouldMakeFuncRefuse`
+  /// convention).
+  Future<ScaffoldAttemptForecast?> _wouldNeverPassForecast({
+    required String cwd,
+    required ArtifactRecord record,
+  }) async {
+    final subjectPath = p.isAbsolute(record.subjectPath)
+        ? record.subjectPath
+        : p.join(cwd, record.subjectPath);
+    final testPath = p.isAbsolute(record.testPath)
+        ? record.testPath
+        : p.join(cwd, record.testPath);
+    try {
+      final subjectFile = File(subjectPath);
+      final testFile = File(testPath);
+      if (!await subjectFile.exists() || !await testFile.exists()) {
+        return null;
+      }
+      return forecastMakeAttempt(
+        subjectSource: await subjectFile.readAsString(),
+        testSource: await testFile.readAsString(),
+      );
+    } on FileSystemException {
+      return null;
     }
   }
 

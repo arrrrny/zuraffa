@@ -1,52 +1,32 @@
-# TDD test list — Bug #1664 first refactor after a master bump compiles the zfa CLI (~85s) even when the parent runs from a current installed binary
+# TDD test list — SPEC 1689: scenario × zero-scaffold fast stop (skip the guaranteed-failing make attempt)
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| U-1664-b1 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a current installed binary (`zfa.build_commit` == checkout HEAD) is returned for the canonical `bin/zfa.dart` candidate — the ~85s compile never happens (the issue's bug) | issue #1664 criteria 1–2 | RED → GREEN |
-| U-1664-b2 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a marker that disagrees with the checkout HEAD forbids the reuse — the stale-install guard | criterion 3 | RED → GREEN |
-| U-1664-b3 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a Dart-VM running executable never reuses (source/test drivers keep the compile-cache contract); rejected before any git probe | criterion 4 (steady state) | RED → GREEN |
-| U-1664-b4 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | no `zfa.build_commit` marker (pre-#1184 install, the `scripts/zfa` cache artifact) — reuse is unprovable, compile as today | fail-open soundness | RED → GREEN |
-| U-1664-b5 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | an empty/whitespace marker — reuse is unprovable | fail-open soundness | RED → GREEN |
-| U-1664-b6 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a failed git probe (not a repo, exit 128) falls through to the compile path | fail-open soundness | RED → GREEN |
-| U-1664-b7 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a non-canonical candidate (a custom `--zfa-bin` fixture script) never reuses the zfa binary; rejected before any git probe | fix-scope guard | RED → GREEN |
-| U-1664-b8 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a missing running executable never reuses | fail-open soundness | RED → GREEN |
-| U-1664-b9 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a VM-driven cache miss still compiles through the injected runner; the compiler fake never sees a git argv (the probe rides its own runner) | wiring unchanged (U2 contract) | GREEN |
+| U-1689-b1 | test/plugins/tdd/services/scaffold_attempt_forecast_test.dart | unit | an `int` gen stub (`return`-predicted `0`) + a test asserting `equals(5)` — the forecast fires: int / `0` / `5` (the issue's zcalc3 U1 shape) | issue #1689 constraint 1 | RED → GREEN |
+| U-1689-b2 | test/plugins/tdd/services/scaffold_attempt_forecast_test.dart | unit | a `double` stub + `equals(2.0)` fires; `String` stub + `equals('Hello Alice')` fires (the name-dummy differs); `bool` stub + `equals(false)` fires | the literal-dummy vocabulary | RED → GREEN |
+| U-1689-b3 | test/plugins/tdd/services/scaffold_attempt_forecast_test.dart | unit | zero-matching literals stay SILENT: `equals(0)` vs int, `equals(0.0)` vs int (Dart `num` equality), `equals(true)` vs bool, `equals('<fn name>')` vs String — the attempt may legitimately pass | FR-004, acceptance 2 | RED → GREEN |
+| U-1689-b4 | test/plugins/tdd/services/scaffold_attempt_forecast_test.dart | unit | non-literal scaffolds stay silent: `void`, `num`, `int?` (nullable), `Object`, entity tokens — the still-red UnimplementedError branch, not a zero value | FR-001 fail-open | RED → GREEN |
+| U-1689-b5 | test/plugins/tdd/services/scaffold_attempt_forecast_test.dart | unit | a marker-less (hand-authored) subject never fires — the gen provenance marker is part of the proof | FR-001 provenance safety | RED → GREEN |
+| U-1689-b6 | test/plugins/tdd/services/scaffold_attempt_forecast_test.dart | unit | a legacy no-arg stub never fires — the description-derived body is a different scaffold the gate must not speak for | FR-001 | RED → GREEN |
+| U-1689-b7 | test/plugins/tdd/services/scaffold_attempt_forecast_test.dart | unit | non-stub subjects never fire: a dummy `return 0;` body, a real implementation, the contract-derived entity-typed stub (#1565) — `funcRewritableStubPattern` misses | acceptance 4 | RED → GREEN |
+| U-1689-b8 | test/plugins/tdd/services/scaffold_attempt_forecast_test.dart | unit | guard-only and type-only+marker tests (the non-scenaried shapes) never fire — no `equals(<literal>)` in the assertion set | constraint 3, acceptance 3 | RED → GREEN |
+| U-1689-b9 | test/plugins/tdd/services/scaffold_attempt_forecast_test.dart | unit | unparseable matcher args (`equals(result)`, escaped-quote strings) never discriminate — fail-open, the attempt runs | FR-004 | RED → GREEN |
+| U-1689-b10 | test/plugins/tdd/services/scaffold_attempt_forecast_test.dart | unit | mixed-kind literals discriminate (`equals('5')` vs an int dummy) and the forecast reports the FIRST offending literal verbatim | FR-004 | RED → GREEN |
+| E-1689-e1 | test/plugins/tdd/commands/bug_1689_scenario_zero_scaffold_fast_stop_e2e_test.dart | e2e | the scenaried make (stub + `equals(5)`) stops `outcome=would-never-pass` BEFORE the pipeline: zero zfa spawns in the argv log, the #1689 diagnosis + hand-step remedy printed, exit 1, no green evidence, subject byte-identical, wall time printed | SC-001/SC-002, acceptance 1 | RED → GREEN |
+| E-1689-e2 | test/plugins/tdd/commands/bug_1689_scenario_zero_scaffold_fast_stop_e2e_test.dart | e2e | guard-only behavior: `outcome=vacuous-green` at the 3c preflight — unchanged fast refusal, no func spawn | SC-003, acceptance 3 | GREEN (pin) |
+| E-1689-e3 | test/plugins/tdd/commands/bug_1689_scenario_zero_scaffold_fast_stop_e2e_test.dart | e2e | type-only + marker over a dummy subject: `outcome=vacuous-green` at the 9b gate — unchanged refusal shape | SC-003, acceptance 3 | GREEN (pin) |
+| E-1689-e4 | test/plugins/tdd/commands/bug_1689_scenario_zero_scaffold_fast_stop_e2e_test.dart | e2e | zero-matching `equals(0)` over the stub: the gate stays silent — `tdd func` SPAWNS (the #1587 argv log observes it), the outcome is not `would-never-pass` | acceptance 2 | RED → GREEN |
+| E-1689-e5 | test/plugins/tdd/commands/bug_1689_scenario_zero_scaffold_fast_stop_e2e_test.dart | e2e | a real implementation with a discriminating scenario test certifies via the unchanged skip transition: `outcome=skipped`, green evidence appended | acceptance 5 | GREEN (pin) |
 
 Guard pins (pre-existing, unchanged and green against the fix):
 
 | id | suite | description |
 | -- | ----- | ----------- |
-| U2/U3/U4/U5 | test/cli/zfa_executable_test.dart | compile-on-miss argv, fresh-cache reuse (criterion 4's cache-wins-first), lib/ and pubspec staleness — the compile-cache contract the probe must not disturb |
-| #1636 B1–B5 | test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart | the StepRunner running-binary tier order — untouched |
-| #1645 | test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart | the PipelineRunner running-binary tier — untouched |
-| #1184 | test/cli/binary_staleness_test.dart | the `zfa.build_commit` marker reader this fix imports (`zfaBuildCommitMarker`) — unchanged |
+| #1651 U1/U2 | test/plugins/tdd/commands/bug_1651_vacuous_green_e2e_test.dart | the scenario-derived assertion derivation + the dummy-fails-value-assertion pair — untouched |
+| #1651 U3/U4 | test/plugins/tdd/commands/bug_1651_vacuous_green_e2e_test.dart | the 9b placeholder refusal + the real-implementation skip — untouched |
+| #1651 services | test/plugins/tdd/bug_1651_scenario_assertions_test.dart, test/plugins/tdd/services/scenario_example_1651_test.dart, test/plugins/tdd/commands/bug_1651_make_dummy_green_refusal_test.dart | the #1679 derivation and the #1651 gate pins — untouched |
 
 ## Red evidence (pre-fix, this session)
 
-Verbatim runs preserved in
-`.specify/bugs/1664-first-refactor-cli-compile/red-evidence.md`:
-
-- Suite 1 (new, pre-fix):
-  `dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`
-  → `00:00 +0 -1: Some tests failed.` — the file fails to LOAD:
-  `Error: Member not found: 'ZfaExecutable.currentInstalledBinary'`. The
-  compile-error red is the honest first red for a NEW seam: it proves the
-  child binary resolution has NO installed-binary awareness — the issue's
-  root cause. With the API's logic in place pre-fix, U-1664-b1 would have
-  returned null (compile as today) instead of the running binary.
-
-## Green evidence (post-fix, this session)
-
-- `dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`
-  → `00:00 +9: All tests passed!`
-- `dart test test/cli/zfa_executable_test.dart
-  test/cli/binary_staleness_test.dart
-  test/plugins/tdd/services/step_runner_test.dart
-  test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
-  test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart
-  test/plugins/tdd/services/refactor_passes_test.dart`
-  → `00:16 +82: All tests passed!`
-- `dart test test/cli/ test/core/ --exclude-tags "flutter || e2e"`
-  → `00:57 +901 (1 skipped): All tests passed!`
-- `dart test test/plugins/tdd/services/`
-  → `01:44 +1135: All tests passed!`
+Recorded in `tdd/verification.md` § Red (the e2e probe run against base
+`a9329746` and the unit suite's compile-error red for the new seam).
