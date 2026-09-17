@@ -156,7 +156,27 @@ class _GenerateDelegateCommand extends Command<void> {
       exitCode = ExitProtocol.usage;
       return;
     }
-    final exe = await ZfaExecutable.ensureCompiled(entry);
+    // Issue #1690 §2: the companion compile must resolve through THIS
+    // project's package config. Without it, a hosted companion's compile
+    // falls back to the candidate's own root — a pub-cache package dir
+    // with a pubspec.yaml but no package config — and runs Dart's implicit
+    // `pub get` inside the shared pub cache. The gate proved the config
+    // exists (isResolvable reads it); a null here is a mid-run race, and
+    // refusing beats silently resurrecting the pub-cache-mutating seam.
+    final packagesFile = PluginGate.packageConfigPath();
+    if (packagesFile == null) {
+      print(
+        '\u274c .dart_tool/package_config.json is missing \u2014 the graphql '
+        'companion needs the project\u2019s package resolution to compile.\n'
+        "   --> fix: run 'dart pub get' in this project",
+      );
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    final exe = await ZfaExecutable.ensureCompiled(
+      entry,
+      packagesFile: packagesFile,
+    );
     final argv = ZfaExecutable.commandFor(exe, [
       'generate',
       ...argResults!.arguments,

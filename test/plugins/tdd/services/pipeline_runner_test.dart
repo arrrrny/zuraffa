@@ -510,10 +510,11 @@ esac
         pathEnvOverride: '/nonexistent-zfa-path-dir',
         // The no-JIT seam: the source is AOT compiled before the spawn, so
         // no real `dart compile exe` and no `dart <script>` child here.
-        ensureCompiled: (candidate, {sourceRoot, runner, environment}) async {
-          compiled.add(candidate);
-          return fakeCompiled;
-        },
+        ensureCompiled:
+            (candidate, {sourceRoot, packagesFile, runner, environment}) async {
+              compiled.add(candidate);
+              return fakeCompiled;
+            },
       );
 
       expect(compiled, [sourceScript]);
