@@ -112,6 +112,7 @@ import '../services/tdd_timeout.dart';
 import '../services/contract_blocked_receipt.dart';
 import '../services/hand_surface.dart';
 import '../services/vacuous_guard.dart';
+import '../services/scalar_dummy_subject.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../services/widget_scaffold.dart';
@@ -1202,7 +1203,30 @@ class MakeCommand extends Command<void> {
         vacuousRowKind == BehaviorKind.acceptance;
     if (vacuousLaneScoped && scaffoldCheckFile.existsSync()) {
       final testContent = await scaffoldCheckFile.readAsString();
-      if (contentIsVacuousGreen(testContent)) {
+      // Issue #1651 (merge reconciliation with master's #1667 rule): a
+      // UNIT pair whose test assertion set is TYPE-ONLY (not the bare
+      // guard) and whose subject body is a scalar dummy is the 9b
+      // PLACEHOLDER class — deferred HERE so the 9b gate adjudicates it
+      // with the pair's declared routing + the spec's scenarios (the
+      // #1310 exemption and the pair-probed placeholder remedy,
+      // single-sourced with the run driver's stop). Without the
+      // deferral this blunt rule shadows 9b wholesale and its
+      // guard-only wording misnames the class.
+      var placeholderClassOnDisk = false;
+      if (vacuousRowKind == BehaviorKind.unit &&
+          contentIsTypeOnlyAssertion(testContent)) {
+        final placeholderProbe = File(
+          p.isAbsolute(record.subjectPath)
+              ? record.subjectPath
+              : p.join(cwd, record.subjectPath),
+        );
+        placeholderClassOnDisk =
+            placeholderProbe.existsSync() &&
+            contentCarriesScalarDummyBody(
+              await placeholderProbe.readAsString(),
+            );
+      }
+      if (!placeholderClassOnDisk && contentIsVacuousGreen(testContent)) {
         final description = _descriptionFor(record);
         // Issue #1488 (review): the remedy is LANE-BRANCHED. The unit-lane
         // remedy is an assertion on the capture's observable outcome; the
@@ -2422,6 +2446,89 @@ class MakeCommand extends Command<void> {
         );
         exitCode = 1;
         return;
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // 9b. Placeholder subjects cannot certify green (issue #1651 — the
+    //     successor to the #1259 gate at 3c). A unit subject whose body
+    //     is a scalar dummy (`int add(int a, int b) { return 0; }`, the
+    //     #1517 func scaffold) satisfies every TYPE-only assertion — the
+    //     post-#1259 generated shape (`expect(result, isA<int>())`) — so
+    //     the test passes, green certifies, and the receipt reports
+    //     complete with zero declared-contract code on disk. The gate
+    //     pairs the SUBJECT-side dummy detector with the TEST-side
+    //     type-only classifier: a test that asserts at least one VALUE
+    //     (a scenario literal, `equals(5)`) fails the dummy at runtime
+    //     (the honest red, remediation 1), so only the type-only class
+    //     can reach this point GREEN — and that green proves nothing.
+    //     Scoped to UNIT rows (the acceptance lane's contract is
+    //     untouched; its void scenario runner has no value to assert).
+    //     The refusal reuses the #1259 outcome class (`vacuous-green`) —
+    //     the run driver's stop arms own the loop semantics and the
+    //     receipt schema is unchanged. The skip transition (#694: the
+    //     drift re-run already passed) reaches the same gate — a
+    //     placeholder green cannot sneak in through re-makes either.
+    //
+    //     Merge reconciliation (review of the #1679 merge): the #1310
+    //     floor exemption is GONE — master's #1667 (step 3c's type-only
+    //     strip, the marker contract) and this pair probe agree on the
+    //     verdict for every placeholder pair, and master's pins flipped
+    //     the old certify-over-dummy expectations to refusals. The pair
+    //     is refused regardless of declared routing or scenario
+    //     derivability; when the spec carries no derivable example, the
+    //     author writes the outcome-VALUE assertion by hand (the refusal
+    //     names the marker and both artifact paths). This gate stays the
+    //     SECOND line for the class 3c defers here — the pair probe
+    //     yields the accurate placeholder wording where 3c's blunt rule
+    //     would misname a type-only test as "only the guard".
+    // ---------------------------------------------------------------
+    if (vacuousRowKind == BehaviorKind.unit) {
+      final subjectFilePath = p.isAbsolute(record.subjectPath)
+          ? record.subjectPath
+          : p.join(cwd, record.subjectPath);
+      final subjectFileForGate = File(subjectFilePath);
+      if (await subjectFileForGate.exists()) {
+        final subjectContent = await subjectFileForGate.readAsString();
+        final gateTestFile = File(testPath);
+        final gateTestContent = gateTestFile.existsSync()
+            ? await gateTestFile.readAsString()
+            : '';
+        final mustRefuse = scalarDummyGreenMustRefuse(
+          subjectSource: subjectContent,
+          testSource: gateTestContent,
+        );
+        if (mustRefuse) {
+          final remedy = scalarDummyGreenRemedy(
+            behaviorId: record.behaviorId,
+            testPath: record.testPath,
+            subjectPath: record.subjectPath,
+          );
+          // Master's #1667 marker contract: a generated type-only
+          // scalar test carries the marker, and the refusal must name
+          // it (the marker is the machine-readable seam the author
+          // removes with the value assertion).
+          final markerNote = gateTestContent.contains(vacuousGuardMarker)
+              ? ' Remove the $vacuousGuardMarker marker once the value '
+                    'assertion lands.'
+              : '';
+          print(
+            'zfa tdd make: behavior "${record.behaviorId}" test is '
+            'VACUOUS-GREEN over a PLACEHOLDER subject — the subject body '
+            'is a scalar dummy (${record.subjectPath}) and the test\'s '
+            'assertion set is type-only (issue #1651). A green here '
+            'proves nothing about the behavior: the dummy satisfies any '
+            '`isA<T>()` check with zero declared-contract code.',
+          );
+          print('   --> fix: $remedy$markerNote');
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.vacuousGreen,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
       }
     }
 

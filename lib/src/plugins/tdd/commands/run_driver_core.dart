@@ -51,6 +51,7 @@ import 'package:path/path.dart' as p;
 import '../models/behavior.dart';
 import '../models/cycle_entry.dart';
 import '../models/run_state.dart';
+import '../models/artifact_record.dart';
 import '../services/artifact_registry.dart';
 import '../services/arg_placeholder.dart';
 import '../services/born_green.dart';
@@ -69,6 +70,7 @@ import '../services/run_baseline_cache.dart';
 import '../services/corpus_baseline_cache.dart';
 import '../services/run_state_store.dart';
 import '../services/runner.dart';
+import '../services/scalar_dummy_subject.dart';
 import '../services/spec_parser.dart';
 import '../services/step_runner.dart';
 import '../services/tree_snapshot.dart';
@@ -2689,6 +2691,44 @@ class RunDriverCore {
               refactorBlocked: false,
             );
           }
+          // Issue #1651: the PLACEHOLDER arm — the fallback vocabulary
+          // above says "GUARD-ONLY", which is false for the dummy class:
+          // the test carries a real expect (`isA<int>()`), it just
+          // asserts no VALUE, so the #1517 func-scaffold dummy
+          // (`return 0;`) satisfies it. When the registry record's
+          // subject body is the scalar dummy and the test is type-only,
+          // the stop names the placeholder remedy (make's refusal line,
+          // single-sourced) while the machine contract below is
+          // unchanged. Fail-open on any missing artifact — the fallback
+          // arm keeps serving shapes this probe cannot classify.
+          if (row.kind == BehaviorKind.unit) {
+            final placeholderRecord = await registry.findRecord(row.id);
+            final dummyDetected = await _placeholderGreenDetected(
+              projectRoot: projectRoot,
+              record: placeholderRecord,
+            );
+            if (dummyDetected) {
+              print(
+                '   the generated test asserts NO VALUE — its matcher set '
+                'is type-only, and the paired subject body is a scalar '
+                'dummy that satisfies every type check (issue #1651). '
+                'make refuses it vacuous-green.',
+              );
+              print(
+                '   --> fix: ${scalarDummyGreenRemedy(behaviorId: row.id, testPath: placeholderRecord!.testPath, subjectPath: placeholderRecord.subjectPath)}',
+              );
+              return (
+                state: updated,
+                stop: (
+                  result: 'stopped',
+                  stoppedAt: '${row.id}:make',
+                  exitCode: _exitStopped,
+                  message: null,
+                ),
+                refactorBlocked: false,
+              );
+            }
+          }
           // Issue #1420: the "no traces" claim is a FACT about the traces
           // cell, not a constant — probe the declared routing (the same
           // single-sourced resolution gen consumes) before printing it. A
@@ -3540,6 +3580,45 @@ class RunDriverCore {
     if (testPath == null) return false;
     try {
       return File(testPath).readAsStringSync().contains(scaffoldedMarker);
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  /// Issue #1651: whether the registry [record]'s artifact state is the
+  /// placeholder-green class — the subject body is a scalar dummy AND
+  /// the paired test's assertion set is type-only. Both reads fail OPEN
+  /// (the same contract as the marker probe above): a missing or
+  /// unreadable artifact keeps the fallback arm serving the stop.
+  ///
+  /// The classification rides the ONE decision predicate make's 9b gate
+  /// uses ([scalarDummyGreenMustRefuse]) so the two surfaces never
+  /// disagree: the verdict is master's #1667 policy — the type-only
+  /// class is refused whether or not the test carries the marker, and
+  /// the pair's declared routing / the spec's scenarios do NOT exempt
+  /// it (the #1310-floor exemption was removed by the #1679 merge
+  /// review, keeping make's step 3c and this probe in lockstep).
+  Future<bool> _placeholderGreenDetected({
+    required String projectRoot,
+    required ArtifactRecord? record,
+  }) async {
+    if (record == null) return false;
+    try {
+      final subjectPath = p.isAbsolute(record.subjectPath)
+          ? record.subjectPath
+          : p.join(projectRoot, record.subjectPath);
+      final testPath = p.isAbsolute(record.testPath)
+          ? record.testPath
+          : p.join(projectRoot, record.testPath);
+      final subjectFile = File(subjectPath);
+      final testFile = File(testPath);
+      if (!subjectFile.existsSync() || !testFile.existsSync()) return false;
+      final subjectContent = await subjectFile.readAsString();
+      final testContent = await testFile.readAsString();
+      return scalarDummyGreenMustRefuse(
+        subjectSource: subjectContent,
+        testSource: testContent,
+      );
     } on FileSystemException {
       return false;
     }

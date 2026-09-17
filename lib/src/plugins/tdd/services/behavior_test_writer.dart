@@ -26,6 +26,7 @@ import 'package:path/path.dart' as p;
 import '../models/behavior.dart';
 import 'finder_taxonomy.dart';
 import 'i18n_key_contract.dart';
+import 'scenario_example.dart';
 import 'unit_contract_shape.dart';
 import 'vacuous_guard.dart';
 import 'widget_scaffold.dart';
@@ -49,6 +50,7 @@ class BehaviorTestWriter {
     this.i18nImport,
     this.i18nExpansion = const [],
     this.contractShape,
+    this.scenarioExample,
     this.flutterTest = false,
     this.projectRoot,
     this.featureDir,
@@ -84,6 +86,19 @@ class BehaviorTestWriter {
   /// declared outcome is asserted through the composition lane the planner
   /// routes to (`generation_planner.dart` branch 3b).
   final UnitContractShape? contractShape;
+
+  /// The acceptance scenario's concrete example values (issue #1651):
+  /// when the spec's scenarios carry the declared contract's example
+  /// (`Given 2 and 3 ... Then the sum 5`), the paired UNIT test calls
+  /// the subject with the scenario's arguments and asserts the
+  /// scenario's concrete outcome (`expect(result, equals(5))`) instead
+  /// of the type-only `isA<T>()` check the scaffold representative
+  /// arguments satisfy — the assertion DISCRIMINATES, so a
+  /// `return 0;` dummy fails the test. Null (no matching scenario)
+  /// keeps the legacy declared shape byte-for-byte. UNIT-lane only:
+  /// the acceptance lane ignores it (its void-safe capture is
+  /// argument-free by design, issue #1512).
+  final ScenarioExample? scenarioExample;
 
   /// Whether the host project runs on the Flutter test runner
   /// (`flutter_test`) instead of plain `dart test` (issue #1349/#1351
@@ -419,26 +434,37 @@ void main() {
 
   /// The contract-derived assertion surface (issue #1259).
   ///
-  /// Scalar declared returns assert the declared outcome type
-  /// (`expect(result, isA<bool>())`) — an assertion ON the observable
-  /// outcome surface the spec declared, never the bare guard. Issue
-  /// #1651: a type check alone is still a VACUOUS green — the #1517
-  /// func pass fills the subject with `return 0;`, which satisfies it —
-  /// so the SCALAR typed assertion carries the [vacuousGuardMarker]
-  /// ([typeOnlyVacuousGuardComment]) and `make` refuses the dummy-body
-  /// green until the author replaces it with an outcome-VALUE assertion.
-  /// An EXISTING entity return's `isA<Entity>()` carries NO marker
-  /// (review of #1667): the #1517 dummy cannot satisfy an entity type —
-  /// the assertion fails red on its own, so it discriminates. A MISSING
-  /// entity keeps `scalarOutcome` false — the red surface starts at the
-  /// guard, which carries the same marker with the same contract.
+  /// Scalar declared returns assert the declared outcome surface. Issue
+  /// #1651: when a scenario example resolved (the spec's acceptance
+  /// scenarios carry the declared method's concrete example), the
+  /// assertion pins the CONCRETE outcome (`expect(result, equals(5))`)
+  /// and the capture passes the scenario's arguments — a `return 0;`
+  /// dummy satisfies a type check but fails a value assertion. With NO
+  /// scenario value the type-only `isA<T>()` check stands as the
+  /// FALLBACK — and (review of #1667) a type check alone is still a
+  /// VACUOUS green, because the #1517 func pass fills the subject with
+  /// `return 0;`, which satisfies it — so the scalar typed fallback
+  /// carries the [vacuousGuardMarker] ([typeOnlyVacuousGuardComment])
+  /// and `make` refuses the dummy-body green until the author replaces
+  /// it with an outcome-VALUE assertion. An EXISTING entity return's
+  /// `isA<Entity>()` carries NO marker: the #1517 dummy cannot satisfy
+  /// an entity type — the assertion fails red on its own, so it
+  /// discriminates. A MISSING entity keeps `scalarOutcome` false — the
+  /// red surface starts at the guard, which carries the same marker
+  /// with the same contract.
   String _declaredAssertion(
     Behavior b,
     String target,
     UnitContractShape shape,
   ) {
-    final capture = _captureInvocation(b, target, shape);
     if (shape.scalarOutcome) {
+      final scenarioArgs = _scenarioArgumentExpressions(shape);
+      final expected = _scenarioExpectedLiteral(shape);
+      final capture = _captureInvocation(b, target, shape, scenarioArgs);
+      if (expected != null) {
+        return '$capture\n'
+            '      expect(result, equals($expected));';
+      }
       final marker = isAssertableScalarType(shape.declaredReturn)
           ? '      $typeOnlyVacuousGuardComment\n'
           : '';
@@ -446,9 +472,69 @@ void main() {
           '$marker'
           '      expect(result, isA<${shape.declaredReturn}>());';
     }
-    return '$capture\n'
+    return '${_captureInvocation(b, target, shape, null)}\n'
         '      $vacuousGuardComment\n'
         '      expect(result, isNot(isA<UnimplementedError>()));';
+  }
+
+  /// The scenario's expected-outcome literal for the declared RETURN
+  /// type (issue #1651) — `5` for `int`, `'Hello Alice'` for `String` —
+  /// ready for `equals(<literal>)`. Null when no scenario resolved or
+  /// no Then value fits the declared type (the typed fallback stands).
+  String? _scenarioExpectedLiteral(UnitContractShape shape) {
+    final scenario = scenarioExample;
+    if (scenario == null) return null;
+    final value = ScenarioResolver.expectedForType(
+      shape.declaredReturn.trim(),
+      scenario.thenValues,
+    );
+    if (value == null) return null;
+    return _literalExpression(value);
+  }
+
+  /// The scenario-derived argument expressions for the declared
+  /// positional parameters (issue #1651), in declaration order. Null —
+  /// keep the whole legacy argument surface — when the scenario cannot
+  /// improve the shape: no scenario, no parameters, any NAMED parameter
+  /// (the positional mapping is ambiguous), or any parameter neither
+  /// the scenario nor the scalar-literal table can express (the `_argN`
+  /// seam owns those wholesale, so a partial derivation never mixes a
+  /// helper into a scenario call).
+  List<String>? _scenarioArgumentExpressions(UnitContractShape shape) {
+    final scenario = scenarioExample;
+    if (scenario == null) return null;
+    if (shape.params.isEmpty) return null;
+    if (shape.params.any((param) => param.named)) return null;
+    final remaining = List.of(scenario.givenValues);
+    final expressions = <String>[];
+    for (final param in shape.params) {
+      final claimed = ScenarioResolver.claimArgumentForType(
+        param.type,
+        remaining,
+      );
+      if (claimed != null) {
+        expressions.add(_literalExpression(claimed));
+        continue;
+      }
+      final fallback = _scalarLiteral(param.type);
+      if (fallback == null) return null;
+      expressions.add(fallback);
+    }
+    return expressions;
+  }
+
+  /// The Dart expression for one scenario value: numbers and booleans
+  /// verbatim (`2`, `2.0`, `-4`, `true`), strings as escaped
+  /// single-quoted literals (the writer's own escaping — issue #912
+  /// defect 1's contract applies to scenario content too).
+  String _literalExpression(ScenarioValue value) {
+    switch (value.kind) {
+      case ScenarioValueKind.string:
+        return "'${escapeDartString(value.literal)}'";
+      case ScenarioValueKind.number:
+      case ScenarioValueKind.boolean:
+        return value.literal;
+    }
   }
 
   /// The declared parameters' argument expressions at the capture site:
@@ -498,8 +584,9 @@ void main() {
   String _captureInvocation(
     Behavior behavior,
     String target,
-    UnitContractShape? shape,
-  ) {
+    UnitContractShape? shape, [
+    List<String>? scenarioArgs,
+  ]) {
     final acceptance = behavior.kind == BehaviorKind.acceptance;
     final helpers = StringBuffer();
     var args = '';
@@ -507,14 +594,32 @@ void main() {
       final argExprs = <String>[];
       for (var i = 0; i < shape.params.length; i++) {
         final param = shape.params[i];
-        final literal = _scalarLiteral(param.type);
+        // Issue #1651: a scenario-derived argument list replaces the
+        // representative-literal table wholesale (every entry compiles
+        // against the declared param — the derivation refuses partial
+        // shapes), so no `_argN` helper is emitted on that path.
+        final scenarioExpr = scenarioArgs == null
+            ? null
+            : (i < scenarioArgs.length ? scenarioArgs[i] : null);
+        String expression;
+        var needsHelper = false;
+        if (scenarioExpr != null) {
+          expression = scenarioExpr;
+        } else {
+          final literal = _scalarLiteral(param.type);
+          if (literal != null) {
+            expression = literal;
+          } else {
+            expression = '_arg$i()';
+            needsHelper = true;
+          }
+        }
         // SPEC 1536: a named parameter passes a NAMED argument at the
         // capture site (`level: _arg0()`) — the subject's signature
         // renders the `{...}` group, so a positional call would not
         // compile. Positional params keep the legacy argument list.
-        final expression = literal ?? '_arg$i()';
         argExprs.add(param.named ? '${param.name}: $expression' : expression);
-        if (literal == null) {
+        if (needsHelper) {
           helpers.write(
             "${param.type} _arg$i() => throw UnimplementedError('provide a "
             "representative argument for $target (declared param $i: "
