@@ -7,6 +7,7 @@ import '../graphql/graphql_introspection_service.dart';
 import '../graphql/graphql_schema_translator.dart';
 import '../graphql/graphql_schema.dart';
 import '../cli/exit_protocol.dart';
+import '../plugins/plugin_gate/plugin_gate.dart';
 
 /// CLI command for introspecting a remote GraphQL endpoint and printing
 /// a generation plan (entities, enums, input types).
@@ -58,6 +59,15 @@ class IntrospectCommand extends Command<void> {
 
   @override
   Future<void> run() async {
+    // Spec 1653 (issue #1661): the graphql capability is opt-in. Leaf
+    // subcommands dispatch without passing through GraphqlCommand.run(),
+    // so the gate is enforced here too (review finding on #1678).
+    final gateRefusal = PluginGate.refusalFor('graphql');
+    if (gateRefusal != null) {
+      print('❌ $gateRefusal');
+      exitCode = ExitProtocol.usage;
+      return;
+    }
     if (argResults!.rest.isEmpty) {
       exitCode = ExitProtocol.usage;
       print('Usage: zfa graphql introspect <endpoint-url> [options]');

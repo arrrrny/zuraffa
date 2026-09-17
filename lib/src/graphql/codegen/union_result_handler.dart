@@ -31,7 +31,8 @@ import 'error_mapping_config.dart';
 /// return SignalResult<$$AddItemToOrderResult>.success(entity);
 /// ```
 ///
-/// Used by [DatasourceGenerator] to handle union-returning operations.
+/// Used by the schema-slice generator in package:zuraffa_graphql to
+/// handle union-returning operations.
 class UnionResultHandler {
   UnionResultHandler({required this.errorConfig, this.operationName});
 

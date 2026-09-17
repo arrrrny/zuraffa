@@ -8,6 +8,7 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/graphql/cache/schema_cache.dart';
 import 'package:path/path.dart' as p;
+import '../helpers/plugin_gate_seed.dart';
 import '../helpers/project_root.dart';
 
 Map<String, dynamic> _fixture(String name) {
@@ -27,7 +28,11 @@ void main() {
   late String cacheDir;
   late SchemaCache cache;
 
-  setUp(() {
+  setUp(() async {
+    // The graphql leaf commands are capability-gated (spec 1653) — run
+    // them against a seeded enabled+resolvable sandbox.
+    final sandbox = await seedGraphqlGate();
+    addTearDown(() => restoreGraphqlGate(sandbox));
     runner = CliRunner(exitOnCompletion: false);
     tempDir = Directory.systemTemp.createTempSync('zfa_diff_cmd_');
     cacheDir = '${tempDir.path}/.zfa/graphql';

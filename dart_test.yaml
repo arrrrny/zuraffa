@@ -85,6 +85,12 @@ tags:
   property:
   benchmark:
   ffi:
+    # sc_022 drives the real CLI through JIT children (cold VM + package
+    # compile per spawn, issue #531) plus fixture `dart test` runs: the
+    # lane's first test measured ~105s against the 4x (120s) ceiling —
+    # one slow spawn away from a false timeout on a loaded runner.
+    # 8x (240s) keeps the honest lane from flaking (#1678).
+    timeout: 8x
   e2e:
     timeout: 4x
 
@@ -107,4 +113,15 @@ presets:
     exclude_tags: "false"
   flutter:
     include_tags: flutter
+    exclude_tags: "false"
+  ffi:
+    # The ffi_golden_lane's selector (#1678): the include filter AND the
+    # lift of the default `exclude_tags: slow` in one place. A preset's
+    # selector configuration WINS over the CLI selectors (verified:
+    # `--preset=<p> --tags <t>` runs <p>'s include_tags, not <t>'s), so
+    # `dart test --preset=all --tags ffi` was NOT the ffi lane — `all`
+    # has no include_tags, which un-scopes the run to the WHOLE tree
+    # (observed: the job executed slow/benchmark/property suites and hit
+    # its 30-minute ceiling). Keep the lane command as `--preset=ffi`.
+    include_tags: ffi
     exclude_tags: "false"
