@@ -124,6 +124,7 @@ import '../../../core/plugin_system/plugin_manager.dart';
 import '../../../core/plugin_system/plugin_registry.dart';
 import '../../../core/project/project_root.dart';
 import '../../../core/dependencies/builder_dependency_preflight.dart';
+import '../../../utils/entity_field_resolver.dart';
 
 /// Resolution-stage failure: message, outcome, and feature context if known.
 class MakeResolutionError implements Exception {
@@ -1834,6 +1835,70 @@ class MakeCommand extends Command<void> {
         }
       }
 
+      // Spec 1692: the 016 id-gate on the tdd make path. The #307 gate
+      // lives in the main `zfa make` entity-resolution step, but the unit
+      // entity pipeline never drives that surface for the CRUD stack — it
+      // goes straight to `mock create` / `make <Entity>` steps, so an
+      // id-less traced entity produced id-assuming code (`item.id ==
+      // params.id`) that only the mock certification backstop caught
+      // downstream (outcome=generation-error AFTER generation ran). Consult
+      // the SAME 016 id-check here and refuse BEFORE the first pipeline
+      // step spawns. The backstop stays armed (FR-4 of spec 1692); every
+      // other shape keeps today's behavior byte-for-byte.
+      final idGateRefusal = _spec016IdGateRefusal(
+        effectivePlan: effectivePlan,
+        entityTraced: summary.entityTraced,
+        workingDirectory: cwd,
+      );
+      if (idGateRefusal != null) {
+        print(
+          'zfa tdd make: refusing BEFORE generation — the traced entity '
+          '"$idGateRefusal" has no id field (spec 016 id-gate on the tdd '
+          'make path, issue #307).',
+        );
+        print(
+          '❌ Cannot generate architecture for "$idGateRefusal": the entity '
+          'has no id field.',
+        );
+        print('');
+        print('Entities need a real identity. Choose one of:');
+        print(
+          '  1. Add an id field:    zfa entity add-field -n '
+          '$idGateRefusal --field id:String',
+        );
+        print(
+          '  2. Auto-generate one:  recreate with '
+          'zfa entity create -n $idGateRefusal --auto-id <fields...>',
+        );
+        print(
+          '  3. Mark it as a value object if it is an immutable '
+          'composition type (no identity, no CRUD surface):',
+        );
+        print(
+          '       zfa entity create -n $idGateRefusal --kind=value_object '
+          '<fields...>',
+        );
+        print(
+          '     or add @ZValueObject / kind: ZorphyKind.valueObject '
+          'to its annotation.',
+        );
+        print(
+          '   or narrow the traced contract to id-neutral methods (no '
+          'repository/datasource/mock CRUD surface), then re-run.',
+        );
+        print(
+          '--> fix: add `id: String` to $idGateRefusal, or narrow the '
+          'traced contract to id-neutral methods, then re-run.',
+        );
+        _printSummary(
+          behavior: record.behaviorId,
+          outcome: MakeOutcome.unexpressible,
+          feature: target.featureName,
+        );
+        exitCode = 1;
+        return;
+      }
+
       // 7. Execute the plan via the pipeline (FR-006, US1 / U8-U13).
       //     Issue #1036: snapshot the subject first — a FAILED make must
       //     leave the subject byte-identical to what it found, so the
@@ -3532,6 +3597,58 @@ class MakeCommand extends Command<void> {
     final idx = args.indexOf('-n');
     if (idx < 0 || idx + 1 >= args.length) return null;
     return args[idx + 1];
+  }
+
+  /// Spec 1692: the traced entity this make's plan would generate an
+  /// id-DEPENDENT surface against, or null when the 016 id-gate does not
+  /// apply (no traced entity, no id-dependent step, entity missing,
+  /// value object, or id-bearing) and generation may proceed.
+  ///
+  /// The 016 id-check is the SAME resolution the main `zfa make` entity-
+  /// resolution step consults ([EntityFieldResolver.resolveIdField]): a
+  /// literal `id`, a `*Id`-suffixed field, or `autoId: true` counts as an
+  /// identity; a value object is the loud-failure carve-out; a MISSING
+  /// entity file stays the #496 fail-fast / mock-cert-backstop territory
+  /// (fail-open here — the gate refuses only on positive id-less
+  /// resolution, never on resolution absence).
+  ///
+  /// Id-dependent surfaces on the tdd plan (spec 1692):
+  ///   - `mock create --name <Traced> ...` — the id-keyed CRUD mock
+  ///     datasource (`UpdateParams<IdT, ...>`, `item.id == params.id`);
+  ///   - `make <Traced>` (without `--no-entity`) — the repository/usecase
+  ///     stack whose signatures embed the id.
+  String? _spec016IdGateRefusal({
+    required GenerationPlan effectivePlan,
+    required String? entityTraced,
+    required String workingDirectory,
+  }) {
+    final traced = entityTraced;
+    if (traced == null || traced.isEmpty) return null;
+    final hasIdDependentStep = effectivePlan.steps.any((step) {
+      final args = step.args;
+      if (args.length < 2) return false;
+      // `mock create --name <Traced> ...`
+      if (args[0] == 'mock' && args[1] == 'create') {
+        final idx = args.indexOf('--name');
+        if (idx >= 0 && idx + 1 < args.length) return args[idx + 1] == traced;
+      }
+      // `make <Traced>` — a real entity generation step (the
+      // `--no-entity` shape names no resolvable entity and keeps the
+      // main make's own skip).
+      if (args[0] == 'make' && args.length >= 2 && args[1] == traced) {
+        return !args.contains('--no-entity');
+      }
+      return false;
+    });
+    if (!hasIdDependentStep) return null;
+    final resolution = EntityFieldResolver.resolveIdField(
+      entityName: traced,
+      projectRoot: workingDirectory,
+    );
+    if (resolution == null) return null; // missing / field-less: fail-open
+    if (resolution.isValueObject) return null; // the 016 value-object carve-out
+    if (resolution.hasId) return null; // id-bearing: unchanged behavior
+    return traced;
   }
 
   // -----------------------------------------------------------------
