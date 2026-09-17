@@ -168,5 +168,95 @@ dependencies:
         );
       },
     );
+
+    test('dry-run on a broken pubspec reports the SAME invalid-YAML '
+        'FormatException the real pass throws (PR #1702 review)', () async {
+      final pubspecFile = File(p.join(tmpDir.path, 'pubspec.yaml'));
+      await pubspecFile.writeAsString(
+        'name: broken\n  bad: : :\n   bad indent',
+      );
+
+      await expectLater(
+        const PubspecAppDependenciesPatcher().ensure(tmpDir.path, dryRun: true),
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            contains('is not valid YAML'),
+          ),
+        ),
+        reason:
+            'the preview must not escape a raw YamlException where the '
+            'real path throws a readable FormatException',
+      );
+    });
+
+    test('dry-run on a non-map dependencies value reports the SAME '
+        'FormatException the real pass throws (PR #1702 review)', () async {
+      final pubspecFile = File(p.join(tmpDir.path, 'pubspec.yaml'));
+      await pubspecFile.writeAsString('''
+name: spec1395_nonmap_fixture
+environment:
+  sdk: ^3.11.0
+dependencies: true
+''');
+
+      await expectLater(
+        const PubspecAppDependenciesPatcher().ensure(tmpDir.path, dryRun: true),
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            contains('has a non-map dependencies value'),
+          ),
+        ),
+        reason:
+            'the preview must not throw a bare TypeError where the real '
+            'path throws a readable FormatException',
+      );
+    });
+
+    test(
+      'dry-run on a non-empty inline flow mapping previews the SAME '
+      'UnsupportedError refusal the real pass throws (PR #1702 review)',
+      () async {
+        final pubspecFile = File(p.join(tmpDir.path, 'pubspec.yaml'));
+        await pubspecFile.writeAsString('''
+name: spec1395_inline_fixture
+environment:
+  sdk: ^3.11.0
+dependencies: {flutter: {sdk: flutter}}
+''');
+
+        await expectLater(
+          const PubspecAppDependenciesPatcher().ensure(
+            tmpDir.path,
+            dryRun: true,
+          ),
+          throwsA(isA<UnsupportedError>()),
+          reason:
+              'the preview must not promise "Would add" entries the real '
+              'pass refuses (inline mappings unsupported)',
+        );
+      },
+    );
+
+    test('dry-run on an inline mapping with nothing missing stays silent '
+        '(mirrors the real pass, which returns before the refusal)', () async {
+      final pubspecFile = File(p.join(tmpDir.path, 'pubspec.yaml'));
+      await pubspecFile.writeAsString(
+        'name: spec1395_inline_complete\n'
+        'environment:\n'
+        '  sdk: ^3.11.0\n'
+        'dependencies: {zuraffa_flutter: ^6.0.0, get_it: ^9.2.1}\n',
+      );
+
+      final missing = await const PubspecAppDependenciesPatcher().ensure(
+        tmpDir.path,
+        dryRun: true,
+      );
+
+      expect(missing, isEmpty);
+    });
   });
 }
