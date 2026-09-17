@@ -142,6 +142,15 @@ class ProofChecker {
       final entry = covered.value.entry;
       final file = File(p.join(projectRoot, path));
       if (!file.existsSync()) {
+        // Issue #1429: a receipted REMOVAL is the expected-absence
+        // contract. The tombstone `zfa entity remove` writes records the
+        // deletion intent with `action: 'delete'`, so a missing artifact
+        // whose LATEST receipt entry is a deletion is provenance, not
+        // drift — the `deleted` finding must not fire (it was permanent:
+        // no verb could retire a mis-declared entity's receipt without
+        // hand-editing the store). Recreating the artifact still lands in
+        // the digest check below — a tombstone does not hide new bytes.
+        if (entry.action == 'delete') continue;
         findings.add(
           ProofFinding(
             kind: ProofFinding.kindDeleted,

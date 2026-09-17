@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Resolver-only scope: the complete audit of the NEW file (issue #1653). -->
+<mutations version="1.0">
+  <files>
+    <file>lib/src/plugins/tdd/services/pub_pre_resolver.dart</file>
+  </files>
+  <commands>
+    <command group="test" expected-return="0" working-directory=".">bash tools/run-1653-mutation-tests.sh</command>
+  </commands>
+</mutations>

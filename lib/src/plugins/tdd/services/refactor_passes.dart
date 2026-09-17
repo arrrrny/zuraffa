@@ -435,7 +435,13 @@ class RefactorPasses {
         command: spec.command,
         workingDirectory: projectRoot,
       );
+      // Issue #1653: the per-pass heartbeat — how long THIS pass's process
+      // ran, recorded on the action so a stuck step is distinguishable
+      // from a fast one in the receipt (the 8m32s refactor had no such
+      // signal).
+      final passWatch = Stopwatch()..start();
       final outcome = await _executor.run(invocation);
+      passWatch.stop();
 
       // Spec 1540: restore before the after-snapshot so a successful
       // restoration is invisible to the diff (byte-identical to `before`)
@@ -487,6 +493,7 @@ class RefactorPasses {
           filesChanged: filesChanged,
           output: passOutput,
           timedOut: outcome.timedOut,
+          duration: passWatch.elapsed,
         ),
       );
       // Spec 1540 restore-or-refuse: an unrestorable tracked deletion
