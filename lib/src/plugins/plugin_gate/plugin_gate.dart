@@ -81,9 +81,7 @@ class PluginGate {
         }
         final rootUri = pkg['rootUri'] as String?;
         if (rootUri == null) return null;
-        final packageRoot = Directory(
-          rootUri.startsWith('file://') ? rootUri.substring(7) : rootUri,
-        ).absolute.path;
+        final packageRoot = _resolvePackageRoot(rootUri, configPath: file.path);
         final candidate = p.join(packageRoot, 'bin', '${entry.package}.dart');
         if (File(candidate).existsSync()) return candidate;
         return null;
@@ -92,6 +90,39 @@ class PluginGate {
     } on FormatException {
       return null;
     }
+  }
+
+  /// The package root a package_config `rootUri` points at.
+  ///
+  /// Issue #1690 §1: package_config v2 anchors a RELATIVE `rootUri` at the
+  /// CONFIG FILE's own directory (`<project>/.dart_tool/`) — pub writes
+  /// relative URIs exactly for relative `path:` deps, the documented
+  /// companion install. `Directory(...).absolute` anchored them at
+  /// `Directory.current` instead, so a plain `zfa graphql generate` at the
+  /// project root resolved a non-existent path and returned null after a
+  /// completely correct install. Absolute `file://` URIs keep resolving
+  /// unchanged.
+  static String _resolvePackageRoot(
+    String rootUri, {
+    required String configPath,
+  }) {
+    final path = rootUri.startsWith('file://') ? rootUri.substring(7) : rootUri;
+    if (p.isRelative(path)) {
+      final configDir = p.dirname(p.normalize(p.absolute(configPath)));
+      return p.normalize(p.join(configDir, path));
+    }
+    return p.normalize(path);
+  }
+
+  /// The project's `.dart_tool/package_config.json` path, or null when the
+  /// project has not run `dart pub get`. Issue #1690 §2: threaded to
+  /// `ZfaExecutable.ensureCompiled(packagesFile: …)` so a companion
+  /// compile resolves through the CONSUMING project's package graph
+  /// instead of triggering Dart's implicit `pub get` inside the pub cache.
+  static String? packageConfigPath({String? projectRoot}) {
+    final root = _resolveRoot(projectRoot);
+    final file = File(p.join(root, '.dart_tool', 'package_config.json'));
+    return file.existsSync() ? file.path : null;
   }
 
   /// `null` when the capability is usable right now; otherwise the

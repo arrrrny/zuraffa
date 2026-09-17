@@ -7,9 +7,14 @@
 // `ZfaExecutable` no-JIT seam to the companion's
 // `bin/zuraffa_graphql.dart`, and the real generation flow runs.
 //
-// The fixture's `package_config.json` points `zuraffa_graphql` at THIS
-// repo's real companion package, so the spawned child is the genuine
-// implementation, not a fake.
+// Issue #1690: the fixture is the DOCUMENTED `path:` install
+// (`packages/zuraffa_graphql/README.md`) — a real `dart pub get` against
+// relative path deps, so the project's `package_config.json` carries the
+// RELATIVE rootUris pub actually writes (the pre-#1690 suite hand-wrote
+// an absolute `file://` rootUri and masked the relative shape), and the
+// companion compiles through the project's package config instead of an
+// implicit `pub get` inside the candidate's own root. The spawned child
+// is the genuine in-repo companion implementation, not a fake.
 library;
 
 import 'dart:convert';
@@ -48,23 +53,20 @@ void main() {
         },
       }),
     );
-    // Resolvable: the project's package_config maps the companion to the
-    // REAL in-repo package (the spawn compiles inside that root).
-    final dotTool = Directory(p.join(fixture.path, '.dart_tool'))
-      ..createSync(recursive: true);
-    File(p.join(dotTool.path, 'package_config.json')).writeAsStringSync(
-      jsonEncode({
-        'configVersion': 2,
-        'packages': [
-          {
-            'name': 'zuraffa_graphql',
-            'rootUri': Uri.file(
-              p.join(repoRoot, 'packages', 'zuraffa_graphql'),
-            ).toString(),
-            'languageVersion': '3.11',
-          },
-        ],
-      }),
+    // The documented path: install, verbatim shape: relative path deps to
+    // the core and the companion, resolved by a REAL `dart pub get` (the
+    // setUp below). Pub anchors relative rootUris at the package_config's
+    // own directory — the shape issue #1690 §1 pins.
+    File(p.join(fixture.path, 'pubspec.yaml')).writeAsStringSync(
+      'name: graphql_delegate_fixture\n'
+      'publish_to: none\n'
+      'environment:\n'
+      '  sdk: ^3.11.0\n'
+      'dependencies:\n'
+      '  zuraffa:\n'
+      '    path: ${p.relative(repoRoot, from: fixture.path)}\n'
+      '  zuraffa_graphql:\n'
+      '    path: ${p.relative(p.join(repoRoot, 'packages', 'zuraffa_graphql'), from: fixture.path)}\n',
     );
     // A minimal introspection schema (one Product type) — enough for the
     // generate flow to parse, plan, and emit.
@@ -106,8 +108,52 @@ void main() {
   });
 
   test('A2: enabled + resolvable → zfa graphql generate completes '
-      'through the companion', () async {
+      'through the companion (documented path: install, relative '
+      'rootUris)', () async {
+    // The real resolve — this is what a developer's terminal runs after
+    // writing the pubspec above. The fixture's package_config.json is
+    // then pub's genuine output: relative rootUris for the path deps.
+    final pub = await Process.run(
+      Platform.resolvedExecutable,
+      ['pub', 'get'],
+      workingDirectory: fixture.path,
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    );
+    expect(
+      pub.exitCode,
+      0,
+      reason:
+          'dart pub get in the fixture — '
+          '${pub.stdout}\n${pub.stderr}',
+    );
+    final config =
+        jsonDecode(
+              File(
+                p.join(fixture.path, '.dart_tool', 'package_config.json'),
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    final graphqlEntry = (config['packages'] as List)
+        .whereType<Map<String, dynamic>>()
+        .firstWhere((e) => e['name'] == 'zuraffa_graphql');
+    expect(
+      (graphqlEntry['rootUri'] as String).startsWith('file://'),
+      isFalse,
+      reason:
+          'pub must write a RELATIVE rootUri for the relative path dep — '
+          'the pre-#1690 fixture masked this shape with a hand-written '
+          'file:// URI',
+    );
+
     Directory.current = fixture.path;
+    // Snapshot whether the companion checkout carries its own .dart_tool
+    // BEFORE the delegation, so the no-mutation assertion below is about
+    // THIS run, not the checkout's pre-existing state.
+    final companionDotTool = Directory(
+      p.join(repoRoot, 'packages', 'zuraffa_graphql', '.dart_tool'),
+    );
+    final companionHadDotTool = companionDotTool.existsSync();
     final out = await CliRunner(exitOnCompletion: false).runCapturing([
       'graphql',
       'generate',
@@ -123,6 +169,30 @@ void main() {
       Directory(p.join(fixture.path, 'lib', 'graphql_generated')).existsSync(),
       isTrue,
       reason: 'the companion generated into the project — output: $out',
+    );
+    // Issue #1690 §2 at flow level: the compiled companion lands in THIS
+    // project's cache (per-project keying), and the delegation wrote
+    // nothing into the companion package itself — no implicit `pub get`
+    // inside the (hosted, in production) candidate root.
+    final projectCache = Directory(
+      p.join(fixture.path, '.dart_tool', 'zfa_cli_bin'),
+    );
+    expect(
+      projectCache.existsSync() &&
+          projectCache.listSync().any(
+            (e) => p.basename(e.path).startsWith('zfa_exe'),
+          ),
+      isTrue,
+      reason:
+          'the companion artifact is cached in the CONSUMING project '
+          '(per-project keying) — issue #1690 §2',
+    );
+    expect(
+      companionDotTool.existsSync(),
+      companionHadDotTool,
+      reason:
+          'the delegation must not create a .dart_tool inside the '
+          'companion package (no implicit pub get at the candidate root)',
     );
   });
 }
