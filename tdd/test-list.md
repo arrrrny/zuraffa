@@ -1,52 +1,45 @@
-# TDD test list — Bug #1664 first refactor after a master bump compiles the zfa CLI (~85s) even when the parent runs from a current installed binary
+# TDD test list — Issue #1685 review bot snippet uses non-existent `Directory.deleteRecursively`
+
+Spec: `.specify/specs/1685-review-bot-snippet-compilable/spec.md`
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| U-1664-b1 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a current installed binary (`zfa.build_commit` == checkout HEAD) is returned for the canonical `bin/zfa.dart` candidate — the ~85s compile never happens (the issue's bug) | issue #1664 criteria 1–2 | RED → GREEN |
-| U-1664-b2 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a marker that disagrees with the checkout HEAD forbids the reuse — the stale-install guard | criterion 3 | RED → GREEN |
-| U-1664-b3 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a Dart-VM running executable never reuses (source/test drivers keep the compile-cache contract); rejected before any git probe | criterion 4 (steady state) | RED → GREEN |
-| U-1664-b4 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | no `zfa.build_commit` marker (pre-#1184 install, the `scripts/zfa` cache artifact) — reuse is unprovable, compile as today | fail-open soundness | RED → GREEN |
-| U-1664-b5 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | an empty/whitespace marker — reuse is unprovable | fail-open soundness | RED → GREEN |
-| U-1664-b6 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a failed git probe (not a repo, exit 128) falls through to the compile path | fail-open soundness | RED → GREEN |
-| U-1664-b7 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a non-canonical candidate (a custom `--zfa-bin` fixture script) never reuses the zfa binary; rejected before any git probe | fix-scope guard | RED → GREEN |
-| U-1664-b8 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a missing running executable never reuses | fail-open soundness | RED → GREEN |
-| U-1664-b9 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a VM-driven cache miss still compiles through the injected runner; the compiler fake never sees a git argv (the probe rides its own runner) | wiring unchanged (U2 contract) | GREEN |
+| U-1685-G1a | test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart | unit | `tempDirCleanup` renders the exact issue-workaround shape — `Directory.systemTemp.createTempSync` + `addTearDown(() => tmp.deleteSync(recursive: true))` — and contains no `deleteRecursively` | issue #1685 (fix criterion 1, SC-1) | RED → GREEN |
+| U-1685-G1b | test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart | unit | NO template in the catalog references any deny-listed (verified non-existent) API member — the catalog-wide invariant | fix criterion 3 (audit), SC-1 | RED → GREEN |
+| U-1685-G2a | test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart | unit | static deny-list scan rejects the HISTORICAL snippet verbatim (`addTearDown(_tmp.deleteRecursively)`, inline comment id 4023967373) with `non_existent_api` + the compilable replacement | fix criterion 2 (compile-check), SC-2 | RED → GREEN |
+| U-1685-G2b | test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart | unit | REAL analyzer compile check rejects the historical snippet — `undefined_getter`, the issue's exact diagnostic class | fix criterion 2 (compile-check), SC-2 | RED → GREEN |
+| U-1685-G2c | test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart | unit | the FIXED render passes the REAL analyzer compile check with zero errors (in-process resolve over a wrapper file in the gitignored `build/` scratch) | fix criterion 1, SC-2 | RED → GREEN |
+| U-1685-G2d | test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart | unit | `validate()` combines both layers — a scan hit short-circuits before the analyzer runs | gate contract, SC-2 | RED → GREEN |
+| U-1685-G3a | test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart | unit | `postableSnippet` — the ONLY sanctioned posting path — returns compiled-verified code | fix criterion 2 (never posted un-verified), SC-2 | RED → GREEN |
+| U-1685-G3b | test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart | unit | unknown template ids throw [ArgumentError] on both `render` and `postableSnippet` — no ad-hoc template fallback | gate soundness | RED → GREEN |
 
-Guard pins (pre-existing, unchanged and green against the fix):
+Guard pins (pre-existing, unchanged and green against the fix — posting
+semantics untouched):
 
 | id | suite | description |
 | -- | ----- | ----------- |
-| U2/U3/U4/U5 | test/cli/zfa_executable_test.dart | compile-on-miss argv, fresh-cache reuse (criterion 4's cache-wins-first), lib/ and pubspec staleness — the compile-cache contract the probe must not disturb |
-| #1636 B1–B5 | test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart | the StepRunner running-binary tier order — untouched |
-| #1645 | test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart | the PipelineRunner running-binary tier — untouched |
-| #1184 | test/cli/binary_staleness_test.dart | the `zfa.build_commit` marker reader this fix imports (`zfaBuildCommitMarker`) — unchanged |
+| U12/U13 (spec 070) | test/plugins/tdd/services/ci_referee/pr_comment_poster_test.dart | the PR comment poster — URL/token/500-fallback/dry-run contract, unmodified |
+| verdict renderer | test/plugins/tdd/services/ci_referee/verdict_comment_test.dart | the verdict comment markdown contract, unmodified |
 
 ## Red evidence (pre-fix, this session)
 
-Verbatim runs preserved in
-`.specify/bugs/1664-first-refactor-cli-compile/red-evidence.md`:
+Both recorded verbatim in
+`.specify/specs/1685-review-bot-snippet-compilable/red-evidence.md`:
 
-- Suite 1 (new, pre-fix):
-  `dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`
-  → `00:00 +0 -1: Some tests failed.` — the file fails to LOAD:
-  `Error: Member not found: 'ZfaExecutable.currentInstalledBinary'`. The
-  compile-error red is the honest first red for a NEW seam: it proves the
-  child binary resolution has NO installed-binary awareness — the issue's
-  root cause. With the API's logic in place pre-fix, U-1664-b1 would have
-  returned null (compile as today) instead of the running binary.
+1. **The bug's red** — the bot's snippet applied VERBATIM inside the
+   standard wrapper:
+   `dart analyze build/1685_repro_snippet_test.dart` →
+   `error - The getter 'deleteRecursively' isn't defined for the type 'Directory'. - undefined_getter`
+   (the issue's exact error, reproduced in this session on Dart 3.13.4).
+2. **The new seam's honest red** — the regression suite pre-implementation:
+   `dart test test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart`
+   → load failure (`No such file or directory` for
+   `review_snippets.dart` / `snippet_compile_check.dart`) — the
+   compile-error red proving the seam (catalog + validation gate) did not
+   exist.
 
 ## Green evidence (post-fix, this session)
 
-- `dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`
-  → `00:00 +9: All tests passed!`
-- `dart test test/cli/zfa_executable_test.dart
-  test/cli/binary_staleness_test.dart
-  test/plugins/tdd/services/step_runner_test.dart
-  test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
-  test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart
-  test/plugins/tdd/services/refactor_passes_test.dart`
-  → `00:16 +82: All tests passed!`
-- `dart test test/cli/ test/core/ --exclude-tags "flutter || e2e"`
-  → `00:57 +901 (1 skipped): All tests passed!`
-- `dart test test/plugins/tdd/services/`
-  → `01:44 +1135: All tests passed!`
+`dart test test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart`
+→ `00:11 +8: All tests passed!` (8/8 — U-1685-G1a/G1b, G2a/G2b/G2c/G2d,
+G3a/G3b).

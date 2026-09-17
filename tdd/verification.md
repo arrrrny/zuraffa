@@ -1,154 +1,141 @@
-# tdd.verify — Bug #1664 first refactor after a master bump compiles the zfa CLI (~85s) even when the parent runs from a current installed binary
+# tdd.verify — Issue #1685 review bot snippet uses non-existent `Directory.deleteRecursively`
 
-- **Verified**: 2026-09-15, this session, on
-  `fix/1664-first-refactor-cli-compile` (working tree, pre-push)
+- **Verified**: 2026-09-18, this session, on
+  `fix/1685-review-bot-snippet-compilable` (working tree, pre-push)
 - **Toolchain**: Dart 3.13.4 (stable) on linux_x64 (the task's "Dart 3.13+"
   floor; the repo pins `sdk: ^3.11.0`)
-- **Scope**: `lib/src/cli/zfa_executable.dart` (the #1664 reuse probe +
-  `_compileCached` wiring), the new
-  `test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`, and the
-  bug artifacts under `.specify/bugs/1664-first-refactor-cli-compile/`.
+- **Scope**: `lib/src/plugins/tdd/services/ci_referee/review_snippets.dart`
+  (the fixed template catalog),
+  `lib/src/plugins/tdd/services/ci_referee/snippet_compile_check.dart`
+  (the validation gate), the new
+  `test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart`,
+  and the spec artifacts under
+  `.specify/specs/1685-review-bot-snippet-compilable/`.
+- **Engine path**: `zfa tdd verify --feature` ran for real this session —
+  reported `gate: not_assessed` (the project is not zuraffa-wired: no
+  `.zfa.json`, no behavior artifacts registered), so per the TDD
+  extension's Step 0 the audit falls back to the LLM-guided path below.
+  Every number in this file comes from a run executed in THIS session.
 
 ## Verdict: PASS
 
-## 1. TDD discipline (red → green → verify)
+## 1. Test-first evidence (rubric Q1)
 
-The loop was driven with the bug directory as the TDD feature. Ten
-behaviors were pinned in `tdd/test-list.md` BEFORE the fix, mapped 1:1 to
-the issue's four acceptance criteria, and every test in the red set was
-observed failing against base `c5ed519f` for exactly the reason the issue
-describes — never for a setup error.
+Two independent reds, both captured BEFORE the fix landed, recorded
+verbatim in
+`.specify/specs/1685-review-bot-snippet-compilable/red-evidence.md`:
+
+1. **The bug's red** (the issue's exact failure, this session):
+   the bot's snippet applied VERBATIM inside the standard wrapper →
+   ```
+   $ dart analyze build/1685_repro_snippet_test.dart
+     error - 1685_repro_snippet_test.dart:21:22 - The getter 'deleteRecursively' isn't defined for the type 'Directory'. ... - undefined_getter
+   3 issues found.
+   ```
+   (the two `info` lines are lint notes on the reproduction wrapper's own
+   naming, not the snippet).
+2. **The new seam's honest red**: the regression suite pre-implementation
+   →
+   ```
+   00:00 +0 -1: loading .../spec_1685_review_bot_snippet_compilable_test.dart [E]
+     Failed to load "..." :
+     Error: Error when reading 'lib/src/plugins/tdd/services/ci_referee/review_snippets.dart': No such file or directory
+     Error: Error when reading 'lib/src/plugins/tdd/services/ci_referee/snippet_compile_check.dart': No such file or directory
+   ```
+   A compile-error red because the fix introduces a NEW seam: pre-fix
+   there is NO template catalog and NO validation gate — which IS the
+   root cause (nothing verified snippets between render and post).
+
+Ordering caveat, stated plainly: the branch will carry the test and the
+sources in ONE commit, so git history alone cannot show test-first
+ordering; the session-recorded reds above are the evidence (the same
+class of evidence the #1664 verification used for a new-seam fix).
+
+## 2. Behavior assertions + would-they-catch-a-bug (rubric Q2, Q3)
+
+Eight behaviors pinned in `tdd/test-list.md` (U-1685-G1a..G3b), each
+asserting an OBSERVABLE gate outcome — never internals:
+
+- The rendered shape pins the exact issue-workaround call
+  (`deleteSync(recursive: true)`) and the catalog-wide deny of every
+  verified-non-existent member (G1a, G1b).
+- The gate is exercised against the HISTORICAL BUGGY SNIPPET VERBATIM —
+  `addTearDown(_tmp.deleteRecursively)`, the real-world mutant — and must
+  REJECT it twice: via the static deny-list scan (G2a) and via the REAL
+  in-process analyzer resolve asserting `undefined_getter` (G2b). The
+  fixed render must PASS the same analyzer check with zero errors (G2c).
+  This is a deliberate-mutant kill: the mutant that shipped to
+  arrrrny/zuraffa_browser#165 dies at both layers of the gate.
+- `validate()` layering (scan hit short-circuits before the analyzer) and
+  the posting gate itself (`postableSnippet` returns compiled-verified
+  code; unknown ids throw) close the contract (G2d, G3a, G3b).
+
+Mutation audit: `zfa tdd verify` reported `mutation_was_run: false`
+(no behavior artifacts registered — this fix touches the reviewer tool,
+not a generated feature). The historical-snippet mutant above is the
+compensating deliberate mutant, and it is the one the issue shipped in
+the wild.
+
+## 3. Requirement coverage (rubric Q4)
+
+- SC-1 (fixed shape, no deny-listed member anywhere) → U-1685-G1a, G1b.
+- SC-2 (gate rejects the historical snippet; fixed render compiles for
+  real) → U-1685-G2a, G2b, G2c, G2d, G3a.
+- SC-3 (template audit) → `.specify/specs/1685-review-bot-snippet-
+  compilable/template-audit.md`: 1268 dart files under `lib/` swept for
+  the deny-list members — ZERO offenders (every hit is the deny-list
+  itself or the gate/template documentation naming the non-existent API);
+  per-site emitter inventory (route table test builder, behavior test
+  writer, platform harness writer, scratch tmpdir, verdict renderer,
+  persistence harness) shows only valid API references
+  (`addTearDown(router.dispose)`, `dir.delete(recursive: true)`).
+- SC-4 (honest red → green; guard suites unmodified) → reds in §1,
+  greens in §4; the ci_referee posting-semantics suites pass unmodified.
+- SC-5 (analyze + format gates) → below.
+
+## 4. REAL runs in this session (post-fix, on this branch)
 
 ```
-dart analyze lib/src/cli/zfa_executable.dart
-             test/cli/zfa_executable_1664_installed_binary_reuse_test.dart
-→ No issues found!
+$ dart analyze lib test                       → No issues found!
+$ dart analyze <the 3 changed dart files>     → No issues found!
 
-dart analyze            (whole repo)
-→ 106 issues found      (0 errors, 0 warnings — all `info`)
+$ dart test test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart
+  → 00:11 +8: All tests passed!               (8/8 — U-1685-G1a..G3b)
+
+$ dart test test/plugins/tdd/services/ci_referee/
+  → 00:01 +35: All tests passed!              (35/35 — posting semantics
+                                               untouched: poster, verdict
+                                               renderer, golden workflow,
+                                               failure artifacts, gate,
+                                               provenance)
+
+$ dart format --output=none --set-exit-if-changed .
+  → Formatted 2948 files (0 changed)          (exit 0 — zero drift
+  repo-wide; the example/ resolution warning is the Flutter-less
+  sandbox, not drift — same note as the #1664 verification)
+
+$ dart analyze             (whole repo, for the record)
+  → 208 issues — 200 errors ALL from packages/ sub-workspaces with
+  unfetched deps (packages/zuraffa_graphql, packages/zuraffa_storage, …:
+  uri_does_not_exist for their own package deps), PRE-EXISTING, in files
+  this fix never touches; `dart analyze lib test` — the surface this fix
+  lives on — is CLEAN.
+
+$ zfa tdd verify --feature 1685-review-bot-snippet-compilable
+  → gate: not_assessed (not zuraffa-wired; mutation_was_run: false) —
+  the fallback audit above is the extension's prescribed path.
 ```
 
-Zero findings from the changed/new files; the whole-repo count is the
-pre-existing info-level baseline drift (106 — the same count the #1655
-verification recorded).
+## 5. Worth keeping (rubric Q5)
 
-Format gate:
+The suite is deterministic (no network, no pub get, no build; the
+analyzer resolve is in-process against this package's own package
+config), fast (~11 s wall for 8 tests including two real analyzer
+passes), and asserts through the public seam (`ReviewSnippets`,
+`SnippetCompileCheck`, `SnippetDenyList`) — insensitive to internal
+refactors of the gate. The wrapper cleanup is verified in-finally
+(scratch dir removed every run; working tree stays pristine).
 
-```
-dart format --output=none --set-exit-if-changed .
-→ Formatted 2878 files (0 changed)      (exit 0 — zero drift repo-wide;
-  the example/ resolution warning is the Flutter-less sandbox, not drift)
-```
+## Remediation tasks
 
-## 2. TDD discipline (REAL runs in this session)
-
-- RED, pre-fix (verbatim in
-  `.specify/bugs/1664-first-refactor-cli-compile/red-evidence.md`):
-
-```
-dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart
-→ 00:00 +0 -1: Some tests failed.
-  loading test/cli/zfa_executable_1664_installed_binary_reuse_test.dart [E]
-  Failed to load "...": Member not found:
-    'ZfaExecutable.currentInstalledBinary'
-```
-
-  A compile-error red because the fix introduces a NEW seam: pre-fix there
-  is no installed-binary awareness in the resolution at all — which IS the
-  bug. The behavioral shape (a `.dart` candidate compiled despite a current
-  installed binary) is what U-1664-b1 pins post-fix.
-
-- GREEN, post-fix:
-
-```
-dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart
-→ 00:00 +9: All tests passed!
-```
-
-The fix was applied only after the repro suite was proven red; no test was
-edited to make it pass retroactively. The guard tests (b2–b8: stale marker,
-VM driver, missing/empty marker, git failure, non-canonical candidate,
-missing exe) pin the fail-open direction — every unprovable input compiles
-as before.
-
-## 5. Regression audit (all green, real runs)
-
-```
-dart test test/cli/zfa_executable_test.dart test/cli/binary_staleness_test.dart
-          test/plugins/tdd/services/step_runner_test.dart
-          test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
-          test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart
-          test/plugins/tdd/services/refactor_passes_test.dart
-→ 00:16 +82: All tests passed!
-   (the direct contracts of the changed file and its consumers: the U1–U10
-   compile-cache contract, the #1184 marker reader, the StepRunner chain
-   with the #1636/#1645 running-binary tiers, and the #689/#717/#1472
-   build-pass resolution)
-
-dart test test/cli/ test/core/ --exclude-tags "flutter || e2e"
-→ 00:57 +901 (1 skipped): All tests passed!
-
-dart test test/plugins/tdd/services/
-→ 01:44 +1135: All tests passed!
-```
-
-Full `test/plugins/tdd/commands/` scope (subprocess-heavy, `-j 3`): flaky
-under sandbox load BOTH with and without the change — different single
-tests fail per run (post-fix runs: corpus_status_command / bug_1625
-variants; a stashed PRE-FIX run failed four DIFFERENT tests: bug_1141,
-realize_command, corpus_differential, plan_skin_contract). Every flagged
-test passes in isolation with AND without the change (A/B via
-`git stash`, `+16: All tests passed!` both ways). Pre-existing
-environment flakiness, unrelated to this fix — the fix cannot affect a
-`dart test` driver at all (the VM-shape probe rejects before any I/O, the
-U-1664-b9 wiring pin).
-
-Chunk/cache hygiene: `.dart_tool/test/` and `/tmp/dart_test.kernel.*` were
-cleaned before and after every run; one 8.4G kernel-cache buildup was
-found and removed mid-session (the task's disk-housekeeping rule); disk
-stayed ≥86% free after cleanup.
-
-## 4. Acceptance criteria audit (issue #1664)
-
-1. **First refactor after master bump uses an existing compiled binary (no
-   85s compile)** — PROVED at the seam level: U-1664-b1 returns the running
-   binary for the canonical candidate when the marker equals the checkout
-   HEAD, and the wiring sits AFTER the fresh-cache check and BEFORE the
-   build lock, so the would-compile moment (the exact moment
-   `scripts/rebuild.sh`'s `.dart_tool` wipe creates after every install)
-   resolves to the installed binary instead of `dart compile exe`. Not
-   re-timed end-to-end (the fast-tier convention this repo pins for cloud
-   agents); the issue's own measurement (124.6s → 0.4–0.6s steady band)
-   quantifies the cost being avoided.
-2. **Child seam detects the current installed binary and reuses it** —
-   PROVED: `ZfaExecutable.currentInstalledBinary` is the seam, and
-   `_compileCached` consults it with `Platform.resolvedExecutable` on every
-   cache miss/stale verdict — covering EVERY resolution path that funnels
-   into the compile (StepRunner, PipelineRunner, `zfaBuildCommand`, phase-0,
-   dream/replay/differential), which is the choke point the observed
-   compile argv (`dart compile exe <checkout>/bin/zfa.dart --output
-   <checkout>/.dart_tool/zfa_cli_bin/zfa_exe.tmp`) flows through.
-3. **`.build_commit` comparison prevents stale binary reuse** — PROVED:
-   U-1664-b2 (marker != HEAD → null → compile), U-1664-b4/b5 (missing or
-   empty marker → null), U-1664-b6 (unresolvable HEAD → null). Strict
-   full-SHA equality — no prefix/partial acceptance.
-4. **Steady-state refactor time unchanged (0.4–0.6s)** — PROVED by
-   construction and by tests: the fresh-cache verdict (mtime `_isStale`)
-   runs FIRST and is byte-for-byte unchanged (pre-existing U3 pins
-   reuse-without-compiler-call); the probe adds zero subprocesses for VM
-   drivers (rejected before any I/O) and at most one `git rev-parse` +
-   one marker read for a compiled parent on a cache miss — nanoseconds
-   against a 0.4s step. The pre-existing staleness suites (U4/U5) ran green
-   unchanged.
-
-Hard constraints honored: the fix touches only
-`lib/src/cli/zfa_executable.dart` (+ the new test file). No refactor pass
-logic, no build-relevance gate, no CLI entry point changes — verified by
-`git diff --stat` (129 insertions, one file).
-
-## 5. Verdict
-
-PASS — the child binary resolution now prefers a compiled install proven
-current by its `zfa.build_commit` over an 85s AOT compile, every unprovable
-input fails open to the exact pre-fix behavior, the stale-reuse guard is
-pinned by test, and the warm-cache steady state is untouched.
+None — verdict PASS.
