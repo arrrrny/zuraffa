@@ -66,7 +66,8 @@ void main() {
         expect(
           outcome is LoginVerdict && outcome.ok,
           isTrue,
-          reason: 'valid representative arguments produce a valid verdict — '
+          reason:
+              'valid representative arguments produce a valid verdict — '
               'the declared (email, password) mapping holds',
         );
         expect(

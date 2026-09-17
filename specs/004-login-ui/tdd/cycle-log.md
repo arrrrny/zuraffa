@@ -1148,3 +1148,57 @@ issue #1411 born-green hand transition — the designed hand step was completed 
 - prev-hash: 4e7370b277c4513771a658a66913e6c9c657df682e6622cdf7290cb649e16264
 - hash: ec5a9626c65653e435807d04a814c6a11ead89518386f65ca8714ccf375ab799
 
+## Cycle: U6 (green)
+
+- behavior: U6
+- kind: green
+- evidence: issue #1162 re-certification — the subject was hand-implemented after the certified red; this green evidence binds the NEW subject shape with the passing transcript
+- subject-hash: 3111018c87fa8ab4f2f0569177cedeee5b3d7f3c006b74067f5b056ef6211dc6
+- criterion: FR-006, LoginValidation.validate
+- test: test/tdd/004-login-ui/u6_test.dart
+- command: `dart test /home/z/my-project/zuraffa/test/tdd/004-login-ui/u6_test.dart --plain-name "Validation MUST be deterministic: the same input always yields the same verdict."`
+- exit: 0
+- at: 2026-09-17T23:47:33.283397Z
+- output:
+```
+00:00 +0: loading /home/z/my-project/zuraffa/test/tdd/004-login-ui/u6_test.dart                                                                                                                        
+00:00 +0: U6 (FR-006, LoginValidation.validate) U6 — Validation MUST be deterministic: the same input always yields the same verdict.                                                                  
+00:00 +1: U6 (FR-006, LoginValidation.validate) U6 — Validation MUST be deterministic: the same input always yields the same verdict.                                                                  
+00:00 +1: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: 5bf0d19c84c0cb67cc17faee4abd34ef8c607768e7109e35181a4ff32e76d7a8
+- hash: c67151ab2879026b057ce9bf35bbf42ce055de3c7a68356371e65a5a4174808f
+
+## Cycle: contract:A1 (green)
+
+- behavior: contract:A1
+- kind: green
+- evidence: issue #1411 born-green hand transition — no prior red evidence exists (the hand step preceded the first certification); green certified from the passing target test with the vacuous-guard marker absent and the contract:A1:hand attestation header present
+- subject-hash: ac26a205d5e95437d227b60a944bade6a4ce76f0fd91f488c5b872b0c28fa577
+- criterion: LoginValidation.validate
+- test: test/tdd/004-login-ui/contract_a1_test.dart
+- command: `dart test /home/z/my-project/zuraffa/test/tdd/004-login-ui/contract_a1_test.dart --plain-name "LoginValidation.validate(email, password) -> LoginVerdict (usecase contract)"`
+- exit: 0
+- at: 2026-09-17T23:47:56.824848Z
+- output:
+```
+issue #1411 born-green hand transition — the designed hand step was completed before the first red certification (hand-first ordering); the passing transcript below is the green evidence bound to the current subject shape.
+
+00:00 +0: loading /home/z/my-project/zuraffa/test/tdd/004-login-ui/contract_a1_test.dart                                                                                                               
+00:00 +0: contract:A1 (LoginValidation.validate) contract:A1 — LoginValidation.validate(email, password) -> LoginVerdict (usecase contract)                                                            
+00:00 +1: contract:A1 (LoginValidation.validate) contract:A1 — LoginValidation.validate(email, password) -> LoginVerdict (usecase contract)                                                            
+00:00 +1: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: ec5a9626c65653e435807d04a814c6a11ead89518386f65ca8714ccf375ab799
+- hash: 64b40922c66bbc7f381efacd0e448a370a8291a1c62ccd16e3284197797210b1
+

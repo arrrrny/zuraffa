@@ -130,12 +130,7 @@ class _ReplayCommand extends Command<void> {
       source = 'session-store';
       final store = McpSessionStore(projectRoot: Directory.current.path);
       final sessionFile = File(
-        p.join(
-          Directory.current.path,
-          '.zfa',
-          'mcp_sessions',
-          '$target.json',
-        ),
+        p.join(Directory.current.path, '.zfa', 'mcp_sessions', '$target.json'),
       );
       if (!await sessionFile.exists()) {
         print('❌ Usage: $invocation');

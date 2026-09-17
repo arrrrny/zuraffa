@@ -336,10 +336,7 @@ Map<String, dynamic> _sessionRecordTool() {
           'type': 'string',
           'description': 'Unique session identifier',
         },
-        'tool': {
-          'type': 'string',
-          'description': 'The tool name to record',
-        },
+        'tool': {'type': 'string', 'description': 'The tool name to record'},
         'arguments': {
           'type': 'object',
           'description': 'The tool arguments to record',
@@ -653,7 +650,8 @@ Future<Map<String, dynamic>?> handleV2ToolCall({
                 'success': true,
                 'sessionId': sessionId,
                 'recorded': recorded,
-                'message': 'Call recorded; replay with '
+                'message':
+                    'Call recorded; replay with '
                     '`zfa mcp replay $sessionId`',
               }),
             },

@@ -56,9 +56,9 @@ Future<Directory> _greeterProject() async {
 - **FR-001**: The greeter MUST return a greeting message.
   traces: Greeter
 ''');
-  await File(
-    p.join(root.path, 'test', 'tdd', feature, 'a1_test.dart'),
-  ).create(recursive: true).then(
+  await File(p.join(root.path, 'test', 'tdd', feature, 'a1_test.dart'))
+      .create(recursive: true)
+      .then(
         (f) => f.writeAsString('''
 // GENERATED TEST — spec 044.
 library;
@@ -75,9 +75,9 @@ void main() {
 }
 '''),
       );
-  await File(
-    p.join(root.path, 'lib', 'tdd', feature, 'a1_subject.dart'),
-  ).create(recursive: true).then(
+  await File(p.join(root.path, 'lib', 'tdd', feature, 'a1_subject.dart'))
+      .create(recursive: true)
+      .then(
         (f) => f.writeAsString('''
 // IMPLEMENTED SUBJECT.
 library;
@@ -179,9 +179,9 @@ Future<WorldManifest> _writeWorld(
   );
   final dir = Directory(p.join(root.path, 'specs', feature, 'tdd', 'worlds'))
     ..createSync(recursive: true);
-  await File(p.join(dir.path, '$scenario.world.json')).writeAsString(
-    manifest.toFileContents(),
-  );
+  await File(
+    p.join(dir.path, '$scenario.world.json'),
+  ).writeAsString(manifest.toFileContents());
   return manifest;
 }
 
@@ -197,59 +197,60 @@ void main() {
   });
 
   group('F1/F2: spec-fuzz receipts (proof.v1)', () {
-    test('F1: the auditor writes a proof.v1 receipt pinning the reports',
-        () async {
-      final fuzzRoot = await _greeterProject();
-      addTearDown(() => fuzzRoot.delete(recursive: true));
-      final featureDir = p.join(fuzzRoot.path, 'specs', 'fixture-greeter');
+    test(
+      'F1: the auditor writes a proof.v1 receipt pinning the reports',
+      () async {
+        final fuzzRoot = await _greeterProject();
+        addTearDown(() => fuzzRoot.delete(recursive: true));
+        final featureDir = p.join(fuzzRoot.path, 'specs', 'fixture-greeter');
 
-      final auditor = SpecFuzzAuditor(
-        featureDir: featureDir,
-        workingDirectory: fuzzRoot.path,
-        runPreflight: (_) async =>
-            PreflightResult.green(exitCode: 0, output: 'ok'),
-        spawnTest: _fakeSpawn,
-      );
-      final report = await auditor.run();
-      expect(report.mutationWasRun, isTrue, reason: 'the round ran');
+        final auditor = SpecFuzzAuditor(
+          featureDir: featureDir,
+          workingDirectory: fuzzRoot.path,
+          runPreflight: (_) async =>
+              PreflightResult.green(exitCode: 0, output: 'ok'),
+          spawnTest: _fakeSpawn,
+        );
+        final report = await auditor.run();
+        expect(report.mutationWasRun, isTrue, reason: 'the round ran');
 
-      final receiptFile = File(
-        p.join(
-          fuzzRoot.path,
-          '.zfa',
-          'receipts',
-          'spec-fuzz-fixture-greeter.json',
-        ),
-      );
-      expect(receiptFile.existsSync(), isTrue, reason: 'the fuzz receipt');
-      final doc =
-          jsonDecode(receiptFile.readAsStringSync()) as Map<String, dynamic>;
-      expect(doc['schema'], 'proof.v1');
-      expect(doc['command'], 'spec fuzz');
-      expect(doc['survived'], report.survivedCount);
-      expect(doc['killed'], report.killedCount);
-      expect(doc['mutations'], report.outcomes.length);
-      expect(doc['gate'], report.gate.name);
-      expect(doc['fuzz_was_run'], isTrue);
+        final receiptFile = File(
+          p.join(
+            fuzzRoot.path,
+            '.zfa',
+            'receipts',
+            'spec-fuzz-fixture-greeter.json',
+          ),
+        );
+        expect(receiptFile.existsSync(), isTrue, reason: 'the fuzz receipt');
+        final doc =
+            jsonDecode(receiptFile.readAsStringSync()) as Map<String, dynamic>;
+        expect(doc['schema'], 'proof.v1');
+        expect(doc['command'], 'spec fuzz');
+        expect(doc['survived'], report.survivedCount);
+        expect(doc['killed'], report.killedCount);
+        expect(doc['mutations'], report.outcomes.length);
+        expect(doc['gate'], report.gate.name);
+        expect(doc['fuzz_was_run'], isTrue);
 
-      // The receipt pins the committed report bytes.
-      final files = (doc['files'] as List)
-          .map((f) => (f as Map)['path'] as String)
-          .toSet();
-      expect(files, contains('specs/fixture-greeter/tdd/spec-fuzz.json'));
-      expect(files, contains('specs/fixture-greeter/tdd/spec-fuzz.md'));
-      // And the spec the fuzz graded.
-      expect(doc['spec'], isA<Map>());
-      expect((doc['spec'] as Map)['path'], 'specs/fixture-greeter/spec.md');
+        // The receipt pins the committed report bytes.
+        final files = (doc['files'] as List)
+            .map((f) => (f as Map)['path'] as String)
+            .toSet();
+        expect(files, contains('specs/fixture-greeter/tdd/spec-fuzz.json'));
+        expect(files, contains('specs/fixture-greeter/tdd/spec-fuzz.md'));
+        // And the spec the fuzz graded.
+        expect(doc['spec'], isA<Map>());
+        expect((doc['spec'] as Map)['path'], 'specs/fixture-greeter/spec.md');
 
-      // The proof checker verifies the whole thing green.
-      final checker = ProofChecker(projectRoot: fuzzRoot.path);
-      final proof = await checker.check();
-      expect(proof.ok, isTrue, reason: proof.findings.toString());
-    });
+        // The proof checker verifies the whole thing green.
+        final checker = ProofChecker(projectRoot: fuzzRoot.path);
+        final proof = await checker.check();
+        expect(proof.ok, isTrue, reason: proof.findings.toString());
+      },
+    );
 
-    test('F2: tampering the spec-fuzz report after the run is drift',
-        () async {
+    test('F2: tampering the spec-fuzz report after the run is drift', () async {
       final fuzzRoot = await _greeterProject();
       addTearDown(() => fuzzRoot.delete(recursive: true));
       final featureDir = p.join(fuzzRoot.path, 'specs', 'fixture-greeter');
@@ -264,9 +265,7 @@ void main() {
       await auditor.run();
 
       // Hand-edit the committed report after the receipt pinned it.
-      final reportFile = File(
-        p.join(featureDir, 'tdd', 'spec-fuzz.md'),
-      );
+      final reportFile = File(p.join(featureDir, 'tdd', 'spec-fuzz.md'));
       reportFile.writeAsStringSync(
         '${reportFile.readAsStringSync()}\n<!-- hand edit -->\n',
       );
@@ -279,17 +278,16 @@ void main() {
         contains(ProofFinding.kindModified),
       );
       expect(
-        proof.findings.where((f) => f.kind == ProofFinding.kindModified).map(
-              (f) => f.path,
-            ),
+        proof.findings
+            .where((f) => f.kind == ProofFinding.kindModified)
+            .map((f) => f.path),
         contains('specs/fixture-greeter/tdd/spec-fuzz.md'),
       );
     });
   });
 
   group('W1/W2/W3: world-hash validation', () {
-    test('W1: a matching world manifest verifies (no world_drift)',
-        () async {
+    test('W1: a matching world manifest verifies (no world_drift)', () async {
       const feature = 'w1-feature';
       final manifest = await _writeWorld(root, feature, scenario: 'v3');
 
@@ -320,92 +318,96 @@ void main() {
       );
     });
 
-    test('W2: mutating the world manifest after the run is world_drift',
-        () async {
-      const feature = 'w2-feature';
-      final manifest = await _writeWorld(root, feature, scenario: 'v3');
-      final originalHash = manifest.worldHash;
+    test(
+      'W2: mutating the world manifest after the run is world_drift',
+      () async {
+        const feature = 'w2-feature';
+        final manifest = await _writeWorld(root, feature, scenario: 'v3');
+        final originalHash = manifest.worldHash;
 
-      final store = WorldRunReceiptStore(projectRoot: root.path);
-      await store.save(
-        WorldRunReceipt(
+        final store = WorldRunReceiptStore(projectRoot: root.path);
+        await store.save(
+          WorldRunReceipt(
+            scenario: 'v3',
+            feature: feature,
+            worldHash: originalHash,
+            seed: 1136,
+            verdict: 'GREEN',
+            passed: true,
+            worldValid: true,
+            plays: 1,
+            runDigest: 'a' * 64,
+            virtualElapsedMs: 5,
+            at: DateTime.now().toUtc().toIso8601String(),
+            path: '',
+          ),
+        );
+
+        // Mutate the world's reality after the green receipt named it.
+        await _writeWorld(
+          root,
+          feature,
           scenario: 'v3',
-          feature: feature,
-          worldHash: originalHash,
-          seed: 1136,
-          verdict: 'GREEN',
-          passed: true,
-          worldValid: true,
-          plays: 1,
-          runDigest: 'a' * 64,
-          virtualElapsedMs: 5,
-          at: DateTime.now().toUtc().toIso8601String(),
-          path: '',
-        ),
-      );
+          descriptionOverride:
+              'the 1136 proof-check fixture (MUTATED — new failure '
+              'schedule semantics)',
+        );
 
-      // Mutate the world's reality after the green receipt named it.
-      await _writeWorld(
-        root,
-        feature,
-        scenario: 'v3',
-        descriptionOverride:
-            'the 1136 proof-check fixture (MUTATED — new failure '
-            'schedule semantics)',
-      );
+        final checker = ProofChecker(projectRoot: root.path);
+        final report = await checker.check();
+        expect(report.ok, isFalse);
+        final drift = report.findings
+            .where((f) => f.kind == ProofFinding.kindWorldDrift)
+            .toList();
+        expect(drift, hasLength(1));
+        expect(
+          drift.single.detail,
+          contains(originalHash.substring(0, 12)),
+          reason: 'the finding names the receipted hash',
+        );
+        expect(drift.single.receipt, 'world-run-v3.json');
+      },
+    );
 
-      final checker = ProofChecker(projectRoot: root.path);
-      final report = await checker.check();
-      expect(report.ok, isFalse);
-      final drift = report.findings
-          .where((f) => f.kind == ProofFinding.kindWorldDrift)
-          .toList();
-      expect(drift, hasLength(1));
-      expect(
-        drift.single.detail,
-        contains(originalHash.substring(0, 12)),
-        reason: 'the finding names the receipted hash',
-      );
-      expect(drift.single.receipt, 'world-run-v3.json');
-    });
+    test(
+      'W3: a world-run receipt whose manifest is gone is world_drift',
+      () async {
+        const feature = 'w3-feature';
+        final manifest = await _writeWorld(root, feature, scenario: 'v3');
 
-    test('W3: a world-run receipt whose manifest is gone is world_drift',
-        () async {
-      const feature = 'w3-feature';
-      final manifest = await _writeWorld(root, feature, scenario: 'v3');
+        final store = WorldRunReceiptStore(projectRoot: root.path);
+        await store.save(
+          WorldRunReceipt(
+            scenario: 'v3',
+            feature: feature,
+            worldHash: manifest.worldHash,
+            seed: 1136,
+            verdict: 'GREEN',
+            passed: true,
+            worldValid: true,
+            plays: 1,
+            runDigest: 'a' * 64,
+            virtualElapsedMs: 5,
+            at: DateTime.now().toUtc().toIso8601String(),
+            path: '',
+          ),
+        );
 
-      final store = WorldRunReceiptStore(projectRoot: root.path);
-      await store.save(
-        WorldRunReceipt(
-          scenario: 'v3',
-          feature: feature,
-          worldHash: manifest.worldHash,
-          seed: 1136,
-          verdict: 'GREEN',
-          passed: true,
-          worldValid: true,
-          plays: 1,
-          runDigest: 'a' * 64,
-          virtualElapsedMs: 5,
-          at: DateTime.now().toUtc().toIso8601String(),
-          path: '',
-        ),
-      );
+        // The manifest disappears (moved / deleted): the green is no
+        // longer attributable to any committed world.
+        File(
+          p.join(root.path, 'specs', feature, 'tdd', 'worlds', 'v3.world.json'),
+        ).deleteSync();
 
-      // The manifest disappears (moved / deleted): the green is no
-      // longer attributable to any committed world.
-      File(
-        p.join(root.path, 'specs', feature, 'tdd', 'worlds', 'v3.world.json'),
-      ).deleteSync();
-
-      final checker = ProofChecker(projectRoot: root.path);
-      final report = await checker.check();
-      expect(report.ok, isFalse);
-      expect(
-        report.findings.map((f) => f.kind),
-        contains(ProofFinding.kindWorldDrift),
-      );
-    });
+        final checker = ProofChecker(projectRoot: root.path);
+        final report = await checker.check();
+        expect(report.ok, isFalse);
+        expect(
+          report.findings.map((f) => f.kind),
+          contains(ProofFinding.kindWorldDrift),
+        );
+      },
+    );
   });
 
   test('K1: the proof report carries a receipt-kind breakdown', () async {

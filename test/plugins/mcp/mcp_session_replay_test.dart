@@ -120,7 +120,9 @@ void main() {
         'id': 'legacy',
         'createdAt': '2026-09-18T00:00:00Z',
         'lastActiveAt': '2026-09-18T00:00:00Z',
-        'state': {'subscribed': ['/lib']},
+        'state': {
+          'subscribed': ['/lib'],
+        },
       });
       expect(session.calls, isEmpty);
       expect(session.state['subscribed'], ['/lib']);
@@ -133,15 +135,17 @@ void main() {
         'lastActiveAt': '2026-09-18T00:00:00Z',
         'state': {},
         'calls': [
-          {'tool': 'echo', 'arguments': {'message': 'hi'}},
+          {
+            'tool': 'echo',
+            'arguments': {'message': 'hi'},
+          },
         ],
       });
       expect(session.calls, hasLength(1));
       expect(session.calls.first['tool'], 'echo');
     });
 
-    test('S3: the session_record v2 tool appends through the store',
-        () async {
+    test('S3: the session_record v2 tool appends through the store', () async {
       final result = await handleV2ToolCall(
         toolName: 'session_record',
         args: {
@@ -179,9 +183,9 @@ void main() {
       originalCwd = Directory.current.path;
       root = await Directory.systemTemp.createTemp('zfa-1136');
       Directory.current = root.path;
-      File('${root.path}/pubspec.yaml').writeAsStringSync(
-        'name: fixture_app\nenvironment:\n  sdk: ^3.0.0\n',
-      );
+      File(
+        '${root.path}/pubspec.yaml',
+      ).writeAsStringSync('name: fixture_app\nenvironment:\n  sdk: ^3.0.0\n');
       final bin = File('${root.path}/bin/mcp_server.dart')
         ..createSync(recursive: true);
       bin.writeAsStringSync(fixtureServer);
@@ -220,17 +224,18 @@ void main() {
       expect(output, contains('mcp-replay: session=checkout-agent'));
       expect(output, contains('ok=2 failed=0'));
 
-      final receipt = jsonDecode(
-        File(
-          '${root.path}/.zfa/receipts/mcp-replay-checkout-agent.json',
-        ).readAsStringSync(),
-      ) as Map<String, dynamic>;
+      final receipt =
+          jsonDecode(
+                File(
+                  '${root.path}/.zfa/receipts/mcp-replay-checkout-agent.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
       expect(receipt['source'], 'session-store');
       expect(receipt['session'], 'checkout-agent');
     });
 
-    test('S5: a recorded session with no calls refuses honestly',
-        () async {
+    test('S5: a recorded session with no calls refuses honestly', () async {
       final store = McpSessionStore(projectRoot: root.path);
       final session = await store.getOrCreate('empty-session');
       await store.save(session);

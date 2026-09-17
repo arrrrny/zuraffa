@@ -37,7 +37,8 @@ void main() {
         expect(
           first.ok,
           isTrue,
-          reason: 'a well-formed email and an adequate password yield a '
+          reason:
+              'a well-formed email and an adequate password yield a '
               'valid verdict (FR-006 pins the concrete verdict)',
         );
         expect(
@@ -45,8 +46,13 @@ void main() {
           isEmpty,
           reason: 'valid credentials carry no reasons',
         );
-        expect(a.ok, isFalse, reason: 'a malformed email and a short '
-            'password yield an invalid verdict');
+        expect(
+          a.ok,
+          isFalse,
+          reason:
+              'a malformed email and a short '
+              'password yield an invalid verdict',
+        );
         expect(
           a.reasons,
           equals(const ['email', 'password']),

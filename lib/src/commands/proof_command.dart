@@ -222,9 +222,7 @@ class ProofCheckCommand extends Command<void> {
       // route, usecase, ...).
       final kinds = report.receiptKinds;
       if (kinds != null && kinds.isNotEmpty) {
-        final listed = kinds.entries
-            .map((e) => '${e.key}=${e.value}')
-            .toList()
+        final listed = kinds.entries.map((e) => '${e.key}=${e.value}').toList()
           ..sort();
         print('Receipt kinds verified: ${listed.join(', ')}');
       }

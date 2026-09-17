@@ -303,9 +303,7 @@ class ProofChecker {
         continue;
       }
       try {
-        current = WorldManifest.parse(
-          manifestFile.readAsBytesSync(),
-        ).worldHash;
+        current = WorldManifest.parse(manifestFile.readAsBytesSync()).worldHash;
       } catch (_) {
         findings.add(
           ProofFinding(

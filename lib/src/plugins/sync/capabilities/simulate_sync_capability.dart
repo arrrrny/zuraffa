@@ -288,9 +288,7 @@ class SimulateSyncCapability implements ZuraffaCapability {
         'total': entityCount,
         'totalRetries': retried,
         'recoveryRounds': recoveryRounds,
-        'chaos': {
-          for (final c in script.classes) c: chaosFired[c] ?? 0,
-        },
+        'chaos': {for (final c in script.classes) c: chaosFired[c] ?? 0},
       },
     );
   }

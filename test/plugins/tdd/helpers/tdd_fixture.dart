@@ -113,9 +113,8 @@ coverage: 'dart test --coverage'
 
   /// The portable project-relative POSIX form of the behavior's subject
   /// path — the recorded form receipts carry (issue #1397).
-  String recordedSubjectPath(String id) => _recordedForm(
-    p.join(root.path, 'lib', '${_snake(id)}_subject.dart'),
-  );
+  String recordedSubjectPath(String id) =>
+      _recordedForm(p.join(root.path, 'lib', '${_snake(id)}_subject.dart'));
 
   /// Register a behavior: writes its test file (unless [writeTestFile] is
   /// false) and appends a gen-style record to the artifact registry.

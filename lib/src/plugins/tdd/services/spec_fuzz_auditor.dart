@@ -722,9 +722,7 @@ class SpecFuzzAuditor {
           action: 'create',
           sha256: crypto.sha256.convert(bytes).toString(),
           bytes: bytes.length,
-          snapshot: bytes.length <= 16 * 1024
-              ? utf8.decode(bytes)
-              : null,
+          snapshot: bytes.length <= 16 * 1024 ? utf8.decode(bytes) : null,
         ),
       );
     }
@@ -741,9 +739,7 @@ class SpecFuzzAuditor {
           'feature': featureName,
           'seed': seed,
           'budget': budget,
-          'operators': [
-            for (final o in operators) o.label,
-          ]..sort(),
+          'operators': [for (final o in operators) o.label]..sort(),
         },
         spec: report.specHash == null
             ? null
