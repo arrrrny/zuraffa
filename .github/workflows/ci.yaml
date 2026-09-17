@@ -244,9 +244,9 @@ jobs:
     # red -> binding wiring -> contract green -> golden lane e2e against
     # the real CLI. Scoped to the `ffi` tag (NOT --preset=integration) —
     # the full integration tier spins up heavy temp builds that the
-    # dart_test.yaml policy keeps off CI agents; the `all` preset below
-    # only lifts the default `slow` exclusion so the ffi-tagged suite is
-    # actually selected (issue #1678).
+    # dart_test.yaml policy keeps off CI agents; the `ffi` preset carries
+    # the lane's scoping (include_tags: ffi) and the lift of the default
+    # `slow` exclusion together (issue #1678).
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
