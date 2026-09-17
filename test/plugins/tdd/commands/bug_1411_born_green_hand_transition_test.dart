@@ -39,6 +39,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/core/proof/proof_checker.dart';
+import 'package:zuraffa/src/core/project/receipt_store.dart';
 import 'package:zuraffa/src/plugins/tdd/services/born_green.dart';
 
 import '../helpers/tdd_fixture.dart';
@@ -163,6 +165,75 @@ void main() {
       expect(cycleLog, contains('  (none)'));
       expect(cycleLog, contains('- suite: baseline=0 guard=0'));
     });
+
+    test(
+      'B8 (spec 1136, the spec-1423 analogue): born-green refreshes the '
+      'hand-delta receipts — a receipted drift on the hand-completed '
+      'test/subject is re-hashed, proof check green',
+      () async {
+        await fx.registerBehavior(
+          id: 'U1',
+          description: _description,
+          testContent: bornGreenTest(_description, attested: true),
+        );
+        await writeSubject('int u1_value() => 42;\n');
+
+        // The pre-hand gen receipt: STALE digests over the CURRENT
+        // (hand-completed) test/subject bytes — the exact drift class
+        // spec 1423 re-hashes for the skip and re-certify transitions.
+        final testRel = fx.recordedTestPath('U1');
+        final subjectRel = fx.recordedSubjectPath('U1');
+        final store = ReceiptStore(projectRoot: fx.root.path);
+        await store.saveNamed(
+          'tdd-gen-U1.json',
+          GenerationReceipt(
+            schema: 'proof.v1',
+            command: 'tdd gen',
+            target: 'U1',
+            repro: 'zfa tdd gen U1',
+            at: DateTime.now().toUtc(),
+            generatorVersion: 'test',
+            input: {'feature': fx.featureName},
+            files: [
+              GenerationReceiptFile(
+                path: testRel,
+                action: 'create',
+                sha256: 'stale-test-digest',
+                bytes: 1,
+                snapshot: null,
+              ),
+              GenerationReceiptFile(
+                path: subjectRel,
+                action: 'create',
+                sha256: 'stale-subject-digest',
+                bytes: 1,
+                snapshot: null,
+              ),
+            ],
+          ),
+        );
+
+        final out = await drive(bornGreenArgs());
+
+        expect(exitCode, 0, reason: out);
+        expect(out, contains('outcome=born-green'), reason: out);
+
+        // The drift is resolved: the latest receipts over the
+        // hand-completed pair carry the CURRENT digests, so the verify
+        // proof preflight validates instead of dead-ending the cycle.
+        final report = await ProofChecker(projectRoot: fx.root.path).check();
+        final drifted = report.findings
+            .where((f) => f.path == testRel || f.path == subjectRel)
+            .toList();
+        expect(
+          drifted,
+          isEmpty,
+          reason:
+              'born-green must re-receipt the hand-completed pair (spec '
+              '1423): ${report.findings.map((f) => '${f.kind}: ${f.path}')}',
+        );
+      },
+    );
 
     test('B2: no flag + attested shape → the refusal OFFERS the exact '
         '--born-green command', () async {

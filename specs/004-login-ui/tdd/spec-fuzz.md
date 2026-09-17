@@ -60,7 +60,7 @@ restoration_verified: true
 
 ## Ledger
 
-- gap-001, gap-002, gap-003, gap-004
+- none (no survivors, or the ledger integration is off)
 
 ## Evidence binding
 

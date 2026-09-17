@@ -101,12 +101,7 @@
     "survived": 4,
     "not_assessed": 4
   },
-  "ledger_entry_ids": [
-    "gap-001",
-    "gap-002",
-    "gap-003",
-    "gap-004"
-  ],
+  "ledger_entry_ids": [],
   "restoration": {
     "verified": true,
     "scope": [

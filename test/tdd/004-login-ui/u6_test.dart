@@ -30,6 +30,28 @@ void main() {
         final b = subject.subject_u6('bad', 'x');
         expect(a.reasons, b.reasons);
         expect(a.ok, b.ok);
+        // The concrete verdicts (mutation-audit remediation, spec 1136
+        // verify pass): determinism pins the verdict VALUE, not just the
+        // repetition — these pins also keep the argument mapping
+        // (email, password) observable.
+        expect(
+          first.ok,
+          isTrue,
+          reason: 'a well-formed email and an adequate password yield a '
+              'valid verdict (FR-006 pins the concrete verdict)',
+        );
+        expect(
+          first.reasons,
+          isEmpty,
+          reason: 'valid credentials carry no reasons',
+        );
+        expect(a.ok, isFalse, reason: 'a malformed email and a short '
+            'password yield an invalid verdict');
+        expect(
+          a.reasons,
+          equals(const ['email', 'password']),
+          reason: 'both fields are named, email first (stable order)',
+        );
       },
     );
   });
