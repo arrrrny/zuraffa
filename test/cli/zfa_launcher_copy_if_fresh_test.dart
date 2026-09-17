@@ -8,6 +8,7 @@
 // sources), copy-failure reporting, and atomic staging under concurrency.
 // No test ever pays a real `dart compile exe`: the fall-through cases stop
 // at the `ZFA_NO_REBUILD=1` / `package_config.json` guards.
+@Tags(['e2e'])
 library;
 
 import 'dart:convert';
