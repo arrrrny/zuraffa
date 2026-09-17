@@ -230,6 +230,99 @@ coverage: 'dart test --coverage'
       expect(File(ledgerPath).existsSync(), isFalse);
     });
 
+    test(
+      'A1d (issue #1676 composition): a record the DRIVER wrote on a '
+      'skipped make flows into the inheritance — zero suite spawns',
+      () async {
+        // The composition pin the three single-piece suites cannot give:
+        // U5b (driver writes on `skipped`) + A1s (a skip-verdict record
+        // inherits) are pinned separately, but A1s hand-edits the verdict
+        // on a helper-written record — a future change to the driver's
+        // digest/context keys could break the real chain while both suites
+        // stay green. Here the DRIVER writes the record end to end (the
+        // scripted fake zfa ends B-002 at the #694 skip transition, the
+        // post-#1651 hand-step shape), and the real `zfa tdd refactor
+        // --pass-batch` then inherits it: the inheritance line names the
+        // driver-written skip verdict, and the suite wrapper is never
+        // spawned.
+        await fx.seedTestList([
+          (
+            id: 'B-001',
+            description: 'first behavior',
+            traces: 'FR-001',
+            state: 'PENDING',
+            kind: 'unit',
+          ),
+          (
+            id: 'B-002',
+            description: 'second behavior',
+            traces: 'FR-001',
+            state: 'PENDING',
+            kind: 'unit',
+          ),
+        ]);
+        await fx.writeFakeZfa();
+        await fx.setStepOutcome('verify-red', 'B-002', 'unexpected-green');
+        await fx.setStepOutcome('make', 'B-002', 'skip');
+        await fx.seedRedEvidence('B-002');
+
+        final driverRunner = CliRunner(exitOnCompletion: false);
+        final runOut = await driverRunner.runCapturing([
+          'tdd',
+          'run',
+          fx.featureName,
+          '--project',
+          fx.root.path,
+          '--zfa-bin',
+          fx.fakeZfaBin,
+        ]);
+        expect(exitCode, 0, reason: runOut);
+
+        // The driver actually wrote the record, under B-002's skip
+        // certification — no hand-editing anywhere in this chain.
+        final recordPath = p.join(fx.featureDir, 'tdd', 'make-post-state.json');
+        final record =
+            jsonDecode(await File(recordPath).readAsString())
+                as Map<String, dynamic>;
+        expect(record['behavior_id'], 'B-002', reason: runOut);
+        expect(
+          record['green_verdict'] as String,
+          contains('outcome=skipped'),
+          reason: runOut,
+        );
+        expect(record['suite'], suiteScript, reason: runOut);
+        // The run captured its once-per-run suite baseline (issue #741 —
+        // the seeded green fixture gives the capture something parseable)
+        // and the record keys on it, exactly like every driver-written
+        // record in the real hand-step flow. That capture is the driver's
+        // own cost — it already went through the logging wrapper, so the
+        // economics assertion below counts only spawns AFTER the drive.
+        expect(File(fx.runBaselinePath).existsSync(), isTrue, reason: runOut);
+        expect(record['baseline_key'], isNotEmpty, reason: runOut);
+        final spawnsAfterDrive = await suiteSpawnCount();
+        final ledgerPath = p.join(fx.featureDir, 'tdd', 'pass-batch.json');
+
+        // The driver hands its cached baseline to the spawned refactor
+        // steps (issue #922) — this invocation plays that spawn, so it
+        // carries the same flags the driver's spawn does.
+        final out = await runRefactor(
+          extraArgs: ['--pass-batch', '--suite-baseline', fx.runBaselinePath],
+        );
+
+        expect(exitCode, 0, reason: out);
+        // THE economics assertion: the driver-written record inherits —
+        // the refactor adds ZERO suite spawns (no preflight, no re-proof).
+        expect(await suiteSpawnCount(), spawnsAfterDrive, reason: out);
+        // The inheritance names the driver-written skip evidence.
+        expect(out, contains('make-post-state'));
+        expect(out, contains('B-002'));
+        expect(out, contains('outcome=skipped'));
+        // The record never overwrites the refactor-proved ledger
+        // (FR-007): none existed, none was fabricated.
+        expect(File(ledgerPath).existsSync(), isFalse);
+      },
+    );
+
     test('A2: tree drift after the make re-runs the full pipeline — the '
         'drifted tree is never inherited', () async {
       await writeRecord();

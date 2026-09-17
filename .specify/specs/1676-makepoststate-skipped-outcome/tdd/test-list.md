@@ -3,8 +3,8 @@ feature: 1676-makepoststate-skipped-outcome
 loop: inside-out
 profile: .specify/memory/tdd-profile.md
 spec_criteria: 5
-planned_at: 1676a1b2
-updated_at: 1676a1b2
+planned_at: fe015970
+updated_at: fe015970
 suite_baseline: green
 ---
 

@@ -83,6 +83,18 @@ pipeline instead of re-running it over a tree make just certified.
   precedence; every existing mismatch dimension (tree drift, baseline
   rewrite, config rewrite, exempt-set difference, corrupt record, missing
   `--pass-batch`, `--full-reproof`) still runs the full pipeline.
+  **Certification scope, stated explicitly (deliberate trade-off)**: a
+  skip-transition certification covers the TARGET TEST only — the skip
+  transition runs no suite baseline and no suite guard (both are behind
+  `if (!alreadyGreen)` in `make_command.dart`, "the skip transition runs
+  no guard — nothing was generated") — so a skip-written inheritance
+  deliberately defers **all** cross-behavior suite regression detection
+  (e.g. a hand-edit that satisfies behavior N's target test but breaks an
+  already-DONE behavior M) to the feature-completion verify preflight and
+  the nightly run. The verdict string names that scope honestly
+  (`target-test green evidence`); widening the evidence to the suite is a
+  consumer-side change and is out of this spec's scope by design (the
+  chosen shape is write-side only).
 - **SC-5**: `green`-outcome behavior is unchanged: same recording
   condition path, and the `green` verdict string stays byte-identical
   (`make <id> outcome=green exit <n> (post-generation green evidence)`).

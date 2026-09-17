@@ -3221,12 +3221,23 @@ class RunDriverCore {
       // green application keeps its byte-identical #1652 wording; the
       // skip transition names its own evidence (the target-test green it
       // just certified on the current tree), never mislabeled as green.
-      final verdict = outcome == 'green'
-          ? 'make $behaviorId outcome=green exit $exitCode '
-                '(post-generation green evidence)'
-          : 'make $behaviorId outcome=skipped exit $exitCode '
-                '(skip-transition target-test green evidence on the '
-                'current tree; issue #1676)';
+      // The switch (not an else) keeps the token and the label in
+      // lockstep: a third token added to the recording gate above fails
+      // loud here instead of being silently recorded under a skip label
+      // — the surrounding catch degrades the throw to the warning line
+      // and writes no record, exactly like the best-effort contract.
+      final verdict = switch (outcome) {
+        'green' =>
+          'make $behaviorId outcome=green exit $exitCode '
+              '(post-generation green evidence)',
+        'skipped' =>
+          'make $behaviorId outcome=skipped exit $exitCode '
+              '(skip-transition target-test green evidence on the '
+              'current tree; issue #1676)',
+        _ => throw StateError(
+          'unrecordable make outcome "$outcome" (issue #1676)',
+        ),
+      };
       final record = MakePostState(
         capturedAt: DateTime.now().toUtc().toIso8601String(),
         behaviorId: behaviorId,

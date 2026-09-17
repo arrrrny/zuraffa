@@ -47,6 +47,15 @@
 /// tree, and the full gate still runs at the phase-2b batch pass,
 /// feature completion, and nightly (spec 069 T001).
 ///
+/// Certification scope (deliberate, issue #1676): a `green` make's
+/// certification carries a baseline-relative suite guard; a `skipped`
+/// make's certification covers the TARGET TEST only — the skip
+/// transition runs no suite baseline and no suite guard. A skip-written
+/// inheritance therefore defers ALL suite regression detection to the
+/// phase-2b batch pass, feature completion, and nightly; the verdict
+/// string names that narrower scope (`target-test green evidence`) so
+/// the printed trail stays honest about what certified the tree.
+///
 /// The record is derived data describing ONE moment: rewritten by every
 /// certifying make (green-applied or skipped, issue #1676), inert once
 /// the tree moves on (a digest mismatch sends the
