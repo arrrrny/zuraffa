@@ -341,9 +341,13 @@ class RunCommand extends Command<void> {
     // would surface only as a raw version-solving dump buried mid-log
     // after minutes of compiling, with the clean-cache retry burning a
     // full rebuild on a resolution error no cache clean can fix.
-    // Validate every override path BEFORE the setup preflight, the cert gate,
-    // and any lane step spawns; refuse with the honest drift verdict (exit 3,
-    // journaled preflight_red — zero steps).
+    // Validate every override path BEFORE the #1528 baseline ensure, the
+    // cert gate, and any lane step spawns; refuse with the honest drift
+    // verdict (exit 3, journaled preflight_red — zero steps). The gate runs
+    // before the baseline ensure deliberately: the ensure's pub resolution
+    // misfires on exactly this drift, and reporting corrupt state as a
+    // setup-error sends the operator after the wrong remedy (issue #1303:
+    // refuse BEFORE any work).
     // -----------------------------------------------------------------
     final overrideReport = await DependencyOverridePreflight(
       projectRoot: projectRoot,
@@ -407,15 +411,17 @@ class RunCommand extends Command<void> {
       return;
     }
 
+    // -----------------------------------------------------------------
     // Issue #1528 preflight: a missing TDD profile is a SETUP condition —
     // deterministically detectable before any step, with a deterministic
     // idempotent remediation. Without this gate the loop spawned gen/+
     // verify-red children only to stop at the first behavior with the
     // engine-defect-sounding `classification=unresolved` (and an error
     // telling the operator to run the idempotent `tdd init` themselves).
-    // Ensure the baseline HERE — before any lane step:
-    // missing profile → the shared idempotent init sequence runs and the
-    // created artifacts are logged; a misfiring writer → fail CLOSED
+    // Ensure the baseline HERE — after the #1303 drift gate, before any
+    // lane step: missing profile → the shared idempotent init sequence
+    // runs and the created artifacts are logged; a misfiring writer →
+    // fail CLOSED
     // (journaled preflight_red, result=setup-error summary, verdict
     // receipt, exit 1, ZERO steps). Unconditional: `--force` bypasses the
     // routing gate only — the baseline is self-healing setup, not a
