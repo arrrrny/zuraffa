@@ -12,6 +12,7 @@ import '../../core/project/project_root.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../skew/skew_contract.dart';
+import '../../tdd/services/view_generation_contract.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/flutter_symbols.dart';
 import '../../utils/string_utils.dart';
@@ -26,6 +27,14 @@ import '../../state/generator/state_generator.dart';
 import '../../state/generator/view_template_generator.dart';
 
 import 'package:code_builder/code_builder.dart';
+
+/// The lane-2 (#1134) contract-check result: the short-circuit file
+/// list (empty = the fence refusal; a skipped primary = the
+/// already-implemented verdict).
+class _ViewContractResult {
+  final List<GeneratedFile> files;
+  const _ViewContractResult(this.files);
+}
 
 /// Generates Flutter view classes for presentation pages.
 class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
@@ -420,6 +429,17 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return delegator.generate(config, context: context);
     }
 
+    // EPIC 3 / issue #1134, lane 2 — the view-generation contract: the
+    // deterministic contract ported from `zfa tdd view` (the
+    // already-implemented verdict + the machine summary line) and the
+    // FENCE between the two view generators. The capability layer is
+    // the single funnel both CLI paths share (the auto-registered
+    // `create` subcommand and the programmatic entity path), so the
+    // plugin owns the check — never a silent clobber across
+    // generators, never a phantom scaffold.
+    final contract = await _viewGenerationContract(config, fs);
+    if (contract != null) return contract.files;
+
     final generatedFiles = <GeneratedFile>[];
     final entityName = config.name;
     final domainSnake = config.effectiveDomain;
@@ -491,7 +511,97 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generatedFiles.addAll(files);
     }
 
+    // Issue #1134 lane 2: the machine summary line — the ported
+    // deterministic contract. A run that wrote nothing (every file
+    // skipped) reports already-implemented, never a phantom scaffold;
+    // same declared inputs, same bytes (pipelines grep for it).
+    final written = generatedFiles
+        .where((f) => f.action == 'created' || f.action == 'overwritten')
+        .length;
+    print(
+      ViewGenerationContract.machineSummary(
+        entity: entityName,
+        outcome: written > 0
+            ? MainlineViewOutcome.scaffolded
+            : MainlineViewOutcome.alreadyImplemented,
+        files: written,
+      ),
+    );
+
     return generatedFiles;
+  }
+
+  /// The lane-2 (#1134) pre-generation contract check on the PRIMARY
+  /// view file (`<outputDir>/presentation/pages/<domain>/
+  /// <entity>_view.dart` — the same derivation the generation below
+  /// applies). Returns null to proceed; a non-null result short-circuits
+  /// the generation:
+  ///
+  /// - a `zfa tdd view` subject (no --force) → the FENCE: refuse, no
+  ///   files (the zero-artifact guard fails the run), the machine
+  ///   summary carries `outcome=error`;
+  /// - a generator-written or hand-written view (no --force) → the
+  ///   ported already-implemented verdict: exit-green skip of the
+  ///   primary, nothing rewritten;
+  /// - a tdd subject WITH --force → the loud documented escape hatch.
+  Future<_ViewContractResult?> _viewGenerationContract(
+    GeneratorConfig config,
+    FileSystem fs,
+  ) async {
+    if (config.revert) return null; // revert deletes; the contract is
+    // about scaffolding.
+    final primaryPath = path.join(
+      outputDir,
+      'presentation',
+      'pages',
+      config.effectiveDomain,
+      '${config.nameSnake}_view.dart',
+    );
+    if (!await fs.exists(primaryPath)) return null;
+    final kind = ViewGenerationContract.inspect(await fs.read(primaryPath));
+    if (kind == ViewFileKind.tddSubject) {
+      if (config.force) {
+        // The documented escape hatch — loud, never silent.
+        print(
+          '⚠️  --force: overwriting the `zfa tdd view` subject at '
+          '"$primaryPath" — the mainline generator takes ownership.',
+        );
+        return null;
+      }
+      print(
+        '❌ zfa view: refusing — the view at "$primaryPath" is a '
+        '`zfa tdd view` subject (the behavior-driven generator owns it).',
+      );
+      print(
+        '  --> fix: regenerate it with `zfa tdd view <behavior-id>`, '
+        'or pass --force to take ownership of the file.',
+      );
+      print(
+        ViewGenerationContract.machineSummary(
+          entity: config.name,
+          outcome: MainlineViewOutcome.error,
+        ),
+      );
+      return const _ViewContractResult([]);
+    }
+    if (!config.force &&
+        (kind == ViewFileKind.generatorWritten ||
+            kind == ViewFileKind.handWritten)) {
+      print(
+        'zfa view: the view at "$primaryPath" is already implemented '
+        '— nothing to scaffold.',
+      );
+      print(
+        ViewGenerationContract.machineSummary(
+          entity: config.name,
+          outcome: MainlineViewOutcome.alreadyImplemented,
+        ),
+      );
+      return _ViewContractResult([
+        GeneratedFile(path: primaryPath, type: 'view', action: 'skipped'),
+      ]);
+    }
+    return null;
   }
 
   Future<List<GeneratedFile>> _generateViewFile({
