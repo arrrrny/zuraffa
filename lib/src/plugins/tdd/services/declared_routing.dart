@@ -139,34 +139,6 @@ class DeclaredRouting {
     }
   }
 
-  /// Issue #1651 (review): the pair's declared routing mapped to the
-  /// gate predicate's input record — the ONE fail-open shape make's 9b
-  /// gate and the run driver's placeholder stop share. Null when the
-  /// pair is not declared-routed or any artifact is unreadable; a
-  /// MALFORMED declaration (the parser's [StateError]) is swallowed to
-  /// null here — the gate then takes the scaffold-class arm, the safe
-  /// arm for a pair gen itself would have refused.
-  static Future<({String method, String returnType})?>
-  declaredSignatureFailOpen({
-    required String cwd,
-    required String featureName,
-    required String featureDir,
-    required String behaviorId,
-  }) async {
-    try {
-      final signature = await declaredSignatureFor(
-        cwd: cwd,
-        featureName: featureName,
-        featureDir: featureDir,
-        behaviorId: behaviorId,
-      );
-      if (signature == null) return null;
-      return (method: signature.name, returnType: signature.returnType);
-    } on StateError {
-      return null;
-    }
-  }
-
   /// The declared signature for [behaviorId], resolved from the
   /// feature's test-list trace cell against the spec's contract rows.
   /// Null when the behavior is undeclared or any artifact is missing

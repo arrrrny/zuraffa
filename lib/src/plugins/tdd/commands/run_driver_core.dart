@@ -2686,8 +2686,6 @@ class RunDriverCore {
             final placeholderRecord = await registry.findRecord(row.id);
             final dummyDetected = await _placeholderGreenDetected(
               projectRoot: projectRoot,
-              featureDir: featureDir,
-              featureName: feature,
               record: placeholderRecord,
             );
             if (dummyDetected) {
@@ -3572,20 +3570,14 @@ class RunDriverCore {
   ///
   /// The classification rides the ONE decision predicate make's 9b gate
   /// uses ([scalarDummyGreenMustRefuse]) so the two surfaces never
-  /// disagree: the declared routing and the spec's parsed scenarios are
-  /// resolved through the shared fail-open shims
-  /// ([DeclaredRouting.declaredSignatureFailOpen],
-  /// [DeclaredRouting.scenariosFailOpen] — review fix: one posture for
-  /// gen, make, and the driver) and the #1310 floor exempts the
-  /// declared-routed pair whose scenario carries no derivable value.
-  /// [featureDir] is the already-resolved feature directory (bug
-  /// features live outside `specs/`), [featureName] the canonical
-  /// feature name.
+  /// disagree: the verdict is master's #1667 policy — the type-only
+  /// class is refused whether or not the test carries the marker, and
+  /// the pair's declared routing / the spec's scenarios do NOT exempt
+  /// it (the #1310-floor exemption was removed by the #1679 merge
+  /// review, keeping make's step 3c and this probe in lockstep).
   Future<bool> _placeholderGreenDetected({
     required String projectRoot,
-    required String featureDir,
-    required String featureName,
-    ArtifactRecord? record,
+    required ArtifactRecord? record,
   }) async {
     if (record == null) return false;
     try {
@@ -3600,24 +3592,9 @@ class RunDriverCore {
       if (!subjectFile.existsSync() || !testFile.existsSync()) return false;
       final subjectContent = await subjectFile.readAsString();
       final testContent = await testFile.readAsString();
-      if (!contentCarriesScalarDummyBody(subjectContent) ||
-          !contentIsTypeOnlyAssertion(testContent)) {
-        return false;
-      }
-      // Both resolutions fail open (null / empty) via the shared shims
-      // (review fix: one posture for gen, make, and the driver).
-      final declared = await DeclaredRouting.declaredSignatureFailOpen(
-        cwd: projectRoot,
-        featureName: featureName,
-        featureDir: featureDir,
-        behaviorId: record.behaviorId,
-      );
-      final scenarios = DeclaredRouting.scenariosFailOpen(featureDir);
       return scalarDummyGreenMustRefuse(
         subjectSource: subjectContent,
         testSource: testContent,
-        declared: declared,
-        scenarios: scenarios,
       );
     } on FileSystemException {
       return false;

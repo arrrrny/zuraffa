@@ -20,11 +20,10 @@
 ///   `return '';`) pass undetected; widening the set is a follow-up if
 ///   the goal becomes the whole placeholder family.
 /// - A legitimately constant PARAMETRIZED function
-///   (`int clampLevel(int level) => 0;`) IS matched and will be
-///   refused when not declared-routed — the deliberate complement of
-///   the parameterless exemption below: a per-input contract whose
-///   body ignores its inputs is exactly the vacuity the gate exists
-///   for.
+///   (`int clampLevel(int level) => 0;`) IS matched and is refused — the
+///   deliberate complement of the parameterless exemption below: a
+///   per-input contract whose body ignores its inputs is exactly the
+///   vacuity the gate exists for.
 ///
 /// A parameterless constant (`int zero() => 0;`) is NOT the class: a
 /// no-input contract fully implemented by a constant is a legitimate
@@ -32,7 +31,6 @@
 /// distinction). Pure functions over source text — no I/O.
 library;
 
-import 'scenario_example.dart';
 import 'vacuous_guard.dart';
 
 /// The scalar dummy forms the func pass and wire defaults emit, anchored
@@ -61,38 +59,28 @@ bool contentCarriesScalarDummyBody(String subjectSource) =>
 /// driver's placeholder stop (issue #1651) — ONE predicate so the two
 /// surfaces never disagree about a pair.
 ///
-/// Refusal = scalar dummy body ∧ type-only assertion set ∧ NOT the
-/// #1310 floor. The floor is the reconciliation with the #1310
-/// dead-end removal (plan_traces_cell_1310 U6): a DECLARED-ROUTED pair
-/// whose spec scenario carries NO derivable value for the declared
-/// return asserts the declared outcome TYPE — the best derivable
-/// surface — and that class must keep certifying over a dummy
-/// `=> false;` body. When the spec's scenario DOES name a derivable
-/// outcome (the #1651 repro: `Given 2 and 3 ... Then the sum 5`),
-/// remediation 1 derives the discriminating `equals(...)` assertion at
-/// gen time — a type-only test over that spec is the stale or
-/// under-derived theater the gate refuses. Not declared-routed at all
-/// (criterion-only traces, no spec) is the scaffold class — refuse.
-///
-/// [scenarios] are the feature spec's parsed acceptance scenarios
-/// (empty when the spec is absent or unreadable — fail-open, the floor
-/// stands: the gate refuses only on positive evidence).
+/// Refusal = scalar dummy body ∧ type-only assertion set. The verdict
+/// is master's #1667 policy (step-3c's type-only strip refuses the same
+/// pairs) with the pair probe of #1679: a `return 0;` body satisfies
+/// any `isA<T>()` check, so a green over it proves nothing. The class is
+/// refused whether or not the test carries the [vacuousGuardMarker] —
+/// the marker is the machine-readable seam the author removes with the
+/// value assertion, and a legacy marker-less type-only test is the same
+/// vacuous shape. Gen derives the discriminating `equals(...)`
+/// assertion whenever the spec's scenario names a derivable value, so a
+/// type-only test over such a spec is the stale/under-derived theater
+/// the gate refuses; when the spec carries no derivable example, the
+/// author writes the outcome-VALUE assertion by hand (the refusal names
+/// the marker and both artifact paths). The pair's declared routing and
+/// the spec's scenarios do NOT exempt it (the pre-merge #1310-floor
+/// exemption certified dummy greens master's #1667 flipped to
+/// refusals).
 bool scalarDummyGreenMustRefuse({
   required String subjectSource,
   required String testSource,
-  required ({String method, String returnType})? declared,
-  required List<ScenarioExample> scenarios,
-}) {
-  if (!contentCarriesScalarDummyBody(subjectSource)) return false;
-  if (!contentIsTypeOnlyAssertion(testSource)) return false;
-  final method = declared?.method;
-  final returnType = declared?.returnType;
-  if (method == null || returnType == null) return true;
-  final scenario = ScenarioResolver.firstForTarget(scenarios, target: method);
-  if (scenario == null) return false;
-  return ScenarioResolver.expectedForType(returnType, scenario.thenValues) !=
-      null;
-}
+}) =>
+    contentCarriesScalarDummyBody(subjectSource) &&
+    contentIsTypeOnlyAssertion(testSource);
 
 /// The single-sourced `--> fix:` remedy for the placeholder-green stop —
 /// make's refusal and the run driver's stop arm print the SAME line so

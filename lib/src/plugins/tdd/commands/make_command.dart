@@ -1203,7 +1203,30 @@ class MakeCommand extends Command<void> {
         vacuousRowKind == BehaviorKind.acceptance;
     if (vacuousLaneScoped && scaffoldCheckFile.existsSync()) {
       final testContent = await scaffoldCheckFile.readAsString();
-      if (contentIsVacuousGreen(testContent)) {
+      // Issue #1651 (merge reconciliation with master's #1667 rule): a
+      // UNIT pair whose test assertion set is TYPE-ONLY (not the bare
+      // guard) and whose subject body is a scalar dummy is the 9b
+      // PLACEHOLDER class — deferred HERE so the 9b gate adjudicates it
+      // with the pair's declared routing + the spec's scenarios (the
+      // #1310 exemption and the pair-probed placeholder remedy,
+      // single-sourced with the run driver's stop). Without the
+      // deferral this blunt rule shadows 9b wholesale and its
+      // guard-only wording misnames the class.
+      var placeholderClassOnDisk = false;
+      if (vacuousRowKind == BehaviorKind.unit &&
+          contentIsTypeOnlyAssertion(testContent)) {
+        final placeholderProbe = File(
+          p.isAbsolute(record.subjectPath)
+              ? record.subjectPath
+              : p.join(cwd, record.subjectPath),
+        );
+        placeholderClassOnDisk =
+            placeholderProbe.existsSync() &&
+            contentCarriesScalarDummyBody(
+              await placeholderProbe.readAsString(),
+            );
+      }
+      if (!placeholderClassOnDisk && contentIsVacuousGreen(testContent)) {
         final description = _descriptionFor(record);
         // Issue #1488 (review): the remedy is LANE-BRANCHED. The unit-lane
         // remedy is an assertion on the capture's observable outcome; the
@@ -2447,16 +2470,18 @@ class MakeCommand extends Command<void> {
     //     drift re-run already passed) reaches the same gate — a
     //     placeholder green cannot sneak in through re-makes either.
     //
-    //     #1310 reconciliation: the declared floor stands. The pair's
-    //     declared routing + the spec's scenarios are resolved here and
-    //     the ONE decision predicate ([scalarDummyGreenMustRefuse],
-    //     single-sourced with the driver's stop arm) exempts the
-    //     declared-routed pair whose scenario carries no derivable value
-    //     — the typed `isA<T>()` assertion is then the best derivable
-    //     surface and the #1310 dead-end removal certifies it (U6). When
-    //     the scenario DOES name a derivable outcome, remediation 1 made
-    //     the generator emit the discriminating assertion — a type-only
-    //     test is the stale/under-derived theater, refused.
+    //     Merge reconciliation (review of the #1679 merge): the #1310
+    //     floor exemption is GONE — master's #1667 (step 3c's type-only
+    //     strip, the marker contract) and this pair probe agree on the
+    //     verdict for every placeholder pair, and master's pins flipped
+    //     the old certify-over-dummy expectations to refusals. The pair
+    //     is refused regardless of declared routing or scenario
+    //     derivability; when the spec carries no derivable example, the
+    //     author writes the outcome-VALUE assertion by hand (the refusal
+    //     names the marker and both artifact paths). This gate stays the
+    //     SECOND line for the class 3c defers here — the pair probe
+    //     yields the accurate placeholder wording where 3c's blunt rule
+    //     would misname a type-only test as "only the guard".
     // ---------------------------------------------------------------
     if (vacuousRowKind == BehaviorKind.unit) {
       final subjectFilePath = p.isAbsolute(record.subjectPath)
@@ -2469,49 +2494,40 @@ class MakeCommand extends Command<void> {
         final gateTestContent = gateTestFile.existsSync()
             ? await gateTestFile.readAsString()
             : '';
-        if (contentCarriesScalarDummyBody(subjectContent) &&
-            contentIsTypeOnlyAssertion(gateTestContent)) {
-          // Both resolutions fail open (null / empty): the floor stands
-          // unless the spec positively names a derivable outcome — the
-          // shared shims (review fix: one posture for make + the driver).
-          final gateDeclared = await DeclaredRouting.declaredSignatureFailOpen(
-            cwd: cwd,
-            featureName: target.featureName,
-            featureDir: target.featureDir,
+        final mustRefuse = scalarDummyGreenMustRefuse(
+          subjectSource: subjectContent,
+          testSource: gateTestContent,
+        );
+        if (mustRefuse) {
+          final remedy = scalarDummyGreenRemedy(
             behaviorId: record.behaviorId,
+            testPath: record.testPath,
+            subjectPath: record.subjectPath,
           );
-          final gateScenarios = DeclaredRouting.scenariosFailOpen(
-            target.featureDir,
+          // Master's #1667 marker contract: a generated type-only
+          // scalar test carries the marker, and the refusal must name
+          // it (the marker is the machine-readable seam the author
+          // removes with the value assertion).
+          final markerNote = gateTestContent.contains(vacuousGuardMarker)
+              ? ' Remove the $vacuousGuardMarker marker once the value '
+                    'assertion lands.'
+              : '';
+          print(
+            'zfa tdd make: behavior "${record.behaviorId}" test is '
+            'VACUOUS-GREEN over a PLACEHOLDER subject — the subject body '
+            'is a scalar dummy (${record.subjectPath}) and the test\'s '
+            'assertion set is type-only (issue #1651). A green here '
+            'proves nothing about the behavior: the dummy satisfies any '
+            '`isA<T>()` check with zero declared-contract code.',
           );
-          final mustRefuse = scalarDummyGreenMustRefuse(
-            subjectSource: subjectContent,
-            testSource: gateTestContent,
-            declared: gateDeclared,
-            scenarios: gateScenarios,
+          print('   --> fix: $remedy$markerNote');
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.vacuousGreen,
+            feature: target.featureName,
           );
-          if (mustRefuse) {
-            final remedy = scalarDummyGreenRemedy(
-              behaviorId: record.behaviorId,
-              testPath: record.testPath,
-              subjectPath: record.subjectPath,
-            );
-            print(
-              'zfa tdd make: behavior "${record.behaviorId}" test is '
-              'VACUOUS-GREEN over a PLACEHOLDER subject — the subject body '
-              'is a scalar dummy (${record.subjectPath}) and the test\'s '
-              'assertion set is type-only (issue #1651). A green here '
-              'proves nothing about the behavior: the dummy satisfies any '
-              '`isA<T>()` check with zero declared-contract code.',
-            );
-            print('   --> fix: $remedy');
-            _printSummary(
-              behavior: record.behaviorId,
-              outcome: MakeOutcome.vacuousGreen,
-              feature: target.featureName,
-            );
-            exitCode = 1;
-            return;
-          }
+          exitCode = 1;
+          return;
         }
       }
     }
