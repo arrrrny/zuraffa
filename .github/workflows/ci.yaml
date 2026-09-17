@@ -52,16 +52,20 @@ jobs:
         # isolates share one VM, so any parallel lane in which one suite
         # chdirs (CliRunner's `-C` windows, test-side sandboxes) silently
         # REDIRECTS every concurrent suite's relative-path I/O into the
-        # window's tree — unfixable by locking, because the locks can only
-        # serialize the window creators, never the unaware relative-I/O
-        # users. The `--concurrency=4` shape (#1632) produced exactly that:
-        # nine consecutive red runs of rotating doctor/service/dream/
-        # theater/usecase/mock failures (plus CwdMutex→CliRunner
-        # lock-ordering deadlocks the old 30s blind stale-break was
-        # accidentally escaping). The #1632 re-homing dropped the measured
-        # serial residual to ~736s (~12 min), far inside this job's 45m
-        # budget. Sharding (tools/run_tests_chunked.sh) remains the shape
-        # to reach for IF the lane regrows — NOT concurrency.
+        # window's tree — unfixable by locking, because the locks serialize
+        # only the window creators, never the unaware relative-I/O users.
+        # `--concurrency=4` produced exactly that: three consecutive red
+        # master runs of rotating, mutually-unrelated failures — service/
+        # route/dream/usecase/doctor verdicts reading a sibling's exit code
+        # (dart:io `exitCode` is process-global too), plus relative-path
+        # readers resolving inside a sibling's temp fixture
+        # (`File('docs/openwiki/cli.md')`, plugin-loader/barrel sources —
+        # 18 reds on 1ab1a426) — and CwdMutex→CliRunner lock-ordering
+        # deadlocks the old 30s blind stale-break was accidentally
+        # escaping. The #1632 re-homing dropped the measured serial
+        # residual to ~736s (~12 min), far inside this job's 45m budget.
+        # Sharding (tools/run_tests_chunked.sh) is the shape to reach for
+        # IF the lane regrows — NOT concurrency.
         run: dart test test --exclude-tags "flutter || e2e"
 
   proof_smoke:

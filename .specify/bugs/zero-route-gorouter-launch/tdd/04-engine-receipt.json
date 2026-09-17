@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "feature": "zero-route-gorouter-launch",
+  "lane": "engine",
+  "verdict": "error",
+  "result": "runner-error",
+  "behaviors": [
+    "A3",
+    "A4",
+    "A5",
+    "A6",
+    "A8"
+  ],
+  "counts": {
+    "total": 5,
+    "pending": 4,
+    "red": 0,
+    "green": 1,
+    "done": 0
+  },
+  "stopped_at": "A3:refactor",
+  "at": "2026-09-15T23:16:57.548429Z"
+}
