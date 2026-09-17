@@ -18,6 +18,12 @@
 #   - `dart bin/zfa.dart` is reserved for `dart test` itself;
 #   - `scripts/rebuild.sh` INSTALLS the system binary — it is not the loop.
 #
+# Copy-if-fresh tier: when the repo-local cache is missing or stale, the
+# launcher first checks the system binary (~/.local/bin/zfa, then zfa on
+# PATH). If that binary is newer than every freshness input, it is copied
+# into the cache — turning a 5-minute compile into a 1-second copy while
+# preserving the no-JIT guarantee (issue #1687).
+#
 # The rebuild is serialized (flock where available) and staged through a temp
 # sibling + atomic rename, so a concurrent invocation can never exec a
 # half-written binary (issue #644, Linux ETXTBSY).
@@ -44,6 +50,32 @@ needs_build() {
     fi
   done
   return 1
+}
+
+# Try to copy the system binary into the cache if it is fresher than all
+# source inputs.  Returns 0 on success (cache is now populated), 1 when no
+# suitable system binary exists or it is stale.
+copy_if_fresh() {
+  local sys_bin=""
+  if [ -f "$HOME/.local/bin/zfa" ]; then
+    sys_bin="$HOME/.local/bin/zfa"
+  elif command -v zfa >/dev/null 2>&1; then
+    sys_bin="$(command -v zfa)"
+  fi
+  [ -z "$sys_bin" ] && return 1
+  # The system binary must be newer than every freshness input — same set
+  # needs_build uses — to guarantee it was compiled from this tree (or newer).
+  for f in "$ROOT/pubspec.yaml" "$ROOT/pubspec.lock"; do
+    if [ -f "$f" ] && [ "$f" -nt "$sys_bin" ]; then
+      return 1
+    fi
+  done
+  if [ -n "$(find "$ROOT/bin" "$ROOT/lib/src" -type f -newer "$sys_bin" -print -quit 2>/dev/null)" ]; then
+    return 1
+  fi
+  mkdir -p "$CACHE_DIR"
+  cp -f "$sys_bin" "$TMP" && mv -f "$TMP" "$EXE"
+  echo "zfa: copied fresh system binary ($sys_bin) into cache ($EXE)" >&2
 }
 
 release_lock() {
@@ -79,21 +111,29 @@ acquire_lock() {
 }
 
 if needs_build; then
-  if [ ! -f "$ROOT/.dart_tool/package_config.json" ]; then
-    echo "zfa: $ROOT/.dart_tool/package_config.json is missing — run 'dart pub get --no-example' first" >&2
+  # Fast path: copy a fresh system binary instead of recompiling (issue #1687).
+  if copy_if_fresh; then
+    :
+  elif [ "${ZFA_NO_REBUILD:-}" = "1" ]; then
+    echo "zfa: ZFA_NO_REBUILD=1 but no fresh system binary available — run scripts/rebuild.sh first" >&2
     exit 1
+  else
+    if [ ! -f "$ROOT/.dart_tool/package_config.json" ]; then
+      echo "zfa: $ROOT/.dart_tool/package_config.json is missing — run 'dart pub get --no-example' first" >&2
+      exit 1
+    fi
+    acquire_lock
+    trap release_lock EXIT
+    # Re-check under the lock: another invocation may have just built it.
+    if needs_build; then
+      echo "🔨 compiling zfa (scripts/zfa → $EXE)" >&2
+      rm -f "$TMP"
+      dart compile exe "$ROOT/bin/zfa.dart" --output "$TMP" >&2
+      mv -f "$TMP" "$EXE"
+    fi
+    release_lock
+    trap - EXIT
   fi
-  acquire_lock
-  trap release_lock EXIT
-  # Re-check under the lock: another invocation may have just built it.
-  if needs_build; then
-    echo "🔨 compiling zfa (scripts/zfa → $EXE)" >&2
-    rm -f "$TMP"
-    dart compile exe "$ROOT/bin/zfa.dart" --output "$TMP" >&2
-    mv -f "$TMP" "$EXE"
-  fi
-  release_lock
-  trap - EXIT
 fi
 
 exec "$EXE" "$@"
