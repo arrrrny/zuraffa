@@ -51,7 +51,18 @@ was corrected to the project root, and U12b was tightened to the exact
 1. relative rootUris resolve with a regression pin — PROVED (U7a/U7b green; M1 killed; e2e A1 asserts pub's relative rootUri end-to-end)
 2. hosted companions compile against the project's package config with per-project keying — PROVED (U12a–U12d green; M2/M3/M4 killed; e2e A2 asserts the project cache)
 3. absolute/`file://` rootUri resolution unbroken — PROVED (U7c green pre- and post-fix)
-4. shared pub cache untouched during hosted compile — PROVED (U12b + e2e A2: no artifact, no `.dart_tool`, no `pubspec.lock` written into the companion root)
+4. shared pub cache untouched during hosted compile — PARTIAL. U12b
+   proves the ARTIFACT and its cache slot land in
+   `<project>/.dart_tool/zfa_cli_bin/`, and e2e A2 pins that at flow
+   level. The original "no `.dart_tool`, no `pubspec.lock` written into
+   the companion root" wording was wrong: `dart compile exe
+   --packages=<config>` still resolves the ENTRYPOINT's own package root,
+   so a candidate package dir without an up-to-date package config (the
+   pub-cache shape) gets its own `.dart_tool/package_config.json`,
+   `.dart_tool/package_graph.json` and `pubspec.lock` from the SDK.
+   Reproduced on Dart 3.13.3 (CWD-independent, `dart compile exe --help`
+   exposes no switch that suppresses it); it is upstream SDK behavior, so
+   this round narrows the claim and pins the actual contract instead.
 
 Not covered by a pin: a REAL pub-cache-hosted companion install
 (network install into `~/.pub-cache`) — the sandbox pins the same seam

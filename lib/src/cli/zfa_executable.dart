@@ -418,10 +418,17 @@ class ZfaExecutable {
   /// Issue #1690 §2: when [packagesFile] is provided the compile is anchored
   /// at the CONSUMING project — package resolution comes from the project's
   /// config (`--packages=`) and the artifact lands in the project's
-  /// `.dart_tool/zfa_cli_bin/` under a candidate+project digest slot. A
-  /// hosted companion's own root must never be written to (no implicit pub
-  /// get inside the shared pub cache) and two projects consuming the same
-  /// companion must never inherit each other's binary.
+  /// `.dart_tool/zfa_cli_bin/` under a candidate+project digest slot, so two
+  /// projects consuming the same companion never inherit each other's
+  /// binary.
+  ///
+  /// Known residual (upstream): `dart compile exe` still resolves the
+  /// ENTRYPOINT's own package root, so a candidate package dir without an
+  /// up-to-date `.dart_tool/package_config.json` (the pub-cache shape) gets
+  /// that dir's `.dart_tool/` and `pubspec.lock` written by the SDK — the
+  /// flag does not suppress it and no switch does (Dart 3.13.3). What this
+  /// seam owns is the artifact and the graph the CHILD compiles against;
+  /// neither is placed in the candidate root.
   static Future<String> _compileCached({
     required String candidate,
     required String sourceRoot,
@@ -480,11 +487,18 @@ class ZfaExecutable {
     // state is unchanged; a null probe (VM driver, no/unreadable marker,
     // git failure, commit mismatch, non-canonical candidate) falls
     // through to the compile path unchanged.
-    final installed = await currentInstalledBinary(
-      candidate: candidate,
-      sourceRoot: sourceRoot,
-      runningExecutable: runningExecutable ?? Platform.resolvedExecutable,
-    );
+    //
+    // Issue #1690 §2: the probe is a PROJECT-ANCHORED path's rival, not its
+    // ally — the installed binary was built against the source root's own
+    // package graph, so reusing it would bypass `--packages=` and leave no
+    // project-local artifact. With [packagesFile] the compile always runs.
+    final installed = projectConfig == null
+        ? await currentInstalledBinary(
+            candidate: candidate,
+            sourceRoot: sourceRoot,
+            runningExecutable: runningExecutable ?? Platform.resolvedExecutable,
+          )
+        : null;
     if (installed != null) {
       // The commit-equality guard proves the COMMIT, not the working tree:
       // when the cache is missing/stale BECAUSE OF uncommitted edits under
@@ -532,7 +546,8 @@ class ZfaExecutable {
 
       // Issue #1690 §2: `--packages=` hands the compiler the CONSUMING
       // project's package config, so a hosted companion compiles against
-      // the project's resolved graph — no implicit `pub get` anywhere.
+      // the project's resolved graph. It does NOT stop the SDK's own
+      // resolve of the entrypoint's package root (see [_compileCached]).
       final argv = [
         'dart',
         'compile',

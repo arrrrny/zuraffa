@@ -551,8 +551,8 @@ void main() {
         p.isWithin(companion.path, result),
         isFalse,
         reason:
-            'nothing may be written into a hosted pub-cache package — '
-            'issue #1690 §2',
+            'the compiled ARTIFACT may not land in a hosted pub-cache '
+            'package — issue #1690 §2',
       );
       // Slot keyed by candidate AND project: the legacy digest of the
       // candidate alone would let two projects inherit one binary.

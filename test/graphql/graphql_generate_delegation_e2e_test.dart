@@ -57,6 +57,14 @@ void main() {
     // the core and the companion, resolved by a REAL `dart pub get` (the
     // setUp below). Pub anchors relative rootUris at the package_config's
     // own directory — the shape issue #1690 §1 pins.
+    //
+    // The relative values are computed from the fixture's RESOLVED path:
+    // pub canonicalizes the pubspec's directory before joining, and on
+    // macOS `Directory.systemTemp` sits under `/var/folders/…`, one
+    // symlink hop shallower than its `/private/var/folders/…` target — a
+    // lexical `p.relative` then lands one level short and the resolve
+    // fails with "package … doesn't exist" before the test begins.
+    final fixtureBase = Directory(fixture.path).resolveSymbolicLinksSync();
     File(p.join(fixture.path, 'pubspec.yaml')).writeAsStringSync(
       'name: graphql_delegate_fixture\n'
       'publish_to: none\n'
@@ -64,9 +72,9 @@ void main() {
       '  sdk: ^3.11.0\n'
       'dependencies:\n'
       '  zuraffa:\n'
-      '    path: ${p.relative(repoRoot, from: fixture.path)}\n'
+      '    path: ${p.relative(repoRoot, from: fixtureBase)}\n'
       '  zuraffa_graphql:\n'
-      '    path: ${p.relative(p.join(repoRoot, 'packages', 'zuraffa_graphql'), from: fixture.path)}\n',
+      '    path: ${p.relative(p.join(repoRoot, 'packages', 'zuraffa_graphql'), from: fixtureBase)}\n',
     );
     // A minimal introspection schema (one Product type) — enough for the
     // generate flow to parse, plan, and emit.
@@ -147,13 +155,20 @@ void main() {
     );
 
     Directory.current = fixture.path;
-    // Snapshot whether the companion checkout carries its own .dart_tool
-    // BEFORE the delegation, so the no-mutation assertion below is about
-    // THIS run, not the checkout's pre-existing state.
-    final companionDotTool = Directory(
-      p.join(repoRoot, 'packages', 'zuraffa_graphql', '.dart_tool'),
+    // Issue #1690 §2 at flow level: snapshot the companion package's CONTENT
+    // (path + size) before the delegation. The old guard compared
+    // `.dart_tool` EXISTENCE only — vacuous on any checkout where the
+    // companion was already resolved, and blind to a rewrite inside an
+    // existing one. The SDK's own entrypoint-root resolve is excluded from
+    // the snapshot: `dart compile exe` writes `<candidate>/.dart_tool/
+    // package{_config,_graph}.json` and `pubspec.lock` regardless of
+    // `--packages=` (upstream, Dart 3.13.3, no suppressing switch). The
+    // delegation's OWN outputs — the artifact, its cache slot, any other
+    // file — must not appear.
+    final companionRoot = Directory(
+      p.join(repoRoot, 'packages', 'zuraffa_graphql'),
     );
-    final companionHadDotTool = companionDotTool.existsSync();
+    final companionBefore = _contentSnapshot(companionRoot);
     final out = await CliRunner(exitOnCompletion: false).runCapturing([
       'graphql',
       'generate',
@@ -171,9 +186,9 @@ void main() {
       reason: 'the companion generated into the project — output: $out',
     );
     // Issue #1690 §2 at flow level: the compiled companion lands in THIS
-    // project's cache (per-project keying), and the delegation wrote
-    // nothing into the companion package itself — no implicit `pub get`
-    // inside the (hosted, in production) candidate root.
+    // project's cache (per-project keying), not in the (hosted, in
+    // production) candidate root — the content snapshot below is what
+    // holds the delegation to that.
     final projectCache = Directory(
       p.join(fixture.path, '.dart_tool', 'zfa_cli_bin'),
     );
@@ -188,11 +203,41 @@ void main() {
           '(per-project keying) — issue #1690 §2',
     );
     expect(
-      companionDotTool.existsSync(),
-      companionHadDotTool,
+      _contentSnapshot(companionRoot),
+      companionBefore,
       reason:
-          'the delegation must not create a .dart_tool inside the '
-          'companion package (no implicit pub get at the candidate root)',
+          'the delegation must keep its artifact and its cache slot out of '
+          'the companion package (issue #1690 §2). The SDK\'s own '
+          'candidate-root resolve — `pubspec.lock` and '
+          '`.dart_tool/package{_config,_graph}.json` — is the only write '
+          'this flow may cause there, and [_contentSnapshot] excludes it: '
+          'it is upstream `dart compile exe` behavior with no suppressing '
+          'flag',
     );
   });
 }
+
+/// Path → size for every file under [root], minus the SDK's own
+/// candidate-root resolve outputs (`pubspec.lock`,
+/// `.dart_tool/package_config.json`, `.dart_tool/package_graph.json`).
+///
+/// `dart compile exe` writes those at the ENTRYPOINT's package root when
+/// that root has no up-to-date package config (the pub-cache shape) and no
+/// switch suppresses it (issue #1690 §2 residual, Dart 3.13.3). Everything
+/// else is the delegation's to keep out — including anything at all inside
+/// `.dart_tool/`, where the pre-#1690 artifact used to land.
+Map<String, int> _contentSnapshot(Directory root) {
+  final snapshot = <String, int>{};
+  for (final entity in root.listSync(recursive: true)) {
+    if (entity is! File) continue;
+    final rel = p.relative(entity.path, from: root.path);
+    if (_isSdkResolveOutput(rel)) continue;
+    snapshot[rel] = entity.lengthSync();
+  }
+  return snapshot;
+}
+
+bool _isSdkResolveOutput(String rel) =>
+    rel == 'pubspec.lock' ||
+    rel == p.join('.dart_tool', 'package_config.json') ||
+    rel == p.join('.dart_tool', 'package_graph.json');

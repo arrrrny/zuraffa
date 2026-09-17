@@ -225,6 +225,43 @@ void main() {
       expect(entry, p.join(companion.path, 'bin', 'zuraffa_graphql.dart'));
     });
 
+    test('a percent-encoded relative rootUri decodes to the real directory '
+        'before the filesystem is touched', () {
+      // pub percent-encodes URI segments, so a path dep installed under a
+      // directory with a space is written `../my%20companion/`: treating
+      // the value as filesystem text looks for a literal `%20` directory
+      // and returns null after a completely correct install.
+      final spaced = Directory(p.join(companion.path, 'my companion'))
+        ..createSync(recursive: true);
+      File(
+        p.join(spaced.path, 'bin', 'zuraffa_graphql.dart'),
+      ).createSync(recursive: true);
+      final relative = p.relative(
+        spaced.path,
+        from: p.join(project.path, '.dart_tool'),
+      );
+      expect(relative, contains(' '));
+      seedConfig({
+        'name': 'zuraffa_graphql',
+        'rootUri': Uri(pathSegments: p.split(relative)).toString(),
+        'languageVersion': '3.11',
+      });
+
+      final entry = PluginGate.companionEntry(
+        'graphql',
+        projectRoot: project.path,
+      );
+
+      expect(
+        entry,
+        p.join(spaced.path, 'bin', 'zuraffa_graphql.dart'),
+        reason:
+            'the escaped `%20` segment must decode to the real directory — '
+            'the candidate is a URI reference, not a path',
+      );
+      expect(File(entry!).existsSync(), isTrue);
+    });
+
     test('a resolvable companion whose bin entry is missing still returns '
         'null', () {
       File(p.join(companion.path, 'bin', 'zuraffa_graphql.dart')).deleteSync();

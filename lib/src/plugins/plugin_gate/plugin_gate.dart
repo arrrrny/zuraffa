@@ -102,16 +102,40 @@ class PluginGate {
   /// project root resolved a non-existent path and returned null after a
   /// completely correct install. Absolute `file://` URIs keep resolving
   /// unchanged.
+  ///
+  /// `rootUri` is a URI reference, not filesystem text: pub percent-encodes
+  /// segments (a path dep under a `my companion/` directory is written
+  /// `../my%20companion/`) and a `file://` value may carry an authority.
+  /// Both have to be decoded before the filesystem is touched — the old
+  /// `substring(7)` kept `%20` literal and spliced the authority into the
+  /// path.
   static String _resolvePackageRoot(
     String rootUri, {
     required String configPath,
   }) {
-    final path = rootUri.startsWith('file://') ? rootUri.substring(7) : rootUri;
-    if (p.isRelative(path)) {
-      final configDir = p.dirname(p.normalize(p.absolute(configPath)));
-      return p.normalize(p.join(configDir, path));
+    final uri = Uri.parse(rootUri);
+    final decoded = _filePathOf(uri);
+    if (uri.hasScheme || !p.isRelative(decoded)) {
+      return p.normalize(decoded);
     }
-    return p.normalize(path);
+    final configDir = p.dirname(p.normalize(p.absolute(configPath)));
+    return p.normalize(p.join(configDir, decoded));
+  }
+
+  /// [uri] as a filesystem path, percent-escapes decoded.
+  ///
+  /// POSIX [Uri.toFilePath] refuses a non-empty authority
+  /// (`file://localhost/…`); dropping it is the right reading for a local
+  /// package_config, where pub only ever writes an empty authority.
+  static String _filePathOf(Uri uri) {
+    try {
+      return uri.toFilePath(windows: Platform.isWindows);
+    } on UnsupportedError {
+      return Uri(
+        scheme: 'file',
+        path: uri.path,
+      ).toFilePath(windows: Platform.isWindows);
+    }
   }
 
   /// The project's `.dart_tool/package_config.json` path, or null when the
