@@ -60,9 +60,12 @@ jobs:
         # (dart:io `exitCode` is process-global too), plus relative-path
         # readers resolving inside a sibling's temp fixture
         # (`File('docs/openwiki/cli.md')`, plugin-loader/barrel sources —
-        # 18 reds on 1ab1a426). Sharding
-        # (tools/run_tests_chunked.sh) is the shape to reach for IF the lane
-        # regrows — NOT concurrency.
+        # 18 reds on 1ab1a426) — and CwdMutex→CliRunner lock-ordering
+        # deadlocks the old 30s blind stale-break was accidentally
+        # escaping. The #1632 re-homing dropped the measured serial
+        # residual to ~736s (~12 min), far inside this job's 45m budget.
+        # Sharding (tools/run_tests_chunked.sh) is the shape to reach for
+        # IF the lane regrows — NOT concurrency.
         run: dart test test --exclude-tags "flutter || e2e"
 
   proof_smoke:
