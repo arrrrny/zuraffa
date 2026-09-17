@@ -290,12 +290,17 @@ class BehaviorTestWriter {
       '${b.id} (${b.sourceCriterion})',
     );
     final assertion = _deriveAssertion(b);
-    // SPEC 1489: the paired test imports exactly the return entity when
-    // its assertion references the declared type (the entity-return
+    // SPEC 1489 + issue #1691: the paired test imports EVERY existing
+    // entity the declared signature references. The return entity because
+    // the assertion references the declared type (the entity-return
     // scalarOutcome path — `isA<Task>()` cannot compile against an
-    // unimported type). Param entities are NOT imported: the `_argN()`
-    // placeholders own those (spec 991), so no unused imports. Empty for
-    // every legacy shape — the template stays byte-identical.
+    // unimported type); the param entities because SPEC 1489 LIFTED the
+    // declared param types — the `_argN()` placeholder helper renders the
+    // lifted type (`LoginParams _arg0()`, the spec 991 seam), which is
+    // exactly when the entity exists on disk and enters `entityImports`.
+    // No unused imports by construction (issue #1691): every entry is a
+    // type the emitted test references. Empty for every legacy shape —
+    // the template stays byte-identical.
     final entityImportLines = _testEntityImportLines();
     return '''
 // GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
@@ -326,20 +331,35 @@ void main() {
 ''';
   }
 
-  /// The entity-import lines the paired unit test emits (SPEC 1489): the
-  /// declared RETURN entity's import, exactly when the test's assertion
-  /// references the declared type — the entity-return `scalarOutcome`
-  /// path. The block is terminated by a blank separator line so it stays
+  /// The entity-import lines the paired unit test emits (SPEC 1489, as
+  /// widened by issue #1691): the FULL `shape.entityImports` set — param
+  /// entities (declaration order) first, then the return entity —
+  /// deduplicated by the shape derivation, a superset of
+  /// `returnEntityImports`.
+  ///
+  /// Issue #1691: the pre-1489 rationale excluded param entities (the
+  /// `Object? _arg0()` degradation needs no import). SPEC 1489 lifted the
+  /// declared param types when the entity exists on disk — the `_argN()`
+  /// placeholder helper then renders the lifted type
+  /// (`LoginParams _arg0()` at the capture site) and the import is
+  /// REQUIRED and guaranteed USED: `entityImports` only contains
+  /// entities that exist on disk — the exact lift condition — and a
+  /// lifted entity param always takes the helper seam (no scalar literal,
+  /// no scenario claim covers an entity type), while a lifted entity
+  /// return always feeds the `isA<T>()` assertion. Unused-import risk is
+  /// nil by construction; the SUBJECT writer already emits the full set
+  /// (SC-2) — the test writer was not extended the same way.
+  ///
+  /// The block is terminated by a blank separator line so it stays
   /// visually distinct from the subject import (same idiom as the stub's
-  /// `importBlock` in subject_writer.dart). Empty for scalars, for missing
-  /// entities (the guard path), and for every legacy shape — the template
-  /// stays byte-identical.
+  /// `importBlock` in subject_writer.dart). Empty for scalar-only shapes,
+  /// for missing entities (the guard path), and for every legacy shape —
+  /// the template stays byte-identical.
   String _testEntityImportLines() {
     final shape = contractShape;
-    if (shape == null || !shape.scalarOutcome) return '';
-    if (isAssertableScalarType(shape.declaredReturn)) return '';
-    if (shape.returnEntityImports.isEmpty) return '';
-    return "${shape.returnEntityImports.map((uri) => "import '$uri';").join('\n')}\n\n";
+    if (shape == null) return '';
+    if (shape.entityImports.isEmpty) return '';
+    return "${shape.entityImports.map((uri) => "import '$uri';").join('\n')}\n\n";
   }
 
   /// Derive the test's assertion from the behavior description. The
