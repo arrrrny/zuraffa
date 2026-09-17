@@ -46,6 +46,7 @@ import '../../../tdd/services/ui_ledger_builder.dart';
 import '../../../tdd/services/typed_ledger_row.dart';
 import '../../../tdd/services/typed_platform_ledger.dart';
 import '../services/typed_ledger_projection.dart';
+import '../services/widget_vocabulary_gate.dart';
 import '../../../skin/contract/adaptive_skin_contract.dart';
 import '../../../skin/contract/adaptive_skin_contract_parser.dart';
 import '../../../core/project/project_root.dart';
@@ -438,6 +439,45 @@ class PlanCommand extends Command<void> {
         ..details['spec'] = specPath;
       exitCode = 2;
       return;
+    }
+
+    // EPIC 3 / issue #1134, lane 4 — the shadcn/ui vocabulary as a TDD
+    // gate: on a feature with widget behaviors, every Presentation
+    // component token (widget reference) is validated against the
+    // `zfa ui schema` vocabulary (NodeRegistry built-ins + project
+    // composites). An out-of-vocabulary token (grid/table — not
+    // implemented, the #1149 removal) refuses the plan BEFORE any
+    // artifact is written, naming the token and the fix. Method-
+    // signature tokens and `key:` tokens are not widget references —
+    // the library-dev Presentation contracts stay untouched.
+    if (behaviors.any((b) => b.kind == BehaviorKind.widget)) {
+      final widgetReferences = UiLedgerProjection.componentTokensOf(
+        layerContracts,
+      );
+      final vocabularyViolations = WidgetVocabularyGate.validate(
+        widgetReferences,
+      );
+      if (vocabularyViolations.isNotEmpty) {
+        print(
+          'zfa tdd plan: widget vocabulary gate FAILED — '
+          '${vocabularyViolations.length} out-of-vocabulary widget '
+          'reference(s) (spec: $specPath). No test list was written; '
+          'the ui vocabulary (`zfa ui schema`) is the declared widget '
+          'set.',
+        );
+        for (final violation in vocabularyViolations) {
+          print('   - ${violation.message}');
+        }
+        _verdict
+          ..outcome = VerdictOutcome.fail
+          ..exitClass = 'widget-vocabulary-gate'
+          ..fix =
+              'declare `zfa ui schema` vocabulary names in the '
+              'Presentation component tokens, then re-run zfa tdd plan'
+          ..details['vocabularyViolations'] = vocabularyViolations.length;
+        exitCode = 2;
+        return;
+      }
     }
 
     // Coverage gate (bug #846): every FR/AC requirement statement must

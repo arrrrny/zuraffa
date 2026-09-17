@@ -88,6 +88,7 @@ import '../../../skin/contract/adaptive_skin_contract_parser.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/test_list_reader.dart';
 import '../services/ui_ledger_projection.dart';
+import '../services/widget_vocabulary_gate.dart';
 import '../../../tdd/services/ui_ledger_builder.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -350,6 +351,32 @@ class ViewCommand extends Command<void> {
       );
     } else {
       print('   contract: ${components.join(', ')}');
+    }
+
+    // EPIC 3 / issue #1134, lane 4 — the widget vocabulary gate (the
+    // same gate `zfa tdd plan` enforces, defense in depth): every
+    // declared component token is validated against the `zfa ui
+    // schema` vocabulary BEFORE any write. An out-of-vocabulary
+    // reference (grid/table — not implemented, the #1149 removal)
+    // refuses the view: no unchecked layout code is ever emitted
+    // (exit criterion 3).
+    final vocabularyViolations = WidgetVocabularyGate.validate(components);
+    if (vocabularyViolations.isNotEmpty) {
+      print(
+        'zfa tdd view: widget vocabulary gate FAILED — '
+        '${vocabularyViolations.length} out-of-vocabulary component '
+        'token(s); no artifacts written:',
+      );
+      for (final violation in vocabularyViolations) {
+        print('   - ${violation.message}');
+      }
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: ViewOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
     }
 
     // Declared source 4 — the platform layout contract (issue #1142,
