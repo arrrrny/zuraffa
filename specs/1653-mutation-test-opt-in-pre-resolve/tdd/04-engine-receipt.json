@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "feature": "1653-mutation-test-opt-in-pre-resolve",
+  "lane": "engine",
+  "verdict": "red",
+  "result": "stopped",
+  "behaviors": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6",
+    "U1",
+    "U2",
+    "U3",
+    "U4",
+    "U5",
+    "U6",
+    "U7",
+    "U8",
+    "contract:A1",
+    "contract:A2",
+    "contract:A3"
+  ],
+  "counts": {
+    "total": 17,
+    "pending": 16,
+    "red": 1,
+    "green": 0,
+    "done": 0
+  },
+  "stopped_at": "A1:make",
+  "at": "2026-09-15T20:28:17.722957Z"
+}
