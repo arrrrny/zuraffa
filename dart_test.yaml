@@ -85,6 +85,12 @@ tags:
   property:
   benchmark:
   ffi:
+    # sc_022 drives the real CLI through JIT children (cold VM + package
+    # compile per spawn, issue #531) plus fixture `dart test` runs: the
+    # lane's first test measured ~105s against the 4x (120s) ceiling —
+    # one slow spawn away from a false timeout on a loaded runner.
+    # 8x (240s) keeps the honest lane from flaking (#1678).
+    timeout: 8x
   e2e:
     timeout: 4x
 

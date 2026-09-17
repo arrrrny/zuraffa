@@ -244,7 +244,9 @@ jobs:
     # red -> binding wiring -> contract green -> golden lane e2e against
     # the real CLI. Scoped to the `ffi` tag (NOT --preset=integration) —
     # the full integration tier spins up heavy temp builds that the
-    # dart_test.yaml policy keeps off CI agents.
+    # dart_test.yaml policy keeps off CI agents; the `all` preset below
+    # only lifts the default `slow` exclusion so the ffi-tagged suite is
+    # actually selected (issue #1678).
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -258,6 +260,14 @@ jobs:
       - name: "Get dependencies"
         run: dart pub get --no-example
       - name: "FFI golden fixture lane (tag-scoped)"
-        # Never empty: sc_022 carries the ffi tag. A zero-match run exits
-        # 79 — an honest gate failure if the lane is ever emptied.
-        run: dart test --tags ffi
+        # Never empty: sc_022 (slow+integration+ffi) is the lane's content
+        # and a zero-match run exits 79 — an honest gate failure if the
+        # lane is ever emptied. A bare `--tags ffi` WAS exactly that empty
+        # selection: the default `exclude_tags: slow` filtered sc_022 out,
+        # and the job stayed green only because an unrelated MinIO suite's
+        # markTestSkipped counted as a matched suite — until #1678 moved
+        # that suite into packages/zuraffa_storage and the long-dormant
+        # lane failed honestly. --preset=all lifts the `slow` exclusion;
+        # `--tags ffi` keeps the selection scoped to this lane (it is NOT
+        # --preset=integration).
+        run: dart test --preset=all --tags ffi
