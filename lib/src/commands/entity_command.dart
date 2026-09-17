@@ -11,12 +11,14 @@ import '../utils/entity_field_injector.dart';
 import '../utils/entity_type_validator.dart';
 import '../utils/entity_utils.dart';
 import '../utils/framework_export_surface.dart';
+import '../utils/flutter_symbols.dart';
 import '../utils/string_utils.dart';
 import '../version.dart';
 import '../core/dependencies/builder_dependency_preflight.dart';
 import '../core/dependencies/pubspec_auto_add.dart' show PubspecProcessRunner;
 import '../core/format/format_runner.dart';
 import '../plugins/cli/cli_plugin.dart';
+import '../plugins/tdd/services/entity_lookup.dart';
 import '../cli/exit_protocol.dart';
 
 class EntityCommand {
@@ -115,6 +117,10 @@ class EntityCommand {
         case 'create':
         case 'new':
           await _handleCreate(subCommand, subArgs, config);
+          break;
+        case 'remove':
+        case 'delete':
+          await _handleRemove(subCommand, subArgs);
           break;
         case 'enum':
           await _handleEnum(subArgs);
@@ -285,6 +291,23 @@ ${missing.map((d) => '   • $d').join('\n')}
         'that does not match a zuraffa export.',
       );
       _bail(ExitProtocol.failure);
+    }
+
+    // Issue #1429: warn when the entity name collides with a Flutter SDK
+    // type (e.g. PlatformException, BuildContext). `tdd run` phase-0
+    // scaffolds whatever the spec's Key Entities table declares, so a
+    // documentation-only row naming an SDK type materializes a dead
+    // domain duplicate whose unqualified references are ambiguous the
+    // moment both imports are in scope. A warning, never a refusal: the
+    // duplicate may be intentional. phase-0 inherits the warning because
+    // it spawns the real `zfa entity create`.
+    if (collidesWithFlutterSdkType(name)) {
+      print(
+        '⚠️  Entity "$name" collides with a Flutter SDK type name '
+        '(package:flutter). A same-named domain class invites import '
+        'ambiguity when both are in scope — rename it (e.g. '
+        '${name}Envelope) unless the duplicate is intentional.',
+      );
     }
 
     final outputDir = fixedEntityOutput;
@@ -539,6 +562,173 @@ ${missing.map((d) => '   • $d').join('\n')}
       );
       _bail(ExitProtocol.failure);
     }
+  }
+
+  /// Bug #1429: `zfa entity remove <Name>` — the receipted entity-removal
+  /// verb. Deletes the entity scaffold (the canonical per-entity directory
+  /// when the scaffold follows the `<entities>/<snake>/` layout, the
+  /// located file otherwise) and writes a TOMBSTONE receipt into
+  /// `.zfa/receipts/` whose file entries carry `action: 'delete'` — the
+  /// marker `ProofChecker` reads so a receipted absence is provenance,
+  /// not drift. Idempotent recovery (the exact path the issue documents):
+  /// when the scaffold was already hand-deleted but entity receipts
+  /// remain, the tombstone is still written, so a corrected spec never
+  /// requires hand-editing the provenance store.
+  Future<void> _handleRemove(String command, List<String> args) async {
+    final parsed = _parseArgs(args);
+    final name = _resolveEntityName(parsed);
+    if (name == null || name.isEmpty) {
+      print(
+        'Error: Entity name is required. Use -n or --name, or pass it '
+        'positionally.',
+      );
+      print(
+        ExitProtocol.fixLine(
+          'pass the entity name: `zfa entity remove -n <Name>`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
+    }
+
+    // The same lookup the run driver's phase-0 entity loop uses, so the
+    // removal target is exactly what phase-0 would re-create.
+    //
+    // Cross-layer note: entity_lookup.dart lives under plugins/tdd
+    // because the TDD loop owns the canonical-path contract; importing
+    // it here keeps `entity remove` and phase-0 on ONE conversion
+    // (toSnakeCase) instead of a drifting duplicate.
+    final scaffold = await locateEntityScaffold(Directory.current.path, name);
+    final snake = toSnakeCase(name);
+    final store = ReceiptStore(projectRoot: Directory.current.path);
+    final records = await store.loadAll();
+    final priorReceipts = records
+        .where(
+          (r) =>
+              r.receipt.plugin == 'entity' &&
+              r.receipt.entity?.toLowerCase() == name.toLowerCase(),
+        )
+        .toList();
+    final scaffoldFileExists =
+        scaffold.file != null && File(scaffold.file!).existsSync();
+    final scaffoldDirExists =
+        scaffold.dir != null && Directory(scaffold.dir!).existsSync();
+    if (!scaffoldFileExists && !scaffoldDirExists && priorReceipts.isEmpty) {
+      print(
+        '❌ Cannot remove entity "$name": no scaffold under '
+        'lib/src/domain/entities and no entity receipts in .zfa/receipts/.',
+      );
+      print(
+        ExitProtocol.fixLine(
+          'check the entity name with `zfa entity list`, then re-run '
+          '`zfa entity remove -n <Name>`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
+    }
+
+    // The tombstone covers every path the entity's prior receipts
+    // shipped plus the located scaffold — the union of paths a stale
+    // receipt could point at.
+    final coveredPaths = <String>{};
+    for (final record in priorReceipts) {
+      for (final file in record.receipt.files) {
+        coveredPaths.add(file.path);
+      }
+    }
+    if (scaffold.file != null) {
+      coveredPaths.add(_projectRelativePosix(scaffold.file!));
+    }
+    if (coveredPaths.isEmpty) {
+      coveredPaths.add(
+        _projectRelativePosix(p.join(fixedEntityOutput, snake, '$snake.dart')),
+      );
+    }
+
+    String digestFor(String path) {
+      final file = File(p.join(Directory.current.path, path));
+      if (file.existsSync()) {
+        return crypto.sha256.convert(file.readAsBytesSync()).toString();
+      }
+      // Already-absent path: the empty-content digest (deterministic;
+      // the action is what ProofChecker keys on).
+      return crypto.sha256.convert(const <int>[]).toString();
+    }
+
+    // Covered paths that still exist at tombstone time (prior-receipt
+    // stragglers outside the deleted scaffold) record their real byte
+    // length so the receipt describes reality; absent paths record 0.
+    int bytesFor(String path) {
+      final file = File(p.join(Directory.current.path, path));
+      if (file.existsSync()) {
+        return file.lengthSync();
+      }
+      return 0;
+    }
+
+    // Act: delete the scaffold, then ship the tombstone.
+    if (scaffoldDirExists) {
+      await Directory(scaffold.dir!).delete(recursive: true);
+      print(
+        '✓ Removed entity directory: ${_projectRelativePosix(scaffold.dir!)}',
+      );
+    } else if (scaffoldFileExists) {
+      await File(scaffold.file!).delete();
+      print('✓ Removed entity file: ${_projectRelativePosix(scaffold.file!)}');
+    }
+    if (!scaffoldFileExists && !scaffoldDirExists) {
+      print(
+        'ℹ️  Scaffold already absent (hand-deleted recovery path) — '
+        'writing the tombstone that retires the stale receipts.',
+      );
+    }
+
+    final files = coveredPaths
+        .map(
+          (path) => GenerationReceiptFile(
+            path: path,
+            action: 'delete',
+            sha256: digestFor(path),
+            bytes: bytesFor(path),
+          ),
+        )
+        .toList();
+    final saved = await store.saveNamed(
+      'entity-remove-$snake.json',
+      GenerationReceipt(
+        command: 'entity remove',
+        target: name,
+        repro: 'zfa entity remove -n $name',
+        at: DateTime.now().toUtc(),
+        generatorVersion: version,
+        input: const <String, dynamic>{'removed': true},
+        files: files,
+        plugin: 'entity',
+        capability: 'remove',
+        entity: name,
+        methodset: const <String>[],
+        runHash: CapabilityInvocationWrapper.computeRunHash(
+          files: files,
+          entity: name,
+          methodset: const <String>[],
+        ),
+        receiptVersion: CapabilityInvocationWrapper.receiptVersion,
+      ),
+    );
+    print('✓ Tombstone receipt written: ${_projectRelativePosix(saved.path)}');
+    print(
+      '\nThe removal is now provenance: `zfa proof check` treats the '
+      'deleted scaffold as expected absence (issue #1429).',
+    );
+  }
+
+  /// The entity name from `-n/--name` or the first positional argument.
+  String? _resolveEntityName(Map<String, dynamic> parsed) {
+    final named = parsed['name'] as String?;
+    if (named != null && named.isNotEmpty) return named;
+    final rest = parsed['rest'];
+    if (rest is String && rest.isNotEmpty) return rest;
+    if (rest is List && rest.isNotEmpty) return rest.first.toString();
+    return null;
   }
 
   /// autoId entities reference `package:uuid/uuid.dart` in the generated
@@ -1568,6 +1758,8 @@ SUBCOMMANDS:
   new         Quick-create a simple entity (basic defaults)
   enum        Create a new Zorphy enum
   add-field   Add field(s) to an existing entity
+  remove      Remove an entity and write a tombstone receipt (issue #1429)
+  delete      Alias of remove
   from-json   Create entity from JSON file
   list        List all Zorphy entities
   build       Run build_runner build (with optional --clean, --force)
@@ -1620,6 +1812,15 @@ ADD-FIELD COMMAND:
                             For types that are NEVER entities (external classes
                             like plugin wrappers), use the `!Type` prefix
                             instead (see FIELD SYNTAX below).
+
+REMOVE COMMAND:
+  zfa entity remove -n <Name>   (alias: delete)
+  Deletes the entity scaffold (lib/src/domain/entities/<snake>/) and writes
+  a tombstone receipt to .zfa/receipts/ (file entries action: 'delete') so
+  `zfa proof check` treats the absence as provenance, not drift. When the
+  scaffold is already gone but entity receipts remain (a hand-deleted
+  mis-declared entity), the tombstone is still written — the documented
+  recovery path from issue #1429, no hand-editing the provenance store.
 
 FIELD SYNTAX:
   name:type                 Basic field, Dart name = JSON wire name

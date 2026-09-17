@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- refactor_action-only scope (the 3/5 survivor run predates the timings
+     test being added to the wrapper scope). -->
+<mutations version="1.0">
+  <files>
+    <file>lib/src/plugins/tdd/models/refactor_action.dart</file>
+  </files>
+  <commands>
+    <command group="test" expected-return="0" working-directory=".">bash tools/run-1653-mutation-tests.sh</command>
+  </commands>
+</mutations>

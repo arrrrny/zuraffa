@@ -119,6 +119,31 @@ String vacuousGuardFallbackRemedyFor({
       're-run zfa tdd gen (the designed hand-delta seam)';
 }
 
+/// Issue #1420: the remedy for the marker-absent vacuous-green stop when the
+/// row's traces cell DOES resolve declared contract row(s) — the
+/// [vacuousGuardFallbackRemedyFor] wording would be FALSE ("no traces" — the
+/// trace exists) and IMPOSSIBLE to follow (`add traces:` / the
+/// `FR-00N, Row.method` hand-delta: a Key Entity row declares no methods to
+/// name). The accurate paths:
+///
+/// * re-run `zfa tdd gen <id>` — the regenerated pair carries the declared
+///   surface (the typed entity-surface assertion, or the traced
+///   [vacuousGuardMarker] when the entity is absent at gen); a stale
+///   guard-only pair predating the declared-trace engagement is the #1388
+///   stale-artifact class and regenerates on re-gen;
+/// * or the hand step — write the assertion on the observable outcome in the
+///   generated test, remove the marker if present, re-run make.
+String vacuousGuardDeclaredTraceRemedyFor({
+  required String behaviorId,
+  required String testPath,
+}) {
+  return 're-run `zfa tdd gen $behaviorId` to regenerate the pair from the '
+      'declared trace (the stale guard-only pair predates the '
+      'declared-trace engagement, issue #1420), or write an assertion on '
+      'the observable outcome in $testPath, remove the $vacuousGuardMarker '
+      'marker if present, and re-run make';
+}
+
 /// Issue #1626: the exact remedy the make refusal (step 3c) and the run
 /// driver's make-vacuous-green marker-absent stop print for an ACCEPTANCE
 /// row — the designed HAND STEP, never the traces/re-plan/re-gen path.

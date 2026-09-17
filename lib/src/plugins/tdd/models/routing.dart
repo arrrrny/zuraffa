@@ -80,6 +80,14 @@ class Signature {
     r'^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*->\s*(.+?)\s*$',
   );
 
+  /// The Dart identifier grammar [_shape] enforces on a parsed row's
+  /// name — the gate a DIRECT `Signature(name: ...)` construction must
+  /// satisfy itself ([Signature.parse] enforces it structurally; direct
+  /// construction bypasses it).
+  static final RegExp _identifier = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
+
+  static bool isValidIdentifierName(String name) => _identifier.hasMatch(name);
+
   /// The supported contract-row parameter grammar (SPEC 1536, FR-006),
   /// documented at the ONE parse site every consumer shares:
   ///

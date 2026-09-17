@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Receipt-models scope: the complete audit of the two evidence models the
+     #1653 receipt timing touches (issue #1653 verification). -->
+<mutations version="1.0">
+  <files>
+    <file>lib/src/plugins/tdd/models/refactor_action.dart</file>
+    <file>lib/src/plugins/tdd/models/cycle_entry.dart</file>
+  </files>
+  <commands>
+    <command group="test" expected-return="0" working-directory=".">bash tools/run-1653-mutation-tests.sh</command>
+  </commands>
+</mutations>
