@@ -78,3 +78,10 @@ mutation-test-report/
 # TDD cycle-log pins TMPDIR to the clone-local .tmpdir/ — per-run scratch
 # (test lists, timeout helpers) must never be committed.
 .tmpdir/
+
+# zread wiki pages published to the website are generated, not source:
+# tools/sync-website-docs.sh copies them from .zread/wiki/ (the source of
+# truth) into website/static/docs/ for both local preview and CI. Only the
+# viewer (website/static/docs/index.html) is committed.
+website/static/docs/*.md
+website/static/docs/wiki.json

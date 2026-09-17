@@ -6,6 +6,8 @@ on:
       - master
     paths:
       - 'website/**'
+      - '.zread/**'
+      - 'tools/sync-website-docs.sh'
       - '.github/workflows/static.yml'
   workflow_dispatch:
 
@@ -24,6 +26,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Sync docs from zread wiki
+        run: bash tools/sync-website-docs.sh
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
