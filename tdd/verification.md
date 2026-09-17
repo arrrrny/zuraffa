@@ -1,154 +1,224 @@
-# tdd.verify — Bug #1664 first refactor after a master bump compiles the zfa CLI (~85s) even when the parent runs from a current installed binary
+# tdd.verify — Issue #1417 speckit scaffolding regenerable into existing repos (`zfa initialize --speckit`)
 
-- **Verified**: 2026-09-15, this session, on
-  `fix/1664-first-refactor-cli-compile` (working tree, pre-push)
+- **Verified**: 2026-09-18, this session, on `fix/1417-speckit-scaffolding-regeneration`
+  (working tree, pre-push), against base `a9329746` (master)
 - **Toolchain**: Dart 3.13.4 (stable) on linux_x64 (the task's "Dart 3.13+"
   floor; the repo pins `sdk: ^3.11.0`)
-- **Scope**: `lib/src/cli/zfa_executable.dart` (the #1664 reuse probe +
-  `_compileCached` wiring), the new
-  `test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`, and the
-  bug artifacts under `.specify/bugs/1664-first-refactor-cli-compile/`.
+- **Scope**: `lib/src/commands/speckit_scaffolding.dart` (new: embedded
+  constants + `SpeckitScaffoldingWriter`), `lib/src/commands/initialize_command.dart`
+  (`--speckit` wiring), the new `test/commands/initialize_speckit_test.dart`,
+  the re-embed tool `scripts/embed_speckit_scripts.py`, the audit tooling
+  (`scripts/mutation_audit_1417.py`, `mutation-test-1417.xml`,
+  `tools/run-tdd-tests-1417.sh`), and the spec artifacts under
+  `.specify/specs/1417-speckit-scaffolding-regeneration/`.
+
+## Skill execution trace (`/speckit.tdd.verify`, run verbatim)
+
+1. **Step 0 — engine detection**: `zfa --version && test -f .zfa.json` →
+   `zfa v6.3.0` printed, `.zfa.json` absent in the framework repo →
+   **`ZFA_MISSING`** → per the skill, the LLM-guided fallback audit applies.
+2. **Deterministic path attempted anyway** (`zfa tdd verify --feature
+   1417-speckit-scaffolding-regeneration`): honest refusal —
+   `gate=not_assessed, not_assessed_reason: no behavior artifacts registered`
+   (the feature has no speckit-pipeline `artifacts.json`); fresh engine
+   output committed at `specs/1417-speckit-scaffolding-regeneration/tdd/verification.md`.
+3. **Fallback audit executed** with the real evidence below; every number in
+   this file comes from a run in THIS session. Nothing is copied, stubbed,
+   or back-dated.
 
 ## Verdict: PASS
 
-## 1. TDD discipline (red → green → verify)
+## 1. Red evidence (real runs, this session)
 
-The loop was driven with the bug directory as the TDD feature. Ten
-behaviors were pinned in `tdd/test-list.md` BEFORE the fix, mapped 1:1 to
-the issue's four acceptance criteria, and every test in the red set was
-observed failing against base `c5ed519f` for exactly the reason the issue
-describes — never for a setup error.
+**(a) The issue's misfire, reproduced on a fresh clone of the affected repo**
+(`arrrrny/zuraffa_agent`, the exact repo shape from issue #1417: `.gitignore`
+carries `.specify/*` with only `constitution.md` force-added;
+`.specify/scripts/` absent):
 
 ```
-dart analyze lib/src/cli/zfa_executable.dart
-             test/cli/zfa_executable_1664_installed_binary_reuse_test.dart
+$ bash .specify/scripts/bash/setup-plan.sh --json
+bash: .specify/scripts/bash/setup-plan.sh: No such file or directory
+EXIT=127
+```
+
+**(b) The new test suite, pre-implementation** (written against the existing
+API surface; run before any fix code existed):
+
+```
+$ dart test test/commands/initialize_speckit_test.dart
+00:38 +0 -8: Some tests failed.
+  Expected: <0>  Actual: <1>
+  stdout+stderr: ❌ Error: FormatException: Could not find an option named "--speckit".
+Failing tests: U-1417-b1 … U-1417-b8 (8/8 red for exactly that reason)
+```
+
+## 2. Green evidence (real runs, this session)
+
+```
+$ dart test test/commands/initialize_speckit_test.dart
+00:00 +19: All tests passed!
+   (U-1417-b1..b9 acceptance + drift guard, U1–U10 writer-unit group)
+```
+
+**(a) End-to-end on the real affected repo** (fresh `zuraffa_agent` clone →
+fix → the issue's Step 1 command):
+
+```
+$ dart run bin/zfa.dart initialize --speckit --root /…/zuraffa_agent
+✓ Emitted .specify/scripts/bash/{common,setup-plan,check-prerequisites,setup-tasks}.sh
+✓ .gitignore: appended force-include block for .specify/scripts
+
+$ SPECIFY_FEATURE_DIRECTORY=specs/002-engine-core-loop \
+    bash .specify/scripts/bash/setup-plan.sh --json
+{"FEATURE_SPEC":"/…/specs/002-engine-core-loop/spec.md","IMPL_PLAN":"/…/specs/002-engine-core-loop/plan.md","FEATURE_DIR":"/…/specs/002-engine-core-loop","BRANCH":"002-engine-core-loop"}
+EXIT=0
+$ git check-ignore .specify/scripts/bash/setup-plan.sh; echo $?
+1   (NOT ignored — the emitted helpers are trackable: ?? .specify/scripts/)
+```
+
+The stderr warning `Plan template not found` is the script's documented
+non-fatal fallback (no `.specify/templates/` in the agent repo); exit 0.
+
+**(b) No-regression on a repo with committed scaffolding** (the framework
+repo itself):
+
+```
+$ dart run bin/zfa.dart initialize --speckit --root .
+• Skipped .specify/scripts/bash/setup-plan.sh (already present; use --force to overwrite)
+• Skipped .specify/scripts/bash/check-prerequisites.sh (already present; …)
+• Skipped .specify/scripts/bash/setup-tasks.sh (already present; …)
+✅ Speckit scaffolding ready: 0 created, 0 overwritten, 4 skipped.
+```
+
+`git status` confirms zero modifications under `.specify/scripts/` from the
+command. `--dry-run` verified separately: announces, writes nothing (no
+`.specify/` tree created).
+
+## 3. Mutation audit (real mutants, real test runs)
+
+Tooling note (honest): the `mutation_test` package (1.8.1) unscoped
+generates 538 mutants in `speckit_scaffolding.dart` — **all inside the
+embedded bash string constants** (data pinned byte-exact by drift guard
+U-1417-b9; ~40s/mutant ≈ 8h of noise) — and scoped to the writer-logic
+lines it generates **0** candidates (its builtin Dart rules are regex-based
+and don't match this code shape; custom `<regex>` rules register — 45 rules
+in verbose output — but yield no mutants; an engine quirk left unresolved
+in budget). So `scripts/mutation_audit_1417.py` performs the audit
+directly with the same contract (baseline-green gate, one mutant at a
+time, restore-before-judge, sha256-verified restoration):
+
+| Mutant (writer decision point) | Verdict |
+| --- | --- |
+| M01 `file.existsSync()` → `false` | KILLED (U1/U2) |
+| M02 `existing == content` → `!=` | KILLED (U4) |
+| M03 `if (!force)` → `if (force)` | KILLED (U2/U3) |
+| M04 `if (!dryRun)` → `if (dryRun)` (×3) | KILLED (U5) |
+| M05 `gi.existsSync()` → `false` | KILLED (U6) |
+| M06 `_needsForceInclude(...)` → `false` | KILLED (U6) |
+| M07 comment-skip drops `isEmpty` | SURVIVED — **equivalent mutant** (see proof) |
+| M08 `rule.startsWith('!')` → `false` | KILLED (U8) |
+| M09 `negated = true` → `false` | KILLED (U8) |
+| M10 `needed = !negated` → `needed = negated` | KILLED (U7/U8) |
+| M11 `var needed = false` → `true` | KILLED (U7) |
+| M12 marker guard `contains()` → `false` | SURVIVED → **remediated**: new test U10 (user re-excludes after an append → duplicate block) added, observed killing it |
+| M13 `!existing.endsWith('\n')` inverted | KILLED (U6) |
+
+**Final: Mutants 13 — Killed 12 — Survived 0 non-equivalent — Timeouts 0 —
+Restoration verified: True. AUDIT: PASS.**
+
+M07 equivalence proof: with `line.isEmpty || line.startsWith('#')` reduced
+to `line.isEmpty`, blank and comment lines reach `_excludingRules.contains(rule)`;
+a blank line yields `''` and a comment line yields text starting `#` —
+neither can ever equal one of `.specify/`, `.specify/*`,
+`.specify/scripts`, `.specify/scripts/`, `.specify/scripts/*` (none is
+empty, none starts with `#`), so `needed` is unchanged for every reachable
+input. No test can kill it; excluded from the score per standard
+mutation-testing practice.
+
+M12 remediation followed the red→green loop: U10 was written from the
+survivor's scenario and observed killing the mutant on the next audit pass
+(killed 11 → 12).
+
+## 4. Tool gates (real runs, this session)
+
+```
+dart analyze lib/src/commands/initialize_command.dart \
+             lib/src/commands/speckit_scaffolding.dart \
+             test/commands/initialize_speckit_test.dart
 → No issues found!
 
 dart analyze            (whole repo)
-→ 106 issues found      (0 errors, 0 warnings — all `info`)
+→ 208 issues found      — IDENTICAL to the pre-change baseline measured at
+  session start (208), i.e. zero new issues; all pre-existing
+  warnings/infos in Flutter-dependent sub-packages.
+
+dart test test/commands/initialize_dart_inplace_test.dart --preset=all
+→ 00:06 +9: All tests passed!          (#393 guard pins, incl. the network
+                                        bootstrap test)
+
+dart test test/cli/bug_1360_undeclared_option_crash_test.dart \
+          test/cli/cli_edge_cases_test.dart
+→ 00:00 +5: All tests passed!          (option-parsing / CLI edge guards)
+
+dart format .
+→ Formatted 2945 files (0 changed)     (zero drift repo-wide; the three
+                                        changed Dart files are formatted)
 ```
 
-Zero findings from the changed/new files; the whole-repo count is the
-pre-existing info-level baseline drift (106 — the same count the #1655
-verification recorded).
+Hygiene: `.dart_tool/test/` and `$TMPDIR/dart_test.kernel.*` cleaned before
+red/green runs per the task's verify recipe.
 
-Format gate:
+## 5. Success-criteria audit (spec SC-001..003, hard constraints)
 
-```
-dart format --output=none --set-exit-if-changed .
-→ Formatted 2878 files (0 changed)      (exit 0 — zero drift repo-wide;
-  the example/ resolution warning is the Flutter-less sandbox, not drift)
-```
+1. **SC-001 / constraint 1 (fresh clone runs the skills' Step 1)** —
+   PROVED end-to-end on the real affected repo: exit 127 before, exit 0
+   with the expected JSON keys after (§2a). The skills' feature-context
+   contract (`.specify/feature.json` / `SPECIFY_FEATURE_DIRECTORY`) is
+   modeled exactly as the speckit-specify skill persists it (U-1417-b3).
+2. **Versioned with the CLI / cannot drift (constraint 2)** — PROVED by
+   construction: the four scripts are Dart string constants shipped in the
+   package (same treaty as `kZuraffaSpecTemplate`), and drift guard
+   U-1417-b9 compares them byte-for-byte against the canonical
+   `.specify/scripts/bash/` copies. The guard PROVED itself in-session:
+   it caught a leftover `&&`→`||` mutant inside a constant after a
+   timeout-killed `mutation_test` run (restored via
+   `scripts/embed_speckit_scripts.py`, re-verified green).
+3. **Constraint 3 (no breakage of committed scaffolding)** — PROVED: the
+   framework-repo run reports 4 skipped / 0 overwritten and leaves the
+   tree unchanged (U-1417-b4, U4); `--force` overwrite covered by
+   U-1417-b5 / U3.
+4. **Constraint 4 (`.gitignore` handled)** — PROVED: repos with a
+   `.specify/*` rule get the idempotent force-include block (U-1417-b6,
+   U6, U10), repos without `.specify` rules are untouched (U-1417-b7, U7),
+   pre-negated repos are respected (U8), and no `.gitignore` is never
+   created (U9). Verified on the real repo: `git check-ignore` → 1 after
+   the fix.
+5. **Constitution I (CLI-built only)** — PRESERVED: the scripts ship as
+   CLI-owned embedded content (`SpeckitScaffoldingWriter`); nothing is
+   hand-scaffolded by the fix; the framework repo's own tracked copies are
+   the drift-guard source of truth.
 
-## 2. TDD discipline (REAL runs in this session)
+## 6. Coverage summary (test-list → verdict)
 
-- RED, pre-fix (verbatim in
-  `.specify/bugs/1664-first-refactor-cli-compile/red-evidence.md`):
+| id | verdict |
+| --- | --- |
+| U-1417-b1 parser flag | GREEN |
+| U-1417-b2 emission | GREEN |
+| U-1417-b3 E2E setup-plan.sh JSON | GREEN |
+| U-1417-b4 no-clobber idempotency | GREEN |
+| U-1417-b5 --force overwrite | GREEN |
+| U-1417-b6 gitignore block once | GREEN |
+| U-1417-b7 gitignore untouched | GREEN |
+| U-1417-b8 no-pubspec surgical | GREEN |
+| U-1417-b9 drift guard | GREEN (and proved itself live) |
+| U1–U10 writer unit (incl. mutation remediation U10) | GREEN |
 
-```
-dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart
-→ 00:00 +0 -1: Some tests failed.
-  loading test/cli/zfa_executable_1664_installed_binary_reuse_test.dart [E]
-  Failed to load "...": Member not found:
-    'ZfaExecutable.currentInstalledBinary'
-```
+**Gate decision: PASS** — the suite is green, all non-equivalent mutants
+killed, restoration verified, and the issue's misfire is reproduced-red and
+proven-green end-to-end in this session.
 
-  A compile-error red because the fix introduces a NEW seam: pre-fix there
-  is no installed-binary awareness in the resolution at all — which IS the
-  bug. The behavioral shape (a `.dart` candidate compiled despite a current
-  installed binary) is what U-1664-b1 pins post-fix.
+## Remediation tasks
 
-- GREEN, post-fix:
-
-```
-dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart
-→ 00:00 +9: All tests passed!
-```
-
-The fix was applied only after the repro suite was proven red; no test was
-edited to make it pass retroactively. The guard tests (b2–b8: stale marker,
-VM driver, missing/empty marker, git failure, non-canonical candidate,
-missing exe) pin the fail-open direction — every unprovable input compiles
-as before.
-
-## 5. Regression audit (all green, real runs)
-
-```
-dart test test/cli/zfa_executable_test.dart test/cli/binary_staleness_test.dart
-          test/plugins/tdd/services/step_runner_test.dart
-          test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
-          test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart
-          test/plugins/tdd/services/refactor_passes_test.dart
-→ 00:16 +82: All tests passed!
-   (the direct contracts of the changed file and its consumers: the U1–U10
-   compile-cache contract, the #1184 marker reader, the StepRunner chain
-   with the #1636/#1645 running-binary tiers, and the #689/#717/#1472
-   build-pass resolution)
-
-dart test test/cli/ test/core/ --exclude-tags "flutter || e2e"
-→ 00:57 +901 (1 skipped): All tests passed!
-
-dart test test/plugins/tdd/services/
-→ 01:44 +1135: All tests passed!
-```
-
-Full `test/plugins/tdd/commands/` scope (subprocess-heavy, `-j 3`): flaky
-under sandbox load BOTH with and without the change — different single
-tests fail per run (post-fix runs: corpus_status_command / bug_1625
-variants; a stashed PRE-FIX run failed four DIFFERENT tests: bug_1141,
-realize_command, corpus_differential, plan_skin_contract). Every flagged
-test passes in isolation with AND without the change (A/B via
-`git stash`, `+16: All tests passed!` both ways). Pre-existing
-environment flakiness, unrelated to this fix — the fix cannot affect a
-`dart test` driver at all (the VM-shape probe rejects before any I/O, the
-U-1664-b9 wiring pin).
-
-Chunk/cache hygiene: `.dart_tool/test/` and `/tmp/dart_test.kernel.*` were
-cleaned before and after every run; one 8.4G kernel-cache buildup was
-found and removed mid-session (the task's disk-housekeeping rule); disk
-stayed ≥86% free after cleanup.
-
-## 4. Acceptance criteria audit (issue #1664)
-
-1. **First refactor after master bump uses an existing compiled binary (no
-   85s compile)** — PROVED at the seam level: U-1664-b1 returns the running
-   binary for the canonical candidate when the marker equals the checkout
-   HEAD, and the wiring sits AFTER the fresh-cache check and BEFORE the
-   build lock, so the would-compile moment (the exact moment
-   `scripts/rebuild.sh`'s `.dart_tool` wipe creates after every install)
-   resolves to the installed binary instead of `dart compile exe`. Not
-   re-timed end-to-end (the fast-tier convention this repo pins for cloud
-   agents); the issue's own measurement (124.6s → 0.4–0.6s steady band)
-   quantifies the cost being avoided.
-2. **Child seam detects the current installed binary and reuses it** —
-   PROVED: `ZfaExecutable.currentInstalledBinary` is the seam, and
-   `_compileCached` consults it with `Platform.resolvedExecutable` on every
-   cache miss/stale verdict — covering EVERY resolution path that funnels
-   into the compile (StepRunner, PipelineRunner, `zfaBuildCommand`, phase-0,
-   dream/replay/differential), which is the choke point the observed
-   compile argv (`dart compile exe <checkout>/bin/zfa.dart --output
-   <checkout>/.dart_tool/zfa_cli_bin/zfa_exe.tmp`) flows through.
-3. **`.build_commit` comparison prevents stale binary reuse** — PROVED:
-   U-1664-b2 (marker != HEAD → null → compile), U-1664-b4/b5 (missing or
-   empty marker → null), U-1664-b6 (unresolvable HEAD → null). Strict
-   full-SHA equality — no prefix/partial acceptance.
-4. **Steady-state refactor time unchanged (0.4–0.6s)** — PROVED by
-   construction and by tests: the fresh-cache verdict (mtime `_isStale`)
-   runs FIRST and is byte-for-byte unchanged (pre-existing U3 pins
-   reuse-without-compiler-call); the probe adds zero subprocesses for VM
-   drivers (rejected before any I/O) and at most one `git rev-parse` +
-   one marker read for a compiled parent on a cache miss — nanoseconds
-   against a 0.4s step. The pre-existing staleness suites (U4/U5) ran green
-   unchanged.
-
-Hard constraints honored: the fix touches only
-`lib/src/cli/zfa_executable.dart` (+ the new test file). No refactor pass
-logic, no build-relevance gate, no CLI entry point changes — verified by
-`git diff --stat` (129 insertions, one file).
-
-## 5. Verdict
-
-PASS — the child binary resolution now prefers a compiled install proven
-current by its `zfa.build_commit` over an 85s AOT compile, every unprovable
-input fails open to the exact pre-fix behavior, the stale-reuse guard is
-pinned by test, and the warm-cache steady state is untouched.
+None outstanding. (M12's remediation task "strengthen the suite to kill the
+marker-guard mutant" was completed in-loop via U10; M07 is a proven
+equivalent mutant, documented above.)

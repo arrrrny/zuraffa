@@ -6,6 +6,7 @@ import '../config/zfa_config.dart';
 import '../core/dependencies/dependency_wirer.dart';
 import '../utils/file_utils.dart';
 import '../utils/string_utils.dart';
+import 'speckit_scaffolding.dart';
 
 class InitializeCommand {
   static const String fixedEntityOutput = ZfaConfig.fixedEntityOutput;
@@ -57,6 +58,17 @@ class InitializeCommand {
             'Bootstrap a pure-Dart package in-place: if pubspec.yaml is missing, '
             'synthesize a minimal one, then wire the pure-Dart dependency set. '
             'Cannot be combined with --flutter.',
+      )
+      ..addFlag(
+        'speckit',
+        negatable: false,
+        help:
+            'Emit the current speckit helper scripts (common.sh, setup-plan.sh, '
+            'check-prerequisites.sh, setup-tasks.sh) into an existing repo\'s '
+            '.specify/scripts/bash/ so the speckit-* skills work on a fresh '
+            'clone (issue #1417). Skips dependency wiring and entity '
+            'scaffolding entirely; works without a pubspec.yaml. Combine with '
+            '--force to overwrite scripts that drifted.',
       )
       ..addFlag(
         'flutter',
@@ -112,6 +124,38 @@ class InitializeCommand {
         '--dart and --flutter are mutually exclusive.',
         parser.usage,
       );
+    }
+
+    // --- Speckit scaffolding emission (issue #1417) -----------------------
+    // Surgical verb: emits the CLI-embedded speckit helper scripts into an
+    // existing repo and returns — no pubspec wiring, no entity scaffolding,
+    // no pubspec.yaml requirement (a non-Dart speckit repo is valid).
+    if (results['speckit'] as bool) {
+      final writer = const SpeckitScaffoldingWriter();
+      final emitResult = await writer.emit(
+        root,
+        force: force,
+        dryRun: dryRun,
+        log: (message) => print(dryRun ? '🔍 (dry-run) $message' : message),
+      );
+      if (dryRun) {
+        print('🔍 Dry-run: nothing written (--speckit).');
+      } else {
+        print(
+          '\n✅ Speckit scaffolding ready: '
+          '${emitResult.created.length} created, '
+          '${emitResult.overwritten.length} overwritten, '
+          '${emitResult.skipped.length} skipped.',
+        );
+      }
+      print('\n📝 Next steps:');
+      print(
+        '   • Run a speckit skill step:  bash .specify/scripts/bash/setup-plan.sh --json',
+      );
+      print(
+        '   • Re-emit over drifted scripts:  zfa initialize --speckit --force',
+      );
+      return;
     }
 
     // --- Dependency wiring (issue #275) -----------------------------------
@@ -292,6 +336,8 @@ EXAMPLES:
   zfa init --no-deps -e Order              # Skip deps, only scaffold entity
   zfa initialize --dart                    # Bootstrap pure-Dart package in-place
   zfa init --dart --deps-only              # In-place bootstrap, no test entity
+  zfa initialize --speckit                 # Emit speckit helper scripts into an existing repo
+  zfa init --speckit --force               # Re-emit over drifted speckit scripts
   zfa initialize --dry-run                 # Preview without writing files
 
 DESCRIPTION:
@@ -299,6 +345,15 @@ DESCRIPTION:
   zorphy_annotation, analyzer override) into pubspec.yaml, creates build.yaml with
   zorphy builder registration, ensures .zfa.json exists, then creates a sample
   entity with common fields under lib/src/domain/entities.
+
+  With --speckit, the command is surgical: it ONLY emits the current speckit
+  helper scripts (common.sh, setup-plan.sh, check-prerequisites.sh,
+  setup-tasks.sh) into .specify/scripts/bash/, embedded in the CLI so they are
+  versioned with it and cannot drift from the speckit-* skills (issue #1417).
+  Existing scripts are skipped unless --force; a .gitignore rule that would
+  ignore .specify/scripts gets an idempotent force-include block. Works
+  without a pubspec.yaml — dependency wiring and entity scaffolding are
+  skipped entirely.
 
   For a brand-new app, prefer `zfa setup <name>` which runs flutter/dart create
   AND wires dependencies in one step. To initialize an EXISTING pure-Dart
