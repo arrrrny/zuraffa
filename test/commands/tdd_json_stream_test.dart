@@ -305,8 +305,11 @@ void main() {
         final stepEvents = lines
             .where((j) => j['schema_version'] == 'step-verdict.v1')
             .toList();
-        // 2 behaviors × 4 loop steps, streamed as they happened.
-        expect(stepEvents.length, 8, reason: out);
+        // Issue #1652 deferral: 2 behaviors × 5 streamed step verdicts —
+        // gen/verify-red/make plus the refactor step TWICE (deferred in
+        // phase 1 as each behavior completes, then clean in the phase-2b
+        // batch after the last behavior's steps).
+        expect(stepEvents.length, 10, reason: out);
         expect(stepEvents.map((e) => '${e['behavior']}:${e['step']}').toSet(), {
           'B-001:gen',
           'B-001:verify-red',
@@ -359,7 +362,9 @@ void main() {
         final stepCount = lines
             .where((j) => j['schema_version'] == 'step-verdict.v1')
             .length;
-        expect(stepCount, 8, reason: out);
+        // 2 behaviors × 5 step verdicts — the #1652 deferral streams the
+        // refactor step as deferred (phase 1) and clean (phase 2b).
+        expect(stepCount, 10, reason: out);
         expect(lines.last['schema'], 'zuraffa.verdict.v1');
         expect(lines.last['command'], 'run');
       },
