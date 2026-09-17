@@ -438,14 +438,20 @@ void main() {
   /// #1651: when a scenario example resolved (the spec's acceptance
   /// scenarios carry the declared method's concrete example), the
   /// assertion pins the CONCRETE outcome (`expect(result, equals(5))`)
-  /// and the capture passes the scenario's arguments — the type-only
-  /// `isA<T>()` check is downgraded to the FALLBACK (no scenario
-  /// values): a `return 0;` dummy satisfies a type check but fails a
-  /// value assertion. Entity declared returns cannot reference the
-  /// declared type before it exists, so the red surface starts at the
-  /// guard — but the guard carries the [vacuousGuardMarker] so `make`
-  /// refuses green until the author replaces it with a real outcome
-  /// assertion.
+  /// and the capture passes the scenario's arguments — a `return 0;`
+  /// dummy satisfies a type check but fails a value assertion. With NO
+  /// scenario value the type-only `isA<T>()` check stands as the
+  /// FALLBACK — and (review of #1667) a type check alone is still a
+  /// VACUOUS green, because the #1517 func pass fills the subject with
+  /// `return 0;`, which satisfies it — so the scalar typed fallback
+  /// carries the [vacuousGuardMarker] ([typeOnlyVacuousGuardComment])
+  /// and `make` refuses the dummy-body green until the author replaces
+  /// it with an outcome-VALUE assertion. An EXISTING entity return's
+  /// `isA<Entity>()` carries NO marker: the #1517 dummy cannot satisfy
+  /// an entity type — the assertion fails red on its own, so it
+  /// discriminates. A MISSING entity keeps `scalarOutcome` false — the
+  /// red surface starts at the guard, which carries the same marker
+  /// with the same contract.
   String _declaredAssertion(
     Behavior b,
     String target,
@@ -459,7 +465,11 @@ void main() {
         return '$capture\n'
             '      expect(result, equals($expected));';
       }
+      final marker = isAssertableScalarType(shape.declaredReturn)
+          ? '      $typeOnlyVacuousGuardComment\n'
+          : '';
       return '$capture\n'
+          '$marker'
           '      expect(result, isA<${shape.declaredReturn}>());';
     }
     return '${_captureInvocation(b, target, shape, null)}\n'

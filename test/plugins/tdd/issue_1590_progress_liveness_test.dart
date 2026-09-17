@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Issue #1590 — progress liveness for `zfa tdd run` and the make pipeline.
 //
 // The driver printed nothing while a step ran (a single make ran 273.7s in

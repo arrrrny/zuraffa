@@ -1,5 +1,5 @@
 @TestOn('linux || mac-os')
-@Tags(['regression'])
+@Tags(['regression', 'slow'])
 // Spec 1520 — the age-guarded, dir-aware janitor (issue #1520).
 //
 // The #1515 sweep deletes `$TMPDIR/dart_test.kernel.*` entries whose mtime

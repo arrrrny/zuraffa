@@ -1,6 +1,7 @@
 @Tags(['integration', 'slow'])
-// ignore_for_file: avoid_print
 library;
+
+// ignore_for_file: avoid_print
 
 import 'package:test/test.dart';
 import 'package:zuraffa/zuraffa.dart';

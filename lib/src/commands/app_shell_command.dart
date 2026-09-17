@@ -363,7 +363,11 @@ class AppShellCommand extends Command<void> {
       'routing',
       'app_router.dart',
     );
-    final appRouterContent = _builder.buildAppRouter(skinAudit: skinAudit);
+    // #1673: the day-zero placeholder's AppBar shows the shell title.
+    final appRouterContent = _builder.buildAppRouter(
+      skinAudit: skinAudit,
+      title: title,
+    );
     emittedSources.add(appRouterContent);
     files.add(
       await FileUtils.writeFile(

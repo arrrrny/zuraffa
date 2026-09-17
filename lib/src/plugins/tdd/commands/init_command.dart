@@ -57,6 +57,19 @@ class InitCommand extends Command<void> {
           'SDK package).',
       negatable: false,
     );
+    argParser.addFlag(
+      'mutation',
+      help:
+          'Opt into mutation testing (issue #1653): also injects '
+          '`mutation_test: ^1.8.0` into the project pubspec\'s '
+          'dev_dependencies. mutation_test is the `tdd verify` lane\'s '
+          'tool; WITHOUT this flag the default baseline omits it, so a '
+          'project mid-migration never pays mutation_test\'s '
+          'analyzer-versioned cold-resolution cost in every analyze/fix/'
+          'test compile. Idempotent: re-run with --mutation later to add '
+          'just the missing dep to an already-initialized project.',
+      negatable: false,
+    );
   }
 
   final TddPlugin plugin;
@@ -90,15 +103,19 @@ class InitCommand extends Command<void> {
     // Issue #1260 remediation 2: skin-lane opt-in — the certified
     // dependency is added to the project's dependencies: (runtime).
     final skin = argResults?['skin'] == true;
+    // Issue #1653: mutation-testing opt-in — the dev-deps baseline gains
+    // `mutation_test: ^1.8.0` only under this flag.
+    final mutation = argResults?['mutation'] == true;
 
     // Spec 1528: the shared idempotent writer sequence (TddBaselineInit) —
     // identical stdout/stderr output, identical misfire StateError. The
     // ✗ writer lines stay on stdout and only the trailing misfire block
     // goes to stderr, exactly as the pre-#1528 inline loop wrote them.
-    await const TddBaselineInit().ensure(
+    await TddBaselineInit().ensure(
       projectRoot: cwd,
       force: force,
       skin: skin,
+      mutation: mutation,
       onLine: stdout.writeln,
       onError: stdout.writeln,
       onMisfire: stderr.writeln,

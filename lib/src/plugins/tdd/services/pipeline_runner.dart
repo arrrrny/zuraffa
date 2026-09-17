@@ -390,15 +390,26 @@ class PipelineRunner {
   ///   2. `Platform.script` when this CLI is running from source — a
   ///      `file://` URL whose path ends in `/bin/zfa.dart` or
   ///      `/bin/zuraffa.dart`. The entrypoint is `dart <that path>`.
-  ///   3. `zfa` on PATH — verified to be on PATH via
+  ///   3. `Platform.resolvedExecutable` when it is a compiled
+  ///      (non-Dart-VM) executable — the RUNNING binary (bug #1645, the
+  ///      #1643 mirror for this chain). It is definitionally what the
+  ///      operator invoked, so it outranks the PATH tier: a
+  ///      same-version/different-code PATH install (the `scripts/zfa`
+  ///      compile-cache artifact driving the run, an install dir
+  ///      elsewhere on PATH) is invisible to the #1472 version pin.
+  ///   4. `zfa` on PATH — verified to be on PATH via
   ///      a direct lookup of the executable in `PATH`.
-  ///   4. Fallback: `Platform.script` is a `file://` URL but the basename
+  ///   5. Fallback: `Platform.script` is a `file://` URL but the basename
   ///      is not `zfa.dart`/`zuraffa.dart`.
   ///      - Native AOT executable (bug #864): `Platform.script` IS
   ///        `Platform.resolvedExecutable` — the entrypoint is the
   ///        executable alone (no doubled binary path).
   ///      - Otherwise (compiled snapshot / global activate): use
   ///        `dart <Platform.script.toFilePath()>`.
+  ///
+  /// VM drivers (`dart run`, `dart test`, a `dartaotruntime` snapshot
+  /// launch) fail the tier-3 non-VM check and keep the exact #665/#690
+  /// order below — backward compatible (issue #1645).
   ///
   /// Misfire-stop (U12): throws [PipelineResolutionError] when nothing
   /// resolves.
@@ -459,11 +470,33 @@ class PipelineRunner {
           displayCommand: compiled,
         );
       }
-      // Non-standard basename: fall through to PATH lookup (tier 3),
-      // then to the compiled-snapshot fallback (tier 4) if PATH also fails.
+      // Non-standard basename: fall through to the RUNNING-binary tier
+      // (tier 3, bug #1645), then to PATH lookup (tier 4), then to the
+      // compiled-snapshot fallback (tier 5) if PATH also fails.
     }
 
-    // 3. Resolve the concrete `zfa` executable from PATH without a shell.
+    // 3. The RUNNING binary (bug #1645, the #1643 mirror for this
+    //    chain). When this process runs as a compiled (non-VM)
+    //    executable — the `scripts/zfa` compile-cache artifact
+    //    `.dart_tool/zfa_cli_bin/zfa_exe`, or an install dir earlier or
+    //    later on PATH — the executable IS the zfa entrypoint, promoted
+    //    AHEAD of the PATH tier: the PATH install may predate the
+    //    driving build while carrying the same version string, which the
+    //    #1472 pin cannot distinguish, so the only safe resolution for a
+    //    compiled driver is the binary driving the run. The Dart VM
+    //    names are excluded so a source/test/snapshot context (dart run,
+    //    dart test, dartaotruntime) never resolves the bare VM and keeps
+    //    the exact #665/#690 order below.
+    if (!_isDartVmName(p.basename(resolvedExecutable)) &&
+        await File(resolvedExecutable).exists()) {
+      final compiled = await compile(resolvedExecutable);
+      return _ResolvedEntrypoint(
+        executable: compiled,
+        displayCommand: compiled,
+      );
+    }
+
+    // 4. Resolve the concrete `zfa` executable from PATH without a shell.
     final pathEntrypoint = _findExecutableOnPath(
       'zfa',
       pathEnv: pathEnvOverride,
@@ -475,7 +508,7 @@ class PipelineRunner {
       );
     }
 
-    // 4. Final fallback: resolvedExecutable + Platform.script.
+    // 5. Final fallback: resolvedExecutable + Platform.script.
     //    Catches compiled-snapshot and global-activate scenarios where
     //    Platform.script basename is not zfa.dart/zuraffa.dart.
     if (scriptPath != null) {
@@ -522,6 +555,17 @@ class PipelineRunner {
   String? _platformScriptPath() {
     final script = Platform.script;
     return script.scheme == 'file' ? script.toFilePath() : null;
+  }
+
+  /// Whether [basename] is a Dart VM executable rather than a compiled
+  /// zfa binary (bug #1645): `dart`, `dartvm`, `dartaotruntime` and
+  /// their `.exe` forms. Mirrors `StepRunner._isDartVmName` (bug #690) —
+  /// the same set, kept private per resolver so the two chains stay
+  /// decoupled the way #665/#690 kept them.
+  static bool _isDartVmName(String basename) {
+    const names = {'dart', 'dartvm', 'dartaotruntime'};
+    final lower = basename.toLowerCase();
+    return names.contains(lower) || names.any((name) => lower == '$name.exe');
   }
 
   String? _findExecutableOnPath(String name, {String? pathEnv}) {

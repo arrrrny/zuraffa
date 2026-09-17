@@ -692,6 +692,17 @@ case "$STEP" in
         echo "make: behavior=$ID outcome=adopted-placeholder feature=$FEATURE"
         exit 0
         ;;
+      adopt-interrupted)
+        # Issue #1398 crash-recovery adoption: green evidence appended
+        # (like `ok`/`adopt`) but the summary outcome is
+        # `adopted-interrupted` and the process exits 0 — exactly what
+        # the real `zfa tdd make` prints when the write-ahead interrupt
+        # marker proved the previous make died mid-flight and the resumed
+        # make adopted the passing subject.
+        printf '\n## Cycle: %s (green)\n\n- behavior: %s\n- kind: green\n- criterion: FR-003\n- exit: 0\n- at: 2026-08-30T00:00:00.000Z\n' "$ID" "$ID" >> "$CYCLE"
+        echo "make: behavior=$ID outcome=adopted-interrupted feature=$FEATURE"
+        exit 0
+        ;;
       ok-no-evidence)
         echo "make: behavior=$ID outcome=green feature=$FEATURE"
         exit 0
@@ -727,6 +738,31 @@ case "$STEP" in
     case "$OUTCOME" in
       ok) echo "refactor: behavior=$ID outcome=clean feature=$FEATURE"; exit 0 ;;
       exit0:*) echo "refactor: behavior=$ID outcome=${OUTCOME#exit0:} feature=$FEATURE"; exit 0 ;;
+      flood)
+        # Issue #1412: a realistic failing-refactor transcript — the
+        # PASSING preflight block at the head (exactly what the take(3)
+        # excerpt used to print) and the failing-pass block at the tail
+        # (what the operator actually needs). 3 preflight lines + 241
+        # preflight-echo noise lines + the 7-line pass block = 251
+        # captured lines, mirroring the #1329 flood so the recorded
+        # 200-line tail contract (U-1412-4) and the console 10-line tail
+        # (U-1412-1/2) are provable on ONE transcript.
+        echo "zfa tdd refactor: preflight suite"
+        echo '   command: dart test {file} --plain-name "{name}"'
+        echo "   preflight exit: 0"
+        i=1
+        while [ "$i" -le 241 ]; do
+          echo "preflight noise line $i"
+          i=$((i + 1))
+        done
+        echo "zfa tdd refactor: applying passes"
+        echo "   pass: build"
+        echo "     command: $PROJECT/bin/zfa build"
+        echo "     exit: 1"
+        echo "     changed: (none)"
+        echo '   pass "build" failed — misfire-stop.'
+        echo "zfa tdd refactor: final error line"
+        exit 1 ;;
       *) echo "refactor: behavior=$ID outcome=$OUTCOME feature=$FEATURE"; exit 1 ;;
     esac
     ;;

@@ -22,6 +22,22 @@
 //   B4 — the dart_core fast-lane selector parsed out of ci.yaml excludes
 //        every e2e-tagged file.
 //
+// Issue #1632 (the dart_core fast-lane overflow — the job cancelled at
+// its 30-minute ceiling because ~116 heavyweight suites were never
+// tagged): two pins close the drift permanently.
+//
+//   B5 — the fast-lane budget census: every fast-lane-eligible test
+//        file (no `slow`/`e2e`/`flutter` tag) that matches a heavyweight
+//        criterion — spawns external processes, or is an
+//        analyzer/compile self-hosting gate — carries an exclusion tag.
+//        Process-spawning/temp-project suites take `e2e` (#1510
+//        semantics: honest under direct invocation, off the CI fast
+//        lane, selected by --preset=all); in-process slow suites take
+//        `slow`.
+//   B6 — the tier invariant: every `regression`-tagged file also carries
+//        `slow` (the tier's default-lane exclusion is the `slow` tag —
+//        a tier-only tag leaks the file into every default `dart test`).
+//
 // Behaviors:
 //   B1 — every regression-tier test file carries the `regression` tag.
 //   B2 — dart_test.yaml defines the regression preset (include_tags
@@ -29,12 +45,33 @@
 
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
-void main() {
-  final tierDir = Directory('test/regression');
-  final configFile = File('dart_test.yaml');
+import 'helpers/project_root.dart';
+
+/// Repo root, resolved once via the CWD-independent [findProjectRoot].
+late String _repoRoot;
+
+/// `.github/workflows/ci.yaml` under the repo root (never the CWD).
+File get _ciWorkflowFile =>
+    File(p.join(_repoRoot, '.github', 'workflows', 'ci.yaml'));
+
+Future<void> main() async {
+  // The dart_core lane runs SERIAL by design (#1682): Directory.current
+  // and dart:io exitCode are process-global, so a parallel lane in which
+  // one suite chdirs silently redirects every concurrent suite's
+  // relative-path I/O and exit-code reads into its window. The CLI-driving
+  // suites here still move the process CWD through their own `-C` windows,
+  // and other lanes (chunked/sharded runners, an IDE run) may add
+  // parallelism back. Every structural path these pins read is therefore
+  // resolved ONCE against the repo root through findProjectRoot() (the same
+  // immunity the self-hosting gates rely on), never against the process CWD.
+  _repoRoot = await findProjectRoot();
+  final tierDir = Directory(p.join(_repoRoot, 'test', 'regression'));
+  final configFile = File(p.join(_repoRoot, 'dart_test.yaml'));
+  final testDir = Directory(p.join(_repoRoot, 'test'));
 
   final tierFiles = tierDir
       .listSync(recursive: true)
@@ -112,9 +149,7 @@ void main() {
   test('B4: the dart_core fast lane excludes every e2e-tagged file', () {
     final e2eFiles = _e2eTaggedFiles();
     expect(e2eFiles, isNotEmpty);
-    final ci =
-        loadYaml(File('.github/workflows/ci.yaml').readAsStringSync())
-            as YamlMap;
+    final ci = loadYaml(_ciWorkflowFile.readAsStringSync()) as YamlMap;
     final steps =
         ((ci['jobs'] as YamlMap)['dart_core'] as YamlMap)['steps'] as YamlList;
     String? fastLaneExclude;
@@ -146,6 +181,93 @@ void main() {
       );
     }
   });
+
+  test('B5: the fast-lane budget census — no untagged heavyweight suite '
+      'rides the dart_core lane (#1632)', () {
+    final offenders = <String>[];
+    for (final entry in _fastLaneEligibleFiles().entries) {
+      final file = entry.key;
+      final source = File(file).readAsStringSync();
+      // Trivial fixture probes (short-lived `chmod` / `git` / `dart`
+      // children) are not the heavyweight #1510 temp-project semantics —
+      // discount them so fast in-process contract suites stay on the lane.
+      final scanSource = source.replaceAll(_trivialProbeRe, '');
+      final spawns = _spawnMarkerRe.hasMatch(scanSource);
+      final compileGate =
+          _compileGateRe.hasMatch(file) || file.contains('self_hosting');
+      if (spawns || compileGate) {
+        offenders.add(
+          '$file — ${spawns ? 'spawns external processes' : 'compile/self-hosting gate'} '
+          '(carries: ${entry.value.join(', ')})',
+        );
+      }
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'fast-lane-eligible files that spawn external processes or run '
+          'analyzer/compile self-hosting gates must carry `e2e` '
+          '(process-spawning/temp-project suites, the #1510 semantics) or '
+          '`slow` (in-process slow suites) — the untagged drift is what '
+          'cancelled dart_core at its 30-minute ceiling (#1632):\n'
+          '${offenders.join('\n')}',
+    );
+  });
+
+  test('B6: every regression-tagged file is kept off the CI fast lane '
+      'by `slow` or `e2e` (#1632)', () {
+    final leaks = <String>[];
+    for (final entity in testDir.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('_test.dart')) continue;
+      final tags = _suiteTags(entity.path);
+      if (tags.contains('regression') &&
+          !tags.contains('slow') &&
+          !tags.contains('e2e')) {
+        leaks.add(entity.path);
+      }
+    }
+    expect(
+      leaks,
+      isEmpty,
+      reason:
+          'a regression tag alone leaves the file eligible for the '
+          'dart_core CI lane — the tier rides the default-lane '
+          '`slow` exclusion (the corpus convention) or the #1510 '
+          '`e2e` weight tag:\n'
+          '${leaks.join('\n')}',
+    );
+  });
+
+  test('B7: the dart_core lane stays SERIAL and keeps the '
+      '--exclude-tags selector (#1632, #1682)', () {
+    final ci = loadYaml(_ciWorkflowFile.readAsStringSync()) as YamlMap;
+    final steps =
+        ((ci['jobs'] as YamlMap)['dart_core'] as YamlMap)['steps'] as YamlList;
+    String? testRun;
+    for (final step in steps) {
+      final run = (step as YamlMap)['run'];
+      if (run is String && run.contains('dart test test')) testRun = run;
+    }
+    expect(testRun, isNotNull, reason: 'the dart_core test step vanished');
+    expect(
+      testRun,
+      isNot(contains('--concurrency')),
+      reason:
+          'the pure-Dart unit lane must stay serial: Directory.current and '
+          'exitCode are process-global and the lane runs suites as isolates '
+          'of one VM, so any parallelism lets one suite chdir siblings into '
+          'its temp fixture and clobber their exit-code reads — the three '
+          'consecutive red master runs (7f89fbc4, 0a3b38e2, 1ab1a426). '
+          'Sharding (tools/run_tests_chunked.sh) is the lever if the lane '
+          'regrows, not concurrency (#1682)',
+    );
+    expect(
+      testRun,
+      contains('--exclude-tags'),
+      reason: 'the fast-lane tag selector is the B4-pinned contract',
+    );
+  });
 }
 
 /// Every `_test.dart` file under `test/` whose suite-level `@Tags`
@@ -155,12 +277,78 @@ Map<String, Set<String>> _e2eTaggedFiles() =>
 
 Map<String, Set<String>>? _cachedE2eFiles;
 
+/// The suite-level `@Tags` annotation's tag set of [path] (empty when the
+/// file declares none). Line-anchored (`multiLine` + `^`): a doc comment
+/// or string literal showing a literal `@Tags([...])` example must not
+/// shadow the real annotation.
+final RegExp _tagsAnnotationRe = RegExp(
+  r'^@Tags\(\[([^\]]*)\]\)',
+  multiLine: true,
+);
+
+Set<String> _suiteTags(String path) {
+  final annotation = _tagsAnnotationRe.firstMatch(
+    File(path).readAsStringSync(),
+  );
+  if (annotation == null) return const {};
+  return RegExp(
+    "'([^']*)'",
+  ).allMatches(annotation.group(1)!).map((match) => match.group(1)!).toSet();
+}
+
+/// Source markers proving a suite drives EXTERNAL processes: the spawn
+/// helpers (the run-zfa-source style drivers under `test/helpers/`) or
+/// direct `Process` use. Each alternative is split across adjacent string
+/// literals so THIS file's own source never contains the assembled marker
+/// text — the B5 census scans every fast-lane-eligible suite, this one
+/// included, and needs no self-exclusion carve-out.
+final RegExp _spawnMarkerRe = RegExp(
+  'Process'
+  r'\.run|Process'
+  r'\.start|run_'
+  r'zfa_source|runZfa'
+  r'Source|zfaEx'
+  r'ecutable|dart'
+  r'Test\(|runZfa'
+  r'\(',
+);
+
+/// Spawn calls whose child is a short-lived fixture probe — a literal
+/// `chmod` / `git` / `dart` first argument — not the heavyweight
+/// #1510 temp-project semantics (`pub get` + `build_runner` children)
+/// the census exists for. B5 discounts these before the marker scan.
+final RegExp _trivialProbeRe = RegExp(
+  r"Process\.run(?:Sync)?\(\s*'(?:chmod|git|dart)'",
+);
+
+/// Path markers of the analyzer/compile gate family: suites whose
+/// assertions compile or resolve generated code in-process.
+final RegExp _compileGateRe = RegExp(r'_compile_test\.dart$');
+
+/// Every `_test.dart` file under `test/` that the dart_core fast lane
+/// RUNS — its tag set is disjoint from the exclusion vocabulary
+/// (`slow` via dart_test.yaml's default, `flutter || e2e` via the CI
+/// selector) — mapped to its tag set.
+Map<String, Set<String>> _fastLaneEligibleFiles() {
+  final eligible = <String, Set<String>>{};
+  final testDir = Directory(p.join(_repoRoot, 'test'));
+  for (final entity in testDir.listSync(recursive: true)) {
+    if (entity is! File || !entity.path.endsWith('_test.dart')) continue;
+    final tags = _suiteTags(entity.path);
+    if (tags.intersection({'slow', 'e2e', 'flutter'}).isNotEmpty) continue;
+    eligible[entity.path] = tags;
+  }
+  return eligible;
+}
+
 Map<String, Set<String>> _scanE2eTaggedFiles() {
   final tagged = <String, Set<String>>{};
-  for (final entity in Directory('test').listSync(recursive: true)) {
+  final testDir = Directory(p.join(_repoRoot, 'test'));
+  for (final entity in testDir.listSync(recursive: true)) {
     if (entity is! File || !entity.path.endsWith('_test.dart')) continue;
     final annotation = RegExp(
-      r'@Tags\(\[([^\]]*)\]\)',
+      r'^@Tags\(\[([^\]]*)\]\)',
+      multiLine: true,
     ).firstMatch(entity.readAsStringSync());
     if (annotation == null) continue;
     final tags = RegExp(

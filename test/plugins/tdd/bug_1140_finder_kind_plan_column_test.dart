@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Issue #1140 (TDD-138) — the finder-kind column in the plan's behavior
 // table, and gen's declared-kind contract.
 //

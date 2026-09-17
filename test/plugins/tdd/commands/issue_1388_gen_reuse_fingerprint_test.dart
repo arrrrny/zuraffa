@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Issue #1388 — gen reuses stale guard-only artifacts after a traces:
 // migration, defeating the recovery loop the vacuous-guard stop itself
 // prescribes (add traces → re-plan → re-gen → re-run, issues

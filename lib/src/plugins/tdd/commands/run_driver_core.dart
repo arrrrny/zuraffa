@@ -63,6 +63,9 @@ import '../services/feature_path_resolver.dart';
 import '../services/journal.dart';
 import '../services/lane_plans.dart';
 import '../services/lane_receipts.dart';
+import '../services/kernel_cache.dart';
+import '../services/make_post_state.dart';
+import '../services/pass_batch_ledger.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/corpus_baseline_cache.dart';
 import '../services/run_state_store.dart';
@@ -70,6 +73,7 @@ import '../services/runner.dart';
 import '../services/scalar_dummy_subject.dart';
 import '../services/spec_parser.dart';
 import '../services/step_runner.dart';
+import '../services/tree_snapshot.dart';
 import '../services/contract_blocked_receipt.dart';
 import '../services/hand_surface.dart';
 import '../services/reproof_failure_classifier.dart' show parseFailingTestNames;
@@ -803,6 +807,23 @@ class RunDriverCore {
           final scopedTemplate = baselineScope == null
               ? suiteTemplate
               : '$suiteTemplate $baselineScope';
+          // Issue #1642: an UNSCOPED baseline is a full-suite `dart test`
+          // sweep — ~765 suites × ~69 MB of self-contained kernel snapshots
+          // ≈ 50 GB in the temp volume, and an ENOSPC death mid-sweep leaks
+          // everything compiled so far. Fail FAST with the remedy instead:
+          // this refusal unwinds past the StateError guard below (which
+          // means "no template" — a silent skip here would re-arm the
+          // leak) and stops the run before the first spawn.
+          if (baselineScope == null) {
+            final refusal = await fullSuiteBaselinePreflight(
+              projectRoot,
+              environment: childEnvironment,
+            );
+            if (refusal != null) {
+              print(refusal);
+              throw DiskPreflightRefusal(refusal);
+            }
+          }
           print(
             '   suite baseline: $scopedTemplate (once per run — issue #741)',
           );
@@ -1050,6 +1071,12 @@ class RunDriverCore {
         // previously proven gate, so a phase-1 spawn that changed
         // anything re-runs the full pipeline.
         batchRefactor: true,
+        // Issue #1652: the ledger can never inherit during FORWARD
+        // progress — every make changes `lib/`, so each spawn's tree
+        // differs from the last refactor's proved tree. What it does
+        // equal is this make's certified post-state; record it at
+        // make-green so the spawn right after can inherit honestly.
+        recordMakePostState: true,
       );
       if (result.stop != null) {
         return _finish(
@@ -1131,6 +1158,9 @@ class RunDriverCore {
         feature: feature,
         greenEvidenceIds: greenEvidence,
         handSteps: handSteps,
+        // Issue #1652: the phase-2a re-attempted make also green-applies
+        // (and may be the last tree change before a phase-2b spawn).
+        recordMakePostState: true,
       );
       if (result.stop != null) {
         return _finish(
@@ -1945,6 +1975,14 @@ class RunDriverCore {
     /// batch — pass true; the ledger's byte-identity check is what makes
     /// that safe. Every other step keeps the default (no batch flags).
     bool batchRefactor = false,
+
+    /// Issue #1652: record make's certified post-state at every make
+    /// green-application, so the immediately-following `--pass-batch`
+    /// refactor spawn can inherit the pipeline when the tree and gate
+    /// context still match (forward progress changes `lib/` every make,
+    /// which is exactly why the #1588 ledger never inherits there).
+    /// Best-effort: a write failure is a warning, never an error.
+    bool recordMakePostState = false,
   }) async {
     var updated = current;
     var state = updated.behaviorStates[row.id] ?? BehaviorState.pending;
@@ -2104,6 +2142,25 @@ class RunDriverCore {
         _forwardGuardOnlyWarning(result.output);
       }
 
+      // Issue #1652: a make that green-applied just certified the current
+      // tree with its live post-generation evidence — record the
+      // post-state so the refactor spawn right after inherits it instead
+      // of re-running the full suite + registry over an untouched tree.
+      // The #741 already-green skip (`skipped`) certifies no new tree
+      // state and deliberately writes nothing: the standing record still
+      // describes the certified tree.
+      if (step == 'make' && result.outcome == 'green' && recordMakePostState) {
+        await _recordMakePostState(
+          behaviorId: row.id,
+          exitCode: result.exitCode,
+          rows: rows,
+          state: updated,
+          projectRoot: projectRoot,
+          featureDir: featureDir,
+          suiteBaselinePath: suiteBaselinePath,
+        );
+      }
+
       if (!result.success) {
         // Bug #986: `skipped` — make's issue #694 skip transition (the
         // target test already passes, generation skipped by design) — is a
@@ -2124,9 +2181,11 @@ class RunDriverCore {
         if (step == 'make' &&
             (result.outcome == 'skipped' ||
                 result.outcome == 'adopted' ||
-                result.outcome == 'adopted-placeholder')) {
+                result.outcome == 'adopted-placeholder' ||
+                result.outcome == 'adopted-interrupted')) {
           final adopted = result.outcome == 'adopted';
           final placeholderReDrive = result.outcome == 'adopted-placeholder';
+          final adoptedInterrupted = result.outcome == 'adopted-interrupted';
           if (!await _hasEvidence(evidence.greenEvidence, row.id)) {
             await CycleLog(featureDir).append(
               CycleLogEntry(
@@ -2139,6 +2198,17 @@ class RunDriverCore {
                           'on-disk subject and the last reset tombstone '
                           'invalidated the surviving certification (issue '
                           '#1331); green evidence recorded by the run '
+                          'driver (bug #986) because make did not write it. '
+                          'Exit code ${result.exitCode} disagrees with the '
+                          'outcome token; the token is the terminal '
+                          'classification.\n'
+                          '${result.output.split('\n').take(2).join('\n')}'
+                    : adoptedInterrupted
+                    ? 'adopted-interrupted — the target test already passes '
+                          'against the subject the previous make mutated '
+                          'before it died mid-flight; the write-ahead '
+                          'interrupt marker legitimized the adoption '
+                          '(issue #1398); green evidence recorded by the run '
                           'driver (bug #986) because make did not write it. '
                           'Exit code ${result.exitCode} disagrees with the '
                           'outcome token; the token is the terminal '
@@ -2181,6 +2251,8 @@ class RunDriverCore {
                 ? 'adopted'
                 : placeholderReDrive
                 ? 'adopted-placeholder'
+                : adoptedInterrupted
+                ? 'adopted-interrupted'
                 : 'green',
             exitCode: result.exitCode,
           );
@@ -2190,6 +2262,11 @@ class RunDriverCore {
                   ? '   exit code ${result.exitCode} disagrees with '
                         'outcome=adopted — the token is the terminal #1331 '
                         'adopted re-drive transition; advancing.'
+                  : adoptedInterrupted
+                  ? '   exit code ${result.exitCode} disagrees with '
+                        'outcome=adopted-interrupted — the token is the '
+                        'terminal #1398 crash-recovery adoption transition; '
+                        'advancing.'
                   : placeholderReDrive
                   ? '   exit code ${result.exitCode} disagrees with '
                         'outcome=adopted-placeholder — the token is the '
@@ -2635,6 +2712,113 @@ class RunDriverCore {
               );
             }
           }
+          // Issue #1420: the "no traces" claim is a FACT about the traces
+          // cell, not a constant — probe the declared routing (the same
+          // single-sourced resolution gen consumes) before printing it. A
+          // traces cell that resolves declared contract row(s) — the
+          // issue's class: a Key Entity row passed through row-only — makes
+          // the fallback wording FALSE (the trace exists) and its remedy
+          // IMPOSSIBLE (entity rows declare no methods to qualify). The
+          // declared-trace arm names the declared class and the re-gen /
+          // hand-step remedy instead; the machine contract is untouched
+          // (the stop stays `stopped_at=<id>:make` — marker presence, not
+          // the traces cell, is the `:hand` discriminator).
+          //
+          // Fail-open: an unreadable/missing artifact resolves to nothing
+          // declared and keeps the exact legacy wording — the probe must
+          // never turn a messaging fix into a new refusal surface.
+          String? declaredTraceContext;
+          try {
+            final decision = await DeclaredRouting.declaredRoutingFor(
+              cwd: projectRoot,
+              featureName: feature,
+              featureDir: featureDir,
+              behaviorId: row.id,
+            );
+            if (decision != null) {
+              // Same predicate gen's synthesis gates on
+              // (`_declaredSignatureForGen`: signature-bearing decisions
+              // are the contract lane, entity rows are the row-only
+              // entityPipeline class) so the two single-sourced callers
+              // cannot drift if a future surface ever carries an entity
+              // name.
+              final entity = decision.entityName;
+              declaredTraceContext =
+                  decision.signature == null &&
+                      decision.surface == GenerationSurface.entityPipeline &&
+                      entity != null &&
+                      entity.isNotEmpty
+                  ? 'the traces cell resolves the declared entity row '
+                        '`$entity` (surface: entity pipeline)'
+                  : 'the traces cell resolves a declared contract row';
+            }
+          } on StateError catch (e) {
+            // A MALFORMED declaration must NOT land on the legacy wording:
+            // "no traces: to a declared contract row" + "add traces:" is
+            // precisely the false/impossible advice for the one class the
+            // declaration refusal names (the #920 regression class —
+            // declared_routing.dart's contract). Surface the refusal in
+            // gen's `declaration refused — <message>` shape instead. This
+            // whole block is an already-terminal messaging path (the
+            // vacuous-green stop has happened), so printing the fix line
+            // inside the same stop stays fail-open mechanically — no new
+            // refusal surface — while the null/unreadable cases above keep
+            // the exact legacy wording.
+            print(
+              '   the generated test is GUARD-ONLY '
+              '[$vacuousGuardWarningToken] — the declared-intent '
+              'artifacts for "${row.id}" are malformed, so the traces '
+              'cell cannot be resolved honestly.',
+            );
+            print('   --> fix: declaration refused — ${e.message}');
+            return (
+              state: updated,
+              stop: (
+                result: 'stopped',
+                stoppedAt: '${row.id}:make',
+                exitCode: _exitStopped,
+                message: null,
+              ),
+              refactorBlocked: false,
+            );
+          }
+          if (declaredTraceContext != null) {
+            final declaredTestPath =
+                _existingGeneratedTestPath(
+                  projectRoot: projectRoot,
+                  feature: feature,
+                  behaviorId: row.id,
+                ) ??
+                p.join(
+                  'test',
+                  'tdd',
+                  feature,
+                  '${_snakeCase(row.id)}_test.dart',
+                );
+            print(
+              '   the generated test is GUARD-ONLY '
+              '[$vacuousGuardWarningToken] — $declaredTraceContext, but the '
+              'pair predates gen\'s declared-trace engagement, so gen could '
+              'not derive a real outcome assertion and make refuses it '
+              'vacuous-green (issue #1420, #1259).',
+            );
+            print(
+              '   --> fix: ${vacuousGuardDeclaredTraceRemedyFor(
+                behaviorId: row.id,
+                testPath: p.relative(declaredTestPath, from: projectRoot).replaceAll(r'\', '/'),
+              )}',
+            );
+            return (
+              state: updated,
+              stop: (
+                result: 'stopped',
+                stoppedAt: '${row.id}:make',
+                exitCode: _exitStopped,
+                message: null,
+              ),
+              refactorBlocked: false,
+            );
+          }
           print(
             '   the generated test is GUARD-ONLY [$vacuousGuardWarningToken] '
             '— the behavior is fallback-routed (no traces: to a declared '
@@ -2965,13 +3149,73 @@ class RunDriverCore {
   /// baseline cannot know about). Issue #1624: every refactor spawn —
   /// phase 1 and phase 2b — carries these args. Sorted for a stable
   /// ledger key and stable spawn argv.
-  List<String> _refactorBatchArgs(List<BehaviorRow> rows, RunState state) {
-    final blocked = [
+  /// Issue #1652: snapshot make's certified post-state (context keys +
+  /// `lib`/`test` byte digests + the honest green verdict) into
+  /// `tdd/make-post-state.json`. Best-effort by contract: any failure is
+  /// one warning line — a missing record costs the NEXT refactor spawn
+  /// one full pipeline, never correctness (the ledger's own stance for
+  /// derived data).
+  Future<void> _recordMakePostState({
+    required String behaviorId,
+    required int exitCode,
+    required List<BehaviorRow> rows,
+    required RunState state,
+    required String projectRoot,
+    required String featureDir,
+    required String? suiteBaselinePath,
+  }) async {
+    try {
+      final suiteTemplate = await const SingleTestRunner().loadSuiteTemplate(
+        workingDirectory: projectRoot,
+      );
+      final libNow = await TreeSnapshot.capture(
+        projectRoot,
+        trees: const ['lib'],
+      );
+      final testNow = await TreeSnapshot.capture(
+        projectRoot,
+        trees: const ['test'],
+      );
+      // The same exempt set the batch refactor args hand the spawn: the
+      // currently-blocked behavior ids, canonical order.
+      final blocked = _blockedIds(rows, state);
+      final record = MakePostState(
+        capturedAt: DateTime.now().toUtc().toIso8601String(),
+        behaviorId: behaviorId,
+        suite: suiteTemplate,
+        baselineKey: await PassBatchLedger.baselineKeyFor(suiteBaselinePath),
+        configKey: await PassBatchLedger.configKeyFor(projectRoot),
+        exemptBehaviors: blocked,
+        libDigest: PassBatchLedger.treeDigest(libNow),
+        testDigest: PassBatchLedger.treeDigest(testNow),
+        greenVerdict:
+            'make $behaviorId outcome=green exit $exitCode '
+            '(post-generation green evidence)',
+      );
+      await record.write(featureDir: featureDir);
+    } catch (e) {
+      print(
+        'zfa tdd run: make-post-state record could not be written '
+        '(issue #1652) — the next refactor pays one full pipeline: $e',
+      );
+    }
+  }
+
+  /// The currently-blocked behavior ids in canonical order — the exempt
+  /// set shared by the make-post-state record and the refactor spawn's
+  /// `--exempt-behaviors`, so both sides of the #1652 gate compute it
+  /// from one place.
+  List<String> _blockedIds(List<BehaviorRow> rows, RunState state) {
+    return [
       for (final r in rows)
         if ((state.behaviorStates[r.id] ?? BehaviorState.pending) ==
             BehaviorState.blocked)
           r.id,
     ]..sort();
+  }
+
+  List<String> _refactorBatchArgs(List<BehaviorRow> rows, RunState state) {
+    final blocked = _blockedIds(rows, state);
     return [
       '--pass-batch',
       if (blocked.isNotEmpty) ...['--exempt-behaviors', blocked.join(',')],
@@ -3887,13 +4131,31 @@ class RunDriverCore {
         '${lines.sublist(lines.length - maxLines).join('\n')}';
   }
 
+  /// The console excerpt depth (issue #1412): the LAST 10 non-empty lines
+  /// of the failed step's captured output. The same tail semantics issue
+  /// #1329 established for the cycle-log/journal ("failures end in the
+  /// error... the head is the least diagnostic part") at a
+  /// console-appropriate depth — for a refactor step the transcript always
+  /// OPENS with the passing preflight block, so a head excerpt shows
+  /// `runner-error` next to `preflight exit: 0` (a contradiction) and
+  /// hides the failing pass the operator needs.
+  static const int _consoleExcerptLines = 10;
+
   void _printOutputExcerpt(String output) {
-    final lines = output
+    // Issue #1412: the excerpt is the diagnostic TAIL, routed through the
+    // SAME _outputTail helper the cycle-log/journal paths record (no
+    // second tail implementation — the honest truncation marker rides
+    // along). Empty lines are filtered BEFORE the tail is taken so blank
+    // padding never consumes excerpt slots (the pre-#1412 excerpt was
+    // compact; it stays compact). Empty output prints nothing.
+    final compact = output
         .split('\n')
         .map((l) => l.trimRight())
         .where((l) => l.isNotEmpty)
-        .take(3);
-    for (final line in lines) {
+        .join('\n');
+    if (compact.isEmpty) return;
+    final tail = _outputTail(compact, maxLines: _consoleExcerptLines);
+    for (final line in tail.split('\n')) {
       print('   $line');
     }
   }

@@ -21,6 +21,8 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/entity_command.dart';
 
+import '../helpers/cwd_mutex.dart';
+
 class _RecordingRunner {
   final List<String> invocations = [];
   final int exitCode;
@@ -55,6 +57,12 @@ void main() {
   var prevCwd = Directory.current.path;
 
   setUp(() async {
+    // Issue #1632 dart_core lane: the process-global chdir window is
+    // serialized through the same cross-isolate lock CliRunner's `-C`
+    // windows use (cwd_mutex.dart protocol) — an overlapping sibling
+    // window used to flip the CWD mid-test and restored into deleted
+    // fixtures.
+    await CwdMutex.acquire();
     dir = await Directory.systemTemp.createTemp('zfa_1322_entity_');
     prevCwd = Directory.current.path;
     Directory.current = dir.path;
@@ -72,7 +80,7 @@ dev_dependencies:
 
   tearDown(() async {
     Directory.current = prevCwd;
-    exitCode = 0;
+    CwdMutex.release();
     if (dir.existsSync()) {
       try {
         await dir.delete(recursive: true);

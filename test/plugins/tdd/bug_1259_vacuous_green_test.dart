@@ -139,15 +139,23 @@ void $symbol() {}
 /// Gen writes its artifacts namespaced by feature slug (bug #827):
 /// `test/tdd/<feature>/<snake>_test.dart` +
 /// `lib/tdd/<feature>/<snake>_subject.dart` — the registry record is the
-/// single path contract, so the tests read through it.
+/// single path contract, so the tests read through it. The record is the
+/// portable project-relative POSIX form (issue #1397, restored by #1574),
+/// so the recorded path resolves against the FIXTURE root — reading it
+/// against the runner CWD throws (the drift the #1651 run surfaced).
+String fixturePath(TddFixture fx, String recordedPath) =>
+    p.isAbsolute(recordedPath)
+    ? recordedPath
+    : p.join(fx.root.path, recordedPath);
+
 Future<String> genSubjectOf(TddFixture fx, String id) async {
   final record = await fx.registryRecordOf(id);
-  return File(record['subject_path'] as String).readAsString();
+  return File(fixturePath(fx, record['subject_path'] as String)).readAsString();
 }
 
 Future<String> genTestOf(TddFixture fx, String id) async {
   final record = await fx.registryRecordOf(id);
-  return File(record['test_path'] as String).readAsString();
+  return File(fixturePath(fx, record['test_path'] as String)).readAsString();
 }
 
 /// The spec declaring the issue's login feature: Key Entities
@@ -379,10 +387,16 @@ void main() {
         contains('expect(result, isA<bool>())'),
         reason: 'the declared scalar outcome is asserted mechanically',
       );
+      // Issue #1651: the typed assertion alone is satisfiable by the
+      // #1517 func dummy (`return true;`), so it carries the
+      // vacuous-guard marker — make refuses the dummy-body green until
+      // the author writes an outcome-VALUE assertion.
       expect(
         test,
-        isNot(contains('vacuous-guard')),
-        reason: 'a typed outcome assertion is present — not guard-only',
+        contains('vacuous-guard'),
+        reason:
+            'a type-only assertion cannot discriminate a dummy body '
+            '(issue #1651) — the marker makes make refuse it',
       );
     });
 

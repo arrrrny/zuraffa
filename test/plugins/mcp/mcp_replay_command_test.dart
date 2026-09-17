@@ -18,6 +18,8 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
+import '../../helpers/cwd_mutex.dart';
+
 const fixtureServer = r'''
 import 'dart:convert';
 import 'dart:io';
@@ -99,6 +101,7 @@ void main() {
   }
 
   setUp(() async {
+    await CwdMutex.acquire();
     originalCwd = Directory.current.path;
     root = await Directory.systemTemp.createTemp('zfa-1358');
     Directory.current = root.path;
@@ -108,7 +111,7 @@ void main() {
   tearDown(() async {
     Directory.current = originalCwd;
     await root.delete(recursive: true);
-    exitCode = 0;
+    CwdMutex.release();
   });
 
   test(

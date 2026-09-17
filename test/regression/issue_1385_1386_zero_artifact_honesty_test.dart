@@ -1,4 +1,4 @@
-@Tags(['regression'])
+@Tags(['regression', 'slow', 'e2e'])
 library;
 
 // Regression tests for verify misfires #1385 + #1386 (EPIC #1132 — the

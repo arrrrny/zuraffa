@@ -400,6 +400,55 @@ void main() {
       }
     });
 
+    test('the bound gate skips a byte-identical config refresh after a '
+        'completed build (issue #1637)', () async {
+      final project = await _ScratchProject.create();
+      try {
+        final passes = RefactorPasses(
+          project.root.path,
+          ensureCompiled: _fakeCompile,
+        );
+        final specs = await passes.passSpecs;
+        final buildGate = specs.firstWhere((s) => s.name == 'build').skipGate;
+        expect(buildGate, isNotNull);
+
+        // Marker backdated one hour; a config file written now is
+        // unambiguously newer.
+        final marker = File(
+          p.join(project.root.path, '.dart_tool', 'build', 'asset_graph.json'),
+        );
+        await marker.create(recursive: true);
+        await marker.writeAsString('{}');
+        marker.setLastModifiedSync(
+          DateTime.now().subtract(const Duration(hours: 1)),
+        );
+        final lock = File(p.join(project.root.path, 'pubspec.lock'))
+          ..writeAsStringSync('lock: v1\n');
+
+        // No baseline yet → the gate fails toward RUN and records one.
+        expect(
+          await buildGate!(),
+          isNull,
+          reason: 'no baseline yet — the fail-safe direction is RUN',
+        );
+
+        // A build completes: the marker moves strictly after the record.
+        marker.setLastModifiedSync(
+          DateTime.now().subtract(const Duration(minutes: 30)),
+        );
+
+        // The preflight's implicit pub get refreshes the lock
+        // byte-identically — mtime moves, bytes do not.
+        lock.writeAsStringSync('lock: v1\n');
+
+        // The pass has nothing to do → the registry records the skip
+        // and never spawns the ~26-31s build (SC-007).
+        expect(await buildGate(), BuildRelevance.refactorBuildSkippedNote);
+      } finally {
+        project.dispose();
+      }
+    });
+
     test('issue #1634: a fresh app shape runs the registry through the REAL '
         'gate — the build pass is recorded as a synthetic skip and never '
         'spawned; format/fix still run', () async {

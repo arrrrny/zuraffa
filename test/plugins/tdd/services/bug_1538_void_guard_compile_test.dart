@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 // Issue #1538 — a VOID-returning traced contract emitted a NON-COMPILING
 // guard test. `UnitContractShape.of` treats `void` as a renderable scalar,
 // so the paired subject stub renders the declared return verbatim
@@ -272,10 +275,16 @@ void main() {
             'the void-safe statement form must not leak into non-void '
             'contracts',
       );
+      // Issue #1651: the typed assertion alone is satisfiable by the
+      // #1517 func dummy, so it now carries the vacuous-guard marker —
+      // the entity/void branch's marker discipline, extended to the
+      // scalar branch.
       expect(
         content,
-        isNot(contains(vacuousGuardMarker)),
-        reason: 'a scalar contract asserts a real outcome — no marker',
+        contains(vacuousGuardMarker),
+        reason:
+            'a type-only assertion cannot discriminate a dummy body '
+            '(issue #1651) — the marker makes make refuse it',
       );
     });
 

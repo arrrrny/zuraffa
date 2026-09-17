@@ -1,5 +1,5 @@
 @TestOn('linux || mac-os')
-@Tags(['regression'])
+@Tags(['regression', 'e2e'])
 // Spec 1520 — the run command's per-run scratch TMPDIR, end to end
 // (issue #1520).
 //

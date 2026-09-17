@@ -42,6 +42,22 @@ enum FailureClass {
   runnerError,
 }
 
+/// Issue #1653: the single duration formatter for the refactor receipt's
+/// per-phase and per-pass timing evidence (and the init pre-resolve's ✓
+/// line, which shares the vocabulary). `< 60s` renders one-decimal seconds
+/// (`12.3s`); a minute or more renders `XmYYs` (`1m05s`); sub-second
+/// durations still show one decimal (`0.0s`) so a zero-measurement reads
+/// as a measurement, not a gap.
+String formatPhaseDuration(Duration duration) {
+  final ms = duration.inMilliseconds;
+  if (duration.inMinutes > 0) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+    return '${minutes}m${seconds.toString().padLeft(2, '0')}s';
+  }
+  return '${(ms / 1000).toStringAsFixed(1)}s';
+}
+
 class CycleLogEntry {
   final String behaviorId;
   final CycleEntryKind kind;
@@ -118,6 +134,16 @@ class CycleLogEntry {
   /// New failures introduced by the generation, if any (green entries).
   final List<String> suiteNewFailures;
 
+  /// Issue #1653: per-phase wall durations for refactor entries —
+  /// `preflight` (the absolute-green suite run), `registry` (the fixed
+  /// pass batch), `re-proof` (the post-pass suite run(s), #1333 retries
+  /// included). Rendered as the additive optional `- phases:` line AFTER
+  /// the certified facts, OUTSIDE the chain-hash payload (the `- outcome:`
+  /// / `- subject-hash:` precedents) — the evidence schema stays v1 and
+  /// legacy entries stay parseable. "Without heartbeats the 8m32s would be
+  /// indistinguishable from a stuck step" — this is the heartbeat.
+  final Map<String, Duration>? phaseDurations;
+
   CycleLogEntry({
     required this.behaviorId,
     required this.kind,
@@ -137,6 +163,7 @@ class CycleLogEntry {
     this.suiteBaselineFailures = 0,
     this.suiteGuardFailures = 0,
     this.suiteNewFailures = const [],
+    this.phaseDurations,
   }) : assert(
          kind != CycleEntryKind.red || classification != null,
          'Red entries must carry a failure classification.',
@@ -170,6 +197,18 @@ class CycleLogEntry {
     if (isNoOp) {
       buf.writeln('- no-op: true');
     }
+    // Issue #1653: the additive per-phase timing evidence. Rendered only
+    // for refactor entries and only when the command handed the durations
+    // in — every legacy entry (and every non-refactor kind) renders
+    // byte-identically to before.
+    if (kind == CycleEntryKind.refactor &&
+        phaseDurations != null &&
+        phaseDurations!.isNotEmpty) {
+      final rendered = phaseDurations!.entries
+          .map((e) => '${e.key}=${formatPhaseDuration(e.value)}')
+          .join(' ');
+      buf.writeln('- phases: $rendered');
+    }
     buf
       ..writeln('- output:')
       ..writeln('```')
@@ -186,6 +225,12 @@ class CycleLogEntry {
           buf.writeln('  changed: (none)');
         } else {
           buf.writeln('  changed: ${action.filesChanged.join(', ')}');
+        }
+        // Issue #1653: the per-pass heartbeat — how long THIS pass ran.
+        // Additive, only when the registry measured it (a scheduling-
+        // skipped pass ran no process and records no duration).
+        if (action.duration != null) {
+          buf.writeln('  duration: ${formatPhaseDuration(action.duration!)}');
         }
         // Issue #1624: a scheduling-skipped pass is auditable as such —
         // the process never spawned, so the evidence says so explicitly

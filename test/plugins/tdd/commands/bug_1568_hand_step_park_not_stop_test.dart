@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Issue #1568 — `tdd make` hard-stops with generation-error on behaviors
 // the planner already declared HAND-STEP (entity-return contract
 // subjects), making every mechanical behavior behind them unreachable.
