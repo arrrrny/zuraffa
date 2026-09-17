@@ -259,10 +259,28 @@ class MakeCommand extends Command<void> {
 
   /// Issue #1398: the write-ahead interrupt marker this make owns — set
   /// after target resolution (before any subject-mutating work), consumed
-  /// by [_printSummary] so every graceful exit path clears it and only
-  /// process death leaves one behind. Null before resolution and on
-  /// resolution failures: nothing to write, nothing to clear.
+  /// by [_printSummary] so graceful exit paths clear it and only process
+  /// death leaves one behind — with the issue #1669 refinement: a
+  /// NON-adopting exit that inherited a live crash record keeps the marker
+  /// (see [_interruptInherited] / [_interruptDriftContext]). Null before
+  /// resolution and on resolution failures: nothing to write, nothing to
+  /// clear.
   MakeInterruptMarker? _interruptMarker;
+
+  /// Issue #1669: whether THIS make inherited a PREVIOUS make's interrupt
+  /// marker at begin time (the read-before-overwrite signal) — the crash
+  /// provenance the summary funnel's keep-decision requires. A make that
+  /// began clean must never keep a marker: keeping one on a live drift
+  /// would forge a crash record for the dishonest hand-edit class and
+  /// bypass the designed #1036 subject-drift dead-end.
+  bool _interruptInherited = false;
+
+  /// Issue #1669: the drift context the summary funnel reads at clear
+  /// time — cwd, feature dir, and the registry record — captured with the
+  /// marker so `_printSummary` (a sync method) can compare the on-disk
+  /// subject against the certified hash without re-resolving the target.
+  /// Null with [_interruptMarker].
+  (String, String, ArtifactRecord)? _interruptDriftContext;
 
   @override
   String get name => 'make';
@@ -425,6 +443,12 @@ class MakeCommand extends Command<void> {
     final interruptedRecovery =
         await interruptMarker.pendingFor(record.behaviorId) != null;
     _interruptMarker = interruptMarker;
+    // Issue #1669: capture the crash provenance and the drift context the
+    // summary funnel reads at clear time — `_printSummary` is sync and
+    // must not re-resolve the target to compare the on-disk subject
+    // against the certified hash.
+    _interruptInherited = interruptedRecovery;
+    _interruptDriftContext = (cwd, target.featureDir, record);
     try {
       await interruptMarker.begin(behavior: record.behaviorId);
     } on FileSystemException catch (e) {
@@ -3889,21 +3913,105 @@ class MakeCommand extends Command<void> {
     }
   }
 
+  /// Issue #1669: the drift signal the summary funnel reads at clear time —
+  /// whether the crash mutation SURVIVES on disk, computed from the CURRENT
+  /// disk state (the subject bytes this run leaves behind), by the same
+  /// green-then-red last-entry certified-hash basis rule the #1036 skip
+  /// guard applies. Sync (the funnel is sync) and fail-open: an unreadable
+  /// subject or log — and hashless legacy evidence with no certified hash —
+  /// read as "drift never existed", so the probe never blocks a make and
+  /// never widens the marker's keep beyond the comparable classes.
+  ///
+  /// The born-green placeholder class is NOT live drift: a marker never
+  /// legitimizes a vacuous subject (issue #1036/#1398), the refusal's own
+  /// remedy (restore the certified shape) resolves that drift, and the
+  /// shipped spec-1398 hygiene contract keeps consuming it (U5/A3).
+  bool _interruptCrashDriftLive() {
+    final context = _interruptDriftContext;
+    if (context == null) return false;
+    final (cwd, featureDir, record) = context;
+    final subjectPath = p.isAbsolute(record.subjectPath)
+        ? record.subjectPath
+        : p.join(cwd, record.subjectPath);
+    List<int> bytes;
+    try {
+      final subjectFile = File(subjectPath);
+      if (!subjectFile.existsSync()) return false;
+      bytes = subjectFile.readAsBytesSync();
+    } on FileSystemException {
+      return false;
+    }
+    try {
+      if (subjectIsBornGreenPlaceholder(utf8.decode(bytes))) return false;
+    } on FormatException {
+      // Undecodable bytes never classify (the predicate never guesses) —
+      // not the placeholder class, so the drift comparison proceeds.
+    }
+    String? certified;
+    try {
+      final logFile = File(p.join(featureDir, 'tdd', 'cycle-log.md'));
+      if (!logFile.existsSync()) return false;
+      ParsedCycleEntry? lastGreen;
+      ParsedCycleEntry? lastRed;
+      for (final entry in parseEntries(logFile.readAsStringSync())) {
+        if (entry.behaviorId != record.behaviorId) continue;
+        if (entry.kind == 'green') lastGreen = entry;
+        if (entry.kind == 'red') lastRed = entry;
+      }
+      // Issue #1430 divergence (accepted in fix.md Deviations): unlike
+      // `_subjectDriftRefusal`, this probe ignores a matching LAST
+      // `refresh` re-bind — a post-refresh refusal keeps the marker and
+      // the resume takes the #1398 adoption arm instead of the #1430
+      // accept (same green evidence, only the label differs). Do not fix
+      // one side without the other.
+      certified = lastGreen?.subjectHash ?? lastRed?.subjectHash;
+    } on FileSystemException {
+      return false;
+    }
+    if (certified == null) return false; // hashless legacy — fail open
+    return sha256.convert(bytes).toString() != certified;
+  }
+
   void _printSummary({
     required String behavior,
     required MakeOutcome outcome,
     required String feature,
   }) {
-    print('make: behavior=$behavior outcome=${outcome.label} feature=$feature');
     // Issue #1398: the summary line is the every-exit-path funnel (FR-010
     // of spec 047-tdd-make) — the exact point every graceful make exit
     // passes through. Clearing the write-ahead interrupt marker HERE is
     // what makes the marker a crash record: a graceful exit (green,
     // skipped, adopted, adopted-interrupted, refusal, generation-error,
-    // preflight) consumes it; only process death leaves one behind. The
-    // clear is synchronous and best-effort — it must never fail the make
-    // that already finished its work.
-    _interruptMarker?.clearSync();
+    // preflight) consumes it; only process death leaves one behind.
+    // Issue #1669: with ONE compound exception — a NON-adopting exit that
+    // INHERITED the marker (crash provenance) while the on-disk subject
+    // still differs from the certified hash and is not the born-green
+    // placeholder class keeps the marker: consuming it there would leave
+    // the crash mutation live with the record gone, and the next resume
+    // would read byte-identical to the dishonest hand-edit class and
+    // dead-end at the #1036 subject-drift refusal (the #1398 wedge, one
+    // refusal later). Every resolving exit still consumes: adopting arms
+    // append green evidence binding the CURRENT subject hash, so the
+    // drift is resolved by the time the funnel runs, and drift-free /
+    // clean-begin refusals never meet the compound (no stale license,
+    // no forged crash record). The clear is synchronous and best-effort —
+    // it must never fail the make that already finished its work.
+    if (_interruptInherited && _interruptCrashDriftLive()) {
+      // Issue #1669 review: the retention note prints BEFORE the
+      // machine-readable summary line so the summary line stays the
+      // final stdout line on every code path (FR-010). clearSync prints
+      // nothing and never throws (best-effort by contract).
+      print(
+        '   interrupt marker retained (issue #1669): the on-disk subject '
+        'still differs from the certified hash while this make exits '
+        'without adopting it — the crash record survives so the next '
+        'resume can still adopt the interrupted subject (issue #1398) '
+        'instead of dead-ending on the #1036 subject-drift refusal.',
+      );
+    } else {
+      _interruptMarker?.clearSync();
+    }
+    print('make: behavior=$behavior outcome=${outcome.label} feature=$feature');
     // Issue #969: the outcome label IS the exit class (shipped
     // taxonomy, carried verbatim into the envelope).
     _verdict

@@ -173,9 +173,14 @@ class TddBaselineInit {
       // Issue #664: gate the smoke-test flavor behind the project flavor —
       // a pure Dart package must not receive `package:flutter_test` imports
       // it cannot resolve.
+      // Issue #1673: `zfa tdd init` never creates the app shell, so the
+      // shell-pumping half of the smoke test is emitted only when the shell
+      // is actually on disk (probeShell) — otherwise a first-time init on a
+      // non-zfa-scaffolded Flutter app would emit an import of a file that
+      // does not exist and the day-zero baseline would be compile-red.
       final written = await SmokeTestWriter(
         isFlutter: isFlutter,
-      ).write(cwd, appName);
+      ).write(cwd, appName, probeShell: true);
       if (written == null) {
         log('   ✓ test/bootstrap_smoke_test.dart (already present)');
       } else {

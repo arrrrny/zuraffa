@@ -9,6 +9,16 @@
 /// the guard — the root and the subject — go through this helper, so
 /// "both sides canonical" is a property of the check rather than a
 /// coincidence (review of #1611).
+///
+/// Precondition (issue #1610): inputs MUST be ABSOLUTE. The walk-up
+/// resolves against the real filesystem, so a relative input resolves
+/// the walk against the process CWD (a bare filename's dirname even
+/// collapses to `.`, the CWD itself) and the result is silently
+/// CWD-joined — a CWD-dependent answer with no error surfaced, exactly
+/// the silent-wrong-result class the containment guard exists to prevent.
+/// Every call site absolutizes first
+/// (`p.normalize(p.absolute(...))`, joining recorded relative subjects
+/// onto the absolute project root); keep doing the same in new callers.
 library;
 
 import 'dart:io';
@@ -21,6 +31,19 @@ import 'package:path/path.dart' as p;
 /// when no ancestor resolves (issue #1603 / pull/1516 review: a symlinked
 /// temp root must not make the project's own recorded subject path compare
 /// as outside the project root).
+///
+/// [path] MUST be absolute — absolutize first, e.g.
+/// `p.normalize(p.absolute(...))` or join onto the absolute project root,
+/// as every call site does. A relative input resolves the walk against
+/// the process CWD (a bare filename's dirname even collapses to `.`,
+/// the CWD itself), so the result is silently CWD-joined.
+///
+/// Fallback contract: when NO ancestor resolves the walk returns [path]
+/// UNCHANGED. That branch is defensive and unreachable through the public
+/// surface on POSIX (the filesystem root itself always resolves); it is
+/// NOT asserted by the direct unit tests — only referenced there (see
+/// U4's note in `test/plugins/tdd/services/path_canonicalizer_test.dart`)
+/// since no public input can reach it.
 Future<String> canonicalizeMissingPath(String path) async {
   var dir = Directory(p.dirname(path));
   final tail = <String>[p.basename(path)];

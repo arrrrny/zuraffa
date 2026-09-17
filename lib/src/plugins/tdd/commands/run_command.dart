@@ -341,13 +341,13 @@ class RunCommand extends Command<void> {
     // would surface only as a raw version-solving dump buried mid-log
     // after minutes of compiling, with the clean-cache retry burning a
     // full rebuild on a resolution error no cache clean can fix.
-    // Validate every override path BEFORE the #1528 baseline ensure and
-    // any lane step spawns; refuse with the honest drift verdict (exit 3,
-    // journaled preflight_red — zero steps). The gate runs before the
-    // baseline ensure deliberately: since #1653 the ensure's pub
-    // resolution misfires on exactly this drift, and reporting corrupt
-    // state as a setup-error sends the operator after the wrong remedy
-    // (issue #1303: refuse BEFORE any work).
+    // Validate every override path BEFORE the #1528 baseline ensure, the
+    // cert gate, and any lane step spawns; refuse with the honest drift
+    // verdict (exit 3, journaled preflight_red — zero steps). The gate runs
+    // before the baseline ensure deliberately: the ensure's pub resolution
+    // misfires on exactly this drift, and reporting corrupt state as a
+    // setup-error sends the operator after the wrong remedy (issue #1303:
+    // refuse BEFORE any work).
     // -----------------------------------------------------------------
     final overrideReport = await DependencyOverridePreflight(
       projectRoot: projectRoot,
