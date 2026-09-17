@@ -395,10 +395,32 @@ class PlanCommand extends Command<void> {
     // `adaptive_layouts` bullet. A malformed slot name refuses the plan
     // before any artifact is written (the same errors-are-an-API
     // discipline the i18n contract applies above).
+    //
+    // EPIC 3 / issue #1134 lane 1: the ledger resolves the slots from
+    // BOTH declaration sources through PlatformLayoutContract.resolve —
+    // the Presentation bullet first, then (when no Presentation bullet
+    // declares slots) the `## Skin Contract` adaptive_slots, the SAME
+    // derivation `zfa tdd view` uses for the skeleton. A malformed
+    // contract is surfaced here only when it declares an unknown SLOT;
+    // the general contract-shape refusal fires later in
+    // _resolveSkinContract (before any artifact write).
     List<String> layoutSlots = const [];
     try {
+      AdaptiveSkinContract? skinContractForLayout;
+      try {
+        skinContractForLayout = parseAdaptiveSkinContract(specMd);
+      } on AdaptiveSkinContractParseException {
+        // Malformed contract shape: the layout derivation degrades to
+        // the Presentation declaration; _resolveSkinContract refuses
+        // the malformed contract (exit 2) before any artifact is
+        // written — never a silent partial plan.
+        skinContractForLayout = null;
+      }
       layoutSlots =
-          PlatformLayoutContract.fromContracts(layerContracts)?.slots ??
+          PlatformLayoutContract.resolve(
+            contracts: layerContracts,
+            skinContract: skinContractForLayout,
+          )?.slots ??
           const [];
     } on PlatformLayoutContractException catch (error) {
       print('zfa tdd plan: layout contract refused — ${error.message}');
@@ -408,7 +430,8 @@ class PlanCommand extends Command<void> {
         ..exitClass = 'layout-contract'
         ..fix =
             'fix the malformed slot name in the `adaptive_layouts` '
-            'Presentation bullet, then re-run zfa tdd plan'
+            'Presentation bullet (or the `## Skin Contract` '
+            'adaptive_slots), then re-run zfa tdd plan'
         ..details['spec'] = specPath;
       exitCode = 2;
       return;

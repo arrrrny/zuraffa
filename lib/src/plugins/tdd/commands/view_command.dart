@@ -82,6 +82,9 @@ import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
 import '../services/path_canonicalizer.dart';
 import '../services/platform_layout_contract.dart';
+import '../services/spec_parser.dart' show LayerContract;
+import '../../../skin/contract/adaptive_skin_contract.dart';
+import '../../../skin/contract/adaptive_skin_contract_parser.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/test_list_reader.dart';
 import '../services/ui_ledger_projection.dart';
@@ -983,15 +986,28 @@ $buildSwitch
 $layoutStubs''';
   }
 
-  /// The declared platform layout contract of the feature (issue #1142):
-  /// the Presentation table's `adaptive_layouts` bullet, parsed through
-  /// [PlatformLayoutContract]. Null when the feature declares no slots.
+  /// The declared platform layout contract of the feature (issue
+  /// #1142): the Presentation table's `adaptive_layouts` bullet, parsed
+  /// through [PlatformLayoutContract]. EPIC 3 / issue #1134 lane 1
+  /// (extending #1004): when no Presentation bullet declares slots, the
+  /// feature's `## Skin Contract` `adaptive_slots` drive the skeleton
+  /// (the contract drives generation) — resolved through
+  /// [PlatformLayoutContract.resolve], the single derivation the plan
+  /// ledger shares. Null when the feature declares no slots anywhere.
+  ///
+  /// A malformed Skin Contract slot THROWS
+  /// [PlatformLayoutContractException] (errors-are-an-API — the plan
+  /// refuses the same declaration); a MISSING spec.md or a contract-less
+  /// spec degrades to no declaration (the fail-open discipline
+  /// _presentationComponents applies — the contract is a declaration
+  /// the deterministic default optimizes over, and the plan re-surfaces
+  /// malformation honestly).
   static Future<PlatformLayoutContract?> _platformLayoutContract(
     String featureDir,
   ) async {
+    final contracts = <LayerContract>[];
     try {
-      final contracts = await TestListReader(featureDir).readLayerContracts();
-      return PlatformLayoutContract.fromContracts(contracts);
+      contracts.addAll(await TestListReader(featureDir).readLayerContracts());
     } on TestListReadException {
       // An unreadable list degrades to no declaration — the same
       // fail-open note discipline _presentationComponents applies (the
@@ -999,6 +1015,15 @@ $layoutStubs''';
       // other steps re-surface malformation honestly).
       return null;
     }
+    AdaptiveSkinContract? skinContract;
+    final specFile = File(p.join(featureDir, 'spec.md'));
+    if (await specFile.exists()) {
+      skinContract = parseAdaptiveSkinContract(await specFile.readAsString());
+    }
+    return PlatformLayoutContract.resolve(
+      contracts: contracts,
+      skinContract: skinContract,
+    );
   }
 
   /// The deterministic always-compiling core-Flutter stand-in for a
