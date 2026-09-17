@@ -20,8 +20,13 @@
 ///    the SAME behavior knows the previous make died mid-flight: the drift
 ///    class is the honest crash class (the make command decides what that
 ///    legitimizes; the placeholder gate still refuses the vacuous class).
-/// 3. **Commit** — every graceful exit removes the marker. A marker that
-///    survives the run is a crash record — nothing else can leave one.
+/// 3. **Commit** — a graceful exit removes the marker, WITH the issue
+///    #1669 refinement: a NON-adopting exit that inherited the marker
+///    while the on-disk subject still differs from the certified hash
+///    (the born-green placeholder class excepted) KEEPS it — the crash
+///    record must outlive a refusal so the resume can still adopt the
+///    interrupted subject. A marker that survives the run therefore
+///    means: process death, or a crash mutation still awaiting adoption.
 ///
 /// Fail closed: a missing, corrupt, foreign-behavior, or non-pending marker
 /// reads as absent — a corrupt journal never blocks a make and never widens
