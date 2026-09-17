@@ -1,154 +1,181 @@
-# tdd.verify — Bug #1664 first refactor after a master bump compiles the zfa CLI (~85s) even when the parent runs from a current installed binary
+# tdd.verify — Bug #1677 scalar vacuous-green refusal prints the void/entity explanation
 
-- **Verified**: 2026-09-15, this session, on
-  `fix/1664-first-refactor-cli-compile` (working tree, pre-push)
+- **Verified**: 2026-09-18, this session, on
+  `fix/1677-scalar-vacuous-green-message` (working tree, pre-push)
 - **Toolchain**: Dart 3.13.4 (stable) on linux_x64 (the task's "Dart 3.13+"
   floor; the repo pins `sdk: ^3.11.0`)
-- **Scope**: `lib/src/cli/zfa_executable.dart` (the #1664 reuse probe +
-  `_compileCached` wiring), the new
-  `test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`, and the
-  bug artifacts under `.specify/bugs/1664-first-refactor-cli-compile/`.
+- **Scope**: `lib/src/plugins/tdd/services/vacuous_guard.dart` (the
+  `_typeOnlyScalarExpect` capture group + `scalarTypeOnlyDeclaredType`),
+  `lib/src/plugins/tdd/commands/run_driver_core.dart` (the marker-present
+  arm's branched refusal message), the new
+  `test/plugins/tdd/commands/bug_1677_scalar_vacuous_message_test.dart`,
+  and the bug artifacts under
+  `.specify/bugs/1677-scalar-vacuous-green-message/`.
+- **Engine**: `zfa --version` + `.zfa.json` probe → ZFA_MISSING for this
+  checkout (no wired feature); the documented fallback LLM-guided audit
+  ran, on REAL test executions from this session.
 
 ## Verdict: PASS
 
-## 1. TDD discipline (red → green → verify)
+## 1. TDD discipline (red → green, REAL runs in this session)
 
-The loop was driven with the bug directory as the TDD feature. Ten
-behaviors were pinned in `tdd/test-list.md` BEFORE the fix, mapped 1:1 to
-the issue's four acceptance criteria, and every test in the red set was
-observed failing against base `c5ed519f` for exactly the reason the issue
-describes — never for a setup error.
+The loop was driven with the new driver-level suite
+(`test/plugins/tdd/commands/bug_1677_scalar_vacuous_message_test.dart`)
+pinned BEFORE the fix, over the REAL RunDriverCore with a scripted fake
+zfa binary (the #1308/#1651 harness family):
 
-```
-dart analyze lib/src/cli/zfa_executable.dart
-             test/cli/zfa_executable_1664_installed_binary_reuse_test.dart
-→ No issues found!
-
-dart analyze            (whole repo)
-→ 106 issues found      (0 errors, 0 warnings — all `info`)
-```
-
-Zero findings from the changed/new files; the whole-repo count is the
-pre-existing info-level baseline drift (106 — the same count the #1655
-verification recorded).
-
-Format gate:
+- RED, pre-fix (master a9329746, fix stashed for the A/B):
 
 ```
-dart format --output=none --set-exit-if-changed .
-→ Formatted 2878 files (0 changed)      (exit 0 — zero drift repo-wide;
-  the example/ resolution warning is the Flutter-less sandbox, not drift)
+dart test --preset=all test/plugins/tdd/commands/bug_1677_scalar_vacuous_message_test.dart
+→ 00:06 +0 -1: ... U1: a scalar contract's vacuous-green refusal prints
+               the #1651 scalar explanation — never the void/entity template
+→ 00:13 +1 -1: Some tests failed.
+  Which: does not contain 'the traced contract's return is scalar (int)'
 ```
 
-## 2. TDD discipline (REAL runs in this session)
-
-- RED, pre-fix (verbatim in
-  `.specify/bugs/1664-first-refactor-cli-compile/red-evidence.md`):
+  The driver's verbatim stop on the unfixed tree — the bug on screen:
 
 ```
-dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart
-→ 00:00 +0 -1: Some tests failed.
-  loading test/cli/zfa_executable_1664_installed_binary_reuse_test.dart [E]
-  Failed to load "...": Member not found:
-    'ZfaExecutable.currentInstalledBinary'
+zfa tdd run: step failed — behavior=U1 step=make outcome=vacuous-green
+   make: behavior=U1 outcome=vacuous-green feature=1677-scalar-message
+   the traced contract's return is void/an entity — the zfa:tdd: vacuous-guard marker IS the designed hand-delta seam (issue #1308): the assertion set is the UnimplementedError guard only, which make refuses vacuous-green (issue #1259).
+   hand step: U1:hand — write an assertion on the observable outcome in test/tdd/1677-scalar-message/u1_test.dart (replace the vacuous-guard guard, remove the marker), then re-run `zfa tdd run 1677-scalar-message`.
 ```
 
-  A compile-error red because the fix introduces a NEW seam: pre-fix there
-  is no installed-binary awareness in the resolution at all — which IS the
-  bug. The behavioral shape (a `.dart` candidate compiled despite a current
-  installed binary) is what U-1664-b1 pins post-fix.
+  U1 failed for the RIGHT reason: the scalar contract's refusal printed
+  the #1308 void/entity template (both claims false for
+  `add(int,int) -> int`). U2 (the void/entity guard pin) passed pre-fix,
+  as it must.
 
 - GREEN, post-fix:
 
 ```
-dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart
-→ 00:00 +9: All tests passed!
+dart test --preset=all test/plugins/tdd/commands/bug_1677_scalar_vacuous_message_test.dart
+→ 00:14 +2: All tests passed!
 ```
 
-The fix was applied only after the repro suite was proven red; no test was
-edited to make it pass retroactively. The guard tests (b2–b8: stale marker,
-VM driver, missing/empty marker, git failure, non-canonical candidate,
-missing exe) pin the fail-open direction — every unprovable input compiles
-as before.
+The fix was applied only after the repro suite was proven red; no test
+was edited to make it pass retroactively.
 
-## 5. Regression audit (all green, real runs)
+## 2. Static gates
 
 ```
-dart test test/cli/zfa_executable_test.dart test/cli/binary_staleness_test.dart
-          test/plugins/tdd/services/step_runner_test.dart
-          test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
-          test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart
-          test/plugins/tdd/services/refactor_passes_test.dart
-→ 00:16 +82: All tests passed!
-   (the direct contracts of the changed file and its consumers: the U1–U10
-   compile-cache contract, the #1184 marker reader, the StepRunner chain
-   with the #1636/#1645 running-binary tiers, and the #689/#717/#1472
-   build-pass resolution)
+dart analyze lib/src/plugins/tdd/services/vacuous_guard.dart
+             lib/src/plugins/tdd/commands/run_driver_core.dart
+             test/plugins/tdd/commands/bug_1677_scalar_vacuous_message_test.dart
+→ No issues found!
 
-dart test test/cli/ test/core/ --exclude-tags "flutter || e2e"
-→ 00:57 +901 (1 skipped): All tests passed!
+dart analyze $(git diff --name-only HEAD -- '*.dart')   # the task's §5 loop
+→ No issues found!
 
-dart test test/plugins/tdd/services/
-→ 01:44 +1135: All tests passed!
+dart format .                      → Formatted 2944 files (0 changed)
+dart format --output=none --set-exit-if-changed <touched files>
+→ exit 0 (zero drift)
 ```
 
-Full `test/plugins/tdd/commands/` scope (subprocess-heavy, `-j 3`): flaky
-under sandbox load BOTH with and without the change — different single
-tests fail per run (post-fix runs: corpus_status_command / bug_1625
-variants; a stashed PRE-FIX run failed four DIFFERENT tests: bug_1141,
-realize_command, corpus_differential, plan_skin_contract). Every flagged
-test passes in isolation with AND without the change (A/B via
-`git stash`, `+16: All tests passed!` both ways). Pre-existing
-environment flakiness, unrelated to this fix — the fix cannot affect a
-`dart test` driver at all (the VM-shape probe rejects before any I/O, the
-U-1664-b9 wiring pin).
+## 3. Regression audit (all REAL runs, this session)
 
-Chunk/cache hygiene: `.dart_tool/test/` and `/tmp/dart_test.kernel.*` were
-cleaned before and after every run; one 8.4G kernel-cache buildup was
-found and removed mid-session (the task's disk-housekeeping rule); disk
-stayed ≥86% free after cleanup.
+Fast tier (default preset):
 
-## 4. Acceptance criteria audit (issue #1664)
+```
+dart test test/plugins/tdd/bug_1651_type_only_vacuous_green_test.dart
+          test/plugins/tdd/bug_1651_scenario_assertions_test.dart
+          test/plugins/tdd/issue_1308_vacuous_guard_remedy_test.dart
+          test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart
+          test/plugins/tdd/bug_1420_vacuous_stop_declared_trace_test.dart
+          test/plugins/tdd/bug_1626_acceptance_remedy_driver_test.dart
+          test/plugins/tdd/bug_1483_vacuous_green_remedy_driver_test.dart
+          test/plugins/tdd/commands/bug_1388_gen_traces_fingerprint_test.dart
+          test/plugins/tdd/bug_1483_vacuous_green_remedy_shape_test.dart
+→ 00:03 +47: All tests passed!
+```
 
-1. **First refactor after master bump uses an existing compiled binary (no
-   85s compile)** — PROVED at the seam level: U-1664-b1 returns the running
-   binary for the canonical candidate when the marker equals the checkout
-   HEAD, and the wiring sits AFTER the fresh-cache check and BEFORE the
-   build lock, so the would-compile moment (the exact moment
-   `scripts/rebuild.sh`'s `.dart_tool` wipe creates after every install)
-   resolves to the installed binary instead of `dart compile exe`. Not
-   re-timed end-to-end (the fast-tier convention this repo pins for cloud
-   agents); the issue's own measurement (124.6s → 0.4–0.6s steady band)
-   quantifies the cost being avoided.
-2. **Child seam detects the current installed binary and reuses it** —
-   PROVED: `ZfaExecutable.currentInstalledBinary` is the seam, and
-   `_compileCached` consults it with `Platform.resolvedExecutable` on every
-   cache miss/stale verdict — covering EVERY resolution path that funnels
-   into the compile (StepRunner, PipelineRunner, `zfaBuildCommand`, phase-0,
-   dream/replay/differential), which is the choke point the observed
-   compile argv (`dart compile exe <checkout>/bin/zfa.dart --output
-   <checkout>/.dart_tool/zfa_cli_bin/zfa_exe.tmp`) flows through.
-3. **`.build_commit` comparison prevents stale binary reuse** — PROVED:
-   U-1664-b2 (marker != HEAD → null → compile), U-1664-b4/b5 (missing or
-   empty marker → null), U-1664-b6 (unresolvable HEAD → null). Strict
-   full-SHA equality — no prefix/partial acceptance.
-4. **Steady-state refactor time unchanged (0.4–0.6s)** — PROVED by
-   construction and by tests: the fresh-cache verdict (mtime `_isStale`)
-   runs FIRST and is byte-for-byte unchanged (pre-existing U3 pins
-   reuse-without-compiler-call); the probe adds zero subprocesses for VM
-   drivers (rejected before any I/O) and at most one `git rev-parse` +
-   one marker read for a compiled parent on a cache miss — nanoseconds
-   against a 0.4s step. The pre-existing staleness suites (U4/U5) ran green
-   unchanged.
+Slow tier (`--preset=all` scoped to the family files — the documented
+single-slow-file invocation on cloud agents):
 
-Hard constraints honored: the fix touches only
-`lib/src/cli/zfa_executable.dart` (+ the new test file). No refactor pass
-logic, no build-relevance gate, no CLI entry point changes — verified by
-`git diff --stat` (129 insertions, one file).
+```
+dart test --preset=all
+          test/plugins/tdd/issue_1308_vacuous_guard_remedy_driver_test.dart
+          test/plugins/tdd/commands/bug_1651_driver_remedy_test.dart
+          test/plugins/tdd/commands/bug_1320_declared_assertion_reachable_test.dart
+          test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart
+          test/plugins/tdd/commands/issue_1388_gen_reuse_fingerprint_test.dart
+→ 01:06 +24 -3: Some tests failed.
+```
+
+The 3 failures are PRE-EXISTING on unfixed master, verified by `git
+stash` A/B in this session (identical failures with the fix stashed):
+
+- `bug_1320_declared_assertion_reachable_test.dart` U6 + U7 (gen
+  re-generation verdict + regenerated-pair cycle) — the gen-reuse
+  subsystem, untouched by this fix;
+- `issue_1388_gen_reuse_fingerprint_test.dart` U1 (fingerprint
+  invalidation on routing change) — same subsystem; isolated rerun on
+  unfixed master: `00:04 +8 -1`.
+
+Unrelated to the changed refusal message (they never reach the
+marker-present arm; the fix cannot affect gen reuse). Flagged per the
+report protocol.
+
+e2e tier (`--preset=all` scoped):
+
+```
+dart test --preset=all
+          test/plugins/tdd/commands/bug_1651_make_dummy_green_refusal_test.dart
+          test/plugins/tdd/bug_1651_vacuous_green_e2e_test.dart
+          test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart
+→ 00:28 +10: All tests passed!
+
+dart test --preset=all
+          test/plugins/tdd/commands/bug_1651_make_dummy_green_refusal_test.dart
+          test/plugins/tdd/issue_1482_run_preflight_test.dart
+→ 00:08 +17: All tests passed!
+```
+
+Chunk/cache hygiene: `.dart_tool/test/` and `/tmp/dart_test.kernel.*`
+were cleaned before and after runs per the task's hygiene rules; an
+8.5 GB kernel-cache buildup from a whole-tree preset attempt was removed
+mid-session (the AGENTS.md guidance to avoid `--preset=all` unscoped on
+small agents was then followed).
+
+## 4. Acceptance criteria audit (issue #1677)
+
+1. **The fix discriminates scalar vs void/entity returns** — PROVED: the
+   arm reads the test content fail-open and branches on
+   `scalarTypeOnlyDeclaredType` (the scalar type-only expect the writer's
+   scalar branch emitted). U1 (scalar) and U2 (void/entity) pin both
+   branches; the #1308 driver suite (U-1308-5/6/7/4) re-ran green, so the
+   void/entity branch is byte-identical.
+2. **Scalar contracts print the #1651 explanation** — PROVED: U1 asserts
+   the exact paragraph ("the traced contract's return is scalar (int) —
+   the `zfa:tdd: vacuous-guard` marker's assertion set checks the
+   declared return TYPE only; a func-scaffolded dummy (`return 0;`)
+   satisfies it (issue #1651).") and the absence of both false #1308
+   claims.
+3. **Void/entity contracts keep the #1308 explanation** — PROVED: U2
+   asserts the #1308 paragraph verbatim and the absence of the scalar
+   template; U-1308-6 (journal + named hand step) and U-1308-7 (fail-open
+   unreadable) re-ran green.
+4. **`--> fix:` and `hand step:` lines unchanged; #1651 gate semantics
+   and #1308 hand-delta-seam handling unchanged** — PROVED: the diff
+   touches only the middle paragraph's branch (+ the regex capture group
+   and the helper); the `hand step:` line is asserted verbatim in U1/U2;
+   `stopped_at=U1:hand` (never `:make`) is asserted in both tests; the
+   #1651 gate suites (detector/writer fast pins + e2e refusals) all
+   re-ran green.
+
+Hard constraints honored: one PR per bug; the fix touches
+`vacuous_guard.dart` (capture group + helper + docs) and
+`run_driver_core.dart` (the message branch) only — verified by
+`git diff --stat` (38 + 29 inserted lines, two files, plus the new test
+file and artifacts).
 
 ## 5. Verdict
 
-PASS — the child binary resolution now prefers a compiled install proven
-current by its `zfa.build_commit` over an 85s AOT compile, every unprovable
-input fails open to the exact pre-fix behavior, the stale-reuse guard is
-pinned by test, and the warm-cache steady state is untouched.
+PASS — the scalar vacuous-green refusal now explains the scalar contract
+accurately (the #1651 type-only check the func dummy satisfies), the
+void/entity contracts keep the #1308 hand-delta-seam explanation
+byte-for-byte, the machine contract and hand-step line are unchanged, and
+the full vacuous-family regression (fast + slow + e2e) is green against
+the fix.

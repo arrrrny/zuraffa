@@ -1,52 +1,56 @@
-# TDD test list — Bug #1664 first refactor after a master bump compiles the zfa CLI (~85s) even when the parent runs from a current installed binary
+# TDD test list — Bug #1677 scalar vacuous-green refusal prints the void/entity explanation
 
 | id | suite | kind | description | traces | state |
 | -- | ----- | ---- | ----------- | ------ | ----- |
-| U-1664-b1 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a current installed binary (`zfa.build_commit` == checkout HEAD) is returned for the canonical `bin/zfa.dart` candidate — the ~85s compile never happens (the issue's bug) | issue #1664 criteria 1–2 | RED → GREEN |
-| U-1664-b2 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a marker that disagrees with the checkout HEAD forbids the reuse — the stale-install guard | criterion 3 | RED → GREEN |
-| U-1664-b3 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a Dart-VM running executable never reuses (source/test drivers keep the compile-cache contract); rejected before any git probe | criterion 4 (steady state) | RED → GREEN |
-| U-1664-b4 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | no `zfa.build_commit` marker (pre-#1184 install, the `scripts/zfa` cache artifact) — reuse is unprovable, compile as today | fail-open soundness | RED → GREEN |
-| U-1664-b5 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | an empty/whitespace marker — reuse is unprovable | fail-open soundness | RED → GREEN |
-| U-1664-b6 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a failed git probe (not a repo, exit 128) falls through to the compile path | fail-open soundness | RED → GREEN |
-| U-1664-b7 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a non-canonical candidate (a custom `--zfa-bin` fixture script) never reuses the zfa binary; rejected before any git probe | fix-scope guard | RED → GREEN |
-| U-1664-b8 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a missing running executable never reuses | fail-open soundness | RED → GREEN |
-| U-1664-b9 | test/cli/zfa_executable_1664_installed_binary_reuse_test.dart | unit | a VM-driven cache miss still compiles through the injected runner; the compiler fake never sees a git argv (the probe rides its own runner) | wiring unchanged (U2 contract) | GREEN |
+| U1 | test/plugins/tdd/commands/bug_1677_scalar_vacuous_message_test.dart | unit (slow, driver) | a scalar contract's vacuous-green refusal (`add(int,int) -> int`, the #1651 marker + type-only `isA<int>()` shape) prints the #1651 scalar explanation — the declared return TYPE check the func dummy satisfies — and NEVER the #1308 void/entity template; `stopped_at=<id>:hand` and the `hand step:` line are unchanged | issue #1677 criterion (scalar branch) | RED → GREEN |
+| U2 | test/plugins/tdd/commands/bug_1677_scalar_vacuous_message_test.dart | unit (slow, driver) | a void/entity contract's vacuous-green refusal keeps the #1308 hand-delta-seam explanation byte-for-byte (guard pin — the #1308 wording, the machine contract and the `hand step:` line unchanged) | issue #1677 criterion (void/entity branch) | GREEN (guard) |
 
-Guard pins (pre-existing, unchanged and green against the fix):
+Guard pins (pre-existing, unchanged and green against the fix — the family
+the refusal message lives in):
 
 | id | suite | description |
 | -- | ----- | ----------- |
-| U2/U3/U4/U5 | test/cli/zfa_executable_test.dart | compile-on-miss argv, fresh-cache reuse (criterion 4's cache-wins-first), lib/ and pubspec staleness — the compile-cache contract the probe must not disturb |
-| #1636 B1–B5 | test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart | the StepRunner running-binary tier order — untouched |
-| #1645 | test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart | the PipelineRunner running-binary tier — untouched |
-| #1184 | test/cli/binary_staleness_test.dart | the `zfa.build_commit` marker reader this fix imports (`zfaBuildCommitMarker`) — unchanged |
+| U-1308-5/6/7/4 | test/plugins/tdd/issue_1308_vacuous_guard_remedy_driver_test.dart | the #1308 marker-present arm: named hand step + journal violation; fallback arm; fail-open unreadable; gen-warning forward |
+| U5 | test/plugins/tdd/commands/bug_1651_driver_remedy_test.dart | the #1651 placeholder remedy (marker-ABSENT scalar dummy arm) — untouched |
+| U-1651-* | test/plugins/tdd/bug_1651_type_only_vacuous_green_test.dart | the detector's vacuity boundary + the writer's marker emission — the `_typeOnlyScalarExpect` capture group must not change what the detector strips |
+| U-1651-* | test/plugins/tdd/bug_1651_scenario_assertions_test.dart | the scenario-derived VALUE assertions (never marker-carrying) — untouched |
+| e2e | test/plugins/tdd/commands/bug_1651_make_dummy_green_refusal_test.dart, test/plugins/tdd/bug_1651_vacuous_green_e2e_test.dart | the end-to-end gen → verify-red → func → make vacuous-green refusal — untouched |
+| #1482 | test/plugins/tdd/issue_1482_run_preflight_test.dart | the run preflight — untouched |
+| #1488/#1512/#1538 | test/plugins/tdd/bug_1488_acceptance_vacuous_green_test.dart, test/plugins/tdd/services/bug_1512_acceptance_vacuous_composition_test.dart, test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart | the acceptance-lane and void-guard members of the vacuous family — untouched |
+| #1320/#1388 | test/plugins/tdd/commands/bug_1320_declared_assertion_reachable_test.dart, test/plugins/tdd/commands/bug_1388_gen_traces_fingerprint_test.dart, test/plugins/tdd/commands/issue_1388_gen_reuse_fingerprint_test.dart | the gen-reuse/gen-fingerprint neighbors (assertion emission) — untouched |
+| #1420/#1483/#1626 | test/plugins/tdd/bug_1420_vacuous_stop_declared_trace_test.dart, test/plugins/tdd/bug_1483_vacuous_green_remedy_shape_test.dart (+ driver), test/plugins/tdd/bug_1626_acceptance_remedy_driver_test.dart | the marker-absent arms' remedy shapes — untouched |
 
 ## Red evidence (pre-fix, this session)
 
-Verbatim runs preserved in
-`.specify/bugs/1664-first-refactor-cli-compile/red-evidence.md`:
+`dart test --preset=all
+test/plugins/tdd/commands/bug_1677_scalar_vacuous_message_test.dart`
+on unfixed master a9329746 →
 
-- Suite 1 (new, pre-fix):
-  `dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`
-  → `00:00 +0 -1: Some tests failed.` — the file fails to LOAD:
-  `Error: Member not found: 'ZfaExecutable.currentInstalledBinary'`. The
-  compile-error red is the honest first red for a NEW seam: it proves the
-  child binary resolution has NO installed-binary awareness — the issue's
-  root cause. With the API's logic in place pre-fix, U-1664-b1 would have
-  returned null (compile as today) instead of the running binary.
+```
+00:06 +0 -1: ... U1: a scalar contract's vacuous-green refusal prints the
+             #1651 scalar explanation — never the void/entity template
+00:13 +1 -1: Some tests failed.
+```
+
+The driver's verbatim stop (the bug, on screen):
+
+```
+zfa tdd run: step failed — behavior=U1 step=make outcome=vacuous-green
+   make: behavior=U1 outcome=vacuous-green feature=1677-scalar-message
+   the traced contract's return is void/an entity — the zfa:tdd: vacuous-guard marker IS the designed hand-delta seam (issue #1308): the assertion set is the UnimplementedError guard only, which make refuses vacuous-green (issue #1259).
+   hand step: U1:hand — write an assertion on the observable outcome in test/tdd/1677-scalar-message/u1_test.dart (replace the vacuous-guard guard, remove the marker), then re-run `zfa tdd run 1677-scalar-message`.
+```
+
+`Which: does not contain 'the traced contract's return is scalar (int)'`
+— U1 fails for the RIGHT reason (the void/entity template printed for a
+scalar contract). U2 (the void/entity guard pin) passed pre-fix, as it
+must.
 
 ## Green evidence (post-fix, this session)
 
-- `dart test test/cli/zfa_executable_1664_installed_binary_reuse_test.dart`
-  → `00:00 +9: All tests passed!`
-- `dart test test/cli/zfa_executable_test.dart
-  test/cli/binary_staleness_test.dart
-  test/plugins/tdd/services/step_runner_test.dart
-  test/plugins/tdd/services/bug_1636_running_binary_tier_test.dart
-  test/plugins/tdd/services/bug_1645_pipeline_running_binary_tier_test.dart
-  test/plugins/tdd/services/refactor_passes_test.dart`
-  → `00:16 +82: All tests passed!`
-- `dart test test/cli/ test/core/ --exclude-tags "flutter || e2e"`
-  → `00:57 +901 (1 skipped): All tests passed!`
-- `dart test test/plugins/tdd/services/`
-  → `01:44 +1135: All tests passed!`
+```
+dart test --preset=all test/plugins/tdd/commands/bug_1677_scalar_vacuous_message_test.dart
+→ 00:14 +2: All tests passed!
+```
+
+Regression batches — see `tdd/verification.md`.
