@@ -73,4 +73,46 @@ void main() {
     expect(output, contains('scenario'));
     expect(output, contains('offline-flap'));
   });
+
+  // SPEC 1136 lane 4 — the chaos harness becomes pluggable: a
+  // payment-decline scenario (transient card declines on the remote)
+  // joins offline-flap. Green = zero loss + zero duplicates, same bar.
+  test(
+    'P1: the payment-decline scenario drives the strategy to GREEN',
+    () async {
+      final (code, output) = await runZfa([
+        'sync',
+        'simulate',
+        '--scenario',
+        'payment-decline',
+      ]);
+      expect(code, 0, reason: output);
+      expect(output, contains('verdict=GREEN'));
+      expect(output, contains('landed=5/5'));
+      expect(output, contains('sync-simulate: scenario=payment-decline'));
+    },
+  );
+
+  test('P2: payment-decline surfaces declined-class failures (the '
+      'script names its chaos)', () async {
+    final (code, output) = await runZfa([
+      'sync',
+      'simulate',
+      '--scenario',
+      'payment-decline',
+      '--entity-count',
+      '7',
+    ]);
+    expect(code, 0, reason: output);
+    expect(output, contains('verdict=GREEN'));
+    expect(output, contains('landed=7/7'));
+    expect(output, contains('declined'));
+  });
+
+  test('P3: the allowed list names both chaos scenarios', () async {
+    final (code, output) = await runZfa(['sync', 'simulate', '--help']);
+    expect(code, 0, reason: output);
+    expect(output, contains('offline-flap'));
+    expect(output, contains('payment-decline'));
+  });
 }
