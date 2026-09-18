@@ -65,6 +65,38 @@
         "contract:A1"
       ],
       "stopped_at": null
+    },
+    {
+      "feature": "004-login-ui",
+      "cycle": "meta",
+      "phase": "reset",
+      "started_at": "2026-09-17T23:09:11.777853Z",
+      "finished_at": "2026-09-17T23:09:11.777853Z",
+      "gate_state": "not_assessed",
+      "receipts": [],
+      "violations": [],
+      "refs": {
+        "engine_receipt": null,
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "reset",
+      "behaviors": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "U1",
+        "U2",
+        "U3",
+        "U4",
+        "U5",
+        "U6",
+        "contract:A1"
+      ],
+      "stopped_at": null
     }
   ]
 }
