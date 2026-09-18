@@ -15,6 +15,8 @@ library;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:example/tdd/004-login-ui/u1_subject.dart' as subject;
+import 'package:example/src/presentation/pages/login/login_view.dart'
+    show kLoginPlatformSlots;
 
 void main() {
   group('U1 (FR-001, adaptive_layouts)', () {
@@ -29,6 +31,11 @@ void main() {
           }
         })();
         expect(result, isNot(isA<UnimplementedError>()));
+        expect(
+          result,
+          equals(kLoginPlatformSlots),
+          reason: 'U1 declares the Skin Contract slots, in declared order',
+        );
       },
     );
   });

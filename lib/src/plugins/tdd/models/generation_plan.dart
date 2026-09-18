@@ -222,7 +222,24 @@ enum MakeOutcome {
   /// `dart pub add --dev <pkg>` fix instead of the generic
   /// `generation-error`. Exit 1, no green entry (the same honesty class);
   /// the remedy is to add the dependency, then re-run make.
-  missingBuilderDependency('missing-builder-dependency');
+  missingBuilderDependency('missing-builder-dependency'),
+
+  /// The #1689 pre-flight fast stop: the plan schedules the func pass
+  /// for gen's provenance-marked parametrized scalar stub whose declared
+  /// return scaffolds the #1517 zero-value dummy (`return 0;`-class
+  /// body), and the paired test carries a value assertion naming a
+  /// DIFFERENT literal (`equals(5)` — the #1679 scenario-derived shape).
+  /// The attempt (func write + target test + restore) is provably
+  /// guaranteed-failing work — a zero-value scaffold can never satisfy
+  /// `equals(<literal ≠ zero>)` — so make stops BEFORE the pipeline with
+  /// the same honest hand-step remedy the post-generation stop
+  /// prescribed, minus the 30–40s. Non-zero exit, no green entry, the
+  /// subject untouched (nothing ran). The gate self-removes when func
+  /// grows real generation: it keys on the scaffold being a zero-value
+  /// literal, so it goes silent with no code change. Non-scenaried
+  /// behaviors (guard-only, type-only + marker) carry no value assertion
+  /// and are never skipped by it.
+  wouldNeverPass('would-never-pass');
 
   const MakeOutcome(this.label);
 
