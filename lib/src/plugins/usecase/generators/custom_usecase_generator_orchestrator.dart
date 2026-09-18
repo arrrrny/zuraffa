@@ -39,9 +39,11 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
 
     for (final usecaseName in config.usecases) {
       final usecasePath = await _resolveUseCasePath(config, usecaseName);
-      final usecaseClassName = usecaseName.endsWith('UseCase')
-          ? usecaseName
-          : '${usecaseName}UseCase';
+      // Issue #1720: normalize the token to the real PascalCase class name
+      // (no raw-token casing, no suffix doubling) to match the import path.
+      final usecaseClassName = StringUtils.normalizeUseCaseClassName(
+        usecaseName,
+      );
       final baseName = usecaseName.replaceAll('UseCase', '');
       final fieldName = '_${StringUtils.pascalToCamel(baseName)}';
 

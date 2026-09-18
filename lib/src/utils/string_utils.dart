@@ -1,4 +1,25 @@
 class StringUtils {
+  /// Normalizes a raw `--usecases` token to the canonical UseCase class name
+  /// (issue #1720).
+  ///
+  /// Accepts any documented token form — `login`, `Login`, `loginUseCase`,
+  /// `LoginUseCase`, `sign_in_with_google` — and always returns a PascalCase
+  /// class name with exactly one `UseCase` suffix (`LoginUseCase`,
+  /// `SignInWithGoogleUseCase`), matching the class declared in the
+  /// `<snake>_usecase.dart` file the same generator resolves for imports.
+  ///
+  /// The suffix is stripped only once and only from the end, so passing a
+  /// full class name never doubles it (`LoginUseCase` → `LoginUseCase`, not
+  /// `LoginUseCaseUseCase`).
+  static String normalizeUseCaseClassName(String token) {
+    var base = token.trim();
+    const suffix = 'UseCase';
+    if (base.endsWith(suffix) && base.length > suffix.length) {
+      base = base.substring(0, base.length - suffix.length);
+    }
+    return '${convertToPascalCase(base)}$suffix';
+  }
+
   static String camelToSnake(String input) {
     if (input.isEmpty) return '';
     final result = <String>[];

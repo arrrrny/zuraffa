@@ -49,6 +49,13 @@ extension TestBuilderOrchestrator on TestBuilder {
       final usecaseSnake = StringUtils.camelToSnake(
         usecase.replaceAll('UseCase', ''),
       );
+      // Issue #1720: derive the fake class/interface names from the
+      // normalized PascalCase class name. The unconditional
+      // `'${usecase}UseCase'` concatenation doubled the suffix for full
+      // class-name tokens and kept raw token casing for snake_case tokens,
+      // so the class-declaration check below never matched an existing
+      // usecase file — dry-run always reported placeholder fakes.
+      final usecaseClass = StringUtils.normalizeUseCaseClassName(usecase);
       // Find the actual domain for this usecase
       final usecaseDomain = await _findUseCaseDomain(
         usecaseSnake,
@@ -64,8 +71,8 @@ extension TestBuilderOrchestrator on TestBuilder {
       );
       fakeSpecs.add(
         await _requireFakeClassForDependency(
-          className: 'Fake${usecase}UseCase',
-          interfaceName: '${usecase}UseCase',
+          className: 'Fake$usecaseClass',
+          interfaceName: usecaseClass,
           filePath: usecaseFile?.path,
           packageName: packageName,
           projectRoot: projectRoot,
@@ -87,10 +94,11 @@ extension TestBuilderOrchestrator on TestBuilder {
             ).statement,
           );
           for (final usecase in config.usecases) {
+            final usecaseClass = StringUtils.normalizeUseCaseClassName(usecase);
             b.statements.add(
               declareVar(
-                'fake${usecase}UseCase',
-                type: refer('Fake${usecase}UseCase'),
+                'fake$usecaseClass',
+                type: refer('Fake$usecaseClass'),
                 late: true,
               ).statement,
             );
@@ -98,10 +106,13 @@ extension TestBuilderOrchestrator on TestBuilder {
 
           final setUpBody = Block((s) {
             for (final usecase in config.usecases) {
+              final usecaseClass = StringUtils.normalizeUseCaseClassName(
+                usecase,
+              );
               s.statements.add(
                 refer(
-                  'fake${usecase}UseCase',
-                ).assign(refer('Fake${usecase}UseCase').call([])).statement,
+                  'fake$usecaseClass',
+                ).assign(refer('Fake$usecaseClass').call([])).statement,
               );
             }
             s.statements.add(
@@ -109,7 +120,11 @@ extension TestBuilderOrchestrator on TestBuilder {
                   .assign(
                     refer(useCaseName).call(
                       config.usecases
-                          .map((u) => refer('fake${u}UseCase'))
+                          .map(
+                            (u) => refer(
+                              'fake${StringUtils.normalizeUseCaseClassName(u)}',
+                            ),
+                          )
                           .toList(),
                     ),
                   )

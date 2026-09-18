@@ -187,13 +187,14 @@ class CommonPatterns {
     FileSystem? fileSystem,
   }) async {
     final fs = fileSystem ?? FileSystem.create(root: outputDir);
-    final className = u.endsWith('UseCase') ? u : '${u}UseCase';
-    final fieldName = StringUtils.pascalToCamel(
-      className.replaceAll('UseCase', ''),
-    );
-    final usecaseSnake = StringUtils.camelToSnake(
-      className.replaceAll('UseCase', ''),
-    );
+    // Issue #1720: the class reference must be the real PascalCase class
+    // name matching the `<snake>_usecase.dart` import derived below —
+    // raw token casing (`login` → `loginUseCase`) produced undefined-class
+    // refs in the generated presenter/controller. Field name and snake path
+    // keep their historical raw-token derivation.
+    final className = StringUtils.normalizeUseCaseClassName(u);
+    final fieldName = StringUtils.pascalToCamel(u.replaceAll('UseCase', ''));
+    final usecaseSnake = StringUtils.camelToSnake(u.replaceAll('UseCase', ''));
 
     // Try to find the file and parse params/returns
     String? paramsType = config.paramsType;

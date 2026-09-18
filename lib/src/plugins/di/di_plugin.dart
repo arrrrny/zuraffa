@@ -1106,9 +1106,12 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final usecaseParams = <Expression>[];
     for (final usecaseName in config.usecases) {
-      final usecaseClassName = usecaseName.endsWith('UseCase')
-          ? usecaseName
-          : '${usecaseName}UseCase';
+      // Issue #1720: normalize the token to the real PascalCase class name
+      // (no raw-token casing, no suffix doubling) to match the import
+      // derived below.
+      final usecaseClassName = StringUtils.normalizeUseCaseClassName(
+        usecaseName,
+      );
 
       if (usecaseClassName == className) {
         continue;
