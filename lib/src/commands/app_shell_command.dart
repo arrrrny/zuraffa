@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -10,6 +11,8 @@ import '../core/context/file_system.dart';
 import '../core/dependencies/dependency_wirer.dart';
 import '../core/dependencies/generated_import_scanner.dart';
 import '../core/dependencies/pubspec_auto_add.dart';
+import '../core/plugin_system/capability_invocation_wrapper.dart';
+import '../core/project/receipt_store.dart';
 import '../models/generated_file.dart';
 import '../package/package_mode.dart';
 import '../plugins/app_shell/builders/app_shell_builder.dart';
@@ -18,6 +21,7 @@ import '../skew/skew_contract.dart';
 import '../utils/file_utils.dart';
 import '../utils/project_flavor.dart';
 import '../core/project/project_root.dart';
+import '../version.dart';
 
 /// `zfa app shell` — generates the app-shell glue files for a zfa-only
 /// Flutter app.
@@ -554,6 +558,74 @@ class AppShellCommand extends Command<void> {
 
     _logSummary(files, dryRun: dryRun, verbose: verbose);
 
+    // SPEC 1132 / EPIC 1 lane 3 (issue #1138 family): `zfa app shell` is
+    // a standalone generation path — it ships a proof.v1 receipt
+    // before reporting success, so `zfa proof check` can fail the tree
+    // on drift. The #996 contract: best-effort on the success path ONLY
+    // (a receipt failure never flips a green verb red), no receipt on
+    // dry-run, and only for artifacts this run actually wrote
+    // (created/overwritten — #769: no artifact, no receipt).
+    if (!dryRun) {
+      try {
+        final receiptFiles = <GenerationReceiptFile>[];
+        for (final file in files) {
+          if (file.action != 'created' && file.action != 'overwritten') {
+            continue;
+          }
+          final onDisk = File(file.path);
+          if (!onDisk.existsSync()) continue;
+          final bytes = onDisk.readAsBytesSync();
+          receiptFiles.add(
+            GenerationReceiptFile(
+              path: _relativeToRoot(file.path),
+              action: file.action,
+              sha256: crypto.sha256.convert(bytes).toString(),
+              bytes: bytes.length,
+              snapshot: bytes.length <= ReceiptStore.maxSnapshotBytes
+                  ? onDisk.readAsStringSync()
+                  : null,
+            ),
+          );
+        }
+        receiptFiles.sort((a, b) => a.path.compareTo(b.path));
+        if (receiptFiles.isNotEmpty) {
+          final runHash = CapabilityInvocationWrapper.computeRunHash(
+            files: receiptFiles,
+            entity: appName,
+            methodset: const [],
+          );
+          await ReceiptStore(projectRoot: projectRoot).saveCapability(
+            GenerationReceipt(
+              command: 'app shell',
+              target: appName,
+              repro: 'zfa app shell',
+              at: DateTime.now().toUtc(),
+              generatorVersion: version,
+              input: {
+                'entity': appName,
+                'output': outputDir,
+                'force': force,
+                'mock': mock,
+                'title': title,
+                'xray': xray,
+                'skinAudit': skinAudit,
+                'zuraffaApp': zuraffaApp,
+              },
+              files: receiptFiles,
+              plugin: 'app',
+              capability: 'shell',
+              entity: appName,
+              methodset: const [],
+              runHash: runHash,
+            ),
+          );
+        }
+      } catch (e) {
+        // Best-effort (#996): the artifacts exist; never fail here.
+        stderr.writeln('⚠️  app shell receipt not written: $e');
+      }
+    }
+
     if (mainExists && !force && !dryRun) {
       if (replacingHelloWorldStub) {
         print(
@@ -667,6 +739,17 @@ class AppShellCommand extends Command<void> {
       print('\n\u2500\u2500 Next steps \u2500\u2500');
       print('   flutter run   # or `flutter build apk` / `dart run`');
     }
+  }
+
+  /// Project-relative POSIX path (the make-path receipt convention,
+  /// shared with CapabilityInvocationWrapper's normalization): the
+  /// digest-and-path contract `zfa proof check` re-derives.
+  String _relativeToRoot(String path) {
+    if (path.isEmpty) return path;
+    final root =
+        (argResults!['root'] as String?) ?? ProjectRoot.safeCurrentPath();
+    final relative = p.isAbsolute(path) ? p.relative(path, from: root) : path;
+    return relative.replaceAll('\\', '/');
   }
 
   void _logSummary(
