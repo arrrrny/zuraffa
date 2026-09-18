@@ -42,6 +42,8 @@ examples/*/pubspec.lock
 .zuraffa/plans/
 
 # Repo-only content — kept in the repository, excluded from the archive
+/test/
+/example/
 /packages/
 /docs/
 /doc/
