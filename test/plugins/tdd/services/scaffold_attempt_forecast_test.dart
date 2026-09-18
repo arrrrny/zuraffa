@@ -363,6 +363,34 @@ void main() {
         isNull,
       );
     });
+
+    test('U-1689-b11: escape-bearing string args are undecodable '
+        '(fail-open)', () {
+      // The scan matches string args as RAW source text and the
+      // comparator never unescapes, so a literal whose escapes the
+      // compiler WOULD honor must not be compared as written:
+      // `equals('\u0067reet')` asserts the value `greet`, and comparing
+      // the raw text against the `greet` String dummy would refuse an
+      // attempt the dummy in fact satisfies. Escaped quotes are the same
+      // undecodable class — there the trailing `)` anchor already keeps
+      // the shape unmatched, which is the same fail-open outcome.
+      expect(
+        forecastMakeAttempt(
+          subjectSource: genStub('String', 'String name', name: 'greet'),
+          testSource: scenarioTest(r"'\u0067reet'"),
+        ),
+        isNull,
+        reason: 'the raw text is not the value — never refuse on it',
+      );
+      expect(
+        forecastMakeAttempt(
+          subjectSource: genStub('String', 'String name', name: 'greet'),
+          testSource: scenarioTest(r"'It\'s'"),
+        ),
+        isNull,
+        reason: 'an escaped quote never yields a decodable literal',
+      );
+    });
   });
 
   group('the remedy is single-sourced and names both artifacts', () {

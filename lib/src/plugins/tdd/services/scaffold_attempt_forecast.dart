@@ -37,6 +37,31 @@
 /// generation for scalar declared returns, the predicted dummy stops
 /// existing and the gate goes silent with no code change in the gate.
 ///
+/// ## The assertion scan is FILE-LEVEL on purpose — do not narrow it
+///
+/// The scan walks every `equals(<literal>)` in the paired test rather
+/// than anchoring to `expect(<expression naming the subject>, ...)`
+/// shapes. That is the honest scope: the post-func target test runs the
+/// WHOLE file, so ANY live value assertion the zero-value scaffold
+/// cannot satisfy dooms the attempt — whether or not its expression
+/// names the subject. The generated writer captures into `final result`
+/// rather than naming the subject, and an `expect(1, equals(2))` dooms
+/// the attempt just the same (U-1689-b10 pins the file-level contract).
+/// Anchoring the scan to subject-referencing shapes would silently widen
+/// the gate's silence back into the 30–40s wasted attempts this stop
+/// exists to remove.
+///
+/// The price is a conservative refusal when an `equals(<literal>)`
+/// occurrence is NOT a live assertion: inside a comment, inside a
+/// string argument to another matcher (the `reason:` slot), inside a
+/// `skip:`ped test, or in dead code. Generated single-behavior tests
+/// make those shapes rare — the writer emits exactly one live
+/// `expect(result, equals(<literal>))` — but hand-edited files can hit
+/// them, and make's fast stop then prescribes the hand step earlier
+/// than strictly necessary. That is the accepted error direction: the
+/// flow was heading for the hand step regardless, and skipping the
+/// waste is the point.
+///
 /// Pure functions over source text — no I/O, no analyzer.
 library;
 
@@ -92,6 +117,9 @@ String? funcScaffoldDummyLiteral(String returnType, String functionName) {
 /// One `equals(<literal>)` argument in the paired test's assertion set.
 /// Numbers and booleans verbatim, strings single-quoted — the writer's
 /// own literal vocabulary (`behavior_test_writer._literalExpression`).
+/// The literal text is matched RAW (no unescaping), and the scan is
+/// file-level over the paired test by design — see the library doc's
+/// scope note before narrowing either.
 final RegExp _equalsLiteralArg = RegExp(
   r"equals\(\s*(-?\d+(?:\.\d+)?|true|false|'[^'\r\n]*')\s*\)",
 );
@@ -103,6 +131,16 @@ final RegExp _equalsLiteralArg = RegExp(
 /// is true, so an `int` dummy DOES satisfy `equals(0.0)`).
 enum _LiteralKind { number, boolean, string }
 
+/// The literal's Dart value, or null when this comparator cannot decode
+/// it — the caller then treats it as non-discriminating (fail-open,
+/// "never refuse on absence of evidence").
+///
+/// A string carrying a BACKSLASH is undecodable here: the matched text
+/// carries the compiler's escapes verbatim (`equals('\u0067reet')`
+/// asserts the value `greet`), and this function does not unescape, so
+/// comparing the raw text would call a value-equal literal unequal and
+/// refuse an attempt the dummy in fact satisfies. Escaped quotes are the
+/// same class (`equals('It\'s')` has no decodable value here either).
 (_LiteralKind, Object)? _parseLiteral(String source) {
   if (source == 'true' || source == 'false') {
     return (_LiteralKind.boolean, source == 'true');
@@ -110,7 +148,9 @@ enum _LiteralKind { number, boolean, string }
   final number = num.tryParse(source);
   if (number != null) return (_LiteralKind.number, number);
   if (source.length >= 2 && source.startsWith("'") && source.endsWith("'")) {
-    return (_LiteralKind.string, source.substring(1, source.length - 1));
+    final inner = source.substring(1, source.length - 1);
+    if (inner.contains(r'\')) return null;
+    return (_LiteralKind.string, inner);
   }
   return null;
 }
@@ -145,7 +185,11 @@ bool _provablyUnequal(String a, String b) {
 ///    (`equals(<literal>)`) whose literal is PROVABLY different from
 ///    the dummy — a differing kind, or a same-kind value that compares
 ///    unequal. An assertion the comparator cannot parse is never
-///    treated as discriminating (fail-open: the attempt runs).
+///    treated as discriminating (fail-open: the attempt runs) — a
+///    string carrying a backslash is one such literal (see
+///    [_parseLiteral]), as is a non-literal matcher argument.
+///    The scan is file-level over the paired test by design; the
+///    library doc's scope note says why it must not be narrowed.
 ///
 /// Constraint 3 of the issue falls out of condition 4: a non-scenaried
 /// behavior's assertion set (the UnimplementedError guard, the
