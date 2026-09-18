@@ -105,8 +105,11 @@ int subjectUnderTest() => 42;
   return root;
 }
 
-/// The honest fake spawn (the auditor test's): a test without an
-/// `equals(<n>)` pin is green against implemented subjects.
+/// The honest fake spawn (the auditor test's): reads the test file the
+/// writer regenerated, extracts the `equals(<n>)` pin, and compares it
+/// against the paired subject's return value — green when they match, red
+/// otherwise. A test without an `equals(<n>)` pin is green (the writer's
+/// generic shape passes against implemented subjects).
 Future<ProcessResult> _fakeSpawn(
   String executable,
   List<String> args,
@@ -118,10 +121,31 @@ Future<ProcessResult> _fakeSpawn(
       ? testPath
       : p.join(workingDirectory, testPath);
   final content = File(abs).readAsStringSync();
-  if (RegExp(r'equals\((\d+)\)').hasMatch(content)) {
+  final equals = RegExp(r'equals\((\d+)\)').firstMatch(content);
+  final subjectMatch = RegExp(
+    r"import\s+'([^']*_subject\.dart)'\s+as\s+subject",
+  ).firstMatch(content);
+  if (equals == null || subjectMatch == null) {
     return ProcessResult(42, 0, 'All tests passed!', '');
   }
-  return ProcessResult(42, 0, 'All tests passed!', '');
+  final subjectPath = p.normalize(
+    p.join(p.dirname(abs), subjectMatch.group(1)!),
+  );
+  final subjectContent = File(subjectPath).readAsStringSync();
+  final value = RegExp(r'=>\s*(\d+);').firstMatch(subjectContent);
+  final expected = int.parse(equals.group(1)!);
+  final actual = value == null ? null : int.parse(value.group(1)!);
+  if (actual == expected) {
+    return ProcessResult(42, 0, 'All tests passed!', '');
+  }
+  return ProcessResult(
+    42,
+    1,
+    '00:00 +0: $testPath [E]\n'
+        'Expected: <$expected>\n'
+        '  Actual: <$actual>',
+    '',
+  );
 }
 
 /// A minimal certified world manifest document for the 1136 fixture

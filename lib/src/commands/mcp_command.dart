@@ -124,7 +124,21 @@ class _ReplayCommand extends Command<void> {
         return;
       }
       sessionName = (decoded['session'] as String?) ?? 'session';
-      rawCalls = decoded['calls'] as List? ?? const [];
+      final scenarioCalls = decoded['calls'];
+      if (scenarioCalls is! List) {
+        print('❌ Malformed scenario file: $target ("calls" must be a list)');
+        exitCode = 1;
+        return;
+      }
+      if (scenarioCalls.isEmpty) {
+        print(
+          '❌ Malformed scenario file: $target ("calls" is empty — a '
+          'zero-call replay proves nothing)',
+        );
+        exitCode = 1;
+        return;
+      }
+      rawCalls = scenarioCalls;
     } else if (_isBareSegment(target)) {
       // Spec 1136 lane 3: a persisted McpSessionStore session id.
       source = 'session-store';

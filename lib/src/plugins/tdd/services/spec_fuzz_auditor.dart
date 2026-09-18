@@ -290,8 +290,15 @@ class SpecFuzzAuditor {
       restorationScope: restorationScope,
     );
 
+    // The receipt's `action` must be truthful: the round's report files are
+    // overwritten latest-wins, so a file that already existed is an
+    // `update`, not a `create`.
+    final preexistingReports = <String>{
+      for (final name in const ['spec-fuzz.json', 'spec-fuzz.md'])
+        if (await File(p.join(featureDir, 'tdd', name)).exists()) name,
+    };
     await _writeReports(report);
-    await _writeReceipt(report);
+    await _writeReceipt(report, preexistingReports: preexistingReports);
     return report;
   }
 
@@ -708,7 +715,10 @@ class SpecFuzzAuditor {
   /// top. `zfa proof check` digest-walks the reports and re-derives the
   /// spec binding — tampering with the report or drifting the spec is
   /// drift.
-  Future<void> _writeReceipt(SpecFuzzReport report) async {
+  Future<void> _writeReceipt(
+    SpecFuzzReport report, {
+    Set<String> preexistingReports = const {},
+  }) async {
     final store = ReceiptStore(projectRoot: workingDirectory);
     final featureRel = p.relative(featureDir, from: workingDirectory);
     final files = <GenerationReceiptFile>[];
@@ -719,7 +729,7 @@ class SpecFuzzAuditor {
       files.add(
         GenerationReceiptFile(
           path: p.posix.join(featureRel, 'tdd', name),
-          action: 'create',
+          action: preexistingReports.contains(name) ? 'update' : 'create',
           sha256: crypto.sha256.convert(bytes).toString(),
           bytes: bytes.length,
           snapshot: bytes.length <= 16 * 1024 ? utf8.decode(bytes) : null,
