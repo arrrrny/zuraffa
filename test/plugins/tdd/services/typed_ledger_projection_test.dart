@@ -170,4 +170,42 @@ void main() {
       reason: 'the declared key is a presence row keyed by its accessor',
     );
   });
+
+  test('U-1134-t10: rows with the same surface and kind but different '
+      'proof semantics stay SEPARATE (never merged into one state)', () {
+    final rows = TypedLedgerProjection.declaredRows(
+      behaviors: const [
+        LedgerBehaviorInput(
+          id: 'A5',
+          description:
+              "Given a fresh login view When no sign-in attempt has "
+              "failed Then the 'Sign in failed' banner is not shown",
+        ),
+        LedgerBehaviorInput(
+          id: 'A6',
+          description:
+              "Given a submitted form When validation runs Then the "
+              "'Sign in failed' banner is not shown",
+        ),
+      ],
+    );
+
+    final absences = rows
+        .where(
+          (r) =>
+              r.surface == 'Sign in failed' && r.kind == LedgerRowKind.absence,
+        )
+        .toList();
+    expect(
+      absences,
+      hasLength(2),
+      reason:
+          'the two absences are pinned to DIFFERENT states — merging '
+          'them would keep one state while accumulating both provers',
+    );
+    expect(absences.map((r) => r.notRenderedIn).toSet(), {
+      'a fresh login view',
+      'a submitted form',
+    });
+  });
 }

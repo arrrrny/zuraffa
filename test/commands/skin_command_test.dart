@@ -9,6 +9,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 import 'package:zuraffa/src/plugins/skin/commands/skin_command.dart';
 import 'package:zuraffa/src/plugins/skin/skin_plugin.dart';
 
@@ -213,5 +214,29 @@ List<RouteBase> getAllRoutes() => [
       expect(lastLine, startsWith('{'));
       expect(lastLine, contains('"verdict":"match"'));
     });
+  });
+
+  // Issue #1134 lane 4 review: the grid/table layout refusal's exit code
+  // is pinned at the CLI level — the builder itself prints + returns
+  // `const []`, so a CLI path without the zero-files guard would exit 0.
+  // These refuse subcommands own the non-zero exit explicitly.
+  group('zfa skin grid|table (refused layouts)', () {
+    for (final layout in const ['grid', 'table']) {
+      test(
+        '`zfa skin $layout` refuses BY NAME and exits usage (non-zero)',
+        () async {
+          final (output, code) = await runSkin([layout]);
+
+          expect(
+            code,
+            ExitProtocol.usage,
+            reason: 'the refusal must not exit 0: $output',
+          );
+          expect(output, contains(layout));
+          expect(output, contains('not implemented'));
+          expect(output, contains('list, form'));
+        },
+      );
+    }
   });
 }

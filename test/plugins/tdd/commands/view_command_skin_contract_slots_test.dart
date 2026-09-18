@@ -16,6 +16,8 @@
 //             single-layout Column skeleton (byte-stable zero drift).
 //  U-1134-a6: a malformed Skin Contract (unknown slot in the contract)
 //             refuses BEFORE any write (errors-are-an-API).
+//  U-1134-a7: width-defined slots (tablet/desktop) are reachable in the
+//             generated resolver — every accepted slot can render.
 library;
 
 import 'dart:io';
@@ -202,5 +204,33 @@ void main() {
       stub,
       reason: 'errors-are-an-API: a refused view writes nothing',
     );
+  });
+
+  test('U-1134-a7: width-defined slots (tablet/desktop) are REACHABLE in '
+      'the generated resolver', () async {
+    await fx.registerBehavior(
+      id: 'A-001',
+      description: "the login page shows 'Welcome back' with a sign in button",
+    );
+    await File(
+      fx.subjectPathOf('A-001'),
+    ).writeAsString(genStyleWidgetStub('A-001'));
+    await seedPresentationWithoutSlots(fx);
+    await seedSkinContract(fx, ['mobile', 'tablet', 'desktop']);
+
+    final out = await runView();
+
+    expect(exitCode, 0, reason: 'out: $out');
+    final subject = await File(fx.subjectPathOf('A-001')).readAsString();
+    // The stubs exist for every accepted slot…
+    expect(subject, contains('class A001ViewTabletLayout'));
+    expect(subject, contains('class A001ViewDesktopLayout'));
+    // …and the resolver can actually RETURN each slot: without the
+    // width branches the tablet/desktop stubs the contract accepts
+    // could never render (dead layouts).
+    expect(subject, contains("if (width < 1024) return 'tablet';"));
+    expect(subject, contains("if (width >= 1024) return 'desktop';"));
+    expect(subject, contains("Key('a001-slot-tablet')"));
+    expect(subject, contains("Key('a001-slot-desktop')"));
   });
 }

@@ -163,4 +163,32 @@ void main() {
     expect(json, contains('"status":"untraced"'));
     expect(json, isNot(contains('DONE')));
   });
+
+  test('U-1134-t11: a NOT-DONE typed row never traces a slot, even when '
+      'its prover exercised it', () {
+    // A malformed absence (no pinned state) is NOT-DONE (#966 FR-002) —
+    // its green prover must not paint the slot traced.
+    final malformed = TypedLedgerBuilder.derive(
+      declared: const [
+        DeclaredLedgerRow(
+          surface: 'Sign in failed',
+          kind: LedgerRowKind.absence,
+          declaredProvers: ['A5'],
+        ),
+      ],
+      greenBehaviors: {'A5'},
+    );
+    expect(malformed.single.state, 'NOT-DONE');
+
+    final rows = TypedPlatformLedger.derive(
+      typedRows: malformed,
+      slots: const ['mobile'],
+      behaviorSlots: const {
+        'A5': {'mobile'},
+      },
+    );
+
+    expect(rows.single.status, 'untraced');
+    expect(rows.single.provers, isEmpty);
+  });
 }

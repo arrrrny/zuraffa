@@ -114,9 +114,9 @@ class SkinBuilder {
           "${layout == 'grid' || layout == 'table' ? ' (grid/table are NOT implemented and not in the ui vocabulary, issue #1149 — a generator that rendered them as a list was lying)' : ''}.",
         );
         print(
-          '  --> fix: declare `list` or `form`, or register a composite '
-          'widget under .zfa/ui/components/ (the `zfa ui schema` '
-          'vocabulary), then re-run.',
+          '  --> fix: declare an implemented layout: `list` or `form` '
+          '(grid/table are not in the `zfa ui schema` vocabulary), '
+          'then re-run.',
         );
         return const [];
     }

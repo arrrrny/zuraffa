@@ -33,9 +33,12 @@
 ///   (the #939 stand-in surfaces);
 /// - every declared i18n key → a `presence` row keyed `t.<key>`.
 ///
-/// Rows de-duplicate by (surface, kind) with provers merged. Pure and
-/// synchronous: declared facts in, rows out — the state recomputes at
-/// read time (a stored state is a cache, never the truth).
+/// Rows de-duplicate by (surface, kind, proof semantics) with provers
+/// merged — two rows with the same surface and kind but different
+/// semantics (an absence pinned to another state, a state row asserting
+/// the opposite attribute, a different chain) stay separate rows.
+/// Pure and synchronous: declared facts in, rows out — the state
+/// recomputes at read time (a stored state is a cache, never the truth).
 library;
 
 import '../../../tdd/services/typed_ledger_row.dart';
@@ -57,7 +60,18 @@ abstract final class TypedLedgerProjection {
     final rows = <String, DeclaredLedgerRow>{};
 
     void addRow(DeclaredLedgerRow row) {
-      final key = '${row.kind.label}:${row.surface}';
+      // The row identity carries the PROOF SEMANTICS, not just
+      // (surface, kind): two absence rows hidden in different states,
+      // or two state rows asserting opposite attributes, are DIFFERENT
+      // rows — merging them would keep one state while accumulating
+      // both provers, so the ledger would claim proof it never had.
+      final key = <String>[
+        row.kind.label,
+        row.surface,
+        if (row.kind == LedgerRowKind.absence) row.notRenderedIn ?? '',
+        if (row.kind == LedgerRowKind.state) row.attribute ?? '',
+        if (row.kind == LedgerRowKind.sequence) row.steps.join(' → '),
+      ].join(':');
       final existing = rows[key];
       if (existing == null) {
         rows[key] = row;
@@ -71,13 +85,13 @@ abstract final class TypedLedgerProjection {
       rows[key] = DeclaredLedgerRow(
         surface: row.surface,
         kind: row.kind,
-        screen: row.screen,
+        screen: existing.screen,
         declaredProvers: provers,
         advisory: existing.advisory || row.advisory,
         notRenderedIn: existing.notRenderedIn ?? row.notRenderedIn,
         steps: existing.steps.isNotEmpty ? existing.steps : row.steps,
         attribute: existing.attribute ?? row.attribute,
-        platformTolerance: row.platformTolerance,
+        platformTolerance: existing.platformTolerance,
       );
     }
 

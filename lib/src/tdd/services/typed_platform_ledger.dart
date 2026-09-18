@@ -58,10 +58,12 @@ class TypedPlatformRow {
 /// Derives and renders the per-platform TYPED ledger (issue #1134).
 abstract final class TypedPlatformLedger {
   /// Derive the per-slot rows: the typed rows × the declared slots. A
-  /// row is `traced` on a slot iff at least one of its green provers
-  /// exercised that slot ([behaviorSlots] maps behavior id → the slots
-  /// it exercised — the SkinEvent evidence; empty evidence ⇒ untraced
-  /// everywhere, the plan-time shape).
+  /// row is `traced` on a slot iff the typed row is `DONE` (state
+  /// recomputed at read time — a NOT-DONE row never proves) AND at
+  /// least one of its green provers exercised that slot
+  /// ([behaviorSlots] maps behavior id → the slots it exercised — the
+  /// SkinEvent evidence; empty evidence ⇒ untraced everywhere, the
+  /// plan-time shape).
   static List<TypedPlatformRow> derive({
     required List<TypedLedgerRow> typedRows,
     required List<String> slots,
@@ -74,9 +76,15 @@ abstract final class TypedPlatformLedger {
           if (entry.value.contains(slot)) entry.key,
       };
       for (final typed in typedRows) {
-        final proven = typed.provers
-            .where((id) => exercised.contains(id))
-            .toList();
+        // Only a DONE typed row proves anything: a NOT-DONE row (the
+        // #966 malformed discipline — an absence with no state, a
+        // sequence under two steps, a state row with no attribute) is
+        // never traced, even when one of its provers exercised the
+        // slot. Otherwise the aggregate would paint a slot traced off
+        // a row the typed ledger itself refuses to call proven.
+        final proven = typed.state == 'DONE'
+            ? typed.provers.where((id) => exercised.contains(id)).toList()
+            : <String>[];
         rows.add(
           TypedPlatformRow(
             slot: slot,

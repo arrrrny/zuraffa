@@ -14,7 +14,7 @@
 ## Verdict: PASS
 
 All three epic exit criteria PROVED by real CLI runs
-(`scripts/e2e_1134_exit_criteria.sh`, this session: **PASS=20 FAIL=0**);
+(`scripts/e2e_1134_exit_criteria.sh`, this session: **PASS=27 FAIL=0**);
 every new behavior observed RED for the missing-behavior reason before
 its lane's code landed, and GREEN after; all touched suites green;
 `dart analyze` clean on every changed file; `dart format .` reports
@@ -22,7 +22,7 @@ its lane's code landed, and GREEN after; all touched suites green;
 
 ## 1. TDD discipline (red → green → verify)
 
-The 23 behaviors of `tdd/test-list.md` were pinned BEFORE
+The 30 behaviors of `tdd/test-list.md` were pinned BEFORE
 implementation. Per lane, the red set was observed failing for the
 missing-behavior reason (never a setup error), then going green on the
 lane's code. Verbatim red evidence from this session:
@@ -70,7 +70,7 @@ contract-driven 4-slot skeleton (`W1ViewMobileLayout` …
 
 `bash scripts/e2e_1134_exit_criteria.sh` drives the REAL CLI
 (`dart run bin/zfa.dart …`) against hermetic temp projects. This
-session's run: **PASS=20 FAIL=0**.
+session's run: **PASS=27 FAIL=0**.
 
 **EC-1 — 004-login-ui: mobile + macOS layout slots in the same
 generated output.** `zfa tdd view W9` on a 004-login-ui fixture whose
@@ -103,20 +103,21 @@ deck: mobile presence 0/4 [untraced]
 cells, deck badges per (slot, kind).
 
 **EC-3 — no view generator emits unchecked grid/table layout code.**
-Three live refusals: `zfa tdd plan` on `ShadGrid`/`table` Presentation
-tokens exits 2 writing NO artifacts (naming both tokens, grid/table as
-not implemented, and the `zfa ui schema` fix); `zfa tdd view` on the
-same tokens exits 1 with the subject byte-untouched; `SkinBuilder`
-with `layout: grid` refuses BY NAME ("not implemented — the
-implemented layouts are `list` and `form`") and generates 0 files (the
-silent list fall-through is gone). 7/7 checks PASS.
+Each token is probed INDEPENDENTLY (a shared refusal could mask one
+token regressing while the other still fails): for `ShadGrid` AND for
+`table`, `zfa tdd plan` exits 2 writing NO artifacts (naming the token,
+grid/table as not implemented, and the `zfa ui schema` fix) and
+`zfa tdd view` exits 1 with the subject byte-untouched; `SkinBuilder`
+refuses `layout: grid` AND `layout: table` BY NAME ("not implemented —
+the implemented layouts are `list` and `form`") and generates 0 files
+(the silent list fall-through is gone). 14/14 checks PASS.
 
 ## 3. Verification runs (this session, actual counts)
 
-New/changed suites (the 23 behaviors + the updated guard pin):
+New/changed suites (the 30 behaviors + the updated guard pin):
 
 ```
-dart test <the 13 changed/new suites>  → 00:22 +44: All tests passed!
+dart test <the 13 changed/new suites>  → 01:15 +49: All tests passed!
 ```
 
 Guard pins (chunked per the repo's cloud-agent protocol —
@@ -168,7 +169,7 @@ zfa tdd verify: running mutation audit...
 
 The deterministic mutation audit is `not_assessed` for the honest
 reason it names: this epic's subject is the CLI itself — the behaviors
-are proven by the repo's `test/` suites (the 1769-test guard runs
+are proven by the repo's `test/` suites (the 2464-test guard runs
 above) and the e2e script's exit-coded CLI checks, not by a
 `specs/<feature>` behavior corpus with `lib/tdd` subjects. The
 LLM-guided fallback audit this file records: red→green per lane

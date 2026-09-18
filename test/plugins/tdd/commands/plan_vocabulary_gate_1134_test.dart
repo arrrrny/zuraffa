@@ -149,4 +149,33 @@ void main() {
     expect(exitCode, 0, reason: out);
     expect(File(p.join(tddDir, 'test-list.md')).existsSync(), isTrue);
   });
+
+  test('U-1134-g2e: a project composite registered under '
+      '.zfa/ui/components/ passes the plan gate', () async {
+    final componentsDir = Directory(
+      p.join(tmpDir.path, '.zfa', 'ui', 'components'),
+    )..createSync(recursive: true);
+    await File(p.join(componentsDir.path, 'offer_card.json')).writeAsString('''
+{
+  "name": "offer_card",
+  "category": "composite",
+  "props": {"title": {"type": "string"}},
+  "children": {"min": 0, "max": 8}
+}
+''');
+    await File(
+      p.join(featureDir, 'spec.md'),
+    ).writeAsString(specWithComponents(['ShadInput', 'offer_card']));
+
+    final out = await plan();
+
+    expect(
+      exitCode,
+      0,
+      reason:
+          'a registered project composite is part of the vocabulary '
+          '(built-ins + .zfa/ui/components/): $out',
+    );
+    expect(File(p.join(tddDir, 'test-list.md')).existsSync(), isTrue);
+  });
 }

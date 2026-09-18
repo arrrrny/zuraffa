@@ -34,15 +34,17 @@ zero-drift single layout, plan ledger slot set from the contract.
   `ViewFileKind { notFound, generatorWritten, tddSubject, handWritten }`,
   `ViewGenerationContract.inspect(content)`, `machineSummary(entity,
   outcome, files)`, outcome labels `scaffolded|already-implemented|error`.
-- `lib/src/commands/view_command.dart` — port the deterministic
-  contract: after generation, print the machine summary line; before
-  generation, when the primary view file exists and not `--force`:
-  inspect → `generatorWritten`/`handWritten` ⇒ `already implemented —
-  nothing to scaffold` + machine line + exit 0; `tddSubject` ⇒ refuse
-  exit 1 naming the tdd generator + `--force` escape.
-- `lib/src/plugins/view/view_plugin.dart` — expose the primary view
-  path (`primaryViewPath(config)`) so the command can inspect it; the
-  plugin's GeneratedFile list drives the `files=<n>` count.
+- `lib/src/plugins/view/view_plugin.dart` — the deterministic contract
+  lands in the plugin's generation funnel (the single seam both CLI
+  paths share), not in the command layer: `_viewGenerationContract`
+  derives the primary view path inline (`_primaryViewPath(config)`) and,
+  before generation, inspects it → `generatorWritten`/`handWritten` ⇒
+  skip the primary (missing companions are still scaffolded) + the
+  `already implemented — nothing to scaffold` note when nothing was
+  written + machine line + exit 0; `tddSubject` ⇒ refuse exit 1 naming
+  the tdd generator + `--force` escape. After generation the plugin
+  prints the machine summary line; the plugin's GeneratedFile list
+  drives the `files=<n>` count.
 
 **Tests** (`test/tdd/services/view_generation_contract_test.dart`,
 `test/plugins/view/view_deterministic_contract_test.dart`): marker
@@ -94,20 +96,30 @@ plan-time shape, 075 ledger byte-stability (no drift).
   `isWidgetReferenceToken` (excludes `key:` tokens, slot-declaration
   bullets, method-signature tokens containing `(`),
   `normalizeWidgetName` (strip shad/zfa/zuraffa prefix, lowercase),
-  `WidgetVocabularyGate.validate(tokens, {projectRoot})` → violations
+  `WidgetVocabularyGate.validate(tokens, {vocabulary})` → violations
   with `--> fix: declare a zfa ui schema vocabulary name (zfa ui
-  schema); grid/table are NOT implemented` naming each offender.
+  schema); grid/table are NOT implemented` naming each offender. The
+  `vocabulary` argument defaults to the built-ins; the call sites below
+  pass `NodeRegistry.load(projectRoot: …).allNames` so the project's
+  registered composites (`.zfa/ui/components/`) validate too.
 - `lib/src/plugins/tdd/commands/plan_command.dart` — validate
   Presentation component tokens when the plan carries widget-behavior
-  rows; refusal exit 2, no artifacts (errors-are-an-API).
+  rows; refusal exit 2, no artifacts (errors-are-an-API). Composites
+  resolved from `repoRoot`.
 - `lib/src/plugins/tdd/commands/view_command.dart` — validate the
   resolved `_presentationComponents` before render; refusal exit 1
-  before any write.
+  before any write. Composites resolved from `normalizedCwd`; a
+  malformed Skin Contract shape is translated to a
+  `PlatformLayoutContractException` so the named refusal +
+  machine-summary path fires.
 - `lib/src/plugins/skin/builders/skin_builder.dart` — REMOVE the silent
-  `default:` fall-through: `case 'list'` explicit; unknown layout
-  (grid/table/anything else) throws `SkinLayoutRefusedException`
-  naming the layout, the implemented set (list, form), and the
-  vocabulary fix; `generate` refuses BEFORE the write.
+  `default:` fall-through: `case 'list'`/`case 'form'` explicit; an
+  unknown layout (grid/table/anything else) refuses BY NAME — the
+  builder PRINTS the refusal (naming the layout, the implemented set
+  list/form, and the `zfa ui schema` vocabulary) and returns `const []`,
+  so `generate` writes NOTHING. The non-zero exit rides the invocation
+  layer's zero-files guard (`zfa skin grid|table` is a hidden refuse
+  subcommand exiting `usage`); no exception type was introduced.
 
 **Tests** (`test/plugins/tdd/services/widget_vocabulary_gate_test.dart`,
 `test/plugins/tdd/commands/plan_vocabulary_gate_1134_test.dart`,

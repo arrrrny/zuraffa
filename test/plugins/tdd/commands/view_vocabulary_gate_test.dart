@@ -126,4 +126,37 @@ void main() {
       expect(subject, isNot(contains('UnimplementedError')));
     },
   );
+
+  test('U-1134-g3c: a project composite registered under '
+      '.zfa/ui/components/ passes the view gate', () async {
+    await fx.registerBehavior(
+      id: 'A-001',
+      description: "the login page shows 'Welcome back' with a sign in button",
+    );
+    await File(
+      fx.subjectPathOf('A-001'),
+    ).writeAsString(genStyleWidgetStub('A-001'));
+    final componentsDir = Directory('${fx.root.path}/.zfa/ui/components')
+      ..createSync(recursive: true);
+    await File('${componentsDir.path}/offer_card.json').writeAsString('''
+{
+  "name": "offer_card",
+  "category": "composite",
+  "props": {"title": {"type": "string"}},
+  "children": {"min": 0, "max": 8}
+}
+''');
+    await seedPresentation(fx, ['ShadInput', 'offer_card']);
+
+    final out = await runView();
+
+    expect(
+      exitCode,
+      0,
+      reason:
+          'a registered project composite is part of the vocabulary '
+          '(built-ins + .zfa/ui/components/): $out',
+    );
+    expect(out, contains('view: behavior=A-001 outcome=scaffolded'));
+  });
 }

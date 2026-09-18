@@ -47,6 +47,7 @@ import '../../../tdd/services/typed_ledger_row.dart';
 import '../../../tdd/services/typed_platform_ledger.dart';
 import '../services/typed_ledger_projection.dart';
 import '../services/widget_vocabulary_gate.dart';
+import '../../skin/vocabulary/ui_node_registry.dart';
 import '../../../skin/contract/adaptive_skin_contract.dart';
 import '../../../skin/contract/adaptive_skin_contract_parser.dart';
 import '../../../core/project/project_root.dart';
@@ -456,6 +457,7 @@ class PlanCommand extends Command<void> {
       );
       final vocabularyViolations = WidgetVocabularyGate.validate(
         widgetReferences,
+        vocabulary: NodeRegistry.load(projectRoot: repoRoot).allNames,
       );
       if (vocabularyViolations.isNotEmpty) {
         print(

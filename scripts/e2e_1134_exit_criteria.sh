@@ -13,6 +13,14 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TMP=$(mktemp -d /tmp/issue_1134_e2e_XXXXXX)
+# The helper probes below are written to a mktemp-UNIQUE dir and removed
+# on exit: fixed shared names under .dart_tool/ collide when two runs of
+# this script share a checkout (this repo runs several agents per
+# machine), overwriting each other's helpers mid-run.
+mkdir -p "${REPO_ROOT}/.dart_tool"
+HELPERS=$(mktemp -d "${REPO_ROOT}/.dart_tool/e2e_1134_helpers_XXXXXX")
+cleanup() { rm -rf "$TMP" "$HELPERS"; }
+trap cleanup EXIT
 ZFA="dart run ${REPO_ROOT}/bin/zfa.dart"
 PASS=0
 FAIL=0
@@ -175,8 +183,8 @@ grep -q '"status":"untraced"' "$TYPED_JSON"; check "EC-2d: the typed JSON carrie
 
 # The overlay binding renders the per-layout kind coverage from the
 # plan's own typed rows (real invocation, no fixtures).
-mkdir -p "${REPO_ROOT}/.dart_tool"
-cat > "${REPO_ROOT}/.dart_tool/e2e_1134_render_heatmap.dart" <<'EOF'
+mkdir -p "${HELPERS}"
+cat > "${HELPERS}/e2e_1134_render_heatmap.dart" <<'EOF'
 import 'dart:convert';
 import 'dart:io';
 import 'package:zuraffa/src/tdd/services/typed_ledger_row.dart';
@@ -210,7 +218,7 @@ void main(List<String> args) {
   }
 }
 EOF
-OVERLAY_OUT=$(cd "$REPO_ROOT" && dart run "${REPO_ROOT}/.dart_tool/e2e_1134_render_heatmap.dart" "$TYPED_JSON" 2>&1)
+OVERLAY_OUT=$(cd "$REPO_ROOT" && dart run "${HELPERS}/e2e_1134_render_heatmap.dart" "$TYPED_JSON" 2>&1)
 echo "$OVERLAY_OUT" | sed 's/^/  /'
 echo "$OVERLAY_OUT" | grep -q "per-layout kind coverage"; check "EC-2e: the overlay renders per-layout kind coverage" $?
 echo "$OVERLAY_OUT" | grep -qE "mobile presence [0-9]+/[0-9]+"; check "EC-2f: kind x slot cells render with traced/total counts" $?
@@ -221,11 +229,18 @@ echo ""
 # ---------------------------------------------------------------------
 # EC-3 — no view generator emits unchecked grid/table layout code:
 # the plan gate refuses, the view gate refuses before any write, the
-# skin builder refuses BY NAME.
+# skin builder refuses BY NAME. grid and table are probed INDEPENDENTLY
+# (a shared refusal could otherwise mask one token regressing while the
+# other still fails the check).
 # ---------------------------------------------------------------------
 echo "=== EC-3: grid/table refuse everywhere (no unchecked emission) ==="
-mkdir -p "$TMP/specs/006-grid-gate/tdd" "$TMP/lib/tdd/006-grid-gate"
-cat > "$TMP/specs/006-grid-gate/spec.md" <<'EOF'
+for PAIR in "ShadGrid:G1" "table:G2"; do
+  TOKEN="${PAIR%%:*}"
+  BID="${PAIR##*:}"
+  BIDL=$(printf '%s' "$BID" | tr '[:upper:]' '[:lower:]')
+  FEATURE="006-gate-$BIDL"
+  mkdir -p "$TMP/specs/$FEATURE/tdd" "$TMP/lib/tdd/$FEATURE"
+  cat > "$TMP/specs/$FEATURE/spec.md" <<'EOF'
 **Template Version**: `zuraffa-1.0`
 
 # Feature Specification: 006-grid-gate — the vocabulary gate
@@ -244,40 +259,49 @@ cat > "$TMP/specs/006-grid-gate/spec.md" <<'EOF'
 
 **Presentation**:
 
-- `DealBoard`: `ShadGrid`, `table`
+- `DealBoard`: `__TOKEN__`
 
 **Domain**:
 
 - `DealValidation`: `validate(String id) -> bool`
 EOF
-OUT=$($ZFA tdd plan --project "$TMP" 006-grid-gate 2>&1)
-PLAN_EXIT=$?
-echo "$OUT" | grep -E "vocabulary gate|ShadGrid|table" | head -4 | sed 's/^/  /'
-[ "$PLAN_EXIT" -eq 2 ]; check "EC-3a: zfa tdd plan refuses out-of-vocabulary grid/table tokens (exit 2)" $?
-[ ! -f "$TMP/specs/006-grid-gate/tdd/test-list.md" ]; check "EC-3b: the refused plan wrote no artifacts" $?
+  sed "s/__TOKEN__/$TOKEN/" "$TMP/specs/$FEATURE/spec.md" \
+    > "$TMP/specs/$FEATURE/spec.md.tmp"
+  mv "$TMP/specs/$FEATURE/spec.md.tmp" "$TMP/specs/$FEATURE/spec.md"
 
-# The view gate (defense in depth): same token, view refuses BEFORE
-# any write.
-cat > "$TMP/specs/006-grid-gate/tdd/test-list.md" <<'EOF'
+  # The PLAN gate refuses the SINGLE token and writes nothing.
+  OUT=$($ZFA tdd plan --project "$TMP" "$FEATURE" 2>&1)
+  PLAN_EXIT=$?
+  echo "$OUT" | grep -E "vocabulary gate|$TOKEN" | head -4 | sed 's/^/  /'
+  [ "$PLAN_EXIT" -eq 2 ]; check "EC-3a($TOKEN): zfa tdd plan refuses $TOKEN alone (exit 2)" $?
+  [ ! -f "$TMP/specs/$FEATURE/tdd/test-list.md" ]; check "EC-3b($TOKEN): the refused plan wrote no artifacts" $?
+
+  # The VIEW gate (defense in depth): the same single token, view
+  # refuses BEFORE any write.
+  cat > "$TMP/specs/$FEATURE/tdd/test-list.md" <<'EOF'
 # Test List: 006-grid-gate
 
 ## Layer contracts
 
 ### Presentation
 
-- `DealBoard`: `ShadGrid`, `table`
+- `DealBoard`: `__TOKEN__`
 EOF
-cat > "$TMP/specs/006-grid-gate/tdd/artifacts.json" <<'EOF'
+  sed "s/__TOKEN__/$TOKEN/" "$TMP/specs/$FEATURE/tdd/test-list.md" \
+    > "$TMP/specs/$FEATURE/tdd/test-list.md.tmp"
+  mv "$TMP/specs/$FEATURE/tdd/test-list.md.tmp" \
+    "$TMP/specs/$FEATURE/tdd/test-list.md"
+  cat > "$TMP/specs/$FEATURE/tdd/artifacts.json" <<EOF
 {
-  "feature": "006-grid-gate",
+  "feature": "$FEATURE",
   "records": [
     {
-      "behavior_id": "G1",
-      "feature": "006-grid-gate",
+      "behavior_id": "$BID",
+      "feature": "$FEATURE",
       "source_criterion": "FR-001",
-      "test_path": "test/tdd/006-grid-gate/g1_test.dart",
-      "subject_path": "lib/tdd/006-grid-gate/g1_subject.dart",
-      "runnable_test_name": "test/tdd/006-grid-gate/g1_test.dart::G1::the deal board",
+      "test_path": "test/tdd/$FEATURE/${BIDL}_test.dart",
+      "subject_path": "lib/tdd/$FEATURE/${BIDL}_subject.dart",
+      "runnable_test_name": "test/tdd/$FEATURE/${BIDL}_test.dart::$BID::the deal board",
       "test_ownership": "created",
       "subject_ownership": "created",
       "created_at": "2026-09-18T00:00:00.000000Z"
@@ -285,26 +309,27 @@ cat > "$TMP/specs/006-grid-gate/tdd/artifacts.json" <<'EOF'
   ]
 }
 EOF
-cat > "$TMP/lib/tdd/006-grid-gate/g1_subject.dart" <<'EOF'
+  cat > "$TMP/lib/tdd/$FEATURE/${BIDL}_subject.dart" <<EOF
 library;
 
 import 'package:flutter/material.dart';
 
-/// View-builder subject for behavior G1.
+/// View-builder subject for behavior $BID.
 ///
 /// Throws [UnimplementedError] until the real implementation lands.
-Widget subject_g1() => throw UnimplementedError('subject_g1 not implemented');
+Widget subject_${BIDL}() => throw UnimplementedError('subject_${BIDL} not implemented');
 EOF
-SUBJECT_G1="$TMP/lib/tdd/006-grid-gate/g1_subject.dart"
-BEFORE=$(cat "$SUBJECT_G1")
-OUT=$($ZFA tdd view G1 --project "$TMP" 2>&1)
-VIEW_EXIT=$?
-echo "$OUT" | grep -E "vocabulary gate|ShadGrid" | head -3 | sed 's/^/  /'
-[ "$VIEW_EXIT" -eq 1 ]; check "EC-3c: zfa tdd view refuses the grid/table tokens before any write (exit 1)" $?
-[ "$BEFORE" = "$(cat "$SUBJECT_G1")" ]; check "EC-3d: the subject is untouched (no unchecked layout code landed)" $?
+  SUBJECT_G="$TMP/lib/tdd/$FEATURE/${BIDL}_subject.dart"
+  BEFORE=$(cat "$SUBJECT_G")
+  OUT=$($ZFA tdd view "$BID" --project "$TMP" 2>&1)
+  VIEW_EXIT=$?
+  echo "$OUT" | grep -E "vocabulary gate|$TOKEN" | head -3 | sed 's/^/  /'
+  [ "$VIEW_EXIT" -eq 1 ]; check "EC-3c($TOKEN): zfa tdd view refuses $TOKEN alone before any write (exit 1)" $?
+  [ "$BEFORE" = "$(cat "$SUBJECT_G")" ]; check "EC-3d($TOKEN): the subject is untouched (no unchecked layout code landed)" $?
+done
 
-# The skin builder: layout grid refuses BY NAME and writes nothing.
-cat > "${REPO_ROOT}/.dart_tool/e2e_1134_skin_grid_probe.dart" <<'EOF'
+# The skin builder: EACH layout token refuses BY NAME and writes nothing.
+cat > "${HELPERS}/e2e_1134_skin_layout_probe.dart" <<'EOF'
 import 'dart:io';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
@@ -317,7 +342,7 @@ Future<void> main(List<String> args) async {
   );
   final files = await builder.generate(
     GeneratorConfig(name: 'Deal', outputDir: args[0]),
-    {'layout': 'grid'},
+    {'layout': args[1]},
   );
   print('generated=${files.length}');
 }
@@ -331,15 +356,17 @@ dependencies:
   flutter:
     sdk: flutter
 EOF
-OUT=$(cd "$REPO_ROOT" && dart run "${REPO_ROOT}/.dart_tool/e2e_1134_skin_grid_probe.dart" "$TMP" 2>&1)
-echo "$OUT" | sed 's/^/  /'
-echo "$OUT" | grep -q "not implemented"; check "EC-3e: the skin builder refuses layout grid BY NAME" $?
-echo "$OUT" | grep -q "generated=0"; check "EC-3f: the refusal writes no file (no silent list fall-through)" $?
-echo "$OUT" | grep -q "zfa ui schema"; check "EC-3g: the refusal names the vocabulary fix" $?
+for LAYOUT in grid table; do
+  OUT=$(cd "$REPO_ROOT" && dart run "${HELPERS}/e2e_1134_skin_layout_probe.dart" "$TMP" "$LAYOUT" 2>&1)
+  echo "$OUT" | sed 's/^/  /'
+  echo "$OUT" | grep -q "not implemented"; check "EC-3e($LAYOUT): the skin builder refuses layout $LAYOUT BY NAME" $?
+  echo "$OUT" | grep -q "generated=0"; check "EC-3f($LAYOUT): the refusal writes no file (no silent list fall-through)" $?
+  echo "$OUT" | grep -q "zfa ui schema"; check "EC-3g($LAYOUT): the refusal names the vocabulary fix" $?
+done
 echo ""
 
 echo "=================================================="
 echo "PASS=$PASS FAIL=$FAIL"
 echo "=================================================="
-rm -rf "$TMP"
+# $TMP and $HELPERS are removed by the EXIT trap.
 [ "$FAIL" -eq 0 ]

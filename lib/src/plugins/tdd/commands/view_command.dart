@@ -89,6 +89,7 @@ import '../services/tdd_generation_receipt.dart';
 import '../services/test_list_reader.dart';
 import '../services/ui_ledger_projection.dart';
 import '../services/widget_vocabulary_gate.dart';
+import '../../skin/vocabulary/ui_node_registry.dart';
 import '../../../tdd/services/ui_ledger_builder.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -356,11 +357,16 @@ class ViewCommand extends Command<void> {
     // EPIC 3 / issue #1134, lane 4 — the widget vocabulary gate (the
     // same gate `zfa tdd plan` enforces, defense in depth): every
     // declared component token is validated against the `zfa ui
-    // schema` vocabulary BEFORE any write. An out-of-vocabulary
+    // schema` vocabulary — the built-ins MERGED with the project's
+    // registered composites (`.zfa/ui/components/`, the same merge
+    // `zfa ui schema` exports) — BEFORE any write. An out-of-vocabulary
     // reference (grid/table — not implemented, the #1149 removal)
     // refuses the view: no unchecked layout code is ever emitted
     // (exit criterion 3).
-    final vocabularyViolations = WidgetVocabularyGate.validate(components);
+    final vocabularyViolations = WidgetVocabularyGate.validate(
+      components,
+      vocabulary: NodeRegistry.load(projectRoot: normalizedCwd).allNames,
+    );
     if (vocabularyViolations.isNotEmpty) {
       print(
         'zfa tdd view: widget vocabulary gate FAILED — '
@@ -912,6 +918,16 @@ $body
       if (slots.contains('macos'))
         "      case TargetPlatform.macOS:\n        return 'macos';",
     ];
+    // EPIC 3 / issue #1134 review — the WIDTH-defined slots (the
+    // adaptive_layout_scaffold_builder targets: tablet, desktop) are
+    // reachable in the generated resolver too. Without these branches a
+    // declared tablet/desktop stub could never render — the resolver
+    // knew only the host-platform slots — so the contract's accepted
+    // vocabulary emitted dead layouts.
+    final widthBranches = <String>[
+      if (slots.contains('tablet')) "    if (width < 1024) return 'tablet';",
+      if (slots.contains('desktop')) "    if (width >= 1024) return 'desktop';",
+    ];
     final resolveSwitch = platformCases.isEmpty
         ? "    return '$narrowSlot';"
         : '    switch (Theme.of(context).platform) {\n'
@@ -992,11 +1008,12 @@ class $viewClass extends StatefulWidget {
 class _${viewClass}State extends State<$viewClass> {
   /// Resolves the platform slot for the current build: a phone-width
   /// surface is the `$narrowSlot` slot on every platform; wider surfaces
-  /// branch on the host platform (declared slots only).
+  /// branch on the declared width-defined slots (tablet/desktop) and
+  /// then on the host platform (declared slots only).
   String _resolveSlot(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     if (width < 600) return '$narrowSlot';
-$resolveSwitch
+${widthBranches.isEmpty ? '' : '${widthBranches.join('\n')}\n'}$resolveSwitch
   }
 
   @override
@@ -1045,7 +1062,17 @@ $layoutStubs''';
     AdaptiveSkinContract? skinContract;
     final specFile = File(p.join(featureDir, 'spec.md'));
     if (await specFile.exists()) {
-      skinContract = parseAdaptiveSkinContract(await specFile.readAsString());
+      try {
+        skinContract = parseAdaptiveSkinContract(await specFile.readAsString());
+      } on AdaptiveSkinContractParseException catch (error) {
+        // A malformed Skin Contract SHAPE (an unknown field, a bad
+        // nesting) is a declared-contract refusal like an unknown slot:
+        // translate it so the caller's named refusal + machine-summary
+        // path fires (errors-are-an-API) instead of the generic handler.
+        throw PlatformLayoutContractException(
+          'skin contract: ${error.message}',
+        );
+      }
     }
     return PlatformLayoutContract.resolve(
       contracts: contracts,
