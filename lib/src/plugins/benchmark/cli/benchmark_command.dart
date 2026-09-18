@@ -81,7 +81,16 @@ run options:
   @override
   Future<void> run() async {
     final args = argResults!.arguments;
-    if (args.isEmpty || args.first == '--help' || args.first == '-h') {
+    // SPEC 1132 (EPIC 1 honesty sweep): explicit --help/-h is a SUCCESS
+    // (exit 0); a bare invocation is a usage error — the usage block
+    // prints AND the process exits SPEC 917 canonical 2 (was the
+    // pre-sweep silent 0).
+    if (args.isEmpty) {
+      print(_usage);
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    if (args.first == '--help' || args.first == '-h') {
       print(_usage);
       return;
     }

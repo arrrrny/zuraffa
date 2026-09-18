@@ -16,7 +16,15 @@ import '../plugins/mcp/capabilities/scaffold_mcp_server_capability.dart';
 
 class PluginCommand {
   Future<void> execute(List<String> args) async {
-    if (args.isEmpty || args.first == '--help' || args.first == '-h') {
+    // SPEC 1132 (EPIC 1 honesty sweep): a bare invocation is a usage
+    // error (SPEC 917 canonical 2) — the usage block prints AND the
+    // exit code says 2. Explicit --help/-h stays a success (exit 0).
+    if (args.isEmpty) {
+      _printHelp();
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    if (args.first == '--help' || args.first == '-h') {
       _printHelp();
       return;
     }
@@ -70,9 +78,13 @@ class PluginCommand {
       case 'enable':
       case 'disable':
         if (rest.isEmpty) {
+          // Missing required argument: usage class (SPEC 917), returned
+          // via exitCode — a hard exit() is embedded-dispatch unsafe
+          // (SPEC 1132).
           print('Missing plugin id');
           _printHelp();
-          exit(1);
+          exitCode = ExitProtocol.usage;
+          return;
         }
         final id = rest.first;
         final capability = PluginCatalog.find(id);
@@ -149,9 +161,11 @@ class PluginCommand {
         await _scaffoldMcp(args.sublist(1));
         return;
       default:
+        // Unknown subcommand = usage error (SPEC 917): exit class 2
+        // (was the failure 1 of the pre-sweep shape).
         print('Unknown plugin command: $action');
         _printHelp();
-        exit(1);
+        exitCode = ExitProtocol.usage;
     }
   }
 
