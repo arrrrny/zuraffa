@@ -9,8 +9,14 @@
 // sub-processes):
 //   U5a — a green make writes the record with tree-matching digests and
 //         an honest verdict naming the behavior.
-//   U5b — the #741 already-green skip writes NOTHING: the standing
-//         record still describes the certified tree.
+//   U5b — the #694 already-green skip records its OWN certification
+//         (issue #1676): the skip transition re-ran the target test on
+//         the current tree and certified it green, so the record
+//         describes that live post-state evidence — verdict names
+//         `outcome=skipped`, never mislabeled as green.
+//   U5b2 — the exit-disagreeing skip token (`outcome=skipped`, exit 1 —
+//         the bug #986 terminal classification) records under the same
+//         gate: the token certifies the target test passed.
 //   U5c — a write failure is a warning, never an error: the run
 //         completes (the next refactor pays one full pipeline).
 //   U6  — the record is derived data describing ONE moment: after a
@@ -108,11 +114,15 @@ void main() {
     expect(record['behavior_id'], 'B-002', reason: verdict);
   });
 
-  test('U5b: the #741 already-green skip writes nothing — the standing '
-      'record keeps describing the certified tree', () async {
+  test('U5b (issue #1676): the #694 already-green skip records its own '
+      'certification — the verdict names outcome=skipped, the digests '
+      'match the on-disk trees', () async {
     // B-001's make green-applies (records); B-002's verify-red reports
     // unexpected-green and its make reports the #694/#741 skip
-    // transition (the tree untouched by that make).
+    // transition — which re-ran the target test on the current tree and
+    // certified it green (issue #1162 subject drift accepted). That is
+    // live post-state evidence on exactly this tree, so the record now
+    // describes B-002's skip certification.
     await fx.setStepOutcome('verify-red', 'B-002', 'unexpected-green');
     await fx.setStepOutcome('make', 'B-002', 'skip');
     await fx.seedRedEvidence('B-002');
@@ -121,9 +131,49 @@ void main() {
 
     expect(exitCode, 0, reason: out);
     final record = await readRecord();
-    // The recorder is B-001's GREEN make — B-002's skip did not
-    // overwrite it (a skip certifies no new tree state).
-    expect(record['behavior_id'], 'B-001', reason: out);
+    // The recorder is B-002's SKIP make — the last live target-test
+    // evidence on this tree (the skip transition's own certification).
+    expect(record['behavior_id'], 'B-002', reason: out);
+    // The verdict is honest: the skip transition's evidence, never
+    // mislabeled as a green outcome.
+    final verdict = record['green_verdict'] as String;
+    expect(verdict, contains('make'));
+    expect(verdict, contains('outcome=skipped'));
+    expect(verdict, isNot(contains('outcome=green')));
+    // The digests describe the CURRENT tree — recompute and compare.
+    final libNow = await TreeSnapshot.capture(
+      fx.root.path,
+      trees: const ['lib'],
+    );
+    final testNow = await TreeSnapshot.capture(
+      fx.root.path,
+      trees: const ['test'],
+    );
+    expect(record['lib_digest'], PassBatchLedger.treeDigest(libNow));
+    expect(record['test_digest'], PassBatchLedger.treeDigest(testNow));
+  });
+
+  test('U5b2 (issue #1676): the exit-disagreeing skip token (outcome='
+      'skipped, exit 1) records under the same gate — the token is the '
+      'terminal classification', () async {
+    // The #657/#694-era drift contract shape: make's outcome token says
+    // `skipped` but the exit code disagrees. The token still certifies
+    // the skip transition ran and passed the target test (bug #986: the
+    // token is the terminal classification), so the record is written
+    // with the REAL exit code in the verdict.
+    await fx.setStepOutcome('verify-red', 'B-002', 'unexpected-green');
+    await fx.setStepOutcome('make', 'B-002', 'skip-fail');
+    await fx.seedRedEvidence('B-002');
+
+    final out = await drive();
+
+    expect(exitCode, 0, reason: out);
+    final record = await readRecord();
+    expect(record['behavior_id'], 'B-002', reason: out);
+    final verdict = record['green_verdict'] as String;
+    expect(verdict, contains('outcome=skipped'));
+    expect(verdict, contains('exit 1'));
+    expect(verdict, isNot(contains('outcome=green')));
   });
 
   test(
