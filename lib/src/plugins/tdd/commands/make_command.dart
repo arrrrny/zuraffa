@@ -1103,6 +1103,23 @@ class MakeCommand extends Command<void> {
         feature: target.featureName,
         files: {p.join(target.featureDir, 'tdd', 'cycle-log.md'): 'update'},
       );
+      // Spec 1423 (the born-green analogue, spec 1136): the hand step's
+      // drifted receipted test/subject paths are re-hashed from the
+      // CURRENT bytes (action: update) so the verify proof preflight
+      // validates the born-green hand-delta instead of dead-ending the
+      // cycle — the same #1375-class destruction the skip and
+      // re-certify transitions refuse for their lanes, applied to the
+      // hand-first one. Without it, a satisfied contract lane (the
+      // #1542 wedge) certifies green and STILL fails the preflight on
+      // the hand-refined pair.
+      await HandDeltaReceipts.refreshBestEffort(
+        projectRoot: cwd,
+        feature: target.featureName,
+        behaviorId: record.behaviorId,
+        command: 'tdd make ${record.behaviorId} --born-green',
+        transition: 'born-green',
+        artifactPaths: [record.testPath, record.subjectPath],
+      );
       // Issue #1542: advance the run state for the WEDGED claim. A
       // behavior parked at BLOCKED (the issue #1007 contract verdict;
       // make/refactor never spawn for it) can never re-enter the cycle

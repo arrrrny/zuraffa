@@ -1,0 +1,184 @@
+{
+  "behaviors": [
+    {
+      "args": {
+        "payment": {
+          "amount": 4200,
+          "currency": "usd",
+          "method": "card"
+        }
+      },
+      "backoffBaseMs": 50,
+      "backoffFactor": 2.0,
+      "driver": "invoke",
+      "expect": "red",
+      "id": "v3-charge-declined",
+      "maxAttempts": 1,
+      "method": "charge",
+      "touchpoint": "PaymentGateway"
+    },
+    {
+      "args": {
+        "payment": {
+          "amount": 4200,
+          "currency": "usd",
+          "method": "card"
+        }
+      },
+      "backoffBaseMs": 50,
+      "backoffFactor": 2.0,
+      "driver": "retry-sync",
+      "expect": "green",
+      "id": "v3-charge-retry",
+      "maxAttempts": 4,
+      "method": "charge",
+      "touchpoint": "PaymentGateway"
+    },
+    {
+      "args": {
+        "payment": {
+          "amount": 4200,
+          "chargeId": "ch_1136"
+        }
+      },
+      "backoffBaseMs": 50,
+      "backoffFactor": 2.0,
+      "driver": "retry-sync",
+      "expect": "green",
+      "id": "v3-refund-repair",
+      "maxAttempts": 3,
+      "method": "refund",
+      "touchpoint": "PaymentGateway"
+    },
+    {
+      "args": {
+        "payment": {
+          "amount": 4200,
+          "chargeId": "ch_1136"
+        }
+      },
+      "backoffBaseMs": 50,
+      "backoffFactor": 2.0,
+      "driver": "invoke",
+      "expect": "green",
+      "id": "v3-refund-invoke",
+      "maxAttempts": 1,
+      "method": "refund",
+      "touchpoint": "PaymentGateway"
+    }
+  ],
+  "corpus": {
+    "PaymentGateway": {
+      "charge": {
+        "fixture": {
+          "amount": 4200,
+          "chargeId": "ch_1136",
+          "currency": "usd",
+          "status": "captured"
+        }
+      },
+      "refund": {
+        "fixture": {
+          "amount": 4200,
+          "currency": "usd",
+          "refundId": "re_1136",
+          "status": "succeeded"
+        }
+      }
+    }
+  },
+  "description": "The EPIC 5 (#1136) payment-failure world, version 3 (the exit criterion 1 fixture): a payment charge/refund flow developed against a committed world — the PaymentGateway touchpoint declines (HTTP 402) the first two charge calls, times out (HTTP 504) on the third, and half-writes the first refund; the retry-with-backoff driver survives the window, the single-shot charge surfaces the honest red, and the partial refund is detected and repaired. `zfa simulate run --world=v3` proves the run deterministic.",
+  "failureSchedule": {
+    "storms": [
+      {
+        "description": "the card is declined (HTTP 402 payment required) on the first two charge attempts — retry-with-backoff must survive",
+        "failure": {
+          "status": 402,
+          "type": "http"
+        },
+        "fromCall": 1,
+        "kind": "network-flap",
+        "method": "charge",
+        "name": "payment-declined",
+        "toCall": 2,
+        "touchpoint": "PaymentGateway"
+      },
+      {
+        "description": "the payment gateway times out (HTTP 504) on the third charge attempt",
+        "failure": {
+          "status": 504,
+          "type": "http"
+        },
+        "fromCall": 3,
+        "kind": "network-flap",
+        "method": "charge",
+        "name": "gateway-timeout",
+        "toCall": 3,
+        "touchpoint": "PaymentGateway"
+      },
+      {
+        "description": "a half-written refund response — honest payment flows detect and repair it",
+        "failure": {
+          "type": "partial"
+        },
+        "fromCall": 1,
+        "kind": "partial-write",
+        "method": "refund",
+        "name": "partial-refund",
+        "toCall": 1,
+        "touchpoint": "PaymentGateway"
+      }
+    ]
+  },
+  "feature": "968-simulation-worlds",
+  "latency": {
+    "PaymentGateway": {
+      "fast": [
+        5,
+        15
+      ],
+      "slow": [
+        120,
+        400
+      ],
+      "slowEvery": 4,
+      "timeout": [
+        800,
+        1500
+      ],
+      "timeoutEvery": 25
+    }
+  },
+  "scenario": "v3",
+  "schema": 1,
+  "spec": 1136,
+  "time": {
+    "seed": 1136
+  },
+  "touchpoints": [
+    {
+      "contract": "charge(payment) -> ChargeResult, refund(payment) -> RefundResult",
+      "family": "generic",
+      "methods": [
+        {
+          "name": "charge",
+          "params": [
+            "payment"
+          ],
+          "returns": "ChargeResult"
+        },
+        {
+          "name": "refund",
+          "params": [
+            "payment"
+          ],
+          "returns": "RefundResult"
+        }
+      ],
+      "name": "PaymentGateway",
+      "priority": "P1",
+      "type": "service"
+    }
+  ],
+  "version": 3
+}
