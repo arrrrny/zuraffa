@@ -8,11 +8,16 @@
 | G4 | test/plugins/mock/certification/spec_1693_gate_format_drift_test.dart | unit | pre-1693 receipts (no `entity_digest`) keep the mtime freshness semantics — entity touched after the receipt → `stale`, same reason contract | SC-3 | GREEN (guard, passes pre- and post-fix) |
 | G4b | test/plugins/mock/certification/spec_1693_gate_format_drift_test.dart | unit | pre-1693 receipts keep mtime freshness — receipt newer than the entity → `certified` | SC-3 | GREEN (guard, passes pre- and post-fix) |
 | G5 | test/plugins/mock/certification/spec_1693_gate_format_drift_test.dart | unit | the digest overrides a lying-fresh mtime — a receipt re-touched after a real edit still refuses (semantic drift is never waived even when mtimes lie) | constraint 2 (strongest form) | RED → GREEN |
-| G6 | test/plugins/mock/certification/spec_1693_receipt_and_certifier_test.dart | unit | `entity_digest` roundtrips through toJson/fromJson; a receipt without one omits the JSON key (pre-1693 byte stability) | SC-4 | RED (compile) → GREEN |
-| G7 | test/plugins/mock/certification/spec_1693_receipt_and_certifier_test.dart | unit | `fromRun` records the digest when given, omits when null | SC-4 | RED (compile) → GREEN |
-| G8 | test/plugins/mock/certification/spec_1693_receipt_and_certifier_test.dart | unit | `MockCertifier.certify` records the format-canonical digest of the entity source via the lib-side helper; the written receipt carries `entity_digest` | SC-4, constraint 4 | RED (compile) → GREEN |
-| G8b | test/plugins/mock/certification/spec_1693_receipt_and_certifier_test.dart | unit | `certify` without an entity file records NO digest (honest absence — the gate falls back to mtime for that receipt) | SC-4 (honest absence) | RED (compile) → GREEN |
-| W1 | test/plugins/tdd/commands/spec_1693_run_gate_format_drift_test.dart | unit | the `zfa tdd run` preflight (`RunEngineCommand.checkFeature`, the task's `UserSession` repro) certifies after phase-2 format-only drift | issue repro, SC-1 | GREEN (post-fix wiring pin) |
+| G6 | test/plugins/mock/certification/spec_1693_receipt_and_certifier_test.dart | unit | `entity_digest` and the `entity_digest_style` that produced it roundtrip through toJson/fromJson | SC-4, review finding 2 | RED (compile) → GREEN |
+| G6b | test/plugins/mock/certification/spec_1693_receipt_and_certifier_test.dart | unit | a receipt without an entity digest omits the JSON key — pre-1693 receipts stay byte-stable (no identity key either: it is meaningless without the digest it produced) | SC-4 (legacy byte stability) | RED (compile) → GREEN |
+| G7 | test/plugins/mock/certification/spec_1693_receipt_and_certifier_test.dart | unit | `fromRun` records the digest and its canonicalizer identity when given, omits both when null | SC-4, review finding 2 | RED (compile) → GREEN |
+| G8 | test/plugins/mock/certification/spec_1693_receipt_and_certifier_test.dart | unit | `MockCertifier.certify` records the format-canonical digest of the entity source via the lib-side helper AND the running `canonicalizerId`; the written receipt carries both keys | SC-4, constraint 4, review finding 2 | RED (compile) → GREEN |
+| G8b | test/plugins/mock/certification/spec_1693_receipt_and_certifier_test.dart | unit | `certify` without an entity file records NO digest (honest absence — the gate falls back to mtime for that receipt), and no canonicalizer identity either | SC-4 (honest absence) | RED (compile) → GREEN |
+| G9 | test/plugins/mock/certification/spec_1693_receipt_and_certifier_test.dart | unit | an entity OUTSIDE `<entities>/<snake>/<snake>.dart` still gets a digest, and the gate compares against that same file — format-only drift at the nested path reads `certified`, a real edit at the nested path still reads `stale` | review finding 1 (one resolver for both sides) | RED → GREEN |
+| G10 | test/plugins/mock/certification/spec_1693_gate_format_drift_test.dart | unit | a digest recorded by ANOTHER canonicalizer (or by none at all) is not compared: a bare `dart pub upgrade` does not flip the project `stale`, and the fallback is the full mtime leg — a real format rewrite after the bump still refuses | review finding 2 (mass re-certification) | RED → GREEN |
+| G12 | test/plugins/mock/certification/spec_1693_receipt_and_certifier_test.dart | unit | the digest helper is TOTAL: a formatter failure that is NOT a `FormatterException` (a `dart_style` `_TypeError`, deterministic on 3.1.13) yields `null` instead of escaping as a crash out of the preflight | review finding 3 (verdict must not become a crash) | RED → GREEN |
+| G12b | test/plugins/mock/certification/spec_1693_receipt_and_certifier_test.dart | unit | a null (unresolved) entity file yields `null`, not a throw — the recording call site stays a one-expression digest | review finding 1 (nullable helper) | RED → GREEN |
+| W1 | test/plugins/tdd/commands/spec_1693_run_gate_format_drift_test.dart | unit | the `zfa tdd run` preflight (`RunEngineCommand.checkFeature`, the task's `UserSession` repro) certifies after phase-2 format-only drift — the pin writes the `entity_digest_style` the certifier records, so the digest branch is the one under test | issue repro, SC-1 | GREEN (post-fix wiring pin) |
 | W2 | test/plugins/tdd/commands/spec_1693_run_gate_format_drift_test.dart | unit | the preflight still refuses after a real entity edit — `blockedEntity: UserSession`, stale reason, exact fix | issue repro, SC-2 | GREEN (post-fix wiring pin) |
 
 ## Red evidence (pre-fix, this session, base a9329746)
@@ -48,6 +53,48 @@
   The first pass left 2 survivors — both character-level mutations of the
   stale-reason string literal (`mock-cert` → `mock+cert`); G2/G4 were
   strengthened to pin the reason prefix and the audit re-ran clean.
+
+## Follow-up round — review findings on the format-canonical basis
+
+The review of PR #1700 accepted the direction and flagged four boundaries
+of the new basis (1 major, 2 medium, 1 minor). Applied on top of
+`76a00027`; see `verification.md` §"Follow-up round" for the full mapping.
+
+### New red evidence (post-#1700 round, base 76a00027)
+
+Each new behavior was proved red against the pre-fix tree of this round,
+one finding at a time:
+
+- **G9 (finding 1)** — with the certifier back on `entityFileRel` alone:
+  `G9 … [E]  Expected: 'b65aa851…'  Actual: <null>` — no digest recorded
+  for the nested layout, which hands the entity straight back to the
+  mtime leg.
+- **G10 (finding 2)** — with the gate's condition back to
+  `recordedDigest != null && recordedDigest.isNotEmpty`:
+  `Expected: CertRegistryStatus:<stale>  Actual: <certified>` — the
+  digest was compared across engines, so the mismatched id still counted
+  as a verdict.
+- **G12 (finding 3)** — with the catch back to `on FormatterException`:
+  `Expected: return normally  Actual: threw _TypeError:<Null check
+  operator used on a null value>` — the formatter's failure escaped the
+  helper and the preflight.
+
+### Green evidence (this round)
+
+- Both spec suites (`+7` gate, `+8` receipt):
+  → `00:07 +15: All tests passed!`
+- Mapped scope (the certification dir, `cert_registry_test.dart`, both
+  `spec_1693_*` wiring pins, `test/engine/mock_certifier_test.dart`):
+  → `00:20 +59: All tests passed!`
+- `dart analyze` on `lib/src/plugins/mock/certification` +
+  `test/plugins/mock/certification` → `No issues found!`
+- `dart format --set-exit-if-changed lib test` → `0 changed`, exit 0.
+- Mutation audit re-run on the moved whitelist (see `verification.md`
+  §3): `Total tests: 19, Undetected Mutations: 0 (0.00%), Success: true`
+  — the identity-check mutants are killed by G1/G5 on one side and G10
+  on the other.
+- The `canonicalizerId` probe source is a `const` in the same file as the
+  helper, so it cannot ship unparseable without failing every suite above.
 
 ## Guard pins (pre-existing, unchanged and green against the fix)
 

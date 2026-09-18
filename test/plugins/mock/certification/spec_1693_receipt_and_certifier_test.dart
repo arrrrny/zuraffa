@@ -7,11 +7,18 @@
 //
 //   - `MockCertReceipt.entityDigest` — the recorded format-canonical
 //     entity digest, JSON `entity_digest`, omitted for receipts without
-//     one (pre-1693 byte stability);
+//     one (pre-1693 byte stability), plus `entityDigestStyle` — the
+//     canonicalizer identity the gate matches before trusting it
+//     (JSON `entity_digest_style`);
 //   - `MockCertifier.certify` — records the digest of the entity source
 //     it certified (computed through the lib-side
-//     `formatCanonicalDigest` helper), for both entry points
-//     (`mock create --certify` and `mock certify` share `certify`).
+//     `formatCanonicalDigest` helper) and resolves that source through
+//     `CertRegistry.locateEntityFile`, the SAME resolver the gate reads
+//     with, for both entry points (`mock create --certify` and
+//     `mock certify` share `certify`);
+//   - `format_canonical_digest.dart` — the helper itself is TOTAL (a
+//     `dart_style` failure of any type reads as "no digest") and accepts
+//     a null file, so the recording call site stays one expression.
 //
 // The certifier's sandbox is stubbed (green run, no toolchain
 // subprocess) — the sandbox itself is not this spec's surface.
@@ -22,6 +29,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/plugins/mock/certification/cert_registry.dart';
 import 'package:zuraffa/src/plugins/mock/certification/format_canonical_digest.dart';
 import 'package:zuraffa/src/plugins/mock/certification/mock_cert_receipt.dart';
 import 'package:zuraffa/src/plugins/mock/certification/mock_certification_sandbox.dart';
@@ -67,6 +75,34 @@ class Login {
   const Login({required this.id, required this.username});
 }
 ''';
+
+  /// Format-only drift (the phase-2 `dart format lib/` shape): same AST,
+  /// different bytes.
+  const formatDriftedSource =
+      'class Login {\n'
+      '   final String id;\n'
+      '      final String username;\n'
+      '  const Login({required this.id,   required this.username});\n'
+      '}';
+
+  /// A real semantic edit after certification: a new field.
+  const semanticDriftSource = '''
+class Login {
+  final String id;
+  final String username;
+  final String email;
+  const Login({required this.id, required this.username});
+}
+''';
+
+  /// The non-canonical entity path the gate's resolver tolerates.
+  const nestedEntityRel = 'lib/src/domain/entities/nested/login.dart';
+
+  void writeNestedEntity(String source) {
+    File(p.join(projectRoot, nestedEntityRel))
+      ..createSync(recursive: true)
+      ..writeAsStringSync(source);
+  }
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('zfa_1693_receipt_');
@@ -139,6 +175,7 @@ abstract interface class LoginDataSource {
         entityDigest:
             'cafebabecafebabecafebabecafebabecafebabecafebabe'
             'cafebabecafebabe',
+        entityDigestStyle: canonicalizerId,
         methods: const [MapEntry('get', true)],
         sandbox: const {'runner': 'dart'},
         seed: 42,
@@ -153,6 +190,13 @@ abstract interface class LoginDataSource {
         reason:
             'the gate compares the RECORDED digest — it must survive '
             'the disk roundtrip',
+      );
+      expect(
+        restored.entityDigestStyle,
+        canonicalizerId,
+        reason:
+            'the gate trusts the digest only under the canonicalizer '
+            'that recorded it, so the identity must roundtrip too',
       );
     });
 
@@ -172,9 +216,17 @@ abstract interface class LoginDataSource {
       );
 
       expect(receipt.toJson().containsKey('entity_digest'), isFalse);
+      expect(
+        receipt.toJson().containsKey('entity_digest_style'),
+        isFalse,
+        reason:
+            'the canonicalizer identity is meaningless without the '
+            'digest it produced — a legacy receipt must not grow a key',
+      );
       // And a pre-1693 receipt on disk still parses, digest-less.
       final legacy = MockCertReceipt.fromJson(receipt.toJson());
       expect(legacy!.entityDigest, isNull);
+      expect(legacy.entityDigestStyle, isNull);
     });
 
     test('G7: fromRun records the digest when given, omits when null', () {
@@ -197,8 +249,10 @@ abstract interface class LoginDataSource {
         ),
         methodNames: const ['get'],
         entityDigest: 'f00dfeed',
+        entityDigestStyle: 'dart_style/9.9.9/probe',
       );
       expect(withDigest.entityDigest, 'f00dfeed');
+      expect(withDigest.entityDigestStyle, 'dart_style/9.9.9/probe');
 
       final withoutDigest = MockCertReceipt.fromRun(
         entity: 'Login',
@@ -220,6 +274,53 @@ abstract interface class LoginDataSource {
         methodNames: const ['get'],
       );
       expect(withoutDigest.entityDigest, isNull);
+      expect(withoutDigest.entityDigestStyle, isNull);
+    });
+  });
+
+  group('the canonical digest helper (spec 1693, total and null-safe)', () {
+    /// A source on which `DartFormatter.format` fails with something OTHER
+    /// than `FormatterException` (a `_TypeError` from dart_style's own
+    /// null check, found by fuzzing 3.1.13). The freshness leg used to be
+    /// an mtime compare that could not throw; now that it runs the
+    /// formatter, a failure like this must still produce a verdict.
+    const crashingSource = 'const final => > mixin M b < < @A < void } ';
+
+    test('G12: a formatter failure that is NOT a FormatterException yields '
+        'null instead of escaping as a crash', () {
+      // Pre-fix this threw out of the helper, out of
+      // `CertRegistry.checkEntity`, and out of the whole `zfa tdd run`
+      // preflight — a formatter stack trace where the gate promises a
+      // verdict and its fix command.
+      expect(
+        () => formatCanonicalDigest(crashingSource),
+        returnsNormally,
+        reason: 'a freshness verdict must never become an exception',
+      );
+      expect(formatCanonicalDigest(crashingSource), isNull);
+      // The ordinary unparseable case keeps the same reading.
+      expect(formatCanonicalDigest('class A {'), isNull);
+    });
+
+    test('G12b: a null (unresolved) entity file yields null, not a throw — '
+        'the call site stays a one-expression digest', () {
+      expect(formatCanonicalDigestOfFile(null), isNull);
+      expect(
+        formatCanonicalDigestOfFile(
+          File(
+            p.join(
+              projectRoot,
+              'lib',
+              'src',
+              'domain',
+              'entities',
+              'nope',
+              'nope.dart',
+            ),
+          ),
+        ),
+        isNull,
+      );
     });
   });
 
@@ -258,6 +359,78 @@ abstract interface class LoginDataSource {
           jsonDecode(receiptFile.single.readAsStringSync())
               as Map<String, dynamic>;
       expect(doc['entity_digest'], receipt.entityDigest);
+      expect(
+        doc['entity_digest_style'],
+        canonicalizerId,
+        reason:
+            'the gate only trusts the digest under the canonicalizer '
+            'that recorded it — the receipt must name it',
+      );
+    });
+
+    test('G9: an entity OUTSIDE the canonical layout still gets a digest, '
+        'and the gate compares against that same file', () async {
+      // The canonical `<entities>/<snake>/<snake>.dart` path is gone; the
+      // entity lives one directory deeper, which the gate's resolver has
+      // always tolerated. Recording through `entityFileRel` alone would
+      // find nothing here, write a digest-less receipt, and hand the
+      // entity back to the mtime leg — the #1693 re-certification for
+      // exactly the layout the gate accepts.
+      File(
+        p.join(projectRoot, CertRegistry.entityFileRel('Login')),
+      ).deleteSync();
+      writeNestedEntity(certifiedSource);
+
+      final certifier = MockCertifier(sandbox: _GreenSandbox());
+      final outcome = await certifier.certify(
+        entityName: 'Login',
+        projectRoot: projectRoot,
+        outputDir: outputDir,
+      );
+
+      expect(outcome.certified, isTrue, reason: outcome.logs.join('\n'));
+      expect(
+        outcome.receipt!.entityDigest,
+        formatCanonicalDigest(certifiedSource),
+        reason:
+            'the recording side must resolve the entity the same way '
+            'the comparing side does',
+      );
+      expect(outcome.receipt!.entityDigestStyle, canonicalizerId);
+
+      // Commit the receipt the way the certifier does, then read it back
+      // through the gate with the phase-2 format pass applied: the
+      // #1693 fix must hold at the nested path, not only at the
+      // canonical one.
+      await certifier.writeContractArtifacts(
+        entityName: 'Login',
+        projectRoot: projectRoot,
+        outcome: outcome,
+      );
+      writeNestedEntity(formatDriftedSource);
+      expect(
+        CertRegistry.checkEntity(
+          entity: 'Login',
+          projectRoot: projectRoot,
+        ).status,
+        CertRegistryStatus.certified,
+        reason: 'format-only drift at the nested path is not staleness',
+      );
+
+      // …and a REAL edit at that path still refuses, which is what
+      // proves the gate resolved and compared the nested file instead of
+      // quietly skipping the freshness leg.
+      writeNestedEntity(semanticDriftSource);
+      expect(
+        CertRegistry.checkEntity(
+          entity: 'Login',
+          projectRoot: projectRoot,
+        ).status,
+        CertRegistryStatus.stale,
+        reason:
+            'the gate must compare the file the certifier resolved — a '
+            'skipped freshness leg would certify a real edit',
+      );
     });
 
     test('G8b: certify without an entity file records NO digest '
@@ -283,6 +456,11 @@ abstract interface class LoginDataSource {
 
       expect(outcome.certified, isTrue, reason: outcome.logs.join('\n'));
       expect(outcome.receipt!.entityDigest, isNull);
+      expect(
+        outcome.receipt!.entityDigestStyle,
+        isNull,
+        reason: 'no digest, no canonicalizer identity to record',
+      );
     });
   });
 }

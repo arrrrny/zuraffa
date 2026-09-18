@@ -22,10 +22,13 @@
 ///      format-only drift (the phase-2 refactor's `dart format lib/`,
 ///      spec 1652) hashes equal and never forces a second sandbox
 ///      certification, while a real edit hashes differently and is
-///      stale. A receipt without the recorded digest (pre-1693) keeps
-///      the mtime comparison: a receipt older than the entity it
-///      certifies is stale — the certification no longer describes the
-///      entity on disk.
+///      stale. The digest counts only under the canonicalizer that
+///      recorded it (`entity_digest_style` vs [canonicalizerId]) — a
+///      `dart_style` bump must not turn the whole project stale. A
+///      receipt without the recorded digest (pre-1693), or one whose
+///      canonicalizer differs, keeps the mtime comparison: a receipt
+///      older than the entity it certifies is stale — the certification
+///      no longer describes the entity on disk.
 ///
 /// Every blocked status carries the exact fix command
 /// (`zfa mock create <Entity> --certify`) so the refusal receipt
@@ -62,10 +65,11 @@ enum CertRegistryStatus {
 
   /// The receipt exists but does not describe the entity source any
   /// more — the certified surface changed. With a recorded
-  /// format-canonical digest (spec 1693) that means the CURRENT source
-  /// canonicalizes differently (a real edit, or a source that no longer
-  /// parses); without one it means the entity file's mtime postdates
-  /// the receipt (the pre-1693 semantics).
+  /// format-canonical digest (spec 1693) whose canonicalizer matches the
+  /// running one that means the CURRENT source canonicalizes differently
+  /// (a real edit, or a source that no longer parses); otherwise it
+  /// means the entity file's mtime postdates the receipt (the pre-1693
+  /// semantics).
   stale,
 }
 
@@ -202,10 +206,21 @@ class CertRegistry {
     //    the mtime comparison. The entity file missing (moved/never
     //    generated) is not decidable — the receipt stands as the last
     //    honest certification.
-    final entityFile = _locateEntityFile(projectRoot, entity);
+    //
+    //    The digest is only trustworthy under the canonicalizer that
+    //    recorded it: `dart_style`'s byte output changes inside the
+    //    caret range (`^3.1.13`), so comparing across a formatter bump
+    //    would read every receipt in the project as drift at once. A
+    //    receipt recorded by a different (or unnamed) canonicalizer
+    //    takes the mtime leg — the pre-1693 semantics — instead.
+    final entityFile = locateEntityFile(projectRoot, entity);
     if (entityFile != null) {
       final recordedDigest = receipt.entityDigest;
-      if (recordedDigest != null && recordedDigest.isNotEmpty) {
+      final digestTrusted =
+          recordedDigest != null &&
+          recordedDigest.isNotEmpty &&
+          receipt.entityDigestStyle == canonicalizerId;
+      if (digestTrusted) {
         final currentDigest = formatCanonicalDigestOfFile(entityFile);
         if (currentDigest != recordedDigest) {
           return CertRegistryEntry(
@@ -258,7 +273,13 @@ class CertRegistry {
   /// Canonical entity path first, then a recursive fallback under the
   /// entities root (the entity file may live at a nested path when the
   /// project config moved it — same tolerance as entity_lookup).
-  static File? _locateEntityFile(String projectRoot, String entity) {
+  ///
+  /// Shared with the certifier on purpose (spec 1693 follow-up): the
+  /// digest the RECORDING side writes and the digest the COMPARING side
+  /// reads have to cover the SAME file, or the format-canonical basis is
+  /// silently skipped for every entity outside the canonical layout and
+  /// the #1693 re-certification comes back for exactly those.
+  static File? locateEntityFile(String projectRoot, String entity) {
     final snake = StringUtils.camelToSnake(entity);
     final canonical = File(p.join(projectRoot, entityFileRel(entity)));
     if (canonical.existsSync()) return canonical;

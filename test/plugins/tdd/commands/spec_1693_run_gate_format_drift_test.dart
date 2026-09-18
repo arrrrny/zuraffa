@@ -22,6 +22,7 @@ import 'package:crypto/crypto.dart';
 import 'package:dart_style/dart_style.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/plugins/mock/certification/format_canonical_digest.dart';
 import 'package:zuraffa/src/plugins/tdd/commands/run_engine_command.dart';
 
 String canonicalDigestOf(String source) {
@@ -121,6 +122,12 @@ class UserSession {
     file.writeAsStringSync('// GENERATED - DO NOT EDIT\n');
   }
 
+  /// Writes the receipt the way the certifier does: the digest AND the
+  /// canonicalizer that produced it (`entity_digest_style`). The gate
+  /// compares a digest only under the engine that recorded it, so a
+  /// receipt naming no engine would fall back to the mtime leg — and
+  /// this preflight pin would be testing that fallback, not the #1693
+  /// fix.
   void writeReceipt(String entityDigest, {DateTime? modified}) {
     final file = File(
       p.join(
@@ -140,6 +147,7 @@ class UserSession {
         'interface': 'UserSessionDataSource',
         'contract_digest': 'abc123',
         'entity_digest': entityDigest,
+        'entity_digest_style': canonicalizerId,
         'methods': [
           {'name': 'get', 'satisfied': true},
           {'name': 'update', 'satisfied': true},

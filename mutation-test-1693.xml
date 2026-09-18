@@ -9,15 +9,23 @@
   semantic-drift tests, and a mutant that digests RAW bytes (no
   canonicalization) must be killed by the format-drift test.
 
+  The follow-up round (the review findings) added the canonicalizer
+  identity, so the freshness range covers the `digestTrusted` condition
+  and the fallback to the mtime leg; G10 kills a mutant that drops the
+  identity check. `canonicalizerId` itself is out of scope on purpose: it
+  is a value both sides read from the same source, so a character mutant
+  of it is unobservable through the gate's own behavior (a receipt is
+  always recorded with whatever the running build computes).
+
   Run:    dart run mutation_test mutation-test-1693.xml -f md -o mutation-test-1693-report
 -->
 <mutations version="1.2">
   <files>
     <file>lib/src/plugins/mock/certification/cert_registry.dart
-      <lines begin="193" end="242"/>
+      <lines begin="216" end="257"/>
     </file>
     <file>lib/src/plugins/mock/certification/format_canonical_digest.dart
-      <lines begin="38" end="58"/>
+      <lines begin="84" end="105"/>
     </file>
   </files>
   <commands>

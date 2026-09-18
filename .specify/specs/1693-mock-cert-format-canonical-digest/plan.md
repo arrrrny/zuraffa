@@ -1,10 +1,4 @@
-# Plan — 1693-mock-cert-format-canonical-digest
-
-- **Branch**: fix/1693-mock-cert-format-canonical-digest
-- **Chosen remediation**: spec §Suggested fix option 1 — the mock cert
-  digest becomes format-canonical (record + compare a `dart format`
-  digest of the entity source), leaving the phase-2 refactor and the
-  gate's semantic-drift semantics untouched.
+# Plan — 1693 mock cert digest is format-canonical
 
 ## Surfaces (all under `lib/src/plugins/mock/certification/`)
 
@@ -35,11 +29,8 @@
    digest-first:
    - receipt records an `entity_digest` → stale iff the CURRENT
      canonical digest differs (unparseable current source counts as
-     drift — it cannot be what was certified). Format-only drift →
-     same canonical bytes → fresh (SC-1); real edit → stale (SC-2).
-   - receipt WITHOUT `entity_digest` (pre-1693) → the existing mtime
-     comparison, unchanged (SC-3).
-   - library docs updated to the digest-first semantics.
+     drift);
+   - receipt without one (pre-1693) → the mtime comparison, unchanged.
 
 ## Why not the other options
 
@@ -79,3 +70,28 @@ Guard pins (pre-existing suites that must stay green, unmodified):
 - New suite + guard suites: all pass.
 - `dart format .`: zero remaining diffs.
 - Semantic-drift case re-run explicitly (spec §4 step 5): still refuses.
+
+## Follow-up round — PR #1700 review findings
+
+The review accepted the direction and flagged four boundaries of the
+basis. The plan surfaces above are amended as follows; the reasoning is
+recorded in `tdd/verification.md` §7 and the per-behavior rows are in
+`tdd/test-list.md`.
+
+- **Surface 1** — the helper is now TOTAL (`catch (_)`, not
+  `on FormatterException`): a `dart_style` failure of any type reads as
+  "cannot be canonicalized" rather than escaping the preflight as a
+  crash. `formatCanonicalDigestOfFile` takes a nullable `File?`. A new
+  `canonicalizerId` — `DartFormatter.latestLanguageVersion` plus a
+  fingerprint of the running formatter's output on a fixed probe —
+  identifies the engine that produced a digest.
+- **Surface 2** — the receipt also carries `entityDigestStyle` (JSON
+  `entity_digest_style`), emitted only alongside a digest.
+- **Surface 3** — the certifier resolves the entity through
+  `CertRegistry.locateEntityFile` (the gate's own resolver, promoted
+  from `_locateEntityFile`), so recording and comparing always cover the
+  same file, canonical layout or not.
+- **Surface 4** — the digest is trusted only when the receipt's
+  `entity_digest_style` equals the running `canonicalizerId`; otherwise
+  the leg falls back to the pre-1693 mtime comparison, so a `dart_style`
+  bump cannot flip the whole project `stale` at once.

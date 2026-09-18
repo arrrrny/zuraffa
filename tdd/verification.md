@@ -1,7 +1,9 @@
 # Verification — 1693-mock-cert-format-canonical-digest
 
 - **Date**: 2026-09-18 (this session, from the actual runs below — no
-  content copied from an earlier spec's file)
+  content copied from an earlier spec's file); **follow-up round** added
+  the same day on top of `76a00027` for the PR #1700 review findings
+  (§7)
 - **Branch**: `fix/1693-mock-cert-format-canonical-digest` (working tree,
   pre-push; base `a9329746`)
 - **Toolchain**: Dart 3.13.4 (stable) on linux_x64 (the task's "Dart
@@ -27,7 +29,7 @@
 | SC-1 | format-only drift after certification → `certified`, no second certification | PASS | G1 (red→green) + W1; the pre-fix tree refused both (behavioral red captured) |
 | SC-2 | a real entity edit after certification still refuses as `stale` | PASS | G2 + W2 (blocked entity, stale reason, exact fix command); G5 additionally proves the digest overrides a lying-fresh mtime |
 | SC-3 | pre-1693 receipts keep the mtime freshness semantics | PASS | G4/G4b (both directions) + the untouched spec-1110 suite `cert_registry_test.dart` 9/9 |
-| SC-4 | the certifier records the format-canonical digest for both entry points; JSON omits the field when absent | PASS | G6/G7/G8/G8b — both CLI entry points (`mock create --certify`, `mock certify`) flow through the single changed `certify()` choke point; legacy receipts stay byte-stable |
+| SC-4 | the certifier records the format-canonical digest for both entry points; JSON omits the field when absent | PASS | G6/G6b/G7/G8/G8b — both CLI entry points (`mock create --certify`, `mock certify`) flow through the single changed `certify()` choke point; legacy receipts stay byte-stable, and the digest's canonicalizer identity is recorded beside it (review finding 2) |
 | SC-5 | existing suites stay green; analyze clean; format clean | PASS | guard suites below; `dart analyze` on all 7 touched files: `No issues found!`; `dart format --set-exit-if-changed .` exit 0 |
 
 ## 1. Red → green (this session, base a9329746)
@@ -62,10 +64,13 @@ stale) still refuses. All three ran green in this session.
 
 `dart run mutation_test mutation-test-1693.xml -f md -o
 mutation-test-1693-report` — scoped by line whitelist to the spec-1693
-freshness block of `cert_registry.dart` (lines 193–242) and the digest
-seam `format_canonical_digest.dart` (lines 38–58); test command
+freshness block of `cert_registry.dart` and the digest seam
+`format_canonical_digest.dart`; test command
 `bash tools/run-1693-mutation-tests.sh` (the three gate suites, `-j 1`,
 kernel-cache hygiene per the repo convention).
+
+Original round (whitelist `cert_registry.dart` 193–242,
+`format_canonical_digest.dart` 38–58):
 
 ```
 Total tests: 16
@@ -82,6 +87,29 @@ strengthened to assert the reason prefix
 (`startsWith('mock-cert.Login.json is stale:')`) — a legitimate contract
 pin (the refusal receipt and `zfa tdd status` render this string
 verbatim) — and the audit re-ran clean.
+
+Follow-up round: the whitelist moved to the new line ranges —
+`cert_registry.dart` 216–257 (the `digestTrusted` condition through the
+mtime fallback) and `format_canonical_digest.dart` 84–105 (both helper
+functions):
+
+```
+Total tests: 19
+Undetected Mutations: 0 (0.00%)
+Timeouts: 0
+Not covered by tests: 0
+Elapsed: 0:05:21.643705
+Success: true
+```
+
+The new mutants of the identity check (`&&` → `||`, `==` → `!=` on
+`entityDigestStyle`, and the whole `digestTrusted` condition) are killed
+by G1/G5 on one side and G10 on the other. `canonicalizerId` is
+deliberately OUTSIDE the whitelist: both sides read it from the same
+source, so a character mutant of it is unobservable through the gate's
+own behavior (a receipt is always recorded with whatever the running
+build computes) — the honest scope is the consumer of the value, not the
+value itself.
 
 ## 4. Gates
 
@@ -125,3 +153,57 @@ minimal and honest.
    dependency); no toolchain subprocess was added to cert or gate, so
    the Flutter-host path (spec 1600's `flutterTest` sandbox) is
    untouched and the recorded digest is toolchain-independent.
+
+## 7. Follow-up round — PR #1700 review findings (base 76a00027)
+
+The review accepted the direction and flagged four boundaries of the new
+basis. All four were verified against the head code before fixing; none
+was stale. One behavior per finding, each proved red against the pre-fix
+tree of this round before the fix landed.
+
+| # | finding | fix | test | red evidence |
+| - | ------- | --- | ---- | ------------ |
+| 1 | 🟠 the recording side (`entityFileRel`) and the comparing side (`_locateEntityFile`) resolved the entity differently, so the format-canonical basis was silently skipped outside the canonical layout | `CertRegistry._locateEntityFile` → public `locateEntityFile`, now also used by `MockCertifier.certify`; `formatCanonicalDigestOfFile` takes a nullable `File?` so the call site stays one expression | G9, G12b | with the certifier back on `entityFileRel`: `Expected: 'b65aa851…'  Actual: <null>` |
+| 2 | 🟡 the recorded digest was byte-coupled to the resolved `dart_style`, so one `dart pub upgrade` that changes formatter output would turn every receipt in the project `stale` at once | `MockCertReceipt.entityDigestStyle` (JSON `entity_digest_style`) records `canonicalizerId`; the gate trusts the digest only when the recorded id matches, else it takes the pre-1693 mtime leg | G10, G6/G7/G8 | with the old condition (`recordedDigest != null && isNotEmpty`): `Expected: <stale>  Actual: <certified>` |
+| 3 | 🟡 only `FormatterException` was normalized to `null`; any other `dart_style` failure escaped the gate as a crash | the helper's catch is total — `catch (_)`, the file's own defensive convention | G12 | with `on FormatterException`: `Expected: return normally  Actual: threw _TypeError:<Null check operator used on a null value>` |
+| 4 | 🔵 `G6b` was asserted by the suite but had no row in `tdd/test-list.md`, and was missing from the SC-4 row here | the row is added above, and this SC-4 row now names `G6b` | — | bookkeeping |
+
+Notes on the chosen identity for finding 2: the review suggested the
+resolved `dart_style` version / `DartFormatter.latestLanguageVersion`.
+The language version alone does **not** identify the engine — 3.1.10
+pinned `latestLanguageVersion` at 3.13.0 and 3.1.11–3.1.13 changed the
+emitted bytes anyway (3.1.13's enum trailing comma is explicitly "not
+language versioned"), so `canonicalizerId` carries
+`DartFormatter.latestLanguageVersion` **plus** a fingerprint of the
+running formatter's output on a fixed probe. Two builds produce the same
+id iff their bytes match.
+
+Consequence worth stating plainly: the mtime fallback is the requested
+semantics, so after a formatter bump a *reformatted* entity still reads
+`stale` and re-certifies once. What the identity removes is the
+project-wide simultaneous flip from a bare dependency bump — the mass
+re-certification the finding is about. G10 pins both halves.
+
+### Gates (this round)
+
+- `dart analyze` on `lib/src/plugins/mock/certification` +
+  `test/plugins/mock/certification` → `No issues found!`
+- both spec suites → `00:07 +15: All tests passed!`
+- mapped scope (`test/plugins/mock/certification/`,
+  `test/plugins/mock/cert_registry_test.dart`, the two
+  `spec_1693_run_gate_format_drift_test.dart` wiring pins,
+  `test/engine/mock_certifier_test.dart`) →
+  `00:20 +59: All tests passed!`
+- adjacent sweep (`run_engine_command_test.dart` + `test/engine/`) →
+  `00:31 +57: All tests passed!`; `test/plugins/slice/` →
+  `01:03 +120: All tests passed!`
+- `dart format --set-exit-if-changed lib test` → `0 changed`, exit 0
+- mutation audit on the moved whitelist → `Total tests: 19`,
+  `Undetected Mutations: 0 (0.00%)`, `Success: true` (§3)
+
+One wiring pin (`W1`) needed a change that is a consequence of finding 2,
+not a fix workaround: it hand-wrote a receipt carrying `entity_digest`
+with no `entity_digest_style`, which the gate now correctly reads through
+the mtime leg. It writes the identity the certifier records
+(`canonicalizerId`), so the pin tests the #1693 fix rather than the
+fallback.

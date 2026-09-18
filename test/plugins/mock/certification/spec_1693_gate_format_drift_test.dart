@@ -9,12 +9,20 @@
 // scale).
 //
 // The receipt records a FORMAT-CANONICAL digest of the entity source
-// (SHA-256 over `dart format` output — spec 1693). This file drives the
-// GATE half with hand-written receipt JSON so the behavioral red is
-// observable against the PRE-FIX tree: pre-fix, the gate ignores the
-// recorded digest and reads mtime → G1 and G5 fail for exactly the
-// issue's reason. The receipt-model/certifier half lives in
+// (SHA-256 over `dart format` output — spec 1693) together with the id
+// of the canonicalizer that produced it. This file drives the GATE half
+// with hand-written receipt JSON so the behavioral red is observable
+// against the PRE-FIX tree: pre-fix, the gate ignores the recorded
+// digest and reads mtime → G1 and G5 fail for exactly the issue's
+// reason. The receipt-model/certifier half lives in
 // spec_1693_receipt_and_certifier_test.dart (the new seam).
+//
+// `canonicalDigestOf` is mirrored here (not imported) so the original
+// gate red runs against a tree that does not export the helper yet — the
+// certifier test pins that the lib-side helper computes the SAME digest.
+// `canonicalizerId` IS imported: it is the value the gate compares the
+// receipt's `entity_digest_style` against, so a mirror would test the
+// mirror instead of the contract.
 library;
 
 import 'dart:convert';
@@ -25,6 +33,7 @@ import 'package:dart_style/dart_style.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/mock/certification/cert_registry.dart';
+import 'package:zuraffa/src/plugins/mock/certification/format_canonical_digest.dart';
 
 /// The canonical digest the certifier records at certification time:
 /// SHA-256 over the entity source's `dart format` output. Mirrored here
@@ -118,15 +127,25 @@ class Login {
     file.writeAsStringSync('// GENERATED - DO NOT EDIT\n');
   }
 
+  /// Writes the receipt. A digest is recorded WITH the running
+  /// canonicalizer's id by default ([canonicalizerId]) — pass
+  /// [entityDigestStyle] to record another engine's, or
+  /// [recordStyle] = false for a digest that names no canonicalizer at
+  /// all (the pre-fix shape).
   void writeReceipt({
     bool allSatisfied = true,
     String? entityDigest,
+    String? entityDigestStyle,
+    bool recordStyle = true,
     DateTime? modified,
   }) {
     final file = File(
       p.join(projectRoot, 'test', 'mock', 'login', 'mock-cert.Login.json'),
     );
     file.createSync(recursive: true);
+    final style = entityDigest == null || !recordStyle
+        ? null
+        : (entityDigestStyle ?? canonicalizerId);
     file.writeAsStringSync(
       const JsonEncoder.withIndent('  ').convert({
         'schema': 1,
@@ -135,6 +154,7 @@ class Login {
         'interface': 'LoginDataSource',
         'contract_digest': 'abc123',
         'entity_digest': ?entityDigest,
+        'entity_digest_style': ?style,
         'methods': [
           {'name': 'get', 'satisfied': allSatisfied},
           {'name': 'update', 'satisfied': allSatisfied},
@@ -288,6 +308,67 @@ class Login {
 
       expect(entry.blocked, isTrue, reason: entry.reason);
       expect(entry.status, CertRegistryStatus.stale);
+    });
+
+    test('G10: a digest is trusted only under the canonicalizer that '
+        'recorded it — a `dart_style` bump falls back to the mtime leg '
+        'instead of turning the whole project stale', () {
+      // A `dart pub upgrade` moved dart_style across a style change. The
+      // entity itself was NOT touched, so under the pre-1693 mtime leg
+      // the receipt is still fresh: the unrelated bump must not flip
+      // every receipt in the project to `stale` and re-certify all of
+      // them — the very cost #1693 removes. Pre-fix this passed for the
+      // wrong reason (the digest was compared across engines); the
+      // second half is what tells the two apart.
+      void certifyUnder(String? style, {required bool recordStyle}) {
+        writeEntity(certifiedSource, modified: certifiedAt);
+        writeMockDatasource();
+        writeReceipt(
+          entityDigest: canonicalDigestOf(certifiedSource),
+          entityDigestStyle: style,
+          recordStyle: recordStyle,
+          modified: certifiedAt,
+        );
+      }
+
+      void expectStatus(CertRegistryStatus status, String why) {
+        expect(
+          CertRegistry.checkEntity(
+            entity: 'Login',
+            projectRoot: projectRoot,
+          ).status,
+          status,
+          reason: why,
+        );
+      }
+
+      // (a) another engine's id, (b) a digest that names no engine at all
+      // — a receipt written before the identity was recorded.
+      certifyUnder(
+        'dart_style/1.0.0/probe-of-another-engine',
+        recordStyle: true,
+      );
+      expectStatus(
+        CertRegistryStatus.certified,
+        'a bare dependency bump is not drift',
+      );
+
+      certifyUnder(null, recordStyle: false);
+      expectStatus(
+        CertRegistryStatus.certified,
+        'an unidentifiable digest must not be compared either',
+      );
+
+      // The fallback is the full pre-1693 mtime semantics, not a waiver:
+      // once the phase-2 `dart format` really rewrites the entity, the
+      // mtime leg refuses. The unrecognized digest's "format-only"
+      // verdict is NOT consulted — an engine that did not produce these
+      // bytes cannot vouch for them.
+      writeEntity(formatDriftedSource, modified: driftedAt);
+      expectStatus(
+        CertRegistryStatus.stale,
+        'an untrusted digest collapses to the mtime comparison',
+      );
     });
   });
 }

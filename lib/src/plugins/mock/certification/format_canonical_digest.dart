@@ -31,22 +31,70 @@ final DartFormatter _formatter = DartFormatter(
   languageVersion: DartFormatter.latestLanguageVersion,
 );
 
+/// The probe [canonicalizerId] fingerprints the running formatter with.
+/// It has to be valid at every language version the formatter supports
+/// and wide enough to exercise the surfaces a patch-level `dart_style`
+/// bump has changed before: a class with fields and a constructor, an
+/// enum's value list, and a collection literal.
+const _canonicalizerProbe = '''
+class Probe {
+  final String alpha;
+  final String beta;
+  const Probe({required this.alpha, required this.beta});
+  List<String> get items => [alpha, beta];
+}
+
+enum ProbeEnum { alpha, beta, gamma }
+''';
+
+/// The identity of the canonicalizer the digests are computed with,
+/// recorded next to every digest (spec 1693 follow-up, issue #1693).
+///
+/// The canonical form IS the resolved `dart_style` engine's byte
+/// output, and `pubspec.yaml` asks for `^3.1.13`, so each consumer
+/// resolves its own patch level — one that changes what the formatter
+/// emits. The language version does not track that: 3.1.10 pinned
+/// `DartFormatter.latestLanguageVersion` at 3.13.0 and 3.1.11–3.1.13
+/// kept changing the output anyway (3.1.13's enum trailing comma,
+/// #1888, is explicitly "not language versioned"). A version string
+/// alone would therefore leave the receipt digest silently coupled to
+/// an engine it cannot name, and one `dart pub upgrade` would flip
+/// every receipt in the project `stale` at once.
+///
+/// So the id carries a fingerprint of the running formatter's output on
+/// a fixed probe: two runs produce the same id iff their bytes match.
+/// The cert gate trusts a recorded digest only when the receipt's
+/// recorded id equals this one — a different engine takes the pre-1693
+/// mtime leg instead of a project-wide re-certification.
+final String canonicalizerId =
+    'dart_style/${DartFormatter.latestLanguageVersion}/'
+    '${sha256.convert(utf8.encode(_formatter.format(_canonicalizerProbe)))}';
+
 /// SHA-256 of the format-canonical form of [source]; null when [source]
-/// does not parse. A source that cannot parse cannot be canonicalized —
-/// callers decide what that means (the cert gate reads it as drift,
-/// because it cannot be what was certified).
+/// cannot be canonicalized. Callers decide what that means — the cert
+/// gate reads it as drift, because it cannot be what was certified, and
+/// a legacy receipt falls back to its mtime leg.
+///
+/// The failure is TOTAL on purpose: `DartFormatter.format` throws more
+/// than [FormatterException] on legal input (3.1.13's changelog records
+/// a crash on an enum with a primary constructor, #1885), and a
+/// freshness verdict must never turn into an exception out of the
+/// preflight — the operator would get a formatter stack trace where the
+/// gate promises a `certified`/`stale` verdict and its fix command.
 String? formatCanonicalDigest(String source) {
   try {
     final formatted = _formatter.format(source);
     return sha256.convert(utf8.encode(formatted)).toString();
-  } on FormatterException {
+  } catch (_) {
     return null;
   }
 }
 
-/// [formatCanonicalDigest] over the bytes of [file]; null when the file
-/// cannot be read (or its content does not parse).
-String? formatCanonicalDigestOfFile(File file) {
+/// [formatCanonicalDigest] over the bytes of [file]; null when [file] is
+/// null (the entity was not found) or cannot be read (or its content
+/// cannot be canonicalized).
+String? formatCanonicalDigestOfFile(File? file) {
+  if (file == null) return null;
   String source;
   try {
     source = file.readAsStringSync();
