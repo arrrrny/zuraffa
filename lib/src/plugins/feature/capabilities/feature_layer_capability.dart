@@ -5,38 +5,45 @@ import '../../../config/zfa_config.dart';
 import '../../../core/plugin_system/plugin_manager.dart';
 import '../../../core/plugin_system/plugin_registry.dart';
 
-/// Issue #1149 (kill list — fix list): ONE parameterized capability that
-/// replaces the EIGHT copy-pasted `XxxFeatureCapability` classes
+/// ONE parameterized capability that replaces the EIGHT copy-pasted
+/// `XxxFeatureCapability` classes
 /// (di / view / presenter / controller / route / state / mock / test).
 ///
 /// The clones were line-for-line identical apart from the plugin id, the
 /// description and (for `di`) mapping the `mock` argument onto the
 /// `use-mock` context key. This class carries the shared body once; the
-/// MCP-visible capability NAME stays the plugin id, so the external
+/// MCP-visible capability NAME stays the layer id, so the external
 /// contract is unchanged.
-class PluginFeatureCapability implements ZuraffaCapability {
+///
+/// Originally landed as `PluginFeatureCapability(pluginId:)` via the
+/// #1149 kill list; spec 1023 renames the contract to
+/// `FeatureLayerCapability(layer:)` — a pure rename with zero behavior
+/// change — and registers the layer matrix in the plugin manifest
+/// (`FeaturePlugin._layerMatrix`).
+class FeatureLayerCapability implements ZuraffaCapability {
   final FeaturePlugin plugin;
 
   @override
   final String description;
 
-  /// The downstream generator plugin to run (also the capability name).
-  final String pluginId;
+  /// The feature layer served by this capability: the downstream generator
+  /// plugin to run (also the MCP-visible capability name).
+  final String layer;
 
   /// Whether the `mock` argument is additionally mirrored onto the
   /// `use-mock` context key (only the `di` clone did this — mock
   /// datasource selection inside DI registration).
   final bool mapsMockArgToUseMock;
 
-  PluginFeatureCapability(
+  FeatureLayerCapability(
     this.plugin, {
-    required this.pluginId,
+    required this.layer,
     required this.description,
     this.mapsMockArgToUseMock = false,
   });
 
   @override
-  String get name => pluginId;
+  String get name => layer;
 
   @override
   JsonSchema get inputSchema => {
@@ -119,7 +126,7 @@ class PluginFeatureCapability implements ZuraffaCapability {
     );
 
     final activePlugins = manager.resolveActivePlugins(
-      explicitPluginIds: [pluginId],
+      explicitPluginIds: [layer],
       argResults: null,
     );
 
