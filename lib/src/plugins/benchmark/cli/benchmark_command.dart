@@ -445,11 +445,26 @@ run options:
     // compare exited 0 when the current run errored).
     if (current.status != BenchmarkStatus.passed) {
       final error = current.metadata['error'];
-      print(
-        'Current run for $scenarioId did not pass '
-        '(${current.status.name})'
-        '${error != null ? ': $error' : ''}',
-      );
+      if (results['json'] as bool) {
+        // SPEC 1132 / EPIC 1 lane 2: a run that errored or failed is still
+        // a verdict — `--json` must not fall back to prose here, or a
+        // machine consumer keeps a special case for this one surface.
+        VerdictEnvelope.emit(
+          VerdictEnvelope(
+            command: 'zfa benchmark baseline compare',
+            verdict: VerdictKind.fail,
+            exitClass: ExitProtocol.failure,
+            subject: VerdictSubject(kind: 'benchmark', id: scenarioId),
+            details: {'status': current.status.name, 'error': ?error},
+          ),
+        );
+      } else {
+        print(
+          'Current run for $scenarioId did not pass '
+          '(${current.status.name})'
+          '${error != null ? ': $error' : ''}',
+        );
+      }
       exitCode = 1;
       return;
     }

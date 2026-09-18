@@ -239,8 +239,10 @@ class CapabilityCommand extends Command<void> {
         // mode refusal emits the ONE canonical the canonical verdict schema
         // envelope (verdict `error`, exit class 2) — the legacy
         // `{"schema":1,...}` shape left the canonical parser
-        // (`VerdictEnvelope.fromJson`) throwing. Human output stays
-        // above the envelope, which is the LAST stdout line.
+        // (`VerdictEnvelope.fromJson`) throwing. The envelope is the ONLY
+        // thing on stdout in machine mode (#778 single-object convention,
+        // as `provider verify --json` and `benchmark list --json` keep);
+        // the prose refusal is human mode only.
         final fixFlags = missing
             .map((key) {
               final flag = key.contains('-')
@@ -253,8 +255,6 @@ class CapabilityCommand extends Command<void> {
         final fix = 'zfa $commandPath $fixFlags';
         final machineMode = argResults?['json'] != null;
         if (machineMode) {
-          print('❌ Error: Missing required arguments: ${missing.join(', ')}');
-          print('   --> fix: $fix');
           VerdictEnvelope.emit(
             VerdictEnvelope(
               command: 'zfa $commandPath',

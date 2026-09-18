@@ -104,5 +104,50 @@ void main() {
         expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
       },
     );
+
+    test(
+      '`zfa plugin add` with no package exits usage 2, in-process',
+      () async {
+        final out = await drive(['plugin', 'add']);
+
+        expect(out, contains('Missing package name'));
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          ExitProtocol.usage,
+          reason:
+              'missing package name is a usage refusal (SPEC 917) and the '
+              'dispatch RETURNED (pre-fix: hard exit(1)).\nstdout:\n$out',
+        );
+      },
+    );
+
+    test(
+      '`zfa plugin add <pkg>` without lib/main.dart exits 1, in-process',
+      () async {
+        final out = await drive(['plugin', 'add', 'zuraffa_feature_example']);
+
+        expect(out, contains('lib/main.dart not found'));
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          ExitProtocol.failure,
+          reason:
+              'the missing-main refusal returns via exitCode (pre-fix: '
+              'hard exit(1)).\nstdout:\n$out',
+        );
+      },
+    );
+
+    test('`zfa plugin mcp` with an invalid flag exits 1, in-process', () async {
+      final out = await drive(['plugin', 'mcp', '--not-a-flag']);
+
+      expect(out, contains('Invalid mcp scaffold arguments'));
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        ExitProtocol.failure,
+        reason:
+            'the invalid-arguments refusal returns via exitCode '
+            '(pre-fix: hard exit(1)).\nstdout:\n$out',
+      );
+    });
   });
 }

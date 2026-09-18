@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/cli/exit_protocol.dart';
+import 'package:zuraffa/src/core/benchmark/baseline_store.dart';
 import 'package:zuraffa/src/core/verdict_envelope.dart';
 
 /// SPEC 1132 / EPIC 1 lane 2 — the verdict-envelope unification's backlog
@@ -145,7 +146,7 @@ environment:
       },
     );
 
-    test('baseline compare emits the canonical envelope', () async {
+    test('baseline compare emits the canonical envelope (pass)', () async {
       // Seed a baseline with a real save run (the string-utils-casing
       // scenario is pure Dart — fast, no Flutter, no network).
       final saveOut = await drive([
@@ -162,6 +163,9 @@ environment:
         reason: 'the fixture save must succeed:\n$saveOut',
       );
 
+      // A same-tree re-run jitters, so pin the comparison into the stable
+      // band with a tolerance no real spread can exceed — otherwise this
+      // test flakes into the `regressed` branch it is not pinning.
       final out = await drive([
         'benchmark',
         'baseline',
@@ -169,6 +173,8 @@ environment:
         'string-utils-casing',
         '--baseline',
         'fixture-base',
+        '--tolerance',
+        '1000000',
         '--json',
       ]);
 
@@ -181,13 +187,64 @@ environment:
             'canonical envelope (issue #1105 backlog emitter).\n'
             'stdout:\n$out',
       );
-      expect(envelope!.verdict, anyOf(VerdictKind.pass, VerdictKind.fail));
+      expect(envelope!.verdict, VerdictKind.pass);
+      expect(envelope.exitClass, ExitProtocol.success);
+      final comparison = envelope.details['comparison'];
       expect(
-        envelope.details.containsKey('comparison') ||
-            envelope.details.containsKey('changes') ||
-            envelope.details.isNotEmpty,
-        isTrue,
-        reason: 'the comparison payload rides in details',
+        comparison,
+        isA<Map<String, dynamic>>(),
+        reason: 'the comparison payload rides in details.comparison',
+      );
+      expect(
+        (comparison as Map)['overallStatus'],
+        equals('stable'),
+        reason: 'the million-percent tolerance makes `stable` the only status',
+      );
+    });
+
+    test('baseline compare emits the canonical envelope (regressed)', () async {
+      // Seed a baseline whose single metric is impossibly fast, so the
+      // real current run is a regression the envelope must report as
+      // `fail` / exit_class 1 rather than prose.
+      final store = JsonBaselineStore(
+        directory: p.join(tmp.path, 'benchmarks', 'baselines'),
+      );
+      await store.save(
+        Baseline(
+          scenarioId: 'string-utils-casing',
+          scenarioVersion: '1.0.0',
+          label: 'regressed-base',
+          metrics: const {'micros_elapsed': 1},
+          timestamp: DateTime.now(),
+        ),
+      );
+
+      final out = await drive([
+        'benchmark',
+        'baseline',
+        'compare',
+        'string-utils-casing',
+        '--baseline',
+        'regressed-base',
+        '--json',
+      ]);
+
+      final envelope = VerdictEnvelope.tryParse(out);
+      expect(
+        envelope,
+        isNotNull,
+        reason:
+            'a regressed comparison must still ship the canonical '
+            'envelope.\nstdout:\n$out',
+      );
+      expect(envelope!.verdict, VerdictKind.fail);
+      expect(envelope.exitClass, ExitProtocol.failure);
+      final comparison = envelope.details['comparison'] as Map<String, dynamic>;
+      expect(comparison['overallStatus'], equals('regressed'));
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        ExitProtocol.failure,
+        reason: 'a regressed comparison exits 1',
       );
     });
   });
