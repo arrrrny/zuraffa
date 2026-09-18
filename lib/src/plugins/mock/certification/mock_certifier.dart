@@ -18,6 +18,8 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/dependencies/dependency_wirer.dart';
 import '../../../utils/string_utils.dart';
+import 'cert_registry.dart';
+import 'format_canonical_digest.dart';
 import 'mock_cert_receipt.dart';
 import 'mock_certification_sandbox.dart';
 import 'mock_contract_test_writer.dart';
@@ -244,6 +246,19 @@ class MockCertifier {
     );
     logs.addAll(run.logs);
 
+    // Spec 1693: pin the FORMAT-CANONICAL entity source digest so the
+    // cert gate compares canonical forms — the phase-2 refactor's
+    // `dart format` must not read as staleness. The file is resolved
+    // through [CertRegistry.locateEntityFile], the SAME resolver the
+    // gate reads with, so the recorded digest and the compared digest
+    // always cover the same file — including an entity the project
+    // config moved out of the canonical layout. Missing entity file
+    // (entity never generated) → no digest; the gate keeps the
+    // pre-1693 mtime semantics for this receipt.
+    final entityDigest = formatCanonicalDigestOfFile(
+      CertRegistry.locateEntityFile(projectRoot, entityName),
+    );
+
     final receipt = MockCertReceipt.fromRun(
       entity: entityName,
       interfaceName: MockContractTestWriter.interfaceName(entityName),
@@ -256,6 +271,10 @@ class MockCertifier {
       run: run,
       methodNames: pinnedMethodNames,
       seed: seed,
+      entityDigest: entityDigest,
+      // Recorded only alongside a digest: the gate ignores the identity
+      // of a canonicalizer that produced nothing.
+      entityDigestStyle: entityDigest == null ? null : canonicalizerId,
     );
 
     return MockCertificationOutcome(

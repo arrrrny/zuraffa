@@ -4,7 +4,7 @@ description: >-
   entirely through zfa CLI commands (specs/031-scaffold-todo-example).
 
 publish_to: none
-version: 6.3.0
+version: 7.0.0
 
 environment:
   sdk: ^3.11.0
@@ -15,7 +15,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   zuraffa:
     path: ../
-  zorphy_annotation: ^2.4.0
+  zorphy_annotation: ^2.4.1
   json_annotation: ^4.12.0
   hive_ce: ^2.19.0
   hive_ce_flutter: ^2.3.4

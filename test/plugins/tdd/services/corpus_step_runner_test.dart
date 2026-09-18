@@ -96,8 +96,14 @@ run: feature=f2-gap result=stopped pending=0 red=1 green=0 done=0 stopped_at=B-0
         },
         // The no-JIT seam: the source is AOT compiled before the spawn, so
         // no real `dart compile exe` and no `dart <script>` child here.
-        ensureCompiled: (candidate, {sourceRoot, runner, environment}) async =>
-            '/pkg/.dart_tool/zfa_cli_bin/zfa_exe',
+        ensureCompiled:
+            (
+              candidate, {
+              sourceRoot,
+              packagesFile,
+              runner,
+              environment,
+            }) async => '/pkg/.dart_tool/zfa_cli_bin/zfa_exe',
       );
       await runner.runFeature(feature: 'f', projectRoot: projectRoot);
       expect(spawned.first, '/pkg/.dart_tool/zfa_cli_bin/zfa_exe');

@@ -116,6 +116,7 @@ typedef ZfaEnsureCompiled =
     Future<String> Function(
       String candidate, {
       String? sourceRoot,
+      String? packagesFile,
       ZfaCompileRunner? runner,
       Map<String, String>? environment,
     });
@@ -215,6 +216,16 @@ class ZfaExecutable {
   /// therefore compiled like any other source entrypoint: no caller has to
   /// pass a parameter the flag cannot reach.
   ///
+  /// [packagesFile] anchors the compile at a CONSUMING project (issue
+  /// #1690 §2): the companion candidate's own root — for a hosted install
+  /// a pub-cache package dir with a `pubspec.yaml` but no
+  /// `.dart_tool/package_config.json` — would otherwise make `dart
+  /// compile exe` run Dart's implicit `pub get` inside the shared pub
+  /// cache and compile against a freshly-resolved graph. With
+  /// [packagesFile] the compile carries `--packages=<project config>`, the
+  /// artifact lands in the PROJECT's cache (per-project keyed), and a
+  /// rewritten package config invalidates the artifact.
+  ///
   /// [runner] replaces the real compiler (unit-test seam); [environment]
   /// replaces `Platform.environment` for both the escape hatch and the
   /// issue #1187 timeout scale; [runningExecutable] stands in for
@@ -225,6 +236,7 @@ class ZfaExecutable {
   static Future<String> ensureCompiled(
     String candidate, {
     String? sourceRoot,
+    String? packagesFile,
     ZfaCompileRunner? runner,
     Map<String, String>? environment,
     String? runningExecutable,
@@ -244,6 +256,7 @@ class ZfaExecutable {
     return _compileCached(
       candidate: candidate,
       sourceRoot: root,
+      packagesFile: packagesFile,
       runner: runner ?? _defaultCompile,
       environment: env,
       runningExecutable: runningExecutable,
@@ -401,28 +414,66 @@ class ZfaExecutable {
   }
 
   /// Compile [candidate] into the shared cache, reusing a fresh artifact.
+  ///
+  /// Issue #1690 §2: when [packagesFile] is provided the compile is anchored
+  /// at the CONSUMING project — package resolution comes from the project's
+  /// config (`--packages=`) and the artifact lands in the project's
+  /// `.dart_tool/zfa_cli_bin/` under a candidate+project digest slot, so two
+  /// projects consuming the same companion never inherit each other's
+  /// binary.
+  ///
+  /// Known residual (upstream): `dart compile exe` still resolves the
+  /// ENTRYPOINT's own package root, so a candidate package dir without an
+  /// up-to-date `.dart_tool/package_config.json` (the pub-cache shape) gets
+  /// that dir's `.dart_tool/` and `pubspec.lock` written by the SDK — the
+  /// flag does not suppress it and no switch does (Dart 3.13.3). What this
+  /// seam owns is the artifact and the graph the CHILD compiles against;
+  /// neither is placed in the candidate root.
   static Future<String> _compileCached({
     required String candidate,
     required String sourceRoot,
+    String? packagesFile,
     required ZfaCompileRunner runner,
     required Map<String, String> environment,
     String? runningExecutable,
   }) async {
+    final projectConfig = packagesFile == null
+        ? null
+        : p.normalize(p.absolute(packagesFile));
+    // The project cache root is the same kZfaBinaryCacheDir layout, joined
+    // on the PROJECT root (the package config lives at
+    // <project>/.dart_tool/package_config.json — two dirnames up).
     final cacheDir = Directory(
-      p.join(sourceRoot, p.joinAll(kZfaBinaryCacheDir)),
+      projectConfig == null
+          ? p.join(sourceRoot, p.joinAll(kZfaBinaryCacheDir))
+          : p.join(
+              p.dirname(p.dirname(projectConfig)),
+              p.joinAll(kZfaBinaryCacheDir),
+            ),
     );
     // One slot per entrypoint. The canonical package entrypoint keeps the
     // shared [kZfaBinaryName] artifact — `scripts/zfa` and
     // `test/helpers/run_zfa_source.dart` reuse that exact path — while any
     // other explicit source entrypoint gets its own slot: two `--zfa-bin`
     // overrides inside one package must never inherit each other's binary.
-    final exeName = _isCanonicalEntrypoint(candidate, sourceRoot)
-        ? kZfaBinaryName
-        : '${kZfaBinaryName}_${_shortDigest(p.normalize(candidate))}';
+    // With a project anchor the slot additionally digests the project
+    // config path: per-project keying (#1690 §2).
+    final exeName = projectConfig == null
+        ? (_isCanonicalEntrypoint(candidate, sourceRoot)
+              ? kZfaBinaryName
+              : '${kZfaBinaryName}_${_shortDigest(p.normalize(candidate))}')
+        : '${kZfaBinaryName}_'
+              '${_shortDigest('${p.normalize(p.absolute(candidate))}|$projectConfig')}';
     final exePath = p.join(cacheDir.path, exeName);
     final exeFile = File(exePath);
 
-    if (exeFile.existsSync() && !_isStale(exeFile, candidate, sourceRoot)) {
+    if (exeFile.existsSync() &&
+        !_isStale(
+          exeFile,
+          candidate,
+          sourceRoot,
+          packagesFile: projectConfig,
+        )) {
       return exePath;
     }
 
@@ -436,11 +487,18 @@ class ZfaExecutable {
     // state is unchanged; a null probe (VM driver, no/unreadable marker,
     // git failure, commit mismatch, non-canonical candidate) falls
     // through to the compile path unchanged.
-    final installed = await currentInstalledBinary(
-      candidate: candidate,
-      sourceRoot: sourceRoot,
-      runningExecutable: runningExecutable ?? Platform.resolvedExecutable,
-    );
+    //
+    // Issue #1690 §2: the probe is a PROJECT-ANCHORED path's rival, not its
+    // ally — the installed binary was built against the source root's own
+    // package graph, so reusing it would bypass `--packages=` and leave no
+    // project-local artifact. With [packagesFile] the compile always runs.
+    final installed = projectConfig == null
+        ? await currentInstalledBinary(
+            candidate: candidate,
+            sourceRoot: sourceRoot,
+            runningExecutable: runningExecutable ?? Platform.resolvedExecutable,
+          )
+        : null;
     if (installed != null) {
       // The commit-equality guard proves the COMMIT, not the working tree:
       // when the cache is missing/stale BECAUSE OF uncommitted edits under
@@ -468,7 +526,13 @@ class ZfaExecutable {
     try {
       lock = await _acquireLock(File(p.join(cacheDir.path, kZfaBuildLockName)));
       // Re-check under the lock: whoever we waited for may have just built.
-      if (exeFile.existsSync() && !_isStale(exeFile, candidate, sourceRoot)) {
+      if (exeFile.existsSync() &&
+          !_isStale(
+            exeFile,
+            candidate,
+            sourceRoot,
+            packagesFile: projectConfig,
+          )) {
         return exePath;
       }
 
@@ -480,7 +544,19 @@ class ZfaExecutable {
       final tmpFile = File(tmpPath);
       if (tmpFile.existsSync()) tmpFile.deleteSync();
 
-      final argv = ['dart', 'compile', 'exe', candidate, '--output', tmpPath];
+      // Issue #1690 §2: `--packages=` hands the compiler the CONSUMING
+      // project's package config, so a hosted companion compiles against
+      // the project's resolved graph. It does NOT stop the SDK's own
+      // resolve of the entrypoint's package root (see [_compileCached]).
+      final argv = [
+        'dart',
+        'compile',
+        'exe',
+        if (projectConfig != null) '--packages=$projectConfig',
+        candidate,
+        '--output',
+        tmpPath,
+      ];
       final ProcessResult result;
       try {
         result = await runner(
@@ -530,14 +606,22 @@ class ZfaExecutable {
   }
 
   /// True when [exeFile] is older than the entrypoint source, any file under
-  /// the source root's `lib/`, `pubspec.yaml`, or `pubspec.lock` — i.e. the
-  /// cached binary no longer reflects this tree.
-  static bool _isStale(File exeFile, String candidate, String sourceRoot) {
+  /// the source root's `lib/`, `pubspec.yaml`, or `pubspec.lock`, the
+  /// project's package config ([packagesFile], issue #1690 §2 — `pub get`
+  /// rewrites it on every resolve), — i.e. the cached binary no longer
+  /// reflects this tree.
+  static bool _isStale(
+    File exeFile,
+    String candidate,
+    String sourceRoot, {
+    String? packagesFile,
+  }) {
     final builtAt = exeFile.lastModifiedSync();
     for (final path in [
       candidate,
       p.join(sourceRoot, 'pubspec.yaml'),
       p.join(sourceRoot, 'pubspec.lock'),
+      ?packagesFile,
     ]) {
       final file = File(path);
       if (file.existsSync() && file.lastModifiedSync().isAfter(builtAt)) {
