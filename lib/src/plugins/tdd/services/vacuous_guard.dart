@@ -404,16 +404,47 @@ final RegExp _guardExpect = RegExp(
   r'\s*\(\s*\)\s*\)\s*\)\s*;?',
 );
 
+/// Issue #1677: the declared return TYPE(S) the scalar type-only expects
+/// in [content] check — `int` for `expect(result, isA<int>())`,
+/// `int, String` when the content carries two over different scalars
+/// (first-occurrence order, duplicates collapsed). Null when the content
+/// carries no scalar type-only expect (the void/entity branch's
+/// guard-only shape). The run driver's make vacuous-green
+/// marker-present stop keys on this to branch its explanation the same
+/// way the writer's emission already discriminates the branch
+/// ([behavior_test_writer] `_declaredAssertion`): a scalar contract's
+/// marker-carrying test asserts the declared return TYPE only — NOT the
+/// UnimplementedError guard — so the #1308 void/entity wording would
+/// misdescribe it (the two paragraphs contradict each other on the same
+/// screen).
+///
+/// Review of #1701: the plural contract — every match, not just the
+/// first — keeps the refusal paragraph honest if a future emission (or
+/// a hand-authored marker-carrying test) ever carries two type-only
+/// expects over different scalars; the single-expect shapes the writer
+/// emits today print byte-for-byte as before.
+String? scalarTypeOnlyDeclaredTypes(String content) {
+  final types = <String>{};
+  for (final match in _typeOnlyScalarExpect.allMatches(content)) {
+    types.add(match.group(1)!);
+  }
+  if (types.isEmpty) return null;
+  return types.join(', ');
+}
+
 /// Issue #1651: the SCALAR TYPE-ONLY expects the detector also strips —
 /// `expect(x, isA<T>())` with T one of the dummy-satisfiable scalar
 /// types ({String, int, num, double, bool}, the `#1517` func scaffold's
 /// literal set). A `return 0;` dummy satisfies a type check, so a test
 /// whose assertions reduce to these proves nothing about the outcome
-/// value. Precision guards: `isNot(isA<T>())` (the second argument
-/// starts with `isNot`) and `throwsA(isA<T>())` (wrapped) do NOT match —
-/// both FAIL on a dummy, so both discriminate; composite/generic types
-/// (`isA<List<int>>()`) and entity types (whose subjects cannot be
-/// dummied — #1517 leaves the throw in place) stay real.
+/// value. The capture group (issue #1677) names the declared type for
+/// [scalarTypeOnlyDeclaredTypes]; it does not change what the detector's
+/// `replaceAll` removes. Precision guards: `isNot(isA<T>())` (the second
+/// argument starts with `isNot`) and `throwsA(isA<T>())` (wrapped) do
+/// NOT match — both FAIL on a dummy, so both discriminate;
+/// composite/generic types (`isA<List<int>>()`) and entity types (whose
+/// subjects cannot be dummied — #1517 leaves the throw in place) stay
+/// real.
 ///
 /// Review of #1667: the shape also covers the hand-authored variants —
 /// `expectLater(x, isA<T>())`, a trailing named argument
@@ -427,7 +458,7 @@ final RegExp _guardExpect = RegExp(
 /// stripped; pinned as U2f).
 final RegExp _typeOnlyScalarExpect = RegExp(
   r'\bexpect(?:Later)?\s*\(\s*[^,]*,\s*'
-  r'isA\s*<\s*(?:String|int|num|double|bool)\s*>'
+  r'isA\s*<\s*(String|int|num|double|bool)\s*>'
   r'\s*\(\s*\)'
   r'(?:\s*,\s*(?:reason|skip|timeout)\s*:\s*[^)]*)?'
   r'\s*\)\s*;?',

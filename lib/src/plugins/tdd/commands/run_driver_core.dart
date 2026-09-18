@@ -2616,12 +2616,38 @@ class RunDriverCore {
           _printOutputExcerpt(result.output);
           if (_testCarriesVacuousGuardMarker(testPath)) {
             final relPath = p.relative(testPath!, from: projectRoot);
-            print(
-              '   the traced contract\'s return is void/an entity — the '
-              '$vacuousGuardMarker marker IS the designed hand-delta seam '
-              '(issue #1308): the assertion set is the UnimplementedError '
-              'guard only, which make refuses vacuous-green (issue #1259).',
-            );
+            // Issue #1677: since #1651 the marker-present arm covers TWO
+            // contract shapes — the void/entity shape (the assertion set
+            // IS the UnimplementedError guard only) and the scalar
+            // TYPE-ONLY shape (the set is the declared-return-type check
+            // the #1517 func dummy satisfies). The writer's emission
+            // discriminates the branch (_declaredAssertion's scalar
+            // branch emits the marker WITH the typed assertion); the
+            // message must too — describing a scalar contract like
+            // `add(int,int) -> int` with the void/entity template
+            // misdescribes the case and contradicts the make refusal
+            // excerpt printed above it on the same screen. Content-
+            // discriminated, fail-open: an unreadable test keeps the
+            // #1308 wording (the shape this arm's guard actually saw).
+            final markerContent = _readTestContentFailOpen(testPath);
+            final scalarTypes = markerContent == null
+                ? null
+                : scalarTypeOnlyDeclaredTypes(markerContent);
+            if (scalarTypes != null) {
+              print(
+                '   the traced contract\'s return is scalar ($scalarTypes) — '
+                'the $vacuousGuardMarker marker\'s assertion set checks the '
+                'declared return TYPE only; a func-scaffolded dummy '
+                '(`return 0;`) satisfies it (issue #1651).',
+              );
+            } else {
+              print(
+                '   the traced contract\'s return is void/an entity — the '
+                '$vacuousGuardMarker marker IS the designed hand-delta seam '
+                '(issue #1308): the assertion set is the UnimplementedError '
+                'guard only, which make refuses vacuous-green (issue #1259).',
+              );
+            }
             print(
               '   hand step: ${row.id}:hand — write an assertion on the '
               'observable outcome in $relPath (replace the vacuous-guard '
