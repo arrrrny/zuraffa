@@ -33,6 +33,7 @@
 /// never a silent guess.
 library;
 
+import '../../../skin/contract/adaptive_skin_contract.dart';
 import 'spec_parser.dart';
 
 /// The declared platform layout slots of a feature (issue #1142).
@@ -112,6 +113,52 @@ class PlatformLayoutContract {
         }
         if (!slots.contains(slot)) slots.add(slot);
       }
+    }
+    if (slots.isEmpty) return null;
+    return PlatformLayoutContract(slots: List.unmodifiable(slots));
+  }
+
+  /// EPIC 3 / issue #1134, lane 1 (extending #1004 and #1102): resolve
+  /// the platform layout declaration from BOTH spec sources —
+  ///
+  /// 1. the Presentation table's `adaptive_layouts` bullet (issue
+  ///    #1142, the GENERATION declaration), and
+  /// 2. when no Presentation bullet declares slots, the
+  ///    `## Skin Contract` `adaptive_slots` (issue #1004, the RUNTIME
+  ///    matrix) — the contract drives generation: a feature that
+  ///    declares its platform matrix in the contract gets a skeleton
+  ///    that satisfies it, without authoring a second declaration.
+  ///
+  /// The Presentation declaration WINS when both exist (it is the
+  /// narrower, generation-scoped set — 004-login-ui declares
+  /// `mobile, macos` there against the contract's four runtime slots).
+  /// Null when neither declares slots (the single-layout skeleton,
+  /// zero drift for every feature that declares neither). An unknown
+  /// slot declared in the CONTRACT refuses BY NAME with the fix —
+  /// never a silent guess.
+  static PlatformLayoutContract? resolve({
+    required List<LayerContract> contracts,
+    AdaptiveSkinContract? skinContract,
+  }) {
+    final fromPresentation = fromContracts(contracts);
+    if (fromPresentation != null) return fromPresentation;
+    final contractSlots = skinContract?.adaptiveSlots;
+    if (contractSlots == null || contractSlots.isEmpty) return null;
+    final slots = <String>[];
+    for (final declared in contractSlots) {
+      final slot = declared.trim().toLowerCase();
+      if (slot.isEmpty) continue;
+      if (!isKnownSlot(slot)) {
+        throw PlatformLayoutContractException(
+          'unknown platform layout slot "$declared" declared in the '
+          '`## Skin Contract` adaptive_slots.\n'
+          '--> fix: declare one of ${knownSlots.join(", ")} '
+          '(the adaptive_layout_scaffold_builder targets + the '
+          'production SkinEvent slots), or drop the slot from the '
+          'contract.',
+        );
+      }
+      if (!slots.contains(slot)) slots.add(slot);
     }
     if (slots.isEmpty) return null;
     return PlatformLayoutContract(slots: List.unmodifiable(slots));
