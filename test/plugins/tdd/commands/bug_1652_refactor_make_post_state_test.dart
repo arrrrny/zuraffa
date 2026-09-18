@@ -103,7 +103,13 @@ void main() {
       await fx.seedAlreadyCleanLib();
       // A suite template that logs each spawn and delegates to the real
       // `dart test` — the economics assertions count preflights +
-      // re-proofs (the #1588 harness shape).
+      // re-proofs (the #1588 harness shape). The reporter is pinned
+      // INSIDE the wrapper: under `GITHUB_ACTIONS=true` (every Actions
+      // runner) package:test switches to its `github` reporter, whose
+      // transcript has no compact `mm:ss +N:` lines, so the #741
+      // baseline capture would parse as unusable (spec 1529) and never
+      // be written. `withCompactReporter` pins the flag for direct
+      // templates; a script template can only carry it itself.
       final binDir = Directory(p.join(fx.root.path, 'suite_bin'));
       await binDir.create(recursive: true);
       suiteScript = p.join(binDir.path, 'suite.sh');
@@ -111,7 +117,7 @@ void main() {
       await File(suiteScript).writeAsString('''
 #!/usr/bin/env bash
 echo "suite spawn: \$*" >> "$suiteLogPath"
-exec dart test "\$@"
+exec dart test --reporter compact "\$@"
 ''');
       await Process.run('chmod', ['+x', suiteScript]);
       // Point the profile's full-suite key at the logging wrapper.
