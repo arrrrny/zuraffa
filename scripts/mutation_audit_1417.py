@@ -7,7 +7,8 @@ Why not `dart run mutation_test mutation-test-1417.xml`?
     ALL of them live inside the embedded bash-script string constants
     (data already pinned byte-exact by the drift-guard test U-1417-b9) —
     ~40s per mutant ≈ 8h of noise.
-  - Scoped to the writer-logic lines (whitelist 1-206), the builtin rules
+  - Scoped to the whitelisted writer-logic lines (see
+    mutation-test-1417.xml), the builtin rules
     generate 0 candidates, and custom <regex> rules, although registered
     ("45 mutation rules" in -v output) and provably matching the file text
     (verified with python re), contributed 0 mutants — a tool-engine quirk
@@ -36,7 +37,7 @@ import re
 import subprocess
 import sys
 
-REPO = pathlib.Path("/home/z/my-project/zuraffa")
+REPO = pathlib.Path(__file__).resolve().parents[1]
 TARGET = REPO / "lib/src/commands/speckit_scaffolding.dart"
 TEST_CMD = [
     "dart", "test", "test/commands/initialize_speckit_test.dart",
@@ -50,12 +51,12 @@ TEST_CMD = [
 MUTANTS = [
     ("M01 file.existsSync() -> false (created branch never runs)",
      r"file\.existsSync\(\)", "false", 1, False),
-    ("M02 existing == content -> existing != content (identical treated as stale)",
+    ("M02 existing == content -> existing != content (up-to-date treated as stale)",
      r"existing == content", "existing != content", 1, False),
     ("M03 if (!force) -> if (force) (clobber committed scaffolding)",
      r"if \(!force\)", "if (force)", 1, False),
     ("M04 if (!dryRun) -> if (dryRun) (dry-run writes, real run doesn't)",
-     r"if \(!dryRun\)", "if (dryRun)", 3, False),
+     r"if \(!dryRun\)", "if (dryRun)", 4, False),
     ("M05 gi.existsSync() -> false (gitignore never updated)",
      r"gi\.existsSync\(\)", "false", 1, False),
     ("M06 _needsForceInclude(...) -> false (gitignore gate never fires)",
@@ -66,14 +67,26 @@ MUTANTS = [
      r"rule\.startsWith\('!'\)", "false", 1, False),
     ("M09 negated = true -> negated = false (negation inverted)",
      r"negated = true", "negated = false", 1, False),
-    ("M10 needed = !negated -> needed = negated (verdict inverted)",
-     r"needed = !negated", "needed = negated", 1, False),
-    ("M11 needed = false -> needed = true (always needs update)",
-     r"var needed = false", "var needed = true", 1, False),
-    ("M12 marker guard contains() -> false (duplicate blocks appended)",
+    ("M10 parentExcluded = !negated -> parentExcluded = negated "
+     "(parent verdict inverted)",
+     r"parentExcluded = !negated", "parentExcluded = negated", 1, False),
+    ("M11 needed verdict -> true (always needs update)",
+     r"needed: parentExcluded \|\| scriptsExcluded", "needed: true", 1, False),
+    ("M12 marker guard contains() -> false (managed block never stripped)",
      r"existing\.contains\(gitignoreMarker\)", "false", 1, False),
     ("M13 !existing.endsWith -> existing.endsWith (newline handling inverted)",
      r"!existing\.endsWith\('\\n'\)", r"existing\.endsWith\('\\n'\)", 1, False),
+    ("M14 scriptsExcluded = !negated -> scriptsExcluded = negated "
+     "(child/direct verdict inverted)",
+     r"scriptsExcluded = !negated", "scriptsExcluded = negated", 1, False),
+    ("M15 parentExcluded: scan.parentExcluded -> false "
+     "(parent pair never emitted)",
+     r"parentExcluded: scan\.parentExcluded", "parentExcluded: false", 1,
+     False),
+    ("M16 existing = _stripManagedBlocks(existing) -> existing "
+     "(stale block left before later exclusions)",
+     r"existing = _stripManagedBlocks\(existing\)", "existing = existing", 1,
+     False),
 ]
 
 

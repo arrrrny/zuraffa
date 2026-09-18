@@ -1,6 +1,6 @@
 # tdd.verify — Issue #1417 speckit scaffolding regenerable into existing repos (`zfa initialize --speckit`)
 
-- **Verified**: 2026-09-18, this session, on `fix/1417-speckit-scaffolding-regeneration`
+- **Verified**: 2026-09-17, this session, on `fix/1417-speckit-scaffolding-regeneration`
   (working tree, pre-push), against base `a9329746` (master)
 - **Toolchain**: Dart 3.13.4 (stable) on linux_x64 (the task's "Dart 3.13+"
   floor; the repo pins `sdk: ^3.11.0`)

@@ -33,6 +33,7 @@ import 'package:path/path.dart' as p;
 class SpeckitEmitResult {
   const SpeckitEmitResult({
     required this.created,
+    required this.upToDate,
     required this.skipped,
     required this.overwritten,
     required this.gitignoreUpdated,
@@ -42,7 +43,11 @@ class SpeckitEmitResult {
   /// Scripts written for the first time.
   final List<String> created;
 
-  /// Existing scripts left untouched (no --force).
+  /// Existing scripts identical to the embedded content (nothing to do,
+  /// even under --force).
+  final List<String> upToDate;
+
+  /// Existing scripts that differ and were left untouched (no --force).
   final List<String> skipped;
 
   /// Existing scripts overwritten via --force.
@@ -80,15 +85,29 @@ class SpeckitScaffoldingWriter {
   static const String gitignoreMarker =
       '# zfa initialize --speckit: keep the speckit helper scripts tracked';
 
-  /// Rules that would ignore `.specify/scripts` (the emitted helpers). A
-  /// bare `.specify/` or `.specify/*` excludes the directory itself; a
-  /// direct rule names it explicitly.
-  static const List<String> _excludingRules = [
-    '.specify/',
+  /// Rules that would ignore `.specify/scripts` (the emitted helpers),
+  /// classified by gitignore semantics (each matched root-anchored or not —
+  /// a leading `/` is normalized away before matching since this writer
+  /// only manages the root `.gitignore`):
+  ///
+  /// - parent-excluding: the `.specify` directory itself. Git never
+  ///   descends into an excluded directory, so plain negations underneath
+  ///   are void — the force-include block must first restore the parent
+  ///   (review finding on the `.specify/` shape: the plain block reported
+  ///   success while the helpers stayed ignored).
+  /// - child-excluding: a wildcard under an intact `.specify` parent; the
+  ///   plain script negations re-include the helpers.
+  /// - direct: `.specify/scripts` named explicitly; plain negations work.
+  static const List<String> _parentExcludingRules = ['.specify/', '.specify'];
+  static const List<String> _childExcludingRules = [
     '.specify/*',
+    '.specify/**',
+  ];
+  static const List<String> _directExcludingRules = [
     '.specify/scripts',
     '.specify/scripts/',
     '.specify/scripts/*',
+    '.specify/scripts/**',
   ];
 
   Future<SpeckitEmitResult> emit(
@@ -103,6 +122,7 @@ class SpeckitScaffoldingWriter {
     );
 
     final created = <String>[];
+    final upToDate = <String>[];
     final skipped = <String>[];
     final overwritten = <String>[];
     final scripts = embeddedScripts();
@@ -113,7 +133,7 @@ class SpeckitScaffoldingWriter {
       if (file.existsSync()) {
         final existing = file.readAsStringSync();
         if (existing == content) {
-          skipped.add(name);
+          upToDate.add(name);
           continue;
         }
         if (!force) {
@@ -122,6 +142,7 @@ class SpeckitScaffoldingWriter {
         }
         if (!dryRun) {
           file.writeAsStringSync(content);
+          _makeExecutable(file);
         }
         overwritten.add(name);
         continue;
@@ -129,6 +150,7 @@ class SpeckitScaffoldingWriter {
       if (!dryRun) {
         file.parent.createSync(recursive: true);
         file.writeAsStringSync(content);
+        _makeExecutable(file);
       }
       created.add(name);
     }
@@ -136,12 +158,19 @@ class SpeckitScaffoldingWriter {
     var gitignoreUpdated = false;
     String? gitignorePath;
     final gi = File(p.join(projectRoot, '.gitignore'));
-    if (gi.existsSync() && _needsForceInclude(gi.readAsStringSync())) {
-      gitignorePath = gi.path;
-      if (!dryRun) {
-        _appendForceInclude(gi);
+    if (gi.existsSync()) {
+      final scan = _needsForceInclude(gi.readAsStringSync());
+      if (scan.needed) {
+        gitignorePath = gi.path;
+        if (!dryRun) {
+          _writeForceInclude(gi, parentExcluded: scan.parentExcluded);
+        }
+        gitignoreUpdated = true;
       }
-      gitignoreUpdated = true;
+    }
+
+    if (!dryRun) {
+      _warnIfStillIgnored(projectRoot, say);
     }
 
     for (final name in created) {
@@ -150,9 +179,12 @@ class SpeckitScaffoldingWriter {
     for (final name in overwritten) {
       say('✓ Overwritten .specify/scripts/bash/$name (--force)');
     }
+    for (final name in upToDate) {
+      say('• Up-to-date .specify/scripts/bash/$name (identical to embedded)');
+    }
     for (final name in skipped) {
       say(
-        '• Skipped .specify/scripts/bash/$name (already present; use --force to overwrite)',
+        '• Skipped .specify/scripts/bash/$name (differs; use --force to overwrite)',
       );
     }
     if (gitignoreUpdated) {
@@ -162,6 +194,7 @@ class SpeckitScaffoldingWriter {
     return Future.value(
       SpeckitEmitResult(
         created: created,
+        upToDate: upToDate,
         skipped: skipped,
         overwritten: overwritten,
         gitignoreUpdated: gitignoreUpdated,
@@ -170,10 +203,18 @@ class SpeckitScaffoldingWriter {
     );
   }
 
-  /// True when [content] carries a rule that would ignore the emitted
-  /// helpers (checked per line, honoring negations and comments).
-  bool _needsForceInclude(String content) {
-    var needed = false;
+  /// Scans [content] for a rule that would ignore the emitted helpers
+  /// (checked per line, honoring negations, comments, and root-anchored
+  /// spellings). Returns the git verdict:
+  ///
+  /// - `needed`: the helpers end up ignored — a force-include block is
+  ///   required.
+  /// - `parentExcluded`: the last parent-shape rule excludes the `.specify`
+  ///   directory itself, so the block must restore the parent before the
+  ///   script negations (they are void under an excluded parent).
+  ({bool needed, bool parentExcluded}) _needsForceInclude(String content) {
+    var parentExcluded = false;
+    var scriptsExcluded = false;
     for (final raw in content.split('\n')) {
       final line = raw.trim();
       if (line.isEmpty || line.startsWith('#')) continue;
@@ -183,28 +224,121 @@ class SpeckitScaffoldingWriter {
         negated = true;
         rule = rule.substring(1);
       }
-      if (_excludingRules.contains(rule)) {
-        needed = !negated;
+      // Root-anchored spellings (`/.specify/`) match the same paths in the
+      // root .gitignore this writer manages.
+      if (rule.startsWith('/')) rule = rule.substring(1);
+      if (_parentExcludingRules.contains(rule)) {
+        // Last parent-shape match decides whether git descends into
+        // `.specify` at all.
+        parentExcluded = !negated;
+      } else if (_childExcludingRules.contains(rule) ||
+          _directExcludingRules.contains(rule)) {
+        scriptsExcluded = !negated;
       }
     }
-    return needed;
+    return (
+      needed: parentExcluded || scriptsExcluded,
+      parentExcluded: parentExcluded,
+    );
   }
 
   /// Appends the force-include block (last match wins in gitignore
-  /// semantics). Idempotent: a marker hit is a no-op.
-  void _appendForceInclude(File gitignore) {
-    final existing = gitignore.readAsStringSync();
-    if (existing.contains(gitignoreMarker)) return;
+  /// semantics), or — when a rule added after our block re-excludes the
+  /// helpers — moves the managed block to the end so it wins again. The
+  /// file ends with exactly one marker block.
+  void _writeForceInclude(File gitignore, {required bool parentExcluded}) {
+    var existing = gitignore.readAsStringSync();
+    if (existing.contains(gitignoreMarker)) {
+      existing = _stripManagedBlocks(existing);
+    }
     final sb = StringBuffer(existing);
-    if (!existing.endsWith('\n')) sb.writeln();
+    if (existing.isNotEmpty && !existing.endsWith('\n')) sb.writeln();
+    sb.writeln(gitignoreMarker);
+    if (parentExcluded) {
+      // Restore the excluded parent, then re-exclude its other children
+      // (user intent preserved) so only the helpers come back. A plain
+      // `!.specify/scripts` cannot re-include anything while the parent
+      // directory is excluded.
+      sb
+        ..writeln('!/.specify/')
+        ..writeln('.specify/*');
+    }
     sb
-      ..writeln(gitignoreMarker)
       ..writeln('!.specify/scripts')
       ..writeln('!.specify/scripts/**');
     gitignore.writeAsStringSync(sb.toString());
   }
+
+  /// Every line this writer may emit inside a managed block (both shapes —
+  /// used to strip an existing block regardless of which shape wrote it).
+  static const Set<String> _managedBlockLines = {
+    '!/.specify/',
+    '!.specify/',
+    '.specify/*',
+    '!.specify/scripts',
+    '!.specify/scripts/**',
+  };
+
+  /// Removes every marker-keyed managed block (marker line plus the rule
+  /// lines that follow it), keeping all other content byte-identical.
+  String _stripManagedBlocks(String content) {
+    final kept = <String>[];
+    var skipping = false;
+    for (final line in content.split('\n')) {
+      if (line.trim() == gitignoreMarker) {
+        skipping = true;
+        continue;
+      }
+      if (skipping) {
+        if (line.isEmpty || _managedBlockLines.contains(line.trim())) {
+          continue;
+        }
+        skipping = false;
+      }
+      kept.add(line);
+    }
+    return kept.join('\n');
+  }
+
+  /// Best-effort executable bit on the emitted shell scripts (the canonical
+  /// framework copies are tracked 755, and their own --help prints
+  /// `./check-prerequisites.sh`). dart:io has no chmod API, so shell out;
+  /// platforms without chmod keep the default mode, where
+  /// `bash <script>` still works.
+  void _makeExecutable(File file) {
+    if (Platform.isWindows) return;
+    try {
+      Process.runSync('chmod', <String>['755', file.path]);
+    } on ProcessException {
+      // chmod unavailable — content is what the drift guard pins.
+    }
+  }
+
+  /// Fail-loud guard: when the emitted helpers are still git-ignored after
+  /// the force-include update (an unclassified rule spelling won over the
+  /// block), warn instead of silently reproducing the exit-127 bug this
+  /// command exists to fix. A no-op outside a git repository.
+  void _warnIfStillIgnored(String projectRoot, void Function(String) say) {
+    try {
+      final probe = Process.runSync('git', <String>[
+        'check-ignore',
+        '--',
+        '.specify/scripts/bash/common.sh',
+      ], workingDirectory: projectRoot);
+      if (probe.exitCode == 0) {
+        say(
+          '⚠ .specify/scripts/bash/ is still ignored by git — the helpers '
+          'will not be tracked on a fresh clone. Inspect .gitignore and '
+          're-run zfa initialize --speckit.',
+        );
+      }
+    } on ProcessException {
+      // git unavailable — nothing to probe.
+    }
+  }
 }
 
+// BEGIN EMBEDDED SCRIPTS
 /// Byte-identical embed of `.specify/scripts/bash/common.sh`
 const String kSpeckitCommonSh = r'''#!/usr/bin/env bash
 # Common functions and variables for all scripts
@@ -1564,3 +1698,4 @@ else
     check_file "$QUICKSTART" "quickstart.md"
 fi
 ''';
+// END EMBEDDED SCRIPTS

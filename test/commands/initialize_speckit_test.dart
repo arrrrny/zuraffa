@@ -34,6 +34,26 @@ const kSpeckitScripts = [
 /// AOT rebuild (see tools/run-tdd-tests.sh for the same repo pattern).
 const kWriterUnitGroup = 'SpeckitScaffoldingWriter unit';
 
+/// Runs `git` inside [dir]; used by the gitignore-verification tests so the
+/// force-include blocks are asserted against git's real verdict, not ours.
+void _git(Directory dir, List<String> args) {
+  final proc = Process.runSync('git', args, workingDirectory: dir.path);
+  if (proc.exitCode != 0) {
+    fail('git ${args.join(" ")} failed: ${proc.stderr}');
+  }
+}
+
+/// True when git's ignore rules match [relativePath] (untracked paths are
+/// evaluated against the rules, no commit needed).
+bool _gitIsIgnored(Directory dir, String relativePath) {
+  final proc = Process.runSync('git', [
+    'check-ignore',
+    '--',
+    relativePath,
+  ], workingDirectory: dir.path);
+  return proc.exitCode == 0;
+}
+
 void main() {
   setUpAll(() async {
     await initZfaSourceBin();
@@ -301,11 +321,13 @@ void main() {
           final canonical = File(
             p.join(zfaProjectRoot, '.specify', 'scripts', 'bash', entry.key),
           );
-          if (!canonical.existsSync()) {
-            // Published-package consumers have no .specify checkout; the guard
-            // is only meaningful inside the framework repo.
-            continue;
-          }
+          // A missing canonical file must fail the guard, not silently
+          // perform zero comparisons and report success.
+          expect(
+            canonical.existsSync(),
+            isTrue,
+            reason: 'missing canonical Speckit script: ${entry.key}',
+          );
           expect(
             entry.value,
             canonical.readAsStringSync(),
@@ -313,6 +335,51 @@ void main() {
                 'embedded ${entry.key} diverged from the canonical copy — '
                 're-embed via scripts/embed_speckit_scripts.py '
                 '(spec FR-002 / SC-003)',
+          );
+        }
+      },
+      // Published-package consumers have no .specify checkout at all; the
+      // guard is only meaningful inside the framework repo, so the whole
+      // test is skipped in that detected environment — but never weakened.
+      // Directory.current is the package root under `dart test`; the
+      // registration-time check cannot use zfaProjectRoot (resolved later
+      // by setUpAll).
+      skip:
+          Directory(
+            p.join(Directory.current.path, '.specify', 'scripts', 'bash'),
+          ).existsSync()
+          ? false
+          : 'no canonical .specify/scripts/bash checkout (published package)',
+    );
+
+    test(
+      'U-1417-b10: --speckit rejects contradictory mode flags loudly',
+      () async {
+        final repoDir = useSandbox(tempDir, 'contradictory_flags');
+
+        for (final extra in [
+          '--dart',
+          '--flutter',
+          '--deps-only',
+          '--no-deps',
+        ]) {
+          final result = await runZfaSource([
+            'initialize',
+            '--speckit',
+            extra,
+            '--root',
+            repoDir.path,
+          ], workingDirectory: zfaProjectRoot);
+          expect(
+            result.exitCode,
+            isNot(0),
+            reason: '--speckit $extra must not run silently',
+          );
+          final output = result.stdout.toString() + result.stderr.toString();
+          expect(
+            output,
+            contains('--speckit'),
+            reason: 'the usage error must name the conflict: $output',
           );
         }
       },
@@ -400,7 +467,7 @@ void main() {
     });
 
     test(
-      'U4: identical existing scripts are skipped even under force',
+      'U4: identical existing scripts are up-to-date even under force',
       () async {
         final root = Directory(p.join(tempDir.path, 'repo'))..createSync();
         final bashDir = Directory(
@@ -414,7 +481,8 @@ void main() {
         const writer = SpeckitScaffoldingWriter();
         final result = await writer.emit(root.path, force: true);
 
-        expect(result.skipped, equals(kSpeckitScripts));
+        expect(result.upToDate, equals(kSpeckitScripts));
+        expect(result.skipped, isEmpty);
         expect(result.overwritten, isEmpty);
         expect(result.created, isEmpty);
       },
@@ -438,7 +506,9 @@ void main() {
       () async {
         final root = Directory(p.join(tempDir.path, 'repo'))..createSync();
         final gitignore = File(p.join(root.path, '.gitignore'));
-        gitignore.writeAsStringSync('build/\n.specify/*\n');
+        // No trailing newline: the appended marker must still start on its
+        // own line (mutation audit M13).
+        gitignore.writeAsStringSync('build/\n.specify/*');
 
         const writer = SpeckitScaffoldingWriter();
         final first = await writer.emit(root.path);
@@ -446,6 +516,7 @@ void main() {
         expect(first.gitignorePath, gitignore.path);
 
         final after1 = gitignore.readAsStringSync();
+        expect(after1, contains('\n# zfa initialize --speckit'));
         expect(after1, contains('!.specify/scripts\n'));
         expect(after1, contains('!.specify/scripts/**\n'));
         // Marker must appear exactly once.
@@ -520,10 +591,183 @@ void main() {
             .allMatches(gitignore.readAsStringSync())
             .length,
         1,
-        reason:
-            'the marker guard must prevent a second append when the block '
-            'is already present (mutation audit M12)',
       );
+
+      // The user (or a tool) re-excludes the scripts AFTER our block — the
+      // file changed between emissions, so the exclusion check fires again
+      // and the managed block must move to the end to win again.
+      gitignore.writeAsStringSync(
+        '${gitignore.readAsStringSync()}.specify/scripts\n',
+      );
+
+      await writer.emit(root.path);
+      final after = gitignore.readAsStringSync();
+      expect(
+        '# zfa initialize --speckit'.allMatches(after).length,
+        1,
+        reason:
+            'the rewrite keeps exactly one marker block (mutation audit M12)',
+      );
+      // The git-level proof that the moved block wins is U14's
+      // git-check-ignore assertion; here we pin the file shape: the marker
+      // must come after the exact re-exclusion line.
+      final lines = after.split('\n');
+      expect(
+        lines.indexOf(SpeckitScaffoldingWriter.gitignoreMarker),
+        greaterThan(lines.lastIndexOf('.specify/scripts')),
+        reason: 'the block must sit after the later exclusion to win',
+      );
+    });
+
+    test(
+      'U11: .specify/ parent exclusion gets a working block (git-checked)',
+      () async {
+        final root = Directory(p.join(tempDir.path, 'parent_repo'))
+          ..createSync();
+        final gitignore = File(p.join(root.path, '.gitignore'));
+        gitignore.writeAsStringSync('build/\n.specify/\n');
+
+        const writer = SpeckitScaffoldingWriter();
+        final result = await writer.emit(root.path);
+
+        expect(result.gitignoreUpdated, isTrue);
+        final after = gitignore.readAsStringSync();
+        expect(after, contains('!/.specify/\n'));
+        expect(after, contains('.specify/*\n'));
+        expect(after, contains('!.specify/scripts\n'));
+
+        // Real git verdict: the helper must be trackable while the other
+        // .specify children stay ignored (positive control). Paths are
+        // untracked — check-ignore evaluates rules regardless.
+        _git(root, ['init', '-q']);
+        final helperIgnored = _gitIsIgnored(
+          root,
+          '.specify/scripts/bash/setup-plan.sh',
+        );
+        expect(
+          helperIgnored,
+          isFalse,
+          reason: 'the parent exclusion must be repaired, not reported as done',
+        );
+        expect(
+          _gitIsIgnored(root, '.specify/other/control'),
+          isTrue,
+          reason: 'user intent for unrelated .specify children must survive',
+        );
+      },
+    );
+
+    test('U12: root-anchored rules are recognized', () async {
+      for (final rule in ['/.specify/*', '/.specify/', '/.specify']) {
+        final root = Directory(p.join(tempDir.path, 'rooted'))..createSync();
+        final gitignore = File(p.join(root.path, '.gitignore'));
+        gitignore.writeAsStringSync('build/\n$rule\n');
+
+        const writer = SpeckitScaffoldingWriter();
+        final result = await writer.emit(root.path);
+
+        expect(
+          result.gitignoreUpdated,
+          isTrue,
+          reason: 'root-anchored rule $rule must be recognized',
+        );
+        root.deleteSync(recursive: true);
+      }
+    });
+
+    test('U13: bare .specify and .specify/** are recognized', () async {
+      for (final rule in ['.specify', '.specify/**']) {
+        final root = Directory(p.join(tempDir.path, 'bare'))..createSync();
+        final gitignore = File(p.join(root.path, '.gitignore'));
+        gitignore.writeAsStringSync('$rule\n');
+
+        const writer = SpeckitScaffoldingWriter();
+        final result = await writer.emit(root.path);
+
+        expect(
+          result.gitignoreUpdated,
+          isTrue,
+          reason: 'rule $rule must be recognized',
+        );
+        root.deleteSync(recursive: true);
+      }
+    });
+
+    test(
+      'U14: later parent exclusion moves the managed block (git-checked)',
+      () async {
+        final root = Directory(p.join(tempDir.path, 'repair_repo'))
+          ..createSync();
+        final gitignore = File(p.join(root.path, '.gitignore'));
+        gitignore.writeAsStringSync('.specify/scripts\n');
+
+        const writer = SpeckitScaffoldingWriter();
+        await writer.emit(root.path);
+        // A `.specify/` exclusion added after our block makes the appended
+        // negations void — the rewrite must relocate the block after it.
+        gitignore.writeAsStringSync(
+          '${gitignore.readAsStringSync()}.specify/\n',
+        );
+
+        await writer.emit(root.path);
+
+        final after = gitignore.readAsStringSync();
+        expect('# zfa initialize --speckit'.allMatches(after).length, 1);
+        expect(after, contains('!/.specify/\n'));
+        _git(root, ['init', '-q']);
+        expect(
+          _gitIsIgnored(root, '.specify/scripts/bash/common.sh'),
+          isFalse,
+          reason: 'the moved block must actually un-ignore the helpers',
+        );
+      },
+    );
+
+    test(
+      'U15: helpers still ignored after the block are reported loudly',
+      () async {
+        final root = Directory(p.join(tempDir.path, 'probe_repo'))
+          ..createSync();
+        final gitignore = File(p.join(root.path, '.gitignore'));
+        _git(root, ['init', '-q']);
+        gitignore.writeAsStringSync('.specify/*\n');
+
+        const writer = SpeckitScaffoldingWriter();
+        await writer.emit(root.path);
+        // An unclassified spelling our scanner does not know, re-excluding
+        // after the block — only the post-emit probe can catch it.
+        gitignore.writeAsStringSync(
+          '${gitignore.readAsStringSync()}**/.specify/scripts/**\n',
+        );
+
+        final messages = <String>[];
+        await writer.emit(root.path, log: messages.add);
+        expect(
+          messages.any((m) => m.contains('still ignored by git')),
+          isTrue,
+          reason: 'the silent failure mode must be reported: $messages',
+        );
+      },
+    );
+
+    test('U16: emitted scripts are executable (755)', () async {
+      final root = Directory(p.join(tempDir.path, 'mode_repo'))..createSync();
+      const writer = SpeckitScaffoldingWriter();
+      await writer.emit(root.path);
+
+      final bashDir = Directory(
+        p.join(root.path, '.specify', 'scripts', 'bash'),
+      );
+      for (final script in kSpeckitScripts) {
+        final mode = FileStat.statSync(
+          p.join(bashDir.path, script),
+        ).mode.toRadixString(8);
+        expect(
+          mode,
+          endsWith('755'),
+          reason: '$script must be executable, got $mode',
+        );
+      }
     });
   });
 }

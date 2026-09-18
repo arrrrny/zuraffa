@@ -131,6 +131,17 @@ class InitializeCommand {
     // existing repo and returns — no pubspec wiring, no entity scaffolding,
     // no pubspec.yaml requirement (a non-Dart speckit repo is valid).
     if (results['speckit'] as bool) {
+      if (dartMode || flutterMode || depsOnly || noDeps) {
+        // Every other exclusivity in this command is a loud UsageException;
+        // silently dropping the other mode flags here would hide mistakes.
+        throw UsageException(
+          '--speckit cannot be combined with --dart, --flutter, '
+          '--deps-only, or --no-deps: it is a surgical verb that only '
+          'emits the speckit helper scripts (no dependency wiring, no '
+          'entity scaffolding).',
+          parser.usage,
+        );
+      }
       final writer = const SpeckitScaffoldingWriter();
       final emitResult = await writer.emit(
         root,
@@ -145,7 +156,8 @@ class InitializeCommand {
           '\n✅ Speckit scaffolding ready: '
           '${emitResult.created.length} created, '
           '${emitResult.overwritten.length} overwritten, '
-          '${emitResult.skipped.length} skipped.',
+          '${emitResult.upToDate.length} up-to-date, '
+          '${emitResult.skipped.length} differ (use --force).',
         );
       }
       print('\n📝 Next steps:');

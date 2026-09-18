@@ -1,29 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   mutation-test-1417.xml — scopes mutation_test to the code introduced by
-  issue #1417 (zfa initialize --speckit): `lib/src/commands/speckit_scaffolding.dart`.
+  issue #1417 (the speckit verb of zfa initialize): `lib/src/commands/speckit_scaffolding.dart`.
 
   Run:    dart run mutation_test mutation-test-1417.xml -f md -o mutation-test-report
   Output: mutation-test-report/mutation-test.md (+ html)
 
   Scope rationale:
-  - The embedded bash-script constants (lines 207-1564) are DATA, not logic:
-    their bytes are already pinned exactly against the framework repo's
-    canonical `.specify/scripts/bash/` copies by the drift-guard test
-    (U-1417-b9) — a stronger property than mutation. The <file> whitelist
-    below (lines 1-206) excludes them. Verified in this session: the
-    unscoped run finds 538 mutants in this file and ALL of them live in the
-    string constants (the builtin Dart rules produce 0 candidates in the
-    writer logic — lines 1-206 with an empty ruleset yielded "Mutations: 0"),
-    i.e. the unscoped noise is 100% data mutants already guarded byte-exact
-    by the drift guard.
+  - The embedded bash-script constants (the region between the
+    `// BEGIN EMBEDDED SCRIPTS` / `// END EMBEDDED SCRIPTS` markers) are
+    DATA, not logic: their bytes are already pinned exactly against the
+    framework repo's canonical `.specify/scripts/bash/` copies by the
+    drift-guard test (U-1417-b9) — a stronger property than mutation. The
+    <file> whitelist below (lines 1-339) excludes them. Verified in this
+    session: the unscoped run finds 538 mutants in this file and ALL of
+    them live in the string constants (the builtin Dart rules produce 0
+    candidates in the writer logic — the whitelisted writer lines with an
+    empty ruleset yielded "Mutations: 0"), i.e. the unscoped noise is 100%
+    data mutants already guarded byte-exact by the drift guard.
   - The builtin Dart rules cannot express the writer's decision points, so
     this config adds targeted <regex> rules for every branch the unit group
     exercises: existence checks, the equality/force/dry-run gates, the
     gitignore rule scan (comment/negation/exclusion matching) and the
     idempotent-append marker guard. Each mutant maps to a specific unit test
     (U1-U9) that must kill it.
-  - `initialize_command.dart`'s --speckit wiring (flag parse + emit call,
+  - `initialize_command.dart`'s speckit-flag wiring (flag parse + emit call,
     ~12 logic lines) is exercised by the subprocess acceptance tests
     (U-1417-b1..b8) but excluded from the per-mutant loop: a lib/ mutant
     marks the CLI's AOT binary stale and forces an ~85-100s recompile PER
@@ -38,8 +39,9 @@
 <mutations version="1.0">
   <files>
     <file>lib/src/commands/speckit_scaffolding.dart
-      <!-- Whitelist: mutate ONLY the writer logic (lines 1-206). -->
-      <lines begin="1" end="1564"/>
+      <!-- Whitelist: mutate ONLY the writer logic (lines 1-339, before the
+           embedded-script constants region). -->
+      <lines begin="1" end="339"/>
     </file>
   </files>
   <rules>
@@ -73,15 +75,24 @@
     <regex pattern="negated = true" id="1417.negation-set">
       <mutation text="negated = false"/>
     </regex>
-    <regex pattern="needed = !negated" id="1417.needed-set">
-      <mutation text="needed = negated"/>
+    <regex pattern="parentExcluded = !negated" id="1417.parent-verdict">
+      <mutation text="parentExcluded = negated"/>
     </regex>
-    <regex pattern="needed = false" id="1417.needed-init">
-      <mutation text="needed = true"/>
+    <regex pattern="scriptsExcluded = !negated" id="1417.scripts-verdict">
+      <mutation text="scriptsExcluded = negated"/>
     </regex>
-    <!-- _appendForceInclude(): the idempotent marker guard -->
+    <regex pattern="needed: parentExcluded \|\| scriptsExcluded" id="1417.needed-verdict">
+      <mutation text="needed: true"/>
+    </regex>
+    <!-- _writeForceInclude(): the managed-block rewrite -->
     <regex pattern="existing\.contains\(gitignoreMarker\)" id="1417.marker-guard">
       <mutation text="false"/>
+    </regex>
+    <regex pattern="existing = _stripManagedBlocks\(existing\)" id="1417.block-strip">
+      <mutation text="existing = existing"/>
+    </regex>
+    <regex pattern="parentExcluded: scan\.parentExcluded" id="1417.parent-pair">
+      <mutation text="parentExcluded: false"/>
     </regex>
     <regex pattern="!existing\.endsWith\(&apos;\\n&apos;\)" id="1417.newline-guard">
       <mutation text="existing.endsWith(&apos;\\n&apos;)"/>
