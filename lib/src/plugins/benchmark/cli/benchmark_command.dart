@@ -25,6 +25,7 @@ import 'package:args/command_runner.dart';
 
 import '../../../core/benchmark/baseline_store.dart';
 import '../../../core/benchmark/isolate_benchmark_runner.dart';
+import '../../../core/verdict_envelope.dart';
 import '../benchmark_plugin.dart';
 import '../capabilities/register_benchmark_capability.dart';
 import '../../../cli/exit_protocol.dart';
@@ -249,23 +250,34 @@ run options:
     final scenarios = await plugin.registry.getAll();
 
     if (results['json'] as bool) {
-      print(
-        jsonEncode({
-          'scenarios': [
-            for (final scenario in scenarios)
-              {
-                'id': scenario.id,
-                'name': scenario.name,
-                'version': scenario.version,
-                'description': scenario.description,
-                'tags': scenario.tags,
-                'thresholds': {
-                  for (final entry in scenario.thresholds.entries)
-                    entry.key: entry.value.toJson(),
+      // SPEC 1132 / EPIC 1 lane 2 (issue #1105 backlog): the canonical
+      // the canonical verdict schema envelope — the raw `{"scenarios":[...]}`
+      // document carried no schema and broke the ONE parser contract.
+      // The scenario registry rides in `details.scenarios`; the
+      // envelope is the LAST stdout line.
+      VerdictEnvelope.emit(
+        VerdictEnvelope(
+          command: 'zfa benchmark list',
+          verdict: VerdictKind.pass,
+          exitClass: ExitProtocol.success,
+          subject: const VerdictSubject(kind: 'benchmark', id: 'registry'),
+          details: {
+            'scenarios': [
+              for (final scenario in scenarios)
+                {
+                  'id': scenario.id,
+                  'name': scenario.name,
+                  'version': scenario.version,
+                  'description': scenario.description,
+                  'tags': scenario.tags,
+                  'thresholds': {
+                    for (final entry in scenario.thresholds.entries)
+                      entry.key: entry.value.toJson(),
+                  },
                 },
-              },
-          ],
-        }),
+            ],
+          },
+        ),
       );
       return;
     }
@@ -450,7 +462,26 @@ run options:
     );
 
     if (results['json'] as bool) {
-      print(jsonEncode(comparison.toJson()));
+      // SPEC 1132 / EPIC 1 lane 2 (issue #1105 backlog): the canonical
+      // the canonical verdict schema envelope — the comparison payload rides in
+      // `details.comparison`; the envelope is the LAST stdout line.
+      VerdictEnvelope.emit(
+        VerdictEnvelope(
+          command: 'zfa benchmark baseline compare',
+          verdict: comparison.overallStatus == ComparisonStatus.regressed
+              ? VerdictKind.fail
+              : VerdictKind.pass,
+          exitClass: comparison.overallStatus == ComparisonStatus.regressed
+              ? ExitProtocol.failure
+              : ExitProtocol.success,
+          subject: VerdictSubject(kind: 'benchmark', id: scenarioId),
+          details: {
+            'baseline': baseline.toJson(),
+            'comparison': comparison.toJson(),
+            'tolerancePercent': tolerance,
+          },
+        ),
+      );
     } else {
       print(
         'Comparison for $scenarioId against "${baseline.label}" '

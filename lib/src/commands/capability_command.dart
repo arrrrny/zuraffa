@@ -7,6 +7,7 @@ import '../core/plugin_system/capability.dart';
 import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/project_root.dart';
 import '../core/plugin_system/plan_store.dart';
+import '../core/verdict_envelope.dart';
 import '../utils/string_utils.dart';
 import '../cli/exit_protocol.dart';
 
@@ -233,6 +234,13 @@ class CapabilityCommand extends Command<void> {
         // required flags (the VISION.md verdict protocol), and machine
         // mode (`--json`) gets a single parseable verdict object instead
         // of prose (issue #778).
+        //
+        // SPEC 1132 / EPIC 1 lane 2 (issue #1105 backlog): the machine
+        // mode refusal emits the ONE canonical the canonical verdict schema
+        // envelope (verdict `error`, exit class 2) — the legacy
+        // `{"schema":1,...}` shape left the canonical parser
+        // (`VerdictEnvelope.fromJson`) throwing. Human output stays
+        // above the envelope, which is the LAST stdout line.
         final fixFlags = missing
             .map((key) {
               final flag = key.contains('-')
@@ -245,18 +253,41 @@ class CapabilityCommand extends Command<void> {
         final fix = 'zfa $commandPath $fixFlags';
         final machineMode = argResults?['json'] != null;
         if (machineMode) {
-          print(
-            jsonEncode({
-              'schema': 1,
-              'ok': false,
-              'error': 'Missing required arguments: ${missing.join(', ')}',
-              'fix': fix,
-            }),
+          print('❌ Error: Missing required arguments: ${missing.join(', ')}');
+          print('   --> fix: $fix');
+          VerdictEnvelope.emit(
+            VerdictEnvelope(
+              command: 'zfa $commandPath',
+              verdict: VerdictKind.error,
+              exitClass: ExitProtocol.usage,
+              subject: VerdictSubject(
+                kind: 'capability',
+                id: name,
+                extra: {'plugin': ?pluginId, 'capability': name},
+              ),
+              findings: [
+                for (final key in missing)
+                  VerdictFinding(
+                    kind: 'missing-argument',
+                    fix:
+                        'pass --${key.contains('-') ? key : StringUtils.camelToSnake(key).replaceAll('_', '-')}'
+                        ' <${key.contains('-') ? key : StringUtils.camelToSnake(key).replaceAll('_', '-')}>',
+                    extra: {'argument': key},
+                  ),
+              ],
+              fix: fix,
+              details: {
+                'error': 'Missing required arguments: ${missing.join(', ')}',
+                'missing': missing,
+                'plugin': ?pluginId,
+                'capability': name,
+              },
+            ),
           );
         } else {
           print('❌ Error: Missing required arguments: ${missing.join(', ')}');
+          print('   --> fix: $fix');
         }
-        print('   --> fix: $fix');
         exitCode = ExitProtocol.usage;
         return;
       }
