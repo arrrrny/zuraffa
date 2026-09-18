@@ -2161,12 +2161,25 @@ class RunDriverCore {
       // tree with its live post-generation evidence — record the
       // post-state so the refactor spawn right after inherits it instead
       // of re-running the full suite + registry over an untouched tree.
-      // The #741 already-green skip (`skipped`) certifies no new tree
-      // state and deliberately writes nothing: the standing record still
-      // describes the certified tree.
-      if (step == 'make' && result.outcome == 'green' && recordMakePostState) {
+      // Issue #1676: the #694 already-green skip (`skipped`) certifies
+      // the tree too — the skip transition re-ran the target test on the
+      // CURRENT (post-hand-edit) tree and certified it green ("subject
+      // drift accepted (issue #1162) … the skip transition re-binds the
+      // green evidence to the current subject shape"). That is live
+      // post-state evidence on exactly this tree, so the record is
+      // written here as well: the post-#1651 hand-step flow ends every
+      // behavior at this outcome, and without the record each
+      // hand-implemented behavior re-paid the full refactor pipeline
+      // (preflight + build/format/fix + re-proof) over a tree make
+      // certified seconds earlier. The exit-disagreeing skip token (bug
+      // #986 terminal classification) carries the same certification —
+      // the token is the gate, not the exit code.
+      if (step == 'make' &&
+          (result.outcome == 'green' || result.outcome == 'skipped') &&
+          recordMakePostState) {
         await _recordMakePostState(
           behaviorId: row.id,
+          outcome: result.outcome,
           exitCode: result.exitCode,
           rows: rows,
           state: updated,
@@ -3201,9 +3214,13 @@ class RunDriverCore {
   /// `tdd/make-post-state.json`. Best-effort by contract: any failure is
   /// one warning line — a missing record costs the NEXT refactor spawn
   /// one full pipeline, never correctness (the ledger's own stance for
-  /// derived data).
+  /// derived data). Issue #1676: the snapshot runs on the `skipped`
+  /// outcome too — the skip transition's target-test green is live
+  /// post-state evidence on the current tree, and the post-#1651
+  /// hand-step flow ends every behavior there.
   Future<void> _recordMakePostState({
     required String behaviorId,
+    required String outcome,
     required int exitCode,
     required List<BehaviorRow> rows,
     required RunState state,
@@ -3226,6 +3243,27 @@ class RunDriverCore {
       // The same exempt set the batch refactor args hand the spawn: the
       // currently-blocked behavior ids, canonical order.
       final blocked = _blockedIds(rows, state);
+      // Issue #1676: the verdict is named honestly per outcome — the
+      // green application keeps its byte-identical #1652 wording; the
+      // skip transition names its own evidence (the target-test green it
+      // just certified on the current tree), never mislabeled as green.
+      // The switch (not an else) keeps the token and the label in
+      // lockstep: a third token added to the recording gate above fails
+      // loud here instead of being silently recorded under a skip label
+      // — the surrounding catch degrades the throw to the warning line
+      // and writes no record, exactly like the best-effort contract.
+      final verdict = switch (outcome) {
+        'green' =>
+          'make $behaviorId outcome=green exit $exitCode '
+              '(post-generation green evidence)',
+        'skipped' =>
+          'make $behaviorId outcome=skipped exit $exitCode '
+              '(skip-transition target-test green evidence on the '
+              'current tree; issue #1676)',
+        _ => throw StateError(
+          'unrecordable make outcome "$outcome" (issue #1676)',
+        ),
+      };
       final record = MakePostState(
         capturedAt: DateTime.now().toUtc().toIso8601String(),
         behaviorId: behaviorId,
@@ -3235,9 +3273,7 @@ class RunDriverCore {
         exemptBehaviors: blocked,
         libDigest: PassBatchLedger.treeDigest(libNow),
         testDigest: PassBatchLedger.treeDigest(testNow),
-        greenVerdict:
-            'make $behaviorId outcome=green exit $exitCode '
-            '(post-generation green evidence)',
+        greenVerdict: verdict,
       );
       await record.write(featureDir: featureDir);
     } catch (e) {
