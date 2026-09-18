@@ -1,4 +1,4 @@
-@Tags(['regression'])
+@Tags(['regression', 'slow'])
 library;
 
 // Bug 1675 — `zfa make <E> --preset=crud --vpc --route` emits non-compiling
