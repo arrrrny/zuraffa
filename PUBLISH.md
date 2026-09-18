@@ -42,7 +42,7 @@
 
 ## Ordered publish + await (adapted from `zikzak_inappwebview`)
 
-Both packages are released at the same version (currently `6.1.0`). pub.dev lists a version
+Both packages are released at the same version (currently `7.0.0`). pub.dev lists a version
 in its API **before** the archive is actually resolvable, so the gate is **twofold**:
 
 1. `pubdev_has_version <pkg> <ver>` — version present in the pub.dev API.

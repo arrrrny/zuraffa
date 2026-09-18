@@ -8,10 +8,11 @@ import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'capabilities/scaffold_feature_capability.dart';
-// Issue #1149 (kill list — fix list): ONE parameterized capability
-// replaces the eight copy-pasted per-plugin clones. The MCP-visible
-// capability names are unchanged.
-import 'capabilities/plugin_feature_capability.dart';
+// ONE parameterized capability replaces the eight copy-pasted per-plugin
+// clones (collapsed via the #1149 kill list; spec 1023 fixes the contract
+// name to `FeatureLayerCapability(layer:)`). The MCP-visible capability
+// names are unchanged.
+import 'capabilities/feature_layer_capability.dart';
 // Spec 1115 (merged from master): the xray capability is NOT one of the
 // 8 parameterized clones — its `feature` argument is a TYPED FeatureId
 // validated against registered contracts, so it keeps its own class.
@@ -39,50 +40,72 @@ class FeaturePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     this.options = const GeneratorOptions(),
   });
 
-  @override
-  List<ZuraffaCapability> get capabilities => [
-    ScaffoldFeatureCapability(this),
-    PluginFeatureCapability(
-      this,
-      pluginId: 'route',
+  /// Spec 1023: the registered layer matrix — one row per generated-
+  /// artifact layer served by the ONE parameterized
+  /// `FeatureLayerCapability`. The capability manifest (the `capabilities`
+  /// getter below) is built FROM this matrix, so the layer set, the
+  /// per-layer descriptions and the registration order are declared in
+  /// exactly one place. Row order is the pre-parameterization manifest
+  /// order and MUST NOT change (manifest parity contract).
+  static const List<
+    ({String layer, String description, bool mapsMockArgToUseMock})
+  >
+  _layerMatrix = [
+    (
+      layer: 'route',
       description: 'Add routes to an existing feature',
+      mapsMockArgToUseMock: false,
     ),
-    PluginFeatureCapability(
-      this,
-      pluginId: 'di',
+    (
+      layer: 'di',
       description: 'Add dependency injection to an existing feature',
       mapsMockArgToUseMock: true,
     ),
-    PluginFeatureCapability(
-      this,
-      pluginId: 'mock',
+    (
+      layer: 'mock',
       description: 'Add mock data to an existing feature',
+      mapsMockArgToUseMock: false,
     ),
-    PluginFeatureCapability(
-      this,
-      pluginId: 'test',
+    (
+      layer: 'test',
       description: 'Add tests to an existing feature',
+      mapsMockArgToUseMock: false,
     ),
-    PluginFeatureCapability(
-      this,
-      pluginId: 'view',
+    (
+      layer: 'view',
       description: 'Add view to an existing feature',
+      mapsMockArgToUseMock: false,
     ),
-    PluginFeatureCapability(
-      this,
-      pluginId: 'presenter',
+    (
+      layer: 'presenter',
       description: 'Add presenter to an existing feature',
+      mapsMockArgToUseMock: false,
     ),
-    PluginFeatureCapability(
-      this,
-      pluginId: 'controller',
+    (
+      layer: 'controller',
       description: 'Add controller to an existing feature',
+      mapsMockArgToUseMock: false,
     ),
-    PluginFeatureCapability(
-      this,
-      pluginId: 'state',
+    (
+      layer: 'state',
       description: 'Add state to an existing feature',
+      mapsMockArgToUseMock: false,
     ),
+  ];
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+    ScaffoldFeatureCapability(this),
+    // One parameterized capability, registered once per layer-matrix row.
+    // Per-layer names, descriptions, schemas and execution behavior are
+    // identical to the pre-parameterization manifest.
+    for (final row in _layerMatrix)
+      FeatureLayerCapability(
+        this,
+        layer: row.layer,
+        description: row.description,
+        mapsMockArgToUseMock: row.mapsMockArgToUseMock,
+      ),
     // Spec 1115 (issue #1115 item 6): the xray capability — its `feature`
     // argument is a TYPED FeatureId validated against the registered
     // contracts.
