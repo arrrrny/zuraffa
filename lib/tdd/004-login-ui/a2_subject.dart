@@ -23,4 +23,9 @@ import 'login_domain.dart';
 /// Scenario runner for behavior A2.
 ///
 /// Throws [UnimplementedError] until the real implementation lands.
-LoginVerdict subject_a2() => validateLogin('plainaddress', 'longenough1');
+// The scenario pin is deliberately ASYMMETRIC (mutation-audit remediation,
+// spec 1136 verify pass): the password 'a@b.co' is a WELL-FORMED email but
+// fails the 8-character policy, so swapping the arguments changes the
+// verdict (swapped: valid) — the argument ORDER stays observable to the
+// acceptance test.
+LoginVerdict subject_a2() => validateLogin('plainaddress', 'a@b.co');

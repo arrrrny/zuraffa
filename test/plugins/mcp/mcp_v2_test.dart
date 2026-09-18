@@ -90,9 +90,9 @@ void main() {
     // Amended for spec 1010-zfa-dream-one-command-app: the v2 surface
     // gained `dream_draft_spec` (12 tools) — the dream command's LLM
     // integration seam.
-    test('returns all 12 v2 tool definitions', () {
+    test('returns all 13 v2 tool definitions', () {
       final tools = v2ToolDefinitions();
-      expect(tools.length, 12);
+      expect(tools.length, 13);
 
       final names = tools.map((t) => t['name'] as String).toList();
       expect(names, contains('arch_inspect'));

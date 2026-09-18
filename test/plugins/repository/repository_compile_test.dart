@@ -77,6 +77,11 @@ dependencies:
     );
 
     // cached — plugin output + cache plugin + datasource stubs.
+    // Bug 1675: the variant MUST include `delete` — the cache-aware delete
+    // body (`_buildCacheAwareDeleteBody`) is the exact surface whose
+    // `CachePolicy.markStale` call did not exist on the published package
+    // API (isValid/markFresh/invalidate/clear). With only `get` here, the
+    // delete body was never compiled by any lane and the skew escaped.
     final cachedRoot = Directory(p.join(projectRoot.path, 'cached'));
     await _writeEntityStub(cachedRoot);
     await _writeDatasourceStubs(cachedRoot);
@@ -86,7 +91,7 @@ dependencies:
     ).generate(
       GeneratorConfig(
         name: 'Product',
-        methods: ['get'],
+        methods: ['get', 'delete'],
         enableCache: true,
         cacheStorage: 'hive',
         outputDir: cachedRoot.path,
@@ -98,7 +103,7 @@ dependencies:
     ).generate(
       GeneratorConfig(
         name: 'Product',
-        methods: ['get'],
+        methods: ['get', 'delete'],
         generateRepository: true,
         enableCache: true,
         cacheStorage: 'hive',
@@ -258,6 +263,8 @@ abstract class ProductDataSource with Loggable, FailureHandler {
   Future<Product> get(QueryParams<Product> params);
 
   Future<List<Product>> getList(ListQueryParams<Product> params);
+
+  Future<void> delete(DeleteParams<String> params);
 ${withWatch ? '''
   Stream<Product> watch(QueryParams<Product> params);
 ''' : ''}}
@@ -282,6 +289,8 @@ class ProductLocalDataSource {
   Future<void> save(Product entity) async {}
 
   Future<void> saveAll(List<Product> entities) async {}
+
+  Future<void> delete(DeleteParams<String> params) async {}
 }
 ''');
   await File(
@@ -296,6 +305,8 @@ class ProductRemoteDataSource {
   Future<Product> get(QueryParams<Product> params) async {
     throw UnimplementedError();
   }
+
+  Future<void> delete(DeleteParams<String> params) async {}
 }
 ''');
   // zuraffa core already exports `SyncMetadataStore`; the sync pipeline's

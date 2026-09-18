@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../../plugins/repository/contract/repository_contract_manifest.dart';
+import '../../simulation/worlds/world_manifest.dart';
 import '../project/receipt_store.dart';
 import '../project/test_receipt.dart';
 
@@ -40,6 +41,12 @@ class ProofFinding {
   static const kindManifestDrift = 'manifest_drift';
   static const kindManifestCorrupt = 'manifest_corrupt';
 
+  /// Spec 1136 lane 5 — a world-run receipt whose recorded `world_hash`
+  /// no longer matches the committed world manifest (or whose manifest
+  /// is gone): the recorded green is no longer attributable to any
+  /// committed world version.
+  static const kindWorldDrift = 'world_drift';
+
   final String kind;
   final String path;
   final String receipt;
@@ -74,11 +81,18 @@ class ProofReport {
   final int filesChecked;
   final List<ProofFinding> findings;
 
+  /// Spec 1136 lane 5 — how many receipts of each kind were verified
+  /// (`world`, `spec-fuzz`, `entity`, `make`, `tdd`, `route`,
+  /// `usecase`, ...): the epic's "validates every receipt" surface,
+  /// broken down. Null when no receipts were found.
+  final Map<String, int>? receiptKinds;
+
   const ProofReport({
     required this.ok,
     required this.receipts,
     required this.filesChecked,
     required this.findings,
+    this.receiptKinds,
   });
 
   Map<String, dynamic> toJson() => {
@@ -89,6 +103,7 @@ class ProofReport {
     'valid': ok,
     'receipts': receipts,
     'filesChecked': filesChecked,
+    if (receiptKinds != null) 'kinds': receiptKinds,
     'findings': findings.map((f) => f.toJson()).toList(),
   };
 }
@@ -249,6 +264,78 @@ class ProofChecker {
       // what they can; never let manifest auditing crash the check.
     }
 
+    // 2.6 World-run receipts (spec 1136 lane 5): re-derive every
+    // world-run receipt's recorded `world_hash` from the committed
+    // world manifest it names. A mutated (or missing) manifest means
+    // the recorded green is no longer attributable to any committed
+    // world version — drift detected as receipt mismatch.
+    for (final record in records) {
+      if (!record.fileName.startsWith('world-run-')) continue;
+      final worldHash = record.raw['world_hash'] as String?;
+      final scenario = record.raw['scenario'] as String?;
+      final feature = record.raw['feature'] as String?;
+      if (worldHash == null || scenario == null || feature == null) {
+        continue;
+      }
+      final manifestPath = p.join(
+        'specs',
+        feature,
+        'tdd',
+        'worlds',
+        '$scenario.world.json',
+      );
+      final manifestFile = File(p.join(projectRoot, manifestPath));
+      final String current;
+      if (!manifestFile.existsSync()) {
+        findings.add(
+          ProofFinding(
+            kind: ProofFinding.kindWorldDrift,
+            path: manifestPath,
+            receipt: record.fileName,
+            detail:
+                'world manifest for the recorded green run is gone — '
+                'the run (world hash ${_short(worldHash)}) is no longer '
+                'attributable to any committed world version; restore '
+                'the manifest or re-run `zfa simulate run $scenario '
+                '--feature $feature`',
+          ),
+        );
+        continue;
+      }
+      try {
+        current = WorldManifest.parse(manifestFile.readAsBytesSync()).worldHash;
+      } catch (_) {
+        findings.add(
+          ProofFinding(
+            kind: ProofFinding.kindWorldDrift,
+            path: manifestPath,
+            receipt: record.fileName,
+            detail:
+                'world manifest is unreadable — the recorded green run '
+                '(world hash ${_short(worldHash)}) cannot be '
+                're-derived; repair the manifest or re-run `zfa '
+                'simulate run $scenario --feature $feature`',
+          ),
+        );
+        continue;
+      }
+      if (current != worldHash) {
+        findings.add(
+          ProofFinding(
+            kind: ProofFinding.kindWorldDrift,
+            path: manifestPath,
+            receipt: record.fileName,
+            detail:
+                'world drift: receipt says world-hash ${_short(worldHash)} '
+                'but the committed manifest hashes to ${_short(current)} '
+                '— the green run was recorded against a different world; '
+                're-run `zfa simulate run $scenario --feature $feature` '
+                'against the current world',
+          ),
+        );
+      }
+    }
+
     // 3. Unprovenanced artifacts under audited coverage roots.
     for (final root in coverageRoots) {
       findings.addAll(_unprovenancedUnder(root, latest.keys.toSet()));
@@ -350,7 +437,53 @@ class ProofChecker {
       receipts: records.length + testReceipts.length,
       filesChecked: latest.length + testReceiptFiles,
       findings: findings,
+      receiptKinds: records.isEmpty && testReceipts.isEmpty
+          ? null
+          : _receiptKinds(records),
     );
+  }
+
+  /// Spec 1136 lane 5 — the receipt-kind breakdown: how many receipts
+  /// of each kind the check verified. Named receipts classify by their
+  /// stable prefix; timestamped ones by their command verb.
+  static Map<String, int> _receiptKinds(List<ReceiptRecord> records) {
+    final kinds = <String, int>{};
+    for (final record in records) {
+      final name = record.fileName;
+      final command = record.receipt.command;
+      final String kind;
+      if (name.startsWith('world-run-')) {
+        kind = 'world';
+      } else if (name.startsWith('spec-fuzz-')) {
+        kind = 'spec-fuzz';
+      } else if (name.startsWith('routes-')) {
+        kind = 'route';
+      } else if (name.startsWith('mcp-replay-')) {
+        kind = 'mcp-replay';
+      } else if (name.startsWith('mock-')) {
+        kind = 'mock';
+      } else if (name.startsWith('state-')) {
+        kind = 'state';
+      } else if (name.startsWith('provider-')) {
+        kind = 'provider';
+      } else if (name.startsWith('datasource-')) {
+        kind = 'datasource';
+      } else if (name.startsWith('usecase-')) {
+        kind = 'usecase';
+      } else if (command.startsWith('entity')) {
+        kind = 'entity';
+      } else if (command.startsWith('tdd')) {
+        kind = 'tdd';
+      } else if (command.startsWith('make')) {
+        kind = 'make';
+      } else if (command.startsWith('spec')) {
+        kind = 'spec';
+      } else {
+        kind = 'other';
+      }
+      kinds[kind] = (kinds[kind] ?? 0) + 1;
+    }
+    return kinds;
   }
 
   Iterable<ProofFinding> _unprovenancedUnder(
