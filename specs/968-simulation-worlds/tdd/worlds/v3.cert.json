@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "spec": 968,
+  "scenario": "v3",
+  "world_hash": "8ccecd809c466454eb5b948a1a0ec9d79a2402e822d372354a5fab957043803c",
+  "certified": true,
+  "at": "2026-09-17T22:20:21.185979Z",
+  "methods": [
+    {
+      "touchpoint": "PaymentGateway",
+      "method": "charge",
+      "satisfied": true,
+      "evidence": "served map for declared return ChargeResult"
+    },
+    {
+      "touchpoint": "PaymentGateway",
+      "method": "refund",
+      "satisfied": true,
+      "evidence": "served map for declared return RefundResult"
+    }
+  ]
+}

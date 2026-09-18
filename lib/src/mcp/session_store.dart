@@ -2,6 +2,11 @@
 //
 // Stores agent session state (subscribed paths, last inspect result,
 // pending refactor operations) to a JSON file in .zfa/mcp_sessions/.
+//
+// SPEC 1136 lane 3: sessions also carry a recorded tool-call sequence
+// (`calls`) — the agent-side record of what it invoked during the
+// session. `zfa mcp replay <session>` re-executes that sequence against
+// the real scaffolded server (deterministic session re-execution).
 
 import 'dart:convert';
 import 'dart:io';
@@ -14,18 +19,28 @@ class McpSession {
   DateTime lastActiveAt;
   final Map<String, dynamic> state;
 
+  /// The recorded tool-call sequence (spec 1136 lane 3): entries of
+  /// `{"tool": ..., "arguments": {...}, "expect_contains": ...}` in
+  /// call order. `expect_contains` is optional per call. Legacy
+  /// sessions without a `calls` key deserialize to an empty sequence.
+  /// (Mutable: the recording seam — [McpSessionStore.appendCall] —
+  /// extends it.)
+  List<Map<String, dynamic>> calls;
+
   McpSession({
     required this.id,
     required this.createdAt,
     required this.lastActiveAt,
     required this.state,
-  });
+    List<Map<String, dynamic>>? calls,
+  }) : calls = calls ?? <Map<String, dynamic>>[];
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'createdAt': createdAt.toUtc().toIso8601String(),
     'lastActiveAt': lastActiveAt.toUtc().toIso8601String(),
     'state': state,
+    if (calls.isNotEmpty) 'calls': calls,
   };
 
   factory McpSession.fromJson(Map<String, dynamic> json) {
@@ -34,6 +49,9 @@ class McpSession {
       createdAt: DateTime.parse(json['createdAt'] as String),
       lastActiveAt: DateTime.parse(json['lastActiveAt'] as String),
       state: Map<String, dynamic>.from(json['state'] as Map? ?? {}),
+      calls: (json['calls'] as List? ?? const [])
+          .map((c) => Map<String, dynamic>.from(c as Map))
+          .toList(growable: true),
     );
   }
 }
@@ -108,6 +126,43 @@ class McpSessionStore {
     final file = _sessionFile(id);
     if (await file.exists()) {
       await file.delete();
+    }
+  }
+
+  /// Appends a recorded tool call to session [id]'s call sequence
+  /// and persists it (spec 1136 lane 3): the agent-side recording seam
+  /// behind the v2 `session_record` tool. Creates the session when it
+  /// does not exist yet.
+  Future<void> appendCall(
+    String id, {
+    required String tool,
+    Map<String, dynamic>? arguments,
+    String? expectContains,
+  }) async {
+    final session = await getOrCreate(id);
+    final call = <String, dynamic>{
+      'tool': tool,
+      'arguments': ?arguments,
+      'expect_contains': ?expectContains,
+    };
+    session.calls.add(call);
+    await save(session);
+  }
+
+  /// The recorded tool-call sequence for session [id] (empty when the
+  /// session is unknown or has no calls yet).
+  Future<List<Map<String, dynamic>>> callsOf(String id) async {
+    final file = _sessionFile(id);
+    if (!await file.exists()) return const [];
+    try {
+      final content = await file.readAsString();
+      final session = McpSession.fromJson(
+        jsonDecode(content) as Map<String, dynamic>,
+      );
+      return session.calls;
+    } catch (_) {
+      // Corrupt session file — nothing recorded is provable.
+      return const [];
     }
   }
 
