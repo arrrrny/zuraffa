@@ -23,9 +23,15 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 
 import 'helpers/tdd_fixture.dart';
 
-List<String> makeArgs(TddFixture fx, {String? id, String? zfaBin}) {
+List<String> makeArgs(
+  TddFixture fx, {
+  String? id,
+  String? zfaBin,
+  bool stub = false,
+}) {
   final args = <String>['tdd', 'make', '--project', fx.root.path];
   if (zfaBin != null) args.addAll(['--zfa-bin', zfaBin]);
+  if (stub) args.add('--stub');
   if (id != null) args.add(id);
   return args;
 }
@@ -214,6 +220,100 @@ void main() {
       // Green evidence appended.
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, contains('## Cycle: U1 (green)'));
+    });
+
+    test('U1: id-less traced entity on a STUB row refuses BEFORE '
+        'generation — the `make <Traced>` id-dependent shape', () async {
+      // The gate's second recognized shape: the stub branch plans
+      // `make UserSession` (no `--no-entity`, generation_planner's stub
+      // route) instead of `mock create --name UserSession`. The same
+      // #307 refusal must fire for it, before any step spawns.
+      await seedTestListWithKeyEntity(
+        fx,
+        fields: 'token: String, email: String',
+      );
+      await seedEntityFile(
+        fx,
+        fieldGetters: '  String get token;\n  String get email;',
+      );
+      await fx.seedCertifiedRed(id: 'U1', description: _userSessionDescription);
+      final testTreeBefore = fx.checksumTestTree();
+
+      final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U1', zfaBin: zfaBin, stub: true),
+      );
+
+      expect(
+        out,
+        contains(
+          'Cannot generate architecture for "UserSession": the entity has '
+          'no id field.',
+        ),
+      );
+      expect(
+        out,
+        contains(
+          'make: behavior=U1 outcome=unexpressible feature=${fx.featureName}',
+        ),
+      );
+      expect(exitCode, isNot(0), reason: 'refusal must exit non-zero');
+
+      expect(
+        await fx.readFakeZfaLog(),
+        isEmpty,
+        reason: 'the 016 gate must refuse before any pipeline invocation',
+      );
+      expect(fx.checksumTestTree(), equals(testTreeBefore));
+    });
+
+    test('regression guard: id-bearing traced entity on a STUB row keeps '
+        'the entity pipeline — `make <Traced>` passes the gate', () async {
+      await seedTestListWithKeyEntity(fx, fields: 'id: String, token: String');
+      await seedEntityFile(
+        fx,
+        fieldGetters:
+            '  String get id;\n  String get token;\n  String get email;',
+      );
+      await fx.seedCertifiedRed(
+        id: 'U1',
+        description: _userSessionDescription,
+        testContent: TddFixture.subjectDrivenTest(
+          'U1',
+          _userSessionDescription,
+        ),
+      );
+
+      final zfaBin = await fx.writeFakeZfaBin(
+        logPath: fx.fakeZfaLogPath,
+        sideEffectByArgv: {
+          'wire': fx.overwriteSubjectCommands(
+            'U1',
+            TddFixture.subjectReturning('U1', 42),
+          ),
+        },
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: 'U1', zfaBin: zfaBin, stub: true),
+      );
+
+      expect(
+        out,
+        contains('make: behavior=U1 outcome=green feature=${fx.featureName}'),
+      );
+      expect(exitCode, 0, reason: 'id-bearing entity generation must certify');
+
+      // The stub branch's id-dependent `make <Entity>` step ran.
+      final calls = await fx.readFakeZfaLog();
+      expect(
+        calls.join('\n'),
+        contains('make UserSession'),
+        reason: 'the stub-branch entity generation step must run',
+      );
     });
   });
 }

@@ -72,6 +72,7 @@ import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../cli/exit_protocol.dart';
+import '../../../utils/id_gate_diagnostic.dart';
 
 import '../models/generation_plan.dart';
 import '../models/red_classification.dart';
@@ -1856,39 +1857,14 @@ class MakeCommand extends Command<void> {
           '"$idGateRefusal" has no id field (spec 016 id-gate on the tdd '
           'make path, issue #307).',
         );
-        print(
-          '❌ Cannot generate architecture for "$idGateRefusal": the entity '
-          'has no id field.',
-        );
-        print('');
-        print('Entities need a real identity. Choose one of:');
-        print(
-          '  1. Add an id field:    zfa entity add-field -n '
-          '$idGateRefusal --field id:String',
-        );
-        print(
-          '  2. Auto-generate one:  recreate with '
-          'zfa entity create -n $idGateRefusal --auto-id <fields...>',
-        );
-        print(
-          '  3. Mark it as a value object if it is an immutable '
-          'composition type (no identity, no CRUD surface):',
-        );
-        print(
-          '       zfa entity create -n $idGateRefusal --kind=value_object '
-          '<fields...>',
-        );
-        print(
-          '     or add @ZValueObject / kind: ZorphyKind.valueObject '
-          'to its annotation.',
-        );
-        print(
-          '   or narrow the traced contract to id-neutral methods (no '
-          'repository/datasource/mock CRUD surface), then re-run.',
-        );
-        print(
-          '--> fix: add `id: String` to $idGateRefusal, or narrow the '
-          'traced contract to id-neutral methods, then re-run.',
+        printIdGateDiagnostic(
+          idGateRefusal,
+          extraLines: [
+            '   or narrow the traced contract to id-neutral methods (no '
+                'repository/datasource/mock CRUD surface), then re-run.',
+            '--> fix: add `id: String` to $idGateRefusal, or narrow the '
+                'traced contract to id-neutral methods, then re-run.',
+          ],
         );
         _printSummary(
           behavior: record.behaviorId,
@@ -3590,13 +3566,28 @@ class MakeCommand extends Command<void> {
 
   /// The `-n <Name>` of an `entity create` step's args, or null when the
   /// step creates no entity (or carries an unexpected argv shape — left
-  /// untouched, fail-open to the un-gated step).
+  /// untouched, fail-open to the un-gated step). Both the two-token
+  /// (`-n Name`) and joined (`-n=Name`) argv shapes the real CLI parses
+  /// are recognized ([_flagValue]).
   String? _entityCreateStepName(List<String> args) {
     if (args.length < 4) return null;
     if (args[0] != 'entity' || args[1] != 'create') return null;
-    final idx = args.indexOf('-n');
-    if (idx < 0 || idx + 1 >= args.length) return null;
-    return args[idx + 1];
+    return _flagValue(args, '-n');
+  }
+
+  /// The value of [flag] in [args], accepting both the two-token
+  /// (`--name <value>`) and joined (`--name=<value>`) argv shapes the
+  /// real CLI parses. A joined form the lookup missed would make the 016
+  /// id-gate fail open silently (never refuse), with no test failing —
+  /// so both shapes are understood here.
+  String? _flagValue(List<String> args, String flag) {
+    final idx = args.indexOf(flag);
+    if (idx >= 0 && idx + 1 < args.length) return args[idx + 1];
+    final prefix = '$flag=';
+    for (final arg in args) {
+      if (arg.startsWith(prefix)) return arg.substring(prefix.length);
+    }
+    return null;
   }
 
   /// Spec 1692: the traced entity this make's plan would generate an
@@ -3627,10 +3618,11 @@ class MakeCommand extends Command<void> {
     final hasIdDependentStep = effectivePlan.steps.any((step) {
       final args = step.args;
       if (args.length < 2) return false;
-      // `mock create --name <Traced> ...`
+      // `mock create --name <Traced> ...` (both `--name <v>` and
+      // `--name=<v>` argv shapes).
       if (args[0] == 'mock' && args[1] == 'create') {
-        final idx = args.indexOf('--name');
-        if (idx >= 0 && idx + 1 < args.length) return args[idx + 1] == traced;
+        final name = _flagValue(args, '--name');
+        return name != null && name == traced;
       }
       // `make <Traced>` — a real entity generation step (the
       // `--no-entity` shape names no resolvable entity and keeps the
