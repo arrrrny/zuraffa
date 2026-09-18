@@ -80,7 +80,7 @@ order), red→green cycle hash-chained in the feature's cycle-log.
 
 - command: `zfa tdd verify --feature 004-login-ui` (cwd:
   `example/`, profile runner: flutter)
-- runner_command: `dart run mutation_test` — exit 0, elapsed 594s
+- runner_command: `dart run mutation_test` — exit 0, elapsed 590s
 - gate: `fail_survived` — killed: 58, survived: 9, timed_out: 0
 - mutation_score: 0.8657 (baseline before this lane: 48/8, 0.8571)
 - restoration_verified: true — all 10 registered subjects restored

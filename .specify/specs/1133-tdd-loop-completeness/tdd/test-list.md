@@ -20,8 +20,7 @@ killed: 0 survived: 0 mutation_was_run: false
 Per-behavior preflight stopped at `test/tdd/004-login-ui/u1_test.dart`:
 `Expected: not <Instance of 'UnimplementedError'>` /
 `Actual: UnimplementedError: subject_u1 not implemented` — the U1 red
-(cycle-log entry `Cycle: U1 (red)`, 2026-09-11, re-proved 2026-09-17
-22:15 UTC).
+(cycle-log entry `Cycle: U1 (red)`, 2026-09-11).
 
 ## Green evidence (this session)
 
@@ -34,7 +33,7 @@ Hash-chained as `Cycle: U1 (green)` in
 `example/specs/004-login-ui/tdd/cycle-log.md` (prev-hash =
 4d5b2725c7d8cffe3e884d33c20ec154404fb346ae280c0cd7dc512c2061c1d3, the
 U1 red link; subject-hash
-30e4920259a9fb9de20e21141ee15289c5ca2241848d470b3630510199bf25c3).
+7fec953024346518ac18e36f21e03145bb3a33c3ccbab7f7ca198aaa179c88e2).
 
 ## Full-suite green (this session, real run)
 
