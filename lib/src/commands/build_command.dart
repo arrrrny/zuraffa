@@ -16,6 +16,7 @@ import '../core/project/project_root.dart';
 import '../dda/plugins/route/route_build_stage.dart';
 import '../feature_flags/feature_flag_config.dart';
 import '../feature_flags/registry_emitter.dart';
+import '../models/generator_config.dart';
 
 class BuildCommand extends Command {
   final FileParser _fileParser = const FileParser();
@@ -863,16 +864,16 @@ class BuildCommand extends Command {
     return seen.toList();
   }
 
-  /// Whether [path] is generator output.
+  /// Whether [path] is generator output under [outputDir].
   ///
   /// Two attribution surfaces (bug 1675):
   ///
   ///   1. the generated-name suffixes the build command itself owns
   ///      (`.zorphy.dart` / `.g.dart`; the same convention the
   ///      zorphy-annotation scan uses);
-  ///   2. the directory conventions the `zfa make` plugins write into,
-  ///      relative to the package's `lib/src` output dir: `domain`, `data`,
-  ///      `di`, `routing`, `presentation`, `cache`. Files
+  ///   2. the directory conventions the `zfa make` plugins write into
+  ///      *under the output dir* ([outputDir] — `lib/src` by default):
+  ///      `domain`, `data`, `di`, `routing`, `presentation`, `cache`. Files
   ///      `zfa make` just wrote (e.g.
   ///      `lib/src/data/repositories/data_todo_repository.dart`,
   ///      `lib/src/routing/todo_routes.dart`) carry no generated suffix,
@@ -881,20 +882,55 @@ class BuildCommand extends Command {
   ///      the next regeneration would clobber.
   ///
   /// Analyzer paths arrive with `/` separators on POSIX and `\` on Windows,
-  /// so separators are normalized before the segment check. Anything else is
+  /// so separators are normalized before the segment check, and surface 2 is
+  /// anchored to the [outputDir] prefix: only files *inside* the generator's
+  /// tree can be generator output, so a hand-authored
+  /// `test/data/migrator_test.dart` or `lib/data/legacy/migrator.dart` stays
   /// hand-authored.
-  static bool _isGeneratedPath(String path) {
+  ///
+  /// Deliberate trade-off, pinned by test (see the bug-1675 suite):
+  /// hand-authored code inside an owned segment *under the output dir*
+  /// (`lib/src/data/legacy/migrator.dart`) is indistinguishable from make
+  /// output by path alone and is therefore attributed to the generator —
+  /// the over-attributing direction is the safe one here (v5 fixes that
+  /// layout: entities under the domain root, no alternate folder
+  /// structures), whereas answering "hand-authored" for real make output is
+  /// exactly the #1675 misdirection. Per-file provenance would need the
+  /// `.zfa/receipts` run records; this classifier stays pure and
+  /// path-based.
+  ///
+  /// Anything else is hand-authored.
+  static bool _isGeneratedPath(
+    String path, {
+    String outputDir = GeneratorConfig.fixedOutputDir,
+  }) {
     final normalized = path.replaceAll(r'\', '/');
     if (normalized.endsWith('.zorphy.dart') || normalized.endsWith('.g.dart')) {
       return true;
     }
-    // The make plugins own these segments under the output dir (`lib/src`
-    // by default). Match the segment boundary so `lib/src/data.x/` never
-    // classifies as `data`.
+    // The make plugins own these segments under the output dir, so the
+    // segment test is anchored to that prefix. `dart analyze` prints
+    // project-relative paths (`lib/src/data/…`), so the prefix may sit at
+    // the string start or under a leading `./`/project dir — match both.
+    // The trailing separator keeps the segment boundary, so `lib/src/data.x/`
+    // never classifies as `data`.
+    final anchor = _outputDirPrefix(outputDir);
+    final prefix = anchor.isEmpty ? '' : '$anchor/';
     for (final segment in _makeOwnedSegments) {
-      if (normalized.contains('/$segment/')) return true;
+      if (normalized.startsWith('$prefix$segment/') ||
+          normalized.contains('/$prefix$segment/')) {
+        return true;
+      }
     }
     return false;
+  }
+
+  /// [outputDir] normalized to a prefix the anchored segment test can match
+  /// against (`'lib/src'`, `'./lib/src/'`, `'lib\\src'` → `'lib/src'`; an
+  /// unset/`.` dir → `''`, which degrades to the bare segment boundary).
+  static String _outputDirPrefix(String outputDir) {
+    final normalized = p.posix.normalize(outputDir.replaceAll(r'\', '/'));
+    return normalized == '.' ? '' : normalized;
   }
 
   /// The output-dir segments the `zfa make` plugin chain writes into
@@ -928,8 +964,14 @@ class BuildCommand extends Command {
   ///
   /// Pure and `@visibleForTesting` — unit-testable without spawning
   /// `dart analyze` (the same convention as [countAnalyzerIssues]).
+  ///
+  /// [outputDir] is the generator's output dir the ownership classifier
+  /// anchors surface 2 to (`lib/src` by default; see [_isGeneratedPath]).
   @visibleForTesting
-  static List<String> analyzeGateRemedyLines(String analyzeOutput) {
+  static List<String> analyzeGateRemedyLines(
+    String analyzeOutput, {
+    String outputDir = GeneratorConfig.fixedOutputDir,
+  }) {
     const cap = 3;
     String capped(List<String> paths) {
       final named = paths.take(cap).join(', ');
@@ -938,8 +980,12 @@ class BuildCommand extends Command {
     }
 
     final offenders = analyzerOffendingPaths(analyzeOutput);
-    final generated = offenders.where(_isGeneratedPath).toList();
-    final handAuthored = offenders.where((f) => !_isGeneratedPath(f)).toList();
+    final generated = offenders
+        .where((f) => _isGeneratedPath(f, outputDir: outputDir))
+        .toList();
+    final handAuthored = offenders
+        .where((f) => !_isGeneratedPath(f, outputDir: outputDir))
+        .toList();
     if (handAuthored.isEmpty) {
       return ['Fix the generator or run with --no-analyze to skip this check.'];
     }

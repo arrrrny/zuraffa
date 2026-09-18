@@ -37,6 +37,27 @@
 | 11 | Regression — broad fast lane (directories: `test/cli`, `test/core`) | `dart test -j 2 <dir>` | PASS | cli `+276`, core `+687`, all green |
 | 12 | Format gate | `dart format .` then `dart format --output=none --set-exit-if-changed .` | PASS | 2944 files, 0 changed after the initial pass formatted the new test file |
 
+## Review-fix follow-up (review of 16682a3)
+
+The review of this PR's head raised one 🟡 finding
+(`build_command.dart:891-895` — the ownership classifier's segment test
+matched anywhere in the path although its doc comment claimed "under the
+output dir") and one 🔵 no-change-requested note (`route_plugin.dart:262-265`
+— `int.parse` on a malformed URL id; the throwing parse is the pinned #336
+contract). Only the 🟡 finding produced code changes. Every check below is
+from an ACTUAL run in this session, on the review-fix commit.
+
+## Checks (review-fix follow-up)
+
+| # | Check | Command | Result | Evidence |
+|---|-------|---------|--------|----------|
+| 13 | Analyzer, touched files | `dart analyze lib/src/commands/build_command.dart test/commands/build_command_generated_path_attribution_test.dart` | PASS | `No issues found!` |
+| 14 | RED — anchor mutant (segment test deliberately left un-anchored, the pre-fix `/<segment>/` match) | `dart test test/commands/build_command_generated_path_attribution_test.dart` | FAIL × 2 — the RIGHT failures | `owned-segment names outside the output dir stay hand-authored` and `an explicit output dir re-anchors the segment check` failed (the un-anchored classifier attributes `test/data/…` / `lib/data/…` / `lib/src/datax/…` to the generator); the trade-off pin passed as designed — it holds under both heuristics, so it pins semantics rather than the heuristic |
+| 15 | GREEN — new pins (default/fast lane: the file is untagged, so a bare `dart test` selects it) | same command, anchor restored | PASS | `00:00 +5: All tests passed!` |
+| 16 | GREEN — slow classifier suite (incl. the real `dart analyze lib` inside `verifyAnalyzeOrFail`) | `dart test --preset=all test/commands/build_command_unit_test.dart` | PASS | `+55: All tests passed!`; the spawned analyze run reported `Analyzing lib... No issues found!` |
+| 17 | GREEN — regression bug-1675 driver | `dart test --preset=regression test/fixes/bug_1675_make_crud_vpc_route_compile_test.dart` | PASS | `+5: All tests passed!` (A4/A5/U3 attribution pins unchanged and still green under the anchored classifier) |
+| 18 | Format gate | `dart format --output=none --set-exit-if-changed lib test` | PASS | `2737 files (0 changed)` |
+
 ## Pre-existing failures flagged (NOT caused by this fix)
 
 - `test/regression/issue_294_entity_without_id_test.dart` — "Gap 1" test
@@ -61,4 +82,7 @@ A1/U1: reverting the one-line generator change (the exact mutant
 evidence (check 2) shows both sides firing. The attribution mutants
 (classifier missing a segment / over-attributing) are killed by the
 three-way G3 group (all-generator single remedy, mixed-case group
-membership, six-segment + backslash probe).
+membership, six-segment + backslash probe). The review-fix anchor mutant
+(dropping the output-dir prefix from the segment test) is killed by check
+14's two failing pins — and only by those two, which is the point: the
+trade-off pin is heuristic-independent by construction.

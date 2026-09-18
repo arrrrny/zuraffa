@@ -10,7 +10,8 @@ One per acceptance criterion in `assessment.md` → Remediation.
 | A2 | the cache-aware delete body compiles against the package API in the spec-1003 compile gate (cached variant includes `delete`) | Defect 1 | GREEN |
 | A3 | the route plugin's `zfa make` path (`generateWithContext`) emits typed path-param parsing (`int.parse(state.pathParameters['id']!)`) for an int-id entity, and never a raw String assignment into the typed view field | Defect 2 | GREEN |
 | A4 | the analyze gate attributes `zfa make` output files (`lib/src/data/repositories/*.dart`, `lib/src/routing/*_routes.dart`) to generator output — the remedy points at the generator, not the user | Defect 3 | GREEN |
-| A5 | hand-authored files outside the generator's directory conventions keep the honest hand-authored attribution (no over-attribution) | Defect 3 | GREEN |
+| A5 | hand-authored files outside the generator's tree keep the honest hand-authored attribution (no over-attribution outside the output dir) | Defect 3 | GREEN |
+| A6 | the make-owned segment test is anchored to the output dir — an owned-segment name outside it (`test/data/…`, `lib/data/…`, `lib/src/datax/…`) is hand-authored, never generator output | Defect 3 | GREEN |
 
 ## Outer loop: widget behaviors
 
@@ -29,6 +30,7 @@ One per functional requirement in `assessment.md` → Remediation.
 | U1 | `_buildCacheAwareDeleteBody` emits `await _cachePolicy.invalidate('<key>');` (the published API) | Defect 1 | GREEN |
 | U2 | `RoutePlugin.generateWithContext` forwards `context.data['id-field-type']` into the `GeneratorConfig` it builds (mirror of `view_plugin.dart`'s read) | Defect 2 | GREEN |
 | U3 | `_isGeneratedPath` recognizes the make-owned directory conventions (`domain`/`data`/`di`/`routing`/`presentation`/`cache` under the output dir), normalizing Windows backslashes | Defect 3 | GREEN |
+| U4 | the segment test is anchored to the resolved output dir (`GeneratorConfig.fixedOutputDir` by default, overridable through `analyzeGateRemedyLines(outputDir:)`), and the residual over-attribution for hand-authored code inside an owned segment under the output dir is documented as deliberate and pinned | Defect 3 | GREEN |
 
 ## Notes
 
@@ -46,3 +48,13 @@ One per functional requirement in `assessment.md` → Remediation.
 - GREEN evidence (post-fix, this session): driver 5/5, route plugin 115,
   repository 54, gate unit suite 55, compile gate 1 — all green. Full
   transcript: ./verification.md
+- Review-fix follow-up (review of `16682a3`, finding on
+  `build_command.dart:891-895`): the segment test is now anchored to the
+  output dir instead of matching anywhere in the path (A6/U4), and the
+  residual over-attribution is pinned. The pins live in
+  `test/commands/build_command_generated_path_attribution_test.dart` —
+  deliberately UNTAGGED, because both pre-existing classifier suites are
+  excluded from the default lane (`build_command_unit_test.dart` is
+  `slow`-tagged for its `dart analyze` spawn, the bug driver is
+  `regression`-tagged), so a pin added there would never run in CI's fast
+  lane. Evidence and the anchor mutant's RED run: ./verification.md.
