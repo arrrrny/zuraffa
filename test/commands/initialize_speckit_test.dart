@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Issue #1417 — speckit scaffolding regenerable into existing repos.
 //
 // `zfa initialize --speckit` emits the current speckit helper scripts
