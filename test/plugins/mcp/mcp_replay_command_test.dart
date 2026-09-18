@@ -11,6 +11,10 @@
 //   B5 — missing scenario file → exit 2 with the usage line.
 //   B6 — malformed scenario → exit 1 naming the file.
 //   B7 — `zfa mcp --help` lists `replay`.
+//   B8 — a non-list `calls` value is a clean malformed refusal, not a
+//        TypeError.
+//   B9 — a zero-call scenario refuses instead of stamping a GREEN
+//        receipt (a zero-call replay proves nothing).
 
 import 'dart:convert';
 import 'dart:io';
@@ -184,7 +188,15 @@ void main() {
 
   test('B4: an unscaffolded project refuses before spawning', () async {
     await File(p0(root.path, 'bin', 'mcp_server.dart')).delete();
-    final scenarioPath = writeScenario({'session': 's', 'calls': []});
+    final scenarioPath = writeScenario({
+      'session': 's',
+      'calls': [
+        {
+          'tool': 'echo',
+          'arguments': {'message': 'hi'},
+        },
+      ],
+    });
 
     final (code, output) = await runReplay(scenarioPath);
 
@@ -214,6 +226,37 @@ void main() {
     final output = await runner.runCapturing(['mcp', '--help']);
     expect(output, contains('replay'));
   });
+
+  test(
+    'B8: a non-list "calls" is malformed, not a TypeError (exit 1)',
+    () async {
+      final scenarioPath = writeScenario({'session': 's', 'calls': 'nope'});
+
+      final (code, output) = await runReplay(scenarioPath);
+
+      expect(code, 1, reason: output);
+      expect(output, contains('"calls" must be a list'));
+    },
+  );
+
+  test(
+    'B9: a zero-call scenario refuses instead of a false-green receipt',
+    () async {
+      final scenarioPath = writeScenario({'session': 'empty', 'calls': []});
+
+      final (code, output) = await runReplay(scenarioPath);
+
+      expect(code, 1, reason: output);
+      expect(output, contains('"calls" is empty'));
+      expect(
+        File(
+          p0(root.path, '.zfa', 'receipts', 'mcp-replay-empty.json'),
+        ).existsSync(),
+        isFalse,
+        reason: 'no receipt for a refused replay — never a false-green proof',
+      );
+    },
+  );
 }
 
 /// p.join without importing path (kept local to the fixture).

@@ -26,6 +26,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/commands/doctor_checks.dart';
+import 'package:zuraffa/src/version.dart';
 import '../helpers/cwd_mutex.dart';
 
 const _tddDevDeps = {'mocktail', 'coverage', 'mutation_test'};
@@ -53,7 +54,7 @@ Future<Directory> _sandbox() async {
 
 String _pubspec({
   Set<String> devDeps = _tddDevDeps,
-  String zuraffa = '^6.0.0',
+  String zuraffa = '^$version',
 }) {
   final sb = StringBuffer()
     ..writeln('name: sandbox')
@@ -73,7 +74,7 @@ String _pubspec({
 Future<File> _writePubspec(
   Directory dir, {
   Set<String> devDeps = _tddDevDeps,
-  String zuraffa = '^6.0.0',
+  String zuraffa = '^$version',
 }) => File(
   '${dir.path}/pubspec.yaml',
 ).writeAsString(_pubspec(devDeps: devDeps, zuraffa: zuraffa));
