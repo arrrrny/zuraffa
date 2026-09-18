@@ -85,3 +85,15 @@ mutation-test-report/
 # viewer (website/static/docs/index.html) is committed.
 website/static/docs/*.md
 website/static/docs/wiki.json
+mutation-test-1693-report/
+
+# The ROOT tdd/ directory is per-run scratch, not a source artifact. The TDD
+# tooling OVERWRITES tdd/test-list.md and tdd/verification.md with the CURRENT
+# work item's single report (verify_command: "overwrites any stale copy"), so
+# every branch rewrites the whole file and tracking it conflicted on EVERY
+# open PR. Those conflicts were resolved by keeping both sides, which is what
+# left master carrying two concatenated reports (issue #1685's + spec 1693's,
+# two titles, two `Verdict: PASS` blocks) inside one file. Durable
+# per-work-item records live under specs/<feature>/tdd/ and
+# .specify/bugs/<id>/tdd/; the root mirror is regenerated and stays local.
+/tdd/

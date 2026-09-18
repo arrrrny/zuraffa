@@ -60,14 +60,15 @@ void main() {
       // which keeps the `wt-from` / `wt-to` label the fakes key on. Every
       // candidate is recorded so the seam's contract — the ref worktree's
       // entrypoint, and nothing else — is asserted rather than assumed.
-      ensureCompiled: (candidate, {sourceRoot, runner, environment}) async {
-        compiledCandidates.add(candidate);
-        // Strip the FULL `.dart` suffix: `length - 4` would leave the
-        // separator (`.../bin/zfa.`) behind.
-        return candidate.endsWith('/bin/zfa.dart')
-            ? candidate.substring(0, candidate.length - '.dart'.length)
-            : candidate;
-      },
+      ensureCompiled:
+          (candidate, {sourceRoot, packagesFile, runner, environment}) async {
+            compiledCandidates.add(candidate);
+            // Strip the FULL `.dart` suffix: `length - 4` would leave the
+            // separator (`.../bin/zfa.`) behind.
+            return candidate.endsWith('/bin/zfa.dart')
+                ? candidate.substring(0, candidate.length - '.dart'.length)
+                : candidate;
+          },
       gitRunner: (args, cwd) async {
         final argv = args.join(' ');
         recordedGit.add(argv);
