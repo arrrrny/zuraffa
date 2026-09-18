@@ -48,7 +48,7 @@ Usage: zfa app <subcommand> [arguments]
 -h, --help    Print this usage information.
 
 Available subcommands:
-  shell   Generate the app shell (main.dart + MyApp + app_router.dart)
+  shell   Generate the app shell (main.dart + shell widget + app_router.dart)
 
 Run "zfa help" to see global options.
 ```
@@ -168,12 +168,44 @@ Run "zfa help" to see global options.
 ## `zfa config`
 
 ```
-Manage ZFA configuration
+zfa config - Manage ZFA configuration
 
-Usage: zfa config [arguments]
--h, --help    Print this usage information.
+USAGE:
+  zfa config <command> [options]
 
-Run "zfa help" to see global options.
+COMMANDS:
+  init                Create default configuration file (.zfa.json)
+  show, get           Show current configuration
+  set <key> <value>   Update a configuration value
+  help                Show this help message
+
+OPTIONS:
+  init --minimal, -m  Keep every plugin default off (the pre-#1496
+                      behaviour) — select plugins per command with
+                      --preset=crud or --with=<plugin>
+  --help, -h          Show this help message
+
+CONFIGURATION KEYS:
+  buildByDefault      Auto-run build_runner after entity/cache operations
+  formatByDefault     Auto-run dart format after generation
+  filterByDefault     Enable type-safe filters for entities by default
+  entityFirst         Require entities before entity-aware architecture generation
+  <plugin>ByDefault   Enable a plugin by default during plan resolution
+
+EXAMPLES:
+  zfa config init
+  zfa config init --minimal
+  zfa config show
+  zfa config set diByDefault true
+  zfa config set repositoryByDefault true
+  zfa config set entityFirst true
+  zfa config set filterByDefault true
+
+NOTES:
+  - Zuraffa v5 is Zorphy-only on public config surfaces.
+  - The domain root is fixed to lib/src/domain in v5.
+  - Entity output is fixed to lib/src/domain/entities.
+  - Plugin defaults are stored under plugins.defaults in .zfa.json.
 ```
 
 ## `zfa controller`
@@ -343,6 +375,8 @@ SUBCOMMANDS:
   new         Quick-create a simple entity (basic defaults)
   enum        Create a new Zorphy enum
   add-field   Add field(s) to an existing entity
+  remove      Remove an entity and write a tombstone receipt (issue #1429)
+  delete      Alias of remove
   from-json   Create entity from JSON file
   list        List all Zorphy entities
   build       Run build_runner build (with optional --clean, --force)
@@ -395,6 +429,15 @@ ADD-FIELD COMMAND:
                             For types that are NEVER entities (external classes
                             like plugin wrappers), use the `!Type` prefix
                             instead (see FIELD SYNTAX below).
+
+REMOVE COMMAND:
+  zfa entity remove -n <Name>   (alias: delete)
+  Deletes the entity scaffold (lib/src/domain/entities/<snake>/) and writes
+  a tombstone receipt to .zfa/receipts/ (file entries action: 'delete') so
+  `zfa proof check` treats the absence as provenance, not drift. When the
+  scaffold is already gone but entity receipts remain (a hand-deleted
+  mis-declared entity), the tombstone is still written — the documented
+  recovery path from issue #1429, no hand-editing the provenance store.
 
 FIELD SYNTAX:
   name:type                 Basic field, Dart name = JSON wire name
@@ -535,6 +578,7 @@ Usage: zfa graphql <subcommand> [arguments]
 Available subcommands:
   create       Create GraphQL
   diff         Diff two cached schema versions and report breaking changes (exit 1 when breaking changes exist)
+  generate     Generate full-stack Dart code from a GraphQL schema (via package:zuraffa_graphql)
   introspect   Introspect a remote GraphQL endpoint and print a generation plan
   pull         Fetch a GraphQL schema via introspection and cache it (SDL + introspection JSON)
 
@@ -880,7 +924,8 @@ Usage: zfa package <subcommand> [arguments]
 -h, --help    Print this usage information.
 
 Available subcommands:
-  create   Create a new Zuraffa-native package scaffold (standard domain/data layout, runtime module, package registrar, test harness) that passes analysis and codegen with zero manual edits
+  create          Create a new Zuraffa-native package scaffold (standard domain/data layout, runtime module, package registrar, test harness) that passes analysis and codegen with zero manual edits
+  create-plugin   Create a publish-ready federated plugin monorepo (app-facing package, shared platform envelope core, and android/ios/macos adapters with the zikzak publish pipeline) — the shape zuraffa_auth and zuraffa_permissions follow (issue #1604, #678)
 
 Run "zfa help" to see global options.
 ```
@@ -1281,42 +1326,122 @@ Run "zfa help" to see global options.
 ## `zfa tdd`
 
 ```
-Drive the full TDD red-green-refactor cycle (init, plan, gen, verify-red, make, wire, func, refactor, run, run-engine, run-skin, split, status, prove, verify). See specs/041-tdd-setup-plugin/spec.md for the full contract; specs/1000-spec-template-core-skin-lanes/spec.md for the lane split, specs/1008-two-cycle-driver/spec.md for the two-cycle runner, and specs/1113-unified-tdd-journal/spec.md for the unified journal.
+Drive the full TDD red-green-refactor cycle (init, plan, gen, verify-red, make, wire, func, refactor, run, run-engine,
+run-skin, split, status, prove, verify). See specs/041-tdd-setup-plugin/spec.md for the full contract;
+specs/1000-spec-template-core-skin-lanes/spec.md for the lane split, specs/1008-two-cycle-driver/spec.md for the
+two-cycle runner, and specs/1113-unified-tdd-journal/spec.md for the unified journal.
 
 Usage: zfa tdd <subcommand> [options]
 -h, --help    Print this usage information.
-
 Available subcommands:
-  compose         Compose an acceptance behavior's subject against the feature's green unit subjects — the composition step of the acceptance make pipeline (issue #642, spec 052).
-  corpus          Drive the whole spec corpus through the TDD loop: batch run with resume, per-feature verify gate, provenance audit, and the gap ledger (spec 051).
-  diff-check      Check fixture parity between the mock and real adapters for the feature's committed adapter contracts; drift = named verdict, exit 2 (bug #915).
-  doctor          Diagnose a feature's TDD stores and prescribe exactly one recovery action — migrate (another feature owns the legacy-layout files), adopt (register unowned generated files), reset (drop stale registry records), or resume (re-run the loop) — as a --> fix: line with a JSON verdict (bugs #840, #874).
-  fake            Generate a framework-certified fake for a platform channel: a test-side handler (TestDefaultBinaryMessengerBinding) that replays a committed scenario script — responses, errors, permission states — and records the observed calls (issue #831).
-  func            Scaffold the plain-function subject of a behavior (render, format, parse, compute, ...) with a description-derived return type — the function-generation surface of the pipeline (bug #657).
-  gen             Generate a failing test + compiling source stub for a behavior (spec 044-test-tdd-generation, FR-001..011).
-  ingest          Validate a draft spec through the plan gates (+ entity-collision and contract-ambiguity gates) and place it as specs/<feature>/spec.md — the dream loop's ingestion step.
-  init            Idempotently ensure the TDD baseline exists in the current project (test/, dart_test.yaml, .specify/memory/tdd-profile.md, testing dev_dependencies).
-  make            Generate minimal implementation via zfa make/entity create/build, run the target test green, certify the suite stays clean, and append green evidence to tdd/cycle-log.md (spec 047).
-  migrate-paths   Move recorded TDD artifacts from the legacy flat layout (test/tdd/<id>_test.dart) to the per-feature namespaced layout (test/tdd/<feature-slug>/<id>_test.dart) and rewrite the registry records (bug #827).
-  plan            Read <feature>/spec.md and emit <feature>/tdd/test-list.md (one behavior per criterion). <feature> is a plain specs/ feature name, a specs/<feature> path, a .specify/bugs/<slug> bug directory, or an absolute path (issue #1182).
-  prove           Walk the feature's unified journal and compute the incremental re-proving delta — the behaviors ungated since the last prove (no green evidence, or files changed since the last prove's fingerprints). Only those behaviors need re-proving; prove itself runs nothing. Exit 0 iff zero ungated (spec 1113, issue #1113).
-  realize         Run the mock-to-real swap flow (spec 913; --adapter required), gated by the contract suite and real-vs-mock differential; --diff-only replays ONLY the standalone differential harness (spec 1195; --adapter optional) without touching the tree. Spec 1193 adds the certified-mock location, --scaffold (the hand-delta seam), --dry-run (preview, zero writes), the unified-journal ladder advance MOCKED->REAL->DONE, and the realize hand-delta receipt with generated/mock/hand ratios.
-  realize-mock    Run the Tier-1 contract test, then the same contract cases through a Firestore-shaped Tier2MockProvider (backed by a fake FirebaseFirestore), and certify the pair with a per-method differential receipt (issue #1009). Divergence = exit 1 with the mismatched method named.
-  refactor        Refactor on a green suite only; never edit tests. Applies the fixed pass registry (resolved zfa build, dart format lib/, dart fix --apply lib/), re-proves the suite green, and appends refactor evidence to cycle-log.md.
+  compose         Compose an acceptance behavior's subject against the feature's green unit subjects — the composition
+                  step of the acceptance make pipeline (issue #642, spec 052).
+
+  corpus          Drive the whole spec corpus through the TDD loop: batch run with resume, per-feature verify gate,
+                  provenance audit, and the gap ledger (spec 051).
+
+  diff-check      Check fixture parity between the mock and real adapters for the feature's committed adapter contracts;
+                  drift = named verdict, exit 2 (bug #915).
+
+  doctor          Diagnose a feature's TDD stores and prescribe exactly one recovery action — migrate (another feature
+                  owns the legacy-layout files), adopt (register unowned generated files), reset (drop stale registry
+                  records), or resume (re-run the loop) — as a --> fix: line with a JSON verdict (bugs #840, #874).
+
+  fake            Generate a framework-certified fake for a platform channel: a test-side handler
+                  (TestDefaultBinaryMessengerBinding) that replays a committed scenario script — responses, errors,
+                  permission states — and records the observed calls (issue #831).
+
+  func            Scaffold the plain-function subject of a behavior (render, format, parse, compute, ...) with a
+                  description-derived return type — the function-generation surface of the pipeline (bug #657).
+
+  gen             Generate a failing test + compiling source stub for a behavior (spec 044-test-tdd-generation,
+                  FR-001..011).
+
+  ingest          Validate a draft spec through the plan gates (+ entity-collision and contract-ambiguity gates) and
+                  place it as specs/<feature>/spec.md — the dream loop's ingestion step.
+
+  init            Idempotently ensure the TDD baseline exists in the current project (test/, dart_test.yaml,
+                  .specify/memory/tdd-profile.md, testing dev_dependencies).
+
+  make            Generate minimal implementation via zfa make/entity create/build, run the target test green, certify
+                  the suite stays clean, and append green evidence to tdd/cycle-log.md (spec 047).
+
+  migrate-paths   Move recorded TDD artifacts from the legacy flat layout (test/tdd/<id>_test.dart) to the per-feature
+                  namespaced layout (test/tdd/<feature-slug>/<id>_test.dart) and rewrite the registry records (bug
+                  #827).
+
+  plan            Read <feature>/spec.md and emit <feature>/tdd/test-list.md (one behavior per criterion). <feature> is
+                  a plain specs/ feature name, a specs/<feature> path, a .specify/bugs/<slug> bug directory, or an
+                  absolute path (issue #1182).
+
+  prove           Walk the feature's unified journal and compute the incremental re-proving delta — the behaviors
+                  ungated since the last prove (no green evidence, or files changed since the last prove's
+                  fingerprints). Only those behaviors need re-proving; prove itself runs nothing. Exit 0 iff zero
+                  ungated (spec 1113, issue #1113).
+
+  realize         Run the mock-to-real swap flow (spec 913; --adapter required), gated by the contract suite and
+                  real-vs-mock differential; --diff-only replays ONLY the standalone differential harness (spec 1195;
+                  --adapter optional) without touching the tree. Spec 1193 adds the certified-mock location, --scaffold
+                  (the hand-delta seam), --dry-run (preview, zero writes), the unified-journal ladder advance
+                  MOCKED->REAL->DONE, and the realize hand-delta receipt with generated/mock/hand ratios.
+
+  realize-mock    Run the Tier-1 contract test, then the same contract cases through a Firestore-shaped
+                  Tier2MockProvider (backed by a fake FirebaseFirestore), and certify the pair with a per-method
+                  differential receipt (issue #1009). Divergence = exit 1 with the mismatched method named.
+
+  refactor        Refactor on a green suite only; never edit tests. Applies the fixed pass registry (resolved zfa build,
+                  dart format lib/, dart fix --apply lib/), re-proves the suite green, and appends refactor evidence to
+                  cycle-log.md.
+
   referee         CI referee: the golden workflow verdict, the publishing gate, and the provenance rollup (spec 070).
-  replay          Replay a feature's recorded TDD history in a clean sandbox: chain integrity, gen artifact compare, green verify. Clean = silent pass; divergence = the step named.
-  reset           Revert a feature's TDD state to clean: drop the artifact registry entries and the generated tests/subjects the registry owns, reset run-state, and NEVER touch foreign files (bug #840). Prints the diff summary before acting.
-  run             Drive a feature through BOTH lanes of the two-cycle runner — run-engine (CORE+BOTH behaviors) then run-skin (SKIN+BOTH, gated on a green engine) — failing fast on the first red, resuming from tdd/run-state.json, writing both lane receipts and the unified journal entry (spec 1008 over the spec 049 driver).
-  run-engine      Drive only the ENGINE lane (CORE+BOTH behaviors, the engine plan) through gen -> verify-red -> make -> refactor and write the 04-engine-receipt.json verdict (spec 1008, issue #1008).
-  run-skin        Drive the SKIN lane, gated on a green engine receipt (spec 1008). SKIN lanes with adaptive_slots run the hand-written conformance cycle — contract slots, red-before-green witness, _XRaySkinHandEdit annotation (spec 1005); others run gen -> verify-red -> make -> refactor. Both write 04-skin-receipt.json.
-  split           One-shot migration (issue #1000): read the legacy single-file tdd/test-list.md, classify every behavior CORE or SKIN (spec `## Lanes` declarations winning over the kind heuristic), and emit tdd/04-ENGINE.md + tdd/04-SKIN.md + tdd/04-CONTRACT.md + tdd/split-receipt.json; test-list.md becomes the lane meta-index.
-  status          Read the unified journal (via JournalReader) and print the one-line verdicts: status: feature=<f> engine=<verdict> skin=<verdict> plus the journal verdict line <f> | engine ✅ d/t | skin ✅ d/t | mocks c/t | n violations (exit 0 iff both green; spec 1008 + spec 1113).
-  theater         Open the read-only replay TUI for a feature's TDD journal: receipts + cycle-log rendered as a three-pane terminal UI (spec 1006, issue #1006).
-  verdicts        Print the versioned verdict envelope schema every `zfa tdd` subcommand emits under --json (issue #969).
-  verify          Run the mutation_test audit on the feature's registered behavior artifacts and write tdd/verification.md (spec 044, FR-012..023).
-  verify-red      Prove the target test is honestly red (assertion failure), append the red evidence to tdd/cycle-log.md, and exit 0 — or name the dishonest failure class and exit non-zero (spec 046).
-  view            Generate the deterministic minimal view for a widget-kind behavior from its declared Presentation layer contract and scenario literals — the view-builder generation surface of the pipeline (issue #939).
-  wire            Wire a behavior's gen'd subject stub to its generated entity — the subject-implementation step of the entity pipeline (bug #610, epic 045 precondition 5).
+
+  replay          Replay a feature's recorded TDD history in a clean sandbox: chain integrity, gen artifact compare,
+                  green verify. Clean = silent pass; divergence = the step named.
+
+  reset           Revert a feature's TDD state to clean: drop the artifact registry entries and the generated
+                  tests/subjects the registry owns, reset run-state, and NEVER touch foreign files (bug #840). Prints
+                  the diff summary before acting.
+
+  run             Drive a feature through BOTH lanes of the two-cycle runner — run-engine (CORE+BOTH behaviors) then
+                  run-skin (SKIN+BOTH, gated on a green engine) — failing fast on the first red, resuming from
+                  tdd/run-state.json, writing both lane receipts and the unified journal entry (spec 1008 over the spec
+                  049 driver).
+
+  run-engine      Drive only the ENGINE lane (CORE+BOTH behaviors, the engine plan) through gen -> verify-red -> make ->
+                  refactor and write the 04-engine-receipt.json verdict (spec 1008, issue #1008).
+
+  run-skin        Drive the SKIN lane, gated on a green engine receipt (spec 1008). SKIN lanes with adaptive_slots run
+                  the hand-written conformance cycle — contract slots, red-before-green witness, _XRaySkinHandEdit
+                  annotation (spec 1005); others run gen -> verify-red -> make -> refactor. Both write
+                  04-skin-receipt.json.
+
+  split           One-shot migration (issue #1000): read the legacy single-file tdd/test-list.md, classify every
+                  behavior CORE or SKIN (spec `## Lanes` declarations winning over the kind heuristic), and emit
+                  tdd/04-ENGINE.md + tdd/04-SKIN.md + tdd/04-CONTRACT.md + tdd/split-receipt.json; test-list.md becomes
+                  the lane meta-index.
+
+  status          Read the unified journal (via JournalReader) and print the one-line verdicts: status: feature=<f>
+                  engine=<verdict> skin=<verdict> plus the journal verdict line <f> | engine ✅ d/t | skin ✅ d/t | mocks
+                  c/t | n violations (exit 0 iff both green; spec 1008 + spec 1113).
+
+  theater         Open the read-only replay TUI for a feature's TDD journal: receipts + cycle-log rendered as a
+                  three-pane terminal UI (spec 1006, issue #1006).
+
+  verdicts        Print the versioned verdict envelope schema every `zfa tdd` subcommand emits under --json (issue
+                  #969).
+
+  verify          Run the mutation_test audit on the feature's registered behavior artifacts and write
+                  tdd/verification.md (spec 044, FR-012..023).
+
+  verify-red      Prove the target test is honestly red (assertion failure), append the red evidence to
+                  tdd/cycle-log.md, and exit 0 — or name the dishonest failure class and exit non-zero (spec 046).
+
+  view            Generate the deterministic minimal view for a widget-kind behavior from its declared Presentation
+                  layer contract and scenario literals — the view-builder generation surface of the pipeline (issue
+                  #939).
+
+  wire            Wire a behavior's gen'd subject stub to its generated entity — the subject-implementation step of the
+                  entity pipeline (bug #610, epic 045 precondition 5).
 
 Run "zfa help" to see global options.
 ```

@@ -3,30 +3,36 @@
 // drift from the dispatcher: every command's usage, description, and
 // subcommands are captured from `zfa <command> --help`.
 //
+// SPEC 1132 / EPIC 1 lane 4: the command-list parser moved to
+// `lib/src/docs/openwiki_cli_docs.dart` (shared with the tests) because
+// the inline line-anchored regex stopped at the first WRAPPED command
+// description (descriptions grew past the 120-column kUsageLineLength)
+// and the tool generated a 12-command doc, silently clobbering the
+// committed fleet file.
+//
 // Regenerate after any command-surface change:
 //   dart run tool/generate_openwiki_cli_docs.dart
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+import 'package:zuraffa/src/cli/zfa_executable.dart';
+import 'package:zuraffa/src/docs/openwiki_cli_docs.dart';
+
 Future<void> main() async {
   final help = await _zfa(['--help']);
 
-  // The "Available commands:" block: `  <name>  <description>`.
-  final names = <String>[];
-  var inCommands = false;
-  for (final line in help.split('\n')) {
-    if (line.startsWith('Available commands:')) {
-      inCommands = true;
-      continue;
-    }
-    if (inCommands) {
-      final m = RegExp(r'^  (\S+)\s{2,}(.*)$').firstMatch(line);
-      if (m == null) break;
-      names.add(m.group(1)!);
-    }
-  }
-  if (names.isEmpty) {
-    stderr.writeln('no commands parsed from --help');
+  // The "Available commands:" block — wrapped descriptions included
+  // (the shared parser consumes continuation lines).
+  final names = parseCommandNames(help);
+  if (names.length < 20) {
+    // The fleet floor: a parse that sees fewer than 20 commands is a
+    // parser regression (the #1132 audit found 12) — refuse to write a
+    // silently-truncated doc over the committed fleet file.
+    stderr.writeln(
+      'only ${names.length} commands parsed from --help — refusing to '
+      'write a truncated fleet doc (parser regression?)',
+    );
     exit(1);
   }
 
@@ -76,9 +82,18 @@ Future<void> main() async {
 }
 
 Future<String> _zfa(List<String> args) async {
+  // The no-JIT rule (AGENTS.md / issue #531): every zfa child is a
+  // COMPILED binary. The pre-1132 shape spawned `dart run bin/zfa.dart`
+  // per command — 59 JIT compiles at ~10s each, which also made the
+  // regeneration time out. Resolve the shared AOT artifact through
+  // ZfaExecutable.ensureCompiled and shape the argv with commandFor.
+  final exe = await ZfaExecutable.ensureCompiled(
+    p.join(Directory.current.path, 'bin', 'zfa.dart'),
+  );
+  final argv = ZfaExecutable.commandFor(exe, args);
   final result = await Process.run(
-    'dart',
-    ['run', 'bin/zfa.dart', ...args],
+    argv.first,
+    argv.skip(1).toList(),
     stdoutEncoding: utf8,
     stderrEncoding: utf8,
   );

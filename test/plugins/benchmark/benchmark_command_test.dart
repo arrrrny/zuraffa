@@ -13,6 +13,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/exit_protocol.dart';
+import 'package:zuraffa/src/core/verdict_envelope.dart';
 import 'package:zuraffa/src/plugins/benchmark/benchmark_plugin.dart';
 import 'package:zuraffa/src/plugins/benchmark/cli/benchmark_command.dart';
 
@@ -215,8 +216,17 @@ void main() {
         () => runner.run(['benchmark', 'list', '--json']),
       );
 
+      // SPEC 1132 / EPIC 1 lane 2: `--json` emits the canonical
+      // verdict.v1 envelope — the scenario registry rides in
+      // details.scenarios (the old bare {"scenarios":[...]} shape was
+      // the #1105 backlog divergence this sweep migrated).
       final decoded = jsonDecode(output) as Map<String, dynamic>;
-      final scenarios = decoded['scenarios'] as List<dynamic>;
+      expect(decoded['schema'], VerdictEnvelope.canonicalSchema);
+      expect(decoded['verdict'], 'pass');
+      expect(decoded['exit_class'], 0);
+      final scenarios =
+          (decoded['details'] as Map<String, dynamic>)['scenarios']
+              as List<dynamic>;
       expect(scenarios, hasLength(1));
       expect(scenarios.first['id'], 'json-benchmark');
     });

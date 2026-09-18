@@ -32,15 +32,19 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../core/context/file_system.dart';
+import '../core/plugin_system/capability_invocation_wrapper.dart';
+import '../core/project/receipt_store.dart';
 import '../skin/builders/skin_contract_kit_builder.dart';
 import '../skin/driver/vm_tap_driver.dart';
 import '../skin/tap_result.dart';
 import '../skew/skew_contract.dart';
 import '../utils/file_utils.dart';
 import '../core/project/project_root.dart';
+import '../version.dart';
 
 /// The honest verdict of a `zfa skin verify` reconciliation. Never
 /// collapse a missing input into a pass (the route-verify contract).
@@ -298,7 +302,8 @@ class SkinKitCommand extends Command<void> {
     final bridgeContent = const SkinContractKitBuilder().buildBridge(
       kitImportPath: bridgeTarget.bridgeImport,
     );
-    if (!force && await _fileSystem.exists(bridgePath)) {
+    final bridgeExisted = await _fileSystem.exists(bridgePath);
+    if (!force && bridgeExisted) {
       print('  skipped: $bridgePath already exists (use --force to overwrite)');
     } else {
       await FileUtils.writeFile(
@@ -319,6 +324,85 @@ class SkinKitCommand extends Command<void> {
     print(
       '   mount points: view getter wrap (--skin), app shell '
       '(--skin-audit), zfa skin verify, zfa skin drive',
+    );
+
+    // SPEC 1132 / EPIC 1 lane 3 (issue #1138 family): `zfa skin kit` is
+    // a standalone generation path — it ships a proof.v1 receipt before
+    // reporting success. The #996 contract: best-effort on the success
+    // path only, no receipt on dry-run, and ONLY when the kit was
+    // actually written (a skip changed nothing — #769: no artifact, no
+    // receipt). The run that reaches here either wrote the kit or was
+    // refused earlier; the bridge skips independently (hand-written
+    // tests survive regeneration), so only the files this run wrote
+    // join the receipt.
+    if (!dryRun) {
+      try {
+        final receiptFiles = <GenerationReceiptFile>[];
+        // Reaching this point means the kit WAS written (the exists-skip
+        // returned early above; dry-run is guarded out here).
+        final kitOnDisk = File(kitPath);
+        if (kitOnDisk.existsSync()) {
+          receiptFiles.add(_receiptFileFor(kitOnDisk, projectRoot));
+        }
+        // The bridge skips independently (hand-written tests survive
+        // regeneration) — only a bridge this run wrote joins the receipt.
+        final bridgeOnDisk = File(bridgePath);
+        if (!bridgeExisted && bridgeOnDisk.existsSync()) {
+          receiptFiles.add(_receiptFileFor(bridgeOnDisk, projectRoot));
+        }
+        receiptFiles.sort((a, b) => a.path.compareTo(b.path));
+        if (receiptFiles.isNotEmpty) {
+          final runHash = CapabilityInvocationWrapper.computeRunHash(
+            files: receiptFiles,
+            entity: 'kit',
+            methodset: const [],
+          );
+          await ReceiptStore(projectRoot: projectRoot).saveCapability(
+            GenerationReceipt(
+              command: 'skin kit',
+              target: 'kit',
+              repro: 'zfa skin kit',
+              at: DateTime.now().toUtc(),
+              generatorVersion: version,
+              input: {
+                'entity': 'kit',
+                'output': outputDir,
+                'force': force,
+                'routes': routes,
+                'routeSource': routeSource,
+              },
+              files: receiptFiles,
+              plugin: 'skin',
+              capability: 'kit',
+              entity: 'kit',
+              methodset: const [],
+              runHash: runHash,
+            ),
+          );
+        }
+      } catch (e) {
+        // Best-effort (#996): the artifacts exist; never fail here.
+        stderr.writeln('⚠️  skin kit receipt not written: $e');
+      }
+    }
+  }
+
+  /// One receipt file binding: current disk bytes, digest, size and
+  /// (small-text) snapshot — the #996 contract shared with
+  /// CapabilityInvocationWrapper's receipt files.
+  GenerationReceiptFile _receiptFileFor(File file, String projectRoot) {
+    final bytes = file.readAsBytesSync();
+    final relative = p.isAbsolute(file.path)
+        ? p.relative(file.path, from: projectRoot)
+        : file.path;
+    return GenerationReceiptFile(
+      path: relative.replaceAll('\\', '/'),
+      action: 'create',
+      sha256: crypto.sha256.convert(bytes).toString(),
+      bytes: bytes.length,
+      snapshot: bytes.length <= ReceiptStore.maxSnapshotBytes
+          ? file.readAsStringSync()
+          : null,
     );
   }
 }
