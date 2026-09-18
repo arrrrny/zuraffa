@@ -13,6 +13,9 @@
 //     passes the fixed render with zero analyzer errors.
 //   U-1685-G3 — the posting gate: postableSnippet returns compiled-verified
 //     code; unknown template ids are rejected.
+//   U-1685-G4 (PR #1703 review fix) — concurrent compile checks own
+//     per-run scratch subdirectories: two overlapping resolves both pass
+//     (no shared-dir delete/overwrite race).
 library;
 
 import 'package:test/test.dart';
@@ -120,5 +123,33 @@ void main() {
         throwsArgumentError,
       );
     });
+
+    // ---------------------------------------------------------------
+    // U-1685-G4 — concurrent checks (PR #1703 review fix): each run
+    // compiles in its own scratch subdirectory, so overlapping runs
+    // cannot delete or overwrite each other's wrapper mid-resolve.
+    // ---------------------------------------------------------------
+    test('U-1685-G4: two concurrent compile checks both pass — no '
+        'shared-scratch race', () async {
+      const snippetA =
+          "final a = Directory.systemTemp.createTempSync('a_');\n"
+          'addTearDown(() => a.deleteSync(recursive: true));';
+      const snippetB =
+          "final b = Directory.systemTemp.createTempSync('b_');\n"
+          'addTearDown(() => b.deleteSync(recursive: true));';
+      final results = await Future.wait([
+        const SnippetCompileCheck().compileCheck(snippetA),
+        const SnippetCompileCheck().compileCheck(snippetB),
+      ]);
+      for (final result in results) {
+        expect(
+          result.passed,
+          isTrue,
+          reason:
+              'concurrent checks must not delete each other\'s wrapper — '
+              '${result.issues.map((i) => "[${i.code}] ${i.message}").join("\n")}',
+        );
+      }
+    }, timeout: const Timeout(Duration(minutes: 3)));
   });
 }

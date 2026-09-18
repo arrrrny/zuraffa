@@ -181,8 +181,10 @@ final class SnippetCompileCheck {
   /// it, reports every ERROR-severity diagnostic. Warnings/infos (lints,
   /// unused imports) do not block — the gate's job is compilability.
   ///
-  /// The scratch dir lives under `build/` (gitignored — the #1664 pattern)
-  /// and is removed in a `finally`, so the tree stays pristine.
+  /// Each run gets its OWN temp subdirectory under `build/` (gitignored —
+  /// the #1664 pattern) and removes only that subdirectory in a `finally`,
+  /// so concurrent checks (parallel test isolates, overlapping wired-bot
+  /// calls) can never delete or overwrite each other's wrapper mid-resolve.
   Future<SnippetValidationResult> compileCheck(String snippet) async {
     final packageRoot = _findPackageRoot();
     if (packageRoot == null) {
@@ -196,16 +198,15 @@ final class SnippetCompileCheck {
       );
     }
 
-    final scratchDir = Directory(
+    final scratchParent = Directory(
       p.normalize(p.join(packageRoot, 'build', 'zuraffa_snippet_checks')),
     );
-    await scratchDir.create(recursive: true);
-    final wrapperFile = File(
-      p.join(
-        scratchDir.path,
-        'snippet_check_${DateTime.now().microsecondsSinceEpoch}.dart',
-      ),
-    );
+    await scratchParent.create(recursive: true);
+    // One subdirectory per run — concurrent checks must not share or
+    // delete each other's wrappers. Still under build/ (gitignored), so
+    // the package config keeps resolving the wrapper's imports.
+    final scratchDir = scratchParent.createTempSync('run_');
+    final wrapperFile = File(p.join(scratchDir.path, 'snippet_check.dart'));
     try {
       await wrapperFile.writeAsString(_wrap(snippet));
       final absolute = wrapperFile.resolveSymbolicLinksSync();
@@ -238,8 +239,9 @@ final class SnippetCompileCheck {
       }
       return SnippetValidationResult(issues);
     } finally {
-      // The scratch dir only ever holds generated wrappers — safe to
-      // remove wholesale (same contract as the #1664 scratch pattern).
+      // Only THIS run's subdirectory is removed — every concurrent run
+      // owns its own, so the removal can no longer race another resolve
+      // (the old shared-parent delete did exactly that).
       if (scratchDir.existsSync()) {
         await scratchDir.delete(recursive: true);
       }

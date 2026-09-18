@@ -12,6 +12,12 @@ Spec: `.specify/specs/1685-review-bot-snippet-compilable/spec.md`
 | U-1685-G2d | test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart | unit | `validate()` combines both layers — a scan hit short-circuits before the analyzer runs | gate contract, SC-2 | RED → GREEN |
 | U-1685-G3a | test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart | unit | `postableSnippet` — the ONLY sanctioned posting path — returns compiled-verified code | fix criterion 2 (never posted un-verified), SC-2 | RED → GREEN |
 | U-1685-G3b | test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart | unit | unknown template ids throw [ArgumentError] on both `render` and `postableSnippet` — no ad-hoc template fallback | gate soundness | RED → GREEN |
+| U-1685-G4 | test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart | unit | two CONCURRENT `compileCheck` runs both pass — each owns a per-run scratch subdirectory under `build/zuraffa_snippet_checks/`, so no run deletes or overwrites another's wrapper mid-resolve (PR #1703 review fix) | review finding: shared-scratch race | GREEN |
+| U-1685-P1 | test/plugins/tdd/services/ci_referee/pr_comment_poster_test.dart | unit | the posting transport extracts exactly the ```dart fenced blocks from a body (prose/`json` fences ignored) | review finding: gate has no production caller | GREEN |
+| U-1685-P2 | test/plugins/tdd/services/ci_referee/pr_comment_poster_test.dart | unit | a body whose dart block is the HISTORICAL misfire snippet is BLOCKED before any network request — the gate is load-bearing at the transport | review finding: gate has no production caller | GREEN |
+| U-1685-P3 | test/plugins/tdd/services/ci_referee/pr_comment_poster_test.dart | unit | a body with a compilable dart block posts (REAL analyzer resolve in the gate) | review finding: gate has no production caller | GREEN |
+| U-1685-P4 | test/plugins/tdd/services/ci_referee/pr_comment_poster_test.dart | unit | `postSnippetSuggestion` — the sanctioned catalog path — assembles via `ReviewSnippets.postableSnippet` and posts the validated code | review finding: postableSnippet needs a non-test caller | GREEN |
+| U-1685-P5 | test/plugins/tdd/services/ci_referee/pr_comment_poster_test.dart | unit | `postSnippetSuggestion` refuses an unknown template id with no request sent | gate soundness at the transport | GREEN |
 
 Guard pins (pre-existing, unchanged and green against the fix — posting
 semantics untouched):
@@ -43,3 +49,19 @@ Both recorded verbatim in
 `dart test test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart`
 → `00:11 +8: All tests passed!` (8/8 — U-1685-G1a/G1b, G2a/G2b/G2c/G2d,
 G3a/G3b).
+
+## Review-fix evidence (PR #1703 follow-up, this session)
+
+Review findings applied: the gate is now load-bearing (poster transport
+validates every ```dart block, fail-closed; suggestions sourced via
+`ReviewSnippets.postableSnippet`) and compile checks own per-run scratch
+subdirectories (no concurrent delete/overwrite race).
+
+```
+$ dart test test/plugins/tdd/services/ci_referee/pr_comment_poster_test.dart \
+    test/plugins/tdd/commands/spec_1685_review_bot_snippet_compilable_test.dart
+→ 01:02 +17: All tests passed!   (9 spec_1685 incl. U-1685-G4, 8 poster incl. U-1685-P1..P5)
+$ dart test test/plugins/tdd/services/ci_referee/
+→ 00:29 +40: All tests passed!  (ci_referee suites green — guard pins intact)
+$ dart analyze <touched files> → No issues found!
+```
