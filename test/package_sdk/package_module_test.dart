@@ -173,8 +173,13 @@ void main() {
       'U12: incompatible module rejected with clear StateError naming versions',
       () {
         // _RecordingModule has the default constraint (compatible); build a
-        // mismatching one inline instead.
-        final incompatible = _ConstrainedModule('future_pkg', '^7.0.0');
+        // mismatching one inline instead: the next major relative to the
+        // running version, so it stays incompatible across releases.
+        final nextMajor = int.parse(version.split('.').first) + 1;
+        final incompatible = _ConstrainedModule(
+          'future_pkg',
+          '^$nextMajor.0.0',
+        );
         final engine = ZuraffaEngine(di: container);
         expect(
           () => engine.registerPackage(incompatible),
@@ -182,7 +187,7 @@ void main() {
             isA<StateError>().having(
               (e) => e.message,
               'message',
-              allOf(contains('7.0.0'), contains(version)),
+              allOf(contains('$nextMajor.0.0'), contains(version)),
             ),
           ),
         );
@@ -192,7 +197,7 @@ void main() {
 
     test('U12: compatible module registers through registerPackage', () {
       final engine = ZuraffaEngine(di: container);
-      engine.registerPackage(_ConstrainedModule('ok_pkg', '^6.0.0'));
+      engine.registerPackage(_ConstrainedModule('ok_pkg', '^$version'));
       expect(engine.isRegistered('ok_pkg'), isTrue);
     });
   });
