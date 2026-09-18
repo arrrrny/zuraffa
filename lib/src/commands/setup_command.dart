@@ -7,6 +7,7 @@ import 'package:yaml/yaml.dart';
 import '../cli/services/corpus_importer.dart';
 import '../cli/writers/tdd/app_module_writer.dart';
 import '../cli/writers/tdd/dart_test_yaml_writer.dart';
+import '../cli/writers/tdd/pubspec_app_dependencies_patcher.dart';
 import '../cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
 import '../cli/writers/tdd/smoke_test_writer.dart';
 import '../cli/writers/tdd/tdd_example_writer.dart';
@@ -441,6 +442,32 @@ class SetupCommand extends Command<void> {
       print('   ✓ lib/app.dart (already present)');
     } else {
       print('   ✓ $appModulePath (created)');
+    }
+
+    // Issue #1395: the day-zero app module imports
+    // `package:zuraffa_flutter/zuraffa_flutter.dart` and exposes a `GetIt`
+    // registry — the runtime deps the generated module requires must be
+    // declared in the SAME pass that writes the module, or a fresh
+    // consumer tree does not analyze cleanly (the #942 build gate refuses
+    // the acceptance composition on the undeclared-dependency errors).
+    // Same idempotent self-heal `zfa tdd init` runs (issue #1349):
+    // skip-if-declared, hand-edit preserving, comment/formatting safe.
+    final appDepsAdded = await const PubspecAppDependenciesPatcher().ensure(
+      projectRoot,
+      dryRun: dryRun,
+    );
+    if (appDepsAdded.isEmpty) {
+      print('   ✓ pubspec.yaml dependencies (app module: already declared)');
+    } else if (dryRun) {
+      print(
+        '   Would add to pubspec.yaml dependencies (app module): '
+        '${appDepsAdded.join(', ')}',
+      );
+    } else {
+      print(
+        '   ✓ pubspec.yaml dependencies (app module: added: '
+        '${appDepsAdded.join(', ')})',
+      );
     }
 
     // Issue #626: bootstrap DI/routing barrels so `zfa app shell` runs
