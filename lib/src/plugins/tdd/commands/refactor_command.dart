@@ -947,11 +947,12 @@ class RefactorCommand extends Command<void> {
         // Issue #1660: surface the gate's full skip note — the
         // honest-skip evidence (the #1637 config-digest clearance, the
         // deleted-source caveat) is captured in the action's output but
-        // never reached the human. Single line by construction; printed
-        // verbatim after the changed line, the same slot the [1540]
-        // evidence lines use below.
+        // never reached the human. Newlines are flattened so a future gate
+        // note that embeds one keeps the 5-space indent instead of
+        // visually merging into the [1540] evidence lines below; printed
+        // after the changed line, the same slot those use.
         if (action.skipped && action.output.trim().isNotEmpty) {
-          print('     note: ${action.output.trim()}');
+          print('     note: ${action.output.trim().replaceAll('\n', ' ')}');
         }
         // Spec 1540: surface the tracked-placeholder restore-or-refuse
         // evidence the pass registry recorded (the full tool output stays
@@ -1494,18 +1495,20 @@ class RefactorCommand extends Command<void> {
           're-proof retries: $reproofRetries\n'
           're-proof output tail (stdout+stderr, truncated):\n'
           '${reproofOutputTail(reproof.output)}';
-      // Issue #1660: mirror ONE note: line into the refactor cycle-log
-      // entry — the gate's full skip note rides the first skipped action's
-      // output verbatim, so the honest-skip evidence (the #1637
-      // config-digest clearance, the deleted-source caveat) is auditable
-      // in the cycle log and not only on stdout. Empty when nothing was
+      // Issue #1660: mirror one note: line PER skipped action into the
+      // refactor cycle-log entry — the gate's full skip note rides each
+      // skipped action's output verbatim, so the honest-skip evidence (the
+      // #1637 config-digest clearance, the deleted-source caveat) is
+      // auditable in the cycle log and not only on stdout — for every
+      // gated pass, not only the first one. Empty when nothing was
       // skipped; the entry renders byte-identically to before then.
-      final cycleSkipNoteLine = passResult.actions
+      final cycleSkipNoteLines = passResult.actions
           .where((a) => a.skipped && a.output.trim().isNotEmpty)
-          .fold<String?>(null, (first, a) => first ?? a.output.trim());
-      final cycleSkipNoteBlock = cycleSkipNoteLine == null
+          .map((a) => 'note: ${a.output.trim()}')
+          .join('\n');
+      final cycleSkipNoteBlock = cycleSkipNoteLines.isEmpty
           ? ''
-          : 'note: $cycleSkipNoteLine\n';
+          : '$cycleSkipNoteLines\n';
       // Issue #1653: the per-phase heartbeat, printed on the green path
       // before the receipt is appended — preflight/registry/re-proof wall
       // times, so a slow phase is named in the live log (the 8m32s refactor

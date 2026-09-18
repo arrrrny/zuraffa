@@ -15,7 +15,7 @@
 // Remediation under test: the pass loop names the skip on the pass line
 // itself (`— SKIPPED (build-relevance gate)`) and surfaces the gate's full
 // note as a `note:` line; executed passes print byte-identically to
-// before; the cycle-log entry mirrors one `note:` line.
+// before; the cycle-log entry mirrors one `note:` line per skipped pass.
 //
 // Driver-level tests: the command runs in-process through CliRunner; the
 // #1624 skip is produced by the REAL gate against a fixture whose
@@ -91,8 +91,15 @@ void main() {
     expect(out, contains('note: refactor build pass skipped:'), reason: out);
     expect(out, contains('issue #1637'), reason: out);
     expect(out, contains('DELETED'), reason: out);
-    // The synthetic action stays honest: exit 0, nothing changed.
-    expect(out, contains('exit: 0'), reason: out);
+    // The synthetic action stays honest: exit 0, nothing changed. Anchored
+    // to the skip block — a bare `contains('exit: 0')` would also match the
+    // preflight's `   preflight exit: 0` line, so the assertion would pass
+    // even if the action's own exit line were dropped or corrupted.
+    expect(
+      out,
+      matches(RegExp('pass: build — SKIPPED[\\s\\S]*?     exit: 0')),
+      reason: out,
+    );
     expect(out, contains('changed: (none)'), reason: out);
 
     // The executed passes keep the plain shape (SC-3) — and the marker is
