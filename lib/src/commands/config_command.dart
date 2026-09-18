@@ -8,9 +8,15 @@ import '../core/project/project_root.dart';
 /// Config command - Manage ZFA configuration
 class ConfigCommand {
   Future<void> execute(List<String> args) async {
+    // SPEC 1132 (EPIC 1 honesty sweep): a bare invocation is a usage
+    // error — the usage block is printed AND the process must exit the
+    // canonical SPEC 917 usage code (2), via `exitCode` (never a hard
+    // `exit()`: the runner embeds dispatch in-process and a hard exit
+    // would kill the host isolate).
     if (args.isEmpty) {
       _printHelp();
-      exit(0);
+      exitCode = ExitProtocol.usage;
+      return;
     }
 
     final command = args[0];
@@ -32,9 +38,12 @@ class ConfigCommand {
         _printHelp();
         break;
       default:
+        // Unknown subcommand = usage error (SPEC 917): the operation
+        // could not run as invoked. Exit class 2 (was the failure 1 of
+        // the pre-sweep shape) and return via exitCode.
         print('❌ Unknown config command: $command\n');
         _printHelp();
-        exit(1);
+        exitCode = ExitProtocol.usage;
     }
   }
 
@@ -70,8 +79,12 @@ class ConfigCommand {
     final projectRoot = positional.isEmpty ? null : positional.first;
 
     if (projectRoot != null && !Directory(projectRoot).existsSync()) {
+      // Invalid invocation target: usage class (SPEC 917), and returned
+      // via exitCode — a hard exit() is embedded-dispatch unsafe
+      // (SPEC 1132).
       print('❌ Directory not found: $projectRoot');
-      exit(1);
+      exitCode = ExitProtocol.usage;
+      return;
     }
 
     await ZfaConfig.init(projectRoot: projectRoot, minimal: minimal);
@@ -93,9 +106,12 @@ class ConfigCommand {
 
   Future<void> _handleSet(List<String> args) async {
     if (args.length < 2) {
+      // Missing required arguments: usage class (SPEC 917 — the
+      // operation could not run as invoked).
       print('❌ Usage: zfa config set <key> <value>');
       print('   Example: zfa config set diByDefault true');
-      exit(1);
+      exitCode = ExitProtocol.usage;
+      return;
     }
 
     final key = args[0];
@@ -104,9 +120,12 @@ class ConfigCommand {
     final existing = ZfaConfig.load(projectRoot: projectRoot);
 
     if (existing == null) {
+      // State precondition (a missing config is not an invocation
+      // error): honest failure 1, returned via exitCode (SPEC 1132).
       print('❌ Configuration file not found.');
       print('   Run "zfa config init" to create one first.');
-      exit(1);
+      exitCode = ExitProtocol.failure;
+      return;
     }
 
     // Issue #1596 review: `load` returns a non-null config for an existing but
@@ -116,15 +135,19 @@ class ConfigCommand {
       projectRoot: projectRoot,
     );
     if (refusal != null) {
+      // Corrupt/unparseable state: honest failure 1 via exitCode.
       print(refusal);
-      exit(1);
+      exitCode = ExitProtocol.failure;
+      return;
     }
 
     final updated = _updatedConfig(existing, key, value);
     if (updated == null) {
+      // Unknown key = an invalid argument: usage class (SPEC 917).
       print('❌ Unknown configuration key: $key');
       print('   Valid keys: ${_supportedKeys().join(', ')}');
-      exit(1);
+      exitCode = ExitProtocol.usage;
+      return;
     }
 
     await ZfaConfig.save(updated, projectRoot: projectRoot);

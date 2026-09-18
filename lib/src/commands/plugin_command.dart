@@ -16,7 +16,15 @@ import '../plugins/mcp/capabilities/scaffold_mcp_server_capability.dart';
 
 class PluginCommand {
   Future<void> execute(List<String> args) async {
-    if (args.isEmpty || args.first == '--help' || args.first == '-h') {
+    // SPEC 1132 (EPIC 1 honesty sweep): a bare invocation is a usage
+    // error (SPEC 917 canonical 2) — the usage block prints AND the
+    // exit code says 2. Explicit --help/-h stays a success (exit 0).
+    if (args.isEmpty) {
+      _printHelp();
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    if (args.first == '--help' || args.first == '-h') {
       _printHelp();
       return;
     }
@@ -70,9 +78,13 @@ class PluginCommand {
       case 'enable':
       case 'disable':
         if (rest.isEmpty) {
+          // Missing required argument: usage class (SPEC 917), returned
+          // via exitCode — a hard exit() is embedded-dispatch unsafe
+          // (SPEC 1132).
           print('Missing plugin id');
           _printHelp();
-          exit(1);
+          exitCode = ExitProtocol.usage;
+          return;
         }
         final id = rest.first;
         final capability = PluginCatalog.find(id);
@@ -114,11 +126,23 @@ class PluginCommand {
           // (an existing `.zfa.json` that could not be parsed) must not be
           // reported as success.
           if (!await config.save(projectRoot: root)) {
-            exit(1);
+            // SPEC 1132 / EPIC 1 (FR-1): every `plugin` error path unwinds
+            // through `exitCode` — a hard exit() kills the host isolate
+            // under in-process (MCP/embedded) dispatch.
+            exitCode = ExitProtocol.failure;
+            return;
           }
         }
         if (capability != null) {
-          await _writeCapability(id, enabled: action == 'enable', root: root);
+          final written = await _writeCapability(
+            id,
+            enabled: action == 'enable',
+            root: root,
+          );
+          if (!written) {
+            exitCode = ExitProtocol.failure;
+            return;
+          }
         }
         final verb = action == 'enable' ? 'Enabled' : 'Disabled';
         print('$verb plugin: $id');
@@ -137,9 +161,12 @@ class PluginCommand {
         return;
       case 'add':
         if (rest.isEmpty) {
+          // Missing required argument = usage class (SPEC 917), returned
+          // via exitCode — embedded-dispatch safe (SPEC 1132 FR-1).
           print('Missing package name');
           _printHelp();
-          exit(1);
+          exitCode = ExitProtocol.usage;
+          return;
         }
         _addPlugin(rest.first, root: root);
         return;
@@ -149,16 +176,22 @@ class PluginCommand {
         await _scaffoldMcp(args.sublist(1));
         return;
       default:
+        // Unknown subcommand = usage error (SPEC 917): exit class 2
+        // (was the failure 1 of the pre-sweep shape).
         print('Unknown plugin command: $action');
         _printHelp();
-        exit(1);
+        exitCode = ExitProtocol.usage;
     }
   }
 
   /// Spec 1653 (issue #1661): persist `capabilities.<name>` in the
   /// project's `.zfa.json` — a RAW additive read-modify-write so every
   /// other key survives untouched.
-  Future<void> _writeCapability(
+  ///
+  /// Returns `false` (without touching the file) when `.zfa.json` exists
+  /// but cannot be parsed — the caller reports the failure through
+  /// `exitCode` rather than hard-exiting (SPEC 1132 FR-1).
+  Future<bool> _writeCapability(
     String name, {
     required bool enabled,
     String? root,
@@ -171,12 +204,12 @@ class PluginCommand {
         final Object? decoded = jsonDecode(file.readAsStringSync());
         if (decoded is! Map<String, dynamic>) {
           print('❌ .zfa.json is not valid JSON — fix or re-init it first.');
-          exit(1);
+          return false;
         }
         doc = decoded;
       } on FormatException {
         print('❌ .zfa.json is not valid JSON — fix or re-init it first.');
-        exit(1);
+        return false;
       }
     }
     final rawSection = doc['capabilities'];
@@ -187,6 +220,7 @@ class PluginCommand {
     doc['capabilities'] = section;
     const encoder = JsonEncoder.withIndent('  ');
     file.writeAsStringSync(encoder.convert(doc));
+    return true;
   }
 
   /// Scaffolds a runtime MCP server into the host app via the
@@ -229,7 +263,8 @@ class PluginCommand {
       parsed = parser.parse(rest);
     } on FormatException catch (e) {
       print('❌ Invalid mcp scaffold arguments: ${e.message}');
-      exit(1);
+      exitCode = ExitProtocol.failure;
+      return;
     }
     final dryRun = parsed['dry-run'] == true;
     final force = parsed['force'] == true;
@@ -258,20 +293,23 @@ class PluginCommand {
       }
     }
 
-    final mcpPlugin = registry.plugins.firstWhere(
-      (p) => p.id == 'mcp',
-      orElse: () {
-        if (PluginConfig.load().disabled.contains('mcp')) {
-          print(
-            '❌ The mcp plugin is disabled. Run `zfa plugin enable mcp` '
-            'to enable it.',
-          );
-          exit(1);
-        }
+    // SPEC 1132 / EPIC 1 (FR-1): an unresolvable mcp plugin is reported
+    // through `exitCode`, not a hard exit() — `firstWhere`'s `orElse`
+    // cannot unwind the command, so the miss is handled explicitly.
+    final mcpPlugins = registry.plugins.where((p) => p.id == 'mcp');
+    if (mcpPlugins.isEmpty) {
+      if (PluginConfig.load().disabled.contains('mcp')) {
+        print(
+          '❌ The mcp plugin is disabled. Run `zfa plugin enable mcp` '
+          'to enable it.',
+        );
+      } else {
         print('❌ McpPlugin is not registered.');
-        exit(1);
-      },
-    );
+      }
+      exitCode = ExitProtocol.failure;
+      return;
+    }
+    final mcpPlugin = mcpPlugins.first;
     final capability = mcpPlugin.capabilities
         .whereType<ScaffoldMcpServerCapability>()
         .first;
@@ -309,7 +347,8 @@ class PluginCommand {
       }
     } else {
       print('❌ MCP scaffold failed: ${result.message}');
-      exit(1);
+      exitCode = ExitProtocol.failure;
+      return;
     }
   }
 
@@ -318,6 +357,11 @@ class PluginCommand {
   /// [root] is the project root to operate in (defaults to the current
   /// directory). Tests and advanced users pass it explicitly so the command
   /// is hermetic and does not depend on the process working directory.
+  ///
+  /// Every refusal sets `exitCode` and returns instead of hard-exiting
+  /// (SPEC 1132 FR-1) — the caller returns immediately after this call, so
+  /// the process exit code carries the failure without killing an
+  /// embedded host isolate.
   void _addPlugin(String packageName, {String? root}) {
     final mainFile = File(
       p.join(root ?? Directory.current.path, 'lib', 'main.dart'),
@@ -326,7 +370,8 @@ class PluginCommand {
       print(
         'Error: lib/main.dart not found. Run from your Flutter project root.',
       );
-      exit(1);
+      exitCode = ExitProtocol.failure;
+      return;
     }
 
     var content = mainFile.readAsStringSync();
@@ -343,7 +388,8 @@ class PluginCommand {
     final matches = importRegex.allMatches(content);
     if (matches.isEmpty) {
       print('Error: No import statements found in lib/main.dart.');
-      exit(1);
+      exitCode = ExitProtocol.failure;
+      return;
     }
     final lastImport = matches.last;
     final insertPos = lastImport.end;
@@ -381,7 +427,8 @@ class PluginCommand {
         'Error: Could not find engine creation or bootstrap call in lib/main.dart.',
       );
       print('Please manually add the plugin registration.');
-      exit(1);
+      exitCode = ExitProtocol.failure;
+      return;
     }
 
     // Search for ..register calls between engine creation and bootstrap.
