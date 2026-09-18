@@ -85,3 +85,4 @@ mutation-test-report/
 # viewer (website/static/docs/index.html) is committed.
 website/static/docs/*.md
 website/static/docs/wiki.json
+mutation-test-1693-report/

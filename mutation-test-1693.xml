@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  mutation-test-1693.xml — scopes mutation_test to the spec-1693 change
+  surface: the cert gate's freshness leg (cert_registry.dart, the
+  "Freshness (spec 1693)" block) and the canonical digest seam
+  (format_canonical_digest.dart). Answers "are the spec-1693 tests strong
+  enough to catch regressions in the format-canonical contract?" —
+  e.g. a mutant that ignores the digest mismatch must be killed by the
+  semantic-drift tests, and a mutant that digests RAW bytes (no
+  canonicalization) must be killed by the format-drift test.
+
+  The follow-up round (the review findings) added the canonicalizer
+  identity, so the freshness range covers the `digestTrusted` condition
+  and the fallback to the mtime leg; G10 kills a mutant that drops the
+  identity check. `canonicalizerId` itself is out of scope on purpose: it
+  is a value both sides read from the same source, so a character mutant
+  of it is unobservable through the gate's own behavior (a receipt is
+  always recorded with whatever the running build computes).
+
+  Run:    dart run mutation_test mutation-test-1693.xml -f md -o mutation-test-1693-report
+-->
+<mutations version="1.2">
+  <files>
+    <file>lib/src/plugins/mock/certification/cert_registry.dart
+      <lines begin="216" end="257"/>
+    </file>
+    <file>lib/src/plugins/mock/certification/format_canonical_digest.dart
+      <lines begin="84" end="105"/>
+    </file>
+  </files>
+  <commands>
+    <command group="test" expected-return="0" working-directory=".">bash tools/run-1693-mutation-tests.sh</command>
+  </commands>
+  <threshold failure="100">
+    <score>80</score>
+  </threshold>
+</mutations>

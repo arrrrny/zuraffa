@@ -11,9 +11,12 @@
 /// certified post-state — and make just ran its live green evidence on
 /// exactly that tree.
 ///
-/// The driving run writes this record the moment a make green-applies
-/// (a driver-owned, best-effort write — `make_command` itself never
-/// reads or writes it):
+/// The driving run writes this record the moment a make certifies the
+/// current tree with live evidence — a `green` application (issue #1652),
+/// or the #694 already-green `skipped` transition whose target-test
+/// re-run just certified the current (post-hand-edit) tree (issue
+/// #1676; a driver-owned, best-effort write — `make_command` itself
+/// never reads or writes it):
 ///
 /// ```json
 /// {
@@ -29,6 +32,11 @@
 /// }
 /// ```
 ///
+/// On the `skipped` outcome the verdict names the skip transition's own
+/// evidence (`outcome=skipped … skip-transition target-test green
+/// evidence …`, issue #1676) — the inheritance stays honest about which
+/// run certified the tree.
+///
 /// A `--pass-batch` refactor spawn whose context and trees match the
 /// record (same suite template, same baseline content, same suite
 /// configuration, same exempt set, byte-identical `lib/` AND `test/`)
@@ -39,8 +47,18 @@
 /// tree, and the full gate still runs at the phase-2b batch pass,
 /// feature completion, and nightly (spec 069 T001).
 ///
+/// Certification scope (deliberate, issue #1676): a `green` make's
+/// certification carries a baseline-relative suite guard; a `skipped`
+/// make's certification covers the TARGET TEST only — the skip
+/// transition runs no suite baseline and no suite guard. A skip-written
+/// inheritance therefore defers ALL suite regression detection to the
+/// phase-2b batch pass, feature completion, and nightly; the verdict
+/// string names that narrower scope (`target-test green evidence`) so
+/// the printed trail stays honest about what certified the tree.
+///
 /// The record is derived data describing ONE moment: rewritten by every
-/// green make, inert once the tree moves on (a digest mismatch sends the
+/// certifying make (green-applied or skipped, issue #1676), inert once
+/// the tree moves on (a digest mismatch sends the
 /// next spawn through the full pipeline — the safe fallback for every
 /// non-match), never trusted when corrupt, and never a substitute for
 /// the refactor-proved ledger (which keeps precedence).
@@ -52,8 +70,9 @@ import 'package:path/path.dart' as p;
 
 import 'pass_batch_ledger.dart';
 
-/// The parsed make-post-state.json snapshot (the tree state one green
-/// make certified) plus the gate context keys it is valid under.
+/// The parsed make-post-state.json snapshot (the tree state one
+/// certifying make — green-applied or skipped — left behind) plus the
+/// gate context keys it is valid under.
 class MakePostState {
   MakePostState({
     required this.capturedAt,
