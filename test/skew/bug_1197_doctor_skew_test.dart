@@ -106,7 +106,7 @@ dependencies:
     writePackageConfig(coreVersion: '6.0.0');
     final result = await runCheck();
     expect(result.status, DoctorCheckStatus.warn);
-    expect(result.detail, contains('installed'));
+    expect(result.detail, contains('older than the pin'));
   });
 
   test(
