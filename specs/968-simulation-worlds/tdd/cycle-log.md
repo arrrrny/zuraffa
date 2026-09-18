@@ -165,3 +165,93 @@
 - run-digest: 75087ad9a33588a24d4a272646cbe36cd0fd8f178236b7b1b64ff8a576b33341
 - virtual-ms: 667
 - differential: pass
+
+## 2026-09-17T22:20:21.205236Z: world-cert (spec 968)
+- behavior: 968-simulation-worlds-world-v3
+- kind: world-cert
+- at: 2026-09-17T22:20:21.205236Z
+- exit: 0
+- criterion: world "v3" re-certified live: 2/2 declared methods satisfied
+- command: `zfa simulate certify v3 --feature 968-simulation-worlds`
+- schema: 1
+- prev-hash: genesis
+- hash: c7b21997a9749a7604c38de9f44cd167446c1b93911255638208290bec33ff63
+- digest: 8ccecd809c466454eb5b948a1a0ec9d79a2402e822d372354a5fab957043803c
+- scenario: v3
+- certified-methods: 2
+
+## 2026-09-17T22:20:50.420279Z: world-run (spec 968)
+- behavior: 968-simulation-worlds-world-run-v3
+- kind: world-run
+- at: 2026-09-17T22:20:50.420279Z
+- exit: 0
+- criterion: scenario "v3" executed against world 8ccecd809c46 under virtual time: 7 plays, 590 virtual ms, verdict GREEN, differential pass
+- command: `zfa simulate run v3 --feature 968-simulation-worlds`
+- schema: 1
+- prev-hash: genesis
+- hash: 9ddbc94be9fa2cb7a2cbe80183af7d76edb4c0b2263911456e6903c817f4800f
+- digest: 2bb1d68fedc701dfbefc647154fc30b213f87211b1606c466a687791e9882547
+- scenario: v3
+- world-hash: 8ccecd809c466454eb5b948a1a0ec9d79a2402e822d372354a5fab957043803c
+- seed: 1136
+- plays: 7
+- run-digest: 2bb1d68fedc701dfbefc647154fc30b213f87211b1606c466a687791e9882547
+- virtual-ms: 590
+- differential: pass
+
+## 2026-09-17T22:21:13.296692Z: world-run (spec 968)
+- behavior: 968-simulation-worlds-world-run-v3
+- kind: world-run
+- at: 2026-09-17T22:21:13.296692Z
+- exit: 0
+- criterion: scenario "v3" executed against world 8ccecd809c46 under virtual time: 7 plays, 590 virtual ms, verdict GREEN, differential pass
+- command: `zfa simulate run v3 --feature 968-simulation-worlds`
+- schema: 1
+- prev-hash: 9ddbc94be9fa2cb7a2cbe80183af7d76edb4c0b2263911456e6903c817f4800f
+- hash: 125e8d549ae28ae7453a49e573aad19f53c5ca22c1959593cf380f03a0973c9b
+- digest: 2bb1d68fedc701dfbefc647154fc30b213f87211b1606c466a687791e9882547
+- scenario: v3
+- world-hash: 8ccecd809c466454eb5b948a1a0ec9d79a2402e822d372354a5fab957043803c
+- seed: 1136
+- plays: 7
+- run-digest: 2bb1d68fedc701dfbefc647154fc30b213f87211b1606c466a687791e9882547
+- virtual-ms: 590
+- differential: pass
+
+## 2026-09-17T23:45:02.578064Z: world-run (spec 968)
+- behavior: 968-simulation-worlds-world-run-v3
+- kind: world-run
+- at: 2026-09-17T23:45:02.578064Z
+- exit: 0
+- criterion: scenario "v3" executed against world 8ccecd809c46 under virtual time: 7 plays, 590 virtual ms, verdict GREEN, differential pass
+- command: `zfa simulate run v3 --feature 968-simulation-worlds`
+- schema: 1
+- prev-hash: 125e8d549ae28ae7453a49e573aad19f53c5ca22c1959593cf380f03a0973c9b
+- hash: 800ed0b448e5f29ab73d54ed9fa8e70384857c88c3c5a22133408005e37a10bf
+- digest: 2bb1d68fedc701dfbefc647154fc30b213f87211b1606c466a687791e9882547
+- scenario: v3
+- world-hash: 8ccecd809c466454eb5b948a1a0ec9d79a2402e822d372354a5fab957043803c
+- seed: 1136
+- plays: 7
+- run-digest: 2bb1d68fedc701dfbefc647154fc30b213f87211b1606c466a687791e9882547
+- virtual-ms: 590
+- differential: pass
+
+## 2026-09-17T23:45:25.300222Z: world-run (spec 968)
+- behavior: 968-simulation-worlds-world-run-v3
+- kind: world-run
+- at: 2026-09-17T23:45:25.300222Z
+- exit: 0
+- criterion: scenario "v3" executed against world 8ccecd809c46 under virtual time: 7 plays, 590 virtual ms, verdict GREEN, differential pass
+- command: `zfa simulate run v3 --feature 968-simulation-worlds`
+- schema: 1
+- prev-hash: 800ed0b448e5f29ab73d54ed9fa8e70384857c88c3c5a22133408005e37a10bf
+- hash: 9ed5939a0877f708cc37dfdb6878bc81b57820785fb654dcb1fffb4acdb566b3
+- digest: 2bb1d68fedc701dfbefc647154fc30b213f87211b1606c466a687791e9882547
+- scenario: v3
+- world-hash: 8ccecd809c466454eb5b948a1a0ec9d79a2402e822d372354a5fab957043803c
+- seed: 1136
+- plays: 7
+- run-digest: 2bb1d68fedc701dfbefc647154fc30b213f87211b1606c466a687791e9882547
+- virtual-ms: 590
+- differential: pass
