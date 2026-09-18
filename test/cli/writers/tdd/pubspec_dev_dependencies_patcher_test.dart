@@ -174,6 +174,42 @@ dev_dependencies: {lints: ^5.0.0}
     expect(() => patcher.ensure(tmpDir.path), throwsA(isA<UnsupportedError>()));
   });
 
+  test(
+    'dry-run previews the SAME inline-mapping refusal instead of '
+    '"Would add" entries a real run would abort on (PR #1702 review)',
+    () async {
+      await writePubspec('''
+name: myapp
+environment:
+  sdk: ^3.11.0
+dependencies: {}
+dev_dependencies: {lints: ^5.0.0}
+''');
+      final patcher = PubspecDevDependenciesPatcher(isFlutter: true);
+      expect(
+        () => patcher.ensure(tmpDir.path, dryRun: true),
+        throwsA(isA<UnsupportedError>()),
+        reason:
+            'the preview must not promise entries the real pass refuses '
+            'with UnsupportedError',
+      );
+    },
+  );
+
+  test('dry-run on an inline mapping with nothing missing stays silent '
+      '(mirrors the real pass, which returns before the refusal)', () async {
+    await writePubspec('''
+name: myapp
+environment:
+  sdk: ^3.11.0
+dependencies: {}
+dev_dependencies: {flutter_test: {sdk: flutter}, build_runner: ^2.4.0, json_serializable: ^6.7.0, coverage: ^1.15.1}
+''');
+    final patcher = PubspecDevDependenciesPatcher(isFlutter: true);
+    final missing = await patcher.ensure(tmpDir.path, dryRun: true);
+    expect(missing, isEmpty);
+  });
+
   // Bug #688: `zfa tdd gen` generates tests importing
   // `package:test/test.dart`, but the `test` package was missing from the
   // pure-Dart dev_dependencies set — generated tests were uncompilable out
