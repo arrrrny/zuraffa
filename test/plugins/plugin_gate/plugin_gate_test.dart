@@ -7,6 +7,11 @@
 //     enabled-but-unresolvable names the package and `dart pub get`;
 //     enabled-and-resolvable passes (null refusal). A refusal is a
 //     MESSAGE, never a crash (FR-008).
+// U7: issue #1690 §1 — `companionEntry` anchors a RELATIVE `rootUri` at
+//     the package_config's own directory (where pub anchors it for
+//     relative `path:` deps), NOT at the process CWD; absolute file://
+//     rootUris keep resolving (no regression), and a companion whose bin
+//     entry is missing still refuses with null.
 library;
 
 import 'dart:convert';
@@ -118,6 +123,163 @@ void main() {
       expect(refusal, isNotNull);
       expect(refusal, contains('graphql'));
       expect(refusal, contains('observability'));
+    });
+  });
+
+  group('U7: companionEntry resolves rootUris (#1690 §1)', () {
+    late Directory project;
+    late Directory companion;
+
+    setUp(() {
+      project = Directory.systemTemp.createTempSync('gate_u7_project_');
+      companion = Directory.systemTemp.createTempSync('gate_u7_companion_');
+      addTearDown(() => project.deleteSync(recursive: true));
+      addTearDown(() => companion.deleteSync(recursive: true));
+      // A real companion package: bin/zuraffa_graphql.dart exists.
+      File(
+        p.join(companion.path, 'bin', 'zuraffa_graphql.dart'),
+      ).createSync(recursive: true);
+    });
+
+    /// Writes the project's package_config.json with a single
+    /// zuraffa_graphql entry whose rootUri is [rootUri].
+    void seedConfig(Map<String, dynamic> entry) {
+      final dotTool = Directory(p.join(project.path, '.dart_tool'))
+        ..createSync(recursive: true);
+      File(p.join(dotTool.path, 'package_config.json')).writeAsStringSync(
+        jsonEncode({
+          'configVersion': 2,
+          'packages': [entry],
+        }),
+      );
+    }
+
+    test('a RELATIVE rootUri anchors at the package_config directory — '
+        'with CWD at the project root (the documented path: install)', () {
+      seedConfig({
+        'name': 'zuraffa_graphql',
+        'rootUri': p.relative(
+          companion.path,
+          from: p.join(project.path, '.dart_tool'),
+        ),
+        'languageVersion': '3.11',
+      });
+      // The bug fires when the CLI runs with CWD = the project root (the
+      // user's terminal shape): Directory.current must NOT be consulted.
+      final previousCwd = Directory.current.path;
+      Directory.current = project.path;
+      addTearDown(() => Directory.current = previousCwd);
+
+      final entry = PluginGate.companionEntry(
+        'graphql',
+        projectRoot: project.path,
+      );
+
+      expect(
+        entry,
+        p.join(companion.path, 'bin', 'zuraffa_graphql.dart'),
+        reason:
+            'the relative rootUri resolves against .dart_tool/ (where pub '
+            'anchors it), not against Directory.current — issue #1690 §1',
+      );
+      expect(File(entry!).existsSync(), isTrue);
+    });
+
+    test('a relative rootUri still resolves when CWD is unrelated to the '
+        'project (no reliance on Directory.current)', () {
+      seedConfig({
+        'name': 'zuraffa_graphql',
+        'rootUri': p.relative(
+          companion.path,
+          from: p.join(project.path, '.dart_tool'),
+        ),
+        'languageVersion': '3.11',
+      });
+      final previousCwd = Directory.current.path;
+      Directory.current = Directory.systemTemp.path;
+      addTearDown(() => Directory.current = previousCwd);
+
+      final entry = PluginGate.companionEntry(
+        'graphql',
+        projectRoot: project.path,
+      );
+
+      expect(entry, p.join(companion.path, 'bin', 'zuraffa_graphql.dart'));
+    });
+
+    test('an absolute file:// rootUri keeps resolving (no regression)', () {
+      seedConfig({
+        'name': 'zuraffa_graphql',
+        'rootUri': Uri.file(companion.path).toString(),
+        'languageVersion': '3.11',
+      });
+      final previousCwd = Directory.current.path;
+      Directory.current = Directory.systemTemp.path;
+      addTearDown(() => Directory.current = previousCwd);
+
+      final entry = PluginGate.companionEntry(
+        'graphql',
+        projectRoot: project.path,
+      );
+
+      expect(entry, p.join(companion.path, 'bin', 'zuraffa_graphql.dart'));
+    });
+
+    test('a percent-encoded relative rootUri decodes to the real directory '
+        'before the filesystem is touched', () {
+      // pub percent-encodes URI segments, so a path dep installed under a
+      // directory with a space is written `../my%20companion/`: treating
+      // the value as filesystem text looks for a literal `%20` directory
+      // and returns null after a completely correct install.
+      final spaced = Directory(p.join(companion.path, 'my companion'))
+        ..createSync(recursive: true);
+      File(
+        p.join(spaced.path, 'bin', 'zuraffa_graphql.dart'),
+      ).createSync(recursive: true);
+      final relative = p.relative(
+        spaced.path,
+        from: p.join(project.path, '.dart_tool'),
+      );
+      expect(relative, contains(' '));
+      seedConfig({
+        'name': 'zuraffa_graphql',
+        'rootUri': Uri(pathSegments: p.split(relative)).toString(),
+        'languageVersion': '3.11',
+      });
+
+      final entry = PluginGate.companionEntry(
+        'graphql',
+        projectRoot: project.path,
+      );
+
+      expect(
+        entry,
+        p.join(spaced.path, 'bin', 'zuraffa_graphql.dart'),
+        reason:
+            'the escaped `%20` segment must decode to the real directory — '
+            'the candidate is a URI reference, not a path',
+      );
+      expect(File(entry!).existsSync(), isTrue);
+    });
+
+    test('a resolvable companion whose bin entry is missing still returns '
+        'null', () {
+      File(p.join(companion.path, 'bin', 'zuraffa_graphql.dart')).deleteSync();
+      seedConfig({
+        'name': 'zuraffa_graphql',
+        'rootUri': p.relative(
+          companion.path,
+          from: p.join(project.path, '.dart_tool'),
+        ),
+        'languageVersion': '3.11',
+      });
+
+      final entry = PluginGate.companionEntry(
+        'graphql',
+        projectRoot: project.path,
+      );
+
+      expect(entry, isNull);
     });
   });
 }

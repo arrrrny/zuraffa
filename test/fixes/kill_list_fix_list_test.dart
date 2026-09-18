@@ -7,8 +7,8 @@
 //    "No benchmark scenarios registered." The plugin now ships
 //    first-party scenarios over real zuraffa utility work.
 // 3. feature: the eight copy-pasted `XxxFeatureCapability` clones are one
-//    parameterized `PluginFeatureCapability`; MCP capability names
-//    unchanged.
+//    parameterized capability (spec 1023 contract name:
+//    `FeatureLayerCapability`); MCP capability names unchanged.
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -16,7 +16,7 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/cli/exit_protocol.dart';
 import 'package:zuraffa/src/plugins/benchmark/benchmark_plugin.dart';
 import 'package:zuraffa/src/plugins/feature/feature_plugin.dart';
-import 'package:zuraffa/src/plugins/feature/capabilities/plugin_feature_capability.dart';
+import 'package:zuraffa/src/plugins/feature/capabilities/feature_layer_capability.dart';
 import 'package:zuraffa/src/plugins/feature/capabilities/scaffold_feature_capability.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/plugins/skin/skin_plugin.dart';
@@ -128,13 +128,13 @@ void main() {
       );
     });
 
-    test('all single-plugin capabilities are PluginFeatureCapability', () {
+    test('all single-plugin capabilities are FeatureLayerCapability', () {
       final plugin = FeaturePlugin(
         outputDir: 'lib/src',
         options: const GeneratorOptions(),
       );
       final clones = plugin.capabilities
-          .whereType<PluginFeatureCapability>()
+          .whereType<FeatureLayerCapability>()
           .toList();
       expect(
         clones,
@@ -143,7 +143,7 @@ void main() {
             'the 8 copy-pasted clone classes collapsed into 8 registrations '
             'of the ONE parameterized class',
       );
-      expect(clones.map((c) => c.pluginId).toSet(), {
+      expect(clones.map((c) => c.layer).toSet(), {
         'di',
         'view',
         'presenter',
@@ -153,6 +153,16 @@ void main() {
         'mock',
         'test',
       });
+      expect(clones.map((c) => c.layer).toList(), [
+        'route',
+        'di',
+        'mock',
+        'test',
+        'view',
+        'presenter',
+        'controller',
+        'state',
+      ], reason: 'registration order is part of the manifest parity contract');
       expect(
         plugin.capabilities.whereType<ScaffoldFeatureCapability>(),
         hasLength(1),
@@ -162,12 +172,12 @@ void main() {
     test('the di capability mirrors mock onto use-mock (old behavior)', () {
       final plugin = FeaturePlugin(outputDir: 'lib/src');
       final di = plugin.capabilities
-          .whereType<PluginFeatureCapability>()
-          .firstWhere((c) => c.pluginId == 'di');
+          .whereType<FeatureLayerCapability>()
+          .firstWhere((c) => c.layer == 'di');
       expect(di.mapsMockArgToUseMock, isTrue);
       final mock = plugin.capabilities
-          .whereType<PluginFeatureCapability>()
-          .firstWhere((c) => c.pluginId == 'mock');
+          .whereType<FeatureLayerCapability>()
+          .firstWhere((c) => c.layer == 'mock');
       expect(mock.mapsMockArgToUseMock, isFalse);
     });
   });
