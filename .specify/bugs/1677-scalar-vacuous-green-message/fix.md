@@ -106,3 +106,19 @@ branch on the scalar type-only expect, fail-open to the #1308 wording).
   is a record, not the refusal message, and its instruction (write the
   outcome assertion, remove the marker) is accurate for both shapes. A
   follow-up may want a #1651-citing variant for the scalar shape.
+
+## Review Hardening (PR #1701)
+
+The review's one inline finding (🔵 informational) noted
+`scalarTypeOnlyDeclaredType` keyed on the FIRST scalar type-only expect:
+accurate for every writer-emitted shape (exactly one such expect), but a
+future emission or hand-authored marker-carrying test carrying two
+type-only expects over different scalars would get a paragraph naming only
+the first type. Applied the suggested pluralization: the helper is now
+`scalarTypeOnlyDeclaredTypes` — every distinct declared type,
+first-occurrence order, duplicates collapsed, comma-joined — and the
+driver paragraph interpolates the full set. Single-expect shapes print
+byte-for-byte as before (U1/U2 pins unchanged); U3 pins the two-type
+shape (`int` then `String`, duplicate `int` collapsed → `scalar (int,
+String)`). Detection, gate semantics, and the machine contract are
+untouched.

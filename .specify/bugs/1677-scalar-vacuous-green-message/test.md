@@ -58,3 +58,9 @@
   printed for the scalar shape); U2 green. Verbatim evidence in
   `tdd/test-list.md`.
 - GREEN (post-fix): `+2: All tests passed!`
+
+## Review Hardening (PR #1701)
+
+| id | description | traces | result |
+| -- | ----------- | ------ | ------ |
+| U3 | two type-only expects over different scalars (hand-authored marker-carrying variant) — the refusal names BOTH distinct types in first-occurrence order, duplicate collapsed: `the traced contract's return is scalar (int, String)`; machine contract and `hand step:` line unchanged | review of PR #1701 (plural pin) | GREEN |

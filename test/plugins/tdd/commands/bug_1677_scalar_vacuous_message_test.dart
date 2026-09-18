@@ -65,6 +65,46 @@ void main() {
 }
 ''';
 
+/// The review-of-#1701 hand-authored shape: the marker block with THREE
+/// type-only expects over different subjects — `isA<int>()`,
+/// `isA<String>()`, then `isA<int>()` again. The plural extraction must
+/// name BOTH distinct types in first-occurrence order
+/// (`scalar (int, String)`) with the duplicate collapsed (U3).
+String scalarMultiTypeOnlyTest(String feature) => '''
+// GENERATED TEST — `zfa tdd gen U1`.
+library;
+
+import 'package:test/test.dart';
+
+void main() {
+  test('U1 — adds two integers', () {
+    final result = (() {
+      try {
+        return subject.subjectU1(0, 0);
+      } on UnimplementedError catch (error) {
+        return error;
+      }
+    })();
+    final name = (() {
+      try {
+        return subject.subjectU2();
+      } on UnimplementedError catch (error) {
+        return error;
+      }
+    })();
+    // zfa:tdd: vacuous-guard (issue #1651): the assertions below check the
+    // declared return TYPE only — a func-scaffolded dummy (`return 0;`)
+    // satisfies them, so a green here proves nothing about the outcome
+    // value. Replace them with assertions on the observable outcome
+    // named by the behavior description (the spec's scenario values),
+    // remove this marker, and re-run make.
+    expect(result, isA<int>());
+    expect(name, isA<String>());
+    expect(result, isA<int>());
+  });
+}
+''';
+
 /// The #1259 entity/void generated shape: the capture, the marker
 /// comment ([vacuousGuardComment]'s text), and the bare
 /// UnimplementedError guard.
@@ -180,8 +220,12 @@ esac
     /// Seeds the traced scalar contract row (`add(int a, int b) -> int`,
     /// the issue's U1 shape), the generated test at the #827 namespaced
     /// layout, and the make vacuous-green outcome, then drives the run.
-    Future<String> driveScalarFeature() async {
-      const feature = '1677-scalar-message';
+    /// [testContent] is the generated test body (U1's scalar emission,
+    /// U3's multi-expect variant, …).
+    Future<String> driveScalarFeature(
+      String feature,
+      String testContent,
+    ) async {
       fx = await TddFixture.create(featureName: feature);
       addTearDown(fx.dispose);
       await writeFakeZfa();
@@ -192,9 +236,9 @@ esac
         feature,
         'u1_test.dart',
       );
-      await File(testPath)
-          .create(recursive: true)
-          .then((file) => file.writeAsString(scalarTypeOnlyTest(feature)));
+      await File(
+        testPath,
+      ).create(recursive: true).then((file) => file.writeAsString(testContent));
       expect(
         File(testPath).readAsStringSync(),
         contains('zfa:tdd: vacuous-guard'),
@@ -226,7 +270,10 @@ esac
 
     test('U1: a scalar contract\'s vacuous-green refusal prints the '
         '#1651 scalar explanation — never the void/entity template', () async {
-      final out = await driveScalarFeature();
+      final out = await driveScalarFeature(
+        '1677-scalar-message',
+        scalarTypeOnlyTest('1677-scalar-message'),
+      );
 
       // The honest stop and the UNCHANGED machine contract (issue #1308
       // semantics: marker present → the named hand step).
@@ -271,6 +318,35 @@ esac
       // The `hand step:` line is UNCHANGED (the constraint).
       expect(out, contains('hand step: U1:hand'), reason: out);
       expect(out, contains('assertion on the observable outcome'), reason: out);
+    });
+
+    test('U3: two type-only expects over different scalars — the refusal '
+        'names BOTH distinct types, duplicate collapsed '
+        '(review-of-#1701 plural pin)', () async {
+      final out = await driveScalarFeature(
+        '1677-multi-scalar-message',
+        scalarMultiTypeOnlyTest('1677-multi-scalar-message'),
+      );
+
+      // The machine contract is UNCHANGED.
+      expect(out, contains('stopped_at=U1:hand'), reason: out);
+
+      // THE PLURAL PIN: the paragraph names every DISTINCT type the
+      // content's type-only expects check, first-occurrence order — not
+      // just the first matcher's type.
+      expect(
+        out,
+        contains("the traced contract's return is scalar (int, String)"),
+        reason: out,
+      );
+      // The void/entity template is still FALSE for a scalar shape.
+      expect(
+        out,
+        isNot(contains("the traced contract's return is void/an entity")),
+        reason: out,
+      );
+      // The `hand step:` line is UNCHANGED (the constraint).
+      expect(out, contains('hand step: U1:hand'), reason: out);
     });
 
     test('U2: a void/entity contract\'s vacuous-green refusal keeps the '

@@ -2617,12 +2617,12 @@ class RunDriverCore {
             // discriminated, fail-open: an unreadable test keeps the
             // #1308 wording (the shape this arm's guard actually saw).
             final markerContent = _readTestContentFailOpen(testPath);
-            final scalarType = markerContent == null
+            final scalarTypes = markerContent == null
                 ? null
-                : scalarTypeOnlyDeclaredType(markerContent);
-            if (scalarType != null) {
+                : scalarTypeOnlyDeclaredTypes(markerContent);
+            if (scalarTypes != null) {
               print(
-                '   the traced contract\'s return is scalar ($scalarType) — '
+                '   the traced contract\'s return is scalar ($scalarTypes) — '
                 'the $vacuousGuardMarker marker\'s assertion set checks the '
                 'declared return TYPE only; a func-scaffolded dummy '
                 '(`return 0;`) satisfies it (issue #1651).',
