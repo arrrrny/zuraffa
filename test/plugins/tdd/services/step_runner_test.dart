@@ -79,10 +79,11 @@ void main() {
       spawner: spawner.call,
       // The no-JIT seam: the source is AOT compiled before the spawn, so no
       // real `dart compile exe` and no `dart <script>` child here.
-      ensureCompiled: (candidate, {sourceRoot, runner, environment}) async {
-        compiled.add(candidate);
-        return '/pkg/.dart_tool/zfa_cli_bin/zfa_exe';
-      },
+      ensureCompiled:
+          (candidate, {sourceRoot, packagesFile, runner, environment}) async {
+            compiled.add(candidate);
+            return '/pkg/.dart_tool/zfa_cli_bin/zfa_exe';
+          },
     );
 
     await runner.run(
@@ -459,10 +460,11 @@ void main() {
     final bin = await StepRunner.defaultZfaBin(
       // Injected: resolving for real is fine, compiling the whole package is
       // not (the seam is what fast-tier tests own).
-      ensureCompiled: (candidate, {sourceRoot, runner, environment}) async {
-        resolved = candidate;
-        return '/compiled/zfa_exe';
-      },
+      ensureCompiled:
+          (candidate, {sourceRoot, packagesFile, runner, environment}) async {
+            resolved = candidate;
+            return '/compiled/zfa_exe';
+          },
     );
     expect(p.basename(resolved!), 'zfa.dart');
     expect(await File(resolved!).exists(), isTrue);
@@ -583,8 +585,14 @@ void main() {
       // injected no-JIT seam (fast tier: never a real `dart compile exe`).
       final runner = StepRunner(
         spawner: spawner.call,
-        ensureCompiled: (candidate, {sourceRoot, runner, environment}) async =>
-            '/compiled/zfa_exe',
+        ensureCompiled:
+            (
+              candidate, {
+              sourceRoot,
+              packagesFile,
+              runner,
+              environment,
+            }) async => '/compiled/zfa_exe',
       );
 
       await runner.run(

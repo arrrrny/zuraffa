@@ -24,6 +24,7 @@ import 'package:zuraffa/src/plugins/tdd/services/refactor_passes.dart';
 Future<String> _fakeCompile(
   String candidate, {
   String? sourceRoot,
+  String? packagesFile,
   ZfaCompileRunner? runner,
   Map<String, String>? environment,
 }) async => candidate.endsWith('.dart') ? '/fake/compiled/zfa' : candidate;
