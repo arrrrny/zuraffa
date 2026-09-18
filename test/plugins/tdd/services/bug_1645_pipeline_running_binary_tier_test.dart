@@ -243,10 +243,11 @@ void main() {
         // (the no-JIT seam, FR-005, now pinned on the new tier).
         resolvedExecutable: source.path,
         pathEnv: p.dirname(pathInstall.path),
-        ensureCompiled: (candidate, {sourceRoot, runner, environment}) async {
-          compiledFrom.add(candidate);
-          return artifact.path;
-        },
+        ensureCompiled:
+            (candidate, {sourceRoot, packagesFile, runner, environment}) async {
+              compiledFrom.add(candidate);
+              return artifact.path;
+            },
       );
 
       expect(result.completed, isTrue);
