@@ -419,10 +419,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         requiredUris: ['skin.dart'],
       );
     }
-    if (config.generateV6State) {
-      return _generateV6State(config, context: context);
-    }
-
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||
@@ -449,9 +445,15 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // the single funnel both CLI paths share (the auto-registered
     // `create` subcommand and the programmatic entity path), so the
     // plugin owns the check — never a silent clobber across
-    // generators, never a phantom scaffold.
+    // generators, never a phantom scaffold. The v6 dual-layer branch
+    // writes the SAME primary view file, so the fence runs before it
+    // too: a `zfa tdd view` subject is never clobbered without the
+    // loud --force escape, whatever generator would write it.
     final contract = await _viewGenerationContract(config, fs);
     if (contract != null && contract.refuses) return contract.files;
+    if (config.generateV6State) {
+      return _generateV6State(config, context: context);
+    }
     final primaryAlreadyImplemented =
         contract?.primaryAlreadyImplemented ?? false;
 

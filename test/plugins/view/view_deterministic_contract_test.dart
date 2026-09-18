@@ -22,6 +22,9 @@
 //             are never silently overwritten.
 //  U-1134-v7: --force escapes the fence with a loud warning (the
 //             escape hatch is documented, never silent).
+//  U-1134-v8: the fence also guards the v6 dual-layer path —
+//             `zfa view create --v6-state` over a `zfa tdd view`
+//             subject refuses (exit 1) instead of clobbering it.
 library;
 
 import 'dart:io';
@@ -221,6 +224,42 @@ Widget subject_a_001() => A001View();
       await File(primaryViewPath).readAsString(),
       isNot(contains('View-builder subject for behavior')),
       reason: '--force took ownership of the file',
+    );
+  });
+
+  test('U-1134-v8: the v6 dual-layer path fences a `zfa tdd view` '
+      'subject too (no silent clobber without --force)', () async {
+    await File(primaryViewPath)
+        .create(recursive: true)
+        .then(
+          (f) => f.writeAsString('''
+/// View-builder subject for behavior A-001 (issue #939): returns
+/// the deterministic minimal view.
+Widget subject_a_001() => A001View();
+'''),
+        );
+    final before = await File(primaryViewPath).readAsString();
+
+    final out = await runView(extra: ['--v6-state']);
+
+    expect(exitCode, 1, reason: 'out: $out');
+    expect(
+      out,
+      contains('zfa tdd view'),
+      reason: 'the fence names the owning generator on the v6 path too',
+    );
+    expect(out, contains('--force'));
+    expect(
+      await File(primaryViewPath).readAsString(),
+      before,
+      reason:
+          'the v6 branch writes the same primary view file — the '
+          'refused fence leaves it untouched',
+    );
+    expect(
+      out,
+      contains('view: entity=Login outcome=error files=0'),
+      reason: 'the machine summary carries the error outcome',
     );
   });
 }

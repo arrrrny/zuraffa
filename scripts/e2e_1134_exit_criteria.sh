@@ -274,7 +274,7 @@ EOF
   PLAN_EXIT=$?
   echo "$OUT" | grep -E "vocabulary gate|$TOKEN" | head -4 | sed 's/^/  /'
   [ "$PLAN_EXIT" -eq 2 ]; check "EC-3a($TOKEN): zfa tdd plan refuses $TOKEN alone (exit 2)" $?
-  [ ! -f "$TMP/specs/$FEATURE/tdd/test-list.md" ]; check "EC-3b($TOKEN): the refused plan wrote no artifacts" $?
+  [ -z "$(find "$TMP/specs/$FEATURE/tdd" -mindepth 1 -print -quit)" ]; check "EC-3b($TOKEN): the refused plan wrote no artifacts" $?
 
   # The VIEW gate (defense in depth): the same single token, view
   # refuses BEFORE any write.
@@ -320,12 +320,16 @@ import 'package:flutter/material.dart';
 Widget subject_${BIDL}() => throw UnimplementedError('subject_${BIDL} not implemented');
 EOF
   SUBJECT_G="$TMP/lib/tdd/$FEATURE/${BIDL}_subject.dart"
-  BEFORE=$(cat "$SUBJECT_G")
+  # The baseline is a FILE COPY compared with cmp: command substitution
+  # strips trailing newlines, so an EOF-newline-only change would read
+  # as "untouched" — the refusal must be byte-exact.
+  BEFORE="${HELPERS}/${FEATURE}-${BID}.before"
+  cp "$SUBJECT_G" "$BEFORE"
   OUT=$($ZFA tdd view "$BID" --project "$TMP" 2>&1)
   VIEW_EXIT=$?
   echo "$OUT" | grep -E "vocabulary gate|$TOKEN" | head -3 | sed 's/^/  /'
   [ "$VIEW_EXIT" -eq 1 ]; check "EC-3c($TOKEN): zfa tdd view refuses $TOKEN alone before any write (exit 1)" $?
-  [ "$BEFORE" = "$(cat "$SUBJECT_G")" ]; check "EC-3d($TOKEN): the subject is untouched (no unchecked layout code landed)" $?
+  cmp -s "$BEFORE" "$SUBJECT_G"; check "EC-3d($TOKEN): the subject is untouched (no unchecked layout code landed)" $?
 done
 
 # The skin builder: EACH layout token refuses BY NAME and writes nothing.
