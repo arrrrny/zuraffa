@@ -99,29 +99,31 @@ void main() {
     expect(
       await File(stubPath).readAsString(),
       stub,
-      reason: 'errors-are-an-API: a refused view writes nothing — the '
+      reason:
+          'errors-are-an-API: a refused view writes nothing — the '
           'unchecked grid/table stand-in never lands',
     );
   });
 
-  test('U-1134-g3b: in-vocabulary tokens pass and the view scaffolds',
-      () async {
-    await fx.registerBehavior(
-      id: 'A-001',
-      description: "the login page shows 'Welcome back' with a sign in button",
-    );
-    await File(fx.subjectPathOf('A-001'))
-        .writeAsString(genStyleWidgetStub('A-001'));
-    await seedPresentation(fx, ['ShadInput', 'ZfaButton']);
+  test(
+    'U-1134-g3b: in-vocabulary tokens pass and the view scaffolds',
+    () async {
+      await fx.registerBehavior(
+        id: 'A-001',
+        description:
+            "the login page shows 'Welcome back' with a sign in button",
+      );
+      await File(
+        fx.subjectPathOf('A-001'),
+      ).writeAsString(genStyleWidgetStub('A-001'));
+      await seedPresentation(fx, ['ShadInput', 'ZfaButton']);
 
-    final out = await runView();
+      final out = await runView();
 
-    expect(exitCode, 0, reason: 'out: $out');
-    expect(
-      out,
-      contains('view: behavior=A-001 outcome=scaffolded'),
-    );
-    final subject = await File(fx.subjectPathOf('A-001')).readAsString();
-    expect(subject, isNot(contains('UnimplementedError')));
-  });
+      expect(exitCode, 0, reason: 'out: $out');
+      expect(out, contains('view: behavior=A-001 outcome=scaffolded'));
+      final subject = await File(fx.subjectPathOf('A-001')).readAsString();
+      expect(subject, isNot(contains('UnimplementedError')));
+    },
+  );
 }

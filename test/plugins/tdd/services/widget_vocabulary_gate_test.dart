@@ -36,7 +36,8 @@ void main() {
         'buildMain(appName, coreImport, zuraffaApp) -> String',
       ),
       isFalse,
-      reason: 'a method signature is an interface method, not a widget '
+      reason:
+          'a method signature is an interface method, not a widget '
           'reference (the library-dev Presentation contracts)',
     );
     expect(
@@ -46,10 +47,7 @@ void main() {
       isFalse,
       reason: 'a key: token is an i18n declaration (issue #965)',
     );
-    expect(
-      WidgetVocabularyGate.isWidgetReferenceToken(''),
-      isFalse,
-    );
+    expect(WidgetVocabularyGate.isWidgetReferenceToken(''), isFalse);
     expect(WidgetVocabularyGate.isWidgetReferenceToken('ShadInput'), isTrue);
     expect(WidgetVocabularyGate.isWidgetReferenceToken('grid'), isTrue);
   });
@@ -76,7 +74,8 @@ void main() {
     expect(
       grid.message,
       contains(RegExp('not implemented', caseSensitive: false)),
-      reason: 'grid/table are named as not implemented — the removed '
+      reason:
+          'grid/table are named as not implemented — the removed '
           'vocabulary, never a silent list fall-through',
     );
     final table = violations.firstWhere((v) => v.token == 'table');

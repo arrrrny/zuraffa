@@ -66,28 +66,40 @@ void main() {
     TypedPlatformRow rowOf(String slot, String surface, LedgerRowKind kind) {
       final matches = rows
           .where(
-            (r) =>
-                r.slot == slot && r.surface == surface && r.kind == kind,
+            (r) => r.slot == slot && r.surface == surface && r.kind == kind,
           )
           .toList();
-      expect(matches, hasLength(1), reason: 'one row per (slot, surface, kind)');
+      expect(
+        matches,
+        hasLength(1),
+        reason: 'one row per (slot, surface, kind)',
+      );
       return matches.single;
     }
 
     // A4 (mobile-only) proves 'deal_list' navigation ON MOBILE…
-    expect(rowOf('mobile', 'deal_list', LedgerRowKind.navigation).status,
-        'traced');
-    expect(rowOf('mobile', 'deal_list', LedgerRowKind.navigation).provers,
-        ['A4']);
+    expect(
+      rowOf('mobile', 'deal_list', LedgerRowKind.navigation).status,
+      'traced',
+    );
+    expect(rowOf('mobile', 'deal_list', LedgerRowKind.navigation).provers, [
+      'A4',
+    ]);
     // …and NOT on macos: the per-layout independence the aggregate
     // ledger cannot express.
-    expect(rowOf('macos', 'deal_list', LedgerRowKind.navigation).status,
-        'untraced');
+    expect(
+      rowOf('macos', 'deal_list', LedgerRowKind.navigation).status,
+      'untraced',
+    );
     // A3/A5 never emitted a skin event: untraced on BOTH slots.
-    expect(rowOf('mobile', 'Sign in', LedgerRowKind.presence).status,
-        'untraced');
-    expect(rowOf('macos', 'Sign in failed', LedgerRowKind.absence).status,
-        'untraced');
+    expect(
+      rowOf('mobile', 'Sign in', LedgerRowKind.presence).status,
+      'untraced',
+    );
+    expect(
+      rowOf('macos', 'Sign in failed', LedgerRowKind.absence).status,
+      'untraced',
+    );
   });
 
   test('U-1134-t4b: plan-time evidence (no SkinEvent stream) is '
@@ -101,17 +113,16 @@ void main() {
   });
 
   test('U-1134-t5: the kind × slot heatmap renders traced/total cells '
-      'with HIGHLIGHT on zero-traced kinds and `-` for undeclared kinds',
-      () {
+      'with HIGHLIGHT on zero-traced kinds and `-` for undeclared kinds', () {
     final rows = TypedPlatformLedger.derive(
       typedRows: typed,
       slots: const ['mobile', 'macos'],
       behaviorSlots: behaviorSlots,
     );
-    final heatmap = TypedPlatformLedger.kindSlotHeatmap(
-      rows,
-      const ['mobile', 'macos'],
-    );
+    final heatmap = TypedPlatformLedger.kindSlotHeatmap(rows, const [
+      'mobile',
+      'macos',
+    ]);
 
     expect(heatmap, contains('| kind | mobile | macos |'));
     // presence: 0/1 on both slots (A3 green but no skin event) —

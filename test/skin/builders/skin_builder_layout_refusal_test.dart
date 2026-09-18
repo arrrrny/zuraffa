@@ -57,20 +57,16 @@ dependencies:
     options: const GeneratorOptions(dryRun: false, force: true),
   );
 
-  GeneratorConfig config(String name) => GeneratorConfig(
-    name: name,
-    outputDir: outputDir,
-  );
+  GeneratorConfig config(String name) =>
+      GeneratorConfig(name: name, outputDir: outputDir);
 
   test('layout grid refuses BY NAME and writes NO file (not '
       'implemented, not in the vocabulary)', () async {
     final out = await captureOutput(() async {
-      final files = await buildPlugin().generate(
-        config('Deal'),
-        {'layout': 'grid'},
-      );
-      expect(files, isEmpty,
-          reason: 'a refused layout generates nothing');
+      final files = await buildPlugin().generate(config('Deal'), {
+        'layout': 'grid',
+      });
+      expect(files, isEmpty, reason: 'a refused layout generates nothing');
     });
 
     expect(out, contains('grid'));
@@ -78,51 +74,39 @@ dependencies:
     expect(out, contains('--> fix:'));
     expect(out, contains('zfa ui schema'));
     expect(
-      Directory(
-        '$outputDir/presentation/widgets/deal',
-      ).existsSync(),
+      Directory('$outputDir/presentation/widgets/deal').existsSync(),
       isFalse,
-      reason: 'no silent fall-through: the grid layout never renders a '
+      reason:
+          'no silent fall-through: the grid layout never renders a '
           'list template',
     );
   });
 
   test('layout table refuses BY NAME and writes NO file', () async {
-    final files = await buildPlugin().generate(
-      config('Deal'),
-      {'layout': 'table'},
-    );
+    final files = await buildPlugin().generate(config('Deal'), {
+      'layout': 'table',
+    });
     expect(files, isEmpty);
   });
 
   test('an unknown layout refuses BY NAME (never a silent list)', () async {
-    final files = await buildPlugin().generate(
-      config('Deal'),
-      {'layout': 'kanban-board'},
-    );
+    final files = await buildPlugin().generate(config('Deal'), {
+      'layout': 'kanban-board',
+    });
     expect(files, isEmpty);
   });
 
-  test('list and form keep their templates (the implemented set)',
-      () async {
-    final listFiles = await buildPlugin().generate(
-      config('Deal'),
-      {'layout': 'list'},
-    );
+  test('list and form keep their templates (the implemented set)', () async {
+    final listFiles = await buildPlugin().generate(config('Deal'), {
+      'layout': 'list',
+    });
     expect(listFiles, isNotEmpty);
-    expect(
-      listFiles.first.path,
-      contains('deal_list_widget.dart'),
-    );
+    expect(listFiles.first.path, contains('deal_list_widget.dart'));
 
-    final formFiles = await buildPlugin().generate(
-      config('Profile'),
-      {'layout': 'form'},
-    );
+    final formFiles = await buildPlugin().generate(config('Profile'), {
+      'layout': 'form',
+    });
     expect(formFiles, isNotEmpty);
-    expect(
-      formFiles.first.path,
-      contains('profile_form_widget.dart'),
-    );
+    expect(formFiles.first.path, contains('profile_form_widget.dart'));
   });
 }

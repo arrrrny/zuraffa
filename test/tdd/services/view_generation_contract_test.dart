@@ -20,10 +20,7 @@ import 'package:zuraffa/src/tdd/services/view_generation_contract.dart';
 void main() {
   test('U-1134-v1: inspect classifies by ownership marker', () {
     // Absent / empty → notFound.
-    expect(
-      ViewGenerationContract.inspect(null),
-      ViewFileKind.notFound,
-    );
+    expect(ViewGenerationContract.inspect(null), ViewFileKind.notFound);
     expect(ViewGenerationContract.inspect(''), ViewFileKind.notFound);
     expect(ViewGenerationContract.inspect('  \n '), ViewFileKind.notFound);
 
@@ -75,7 +72,8 @@ void main() {
         '/// View-builder subject for behavior A-001 (issue #939).\n',
       ),
       ViewFileKind.tddSubject,
-      reason: 'a file carrying BOTH markers is the tdd generator\'s '
+      reason:
+          'a file carrying BOTH markers is the tdd generator\'s '
           'output — the stricter ownership wins, never a silent guess',
     );
   });
@@ -106,11 +104,8 @@ void main() {
     );
     // The outcome labels are the tdd view contract's vocabulary
     // (ViewOutcome.label) — one machine grammar across both generators.
-    expect(
-      [
-        for (final o in MainlineViewOutcome.values) o.label,
-      ],
-      containsAll(['scaffolded', 'already-implemented', 'error']),
-    );
+    expect([
+      for (final o in MainlineViewOutcome.values) o.label,
+    ], containsAll(['scaffolded', 'already-implemented', 'error']));
   });
 }

@@ -43,10 +43,10 @@ void main() {
 
   test('U-1134-t7: the overlay renders the per-layout kind-coverage '
       'heatmap (kind coverage, not surface count)', () {
-    final lines = XrayLedgerOverlay.renderPlatformHeatmap(
-      rows,
-      const ['mobile', 'macos'],
-    );
+    final lines = XrayLedgerOverlay.renderPlatformHeatmap(rows, const [
+      'mobile',
+      'macos',
+    ]);
 
     // A status line + one line per (kind × slot) — kind coverage per
     // LAYOUT, the exit-criterion-2 shape.
@@ -59,10 +59,14 @@ void main() {
     );
     expect(
       lines.any(
-        (l) => l.contains('HIGHLIGHT') && l.contains('macos') && l.contains('presence 0/1'),
+        (l) =>
+            l.contains('HIGHLIGHT') &&
+            l.contains('macos') &&
+            l.contains('presence 0/1'),
       ),
       isTrue,
-      reason: 'a zero-traced kind × slot cell is HIGHLIGHTED — never '
+      reason:
+          'a zero-traced kind × slot cell is HIGHLIGHTED — never '
           'painted as proof',
     );
     // navigation traced on BOTH slots (A4 exercised both).
@@ -81,10 +85,10 @@ void main() {
 
   test('U-1134-t8: the deck lists one entry per (slot, kind) with a '
       'traced/untraced badge', () {
-    final entries = XrayLedgerDeck.platformEntries(
-      rows,
-      const ['mobile', 'macos'],
-    );
+    final entries = XrayLedgerDeck.platformEntries(rows, const [
+      'mobile',
+      'macos',
+    ]);
 
     // 2 kinds × 2 slots = 4 entries.
     expect(entries, hasLength(4));
@@ -105,7 +109,8 @@ void main() {
             e.state == 'untraced',
       ),
       isTrue,
-      reason: 'the deck names the untraced (slot, kind) cell — the '
+      reason:
+          'the deck names the untraced (slot, kind) cell — the '
           'per-layout gap, badge-level',
     );
     for (final entry in entries) {

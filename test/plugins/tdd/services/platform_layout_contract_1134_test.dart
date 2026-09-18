@@ -61,8 +61,7 @@ void main() {
 
   test('U-1134-a1: the Presentation declaration wins over the Skin '
       'Contract (precedence)', () {
-    expect(skinContract, isNotNull,
-        reason: 'fixture contract must parse');
+    expect(skinContract, isNotNull, reason: 'fixture contract must parse');
     final resolved = PlatformLayoutContract.resolve(
       contracts: const [
         presentationComponents,
@@ -145,7 +144,8 @@ void main() {
         skinContract: skinContract,
       ),
       throwsA(isA<PlatformLayoutContractException>()),
-      reason: 'a malformed Presentation slot still refuses — the '
+      reason:
+          'a malformed Presentation slot still refuses — the '
           'contract fallback never masks a malformed declaration',
     );
   });

@@ -88,7 +88,8 @@ dependencies:
     expect(
       out,
       contains('view: entity=Login outcome=scaffolded files='),
-      reason: 'the deterministic machine summary line (issue #1134 '
+      reason:
+          'the deterministic machine summary line (issue #1134 '
           'lane 2 — the ported contract)',
     );
   });
@@ -106,7 +107,8 @@ dependencies:
     expect(
       out,
       contains('is already implemented — nothing to scaffold'),
-      reason: 'the ported already-implemented verdict (the tdd view '
+      reason:
+          'the ported already-implemented verdict (the tdd view '
           'contract vocabulary)',
     );
     expect(
@@ -116,7 +118,8 @@ dependencies:
     expect(
       await File(primaryViewPath).readAsString(),
       firstBytes,
-      reason: 'an already-implemented verdict rewrites nothing — the '
+      reason:
+          'an already-implemented verdict rewrites nothing — the '
           'idempotency contract',
     );
   });
@@ -125,11 +128,13 @@ dependencies:
       'naming the other generator and the --force escape', () async {
     await File(primaryViewPath)
         .create(recursive: true)
-        .then((f) => f.writeAsString('''
+        .then(
+          (f) => f.writeAsString('''
 /// View-builder subject for behavior A-001 (issue #939): returns
 /// the deterministic minimal view.
 Widget subject_a_001() => A001View();
-'''));
+'''),
+        );
     final before = await File(primaryViewPath).readAsString();
 
     final out = await runView();
@@ -171,9 +176,9 @@ class _LoginViewState extends State<LoginView> {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''';
-    await File(primaryViewPath)
-        .create(recursive: true)
-        .then((f) => f.writeAsString(handWritten));
+    await File(
+      primaryViewPath,
+    ).create(recursive: true).then((f) => f.writeAsString(handWritten));
 
     final out = await runView();
 
@@ -181,7 +186,8 @@ class _LoginViewState extends State<LoginView> {
     expect(
       out,
       contains('is already implemented — nothing to scaffold'),
-      reason: 'hand-written code reads as already-implemented: the '
+      reason:
+          'hand-written code reads as already-implemented: the '
           'generator scaffolds nothing over it',
     );
     expect(
@@ -191,15 +197,16 @@ class _LoginViewState extends State<LoginView> {
     expect(await File(primaryViewPath).readAsString(), handWritten);
   });
 
-  test('U-1134-v7: --force escapes the fence with a loud warning',
-      () async {
+  test('U-1134-v7: --force escapes the fence with a loud warning', () async {
     await File(primaryViewPath)
         .create(recursive: true)
-        .then((f) => f.writeAsString('''
+        .then(
+          (f) => f.writeAsString('''
 /// View-builder subject for behavior A-001 (issue #939): returns
 /// the deterministic minimal view.
 Widget subject_a_001() => A001View();
-'''));
+'''),
+        );
 
     final out = await runView(extra: ['--force']);
 
@@ -209,10 +216,7 @@ Widget subject_a_001() => A001View();
       contains('overwriting the `zfa tdd view` subject'),
       reason: 'the force escape is loud — never a silent clobber',
     );
-    expect(
-      out,
-      contains('view: entity=Login outcome=scaffolded files='),
-    );
+    expect(out, contains('view: entity=Login outcome=scaffolded files='));
     expect(
       await File(primaryViewPath).readAsString(),
       isNot(contains('View-builder subject for behavior')),

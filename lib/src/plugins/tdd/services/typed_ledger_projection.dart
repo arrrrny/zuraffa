@@ -121,7 +121,7 @@ abstract final class TypedLedgerProjection {
               ),
             );
           case ScenarioAssertionClass.presence ||
-                ScenarioAssertionClass.sequence:
+              ScenarioAssertionClass.sequence:
             // A presence-class assertion on a sequence scenario still
             // traces its literal as a presence row; the CHAIN itself
             // is the sequence row emitted below.
@@ -130,9 +130,7 @@ abstract final class TypedLedgerProjection {
                 surface: assertion.literal,
                 kind: LedgerRowKind.presence,
                 declaredProvers: [behavior.id],
-                advisory: LedgerRowKind.isGoldenScenario(
-                  behavior.description,
-                ),
+                advisory: LedgerRowKind.isGoldenScenario(behavior.description),
               ),
             );
         }
@@ -161,12 +159,7 @@ abstract final class TypedLedgerProjection {
     // The declared Presentation component tokens: presence rows (the
     // #939 stand-in surfaces the generated view renders).
     for (final token in componentTokens) {
-      addRow(
-        DeclaredLedgerRow(
-          surface: token,
-          kind: LedgerRowKind.presence,
-        ),
-      );
+      addRow(DeclaredLedgerRow(surface: token, kind: LedgerRowKind.presence));
     }
 
     // The declared i18n keys: presence rows keyed by the accessor

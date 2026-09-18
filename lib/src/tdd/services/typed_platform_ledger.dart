@@ -129,8 +129,7 @@ abstract final class TypedPlatformLedger {
           cells.add('-');
           continue;
         }
-        final traced =
-            ofKindOnSlot.where((r) => r.status == 'traced').length;
+        final traced = ofKindOnSlot.where((r) => r.status == 'traced').length;
         final cell = '$traced/${ofKindOnSlot.length}';
         cells.add(traced == 0 ? 'HIGHLIGHT $cell' : cell);
       }
@@ -145,10 +144,7 @@ abstract final class TypedPlatformLedger {
   /// The per-layout ledger markdown: the typed rows per slot + the
   /// kind × slot heatmap (appended into `tdd/typed-ledger.md` when
   /// the feature declares platform layout slots).
-  static String toMarkdown(
-    List<TypedPlatformRow> rows,
-    List<String> slots,
-  ) {
+  static String toMarkdown(List<TypedPlatformRow> rows, List<String> slots) {
     final buffer = StringBuffer()
       ..writeln('# Per-Layout Typed Coverage Ledger')
       ..writeln()

@@ -24,43 +24,51 @@ import 'package:zuraffa/src/tdd/services/typed_ledger_row.dart';
 
 void main() {
   test('U-1134-t1: the five kinds assign from the scenario verbs', () {
-    final rows = TypedLedgerProjection.declaredRows(behaviors: const [
-      LedgerBehaviorInput(
-        id: 'A3',
-        description: "Given the login view When it renders Then the app "
-            "shows 'Sign in'",
-      ),
-      LedgerBehaviorInput(
-        id: 'A5',
-        description: "Given a fresh login view When no sign-in attempt has "
-            "failed Then the 'Sign in failed' banner is not shown",
-      ),
-      LedgerBehaviorInput(
-        id: 'A4',
-        description: "Given a completed sign-in When the user signs in Then "
-            "the app navigates to the route 'deal_list'",
-      ),
-      LedgerBehaviorInput(
-        id: 'A6',
-        description: "Given an empty form When validation runs Then the "
-            "'Sign in' button is disabled",
-      ),
-      LedgerBehaviorInput(
-        id: 'A7',
-        description: "Given a submitted form Then while the sign-in request "
-            "is in flight the app shows 'Signing in…' and then the app "
-            "navigates to the route 'deal_list'",
-      ),
-    ]);
+    final rows = TypedLedgerProjection.declaredRows(
+      behaviors: const [
+        LedgerBehaviorInput(
+          id: 'A3',
+          description:
+              "Given the login view When it renders Then the app "
+              "shows 'Sign in'",
+        ),
+        LedgerBehaviorInput(
+          id: 'A5',
+          description:
+              "Given a fresh login view When no sign-in attempt has "
+              "failed Then the 'Sign in failed' banner is not shown",
+        ),
+        LedgerBehaviorInput(
+          id: 'A4',
+          description:
+              "Given a completed sign-in When the user signs in Then "
+              "the app navigates to the route 'deal_list'",
+        ),
+        LedgerBehaviorInput(
+          id: 'A6',
+          description:
+              "Given an empty form When validation runs Then the "
+              "'Sign in' button is disabled",
+        ),
+        LedgerBehaviorInput(
+          id: 'A7',
+          description:
+              "Given a submitted form Then while the sign-in request "
+              "is in flight the app shows 'Signing in…' and then the app "
+              "navigates to the route 'deal_list'",
+        ),
+      ],
+    );
 
     DeclaredLedgerRow rowOf(String surface, LedgerRowKind kind) {
-      final matches = rows.where(
-        (r) => r.surface == surface && r.kind == kind,
-      ).toList();
+      final matches = rows
+          .where((r) => r.surface == surface && r.kind == kind)
+          .toList();
       expect(
         matches,
         hasLength(1),
-        reason: 'exactly one ($surface, ${kind.label}) row, got: '
+        reason:
+            'exactly one ($surface, ${kind.label}) row, got: '
             '${rows.map((r) => '(${r.surface}, ${r.kind.label})')}',
       );
       return matches.single;
@@ -77,8 +85,10 @@ void main() {
     // navigates to the route → navigation (never presence text). The
     // chain behavior A7 navigates to the same route — its assertion
     // MERGES into the row's provers (both behaviors trace it).
-    expect(rowOf('deal_list', LedgerRowKind.navigation).declaredProvers,
-        ['A4', 'A7']);
+    expect(rowOf('deal_list', LedgerRowKind.navigation).declaredProvers, [
+      'A4',
+      'A7',
+    ]);
     // is disabled → state, with the asserted attribute.
     final state = rowOf('Sign in', LedgerRowKind.state);
     expect(state.declaredProvers, ['A6']);
@@ -89,9 +99,13 @@ void main() {
         .toList();
     expect(sequence, hasLength(1), reason: 'the in-flight chain is a row');
     expect(sequence.single.declaredProvers, ['A7']);
-    expect(sequence.single.steps.length, greaterThanOrEqualTo(2),
-        reason: 'a sequence row records its chain (≥ 2 steps) — the '
-            'single-pump presence assertion cannot satisfy it');
+    expect(
+      sequence.single.steps.length,
+      greaterThanOrEqualTo(2),
+      reason:
+          'a sequence row records its chain (≥ 2 steps) — the '
+          'single-pump presence assertion cannot satisfy it',
+    );
   });
 
   test('U-1134-t2: component tokens and i18n keys derive presence rows; '
@@ -100,12 +114,14 @@ void main() {
       behaviors: const [
         LedgerBehaviorInput(
           id: 'A3',
-          description: "Given the login view When it renders Then the app "
+          description:
+              "Given the login view When it renders Then the app "
               "shows 'Sign in'",
         ),
         LedgerBehaviorInput(
           id: 'A8',
-          description: "Given the login view When it renders again Then the "
+          description:
+              "Given the login view When it renders again Then the "
               "app shows 'Sign in'",
         ),
       ],
@@ -121,14 +137,17 @@ void main() {
     // behaviors' assertions MERGE into the row's provers.
     final presence = rows
         .where(
-            (r) => r.surface == 't.auth.signIn' && r.kind == LedgerRowKind.presence)
+          (r) =>
+              r.surface == 't.auth.signIn' && r.kind == LedgerRowKind.presence,
+        )
         .toList();
     expect(presence, hasLength(1));
     expect(presence.single.declaredProvers, containsAll(['A3', 'A8']));
     // The plain EN-literal surface does NOT exist on a keyed host.
     expect(
       rows.any(
-          (r) => r.surface == 'Sign in' && r.kind == LedgerRowKind.presence),
+        (r) => r.surface == 'Sign in' && r.kind == LedgerRowKind.presence,
+      ),
       isFalse,
       reason: 'the key is the contract — the accessor is the surface',
     );
@@ -136,9 +155,7 @@ void main() {
     // Component tokens: presence rows.
     for (final token in ['ShadInput', 'ShadButton']) {
       expect(
-        rows.any(
-          (r) => r.surface == token && r.kind == LedgerRowKind.presence,
-        ),
+        rows.any((r) => r.surface == token && r.kind == LedgerRowKind.presence),
         isTrue,
         reason: 'the declared component "$token" is a presence row',
       );

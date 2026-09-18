@@ -18,7 +18,8 @@ const feature = '004-vocab-gate';
 
 /// A spec whose Presentation contract declares [components] plus the
 /// widget behaviors the gate scopes to.
-String specWithComponents(List<String> components) => '''
+String specWithComponents(List<String> components) =>
+    '''
 **Template Version**: `zuraffa-1.0`
 
 # Feature Specification: $feature — the vocabulary-gated login
@@ -61,15 +62,16 @@ void main() {
     exitCode = 0;
   });
 
-  Future<String> plan() => CliRunner(exitOnCompletion: false).runCapturing(
-        ['tdd', 'plan', '--project', tmpDir.path, feature],
-      );
+  Future<String> plan() => CliRunner(
+    exitOnCompletion: false,
+  ).runCapturing(['tdd', 'plan', '--project', tmpDir.path, feature]);
 
   test('U-1134-g2: an out-of-vocabulary widget reference refuses the '
       'plan (exit 2, no artifacts) naming the token + the vocabulary '
       'fix', () async {
-    await File(p.join(featureDir, 'spec.md'))
-        .writeAsString(specWithComponents(['ShadInput', 'ShadGrid']));
+    await File(
+      p.join(featureDir, 'spec.md'),
+    ).writeAsString(specWithComponents(['ShadInput', 'ShadGrid']));
 
     final out = await plan();
 
@@ -87,23 +89,22 @@ void main() {
 
   test('U-1134-g2b: `table` refuses too (not implemented, not in the '
       'vocabulary)', () async {
-    await File(p.join(featureDir, 'spec.md'))
-        .writeAsString(specWithComponents(['table']));
+    await File(
+      p.join(featureDir, 'spec.md'),
+    ).writeAsString(specWithComponents(['table']));
 
     final out = await plan();
 
     expect(exitCode, 2, reason: out);
     expect(out, contains('table'));
-    expect(
-      out,
-      contains(RegExp('not implemented', caseSensitive: false)),
-    );
+    expect(out, contains(RegExp('not implemented', caseSensitive: false)));
   });
 
   test('U-1134-g2c: in-vocabulary tokens pass (ShadInput -> input, '
       'ZfaButton -> button)', () async {
-    await File(p.join(featureDir, 'spec.md'))
-        .writeAsString(specWithComponents(['ShadInput', 'ZfaButton']));
+    await File(
+      p.join(featureDir, 'spec.md'),
+    ).writeAsString(specWithComponents(['ShadInput', 'ZfaButton']));
 
     final out = await plan();
 
@@ -146,9 +147,6 @@ void main() {
     final out = await plan();
 
     expect(exitCode, 0, reason: out);
-    expect(
-      File(p.join(tddDir, 'test-list.md')).existsSync(),
-      isTrue,
-    );
+    expect(File(p.join(tddDir, 'test-list.md')).existsSync(), isTrue);
   });
 }

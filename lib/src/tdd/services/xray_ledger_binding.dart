@@ -142,12 +142,9 @@ abstract final class XrayLedgerOverlay {
             .where((r) => r.slot == slot && r.kind == kind)
             .toList();
         if (ofKindOnSlot.isEmpty) continue; // a kind the plan never declared
-        final traced =
-            ofKindOnSlot.where((r) => r.status == 'traced').length;
+        final traced = ofKindOnSlot.where((r) => r.status == 'traced').length;
         final label = '${kind.label} $traced/${ofKindOnSlot.length}';
-        lines.add(
-          '$slot ${traced == 0 ? 'HIGHLIGHT ' : ''}$label',
-        );
+        lines.add('$slot ${traced == 0 ? 'HIGHLIGHT ' : ''}$label');
       }
     }
     return lines;

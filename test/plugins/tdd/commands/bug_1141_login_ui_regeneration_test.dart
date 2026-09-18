@@ -177,9 +177,7 @@ void main() {
     // identity the view command's own #1141 audit allow-lists — never
     // user-facing copy. They are excluded here exactly like the
     // audit's markerLiterals excludes them.)
-    final quoted = RegExp(
-      "Text\\(\\s*(['\"])((?:[^'\\\\]|\\\\.)*?)\\1",
-    )
+    final quoted = RegExp("Text\\(\\s*(['\"])((?:[^'\\\\]|\\\\.)*?)\\1")
         .allMatches(subject)
         .map((m) => m.group(2))
         .where((s) => !(s ?? '').startsWith('TODO: Implement '))

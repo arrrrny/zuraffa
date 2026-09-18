@@ -26,7 +26,8 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 
 const feature = '004-login-typed';
 
-const specWithSlots = '''
+const specWithSlots =
+    '''
 **Template Version**: `zuraffa-1.0`
 
 # Feature Specification: $feature — the adaptive login skin
@@ -101,63 +102,60 @@ void main() {
     exitCode = 0;
   });
 
-  Future<String> plan() => CliRunner(exitOnCompletion: false).runCapturing(
-        ['tdd', 'plan', '--project', tmpDir.path, feature],
+  Future<String> plan() => CliRunner(
+    exitOnCompletion: false,
+  ).runCapturing(['tdd', 'plan', '--project', tmpDir.path, feature]);
+
+  test(
+    'U-1134-t3: plan writes the typed ledger artifact pair with '
+    'five-kind rows and traced|untraced status (plan-time untraced)',
+    () async {
+      await File(p.join(featureDir, 'spec.md')).writeAsString(specWithSlots);
+      final out = await plan();
+
+      expect(exitCode, 0, reason: out);
+      final typedMd = File(p.join(tddDir, 'typed-ledger.md'));
+      final typedJson = File(p.join(tddDir, 'typed-ledger.json'));
+      expect(typedMd.existsSync(), isTrue, reason: 'the typed ledger markdown');
+      expect(typedJson.existsSync(), isTrue, reason: 'the typed ledger JSON');
+      expect(
+        out,
+        contains('typed-ledger.md'),
+        reason: 'the plan reports the artifact it wrote',
       );
 
-  test('U-1134-t3: plan writes the typed ledger artifact pair with '
-      'five-kind rows and traced|untraced status (plan-time untraced)', () async {
-    await File(p.join(featureDir, 'spec.md')).writeAsString(specWithSlots);
-    final out = await plan();
+      final md = await typedMd.readAsString();
+      // The typed table: surface | kind | proven by | state | semantics.
+      expect(md, contains('# Typed Coverage Ledger'));
+      expect(md, contains('| presence |'));
+      expect(md, contains('| absence |'));
+      expect(md, contains('| navigation |'));
+      expect(md, contains('| state |'));
+      expect(md, contains('| sequence |'));
+      // Plan-time rows are untraced (NOT-DONE), visible, never omitted.
+      expect(md, contains('NOT-DONE'));
+      // The declared component tokens are presence rows.
+      expect(md, contains('ShadInput'));
 
-    expect(exitCode, 0, reason: out);
-    final typedMd = File(p.join(tddDir, 'typed-ledger.md'));
-    final typedJson = File(p.join(tddDir, 'typed-ledger.json'));
-    expect(typedMd.existsSync(), isTrue, reason: 'the typed ledger markdown');
-    expect(typedJson.existsSync(), isTrue, reason: 'the typed ledger JSON');
-    expect(
-      out,
-      contains('typed-ledger.md'),
-      reason: 'the plan reports the artifact it wrote',
-    );
-
-    final md = await typedMd.readAsString();
-    // The typed table: surface | kind | proven by | state | semantics.
-    expect(md, contains('# Typed Coverage Ledger'));
-    expect(md, contains('| presence |'));
-    expect(md, contains('| absence |'));
-    expect(md, contains('| navigation |'));
-    expect(md, contains('| state |'));
-    expect(md, contains('| sequence |'));
-    // Plan-time rows are untraced (NOT-DONE), visible, never omitted.
-    expect(md, contains('NOT-DONE'));
-    // The declared component tokens are presence rows.
-    expect(md, contains('ShadInput'));
-
-    final json = jsonDecode(await typedJson.readAsString()) as List<dynamic>;
-    expect(json, isNotEmpty);
-    final kinds = json
-        .map((r) => (r as Map<String, dynamic>)['kind'] as String?)
-        .toSet();
-    expect(
-      kinds,
-      containsAll([
-        'presence',
-        'absence',
-        'navigation',
-        'state',
-        'sequence',
-      ]),
-      reason: 'the five-kind vocabulary rides every row',
-    );
-    // The epic's status vocabulary: traced|untraced (plan-time:
-    // untraced — state recomputes at read time, a stored state is a
-    // cache).
-    final statuses = json
-        .map((r) => (r as Map<String, dynamic>)['status'] as String?)
-        .toSet();
-    expect(statuses, {'untraced'});
-  });
+      final json = jsonDecode(await typedJson.readAsString()) as List<dynamic>;
+      expect(json, isNotEmpty);
+      final kinds = json
+          .map((r) => (r as Map<String, dynamic>)['kind'] as String?)
+          .toSet();
+      expect(
+        kinds,
+        containsAll(['presence', 'absence', 'navigation', 'state', 'sequence']),
+        reason: 'the five-kind vocabulary rides every row',
+      );
+      // The epic's status vocabulary: traced|untraced (plan-time:
+      // untraced — state recomputes at read time, a stored state is a
+      // cache).
+      final statuses = json
+          .map((r) => (r as Map<String, dynamic>)['status'] as String?)
+          .toSet();
+      expect(statuses, {'untraced'});
+    },
+  );
 
   test('U-1134-t6: adaptive_layouts declares the per-layout heatmap '
       'section + platform rows in the JSON', () async {
@@ -172,9 +170,11 @@ void main() {
     expect(md, contains('presence'));
     expect(md, contains('navigation'));
 
-    final json = jsonDecode(
-      await File(p.join(tddDir, 'typed-ledger.json')).readAsString(),
-    ) as List<dynamic>;
+    final json =
+        jsonDecode(
+              await File(p.join(tddDir, 'typed-ledger.json')).readAsString(),
+            )
+            as List<dynamic>;
     // The platform rows ride the same JSON: slot + kind + status.
     final platformRows = json
         .map((r) => r as Map<String, dynamic>)
@@ -184,7 +184,8 @@ void main() {
     expect(
       platformRows.every((r) => r['status'] == 'untraced'),
       isTrue,
-      reason: 'plan-time: no SkinEvent evidence yet — every per-slot row '
+      reason:
+          'plan-time: no SkinEvent evidence yet — every per-slot row '
           'untraced, visible, never omitted',
     );
     final slots = platformRows.map((r) => r['slot']).toSet();
@@ -209,9 +210,9 @@ void main() {
     expect(legacyMd, contains('| affordance |'));
     expect(legacyMd, isNot(contains('| sequence |')));
 
-    final legacyJson = jsonDecode(
-      await File(p.join(tddDir, 'ui-ledger.json')).readAsString(),
-    ) as List<dynamic>;
+    final legacyJson =
+        jsonDecode(await File(p.join(tddDir, 'ui-ledger.json')).readAsString())
+            as List<dynamic>;
     // Legacy rows keep their fields; platform rows keep slot+state
     // (DONE/NOT-DONE), never the typed status vocabulary.
     final platformRows = legacyJson
@@ -222,7 +223,8 @@ void main() {
     expect(
       platformRows.every((r) => r['state'] == 'NOT-DONE'),
       isTrue,
-      reason: 'the #1142 per-platform rows keep their pinned state '
+      reason:
+          'the #1142 per-platform rows keep their pinned state '
           'vocabulary',
     );
   });

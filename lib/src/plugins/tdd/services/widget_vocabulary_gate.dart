@@ -112,7 +112,8 @@ abstract final class WidgetVocabularyGate {
         WidgetVocabularyViolation(
           token: token,
           normalized: normalized,
-          message: 'widget reference "$token" '
+          message:
+              'widget reference "$token" '
               '(normalizes to "$normalized") is not in the ui vocabulary '
               '(`zfa ui schema`)${removed ? ' — grid/table are NOT implemented (removed from the layout vocabulary, issue #1149); a generator that rendered them as a list was lying' : ''}.\n'
               '--> fix: declare a `zfa ui schema` vocabulary name '

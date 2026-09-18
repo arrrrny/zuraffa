@@ -116,8 +116,9 @@ void main() {
       id: 'A-001',
       description: "the login page shows 'Welcome back' with a sign in button",
     );
-    await File(fx.subjectPathOf('A-001'))
-        .writeAsString(genStyleWidgetStub('A-001'));
+    await File(
+      fx.subjectPathOf('A-001'),
+    ).writeAsString(genStyleWidgetStub('A-001'));
     await seedPresentationWithoutSlots(fx);
     await seedSkinContract(fx, ['mobile', 'macos']);
 
@@ -127,7 +128,8 @@ void main() {
     expect(
       out,
       contains('view: behavior=A-001 outcome=scaffolded'),
-      reason: 'the contract-driven skeleton still reports the '
+      reason:
+          'the contract-driven skeleton still reports the '
           'deterministic machine summary',
     );
     expect(
@@ -157,8 +159,9 @@ void main() {
       id: 'A-001',
       description: "the login page shows 'Welcome back' with a sign in button",
     );
-    await File(fx.subjectPathOf('A-001'))
-        .writeAsString(genStyleWidgetStub('A-001'));
+    await File(
+      fx.subjectPathOf('A-001'),
+    ).writeAsString(genStyleWidgetStub('A-001'));
     await seedPresentationWithoutSlots(fx);
     // No Skin Contract section in spec.md either.
     await File(specPathOf(fx)).writeAsString('# spec\n');
