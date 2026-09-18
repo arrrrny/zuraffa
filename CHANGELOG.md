@@ -34,6 +34,9 @@ union/repository generators, schema cache/diff/SDL). `OtelLogExporter`
 stays in core (vendor-free); `Zuraffa.registerOtelLogExporter` replaces
 the removed private wiring.
 
+### Changed
+- `zorphy` and `zorphy_annotation` constraints updated to `^2.4.1`.
+
 ## [6.3.0] - 2026-09-14
 
 ### Changed
