@@ -212,10 +212,7 @@ $members
         expect(verdict['schema'], VerdictEnvelope.canonicalSchema);
         expect(verdict['verdict'], 'fail');
         expect(verdict['exit_class'], 1);
-        expect(
-          (verdict['subject'] as Map)['id'],
-          equals('Product'),
-        );
+        expect((verdict['subject'] as Map)['id'], equals('Product'));
         final findings = verdict['findings'] as List;
         expect(findings, isNotEmpty);
         final first = findings.first as Map<String, dynamic>;
@@ -224,10 +221,7 @@ $members
         // payload rides in `details` (entity/providerFile/interface/...).
         expect(first['member'], equals('execute'));
         expect(first['fix'], contains('--> fix:'));
-        expect(
-          (verdict['details'] as Map)['entity'],
-          equals('Product'),
-        );
+        expect((verdict['details'] as Map)['entity'], equals('Product'));
       },
     );
   });
