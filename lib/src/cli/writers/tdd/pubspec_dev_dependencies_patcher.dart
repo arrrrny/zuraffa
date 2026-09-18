@@ -121,7 +121,16 @@ class PubspecDevDependenciesPatcher {
       final wanted = _resolveIsFlutter(isFlutterOverride ?? isFlutter, file)
           ? _wantedSet(true)
           : _wantedSet(false);
-      return wanted.keys.where((pkg) => !existing.containsKey(pkg)).toList();
+      final missing = wanted.keys
+          .where((pkg) => !existing.containsKey(pkg))
+          .toList();
+      if (missing.isNotEmpty) {
+        // Preview the SAME inline-mapping refusal the real pass throws
+        // below, instead of promising entries a real run would abort on
+        // (PR #1702 review).
+        _refuseInlineMapping(raw);
+      }
+      return missing;
     }
 
     if (!await file.exists()) {
@@ -158,6 +167,17 @@ class PubspecDevDependenciesPatcher {
       return missing;
     }
 
+    _refuseInlineMapping(raw);
+
+    final newContent = _patchTextually(raw, missing);
+    await file.writeAsString(newContent);
+    return missing;
+  }
+
+  /// The real pass — and, so the dry-run preview never promises what a
+  /// real run refuses, the dry-run too — refuses a non-empty inline flow
+  /// `dev_dependencies: {...}` mapping loudly instead of mangling it.
+  static void _refuseInlineMapping(String raw) {
     if (RegExp(r'dev_dependencies:\s*\{[^\}]').hasMatch(raw)) {
       throw UnsupportedError(
         'Inline `dev_dependencies: {...}` mappings are not supported by '
@@ -165,10 +185,6 @@ class PubspecDevDependenciesPatcher {
         'section instead.',
       );
     }
-
-    final newContent = _patchTextually(raw, missing);
-    await file.writeAsString(newContent);
-    return missing;
   }
 
   String _patchTextually(String raw, List<String> missing) {
