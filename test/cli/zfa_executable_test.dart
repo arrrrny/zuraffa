@@ -26,6 +26,12 @@
 ///     `--zfa-bin <path>.dart` is always COMPILED, never refused, and each
 ///     non-canonical entrypoint gets its own cache slot
 /// U10 `commandFor` shapes the child argv and throws without the hatch
+/// U12 (#1690 §2) a `packagesFile` compile anchors on the CONSUMING
+///     project: the argv carries `--packages=<project config>`, the
+///     artifact lands in the project's `.dart_tool/zfa_cli_bin/` under a
+///     candidate+project digest slot (never inside a hosted pub-cache
+///     package), a rewritten package config invalidates the cache, and
+///     the legacy contract is untouched when no packagesFile is given
 library;
 
 import 'dart:async';
@@ -447,5 +453,186 @@ void main() {
     expect(ZfaExecutable.isDartScript('/a/bin/zfa.dart'), isTrue);
     expect(ZfaExecutable.isDartScript('/a/bin/zfa'), isFalse);
     expect(ZfaExecutable.isDartScript('/a/bin/zfa.dart.snapshot'), isFalse);
+  });
+
+  group('U12: project-anchored compile — the hosted-companion seam '
+      '(#1690 §2)', () {
+    /// A companion-shaped package (its own pubspec, NO .dart_tool — the
+    /// hosted pub-cache shape) whose bin entrypoint is the candidate.
+    Future<Directory> companionRoot(String tag) async {
+      final dir = await Directory.systemTemp.createTemp(
+        'zfa_companion_${tag}_',
+      );
+      addTearDown(() {
+        try {
+          dir.deleteSync(recursive: true);
+        } catch (_) {}
+      });
+      await File(p.join(dir.path, 'bin', 'zuraffa_graphql.dart'))
+          .create(recursive: true)
+          .then((f) => f.writeAsString('void main() {}\n'));
+      await File(
+        p.join(dir.path, 'pubspec.yaml'),
+      ).writeAsString('name: zuraffa_graphql\n');
+      return dir;
+    }
+
+    /// A consuming project: pubspec + a REAL package_config.json (the file
+    /// `dart pub get` writes) at `.dart_tool/package_config.json`.
+    Future<String> projectPackagesFile(String tag) async {
+      final dir = await Directory.systemTemp.createTemp('zfa_project_${tag}_');
+      addTearDown(() {
+        try {
+          dir.deleteSync(recursive: true);
+        } catch (_) {}
+      });
+      await File(
+        p.join(dir.path, 'pubspec.yaml'),
+      ).writeAsString('name: consumer_$tag\n');
+      final config = File(p.join(dir.path, '.dart_tool', 'package_config.json'))
+        ..createSync(recursive: true);
+      await config.writeAsString('{"configVersion":2,"packages":[]}');
+      return config.path;
+    }
+
+    test(
+      'U12a: packagesFile compiles with --packages=<project config>',
+      () async {
+        final companion = await companionRoot('argv');
+        final candidate = p.join(companion.path, 'bin', 'zuraffa_graphql.dart');
+        final packagesFile = await projectPackagesFile('argv');
+        final compiler = _FakeCompiler();
+
+        await ZfaExecutable.ensureCompiled(
+          candidate,
+          packagesFile: packagesFile,
+          runner: compiler.call,
+        );
+
+        final argv = compiler.calls.single;
+        expect(argv.take(3), ['dart', 'compile', 'exe']);
+        expect(
+          argv.contains('--packages=$packagesFile'),
+          isTrue,
+          reason:
+              'the compile must resolve packages through the CONSUMING '
+              "project's package config — the hosted-companion compile "
+              'otherwise runs an implicit pub get inside the pub cache '
+              '(issue #1690 §2): $argv',
+        );
+      },
+    );
+
+    test('U12b: the artifact lands in the PROJECT cache, keyed per '
+        'candidate+project — never in the companion source root', () async {
+      final companion = await companionRoot('cache');
+      final candidate = p.join(companion.path, 'bin', 'zuraffa_graphql.dart');
+      final packagesFile = await projectPackagesFile('cache');
+      final compiler = _FakeCompiler();
+
+      final result = await ZfaExecutable.ensureCompiled(
+        candidate,
+        packagesFile: packagesFile,
+        runner: compiler.call,
+      );
+
+      final projectRoot = p.dirname(
+        p.dirname(p.normalize(p.absolute(packagesFile))),
+      );
+      expect(
+        p.isWithin(p.join(projectRoot, '.dart_tool', 'zfa_cli_bin'), result),
+        isTrue,
+        reason:
+            'the compiled companion sits in the project cache '
+            '<project>/.dart_tool/zfa_cli_bin/ (per-project keying) — '
+            'got $result',
+      );
+      expect(
+        p.isWithin(companion.path, result),
+        isFalse,
+        reason:
+            'the compiled ARTIFACT may not land in a hosted pub-cache '
+            'package — issue #1690 §2',
+      );
+      // Slot keyed by candidate AND project: the legacy digest of the
+      // candidate alone would let two projects inherit one binary.
+      expect(
+        p.basename(result),
+        startsWith('${kZfaBinaryName}_'),
+        reason: 'a digest slot distinct from the shared canonical name',
+      );
+      expect(File(result).existsSync(), isTrue);
+    });
+
+    test('U12c: two projects compiling the same candidate get DIFFERENT '
+        'slots', () async {
+      final companion = await companionRoot('twoproj');
+      final candidate = p.join(companion.path, 'bin', 'zuraffa_graphql.dart');
+      final projectA = await projectPackagesFile('a');
+      final projectB = await projectPackagesFile('b');
+      final compiler = _FakeCompiler();
+
+      final a = await ZfaExecutable.ensureCompiled(
+        candidate,
+        packagesFile: projectA,
+        runner: compiler.call,
+      );
+      final b = await ZfaExecutable.ensureCompiled(
+        candidate,
+        packagesFile: projectB,
+        runner: compiler.call,
+      );
+
+      expect(a, isNot(b), reason: 'per-project cache keying (#1690 §2)');
+      // The two runs must not reuse each other's artifact.
+      expect(compiler.calls, hasLength(2));
+    });
+
+    test('U12d: a newer project package config invalidates the cached '
+        'artifact', () async {
+      final companion = await companionRoot('stale');
+      final candidate = p.join(companion.path, 'bin', 'zuraffa_graphql.dart');
+      final packagesFile = await projectPackagesFile('stale');
+      final compiler = _FakeCompiler();
+
+      await ZfaExecutable.ensureCompiled(
+        candidate,
+        packagesFile: packagesFile,
+        runner: compiler.call,
+      );
+      // pub get rewrites package_config.json on every resolve — a config
+      // newer than the artifact means the project's graph moved.
+      _touchNewer(packagesFile);
+      await ZfaExecutable.ensureCompiled(
+        candidate,
+        packagesFile: packagesFile,
+        runner: compiler.call,
+      );
+
+      expect(
+        compiler.calls,
+        hasLength(2),
+        reason: 'the rewritten package config must invalidate the cache',
+      );
+    });
+
+    test('U12e: no packagesFile keeps the legacy contract — no --packages '
+        'flag, artifact in the source root cache', () async {
+      final root = await _sourceRoot('legacy');
+      final candidate = p.join(root.path, 'bin', 'zfa.dart');
+      final compiler = _FakeCompiler();
+
+      final result = await ZfaExecutable.ensureCompiled(
+        candidate,
+        runner: compiler.call,
+      );
+
+      expect(result, _exePath(root));
+      expect(
+        compiler.calls.single.any((a) => a.startsWith('--packages=')),
+        isFalse,
+      );
+      expect(compiler.workingDirectories.single, root.path);
+    });
   });
 }
