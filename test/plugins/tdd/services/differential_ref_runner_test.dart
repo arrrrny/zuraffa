@@ -30,6 +30,7 @@ import 'package:zuraffa/src/plugins/tdd/services/tdd_timeout.dart';
 Future<String> _fakeCompile(
   String candidate, {
   String? sourceRoot,
+  String? packagesFile,
   ZfaCompileRunner? runner,
   Map<String, String>? environment,
 }) async => candidate.endsWith('.dart')
