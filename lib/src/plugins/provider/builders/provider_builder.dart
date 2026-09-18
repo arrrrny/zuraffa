@@ -8,6 +8,7 @@ import '../../../core/generator_options.dart';
 import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
+import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/method_extractor.dart';
 
@@ -115,6 +116,17 @@ class ProviderBuilder {
 
     final methods = <Method>[];
 
+    // Issue #1719: the --init members are emitted EXACTLY ONCE, with their
+    // semantic bodies (empty init stream / async no-ops). When the service
+    // interface already declares them (an --init service), the interface
+    // extraction below skips those names — emitting them twice produced
+    // duplicate_definition compile errors (getter vs method isInitialized,
+    // initialize twice, dispose with mismatched signatures).
+    final initMembers = config.generateInit
+        ? _buildInitMembers()
+        : const <Method>[];
+    final initMemberNames = initMembers.map((m) => m.name!).toSet();
+
     // Check for existing service methods
     final servicePath = config.isEntityBased
         ? path.join(
@@ -143,30 +155,17 @@ class ProviderBuilder {
       }
     } else if (existingMethods.isNotEmpty) {
       for (final info in existingMethods) {
-        final methodName = info.fieldName;
+        // Issue #1719: one implementation member per interface member. The
+        // --init members are emitted once (above/below) with their semantic
+        // bodies; the interface-extracted copies are skipped here.
+        if (initMemberNames.contains(info.fieldName)) {
+          continue;
+        }
+
         final returns = info.returnsType ?? 'void';
         final params = info.paramsType ?? 'NoParams';
-        final type = info.useCaseType ?? 'usecase';
 
-        methods.add(
-          Method(
-            (m) => m
-              ..name = methodName
-              ..returns = _returnType(type, returns)
-              ..annotations.add(refer('override'))
-              ..modifier = (type == 'sync' || type == 'stream')
-                  ? null
-                  : MethodModifier.async
-              ..requiredParameters.addAll([
-                Parameter(
-                  (p) => p
-                    ..name = 'params'
-                    ..type = refer(params),
-                ),
-              ])
-              ..body = _buildMethodBody(methodName),
-          ),
-        );
+        methods.add(_buildImplementationMember(info));
 
         // Collect potential entity imports for existing methods
         entityTypes.addAll(_getPotentialEntityImports([params, returns]));
@@ -224,45 +223,10 @@ class ProviderBuilder {
       ...entityImports.map(Directive.import),
     ];
 
-    if (config.generateInit) {
-      methods.add(
-        Method(
-          (m) => m
-            ..name = 'isInitialized'
-            ..returns = refer('Stream<bool>')
-            ..type = MethodType.getter
-            ..annotations.add(refer('override'))
-            ..body = refer('const Stream.empty()').returned.statement,
-        ),
-      );
-      methods.add(
-        Method(
-          (m) => m
-            ..name = 'initialize'
-            ..returns = refer('Future<void>')
-            ..annotations.add(refer('override'))
-            ..modifier = MethodModifier.async
-            ..requiredParameters.add(
-              Parameter(
-                (p) => p
-                  ..name = 'params'
-                  ..type = refer('InitializationParams'),
-              ),
-            )
-            ..body = Block((b) => b),
-        ),
-      );
-      methods.add(
-        Method(
-          (m) => m
-            ..name = 'dispose'
-            ..returns = refer('Future<void>')
-            ..annotations.add(refer('override'))
-            ..modifier = MethodModifier.async
-            ..body = Block((b) => b),
-        ),
-      );
-    }
+    // Issue #1719: the init members were built once up front (alongside
+    // initMemberNames, so the interface extraction could skip duplicates);
+    // append them here in the canonical order.
+    methods.addAll(initMembers);
 
     final providerClass = Class(
       (c) => c
@@ -352,9 +316,14 @@ class ProviderBuilder {
       filePath,
       withHeader,
       'provider',
-      force: options.force,
-      dryRun: options.dryRun,
-      verbose: options.verbose,
+      // Issue #1719: the per-invocation flags live on the config — the
+      // plugin-level [options] are the const defaults the CLI constructs
+      // with, so `--force`/`--dry-run` used to be dropped on this write
+      // (an existing file was "skipped" even WITH --force, and a --dry-run
+      // plan actually wrote new files).
+      force: config.force,
+      dryRun: config.dryRun,
+      verbose: config.verbose,
       revert: config.revert,
       fileSystem: fileSystem,
     );
@@ -377,6 +346,94 @@ class ProviderBuilder {
     final head = lines.take(i).join('\n');
     final tail = lines.skip(i).join('\n');
     return '$head\n$importLine\n$tail';
+  }
+
+  /// The `--init` implementation members, in canonical order: the
+  /// `isInitialized` getter (empty stream), `initialize(InitializationParams)`
+  /// and a parameter-less `dispose()`. Built once per generation so the
+  /// interface extraction can skip same-named members — exactly one
+  /// implementation member per interface member (issue #1719).
+  static List<Method> _buildInitMembers() {
+    return [
+      Method(
+        (m) => m
+          ..name = 'isInitialized'
+          ..returns = refer('Stream<bool>')
+          ..type = MethodType.getter
+          ..annotations.add(refer('override'))
+          ..body = refer('const Stream.empty()').returned.statement,
+      ),
+      Method(
+        (m) => m
+          ..name = 'initialize'
+          ..returns = refer('Future<void>')
+          ..annotations.add(refer('override'))
+          ..modifier = MethodModifier.async
+          ..requiredParameters.add(
+            Parameter(
+              (p) => p
+                ..name = 'params'
+                ..type = refer('InitializationParams'),
+            ),
+          )
+          ..body = Block((b) => b),
+      ),
+      Method(
+        (m) => m
+          ..name = 'dispose'
+          ..returns = refer('Future<void>')
+          ..annotations.add(refer('override'))
+          ..modifier = MethodModifier.async
+          ..body = Block((b) => b),
+      ),
+    ];
+  }
+
+  /// An implementation member for an interface member extracted from the
+  /// service — emitted with the SAME SHAPE the interface declares
+  /// (issue #1719): a getter stays a getter (no invented `params`
+  /// parameter), a parameter-less method stays parameter-less, and a
+  /// one-parameter method takes the interface's own parameter type.
+  /// Emitting every member as `member(NoParams params)` both failed to
+  /// implement the interface member and collided with the `--init`
+  /// emission of the same names.
+  Method _buildImplementationMember(ParsedUseCaseInfo info) {
+    final returns = info.returnsType ?? 'void';
+    final params = info.paramsType ?? 'NoParams';
+    final type = info.useCaseType ?? 'usecase';
+
+    if (info.isGetter) {
+      return Method(
+        (m) => m
+          ..name = info.fieldName
+          ..returns = _returnType(type, returns)
+          ..type = MethodType.getter
+          ..annotations.add(refer('override'))
+          ..body = _buildMethodBody(info.fieldName),
+      );
+    }
+
+    return Method(
+      (m) => m
+        ..name = info.fieldName
+        ..returns = _returnType(type, returns)
+        ..annotations.add(refer('override'))
+        ..modifier = (type == 'sync' || type == 'stream')
+            ? null
+            : MethodModifier.async
+        ..requiredParameters.addAll(
+          info.parameterCount > 0
+              ? [
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(params),
+                  ),
+                ]
+              : const <Parameter>[],
+        )
+        ..body = _buildMethodBody(info.fieldName),
+    );
   }
 
   Method _buildEntityMethod(GeneratorConfig config, String method) {

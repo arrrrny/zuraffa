@@ -86,6 +86,11 @@ class ServiceCreateCommand extends Command<void> {
       help: 'Overwrite existing files',
     );
     argParser.addFlag(
+      'revert',
+      negatable: false,
+      help: 'Revert generated files (delete them)',
+    );
+    argParser.addFlag(
       'verbose',
       negatable: false,
       help: 'Enable verbose logging',
@@ -153,6 +158,7 @@ class ServiceCreateCommand extends Command<void> {
       'type': results['type'] as String? ?? 'usecase',
       'init': results['init'] == true,
       'force': results['force'] == true,
+      'revert': results['revert'] == true,
       'verbose': results['verbose'] == true,
       'dryRun': results['dry-run'] == true,
     };
@@ -250,7 +256,40 @@ class ServiceCreateCommand extends Command<void> {
         )
         .toList();
     final skipped = files.where((f) => f.action == 'skipped').toList();
+    // Issue #1719: `--revert` reports its work as `deleted` actions. A
+    // revert run is a SUCCESS (the file is gone), not the zero-files
+    // refusal below.
+    final deleted = files.where((f) => f.action == 'deleted').toList();
     final receiptPath = result.data?['serviceReceipt'] as String?;
+
+    // ── Revert: report the deletion and exit green. ──
+    if (changed.isEmpty && deleted.isNotEmpty) {
+      if (jsonMode) {
+        print(
+          VerdictEnvelope(
+            command: 'zfa service create',
+            verdict: VerdictKind.pass,
+            exitClass: ExitProtocol.success,
+            subject: VerdictSubject(
+              kind: 'service',
+              id: config.effectiveService,
+            ),
+            artifacts: VerdictArtifacts(
+              deleted: deleted
+                  .map((f) => _projectRelative(f.path, root))
+                  .toList(growable: false),
+            ),
+          ).toJsonLine(),
+        );
+      } else {
+        print('✅ Reverted (deleted):');
+        for (final file in deleted) {
+          print('  🗑 ${file.path}');
+        }
+      }
+      exitCode = ExitProtocol.success;
+      return;
+    }
 
     // ── Conformance proof: the fresh artifact must satisfy the grammar.
     ServiceConformanceResult? conformance;
