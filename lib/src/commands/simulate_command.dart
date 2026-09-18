@@ -687,6 +687,16 @@ class SimulateRunCommand extends Command<void> {
           'Re-execute deterministically and prove the run digest '
           'matches the recorded receipt (#806 composes).',
     );
+    argParser.addOption(
+      'world',
+      valueHelp: 'name',
+      help:
+          'Select the world by name (spec 1136 lane 1: same resolution '
+          'as the positional scenario) and run it deterministically — '
+          'a recorded green receipt lends its seed and the fresh run '
+          'digest must match it. Mutually exclusive with the positional '
+          'scenario.',
+    );
     argParser.addFlag(
       'no-differential',
       negatable: false,
@@ -713,21 +723,35 @@ class SimulateRunCommand extends Command<void> {
     if (args.flag('help')) {
       _printSubUsage(
         'zfa simulate run <scenario> --feature <feature> [--seed N] '
-        '[--replay]',
+        '[--replay] | zfa simulate run --world <name> --feature <feature>',
         argParser.usage,
       );
       return;
     }
     final rest = args.rest;
-    if (rest.isEmpty) {
+    // Spec 1136 lane 1: `--world <name>` selects the scenario by name and
+    // forces deterministic semantics (the recorded seed is reused and
+    // the fresh digest must match the receipt — the --replay proof,
+    // inline). It is mutually exclusive with the positional scenario.
+    final worldFlag = args['world'] as String?;
+    final worldByName = worldFlag != null && worldFlag.isNotEmpty;
+    if (worldByName && rest.isNotEmpty) {
       print(
-        '❌ Usage: zfa simulate run <scenario> --feature <feature> '
-        '[--seed N] [--replay]',
+        '❌ choose either --world or the positional scenario, not both — '
+        '`--world` already names the world to run.',
       );
       exitCode = ExitProtocol.usage;
       return;
     }
-    final scenario = rest.first;
+    if (rest.isEmpty && !worldByName) {
+      print(
+        '❌ Usage: zfa simulate run <scenario> --feature <feature> '
+        '[--seed N] [--replay] (or --world <name>)',
+      );
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    final scenario = worldByName ? worldFlag : rest.first;
     try {
       final resolved = _resolveFeature(
         (args['feature'] as String?) ?? parentFeature,
@@ -796,10 +820,12 @@ class SimulateRunCommand extends Command<void> {
       }
 
       // 3. Replay seed: the recorded seed (deterministic replay) unless
-      //    explicitly overridden.
+      //    explicitly overridden. `--world` (spec 1136) forces the same
+      //    deterministic semantics as `--replay`.
+      final deterministic = args.flag('replay') || worldByName;
       final seed =
           int.tryParse(args['seed'] as String? ?? '') ??
-          (args.flag('replay') && prior != null ? prior.seed : manifest.seed);
+          (deterministic && prior != null ? prior.seed : manifest.seed);
 
       // 4. Execute the scenario against the world (virtual time,
       //    latency, storms).
@@ -883,8 +909,9 @@ class SimulateRunCommand extends Command<void> {
       );
 
       // 8. Replay proof (#806 composes): the re-executed digest must
-      //    match the recorded receipt.
-      if (args.flag('replay') && prior != null) {
+      //    match the recorded receipt (also the inline proof `--world`
+      //    runs rely on — spec 1136 lane 1).
+      if (deterministic && prior != null) {
         final matches =
             prior.runDigest == runDigest && prior.worldHash == worldHash;
         print(

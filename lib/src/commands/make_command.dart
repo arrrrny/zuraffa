@@ -38,6 +38,7 @@ import '../plugins/usecase/usecase_expectation_post_pass.dart';
 import '../utils/entity_field_resolver.dart';
 import '../utils/string_utils.dart';
 import '../utils/framework_export_surface.dart';
+import '../utils/id_gate_diagnostic.dart';
 import '../cli/exit_protocol.dart';
 
 /// Command to run multiple plugins explicitly.
@@ -901,32 +902,7 @@ class MakeCommand extends Command<void> {
               );
               activePlugins.removeWhere((p) => impliedIdDependent.contains(p));
             } else {
-              print(
-                '❌ Cannot generate architecture for "$entityName": the entity '
-                'has no id field.',
-              );
-              print('');
-              print('Entities need a real identity. Choose one of:');
-              print(
-                '  1. Add an id field:    zfa entity add-field -n '
-                '$entityName --field id:String',
-              );
-              print(
-                '  2. Auto-generate one:  recreate with '
-                'zfa entity create -n $entityName --auto-id <fields...>',
-              );
-              print(
-                '  3. Mark it as a value object if it is an immutable '
-                'composition type (no identity, no CRUD surface):',
-              );
-              print(
-                '       zfa entity create -n $entityName --kind=value_object '
-                '<fields...>',
-              );
-              print(
-                '     or add @ZValueObject / kind: ZorphyKind.valueObject '
-                'to its annotation.',
-              );
+              printIdGateDiagnostic(entityName);
               print('');
               // Thrown (not `exit(1)`) so the CLI runner's catch-all prints the
               // diagnostic and exits 1 — while `runCapturing` tests can assert
