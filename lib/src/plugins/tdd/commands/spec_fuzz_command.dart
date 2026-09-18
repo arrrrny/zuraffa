@@ -26,6 +26,7 @@ import '../../../cli/services/corpus_walker.dart';
 import '../../../core/project/project_root.dart';
 import '../models/spec_mutation.dart';
 import '../models/verdict_envelope.dart';
+import '../services/mutation_auditor.dart';
 import '../services/requirement_scan.dart';
 import '../services/spec_fuzz_auditor.dart';
 import '../services/tdd_timeout.dart';
@@ -33,7 +34,32 @@ import '../services/verdict_emitter.dart';
 import '../../../cli/exit_protocol.dart';
 
 class SpecFuzzCommand extends Command<void> {
-  SpecFuzzCommand() {
+  /// Injectable preflight/spawn seams (spec 1147, the MutationAuditor
+  /// pattern the auditor itself already exposes): tests pass fakes so
+  /// the fast tier can drive the REAL command without subprocesses.
+  /// Null (the default, and the CliRunner wiring) = the real-process
+  /// behavior, byte-for-byte unchanged.
+  final Future<PreflightResult> Function(List<String> testPaths)?
+  _runPreflightOverride;
+  final Future<ProcessResult> Function(
+    String executable,
+    List<String> args,
+    String workingDirectory,
+    Duration timeout,
+  )?
+  _spawnTestOverride;
+
+  SpecFuzzCommand({
+    Future<PreflightResult> Function(List<String> testPaths)? runPreflight,
+    Future<ProcessResult> Function(
+      String executable,
+      List<String> args,
+      String workingDirectory,
+      Duration timeout,
+    )?
+    spawnTest,
+  }) : _runPreflightOverride = runPreflight,
+       _spawnTestOverride = spawnTest {
     argParser.addFlag(
       'json',
       help:
@@ -296,6 +322,8 @@ class SpecFuzzCommand extends Command<void> {
       spawnTimeout: timeoutOverride,
       ledgerEnabled: (args?['no-ledger'] as bool?) != true,
       runnerTemplate: runnerTemplate,
+      runPreflight: _runPreflightOverride,
+      spawnTest: _spawnTestOverride,
     );
     final report = await auditor.run();
 
@@ -422,6 +450,8 @@ class SpecFuzzCommand extends Command<void> {
         spawnTimeout: timeoutOverride,
         ledgerEnabled: ledgerEnabled,
         runnerTemplate: runnerTemplate,
+        runPreflight: _runPreflightOverride,
+        spawnTest: _spawnTestOverride,
       );
       final report = await auditor.run();
       final mutations = report.outcomes.length;
