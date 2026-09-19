@@ -1,0 +1,322 @@
+# TDD Verification — feature `1721-route-table-test-template-404-probe-never-attaches-the-route`
+
+Generated fresh by `zfa tdd verify --feature 1721-route-table-test-template-404-probe-never-attaches-the-route`.
+
+## Gate
+
+- gate: `fail_survived`
+
+## Mutation buckets (FR-014)
+
+- killed: 67
+- survived: 133
+- timed_out: 0
+
+## Behavior scope (FR-018)
+
+- `U1` — traces: `AC-1721`
+
+## Behavior kinds (issue #1376)
+
+- presence: 0
+- absence: 0
+- route-outcome: 0
+- enabled-state: 0
+- sequence: 0
+
+- `U1` — not traced: no scenario-assertions header in test/plugins/route/route_table_test_builder_test.dart
+
+## Restoration (FR-021)
+
+- restoration_verified: true
+- restoration_scope_count: 1
+- restoration_scope (subjects only, never tests):
+  - `/home/z/my-project/zuraffa/lib/src/plugins/route/builders/route_table_test_builder.dart`
+
+## Repro diagnostics (FR-020, non-sensitive)
+
+- runner_command: `dart run mutation_test`
+- exit_code: 255
+- elapsed_seconds: 534
+- report_path: `/home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md`
+- preflight_scope_ran (bug #924, per-behavior):
+  - `test/plugins/route/route_table_test_builder_test.dart`
+
+## Mutation run
+
+- mutation_was_run: true
+- mutation_score: 0.3350
+
+## Survived mutants (bug #837)
+
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:63`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:139`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:139`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:158`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:165`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:165`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:186`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:194`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:223`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:233`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:233`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:233`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:233`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:249`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:249`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:260`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:260`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:305`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:339`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:368`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:411`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:459`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:463`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:463`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:463`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:464`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:464`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:464`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:465`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:467`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:467`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:472`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:472`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:473`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:492`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:494`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:494`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:495`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:503`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:511`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:515`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:523`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:525`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:535`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:535`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:536`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:538`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:538`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:540`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:546`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:558`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:560`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:560`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:561`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:582`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:584`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:584`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:585`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:588`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:596`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:602`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:604`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:604`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:605`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:608`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:611`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:617`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:667`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:670`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:672`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:672`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:673`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:675`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:675`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:675`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:675`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:675`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:675`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:676`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:681`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:686`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:689`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:691`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:691`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:692`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:694`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:694`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:695`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:697`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:706`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:720`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:748`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:748`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:749`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:749`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:753`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:755`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:762`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:766`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:775`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:775`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:783`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:797`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:797`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:797`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:797`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:804`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:804`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:804`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:804`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:804`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:804`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:804`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:804`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:805`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:805`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:805`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:806`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:809`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:809`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:809`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:809`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:809`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:809`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:809`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:810`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:823`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:823`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:823`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:824`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:824`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:826`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+- `lib/src/plugins/route/builders/route_table_test_builder.dart:831`
+  --> fix: add or strengthen a scope test that fails on this mutant (report: /home/z/my-project/zuraffa/.dart_tool/zfa/tdd-verify-report/mutation-test-report.md)
+
+## Evidence binding (bug #837)
+
+- spec_hash: bdbb4a6f1008c4cec44a4e9bf736458e1bda45308933febf9de29481f013741a
+- subject_hash: `/home/z/my-project/zuraffa/lib/src/plugins/route/builders/route_table_test_builder.dart` 3363054cb842f1d436501b84a7f3f8a19c2382ccc354572692892fb6d24a3bac
