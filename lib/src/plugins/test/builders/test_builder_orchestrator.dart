@@ -6,8 +6,14 @@ extension TestBuilderOrchestrator on TestBuilder {
   /// @param config Generator configuration describing the use case and options.
   /// @returns Generated test file metadata.
   Future<GeneratedFile> generateOrchestrator(GeneratorConfig config) async {
-    final useCaseName = '${config.name}UseCase';
-    final fileName = '${config.nameSnake}_usecase_test.dart';
+    // Issue #1723 review: reference the normalized orchestrator class and its
+    // real file so the generated test compiles against what the generator
+    // wrote (raw casing / suffix doubling previously desynced the two).
+    final useCaseName = StringUtils.normalizeUseCaseClassName(config.name);
+    final classSnake = StringUtils.camelToSnake(
+      useCaseName.substring(0, useCaseName.length - 'UseCase'.length),
+    );
+    final fileName = '${classSnake}_usecase_test.dart';
 
     final projectRoot = outputDir.replaceAll('lib/src', '');
     final testPathParts = <String>[projectRoot, 'test', 'domain', 'usecases'];
@@ -23,7 +29,7 @@ extension TestBuilderOrchestrator on TestBuilder {
       _testFrameworkImport(isFlutter),
       _zuraffaCoreImport(isFlutter),
       Directive.import(
-        'package:$packageName/src/domain/usecases/${config.effectiveDomain}/${config.nameSnake}_usecase.dart',
+        'package:$packageName/src/domain/usecases/${config.effectiveDomain}/${classSnake}_usecase.dart',
       ),
     ];
 
@@ -44,6 +50,14 @@ extension TestBuilderOrchestrator on TestBuilder {
       );
     }
 
+    // Issue #1723 review: one normalized name per token, computed once —
+    // the emission sites below stay consistent by construction instead of by
+    // repeated per-loop normalization.
+    final fakeNames = {
+      for (final usecase in config.usecases)
+        usecase: StringUtils.normalizeUseCaseClassName(usecase),
+    };
+
     final fakeSpecs = <Class>[];
     for (final usecase in config.usecases) {
       final usecaseSnake = StringUtils.camelToSnake(
@@ -55,7 +69,7 @@ extension TestBuilderOrchestrator on TestBuilder {
       // class-name tokens and kept raw token casing for snake_case tokens,
       // so the class-declaration check below never matched an existing
       // usecase file — dry-run always reported placeholder fakes.
-      final usecaseClass = StringUtils.normalizeUseCaseClassName(usecase);
+      final usecaseClass = fakeNames[usecase]!;
       // Find the actual domain for this usecase
       final usecaseDomain = await _findUseCaseDomain(
         usecaseSnake,
@@ -94,7 +108,7 @@ extension TestBuilderOrchestrator on TestBuilder {
             ).statement,
           );
           for (final usecase in config.usecases) {
-            final usecaseClass = StringUtils.normalizeUseCaseClassName(usecase);
+            final usecaseClass = fakeNames[usecase]!;
             b.statements.add(
               declareVar(
                 'fake$usecaseClass',
@@ -106,9 +120,7 @@ extension TestBuilderOrchestrator on TestBuilder {
 
           final setUpBody = Block((s) {
             for (final usecase in config.usecases) {
-              final usecaseClass = StringUtils.normalizeUseCaseClassName(
-                usecase,
-              );
+              final usecaseClass = fakeNames[usecase]!;
               s.statements.add(
                 refer(
                   'fake$usecaseClass',
@@ -120,11 +132,7 @@ extension TestBuilderOrchestrator on TestBuilder {
                   .assign(
                     refer(useCaseName).call(
                       config.usecases
-                          .map(
-                            (u) => refer(
-                              'fake${StringUtils.normalizeUseCaseClassName(u)}',
-                            ),
-                          )
+                          .map((u) => refer('fake${fakeNames[u]}'))
                           .toList(),
                     ),
                   )

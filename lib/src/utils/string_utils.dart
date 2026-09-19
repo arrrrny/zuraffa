@@ -10,11 +10,13 @@ class StringUtils {
   ///
   /// The suffix is stripped only once and only from the end, so passing a
   /// full class name never doubles it (`LoginUseCase` → `LoginUseCase`, not
-  /// `LoginUseCaseUseCase`).
+  /// `LoginUseCaseUseCase`). The degenerate bare token `UseCase` strips to an
+  /// empty base and comes back as `UseCase` — no input form doubles the
+  /// suffix.
   static String normalizeUseCaseClassName(String token) {
     var base = token.trim();
     const suffix = 'UseCase';
-    if (base.endsWith(suffix) && base.length > suffix.length) {
+    if (base.endsWith(suffix) && base.length >= suffix.length) {
       base = base.substring(0, base.length - suffix.length);
     }
     return '${convertToPascalCase(base)}$suffix';

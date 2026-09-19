@@ -12,6 +12,7 @@ import 'package:zuraffa/src/plugins/presenter/presenter_plugin.dart';
 import 'package:zuraffa/src/plugins/test/test_certifier.dart';
 import 'package:zuraffa/src/plugins/test/test_plugin.dart';
 import 'package:zuraffa/src/plugins/usecase/generators/custom_usecase_generator.dart';
+import 'package:zuraffa/src/utils/string_utils.dart';
 
 /// Issue #1720 — `zfa make --usecases` emits non-compiling presenter/
 /// controller (wrong identifier casing) and `--dry-run` always reports
@@ -411,6 +412,71 @@ environment:
       });
     },
   );
+
+  group('named usecase class names normalize config.name (#1723 review)', () {
+    late Directory tempDir;
+    late String outputDir;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('zfa_1723_named_');
+      outputDir = tempDir.path;
+      writeUsecases(outputDir, const ['logout']);
+    });
+
+    tearDown(() async {
+      if (tempDir.existsSync()) await tempDir.delete(recursive: true);
+    });
+
+    Future<(String, String)> generateOrchestrator(String name) async {
+      final files =
+          await CustomUseCaseGenerator(
+            outputDir: outputDir,
+            options: const GeneratorOptions(force: true),
+          ).generateOrchestrator(
+            GeneratorConfig(
+              name: name,
+              useCaseType: 'orchestrator',
+              domain: 'auth',
+              usecases: const ['logout'],
+              paramsType: 'NoParams',
+              outputDir: outputDir,
+              force: true,
+            ),
+          );
+      return (files.path, files.content!);
+    }
+
+    test('raw camelCase config.name emits the PascalCase class', () async {
+      final (filePath, content) = await generateOrchestrator('login');
+      // The orchestrator file must declare the class parseUseCaseInfo
+      // resolves for the consuming --usecases token.
+      expect(filePath, endsWith('login_usecase.dart'));
+      expect(content, contains('class LoginUseCase'));
+      expect(content, isNot(contains('loginUseCase')));
+      expect(content, contains('final LogoutUseCase _logout;'));
+    });
+
+    test('full class name config.name is not suffix-doubled', () async {
+      final (filePath, content) = await generateOrchestrator('loginUseCase');
+      expect(filePath, endsWith('login_usecase.dart'));
+      expect(content, contains('class LoginUseCase'));
+      expect(content, isNot(contains('UseCaseUseCase')));
+    });
+
+    test('normalizeUseCaseClassName never doubles the bare token', () {
+      expect(StringUtils.normalizeUseCaseClassName('UseCase'), 'UseCase');
+    });
+
+    test('GeneratorConfig trims whitespace-padded usecase tokens', () {
+      final config = GeneratorConfig(
+        name: 'Auth',
+        domain: 'auth',
+        usecases: const ['login', ' logout', ''],
+        outputDir: outputDir,
+      );
+      expect(config.usecases, ['login', 'logout']);
+    });
+  });
 }
 
 /// Writes minimal existing usecase sources under

@@ -1093,8 +1093,12 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     GeneratorConfig config,
     FileSystem fs,
   ) async {
-    final className = '${config.name}UseCase';
-    final classSnake = config.nameSnake;
+    // Issue #1723 review: register the normalized class name — must match
+    // what generateOrchestrator declares for the imported file.
+    final className = StringUtils.normalizeUseCaseClassName(config.name);
+    final classSnake = StringUtils.camelToSnake(
+      className.substring(0, className.length - 'UseCase'.length),
+    );
     final domainSnake = config.effectiveDomain;
     final fileName = '${classSnake}_usecase_di.dart';
     final diPath = path.join(outputDir, 'di', 'usecases', fileName);
@@ -1299,8 +1303,12 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     GeneratorConfig config,
     FileSystem fs,
   ) async {
-    final className = '${config.name}UseCase';
-    final classSnake = config.nameSnake;
+    // Issue #1723 review: register the normalized class name — must match
+    // what the custom usecase generator declares for the imported file.
+    final className = StringUtils.normalizeUseCaseClassName(config.name);
+    final classSnake = StringUtils.camelToSnake(
+      className.substring(0, className.length - 'UseCase'.length),
+    );
     final domainSnake = config.effectiveDomain;
     final fileName = '${classSnake}_usecase_di.dart';
     final diPath = path.join(outputDir, 'di', 'usecases', fileName);
