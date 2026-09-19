@@ -412,7 +412,9 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
     final fields = <Field>[];
     final constructorParams = <Parameter>[];
     for (final variant in config.variants) {
-      final className = '$variant${config.name}UseCase';
+      // Issue #1723 review: derive variant refs from the normalized
+      // baseClassName param, not raw config.name.
+      final className = '$variant$baseClassName';
       final fieldName = '_${StringUtils.pascalToCamel(variant)}';
       fields.add(
         Field(
