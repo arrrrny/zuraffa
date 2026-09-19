@@ -89,11 +89,16 @@ class ProviderBuilder {
     }
 
     if (config.revert && !config.appendToExisting) {
+      // Issue #1719 review: the per-invocation flags live on the config.
+      // This read used the plugin-level const [options] (always false), so
+      // `zfa provider create --revert --dry-run` — and a plan() run with
+      // revert: true, which hardcodes dryRun — DELETED the provider for
+      // real instead of previewing the deletion.
       return FileUtils.deleteFile(
         filePath,
         'provider',
-        dryRun: options.dryRun,
-        verbose: options.verbose,
+        dryRun: config.dryRun,
+        verbose: config.verbose,
         fileSystem: fileSystem,
       );
     }
@@ -157,9 +162,20 @@ class ProviderBuilder {
       for (final info in existingMethods) {
         // Issue #1719: one implementation member per interface member. The
         // --init members are emitted once (above/below) with their semantic
-        // bodies; the interface-extracted copies are skipped here.
+        // bodies; the interface-extracted copies are skipped here — but
+        // only when the interface member's SIGNATURE matches the canonical
+        // init shape (issue #1719 review: dedup by name alone silently
+        // replaced a hand-modified member with the canonical stub,
+        // producing a provider that no longer implements its interface).
         if (initMemberNames.contains(info.fieldName)) {
-          continue;
+          if (_matchesCanonicalInitShape(info)) {
+            continue;
+          }
+          // The interface's own shape deviates from the canonical stub —
+          // the interface wins. Drop the canonical member so the file
+          // still carries exactly one member with this name, then emit
+          // the interface's shape below.
+          initMembers.removeWhere((m) => m.name == info.fieldName);
         }
 
         final returns = info.returnsType ?? 'void';
@@ -296,8 +312,11 @@ class ProviderBuilder {
         content,
         'provider',
         force: true,
-        dryRun: options.dryRun,
-        verbose: options.verbose,
+        // Issue #1719 review: same options-vs-config root cause as the
+        // delete path — the append write read the const plugin options, so
+        // an append-mode `--dry-run` actually wrote the file.
+        dryRun: config.dryRun,
+        verbose: config.verbose,
         revert: config.revert,
         fileSystem: fileSystem,
       );
@@ -351,8 +370,10 @@ class ProviderBuilder {
   /// The `--init` implementation members, in canonical order: the
   /// `isInitialized` getter (empty stream), `initialize(InitializationParams)`
   /// and a parameter-less `dispose()`. Built once per generation so the
-  /// interface extraction can skip same-named members — exactly one
-  /// implementation member per interface member (issue #1719).
+  /// interface extraction can skip signature-matching copies — exactly one
+  /// implementation member per interface member (issue #1719). A member
+  /// whose interface signature DEVIATES is emitted in the interface's own
+  /// shape instead (see [_canonicalInitShapes]).
   static List<Method> _buildInitMembers() {
     return [
       Method(
@@ -387,6 +408,64 @@ class ProviderBuilder {
           ..body = Block((b) => b),
       ),
     ];
+  }
+
+  /// The canonical signature of each `--init` member, in the same terms
+  /// interface extraction reports ([ParsedUseCaseInfo.isGetter],
+  /// [ParsedUseCaseInfo.parameterCount], [ParsedUseCaseInfo.paramsType],
+  /// [ParsedUseCaseInfo.useCaseType] and the CLEANED
+  /// [ParsedUseCaseInfo.returnsType] — `Stream<bool>` → `bool`,
+  /// `Future<void>` → `void`). Must stay in sync with [_buildInitMembers]:
+  /// this table is the comparison key for the signature-aware dedup
+  /// (issue #1719 review).
+  static const Map<
+    String,
+    ({
+      bool getter,
+      int parameterCount,
+      String paramType,
+      String kind,
+      String returns,
+    })
+  >
+  _canonicalInitShapes = {
+    'isInitialized': (
+      getter: true,
+      parameterCount: 0,
+      paramType: '',
+      kind: 'stream',
+      returns: 'bool',
+    ),
+    'initialize': (
+      getter: false,
+      parameterCount: 1,
+      paramType: 'InitializationParams',
+      kind: 'completable',
+      returns: 'void',
+    ),
+    'dispose': (
+      getter: false,
+      parameterCount: 0,
+      paramType: '',
+      kind: 'completable',
+      returns: 'void',
+    ),
+  };
+
+  /// True when [info] — a member extracted from the service interface —
+  /// carries the exact canonical `--init` shape, so the canonical member
+  /// (with its semantic body) can stand in for it. Any deviation (a
+  /// hand-edited parameter type, a getter turned method, a different
+  /// return type) is false and the interface's own shape is emitted.
+  static bool _matchesCanonicalInitShape(ParsedUseCaseInfo info) {
+    final shape = _canonicalInitShapes[info.fieldName];
+    if (shape == null) return false;
+    return info.isGetter == shape.getter &&
+        info.parameterCount == shape.parameterCount &&
+        (shape.parameterCount == 0 ||
+            (info.paramsType ?? 'NoParams') == shape.paramType) &&
+        (info.useCaseType ?? 'usecase') == shape.kind &&
+        (info.returnsType ?? 'void') == shape.returns;
   }
 
   /// An implementation member for an interface member extracted from the

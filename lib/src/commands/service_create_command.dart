@@ -356,9 +356,15 @@ class ServiceCreateCommand extends Command<void> {
               .toList(),
           // The declined-generation remediation (issue #769): a skip
           // verdict carries its fix at the canonical top-level fix slot.
+          // Issue #1719 review: on a `--revert` run the accurate advice is
+          // "nothing to revert" — there is no file to `--force` over.
           fix: changed.isEmpty && files.isNotEmpty
-              ? 're-run with --force to overwrite '
-                    '${_projectRelative(files.first.path, root)}'
+              ? (args['revert'] == true
+                    ? 'nothing to revert — '
+                          '${_projectRelative(files.first.path, root)} was '
+                          'not found (already removed?)'
+                    : 're-run with --force to overwrite '
+                          '${_projectRelative(files.first.path, root)}')
               : null,
           details: {
             'serviceClass': serviceClass,
@@ -379,7 +385,11 @@ class ServiceCreateCommand extends Command<void> {
         print(
           ExitProtocol.fixLine(
             changed.isEmpty
-                ? 're-run with --force to overwrite the existing service file'
+                ? (args['revert'] == true
+                      ? 'nothing to revert — the generated service file was '
+                            'not found'
+                      : 're-run with --force to overwrite the existing '
+                            'service file')
                 : 'inspect the conformance findings above',
           ),
         );
@@ -389,10 +399,19 @@ class ServiceCreateCommand extends Command<void> {
 
     // ── Prose mode (byte-compatible framing with the old runner). ──
     if (changed.isEmpty) {
-      print(
-        '⚠️ No files were generated (nothing changed). Re-run with '
-        '--force to overwrite the existing service file.',
-      );
+      // Issue #1719 review: a revert of a missing file is "nothing to
+      // revert", not an overwrite refusal.
+      if (args['revert'] == true) {
+        print(
+          '⚠️ Nothing to revert — no generated service file was found '
+          '(already removed?).',
+        );
+      } else {
+        print(
+          '⚠️ No files were generated (nothing changed). Re-run with '
+          '--force to overwrite the existing service file.',
+        );
+      }
       exitCode = ExitProtocol.failure;
       return;
     }
