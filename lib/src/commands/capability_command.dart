@@ -404,7 +404,12 @@ class CapabilityCommand extends Command<void> {
         }
 
         if (skipped.isNotEmpty) {
-          print('\n⏭ Skipped (use --force to overwrite):');
+          // Issue #1719 review: on a `--revert` run a `skipped` action
+          // means the file was already gone — "use --force to overwrite"
+          // is wrong advice (there is nothing to overwrite).
+          print(
+            '\n⏭ Skipped${args['revert'] == true ? ' (nothing to revert)' : ' (use --force to overwrite)'}:',
+          );
           for (final file in skipped) {
             print('  ${file.path}');
           }
