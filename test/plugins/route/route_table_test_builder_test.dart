@@ -164,6 +164,91 @@ void main() {
       expect(content.contains('routeInformationProvider'), isTrue);
     });
 
+    // Regression for issue #1721: the 404 probe must attach the router to a
+    // widget tree (testWidgets + pumpWidget) BEFORE router.go(...). A plain
+    // test(...) that calls router.go() on a bare GoRouter never fires
+    // onException (go_router defers matching until the router is attached),
+    // so the assertion fails unconditionally.
+    test(
+      '#1721: 404 probe attaches the router via testWidgets + pumpWidget',
+      () async {
+        final files = await routeBuilder().generate(
+          GeneratorConfig(
+            name: 'Product',
+            methods: const ['get', 'create'],
+            generateRoute: true,
+            outputDir: outputDir,
+          ),
+        );
+
+        final testFile = files
+            .firstWhere((f) => f.path.endsWith('route_table_test.dart'))
+            .path;
+        final src = File(testFile).readAsStringSync();
+
+        // Locate the 404 probe block by its test name, then capture the
+        // enclosing call via balanced-paren scan.
+        final probeStart = src.indexOf("'unknown paths hit the 404 handler'");
+        expect(probeStart, greaterThan(-1));
+        final callStart = src.lastIndexOf(
+          RegExp(r'\b(test|testWidgets)\('),
+          probeStart,
+        );
+        expect(callStart, greaterThan(-1));
+        final openParen = src.indexOf('(', callStart);
+        var depth = 0;
+        var endIdx = -1;
+        for (var i = openParen; i < src.length; i++) {
+          if (src[i] == '(') {
+            depth++;
+          } else if (src[i] == ')') {
+            depth--;
+            if (depth == 0) {
+              endIdx = i;
+              break;
+            }
+          }
+        }
+        expect(endIdx, greaterThan(-1));
+        final probeBlock = src.substring(callStart, endIdx + 2);
+
+        // GREEN shape (post-fix): testWidgets + pumpWidget BEFORE go + the
+        // direct `expect(exceptional, isTrue)` assertion, and NO call to
+        // the buggy `_resolvesWithoutException` helper.
+        expect(
+          probeBlock.startsWith('testWidgets('),
+          isTrue,
+          reason: '404 probe must be a testWidgets(...) — got:\n$probeBlock',
+        );
+        expect(
+          probeBlock.contains('pumpWidget'),
+          isTrue,
+          reason:
+              '404 probe must attach the router via pumpWidget — '
+              'got:\n$probeBlock',
+        );
+        expect(
+          RegExp(r'router\.go\(').hasMatch(probeBlock),
+          isTrue,
+          reason: '404 probe must call router.go(...) — got:\n$probeBlock',
+        );
+        expect(
+          probeBlock.contains('expect(exceptional, isTrue)'),
+          isTrue,
+          reason:
+              '404 probe must assert exceptional isTrue — '
+              'got:\n$probeBlock',
+        );
+        expect(
+          probeBlock.contains('_resolvesWithoutException'),
+          isFalse,
+          reason:
+              '404 probe must NOT use the never-attached helper — '
+              'got:\n$probeBlock',
+        );
+      },
+    );
+
     test('emitted test proves deep-link patterns parse typed params', () async {
       // A deep-link module on disk must be picked up by the next
       // route-table regeneration (the manifest is refreshed on every
