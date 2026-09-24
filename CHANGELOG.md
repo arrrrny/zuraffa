@@ -1,3 +1,8 @@
+## [7.0.1] - 2026-09-23
+
+### Change
+- Release 7.0.1
+
 ## [7.0.0] - 2026-09-15
 
 ### Breaking — heavy integrations are now opt-in companion packages (issue #1661, spec 1653)

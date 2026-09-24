@@ -191,9 +191,13 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       filePath,
       content,
       'service',
-      force: options.force,
-      dryRun: options.dryRun,
-      verbose: options.verbose,
+      // Issue #1719: the per-invocation flags live on the config — the
+      // plugin-level [options] are the const defaults the CLI constructs
+      // with, so `zfa service create --force` used to report "Re-run with
+      // --force to overwrite" while the flag was already passed.
+      force: config.force,
+      dryRun: config.dryRun,
+      verbose: config.verbose,
       revert: config.revert,
       fileSystem: context?.fileSystem,
     );
