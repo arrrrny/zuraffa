@@ -2,8 +2,15 @@ part of 'custom_usecase_generator.dart';
 
 extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
   Future<GeneratedFile> generateOrchestrator(GeneratorConfig config) async {
-    final className = '${config.name}UseCase';
-    final classSnake = StringUtils.camelToSnake(config.name);
+    // Issue #1723 review: the orchestrator's own class/file names derive from
+    // the normalized token — raw casing (`login` → `loginUseCase`) and full
+    // class-name inputs (`loginUseCase` → `loginUseCaseUseCase`) previously
+    // emitted a class that `parseUseCaseInfo` never resolves for the file
+    // this generator writes.
+    final className = StringUtils.normalizeUseCaseClassName(config.name);
+    final classSnake = StringUtils.camelToSnake(
+      className.substring(0, className.length - 'UseCase'.length),
+    );
     final fileName = '${classSnake}_usecase.dart';
     final usecaseDirPath = path.join(
       outputDir,
@@ -39,9 +46,11 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
 
     for (final usecaseName in config.usecases) {
       final usecasePath = await _resolveUseCasePath(config, usecaseName);
-      final usecaseClassName = usecaseName.endsWith('UseCase')
-          ? usecaseName
-          : '${usecaseName}UseCase';
+      // Issue #1720: normalize the token to the real PascalCase class name
+      // (no raw-token casing, no suffix doubling) to match the import path.
+      final usecaseClassName = StringUtils.normalizeUseCaseClassName(
+        usecaseName,
+      );
       final baseName = usecaseName.replaceAll('UseCase', '');
       final fieldName = '_${StringUtils.pascalToCamel(baseName)}';
 

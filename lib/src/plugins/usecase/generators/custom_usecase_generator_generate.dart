@@ -19,10 +19,13 @@ extension CustomUseCaseGeneratorGenerate on CustomUseCaseGenerator {
       );
     }
 
-    final baseName = config.name.endsWith('UseCase')
-        ? config.name.substring(0, config.name.length - 7)
-        : config.name;
-    final className = '${baseName}UseCase';
+    // Issue #1723 review: normalize config.name before deriving class and
+    // file names (see generateOrchestrator above).
+    final className = StringUtils.normalizeUseCaseClassName(config.name);
+    final baseName = className.substring(
+      0,
+      className.length - 'UseCase'.length,
+    );
     final classSnake = StringUtils.camelToSnake(baseName);
     final fileName = '${classSnake}_usecase.dart';
     final usecaseDirPath = path.join(
