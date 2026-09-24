@@ -1,3 +1,6 @@
+@Tags(['regression', 'slow'])
+library;
+
 import 'dart:async';
 import 'dart:io';
 
