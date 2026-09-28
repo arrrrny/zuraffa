@@ -27,9 +27,23 @@ void main() {
       reason:
           'the showcase section anchors the page for the nav and deep links',
     );
+    final showcase = source.indexOf('id="built-with"');
+    final afterShowcase = source.indexOf('</section>', showcase);
+    final sectionHtml = source.substring(
+      showcase,
+      afterShowcase == -1 ? source.length : afterShowcase,
+    );
+    final visibleSectionHtml = sectionHtml.replaceAll(
+      RegExp(r'<!--.*?-->', dotAll: true),
+      '',
+    );
     expect(
-      source,
-      contains('Built with Zuraffa'),
+      RegExp(
+        r'<h2\b[^>]*>\s*Built with\s*<br\s*/?>\s*'
+        r'<span\b[^>]*>\s*Zuraffa\s*</span>\s*</h2>',
+        dotAll: true,
+      ).hasMatch(visibleSectionHtml),
+      isTrue,
       reason: 'the showcase heading names the section',
     );
   });
