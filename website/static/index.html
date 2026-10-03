@@ -630,6 +630,15 @@
                 );
             }
 
+            /* Built with Zuraffa showcase */
+            .built-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: var(--spacing-md);
+                position: relative;
+                margin-top: var(--spacing-xl);
+            }
+
             /* Code Showcase Section */
             .code-showcase {
                 padding: var(--spacing-xl) var(--spacing-md);
@@ -871,6 +880,10 @@
                 }
 
                 .features-grid {
+                    grid-template-columns: 1fr;
+                }
+
+                .built-grid {
                     grid-template-columns: 1fr;
                 }
 
@@ -1293,6 +1306,39 @@ result.<span class="function">fold</span>(
                         boilerplate and full type safety.
                     </p>
                     <span class="feature-tag">TYPE-SAFE</span>
+                </a>
+            </div>
+        </section>
+
+        <!-- Built with Zuraffa -->
+        <section class="features" id="built-with">
+            <div class="decoration-line"></div>
+            <span class="section-label">Showcase</span>
+            <h2 class="section-title animate-on-scroll">
+                Built with<br />
+                <span style="color: var(--color-accent)">Zuraffa</span>
+            </h2>
+
+            <div class="built-grid">
+                <a
+                    href="https://zuzu.dev"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="feature-card animate-on-scroll"
+                    style="text-decoration: none; color: inherit"
+                >
+                    <svg class="feature-icon" viewBox="0 0 48 48">
+                        <path
+                            d="M27 2L7 28h13l-4 18 22-28H24l3-16z"
+                        />
+                    </svg>
+                    <h3 class="feature-title">ZikZak AI</h3>
+                    <p class="feature-description">
+                        Sponsor of Zuraffa and its clean-architecture
+                        ecosystem — AI-first developer tools built by the
+                        Zuraffa team.
+                    </p>
+                    <span class="feature-tag">BUILT WITH ZURAFFA ↗</span>
                 </a>
             </div>
         </section>
