@@ -1,1 +1,0 @@
-../../../.specify/extensions/worktrees/.specify-dev/agent-commands/kimi/speckit-worktrees-clean/SKILL.md
