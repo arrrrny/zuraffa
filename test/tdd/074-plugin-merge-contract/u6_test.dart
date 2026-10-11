@@ -9,9 +9,9 @@
 library;
 
 import 'package:test/test.dart';
-
 import 'package:zuraffa/tdd/074-plugin-merge-contract/u6_subject.dart'
     as subject;
+
 void main() {
   group('U6 (FR-006)', () {
     test(

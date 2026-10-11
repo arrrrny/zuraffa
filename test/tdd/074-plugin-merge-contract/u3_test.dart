@@ -9,9 +9,9 @@
 library;
 
 import 'package:test/test.dart';
-
 import 'package:zuraffa/tdd/074-plugin-merge-contract/u3_subject.dart'
     as subject;
+
 void main() {
   group('U3 (FR-003)', () {
     test(

@@ -9,8 +9,8 @@
 library;
 
 import 'package:test/test.dart';
-
 import 'package:zuraffa/tdd/0966-typed-ledger-rows/t6_subject.dart' as subject;
+
 void main() {
   group('T6 (FR-007)', () {
     test(

@@ -14,8 +14,8 @@
 library;
 
 import 'package:test/test.dart';
-
 import 'package:zuraffa/tdd/073-slice-isolation/u5_subject.dart' as subject;
+
 void main() {
   group('U5 (FR-005)', () {
     test(

@@ -16,7 +16,6 @@ library;
 import 'dart:io';
 
 import 'package:test/test.dart';
-
 import '../helpers/project_root.dart';
 
 Future<void> main() async {

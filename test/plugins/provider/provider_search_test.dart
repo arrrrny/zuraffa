@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';

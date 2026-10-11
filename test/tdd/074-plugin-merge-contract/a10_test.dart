@@ -9,9 +9,9 @@
 library;
 
 import 'package:test/test.dart';
-
 import 'package:zuraffa/tdd/074-plugin-merge-contract/a10_subject.dart'
     as subject;
+
 void main() {
   group('A10 (AC-10)', () {
     test(

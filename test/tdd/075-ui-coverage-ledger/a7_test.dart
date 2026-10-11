@@ -9,8 +9,8 @@
 library;
 
 import 'package:test/test.dart';
-
 import 'package:zuraffa/tdd/075-ui-coverage-ledger/a7_subject.dart' as subject;
+
 void main() {
   group('A7 (AC-7)', () {
     test('A7 - merge is blocked with the gap named..', () {

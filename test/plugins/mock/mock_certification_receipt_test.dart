@@ -21,7 +21,6 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
 import 'mock_cli_guard.dart';
-
 import 'package:zuraffa/src/core/proof/proof_checker.dart';
 
 void main() {

@@ -14,8 +14,8 @@
 library;
 
 import 'package:test/test.dart';
-
 import 'package:zuraffa/tdd/072-dependency-mocks/u2_subject.dart' as subject;
+
 void main() {
   group('U2 (FR-002)', () {
     test(

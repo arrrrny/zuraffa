@@ -19,7 +19,6 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/version.dart';
 
 import '../helpers/tdd_fixture.dart';
-
 import 'package:zuraffa/src/core/project/receipt_store.dart';
 import 'package:zuraffa/src/plugins/tdd/commands/realize_command.dart';
 import 'package:zuraffa/src/plugins/tdd/services/differential_harness.dart';

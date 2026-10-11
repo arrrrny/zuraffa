@@ -14,8 +14,8 @@
 library;
 
 import 'package:test/test.dart';
-
 import 'package:zuraffa/tdd/073-slice-isolation/u6_subject.dart' as subject;
+
 void main() {
   group('U6 (FR-006)', () {
     test(

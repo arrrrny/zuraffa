@@ -14,8 +14,8 @@
 library;
 
 import 'package:test/test.dart';
-
 import 'package:zuraffa/tdd/072-dependency-mocks/a6_subject.dart' as subject;
+
 void main() {
   group('A6 (AC-6)', () {
     test(
