@@ -1,11 +1,15 @@
 ---
 name: speckit-spec-stats-not-green
-description: On-demand view of specs whose latest test evidence is red or unknown, with the exact evidence line quoted from tdd/cycle-log.md and the command that would produce evidence
+description: On-demand view of specs whose latest test evidence is red or unknown,
+  with the exact evidence line quoted from tdd/cycle-log.md and the command that would
+  produce evidence
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: spec-stats:commands/speckit.spec-stats.not-green.md
+  author: arrrrny
+  source: extension:spec-stats
 ---
+
+# Spec Stats Not Green Skill
 
 # Spec Stats — Not Green
 

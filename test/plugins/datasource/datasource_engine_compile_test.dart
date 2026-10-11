@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Spec 1117 (issue #1117) — DataSource generator, engine trust tier:
 // COMPILE bar.
 //

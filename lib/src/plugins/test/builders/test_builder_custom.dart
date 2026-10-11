@@ -6,10 +6,15 @@ extension TestBuilderCustom on TestBuilder {
   /// @param config Generator configuration describing the use case and options.
   /// @returns Generated test file metadata.
   Future<GeneratedFile> generateCustom(GeneratorConfig config) async {
-    final useCaseName = '${config.name}UseCase';
+    // Issue #1723 review: reference the normalized class and its real file
+    // so the generated test compiles against what the generator wrote.
+    final useCaseName = StringUtils.normalizeUseCaseClassName(config.name);
+    final classSnake = StringUtils.camelToSnake(
+      useCaseName.substring(0, useCaseName.length - 'UseCase'.length),
+    );
     final useCaseType = config.useCaseType;
     final paramsType = config.paramsType ?? 'NoParams';
-    final fileName = '${config.nameSnake}_usecase_test.dart';
+    final fileName = '${classSnake}_usecase_test.dart';
 
     final projectRoot = outputDir.replaceAll('lib/src', '');
     final testPathParts = <String>[projectRoot, 'test', 'domain', 'usecases'];
@@ -17,7 +22,7 @@ extension TestBuilderCustom on TestBuilder {
     final testDirPath = path.joinAll(testPathParts);
     final filePath = path.join(testDirPath, fileName);
 
-    final useCaseFileName = '${config.nameSnake}_usecase.dart';
+    final useCaseFileName = '${classSnake}_usecase.dart';
     final useCaseFile = discovery.findFileSync(useCaseFileName);
 
     if (useCaseFile == null) {
@@ -42,7 +47,7 @@ extension TestBuilderCustom on TestBuilder {
       _testFrameworkImport(isFlutter),
       _zuraffaCoreImport(isFlutter),
       Directive.import(
-        'package:$packageName/src/domain/usecases/${config.effectiveDomain}/${config.nameSnake}_usecase.dart',
+        'package:$packageName/src/domain/usecases/${config.effectiveDomain}/${classSnake}_usecase.dart',
       ),
     ];
 

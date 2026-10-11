@@ -83,7 +83,17 @@ exit 0
     File(
       p.join(fx.root.path, '.dart_tool', 'test', 'probe.kernel'),
     ).writeAsStringSync('stale kernel bytes');
-    tmpKernelMarker(unique).writeAsStringSync('stale tmp kernel bytes');
+    final marker = tmpKernelMarker(unique)
+      ..writeAsStringSync('stale tmp kernel bytes');
+    // Spec 1520: the janitor's age floor never sweeps a
+    // `$TMPDIR/dart_test.kernel.*` entry younger than ~1 hour (it may
+    // belong to a concurrent runner, or to a crashed run about to be
+    // re-read). The markers model HISTORICAL leaks, so their mtime is
+    // backdated past the floor — the same fixture discipline the #1507
+    // suite's backdated seeders use.
+    marker.setLastModifiedSync(
+      DateTime.now().subtract(const Duration(hours: 1, minutes: 1)),
+    );
   }
 
   Future<String> runRefactor() async {
@@ -137,7 +147,10 @@ exit 255
         singleTemplate: TddFixture.defaultSingleTemplate,
         suiteTemplate: suite,
       );
-      await fx.seedAlreadyCleanLib();
+      // A malformed (but valid) lib file: `dart format` changes it, so the
+      // pass registry DID change a file and the re-proof is not inherited
+      // (issue #1624) — this scenario needs the re-proof to run.
+      await fx.seedMalformedLib();
 
       final out = await runRefactor();
 
@@ -192,7 +205,9 @@ exit 255
         singleTemplate: TddFixture.defaultSingleTemplate,
         suiteTemplate: suite,
       );
-      await fx.seedAlreadyCleanLib();
+      // As B3: the format pass changes this file, so the re-proof runs
+      // instead of being inherited (issue #1624).
+      await fx.seedMalformedLib();
 
       final out = await runRefactor();
 
@@ -232,7 +247,9 @@ exit 1
         singleTemplate: TddFixture.defaultSingleTemplate,
         suiteTemplate: suite,
       );
-      await fx.seedAlreadyCleanLib();
+      // As B3: the format pass changes this file, so the re-proof runs
+      // instead of being inherited (issue #1624).
+      await fx.seedMalformedLib();
 
       final out = await runRefactor();
 
@@ -250,14 +267,18 @@ exit 1
       expect(log, contains('re-proof retries: 0'));
       expect(log, contains('re-proof output tail (stdout+stderr, truncated):'));
       expect(log, contains('probe behavior broke'));
-      // No cache clear fired on the regression path (no retry machinery).
+      // Issue #1507: the cycle-start kernel sweep now clears stale kernel
+      // entries on EVERY path — including the regression path — so the
+      // seeded markers are gone by the time the regression verdict lands.
+      // The regression contract itself is unchanged: no RETRY machinery
+      // fired (counter == 2 above); the sweep is housekeeping, not retry.
       expect(
         File(
           p.join(fx.root.path, '.dart_tool', 'test', 'probe.kernel'),
         ).existsSync(),
-        isTrue,
+        isFalse,
       );
-      expect(tmpKernelMarker('assert').existsSync(), isTrue);
+      expect(tmpKernelMarker('assert').existsSync(), isFalse);
     });
 
     test('B6: a clean green no-op records the re-proof verdict line and '
@@ -271,7 +292,13 @@ exit 1
       expect(exitCode, 0);
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, contains('- no-op: true'));
-      expect(log, contains('re-proof verdict: green (exit 0)'));
+      // Issue #1624: a clean no-op changed no file, so the re-proof is
+      // INHERITED — the diagnostics line + tail still land in the
+      // evidence entry, and the verdict names the inheritance honestly
+      // instead of a green the command did not observe.
+      expect(log, contains('re-proof verdict:'), reason: log);
+      expect(log, contains('inherited from the preflight'), reason: log);
+      expect(log, contains('issue #1624'), reason: log);
       expect(log, contains('re-proof retries: 0'));
       expect(log, contains('re-proof output tail (stdout+stderr, truncated):'));
     });

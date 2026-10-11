@@ -44,7 +44,10 @@ void main() {
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
 
-  Future<String> runPlan(String frBlock) async {
+  Future<String> runPlan(
+    String frBlock, {
+    bool allowUnitFallback = false,
+  }) async {
     await Directory(featureDir).create(recursive: true);
     final body = _header.replaceFirst(
       '## Functional Requirements\n',
@@ -56,6 +59,7 @@ void main() {
       'tdd',
       'plan',
       featureName,
+      if (allowUnitFallback) '--allow-unit-fallback',
       '--project',
       tmpDir.path,
     ]);
@@ -66,12 +70,13 @@ void main() {
     'a [persistent] tag marks the behavior (no storage words needed)',
     () async {
       final list = await runPlan(
-        '- **FR-001**: [persistent] the cart survives an app restart',
+        '- **FR-001**: [persistent] the cart survives an app restart\n'
+        '  traces: CartStore',
       );
       expect(
         list,
         contains(
-          '| U1 | the cart survives an app restart [persistence] | FR-001 | PENDING |',
+          '| U1 | the cart survives an app restart [persistence] | FR-001, CartStore | PENDING |',
         ),
         reason: 'tag stripped from the description; the mark is appended',
       );
@@ -80,13 +85,17 @@ void main() {
   );
 
   test('storage vocabulary WITHOUT a declaration stays unmarked (AC2)', () async {
+    // Issue #1480: this spec plans the legacy fallback shape on purpose —
+    // its very subject is the UNMARKED default — so the unit-fallback
+    // gate stays out of the way via the migration escape hatch.
     final list = await runPlan(
-      '- **FR-001**: caches the result for display alongside the query',
+      '- **FR-001**: caches the result for display alongside the query\n'
+      '  traces: QueryCache',
     );
     expect(
       list,
       contains(
-        '| U1 | caches the result for display alongside the query | FR-001 | PENDING |',
+        '| U1 | caches the result for display alongside the query | FR-001, QueryCache | PENDING |',
       ),
     );
   });

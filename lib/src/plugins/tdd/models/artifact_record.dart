@@ -89,6 +89,15 @@ class ArtifactRecord {
   /// ISO-8601 UTC timestamp when this record was first created.
   final String createdAt;
 
+  /// The gen reuse fingerprint at generation time (issue #1388): sha256
+  /// over the resolved lane-plan traces cell + the feature's spec.md
+  /// (see `GenReuseFingerprint`). Gen gates the reuse path on it: a
+  /// stored fingerprint that differs from the current one invalidates
+  /// the reuse. Null for records written by pre-#1388 binaries — the
+  /// gate stays open for them (no retro-invalidation); the field arms
+  /// on the next created/regenerated record.
+  final String? genFingerprint;
+
   const ArtifactRecord({
     required this.behaviorId,
     required this.feature,
@@ -99,6 +108,7 @@ class ArtifactRecord {
     required this.testOwnership,
     required this.subjectOwnership,
     required this.createdAt,
+    this.genFingerprint,
   });
 
   /// Copy with new ownership values (used for idempotent repeat).
@@ -115,7 +125,26 @@ class ArtifactRecord {
     testOwnership: testOwnership,
     subjectOwnership: subjectOwnership,
     createdAt: createdAt,
+    genFingerprint: genFingerprint,
   );
+
+  /// Copy with the gen reuse fingerprint refreshed (issue #1388): gen
+  /// calls this after a fingerprint-driven regeneration so the stored
+  /// digest matches the routing state the pair now reflects — the drift
+  /// fires once per routing change, then stable reuse resumes.
+  ArtifactRecord copyWithGenFingerprint(String? genFingerprint) =>
+      ArtifactRecord(
+        behaviorId: behaviorId,
+        feature: feature,
+        sourceCriterion: sourceCriterion,
+        testPath: testPath,
+        subjectPath: subjectPath,
+        runnableTestName: runnableTestName,
+        testOwnership: testOwnership,
+        subjectOwnership: subjectOwnership,
+        createdAt: createdAt,
+        genFingerprint: genFingerprint,
+      );
 
   /// Equality is by behavior id within a feature (FR-007).
   @override
@@ -134,7 +163,9 @@ class ArtifactRecord {
       'sourceCriterion: $sourceCriterion, test: $testPath, '
       'subject: $subjectPath, ownership: $testOwnership/$subjectOwnership)';
 
-  /// Serializes to a JSON map (for `artifacts.json`).
+  /// Serializes to a JSON map (for `artifacts.json`). `gen_fingerprint`
+  /// is emitted only when present — untouched legacy registries stay
+  /// byte-stable through load/save cycles (issue #1388).
   Map<String, dynamic> toJson() => {
     'behavior_id': behaviorId,
     'feature': feature,
@@ -145,6 +176,7 @@ class ArtifactRecord {
     'test_ownership': testOwnership.name,
     'subject_ownership': subjectOwnership.name,
     'created_at': createdAt,
+    if (genFingerprint != null) 'gen_fingerprint': genFingerprint,
   };
 
   /// Deserializes from a JSON map. Throws [FormatException] if the JSON
@@ -191,6 +223,12 @@ class ArtifactRecord {
         'subject_ownership',
       ),
       createdAt: requireString(json['created_at'], 'created_at'),
+      // Optional (issue #1388): pre-#1388 registries carry no
+      // gen_fingerprint; a malformed (non-string) value refuses —
+      // errors-are-an-API for every field that IS present.
+      genFingerprint: json['gen_fingerprint'] == null
+          ? null
+          : requireString(json['gen_fingerprint'], 'gen_fingerprint'),
     );
   }
 

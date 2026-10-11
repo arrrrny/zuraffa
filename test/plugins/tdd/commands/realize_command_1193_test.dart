@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Acceptance tests for the spec 1193 additions to `zfa tdd realize` — the
 // MOCKED→REAL swap with gates and receipts (issue #1193, part of #908 P1).
 //

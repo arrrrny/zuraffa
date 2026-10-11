@@ -30,14 +30,30 @@ const String lanesSpec = '''
 2. **Given** invalid credentials **When** the login attempt fails **Then** the error is reported to the caller
 3. **Given** a completed login **When** the session is active **Then** the app navigates to deal_list
 
+## Layer Contracts
+
+**Function**:
+- `LoginValidator`: `validate(String) -> bool`
+- `CredentialHasher`: `hash(String) -> String`
+- `SessionStarter`: `start(Session) -> Token`
+- `SessionReader`: `read() -> Session`
+- `SessionRejector`: `reject(Session) -> bool`
+- `RouteResolver`: `resolve(String) -> String`
+
 ## Functional Requirements
 
 - **FR-001**: The system shall validate the email format through the login validator.
+            traces: LoginValidator
 - **FR-002**: The system shall hash the password with the credential hasher.
+            traces: CredentialHasher
 - **FR-003**: The system shall start a session and persist the auth token through the session repository.
+            traces: SessionStarter
 - **FR-004**: The system shall read the current session through the session repository.
+            traces: SessionReader
 - **FR-005**: The system shall reject an expired session.
+            traces: SessionRejector
 - **FR-006**: The system shall resolve the deal_list route for the completed session.
+            traces: RouteResolver
 
 ## Lanes
 

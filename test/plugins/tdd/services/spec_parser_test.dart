@@ -40,8 +40,11 @@ An inline mention of ``` does not close this example.
 ### Functional Requirements
 
 - **FR-001**: System MUST do X
+  traces: Contract
 - **FR-002**: System MUST do Y
+  traces: Contract
 - **FR-003**: System MUST do Z
+  traces: Contract
 ''';
       final behaviors = const SpecParser().parse('041-tdd-setup-plugin', spec);
       final acceptance = behaviors
@@ -135,6 +138,7 @@ An inline mention of ``` does not close this example.
 ### Functional Requirements
 
 - **FR-001**: System MUST do X
+  traces: Contract
 ''';
       final behaviors = const SpecParser().parse('041', spec);
       expect(behaviors.first.kind, BehaviorKind.acceptance);

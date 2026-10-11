@@ -1,9 +1,11 @@
 // Tests for StepRunner (spec 049-tdd-run, U12-U18 / T007).
 //
 // Fast tier: the spawn hook is injected, so these drive the contract
-// parsing without real sub-processes. The slow tier (run_command_test,
-// scenarios) exercises the real spawn path through the fixture's fake
-// zfa binary.
+// parsing without real sub-processes — the suite's only real child is the
+// fixture's short-lived `Process.run('chmod', …)` probe, which the B5
+// census (#1632) discounts as a trivial probe, so the suite stays on the
+// default CI lane. The slow tier (run_command_test, scenarios) exercises
+// the real spawn path through the fixture's fake zfa binary.
 library;
 
 import 'dart:io';
@@ -11,6 +13,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/services/step_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/services/tdd_timeout.dart';
 
 /// Records the spawn and replies with a canned [ProcessResult].
 class _RecordingSpawner {
@@ -67,11 +70,20 @@ void main() {
     },
   );
 
-  test('U12: a .dart entrypoint is run through dart', () async {
+  test('U12: a .dart entrypoint is compiled and the artifact is spawned '
+      '(no-JIT policy)', () async {
     final spawner = _RecordingSpawner(() => _result());
+    final compiled = <String>[];
     final runner = StepRunner(
       zfaBin: '/pkg/bin/zfa.dart',
       spawner: spawner.call,
+      // The no-JIT seam: the source is AOT compiled before the spawn, so no
+      // real `dart compile exe` and no `dart <script>` child here.
+      ensureCompiled:
+          (candidate, {sourceRoot, packagesFile, runner, environment}) async {
+            compiled.add(candidate);
+            return '/pkg/.dart_tool/zfa_cli_bin/zfa_exe';
+          },
     );
 
     await runner.run(
@@ -81,8 +93,12 @@ void main() {
       projectRoot: projectRoot,
     );
 
-    expect(spawner.commands.single.take(2), ['dart', '/pkg/bin/zfa.dart']);
-    expect(spawner.commands.single.sublist(2), [
+    expect(compiled, ['/pkg/bin/zfa.dart']);
+    expect(
+      spawner.commands.single.first,
+      '/pkg/.dart_tool/zfa_cli_bin/zfa_exe',
+    );
+    expect(spawner.commands.single.sublist(1), [
       'tdd',
       'gen',
       'U1',
@@ -351,6 +367,67 @@ void main() {
     },
   );
 
+  test(
+    'spec 1529 U7: a timeout kill populates the structured timeoutReceipt',
+    () async {
+      final runner = StepRunner(
+        zfaBin: '/fake/bin/zfa',
+        spawner: (command, workingDirectory) => throw ProcessTimeoutException(
+          executable: command.first,
+          arguments: command.sublist(1),
+          timeout: const Duration(minutes: 25),
+          workingDirectory: workingDirectory,
+          output: 'zfa tdd make: behavior U8\n',
+          elapsed: const Duration(minutes: 25, seconds: 2),
+          descendantArgvs: const ['/usr/bin/flutter_tester'],
+        ),
+      );
+
+      final result = await runner.run(
+        step: 'make',
+        behaviorId: 'U8',
+        feature: feature,
+        projectRoot: projectRoot,
+      );
+
+      expect(result.success, isFalse);
+      expect(result.outcome, 'runner-error');
+      expect(result.exitCode, -1);
+      // The structured diagnostics ride the result — the driver writes
+      // the receipt from them.
+      expect(result.timeoutReceipt, isNotNull);
+      expect(result.timeoutReceipt!.behaviorId, 'U8');
+      expect(result.timeoutReceipt!.argv, contains('make'));
+      expect(
+        result.timeoutReceipt!.elapsed,
+        const Duration(minutes: 25, seconds: 2),
+      );
+      expect(result.timeoutReceipt!.deadline, const Duration(minutes: 25));
+      expect(result.timeoutReceipt!.phase.phase, 'running');
+      expect(result.timeoutReceipt!.outputTail, contains('behavior U8'));
+    },
+  );
+
+  test(
+    'spec 1529 U7: non-timeout outcomes leave the timeoutReceipt null',
+    () async {
+      final spawner = _RecordingSpawner(
+        () => _result(stdout: 'make: behavior=B-001 outcome=green\n'),
+      );
+      final runner = runnerWith(spawner);
+
+      final result = await runner.run(
+        step: 'make',
+        behaviorId: 'B-001',
+        feature: feature,
+        projectRoot: projectRoot,
+      );
+
+      expect(result.success, isTrue);
+      expect(result.timeoutReceipt, isNull);
+    },
+  );
+
   test('U18: --zfa-bin overrides entrypoint resolution', () async {
     final spawner = _RecordingSpawner(() => _result());
     final runner = StepRunner(zfaBin: '/overrides/zfa', spawner: spawner.call);
@@ -377,10 +454,21 @@ void main() {
     expect(result.outcome, 'missing-summary');
   });
 
-  test('defaultZfaBin resolves this package\'s bin/zfa.dart', () async {
-    final bin = await StepRunner.defaultZfaBin();
-    expect(p.basename(bin), 'zfa.dart');
-    expect(await File(bin).exists(), isTrue);
+  test('defaultZfaBin resolves this package\'s bin/zfa.dart and hands it to '
+      'the no-JIT compiler seam', () async {
+    String? resolved;
+    final bin = await StepRunner.defaultZfaBin(
+      // Injected: resolving for real is fine, compiling the whole package is
+      // not (the seam is what fast-tier tests own).
+      ensureCompiled:
+          (candidate, {sourceRoot, packagesFile, runner, environment}) async {
+            resolved = candidate;
+            return '/compiled/zfa_exe';
+          },
+    );
+    expect(p.basename(resolved!), 'zfa.dart');
+    expect(await File(resolved!).exists(), isTrue);
+    expect(bin, '/compiled/zfa_exe');
   });
 
   group('bug #690: system-binary entrypoint fallback', () {
@@ -398,7 +486,8 @@ void main() {
     Future<Uri?> noPackageUri(Uri packageUri) async => null;
     const staleScript = '/build/stale/zfa.dart.dill';
 
-    test('resolves the system-installed zfa on PATH (tier 4)', () async {
+    test('resolves the system-installed zfa on PATH for a VM driver '
+        '(tier 5 — the #690 PATH tier, unchanged by #1636)', () async {
       final systemZfa = await executableFile('zfa690_path', 'zfa');
 
       final bin = await StepRunner.resolveEntrypoint(
@@ -413,8 +502,9 @@ void main() {
       expect(bin, systemZfa.path);
     });
 
-    test('final fallback is Platform.resolvedExecutable for a compiled zfa '
-        'binary not on PATH (tier 6)', () async {
+    test('the running compiled binary is the entrypoint when the script is '
+        'unusable and nothing is on PATH (tier 4 — the #690 final fallback, '
+        'promoted ahead of PATH by #1636)', () async {
       final compiled = await executableFile('zfa690_exe', 'zfa');
 
       final bin = await StepRunner.resolveEntrypoint(
@@ -427,14 +517,18 @@ void main() {
       expect(bin, compiled.path);
     });
 
-    test('a usable Platform.script still wins over the resolvedExecutable '
-        'fallback when nothing is on PATH (tier 5 preserved)', () async {
-      final compiled = await executableFile('zfa690_exe2', 'zfa');
+    test('a usable Platform.script still wins for a JIT-snapshot driver '
+        'when nothing is on PATH (tier 6 preserved)', () async {
       final snapshot = await executableFile('zfa690_snap', 'zfa.jit');
 
       final bin = await StepRunner.resolveEntrypoint(
+        // The real JIT-snapshot driver shape: the snapshot is the script,
+        // the driving executable is the VM — so the #1636 running-binary
+        // tier cannot fire and the usable script is returned (without
+        // tier 6 this input would throw the cannot-resolve error, since
+        // the VM names are never a valid entrypoint).
         script: Uri.file(snapshot.path),
-        resolvedExecutable: compiled.path,
+        resolvedExecutable: '/usr/bin/dart',
         environment: {'PATH': '/usr/bin:/bin'},
         resolvePackageUri: noPackageUri,
       );
@@ -462,28 +556,44 @@ void main() {
     });
 
     test('a non-executable PATH candidate is skipped (executable bit '
-        'checked, mirroring #665)', () async {
+        'checked, mirroring #665) — a VM driver with nothing else '
+        'resolvable throws', () async {
       final dir = await Directory.systemTemp.createTemp('zfa690_nox');
       addTearDown(() => dir.delete(recursive: true));
       final notExecutable = File(p.join(dir.path, 'zfa'));
       await notExecutable.writeAsString('#!/bin/sh\nexit 0\n');
-      final compiled = await executableFile('zfa690_exe3', 'zfa');
 
-      final bin = await StepRunner.resolveEntrypoint(
-        script: Uri.file(staleScript),
-        resolvedExecutable: compiled.path,
-        environment: {'PATH': dir.path},
-        resolvePackageUri: noPackageUri,
+      await expectLater(
+        StepRunner.resolveEntrypoint(
+          script: Uri.file(staleScript),
+          // A VM driver keeps the #1636 running-binary tier off, so the
+          // PATH lookup IS consulted — and must reject the candidate
+          // that lacks the executable bit.
+          resolvedExecutable: '/usr/bin/dart',
+          environment: {'PATH': dir.path},
+          resolvePackageUri: noPackageUri,
+        ),
+        throwsA(isA<StateError>()),
+        reason: 'the non-executable PATH candidate is never returned',
       );
-
-      expect(bin, compiled.path, reason: 'falls through to tier 6');
     });
 
     test('run() spawns steps through the resolved entrypoint', () async {
       final spawner = _RecordingSpawner(() => _result());
       // No --zfa-bin: the runner must fall through to defaultZfaBin(),
-      // which resolves the system zfa on PATH for this test's inputs.
-      final runner = StepRunner(spawner: spawner.call);
+      // which resolves this package's bin/zfa.dart and hands it to the
+      // injected no-JIT seam (fast tier: never a real `dart compile exe`).
+      final runner = StepRunner(
+        spawner: spawner.call,
+        ensureCompiled:
+            (
+              candidate, {
+              sourceRoot,
+              packagesFile,
+              runner,
+              environment,
+            }) async => '/compiled/zfa_exe',
+      );
 
       await runner.run(
         step: 'gen',
@@ -492,12 +602,10 @@ void main() {
         projectRoot: projectRoot,
       );
 
-      // In the `dart test` context the package tier (3) resolves first,
-      // so the spawn goes through this package's bin/zfa.dart via dart.
-      expect(spawner.commands.single.take(2), [
-        'dart',
-        await StepRunner.defaultZfaBin(),
-      ]);
+      // The spawn goes through the compiled artifact, never
+      // `dart <bin/zfa.dart>`.
+      expect(spawner.commands.single.first, '/compiled/zfa_exe');
+      expect(spawner.commands.single, isNot(contains('dart')));
     });
   });
 }

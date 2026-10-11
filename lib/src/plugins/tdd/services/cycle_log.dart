@@ -67,6 +67,39 @@ class CycleLog {
     return _chainHash(entry, prevHash);
   }
 
+  /// The chain link for a rendered entry built from its PARSED field
+  /// values — the twin of [chainHashFor] for writers that render their
+  /// sections directly (the simulation certifiers) and for the shared
+  /// walk: hashing through one builder keeps every writer's `- hash:`
+  /// verifiable by the same recompute (review #1612, finding 1).
+  static String chainHashFromFields({
+    required String behaviorId,
+    required String kind,
+    required String exit,
+    required String command,
+    required String criterion,
+    required String test,
+    required String timestamp,
+    required String prevHash,
+  }) {
+    return sha256
+        .convert(
+          utf8.encode(
+            payloadFromFields(
+              behaviorId: behaviorId,
+              kind: kind,
+              exit: exit,
+              command: command,
+              criterion: criterion,
+              test: test,
+              timestamp: timestamp,
+              prevHash: prevHash,
+            ),
+          ),
+        )
+        .toString();
+  }
+
   /// The canonical payload the chain hash covers (shared with the doctor).
   static String chainPayload(CycleLogEntry entry, String prevHash) {
     return payloadFromFields(

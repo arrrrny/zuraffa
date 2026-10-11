@@ -32,12 +32,17 @@ const String pin = '**Template Version**: `zuraffa-1.0`';
 
 void main() {
   group('CRLF line endings (issue #1196)', () {
+    // Feature 1484: the FRs carry `traces:` bindings so they derive unit
+    // rows — the CRLF continuation parsing they pin is exercised on the
+    // traces lines too (an untraced FR would route manual, not unit).
     final crlfSpec =
         '$pin\r\n\r\n'
         '# Spec: crlf\r\n\r\n'
         '## Functional Requirements\r\n\r\n'
         '- **FR-001**: The system MUST save the state.\r\n'
-        '- **FR-002**: The system MUST restore the state.\r\n\r\n'
+        '  traces: Store\r\n'
+        '- **FR-002**: The system MUST restore the state.\r\n'
+        '  traces: Store\r\n\r\n'
         '## Acceptance Scenarios\r\n\r\n'
         '1. **Given** a user **When** they commit **Then** the state saves.\r\n'
         '   **Type**: acceptance\r\n';
@@ -81,10 +86,11 @@ void main() {
     test('the CRLF Type marker still declares its lane', () {
       final markers = SpecParser.parseScenarioTypeMarkers(crlfSpec);
       expect(markers['A1']?.declaredType?.name, 'acceptance');
-      // Line 13 = the marker line (pin 1, blank 2, title 3, blank 4,
-      // FR heading 5, blank 6, FR-001 7, FR-002 8, blank 9, scenarios
-      // heading 10, blank 11, scenario 12, marker 13).
-      expect(markers['A1']?.specLine, 13);
+      // Line 15 = the marker line (pin 1, blank 2, title 3, blank 4,
+      // FR heading 5, blank 6, FR-001 7, traces 8, FR-002 9, traces
+      // 10, blank 11, scenarios heading 12, blank 13, scenario 14,
+      // marker 15).
+      expect(markers['A1']?.specLine, 15);
     });
   });
 
@@ -240,6 +246,7 @@ $pin
 ## Functional Requirements
 
 - **FR-001**: The system MUST validate the form.
+  traces: Validator
 
 ## Scenarios
 
@@ -269,10 +276,11 @@ $pin
           .where((s) => s.id.startsWith('AC'))
           .toList();
       expect(acStatements.length, 3, reason: 'AC-1..AC-3 in document order');
-      // Lines 13, 14, 18: the dotted scenario headers (pin 1, blank 2,
-      // title 3, blank 4, FR heading 5, blank 6, FR-001 7, blank 8,
-      // Scenarios 9, blank 10, Story A 11, blank 12, then the headers).
-      expect(acStatements.map((s) => s.lineNo), [13, 14, 18]);
+      // Lines 14, 15, 19: the dotted scenario headers (pin 1, blank 2,
+      // title 3, blank 4, FR heading 5, blank 6, FR-001 7, traces 8,
+      // blank 9, Scenarios 10, blank 11, Story A 12, blank 13, then
+      // the headers; Story B pushes 2.1 to 19).
+      expect(acStatements.map((s) => s.lineNo), [14, 15, 19]);
     });
 
     test('a Type marker inside a dotted scenario declares its lane', () {
@@ -298,6 +306,7 @@ $pin
 ## Functional Requirements
 
 - **FR-001**: The system MUST compute the total.
+  traces: Total
 
 ## Scenarios
 
@@ -348,9 +357,11 @@ $pin
 | ID | Requirement | Variants |
 | -- | -- | -- |
 | FR-001 | The system MUST list rows. | — |
+  traces: RowRepo
 |  | variant: offline — the cached list renders. | v1 |
 |  | variant: empty — the placeholder renders. | v2 |
 | FR-002 | The system MUST refresh on pull. | — |
+  traces: RowRepo
 
 ## Acceptance Scenarios
 
@@ -460,6 +471,7 @@ $pin
 ## Requisitos Funcionales
 
 - **FR-001**: El sistema DEBE guardar.
+  traces: Guardado
 
 ## Escenarios
 

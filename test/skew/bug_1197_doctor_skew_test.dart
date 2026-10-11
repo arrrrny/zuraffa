@@ -106,7 +106,7 @@ dependencies:
     writePackageConfig(coreVersion: '6.0.0');
     final result = await runCheck();
     expect(result.status, DoctorCheckStatus.warn);
-    expect(result.detail, contains('installed'));
+    expect(result.detail, contains('older than the pin'));
   });
 
   test(
@@ -137,7 +137,9 @@ dependencies:
   test(
     'pass when receipt floors are satisfied by the installed core',
     () async {
-      writePubspec(pin: '^6.1.0');
+      // The pin must agree with the running CLI major or the advisory
+      // triangle reports a stale pin instead of the floor verdict.
+      writePubspec(pin: '^$version');
       writePackageConfig(coreVersion: version);
       final receipts = Directory(path.join(temp.path, '.zfa', 'receipts'))
         ..createSync(recursive: true);

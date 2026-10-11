@@ -239,7 +239,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         !config.noEntity) {
       infos.add(
         ParsedUseCaseInfo(
-          className: '${config.name}UseCase',
+          // Issue #1723 review: reference the normalized class — must match
+          // what the custom usecase generator declares for its file.
+          className: StringUtils.normalizeUseCaseClassName(config.name),
           fieldName: config.nameCamel,
         ),
       );

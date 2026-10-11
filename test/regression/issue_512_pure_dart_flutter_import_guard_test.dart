@@ -292,7 +292,7 @@ environment:
         );
         expect(
           File(
-            p.join(workspace.path, 'lib', 'src', 'app', 'my_app.dart'),
+            p.join(workspace.path, 'lib', 'src', 'app', 'my_test_app.dart'),
           ).existsSync(),
           isFalse,
         );
@@ -320,12 +320,12 @@ dependencies:
         expect(mainSrc, contains('package:flutter/widgets.dart'));
 
         final myAppFile = File(
-          p.join(workspace.path, 'lib', 'src', 'app', 'my_app.dart'),
+          p.join(workspace.path, 'lib', 'src', 'app', 'my_test_app.dart'),
         );
         expect(myAppFile.existsSync(), isTrue);
         expect(
           myAppFile.readAsStringSync(),
-          contains('class MyApp extends StatelessWidget'),
+          contains('class MyTestApp extends StatelessWidget'),
         );
       });
     });

@@ -581,7 +581,22 @@ class DependencyWirer {
   /// The `build.yaml` content that registers the zorphy + json_serializable
   /// builders for the project. Used by `zfa setup` and `zfa init` to ensure
   /// `zfa build` (build_runner) picks up `@Zorphy` annotations.
+  ///
+  /// Issue #1655: this const is also the PROVENANCE discriminator the static
+  /// first-build skip reads. `zfa setup`, `zfa init`, and the `zfa build`
+  /// guard (`BuildYamlGuard.scaffold`) all write THIS value byte-for-byte, so
+  /// `BuildRelevance._staticFirstBuildSkipNote` treats a build.yaml whose
+  /// content equals it as setup-generated and UNMODIFIED — marker-bearing
+  /// (the `# zfa:generated` header) and non-discriminating on a fresh app
+  /// with nothing builder-facing. Any other content (user-authored,
+  /// user-edited, or an older CLI's template) is user-owned and still forces
+  /// the first build. The header is therefore load-bearing documentation:
+  /// edit it, or anything else in the file, and you own the file again.
   static const buildYamlContent = '''
+# zfa:generated — written by `zfa setup`/`zfa init` (issue #1655). While
+# UNMODIFIED this registration is not treated as user-authored builder
+# configuration by the first-build skip; edit this file (any change) and the
+# first build runs again.
 targets:
   \$default:
     builders:

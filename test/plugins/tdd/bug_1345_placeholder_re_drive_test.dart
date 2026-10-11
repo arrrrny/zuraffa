@@ -35,6 +35,12 @@
 //   - B6: a born-green placeholder with NO reset tombstone still refuses
 //     (`subject-drift` — the #1036 guard is untouched outside the
 //     re-drive class).
+//   - B7 (review #1595): a TOMBSTONED acceptance-kind placeholder
+//     re-drive whose paired test is the gen-emitted GUARD-ONLY fallback
+//     is refused `vacuous-green` by the #1488 gate, which stops BEFORE
+//     the #1345 re-entry: no compose dispatch, no green evidence, no
+//     composed subject — the documented outcome for that overlap class
+//     is the refusal plus the traced re-plan/re-gen remedy.
 //
 // B1/B2 spawn the real `zfa tdd make` (real `dart test` + a real exec
 // forwarder for the pipeline's `compose`/`build` subprocesses, SC-021's
@@ -159,6 +165,35 @@ void main() {
     // The born-green class: structural assertions only — the scenario
     // the behavior names is never exercised.
     expect($symbol, isA<Function>());
+  });
+}
+''';
+}
+
+/// The GEN-EMITTED guard-only ACCEPTANCE fallback (issue #1512) in this
+/// fixture's naming — the class the #1488 gate intercepts: the void-safe
+/// capture + the UnimplementedError guard, nothing else. Its assertion
+/// set never touches the scenario, so it passes on ANY non-throwing
+/// subject (including the born-green placeholder).
+String guardOnlyAcceptanceTest(String id, String description) {
+  final symbol = '${id.toLowerCase().replaceAll('-', '_')}_value';
+  return '''
+// GENERATED TEST — `zfa tdd gen $id` (spec 044-test-tdd-generation).
+// behavior_id: $id
+// zfa:tdd: acceptance-guard (issue #1512)
+import '../lib/${id.toLowerCase().replaceAll('-', '_')}_subject.dart' as subject;
+import 'package:test/test.dart';
+
+void main() {
+  test('$description', () {
+    Object? result;
+    try {
+      subject.$symbol();
+      result = null;
+    } on UnimplementedError catch (error) {
+      result = error;
+    }
+    expect(result, isNot(isA<UnimplementedError>()));
   });
 }
 ''';
@@ -682,6 +717,82 @@ void main() {
       final out = await runner.runCapturing(makeArgs(fx, id: id));
       expect(exitCode, isNot(0), reason: out);
       expect(out, contains('outcome=subject-drift'), reason: out);
+      final cycleLog = await File(fx.cycleLogPath).readAsString();
+      expect(
+        RegExp('## Cycle: $id \\(green\\)').allMatches(cycleLog).length,
+        0,
+        reason: cycleLog,
+      );
+    });
+
+    test('B7: a TOMBSTONED acceptance-kind placeholder re-drive whose paired '
+        'test is the gen-emitted GUARD-ONLY fallback is refused '
+        'vacuous-green — the #1488 gate stops before the #1345 '
+        'adopted-placeholder re-entry (the documented outcome for this '
+        'overlap class: refusal + the traced re-plan/re-gen remedy, never a '
+        'compose dispatch)', () async {
+      final fx = await TddFixture.create(featureName: feature);
+      addTearDown(fx.dispose);
+      addTearDown(() => exitCode = 0);
+      const desc = 'the signup flow completes for a registered user';
+      const id = 'A2';
+      await fx.seedTestList([
+        (
+          id: id,
+          description: desc,
+          traces: 'FR-002',
+          state: 'PENDING',
+          kind: 'acceptance',
+        ),
+      ]);
+      await fx.seedCertifiedRed(
+        id: id,
+        description: desc,
+        testContent: guardOnlyAcceptanceTest(id, desc),
+        subjectContent: throwingSubject(id),
+      );
+      final runner = CliRunner(exitOnCompletion: false);
+
+      // THE RESET (tombstones A2 — the #1345 re-drive class signal).
+      final resetOut = await runner.runCapturing(resetArgs(fx, feature));
+      expect(exitCode, 0, reason: resetOut);
+
+      // THE RE-DRIVE STATE: the born-green placeholder subject is back on
+      // disk and the re-registered paired test is the guard-only fallback
+      // (the class the #1488 gate newly intercepts — B5 pins the unit-kind
+      // sibling, B6 the untombstoned sibling).
+      await File(
+        fx.testPathOf(id),
+      ).writeAsString(guardOnlyAcceptanceTest(id, desc));
+      await File(fx.subjectPathOf(id)).writeAsString(vacuousSubject(id));
+      await seedRegistry(fx, feature, [recordOf(fx, feature, id, desc)]);
+
+      // A fake zfa bin: the #1345 re-entry dispatches compose/build
+      // through it, so an UNSPAWNED bin is the no-re-entry pin.
+      final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
+
+      final out = await runner.runCapturing(
+        makeArgs(fx, id: id, zfaBin: zfaBin),
+      );
+      expect(exitCode, isNot(0), reason: out);
+      expect(out, contains('outcome=vacuous-green'), reason: out);
+      expect(
+        out,
+        contains('re-run zfa tdd plan'),
+        reason:
+            'the refusal routes the author to the traced re-plan/re-gen '
+            'path (issue #1488), not to the unreachable re-entry: $out',
+      );
+      expect(
+        File(fx.fakeZfaLogPath).existsSync(),
+        isFalse,
+        reason: 'the #1345 compose re-entry was never dispatched: $out',
+      );
+      expect(
+        await File(fx.subjectPathOf(id)).readAsString(),
+        vacuousSubject(id),
+        reason: 'the placeholder subject was never composed',
+      );
       final cycleLog = await File(fx.cycleLogPath).readAsString();
       expect(
         RegExp('## Cycle: $id \\(green\\)').allMatches(cycleLog).length,

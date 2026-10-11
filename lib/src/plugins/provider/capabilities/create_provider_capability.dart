@@ -259,6 +259,14 @@ class CreateProviderCapability implements ZuraffaCapability {
     // path. Explicit values, including `false`, are always honored.
     final generateData = args['data'] ?? true;
     final force = args['force'] ?? false;
+    // Issue #1719: CapabilityCommand parses the global `--revert` flag into
+    // args['revert'], but this capability never forwarded it into the
+    // config — the builder's delete path (config.revert →
+    // FileUtils.deleteFile) was unreachable from the CLI and `--revert`
+    // degraded to the same "use --force to overwrite" skip as a plain
+    // re-run. Forward the flag so `zfa provider create --revert` deletes
+    // the generated provider without demanding `--force`.
+    final revert = args['revert'] ?? false;
     final verbose = args['verbose'] ?? false;
 
     final config = GeneratorConfig(
@@ -274,6 +282,7 @@ class CreateProviderCapability implements ZuraffaCapability {
       generateInit: args['init'] == true,
       dryRun: dryRun,
       force: force,
+      revert: revert,
       verbose: verbose,
     );
 
@@ -283,7 +292,11 @@ class CreateProviderCapability implements ZuraffaCapability {
     // interface produces a file that cannot compile; generating nothing
     // silently is the #769 family of false success. Validate up front and
     // fail with an actionable message instead.
-    if (generateData) {
+    // Issue #1719: a `--revert` run only deletes the provider file — it
+    // must not be blocked by the service-interface precondition below
+    // (deleting a provider whose service interface was already removed is
+    // a legitimate cleanup). The precondition only guards CREATION.
+    if (generateData && !revert) {
       final serviceSnake = config.serviceSnake;
       if (serviceSnake != null) {
         final serviceFile = p.join(

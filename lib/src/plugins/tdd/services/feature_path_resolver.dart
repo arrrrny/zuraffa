@@ -13,8 +13,8 @@
 ///  1. `<name>`                → `<root>/specs/<name>` — the legacy
 ///     shape, unchanged for every plain feature name (no separator).
 ///  2. `specs/<name>`          → `<root>/specs/<name>` — the canonical
-///     path format the docs and error messages show; matches run's
-///     `stripSpecsPrefix` semantics.
+///     path format the docs and error messages show (and the same
+///     directory every command's pre-#1471 `specs/`-prefix strip named).
 ///  3. `.specify/bugs/<slug>`  → `<root>/.specify/bugs/<slug>` — the bug
 ///     extension's `feature_directory` pin; no symlink bridge needed
 ///     (issue #1182).
@@ -31,13 +31,23 @@
 /// keep the slug as their name; downstream bug detection stays on
 /// `CompositionTargets.isBugFeatureDir`, which recognizes both the `bug-`
 /// basename prefix and a real `.specify/bugs/` path segment.
+///
+/// Issue #1471: the same resolution must hold for EVERY command in the
+/// family, not only `plan` — `run` spawns `gen`/`verify-red`/`make`/
+/// `refactor` children with `--feature <reference>`, so the parent hands
+/// them the canonical [ResolvedFeatureDir.ref] and the children resolve it
+/// back to the identical directory. A feature whose parent resolved to
+/// `.specify/bugs/<slug>` must never be `specs/<slug>` for its children.
 library;
+
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
 /// The resolved location of a TDD feature: the directory that holds
-/// `spec.md` and `tdd/`, plus the canonical feature NAME the artifacts
-/// carry.
+/// `spec.md` and `tdd/`, the canonical feature NAME the artifacts carry,
+/// and the canonical REFERENCE that resolves back to both (issue #1471).
 class ResolvedFeatureDir {
   /// The feature directory on disk (normalized; absolute when the
   /// reference was absolute).
@@ -46,7 +56,17 @@ class ResolvedFeatureDir {
   /// The canonical feature name for receipts, rows and labels.
   final String name;
 
-  const ResolvedFeatureDir({required this.dir, required this.name});
+  /// The canonical reference: resolving it against the same project root
+  /// yields this same [dir] and [name]. The two-cycle driver hands it to
+  /// the child steps (`--feature <ref>`), so a parent run and its spawned
+  /// children always agree on the feature directory (issue #1471).
+  final String ref;
+
+  const ResolvedFeatureDir({
+    required this.dir,
+    required this.name,
+    required this.ref,
+  });
 }
 
 /// The single resolver every TDD command routes its `<feature>` argument
@@ -73,27 +93,39 @@ abstract final class TddFeaturePaths {
       return ResolvedFeatureDir(
         dir: p.join(projectRoot, 'specs', featureRef),
         name: featureRef,
+        ref: featureRef,
       );
     }
 
-    final normalized = p.normalize(featureRef);
+    // Issue #1471 review: unify the separators ONCE, before any path is
+    // built. `p.normalize` keeps a backslash literal on POSIX, so
+    // `isSupportedRef` accepting `specs\foo` while `resolve` built
+    // `<root>/specs\foo` (and NAMED the feature `specs\foo`, which
+    // namespaces `test/tdd/<name>/…`, the run summary and every receipt)
+    // was an inconsistency between the gate and the resolution. `dir`,
+    // `name` and `ref` now all come from this one string.
+    final normalized = p.normalize(featureRef).replaceAll(r'\', '/');
 
     // 2. Absolute path: used as-is (normalized). The basename is the
     //    canonical name.
     if (p.isAbsolute(featureRef)) {
-      return ResolvedFeatureDir(dir: normalized, name: p.basename(normalized));
+      return ResolvedFeatureDir(
+        dir: normalized,
+        name: p.basename(normalized),
+        ref: normalized,
+      );
     }
 
-    // 3. Documented relative shapes: `specs/<name>` (run's
-    //    stripSpecsPrefix semantics, backslash-aware for parity) and the
-    //    bug extension's `.specify/bugs/<slug>` pin (issue #1182).
-    final unified = normalized.replaceAll(r'\', '/');
-    final isSpecsRef = unified == 'specs' || unified.startsWith('specs/');
-    final isBugRef = unified.startsWith('.specify/bugs/');
+    // 3. Documented relative shapes: `specs/<name>` (the canonical path
+    //    format, backslash-aware for parity) and the bug extension's
+    //    `.specify/bugs/<slug>` pin (issue #1182).
+    final isSpecsRef = normalized == 'specs' || normalized.startsWith('specs/');
+    final isBugRef = normalized.startsWith('.specify/bugs/');
     if (isSpecsRef || isBugRef) {
       return ResolvedFeatureDir(
         dir: p.join(projectRoot, normalized),
         name: p.basename(normalized),
+        ref: normalized,
       );
     }
 
@@ -103,6 +135,117 @@ abstract final class TddFeaturePaths {
     return ResolvedFeatureDir(
       dir: p.join(projectRoot, 'specs', featureRef),
       name: featureRef,
+      ref: featureRef,
     );
   }
+
+  /// True when [featureRef] is one of the four documented shapes this
+  /// resolver supports — the shared gate for the per-command validators
+  /// (issue #1471): a plain segment, `specs/<name>`, `.specify/bugs/<slug>`
+  /// or an absolute path. Everything else stays refused: empty, `.`, `..`,
+  /// a relative shape whose segments could escape the project root, a
+  /// reference with a trailing separator (`specs/`, `specs/.`) that names
+  /// the specs ROOT rather than a feature, and a NESTED shape
+  /// (`specs/a/b`, `.specify/bugs/a/b`) that names a directory below the
+  /// feature level. Teaching the commands the bug-directory shape therefore
+  /// opens no traversal hole.
+  ///
+  /// The absolute shape stays supported (documented shape 4, and `plan`
+  /// accepted it since issue #1182): an explicit absolute `--feature`
+  /// deliberately names its own directory. The boundary the other shapes
+  /// enforce is containment *of a relative reference* — see the note on
+  /// `verify_command.dart`'s validator.
+  static bool isSupportedRef(String featureRef) {
+    if (featureRef.isEmpty) return false;
+    final hasSeparator = featureRef.contains('/') || featureRef.contains(r'\');
+    if (!hasSeparator) return featureRef != '.' && featureRef != '..';
+    if (p.isAbsolute(featureRef)) return true;
+    if (_hasDotDotSegment(featureRef)) return false;
+    // This check has to run on the RAW reference: `p.normalize` collapses a
+    // trailing separator (`specs/` → `specs`), which would make the guard
+    // unreachable. A bare `specs/` names the specs ROOT, not a feature, and
+    // every command refused it before issue #1471 (see
+    // run_command_path_format_test.dart's "bare specs/" case).
+    if (featureRef.endsWith('/') || featureRef.endsWith(r'\')) return false;
+    final unified = p.normalize(featureRef).replaceAll(r'\', '/');
+    // Exactly ONE segment must follow a supported prefix: `specs/a/b` and
+    // `.specify/bugs/a/b` name something BELOW the feature level and are
+    // not documented shapes. (`specs` alone is only reachable through a
+    // normalizing shape such as `specs/.` — the specs root, refused.)
+    const specsPrefix = 'specs/';
+    if (unified.startsWith(specsPrefix)) {
+      final name = unified.substring(specsPrefix.length);
+      return name.isNotEmpty && !name.contains('/');
+    }
+    const bugPrefix = '.specify/bugs/';
+    if (unified.startsWith(bugPrefix)) {
+      final slug = unified.substring(bugPrefix.length);
+      return slug.isNotEmpty && !slug.contains('/');
+    }
+    return false;
+  }
+
+  /// The REAL relative location of [dir] from [cwd], with POSIX separators
+  /// (issue #1471) — the path user-facing messages must name, never a
+  /// fabricated `specs/<name>` that a bug directory does not have. One
+  /// helper so every command in the family displays the same string.
+  static String displayDir({required String cwd, required String dir}) =>
+      p.relative(dir, from: cwd).replaceAll(r'\', '/');
+
+  /// The bug extension's feature pin (issue #1471): the directory named by
+  /// `.specify/feature.json`'s `feature_directory`. Null when the pin file
+  /// is absent, unreadable, malformed, or carries no usable value — a
+  /// broken pin stays a miss, never a silent redirect.
+  static ResolvedFeatureDir? pinned({required String projectRoot}) {
+    final file = File(p.join(projectRoot, '.specify', 'feature.json'));
+    if (!file.existsSync()) return null;
+    Object? decoded;
+    try {
+      decoded = jsonDecode(file.readAsStringSync());
+    } on FormatException {
+      return null;
+    } on FileSystemException {
+      return null;
+    }
+    if (decoded is! Map) return null;
+    final raw = decoded['feature_directory'];
+    if (raw is! String || raw.trim().isEmpty) return null;
+    // Normalize before validating: a pin written with a trailing separator
+    // (`specs/x/`) must still resolve. `isSupportedRef` refuses the raw
+    // trailing-separator shape for user-supplied references, where `specs/`
+    // names the specs root and nothing else.
+    final ref = p.normalize(raw.trim());
+    if (!isSupportedRef(ref)) return null;
+    return resolve(projectRoot: projectRoot, featureRef: ref);
+  }
+
+  /// [resolve] plus the bug extension's pin fallback (issue #1471).
+  ///
+  /// The pinned `feature_directory` is consulted ONLY for a plain,
+  /// separator-free name whose legacy `specs/<name>` directory does not
+  /// exist, and only when the pinned directory's basename is exactly that
+  /// name. An explicit path reference always resolves like [resolve]:
+  /// what the caller names beats ambient state, and the pin can never
+  /// hijack an unrelated feature. Filesystem access: unlike [resolve] this
+  /// method stats the legacy directory and reads the pin file.
+  static ResolvedFeatureDir resolveWithPin({
+    required String projectRoot,
+    required String featureRef,
+  }) {
+    final isPlain =
+        featureRef.isNotEmpty &&
+        !featureRef.contains('/') &&
+        !featureRef.contains(r'\') &&
+        featureRef != '.' &&
+        featureRef != '..';
+    final legacy = resolve(projectRoot: projectRoot, featureRef: featureRef);
+    if (!isPlain) return legacy;
+    if (Directory(legacy.dir).existsSync()) return legacy;
+    final pinnedDir = pinned(projectRoot: projectRoot);
+    if (pinnedDir != null && pinnedDir.name == featureRef) return pinnedDir;
+    return legacy;
+  }
+
+  static bool _hasDotDotSegment(String raw) =>
+      raw.split(RegExp(r'[/\\]')).contains('..');
 }

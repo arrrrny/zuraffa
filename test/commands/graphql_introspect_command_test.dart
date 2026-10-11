@@ -4,10 +4,16 @@ library;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
+import '../helpers/plugin_gate_seed.dart';
+
 void main() {
   late CliRunner runner;
 
-  setUp(() {
+  setUp(() async {
+    // The graphql leaf commands are capability-gated (spec 1653) — run
+    // them against a seeded enabled+resolvable sandbox.
+    final sandbox = await seedGraphqlGate();
+    addTearDown(() => restoreGraphqlGate(sandbox));
     runner = CliRunner(exitOnCompletion: false);
   });
 

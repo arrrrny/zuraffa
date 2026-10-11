@@ -38,6 +38,7 @@ import '../../mock/certification/mock_cert_receipt.dart';
 import '../models/verdict_envelope.dart';
 import '../services/cycle_log_terminal_receipt.dart';
 import '../services/entity_lookup.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/journal.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
@@ -114,9 +115,11 @@ class RunEngineCommand extends Command<void> {
       'timeout',
       valueHelp: 'minutes',
       help:
-          'Hard deadline in minutes for each spawned step command (bug #742; '
-          'default 10). Fractions are allowed. On timeout the child is '
-          'killed and the run stops with result=runner-error.',
+          'Hard deadline in minutes for each spawned step command (bug #742). '
+          'Omitted, the deadline SCALES from the measured baseline suite '
+          '(max(25m floor, 4 x baseline) — spec 1529). Fractions are '
+          'allowed. On timeout the child is killed and the run stops with '
+          'result=runner-error.',
     );
     argParser.addFlag(
       'skip-widget',
@@ -130,6 +133,12 @@ class RunEngineCommand extends Command<void> {
     );
     argParser.addFlag('json', help: kJsonFlagHelp, negatable: false);
     argParser.addFlag('stream', help: kStreamFlagHelp, negatable: false);
+    argParser.addFlag('verbose', help: kVerboseFlagHelp, negatable: false);
+    argParser.addOption(
+      'heartbeat',
+      valueHelp: 'seconds',
+      help: kHeartbeatFlagHelp,
+    );
   }
 
   final TddPlugin plugin;
@@ -174,12 +183,24 @@ class RunEngineCommand extends Command<void> {
         invocation,
       );
     }
-    final feature = stripSpecsPrefix(rest.first);
-    validateFeatureSegment(feature, invocation);
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
         ? projectFlag
         : ProjectRoot.find(anchorDir: 'specs');
+    final rawRef = rest.first;
+    validateFeatureSegment(rawRef, invocation);
+    // Issue #1471: resolve the reference once — the bug extension's
+    // `.specify/feature.json` pin included — and carry all three forms:
+    // [feature] (the NAME) labels the receipts and the summary line,
+    // [featureDir] is every path, [featureRef] is the canonical reference
+    // the spawned children resolve.
+    final resolved = TddFeaturePaths.resolveWithPin(
+      projectRoot: projectRoot,
+      featureRef: rawRef,
+    );
+    final feature = resolved.name;
+    final featureDir = resolved.dir;
+    final featureRef = resolved.ref;
     final zfaBin = argResults?['zfa-bin'] as String?;
 
     // Spec 1001 pre-start preflight — hardened by spec 1110 (issue
@@ -189,7 +210,7 @@ class RunEngineCommand extends Command<void> {
     // feature's tdd dir with the exact fix command.
     final gate = await checkFeature(
       projectRoot: projectRoot,
-      featureDir: p.join(projectRoot, 'specs', feature),
+      featureDir: featureDir,
     );
     if (!gate.ok) {
       final entity = gate.blockedEntity!;
@@ -211,7 +232,7 @@ class RunEngineCommand extends Command<void> {
       // Spec 1113: the cert-gate refusal is journaled preflight_red —
       // the skin lane and `zfa tdd status` read the same record.
       try {
-        final writer = JournalWriter(p.join(projectRoot, 'specs', feature));
+        final writer = JournalWriter(featureDir);
         final refs = await writer.resolveRefs();
         await writer.append(
           JournalEntry(
@@ -242,7 +263,7 @@ class RunEngineCommand extends Command<void> {
         stderr.writeln(
           'zfa tdd run-engine: failed to write the preflight journal '
           'entry at '
-          '${p.join(projectRoot, 'specs', feature, 'tdd', 'journal.json')}',
+          '${p.join(featureDir, 'tdd', 'journal.json')}',
         );
       }
       _printGateSummary(feature: feature, result: gate);
@@ -290,6 +311,39 @@ class RunEngineCommand extends Command<void> {
       return;
     }
 
+    // Issue #1590: the --heartbeat override (and the --verbose toggle).
+    Duration? heartbeatOverride;
+    try {
+      heartbeatOverride = parseTddHeartbeatSeconds(
+        argResults?['heartbeat'] as String?,
+      );
+    } on TddTimeoutFormatException catch (e) {
+      print('zfa tdd $label: ${e.message}');
+      print(
+        RunDriverCore.summaryLine(
+          label: label,
+          feature: feature,
+          lane: 'engine',
+          result: 'runner-error',
+          counts: const {
+            'total': 0,
+            'pending': 0,
+            'red': 0,
+            'green': 0,
+            'done': 0,
+          },
+        ),
+      );
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..exitClass = 'runner-error'
+        ..outcome = VerdictOutcome.error
+        ..fix = 'pass --heartbeat in seconds (0 disables) and re-run';
+      exitCode = _exitRunnerError;
+      return;
+    }
+    final verbose = argResults?['verbose'] as bool? ?? false;
+
     final driver = RunDriverCore();
     // SPEC 917 (--stream): one NDJSON step-verdict.v1 event per completed
     // step while the lane drives.
@@ -297,7 +351,7 @@ class RunEngineCommand extends Command<void> {
       driver.onStepEvent = (event) => print(event.toNdjsonLine());
     }
     final outcome = await driver.drive(
-      feature: feature,
+      featureRef: featureRef,
       projectRoot: projectRoot,
       zfaBin: zfaBin,
       timeout: timeoutOverride,
@@ -310,6 +364,8 @@ class RunEngineCommand extends Command<void> {
         'total': gate.mocks.length,
         'certified': gate.certified.length,
       },
+      verbose: verbose,
+      heartbeat: heartbeatOverride,
     );
     _collectVerdict(outcome);
     if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
@@ -326,6 +382,7 @@ class RunEngineCommand extends Command<void> {
     if (outcome.result == 'complete') {
       await CycleLogTerminalReceipt.refreshBestEffort(
         projectRoot: projectRoot,
+        featureDir: featureDir,
         feature: feature,
         command: 'tdd $label',
       );
@@ -339,6 +396,10 @@ class RunEngineCommand extends Command<void> {
         counts: outcome.counts,
         stoppedAt: outcome.stoppedAt,
         skippedWidgetIds: outcome.skippedWidgetIds,
+        // Issue #1568 (review fix): the engine lane is the only lane that
+        // can park a hand-step, so its terminal summary must carry the
+        // same `hand_steps=N` token `zfa tdd run` prints.
+        handStepIds: outcome.handStepIds,
       ),
     );
     exitCode = outcome.exitCode;

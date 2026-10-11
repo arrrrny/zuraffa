@@ -5,7 +5,10 @@
 /// Responsibilities:
 ///   1. Resolve the zfa entrypoint: `--zfa-bin` override → running
 ///      CLI's `Platform.script` when launched from source (a `file://`
-///      URL ending in `/bin/zfa.dart` or `/bin/zuraffa.dart`) → `zfa`
+///      URL ending in `/bin/zfa.dart` or `/bin/zuraffa.dart`; the source
+///      is AOT compiled through `ZfaExecutable.ensureCompiled` and the
+///      compiled artifact runs alone — the no-JIT policy, the pre-policy
+///      shape was `dart <that path>`) → `zfa`
 ///      on PATH → fallback to `Platform.resolvedExecutable` with
 ///      `Platform.script` path (handles compiled-snapshot / global-activate
 ///      case; a native AOT executable resolves to itself alone — bug
@@ -25,7 +28,9 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../../cli/zfa_executable.dart';
 import '../models/generation_plan.dart';
+import 'build_relevance.dart';
 import 'tdd_timeout.dart';
 
 /// Resolution-stage failure: the zfa entrypoint could not be resolved
@@ -64,6 +69,66 @@ class PipelineResult {
 
 class PipelineRunner {
   const PipelineRunner();
+
+  /// Issue #1590: the sub-step NAME without the banner token or hint
+  /// (FR-003's derivation, shared with make's plan lines). From the
+  /// step's args: `tdd`-prefixed → the subcommand verb (`func`, `wire`,
+  /// `compose`); `build` → `build`; `entity create <Name>` (the name
+  /// rides `-n`/`--name`, the form every planner call site emits;
+  /// positional accepted too) → `entity create <Name>`; `make <Name>` →
+  /// `make <Name>`; `mock create` → `mock create`; anything else → the
+  /// first two args joined.
+  static String nameFor(GenerationStepSpec spec) {
+    final args = spec.args;
+    if (args.isEmpty) return '(empty step)';
+    final head = args.first;
+    if (head == 'tdd' && args.length > 1) return args[1];
+    if (head == 'build') return 'build';
+    if (head == 'entity' && args.length > 1) {
+      // `-n <Name>` / `--name <Name>` first (every generation-planner
+      // call site), then the positional form.
+      for (var i = 2; i < args.length - 1; i++) {
+        if (args[i] == '-n' || args[i] == '--name') {
+          return 'entity ${args[1]} ${args[i + 1]}';
+        }
+      }
+      final positional = args.length > 2 && !args[2].startsWith('-')
+          ? args[2]
+          : '';
+      return 'entity ${args[1]} $positional'.trimRight();
+    }
+    if (head == 'make' && args.length > 1) return 'make ${args[1]}';
+    if (head == 'mock' && args.length > 1) return 'mock ${args[1]}';
+    return args.length > 1 ? '${args[0]} ${args[1]}' : args[0];
+  }
+
+  /// Issue #1590: the `→ ` banner line printed before each sub-step spawn
+  /// (FR-002) — the pipeline was the silent 273.7s window inside a driven
+  /// make. The build step carries the hint the issue asks for; everything
+  /// else is the plain name.
+  static String bannerFor(GenerationStepSpec spec) {
+    final args = spec.args;
+    if (args.isEmpty) return '→ (empty step)';
+    final head = args.first;
+    if (head == 'tdd' && args.length > 1) return '→ ${args[1]}';
+    if (head == 'build') {
+      return '→ build (build_runner + analyze; minutes on first run)';
+    }
+    return '→ ${nameFor(spec)}';
+  }
+
+  /// Issue #1590: make's plan line with the step NAMES (FR-003) — the
+  /// pre-#1590 line carried only a count. [compositionFallback] renders
+  /// the labeled composition variant.
+  static String planSummaryLine(
+    List<GenerationStepSpec> steps, {
+    bool compositionFallback = false,
+  }) {
+    final names = steps.map(nameFor).join(', ');
+    return compositionFallback
+        ? '   plan: composition fallback — ${steps.length} step(s): $names'
+        : '   plan: ${steps.length} step(s): $names';
+  }
 
   /// The default per-step address-space ceiling (bug #826): 2 GiB in KB —
   /// measured generous enough for the analyzer/build pipeline a real
@@ -129,6 +194,25 @@ class PipelineRunner {
   /// tests can pin every tier (source, PATH, compiled snapshot, native
   /// executable) without spawning a real VM. Production callers omit
   /// them and get the real platform values.
+  ///
+  /// Issue #1587: [skipUnchangedBuild] is the build-step SCHEDULING
+  /// seam — when true, the runner fingerprints the project's
+  /// build-relevant tree ([BuildRelevance.fingerprint]) before the
+  /// first step, and before executing a step whose args are exactly
+  /// `['build']` re-evaluates the changed set: when nothing a builder
+  /// consumes changed, the build subprocess is never spawned and a
+  /// synthetic [GenerationStep] (exit 0, the skip note in its output,
+  /// `buildSkipped: true`) is captured for the audit. The decision is
+  /// made once per plan; when the build DOES run (or any earlier build
+  /// step executed), the fingerprint is dropped and execution proceeds
+  /// byte-identically to today. The flag defaults to false — callers
+  /// that do not opt in keep spawning every step unchanged (FR-008).
+  ///
+  /// [ensureCompiled] is the no-JIT seam: a resolution that lands on a
+  /// Dart SOURCE entrypoint (tier 2's `bin/zfa.dart`, or a tier-4
+  /// `Platform.script` that is a `.dart` file) is AOT compiled through
+  /// [ZfaExecutable.ensureCompiled] and the artifact runs alone. Tests
+  /// inject a fake so no real `dart compile exe` runs.
   Future<PipelineResult> runPlan({
     required GenerationPlan plan,
     required String workingDirectory,
@@ -138,6 +222,8 @@ class PipelineRunner {
     String? scriptPathOverride,
     String? resolvedExecutableOverride,
     String? pathEnvOverride,
+    bool skipUnchangedBuild = false,
+    ZfaEnsureCompiled? ensureCompiled,
   }) async {
     if (!plan.isExpressible) {
       return PipelineResult(
@@ -154,16 +240,65 @@ class PipelineRunner {
       scriptPathOverride: scriptPathOverride,
       resolvedExecutableOverride: resolvedExecutableOverride,
       pathEnvOverride: pathEnvOverride,
+      ensureCompiled: ensureCompiled,
     );
 
     final memoryLimitKb = resolveStepMemoryLimitKb(Platform.environment);
 
     final captured = <GenerationStep>[];
     var firstFailure = -1;
+    // Issue #1587: the build-relevant fingerprint captured before the
+    // first step — null once consumed (the decision is made once per
+    // plan) or when the flag is off.
+    Map<String, String>? buildFingerprint;
+    if (skipUnchangedBuild) {
+      try {
+        buildFingerprint = await BuildRelevance.fingerprint(
+          projectRoot: workingDirectory,
+        );
+      } catch (_) {
+        // Fail open (issue #1587 review): an unreadable tree turns the
+        // gate OFF — `null` is the same sentinel the flagless path
+        // leaves — instead of escaping runPlan as an I/O error that the
+        // make's `on PipelineResolutionError` arm cannot grade. The
+        // build then spawns exactly as it did before this change.
+        buildFingerprint = null;
+      }
+    }
     for (var i = 0; i < plan.steps.length; i++) {
       final spec = plan.steps[i];
       final args = [...entrypoint.arguments, ...spec.args];
       final fullCmd = '${entrypoint.displayCommand} ${spec.args.join(' ')}';
+      // Issue #1587: the terminal `build` step's scheduling gate. The
+      // exact `['build']` shape is the planner's build-step contract;
+      // nothing changed builder-consumable → the build would re-derive
+      // identical results, so it is pure per-behavior overhead.
+      if (buildFingerprint != null &&
+          spec.args.length == 1 &&
+          spec.args.first == 'build') {
+        final skip = await BuildRelevance.shouldSkipTerminalBuild(
+          projectRoot: workingDirectory,
+          before: buildFingerprint,
+        );
+        buildFingerprint = null; // decided — never re-evaluated
+        if (skip) {
+          captured.add(
+            GenerationStep(
+              command: fullCmd,
+              exitCode: 0,
+              output: BuildRelevance.skippedBuildNote,
+              purpose: spec.purpose,
+              buildSkipped: true,
+            ),
+          );
+          continue;
+        }
+      }
+      // Issue #1590: announce the sub-step BEFORE the spawn — each step
+      // was previously a silent window (a driven build runs minutes on
+      // first run). Spawned steps only: the misfire-stop paths below
+      // never announce a step they never reached.
+      print(bannerFor(spec));
       final clock = Stopwatch()..start();
       final rssBeforeKb = ProcessInfo.currentRss ~/ 1024;
       try {
@@ -255,9 +390,16 @@ class PipelineRunner {
   ///   2. `Platform.script` when this CLI is running from source — a
   ///      `file://` URL whose path ends in `/bin/zfa.dart` or
   ///      `/bin/zuraffa.dart`. The entrypoint is `dart <that path>`.
-  ///   3. `zfa` on PATH — verified to be on PATH via
+  ///   3. `Platform.resolvedExecutable` when it is a compiled
+  ///      (non-Dart-VM) executable — the RUNNING binary (bug #1645, the
+  ///      #1643 mirror for this chain). It is definitionally what the
+  ///      operator invoked, so it outranks the PATH tier: a
+  ///      same-version/different-code PATH install (the `scripts/zfa`
+  ///      compile-cache artifact driving the run, an install dir
+  ///      elsewhere on PATH) is invisible to the #1472 version pin.
+  ///   4. `zfa` on PATH — verified to be on PATH via
   ///      a direct lookup of the executable in `PATH`.
-  ///   4. Fallback: `Platform.script` is a `file://` URL but the basename
+  ///   5. Fallback: `Platform.script` is a `file://` URL but the basename
   ///      is not `zfa.dart`/`zuraffa.dart`.
   ///      - Native AOT executable (bug #864): `Platform.script` IS
   ///        `Platform.resolvedExecutable` — the entrypoint is the
@@ -265,11 +407,20 @@ class PipelineRunner {
   ///      - Otherwise (compiled snapshot / global activate): use
   ///        `dart <Platform.script.toFilePath()>`.
   ///
+  /// VM drivers (`dart run`, `dart test`, a `dartaotruntime` snapshot
+  /// launch) fail the tier-3 non-VM check and keep the exact #665/#690
+  /// order below — backward compatible (issue #1645).
+  ///
   /// Misfire-stop (U12): throws [PipelineResolutionError] when nothing
   /// resolves.
   ///
   /// The `*Override` parameters are platform-fact test seams (bug #864);
   /// see [runPlan].
+  ///
+  /// [ensureCompiled] is the no-JIT seam: every resolution that lands on a
+  /// Dart SOURCE entrypoint is compiled before it is returned, so the
+  /// returned [`_ResolvedEntrypoint`] is always a compiled binary (or the
+  /// explicit `--zfa-bin` override, which the caller owns).
   Future<_ResolvedEntrypoint> _resolveEntrypoint({
     required String? zfaBinOverride,
     required String workingDirectory,
@@ -277,8 +428,16 @@ class PipelineRunner {
     String? scriptPathOverride,
     String? resolvedExecutableOverride,
     String? pathEnvOverride,
+    ZfaEnsureCompiled? ensureCompiled,
   }) async {
-    // 1. Explicit override.
+    final compile = ensureCompiled ?? ZfaExecutable.ensureCompiled;
+    // 1. Explicit override. A `.dart` override is a SOURCE entrypoint, so
+    //    it goes through the same compile seam as every other source
+    //    entrypoint (issue #1624 review): `Process.run` on a raw `.dart`
+    //    path fails at exec, and the doc below promises that every
+    //    resolution landing on a Dart source is compiled before it is
+    //    returned. A non-`.dart` override (the fake-bin fixtures, an
+    //    installed binary) still passes through verbatim.
     if (zfaBinOverride != null && zfaBinOverride.isNotEmpty) {
       final f = File(zfaBinOverride);
       if (!await f.exists()) {
@@ -288,9 +447,10 @@ class PipelineRunner {
           feature: feature,
         );
       }
+      final compiled = await compile(zfaBinOverride);
       return _ResolvedEntrypoint(
-        executable: zfaBinOverride,
-        displayCommand: zfaBinOverride,
+        executable: compiled,
+        displayCommand: compiled,
       );
     }
 
@@ -300,19 +460,43 @@ class PipelineRunner {
     final String? scriptPath = scriptPathOverride ?? _platformScriptPath();
     if (scriptPath != null) {
       final base = p.basename(scriptPath);
-      // bin/zfa.dart or bin/zuraffa.dart — invoke via the dart binary.
+      // bin/zfa.dart or bin/zuraffa.dart — the source is AOT compiled once
+      // and the artifact is invoked alone (no-JIT policy; the pre-policy
+      // shape was `<dart> <script>`).
       if (base == 'zfa.dart' || base == 'zuraffa.dart') {
+        final compiled = await compile(scriptPath);
         return _ResolvedEntrypoint(
-          executable: resolvedExecutable,
-          arguments: [scriptPath],
-          displayCommand: '$resolvedExecutable $scriptPath',
+          executable: compiled,
+          displayCommand: compiled,
         );
       }
-      // Non-standard basename: fall through to PATH lookup (tier 3),
-      // then to the compiled-snapshot fallback (tier 4) if PATH also fails.
+      // Non-standard basename: fall through to the RUNNING-binary tier
+      // (tier 3, bug #1645), then to PATH lookup (tier 4), then to the
+      // compiled-snapshot fallback (tier 5) if PATH also fails.
     }
 
-    // 3. Resolve the concrete `zfa` executable from PATH without a shell.
+    // 3. The RUNNING binary (bug #1645, the #1643 mirror for this
+    //    chain). When this process runs as a compiled (non-VM)
+    //    executable — the `scripts/zfa` compile-cache artifact
+    //    `.dart_tool/zfa_cli_bin/zfa_exe`, or an install dir earlier or
+    //    later on PATH — the executable IS the zfa entrypoint, promoted
+    //    AHEAD of the PATH tier: the PATH install may predate the
+    //    driving build while carrying the same version string, which the
+    //    #1472 pin cannot distinguish, so the only safe resolution for a
+    //    compiled driver is the binary driving the run. The Dart VM
+    //    names are excluded so a source/test/snapshot context (dart run,
+    //    dart test, dartaotruntime) never resolves the bare VM and keeps
+    //    the exact #665/#690 order below.
+    if (!_isDartVmName(p.basename(resolvedExecutable)) &&
+        await File(resolvedExecutable).exists()) {
+      final compiled = await compile(resolvedExecutable);
+      return _ResolvedEntrypoint(
+        executable: compiled,
+        displayCommand: compiled,
+      );
+    }
+
+    // 4. Resolve the concrete `zfa` executable from PATH without a shell.
     final pathEntrypoint = _findExecutableOnPath(
       'zfa',
       pathEnv: pathEnvOverride,
@@ -324,7 +508,7 @@ class PipelineRunner {
       );
     }
 
-    // 4. Final fallback: resolvedExecutable + Platform.script.
+    // 5. Final fallback: resolvedExecutable + Platform.script.
     //    Catches compiled-snapshot and global-activate scenarios where
     //    Platform.script basename is not zfa.dart/zuraffa.dart.
     if (scriptPath != null) {
@@ -338,6 +522,15 @@ class PipelineRunner {
       // script/snapshot cases (source, JIT snapshot, global activate),
       // which is why the equality check — not the basename — decides.
       final isNativeExecutable = p.equals(scriptPath, resolvedExecutable);
+      if (!isNativeExecutable && ZfaExecutable.isDartScript(scriptPath)) {
+        // A Dart SOURCE script reached the snapshot tier: compile it rather
+        // than running it through the VM (no-JIT policy).
+        final compiled = await compile(scriptPath);
+        return _ResolvedEntrypoint(
+          executable: compiled,
+          displayCommand: compiled,
+        );
+      }
       return _ResolvedEntrypoint(
         executable: resolvedExecutable,
         arguments: isNativeExecutable ? const [] : [scriptPath],
@@ -362,6 +555,17 @@ class PipelineRunner {
   String? _platformScriptPath() {
     final script = Platform.script;
     return script.scheme == 'file' ? script.toFilePath() : null;
+  }
+
+  /// Whether [basename] is a Dart VM executable rather than a compiled
+  /// zfa binary (bug #1645): `dart`, `dartvm`, `dartaotruntime` and
+  /// their `.exe` forms. Mirrors `StepRunner._isDartVmName` (bug #690) —
+  /// the same set, kept private per resolver so the two chains stay
+  /// decoupled the way #665/#690 kept them.
+  static bool _isDartVmName(String basename) {
+    const names = {'dart', 'dartvm', 'dartaotruntime'};
+    final lower = basename.toLowerCase();
+    return names.contains(lower) || names.any((name) => lower == '$name.exe');
   }
 
   String? _findExecutableOnPath(String name, {String? pathEnv}) {

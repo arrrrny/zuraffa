@@ -76,7 +76,14 @@ void main() {
           'graph (#1189/#1370) — flutter_test re-exports the API',
     );
     expect(added.any((e) => e.startsWith('coverage')), isTrue);
-    expect(added.any((e) => e.startsWith('mutation_test')), isTrue);
+    // Issue #1653: mutation_test is no longer unconditional — the default
+    // baseline excludes it (opt in via includeMutationTest: true /
+    // `zfa tdd init --mutation`).
+    expect(
+      added.any((e) => e.startsWith('mutation_test')),
+      isFalse,
+      reason: 'issue #1653: the verify lane\'s tool is opt-in at init',
+    );
     expect(
       loadYaml(
         await File(p.join(project.path, 'pubspec.yaml')).readAsString(),

@@ -14,7 +14,10 @@
 /// cycle-log evidence remains the source of truth for "already-green" —
 /// the same evidence the run driver's reconciliation consumes — so
 /// discovery stays independent of `tdd/run-state.json` (the driver owns
-/// run state; the make pipeline owns the cycle log).
+/// run state; the make pipeline owns the cycle log). Issue #1550: a
+/// green claim the REGISTRY contradicts (the record is absent — the
+/// artifacts were dropped, e.g. by a reset) is the `stale-evidence`
+/// refusal, never an anchor and never a silent skip.
 ///
 /// The TARGET (the behavior being made) may be acceptance-kind or
 /// widget-kind (issue #939): both compose against the feature's green
@@ -110,7 +113,17 @@ class CompositionTargetResolved extends CompositionTargetResult {
 
 class CompositionTargetFailure extends CompositionTargetResult {
   /// Machine token: `no-green-units`, `missing-anchor-subject`,
-  /// `target-not-acceptance`, `no-test-list`, `malformed-test-list`.
+  /// `stale-evidence`, `target-not-acceptance`, `no-test-list`,
+  /// `malformed-test-list`.
+  ///
+  /// `stale-evidence` (issue #1550) is the green-PREMISE contradiction:
+  /// the unit row carries green cycle-log evidence while its registry
+  /// record is ABSENT — the evidence survives the append-only cycle-log
+  /// but the artifacts it certified were dropped (canonically by a
+  /// `tdd reset`, which also invalidates the journal evidence the
+  /// discovery does not consult). A refusal, never a partial anchor
+  /// set: the caller re-derives the dropped artifacts
+  /// (`zfa tdd gen <id>` + re-drive) before composing.
   final String code;
 
   /// Human-readable message naming the artifact / file at fault.
@@ -243,6 +256,20 @@ class CompositionTargets {
     //    composes against the entity-wired subject even while the unit is
     //    a stub, deferring the real green transition to when the unit
     //    subjects are filled with business logic.
+    //
+    //    Issue #1550: the green-unit premise is verified against the
+    //    REGISTRY first. A green row whose registry record is ABSENT is
+    //    the stale-evidence refusal — the cycle-log's green claim
+    //    survives (append-only) while the artifacts it certified were
+    //    dropped or never recorded (canonically by a reset — the #1264
+    //    tombstone that invalidates the claim lives in the journal,
+    //    which discovery does not consult; an unreadable registry
+    //    reports the same absence). Classifying it `stale-evidence` (not
+    //    the legacy `missing-anchor-subject` → `runner-error`) names the
+    //    actual inconsistency: the premise is stale, re-derive the
+    //    artifacts. A record PRESENT but file missing stays
+    //    `missing-anchor-subject` — the registry premise is intact,
+    //    the tree drifted.
     final anchors = <ComposableUnitSubject>[];
     for (final row in rows) {
       if (row.kind != BehaviorKind.unit) continue;
@@ -251,11 +278,17 @@ class CompositionTargets {
       if (green.contains(row.id)) {
         if (recorded == null) {
           return CompositionTargetFailure(
-            code: 'missing-anchor-subject',
+            code: 'stale-evidence',
             message:
-                'green unit subject "${row.id}" has no registry record with a '
-                'subject_path in ${p.join(featureDir, 'tdd', 'artifacts.json')}. '
-                'Run `zfa tdd gen ${row.id}` to restore its artifacts.',
+                'green unit subject "${row.id}" carries green evidence in '
+                'tdd/cycle-log.md but has no registry record in '
+                '${p.join(featureDir, 'tdd', 'artifacts.json')} — the green '
+                'premise and the registry disagree. The artifacts were '
+                'dropped or never recorded (a `zfa tdd reset` drops them and '
+                'tombstones the evidence in tdd/journal.json; an unreadable '
+                'registry reports the same absence). Re-derive the artifacts: '
+                'run `zfa tdd gen ${row.id}` and re-drive the behavior before '
+                'composing.',
           );
         }
         final normalized = p.normalize(

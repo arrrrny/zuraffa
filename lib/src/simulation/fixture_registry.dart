@@ -7,9 +7,12 @@
 ///   — fixture commitment is automated, not manual.
 /// - [FixtureRegistry] writes/verifies the SHA-256 manifest for the
 ///   committed fixtures and appends a hash-chained evidence entry to the
-///   feature's TDD cycle log, using the same schema-1 hash-chain format
-///   (`- prev-hash:` / `- hash:`) the run driver and doctor already parse
-///   (spec 049; bug #828).
+///   feature's TDD cycle log. The chain is the canonical schema-1 link —
+///   `CycleLog.chainHashFromFields`, the payload the doctor and the
+///   replay reader recompute — with the manifest digest recorded beside
+///   it in its own `- digest:` field (review #1612, finding 1: the walk
+///   used to report these sections as tampering because the digest sat
+///   in the `- hash:` field).
 library;
 
 import 'dart:convert';
@@ -19,6 +22,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../plugins/tdd/services/cycle_evidence.dart';
+import '../plugins/tdd/services/cycle_log.dart';
 import 'certified_worlds.dart';
 
 /// Raised when a committed fixture no longer matches its manifest hash,
@@ -160,8 +164,9 @@ class FixtureRegistry {
   /// Append a hash-chained evidence entry to the feature's TDD cycle log
   /// (`<featureDir>/tdd/cycle-log.md`), recording the world digest under
   /// the `kind: fixtures` behavior `<featureSlug>-fixtures`. The entry
-  /// follows the schema-1 chain format (`- prev-hash:` / `- hash:`) so
-  /// the existing evidence tooling parses it without changes.
+  /// chains through `CycleLog.chainHashFromFields` — the canonical
+  /// payload every reader recomputes — and records the manifest digest
+  /// in its own `- digest:` field (review #1612, finding 1).
   Future<void> appendCycleEvidence({
     required String featureDir,
     required List<String> families,
@@ -179,6 +184,19 @@ class FixtureRegistry {
     final cycleEvidence = CycleEvidence(featureDir);
     final prev = await cycleEvidence.lastHashFor(behaviorId) ?? 'genesis';
     final now = DateTime.now().toUtc().toIso8601String();
+    const criterion =
+        'certified fixture world committed under tdd/fixtures/ and hashed '
+        'into the manifest digest';
+    final hash = CycleLog.chainHashFromFields(
+      behaviorId: behaviorId,
+      kind: 'fixtures',
+      exit: '0',
+      command: commandLine,
+      criterion: criterion,
+      test: '',
+      timestamp: now,
+      prevHash: prev,
+    );
 
     final recorded = (manifest['files'] as Map<String, dynamic>)
         .cast<String, Map<String, dynamic>>();
@@ -188,14 +206,12 @@ class FixtureRegistry {
       ..writeln('- kind: fixtures')
       ..writeln('- at: $now')
       ..writeln('- exit: 0')
-      ..writeln(
-        '- criterion: certified fixture world committed under '
-        'tdd/fixtures/ and hashed into the manifest digest',
-      )
+      ..writeln('- criterion: $criterion')
       ..writeln('- command: `$commandLine`')
       ..writeln('- schema: 1')
       ..writeln('- prev-hash: $prev')
-      ..writeln('- hash: $digest')
+      ..writeln('- hash: $hash')
+      ..writeln('- digest: $digest')
       ..writeln('- families: ${families.join(',')}');
     for (final relative in recorded.keys) {
       buffer.writeln('- fixtures: $relative=${recorded[relative]!['sha256']}');
@@ -210,9 +226,10 @@ class FixtureRegistry {
   /// Append a hash-chained mock-certification evidence entry (spec 1001,
   /// issue #1001) to the feature's cycle log, recording the world digest
   /// under the `kind: mock-cert` behavior
-  /// `<featureSlug>-mock-cert-<entitySnake>`. Same schema-1 chain format
-  /// as [appendCycleEvidence] — the existing evidence tooling parses it
-  /// without changes.
+  /// `<featureSlug>-mock-cert-<entitySnake>`. Same canonical chain as
+  /// [appendCycleEvidence] — the digest sits in `- digest:` — so the
+  /// evidence tooling verifies it without changes (review #1612,
+  /// finding 1).
   Future<void> appendMockCertEvidence({
     required String featureDir,
     required String entityName,
@@ -233,6 +250,20 @@ class FixtureRegistry {
     final cycleEvidence = CycleEvidence(featureDir);
     final prev = await cycleEvidence.lastHashFor(behaviorId) ?? 'genesis';
     final now = DateTime.now().toUtc().toIso8601String();
+    final criterion =
+        'Tier-1 mock for $entityName satisfies its interface '
+        '(contract test green in sandbox) and is receipted under '
+        'tdd/fixtures/';
+    final hash = CycleLog.chainHashFromFields(
+      behaviorId: behaviorId,
+      kind: 'mock-cert',
+      exit: '0',
+      command: commandLine,
+      criterion: criterion,
+      test: '',
+      timestamp: now,
+      prevHash: prev,
+    );
 
     final recorded = (manifest['files'] as Map<String, dynamic>)
         .cast<String, Map<String, dynamic>>();
@@ -243,15 +274,12 @@ class FixtureRegistry {
       ..writeln('- kind: mock-cert')
       ..writeln('- at: $now')
       ..writeln('- exit: 0')
-      ..writeln(
-        '- criterion: Tier-1 mock for $entityName satisfies its interface '
-        '(contract test green in sandbox) and is receipted under '
-        'tdd/fixtures/',
-      )
+      ..writeln('- criterion: $criterion')
       ..writeln('- command: `$commandLine`')
       ..writeln('- schema: 1')
       ..writeln('- prev-hash: $prev')
-      ..writeln('- hash: $digest');
+      ..writeln('- hash: $hash')
+      ..writeln('- digest: $digest');
     final receiptHash = recorded[receiptRel]?['sha256'];
     if (receiptHash != null) {
       buffer.writeln('- receipt: $receiptRel=$receiptHash');

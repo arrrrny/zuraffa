@@ -43,6 +43,7 @@ import 'package:path/path.dart' as p;
 import 'artifact_registry.dart';
 import 'cycle_evidence.dart';
 import 'lane_receipts.dart';
+import 'run_state_store.dart' show flushToDisk;
 
 /// Raised when a journal that EXISTS cannot be read (corrupt JSON, wrong
 /// shape): honest failure, never a silent empty stream. A journal that
@@ -719,6 +720,11 @@ class JournalWriter {
     const encoder = JsonEncoder.withIndent('  ');
     final tmp = File('${file.path}.tmp');
     await tmp.writeAsString('${encoder.convert(journal)}\n');
+    // Bug #828 gave run_state_store and artifact_registry the crash-safe
+    // write discipline; bug #1469 extends it here: fsync the tmp file
+    // before the rename, so a power loss between writeAsString and rename
+    // cannot leave a truncated journal.json behind.
+    await flushToDisk(tmp);
     await tmp.rename(file.path);
   }
 }
@@ -967,6 +973,14 @@ class JournalReader {
 
   /// Load [feature]'s whole journal stream under [projectRoot].
   ///
+  /// [featureDir] overrides the directory the stream is read from (issue
+  /// #1471): the bug extension's TDD mode pins
+  /// `.specify/feature.json` → `feature_directory: .specify/bugs/<slug>`,
+  /// which lives OUTSIDE `specs/`. When omitted the legacy
+  /// `<projectRoot>/specs/<feature>` location is used, so every existing
+  /// caller is unchanged. [feature] still names the feature on the
+  /// returned journal and in the derived verdict.
+  ///
   /// Throws [JournalException] for a feature directory that does not
   /// exist or a journal.json that exists but will not parse; absence of
   /// the journal, of receipts, of the cycle-log or of the registry is
@@ -974,17 +988,23 @@ class JournalReader {
   Future<FeatureJournal> read({
     required String feature,
     required String projectRoot,
+    String? featureDir,
   }) async {
-    final featureDir = p.join(projectRoot, 'specs', feature);
-    if (!await Directory(featureDir).exists()) {
+    // Issue #1471: the feature directory may live OUTSIDE `specs/` (the bug
+    // extension pins `.specify/bugs/<slug>`), so the caller may hand the
+    // already-resolved directory. The default keeps the legacy
+    // `<projectRoot>/specs/<feature>` location for every existing caller.
+    final resolvedDir = featureDir ?? p.join(projectRoot, 'specs', feature);
+    if (!await Directory(resolvedDir).exists()) {
       throw JournalException(
-        'no feature directory at specs/$feature (project root: '
-        '$projectRoot)',
+        'no feature directory at '
+        '${p.relative(resolvedDir, from: projectRoot).replaceAll(r'\', '/')} '
+        '(project root: $projectRoot)',
       );
     }
 
     // 1. The journal entries.
-    final journalFile = File(p.join(featureDir, 'tdd', 'journal.json'));
+    final journalFile = File(p.join(resolvedDir, 'tdd', 'journal.json'));
     final entries = <JournalEntry>[];
     var journalPresent = false;
     if (await journalFile.exists()) {
@@ -1042,7 +1062,7 @@ class JournalReader {
             : entry.skinReceipt;
         if (named != null) ref = named;
       }
-      final file = File(p.join(featureDir, ref));
+      final file = File(p.join(resolvedDir, ref));
       if (!await file.exists()) {
         receipts[lane] = null;
         continue;
@@ -1063,7 +1083,7 @@ class JournalReader {
     }
 
     // 3. The cycle-log content (the journal's prose mirror).
-    final cycleLogFile = File(p.join(featureDir, 'tdd', 'cycle-log.md'));
+    final cycleLogFile = File(p.join(resolvedDir, 'tdd', 'cycle-log.md'));
     final cycleLog = await cycleLogFile.exists()
         ? await cycleLogFile.readAsString()
         : '';
@@ -1073,7 +1093,7 @@ class JournalReader {
     //    the evidence sets never disagree).
     final greenEvidence = <String, String>{};
     try {
-      for (final entry in await CycleEvidence(featureDir).entries()) {
+      for (final entry in await CycleEvidence(resolvedDir).entries()) {
         if (entry.kind != 'green') continue;
         // Append order is chronological: the LAST green wins.
         greenEvidence[entry.behaviorId] = entry.at ?? '';
@@ -1091,7 +1111,7 @@ class JournalReader {
     try {
       orphanedGreen.addAll(
         await CycleEvidence(
-          featureDir,
+          resolvedDir,
         ).orphanedGreenEvidence(projectRoot: projectRoot),
       );
     } on FileSystemException {
@@ -1099,7 +1119,7 @@ class JournalReader {
     }
 
     // 5. The registered behaviors.
-    final registry = ArtifactRegistry(featureDir: featureDir);
+    final registry = ArtifactRegistry(featureDir: resolvedDir);
     final records = await registry.loadAll();
     final behaviors = <JournalBehavior>[];
     for (final record in records) {
@@ -1123,7 +1143,7 @@ class JournalReader {
 
     return FeatureJournal(
       feature: feature,
-      featureDir: featureDir,
+      featureDir: resolvedDir,
       journalPresent: journalPresent,
       entries: entries,
       receipts: receipts,

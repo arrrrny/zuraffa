@@ -144,7 +144,7 @@ void main() {
     () async {
       await seed(spec: '$specBase\n$lanesSection\n$skinContractSection');
       final out = await split();
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       final skin = skinPlan();
       expect(
@@ -179,7 +179,7 @@ void main() {
           '```yaml\nSkin Contract:\n  adaptive_slots: [broken\n```\n',
     );
     final out = await split();
-    expect(exitCode, 2, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
     expect(out, contains('skin contract refused'));
     expect(
       File(p.join(tddDir, '04-SKIN.md')).existsSync(),
@@ -192,7 +192,7 @@ void main() {
       'shape', () async {
     await seed(spec: '$specBase\n$lanesSection');
     final out = await split();
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     final skin = skinPlan();
     expect(skin, contains('# Skin Plan:'));
     expect(skin, isNot(contains('home_indicator_safe_area')));
@@ -203,7 +203,7 @@ void main() {
     () async {
       await seed(spec: '$specBase\n$skinContractSection');
       final out = await split();
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(out, contains('skin contract refused'));
       expect(out, contains('## Lanes'));
       expect(
@@ -217,9 +217,9 @@ void main() {
   test('B4: the FORCED re-split keeps the full contract', () async {
     await seed(spec: '$specBase\n$lanesSection\n$skinContractSection');
     final first = await split();
-    expect(exitCode, 0, reason: first);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: first);
     final out = await split(force: true);
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
     final skin = skinPlan();
     expect(

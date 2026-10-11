@@ -231,7 +231,17 @@ class ReceiptRecord {
   final String fileName;
   final GenerationReceipt receipt;
 
-  const ReceiptRecord({required this.fileName, required this.receipt});
+  /// The full parsed document (spec 1136 lane 5): the typed extras a
+  /// producer merged on top of the proof.v1 payload (`world_hash`,
+  /// fuzz verdicts, ...) survive `loadAll` here — [GenerationReceipt]
+  /// alone ignores unknown keys.
+  final Map<String, dynamic> raw;
+
+  const ReceiptRecord({
+    required this.fileName,
+    required this.receipt,
+    this.raw = const {},
+  });
 }
 
 /// Reads and writes generation receipts under `<project>/.zfa/receipts/`.
@@ -377,6 +387,7 @@ class ReceiptStore {
           ReceiptRecord(
             fileName: p.basename(file.path),
             receipt: GenerationReceipt.fromJson(json),
+            raw: json,
           ),
         );
       } catch (_) {

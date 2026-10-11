@@ -133,6 +133,41 @@ void main() {
     );
   });
 
+  test('a manual marker outside an FR block is still refused (feature '
+      '1484: the exemption is FR-block-owned)', () {
+    const strayManual = '''
+1. **Given** x, **When** y, **Then** z.
+
+## Functional Requirements
+
+   **Type**: manual
+''';
+    expect(
+      () => SpecParser.parseScenarioTypeMarkers(strayManual),
+      throwsA(
+        isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          allOf(contains('outside any'), contains('line 5')),
+        ),
+      ),
+      reason:
+          'only an FR block hands `**Type**: manual` to the FR routing '
+          'walk; anywhere else it stays the misplaced-marker refusal',
+    );
+  });
+
+  test('a manual marker INSIDE an FR block is the FR exemption, not a '
+      'refusal', () {
+    const inFrBlock = '''
+## Functional Requirements
+
+- **FR-001**: The system MUST visually distinguish completed tasks.
+  **Type**: manual
+''';
+    expect(SpecParser.parseScenarioTypeMarkers(inFrBlock), isEmpty);
+  });
+
   group('FR contract traces (round-2 fix 2)', () {
     test('traceTokens keeps a backticked inline signature intact', () {
       final tokens = SpecParser.traceTokens(
@@ -177,6 +212,7 @@ void main() {
         'keeps the description clean', () {
       const spec = '''
 - **FR-001**: **[persistent]** The cart survives an app restart.
+  traces: CartStore
 - **FR-002**: The totals equal the sum of the items.
 ''';
       final persistence = SpecParser.parsePersistenceDeclarations(spec);

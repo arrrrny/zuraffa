@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 /// SDD-TDD suite for issue #1184 — stale installed `zfa` binary warning.
 ///
 /// The trap: `~/.local/bin/zfa` is a compiled snapshot (see

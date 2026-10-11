@@ -2,6 +2,21 @@
 /// per-method proof that a Tier-1 mock satisfies its interface, plus the
 /// SHA-256 digest of the contract test that proved it.
 ///
+/// Spec 1693 (issue #1693) adds the optional `entity_digest`: the
+/// FORMAT-CANONICAL digest of the entity source the certification
+/// covered (SHA-256 over `dart format` output,
+/// `format_canonical_digest.dart`), plus `entity_digest_style`, the
+/// identity of the canonicalizer that produced it
+/// (`canonicalizerId`). The cert gate trusts the digest only when the
+/// running canonicalizer's id matches the recorded one — a `dart_style`
+/// bump inside the caret range changes the canonical bytes, and that
+/// must degrade to the pre-1693 mtime leg rather than declare the whole
+/// project stale. The digest then compares against the canonical form
+/// of the CURRENT entity source — format-only drift (the phase-2
+/// refactor) hashes equal and reads fresh; a real edit hashes
+/// differently and reads stale. Receipts predating the field omit both
+/// keys and keep the pre-1693 mtime freshness semantics.
+///
 /// Written by `zfa mock create <Entity> --certify` next to the committed
 /// contract test (`test/mock/<snake>/mock-cert.<Entity>.json`) and — via
 /// `zfa mock certify <Entity>` — committed into the feature's
@@ -25,6 +40,8 @@ class MockCertReceipt {
     required this.subjectPath,
     required this.contractTestPath,
     required this.contractDigest,
+    this.entityDigest,
+    this.entityDigestStyle,
     required this.methods,
     required this.sandbox,
     required this.seed,
@@ -41,6 +58,18 @@ class MockCertReceipt {
 
   /// SHA-256 (lowercase hex) of the contract test file bytes.
   final String contractDigest;
+
+  /// SHA-256 (lowercase hex) of the FORMAT-CANONICAL form of the entity
+  /// source at certification time (spec 1693) — null on receipts written
+  /// before the field existed (those keep the mtime freshness
+  /// semantics).
+  final String? entityDigest;
+
+  /// The canonicalizer [entityDigest] was recorded with
+  /// (`canonicalizerId`). The gate compares digests only when this
+  /// matches the running canonicalizer, so a `dart_style` bump degrades
+  /// to the mtime leg instead of reading every receipt as drift.
+  final String? entityDigestStyle;
 
   /// Ordered per-method satisfaction: name -> satisfied.
   final List<MapEntry<String, bool>> methods;
@@ -63,6 +92,8 @@ class MockCertReceipt {
     'subject': subjectPath,
     'contract_test': contractTestPath,
     'contract_digest': contractDigest,
+    if (entityDigest != null) 'entity_digest': entityDigest,
+    if (entityDigestStyle != null) 'entity_digest_style': entityDigestStyle,
     'methods': [
       for (final m in methods) {'name': m.key, 'satisfied': m.value},
     ],
@@ -89,6 +120,8 @@ class MockCertReceipt {
       subjectPath: json['subject'] as String? ?? '',
       contractTestPath: json['contract_test'] as String? ?? '',
       contractDigest: json['contract_digest'] as String? ?? '',
+      entityDigest: json['entity_digest'] as String?,
+      entityDigestStyle: json['entity_digest_style'] as String?,
       methods: methods,
       sandbox: (json['sandbox'] as Map<dynamic, dynamic>? ?? const {})
           .cast<String, dynamic>(),
@@ -101,7 +134,10 @@ class MockCertReceipt {
   static String digestOf(String contractTestSource) =>
       sha256.convert(utf8.encode(contractTestSource)).toString();
 
-  /// Build the receipt from a sandbox run.
+  /// Build the receipt from a sandbox run. [entityDigest] is the
+  /// format-canonical entity source digest recorded by the certifier
+  /// (spec 1693) and [entityDigestStyle] the canonicalizer that produced
+  /// it — omit both when no entity source was digestible.
   static MockCertReceipt fromRun({
     required String entity,
     required String interfaceName,
@@ -111,6 +147,8 @@ class MockCertReceipt {
     required MockCertificationRun run,
     required List<String> methodNames,
     int? seed,
+    String? entityDigest,
+    String? entityDigestStyle,
   }) {
     return MockCertReceipt(
       entity: entity,
@@ -118,6 +156,8 @@ class MockCertReceipt {
       subjectPath: subjectPath,
       contractTestPath: contractTestPath,
       contractDigest: digestOf(contractTestSource),
+      entityDigest: entityDigest,
+      entityDigestStyle: entityDigestStyle,
       methods: [
         for (final name in methodNames)
           MapEntry(name, run.methodOutcomes[name] ?? false),

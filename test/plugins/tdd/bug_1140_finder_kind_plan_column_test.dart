@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Issue #1140 (TDD-138) — the finder-kind column in the plan's behavior
 // table, and gen's declared-kind contract.
 //
@@ -58,6 +59,9 @@ void main() {
         'tdd',
         'plan',
         featureName,
+        // Issue #1480: the finder-kind column is the subject — the legacy
+        // fallback shape stays reachable via the migration escape hatch.
+        '--allow-unit-fallback',
         '--project',
         tmpDir.path,
       ]);
@@ -192,6 +196,31 @@ void main() {
     setUp(() {
       tmpDir = Directory.systemTemp.createTempSync('bug1140_gen_');
       featureDir = p.join(tmpDir.path, 'specs', featureName);
+      // Issue #1528: gen's entry preflight is a SILENT NO-OP when the TDD
+      // profile exists (no writes at all — no pubspec read, no baseline
+      // writes) — seed it so these tests keep pinning gen's own behavior
+      // byte-for-byte in a pubspec-less fixture. The missing-profile
+      // auto-init path is covered by commands/issue_1528_setup_error_test.dart.
+      final memoryDir = Directory(p.join(tmpDir.path, '.specify', 'memory'));
+      memoryDir.createSync(recursive: true);
+      File(p.join(memoryDir.path, 'tdd-profile.md')).writeAsStringSync('''
+# TDD Profile — fixture
+
+## Commands
+
+- Single test: `dart test {file} --plain-name "{name}"`
+- Full suite: `dart test`
+
+## Keys (machine-readable)
+
+```yaml
+runner: dart
+single: 'dart test {file} --plain-name "{name}"'
+suite: 'dart test'
+file: 'dart test {file}'
+coverage: 'dart test --coverage'
+```
+''');
     });
 
     tearDown(() {

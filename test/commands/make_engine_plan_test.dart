@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 // Spec 1002 — `zfa make engine <Entity>` grammar + plan resolution.
 //
 // The engine mode token must:

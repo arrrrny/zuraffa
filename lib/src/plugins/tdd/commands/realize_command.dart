@@ -62,6 +62,7 @@ import '../services/nuance_receipts.dart';
 import '../services/realize_receipt.dart';
 import '../services/realize_state.dart';
 import '../services/run_state_store.dart';
+import '../services/scratch_tmpdir.dart';
 import '../services/differential_harness.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -210,6 +211,39 @@ class RealizeCommand extends Command<void> {
   Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
 
   Future<void> _run() async {
+    // Spec 1520 (issue #1520): ONE scratch dir per invocation, injected
+    // into every child's environment (the default fixture driver and suite
+    // runner spawns) and deleted best-effort at run end (the finally
+    // below) — the #1507 leak fixed by construction.
+    final rest = argResults?.rest ?? const <String>[];
+    final label = rest.isNotEmpty ? rest.first.trim() : '';
+    final scratch = await ScratchTmpDir.acquire(
+      label: label.isNotEmpty ? label : 'realize',
+      projectRoot: _scratchProjectRoot(),
+    );
+    try {
+      _scratchEnv = scratch?.childEnvironment();
+      await _runScratched();
+    } finally {
+      _scratchEnv = null;
+      await scratch?.dispose();
+    }
+  }
+
+  /// The project root the scratch-root resolution uses (.zfa.json tier) —
+  /// best-effort: an unresolvable root degrades to the env-only tiers.
+  String? _scratchProjectRoot() {
+    try {
+      final projectFlag = argResults?['project'] as String?;
+      return projectFlag != null && projectFlag.isNotEmpty
+          ? projectFlag
+          : ProjectRoot.find(anchorDir: 'specs');
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> _runScratched() async {
     final startedAt = DateTime.now().toUtc().toIso8601String();
     final rest = argResults?.rest ?? const <String>[];
     final target = rest.isNotEmpty ? rest.first.trim() : '';
@@ -1340,14 +1374,19 @@ class RealizeCommand extends Command<void> {
           'needs the project-owned driver (see the realize command docs).',
         );
       }
-      final process = await Process.start('dart', [
-        'run',
-        'tool/realize_driver.dart',
-        '--binding',
-        binding,
-        '--entity',
-        entity,
-      ], workingDirectory: _resolvedRoot);
+      final process = await Process.start(
+        'dart',
+        [
+          'run',
+          'tool/realize_driver.dart',
+          '--binding',
+          binding,
+          '--entity',
+          entity,
+        ],
+        workingDirectory: _resolvedRoot,
+        environment: _scratchEnv,
+      );
       process.stdin.write(jsonEncode(input));
       await process.stdin.close();
       final stdoutText = await process.stdout.transform(utf8.decoder).join();
@@ -1369,6 +1408,14 @@ class RealizeCommand extends Command<void> {
   /// The project root this invocation resolved (the driver spawn cwd).
   String _resolvedRoot = '';
 
+  /// Spec 1520: this invocation's per-run scratch environment
+  /// (`ScratchTmpDir.childEnvironment`) — set by [_run] after the scratch
+  /// is acquired, read by the default fixture driver / suite runner so
+  /// every `dart test` child writes its kernel dir inside the run's own
+  /// scratch instead of the shared user TMPDIR (issue #1520). Null —
+  /// scratchless run — inherits the ambient TMPDIR as before.
+  Map<String, String>? _scratchEnv;
+
   /// The suite runner: injected for fast-tier tests, real `dart test`
   /// subprocess in production.
   RealizeSuiteRunner _suiteRunner() {
@@ -1378,10 +1425,12 @@ class RealizeCommand extends Command<void> {
       if (paths.isEmpty) {
         return (exitCode: 0, output: '(no mock-era suite registered)');
       }
-      final result = await Process.run('dart', [
-        'test',
-        ...paths,
-      ], workingDirectory: workingDirectory);
+      final result = await Process.run(
+        'dart',
+        ['test', ...paths],
+        workingDirectory: workingDirectory,
+        environment: _scratchEnv,
+      );
       return (
         exitCode: result.exitCode,
         output: '${result.stdout}${result.stderr}',

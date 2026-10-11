@@ -50,3 +50,25 @@ Future<String?> locateEntityFile(String cwd, String entityName) async {
   }
   return null;
 }
+
+/// Issue #1429: locate the phase-0 scaffold for [entityName] AND classify
+/// the shape the rollback verbs may delete: the canonical per-entity
+/// directory (`<entities>/<snake>/` — the scaffold source plus any
+/// sibling generated part files) when the located file follows the
+/// `<entities>/<snake>/<snake>.dart` layout, or just the located FILE
+/// when a recursive fallback found it outside the canonical layout (a
+/// foreign directory layout is never a rollback target). Nulls when no
+/// scaffold exists.
+Future<({String? file, String? dir})> locateEntityScaffold(
+  String cwd,
+  String entityName,
+) async {
+  final located = await locateEntityFile(cwd, entityName);
+  if (located == null) return (file: null, dir: null);
+  final snake = toSnakeCase(entityName);
+  final normalized = p.normalize(located);
+  final canonicalDir = p.join(cwd, 'lib', 'src', 'domain', 'entities', snake);
+  final isCanonical =
+      p.relative(normalized, from: canonicalDir) == '$snake.dart';
+  return (file: normalized, dir: isCanonical ? canonicalDir : null);
+}

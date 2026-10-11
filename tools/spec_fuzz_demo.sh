@@ -152,8 +152,11 @@ cat > "$sandbox/specs/$feature/spec.md" <<'EOF'
 ### Functional Requirements
 
 - **FR-001**: The greeter MUST return a greeting message.
+  traces: Greeter
 - **FR-002**: The greeter MUST NOT fail when the name is empty.
+  traces: Greeter
 - **FR-003**: The greeter MUST count at most 100 greetings.
+  traces: Greeter
 EOF
 
 registry
@@ -214,8 +217,11 @@ if ! diff <(cat <<'EOF'
 ### Functional Requirements
 
 - **FR-001**: The greeter MUST return a greeting message.
+  traces: Greeter
 - **FR-002**: The greeter MUST NOT fail when the name is empty.
+  traces: Greeter
 - **FR-003**: The greeter MUST count at most 100 greetings.
+  traces: Greeter
 EOF
 ) "$sandbox/specs/$feature/spec.md" >/dev/null; then
   echo "✗ spec.md must be restored byte-exactly after the round" >&2
@@ -250,8 +256,11 @@ cat > "$sandbox/specs/$feature/spec.md" <<'EOF'
 ### Functional Requirements
 
 - **FR-001**: The greeter MUST return 42 as the greeting code when the name is not empty.
+  traces: Greeter
 - **FR-002**: The greeter MUST return 0 when the name is empty; it MUST NOT return 42 in that case.
+  traces: Greeter
 - **FR-003**: The greeter MUST accept greeting counts within 0..100 and MUST return 100 when full.
+  traces: Greeter
 EOF
 
 registry

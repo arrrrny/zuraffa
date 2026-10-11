@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Spec 1117 (issue #1117) — MockProvider generator, engine trust tier:
 // BEHAVIORAL bar (the second-most-complex generator).
 //

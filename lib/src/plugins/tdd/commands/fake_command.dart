@@ -5,7 +5,9 @@
 /// The command writes TWO artifacts:
 ///
 ///   1. The SCENARIO SCRIPT at `specs/<feature>/tdd/scenarios/<slug>.json`
-///      — the committed INTENT: which methods the channel answers, with
+///      (or `<resolved feature dir>/tdd/scenarios/<slug>.json` when
+///      `--feature` names the bug extension's `.specify/bugs/<slug>`, issue
+///      #1471) — the committed INTENT: which methods the channel answers, with
 ///      which responses/errors/permission states, and (optionally) the
 ///      cross-platform hosted matrix (`--platforms ios,android,...`). A
 ///      scenario that already exists is KEPT (intent is committed, the
@@ -46,6 +48,7 @@ import 'package:path/path.dart' as p;
 import '../../../core/project/project_root.dart';
 import '../models/channel_scenario.dart';
 import '../services/channel_fake_writer.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
@@ -67,8 +70,9 @@ class FakeCommand extends Command<void> {
     argParser.addOption(
       'feature',
       help:
-          'The specs/<feature> directory the scenario intent belongs to. '
-          'Required: committed intent must land in an explicit feature.',
+          'The feature directory the scenario intent belongs to — a plain '
+          'name, `specs/<name>` or `.specify/bugs/<slug>`. Required: '
+          'committed intent must land in an explicit feature.',
     );
     argParser.addOption(
       'behavior',
@@ -153,6 +157,19 @@ class FakeCommand extends Command<void> {
         ? p.absolute(projectFlag)
         : ProjectRoot.find();
 
+    // Issue #1471: the reference may name a bug directory
+    // (`.specify/bugs/<slug>`) that lives outside `specs/` — resolve it
+    // through the shared resolver (pin included). `gen` prints exactly this
+    // invocation as its platform-behavior remedy (issue #831), so refusing
+    // the shape here made that recovery unrunnable. Artifact NAMESPACING
+    // stays on the canonical basename (`test/tdd/<name>/fakes/…`),
+    // matching gen's `featureName`.
+    final resolved = TddFeaturePaths.resolveWithPin(
+      projectRoot: cwd,
+      featureRef: feature,
+    );
+    final featureName = resolved.name;
+
     final platforms = _parsePlatforms(argResults!['platforms'] as String?);
     final force = argResults!['force'] as bool;
     final behavior = (argResults!['behavior'] as String?)?.trim() ?? '';
@@ -161,25 +178,17 @@ class FakeCommand extends Command<void> {
         ? _toSnakeCase(behavior)
         : ChannelFakeWriter.slugForChannel(channel);
 
-    final scenarioPath = p.join(
-      cwd,
-      'specs',
-      feature,
-      'tdd',
-      'scenarios',
-      '$slug.json',
-    );
+    final scenarioPath = p.join(resolved.dir, 'tdd', 'scenarios', '$slug.json');
     final fakePath = p.join(
       cwd,
       'test',
       'tdd',
-      feature,
+      featureName,
       'fakes',
       '${slug}_fake.dart',
     );
     final scenarioRelative = p.join(
-      'specs',
-      feature,
+      TddFeaturePaths.displayDir(cwd: cwd, dir: resolved.dir),
       'tdd',
       'scenarios',
       '$slug.json',
@@ -187,7 +196,7 @@ class FakeCommand extends Command<void> {
     final fakeRelative = p.join(
       'test',
       'tdd',
-      feature,
+      featureName,
       'fakes',
       '${slug}_fake.dart',
     );
@@ -211,7 +220,7 @@ class FakeCommand extends Command<void> {
         exitCode = 1;
         print(
           'fake: refused channel drift — channel=$channel '
-          'feature=$feature slug=$slug scenario=$scenarioRelative',
+          'feature=$featureName slug=$slug scenario=$scenarioRelative',
         );
         _verdict
           ..exitClass = 'refused'
@@ -221,7 +230,7 @@ class FakeCommand extends Command<void> {
               'is intended'
           ..details['channel'] = channel
           ..details['slug'] = slug
-          ..feature = feature;
+          ..feature = featureName;
         return;
       }
       if (platforms.isNotEmpty &&
@@ -236,7 +245,7 @@ class FakeCommand extends Command<void> {
         exitCode = 1;
         print(
           'fake: refused platform-matrix drift — channel=$channel '
-          'feature=$feature slug=$slug scenario=$scenarioRelative',
+          'feature=$featureName slug=$slug scenario=$scenarioRelative',
         );
         return;
       }
@@ -244,7 +253,7 @@ class FakeCommand extends Command<void> {
     }
 
     if (scenarioStatus == 'rewritten') {
-      final starter = _starterScenario(channel, feature, platforms);
+      final starter = _starterScenario(channel, featureName, platforms);
       await existingFile.parent.create(recursive: true);
       final encoder = const JsonEncoder.withIndent('  ');
       await existingFile.writeAsString(
@@ -263,7 +272,7 @@ class FakeCommand extends Command<void> {
       fakePath: fakePath,
       channel: channel,
       slug: slug,
-      feature: feature,
+      feature: featureName,
       platforms: fakePlatforms,
     );
 
@@ -272,7 +281,7 @@ class FakeCommand extends Command<void> {
       'as intent (issue #831)',
     );
     print(
-      'fake: channel=$channel feature=$feature '
+      'fake: channel=$channel feature=$featureName '
       'behavior=${behavior.isEmpty ? '-' : behavior} slug=$slug '
       'scenario=$scenarioRelative fake=$fakeRelative '
       'platforms=${fakePlatforms.join(',')} — scenario $scenarioStatus',
@@ -284,7 +293,7 @@ class FakeCommand extends Command<void> {
       ..details['channel'] = channel
       ..details['slug'] = slug
       ..details['scenario'] = scenarioRelative
-      ..feature = feature;
+      ..feature = featureName;
   }
 
   /// The starter scenario written for a fresh slug: one scripted method
@@ -355,12 +364,13 @@ class FakeCommand extends Command<void> {
     }
   }
 
+  /// Issue #1471: the gate is the shared resolver's supported-shape check,
+  /// so `fake` accepts exactly what the rest of the family accepts (a
+  /// plain segment, `specs/<name>`, `.specify/bugs/<slug>` or an absolute
+  /// path) and refuses the rest — `.`, `..`, a traversal shape or a
+  /// trailing separator.
   void _validateFeatureSegment(String feature) {
-    if (feature.contains('/') ||
-        feature.contains(r'\') ||
-        feature == '.' ||
-        feature == '..' ||
-        feature.isEmpty) {
+    if (!TddFeaturePaths.isSupportedRef(feature)) {
       usageException(
         'zfa tdd fake: invalid feature "$feature": expected a single spec '
         'directory name such as 013-barcode, not a path.',

@@ -7,6 +7,7 @@ import 'package:zuraffa/src/commands/datasource_command.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/plugins/datasource/capabilities/create_datasource_capability.dart';
 import 'package:zuraffa/src/plugins/datasource/datasource_plugin.dart';
+import '../../helpers/cwd_mutex.dart';
 
 /// Spec #1131 (order 3) — `--explain` on the datasource create path.
 ///
@@ -22,6 +23,7 @@ void main() {
   late String originalCwd;
 
   setUp(() async {
+    await CwdMutex.acquire();
     tempDir = await Directory.systemTemp.createTemp('zuraffa_1131_explain_');
     originalCwd = Directory.current.path;
     Directory.current = tempDir.path;
@@ -32,7 +34,7 @@ void main() {
     if (tempDir.existsSync()) {
       await tempDir.delete(recursive: true);
     }
-    exitCode = 0;
+    CwdMutex.release();
   });
 
   CreateDataSourceCapability capability() {

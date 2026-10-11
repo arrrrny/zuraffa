@@ -296,6 +296,11 @@ feature: ${fallback.featureName}
       // Edge shapes parsed from a hand-written log: refactor entries
       // with actions, a no-op refactor, a truncated output marker (no
       // fence follows), and an unterminated fence (no closing line).
+      //
+      // Issue #1467: the unterminated fence now absorbs the rest of the
+      // log — in-fence '## ' lines are captured data, never phantom
+      // section headers — so A3's green row is part of the unterminated
+      // fence's output block, not a cycle of its own.
       final edge = await TheaterFixture.create(withCycleLog: false);
       addTearDown(() => edge.root.delete(recursive: true));
       await File(edge.cycleLogPath).writeAsString('''
@@ -381,7 +386,7 @@ unterminated fence output
         feature: edge.featureName,
         projectRoot: edge.root.path,
       );
-      expect(edgeSnapshot.cycles, hasLength(5));
+      expect(edgeSnapshot.cycles, hasLength(4));
       final refactor = edgeSnapshot.cycles[0];
       expect(refactor.kind, 'refactor');
       expect(refactor.refactorActions, hasLength(1));
@@ -396,13 +401,14 @@ unterminated fence output
       // A truncated output marker (nothing fenced after `- output:`)
       // yields an empty block, never a crash.
       expect(edgeSnapshot.cycles[2].output, isEmpty);
-      // An unterminated fence yields the body up to the section end.
+      // An unterminated fence yields the body to EOF — the absorbed A3
+      // section stays inside the output block (issue #1467: in-fence
+      // '## ' lines never start phantom sections).
       expect(
         edgeSnapshot.cycles[3].output,
         contains('unterminated fence output'),
       );
-      // A3's green carries no generation block: still a cycle row.
-      expect(edgeSnapshot.cycles[4].kind, 'green');
+      expect(edgeSnapshot.cycles[3].output, contains('## Cycle: A3 (green)'));
 
       // Missing-field honesty: the last A2 red carries no classification,
       // test or at lines — the derived receipt renders the honest '-'
@@ -411,10 +417,14 @@ unterminated fence output
       expect(edgeSnapshot.cycles[3].at, isNull);
       expect(edgeSnapshot.behaviors[1].receipt.evidence, 'red - exit 1 at -');
 
-      // A green entry with no test/at lines renders the same honest
-      // placeholders on the satisfied receipt.
-      expect(edgeSnapshot.behaviors[2].status, TheaterProofStatus.green);
-      expect(edgeSnapshot.behaviors[2].receipt.evidence, 'test - exit 0 at -');
+      // Issue #1467: A3's green row was absorbed into the unterminated
+      // fence above, so behavior A3 has no parsed cycle — the rollup is
+      // an honest 'pending', never an invented status or receipt.
+      expect(edgeSnapshot.behaviors[2].status, TheaterProofStatus.pending);
+      expect(
+        edgeSnapshot.behaviors[2].receipt.evidence,
+        'no recorded evidence (neither red nor green)',
+      );
 
       // A mis-shaped output marker (a NON-fence line directly after
       // `- output:`, then a fence) is NOT an output block: the honest

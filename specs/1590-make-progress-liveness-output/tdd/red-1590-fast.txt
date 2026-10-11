@@ -1,0 +1,103 @@
+00:00 +0: loading test/plugins/tdd/issue_1590_progress_liveness_test.dart
+00:00 +0 -1: loading test/plugins/tdd/issue_1590_progress_liveness_test.dart [E]
+  Failed to load "test/plugins/tdd/issue_1590_progress_liveness_test.dart":
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:58:29: Error: Member not found: 'PipelineRunner.nameFor'.
+        expect(PipelineRunner.nameFor(func), 'func');
+                              ^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:59:29: Error: Member not found: 'PipelineRunner.bannerFor'.
+        expect(PipelineRunner.bannerFor(func), '→ func');
+                              ^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:61:29: Error: Member not found: 'PipelineRunner.bannerFor'.
+        expect(PipelineRunner.bannerFor(wire), '→ wire');
+                              ^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:63:29: Error: Member not found: 'PipelineRunner.bannerFor'.
+        expect(PipelineRunner.bannerFor(compose), '→ compose');
+                              ^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:67:29: Error: Member not found: 'PipelineRunner.nameFor'.
+        expect(PipelineRunner.nameFor(build), 'build');
+                              ^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:69:24: Error: Member not found: 'PipelineRunner.bannerFor'.
+          PipelineRunner.bannerFor(build),
+                         ^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:75:24: Error: Member not found: 'PipelineRunner.bannerFor'.
+          PipelineRunner.bannerFor(
+                         ^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:83:24: Error: Member not found: 'PipelineRunner.bannerFor'.
+          PipelineRunner.bannerFor(_spec(['make', 'User', '--no-entity'])),
+                         ^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:89:24: Error: Member not found: 'PipelineRunner.bannerFor'.
+          PipelineRunner.bannerFor(
+                         ^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:96:29: Error: Member not found: 'PipelineRunner.bannerFor'.
+        expect(PipelineRunner.bannerFor(_spec(['weird', 'x', 'y', 'z'])),
+                              ^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:98:29: Error: Member not found: 'PipelineRunner.bannerFor'.
+        expect(PipelineRunner.bannerFor(_spec(['solo'])), '→ solo');
+                              ^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:161:35: Error: Member not found: 'PipelineRunner.planSummaryLine'.
+        final line = PipelineRunner.planSummaryLine([
+                                    ^^^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:169:35: Error: Member not found: 'PipelineRunner.planSummaryLine'.
+        final line = PipelineRunner.planSummaryLine(
+                                    ^^^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:183:23: Error: Member not found: 'RunDriverCore.stepStartLine'.
+          RunDriverCore.stepStartLine('A1', 'gen'),
+                        ^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:187:23: Error: Member not found: 'RunDriverCore.stepStartLine'.
+          RunDriverCore.stepStartLine('A1', 'verify-red'),
+                        ^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:191:23: Error: Member not found: 'RunDriverCore.stepStartLine'.
+          RunDriverCore.stepStartLine('A1', 'make'),
+                        ^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:196:23: Error: Member not found: 'RunDriverCore.stepStartLine'.
+          RunDriverCore.stepStartLine('A1', 'refactor'),
+                        ^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:203:23: Error: Member not found: 'RunDriverCore.stepStartLine'.
+          RunDriverCore.stepStartLine(
+                        ^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:214:23: Error: Member not found: 'RunDriverCore.stepStartLine'.
+          RunDriverCore.stepStartLine('A1', 'make', ownerPid: 4242),
+                        ^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:223:23: Error: Member not found: 'RunDriverCore.heartbeatLine'.
+          RunDriverCore.heartbeatLine('A1', 'make', const Duration(seconds: 30)),
+                        ^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:227:23: Error: Member not found: 'RunDriverCore.heartbeatLine'.
+          RunDriverCore.heartbeatLine(
+                        ^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:237:14: Error: Method not found: 'parseTddHeartbeatSeconds'.
+        expect(parseTddHeartbeatSeconds(null), isNull); // caller default (30s)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:238:14: Error: Method not found: 'parseTddHeartbeatSeconds'.
+        expect(parseTddHeartbeatSeconds(''), isNull);
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:239:14: Error: Method not found: 'parseTddHeartbeatSeconds'.
+        expect(parseTddHeartbeatSeconds('0'), Duration.zero); // off
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:241:9: Error: Method not found: 'parseTddHeartbeatSeconds'.
+          parseTddHeartbeatSeconds('0.05'),
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:244:14: Error: Method not found: 'parseTddHeartbeatSeconds'.
+        expect(parseTddHeartbeatSeconds('30'), const Duration(seconds: 30));
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:246:15: Error: Method not found: 'parseTddHeartbeatSeconds'.
+          () => parseTddHeartbeatSeconds('abc'),
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:250:15: Error: Method not found: 'parseTddHeartbeatSeconds'.
+          () => parseTddHeartbeatSeconds('-1'),
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:272:9: Error: No named parameter with the name 'onStdoutLine'.
+          onStdoutLine: lines.add,
+          ^^^^^^^^^^^^
+  lib/src/plugins/tdd/services/tdd_timeout.dart:222:23: Context: Found this candidate, but the arguments don't match.
+  Future<ProcessResult> runTimed(
+                        ^^^^^^^^
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart:313:9: Error: No named parameter with the name 'onStdoutLine'.
+          onStdoutLine: lines.add,
+          ^^^^^^^^^^^^
+  lib/src/plugins/tdd/services/tdd_timeout.dart:222:23: Context: Found this candidate, but the arguments don't match.
+  Future<ProcessResult> runTimed(
+                        ^^^^^^^^
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/issue_1590_progress_liveness_test.dart: loading test/plugins/tdd/issue_1590_progress_liveness_test.dart

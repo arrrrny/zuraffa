@@ -1,0 +1,26 @@
+{
+  "feature": "1653-mutation-test-opt-in-pre-resolve",
+  "behavior_states": {
+    "A1": "green",
+    "A2": "pending",
+    "A3": "pending",
+    "A4": "pending",
+    "A5": "pending",
+    "A6": "pending",
+    "U1": "pending",
+    "U2": "pending",
+    "U3": "pending",
+    "U4": "pending",
+    "U5": "pending",
+    "U6": "pending",
+    "U7": "pending",
+    "U8": "pending",
+    "contract:A1": "pending",
+    "contract:A2": "pending",
+    "contract:A3": "pending"
+  },
+  "in_flight_behavior_id": "A1",
+  "in_flight_step": "refactor",
+  "in_flight_owner_pid": 36738,
+  "dropped": []
+}

@@ -9,8 +9,11 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 import 'package:zuraffa/src/plugins/skin/commands/skin_command.dart';
 import 'package:zuraffa/src/plugins/skin/skin_plugin.dart';
+
+import '../helpers/exit_span_mutex.dart';
 
 Future<String> captureOutput(Future<void> Function() body) async {
   final output = <String>[];
@@ -48,22 +51,33 @@ dependencies:
     if (tempDir.existsSync()) {
       await tempDir.delete(recursive: true);
     }
-    exitCode = 0;
   });
 
   Future<(String, int)> runSkin(List<String> args) async {
-    exitCode = 0;
-    // Spec 1276: the `zfa skin` group is the skin plugin's command, with
-    // the runtime auditor subcommands (kit/verify/drive) mounted on it.
-    final runner = CommandRunner<void>('zfa', 'test')
-      ..addCommand(
-        SkinCommand(
-          SkinPlugin(outputDir: p.join(projectRoot, 'lib', 'src')),
-          projectRoot: projectRoot,
-        ),
-      );
-    final output = await captureOutput(() => runner.run(['skin', ...args]));
-    return (output, exitCode);
+    // The bare `CommandRunner` dispatch sets the PROCESS-GLOBAL
+    // `dart:io exitCode` and this suite reads the global right after —
+    // no CliRunner snapshot protects the pair. Hold the same
+    // cross-isolate exit-span lock the runner's reset/snapshot/re-apply
+    // spans use (issue #1632 dart_core lane): a sibling dispatch landing
+    // in the gap between the command's write and the read below returned
+    // a sibling's code (observed: expected 0, got a sibling's 1).
+    await ExitSpanMutex.acquire();
+    try {
+      exitCode = 0;
+      // Spec 1276: the `zfa skin` group is the skin plugin's command, with
+      // the runtime auditor subcommands (kit/verify/drive) mounted on it.
+      final runner = CommandRunner<void>('zfa', 'test')
+        ..addCommand(
+          SkinCommand(
+            SkinPlugin(outputDir: p.join(projectRoot, 'lib', 'src')),
+            projectRoot: projectRoot,
+          ),
+        );
+      final output = await captureOutput(() => runner.run(['skin', ...args]));
+      return (output, exitCode);
+    } finally {
+      ExitSpanMutex.release();
+    }
   }
 
   String kitPath() =>
@@ -200,5 +214,29 @@ List<RouteBase> getAllRoutes() => [
       expect(lastLine, startsWith('{'));
       expect(lastLine, contains('"verdict":"match"'));
     });
+  });
+
+  // Issue #1134 lane 4 review: the grid/table layout refusal's exit code
+  // is pinned at the CLI level — the builder itself prints + returns
+  // `const []`, so a CLI path without the zero-files guard would exit 0.
+  // These refuse subcommands own the non-zero exit explicitly.
+  group('zfa skin grid|table (refused layouts)', () {
+    for (final layout in const ['grid', 'table']) {
+      test(
+        '`zfa skin $layout` refuses BY NAME and exits usage (non-zero)',
+        () async {
+          final (output, code) = await runSkin([layout]);
+
+          expect(
+            code,
+            ExitProtocol.usage,
+            reason: 'the refusal must not exit 0: $output',
+          );
+          expect(output, contains(layout));
+          expect(output, contains('not implemented'));
+          expect(output, contains('list, form'));
+        },
+      );
+    }
   });
 }

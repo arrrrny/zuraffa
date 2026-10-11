@@ -16,7 +16,10 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../../core/dependencies/dependency_wirer.dart';
 import '../../../utils/string_utils.dart';
+import 'cert_registry.dart';
+import 'format_canonical_digest.dart';
 import 'mock_cert_receipt.dart';
 import 'mock_certification_sandbox.dart';
 import 'mock_contract_test_writer.dart';
@@ -51,6 +54,47 @@ class MockCertifier {
     MockCertificationSandbox? sandbox,
   }) : contractWriter = contractWriter ?? const MockContractTestWriter(),
        sandbox = sandbox ?? MockCertificationSandbox();
+
+  /// The certifier shaped for the host project at [projectRoot]
+  /// (issue #1600): the pubspec's Flutter dependency decides the test
+  /// framework the committed contract test imports and the toolchain the
+  /// sandbox proves it with. An unreadable or absent pubspec is NOT a
+  /// Flutter host — the pure-Dart default applies.
+  factory MockCertifier.forProject(
+    String projectRoot, {
+    MockCertificationSandbox? sandbox,
+  }) {
+    var flutterTest = false;
+    final pubspec = File(p.join(projectRoot, 'pubspec.yaml'));
+    if (pubspec.existsSync()) {
+      try {
+        flutterTest = DependencyWirer.isFlutterProject(
+          pubspec.readAsStringSync(),
+        );
+      } catch (_) {
+        flutterTest = false;
+      }
+    }
+    // The writer and the sandbox must describe the SAME host (issue
+    // #1600 review): the capabilities' degradation checks read the
+    // sandbox flag while `render()` follows the writer flag, so a
+    // mismatched pair would render `flutter_test` and then prove it with
+    // `dart` (or the reverse) as a mystery red. An injected sandbox —
+    // tests inject stubs here — must agree with the pubspec-derived host.
+    if (sandbox != null && sandbox.flutterTest != flutterTest) {
+      throw ArgumentError.value(
+        sandbox.flutterTest,
+        'sandbox.flutterTest',
+        'disagrees with the host detected at $projectRoot '
+            '($flutterTest) — the writer and the proof must describe the '
+            'same test framework',
+      );
+    }
+    return MockCertifier(
+      contractWriter: MockContractTestWriter(flutterTest: flutterTest),
+      sandbox: sandbox ?? MockCertificationSandbox(flutterTest: flutterTest),
+    );
+  }
 
   final MockContractTestWriter contractWriter;
   final MockCertificationSandbox sandbox;
@@ -202,6 +246,19 @@ class MockCertifier {
     );
     logs.addAll(run.logs);
 
+    // Spec 1693: pin the FORMAT-CANONICAL entity source digest so the
+    // cert gate compares canonical forms — the phase-2 refactor's
+    // `dart format` must not read as staleness. The file is resolved
+    // through [CertRegistry.locateEntityFile], the SAME resolver the
+    // gate reads with, so the recorded digest and the compared digest
+    // always cover the same file — including an entity the project
+    // config moved out of the canonical layout. Missing entity file
+    // (entity never generated) → no digest; the gate keeps the
+    // pre-1693 mtime semantics for this receipt.
+    final entityDigest = formatCanonicalDigestOfFile(
+      CertRegistry.locateEntityFile(projectRoot, entityName),
+    );
+
     final receipt = MockCertReceipt.fromRun(
       entity: entityName,
       interfaceName: MockContractTestWriter.interfaceName(entityName),
@@ -214,6 +271,10 @@ class MockCertifier {
       run: run,
       methodNames: pinnedMethodNames,
       seed: seed,
+      entityDigest: entityDigest,
+      // Recorded only alongside a digest: the gate ignores the identity
+      // of a canonicalizer that produced nothing.
+      entityDigestStyle: entityDigest == null ? null : canonicalizerId,
     );
 
     return MockCertificationOutcome(

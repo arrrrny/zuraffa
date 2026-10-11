@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Spec 1114 — slice-based feature worktree tests.
 //
 // `zfa slice worktree <feature-id>` creates a git worktree ROOTED AT THE

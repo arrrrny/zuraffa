@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
 import '../core/dependencies/pubspec_auto_add.dart';
+import '../cli/usage_length.dart';
 import '../commands/schema_command.dart';
 import '../commands/simulate_command.dart';
 
@@ -94,11 +95,10 @@ class CliRunner {
   /// finishing between this run's teardown and the caller's
   /// `expect(exitCode, ...)` read clobbers the value this invocation
   /// produced (the same cross-suite shared-state family as the
-  /// `Directory.current` race, issue #1096). The `finally` re-apply
-  /// below narrows that window to a few instructions but cannot close
-  /// it. [lastDispatchedExitCode] is a Dart static — per-isolate
-  /// storage — so callers that need the HERMETIC value read this
-  /// instead of the global. Set on every [runCapturing] exit path.
+  /// `Directory.current` race, issue #1096). [lastDispatchedExitCode] is
+  /// a Dart static — per-isolate storage — so callers that need the
+  /// HERMETIC value read this instead of the global. Set on every
+  /// [runCapturing] exit path, inside the body-wide exit-span hold.
   static int lastDispatchedExitCode = 0;
 
   CliRunner({
@@ -120,7 +120,7 @@ class CliRunner {
       _CrashSafeCommandRunner(
           'zfa',
           'Zuraffa Code Generator - Clean Architecture for Flutter',
-          usageLineLength: 100,
+          usageLineLength: kUsageLineLength,
         )
         ..argParser.addFlag(
           'version',
@@ -492,51 +492,240 @@ class CliRunner {
   static File get _cwdLockFile =>
       File(p.join(Directory.systemTemp.path, 'zfa_cwd_lock_$pid.lock'));
 
-  /// Acquires the cross-isolate chdir lock, waiting up to 30 seconds for the
-  /// current holder. Exclusive-create (`File.createSync(exclusive: true)`)
-  /// is the atomic serialization point; it works across isolates AND
-  /// processes, unlike `RandomAccessFile.lock` (POSIX fcntl locks are
-  /// per-process and cannot arbitrate between isolates of one VM).
+  /// How long a lock file may go without a heartbeat before an acquirer
+  /// treats its holder as dead (killed mid-window by a per-test timeout —
+  /// `dart test` kills the isolate WITHOUT running its `finally`, so the
+  /// file would otherwise leak and block every later window in the
+  /// process). A live holder touches the file every
+  /// [_lockHeartbeatEvery], so a healthy window — however long — is never
+  /// broken; only holder DEATH is.
+  static const Duration staleCwdLockAfter = Duration(seconds: 30);
+
+  /// The heartbeat interval: frequent enough that a live holder's file age
+  /// stays far below [staleCwdLockAfter] even on a loaded runner.
+  static const Duration _lockHeartbeatEvery = Duration(seconds: 5);
+
+  /// The CWD-window heartbeat timer, live only while this isolate holds
+  /// [_cwdLockFile]. Isolate death cancels it implicitly — which is the
+  /// point: the file's mtime goes cold and the next acquirer recovers.
+  static Timer? _cwdLockHeartbeat;
+
+  static void _startCwdLockHeartbeat() {
+    _stopCwdLockHeartbeat();
+    _cwdLockHeartbeat = Timer.periodic(_lockHeartbeatEvery, (_) {
+      try {
+        _cwdLockFile.setLastModifiedSync(DateTime.now());
+      } on FileSystemException {
+        // The waiter's break-race deleted the file — the next heartbeat
+        // tick is best-effort; release still deletes idempotently.
+      }
+    });
+  }
+
+  static void _stopCwdLockHeartbeat() {
+    _cwdLockHeartbeat?.cancel();
+    _cwdLockHeartbeat = null;
+  }
+
+  /// The age of [file]'s last heartbeat, or null when it vanished between
+  /// the probe and this stat (a waiter's break-race won — retry create).
+  static Duration? _lockFileAge(File file) {
+    try {
+      return DateTime.now().difference(file.lastModifiedSync());
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  /// Acquires the cross-isolate chdir lock, waiting for the current holder
+  /// for as long as its heartbeat stays fresh. Exclusive-create
+  /// (`File.createSync(exclusive: true)`) is the atomic serialization
+  /// point; it works across isolates AND processes, unlike
+  /// `RandomAccessFile.lock` (POSIX fcntl locks are per-process and cannot
+  /// arbitrate between isolates of one VM).
+  ///
+  /// Staleness replaces the deadline: a LIVE holder heartbeats the lock
+  /// file every few seconds, so the file going cold is proof the holder
+  /// died mid-window (isolate killed by a per-test timeout — its `finally`
+  /// never runs and the file would otherwise leak for the whole run).
+  /// Under the `--concurrency=4` dart_core lane (#1632) a holder's chdir
+  /// window legitimately spans a fixture-heavy dispatch (real
+  /// `pub get`/`dart test` children), so time-based ceilings were
+  /// un-workable in BOTH directions: the former 30-second break destroyed
+  /// exclusion mid-run (a waiter expired, broke a LIVE holder's lock, and
+  /// the two suites interleaved their process-global CWD writes — the
+  /// rotating doctor/service/dream/theater/usecase CI reds), while a
+  /// minutes-long ceiling made every waiter hit its own test timeout
+  /// first. Heartbeats give both properties: live holders are never
+  /// broken, dead holders are recovered within ~[staleCwdLockAfter].
+  ///
+  /// The break path is bounded: if the cold file resists three break
+  /// rounds (a foreign user's file this user cannot delete), the acquire
+  /// degrades — it proceeds WITHOUT exclusivity (pre-#1096 behavior)
+  /// rather than spinning forever.
   static Future<void> _acquireCwdLock() async {
-    final deadline = DateTime.now().add(const Duration(seconds: 30));
-    var lockBroken = false;
+    var breakAttempts = 0;
     while (true) {
       try {
         _cwdLockFile.createSync(exclusive: true);
+        _startCwdLockHeartbeat();
         return;
       } on FileSystemException {
-        final expired = DateTime.now().isAfter(deadline);
-        if (!expired) {
-          await Future<void>.delayed(const Duration(milliseconds: 2));
+        final age = _lockFileAge(_cwdLockFile);
+        if (age != null && age < staleCwdLockAfter) {
+          // Held by a live holder — wait (it will release; the heartbeat
+          // proves it is alive).
+          await Future<void>.delayed(const Duration(milliseconds: 20));
           continue;
         }
-        if (!lockBroken) {
-          // The holder most likely died mid-window (its isolate killed by a
-          // test timeout, leaving a stale file behind for every later
-          // window of this process). Break the stale lock once rather than
-          // stall the rest of the run.
-          lockBroken = true;
-          try {
-            _cwdLockFile.deleteSync();
-          } on FileSystemException {
-            // Unbreakable (e.g. a foreign user's file) — fall through to
-            // degraded mode below.
-          }
-          continue;
+        // Cold file: the holder died mid-window (or the file vanished
+        // between the probe and this create). Break it and retry — the
+        // exclusive-create above is still the only serialization point.
+        if (++breakAttempts > 3) {
+          // Degraded mode: the cold file survived three break rounds
+          // (e.g. a foreign user's file in the shared system temp that
+          // this user cannot delete). Proceed without exclusivity — a
+          // degraded run beats an infinite hang.
+          stderr.writeln(
+            'zfa: warning: stale CWD lock (${_cwdLockFile.path}) could '
+            'not be broken; continuing WITHOUT exclusion — concurrent '
+            'runs may interleave their working directories.',
+          );
+          return;
         }
-        // Degraded mode: proceed without exclusivity (the pre-#1096
-        // behavior) instead of failing every later invocation forever.
-        return;
+        try {
+          _cwdLockFile.deleteSync();
+        } on FileSystemException {
+          // Unbreakable (e.g. a foreign user's file) — the bounded
+          // break counter above degrades after three failed rounds.
+        }
+        try {
+          _cwdLockFile.createSync(exclusive: true);
+          _startCwdLockHeartbeat();
+          return;
+        } on FileSystemException {
+          // Someone else won the break race — loop and re-check.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
       }
     }
   }
 
   /// Releases the cross-isolate chdir lock. Best-effort: a lost release
-  /// only costs the next window one 30s wait before it breaks the stale
-  /// file.
+  /// self-heals through the heartbeat staleness check (the file goes cold
+  /// and the next acquirer breaks it).
   static void _releaseCwdLock() {
+    _stopCwdLockHeartbeat();
     try {
       _cwdLockFile.deleteSync();
+    } on FileSystemException {
+      // Already gone (another waiter broke a stale lock).
+    }
+  }
+
+  /// Separate cross-isolate lock held across the WHOLE [runCapturing]
+  /// dispatch — reset, command body, snapshot, re-apply — so the
+  /// PROCESS-GLOBAL `dart:io exitCode` has exactly one writer at a time
+  /// among concurrent isolates. `Directory.current` and `exitCode` fail
+  /// in the same way (issue #1096 family): `dart test` runs suites as
+  /// concurrent isolates of ONE VM while both are process-wide. Micro-
+  /// spans around only the three runner-side writes were tried first
+  /// (#1632) and proven insufficient by the lane itself: a SUCCESSFUL
+  /// command never writes the global, so its code has to survive the
+  /// entire command body, and every sibling dispatch's writes landed
+  /// freely in that window (the rotating 1309/doctor-U14/skin/
+  /// 965/1365/1481/846 false codes). A separate file (not the CWD lock)
+  /// keeps the two lock orders from ever nesting: this hold is taken
+  /// BEFORE the dispatch while the body may take the CWD lock for a
+  /// `-C` window — same-file locking would risk a hold-and-wait cycle
+  /// between two concurrent dispatches.
+  static File get _exitSpanLockFile =>
+      File(p.join(Directory.systemTemp.path, 'zfa_exit_lock_$pid.lock'));
+
+  /// How long the exit-span lock file may go without a heartbeat before an
+  /// acquirer treats its holder as dead (see [staleCwdLockAfter] — same
+  /// death mode, the isolate killed mid-span by a per-test timeout).
+  static const Duration staleExitSpanLockAfter = Duration(seconds: 30);
+
+  /// The exit-span heartbeat timer, live only while this isolate holds
+  /// [_exitSpanLockFile] (same death-detection mechanism as the CWD lock's).
+  static Timer? _exitSpanHeartbeat;
+
+  static void _startExitSpanHeartbeat() {
+    _stopExitSpanHeartbeat();
+    _exitSpanHeartbeat = Timer.periodic(_lockHeartbeatEvery, (_) {
+      try {
+        _exitSpanLockFile.setLastModifiedSync(DateTime.now());
+      } on FileSystemException {
+        // The waiter's break-race deleted the file — best-effort tick.
+      }
+    });
+  }
+
+  static void _stopExitSpanHeartbeat() {
+    _exitSpanHeartbeat?.cancel();
+    _exitSpanHeartbeat = null;
+  }
+
+  /// Acquires the exit-span lock — same protocol as [_acquireCwdLock]
+  /// (exclusive-create, heartbeat-staleness break, bounded-degrade
+  /// fallback when the cold file resists the break).
+  static Future<void> _acquireExitSpanLock() async {
+    // Heartbeat staleness, not a time ceiling — same rationale as
+    // _acquireCwdLock: a fixture-heavy dispatch legitimately holds the
+    // span for minutes under the `-j4` lane (the former 30-second
+    // stale-break broke LIVE holders and interleaved process-global
+    // exitCode writes — the rotating doctor-U14/1309/skin/965/1365/1481/
+    // 846 false codes), while a minutes-long ceiling made waiters hit
+    // their own test timeouts first. The heartbeat proves liveness; only
+    // a COLD file (holder killed mid-span) is broken.
+    var breakAttempts = 0;
+    while (true) {
+      try {
+        _exitSpanLockFile.createSync(exclusive: true);
+        _startExitSpanHeartbeat();
+        return;
+      } on FileSystemException {
+        final age = _lockFileAge(_exitSpanLockFile);
+        if (age != null && age < staleExitSpanLockAfter) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          continue;
+        }
+        if (++breakAttempts > 3) {
+          // Degraded mode: the cold file survived three break rounds
+          // (e.g. a foreign user's file in the shared system temp that
+          // this user cannot delete). Proceed without exclusivity — a
+          // degraded run beats an infinite hang.
+          stderr.writeln(
+            'zfa: warning: stale exit-span lock (${_exitSpanLockFile.path}) '
+            'could not be broken; continuing WITHOUT exclusion — concurrent '
+            'runs may interleave their exit-code writes.',
+          );
+          return;
+        }
+        try {
+          _exitSpanLockFile.deleteSync();
+        } on FileSystemException {
+          // Unbreakable (e.g. a foreign user's file) — the bounded break
+          // counter above degrades after three failed rounds.
+        }
+        try {
+          _exitSpanLockFile.createSync(exclusive: true);
+          _startExitSpanHeartbeat();
+          return;
+        } on FileSystemException {
+          // Someone else won the break race — loop and re-check.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+      }
+    }
+  }
+
+  /// Releases the exit-span lock (best-effort, same as [_releaseCwdLock]).
+  static void _releaseExitSpanLock() {
+    _stopExitSpanHeartbeat();
+    try {
+      _exitSpanLockFile.deleteSync();
     } on FileSystemException {
       // Already gone (another waiter broke a stale lock).
     }
@@ -633,6 +822,22 @@ class CliRunner {
       );
     }
     _active = true;
+    // Hold the exit-span lock across the WHOLE dispatch — reset, command
+    // body, snapshot, re-apply — not around the three writes alone. The
+    // #1632 `-j4` lane proved micro-spans insufficient: a SUCCESSFUL
+    // command never writes the global at all, so its code (the reset's 0)
+    // must survive the ENTIRE command body, and a sibling's writes
+    // landing anywhere in that body-length window poisoned the snapshot
+    // (the rotating 1309/doctor-U14/skin/965/1365/1481/846 false codes).
+    // With every dispatch body-wide-excluded, the only writers left are
+    // sibling COMMAND bodies — which run inside their own dispatch's
+    // hold, so they cannot overlap either. Bare-CommandRunner test
+    // dispatches (skin_command_test) join the same exclusion through
+    // test/helpers/exit_span_mutex.dart. Cost: CLI-driving dispatches
+    // serialize against each other (fixtures, file IO and non-CLI work
+    // still parallelize); a dispatch longer than 30s degrades to the
+    // stale-break protocol instead of hanging the waiters.
+    await _acquireExitSpanLock();
     // Reset the global exitCode so each runCapturing invocation is
     // hermetic — `dart:io exit(N)` inside the dispatched command sets
     // exitCode and would otherwise leak across runs (a prior test
@@ -642,13 +847,11 @@ class CliRunner {
     // own `_exit(exitCode)` to honor whatever the command set.
     exitCode = 0;
     // Spec 1008: dart:io's exitCode is PROCESS-GLOBAL, not per-isolate —
-    // `dart test` runs test files as concurrent isolates of one process,
-    // so a sibling isolate's command finishing between this run's
-    // dispatch and the caller's `exitCode` read clobbers the value this
-    // invocation produced. Snapshot the dispatched code and re-apply it
-    // as the last operation before returning, restoring the hermeticity
-    // the reset above promises (the residual window is a few
-    // instructions instead of the whole teardown).
+    // `dart test` runs test files as concurrent isolates of one process.
+    // The dispatched code is snapshotted after the runner returns and
+    // re-applied in the finally, so the caller reads either the hermetic
+    // [lastDispatchedExitCode] or the global re-apply — both inside the
+    // body-wide hold above.
     var dispatchedExitCode = 0;
     final output = <String>[];
     try {
@@ -699,6 +902,13 @@ class CliRunner {
             () async {
               try {
                 await _runner.run(args);
+                // Snapshot the dispatched code. Inside the body-wide
+                // exit-span hold this read cannot observe a sibling's
+                // write (every dispatcher — runCapturing or the
+                // ExitSpanMutex test seam — holds the same lock for its
+                // whole window); taken synchronously so the command's
+                // final write and this read share one event-loop turn
+                // even in the degraded stale-break case.
                 dispatchedExitCode = exitCode;
               } on UsageException catch (e) {
                 output.add('❌ ${e.message}');
@@ -731,12 +941,14 @@ class CliRunner {
     } finally {
       _active = false;
       // Re-apply this invocation's own exit code AFTER the teardown (the
-      // CWD restore, the zone unwind) — the narrowest window a sibling
-      // isolate can clobber.
+      // CWD restore, the zone unwind) — still inside the body-wide hold,
+      // so no sibling write can land between the snapshot and this
+      // publish (issue #1096 family).
       exitCode = dispatchedExitCode;
       // The hermetic snapshot: per-isolate static, immune to the sibling
       // clobber the global re-apply above stays exposed to (bug #1107).
       lastDispatchedExitCode = dispatchedExitCode;
+      _releaseExitSpanLock();
     }
 
     return output.isEmpty ? '' : '${output.join('\n')}\n';
@@ -788,6 +1000,7 @@ BOOTSTRAP:
   setup <name>        Create a new Flutter/Dart app with zuraffa deps wired in
   init                Alias of initialize — wire deps + scaffold a test entity
   package create <name>  Create a Zuraffa-native reusable package (spec 025)
+  package plugin <name>  Create a publish-ready federated plugin monorepo (spec 1601)
   corpus import <dir> Import an extracted spec corpus (spec 050, issue #627)
   corpus catalog      Classify a corpus target's specs CORE/SKIN (epic #1017)
   corpus run          Walk the corpus under a failure budget (epic #1017)
@@ -813,7 +1026,7 @@ MODULAR COMMANDS:
   view <Name>         Generate View/Presenter/Controller
   di <Name>           Generate dependency injection
   test <Name>         Generate unit tests
-  app shell           Generate app shell (main.dart + MyApp + app_router.dart)
+  app shell           Generate app shell (main.dart + shell widget + app_router.dart)
 
 OPTIONS:
   -v, --version       Print version
@@ -872,9 +1085,15 @@ class _ConfigCommand extends Command<void> {
   @override
   String get description => 'Manage ZFA configuration';
 
+  // Issue #1496: `config init --minimal` — the config subcommand handles
+  // its own flags, so pass everything through unparsed (same pattern as
+  // _InitializeCommand).
+  @override
+  ArgParser get argParser => ArgParser.allowAnything();
+
   @override
   Future<void> run() async {
-    await config.ConfigCommand().execute(argResults!.rest.toList());
+    await config.ConfigCommand().execute(argResults!.arguments);
   }
 }
 

@@ -449,13 +449,16 @@ class BuilderDependencyPreflight {
   }
 
   /// True when the project's pubspec declares a Flutter SDK dependency
-  /// (`sdk: flutter`) — those graphs must be pub-resolved by the
-  /// `flutter` executable.
+  /// (`flutter:` under `dependencies`) — those graphs must be
+  /// pub-resolved by the `flutter` executable. Delegates to the shared
+  /// YAML-parsed helper [DependencyWirer.isFlutterProject] so a "flutter"
+  /// mention inside a comment cannot false-positive (issue #1458 bug
+  /// class).
   static bool _isFlutterProject(String projectRoot) {
     try {
       final file = File(p.join(projectRoot, 'pubspec.yaml'));
       if (!file.existsSync()) return false;
-      return RegExp(r'sdk:\s*flutter\b').hasMatch(file.readAsStringSync());
+      return DependencyWirer.isFlutterProject(file.readAsStringSync());
     } catch (_) {
       return false;
     }

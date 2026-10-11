@@ -301,6 +301,10 @@ class CreateServiceCapability implements ZuraffaCapability {
     final returnsType = args['returns'];
     final useCaseType = args['type'] ?? 'usecase';
     final force = args['force'] ?? false;
+    // Issue #1719: forward the global `--revert` flag (CapabilityCommand
+    // parses it; ServiceCreateCommand declares it) so the service interface
+    // write can take its delete path instead of skipping the existing file.
+    final revert = args['revert'] ?? false;
     final verbose = args['verbose'] ?? false;
 
     final config = GeneratorConfig(
@@ -314,6 +318,7 @@ class CreateServiceCapability implements ZuraffaCapability {
       generateInit: args['init'] == true,
       dryRun: dryRun,
       force: force,
+      revert: revert,
       verbose: verbose,
     );
 

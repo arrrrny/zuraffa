@@ -1,32 +1,24 @@
 {
   "schema": "world-diff.v1",
   "spec": 968,
-  "world_hash": "a00de31f95fe95ac367170b2803f0eca5ed2de769a828c57390aeee72441621c",
+  "world_hash": "8ccecd809c466454eb5b948a1a0ec9d79a2402e822d372354a5fab957043803c",
   "verdict": "pass",
-  "behaviors": 5,
-  "parity": 4,
+  "behaviors": 4,
+  "parity": 3,
   "storm_proof": 1,
   "drift": 0,
   "unrehearsed_storms": [],
   "rows": [
     {
-      "behavior": "test_world-signIn",
+      "behavior": "v3-charge-declined",
       "class": "storm-proof",
       "world_passed": true,
       "real_passed": true,
       "payloads_equal": false,
-      "detail": "storm rehearsed: world lane surfaced the declared honest red (auth-user-token-expired), real lane green"
+      "detail": "storm rehearsed: world lane surfaced the declared honest red (http-402), real lane green"
     },
     {
-      "behavior": "test_world-signOut",
-      "class": "parity",
-      "world_passed": true,
-      "real_passed": true,
-      "payloads_equal": true,
-      "detail": "green in both lanes, payloads identical (world attempts=1, real attempts=1)"
-    },
-    {
-      "behavior": "test_world-push-retry-sync",
+      "behavior": "v3-charge-retry",
       "class": "parity",
       "world_passed": true,
       "real_passed": true,
@@ -34,7 +26,7 @@
       "detail": "green in both lanes, payloads identical (world attempts=3, real attempts=1)"
     },
     {
-      "behavior": "test_world-push-partial-write-repair",
+      "behavior": "v3-refund-repair",
       "class": "parity",
       "world_passed": true,
       "real_passed": true,
@@ -42,7 +34,7 @@
       "detail": "green in both lanes, payloads identical (world attempts=2, real attempts=1)"
     },
     {
-      "behavior": "test_world-pull",
+      "behavior": "v3-refund-invoke",
       "class": "parity",
       "world_passed": true,
       "real_passed": true,

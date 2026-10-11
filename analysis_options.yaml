@@ -55,6 +55,11 @@ analyzer:
     # resolve). It is test DATA read by the slice engine, never compiled or
     # analyzed as part of this package.
     - test/fixtures/slice_test_project/**
+    # Corpus regression test fixtures: hermetic mini-projects with their own
+    # pubspecs and package URIs that only resolve inside their test contexts.
+    # Each corpus test sets up its isolated project, generates missing files,
+    # and runs tests during the test execution.
+    - corpus/**
     - build/**
     - android/**
     - ios/**
@@ -74,6 +79,13 @@ analyzer:
     # (verified by the pre-fix analyze baseline: zero occurrences outside
     # lib/tdd/**).
     depend_on_referenced_packages: ignore
+    # The same lib/tdd/** self-hosting corpus trips
+    # non_constant_identifier_names (the generated `subject_a1`-style
+    # names): 106 files, zero occurrences outside lib/tdd/** on the same
+    # analyze baseline. No path-scoped form exists, so the lint is
+    # silenced repo-wide here — the identical trade recorded for
+    # depend_on_referenced_packages above (issue #1189).
+    non_constant_identifier_names: ignore
     deprecated_member_use_from_same_package: ignore
     deprecated_member_use: ignore
     invalid_use_of_visible_for_overriding_member: ignore

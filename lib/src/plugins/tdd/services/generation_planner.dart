@@ -119,6 +119,17 @@ class BehaviorSummary {
   /// instead of falling back (the declaration ladder's strict gate).
   final bool strictRouting;
 
+  /// Issue #1565: the subject artifact is already gen's CONTRACT-DERIVED
+  /// stub whose declared signature func's bounded rewrite set does not
+  /// cover — scheduling `tdd func` would refuse (exit 1) and dead-end the
+  /// make in a generation-error ON A SUBJECT THAT IS ALREADY WHAT THE
+  /// BEHAVIOR NEEDS. Make computes the fact from the subject's provenance
+  /// header (SubjectProvenance.funcWouldRefuseContractDerivedStub) BEFORE
+  /// planning; the func surface plan then emits only the terminal `build`
+  /// step. Scalar contract-derived subjects (func CAN rewrite them) and
+  /// every legacy subject keep the func step.
+  final bool skipFuncScaffold;
+
   const BehaviorSummary({
     required this.behaviorId,
     required this.feature,
@@ -131,6 +142,7 @@ class BehaviorSummary {
     this.traces = const [],
     this.declarations,
     this.strictRouting = false,
+    this.skipFuncScaffold = false,
   });
 
   /// Construct a summary from a registry record.
@@ -144,6 +156,7 @@ class BehaviorSummary {
     List<String> traces = const [],
     SpecDeclarations? declarations,
     bool strictRouting = false,
+    bool skipFuncScaffold = false,
   }) {
     return BehaviorSummary(
       behaviorId: record.behaviorId,
@@ -157,6 +170,7 @@ class BehaviorSummary {
       traces: traces,
       declarations: declarations,
       strictRouting: strictRouting,
+      skipFuncScaffold: skipFuncScaffold,
     );
   }
 }
@@ -310,17 +324,32 @@ class GenerationPlanner {
             sourceCriterion: summary.sourceCriterion,
             steps: [
               GenerationStepSpec(
-                args: ['entity', 'create', '-n', traced],
+                // Bug #1503 (review finding 1): `--build` makes the entity
+                // a BUILT entity before the certify step below. Without
+                // it, `entity create` (buildByDefault is false —
+                // zfa_config.dart) leaves `part '<snake>.zorphy.dart'`
+                // dangling, and the certification sandbox's import-closure
+                // copy refuses a missing part target
+                // (mock_certification_sandbox.dart `_copyImportClosure` →
+                // `_unresolvedRun` → certified false), so the certify step
+                // would hard-stop the plan at index 1.
+                args: ['entity', 'create', '-n', traced, '--build'],
                 purpose:
-                    'ensure entity $traced exists for behavior '
+                    'ensure entity $traced exists AND is built for behavior '
                     '${summary.behaviorId} (idempotent — an existing '
-                    'entity is reused, never overwritten)',
+                    'entity is reused, never overwritten; the build emits '
+                    'the .zorphy.dart/.g.dart parts the certify sandbox '
+                    'must resolve)',
               ),
               GenerationStepSpec(
-                args: ['mock', 'create', '--name', traced],
+                // Bug #1503: the entity pipeline must request the CERTIFIED
+                // variant (spec 1001) — an engine-planned uncertified mock
+                // dead-ends the next run at the pre-start preflight.
+                args: ['mock', 'create', '--name', traced, '--certify'],
                 purpose:
-                    'generate contract-conforming mock datasource for entity '
-                    '$traced (behavior ${summary.behaviorId})',
+                    'generate contract-conforming certified mock datasource '
+                    'for entity $traced (behavior ${summary.behaviorId}; '
+                    'spec 1001 — bug #1503)',
               ),
               GenerationStepSpec(
                 args: [
@@ -593,6 +622,130 @@ class GenerationPlanner {
       return _functionSurfacePlan(summary, verb);
     }
 
+    // 3b. Acceptance composition surface (issue #1512): an acceptance row
+    //     that names no CRUD/use-case prose (branch 2) and no
+    //     function-intent verb (branch 3) used to fall through to the
+    //     generic misfire below — "no generator surface maps …" — which
+    //     made `unexpressible` the DEFAULT for the whole acceptance lane:
+    //     every user-scenario row stopped at `make -> unexpressible` and
+    //     the cycle could never reach done by construction. The lane HAS
+    //     a real make surface; derive it from the row's own EXPLICIT prose
+    //     signals (the declaration ladder above already resolves
+    //     contract-row traces; what reaches here is the row's scenario
+    //     prose):
+    //
+    //     - An entity name derivable from an EXPLICIT prose signal routes to
+    //       the SAME #609/#610/#758 entity-pipeline contract branch 2 uses
+    //       for acceptance rows: entity create → make → tdd wire → build.
+    //       The signals accepted are the explicit `target` (make resolves
+    //       it from `entity <Name>` prose) and the `entity <Name>` /
+    //       `create <Name>` prose matcher — the same pair branch 2 reads.
+    //       A DECLARED contract trace never reaches here: the declaration
+    //       ladder above resolves declared surfaces first, and make's
+    //       traced-entity resolver (`_tracedEntityFor`) is unit-scoped, so
+    //       this branch sees undeclared scenario prose only.
+    //
+    //       The #758/#873 capitalized-trace EXTRACTOR is deliberately NOT
+    //       consulted here. Branch 2 gates it behind CRUD/use-case prose,
+    //       but this branch sees EVERY acceptance row, and the extractor
+    //       returns the first non-stopword capitalized token ANYWHERE in
+    //       the prose (its own doc calls a false positive benign because
+    //       "the wire step misfire-stops when no such entity file
+    //       exists"). That reasoning does not hold here: this branch's
+    //       FIRST step is `entity create -n <Name>`, which creates the
+    //       entity, so the wire step can no longer misfire — the plan
+    //       would scaffold use-cases/repositories/DI for a fabricated
+    //       entity ("the User signs in." → `entity create -n User`). An
+    //       incidental capitalised word must not mutate the target
+    //       project; such rows compose instead (issue #1512 review).
+    //
+    //     - Every other acceptance row routes to the spec-052 composition
+    //       lane — `tdd compose <id> --feature <f>` + build, the exact
+    //       argv CompositionPlanner emits through make's #642 fallback —
+    //       the issue's sanctioned "compose the existing unit-level
+    //       generated pieces" surface. The compose command fail-closes
+    //       with the actionable `no-green-units` stop when the feature
+    //       holds no composable anchors, so the loop terminates honestly
+    //       instead of re-driving the row every run.
+    //
+    //     `unexpressible` becomes rare and honest for acceptance rows:
+    //     only the #758 refusal (branch 2's CRUD-prose-with-no-entity,
+    //     which names the remedy) keeps it.
+    if (summary.kind == BehaviorKind.acceptance ||
+        isAcceptanceBehaviorId(summary.behaviorId)) {
+      final derivedName =
+          summary.target ?? _extractEntityName(summary.description);
+      if (derivedName != null) {
+        return GenerationPlan(
+          behaviorId: summary.behaviorId,
+          feature: summary.feature,
+          sourceCriterion: summary.sourceCriterion,
+          steps: [
+            GenerationStepSpec(
+              // Bug #609: the real CLI requires `-n/--name`.
+              args: ['entity', 'create', '-n', derivedName],
+              purpose:
+                  'ensure entity $derivedName exists for behavior '
+                  '${summary.behaviorId} (idempotent — an existing entity '
+                  'is reused, never overwritten)',
+            ),
+            GenerationStepSpec(
+              args: ['make', derivedName],
+              purpose:
+                  'generate the use-cases/repositories/DI for entity '
+                  '$derivedName (behavior ${summary.behaviorId})',
+            ),
+            GenerationStepSpec(
+              // The #610 wire contract: implement the acceptance subject
+              // against the scaffolds `make` just generated. Bug #877:
+              // propagate --feature (the same ambiguity class as the
+              // func/entity wire spawns).
+              args: [
+                'tdd',
+                'wire',
+                summary.behaviorId,
+                '--entity',
+                derivedName,
+                '--feature',
+                summary.feature,
+              ],
+              purpose:
+                  'wire subject of behavior ${summary.behaviorId} to '
+                  'entity $derivedName',
+            ),
+            GenerationStepSpec(
+              args: ['build'],
+              purpose:
+                  'build generated code for behavior ${summary.behaviorId}',
+            ),
+          ],
+        );
+      }
+      return GenerationPlan(
+        behaviorId: summary.behaviorId,
+        feature: summary.feature,
+        sourceCriterion: summary.sourceCriterion,
+        steps: [
+          GenerationStepSpec(
+            args: [
+              'tdd',
+              'compose',
+              summary.behaviorId,
+              '--feature',
+              summary.feature,
+            ],
+            purpose:
+                'compose subject of behavior ${summary.behaviorId} against '
+                "the feature's composable unit subjects (spec 052)",
+          ),
+          GenerationStepSpec(
+            args: ['build'],
+            purpose: 'build composed code for behavior ${summary.behaviorId}',
+          ),
+        ],
+      );
+    }
+
     // 4. Misfire: no pipeline mapping. Phrase the reason in behavior
     //    terms and name the unmet capability (SC-005).
     final reason = _unexpressibleReason(summary);
@@ -624,45 +777,37 @@ class GenerationPlanner {
     switch (result.surface) {
       case GenerationSurface.entityPipeline:
         final name = result.entityName;
-        if (name == null) return null; // undeclared aspect -> fallback
+        if (name != null) return _entityPipelinePlan(summary, name);
+        // Issue #1498: a computed surface the plan builder cannot serve
+        // must be REFUSED — never a silent `return null` into the legacy
+        // keyword branches that manufactured the #1489 vacuous greens.
+        // The one underivable shape the legacy lane legitimately serves
+        // is a renderable-scalar declared return: that contract IS a
+        // plain function by declaration (the #1310 lineage — gen derives
+        // the declared scalar subject and the paired test asserts the
+        // typed outcome), so it keeps its labeled fallback. Everything
+        // else stops honestly, naming the row and the fix.
+        final declaredReturn = result.signature?.returnType;
+        if (declaredReturn != null &&
+            _isRenderableScalarReturn(declaredReturn)) {
+          return null; // undeclared aspect -> labeled fallback (func lane)
+        }
         return GenerationPlan(
           behaviorId: summary.behaviorId,
           feature: summary.feature,
           sourceCriterion: summary.sourceCriterion,
-          steps: [
-            GenerationStepSpec(
-              args: ['entity', 'create', '-n', name],
-              purpose:
-                  'ensure entity $name exists for behavior '
-                  '${summary.behaviorId} (declared contract row; '
-                  'idempotent — an existing entity is reused)',
-            ),
-            GenerationStepSpec(
-              args: ['mock', 'create', '--name', name],
-              purpose:
-                  'generate contract-conforming mock datasource for entity '
-                  '$name (behavior ${summary.behaviorId})',
-            ),
-            GenerationStepSpec(
-              args: [
-                'tdd',
-                'wire',
-                summary.behaviorId,
-                '--entity',
-                name,
-                '--feature',
-                summary.feature,
-              ],
-              purpose:
-                  'wire subject of behavior ${summary.behaviorId} to '
-                  'declared entity $name',
-            ),
-            GenerationStepSpec(
-              args: ['build'],
-              purpose:
-                  'build generated code for behavior ${summary.behaviorId}',
-            ),
-          ],
+          steps: const [],
+          unexpressibleReason:
+              'behavior "${summary.behaviorId}" resolves the declared '
+              'surface entityPipeline, but no entity name could be '
+              'derived from the declared contract — surface: '
+              'entityPipeline (dropped: no entity name). The '
+              'entity→mock→wire engine cannot be planned without the '
+              'declared entity.\n'
+              '   --> fix: declare the traced contract row to return an '
+              'entity (e.g. `create(String title) -> Task` — '
+              'Future/List/Set/Iterable unwrap), or trace the behavior '
+              'to a Key Entities row.',
         );
       case GenerationSurface.plainFunction:
         return _functionSurfacePlan(
@@ -702,35 +847,134 @@ class GenerationPlanner {
     }
   }
 
-  /// The `tdd func` + `build` plan (the bug #657/#660 plain-function
-  /// generator surface). Shared by the unit-kind branch (bug #718) and
-  /// the function-intent branch (bug #657); [verb] names the described
-  /// function intent for the step purpose.
-  GenerationPlan _functionSurfacePlan(BehaviorSummary summary, String verb) {
+  /// The declared entityPipeline plan (issue #1498's served path): the
+  /// 4-step entity→mock→wire engine, with the #1503 built-entity
+  /// precondition and the #1503 certified mock variant.
+  GenerationPlan _entityPipelinePlan(BehaviorSummary summary, String name) {
     return GenerationPlan(
       behaviorId: summary.behaviorId,
       feature: summary.feature,
       sourceCriterion: summary.sourceCriterion,
       steps: [
         GenerationStepSpec(
-          // Bug #877: the spawn carries `--feature <summary.feature>` —
-          // a bare behavior id is ambiguous in multi-feature projects
-          // (U1 registered in both 001 and 004 exits 1) and make owns
-          // the disambiguated feature.
+          // Bug #1503 (review finding 1): same built-entity
+          // precondition as the traced arm — the certify step's
+          // sandbox needs the entity's build_runner outputs on disk.
+          args: ['entity', 'create', '-n', name, '--build'],
+          purpose:
+              'ensure entity $name exists AND is built for behavior '
+              '${summary.behaviorId} (declared contract row; '
+              'idempotent — an existing entity is reused; the build '
+              'emits the .zorphy.dart/.g.dart parts the certify '
+              'sandbox must resolve)',
+        ),
+        GenerationStepSpec(
+          // Bug #1503: the declared entity pipeline requests the
+          // CERTIFIED variant too (spec 1001 — bug #1503).
+          args: ['mock', 'create', '--name', name, '--certify'],
+          purpose:
+              'generate contract-conforming certified mock datasource '
+              'for entity $name (behavior ${summary.behaviorId}; '
+              'spec 1001 — bug #1503)',
+        ),
+        GenerationStepSpec(
           args: [
             'tdd',
-            'func',
+            'wire',
             summary.behaviorId,
+            '--entity',
+            name,
             '--feature',
             summary.feature,
           ],
           purpose:
-              'scaffold the $verb function for behavior '
-              '${summary.behaviorId} from its description',
+              'wire subject of behavior ${summary.behaviorId} to '
+              'declared entity $name',
         ),
         GenerationStepSpec(
           args: ['build'],
           purpose: 'build generated code for behavior ${summary.behaviorId}',
+        ),
+      ],
+    );
+  }
+
+  /// Issue #1498: whether [returnType] is a renderable scalar — the
+  /// declared-return shapes the plain-function lane legitimately serves
+  /// with a typed outcome (the #1310 lineage). Mirrors the resolver's
+  /// non-entity vocabulary (`UnitContractShape`'s renderable scalars
+  /// plus the core Dart value types).
+  static bool _isRenderableScalarReturn(String returnType) {
+    final trimmed = returnType.trim();
+    final base = trimmed.endsWith('?')
+        ? trimmed.substring(0, trimmed.length - 1).trim()
+        : trimmed;
+    return const {
+      'void',
+      'Never',
+      'bool',
+      'String',
+      'int',
+      'double',
+      'num',
+      'dynamic',
+      'Object',
+      'DateTime',
+      'Duration',
+    }.contains(base);
+  }
+
+  /// The `tdd func` + `build` plan (the bug #657/#660 plain-function
+  /// generator surface). Shared by the unit-kind branch (bug #718) and
+  /// the function-intent branch (bug #657); [verb] names the described
+  /// function intent for the step purpose.
+  ///
+  /// Issue #1565: the func step is scheduled ONLY when the subject is one
+  /// func can rewrite. A gen CONTRACT-DERIVED stub whose declared
+  /// signature rides entity types (SPEC 1489 verbatim rendering) is
+  /// already the shape the behavior needs — func would refuse to rewrite
+  /// a file it did not generate in a shape it does not recognize (the
+  /// correct guard), so scheduling the step dead-ends the make in a
+  /// generation-error on a COMPLETE subject. Make computes that fact from
+  /// the subject's provenance header before planning
+  /// ([BehaviorSummary.skipFuncScaffold]); this plan then carries only
+  /// the terminal `build` step, which the contract-derived stub compiles
+  /// through. Legacy and scalar contract-derived subjects keep the step.
+  GenerationPlan _functionSurfacePlan(BehaviorSummary summary, String verb) {
+    return GenerationPlan(
+      behaviorId: summary.behaviorId,
+      feature: summary.feature,
+      sourceCriterion: summary.sourceCriterion,
+      funcStepSkipped: summary.skipFuncScaffold,
+      steps: [
+        // Issue #1565: the skipped func step's work is already done — the
+        // subject IS the declared contract — so the plan emits only the
+        // terminal build step. The purpose names the issue for audit.
+        if (!summary.skipFuncScaffold)
+          GenerationStepSpec(
+            // Bug #877: the spawn carries `--feature <summary.feature>` —
+            // a bare behavior id is ambiguous in multi-feature projects
+            // (U1 registered in both 001 and 004 exits 1) and make owns
+            // the disambiguated feature.
+            args: [
+              'tdd',
+              'func',
+              summary.behaviorId,
+              '--feature',
+              summary.feature,
+            ],
+            purpose:
+                'scaffold the $verb function for behavior '
+                '${summary.behaviorId} from its description',
+          ),
+        GenerationStepSpec(
+          args: ['build'],
+          purpose: summary.skipFuncScaffold
+              ? 'build generated code for behavior ${summary.behaviorId} '
+                    '(plan: func step skipped — the subject is already gen\'s '
+                    'contract-derived stub func would refuse to rewrite; '
+                    'issue #1565)'
+              : 'build generated code for behavior ${summary.behaviorId}',
         ),
       ],
     );

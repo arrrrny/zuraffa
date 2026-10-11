@@ -14,6 +14,8 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/dependencies/pubspec_auto_add.dart';
 
+import '../../helpers/cwd_mutex.dart';
+
 /// Records spawned fix commands instead of running them (hermetic tests).
 /// When [simulate] is true, the recording runner also performs the effect a
 /// real `pub add` would have on the sandbox (dependency inserted into
@@ -162,9 +164,14 @@ dependencies:
     test('runs pub add in projectRoot, not the caller directory', () async {
       final caller = await Directory.systemTemp.createTemp('zfa-1265-caller-');
       final target = await Directory.systemTemp.createTemp('zfa-1265-target-');
+      // Issue #1632 dart_core lane: the process-global chdir window is
+      // serialized through the same cross-isolate lock CliRunner's `-C`
+      // windows use.
+      await CwdMutex.acquire();
       final previousDirectory = Directory.current.path;
       addTearDown(() async {
         Directory.current = previousDirectory;
+        CwdMutex.release();
         for (final directory in [caller, target]) {
           try {
             await directory.delete(recursive: true);

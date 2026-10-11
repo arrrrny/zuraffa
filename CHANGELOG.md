@@ -1,10 +1,95 @@
-## [next]
+## [7.0.1] - 2026-09-23
+
+### Change
+- Release 7.0.1
+
+## [7.0.0] - 2026-09-15
+
+### Breaking — heavy integrations are now opt-in companion packages (issue #1661, spec 1653)
+
+Core zuraffa stays lean: `graphql`, `gql`, `minio` and `opentelemetry` are
+removed from the core manifest, and the core barrel no longer re-exports
+the heavy surfaces. A core-only consumer's resolved graph drops the entire
+GraphQL/S3/OpenTelemetry stacks (the reported +439-lockfile-line growth is
+gone). The capabilities remain available as opt-in plugins:
+
+```bash
+zfa plugin list               # capabilities + packages + states
+zfa plugin enable graphql     # persists capabilities.graphql, names the package
+```
+
+Migration map (old core symbol → new home):
+
+| Old core export | New home |
+| --- | --- |
+| `MinioClient` | `package:zuraffa_storage` |
+| `MinIOArtifactHook` / `MinIOUploadHook` | `package:zuraffa_storage` |
+| `Zuraffa.enableMinIOArtifacts` / `enableMinIOFailureArtifacts` | storage companion's `MinIOArtifactHook` via `Zuraffa.registerArtifactHook` |
+| `TelemetryHook` | `package:zuraffa_observability` |
+| `OtelTracer` | `package:zuraffa_observability` |
+| `OtelFailureReporter` | `package:zuraffa_observability` |
+| `Zuraffa.enableOtelReporting` | `package:zuraffa_observability` → `ZuraffaObservability.enableOtelReporting` |
+| `export 'package:opentelemetry/api.dart'` | import `package:opentelemetry` (via the observability companion) |
+| GraphQL client/gql/codegen classes (`GraphqlClientFactory`, `GraphqlClientProvider`, `SubscriptionStream`, `GraphqlDocumentBuilder`, `DocumentsDartGenerator`, `NamingUtils`, `GqlFilePreserver`, `GraphQLValidator`, `DatasourceGenerator`, `DiGenerator`, `SliceOrchestrator`, `GraphqlGenerateCommand`) | `package:zuraffa_graphql` |
+
+Retained in core: the light seams (`TraceObserver`, `Hook`/`HookContext`,
+failure-reporter registry, artifact publisher + `ArtifactHook`) and all
+pure-Dart GraphQL codegen helpers (schema parser, type mapper, entity/DTO/
+union/repository generators, schema cache/diff/SDL). `OtelLogExporter`
+stays in core (vendor-free); `Zuraffa.registerOtelLogExporter` replaces
+the removed private wiring.
+
+### Changed
+- `zorphy` and `zorphy_annotation` constraints updated to `^2.4.1`.
+
+## [6.3.0] - 2026-09-14
+
+### Changed
+- Updated zorphy and zorphy_annotation dependencies to 2.4.0 for enhanced stability and performance
+
+## [6.2.3] - 2026-09-11
 
 ### Changed
 - Agent runtime gated behind `package:zuraffa/agent.dart`; no longer
   re-exported from the default barrel (#1344). Migration: swap
   `import 'package:zuraffa/zuraffa.dart';` for
   `import 'package:zuraffa/agent.dart';` where agent symbols are used.
+
+### Fixed
+- `zfa tdd view` canonicalizes a MISSING subject file through its nearest
+  existing ancestor before the outside-root guard, so a symlinked project
+  root (macOS `/var/folders` → `/private/var/folders`) reports the
+  missing-subject refusal instead of "points outside the project root"
+  (#1603).
+- Generated `hide` combinators verify against the zuraffa barrel surface:
+  an unresolved barrel (target without a resolvable `zuraffa` entry at
+  generation time) drops the combinator entirely instead of emitting
+  unverified names — `hide Task, TaskPatch` no longer fails `zfa build`'s
+  own analyze gate with `undefined_hidden_name` warnings. The collector
+  also honors `show`/`hide` combinators on export lines and resolves
+  nested directory-relative barrels (#1530).
+- `zfa make` ensures `zuraffa: ^6.0.0` under the target pubspec's
+  `dependencies:` (offline-safe textual patch, idempotent,
+  comment-preserving) when the files it wrote import
+  `package:zuraffa/...` — the core package was never declared for
+  Flutter targets wiring only `zuraffa_flutter`/`zuraffa_ui`, so
+  generated imports fired `depend_on_referenced_packages` (#1530).
+- `green-with-failed-build` make receipts print the failed build output's
+  analyzer `warning -` lines verbatim (or an explicit no-warnings line) —
+  the tolerated class is never a quiet default (#1530).
+- `zfa tdd refactor` no longer deadlocks on a warnings-only analyze-gate
+  refusal: the pass registry's build gate is errors-only (warnings are the
+  `dart fix --apply` pass's input), the verdict is logged with its accurate
+  counts, and the `analyze-gate: warnings-blocking` profile opt-in restores
+  the legacy refusal (#1472). When the build pass's resolved zfa binary
+  provably reports a version other than the driving CLI's, it is bypassed
+  for the driving CLI's own entrypoint — and only then: an equal, unprovable,
+  or unresolvable version keeps the previous resolution, and the replacement
+  itself must prove the driving version too (#1472)
+- Contract-lane generated tests import `flutter_test` on Flutter hosts and
+  resolve the subject through a `package:` URI under `lib/`; the stale-stub
+  re-render keeps the package import instead of reverting to the relative
+  shape (#1513)
 
 ## [6.2.2] - 2026-09-08
 
@@ -187,6 +272,21 @@
   emitted a DI file importing a usecase class that is never generated by
   default, so fresh crud slices did not compile (surfaced by #1194's
   simulation-boot test).
+- `zfa mock create --force` regenerates the whole generated pair: the
+  `<entity>_datasource.dart` interface is rewritten from the current
+  `--methods` together with the mock (the write path was
+  create-if-absent, so a `--methods` change left a stale interface
+  against a fresh mock — `Missing concrete implementation` — and
+  `--certify` dead-ended on the mismatched pair no matter how many times
+  `--force` re-ran). Non-force runs keep the create-if-absent contract;
+  revert precedence is unchanged (#1418).
+- The mock lane's generated `hide` combinators verify against the MOCK
+  barrel's own export surface (`package:zuraffa/mock.dart` — walked from
+  `lib/mock.dart`, honoring combinators, unioned with the zuraffa surface
+  under the bare re-export) instead of assuming the `zuraffa.dart`
+  surface: a name the mock barrel does not export is never hidden from
+  it, so `undefined_hidden_name` cannot fire from the mock lane's own
+  emission; the #942 collision hide is preserved (#1418).
 
 ## [6.1.0] - 2026-08-28
 

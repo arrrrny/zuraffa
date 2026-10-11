@@ -34,6 +34,7 @@ import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
+import '../../cli/exit_protocol.dart';
 
 /// Generates standardized CLI commands + entry points for an entity (FR-011).
 ///
@@ -203,7 +204,11 @@ class _CliGeneratorCommand extends Command<void> {
         ? argResults!.rest.first
         : '';
     if (entityName.isEmpty) {
+      // SPEC 1132 (EPIC 1 honesty sweep): bare invocation is a usage
+      // error (SPEC 917 canonical 2) — the usage line prints AND the
+      // exit code says 2 (was the pre-sweep silent 0).
       print('Usage: zfa cli <EntityName>');
+      exitCode = ExitProtocol.usage;
       return;
     }
     final file = plugin.generateForEntity(entityName);

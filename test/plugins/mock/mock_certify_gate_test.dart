@@ -84,19 +84,50 @@ void main() {
     await file.writeAsString(src.replaceRange(methodLineStart, methodEnd, ''));
   }
 
+  /// Breaks the `update` override's signature while keeping the member
+  /// NAME — a drift the lane's name-level shape check cannot see (or
+  /// heal), so it must reach the certifier's analyze half.
+  Future<void> driftMockByBreakingUpdateSignature() async {
+    final file = mockDatasource();
+    final src = await file.readAsString();
+    final broken = src.replaceFirst(
+      'Future<Product> update(UpdateParams<String, ProductPatch> params) '
+          'async {',
+      'Future<Product> update() async {',
+    );
+    expect(
+      broken,
+      isNot(src),
+      reason: 'the update override must exist to drift it',
+    );
+    await file.writeAsString(broken);
+  }
+
   test(
     'A6: --certify fails (exit 1 + --> fix:) on a deliberately drifted mock',
     () async {
-      // Deterministic analyze stub for the fast tier: the analyzer agrees
-      // with the structural check (drifted → non-zero).
+      // Deterministic analyze stub for the fast tier — CONDITIONAL on the
+      // on-disk state (models the real analyzer): the mock whose `update`
+      // override still matches the interface analyzes clean, the
+      // hand-broken override is reported. An unconditional stub would make
+      // this test vacuous — it would fail any state, conforming included
+      // (issue #1570 review).
       MockCertifier.analyzeRunnerOverride = (files, cwd) async {
+        final mock = File(p.join(cwd, files.first)).readAsStringSync();
+        if (mock.contains(
+          'update(UpdateParams<String, ProductPatch> params)',
+        )) {
+          return (exitCode: 0, output: 'No issues found!');
+        }
         return (
           exitCode: 3,
           output:
               '  error - lib/src/data/datasources/product/'
-              'product_mock_datasource.dart:20:3 - Missing concrete '
-              "implementation of 'ProductDataSource.update' - "
-              'non_abstract_class_inherits_abstract_member',
+              'product_mock_datasource.dart:30:16 - '
+              "'ProductMockDataSource.update' ('Future<Product> Function()') "
+              "isn't a valid override of 'ProductDataSource.update' "
+              "('Future<Product> Function(UpdateParams<String, ProductPatch>)')"
+              ' - invalid_override',
         );
       };
 
@@ -104,11 +135,14 @@ void main() {
       await runCli(['mock', 'create', 'Product']);
       exitCode = exitCodeAtEntry;
 
-      // 2. Hand-drift the mock: remove the `update` method.
-      await driftMockByRemoving('update');
+      // 2. Hand-drift the mock: break the `update` override's signature.
+      //    The member name survives, so the lane's shape check does NOT
+      //    repair it — exactly the drift class the gate's analyze half
+      //    exists for.
+      await driftMockByBreakingUpdateSignature();
 
-      // 3. Re-run with --certify: generation skips the existing files, the
-      //    gate must refuse.
+      // 3. Re-run with --certify: generation skips (name-level member set
+      //    matches), the analyze half must refuse.
       final out = await runCli(['mock', 'create', 'Product', '--certify']);
       expect(
         exitCode,
@@ -123,12 +157,23 @@ void main() {
       expect(
         out,
         contains('update'),
-        reason: 'the fix line names the missing member',
+        reason: 'the fix line names the broken member',
       );
       expect(
         out,
         contains('ProductDataSource'),
         reason: 'the fix line names the interface the mock violates',
+      );
+      expect(
+        out,
+        contains('invalid_override'),
+        reason: 'the analyzer verdict is surfaced verbatim',
+      );
+      // The generation run must not have silently clobbered the file.
+      expect(
+        await mockDatasource().readAsString(),
+        contains('Future<Product> update() async {'),
+        reason: 'the lane leaves signature-level drift to the gate',
       );
       exitCode = exitCodeAtEntry;
     },
@@ -169,24 +214,30 @@ void main() {
     exitCode = exitCodeAtEntry;
   }, timeout: const Timeout(Duration(minutes: 3)));
 
-  test(
-    'U5: the certifier names interface members missing from the mock class',
-    () async {
-      MockCertifier.analyzeRunnerOverride = (files, cwd) async {
-        return (exitCode: 0, output: '');
-      };
-      await runCli(['mock', 'create', 'Product']);
-      exitCode = exitCodeAtEntry;
-      await driftMockByRemoving('toggle');
+  test('U5: mock create repairs a drifted mock before the gate (issue #1570) '
+      '— certification records conformance', () async {
+    MockCertifier.analyzeRunnerOverride = (files, cwd) async {
+      return (exitCode: 0, output: '');
+    };
+    await runCli(['mock', 'create', 'Product']);
+    exitCode = exitCodeAtEntry;
+    await driftMockByRemoving('toggle');
 
-      final out = await runCli(['mock', 'create', 'Product', '--certify']);
-      expect(exitCode, 1);
-      expect(out, contains('--> fix: implement the missing'));
-      expect(out, contains('toggle'));
-      exitCode = exitCodeAtEntry;
-    },
-    timeout: const Timeout(Duration(minutes: 3)),
-  );
+    // Issue #1570: the mock lane's skip decision is a shape check —
+    // a mock missing interface members is repaired (not skipped on
+    // "file exists"), so the certifier observes a conforming mock:
+    // the drift is healed BEFORE the gate instead of dead-ending it.
+    final out = await runCli(['mock', 'create', 'Product', '--certify']);
+    expect(exitCode, 0, reason: 'the repaired mock conforms — output:\n$out');
+    expect(out, isNot(contains('--> fix: implement the missing')));
+    final src = await mockDatasource().readAsString();
+    expect(
+      src,
+      contains('toggle'),
+      reason: 'the repaired mock implements the missing member',
+    );
+    exitCode = exitCodeAtEntry;
+  }, timeout: const Timeout(Duration(minutes: 3)));
 }
 
 Future<void> _scaffoldProduct(String root) async {

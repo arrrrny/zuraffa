@@ -40,13 +40,28 @@ which zfa && zfa --version
 cat "$(which zfa).build_commit" 2>/dev/null || echo "no build stamp"
 ```
 
-- Binary is normally at `~/.local/bin/zfa`. If it is stale, rebuild from the
-  zuraffa repo:
+- Binary is normally at `~/.local/bin/zfa`. If it is stale, reinstall from the
+  zuraffa repo — **`scripts/rebuild.sh` installs the system binary; it is not
+  part of the dev loop**:
 
 ```bash
-cd ~/Developer/zuraffa && dart pub get --offline && dart compile exe bin/zfa.dart -o ~/.local/bin/zfa
-git rev-parse HEAD > ~/.local/bin/zfa.build_commit
+cd ~/Developer/zuraffa && scripts/rebuild.sh
 ```
+
+- **The dev/TDD loop always runs a COMPILED zfa** (the no-JIT policy: nothing
+  may spawn the zfa CLI through the Dart VM — a `dart bin/zfa.dart …` child
+  pays the full front-end + JIT compile per spawn, ~20s cold, issue #531).
+  While iterating on zuraffa source, drive the CLI through the repo launcher,
+  which compiles once into `.dart_tool/zfa_cli_bin/zfa_exe` (the shared cache
+  `ZfaExecutable` and the test helper use) and reuses it until the source
+  changes:
+
+```bash
+cd ~/Developer/zuraffa && scripts/zfa tdd run 090-my-feature --project /tmp/proj
+```
+
+  `dart bin/zfa.dart` is reserved for `dart test` itself (the test runner
+  spawns the source directly); never use it as the loop's entrypoint.
 
 - Every `zfa tdd` subcommand accepts `--json` and emits a versioned verdict
   envelope (`zfa tdd verdicts` prints the schema). Script against the exit code
@@ -83,9 +98,19 @@ dev_dependencies:
   build_runner: ^2.4.0
   json_serializable: ^6.7.0
   coverage: ^1.15.1
-  mutation_test: ^1.8.0
+  mutation_test: ^1.8.0    # opt-in (issue #1653): `zfa tdd init --mutation` injects it
   zorphy: ^2.3.1
 ```
+
+> **Issue #1653**: the baseline `zfa tdd init` no longer injects
+> `mutation_test` — it is the `tdd verify` lane's tool, and its
+> analyzer-versioned graph deferred a multi-minute cold cost into the first
+> analyze-class pass on every fresh project. Opt in with
+> `zfa tdd init --mutation` (idempotent: it adds just the missing dep to an
+> already-initialized project), or `dart pub add dev:mutation_test`. When
+> init injects ANY dependency entry it now also runs the resolver itself and
+> prints the elapsed time — the cold cost is paid at init time, not
+> discovered inside the first refactor of a `zfa tdd run`.
 
 Then `dart pub get --offline` (or `flutter pub get`).
 
@@ -101,6 +126,15 @@ right runner**: a Flutter project must have `runner: flutter_test` /
 `suite: flutter test` in the Keys block; a Dart project `runner: dart` /
 `dart test`. If it chose wrong, edit the Keys block — every driven step shells
 out through these commands.
+
+The same Keys block carries the `analyze-gate:` strictness (issue #1472).
+`zfa setup` writes `analyze-gate: errors-only` — the `zfa build` analyze gate
+still refuses on errors and warnings, but the `make` step (#1407) and the
+`refactor` step (#1472) treat a warnings-only refusal as non-blocking, so the
+`dart fix --apply` pass gets to remove the lint instead of deadlocking the
+run. Set `analyze-gate: 'warnings-blocking'` to restore the legacy behavior
+(any warning fails the gate). An absent or unrecognized value means
+errors-only.
 
 > **Flutter projects, until issue #1349 is fixed**: init generates
 > `lib/app.dart` importing `zuraffa_flutter`/`get_it` without declaring them,

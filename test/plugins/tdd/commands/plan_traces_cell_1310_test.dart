@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Issue #1310 — the plan→gen declared-signature path is unreachable:
 // `zfa tdd plan` writes only the criterion id (FR-001) into the
 // test-list / lane-plan traces cell, while
@@ -100,8 +101,9 @@ Lanes:
 /// test-list content (and the 04-ENGINE content when the lane split
 /// produced one).
 Future<({String out, String testList, String engine})> planSpec(
-  String specMd,
-) async {
+  String specMd, {
+  bool allowUnitFallback = false,
+}) async {
   final tmp = Directory.systemTemp.createTempSync('issue_1310_');
   try {
     final featureDir = p.join(tmp.path, 'specs', '1310-repro');
@@ -112,6 +114,10 @@ Future<({String out, String testList, String engine})> planSpec(
       'tdd',
       'plan',
       '1310-repro',
+      // Issue #1480: U3/U7 exercise the criterion-only FALLBACK cell on
+      // purpose — the unit-fallback gate stays out of the way via the
+      // migration escape hatch.
+      if (allowUnitFallback) '--allow-unit-fallback',
       '--project',
       tmp.path,
     ]);
@@ -184,23 +190,17 @@ void main() {
       );
     });
 
-    test('U3: an FR with no traces continuation keeps the criterion-only '
-        'cell (the fallback path, acceptance criterion 4)', () async {
+    test('U3 (1484): an FR with no traces continuation routes manual — '
+        'no unit row, no invented contract names', () async {
       final (:out, testList: list, engine: _) = await planSpec(untracedSpec);
       expect(exitCode, 0, reason: 'plan must succeed: $out');
-      final row = unitRowOf(list, 'U1');
-      expect(row, isNotNull, reason: 'the plan must derive U1:\n$list');
+      // Feature 1484: the fallback lane is gone — an unbound FR is a
+      // manual declaration in the traceability matrix, never a unit row
+      // (the dead-end class the fallback used to manufacture).
       expect(
-        row,
-        contains('| FR-001 |'),
-        reason: 'the criterion-only fallback cell is preserved:\n$list',
-      );
-      expect(
-        row,
-        isNot(contains('TodoRepository')),
-        reason:
-            'no contract names may be invented without a traces '
-            'continuation:\n$list',
+        unitRowOf(list, 'U1'),
+        isNull,
+        reason: 'the untraced FR must not derive a unit row:\n$list',
       );
     });
 
@@ -303,8 +303,10 @@ void main() {
       try {
         final featureDir = p.join(tmp.path, 'specs', '1310-repro');
         await Directory(featureDir).create(recursive: true);
-        final specFile = File(p.join(featureDir, 'spec.md'));
-        const twoFrs = '''
+        // The spec is TRACED (feature 1484: only traced FRs derive unit
+        // rows) — the PRIOR list is the legacy criterion-only dialect,
+        // hand-written to pin the reconcile read's legacy acceptance.
+        const tracedSpec = '''
 **Template Version**: `zuraffa-1.0`
 
 # Spec: 1310-repro
@@ -317,48 +319,41 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: System MUST let the user add a todo with a title
+            traces: TodoRepository.create
 - **FR-002**: System MUST let the user complete a todo
+            traces: TodoRepository.create
 
 ## Acceptance Scenarios
 
 1. **Given** the todo list **When** the user adds a todo **Then** the todo appears in the list.
 ''';
-        const oneFr = '''
-**Template Version**: `zuraffa-1.0`
+        const legacyPriorList = '''
+# Test List: 1310-repro
 
-# Spec: 1310-repro
+## Outer loop: acceptance behaviors
 
-### Layer Contracts
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| A1 | the todo appears in the list. | AC-1 | PENDING |
 
-**Domain**:
-- `TodoRepository`: `create(String title) -> bool`
+## Inner loop: unit behaviors
 
-## Functional Requirements
-
-- **FR-002**: System MUST let the user complete a todo
-
-## Acceptance Scenarios
-
-1. **Given** the todo list **When** the user adds a todo **Then** the todo appears in the list.
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| U1 | add a todo with a title | FR-001 | PENDING |
+| U2 | complete a todo | FR-002 | PENDING |
 ''';
-        await specFile.writeAsString(twoFrs);
+        final specFile = File(p.join(featureDir, 'spec.md'));
+        await specFile.writeAsString(tracedSpec);
+        final listFile = File(p.join(featureDir, 'tdd', 'test-list.md'));
+        await listFile.parent.create(recursive: true);
+        await listFile.writeAsString(legacyPriorList);
         final runner = CliRunner(exitOnCompletion: false);
         await runner.runCapturing([
           'tdd',
           'plan',
           '1310-repro',
-          '--project',
-          tmp.path,
-        ]);
-        final listFile = File(p.join(featureDir, 'tdd', 'test-list.md'));
-        final firstList = await listFile.readAsString();
-        expect(unitRowOf(firstList, 'U2'), isNotNull, reason: firstList);
-
-        await specFile.writeAsString(oneFr);
-        await runner.runCapturing([
-          'tdd',
-          'plan',
-          '1310-repro',
+          '--allow-unit-fallback',
           '--project',
           tmp.path,
         ]);
@@ -370,6 +365,7 @@ void main() {
               'the legacy criterion-only reconciliation path is unchanged:\n'
               '$reList',
         );
+        expect(unitRowOf(reList, 'U1'), isNotNull, reason: reList);
       } finally {
         tmp.deleteSync(recursive: true);
       }
@@ -422,15 +418,21 @@ void main() {
         contains('expect(result, isA<bool>())'),
         reason: 'the declared scalar outcome is asserted mechanically',
       );
+      // Issue #1651: the typed assertion alone is satisfiable by the
+      // #1517 func dummy, so it carries the vacuous-guard marker — make
+      // refuses the dummy-body green until an outcome-VALUE assertion
+      // lands.
       expect(
         test,
-        isNot(contains('vacuous-guard')),
-        reason: 'a typed outcome assertion is present — not guard-only',
+        contains('vacuous-guard'),
+        reason:
+            'a type-only assertion cannot discriminate a dummy body '
+            '(issue #1651)',
       );
     });
 
-    test('U6: make certifies green for the planned behavior — the '
-        'vacuous-green dead-end is gone', () async {
+    test('U6 (issue #1651): make refuses the dummy-body scalar pair — '
+        'the type-only assertion is a vacuous green', () async {
       await planRepro();
       final runner = CliRunner(exitOnCompletion: false);
       await runner.runCapturing([
@@ -451,9 +453,11 @@ void main() {
       ]);
       expect(exitCode, 0, reason: 'the gen pair must certify red: $red');
       // The implementation step: the subject returns a dummy bool — the
-      // generated test still asserts the DECLARED outcome, so make must
-      // certify (a guard-only test in this state is exactly the
-      // vacuous-green refusal the issue dead-ends on).
+      // generated test still asserts only the DECLARED TYPE, which the
+      // dummy satisfies. Issue #1651: exactly that certification is the
+      // vacuous-green class — the marker-carrying test must be REFUSED
+      // until the author writes an outcome-VALUE assertion (the
+      // pre-#1651 form of this pin certified the dummy green).
       final record = await fx.registryRecordOf('U1');
       final subjectFile = File(
         fixturePath(fx, record['subject_path'] as String),
@@ -474,13 +478,13 @@ void main() {
         '--project',
         fx.root.path,
       ]);
-      expect(exitCode, 0, reason: 'make must certify: $out');
+      expect(exitCode, 1, reason: 'a dummy-body green must not certify: $out');
       expect(
         out,
-        isNot(contains('outcome=vacuous-green')),
+        contains('outcome=vacuous-green'),
         reason:
-            'the real outcome assertion keeps the run off the '
-            'vacuous-green dead-end',
+            'the type-only assertion is satisfiable by the dummy — the '
+            'marker refuses the green (issue #1651)',
       );
     });
   });

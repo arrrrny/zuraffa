@@ -178,6 +178,7 @@ single: '${p.single}'
 file: '${p.file}'
 suite: '${p.suite}'
 coverage: '${p.coverage}'
+analyze-gate: errors-only  # set 'warnings-blocking' to keep the legacy warnings-blocking gate
 ```
 ''';
   }

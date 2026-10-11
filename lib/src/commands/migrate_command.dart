@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:args/command_runner.dart';
 
 import '../migration/migration_models.dart';
@@ -6,6 +8,7 @@ import '../migration/detectors/state_detector.dart';
 import '../migration/detectors/di_detector.dart';
 import '../migration/fixers/state_fixer.dart';
 import '../migration/fixers/gql_fixer.dart';
+import '../cli/exit_protocol.dart';
 import '../core/project/project_root.dart';
 
 /// `zfa migrate [state|gql|di]` -- migrates v5 artifacts to v6 equivalents.
@@ -37,7 +40,15 @@ class MigrateCommand extends Command<void> {
     final verbose = argResults!['verbose'] == true;
     final subcommand = argResults!.rest.isEmpty ? null : argResults!.rest.first;
 
-    if (subcommand == null || subcommand == 'help') {
+    if (subcommand == null) {
+      // SPEC 1132 (EPIC 1 honesty sweep): bare invocation is a usage
+      // error (SPEC 917 canonical 2) — usage prints AND exit code 2.
+      // Explicit `help` stays a success (exit 0).
+      _printUsage();
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    if (subcommand == 'help') {
       _printUsage();
       return;
     }
@@ -52,10 +63,13 @@ class MigrateCommand extends Command<void> {
       case 'di':
         await _migrateDi(projectDir, dryRun, verbose);
       default:
+        // Unknown target = usage error (SPEC 917): the operation could
+        // not run as invoked — exit 2 (was the pre-sweep silent 0).
         print('Unknown migration target: $subcommand');
         print('Available: state, gql, di');
         print('');
         _printUsage();
+        exitCode = ExitProtocol.usage;
     }
   }
 

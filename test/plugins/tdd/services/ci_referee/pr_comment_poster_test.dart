@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:test/test.dart';
 import 'package:http/http.dart' as http;
 import 'package:zuraffa/src/plugins/tdd/services/ci_referee/pr_comment_poster.dart';
+import 'package:zuraffa/src/plugins/tdd/services/ci_referee/review_snippets.dart';
 
 class RecordingClient extends http.BaseClient {
   final List<http.Request> sent = [];
@@ -75,6 +76,97 @@ void main() {
       expect(ok, isTrue);
       expect(poster.rendered, isNotNull);
       expect(poster.rendered, contains('## CI Referee Verdict'));
+    });
+  });
+
+  // PR #1703 review fix: the spec-1685 snippet gate is load-bearing —
+  // nothing leaves through this transport without compiling.
+  group('SnippetPostingGate (PR #1703 review fix)', () {
+    test('gate extraction: dartBlocks finds fenced dart blocks only', () {
+      const gate = SnippetPostingGate();
+      const body = 'prose\n\n```dart\nfoo();\n```\n\n```json\n{"x":1}\n```\n';
+      expect(gate.dartBlocks(body), ['foo();']);
+    });
+
+    test('a body whose dart block is the HISTORICAL misfire snippet is '
+        'blocked before any request is sent', () async {
+      final client = RecordingClient();
+      final poster = GithubPrCommentPoster(
+        repoSlug: 'arrrrny/zuraffa',
+        prNumber: 42,
+        token: 'gh-token',
+        client: client,
+      );
+
+      final ok = await poster.postComment(
+        'Suggestion:\n\n```dart\naddTearDown(_tmp.deleteRecursively);\n```\n',
+      );
+
+      expect(ok, isFalse, reason: 'the un-compilable snippet must NOT post');
+      expect(client.sent, isEmpty);
+    });
+
+    test('a body with a compilable dart block posts', () async {
+      final client = RecordingClient();
+      final poster = GithubPrCommentPoster(
+        repoSlug: 'arrrrny/zuraffa',
+        prNumber: 42,
+        token: 'gh-token',
+        client: client,
+      );
+
+      final ok = await poster.postComment(
+        'Suggestion:\n\n```dart\n'
+        "final dir = Directory.systemTemp.createTempSync('x_');\n"
+        '```\n',
+      );
+
+      expect(ok, isTrue, reason: 'a compilable snippet posts');
+      expect(client.sent, hasLength(1));
+    }, timeout: const Timeout(Duration(minutes: 3)));
+
+    test('postSnippetSuggestion assembles from the validated catalog '
+        '(postableSnippet — the sanctioned source)', () async {
+      final client = RecordingClient();
+      final poster = GithubPrCommentPoster(
+        repoSlug: 'arrrrny/zuraffa',
+        prNumber: 42,
+        token: 'gh-token',
+        client: client,
+      );
+
+      final ok = await poster.postSnippetSuggestion(
+        'Cleanup suggestion:',
+        snippetId: ReviewSnippets.tempDirCleanupId,
+      );
+
+      expect(ok, isTrue);
+      expect(client.sent, hasLength(1));
+      final body =
+          (jsonDecode(client.sent.single.body) as Map<String, dynamic>)['body']
+              as String;
+      expect(body, contains('Cleanup suggestion:'));
+      expect(body, contains('deleteSync(recursive: true)'));
+      expect(body, contains('```dart'));
+    }, timeout: const Timeout(Duration(minutes: 3)));
+
+    test('postSnippetSuggestion refuses an unknown template id — no '
+        'request is sent', () async {
+      final client = RecordingClient();
+      final poster = GithubPrCommentPoster(
+        repoSlug: 'arrrrny/zuraffa',
+        prNumber: 42,
+        token: 'gh-token',
+        client: client,
+      );
+
+      final ok = await poster.postSnippetSuggestion(
+        'Cleanup suggestion:',
+        snippetId: 'no_such_template',
+      );
+
+      expect(ok, isFalse);
+      expect(client.sent, isEmpty);
     });
   });
 }

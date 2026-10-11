@@ -2036,6 +2036,58 @@ One per functional requirement in `spec.md`.
         );
       });
 
+      test('U-829d2: a reused entity whose on-disk fields diverge from the '
+          'plan is NAMED, never silently starved (issue #1486)', () async {
+        await seedEntitiesSection('''
+## Key entities
+
+| entity | fields |
+| ------ | ------ |
+| User | id: String, title: String |
+''');
+        // The pre-fix shape: a field-less (here: id-only) entity on
+        // disk that a later, fixed run reuses as-is.
+        final entityFile = File(
+          p.join(
+            fx.root.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'user',
+            'user.dart',
+          ),
+        );
+        await entityFile.parent.create(recursive: true);
+        await entityFile.writeAsString(
+          'class User {\n'
+          '  final String id;\n'
+          '\n'
+          '  const User({required this.id});\n'
+          '}\n',
+        );
+
+        final out = await drive();
+
+        expect(exitCode, 0, reason: out);
+        expect(out, contains('[run] phase-0 entity User -> reused'));
+        expect(
+          out,
+          contains('field mismatch: plan declares'),
+          reason:
+              'the plan declares title, the entity file does not — this '
+              'warning is the only signal a later run gets, so it must '
+              'stay asserted (issue #1486)',
+        );
+        expect(out, contains('[id, title]'));
+        expect(out, contains('entity file declares [id]'));
+        expect(
+          await entityFile.readAsString(),
+          contains('final String id;'),
+          reason: 'reuse keeps the on-disk shape untouched',
+        );
+      });
+
       test('U-829e: a failed entity create stops the run honestly '
           '(runner-error, stopped_at names phase 0)', () async {
         await seedEntitiesSection('''
@@ -2199,4 +2251,156 @@ One per functional requirement in `spec.md`.
       );
     },
   );
+
+  // Issue #1590 — progress liveness: the driver announces each step before
+  // it spawns, forwards banner-shaped child lines live, and heartbeats
+  // long-running steps. The driven contracts for the unit-tier suite in
+  // issue_1590_progress_liveness_test.dart.
+  group('#1590 progress liveness', () {
+    /// Deletes the run state + cycle log when present (a FRESH fixture
+    /// has neither, and a done claim drives nothing — the U26 pattern).
+    Future<void> resetRunState() async {
+      final state = File(fx.runStatePath);
+      if (await state.exists()) await state.delete();
+      final log = File(fx.cycleLogPath);
+      if (await log.exists()) await log.delete();
+      exitCode = 0;
+    }
+
+    /// Adds a stdout dispatch to the fixture's fake zfa script: every
+    /// `make` invocation prints a banner-shaped line, a control line, and
+    /// (optionally) sleeps so a heartbeat can fire inside the step.
+    Future<void> patchFakeZfa({bool sleep = false}) async {
+      final script = File(fx.fakeZfaBin);
+      final source = await script.readAsString();
+      expect(source.contains('__1590_PATCHED__'), isFalse);
+      final patch = StringBuffer()
+        ..writeln()
+        ..writeln('# issue 1590: make child announces itself')
+        ..writeln('__1590_PATCHED__=1')
+        ..writeln('if [ "\$STEP" = "make" ]; then')
+        ..writeln(r'  echo "→ live-banner"')
+        ..writeln('  echo "plain child line"')
+        ..write(sleep ? '  sleep 0.3\nfi' : 'fi');
+      await script.writeAsString(
+        source.replaceFirst(
+          'if [ "\$HEAD" != "tdd" ]; then',
+          '${patch.toString()}\nif [ "\$HEAD" != "tdd" ]; then',
+        ),
+      );
+    }
+
+    test(
+      'A-1590-1: every spawned step announces BEFORE its completion line',
+      () async {
+        final out = await drive();
+
+        expect(exitCode, 0, reason: out);
+        for (final step in const ['gen', 'verify-red', 'make', 'refactor']) {
+          final start = out.indexOf('[run] B-001 $step — ');
+          final done = out.indexOf('[run] B-001 $step -> ');
+          expect(start, greaterThanOrEqualTo(0), reason: 'no start: $step');
+          expect(done, greaterThan(start), reason: 'order: $step');
+        }
+        // The machine contract is unchanged (SC-8 smoke).
+        expect(out, contains('[run] B-001 make -> green'));
+        expect(
+          out,
+          contains(
+            'run: feature=$feature result=complete pending=0 red=0 green=0 '
+            'done=3',
+          ),
+        );
+      },
+    );
+
+    test(
+      'A-1590-1b: the make child announces sub-steps via the run output',
+      () async {
+        await patchFakeZfa();
+
+        final out = await drive();
+
+        expect(exitCode, 0, reason: out);
+        // The banner-shaped line the make CHILD printed was forwarded live.
+        expect(out, contains('→ live-banner'));
+      },
+    );
+
+    test(
+      'A-1590-2: --verbose forwards every child line; default banners only',
+      () async {
+        await patchFakeZfa();
+        // Fresh state: a done claim drives nothing (the U26 pattern).
+        await resetRunState();
+
+        final out = await drive();
+
+        expect(exitCode, 0, reason: out);
+        expect(out, contains('→ live-banner'), reason: out);
+        // The control line is NOT forwarded without --verbose.
+        expect(out, isNot(contains('plain child line')), reason: out);
+
+        await resetRunState();
+        final verboseOut = await drive(extraArgs: const ['--verbose']);
+
+        expect(exitCode, 0, reason: verboseOut);
+        expect(verboseOut, contains('→ live-banner'));
+        // Under --verbose everything the child prints arrives verbatim.
+        expect(verboseOut, contains('plain child line'));
+      },
+    );
+
+    test(
+      'A-1590-2b: heartbeat follows --heartbeat (0.05 fires, 0 silent)',
+      () async {
+        await patchFakeZfa(sleep: true);
+        await resetRunState();
+
+        final loud = await drive(extraArgs: const ['--heartbeat', '0.05']);
+
+        expect(exitCode, 0, reason: loud);
+        final heartbeatRe = RegExp(r'\[run\] B-\d+ make … \S+ elapsed');
+        expect(loud.contains('elapsed'), isTrue, reason: loud);
+        expect(heartbeatRe.hasMatch(loud), isTrue, reason: loud);
+
+        await resetRunState();
+        final silent = await drive(extraArgs: const ['--heartbeat', '0']);
+
+        expect(exitCode, 0, reason: silent);
+        expect(silent, isNot(contains(' elapsed')), reason: silent);
+        // The tee still works with heartbeats disabled.
+        expect(silent, contains('→ live-banner'));
+      },
+    );
+
+    test(
+      'A-1590-3: a resumed in-flight step names the resume + owner pid',
+      () async {
+        await fx.seedRedEvidence('B-001');
+        await fx.seedGreenEvidence('B-001');
+        final dead = await Process.start('sh', ['-c', 'exit 0']);
+        final deadPid = dead.pid;
+        await dead.exitCode;
+        await fx.seedRunState(
+          states: {'B-001': 'done', 'B-002': 'pending'},
+          inFlightBehaviorId: 'B-002',
+          inFlightStep: 'gen',
+          inFlightOwnerPid: deadPid,
+        );
+
+        final out = await drive();
+
+        expect(exitCode, 0, reason: out);
+        expect(
+          out,
+          contains(
+            '[run] B-002 gen — scaffold test + stub (resuming in-flight step '
+            'from run-state.json, owner pid $deadPid)',
+          ),
+          reason: out,
+        );
+      },
+    );
+  });
 }

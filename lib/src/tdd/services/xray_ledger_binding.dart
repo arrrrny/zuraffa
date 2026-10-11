@@ -22,6 +22,7 @@
 library;
 
 import 'typed_ledger_row.dart';
+import 'typed_platform_ledger.dart';
 import 'ui_ledger_builder.dart';
 
 /// The paint decision for one surface.
@@ -118,6 +119,36 @@ abstract final class XrayLedgerOverlay {
   ) => {
     for (final entry in reports.entries) entry.key: renderScreen(entry.value),
   };
+
+  // --- the per-layout kind-coverage view (EPIC 3, issue #1134,
+  // exit criterion 2) -----------------------------------------------
+
+  /// The per-layout kind-coverage heatmap rendering (issue #1134):
+  /// one status line + one line per (kind × slot) cell with its
+  /// `kind traced/total` counts. Zero-traced cells are prefixed
+  /// HIGHLIGHT — never painted as proof. This is KIND coverage per
+  /// LAYOUT (the typed platform rows), not a surface count — the
+  /// overlay shape exit criterion 2 names.
+  static List<String> renderPlatformHeatmap(
+    List<TypedPlatformRow> rows,
+    List<String> slots,
+  ) {
+    final lines = <String>[
+      'xray: per-layout kind coverage (${slots.join(", ")})',
+    ];
+    for (final kind in LedgerRowKind.values) {
+      for (final slot in slots) {
+        final ofKindOnSlot = rows
+            .where((r) => r.slot == slot && r.kind == kind)
+            .toList();
+        if (ofKindOnSlot.isEmpty) continue; // a kind the plan never declared
+        final traced = ofKindOnSlot.where((r) => r.status == 'traced').length;
+        final label = '${kind.label} $traced/${ofKindOnSlot.length}';
+        lines.add('$slot ${traced == 0 ? 'HIGHLIGHT ' : ''}$label');
+      }
+    }
+    return lines;
+  }
 }
 
 /// One control-deck entry.
@@ -187,6 +218,30 @@ abstract final class XrayLedgerDeck {
             ? 'DONE'
             : 'NOT-DONE',
       ),
+  ];
+
+  /// The deck's PLATFORM entries (EPIC 3, issue #1134, lane 3): one
+  /// entry per DECLARED (slot, kind) cell — the per-layout kind
+  /// coverage at badge level, `traced` only when every row of the
+  /// kind on that slot traced, `untraced` otherwise (the deck names
+  /// the gap per layout, never paints it as proof).
+  static List<DeckEntry> platformEntries(
+    List<TypedPlatformRow> rows,
+    List<String> slots,
+  ) => [
+    for (final kind in LedgerRowKind.values)
+      for (final slot in slots)
+        if (rows.any((r) => r.slot == slot && r.kind == kind))
+          DeckEntry(
+            '$slot ${kind.label} '
+            '${rows.where((r) => r.slot == slot && r.kind == kind && r.status == "traced").length}/'
+            '${rows.where((r) => r.slot == slot && r.kind == kind).length}',
+            rows
+                    .where((r) => r.slot == slot && r.kind == kind)
+                    .every((r) => r.status == 'traced')
+                ? 'traced'
+                : 'untraced',
+          ),
   ];
 
   /// The drive-able scenario entries for a dependency touchpoint (the

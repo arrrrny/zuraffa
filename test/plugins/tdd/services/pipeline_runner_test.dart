@@ -490,42 +490,53 @@ esac
       },
     );
 
-    test(
-      'U15: tier 2 — running from source keeps dart <bin/zfa.dart>',
-      () async {
-        final logPath = fx.fakeZfaLogPath;
-        final fakeDart = await fx.writeFakeZfaBin(
-          logPath: logPath,
-          name: 'dart-vm',
-        );
-        final sourceScript = p.join(fx.root.path, 'bin', 'zfa.dart');
-        await File(sourceScript).create(recursive: true);
+    test('U15: tier 2 — running from source compiles bin/zfa.dart and spawns '
+        'the artifact (no-JIT policy)', () async {
+      final logPath = fx.fakeZfaLogPath;
+      final fakeCompiled = await fx.writeFakeZfaBin(
+        logPath: logPath,
+        name: 'zfa-compiled',
+      );
+      final sourceScript = p.join(fx.root.path, 'bin', 'zfa.dart');
+      await File(sourceScript).create(recursive: true);
+      final compiled = <String>[];
 
-        const runner = PipelineRunner();
-        final result = await runner.runPlan(
-          plan: await singleStepPlan(fx),
-          workingDirectory: fx.root.path,
-          scriptPathOverride: sourceScript,
-          resolvedExecutableOverride: fakeDart,
-          pathEnvOverride: '/nonexistent-zfa-path-dir',
-        );
+      const runner = PipelineRunner();
+      final result = await runner.runPlan(
+        plan: await singleStepPlan(fx),
+        workingDirectory: fx.root.path,
+        scriptPathOverride: sourceScript,
+        resolvedExecutableOverride: '/nonexistent/dart-vm',
+        pathEnvOverride: '/nonexistent-zfa-path-dir',
+        // The no-JIT seam: the source is AOT compiled before the spawn, so
+        // no real `dart compile exe` and no `dart <script>` child here.
+        ensureCompiled:
+            (candidate, {sourceRoot, packagesFile, runner, environment}) async {
+              compiled.add(candidate);
+              return fakeCompiled;
+            },
+      );
 
-        expect(result.completed, isTrue);
-        expect(result.entrypoint, '$fakeDart $sourceScript');
-        final log = await fx.readFakeZfaLog();
-        expect(log, hasLength(1));
-        // The fake VM received the source script as its first argument.
-        expect(log.single, '$sourceScript make Todo');
-      },
-    );
+      expect(compiled, [sourceScript]);
+      expect(result.completed, isTrue);
+      expect(result.entrypoint, fakeCompiled);
+      final log = await fx.readFakeZfaLog();
+      expect(log, hasLength(1));
+      // The compiled artifact ran alone — no VM, no recorded script token.
+      expect(log.single, 'make Todo');
+    });
 
-    test('U16: tier 3 — zfa on PATH wins over the snapshot fallback', () async {
+    test('U16: tier 4 — zfa on PATH wins over the snapshot fallback for a '
+        'VM driver', () async {
       final logPath = fx.fakeZfaLogPath;
       final fakeZfa = await fx.writeFakeZfaBin(logPath: logPath);
-      final fakeDart = await fx.writeFakeZfaBin(
-        logPath: logPath,
-        name: 'dart-vm',
-      );
+      // A REAL VM name (bug #1645 re-shape): the stand-in was `dart-vm`,
+      // which fails the Dart-VM name check — under the promoted
+      // running-binary tier it would resolve to itself, a shape no
+      // production VM launch produces (a real VM is named `dart`). The
+      // #1643 step-runner precedent: re-shape to the realistic driver,
+      // keep the protective intent.
+      final fakeDart = await fx.writeFakeZfaBin(logPath: logPath, name: 'dart');
       // Snapshot-shaped script path (a tier-2 miss) while PATH holds zfa.
       final snapshotPath = p.join(
         fx.root.path,
@@ -550,39 +561,35 @@ esac
       expect(log.single, 'make Todo');
     });
 
-    test(
-      'U17: tier 4 — compiled snapshot keeps the dart <snapshot> shape',
-      () async {
-        final logPath = fx.fakeZfaLogPath;
-        final fakeDart = await fx.writeFakeZfaBin(
-          logPath: logPath,
-          name: 'dart-vm',
-        );
-        final snapshotPath = p.join(
-          fx.root.path,
-          'snapshots',
-          'zfa.dart.snapshot',
-        );
-        await File(snapshotPath).create(recursive: true);
+    test('U17: tier 5 — compiled snapshot keeps the dart <snapshot> shape '
+        'for a VM driver', () async {
+      final logPath = fx.fakeZfaLogPath;
+      // A REAL VM name (bug #1645 re-shape, same rationale as U16).
+      final fakeDart = await fx.writeFakeZfaBin(logPath: logPath, name: 'dart');
+      final snapshotPath = p.join(
+        fx.root.path,
+        'snapshots',
+        'zfa.dart.snapshot',
+      );
+      await File(snapshotPath).create(recursive: true);
 
-        const runner = PipelineRunner();
-        final result = await runner.runPlan(
-          plan: await singleStepPlan(fx),
-          workingDirectory: fx.root.path,
-          scriptPathOverride: snapshotPath,
-          resolvedExecutableOverride: fakeDart,
-          pathEnvOverride: '/nonexistent-zfa-path-dir',
-        );
+      const runner = PipelineRunner();
+      final result = await runner.runPlan(
+        plan: await singleStepPlan(fx),
+        workingDirectory: fx.root.path,
+        scriptPathOverride: snapshotPath,
+        resolvedExecutableOverride: fakeDart,
+        pathEnvOverride: '/nonexistent-zfa-path-dir',
+      );
 
-        expect(result.completed, isTrue);
-        expect(result.entrypoint, '$fakeDart $snapshotPath');
-        final log = await fx.readFakeZfaLog();
-        expect(log, hasLength(1));
-        // The fake VM received the snapshot as its first argument — the
-        // global-activate shape is preserved (never collapsed to the
-        // bare executable just because the basename is not zfa.dart).
-        expect(log.single, '$snapshotPath make Todo');
-      },
-    );
+      expect(result.completed, isTrue);
+      expect(result.entrypoint, '$fakeDart $snapshotPath');
+      final log = await fx.readFakeZfaLog();
+      expect(log, hasLength(1));
+      // The fake VM received the snapshot as its first argument — the
+      // global-activate shape is preserved (never collapsed to the
+      // bare executable just because the basename is not zfa.dart).
+      expect(log.single, '$snapshotPath make Todo');
+    });
   });
 }

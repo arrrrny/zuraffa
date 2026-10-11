@@ -1,11 +1,15 @@
 ---
 name: speckit-spec-stats-open
-description: 'On-demand view of everything not complete: what stage each is stuck at, what the immediate next artifact/command is, oldest-untouched first, stale warnings past stale_after_days'
+description: 'On-demand view of everything not complete: what stage each is stuck
+  at, what the immediate next artifact/command is, oldest-untouched first, stale warnings
+  past stale_after_days'
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: spec-stats:commands/speckit.spec-stats.open.md
+  author: arrrrny
+  source: extension:spec-stats
 ---
+
+# Spec Stats Open Skill
 
 # Spec Stats — Open
 

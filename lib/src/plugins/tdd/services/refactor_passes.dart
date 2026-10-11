@@ -13,7 +13,9 @@
 ///      use via [PipelineRunner] (FR-004 / U11): `--zfa-bin` override →
 ///      the running CLI from source (Platform.script basename
 ///      zfa.dart/zuraffa.dart) → `zfa` on PATH → the dart+script
-///      fallback.
+///      fallback. A source resolution is AOT compiled through
+///      `ZfaExecutable.ensureCompiled` before the pass runs — no-JIT
+///      policy: the build child is a compiled binary.
 ///   2. `format` — `dart format lib/`
 ///   3. `fix`    — `dart fix --apply lib/`
 ///
@@ -22,7 +24,29 @@
 /// invocation; for each pass, the registry captures a [RefactorAction] with
 /// `filesChanged` computed from a per-pass before/after tree-snapshot diff
 /// scoped to `lib/`. The first failing pass stops the remaining passes
-/// (spec 048 FR-010 — misfire-stop).
+/// (spec 048 FR-010 — misfire-stop) — with ONE issue #1472 exception: the
+/// build pass's WARNINGS-ONLY analyze-gate refusal (0 error(s) and >=1
+/// warning(s), the #1407 machine contract cross-checked through the shared
+/// `BuildCommand` parser) is logged with its accurate counts and does not
+/// stop the registry — warnings are the `dart fix` pass's input, not
+/// compile failures, and the pass that would clean them must run. Analyzer
+/// errors, any other failure class, a spawn failure, or a timeout keep the
+/// honest misfire-stop. The TDD profile's `analyze-gate: warnings-blocking`
+/// opt-in (read by the command, handed in as [RefactorPasses.warningsBlocking])
+/// restores the legacy refusal. The build pass's zfa entrypoint is pinned
+/// to the version driving the run ([_pinToDrivingVersion]): a system zfa
+/// on PATH whose `--version` provably disagrees with the running CLI is
+/// bypassed in favor of the driving CLI's own entrypoint.
+///
+/// Issue #1624 — the build pass's scheduling gate. The refactor's
+/// whole-project `zfa build` (build_runner + the whole-project `dart
+/// analyze lib/`) is pure overhead on a feature whose generation writes
+/// only plain Dart. A [RefactorPassSpec] may carry a `skipGate`; when it
+/// returns a note the pass is recorded as a synthetic skipped action
+/// (`skipped: true`, `filesChanged: []`, the note as `output`) and never
+/// spawned. Only the `build` spec carries one (see
+/// [BuildRelevance.refactorBuildSkipNote]) — `format` and `fix` are cheap
+/// and always worth running.
 ///
 /// The command (not this service) is responsible for the test-directory
 /// immutability check and the overall `lib/` attribution check; this
@@ -32,7 +56,12 @@ library;
 import 'dart:async';
 import 'dart:io';
 
+import '../../../commands/build_command.dart';
+import '../../../cli/zfa_executable.dart';
+import '../../../core/generation/tracked_generated_output_guard.dart';
+import '../../../version.dart';
 import '../models/refactor_action.dart';
+import 'build_relevance.dart';
 import 'step_runner.dart';
 import 'tdd_timeout.dart';
 import 'tree_snapshot.dart';
@@ -90,10 +119,16 @@ abstract interface class ProcessExecutor {
 /// recorded as a timed-out failure so the registry misfire-stops instead of
 /// hanging forever. Defaults to [TddTimeouts.defaultRefactorPass].
 class DefaultProcessExecutor implements ProcessExecutor {
-  const DefaultProcessExecutor({this.timeout});
+  const DefaultProcessExecutor({this.timeout, this.environment});
 
   /// The per-pass deadline; `null` uses [TddTimeouts.defaultRefactorPass].
   final Duration? timeout;
+
+  /// The caller's per-run scratch environment (spec 1520) — MERGED into
+  /// each pass child's inherited environment, so a pass that spawns `dart`
+  /// (build, `dart format`, `dart fix`) writes its caches inside the run's
+  /// scratch. Null inherits the parent environment unchanged.
+  final Map<String, String>? environment;
 
   @override
   Future<ProcessRunOutcome> run(RefactorPassInvocation inv) async {
@@ -114,6 +149,7 @@ class DefaultProcessExecutor implements ProcessExecutor {
         args,
         workingDirectory: inv.workingDirectory,
         timeout: timeout ?? TddTimeouts.defaultRefactorPass,
+        environment: environment,
       );
       return ProcessRunOutcome(
         command: inv.command,
@@ -183,10 +219,23 @@ class DefaultProcessExecutor implements ProcessExecutor {
 
 /// One pass spec: name, command, and the executor invocation.
 class RefactorPassSpec {
-  const RefactorPassSpec({required this.name, required this.command});
+  const RefactorPassSpec({
+    required this.name,
+    required this.command,
+    this.skipGate,
+  });
 
   final String name;
   final String command;
+
+  /// Issue #1624: an optional scheduling gate. A non-null result is a
+  /// skip note — the pass is recorded as a synthetic skipped action
+  /// (`skipped: true`, `filesChanged: []`) and never spawned; null runs
+  /// the pass. Only the `build` spec carries one:
+  /// [RefactorPasses.defaultPassSpecs] attaches
+  /// [BuildRelevance.refactorBuildSkipNote] when the registry was
+  /// constructed with a project root.
+  final Future<String?> Function()? skipGate;
 }
 
 /// The result of running the full pass registry.
@@ -195,6 +244,7 @@ class RefactorPassesResult {
     required this.actions,
     required this.stopped,
     required this.failedPass,
+    this.refusalReason,
   });
 
   /// Every recorded action, in registry order. Includes the failing pass
@@ -202,12 +252,21 @@ class RefactorPassesResult {
   final List<RefactorAction> actions;
 
   /// True when the registry stopped early because a pass failed (non-zero
-  /// exit or process did not start).
+  /// exit or process did not start) — or because it REFUSED to continue:
+  /// the build pass deleted a git-tracked generated-name file whose
+  /// restoration was impossible (spec 1540 restore-or-refuse), and
+  /// re-proving a broken tree would be dishonest evidence.
   final bool stopped;
 
   /// The name of the pass that failed and stopped the registry, or null
   /// when all passes completed.
   final String? failedPass;
+
+  /// Spec 1540: when the registry refused to continue after a pass deleted
+  /// a git-tracked generated-name file that could not be restored, this
+  /// carries the refusal + the exact manual restore remedy. Null on every
+  /// other code path (plain failures keep their exit-code semantics).
+  final String? refusalReason;
 
   /// True when every pass completed successfully (no stop, no failure).
   bool get completed => !stopped;
@@ -222,16 +281,32 @@ class RefactorPasses {
     String? zfaBinOverride,
     Map<String, String>? environment,
     Duration? passTimeout,
-  }) : _executor = executor ?? DefaultProcessExecutor(timeout: passTimeout),
+    this.warningsBlocking = false,
+    ZfaEnsureCompiled? ensureCompiled,
+    Future<String?> Function()? buildSkipGate,
+  }) : _executor =
+           executor ??
+           DefaultProcessExecutor(
+             timeout: passTimeout,
+             environment: environment,
+           ),
        _passSpecsFuture =
            passSpecs ??
            defaultPassSpecs(
+             projectRoot: projectRoot,
              zfaBinOverride: zfaBinOverride,
              environment: environment,
+             ensureCompiled: ensureCompiled,
+             buildSkipGate: buildSkipGate,
            );
 
   /// Project root the passes operate on.
   final String projectRoot;
+
+  /// Issue #1472 (SC-5): the TDD profile's `analyze-gate:` strictness —
+  /// true restores the legacy warnings-blocking refusal for the build
+  /// pass. Default is errors-only (fail-open to the fix).
+  final bool warningsBlocking;
 
   final ProcessExecutor _executor;
   final Future<List<RefactorPassSpec>> _passSpecsFuture;
@@ -253,16 +328,41 @@ class RefactorPasses {
   /// Async because the build entrypoint search reads files; tests can
   /// inject a pre-resolved [RefactorPassSpec.list] via the [passSpecs]
   /// constructor parameter to avoid awaiting the resolution.
+  ///
+  /// [ensureCompiled] is the no-JIT seam handed to [zfaBuildCommand] —
+  /// tests inject a fake so resolving a source entrypoint does not AOT
+  /// compile the real package.
+  ///
+  /// Issue #1624: [projectRoot] binds the build pass's build-relevance
+  /// gate ([BuildRelevance.refactorBuildSkipNote]); [buildSkipGate]
+  /// replaces it outright for tests. Only the `build` spec carries a
+  /// gate — `format` and `fix` are cheap and always worth running.
   static Future<List<RefactorPassSpec>> defaultPassSpecs({
+    String? projectRoot,
     String? zfaBinOverride,
     Map<String, String>? environment,
+    ZfaEnsureCompiled? ensureCompiled,
+    Future<String?> Function()? buildSkipGate,
   }) async {
     final buildCommand = await zfaBuildCommand(
       zfaBinOverride: zfaBinOverride,
       environment: environment,
+      ensureCompiled: ensureCompiled,
     );
+    // Issue #1624: the build pass is gated by build relevance. A caller
+    // may inject its own gate; with none given, the real gate is bound to
+    // [projectRoot]. A null root (the unit-test shape that only resolves a
+    // command without a project tree) attaches no gate, so the pass runs
+    // exactly as before.
+    final gate =
+        buildSkipGate ??
+        (projectRoot == null
+            ? null
+            : () => BuildRelevance.refactorBuildSkipNote(
+                projectRoot: projectRoot,
+              ));
     return [
-      RefactorPassSpec(name: 'build', command: buildCommand),
+      RefactorPassSpec(name: 'build', command: buildCommand, skipGate: gate),
       const RefactorPassSpec(name: 'format', command: 'dart format lib/'),
       const RefactorPassSpec(name: 'fix', command: 'dart fix --apply lib/'),
     ];
@@ -278,26 +378,105 @@ class RefactorPasses {
   /// Run every pass in order, stopping at the first failure.
   ///
   /// For each pass:
+  ///   0. (Issue #1624) Ask the spec's `skipGate`, when it has one: a
+  ///      non-null note records a synthetic skipped action and continues
+  ///      to the next spec — no snapshot, no tracked guard, no spawn.
   ///   1. Capture a before snapshot of `lib/`.
   ///   2. Invoke the executor with the pass's command.
   ///   3. Capture an after snapshot of `lib/`.
   ///   4. Compute `filesChanged` from the symmetric diff.
   ///   5. Record the [RefactorAction].
   ///   6. On non-zero exit or `startedProcess: false`, stop remaining passes.
+  ///
+  /// Spec 1540 (restore-or-refuse): the `build` pass is additionally
+  /// bracketed by a git-tracked generated-name snapshot/restore — a build
+  /// that deletes a hand-authored placeholder (issue #1540) gets it restored
+  /// byte-identical BEFORE the after-snapshot (so the restoration never
+  /// pollutes `filesChanged` or the attribution check), the restoration is
+  /// recorded in the action's output as evidence, and an IMPOSSIBLE
+  /// restoration stops the registry with [RefactorPassesResult.refusalReason]
+  /// naming the exact `git checkout --` remedy instead of deleting-and-"passing".
   Future<RefactorPassesResult> run() async {
     final actions = <RefactorAction>[];
     final specs = await passSpecs;
     for (final spec in specs) {
+      // Issue #1624: a gated pass that proves it has nothing to do is
+      // recorded as a synthetic skipped action and never spawned. No
+      // snapshot is captured and the #1540 tracked guard is not armed —
+      // both only make sense around a process that actually ran.
+      final skipNote = spec.skipGate == null ? null : await spec.skipGate!();
+      if (skipNote != null) {
+        actions.add(
+          RefactorAction(
+            name: spec.name,
+            command: spec.command,
+            exitCode: 0,
+            filesChanged: const [],
+            output: skipNote,
+            skipped: true,
+          ),
+        );
+        continue;
+      }
       final before = await TreeSnapshot.capture(
         projectRoot,
         trees: const ['lib'],
       );
+      // Spec 1540: only the build pass runs codegen whose cleanup can
+      // orphan a hand-authored placeholder; format/fix never delete files.
+      final trackedGuard = spec.name == 'build'
+          ? TrackedGeneratedOutputGuard(projectRoot: projectRoot)
+          : null;
+      final trackedSnapshot = trackedGuard == null
+          ? null
+          : await trackedGuard.capture();
       final invocation = RefactorPassInvocation(
         passName: spec.name,
         command: spec.command,
         workingDirectory: projectRoot,
       );
+      // Issue #1653: the per-pass heartbeat — how long THIS pass's process
+      // ran, recorded on the action so a stuck step is distinguishable
+      // from a fast one in the receipt (the 8m32s refactor had no such
+      // signal).
+      final passWatch = Stopwatch()..start();
       final outcome = await _executor.run(invocation);
+      passWatch.stop();
+
+      // Spec 1540: restore before the after-snapshot so a successful
+      // restoration is invisible to the diff (byte-identical to `before`)
+      // and visible only in the recorded evidence.
+      var passOutput = outcome.output;
+      String? refusalReason;
+      if (trackedGuard != null && trackedSnapshot != null) {
+        final deleted = trackedGuard.detectDeleted(trackedSnapshot);
+        if (deleted.isNotEmpty) {
+          final restore = await trackedGuard.restore(trackedSnapshot, deleted);
+          if (restore.restored.isNotEmpty) {
+            passOutput = passOutput.isEmpty
+                ? '[1540] restored ${restore.restored.length} git-tracked '
+                      'generated-name file(s) deleted by the build pass: '
+                      '${restore.restored.join(', ')}'
+                : '$passOutput\n[1540] restored ${restore.restored.length} '
+                      'git-tracked generated-name file(s) deleted by the build '
+                      'pass: ${restore.restored.join(', ')}';
+          }
+          if (restore.failed.isNotEmpty) {
+            final remedy = TrackedGeneratedOutputGuard.restoreRemedyLines(
+              restore.failed,
+            ).join('\n');
+            refusalReason =
+                '[1540] refused: the build pass deleted git-tracked '
+                'generated-name file(s) it could not restore '
+                '(${restore.failed.join(', ')}).\n$remedy';
+            // The unrestorable deletion is part of the pass's net effect.
+            passOutput = passOutput.isEmpty
+                ? refusalReason
+                : '$passOutput\n$refusalReason';
+          }
+        }
+      }
+
       final after = await TreeSnapshot.capture(
         projectRoot,
         trees: const ['lib'],
@@ -312,12 +491,59 @@ class RefactorPasses {
           command: spec.command,
           exitCode: outcome.exitCode,
           filesChanged: filesChanged,
-          output: outcome.output,
+          output: passOutput,
           timedOut: outcome.timedOut,
+          duration: passWatch.elapsed,
         ),
       );
+      // Spec 1540 restore-or-refuse: an unrestorable tracked deletion
+      // refuses the registry (misfire-stop on `build`) with the remedy —
+      // never a silent delete-and-continue on a broken tree.
+      if (refusalReason != null) {
+        return RefactorPassesResult(
+          actions: actions,
+          stopped: true,
+          failedPass: spec.name,
+          refusalReason: refusalReason,
+        );
+      }
       // Misfire-stop (FR-010): non-zero exit OR process did not start.
+      // Issue #1472: ONE arm tolerates a failed build pass — the analyze
+      // gate's own WARNINGS-ONLY refusal. The gate (issues #395/#1035)
+      // refuses the tree on errors OR warnings; a hand-implemented subject
+      // with one unused import then misfire-stopped the registry and the
+      // `dart fix --apply` pass — the only pass that would remove exactly
+      // that lint — never ran (deadlock). When the failed pass IS `build`,
+      // the process ran to completion (no spawn failure, no #742 timeout),
+      // and its output proves the refusal was the gate's own verdict with
+      // 0 error(s) and >=1 warning(s) (cross-checked through the shared
+      // `BuildCommand.countAnalyzerIssues` parser — the single #1035
+      // line-format contract), the verdict is logged with its accurate
+      // counts (warnings are the fix pass's input, not "did not compile
+      // cleanly") and the registry CONTINUES to format → fix. The recorded
+      // action keeps the true exit code and raw output. A build verdict
+      // carrying analyzer errors, any non-gate failure class, a spawn
+      // failure, or a timeout keeps the honest misfire-stop byte-
+      // identically — and `warningsBlocking` (the TDD profile's
+      // `analyze-gate: warnings-blocking`, issue #1407's opt-in) skips the
+      // arm entirely, restoring the legacy refusal.
       if (outcome.exitCode != 0 || !outcome.startedProcess) {
+        final toleratedWarningsOnlyRefusal =
+            spec.name == 'build' &&
+            !warningsBlocking &&
+            outcome.startedProcess &&
+            !outcome.timedOut &&
+            BuildCommand.analyzeGateWarningsOnlyRefusal(outcome.output);
+        if (toleratedWarningsOnlyRefusal) {
+          BuildCommand.logAnalyzeGateRefusal(
+            outcome.output,
+            policy:
+                'for the refactor build pass (issue #1472, errors-only '
+                'gate)',
+            next: 'the dart fix pass runs next.',
+          );
+          continue;
+        }
         return RefactorPassesResult(
           actions: actions,
           stopped: true,
@@ -336,35 +562,29 @@ class RefactorPasses {
 /// Resolve the `build` pass command line (bug #689).
 ///
 /// Delegates the entrypoint search to [StepRunner.resolveEntrypoint]
-/// (the same tier-2-through-tier-6 chain bug #690 added for the TDD
-/// step runner): `bin/zfa.dart` in the running CLI's tree, the package
-/// path fallback, then a system `zfa` on PATH, then `Platform.script`,
-/// then `Platform.resolvedExecutable`. The explicit `--zfa-bin`
-/// override is honored first.
+/// (the tier chain bug #690 added for the TDD step runner):
+/// `bin/zfa.dart` in the running CLI's tree, the package path fallback,
+/// then — for a compiled (non-VM) driving binary — the RUNNING binary
+/// itself (bug #1636: a same-version/different-code PATH install is
+/// invisible to the #1472 pin), then a system `zfa` on PATH, then
+/// `Platform.script`. The explicit `--zfa-bin` override is honored first.
 ///
-/// The returned path is shaped into a command line: a `.dart` source is
-/// run with `dart <path> build`; a compiled binary is invoked directly
-/// as `<path> build`. Tokens that contain spaces are quoted; the
-/// executor's quote-aware tokenizer keeps them as single argv entries.
-///
-/// [environment] lets tests inject a fixture PATH; production callers
-/// pass null and the chain reads `Platform.environment` itself.
-/// Resolve the `build` pass command line (bug #689).
-///
-/// Delegates the entrypoint search to [StepRunner.resolveEntrypoint]
-/// (the same tier-2-through-tier-6 chain bug #690 added for the TDD
-/// step runner): `bin/zfa.dart` in the running CLI's tree, the package
-/// path fallback, then a system `zfa` on PATH, then `Platform.script`,
-/// then `Platform.resolvedExecutable`. The explicit `--zfa-bin`
-/// override is honored first.
-///
-/// The returned path is shaped into a command line: a `.dart` source is
-/// run with `dart <path> build`; a compiled binary is invoked directly
-/// as `<path> build`. Tokens that contain spaces are quoted; the
-/// executor's quote-aware tokenizer keeps them as single argv entries.
+/// The returned path is shaped into a command line: a compiled binary is
+/// invoked directly as `<path> build`. A `.dart` source is AOT compiled
+/// first (`ZfaExecutable.ensureCompiled` — the no-JIT policy) and the
+/// artifact is invoked directly; the `dart <path> build` shape survives
+/// only under the `ZFA_ALLOW_JIT=1` escape hatch. Tokens that contain
+/// spaces are quoted; the executor's quote-aware tokenizer keeps them as
+/// single argv entries.
 ///
 /// [environment] lets tests inject a fixture PATH; production callers
 /// pass null and the chain reads `Platform.environment` itself.
+/// [resolveDrivingEntrypoint] is the same kind of seam for the #1472 pin:
+/// it replaces [StepRunner.resolveEntrypoint] as the source of the driving
+/// CLI's own entrypoint, so tests can prove a fixture replacement instead
+/// of spawning the real `bin/zfa.dart`. [ensureCompiled] is the no-JIT
+/// compiler seam (defaults to [ZfaExecutable.ensureCompiled]); fast-tier
+/// tests inject a fake so no real `dart compile exe` runs.
 ///
 /// This is async because [StepRunner.resolveEntrypoint] performs file
 /// I/O checks. The pass registry ([RefactorPasses.defaultPassSpecs]) is
@@ -373,13 +593,21 @@ class RefactorPasses {
 Future<String> zfaBuildCommand({
   String? zfaBinOverride,
   Map<String, String>? environment,
+  ZfaEntrypointResolver? resolveDrivingEntrypoint,
+  ZfaEnsureCompiled? ensureCompiled,
 }) async {
   String quoteIfNeeded(String token) =>
       token.contains(' ') || token.contains('\t') ? '"$token"' : token;
 
+  final env = environment ?? Platform.environment;
+  final compile = ensureCompiled ?? ZfaExecutable.ensureCompiled;
+
   // Tier 1 — explicit override (mirrors PipelineRunner / StepRunner tier 1).
+  // No-JIT policy: a `.dart` override is compiled too, so `--zfa-bin` can
+  // never leak a VM spawn.
   if (zfaBinOverride != null && zfaBinOverride.isNotEmpty) {
-    return '${quoteIfNeeded(zfaBinOverride)} build';
+    final compiled = await compile(zfaBinOverride, environment: env);
+    return '${quoteIfNeeded(compiled)} build';
   }
 
   // Tiers 2+ — delegate to the canonical chain. Tests inject a fixture
@@ -392,10 +620,10 @@ Future<String> zfaBuildCommand({
   // the system CLI and never creates `bin/zfa.dart` in the target
   // project, so the build pass calls the system zfa directly (Option
   // B, issue #717). Suppressing the package tier leaves this pass the
-  // documented order: `--zfa-bin` override → running-from-source →
-  // `zfa` on PATH → dart+script fallbacks. `make` / `gen` / `verify-red`
+  // documented order: `--zfa-bin` override → running-from-source → the
+  // running compiled binary (bug #1636) → `zfa` on PATH → dart+script
+  // fallbacks. `make` / `gen` / `verify-red`
   // / `tdd run` keep the shared chain unchanged.
-  final env = environment ?? Platform.environment;
   String entrypoint;
   try {
     entrypoint = await StepRunner.resolveEntrypoint(
@@ -411,11 +639,151 @@ Future<String> zfaBuildCommand({
     return 'zfa build';
   }
 
-  if (entrypoint.endsWith('.dart')) {
-    return '${quoteIfNeeded(Platform.resolvedExecutable)} '
-        '${quoteIfNeeded(entrypoint)} build';
+  // No-JIT policy: compile BEFORE the #1472 probe, so both sides of the
+  // version comparison are compiled binaries (the probe of a source
+  // entrypoint would itself be a JIT spawn).
+  entrypoint = await compile(entrypoint, environment: env);
+
+  // Issue #1472: pin the build pass to the zfa version driving this run.
+  entrypoint = await _pinToDrivingVersion(
+    entrypoint,
+    env,
+    resolveDrivingEntrypoint: resolveDrivingEntrypoint,
+    ensureCompiled: ensureCompiled,
+  );
+
+  final argv = ZfaExecutable.commandFor(entrypoint, const [
+    'build',
+  ], environment: env);
+  return argv.map(quoteIfNeeded).join(' ');
+}
+
+/// The entrypoint resolver the pin uses for the driving CLI's own tree —
+/// [StepRunner.resolveEntrypoint]'s shape, so the pin's tests can inject a
+/// fixture instead of resolving (and probing) the real `bin/zfa.dart`,
+/// whose cold JIT compile outlives the probe's [TddTimeouts.defaultProbe]
+/// bound and would therefore read as unprovable.
+typedef ZfaEntrypointResolver =
+    Future<String> Function({
+      required Uri script,
+      required String resolvedExecutable,
+      required Map<String, String> environment,
+      Future<Uri?> Function(Uri packageUri)? resolvePackageUri,
+    });
+
+/// Issue #1472: the `--version` output line of a zfa entrypoint —
+/// `zfa v<semver>` (the single writer is the CliRunner version command).
+final RegExp _zfaVersionLinePattern = RegExp(r'^zfa v(\S+)', multiLine: true);
+
+/// Probe [entrypoint]'s `--version` and return the parsed version string,
+/// or null when UNPROVABLE: the spawn fails, the process exits non-zero,
+/// prints nothing, or prints no `zfa v<semver>` line. Silence rules per
+/// issue #1184's model — an advisory/pinning check must never break the
+/// invocation and must never act on unprovable input, so every failure
+/// mode degrades to null and the caller keeps the current resolution.
+/// [entrypoint] is expected to be compiled (the caller resolves through
+/// `ZfaExecutable.ensureCompiled` first); the argv is still shaped through
+/// `ZfaExecutable.commandFor`, so a source entrypoint either rides the
+/// `ZFA_ALLOW_JIT=1` escape hatch or reads as unprovable rather than
+/// spawning the VM behind the policy's back. Bounded by
+/// [TddTimeouts.defaultProbe] so a hung candidate cannot stall the
+/// refactor.
+Future<String?> _probeZfaVersion(
+  String entrypoint,
+  Map<String, String> environment,
+) async {
+  try {
+    final command = ZfaExecutable.commandFor(entrypoint, const [
+      '--version',
+    ], environment: environment);
+    final result = await runTimed(
+      command.first,
+      command.sublist(1),
+      timeout: TddTimeouts.defaultProbe,
+    );
+    if (result.exitCode != 0) return null;
+    final stdoutText = (result.stdout as String? ?? '').trim();
+    if (stdoutText.isEmpty) return null;
+    final match = _zfaVersionLinePattern.firstMatch(stdoutText);
+    if (match == null) return null;
+    return match.group(1);
+  } catch (_) {
+    // ProcessException (not executable / missing), ProcessTimeoutException
+    // (hung candidate), a StateError from the no-JIT gate, anything else —
+    // unprovable, never fatal.
+    return null;
   }
-  return '${quoteIfNeeded(entrypoint)} build';
+}
+
+/// Issue #1472: pin the build pass to the zfa version driving the run.
+///
+/// The #717 chain above prefers the system zfa on PATH whenever the
+/// running-from-source tiers fail to resolve (e.g. the global `-C` chdir
+/// re-anchoring `Platform.script`, issue #1371). A stale system install
+/// then executes the build pass with a DIFFERENT gate than the CLI
+/// driving the run. Probe the candidate: a provably different version
+/// re-resolves through the UNSUPPRESSED chain (the real package tier) and
+/// replaces it — but only on proof. BOTH sides of the swap are probed:
+/// the candidate must provably disagree, AND the replacement must
+/// provably carry the driving version. An equal or unprovable candidate
+/// keeps the #717 resolution byte-identically, and an equal, unprovable,
+/// or unresolvable (StateError) replacement does too — the silence rule
+/// (#1184) guards the swap in both directions, so a stale or foreign tree
+/// can never be pinned silently. The honest pin line prints only on the
+/// proven path.
+///
+/// [resolveDrivingEntrypoint] is the test seam: production resolves
+/// through [StepRunner.resolveEntrypoint]; the pin's tests inject a
+/// fixture entrypoint so the real `bin/zfa.dart` (whose cold JIT compile
+/// outlives the probe bound) never has to be spawned. [ensureCompiled] is
+/// the matching no-JIT seam for the replacement the resolver returns — a
+/// resolved `bin/zfa.dart` is compiled before it is probed, so neither
+/// side of the swap can be a JIT spawn. A replacement that cannot be
+/// compiled is unprovable, exactly like an unresolvable one: the #717
+/// candidate is kept rather than crashing the refactor.
+Future<String> _pinToDrivingVersion(
+  String entrypoint,
+  Map<String, String> env, {
+  ZfaEntrypointResolver? resolveDrivingEntrypoint,
+  ZfaEnsureCompiled? ensureCompiled,
+}) async {
+  final candidateVersion = await _probeZfaVersion(entrypoint, env);
+  if (candidateVersion == null || candidateVersion == version) {
+    return entrypoint;
+  }
+  final resolve = resolveDrivingEntrypoint ?? StepRunner.resolveEntrypoint;
+  try {
+    final resolvedDriving = await resolve(
+      script: Platform.script,
+      resolvedExecutable: Platform.resolvedExecutable,
+      environment: env,
+    );
+    final driving = await (ensureCompiled ?? ZfaExecutable.ensureCompiled)(
+      resolvedDriving,
+      environment: env,
+    );
+    if (driving == entrypoint) return entrypoint;
+    // The replacement is proven too: a different tree (a path-override
+    // sibling checkout, a snapshot built from an older tree, a
+    // `-C`-anchored launch) must never be pinned on the strength of the
+    // candidate's disagreement alone.
+    final drivingVersion = await _probeZfaVersion(driving, env);
+    if (drivingVersion != version) return entrypoint;
+    print(
+      '   build pass: resolved build zfa is v$candidateVersion — pinned to '
+      'the driving CLI v$version (issue #1472).',
+    );
+    return driving;
+  } on StateError {
+    // The driving entrypoint cannot be resolved — keep the #717
+    // candidate (fail-open to current behavior, never crash).
+    return entrypoint;
+  } on ZfaCompilationException {
+    // The driving entrypoint resolved to a source tree that cannot be
+    // compiled. That is unprovable input, not a JIT justification: keep
+    // the #717 candidate rather than spawning a VM child.
+    return entrypoint;
+  }
 }
 
 /// Build the command line for a pre-resolved entrypoint (bug #689).
@@ -423,12 +791,20 @@ Future<String> zfaBuildCommand({
 /// Useful when the entrypoint has already been resolved (e.g. by an
 /// earlier `await zfaBuildCommand`) and the caller only needs the
 /// shape step. Synchronous; does no I/O.
-String zfaBuildCommandSync({required String entrypoint}) {
+///
+/// No-JIT policy: [entrypoint] is expected to be compiled already (it must
+/// have come out of `zfaBuildCommand`). A `.dart` entrypoint is only
+/// accepted under the `ZFA_ALLOW_JIT=1` escape hatch; otherwise
+/// `ZfaExecutable.commandFor` throws, loudly, instead of shaping a VM
+/// command.
+String zfaBuildCommandSync({
+  required String entrypoint,
+  Map<String, String>? environment,
+}) {
   String quoteIfNeeded(String token) =>
       token.contains(' ') || token.contains('\t') ? '"$token"' : token;
-  if (entrypoint.endsWith('.dart')) {
-    return '${quoteIfNeeded(Platform.resolvedExecutable)} '
-        '${quoteIfNeeded(entrypoint)} build';
-  }
-  return '${quoteIfNeeded(entrypoint)} build';
+  final argv = ZfaExecutable.commandFor(entrypoint, const [
+    'build',
+  ], environment: environment);
+  return argv.map(quoteIfNeeded).join(' ');
 }

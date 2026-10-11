@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "feature": "dart-core-lane-timeout-overflow",
+  "entries": [
+    {
+      "feature": "dart-core-lane-timeout-overflow",
+      "cycle": "engine",
+      "phase": "drive",
+      "started_at": "2026-09-15T12:07:05.697605Z",
+      "finished_at": "2026-09-15T12:08:51.603168Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "stopped_at=A1:make"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "stopped",
+      "behaviors": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "U1",
+        "U2",
+        "U3",
+        "U4",
+        "contract:A1",
+        "contract:A2"
+      ],
+      "counts": {
+        "total": 10,
+        "pending": 9,
+        "red": 1,
+        "green": 0,
+        "done": 0
+      },
+      "stopped_at": "A1:make"
+    },
+    {
+      "feature": "dart-core-lane-timeout-overflow",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-15T12:07:05.525889Z",
+      "finished_at": "2026-09-15T12:08:51.604568Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane stopped at A1:make",
+        "engine lane result=stopped — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "stopped",
+      "behaviors": [],
+      "stopped_at": null
+    }
+  ]
+}

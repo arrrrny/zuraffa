@@ -723,6 +723,22 @@ dev_dependencies:
         expect(DependencyWirer.buildYamlContent, contains('lib/src/**'));
         expect(DependencyWirer.buildYamlContent, contains('test/**'));
       });
+
+      // Issue #1655: the `# zfa:generated` header is the provenance marker
+      // the static first-build skip's exact-match contract leans on —
+      // `BuildRelevance._staticFirstBuildSkipNote` treats a build.yaml
+      // byte-identical to this template as setup-generated and
+      // unmodified. The marker literal here is deliberately independent
+      // of the production constant (an audit, not a copy).
+      test('carries the zfa:generated provenance header (issue #1655)', () {
+        expect(
+          DependencyWirer.buildYamlContent.startsWith('# zfa:generated'),
+          isTrue,
+          reason:
+              'the static first-build skip recognizes the template by exact '
+              'content match; the header must stay first and recognizable',
+        );
+      });
     });
 
     group('standardDirs', () {

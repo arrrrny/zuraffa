@@ -12,7 +12,22 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/zfa_executable.dart';
+import 'package:zuraffa/src/plugins/tdd/services/build_relevance.dart';
 import 'package:zuraffa/src/plugins/tdd/services/refactor_passes.dart';
+
+/// The no-JIT compiler seam these unit tests inject: the build pass resolves
+/// a `.dart` entrypoint (this package's `bin/zfa.dart`) whenever no fixture
+/// PATH / `--zfa-bin` wins, and AOT-compiling the real package is NOT a unit
+/// test's job. Everything that is not a Dart source passes through
+/// unchanged — the fixture fake bins' contract.
+Future<String> _fakeCompile(
+  String candidate, {
+  String? sourceRoot,
+  String? packagesFile,
+  ZfaCompileRunner? runner,
+  Map<String, String>? environment,
+}) async => candidate.endsWith('.dart') ? '/fake/compiled/zfa' : candidate;
 
 /// A fake process executor that records every invocation and returns
 /// programmed outcomes in order.
@@ -77,7 +92,16 @@ void main() {
             _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
             _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
           ]);
-          final passes = RefactorPasses(project.root.path, executor: executor);
+          final passes = RefactorPasses(
+            project.root.path,
+            executor: executor,
+            // Issue #1634: this test covers registry MECHANICS (order,
+            // recording, diff attribution) — not gating — and its scratch
+            // project holds nothing builder-facing, so the real gate
+            // would now statically skip the build pass. Force it to spawn.
+            buildSkipGate: () async => null,
+            ensureCompiled: _fakeCompile,
+          );
           final result = await passes.run();
 
           expect(executor.invocations.map((i) => i.passName).toList(), [
@@ -117,7 +141,16 @@ void main() {
             ),
             _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
           ]);
-          final passes = RefactorPasses(project.root.path, executor: executor);
+          final passes = RefactorPasses(
+            project.root.path,
+            executor: executor,
+            // Issue #1634: this test covers registry MECHANICS (order,
+            // recording, diff attribution) — not gating — and its scratch
+            // project holds nothing builder-facing, so the real gate
+            // would now statically skip the build pass. Force it to spawn.
+            buildSkipGate: () async => null,
+            ensureCompiled: _fakeCompile,
+          );
           final result = await passes.run();
 
           expect(result.actions, hasLength(3));
@@ -177,7 +210,15 @@ void main() {
           // fix never runs.
           _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
         ]);
-        final passes = RefactorPasses(project.root.path, executor: executor);
+        final passes = RefactorPasses(
+          project.root.path,
+          executor: executor,
+          // Issue #1634: registry MECHANICS, not gating — force the build
+          // pass to spawn on this nothing-builder-facing scratch (the real
+          // gate would now statically skip it here).
+          buildSkipGate: () async => null,
+          ensureCompiled: _fakeCompile,
+        );
         final result = await passes.run();
 
         expect(result.actions, hasLength(2));
@@ -205,7 +246,16 @@ void main() {
             _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
             _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
           ]);
-          final passes = RefactorPasses(project.root.path, executor: executor);
+          final passes = RefactorPasses(
+            project.root.path,
+            executor: executor,
+            // Issue #1634: this test covers registry MECHANICS (order,
+            // recording, diff attribution) — not gating — and its scratch
+            // project holds nothing builder-facing, so the real gate
+            // would now statically skip the build pass. Force it to spawn.
+            buildSkipGate: () async => null,
+            ensureCompiled: _fakeCompile,
+          );
           final result = await passes.run();
 
           for (final action in result.actions) {
@@ -236,7 +286,15 @@ void main() {
           ),
           _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
         ]);
-        final passes = RefactorPasses(project.root.path, executor: executor);
+        final passes = RefactorPasses(
+          project.root.path,
+          executor: executor,
+          // Issue #1634: registry MECHANICS, not gating — force the build
+          // pass to spawn on this nothing-builder-facing scratch (the real
+          // gate would now statically skip it here).
+          buildSkipGate: () async => null,
+          ensureCompiled: _fakeCompile,
+        );
         final result = await passes.run();
 
         final format = result.actions[1];
@@ -245,6 +303,200 @@ void main() {
         expect(format.filesChanged, contains('lib/c.dart'));
         // b.dart was not touched.
         expect(format.filesChanged, isNot(contains('lib/b.dart')));
+      } finally {
+        project.dispose();
+      }
+    });
+
+    // Issue #1624: a spec's skipGate can prove a pass has nothing to do.
+    // The pass must be recorded as a synthetic skipped action — never
+    // spawned — and the registry must continue to the remaining passes.
+    test('a spec whose skipGate returns a note is recorded as skipped and '
+        'never handed to the executor', () async {
+      final project = await _ScratchProject.create();
+      try {
+        final executor = _FakeExecutor([
+          _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+          _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+        ]);
+        final passes = RefactorPasses(
+          project.root.path,
+          executor: executor,
+          passSpecs: Future.value([
+            RefactorPassSpec(
+              name: 'build',
+              command: 'zfa build',
+              skipGate: () async => 'skipped: nothing to build (test)',
+            ),
+            const RefactorPassSpec(name: 'format', command: 'dart format lib/'),
+            const RefactorPassSpec(
+              name: 'fix',
+              command: 'dart fix --apply lib/',
+            ),
+          ]),
+        );
+        final result = await passes.run();
+
+        // The executor never saw the gated pass.
+        expect(executor.invocations.map((i) => i.passName).toList(), [
+          'format',
+          'fix',
+        ]);
+        expect(result.actions, hasLength(3));
+        final build = result.actions.first;
+        expect(build.name, 'build');
+        expect(build.skipped, isTrue);
+        expect(build.filesChanged, isEmpty);
+        expect(build.exitCode, 0);
+        expect(build.output, 'skipped: nothing to build (test)');
+        // The remaining passes still ran and are NOT marked skipped.
+        expect(result.actions[1].skipped, isFalse);
+        expect(result.actions[2].skipped, isFalse);
+        expect(result.stopped, isFalse);
+      } finally {
+        project.dispose();
+      }
+    });
+
+    test('the default pass set attaches a skip gate to the build pass only '
+        '(issue #1624)', () async {
+      final project = await _ScratchProject.create();
+      try {
+        final passes = RefactorPasses(
+          project.root.path,
+          ensureCompiled: _fakeCompile,
+        );
+        final specs = await passes.passSpecs;
+        final buildGate = specs.firstWhere((s) => s.name == 'build').skipGate;
+        expect(buildGate, isNotNull);
+        expect(specs.firstWhere((s) => s.name == 'format').skipGate, isNull);
+        expect(specs.firstWhere((s) => s.name == 'fix').skipGate, isNull);
+
+        // The BINDING is what matters, not its presence: a gate that
+        // answered with a note unconditionally would silently disable the
+        // whole-project build (and its `dart analyze lib/` stage) on every
+        // refactor. Exercise the bound gate against this scratch project.
+        //
+        // Issue #1634: the scratch project IS the fresh-app shape — no
+        // `.dart_tool/build/` at all and nothing builder-facing in it — so
+        // the bound gate returns the STATIC first-build skip note (the
+        // build pass is recorded skipped and never spawned; the one-time
+        // entrypoint AOT compile is not paid).
+        expect(await buildGate!(), BuildRelevance.staticFirstBuildSkippedNote);
+
+        // Marker newer than every source file → the gate records the skip
+        // note (the pass has nothing to do).
+        await project.writeLibFile('foo.dart', 'void main() {}\n');
+        final marker = File(
+          p.join(project.root.path, '.dart_tool', 'build', 'asset_graph.json'),
+        );
+        await marker.create(recursive: true);
+        await marker.writeAsString('{}');
+        marker.setLastModifiedSync(
+          DateTime.now().add(const Duration(seconds: 5)),
+        );
+        expect(await buildGate(), BuildRelevance.refactorBuildSkippedNote);
+      } finally {
+        project.dispose();
+      }
+    });
+
+    test('the bound gate skips a byte-identical config refresh after a '
+        'completed build (issue #1637)', () async {
+      final project = await _ScratchProject.create();
+      try {
+        final passes = RefactorPasses(
+          project.root.path,
+          ensureCompiled: _fakeCompile,
+        );
+        final specs = await passes.passSpecs;
+        final buildGate = specs.firstWhere((s) => s.name == 'build').skipGate;
+        expect(buildGate, isNotNull);
+
+        // Marker backdated one hour; a config file written now is
+        // unambiguously newer.
+        final marker = File(
+          p.join(project.root.path, '.dart_tool', 'build', 'asset_graph.json'),
+        );
+        await marker.create(recursive: true);
+        await marker.writeAsString('{}');
+        marker.setLastModifiedSync(
+          DateTime.now().subtract(const Duration(hours: 1)),
+        );
+        final lock = File(p.join(project.root.path, 'pubspec.lock'))
+          ..writeAsStringSync('lock: v1\n');
+
+        // No baseline yet → the gate fails toward RUN and records one.
+        expect(
+          await buildGate!(),
+          isNull,
+          reason: 'no baseline yet — the fail-safe direction is RUN',
+        );
+
+        // A build completes: the marker moves strictly after the record.
+        marker.setLastModifiedSync(
+          DateTime.now().subtract(const Duration(minutes: 30)),
+        );
+
+        // The preflight's implicit pub get refreshes the lock
+        // byte-identically — mtime moves, bytes do not.
+        lock.writeAsStringSync('lock: v1\n');
+
+        // The pass has nothing to do → the registry records the skip
+        // and never spawns the ~26-31s build (SC-007).
+        expect(await buildGate(), BuildRelevance.refactorBuildSkippedNote);
+      } finally {
+        project.dispose();
+      }
+    });
+
+    test('issue #1634: a fresh app shape runs the registry through the REAL '
+        'gate — the build pass is recorded as a synthetic skip and never '
+        'spawned; format/fix still run', () async {
+      // Verification seam (recorded as V1 in tdd/cycle-log.md): the
+      // binding test above proves the gate's DECISION; the injected-gate
+      // test above proves the RECORDING mechanics. This test joins them
+      // end-to-end — US1 acceptance scenario 2 — on a fresh-app-shaped
+      // scratch (no .dart_tool/build/, nothing builder-facing, a plain
+      // subject under lib/) with the real default gate and a fake
+      // executor: if the build pass spawned despite the gate, the
+      // invocation assertion below would catch it.
+      final project = await _ScratchProject.create();
+      try {
+        await project.writeLibFile('a.dart', 'int a() => 1;\n');
+        final executor = _FakeExecutor([
+          // NOTE: a skipped pass consumes NO executor slot — the outcomes
+          // queue aligns with the passes that actually spawn (format,
+          // fix). If the build pass spawned anyway, it would consume the
+          // 'format ok' outcome AND appear in `invocations` — both
+          // asserted against below.
+          _ProgrammedOutcome(exitCode: 0, output: 'format ok'),
+          _ProgrammedOutcome(exitCode: 0, output: 'fix ok'),
+        ]);
+        final passes = RefactorPasses(
+          project.root.path,
+          executor: executor,
+          ensureCompiled: _fakeCompile,
+        );
+        final result = await passes.run();
+
+        // The build pass: recorded skipped with the static note, never
+        // handed to the executor (its programmed loud failure is unused).
+        final build = result.actions.first;
+        expect(build.name, 'build');
+        expect(build.skipped, isTrue);
+        expect(build.exitCode, 0);
+        expect(build.filesChanged, isEmpty);
+        expect(build.output, BuildRelevance.staticFirstBuildSkippedNote);
+        // format and fix still ran, unskipped, in registry order.
+        expect(executor.invocations.map((i) => i.passName).toList(), [
+          'format',
+          'fix',
+        ]);
+        expect(result.actions[1].skipped, isFalse);
+        expect(result.actions[2].skipped, isFalse);
+        expect(result.stopped, isFalse);
+        expect(result.failedPass, isNull);
       } finally {
         project.dispose();
       }
@@ -260,7 +512,15 @@ void main() {
             startedProcess: false,
           ),
         ]);
-        final passes = RefactorPasses(project.root.path, executor: executor);
+        final passes = RefactorPasses(
+          project.root.path,
+          executor: executor,
+          // Issue #1634: registry MECHANICS, not gating — force the build
+          // pass to spawn on this nothing-builder-facing scratch (the real
+          // gate would now statically skip it here).
+          buildSkipGate: () async => null,
+          ensureCompiled: _fakeCompile,
+        );
         final result = await passes.run();
 
         expect(result.actions, hasLength(1));
@@ -272,7 +532,12 @@ void main() {
     });
 
     test('the default pass set is exactly build, format, fix', () async {
-      final passes = RefactorPasses('/tmp/unused');
+      // No fixture PATH → the chain resolves this package's own
+      // bin/zfa.dart; the seam keeps the unit test from compiling it.
+      final passes = RefactorPasses(
+        '/tmp/unused',
+        ensureCompiled: _fakeCompile,
+      );
       expect((await passes.passSpecs).map((s) => s.name).toList(), [
         'build',
         'format',
@@ -331,7 +596,9 @@ void main() {
       test(
         'the default command never names the nonexistent bin/zfa.dart',
         () async {
-          final build = (await RefactorPasses.defaultPassSpecs()).first;
+          final build = (await RefactorPasses.defaultPassSpecs(
+            ensureCompiled: _fakeCompile,
+          )).first;
           expect(build.name, 'build');
           expect(
             build.command,
@@ -372,6 +639,10 @@ void main() {
           final passes = RefactorPasses(
             project.root.path,
             environment: environment,
+            // Issue #1634: the #717 contract is entrypoint RESOLUTION +
+            // execution, not gating — force the build pass to spawn on
+            // this nothing-builder-facing scratch.
+            buildSkipGate: () async => null,
           );
           final result = await passes.run();
 

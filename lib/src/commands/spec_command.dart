@@ -8,13 +8,30 @@
 /// differential).
 library;
 
+import 'dart:io';
+
 import 'package:args/command_runner.dart';
 
 import '../plugins/tdd/commands/spec_fuzz_command.dart';
+import '../plugins/tdd/services/mutation_auditor.dart';
 
 class SpecCommand extends Command<void> {
-  SpecCommand() {
-    addSubcommand(SpecFuzzCommand());
+  /// The injectable preflight/spawn seams (spec 1147): forwarded to the
+  /// fuzz subcommand so fast-tier tests can drive the REAL family
+  /// without subprocesses. Null = the real-process wiring, unchanged.
+  SpecCommand({
+    Future<PreflightResult> Function(List<String> testPaths)? runPreflight,
+    Future<ProcessResult> Function(
+      String executable,
+      List<String> args,
+      String workingDirectory,
+      Duration timeout,
+    )?
+    spawnTest,
+  }) {
+    addSubcommand(
+      SpecFuzzCommand(runPreflight: runPreflight, spawnTest: spawnTest),
+    );
   }
 
   @override

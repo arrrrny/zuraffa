@@ -112,7 +112,8 @@ void main() {
       expect(world.vendure, isA<VendureAdapter>());
       expect(world.rest, isA<RestAdapter>());
       expect(world.admob, isA<AdMobAdapter>());
-      expect(world.otel, isA<OtelAdapter>());
+      // Spec 1653: the otel family is opt-in — without an injected // SimulationSpanCapture (the vendor-backed adapter lives in // package:zuraffa_observability) the world loads with the family absent.
+      expect(world.otel, isNull);
       world.dispose();
     });
 

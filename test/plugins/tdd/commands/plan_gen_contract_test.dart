@@ -28,6 +28,11 @@ void main() {
   List<String> args(List<String> rest) => [
     'tdd',
     ...rest,
+    // Issue #1480: these tests exercise the PLAN/GEN artifact contract on
+    // the legacy fallback shape (the spec declares no contract rows), so
+    // the unit-fallback gate stays out of the way. The gate's own
+    // contract is covered by plan_unit_fallback_fail_fast_1480_test.dart.
+    if (rest.first == 'plan') '--allow-unit-fallback',
     '--project',
     tmpDir.path,
   ];
@@ -35,6 +40,31 @@ void main() {
   setUp(() async {
     tmpDir = Directory.systemTemp.createTempSync('plan_gen_contract_');
     featureDir = p.join(tmpDir.path, 'specs', featureName);
+    // Issue #1528: gen's entry preflight is a SILENT NO-OP when the TDD
+    // profile exists (no writes at all — no pubspec read, no baseline
+    // writes) — seed it so these tests keep pinning gen's own behavior
+    // byte-for-byte in a pubspec-less fixture. The missing-profile
+    // auto-init path is covered by commands/issue_1528_setup_error_test.dart.
+    final memoryDir = Directory(p.join(tmpDir.path, '.specify', 'memory'));
+    memoryDir.createSync(recursive: true);
+    File(p.join(memoryDir.path, 'tdd-profile.md')).writeAsStringSync('''
+# TDD Profile — fixture
+
+## Commands
+
+- Single test: `dart test {file} --plain-name "{name}"`
+- Full suite: `dart test`
+
+## Keys (machine-readable)
+
+```yaml
+runner: dart
+single: 'dart test {file} --plain-name "{name}"'
+suite: 'dart test'
+file: 'dart test {file}'
+coverage: 'dart test --coverage'
+```
+''');
     final specDir = Directory(featureDir);
     await specDir.create(recursive: true);
     await File(p.join(specDir.path, 'spec.md')).writeAsString('''
@@ -45,6 +75,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: returns 42 when invoked with no args
+  traces: Calculator
 
 ## Acceptance Scenarios
 
@@ -250,6 +281,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: The system shall persist a User with a name and an email.
+  traces: UserStore
 
 ## Acceptance Scenarios
 

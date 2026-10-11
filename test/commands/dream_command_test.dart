@@ -23,6 +23,8 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/plugins/tdd/services/dream_runner.dart';
 import 'package:zuraffa/src/cli/exit_protocol.dart';
 
+import '../helpers/cwd_mutex.dart';
+
 void main() {
   late Directory tmp;
   late List<String> emitted;
@@ -33,7 +35,6 @@ void main() {
   });
 
   tearDown(() async {
-    exitCode = 0;
     if (tmp.existsSync()) await tmp.delete(recursive: true);
   });
 
@@ -49,6 +50,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: list the favorite deals sorted by expiration
+            traces: FavoriteDealRepository
 
 ## Acceptance Scenarios
 
@@ -314,14 +316,16 @@ A page that lists the user's favorite deals, sorted by expiration.
       isNot(contains('Could not find a command named "dream"')),
       reason: out,
     );
+    // Exit-code reads go through the hermetic per-isolate snapshot: the
+    // process-global getter is exposed to sibling isolates' dispatches
+    // (issue #1632 dart_core lane).
     expect(
-      exitCode,
+      CliRunner.lastDispatchedExitCode,
       ExitProtocol.usage,
       reason: 'a missing description is a usage error',
     );
     expect(out, contains('A feature description is required'));
 
-    exitCode = 0;
     final out2 = await runner.runCapturing([
       'dream',
       description,
@@ -331,7 +335,70 @@ A page that lists the user's favorite deals, sorted by expiration.
       'not-a-number',
     ]);
     expect(out2, contains('--max-retries must be an integer'));
-    expect(exitCode, ExitProtocol.usage);
+    expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
+  });
+
+  test('spec 1520 FR-6: a .zfa.json tdd.tmpDir root is honoured without '
+      '--project', () async {
+    await seedCycleLog();
+    final cfgRoot = Directory(p.join(tmp.path, 'cfg-root'))
+      ..createSync(recursive: true);
+    File(
+      p.join(tmp.path, '.zfa.json'),
+    ).writeAsStringSync('{"tdd": {"tmpDir": "${cfgRoot.path}"}}');
+
+    // Observe the configured root WHILE the run is live: the scratch must
+    // be created inside it, then disposed at run end.
+    final observedScratches = <String>[];
+    final fx = spawner();
+    // Issue #1632 dart_core lane: the process-global chdir window is
+    // serialized through the same cross-isolate lock CliRunner's `-C`
+    // windows use.
+    await CwdMutex.acquire();
+    final previousCwd = Directory.current.path;
+    Directory.current = tmp.path;
+    addTearDown(() {
+      Directory.current = previousCwd;
+      CwdMutex.release();
+    });
+
+    Future<ProcessResult> zfaSpy(List<String> argv, String cwd) {
+      observedScratches.addAll(
+        cfgRoot
+            .listSync()
+            .map((e) => p.basename(e.path))
+            .where((n) => n.startsWith('zfa-')),
+      );
+      return fx.zfa(argv, cwd);
+    }
+
+    final code = await DreamRunner.execute(
+      description: description,
+      feature: feature,
+      llmClient: llm([(spec: validSpec, plan: validPlan)]),
+      zfaSpawner: zfaSpy,
+      procSpawner: fx.proc,
+      emit: emitted.add,
+    );
+
+    expect(code, 0, reason: emitted.join('\n'));
+    expect(
+      observedScratches,
+      isNotEmpty,
+      reason:
+          'without --project the project root resolves to the nearest '
+          'specs/ ancestor, so the .zfa.json tdd.tmpDir tier still names '
+          'the scratch root — pre-fix projectRoot was null and dream '
+          'silently ignored the configuration (spec 1520 FR-6 / SC-2)',
+    );
+    expect(
+      cfgRoot
+          .listSync()
+          .map((e) => p.basename(e.path))
+          .where((n) => n.startsWith('zfa-')),
+      isEmpty,
+      reason: 'dream deletes its own scratch at run end (spec 1520 FR-3)',
+    );
   });
 }
 

@@ -7,6 +7,13 @@
 /// chains the two lanes over the SAME shared driver core
 /// ([RunDriverCore] — spec 049 semantics unchanged):
 ///
+/// 0. **Preflights** — three gates run before any step spawns: the
+///    dependency-overrides path gate (#1303), the routing-provenance
+///    preflight (#1482 — a fallback-routed UNIT behavior has no derivable
+///    assertion, so make refuses it vacuous-green; the gate names ALL
+///    offending rows before the first gen, `--force` bypasses it), and
+///    the spec-1001 cert gate (uncertified CORE mocks).
+///
 /// 1. **Engine lane** — CORE + BOTH behaviors (for a legacy feature with
 ///    no lane declarations, that is every behavior: the run is
 ///    byte-compatible with the pre-split driver, plus the receipts). Its
@@ -32,6 +39,24 @@
 /// 0 complete, 1 stopped, 2 runner-error, 3 corrupt-state,
 /// 4 concurrent-run — 0 means exactly "all DONE with complete evidence"
 /// and both receipts green.
+///
+/// Issue #1528: the entry preflights the TDD baseline before any lane
+/// step spawns — a missing `.specify/memory/tdd-profile.md` runs the
+/// idempotent `tdd init` sequence (created artifacts logged); a baseline
+/// writer misfire fails CLOSED before any behavior is driven with
+/// `result=setup-error` (exit 1, journaled preflight_red, verdict
+/// receipt exit_class=setup-error). A setup condition never surfaces as
+/// the loop's `classification=unresolved`.
+///
+/// Issue #1590 carve-out (additive liveness lines, never parsed by the
+/// machine contract): the driver also prints a pre-spawn step-start
+/// banner `[run] <behavior> <step> — <hint>`, forwards the make child's
+/// banner-shaped stdout lines (`→ …`) live (every line under
+/// `--verbose`), and emits elapsed-time heartbeats
+/// `[run] <behavior> <step> … <elapsed> elapsed` while a step runs
+/// (`--heartbeat <seconds>`, default 30, `0` disables). The completion
+/// lines, the summary line, `--stream` NDJSON events and the verdict
+/// envelope are byte-identical to the pre-#1590 output.
 library;
 
 import 'dart:io';
@@ -45,7 +70,12 @@ import '../services/journal.dart';
 import '../services/cycle_log_terminal_receipt.dart';
 import '../services/dependency_override_preflight.dart';
 import '../services/explain_emitter.dart';
+import '../services/feature_path_resolver.dart';
+import '../services/kernel_cache.dart';
 import '../services/lane_receipts.dart';
+import '../services/profile_preflight.dart';
+import '../services/routing_provenance_preflight.dart';
+import '../services/scratch_tmpdir.dart';
 import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
@@ -65,11 +95,32 @@ const String kJsonFlagHelp =
     'Emit a versioned verdict.v1 JSON envelope as the final stdout line '
     '(VISION §5, issue #964/#838).';
 
+/// The `--verbose` flag's help text — shared by the three driving commands
+/// (issue #1590).
+const String kVerboseFlagHelp =
+    'Forward EVERY stdout line the spawned step children print to the run '
+    'output as it arrives (issue #1590). Default: only the pipeline '
+    'sub-step banner lines (starting with the banner arrow) are '
+    'forwarded.';
+
+/// The `--heartbeat` flag's help text — shared by the three driving
+/// commands (issue #1590).
+const String kHeartbeatFlagHelp =
+    'Seconds between heartbeat lines for a running step (issue #1590; '
+    'default 30, fractions allowed, 0 disables). Each heartbeat names the '
+    'behavior, the step, and the elapsed time.';
+
 class RunCommand extends Command<void> {
   RunCommand(this.plugin) {
     argParser.addFlag('json', help: kJsonFlagHelp, negatable: false);
     argParser.addFlag('explain', help: kExplainFlagHelp, negatable: false);
     argParser.addFlag('stream', help: kStreamFlagHelp, negatable: false);
+    argParser.addFlag('verbose', help: kVerboseFlagHelp, negatable: false);
+    argParser.addOption(
+      'heartbeat',
+      valueHelp: 'seconds',
+      help: kHeartbeatFlagHelp,
+    );
     argParser.addOption(
       'project',
       aliases: const ['project-root'],
@@ -90,9 +141,11 @@ class RunCommand extends Command<void> {
       'timeout',
       valueHelp: 'minutes',
       help:
-          'Hard deadline in minutes for each spawned step command (bug #742; '
-          'default 10). Fractions are allowed. On timeout the child is '
-          'killed and the run stops with result=runner-error.',
+          'Hard deadline in minutes for each spawned step command (bug #742). '
+          'Omitted, the deadline SCALES from the measured baseline suite '
+          '(max(25m floor, 4 x baseline) — spec 1529). Fractions are '
+          'allowed. On timeout the child is killed and the run stops with '
+          'result=runner-error.',
     );
     argParser.addOption(
       'baseline-scope',
@@ -111,6 +164,17 @@ class RunCommand extends Command<void> {
           'its current state — never a fake DONE — and the end-of-run '
           'summary names the count (issue #992). Without the flag the '
           'refusal still stops the run.',
+      negatable: false,
+    );
+    argParser.addFlag(
+      'force',
+      help:
+          'Bypass the routing-provenance preflight (issue #1482): the run '
+          'starts even when unit behaviors are fallback-routed with no '
+          'derivable assertion — the vacuous-green honest stop remains the '
+          'fallback for conditions the plan could not have known. The '
+          'dependency_overrides gate (#1303) and the cert gate (#1001) '
+          'keep their own semantics.',
       negatable: false,
     );
   }
@@ -136,6 +200,10 @@ class RunCommand extends Command<void> {
       'zfa tdd run <feature> [--project <dir>] [--zfa-bin <path>]';
 
   static const _exitComplete = 0;
+  // The #1528 setup-error stop (journaled preflight_red, zero steps) —
+  // the SPEC 917 golden failure class (exit 1, distinguished by the
+  // verdict's exit_class / the summary line's result=setup-error).
+  static const _exitStopped = 1;
   static const _exitRunnerError = 2;
   // The SPEC 917 drift class (corrupt-state) — the issue #1303
   // dependency_overrides preflight refuses with this exit code.
@@ -154,10 +222,76 @@ class RunCommand extends Command<void> {
   );
 
   Future<void> _run() async {
+    // Spec 1520 (issue #1520): ONE scratch dir per invocation. Every child
+    // this command spawns — step children and the phase-0 pipeline spawns
+    // alike — inherits the scratch as its TMPDIR, so every `dart test`
+    // grandchild writes its `dart_test.kernel.*` dir inside the run's own
+    // scratch instead of the shared user TMPDIR, and the finally below
+    // deletes the scratch recursively at run end (the #1507 leak fixed by
+    // construction). Best-effort: a scratchless run (children inherit the
+    // ambient TMPDIR) always beats a crashed command.
+    const label = 'run';
+    final rest = argResults?.rest ?? const <String>[];
+    final scratch = await ScratchTmpDir.acquire(
+      label: rest.isNotEmpty ? rest.first : label,
+      projectRoot: _scratchProjectRoot(),
+    );
+    try {
+      await _runDriven(scratch?.childEnvironment());
+    } on DiskPreflightRefusal catch (e) {
+      // Issue #1642: the full-suite disk preflight refused an UNSCOPED
+      // baseline whose estimated kernel-snapshot footprint exceeds the
+      // temp volume's free space. The refusal (with its `--> fix:`
+      // remedies) is already printed at the capture site — re-printing
+      // its first line here would duplicate the numbers back-to-back.
+      // The run stops BEFORE the baseline spawned, so nothing leaks; the
+      // scratch is still disposed by the finally below.
+      print(
+        'zfa tdd run: stopped before the baseline — '
+        'see the disk preflight refusal above',
+      );
+      // SPEC 917: the envelope must distinguish this stop from a red
+      // suite — the exit class names the refusal and `fix` carries the
+      // remedy line, the way the #1303/#1528 sibling preflight stops do
+      // (PR #1650 review finding 4b).
+      _verdict
+        ..exitClass = 'disk-preflight-refused'
+        ..outcome = VerdictOutcome.error
+        ..details['preflight'] =
+            'disk preflight refused the full-suite baseline (issue #1642)'
+        ..fix = e.message
+            .split('\n')
+            .where((line) => line.trimLeft().startsWith('--> fix:'))
+            .map((line) => line.trim())
+            .firstOrNull;
+      exitCode = _exitStopped;
+    } finally {
+      await scratch?.dispose();
+    }
+  }
+
+  /// The project root the scratch-root resolution uses (.zfa.json tier) —
+  /// best-effort: an unresolvable root degrades to the env-only tiers.
+  String? _scratchProjectRoot() {
+    try {
+      final projectFlag = argResults?['project'] as String?;
+      return projectFlag != null && projectFlag.isNotEmpty
+          ? projectFlag
+          : ProjectRoot.find(anchorDir: 'specs');
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> _runDriven(Map<String, String>? scratchEnv) async {
     const label = 'run';
     // Spec 1113: the meta entry's bounds — the meta cycle started when
     // the command began, finishes at its terminal outcome.
     final journalStartedAt = DateTime.now().toUtc().toIso8601String();
+    // Issue #1507: the cycle's start instant, captured BEFORE any lane
+    // spawns — the kernel sweep below preserves TMPDIR entries younger
+    // than this (they may belong to a concurrent runner).
+    final commandStartedAt = DateTime.now();
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       throw UsageException(
@@ -166,22 +300,54 @@ class RunCommand extends Command<void> {
         invocation,
       );
     }
-    final feature = stripSpecsPrefix(rest.first);
-    validateFeatureSegment(feature, invocation);
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
         ? projectFlag
         : ProjectRoot.find(anchorDir: 'specs');
+    final rawRef = rest.first;
+    validateFeatureSegment(rawRef, invocation);
+    // Issue #1471: resolve the reference once — the bug extension's
+    // `.specify/feature.json` pin included — and carry all three forms:
+    // [feature] (the NAME) labels the receipts and the summary line,
+    // [featureDir] is every path, [featureRef] is the canonical reference
+    // the lanes hand their spawned children.
+    final resolved = TddFeaturePaths.resolveWithPin(
+      projectRoot: projectRoot,
+      featureRef: rawRef,
+    );
+    final feature = resolved.name;
+    final featureDir = resolved.dir;
+    final featureRef = resolved.ref;
     final zfaBin = argResults?['zfa-bin'] as String?;
+
+    // -----------------------------------------------------------------
+    // Issue #1507: the kernel sweep is a start-of-cycle obligation — the
+    // meta run's lanes spawn one dart test invocation per step, each
+    // leaking a `$TMPDIR/dart_test.kernel.*` directory (51 GB / 869 dill
+    // files in ~80 minutes on the reporter's machine), and this command
+    // had NO cleanup path of its own. Sweeping HERE — before the
+    // preflight gates and any lane step spawns — keeps a long TDD loop's
+    // temp usage roughly flat; entries younger than [commandStartedAt]
+    // are preserved for concurrent runners. Shared with `tdd refactor`
+    // (which sweeps at its own cycle start and on the infra-retry path).
+    // -----------------------------------------------------------------
+    await clearDartTestKernelCache(
+      projectRoot,
+      commandStartedAt: commandStartedAt,
+    );
 
     // -----------------------------------------------------------------
     // Issue #1303 preflight: a stale `dependency_overrides` path entry
     // would surface only as a raw version-solving dump buried mid-log
     // after minutes of compiling, with the clean-cache retry burning a
     // full rebuild on a resolution error no cache clean can fix.
-    // Validate every override path BEFORE the cert gate and any lane
-    // step spawns; refuse with the honest drift verdict (exit 3,
-    // journaled preflight_red — zero steps).
+    // Validate every override path BEFORE the #1528 baseline ensure, the
+    // cert gate, and any lane step spawns; refuse with the honest drift
+    // verdict (exit 3, journaled preflight_red — zero steps). The gate runs
+    // before the baseline ensure deliberately: the ensure's pub resolution
+    // misfires on exactly this drift, and reporting corrupt state as a
+    // setup-error sends the operator after the wrong remedy (issue #1303:
+    // refuse BEFORE any work).
     // -----------------------------------------------------------------
     final overrideReport = await DependencyOverridePreflight(
       projectRoot: projectRoot,
@@ -192,7 +358,7 @@ class RunCommand extends Command<void> {
       }
       print('$kOverrideFixLine `zfa tdd run`');
       await _journalMeta(
-        featureDir: p.join(projectRoot, 'specs', feature),
+        featureDir: featureDir,
         feature: feature,
         startedAt: journalStartedAt,
         gateState: 'preflight_red',
@@ -245,6 +411,185 @@ class RunCommand extends Command<void> {
       return;
     }
 
+    // -----------------------------------------------------------------
+    // Issue #1528 preflight: a missing TDD profile is a SETUP condition —
+    // deterministically detectable before any step, with a deterministic
+    // idempotent remediation. Without this gate the loop spawned gen/+
+    // verify-red children only to stop at the first behavior with the
+    // engine-defect-sounding `classification=unresolved` (and an error
+    // telling the operator to run the idempotent `tdd init` themselves).
+    // Ensure the baseline HERE — after the #1303 drift gate, before any
+    // lane step: missing profile → the shared idempotent init sequence
+    // runs and the created artifacts are logged; a misfiring writer →
+    // fail CLOSED
+    // (journaled preflight_red, result=setup-error summary, verdict
+    // receipt, exit 1, ZERO steps). Unconditional: `--force` bypasses the
+    // routing gate only — the baseline is self-healing setup, not a
+    // refusal gate. A present profile makes this a silent no-op
+    // (byte-identical to pre-#1528 runs).
+    // -----------------------------------------------------------------
+    try {
+      await const TddProfilePreflight().ensure(
+        projectRoot: projectRoot,
+        commandLabel: 'zfa tdd run',
+        onLine: print,
+      );
+    } on TddProfilePreflightError catch (e) {
+      await _journalMeta(
+        featureDir: featureDir,
+        feature: feature,
+        startedAt: journalStartedAt,
+        gateState: 'preflight_red',
+        phase: 'gate',
+        result: 'setup-error',
+        violations: [
+          'baseline preflight could not ensure '
+              '${TddProfilePreflight.profilePath} (issue #1528)',
+          ...e.failures,
+        ],
+      );
+      print(
+        'zfa tdd run: $kSetupErrorLabel — the TDD baseline could not be '
+        'ensured before the loop: ${e.message}',
+      );
+      print(
+        ExitProtocol.fixLine(
+          'resolve the baseline writer failure above (or run '
+          '`zfa tdd init` manually), then re-run `zfa tdd run`',
+        ),
+      );
+      print(
+        RunDriverCore.summaryLine(
+          label: label,
+          feature: feature,
+          result: 'setup-error',
+          counts: const {
+            'total': 0,
+            'pending': 0,
+            'red': 0,
+            'green': 0,
+            'done': 0,
+          },
+        ),
+      );
+      _verdict
+        ..exitClass = kSetupErrorLabel
+        ..outcome = VerdictOutcome.error
+        ..fix =
+            'resolve the baseline writer failure (or run `zfa tdd init` '
+            'manually), then re-run'
+        ..details['preflight'] =
+            'baseline preflight refused the run (issue #1528)'
+        ..details['setup'] = 'missing/broken ${TddProfilePreflight.profilePath}'
+        ..details['classification'] = kSetupErrorLabel;
+      _verdict.explain = TddExplain(
+        command: 'run',
+        features: [feature],
+        lane:
+            'none — the baseline preflight refused before any lane drove '
+            '(preflight red, issue #1528)',
+        fixHints: [
+          'resolve the baseline writer failure (or run `zfa tdd init` '
+              'manually), then re-run',
+        ],
+        summary:
+            'Run stopped at the issue-#1528 preflight: the TDD baseline '
+            'could not be ensured (a `tdd init` writer misfired). No step '
+            'was spawned and no receipt was written; the refusal is '
+            'journaled preflight_red in tdd/journal.json.',
+      );
+      exitCode = _exitStopped;
+      return;
+    }
+
+    // -----------------------------------------------------------------
+    // Issue #1482 preflight: a fallback-routed UNIT behavior (the plan's
+    // routing provenance says so) has no derivable assertion — gen emits
+    // the guard-only test and make refuses it vacuous-green (#1259,
+    // #1308). The precondition is fully known at plan time, so refuse
+    // BEFORE the first gen instead of certifying reds the loop can never
+    // make green (19 reds over 27m41s before the first make stop on the
+    // issue's repro). Every offending row is named at once; --force
+    // bypasses THIS gate only — the honest stop stays the fallback for
+    // conditions unknown at plan time. Zero steps spawn; the refusal is
+    // journaled preflight_red; the summary line keeps the FR-009/FR-010
+    // machine contract with the stopped class (exit 1) — the same stop
+    // the loop would reach at <first-offender>:make, relocated to before
+    // the loop starts.
+    // -----------------------------------------------------------------
+    final force = argResults?['force'] as bool? ?? false;
+    if (!force) {
+      final routingReport = await RoutingProvenancePreflight(
+        projectRoot: projectRoot,
+        featureDir: featureDir,
+      ).check();
+      if (!routingReport.ok) {
+        print(routingReport.headerLine);
+        for (final finding in routingReport.offending) {
+          print(finding.line);
+        }
+        print(kRoutingPreflightSuggested);
+        await _journalMeta(
+          featureDir: featureDir,
+          feature: feature,
+          startedAt: journalStartedAt,
+          gateState: 'preflight_red',
+          phase: 'gate',
+          result: 'stopped',
+          violations: [
+            for (final finding in routingReport.offending)
+              'routing-preflight: unit behavior ${finding.id} is '
+                  'fallback-routed with no derivable assertion — cannot '
+                  'pass make (issue #1482)',
+          ],
+        );
+        print(
+          RunDriverCore.summaryLine(
+            label: label,
+            feature: feature,
+            result: 'stopped',
+            counts: const {
+              'total': 0,
+              'pending': 0,
+              'red': 0,
+              'green': 0,
+              'done': 0,
+            },
+          ),
+        );
+        _verdict
+          ..exitClass = 'stopped'
+          ..outcome = VerdictOutcome.stopped
+          ..details['preflight'] =
+              'routing provenance refused the run (issue #1482)'
+          ..details['offending'] = routingReport.offending
+              .map((f) => f.id)
+              .toList();
+        _verdict.explain = TddExplain(
+          command: 'run',
+          features: [feature],
+          lane:
+              'none — the routing preflight refused before any lane drove '
+              '(preflight red, issue #1482)',
+          fixHints: [
+            'fix routing in plan (add traces: <ContractRow> to the FR, '
+                're-run zfa tdd plan), or re-run with --force to skip the '
+                'preflight',
+          ],
+          summary:
+              'Run stopped at the issue-#1482 preflight: '
+              '${routingReport.offending.length} unit behavior(s) are '
+              'fallback-routed with no derivable assertion — make refuses '
+              'them vacuous-green (issues #1259, #1308), so the loop can '
+              'never make them green. All offending rows are named above. '
+              'No step was spawned and no receipt was written; the '
+              'refusal is journaled preflight_red in tdd/journal.json.',
+        );
+        exitCode = 1;
+        return;
+      }
+    }
+
     // Issue #1374: the constrained-agent escape hatch — scope the suite
     // baseline command to a directory (the feature test dir).
     final baselineScope = argResults?['baseline-scope'] as String?;
@@ -288,6 +633,39 @@ class RunCommand extends Command<void> {
       return;
     }
 
+    // Issue #1590: the --heartbeat override (and the --verbose toggle) —
+    // the run's liveness tuning, threaded into the driver.
+    Duration? heartbeatOverride;
+    try {
+      heartbeatOverride = parseTddHeartbeatSeconds(
+        argResults?['heartbeat'] as String?,
+      );
+    } on TddTimeoutFormatException catch (e) {
+      print('zfa tdd $label: ${e.message}');
+      print(
+        RunDriverCore.summaryLine(
+          label: label,
+          feature: feature,
+          result: 'runner-error',
+          counts: const {
+            'total': 0,
+            'pending': 0,
+            'red': 0,
+            'green': 0,
+            'done': 0,
+          },
+        ),
+      );
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..exitClass = 'runner-error'
+        ..outcome = VerdictOutcome.error
+        ..fix = 'pass --heartbeat in seconds (0 disables) and re-run';
+      exitCode = _exitRunnerError;
+      return;
+    }
+    final verbose = argResults?['verbose'] as bool? ?? false;
+
     final skipWidget = argResults?['skip-widget'] as bool? ?? false;
     final core = RunDriverCore();
     // SPEC 917 (--stream): when set, every completed step streams one
@@ -304,7 +682,7 @@ class RunCommand extends Command<void> {
     // -----------------------------------------------------------------
     final gate = await RunEngineCommand.checkFeature(
       projectRoot: projectRoot,
-      featureDir: p.join(projectRoot, 'specs', feature),
+      featureDir: featureDir,
     );
     // The gate's mock accounting rides the engine entry (the status
     // verdict's `mocks c/t` segment — spec 1113).
@@ -326,7 +704,7 @@ class RunCommand extends Command<void> {
       // Spec 1113: the preflight refusal is journaled preflight_red —
       // zero steps spawned, the refused entity named as the violation.
       await _journalMeta(
-        featureDir: p.join(projectRoot, 'specs', feature),
+        featureDir: featureDir,
         feature: feature,
         startedAt: journalStartedAt,
         gateState: 'preflight_red',
@@ -367,7 +745,7 @@ class RunCommand extends Command<void> {
     // (for a legacy feature the engine lane IS the whole test list).
     // -----------------------------------------------------------------
     final engine = await core.drive(
-      feature: feature,
+      featureRef: featureRef,
       projectRoot: projectRoot,
       zfaBin: zfaBin,
       timeout: timeoutOverride,
@@ -377,6 +755,9 @@ class RunCommand extends Command<void> {
       skipWidget: skipWidget,
       mockCounts: mockCounts,
       baselineScope: baselineScope,
+      childEnvironment: scratchEnv,
+      verbose: verbose,
+      heartbeat: heartbeatOverride,
     );
 
     // Fail fast (issue #1008): the engine lane must be green before the
@@ -387,7 +768,7 @@ class RunCommand extends Command<void> {
       // Spec 1113: the fail-fast meta outcome is journaled red (the
       // honest stop named as the violation).
       await _journalMeta(
-        featureDir: p.join(projectRoot, 'specs', feature),
+        featureDir: featureDir,
         feature: feature,
         startedAt: journalStartedAt,
         gateState: 'red',
@@ -418,7 +799,7 @@ class RunCommand extends Command<void> {
     // engine certified DONE are skipped here, never re-driven.
     // -----------------------------------------------------------------
     final skin = await core.drive(
-      feature: feature,
+      featureRef: featureRef,
       projectRoot: projectRoot,
       zfaBin: zfaBin,
       timeout: timeoutOverride,
@@ -427,6 +808,9 @@ class RunCommand extends Command<void> {
       announce: false,
       skipWidget: skipWidget,
       baselineScope: baselineScope,
+      childEnvironment: scratchEnv,
+      verbose: verbose,
+      heartbeat: heartbeatOverride,
     );
 
     if (skin.result != 'complete') {
@@ -435,7 +819,7 @@ class RunCommand extends Command<void> {
       // meta record covers EVERY terminal outcome, not only the green
       // one.
       await _journalMeta(
-        featureDir: p.join(projectRoot, 'specs', feature),
+        featureDir: featureDir,
         feature: feature,
         startedAt: journalStartedAt,
         gateState: 'red',
@@ -468,15 +852,13 @@ class RunCommand extends Command<void> {
     // (issue #1008) and the structured meta entry (issue #1113) and the
     // final summary line over EVERY behavior.
     // -----------------------------------------------------------------
-    await LaneReceipts(
-      p.join(projectRoot, 'specs', feature),
-    ).appendUnifiedJournalEntry(
+    await LaneReceipts(featureDir).appendUnifiedJournalEntry(
       feature: feature,
       engineVerdict: engine.verdict,
       skinVerdict: skin.verdict,
     );
     await _journalMeta(
-      featureDir: p.join(projectRoot, 'specs', feature),
+      featureDir: featureDir,
       feature: feature,
       startedAt: journalStartedAt,
       gateState: 'green',
@@ -498,6 +880,7 @@ class RunCommand extends Command<void> {
     // summary line stays the run's final stdout line (FR-009/FR-010).
     await CycleLogTerminalReceipt.refreshBestEffort(
       projectRoot: projectRoot,
+      featureDir: featureDir,
       feature: feature,
       command: 'tdd run',
     );
@@ -583,6 +966,7 @@ class RunCommand extends Command<void> {
         ),
         stoppedAt: outcome.stoppedAt,
         skippedWidgetIds: outcome.skippedWidgetIds,
+        handStepIds: outcome.handStepIds,
       ),
     );
     // Issue #969: carry the shipped exit taxonomy into the envelope —
@@ -603,6 +987,13 @@ class RunCommand extends Command<void> {
       ..details['done'] = outcome.counts['done'];
     if (outcome.stoppedAt != null) {
       _verdict.details['stopped_at'] = outcome.stoppedAt;
+    }
+    // Issue #1568 (review fix): the parked hand-steps are part of the
+    // machine-readable verdict the `--json` envelope serializes
+    // (standard/output_format.dart) — the summary line carries
+    // `hand_steps=N`, so `details` must too.
+    if (outcome.handStepIds.isNotEmpty) {
+      _verdict.details['hand_steps'] = outcome.handStepIds.length;
     }
     // Issue #1125: the run's explain block — the counts reuse the
     // summary line's numbers, the receipts the journal's refs, the

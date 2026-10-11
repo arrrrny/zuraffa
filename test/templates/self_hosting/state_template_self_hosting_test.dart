@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Bug 1198 (part of #908 P0) — template self-hosting: `state` template.
 //
 // Full trust-tier loop against the fixture entity: structural + compile +

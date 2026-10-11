@@ -17,10 +17,10 @@ The adaptive-layout platform matrix (issue #1004): every SKIN behavior renders t
 
 | platform | contract | behaviors | source |
 | -------- | -------- | --------- | ------ |
-| mobile | renders the adaptive slots | A3, A4, A5, A6, A7, W1 | adaptive_slots |
-| ios | renders the adaptive slots; home_indicator_safe_area: required | A3, A4, A5, A6, A7, W1 | adaptive_slots, platform_overrides.ios |
-| android | renders the adaptive slots | A3, A4, A5, A6, A7, W1 | adaptive_slots |
-| macos | renders the adaptive slots; title_bar_alignment: trailing | A3, A4, A5, A6, A7, W1 | adaptive_slots, platform_overrides.macos |
+| mobile | renders the adaptive slots | A3, A4, A5, A6, A7, U1, W1 | adaptive_slots |
+| ios | renders the adaptive slots; home_indicator_safe_area: required | A3, A4, A5, A6, A7, U1, W1 | adaptive_slots, platform_overrides.ios |
+| android | renders the adaptive slots | A3, A4, A5, A6, A7, U1, W1 | adaptive_slots |
+| macos | renders the adaptive slots; title_bar_alignment: trailing | A3, A4, A5, A6, A7, U1, W1 | adaptive_slots, platform_overrides.macos |
 
 ## State machine contract
 
@@ -105,14 +105,23 @@ Skin behaviors (bug #830 / issue #1000): asserted through a testWidgets pair —
 | A7 | while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list' | AC-7 | PENDING |
 | W1 | skin behavior declared in `## Lanes` | LANE:SKIN | PENDING |
 
+## Inner loop: unit behaviors
+
+One per functional requirement in `spec.md`.
+
+| id | behavior | traces | state |
+| -- | -------- | ------ | ----- |
+| U1 | The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos). | FR-001, adaptive_layouts | PENDING |
+
 ## Routing provenance
 
 Per-behavior routing decisions (issue #951): what each decision consulted — a declared marker/contract row, or the labeled legacy fallback to migrate.
 
-route: A3 -> widget lane [declared: type marker, spec line 24]
-route: A4 -> widget lane [declared: type marker, spec line 27]
-route: A5 -> widget lane [declared: type marker, spec line 30]
-route: A6 -> widget lane [declared: type marker, spec line 33]
-route: A7 -> widget lane [declared: type marker, spec line 36]
+route: A3 -> widget lane [declared: type marker, spec line 26]
+route: A4 -> widget lane [declared: type marker, spec line 29]
+route: A5 -> widget lane [declared: type marker, spec line 32]
+route: A6 -> widget lane [declared: type marker, spec line 35]
+route: A7 -> widget lane [declared: type marker, spec line 38]
+route: U1 -> unit lane (view generation) [declared: contract row: adaptive_layouts, spec line 103]
 
 

@@ -5,8 +5,17 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
     GeneratorConfig config,
   ) async {
     final files = <GeneratedFile>[];
-    final baseClassName = '${config.name}UseCase';
-    final classSnake = StringUtils.camelToSnake(config.name);
+    // Issue #1723 review: normalize config.name before deriving class and
+    // file names (see generateOrchestrator).
+    final baseClassName = StringUtils.normalizeUseCaseClassName(config.name);
+    final classSnake = StringUtils.camelToSnake(
+      baseClassName.substring(0, baseClassName.length - 'UseCase'.length),
+    );
+    // `<Variant><Base>` snake for variant file names, shared by the revert,
+    // variant and factory-import paths so all three stay in lockstep.
+    String variantSnakeFor(String variant) => StringUtils.camelToSnake(
+      '$variant${baseClassName.substring(0, baseClassName.length - 'UseCase'.length)}',
+    );
     final usecaseDirPath = path.join(
       outputDir,
       'domain',
@@ -30,7 +39,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
       }
 
       for (final variant in config.variants) {
-        final variantSnake = StringUtils.camelToSnake('$variant${config.name}');
+        final variantSnake = variantSnakeFor(variant);
         final variantFileName = '${variantSnake}_usecase.dart';
         final variantFilePath = path.join(usecaseDirPath, variantFileName);
         if (await fileSystem.exists(variantFilePath)) {
@@ -93,8 +102,8 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
     );
 
     for (final variant in config.variants) {
-      final variantClassName = '$variant${config.name}UseCase';
-      final variantSnake = StringUtils.camelToSnake('$variant${config.name}');
+      final variantClassName = '$variant$baseClassName';
+      final variantSnake = variantSnakeFor(variant);
       final variantFileName = '${variantSnake}_usecase.dart';
       final variantFilePath = path.join(usecaseDirPath, variantFileName);
 
@@ -180,7 +189,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
       );
     }
 
-    final factoryClassName = '${config.name}UseCaseFactory';
+    final factoryClassName = '${baseClassName}Factory';
     final factoryFileName = '${classSnake}_usecase_factory.dart';
     final factoryFilePath = path.join(usecaseDirPath, factoryFileName);
     final factoryClass = _buildPolymorphicFactory(
@@ -191,9 +200,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
     );
     final factoryImports = <String>[
       abstractFileName,
-      ...config.variants.map(
-        (v) => '${StringUtils.camelToSnake('$v${config.name}')}_usecase.dart',
-      ),
+      ...config.variants.map((v) => '${variantSnakeFor(v)}_usecase.dart'),
     ];
     final factorySpec = UseCaseClassSpec(
       className: factoryClassName,

@@ -91,6 +91,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: the dashboard exposes a pure view-model contract.
+  traces: Contract
 ''');
       expect(behaviors, hasLength(2));
       // A-behavior: UI intent -> widget. U-behavior: untouched -> unit.
@@ -128,6 +129,7 @@ void main() {
 ## Functional Requirements
 
 - **FR-001**: the login page exposes a loading indicator contract.
+  traces: Contract
 ''');
       expect(behaviors, hasLength(4));
       expect(behaviors[0].id, 'A1');
@@ -200,6 +202,9 @@ void main() {
         '080-ui-dashboard',
         '--project',
         tmpDir.path,
+        // Issue #1480: the spec is deliberately minimal — the legacy
+        // fallback shape stays reachable via the migration escape hatch.
+        '--allow-unit-fallback',
       ]);
       final list = await File(
         p.join(specDir.path, 'tdd', 'test-list.md'),
@@ -237,6 +242,9 @@ void main() {
         '002-toggle',
         '--project',
         tmpDir.path,
+        // Issue #1480: the spec is deliberately minimal — the legacy
+        // fallback shape stays reachable via the migration escape hatch.
+        '--allow-unit-fallback',
       ]);
       final list = await File(
         p.join(specDir.path, 'tdd', 'test-list.md'),
@@ -257,6 +265,31 @@ void main() {
 
     setUp(() {
       tmpDir = Directory.systemTemp.createTempSync('bug830_gen_');
+      // Issue #1528: gen's entry preflight is a SILENT NO-OP when the TDD
+      // profile exists (no writes at all — no pubspec read, no baseline
+      // writes) — seed it so these tests keep pinning gen's own behavior
+      // byte-for-byte in a pubspec-less fixture. The missing-profile
+      // auto-init path is covered by commands/issue_1528_setup_error_test.dart.
+      final memoryDir = Directory(p.join(tmpDir.path, '.specify', 'memory'));
+      memoryDir.createSync(recursive: true);
+      File(p.join(memoryDir.path, 'tdd-profile.md')).writeAsStringSync('''
+# TDD Profile — fixture
+
+## Commands
+
+- Single test: `dart test {file} --plain-name "{name}"`
+- Full suite: `dart test`
+
+## Keys (machine-readable)
+
+```yaml
+runner: dart
+single: 'dart test {file} --plain-name "{name}"'
+suite: 'dart test'
+file: 'dart test {file}'
+coverage: 'dart test --coverage'
+```
+''');
     });
 
     tearDown(() {

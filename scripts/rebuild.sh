@@ -82,6 +82,7 @@ echo "  ✅ $INSTALL_DIR/zuraffa_mcp_server"
 
 echo ""
 echo "✅ Rebuild complete — installed to $INSTALL_DIR"
+echo "   (the dev-loop cache at .dart_tool/zfa_cli_bin is separate — it will adopt this binary when fresh)"
 echo ""
 echo "To verify:"
 echo "  zfa --version"

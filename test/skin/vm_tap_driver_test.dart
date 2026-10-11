@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Issue #1112 — the REAL vm_service driver proof: a live Dart VM
 // service (spawned child), a library exposing the debugTapAnchorJson
 // seam, and VmTapDriver evaluating through it. This is the same

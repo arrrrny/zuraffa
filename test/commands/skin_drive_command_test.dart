@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Issue #1112 — the `zfa skin drive` command: wraps package:vm_service
 // against a live VM (flutter run / flutter test runner), evaluates the
 // debugTapAnchorJson seam, and prints the TapResult JSON as the final

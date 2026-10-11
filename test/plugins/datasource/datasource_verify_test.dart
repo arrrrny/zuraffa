@@ -9,6 +9,7 @@ import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/datasource/datasource_plugin.dart';
 import 'package:zuraffa/src/utils/string_utils.dart';
+import '../../helpers/cwd_mutex.dart';
 
 /// Spec #1131 (order 1) — `zfa datasource verify <Entity>`.
 ///
@@ -24,6 +25,7 @@ void main() {
   late String originalCwd;
 
   setUp(() async {
+    await CwdMutex.acquire();
     tempDir = await Directory.systemTemp.createTemp('zuraffa_1131_verify_');
     originalCwd = Directory.current.path;
     Directory.current = tempDir.path;
@@ -34,7 +36,7 @@ void main() {
     if (tempDir.existsSync()) {
       await tempDir.delete(recursive: true);
     }
-    exitCode = 0;
+    CwdMutex.release();
   });
 
   /// Generates the real datasource interface for [entityName] with the

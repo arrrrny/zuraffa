@@ -248,6 +248,21 @@ class RoutePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       methods: context.data['methods']?.cast<String>().toList() ?? [],
       usecases: (context.data['usecases'] as List?)?.cast<String>() ?? [],
       domain: context.data['domain'],
+      // Bug 1675: the id-field reads below were dropped on this plugin
+      // path — `zfa make` resolves the entity's id field into
+      // context.data (`id-field-type: int` for `--field id:int`) and the
+      // view plugin reads it (view_plugin.dart), so the generated view's
+      // id parameter is typed from the entity — but this plugin silently
+      // defaulted `idFieldType` to `'String'`, so the emitted route
+      // builder passed the raw String `state.pathParameters['id']!` into
+      // the int?-typed view field (argument_type_not_assignable at the
+      // consumer). Mirror the view plugin's context reads so the #336
+      // typed-parse switch in `_buildViewBuilderExpr` sees the entity's
+      // actual id type.
+      idField: context.data['id-field'] ?? 'id',
+      idFieldType: context.data['id-field-type'] ?? 'String',
+      queryField: context.data['query-field'] ?? 'id',
+      queryFieldType: context.data['query-field-type'],
       noEntity: context.data['no-entity'] == true,
     );
 

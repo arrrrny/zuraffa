@@ -5,6 +5,8 @@ import 'package:path/path.dart' as p;
 
 import 'package:zuraffa/src/commands/build_yaml_guard.dart';
 
+import '../helpers/cwd_mutex.dart';
+
 void main() {
   group('BuildYamlGuard', () {
     late Directory sandbox;
@@ -158,7 +160,11 @@ targets:
         // build.yaml lands in an isolated dir and is cleaned up by tearDown.
         // CWD is always restored, even on assertion failure, so other test
         // files never inherit a deleted/temp CWD (see build_command_test.dart
-        // CWD-contamination note).
+        // CWD-contamination note). Issue #1632 dart_core lane: the window is
+        // serialized through the same cross-isolate lock CliRunner's `-C`
+        // windows use, so a sibling's raw window cannot flip the CWD
+        // mid-scaffold.
+        await CwdMutex.acquire();
         final savedCwd = Directory.current.path;
         Directory.current = sandbox.path;
         try {
@@ -182,6 +188,7 @@ targets:
           } else {
             Directory.current = Directory.systemTemp.path;
           }
+          CwdMutex.release();
         }
       },
     );

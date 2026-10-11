@@ -1,0 +1,11 @@
+{
+  "name": "make-baseline-cache",
+  "incident": 752,
+  "description": "Bug #752: the cached suite baseline (issue #741) broke the make subprocess — every U*:make failed once a run-baseline.json existed. The make step must absorb the recorded pre-existing failure and still complete; a ref that mishandles the cached snapshot records failed or a different verdict.",
+  "steps": [
+    { "argv": ["tdd", "gen", "U1", "--feature", "u2-flow"] },
+    { "argv": ["tdd", "verify-red", "U1", "--feature", "u2-flow"] },
+    { "argv": ["tdd", "make", "U1", "--feature", "u2-flow", "--suite-baseline", "specs/u2-flow/tdd/run-baseline.json"] }
+  ],
+  "artifactRoots": ["test/tdd", "lib/tdd"]
+}

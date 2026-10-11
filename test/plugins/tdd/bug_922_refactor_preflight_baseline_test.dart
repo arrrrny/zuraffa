@@ -333,6 +333,11 @@ fi
       expect(refactorArgv, hasLength(1), reason: out);
       expect(refactorArgv.single, contains('--suite-baseline'), reason: out);
       expect(refactorArgv.single, contains(fx.runBaselinePath), reason: out);
+      // Issue #1624: this spawn is the PHASE-1 (per-behavior) refactor —
+      // nothing defers it — and phase 1 now opts into the pass-batch
+      // ledger too, so the previous behavior's proven gate can be
+      // inherited instead of the whole pipeline being re-paid.
+      expect(refactorArgv.single, contains('--pass-batch'), reason: out);
     });
   });
 

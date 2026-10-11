@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Spec 077 / issue #1109 — DI idempotency, executably (T008b, behaviors
 // A4/A5/A6, U5/U6/U12).
 //

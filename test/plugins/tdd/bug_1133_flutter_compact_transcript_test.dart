@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // EPIC 1133 — flutter-lane transcript grammar pin + evidence readability
 // fix, discovered live on the 004-login-ui corpus.
 //

@@ -1,0 +1,206 @@
+00:00 +0: loading test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart
+00:00 +0: bug 1495 — gen refusal is actionable (remedy text) RED: owned-and-missing refusal names the repair command, not the refusing command; the record stays until an explicit repair
+zfa tdd gen: ownership conflict — OwnershipConflict: the registry records test file "/tmp/tdd_fixture_IYPXDX/test/tdd/090-bug-1495/b_001_test.dart", but it is missing from disk. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict.
+00:00 +0 -1: bug 1495 — gen refusal is actionable (remedy text) RED: owned-and-missing refusal names the repair command, not the refusing command; the record stays until an explicit repair [E]
+  Expected: contains '--repair'
+    Actual: 'gen: behavior=B-001 verdict=refused reason="ownership conflict: OwnershipConflict: the registry records test file "/tmp/tdd_fixture_IYPXDX/test/tdd/090-bug-1495/b_001_test.dart", but it is missing from disk. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict."\n'
+              '❌ Error: Bad state: zfa tdd gen: ownership conflict — OwnershipConflict: the registry records test file "/tmp/tdd_fixture_IYPXDX/test/tdd/090-bug-1495/b_001_test.dart", but it is missing from disk. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict.\n'
+              '--> fix: re-run with --verbose to capture the stack trace, then run `zfa doctor`\n'
+              ''
+     Which: does not contain '--repair'
+  gen: behavior=B-001 verdict=refused reason="ownership conflict: OwnershipConflict: the registry records test file "/tmp/tdd_fixture_IYPXDX/test/tdd/090-bug-1495/b_001_test.dart", but it is missing from disk. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict."
+  ❌ Error: Bad state: zfa tdd gen: ownership conflict — OwnershipConflict: the registry records test file "/tmp/tdd_fixture_IYPXDX/test/tdd/090-bug-1495/b_001_test.dart", but it is missing from disk. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict.
+  --> fix: re-run with --verbose to capture the stack trace, then run `zfa doctor`
+  
+  
+  package:matcher                                                       expect
+  test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart 126:9  main.<fn>.<fn>
+  
+00:00 +0 -1: bug 1495 — gen refusal is actionable (remedy text) RED: --repair does not exist before the fix (usage error)
+00:01 +1 -1: bug 1495 — gen refusal is actionable (remedy text) RED: exists-unowned refusal names --adopt (the resolving command for the opposite drift direction)
+zfa tdd gen: ownership conflict — OwnershipConflict: test file "/tmp/tdd_fixture_HZQHAZ/test/tdd/090-bug-1495/b_001_test.dart" exists on disk but the registry has no recorded ownership. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict.
+00:02 +1 -2: bug 1495 — gen refusal is actionable (remedy text) RED: exists-unowned refusal names --adopt (the resolving command for the opposite drift direction) [E]
+  Expected: contains '--adopt'
+    Actual: 'gen: behavior=B-001 verdict=refused reason="ownership conflict: OwnershipConflict: test file "/tmp/tdd_fixture_HZQHAZ/test/tdd/090-bug-1495/b_001_test.dart" exists on disk but the registry has no recorded ownership. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict."\n'
+              '❌ Error: Bad state: zfa tdd gen: ownership conflict — OwnershipConflict: test file "/tmp/tdd_fixture_HZQHAZ/test/tdd/090-bug-1495/b_001_test.dart" exists on disk but the registry has no recorded ownership. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict.\n'
+              '--> fix: re-run with --verbose to capture the stack trace, then run `zfa doctor`\n'
+              ''
+     Which: does not contain '--adopt'
+  gen: behavior=B-001 verdict=refused reason="ownership conflict: OwnershipConflict: test file "/tmp/tdd_fixture_HZQHAZ/test/tdd/090-bug-1495/b_001_test.dart" exists on disk but the registry has no recorded ownership. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict."
+  ❌ Error: Bad state: zfa tdd gen: ownership conflict — OwnershipConflict: test file "/tmp/tdd_fixture_HZQHAZ/test/tdd/090-bug-1495/b_001_test.dart" exists on disk but the registry has no recorded ownership. Refusing to overwrite non-owned content. Run `zfa tdd gen <behavior-id>` after resolving the conflict.
+  --> fix: re-run with --verbose to capture the stack trace, then run `zfa doctor`
+  
+  
+  package:matcher                                                       expect
+  test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart 200:7  main.<fn>.<fn>
+  
+00:02 +1 -2: bug 1495 — zfa tdd gen <id> --repair RED: drops the stale record and regenerates the gone pair — verdict repaired, audit-logged, exactly one record after
+00:03 +1 -3: bug 1495 — zfa tdd gen <id> --repair RED: drops the stale record and regenerates the gone pair — verdict repaired, audit-logged, exactly one record after [E]
+  Expected: <0>
+    Actual: <2>
+  ❌ Could not find an option named "--repair".
+  Usage: zfa tdd gen <behavior-id> [--dry-run] [--kind widget] [--golden]
+  -h, --help              Print this usage information.
+      --json              Emit a versioned verdict.v1 JSON envelope as the final stdout line (VISION §5, issue #964).
+  -n, --dry-run           Plan the test+subject pair without writing anything (FR-009).
+      --kind              Override the subject kind taken from the test-list row (bug #830). `widget` emits a testWidgets pair: a view-builder subject stub plus a widget test that pumps the view inside an app shell and asserts the acceptance scenario. `contract` (issue #1007) emits the contract pair: a contract test scaffold that enumerates the contract's cases plus a contract seam subject. Unknown values are a usage error.
+                          [acceptance, unit, widget, contract]
+      --widget-shell      Widget kind only (issue #912 defect 2): the app shell the generated widget test pumps the view in. Defaults to zuraffaapp (zuraffa apps are zuraffa_ui apps); `.zfa.json` `tdd.widgetShell` sets the project default, this flag wins over it.
+                          [zuraffaapp, materialapp]
+      --golden            Widget kind only (bug #830): append a matchesGoldenFile baseline hook to the generated widget test. Baselines are committed per platform under test/tdd/goldens/ and refreshed with `flutter test --update-goldens`.
+      --adopt             Recovery mode (bug #840): when files exist on disk unowned by the registry (post-crash, post-merge), verify their content matches the generated artifact shape (provenance header + behavior id), then register ownership and audit-log the adoption instead of refusing. Files that do not match the shape are never adopted; missing halves are generated.
+      --all               Batch generation (spec 069 T002): generate EVERY pending row of the feature's test list — or every feature's rows when --feature is omitted — in ONE invocation (one process, one registry pass per feature). Pairs with `zfa tdd verify-red --all` to collapse the per-behavior test spawns of the batched lineage. A refusing row stops the batch honestly at that row (already-written pairs stay registered; a re-run is idempotent).
+      --feature           Feature name (e.g. 044-test-tdd-generation). When set, only specs/<feature>/tdd/test-list.md is scanned for the behavior id. When omitted, all feature dirs are scanned and the first match wins (with a preference for the cwd-matching feature).
+      --project           Project root containing specs/, test/, and lib/. When omitted, the current working directory is used. Tests pass the temp fixture root here instead of mutating Directory.current.
+      --timeout           Wall-clock budget for the whole gen flow, in MINUTES — fractions allowed (0.5 = 30 seconds, the default), the same unit and format as every other TDD command's --timeout (bug #742). On expiry the flow stops with outcome=timeout and a non-zero exit instead of hanging indefinitely (bug #744).
+                          (defaults to "0.5")
+      --i18n-expansion    Comma-separated expansion locales for the widget lane's optional i18n tier (issue #965), e.g. "de" or "de,fr". The generated widget test gains one expansion testWidgets per locale re-asserting keyed surfaces under that locale. Overrides the .zfa.json `tdd.i18nExpansion` default.
+  
+  Run "zfa help" to see global options.
+  --> fix: re-run with --help to list the valid flags and subcommands, then re-invoke
+  
+  
+  package:matcher                                                       expect
+  test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart 224:9  main.<fn>.<fn>
+  
+00:03 +1 -3: bug 1495 — zfa tdd gen <id> --repair RED: keeps a shape-verified surviving half byte-identical and regenerates only the gone half (adopt discipline)
+00:03 +1 -4: bug 1495 — zfa tdd gen <id> --repair RED: keeps a shape-verified surviving half byte-identical and regenerates only the gone half (adopt discipline) [E]
+  Expected: <0>
+    Actual: <2>
+  ❌ Could not find an option named "--repair".
+  Usage: zfa tdd gen <behavior-id> [--dry-run] [--kind widget] [--golden]
+  -h, --help              Print this usage information.
+      --json              Emit a versioned verdict.v1 JSON envelope as the final stdout line (VISION §5, issue #964).
+  -n, --dry-run           Plan the test+subject pair without writing anything (FR-009).
+      --kind              Override the subject kind taken from the test-list row (bug #830). `widget` emits a testWidgets pair: a view-builder subject stub plus a widget test that pumps the view inside an app shell and asserts the acceptance scenario. `contract` (issue #1007) emits the contract pair: a contract test scaffold that enumerates the contract's cases plus a contract seam subject. Unknown values are a usage error.
+                          [acceptance, unit, widget, contract]
+      --widget-shell      Widget kind only (issue #912 defect 2): the app shell the generated widget test pumps the view in. Defaults to zuraffaapp (zuraffa apps are zuraffa_ui apps); `.zfa.json` `tdd.widgetShell` sets the project default, this flag wins over it.
+                          [zuraffaapp, materialapp]
+      --golden            Widget kind only (bug #830): append a matchesGoldenFile baseline hook to the generated widget test. Baselines are committed per platform under test/tdd/goldens/ and refreshed with `flutter test --update-goldens`.
+      --adopt             Recovery mode (bug #840): when files exist on disk unowned by the registry (post-crash, post-merge), verify their content matches the generated artifact shape (provenance header + behavior id), then register ownership and audit-log the adoption instead of refusing. Files that do not match the shape are never adopted; missing halves are generated.
+      --all               Batch generation (spec 069 T002): generate EVERY pending row of the feature's test list — or every feature's rows when --feature is omitted — in ONE invocation (one process, one registry pass per feature). Pairs with `zfa tdd verify-red --all` to collapse the per-behavior test spawns of the batched lineage. A refusing row stops the batch honestly at that row (already-written pairs stay registered; a re-run is idempotent).
+      --feature           Feature name (e.g. 044-test-tdd-generation). When set, only specs/<feature>/tdd/test-list.md is scanned for the behavior id. When omitted, all feature dirs are scanned and the first match wins (with a preference for the cwd-matching feature).
+      --project           Project root containing specs/, test/, and lib/. When omitted, the current working directory is used. Tests pass the temp fixture root here instead of mutating Directory.current.
+      --timeout           Wall-clock budget for the whole gen flow, in MINUTES — fractions allowed (0.5 = 30 seconds, the default), the same unit and format as every other TDD command's --timeout (bug #742). On expiry the flow stops with outcome=timeout and a non-zero exit instead of hanging indefinitely (bug #744).
+                          (defaults to "0.5")
+      --i18n-expansion    Comma-separated expansion locales for the widget lane's optional i18n tier (issue #965), e.g. "de" or "de,fr". The generated widget test gains one expansion testWidgets per locale re-asserting keyed surfaces under that locale. Overrides the .zfa.json `tdd.i18nExpansion` default.
+  
+  Run "zfa help" to see global options.
+  --> fix: re-run with --help to list the valid flags and subcommands, then re-invoke
+  
+  
+  package:matcher                                                       expect
+  test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart 278:9  main.<fn>.<fn>
+  
+00:03 +1 -4: bug 1495 — zfa tdd gen <id> --repair RED: --repair on the exists-unowned direction refuses and names --adopt (no stale record to drop; --adopt contract untouched)
+00:04 +1 -5: bug 1495 — zfa tdd gen <id> --repair RED: --repair on the exists-unowned direction refuses and names --adopt (no stale record to drop; --adopt contract untouched) [E]
+  Expected: <1>
+    Actual: <2>
+  ❌ Could not find an option named "--repair".
+  Usage: zfa tdd gen <behavior-id> [--dry-run] [--kind widget] [--golden]
+  -h, --help              Print this usage information.
+      --json              Emit a versioned verdict.v1 JSON envelope as the final stdout line (VISION §5, issue #964).
+  -n, --dry-run           Plan the test+subject pair without writing anything (FR-009).
+      --kind              Override the subject kind taken from the test-list row (bug #830). `widget` emits a testWidgets pair: a view-builder subject stub plus a widget test that pumps the view inside an app shell and asserts the acceptance scenario. `contract` (issue #1007) emits the contract pair: a contract test scaffold that enumerates the contract's cases plus a contract seam subject. Unknown values are a usage error.
+                          [acceptance, unit, widget, contract]
+      --widget-shell      Widget kind only (issue #912 defect 2): the app shell the generated widget test pumps the view in. Defaults to zuraffaapp (zuraffa apps are zuraffa_ui apps); `.zfa.json` `tdd.widgetShell` sets the project default, this flag wins over it.
+                          [zuraffaapp, materialapp]
+      --golden            Widget kind only (bug #830): append a matchesGoldenFile baseline hook to the generated widget test. Baselines are committed per platform under test/tdd/goldens/ and refreshed with `flutter test --update-goldens`.
+      --adopt             Recovery mode (bug #840): when files exist on disk unowned by the registry (post-crash, post-merge), verify their content matches the generated artifact shape (provenance header + behavior id), then register ownership and audit-log the adoption instead of refusing. Files that do not match the shape are never adopted; missing halves are generated.
+      --all               Batch generation (spec 069 T002): generate EVERY pending row of the feature's test list — or every feature's rows when --feature is omitted — in ONE invocation (one process, one registry pass per feature). Pairs with `zfa tdd verify-red --all` to collapse the per-behavior test spawns of the batched lineage. A refusing row stops the batch honestly at that row (already-written pairs stay registered; a re-run is idempotent).
+      --feature           Feature name (e.g. 044-test-tdd-generation). When set, only specs/<feature>/tdd/test-list.md is scanned for the behavior id. When omitted, all feature dirs are scanned and the first match wins (with a preference for the cwd-matching feature).
+      --project           Project root containing specs/, test/, and lib/. When omitted, the current working directory is used. Tests pass the temp fixture root here instead of mutating Directory.current.
+      --timeout           Wall-clock budget for the whole gen flow, in MINUTES — fractions allowed (0.5 = 30 seconds, the default), the same unit and format as every other TDD command's --timeout (bug #742). On expiry the flow stops with outcome=timeout and a non-zero exit instead of hanging indefinitely (bug #744).
+                          (defaults to "0.5")
+      --i18n-expansion    Comma-separated expansion locales for the widget lane's optional i18n tier (issue #965), e.g. "de" or "de,fr". The generated widget test gains one expansion testWidgets per locale re-asserting keyed surfaces under that locale. Overrides the .zfa.json `tdd.i18nExpansion` default.
+  
+  Run "zfa help" to see global options.
+  --> fix: re-run with --help to list the valid flags and subcommands, then re-invoke
+  
+  
+  package:matcher                                                       expect
+  test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart 334:9  main.<fn>.<fn>
+  
+00:04 +1 -5: bug 1495 — zfa tdd gen <id> --repair RED: --adopt on the owned-and-missing state still refuses (regression guard — the #840 contract is unchanged)
+00:05 +2 -5: bug 1495 — zfa tdd doctor <feature> --repair RED: garbage-collects every record whose files are gone and keeps healthy records — audit-logged, exit 0
+00:06 +2 -6: bug 1495 — zfa tdd doctor <feature> --repair RED: garbage-collects every record whose files are gone and keeps healthy records — audit-logged, exit 0 [E]
+  Expected: <0>
+    Actual: <2>
+  ❌ Could not find an option named "--repair".
+  Usage: zfa tdd doctor <feature> [--project <path>]
+  -h, --help       Print this usage information.
+      --json       Emit a versioned verdict.v1 JSON envelope as the final stdout line (VISION §5, issue #969).
+      --project    Project root containing specs/, test/, and lib/. When omitted, the current working directory is used.
+  
+  Run "zfa help" to see global options.
+  --> fix: re-run with --help to list the valid flags and subcommands, then re-invoke
+  
+  
+  package:matcher                                                       expect
+  test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart 378:9  main.<fn>.<fn>
+  
+00:06 +2 -6: bug 1495 — zfa tdd doctor <feature> --repair RED: refuses to garbage-collect a HALF-missing record (the surviving half is still owned — GC would orphan it); prescribes reset, drops nothing
+00:06 +2 -7: bug 1495 — zfa tdd doctor <feature> --repair RED: refuses to garbage-collect a HALF-missing record (the surviving half is still owned — GC would orphan it); prescribes reset, drops nothing [E]
+  Expected: <1>
+    Actual: <2>
+  ❌ Could not find an option named "--repair".
+  Usage: zfa tdd doctor <feature> [--project <path>]
+  -h, --help       Print this usage information.
+      --json       Emit a versioned verdict.v1 JSON envelope as the final stdout line (VISION §5, issue #969).
+      --project    Project root containing specs/, test/, and lib/. When omitted, the current working directory is used.
+  
+  Run "zfa help" to see global options.
+  --> fix: re-run with --help to list the valid flags and subcommands, then re-invoke
+  
+  
+  package:matcher                                                       expect
+  test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart 412:9  main.<fn>.<fn>
+  
+00:06 +2 -7: bug 1495 — zfa tdd doctor <feature> --repair RED: without --repair the fully-gone drift still exits 1 and the fix line names the surgical repair command
+00:07 +2 -8: bug 1495 — zfa tdd doctor <feature> --repair RED: without --repair the fully-gone drift still exits 1 and the fix line names the surgical repair command [E]
+  Expected: contains '--repair'
+    Actual: 'zfa tdd doctor: feature 090-bug-1495 (specs/090-bug-1495/tdd)\n'
+              '  drift: B-001: test/tdd/090-bug-1495/b_001_test.dart is recorded but missing from disk\n'
+              '  drift: B-001: lib/tdd/090-bug-1495/b_001_subject.dart is recorded but missing from disk\n'
+              '   --> fix: zfa tdd reset 090-bug-1495 — drop the stale registry records and owned artifacts, then re-drive from gen (resume cannot pass the ownership preflight while records point at missing files)\n'
+              '{"command":"doctor","feature":"090-bug-1495","verdict":"drift","prescription":"reset","fix":"zfa tdd reset 090-bug-1495","drifts":["B-001: test/tdd/090-bug-1495/b_001_test.dart is recorded but missing from disk","B-001: lib/tdd/090-bug-1495/b_001_subject.dart is recorded but missing from disk"]}\n'
+              ''
+     Which: does not contain '--repair'
+  zfa tdd doctor: feature 090-bug-1495 (specs/090-bug-1495/tdd)
+    drift: B-001: test/tdd/090-bug-1495/b_001_test.dart is recorded but missing from disk
+    drift: B-001: lib/tdd/090-bug-1495/b_001_subject.dart is recorded but missing from disk
+     --> fix: zfa tdd reset 090-bug-1495 — drop the stale registry records and owned artifacts, then re-drive from gen (resume cannot pass the ownership preflight while records point at missing files)
+  {"command":"doctor","feature":"090-bug-1495","verdict":"drift","prescription":"reset","fix":"zfa tdd reset 090-bug-1495","drifts":["B-001: test/tdd/090-bug-1495/b_001_test.dart is recorded but missing from disk","B-001: lib/tdd/090-bug-1495/b_001_subject.dart is recorded but missing from disk"]}
+  
+  
+  package:matcher                                                       expect
+  test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart 434:9  main.<fn>.<fn>
+  
+00:07 +2 -8: bug 1495 — zfa tdd doctor <feature> --repair --repair with a healthy feature is a no-op success (nothing to collect)
+00:08 +2 -9: bug 1495 — zfa tdd doctor <feature> --repair --repair with a healthy feature is a no-op success (nothing to collect) [E]
+  Expected: <0>
+    Actual: <2>
+  ❌ Could not find an option named "--repair".
+  Usage: zfa tdd doctor <feature> [--project <path>]
+  -h, --help       Print this usage information.
+      --json       Emit a versioned verdict.v1 JSON envelope as the final stdout line (VISION §5, issue #969).
+      --project    Project root containing specs/, test/, and lib/. When omitted, the current working directory is used.
+  
+  Run "zfa help" to see global options.
+  --> fix: re-run with --help to list the valid flags and subcommands, then re-invoke
+  
+  
+  package:matcher                                                       expect
+  test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart 450:7  main.<fn>.<fn>
+  
+00:08 +2 -9: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart: bug 1495 — gen refusal is actionable (remedy text) RED: exists-unowned refusal names --adopt (the resolving command for the opposite drift direction)
+  test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart: bug 1495 — gen refusal is actionable (remedy text) RED: owned-and-missing refusal names the repair command, not the refusing command; the record stays until an explicit repair
+  test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart: bug 1495 — zfa tdd doctor <feature> --repair --repair with a healthy feature is a no-op success (nothing to collect)
+  test/plugins/tdd/bug_1495_registry_owns_missing_file_test.dart: bug 1495 — zfa tdd doctor <feature> --repair RED: garbage-collects every record whose files are gone and keeps healthy records — audit-logged, exit 0
+  ... and 5 more
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.

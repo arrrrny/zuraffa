@@ -8,21 +8,110 @@ import '../builders/push_only_sync_strategy.dart';
 import '../builders/sync_metadata_store.dart';
 import '../sync_plugin.dart';
 
-/// `zfa sync simulate --scenario offline-flap` (issue #1359) — the
-/// chaos driver for temporal sync features: drives the REAL
-/// [PushOnlySyncStrategy] against a scripted failing remote and proves
-/// eventual consistency (every entity lands exactly once).
+/// One scripted chaos step: a failure with a class label (or `null`
+/// for an accepted call).
+typedef _ChaosStep = ({String failureClass, Object error})?;
+
+/// The scripted failing remote for one chaos scenario (spec 1136 lane
+/// 4): a pure function from the 0-based call index to the outcome.
+/// Deterministic by construction — the same script + the same call
+/// order always produces the same chaos.
+abstract interface class _ChaosScript {
+  /// What the remote does on its [n]th create call (0-based).
+  _ChaosStep step(int n);
+
+  /// The chaos classes this script injects, in firing order (for the
+  /// evidence line).
+  List<String> get classes;
+}
+
+/// `offline-flap` (issue #1359): the remote refuses the first calls
+/// (offline window), then flaps (fail/fail/ok cycle), then recovers.
+final class _OfflineFlapScript implements _ChaosScript {
+  @override
+  _ChaosStep step(int n) {
+    if (n < 4) {
+      return (
+        failureClass: 'offline',
+        error: const _SocketFailure('offline: connection refused'),
+      );
+    }
+    if ((n - 4) % 3 != 2) {
+      return (
+        failureClass: 'flap',
+        error: const _SocketFailure('flap: connection reset by peer'),
+      );
+    }
+    return null;
+  }
+
+  @override
+  List<String> get classes => const ['offline', 'flap'];
+}
+
+/// A payment-domain failure: the charge is declined — a business
+/// refusal the sync layer must survive without losing the record.
+class _PaymentDeclined implements Exception {
+  const _PaymentDeclined(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+/// `payment-decline` (spec 1136 lane 4): the remote declines the first
+/// create calls with a card-declined domain error, then flaps, then
+/// recovers — the temporal payment-failure class the sync strategy is
+/// chaos-tested against.
+final class _PaymentDeclineScript implements _ChaosScript {
+  @override
+  _ChaosStep step(int n) {
+    if (n < 3) {
+      return (
+        failureClass: 'declined',
+        error: const _PaymentDeclined('declined: card declined by issuer'),
+      );
+    }
+    if (n < 5) {
+      return (
+        failureClass: 'flap',
+        error: const _SocketFailure('flap: connection reset by peer'),
+      );
+    }
+    return null;
+  }
+
+  @override
+  List<String> get classes => const ['declined', 'flap'];
+}
+
+/// `zfa sync simulate --scenario offline-flap` (issue #1359; spec 1136
+/// lane 4 extends the catalog) — the chaos driver for temporal sync
+/// features: drives the REAL [PushOnlySyncStrategy] against a
+/// scripted failing remote and proves eventual consistency (every
+/// entity lands exactly once).
 ///
-/// Scenario `offline-flap`: the remote refuses the first calls
-/// (offline window), then flaps (alternating fail/ok), then recovers —
-/// the driver's recovery pass retries the leftovers and reports the
+/// Scenarios (pluggable chaos scripts — the harness, not the strategy,
+/// owns the script):
+/// - `offline-flap` — the remote refuses the first calls (offline
+///   window), then flaps (alternating fail/ok), then recovers.
+/// - `payment-decline` — the remote declines the first calls with a
+///   payment-domain error, then flaps, then recovers: the OCR/payment
+///   async-failure class.
+///
+/// The driver's recovery pass retries the leftovers and reports the
 /// per-key ledger. Zero data loss, zero duplicates, or the gate is RED.
 class SimulateSyncCapability implements ZuraffaCapability {
   final SyncPlugin plugin;
 
   SimulateSyncCapability(this.plugin);
 
-  static const scenarios = ['offline-flap'];
+  static const scenarios = ['offline-flap', 'payment-decline'];
+
+  static _ChaosScript _scriptFor(String scenario) => switch (scenario) {
+    'offline-flap' => _OfflineFlapScript(),
+    'payment-decline' => _PaymentDeclineScript(),
+    _ => throw StateError('unknown scenario: $scenario'),
+  };
 
   @override
   String get name => 'simulate';
@@ -30,7 +119,8 @@ class SimulateSyncCapability implements ZuraffaCapability {
   @override
   String get description =>
       'Chaos-drive the sync strategy against a scripted failing remote '
-      '(scenario: offline-flap) and report the per-key landing ledger';
+      '(scenarios: offline-flap, payment-decline) and report the '
+      'per-key landing ledger';
 
   @override
   JsonSchema get inputSchema => {
@@ -40,7 +130,8 @@ class SimulateSyncCapability implements ZuraffaCapability {
         'type': 'string',
         'description':
             'The chaos scenario to run (offline-flap: offline window, '
-            'then connection flaps, then recovery)',
+            'then connection flaps, then recovery; payment-decline: '
+            'card-declined domain errors, then flaps, then recovery)',
         'enum': scenarios,
         'default': 'offline-flap',
       },
@@ -88,22 +179,21 @@ class SimulateSyncCapability implements ZuraffaCapability {
       );
     }
     final entityCount = (args['entityCount'] as int?) ?? 5;
+    final script = _scriptFor(scenario);
 
-    // The scripted chaos remote (offline-flap): the first
-    // `_offlineWindow` create calls always fail (offline), then the
-    // remote flaps on a fail/fail/ok cycle, then it recovers.
+    // The scripted chaos remote: each create call resolves through the
+    // scenario's script (deterministic per call index).
     final remoteCalls = <String, int>{};
-    var flapCounter = 0;
+    final chaosFired = <String, int>{for (final c in script.classes) c: 0};
+    var callCounter = 0;
     Future<String> scriptedCreateRemote(String entity) async {
-      final n = flapCounter++;
-      if (n < 4) {
-        remoteCalls['$entity#offline'] = n;
-        throw const _SocketFailure('offline: connection refused');
-      }
-      if ((n - 4) % 3 != 2) {
-        // fail, fail, ok — the flap cycle.
-        remoteCalls['$entity#flap'] = n;
-        throw const _SocketFailure('flap: connection reset by peer');
+      final n = callCounter++;
+      final step = script.step(n);
+      if (step != null) {
+        chaosFired[step.failureClass] =
+            (chaosFired[step.failureClass] ?? 0) + 1;
+        remoteCalls['$entity#${step.failureClass}'] = n;
+        throw step.error;
       }
       remoteCalls[entity] = n;
       return entity;
@@ -131,7 +221,7 @@ class SimulateSyncCapability implements ZuraffaCapability {
       await strategy.markPending(key);
     }
 
-    // Round 1: the offline window + flaps chew through the first pass.
+    // Round 1: the chaos window chews through the first pass.
     await strategy.syncPending();
     // Recovery: re-drive the strategy's own paths — pending records go
     // through syncPending, retries-exhausted records through syncFailed
@@ -176,6 +266,11 @@ class SimulateSyncCapability implements ZuraffaCapability {
     final noDuplicates = duplicateKeys.length == landed;
 
     final verdict = lost == 0 && noDuplicates ? 'GREEN' : 'RED';
+    final chaosLine = StringBuffer()..write('chaos:');
+    for (final c in script.classes) {
+      chaosLine.write(' $c=${chaosFired[c] ?? 0}');
+    }
+    print(chaosLine);
     print(
       'sync-simulate: scenario=$scenario entities=$entityCount '
       'landed=$landed/$entityCount retries>0=$retried '
@@ -193,6 +288,7 @@ class SimulateSyncCapability implements ZuraffaCapability {
         'total': entityCount,
         'totalRetries': retried,
         'recoveryRounds': recoveryRounds,
+        'chaos': {for (final c in script.classes) c: chaosFired[c] ?? 0},
       },
     );
   }

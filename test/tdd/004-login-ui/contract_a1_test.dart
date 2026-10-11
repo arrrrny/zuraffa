@@ -13,10 +13,16 @@
 // fails through an assertion and `zfa tdd verify-red` reports BLOCKED
 // (never RED): a failing contract test blocks the cycle from proceeding
 // to GREEN until the implementation satisfies the contract.
+//
+// zfa:tdd: contract:A1:hand — hand step completed before first red
+// certification (issue #1411): the #1541 scaffold placeholder arguments
+// were replaced with representative values and the declared contract
+// seam was hand-implemented (lib/tdd/004-login-ui/login_domain.dart).
 library;
 
 import 'package:test/test.dart';
 import 'package:zuraffa/tdd/004-login-ui/contract_a1_subject.dart' as subject;
+import 'package:zuraffa/tdd/004-login-ui/login_domain.dart';
 
 void main() {
   group('contract:A1 (LoginValidation.validate)', () {
@@ -50,8 +56,24 @@ void main() {
         );
         expect(
           outcome,
-          isA<dynamic>(),
-          reason: 'the contract returns a verdict',
+          isA<LoginVerdict>(),
+          reason: 'the contract returns the declared verdict type',
+        );
+        // The declared mapping pin (mutation-audit remediation, spec 1136
+        // verify pass): valid representative arguments must produce a
+        // VALID verdict — this keeps the declared argument ORDER
+        // (email, password) observable through the contract seam.
+        expect(
+          outcome is LoginVerdict && outcome.ok,
+          isTrue,
+          reason:
+              'valid representative arguments produce a valid verdict — '
+              'the declared (email, password) mapping holds',
+        );
+        expect(
+          outcome is LoginVerdict ? outcome.reasons : const <String>[],
+          isEmpty,
+          reason: 'valid representative arguments carry no reasons',
         );
       },
     );

@@ -1,11 +1,13 @@
 ---
 name: speckit-gym-warmup
-description: 'Spec-kit workflow command: speckit-gym-warmup'
+description: 'Extension command: speckit.gym.warmup'
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: gym:commands/speckit.gym.warmup.md
+  author: gym
+  source: extension:gym
 ---
+
+# Gym Warmup Skill
 
 # GYM: Warmup
 
@@ -30,3 +32,4 @@ powershell .specify/extensions/gym/scripts/powershell/gym.ps1 warmup
 
 Use this to verify reflexes quickly, or as the gating step before granting access
 to a sandbox without requiring a full graded run.
+

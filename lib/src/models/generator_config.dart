@@ -141,7 +141,7 @@ class GeneratorConfig {
     this.methods = const [],
     this.repo,
     this.service,
-    this.usecases = const [],
+    List<String> usecases = const [],
     this.variants = const [],
     this.domain,
     this.repoMethod,
@@ -217,7 +217,14 @@ class GeneratorConfig {
     this.verbose = false,
     this.revert = false,
     required this.outputDir,
-  }) : multipleParams = multipleParams != null && multipleParams.isNotEmpty
+  }) : // Whitespace-padded multi-option tokens (`--usecases=login, logout`)
+       // are trimmed once here so every downstream derivation (class refs,
+       // field names, import paths) sees the same clean token (#1723 review).
+       usecases = usecases
+           .map((token) => token.trim())
+           .where((token) => token.isNotEmpty)
+           .toList(growable: false),
+       multipleParams = multipleParams != null && multipleParams.isNotEmpty
            ? multipleParams
            : GeneratorConfig.parseParams(paramsType),
        queryFieldType = queryFieldType ?? idFieldType;

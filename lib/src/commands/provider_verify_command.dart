@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../core/verdict_envelope.dart';
 import '../plugins/provider/provider_verifier.dart';
 import '../utils/string_utils.dart';
 import '../cli/exit_protocol.dart';
@@ -13,10 +13,12 @@ import '../cli/exit_protocol.dart';
 /// `<Entity>` still contains `UnimplementedError` method bodies, and when
 /// the provider is missing a method its target Service interface
 /// declares. Every finding prints the file, the method, and a
-/// `--> fix:` line. `--json` emits the single machine verdict envelope
-/// ({schema:1, ok, entity, providerFile, interface, methods[], stubCount,
-/// findings[]}) per the #778 convention. Exit codes: 0 = verified clean,
-/// 1 = findings, 64 = usage (no entity).
+/// `--> fix:` line. `--json` emits the single canonical
+/// the canonical verdict schema envelope (SPEC 1132 / EPIC 1 lane 2, issue #1105
+/// backlog: the legacy `{schema:1, ok, ...}` `ProviderVerifyReport` dump
+/// left `VerdictEnvelope.fromJson` throwing) — the report's payload
+/// rides in `details`, its findings in the canonical `findings` array.
+/// Exit codes: 0 = verified clean, 1 = findings, 2 = usage (no entity).
 class ProviderVerifyCommand extends Command<void> {
   /// Injectable for tests (the CLI resolves the project root from the
   /// scoped working directory).
@@ -78,7 +80,42 @@ class ProviderVerifyCommand extends Command<void> {
     );
 
     if (argResults?['json'] == true) {
-      print(jsonEncode(report.toJson()));
+      // SPEC 1132 / EPIC 1 lane 2: the canonical the canonical verdict schema
+      // envelope — the ONLY `--json` shape (one parser, `details` is the
+      // free-form surface carrying the ProviderVerifyReport payload).
+      // The envelope is the LAST stdout line.
+      VerdictEnvelope.emit(
+        VerdictEnvelope(
+          command: 'zfa provider verify',
+          verdict: report.ok ? VerdictKind.pass : VerdictKind.fail,
+          exitClass: report.ok ? ExitProtocol.success : ExitProtocol.failure,
+          subject: VerdictSubject(
+            kind: 'provider',
+            id: report.entity,
+            extra: {'interface': report.interface},
+          ),
+          findings: [
+            for (final finding in report.findings)
+              VerdictFinding(
+                kind: finding.kind,
+                fix: finding.fix,
+                file: finding.file.isEmpty ? null : finding.file,
+                member: finding.method.isEmpty ? null : finding.method,
+                extra: {'detail': finding.detail},
+              ),
+          ],
+          details: {
+            'entity': report.entity,
+            'providerFile': report.providerFile,
+            'interface': report.interface,
+            'methods': report.methods,
+            'stubCount': report.stubCount,
+            'findings': [
+              for (final finding in report.findings) finding.toJson(),
+            ],
+          },
+        ),
+      );
     } else if (argResults?['explain'] == true) {
       _printExplain(report);
     } else {

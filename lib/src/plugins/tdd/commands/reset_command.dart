@@ -24,9 +24,9 @@
 ///      never deleted.
 ///   5. Deletes the owned files, drops the registry
 ///      (`tdd/artifacts.json`) and the feature's run-state
-///      (`tdd/run-state.json`) — the two mutable stores a restart needs
-///      clean. The cycle-log is append-only evidence and is never
-///      touched; the audit log is history and is never touched.
+///      (`tdd/run-state.json`) — two of the three mutable stores a
+///      restart needs clean. The cycle-log is append-only evidence and
+///      is never touched; the audit log is history and is never touched.
 ///   6. Appends a reset TOMBSTONE to the unified journal
 ///      (`tdd/journal.json`, issue #1264): one entry naming every
 ///      dropped behavior id, invalidating the green evidence those
@@ -34,11 +34,19 @@
 ///      driver re-derives done from the surviving evidence and skips the
 ///      dropped behaviors as "already done" (the phantom done-state). The
 ///      tombstone is append-only — the journal's history stays intact.
-///   7. Validates its own outcome (issue #1331): every planned deletion
+///   7. Invalidates the baseline caches (issue #1550): the corpus-wide
+///      baseline cache (`.zfa/corpus/run-baseline.json`, spec 069 T004)
+///      and the feature-local `specs/<feature>/tdd/run-baseline.json`.
+///      The corpus cache is the THIRD store with the same restart
+///      contract — its dependency fingerprint survives the reset (the
+///      fingerprint hashes pubspec + suite template, never the TDD
+///      state), so a left-behind snapshot makes the next run reuse a
+///      pre-reset baseline and believe the dropped behaviors are green.
+///   8. Validates its own outcome (issue #1331): every planned deletion
 ///      is re-statted after acting — the reported deleted-file count
 ///      matches the printed "will delete N owned files" list, and any
 ///      survivor is named in a warning instead of being silently kept.
-///   8. Emits the machine-readable JSON verdict as the final stdout line
+///   9. Emits the machine-readable JSON verdict as the final stdout line
 ///      and exits 0 on success, 1 on refusal (unknown feature).
 ///
 /// Ownership rule (hard constraint): reset NEVER deletes foreign files —
@@ -54,13 +62,18 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
+import '../services/corpus_baseline_cache.dart';
 import '../services/cross_feature_ownership.dart';
+import '../services/entity_lookup.dart';
 import '../services/generated_shape.dart';
 import '../services/journal.dart';
+import '../services/run_baseline_cache.dart';
+import '../services/test_list_reader.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
+import '../../../core/project/receipt_store.dart';
 
 class ResetCommand extends Command<void> {
   ResetCommand(this.plugin) {
@@ -138,6 +151,40 @@ class ResetCommand extends Command<void> {
     final registry = ArtifactRegistry(featureDir: featureDir);
     final records = await registry.loadAll();
     final droppedIds = records.map((record) => record.behaviorId).toList();
+
+    // Issue #1429: the phase-0 entity rollback plan. Phase-0 scaffolds
+    // exactly what the feature's test list declares under Key Entities
+    // (run_driver_core reads the SAME TestListReader source), so reset
+    // reads the same source and reverts the scaffolds + receipts for the
+    // DECLARED names only — an entity another feature (or hand-written
+    // code) owns is never reset's business. Receipts are scoped by the
+    // `plugin: 'entity'` + `entity: <declared name>` pair: entity
+    // receipts live in the GLOBAL store with no `input['feature']`, so
+    // the declared names are the only honest scoping available. A
+    // shared entity is self-healing: the next run's phase-0 re-creates
+    // and re-receipts it (entity create is convergent).
+    final declaredEntities = await TestListReader(featureDir).readEntities();
+    final entityPlans = <({String name, String? file, String? dir})>[];
+    for (final entity in declaredEntities) {
+      final scaffold = await locateEntityScaffold(cwd, entity.name);
+      entityPlans.add((
+        name: entity.name,
+        file: scaffold.file,
+        dir: scaffold.dir,
+      ));
+    }
+    final receiptStore = ReceiptStore(projectRoot: cwd);
+    final declaredNames = declaredEntities
+        .map((e) => e.name.toLowerCase())
+        .toSet();
+    final entityReceiptsToPrune = (await receiptStore.loadAll())
+        .where(
+          (r) =>
+              r.receipt.plugin == 'entity' &&
+              r.receipt.entity != null &&
+              declaredNames.contains(r.receipt.entity!.toLowerCase()),
+        )
+        .toList();
 
     // Issue #1331: the delete set starts from the recorded paths
     // NORMALIZED against the project root. The raw `File(path)` check
@@ -243,6 +290,24 @@ class ResetCommand extends Command<void> {
       );
     }
     print('  will reset tdd/run-state.json');
+    // Issue #1550: the baseline caches are the third store with the same
+    // restart contract — announced BEFORE acting, like every other reset
+    // effect. The corpus-wide snapshot's fingerprint survives the reset
+    // (it hashes pubspec + suite template, never the TDD state), so a
+    // left-behind cache would make the next run reuse a pre-reset
+    // baseline and believe the dropped behaviors are green.
+    final corpusCachePath = CorpusBaselineCache.pathFor(projectRoot: cwd);
+    final featureBaselinePath = RunBaselineCache.pathFor(
+      featureDir: featureDir,
+    );
+    print(
+      '  will invalidate the corpus baseline cache '
+      '(${_displayPath(cwd, corpusCachePath)}; spec 069 T004)',
+    );
+    print(
+      '  will invalidate the feature baseline cache '
+      '(${_displayPath(cwd, featureBaselinePath)})',
+    );
     print(
       '  will keep $foreignKept foreign generated file(s) untouched '
       '(never deleted)',
@@ -255,6 +320,30 @@ class ResetCommand extends Command<void> {
         '  will invalidate the green evidence of ${droppedIds.length} '
         'dropped behavior(s) (journal tombstone)',
       );
+    }
+    // Issue #1429: the phase-0 entity rollback is announced BEFORE
+    // acting, like every other reset effect — the diff-summary contract
+    // (receipts first, matching the act order below).
+    if (entityReceiptsToPrune.isNotEmpty) {
+      print(
+        '  will prune ${entityReceiptsToPrune.length} entity receipt(s) '
+        'from .zfa/receipts/:',
+      );
+      for (final record in entityReceiptsToPrune) {
+        print('    - ${record.fileName} (entity ${record.receipt.entity})');
+      }
+    }
+    if (entityPlans.isNotEmpty) {
+      print(
+        '  will revert ${entityPlans.length} declared phase-0 entity '
+        'scaffold(s) (issue #1429):',
+      );
+      for (final plan in entityPlans) {
+        print(
+          '    - ${plan.name}'
+          '${plan.file != null ? ' (${_displayPath(cwd, plan.file!)})' : ' (no scaffold on disk)'}',
+        );
+      }
     }
 
     // Act: owned files first, then the registry, then run-state.
@@ -316,6 +405,125 @@ class ResetCommand extends Command<void> {
     final runStateFile = File(p.join(featureDir, 'tdd', 'run-state.json'));
     if (await runStateFile.exists()) await runStateFile.delete();
 
+    // Issue #1429: prune the declared entities' receipts FIRST — before
+    // any scaffold is deleted. Receipts gone while the scaffold still
+    // lives is a strictly safer intermediate than the reverse (live
+    // receipts pointing at freshly deleted scaffolds would fire
+    // permanent `deleted` findings on every `zfa proof check` until a
+    // re-run heals it), and a scaffold deletion that fails afterwards
+    // lands in the existing refusal path. Best-effort with honesty: a
+    // receipt that refuses to be pruned is named and fails the reset.
+    final prunedReceipts = <String>[];
+    var receiptPruneFailures = 0;
+    for (final record in entityReceiptsToPrune) {
+      final receiptFile = File(
+        p.join(receiptStore.directory.path, record.fileName),
+      );
+      if (!receiptFile.existsSync()) continue;
+      try {
+        await receiptFile.delete();
+        prunedReceipts.add(record.fileName);
+      } on FileSystemException {
+        receiptPruneFailures++;
+        print(
+          '  reset validation: FAILED to prune receipt '
+          '${record.fileName} — it survives in .zfa/receipts/',
+        );
+      }
+    }
+    if (receiptPruneFailures > 0) {
+      _printVerdict(
+        feature: feature,
+        verdict: 'refused',
+        reason: '$receiptPruneFailures entity receipt(s) survived pruning',
+        droppedRecords: records.length,
+        foreignKept: foreignKept,
+        invalidatedBehaviors: droppedIds,
+        deletedFiles: actuallyDeleted
+            .map((path_) => _displayPath(cwd, path_))
+            .toList(),
+        pathDrift: pathDrift,
+        prunedReceipts: prunedReceipts,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // Issue #1429: revert the phase-0 entity scaffolds — AFTER their
+    // receipts are pruned, so no failure window leaves receipts pointing
+    // at deleted scaffolds. The canonical per-entity directory is
+    // deleted whole (the scaffold source plus any sibling generated part
+    // files); a fallback match outside the canonical layout deletes the
+    // FILE only (locateEntityScaffold classifies). The same
+    // outcome-validation contract as the behavior files: a deletion that
+    // did not land is named, and the reset REFUSES (exit 1) so the
+    // operator re-runs instead of silently losing ownership of the
+    // survivors.
+    final revertedEntities = <String>[];
+    final entitySurvivors = <String>[];
+    for (final plan in entityPlans) {
+      final dirExists = plan.dir != null && Directory(plan.dir!).existsSync();
+      final fileExists = plan.file != null && File(plan.file!).existsSync();
+      if (!dirExists && !fileExists) continue;
+      try {
+        if (dirExists) {
+          await Directory(plan.dir!).delete(recursive: true);
+        } else {
+          await File(plan.file!).delete();
+        }
+        revertedEntities.add(plan.name);
+      } on FileSystemException {
+        entitySurvivors.add(plan.file ?? plan.name);
+      }
+    }
+    for (final survivor in entitySurvivors) {
+      print(
+        '  reset validation: FAILED to delete entity scaffold '
+        '${_displayPath(cwd, survivor)} — the scaffold survives on disk',
+      );
+    }
+    if (entitySurvivors.isNotEmpty) {
+      print(
+        '  reset validation: ${entitySurvivors.length} entity '
+        'scaffold(s) survived — the registry and run-state were already '
+        'dropped; re-run `zfa tdd reset $feature` after resolving the '
+        'cause (permissions, locks, a running process holding the file).',
+      );
+      _printVerdict(
+        feature: feature,
+        verdict: 'refused',
+        reason:
+            '${entitySurvivors.length} entity scaffold(s) survived '
+            'deletion',
+        droppedRecords: records.length,
+        foreignKept: foreignKept,
+        invalidatedBehaviors: droppedIds,
+        deletedFiles: actuallyDeleted
+            .map((path_) => _displayPath(cwd, path_))
+            .toList(),
+        pathDrift: pathDrift,
+        revertedEntities: revertedEntities,
+        prunedReceipts: prunedReceipts,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // Issue #1550: invalidate the baseline caches — the corpus-wide
+    // cache (spec 069 T004) alongside the registry + run-state, and the
+    // feature-local snapshot with it. A surviving snapshot would carry
+    // the PRE-RESET suite baseline: the next run's driver hits the
+    // `corpus-wide reuse` path (fingerprint match — the fingerprint
+    // never covered the TDD state) and believes the dropped behaviors
+    // are green. Deletion is the invalidation: the next capture starts
+    // from an empty cache, honestly stamped post-reset.
+    final corpusCacheFile = File(corpusCachePath);
+    if (await corpusCacheFile.exists()) await corpusCacheFile.delete();
+    final featureBaselineFile = File(featureBaselinePath);
+    if (await featureBaselineFile.exists()) {
+      await featureBaselineFile.delete();
+    }
+
     // Issue #1264: tombstone the dropped behaviors — append the journal
     // entry that invalidates their surviving green evidence, so the run
     // driver re-drives them instead of skipping them as "already done".
@@ -328,7 +536,9 @@ class ResetCommand extends Command<void> {
     // really deleted.
     print(
       'zfa tdd reset: feature=$feature dropped=${records.length} '
-      'deleted=${actuallyDeleted.length}',
+      'deleted=${actuallyDeleted.length} '
+      'entities_reverted=${revertedEntities.length} '
+      'receipts_pruned=${prunedReceipts.length}',
     );
     _printVerdict(
       feature: feature,
@@ -345,6 +555,12 @@ class ResetCommand extends Command<void> {
           .expand((paths) => paths)
           .map((path_) => _displayPath(cwd, path_))
           .toList(),
+      invalidatedCaches: [
+        _displayPath(cwd, corpusCachePath),
+        _displayPath(cwd, featureBaselinePath),
+      ],
+      revertedEntities: revertedEntities,
+      prunedReceipts: prunedReceipts,
     );
     exitCode = 0;
   }
@@ -457,13 +673,18 @@ class ResetCommand extends Command<void> {
     List<String> deletedFiles = const [],
     List<String> pathDrift = const [],
     List<String> foreignOwnedLooking = const [],
+    List<String> invalidatedCaches = const [],
+    List<String> revertedEntities = const [],
+    List<String> prunedReceipts = const [],
   }) {
     if (!_jsonMode) {
       print(
         'reset: feature=$feature verdict=$verdict'
         '${reason != null ? ' reason="$reason"' : ''}'
         ' dropped_records=$droppedRecords'
-        ' foreign_files_kept=$foreignKept',
+        ' foreign_files_kept=$foreignKept'
+        ' entities_reverted=${revertedEntities.length}'
+        ' receipts_pruned=${prunedReceipts.length}',
       );
       return;
     }
@@ -495,6 +716,24 @@ class ResetCommand extends Command<void> {
     }
     if (foreignOwnedLooking.isNotEmpty) {
       _verdict.details['foreign_owned_looking'] = foreignOwnedLooking;
+    }
+    // Issue #1550: the baseline caches the reset invalidated (the
+    // corpus-wide cache + the feature-local snapshot), by display path.
+    // The list is the POST-condition, not a deletion log: every entry is
+    // guaranteed absent after the reset, whether or not it existed on
+    // disk before (deleting an absent cache is an idempotent no-op) —
+    // "invalidated", never "deleted".
+    if (invalidatedCaches.isNotEmpty) {
+      _verdict.details['invalidated_caches'] = invalidatedCaches;
+    }
+    // Issue #1429: the phase-0 entity rollback — the declared entities
+    // whose scaffolds were reverted and the receipts pruned from the
+    // global store, by name.
+    if (revertedEntities.isNotEmpty) {
+      _verdict.details['reverted_entities'] = revertedEntities;
+    }
+    if (prunedReceipts.isNotEmpty) {
+      _verdict.details['pruned_receipts'] = prunedReceipts;
     }
   }
 }

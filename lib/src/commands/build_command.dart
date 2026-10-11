@@ -11,10 +11,12 @@ import 'build_slang_stage.dart';
 import 'build_yaml_guard.dart';
 import '../core/ast/file_parser.dart';
 import '../core/dependencies/builder_dependency_preflight.dart';
+import '../core/generation/tracked_generated_output_guard.dart';
 import '../core/project/project_root.dart';
 import '../dda/plugins/route/route_build_stage.dart';
 import '../feature_flags/feature_flag_config.dart';
 import '../feature_flags/registry_emitter.dart';
+import '../models/generator_config.dart';
 
 class BuildCommand extends Command {
   final FileParser _fileParser = const FileParser();
@@ -194,8 +196,24 @@ class BuildCommand extends Command {
       return;
     }
 
+    // Spec 1540 (restore-or-refuse): snapshot every git-tracked
+    // generated-name file (tracked ∧ present) BEFORE build_runner runs, so
+    // its stale-output cleanup cannot silently orphan a hand-authored
+    // placeholder (issue #1540). Disabled (no-op snapshot) outside git.
+    final trackedGuard = TrackedGeneratedOutputGuard(
+      projectRoot: ProjectRoot.safeCurrentPath(),
+    );
+    final trackedSnapshot = await trackedGuard.capture();
+
     final build = await _runBuild();
     final exitCode = build.exitCode;
+
+    // Spec 1540: restore-or-refuse BEFORE any gate or failure verdict —
+    // a deletion the build caused must never be the reason the build's own
+    // completeness gate dead-ends the loop without a remedy.
+    if (!await recoverTrackedGeneratedOutputs(trackedGuard, trackedSnapshot)) {
+      exit(1);
+    }
 
     if (exitCode == 0) {
       print('');
@@ -242,6 +260,14 @@ class BuildCommand extends Command {
       await _cleanBuildCache();
       final retry = await _runBuild();
       final retryCode = retry.exitCode;
+      // Spec 1540: the retry build can delete tracked outputs exactly like
+      // the initial one — restore-or-refuse again before any verdict.
+      if (!await recoverTrackedGeneratedOutputs(
+        trackedGuard,
+        trackedSnapshot,
+      )) {
+        exit(1);
+      }
       if (retryCode == 0) {
         print('\n✅ Build completed successfully after cache clean');
         if (!verifyOutputsOrFail(buildOutput: retry.output) ||
@@ -262,6 +288,76 @@ class BuildCommand extends Command {
       print('\n❌ Build failed with exit code $exitCode');
       exit(1);
     }
+  }
+
+  /// Spec 1540 (restore-or-refuse): detects git-tracked generated-name
+  /// files the build deleted, restores their exact pre-build bytes, and
+  /// reports what it did. Returns false — the caller must exit non-zero —
+  /// when a deletion could NOT be restored, printing the exact
+  /// `git checkout -- <path>` remedy instead of leaving the tree broken
+  /// for the completeness gate to dead-end on (issue #1540).
+  ///
+  /// Never prints when nothing tracked was deleted (the happy path —
+  /// including every non-git project — is byte-identical to pre-1540).
+  @visibleForTesting
+  Future<bool> recoverTrackedGeneratedOutputs(
+    TrackedGeneratedOutputGuard guard,
+    TrackedGeneratedSnapshot snapshot,
+  ) async {
+    final deleted = guard.detectDeleted(snapshot);
+    if (deleted.isEmpty) return true;
+    final result = await guard.restore(snapshot, deleted);
+    if (result.restored.isNotEmpty) {
+      print(
+        '\n♻️  Restored ${result.restored.length} git-tracked '
+        'generated-name file(s) deleted by the build (spec 1540):',
+      );
+      for (final path in result.restored) {
+        print('     - $path');
+        final owner = TrackedGeneratedOutputGuard.owningLibraryFor(path);
+        if (owner != null) {
+          print('       owning library: $owner');
+        }
+      }
+      print(
+        '   A git-tracked generated-name file with no owning generator run is a '
+        'hand-authored placeholder — build_runner cleanup deletes it on every '
+        'build.',
+      );
+      final owner = TrackedGeneratedOutputGuard.owningLibraryFor(
+        result.restored.first,
+      );
+      if (owner != null) {
+        print(
+          '   Prevent the recurring deletion by excluding the owning library '
+          'from BOTH builders in build.yaml:',
+        );
+        print('       json_serializable:');
+        print('         generate_for:');
+        print('           exclude: [$owner]');
+        print('       source_gen:combining_builder:');
+        print('         generate_for:');
+        print('           exclude: [$owner]');
+      }
+      print(
+        '   See $kHandAuthoredPlaceholderDoc for the '
+        'hand-authored-placeholder pattern.',
+      );
+    }
+    if (result.failed.isNotEmpty) {
+      print(
+        '\n❌ zfa build deleted ${result.failed.length} git-tracked '
+        'generated-name file(s) and could not restore them — refusing to '
+        'report success on a broken tree (spec 1540):',
+      );
+      print(
+        TrackedGeneratedOutputGuard.restoreRemedyLines(
+          result.failed,
+        ).join('\n'),
+      );
+      return false;
+    }
+    return true;
   }
 
   /// Runs the DDA @Route stage (spec 033) against the current project root
@@ -487,6 +583,10 @@ class BuildCommand extends Command {
   @visibleForTesting
   bool verifyDeclaredPartsOrFail({String? projectRoot}) {
     final missing = <String>[];
+    // Spec 1540: project-relative (forward-slash) paths of the missing
+    // parts, in the same reference frame `git ls-files` reports under
+    // [projectRoot] — the membership key for the tracked-remedy check.
+    final missingRelativePaths = <String>[];
     for (final root in ['lib', 'test']) {
       final rootPath = projectRoot != null ? p.join(projectRoot, root) : root;
       final dir = Directory(rootPath);
@@ -523,6 +623,14 @@ class BuildCommand extends Command {
           final resolved = p.join(p.dirname(entity.path), partName);
           if (!File(resolved).existsSync()) {
             missing.add('${p.relative(entity.path)} -> $partName');
+            missingRelativePaths.add(
+              p
+                  .relative(
+                    resolved,
+                    from: projectRoot ?? Directory.current.path,
+                  )
+                  .replaceAll(p.separator, '/'),
+            );
           }
         }
       }
@@ -537,6 +645,25 @@ class BuildCommand extends Command {
         '   source while the rest of the build succeeded. Fix the reported source\n'
         '   and re-run `zfa build`.',
       );
+      // Spec 1540 (issue #1540): when a missing declared part is tracked in
+      // git, the build just deleted a hand-authored placeholder — the gate
+      // must detect it and provide an actionable restore path instead of
+      // dead-ending the `zfa tdd` loop with no remedy. Untracked (and
+      // non-git) trees keep the message above, unchanged.
+      final tracked = TrackedGeneratedOutputGuard.trackedFilesSync(
+        projectRoot ?? ProjectRoot.safeCurrentPath(),
+      );
+      final trackedMissing = missingRelativePaths
+          .where(tracked.contains)
+          .toList();
+      if (trackedMissing.isNotEmpty) {
+        print('');
+        print(
+          TrackedGeneratedOutputGuard.restoreRemedyLines(
+            trackedMissing,
+          ).join('\n'),
+        );
+      }
       return false;
     }
     return true;
@@ -661,7 +788,7 @@ class BuildCommand extends Command {
         '\n❌ dart analyze reported ${counts.errors} error(s) and '
         '${counts.warnings} warning(s) — generated code does not compile '
         'cleanly.\n'
-        '   Fix the generator or run with --no-analyze to skip this check.',
+        '${analyzeGateRemedyLines(stdout).map((l) => '   $l').join('\n')}',
       );
       return false;
     }
@@ -714,6 +841,168 @@ class BuildCommand extends Command {
   static bool analyzeReportsError(String analyzeOutput) =>
       countAnalyzerIssues(analyzeOutput).errors > 0;
 
+  /// The offending file paths in [analyzeOutput] (issue #1412) — the
+  /// `path:line:col` field of every ERROR- or WARNING-severity line in the
+  /// #1035 single line format:
+  ///   `   error - path:line:col - message - code`
+  /// deduplicated in first-seen order. Info-level lints are style, never
+  /// ownership evidence (issue #1035), and severity words inside messages
+  /// or the summary line can never fabricate an offender (the same
+  /// line-anchored discipline as [countAnalyzerIssues]). Exposed for unit
+  /// testing so the extractor can be verified without spawning
+  /// `dart analyze`.
+  @visibleForTesting
+  static List<String> analyzerOffendingPaths(String analyzeOutput) {
+    final re = RegExp(r'^\s*(?:error|warning)\s*-\s*(.+?):\d+:\d+\s*-\s');
+    final seen = <String>{};
+    for (final line in analyzeOutput.split('\n')) {
+      final match = re.firstMatch(line);
+      if (match == null) continue;
+      final path = match.group(1)!;
+      seen.add(path);
+    }
+    return seen.toList();
+  }
+
+  /// Whether [path] is generator output under [outputDir].
+  ///
+  /// Two attribution surfaces (bug 1675):
+  ///
+  ///   1. the generated-name suffixes the build command itself owns
+  ///      (`.zorphy.dart` / `.g.dart`; the same convention the
+  ///      zorphy-annotation scan uses);
+  ///   2. the directory conventions the `zfa make` plugins write into
+  ///      *under the output dir* ([outputDir] — `lib/src` by default):
+  ///      `domain`, `data`, `di`, `routing`, `presentation`, `cache`. Files
+  ///      `zfa make` just wrote (e.g.
+  ///      `lib/src/data/repositories/data_todo_repository.dart`,
+  ///      `lib/src/routing/todo_routes.dart`) carry no generated suffix,
+  ///      so without surface 2 the analyze gate mislabeled fresh generator
+  ///      output as "hand-authored" and told the user to hand-patch files
+  ///      the next regeneration would clobber.
+  ///
+  /// Analyzer paths arrive with `/` separators on POSIX and `\` on Windows,
+  /// so separators are normalized before the segment check, and surface 2 is
+  /// anchored to the [outputDir] prefix: only files *inside* the generator's
+  /// tree can be generator output, so a hand-authored
+  /// `test/data/migrator_test.dart` or `lib/data/legacy/migrator.dart` stays
+  /// hand-authored.
+  ///
+  /// Deliberate trade-off, pinned by test (see the bug-1675 suite):
+  /// hand-authored code inside an owned segment *under the output dir*
+  /// (`lib/src/data/legacy/migrator.dart`) is indistinguishable from make
+  /// output by path alone and is therefore attributed to the generator —
+  /// the over-attributing direction is the safe one here (v5 fixes that
+  /// layout: entities under the domain root, no alternate folder
+  /// structures), whereas answering "hand-authored" for real make output is
+  /// exactly the #1675 misdirection. Per-file provenance would need the
+  /// `.zfa/receipts` run records; this classifier stays pure and
+  /// path-based.
+  ///
+  /// Anything else is hand-authored.
+  static bool _isGeneratedPath(
+    String path, {
+    String outputDir = GeneratorConfig.fixedOutputDir,
+  }) {
+    final normalized = path.replaceAll(r'\', '/');
+    if (normalized.endsWith('.zorphy.dart') || normalized.endsWith('.g.dart')) {
+      return true;
+    }
+    // The make plugins own these segments under the output dir, so the
+    // segment test is anchored to that prefix. `dart analyze` prints
+    // project-relative paths (`lib/src/data/…`), so the prefix may sit at
+    // the string start or under a leading `./`/project dir — match both.
+    // The trailing separator keeps the segment boundary, so `lib/src/data.x/`
+    // never classifies as `data`.
+    final anchor = _outputDirPrefix(outputDir);
+    final prefix = anchor.isEmpty ? '' : '$anchor/';
+    for (final segment in _makeOwnedSegments) {
+      if (normalized.startsWith('$prefix$segment/') ||
+          normalized.contains('/$prefix$segment/')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// [outputDir] normalized to a prefix the anchored segment test can match
+  /// against (`'lib/src'`, `'./lib/src/'`, `'lib\\src'` → `'lib/src'`; an
+  /// unset/`.` dir → `''`, which degrades to the bare segment boundary).
+  static String _outputDirPrefix(String outputDir) {
+    final normalized = p.posix.normalize(outputDir.replaceAll(r'\', '/'));
+    return normalized == '.' ? '' : normalized;
+  }
+
+  /// The output-dir segments the `zfa make` plugin chain writes into
+  /// (bug 1675) — the entity/domain tree, the data layer (datasources,
+  /// repositories, mocks), the DI wiring, route modules, the presentation
+  /// tree (views/pages/state) and the cache artifacts.
+  static const List<String> _makeOwnedSegments = [
+    'domain',
+    'data',
+    'di',
+    'routing',
+    'presentation',
+    'cache',
+  ];
+
+  /// The analyze gate's ownership-aware remedy lines (issue #1412): the
+  /// gate's verdict (the count line above) is a read contract of the
+  /// #1407/#1472 readers and never changes, but the remedy under it must
+  /// follow the offenders' OWNERSHIP — "Fix the generator" misdirects the
+  /// operator when the warnings are in hand-authored files.
+  ///
+  /// Returns one of:
+  ///
+  ///   - all offenders generated (or none parseable — the verdict stands,
+  ///     the remedy stays honest): the existing single line
+  ///     `Fix the generator or run with --no-analyze to skip this check.`
+  ///   - any hand-authored offender: a `generator output offending:` line
+  ///     (when generated offenders exist), a `hand-authored offending
+  ///     (not generator output):` line naming the files (capped at 3 with
+  ///     a `+N more` remainder), and `Fix the named files, ...`.
+  ///
+  /// Pure and `@visibleForTesting` — unit-testable without spawning
+  /// `dart analyze` (the same convention as [countAnalyzerIssues]).
+  ///
+  /// [outputDir] is the generator's output dir the ownership classifier
+  /// anchors surface 2 to (`lib/src` by default; see [_isGeneratedPath]).
+  @visibleForTesting
+  static List<String> analyzeGateRemedyLines(
+    String analyzeOutput, {
+    String outputDir = GeneratorConfig.fixedOutputDir,
+  }) {
+    const cap = 3;
+    String capped(List<String> paths) {
+      final named = paths.take(cap).join(', ');
+      final remainder = paths.length - cap;
+      return remainder > 0 ? '$named (+$remainder more)' : named;
+    }
+
+    final offenders = analyzerOffendingPaths(analyzeOutput);
+    final generated = offenders
+        .where((f) => _isGeneratedPath(f, outputDir: outputDir))
+        .toList();
+    final handAuthored = offenders
+        .where((f) => !_isGeneratedPath(f, outputDir: outputDir))
+        .toList();
+    if (handAuthored.isEmpty) {
+      return ['Fix the generator or run with --no-analyze to skip this check.'];
+    }
+    return [
+      if (generated.isNotEmpty)
+        // Bug 1675: the parenthetical used to enumerate the suffix
+        // surfaces only (`.g.dart/.zorphy.dart`) — generated suffix files
+        // AND make's directory-convention output both land in this group
+        // now, so the label stays accurate without enumerating surfaces.
+        'generator output offending (generated by zfa): '
+            '${capped(generated)}',
+      'hand-authored offending (not generator output): '
+          '${capped(handAuthored)}',
+      'Fix the named files, or run with --no-analyze to skip this check.',
+    ];
+  }
+
   /// Counts the `error -` severity lines in [analyzeOutput] — the same
   /// line format [analyzeReportsError] matches (see its doc). For
   /// verdicts that need the magnitude, not just the boolean: the TDD
@@ -721,6 +1010,78 @@ class BuildCommand extends Command {
   /// the failed build non-tolerable.
   static int countAnalyzerErrors(String analyzeOutput) =>
       countAnalyzerIssues(analyzeOutput).errors;
+
+  /// The build command's analyze-gate refusal verdict (issues #395/#1035).
+  /// The message has exactly ONE writer — [verifyAnalyzeOrFail] above:
+  /// `❌ dart analyze reported <E> error(s) and <W> warning(s) — generated
+  /// code does not compile cleanly.` — and carries the counts the gate
+  /// decided on. The errors-only interpretations (the make's #1407 gate and
+  /// the refactor pass registry's #1472 arm) both read the verdict through
+  /// the two helpers below, so the readers can never drift apart.
+  static final RegExp _analyzeGateRefusalPattern = RegExp(
+    r'dart analyze reported (\d+) error\(s\) and (\d+) warning\(s\)',
+  );
+
+  /// Whether [buildOutput] is the build command's analyze-gate refusal on
+  /// WARNINGS ONLY — 0 error(s) and at least one warning — i.e. the tree
+  /// compiles (0 errors) and the build failed only because the #1035 gate
+  /// treats warnings as fatal.
+  ///
+  /// Requires BOTH of:
+  ///
+  ///   - the gate's own refusal message naming 0 errors (the single writer
+  ///     documented on [_analyzeGateRefusalPattern]). A build failure
+  ///     without that message is some other failure class (build_runner,
+  ///     DDA routes, post-build verifiers) and keeps the caller's honest
+  ///     failure handling unchanged;
+  ///   - [countAnalyzerIssues] (the #1035 single line-format contract)
+  ///     finds NO `error -` lines in the raw output. If the gate message
+  ///     and the parser disagree, the honest verdict stands (safe-failure,
+  ///     never a silent pass).
+  ///
+  /// Issue #1407 (the make) and issue #1472 (the refactor pass registry)
+  /// both read this one implementation.
+  static bool analyzeGateWarningsOnlyRefusal(String buildOutput) {
+    final match = _analyzeGateRefusalPattern.firstMatch(buildOutput);
+    if (match == null) return false;
+    final errors = int.tryParse(match.group(1)!) ?? -1;
+    final warnings = int.tryParse(match.group(2)!) ?? -1;
+    if (errors != 0 || warnings < 1) return false;
+    return !analyzeReportsError(buildOutput);
+  }
+
+  /// Log a tolerated warnings-only gate refusal: the verdict naming the
+  /// gate's own counts — warnings are NOT a compile failure — then the
+  /// analyzer `warning -` lines themselves. A voluminous verdict logs a
+  /// capped sample plus a remainder count so the transcript stays readable.
+  ///
+  /// [policy] names the strictness policy and its issue (e.g.
+  /// `(issue #1407, errors-only gate)`); [next] names what the caller does
+  /// next, so each caller keeps its own honest sentence.
+  static void logAnalyzeGateRefusal(
+    String buildOutput, {
+    required String policy,
+    required String next,
+  }) {
+    final match = _analyzeGateRefusalPattern.firstMatch(buildOutput)!;
+    final warnings = int.parse(match.group(2)!);
+    print(
+      '   analyze gate: 0 error(s), $warnings warning(s) — warnings are '
+      'non-blocking $policy: $next',
+    );
+    final warningLines = RegExp(
+      r'^\s*warning\s*-\s.*$',
+      multiLine: true,
+    ).allMatches(buildOutput).map((m) => m.group(0)!.trim()).toList();
+    const maxLogged = 10;
+    for (final line in warningLines.take(maxLogged)) {
+      print('   $line');
+    }
+    final remainder = warningLines.length - maxLogged;
+    if (remainder > 0) {
+      print('   ... $remainder more warning(s)');
+    }
+  }
 
   /// Issue #1303: whether [buildOutput] carries a pub RESOLUTION failure
   /// — the version-solving dump class (a stale `dependency_overrides`

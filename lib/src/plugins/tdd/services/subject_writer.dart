@@ -35,6 +35,50 @@ import 'dart:io';
 import '../models/behavior.dart';
 import 'unit_contract_shape.dart';
 
+/// The gen-time honest-red claim sentences the stub header and doc
+/// comment carry (issue #1517).
+///
+/// Single source of truth for both ends of the claim's life: the writer
+/// templates below render them, and `func_command`'s dummy-fill step
+/// consumes them to rewrite the claims once a dummy body makes them
+/// stale — so the two sides cannot drift apart (review of #1523).
+///
+/// The wraps and `// `/`/// ` comment prefixes are baked in exactly as
+/// the templates emit them; the reconciler normalizes them back to
+/// spaces before building its wrap-tolerant pattern.
+class StubClaims {
+  const StubClaims._();
+
+  /// The legacy/undeclared unit stub's honest-red header claim.
+  static const unitHeader =
+      'This is a MINIMAL COMPILABLE STUB. It compiles cleanly (FR-011) but\n'
+      '// does NOT satisfy the behavior described above — the paired test will\n'
+      '// fail on first execution with an assertion-level failure (honest red).\n'
+      '// Replace this stub body with real implementation to make the test pass.';
+
+  /// The acceptance-scenario stub's honest-red header claim.
+  static const acceptanceHeader =
+      'This is a MINIMAL COMPILABLE acceptance-scenario stub. It compiles\n'
+      '// cleanly (FR-011) but does NOT satisfy the behavior described above —\n'
+      '// the paired test will fail on first execution with an assertion-level\n'
+      '// failure (honest red). The acceptance subject intentionally does NOT\n'
+      '// reference any entity/use case/repository (FR-004): it stands alone.\n'
+      '// Replace this stub body with real implementation to make the test pass.';
+
+  /// The contract-derived unit stub's honest-red header claim — emitted
+  /// mid-line, after `when implementing. `.
+  static const contractHeader =
+      'This is a MINIMAL\n'
+      '// COMPILABLE STUB: it does NOT satisfy the behavior — the paired test\n'
+      '// fails on first execution (honest red). Replace this stub body with\n'
+      '// the real implementation of the declared contract to make the test\n'
+      '// pass.';
+
+  /// The doc-comment line every stub carries until implemented.
+  static const docLine =
+      'Throws [UnimplementedError] until the real implementation lands.';
+}
+
 /// Writes a minimal compilable Dart subject file for a behavior.
 class SubjectWriter {
   const SubjectWriter({this.contractShape});
@@ -87,10 +131,7 @@ class SubjectWriter {
 // source_criterion: ${b.sourceCriterion}
 // description: ${b.description}
 //
-// This is a MINIMAL COMPILABLE STUB. It compiles cleanly (FR-011) but
-// does NOT satisfy the behavior described above — the paired test will
-// fail on first execution with an assertion-level failure (honest red).
-// Replace this stub body with real implementation to make the test pass.
+// ${StubClaims.unitHeader}
 //
 // The subject name is derived from the behavior id (`subject_u1`) and is
 // deliberately snake_cased — the generator KNOWS the name it emits, so
@@ -101,7 +142,7 @@ library;
 
 /// Subject for behavior ${b.id}.
 ///
-/// Throws [UnimplementedError] until the real implementation lands.
+/// ${StubClaims.docLine}
 int $target() => throw UnimplementedError('$target not implemented');
 ''';
     }
@@ -155,12 +196,7 @@ Widget $target() => const SizedBox.shrink();
 // source_criterion: ${b.sourceCriterion}
 // description: ${b.description}
 //
-// This is a MINIMAL COMPILABLE acceptance-scenario stub. It compiles
-// cleanly (FR-011) but does NOT satisfy the behavior described above —
-// the paired test will fail on first execution with an assertion-level
-// failure (honest red). The acceptance subject intentionally does NOT
-// reference any entity/use case/repository (FR-004): it stands alone.
-// Replace this stub body with real implementation to make the test pass.
+// ${StubClaims.acceptanceHeader}
 //
 // The subject name is derived from the behavior id (`subject_a1`) and is
 // deliberately snake_cased — the generator KNOWS the name it emits, so
@@ -171,7 +207,7 @@ library;
 
 /// Scenario runner for behavior ${b.id}.
 ///
-/// Throws [UnimplementedError] until the real implementation lands.
+/// ${StubClaims.docLine}
 void $target() => throw UnimplementedError('$target not implemented');
 ''';
   }
@@ -179,9 +215,13 @@ void $target() => throw UnimplementedError('$target not implemented');
   /// The contract-derived unit subject (issue #1259).
   ///
   /// The declared request/result types are preserved in the header and
-  /// the doc comment; non-renderable declared types (entity types that
-  /// do not exist yet — the red phase precedes implementation) degrade
-  /// to `Object?` so the stub compiles cleanly (FR-011) while staying
+  /// the doc comment. SPEC 1489: the degradation is CONDITIONAL — a
+  /// declared type whose entity EXISTS on disk (phase-0 created it
+  /// before gen spawned) renders verbatim, with the entity's import
+  /// emitted so the stub compiles against the declared type out of the
+  /// box: the author implements the body, never repairs the signature.
+  /// Only a declared type whose entity does NOT exist yet degrades to
+  /// `Object?` so the stub still compiles cleanly (FR-011) while staying
   /// honestly red. The shape itself — arity, parameter names, scalar
   /// types — comes from the declaration, never invented.
   static String _renderContractUnitSubject(
@@ -189,11 +229,32 @@ void $target() => throw UnimplementedError('$target not implemented');
     String target,
     UnitContractShape shape,
   ) {
-    final params = shape.params.map((p) => '${p.type} ${p.name}').join(', ');
+    // SPEC 1536: the ONE shared renderer — positional params first, the
+    // named group as ONE trailing `{...}` block (`{Object? level,
+    // Object? onRecord}`); legacy positional rows render byte-for-byte.
+    final params = UnitContractShape.renderParameterList(shape.params);
     final paramDocs = shape.params.isEmpty
         ? ''
         : '\n// Declared parameters: ${shape.params.map((p) => '${p.name}: ${p.declaredType}').join(', ')}'
-              '${shape.params.any((p) => p.type != p.declaredType) ? ' (non-renderable declared types render as Object? until implemented)' : ''}';
+              '${shape.params.any((p) => p.type != p.declaredType) ? ' (non-existent entity types render as Object? until implemented)' : ''}';
+    // SPEC 1489: the entity imports ride the stub — the subject
+    // compiles against the declared types without any hand repair.
+    // Empty when no declared entity exists on disk (the legacy shapes
+    // stay byte-identical: the interpolation site keeps the blank line).
+    final importBlock = shape.entityImports.isEmpty
+        ? '\n'
+        : '\n${shape.entityImports.map((uri) => "import '$uri';").join('\n')}\n\n';
+    // SPEC 1489: the degradation paragraph is CONDITIONAL — it is only
+    // relevant when something actually degraded. A shape whose every
+    // declared type renders verbatim (the phase-0 entity already exists)
+    // carries no `replace it with the declared type` instruction: the
+    // stub is directly implementable as written.
+    final anyDegraded =
+        shape.returnType != shape.declaredReturn ||
+        shape.params.any((p) => p.type != p.declaredType);
+    final degradationDocs = anyDegraded
+        ? '// The declared request and result types are preserved above. A\n// declared type whose entity does not exist yet renders as `Object?`\n// so the stub compiles cleanly (FR-011) — the degradation is\n// unconditional ONLY for entities that do not exist on disk; replace\n// it with the declared type once the entity lands. '
+        : '// The declared request and result types are preserved above: every\n// declared type exists on disk and renders verbatim, import included —\n// implement the body, never the signature. ';
     return '''
 // GENERATED STUB — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation
 // + issue #1259 contract derivation).
@@ -207,14 +268,7 @@ void $target() => throw UnimplementedError('$target not implemented');
 //
 //     ${shape.declaredSignature}
 //
-// The declared request and result types are preserved above. A
-// non-renderable declared type (an entity that does not exist yet)
-// renders as `Object?` so the stub compiles cleanly (FR-011); replace
-// it with the declared type when implementing. This is a MINIMAL
-// COMPILABLE STUB: it does NOT satisfy the behavior — the paired test
-// fails on first execution (honest red). Replace this stub body with
-// the real implementation of the declared contract to make the test
-// pass.$paramDocs
+$degradationDocs${StubClaims.contractHeader}$paramDocs
 //
 // The subject name is derived from the behavior id and is deliberately
 // snake_cased — the generator KNOWS the name it emits, so the lint its
@@ -222,11 +276,10 @@ void $target() => throw UnimplementedError('$target not implemented');
 // contract surface (issue #1035).
 // ignore_for_file: non_constant_identifier_names
 library;
-
-/// Subject for behavior ${b.id} — declared contract:
+$importBlock/// Subject for behavior ${b.id} — declared contract:
 /// `${shape.declaredSignature}`.
 ///
-/// Throws [UnimplementedError] until the real implementation lands.
+/// ${StubClaims.docLine}
 ${shape.returnType} $target($params) => throw UnimplementedError('$target not implemented: ${shape.declaredSignature}');
 ''';
   }

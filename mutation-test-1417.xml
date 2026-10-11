@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  mutation-test-1417.xml — scopes mutation_test to the code introduced by
+  issue #1417 (the speckit verb of zfa initialize): `lib/src/commands/speckit_scaffolding.dart`.
+
+  Run:    dart run mutation_test mutation-test-1417.xml -f md -o mutation-test-report
+  Output: mutation-test-report/mutation-test.md (+ html)
+
+  Scope rationale:
+  - The embedded bash-script constants (the region between the
+    `// BEGIN EMBEDDED SCRIPTS` / `// END EMBEDDED SCRIPTS` markers) are
+    DATA, not logic: their bytes are already pinned exactly against the
+    framework repo's canonical `.specify/scripts/bash/` copies by the
+    drift-guard test (U-1417-b9) — a stronger property than mutation. The
+    <file> whitelist below (lines 1-339) excludes them. Verified in this
+    session: the unscoped run finds 538 mutants in this file and ALL of
+    them live in the string constants (the builtin Dart rules produce 0
+    candidates in the writer logic — the whitelisted writer lines with an
+    empty ruleset yielded "Mutations: 0"), i.e. the unscoped noise is 100%
+    data mutants already guarded byte-exact by the drift guard.
+  - The builtin Dart rules cannot express the writer's decision points, so
+    this config adds targeted <regex> rules for every branch the unit group
+    exercises: existence checks, the equality/force/dry-run gates, the
+    gitignore rule scan (comment/negation/exclusion matching) and the
+    idempotent-append marker guard. Each mutant maps to a specific unit test
+    (U1-U9) that must kill it.
+  - `initialize_command.dart`'s speckit-flag wiring (flag parse + emit call,
+    ~12 logic lines) is exercised by the subprocess acceptance tests
+    (U-1417-b1..b8) but excluded from the per-mutant loop: a lib/ mutant
+    marks the CLI's AOT binary stale and forces an ~85-100s recompile PER
+    MUTANT (issues #1623/#1664 budgets), which cannot fit the "<10s per
+    mutant" rubric. The wiring is 4 lines of delegation into the writer —
+    the logic under audit lives in the writer.
+
+  The per-mutant test command is tools/run-tdd-tests-1417.sh: it runs the
+  in-process `SpeckitScaffoldingWriter unit` group only (JIT + persistent
+  incremental kernel cache → seconds per mutant).
+-->
+<mutations version="1.0">
+  <files>
+    <file>lib/src/commands/speckit_scaffolding.dart
+      <!-- Whitelist: mutate ONLY the writer logic (lines 1-339, before the
+           embedded-script constants region). -->
+      <lines begin="1" end="339"/>
+    </file>
+  </files>
+  <rules>
+    <!-- emit(): the skip-vs-create-vs-overwrite gates -->
+    <regex pattern="file\.existsSync\(\)" id="1417.file-exists">
+      <mutation text="false"/>
+    </regex>
+    <regex pattern="existing == content" id="1417.content-eq">
+      <mutation text="existing != content"/>
+    </regex>
+    <regex pattern="if \(!force\)" id="1417.force-gate">
+      <mutation text="if (force)"/>
+    </regex>
+    <regex pattern="if \(!dryRun\)" id="1417.dryrun-gate">
+      <mutation text="if (dryRun)"/>
+    </regex>
+    <!-- emit(): the gitignore update gate -->
+    <regex pattern="gi\.existsSync\(\)" id="1417.gi-exists">
+      <mutation text="false"/>
+    </regex>
+    <regex pattern="_needsForceInclude\(gi\.readAsStringSync\(\)\)" id="1417.gi-needed">
+      <mutation text="false"/>
+    </regex>
+    <!-- _needsForceInclude(): the per-line rule scan -->
+    <regex pattern="line\.isEmpty \|\| line\.startsWith\(&apos;#&apos;\)" id="1417.comment-skip">
+      <mutation text="line.isEmpty"/>
+    </regex>
+    <regex pattern="rule\.startsWith\(&apos;!&apos;\)" id="1417.negation-scan">
+      <mutation text="false"/>
+    </regex>
+    <regex pattern="negated = true" id="1417.negation-set">
+      <mutation text="negated = false"/>
+    </regex>
+    <regex pattern="parentExcluded = !negated" id="1417.parent-verdict">
+      <mutation text="parentExcluded = negated"/>
+    </regex>
+    <regex pattern="scriptsExcluded = !negated" id="1417.scripts-verdict">
+      <mutation text="scriptsExcluded = negated"/>
+    </regex>
+    <regex pattern="needed: parentExcluded \|\| scriptsExcluded" id="1417.needed-verdict">
+      <mutation text="needed: true"/>
+    </regex>
+    <!-- _writeForceInclude(): the managed-block rewrite -->
+    <regex pattern="existing\.contains\(gitignoreMarker\)" id="1417.marker-guard">
+      <mutation text="false"/>
+    </regex>
+    <regex pattern="existing = _stripManagedBlocks\(existing\)" id="1417.block-strip">
+      <mutation text="existing = existing"/>
+    </regex>
+    <regex pattern="parentExcluded: scan\.parentExcluded" id="1417.parent-pair">
+      <mutation text="parentExcluded: false"/>
+    </regex>
+    <regex pattern="!existing\.endsWith\(&apos;\\n&apos;\)" id="1417.newline-guard">
+      <mutation text="existing.endsWith(&apos;\\n&apos;)"/>
+    </regex>
+  </rules>
+  <commands>
+    <command group="test" expected-return="0" working-directory=".">bash tools/run-tdd-tests-1417.sh</command>
+  </commands>
+</mutations>

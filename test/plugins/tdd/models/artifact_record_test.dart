@@ -191,4 +191,94 @@ void main() {
       });
     },
   );
+
+  group('issue #1388 — gen_fingerprint survives every copier', () {
+    // sha256-shaped digest (64 hex chars). The model treats the value as
+    // opaque, but a realistic shape keeps the fixture honest about what
+    // gen actually stores.
+    final digest = List.filled(64, 'a').join();
+
+    ArtifactRecord withFingerprint(String? genFingerprint) => ArtifactRecord(
+      behaviorId: 'B-003',
+      feature: '044-test-tdd-generation',
+      sourceCriterion: 'FR-007',
+      testPath: 'test/plugins/tdd/fixtures/b003_test.dart',
+      subjectPath: 'lib/src/plugins/tdd/fixtures/b003_subject.dart',
+      runnableTestName:
+          'test/plugins/tdd/fixtures/b003_test.dart::B-003::asserts behavior',
+      testOwnership: Ownership.created,
+      subjectOwnership: Ownership.created,
+      createdAt: '2026-08-29T20:00:00Z',
+      genFingerprint: genFingerprint,
+    );
+
+    // Every copier that must carry the digest forward, keyed by the copier
+    // under test. Adding a copier to the model is ONE row here — the loop
+    // below is the whole expectation set, so a new copy site that forgets
+    // the OPTIONAL field fails loudly instead of dropping the digest.
+    final copiers = <String, ArtifactRecord Function(ArtifactRecord)>{
+      'copyWithOwnership': (r) => r.copyWithOwnership(
+        testOwnership: Ownership.reused,
+        subjectOwnership: Ownership.reused,
+      ),
+      'copyWithGenFingerprint': (r) => r.copyWithGenFingerprint(digest),
+    };
+
+    test('an absent gen_fingerprint key decodes to null and toJson omits it '
+        '— legacy registries stay byte-stable', () {
+      final legacy = withFingerprint(null);
+      expect(legacy.genFingerprint, isNull);
+
+      final json = legacy.toJson();
+      expect(
+        json.containsKey('gen_fingerprint'),
+        isFalse,
+        reason:
+            'a pre-#1388 registry must round-trip byte-for-byte through '
+            'load/save cycles',
+      );
+      expect(jsonEncode(json), isNot(contains('gen_fingerprint')));
+
+      final decoded = ArtifactRecord.fromJson(
+        jsonDecode(jsonEncode(json)) as Map<String, dynamic>,
+      );
+      expect(decoded.genFingerprint, isNull);
+      expect(jsonEncode(decoded.toJson()), jsonEncode(json));
+    });
+
+    test('a present digest round-trips fromJson -> toJson unchanged', () {
+      final json = withFingerprint(digest).toJson();
+      expect(json['gen_fingerprint'], digest);
+
+      final decoded = ArtifactRecord.fromJson(
+        jsonDecode(jsonEncode(json)) as Map<String, dynamic>,
+      );
+      expect(decoded.genFingerprint, digest);
+      expect(jsonEncode(decoded.toJson()), jsonEncode(json));
+    });
+
+    for (final entry in copiers.entries) {
+      test('${entry.key} preserves the stored digest', () {
+        final copied = entry.value(withFingerprint(digest));
+        expect(
+          copied.genFingerprint,
+          digest,
+          reason:
+              '${entry.key} dropped gen_fingerprint: a copy site that '
+              'forgets the OPTIONAL field still compiles, so the digest '
+              'vanishes silently and reopens issue #1388',
+        );
+      });
+    }
+
+    test('copyWithGenFingerprint replaces or clears the digest', () {
+      final other = List.filled(64, 'b').join();
+      final replaced = withFingerprint(digest).copyWithGenFingerprint(other);
+      expect(replaced.genFingerprint, other);
+
+      final cleared = replaced.copyWithGenFingerprint(null);
+      expect(cleared.genFingerprint, isNull);
+      expect(cleared.toJson().containsKey('gen_fingerprint'), isFalse);
+    });
+  });
 }

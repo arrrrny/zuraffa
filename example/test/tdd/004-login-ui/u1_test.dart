@@ -15,18 +15,28 @@ library;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:example/tdd/004-login-ui/u1_subject.dart' as subject;
+import 'package:example/src/presentation/pages/login/login_view.dart'
+    show kLoginPlatformSlots;
 
 void main() {
   group('U1 (FR-001, adaptive_layouts)', () {
-    test('U1 — The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos).', () {
-      final result = (() {
-        try {
-          return subject.subject_u1();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(result, isNot(isA<UnimplementedError>()));
-    });
+    test(
+      'U1 — The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos).',
+      () {
+        final result = (() {
+          try {
+            return subject.subject_u1();
+          } on UnimplementedError catch (error) {
+            return error;
+          }
+        })();
+        expect(result, isNot(isA<UnimplementedError>()));
+        expect(
+          result,
+          equals(kLoginPlatformSlots),
+          reason: 'U1 declares the Skin Contract slots, in declared order',
+        );
+      },
+    );
   });
 }

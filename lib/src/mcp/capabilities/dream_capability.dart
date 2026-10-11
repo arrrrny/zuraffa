@@ -228,6 +228,7 @@ class DreamSpecDrafter {
 ## Functional Requirements
 
 - **FR-001**: $title (the $entityLower carries the data)
+            traces: ${entity}Repository
 
 ## Acceptance Scenarios
 

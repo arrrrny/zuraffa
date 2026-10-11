@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 
 import '../cli/plugin_loader.dart';
 import '../core/plugin_system/plugin_registry.dart';
+import '../mcp/session_store.dart';
 import 'base_plugin_command.dart';
 
 /// `zfa mcp` — MCP plugin command.
@@ -42,27 +44,36 @@ class McpCommand extends PluginCommand {
   }
 }
 
-/// `zfa mcp replay <session-file>` (issue #1358) — re-executes a
-/// committed JSON scenario of MCP tool calls against the REAL
-/// scaffolded `bin/mcp_server.dart` over the stdio JSON-RPC wire.
-/// The scenario file IS the recorded session (committed, diffable):
-/// `{"session": "<name>", "calls": [{"tool": "...", "arguments": {...},
-/// "expect_contains": "..."}]}`. One verdict line per call (`ok` /
-/// `missing-tool` / `mismatch` / `error`), a summary line, and a
-/// proof-carrying receipt under `.zfa/receipts/`. Exit 0 iff every
-/// call is ok.
+/// `zfa mcp replay <session-file|session-id>` (issue #1358; spec 1136
+/// lane 3) — re-executes a recorded sequence of MCP tool calls against
+/// the REAL scaffolded `bin/mcp_server.dart` over the stdio JSON-RPC
+/// wire.
+///
+/// Two resolution forms:
+/// - a **scenario file** (the #1358 contract, unchanged): a committed
+///   JSON document `{"session": "<name>", "calls": [{"tool": ...,
+///   "arguments": {...}, "expect_contains": "..."}]}`;
+/// - a **session id** (spec 1136 lane 3): a persisted
+///   `McpSessionStore` session (`.zfa/mcp_sessions/<id>.json`) whose
+///   recorded call sequence — appended via the v2 `session_record`
+///   tool — becomes the scenario.
+///
+/// One verdict line per call (`ok` / `missing-tool` / `mismatch` /
+/// `error`), a summary line, and a proof-carrying receipt under
+/// `.zfa/receipts/` (naming the source). Exit 0 iff every call is ok.
 class _ReplayCommand extends Command<void> {
   @override
   String get name => 'replay';
 
   @override
   String get description =>
-      'Re-execute a committed MCP tool-call scenario (JSON) against the '
-      'scaffolded server and write a verdict receipt (issue #1358)';
+      'Re-execute a recorded MCP tool-call scenario (JSON file or '
+      'persisted session id) against the scaffolded server and write a '
+      'verdict receipt (issue #1358, spec 1136)';
 
   @override
   String get invocation =>
-      'zfa mcp replay <session-file> [--timeout <seconds>]';
+      'zfa mcp replay <session-file|session-id> [--timeout <seconds>]';
 
   _ReplayCommand() {
     argParser.addOption(
@@ -72,6 +83,14 @@ class _ReplayCommand extends Command<void> {
     );
   }
 
+  /// Whether [value] can name a persisted session (a single plain
+  /// directory-segment id, not a path).
+  static bool _isBareSegment(String value) =>
+      value.isNotEmpty &&
+      !value.contains('/') &&
+      !value.contains(r'\') &&
+      !value.contains('..');
+
   @override
   Future<void> run() async {
     final rest = argResults!.rest;
@@ -80,35 +99,78 @@ class _ReplayCommand extends Command<void> {
       exitCode = 2;
       return;
     }
-    final scenarioPath = rest.first;
-    final scenarioFile = File(scenarioPath);
-    if (!await scenarioFile.exists()) {
-      print('❌ Usage: $invocation');
-      print('   scenario file not found: $scenarioPath');
-      exitCode = 2;
-      return;
-    }
+    final target = rest.first;
 
-    final Object? decoded;
-    try {
-      decoded = jsonDecode(await scenarioFile.readAsString());
-    } on FormatException catch (e) {
-      print('❌ Malformed scenario file: $scenarioPath (${e.message})');
-      exitCode = 1;
-      return;
-    }
-    if (decoded is! Map<String, dynamic>) {
-      print('❌ Malformed scenario file: $scenarioPath (not an object)');
-      exitCode = 1;
-      return;
-    }
-    final sessionName = (decoded['session'] as String?) ?? 'session';
-    final rawCalls = decoded['calls'];
-    if (rawCalls is! List) {
-      print(
-        '❌ Malformed scenario file: $scenarioPath ("calls" must be a list)',
+    final String sessionName;
+    final List rawCalls;
+    var source = 'scenario-file';
+    String? scenarioPath;
+
+    final scenarioFile = File(target);
+    if (await scenarioFile.exists()) {
+      // The #1358 form: a committed scenario file.
+      scenarioPath = target;
+      final Object? decoded;
+      try {
+        decoded = jsonDecode(await scenarioFile.readAsString());
+      } on FormatException catch (e) {
+        print('❌ Malformed scenario file: $target (${e.message})');
+        exitCode = 1;
+        return;
+      }
+      if (decoded is! Map<String, dynamic>) {
+        print('❌ Malformed scenario file: $target (not an object)');
+        exitCode = 1;
+        return;
+      }
+      sessionName = (decoded['session'] as String?) ?? 'session';
+      final scenarioCalls = decoded['calls'];
+      if (scenarioCalls is! List) {
+        print('❌ Malformed scenario file: $target ("calls" must be a list)');
+        exitCode = 1;
+        return;
+      }
+      if (scenarioCalls.isEmpty) {
+        print(
+          '❌ Malformed scenario file: $target ("calls" is empty — a '
+          'zero-call replay proves nothing)',
+        );
+        exitCode = 1;
+        return;
+      }
+      rawCalls = scenarioCalls;
+    } else if (_isBareSegment(target)) {
+      // Spec 1136 lane 3: a persisted McpSessionStore session id.
+      source = 'session-store';
+      final store = McpSessionStore(projectRoot: Directory.current.path);
+      final sessionFile = File(
+        p.join(Directory.current.path, '.zfa', 'mcp_sessions', '$target.json'),
       );
-      exitCode = 1;
+      if (!await sessionFile.exists()) {
+        print('❌ Usage: $invocation');
+        print(
+          '   no scenario file at: $target, and no recorded session at: '
+          '${sessionFile.path}',
+        );
+        exitCode = 2;
+        return;
+      }
+      final recorded = await store.callsOf(target);
+      if (recorded.isEmpty) {
+        print(
+          '❌ session "$target" has no recorded tool calls — record '
+          'calls first (the v2 session_record tool, or '
+          'McpSessionStore.appendCall), then replay.',
+        );
+        exitCode = 1;
+        return;
+      }
+      sessionName = target;
+      rawCalls = recorded;
+    } else {
+      print('❌ Usage: $invocation');
+      print('   scenario file not found: $target');
+      exitCode = 2;
       return;
     }
 
@@ -309,7 +371,7 @@ class _ReplayCommand extends Command<void> {
     final sanitized = sessionName.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_');
     final receiptFile = File('${receiptsDir.path}/mcp-replay-$sanitized.json');
     await receiptFile.writeAsString(
-      '${const JsonEncoder.withIndent('  ').convert({'command': 'zfa mcp replay', 'session': sessionName, 'scenario': scenarioPath, 'at': DateTime.now().toUtc().toIso8601String(), 'calls': verdictLines, 'ok': ok, 'failed': failed, 'passed': failed == 0})}\n',
+      '${const JsonEncoder.withIndent('  ').convert({'command': 'zfa mcp replay', 'session': sessionName, 'source': source, 'scenario': ?scenarioPath, 'at': DateTime.now().toUtc().toIso8601String(), 'calls': verdictLines, 'ok': ok, 'failed': failed, 'passed': failed == 0})}\n',
     );
     print('   receipt: ${receiptFile.path}');
 

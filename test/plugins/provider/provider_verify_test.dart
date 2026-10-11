@@ -6,6 +6,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/provider_verify_command.dart';
+import 'package:zuraffa/src/core/verdict_envelope.dart';
 
 /// Spec 979, orders 2 + 4 — the provider verify gate (`zfa provider verify
 /// <Entity>`), tested both ways:
@@ -200,21 +201,27 @@ $members
         final result = await runVerify('Product', extra: ['--json']);
 
         expect(result.code, equals(1));
-        // Exactly one JSON object on stdout (#778 single-object convention).
+        // Exactly one JSON object on stdout (#778 single-object convention) —
+        // the canonical zuraffa.verdict.v1 envelope (SPEC 1132 / EPIC 1
+        // lane 2 migrated this emitter off the legacy {schema:1} dump).
         final jsonLine = result.output
             .split('\n')
             .firstWhere((l) => l.trim().startsWith('{'), orElse: () => '');
         expect(jsonLine, isNot(''), reason: 'a JSON verdict must be printed');
         final verdict = jsonDecodeMap(jsonLine);
-        expect(verdict['schema'], equals(1));
-        expect(verdict['ok'], isFalse);
-        expect(verdict['entity'], equals('Product'));
+        expect(verdict['schema'], VerdictEnvelope.canonicalSchema);
+        expect(verdict['verdict'], 'fail');
+        expect(verdict['exit_class'], 1);
+        expect((verdict['subject'] as Map)['id'], equals('Product'));
         final findings = verdict['findings'] as List;
         expect(findings, isNotEmpty);
         final first = findings.first as Map<String, dynamic>;
         expect(first['kind'], equals('stub'));
-        expect(first['method'], equals('execute'));
+        // The canonical finding carries the method under `member` and the
+        // payload rides in `details` (entity/providerFile/interface/...).
+        expect(first['member'], equals('execute'));
         expect(first['fix'], contains('--> fix:'));
+        expect((verdict['details'] as Map)['entity'], equals('Product'));
       },
     );
   });
@@ -325,14 +332,16 @@ $members
 
         expect(result.code, equals(1));
         // Exactly one JSON object on stdout — the explain prose must NOT
-        // leak into the machine output (#778 single-object convention).
+        // leak into the machine output (#778 single-object convention) —
+        // and it is the canonical envelope (SPEC 1132 lane 2).
         final jsonLine = result.output
             .split('\n')
             .firstWhere((l) => l.trim().startsWith('{'), orElse: () => '');
         expect(jsonLine, isNot(''));
         final verdict = jsonDecodeMap(jsonLine);
-        expect(verdict['schema'], equals(1));
-        expect(verdict['ok'], isFalse);
+        expect(verdict['schema'], VerdictEnvelope.canonicalSchema);
+        expect(verdict['verdict'], 'fail');
+        expect(verdict['exit_class'], 1);
         // No explain-specific prose lines should be present on stdout
         // (the JSON envelope is the single source of truth when --json
         // is set, regardless of --explain).

@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Spec 1114 — `zfa slice worktree` / `zfa slice check` CLI dispatch.
 //
 // INV-1: every subcommand validates its arguments and fails with usage

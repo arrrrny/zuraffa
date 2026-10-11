@@ -34,9 +34,11 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
+import '../../../cli/zfa_executable.dart';
 import '../models/differential_vector.dart';
 import '../services/differential_corpus.dart';
 import '../services/differential_ref_runner.dart';
+import '../services/scratch_tmpdir.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
@@ -47,9 +49,11 @@ class CorpusDifferentialCommand extends Command<void> {
     DifferentialSpawner? spawner,
     DifferentialGitRunner? gitRunner,
     Directory? scratchRoot,
+    ZfaEnsureCompiled? ensureCompiled,
   }) : _spawnerOverride = spawner,
        _gitRunnerOverride = gitRunner,
-       _scratchRootOverride = scratchRoot {
+       _scratchRootOverride = scratchRoot,
+       _ensureCompiledOverride = ensureCompiled {
     argParser.addFlag(
       'json',
       help:
@@ -106,6 +110,13 @@ class CorpusDifferentialCommand extends Command<void> {
   final DifferentialSpawner? _spawnerOverride;
   final DifferentialGitRunner? _gitRunnerOverride;
   final Directory? _scratchRootOverride;
+
+  /// No-JIT compile seam (see `ZfaExecutable`): the ref worktree's
+  /// `bin/zfa.dart` is AOT compiled before any step spawns it. Tests inject
+  /// a fake so a scripted stub entrypoint is never really compiled — the
+  /// #1629 review flagged exactly this path (the differential command's own
+  /// tests script `wt-from`/`wt-to` stubs).
+  final ZfaEnsureCompiled? _ensureCompiledOverride;
 
   @override
   String get name => 'differential';
@@ -225,10 +236,21 @@ class CorpusDifferentialCommand extends Command<void> {
       return;
     }
 
+    // Spec 1520 (issue #1520): ONE scratch TMPDIR per invocation for the
+    // runner's children (worktree setup, pub get, dart test steps) —
+    // distinct from [scratchBase] (the worktree/entry scratch the runner
+    // materializes), this one isolates the CHILDREN's temp writes from the
+    // shared user TMPDIR. Deleted best-effort in the finally below.
+    final scratch = await ScratchTmpDir.acquire(
+      label: 'corpus-differential',
+      projectRoot: projectRoot,
+    );
     final runner = DifferentialRefRunner(
       spawner: _spawnerOverride,
       gitRunner: _gitRunnerOverride,
       budget: Duration(seconds: budgetSeconds),
+      childEnvironment: scratch?.childEnvironment(),
+      ensureCompiled: _ensureCompiledOverride,
     );
 
     // Ref resolution + worktree materialization + setup.
@@ -406,6 +428,9 @@ class CorpusDifferentialCommand extends Command<void> {
           // Removal must never mask the run's verdict.
         }
       }
+      // Spec 1520: the children's scratch TMPDIR goes with the run,
+      // best-effort — the verdict stands regardless.
+      await scratch?.dispose();
       if (!keepScratch && _scratchRootOverride == null) {
         try {
           await scratchBase.delete(recursive: true);

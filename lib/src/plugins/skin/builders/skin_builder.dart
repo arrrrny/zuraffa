@@ -89,12 +89,17 @@ class SkinBuilder {
     }
 
     String content;
+    // EPIC 3 / issue #1134, lane 4 — the silent `default:` fall-through
+    // is REMOVED (the "lying generator": grid/table silently rendered
+    // the list template). The implemented layouts are explicit; every
+    // other layout refuses BY NAME — grid/table are NOT implemented
+    // and NOT in the ui vocabulary (the #1149 committed removal) — and
+    // the refusal writes NOTHING.
     switch (layout) {
       case 'form':
         content = _generateForm(entityName, filteredFields, entityImport);
         break;
       case 'list':
-      default:
         content = _generateList(
           entityName,
           filteredFields,
@@ -102,6 +107,18 @@ class SkinBuilder {
           entityImport,
         );
         break;
+      default:
+        print(
+          '❌ skin builder: layout "$layout" is not implemented — the '
+          'implemented layouts are `list` and `form`'
+          "${layout == 'grid' || layout == 'table' ? ' (grid/table are NOT implemented and not in the ui vocabulary, issue #1149 — a generator that rendered them as a list was lying)' : ''}.",
+        );
+        print(
+          '  --> fix: declare an implemented layout: `list` or `form` '
+          '(grid/table are not in the `zfa ui schema` vocabulary), '
+          'then re-run.',
+        );
+        return const [];
     }
 
     final file = await FileUtils.writeFile(

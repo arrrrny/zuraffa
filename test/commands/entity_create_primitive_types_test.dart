@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 // Issue #1270 — `zfa entity create` must recognize built-in primitive types
 // (bool/Boolean, int, double, String, num) and emit them DIRECTLY in the
 // generated entity instead of rejecting them with "Unknown type … no

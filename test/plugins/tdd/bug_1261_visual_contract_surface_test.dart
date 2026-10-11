@@ -244,6 +244,7 @@ $lanesExtra
       await runner.runCapturing([
         'tdd',
         'plan',
+        '--allow-unit-fallback',
         feature,
         '--project',
         tmpDir.path,
@@ -305,6 +306,9 @@ $lanesExtra
         await runner.runCapturing([
           'tdd',
           'plan',
+          // Issue #1480: the visual-contract fixture plans the legacy
+          // fallback shape — the migration escape hatch keeps it reachable.
+          '--allow-unit-fallback',
           feature,
           '--project',
           tmpDir.path,
@@ -335,6 +339,7 @@ $lanesExtra
       await runner.runCapturing([
         'tdd',
         'plan',
+        '--allow-unit-fallback',
         feature,
         '--project',
         tmpDir.path,
@@ -428,6 +433,7 @@ $lanesExtra
       final out = await runner.runCapturing([
         'tdd',
         'plan',
+        '--allow-unit-fallback',
         feature,
         '--project',
         tmpDir.path,
@@ -494,6 +500,7 @@ $lanesExtra
 ## Functional Requirements
 
 - **FR-001**: the login skin renders the gradient sign-in button.
+  traces: Contract
 
 ## Lanes
 
@@ -506,6 +513,7 @@ $lanesBody
       final out = await runner.runCapturing([
         'tdd',
         'plan',
+        '--allow-unit-fallback',
         feature,
         '--project',
         tmpDir.path,
@@ -642,6 +650,31 @@ Lanes:
 
     setUp(() {
       tmpDir = Directory.systemTemp.createTempSync('bug1261_gen_');
+      // Issue #1528: gen's entry preflight is a SILENT NO-OP when the TDD
+      // profile exists (no writes at all — no pubspec read, no baseline
+      // writes) — seed it so these tests keep pinning gen's own behavior
+      // byte-for-byte in a pubspec-less fixture. The missing-profile
+      // auto-init path is covered by commands/issue_1528_setup_error_test.dart.
+      final memoryDir = Directory(p.join(tmpDir.path, '.specify', 'memory'));
+      memoryDir.createSync(recursive: true);
+      File(p.join(memoryDir.path, 'tdd-profile.md')).writeAsStringSync('''
+# TDD Profile — fixture
+
+## Commands
+
+- Single test: `dart test {file} --plain-name "{name}"`
+- Full suite: `dart test`
+
+## Keys (machine-readable)
+
+```yaml
+runner: dart
+single: 'dart test {file} --plain-name "{name}"'
+suite: 'dart test'
+file: 'dart test {file}'
+coverage: 'dart test --coverage'
+```
+''');
     });
 
     tearDown(() {
@@ -790,6 +823,31 @@ Lanes:
 
     setUp(() {
       tmpDir = Directory.systemTemp.createTempSync('bug1261_flag_');
+      // Issue #1528: gen's entry preflight is a SILENT NO-OP when the TDD
+      // profile exists (no writes at all — no pubspec read, no baseline
+      // writes) — seed it so these tests keep pinning gen's own behavior
+      // byte-for-byte in a pubspec-less fixture. The missing-profile
+      // auto-init path is covered by commands/issue_1528_setup_error_test.dart.
+      final memoryDir = Directory(p.join(tmpDir.path, '.specify', 'memory'));
+      memoryDir.createSync(recursive: true);
+      File(p.join(memoryDir.path, 'tdd-profile.md')).writeAsStringSync('''
+# TDD Profile — fixture
+
+## Commands
+
+- Single test: `dart test {file} --plain-name "{name}"`
+- Full suite: `dart test`
+
+## Keys (machine-readable)
+
+```yaml
+runner: dart
+single: 'dart test {file} --plain-name "{name}"'
+suite: 'dart test'
+file: 'dart test {file}'
+coverage: 'dart test --coverage'
+```
+''');
     });
 
     tearDown(() {

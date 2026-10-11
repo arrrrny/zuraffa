@@ -151,6 +151,7 @@ String renderEnginePlan({
   final widget = rows.where((r) => r.kind == BehaviorKind.widget).toList();
   final unit = rows.where((r) => r.kind == BehaviorKind.unit).toList();
   final ffi = rows.where((r) => r.kind == BehaviorKind.ffi).toList();
+  final contract = rows.where((r) => r.kind == BehaviorKind.contract).toList();
 
   final buf = StringBuffer()
     ..writeln('# Engine Plan: $feature (CORE + BOTH)')
@@ -189,6 +190,13 @@ String renderEnginePlan({
         'lane assignment.',
     rows: ffi,
   );
+  // Issue #1007 / #1419: the derived contract rows the plan's route log
+  // already claims — one per declared method, BLOCKED-capable state.
+  // Written HERE, not by the callers, so `zfa tdd plan` and
+  // `zfa tdd split` cannot diverge on the same shared renderer (the
+  // split path's index and receipt declared rows this file omitted).
+  renderContractLoopSection(buf, contract);
+  if (contract.isNotEmpty) buf.writeln();
   _declarations(buf, entities, dependencies, layerContracts);
   _provenance(buf, provenance);
   buf.writeln();
@@ -539,6 +547,51 @@ void _section(
   }
   buf.writeln();
 }
+
+/// The CONTRACT loop section (issue #1007) — the declared entity method,
+/// controller method and usecase contracts the spec's `## Layer
+/// Contracts` section derives.
+///
+/// Issue #1419: the section lives here, in the shared engine renderer,
+/// rather than at the `zfa tdd plan` call site — `zfa tdd split` calls
+/// the same renderer, and a caller-side copy left the split path writing
+/// an engine plan that omitted the very rows its meta-index and receipt
+/// classified. Rows are supplied by the caller (the engine plan filters
+/// `BehaviorKind.contract` from its own row list); an empty list renders
+/// nothing — the section is omitted, never rendered vacant.
+///
+/// The title, intro, and 4-column shape match the legacy single-file
+/// plan's contract table, so [TestListReader] resolves the rows with
+/// contract kind and the BLOCKED semantics of spec 1007 unchanged.
+///
+/// The CALLER owns the blank line that separates this section from the
+/// next one — the lane renderers' `_section` convention already leaves a
+/// trailing blank, while the legacy single-file plan's blocks carry
+/// their own leading blank.
+void renderContractLoopSection(StringBuffer buf, List<LaneRow> rows) {
+  if (rows.isEmpty) return;
+  buf
+    ..writeln('## Contract loop: contract behaviors')
+    ..writeln()
+    ..writeln(
+      'One per declared entity method, controller method and usecase '
+      'in `spec.md` Layer Contracts (issue #1007). A contract test '
+      'proves the implementation satisfies the DECLARED contract — '
+      'a failing contract test is BLOCKED (never RED) and blocks the '
+      'cycle from proceeding to GREEN.',
+    )
+    ..writeln()
+    ..writeln('| id | behavior | traces | state |')
+    ..writeln('| -- | -------- | ------ | ----- |');
+  for (final row in rows) {
+    buf.writeln(
+      '| ${row.id} | ${_escapeCell(row.description)} | ${row.traces} | '
+      '${row.state} |',
+    );
+  }
+}
+
+String _escapeCell(String text) => text.replaceAll('|', r'\|');
 
 void _provenance(StringBuffer buf, Map<String, List<String>> provenance) {
   if (provenance.isEmpty) return;

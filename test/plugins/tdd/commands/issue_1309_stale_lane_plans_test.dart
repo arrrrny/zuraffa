@@ -21,6 +21,12 @@
 //
 // RED phase: the receipt carries no spec hash, plan has no staleness
 // detection, and split has no --force flag.
+//
+// Exit-code reads go through `CliRunner.lastDispatchedExitCode`, never the
+// process-global `exitCode` getter: `dart test` runs suites as concurrent
+// isolates of one VM, and a sibling suite's dispatch (its `exitCode = 0`
+// reset / re-apply, issue #1096 family) can land between this suite's
+// teardown and the read — the #1632 `-j4` lane made that window real.
 library;
 
 import 'dart:convert';
@@ -40,6 +46,12 @@ const String feature = '1309-fixture';
 const String fixtureSpec = '''
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Function**:
+- `LoginValidator`: `validate(String) -> bool`
+- `CredentialHasher`: `hash(String) -> String`
+
 ## Acceptance Scenarios
 
 1. **Given** valid credentials **When** the user submits the login form **Then** the session starts with the authenticated user
@@ -49,7 +61,9 @@ const String fixtureSpec = '''
 ## Functional Requirements
 
 - **FR-001**: The system shall validate the email format through the login validator.
+  traces: LoginValidator
 - **FR-002**: The system shall hash the password with the credential hasher.
+  traces: CredentialHasher
 ''';
 
 /// The spec with a third functional requirement (the post-split edit
@@ -57,6 +71,13 @@ const String fixtureSpec = '''
 const String editedSpecAddsFr = '''
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Function**:
+- `LoginValidator`: `validate(String) -> bool`
+- `CredentialHasher`: `hash(String) -> String`
+- `LoginThrottler`: `allowAttempt(String) -> bool`
+
 ## Acceptance Scenarios
 
 1. **Given** valid credentials **When** the user submits the login form **Then** the session starts with the authenticated user
@@ -66,8 +87,11 @@ const String editedSpecAddsFr = '''
 ## Functional Requirements
 
 - **FR-001**: The system shall validate the email format through the login validator.
+  traces: LoginValidator
 - **FR-002**: The system shall hash the password with the credential hasher.
+  traces: CredentialHasher
 - **FR-003**: The system shall rate-limit repeated failures through the login throttler.
+  traces: LoginThrottler
 ''';
 
 /// The spec with FR-002 deleted (the post-split edit whose ghost row
@@ -75,6 +99,11 @@ const String editedSpecAddsFr = '''
 const String editedSpecDropsFr = '''
 **Template Version**: `zuraffa-1.0`
 
+## Layer Contracts
+
+**Function**:
+- `LoginValidator`: `validate(String) -> bool`
+
 ## Acceptance Scenarios
 
 1. **Given** valid credentials **When** the user submits the login form **Then** the session starts with the authenticated user
@@ -84,6 +113,7 @@ const String editedSpecDropsFr = '''
 ## Functional Requirements
 
 - **FR-001**: The system shall validate the email format through the login validator.
+  traces: LoginValidator
 ''';
 
 /// A legacy plan: acceptance + widget + unit rows in the single-file
@@ -196,7 +226,7 @@ void main() {
         final out = await CliRunner(
           exitOnCompletion: false,
         ).runCapturing(splitArgs());
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
         final receipt = await receiptJson();
         final specContent = await specFile().readAsString();
@@ -229,12 +259,16 @@ void main() {
       () async {
         await seed();
         await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
 
         final out = await CliRunner(
           exitOnCompletion: false,
         ).runCapturing(splitArgs());
-        expect(exitCode, 1, reason: 'the one-shot guard still refuses');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          1,
+          reason: 'the one-shot guard still refuses',
+        );
         expect(
           out.contains('--force'),
           isTrue,
@@ -251,7 +285,7 @@ void main() {
     test('--force re-splits over the existing receipt', () async {
       await seed();
       await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       final firstSplitAt = (await receiptJson())['split_at'];
 
       // Hand-corrupt the contract plan (a non-row-source artifact):
@@ -260,7 +294,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(splitArgs(force: true));
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       final engine = await laneFile('04-ENGINE.md').readAsString();
       expect(
@@ -293,7 +327,7 @@ void main() {
         'appears in the regenerated engine plan', () async {
       await seed();
       await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       expect(
         laneFile('04-ENGINE.md').readAsStringSync().contains('| U3 |'),
         isFalse,
@@ -304,7 +338,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       expect(
         out.toLowerCase().contains('stale'),
@@ -341,7 +375,7 @@ void main() {
     test('a deleted FR leaves no ghost row in any lane plan file', () async {
       await seed();
       await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       expect(
         laneFile('04-ENGINE.md').readAsStringSync().contains('| U2 |'),
         isTrue,
@@ -352,7 +386,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       for (final name in ['04-ENGINE.md', '04-SKIN.md', '04-CONTRACT.md']) {
         expect(
@@ -378,7 +412,7 @@ void main() {
         'still regenerate (meta-index preserved)', () async {
       await seed();
       await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
 
       // Hand-corrupt the engine plan: the refresh must rewrite it even
       // without a spec edit.
@@ -386,7 +420,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       expect(
         out.toLowerCase().contains('stale'),
@@ -411,7 +445,7 @@ void main() {
       () async {
         await seed();
         await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
 
         // Simulate a post-split edit AND back-date the spec so its mtime
         // is unambiguously older than anything plan writes next.
@@ -423,7 +457,7 @@ void main() {
         final out = await CliRunner(
           exitOnCompletion: false,
         ).runCapturing(planArgs());
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
         final specMtime = await specFile().lastModified();
         for (final name in ['04-ENGINE.md', '04-SKIN.md', '04-CONTRACT.md']) {
@@ -441,7 +475,7 @@ void main() {
         'comparison', () async {
       await seed();
       await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
 
       // Downgrade the receipt to the pre-#1309 shape (no spec_hash /
       // spec_mtime) and make the spec unambiguously newer than split_at.
@@ -461,7 +495,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       expect(
         out.toLowerCase().contains('stale'),
@@ -479,7 +513,7 @@ void main() {
         'staleness, and is repaired after regeneration', () async {
       await seed();
       await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
 
       await receiptFile().writeAsString('{malformed');
       await receiptFile().setLastModified(
@@ -490,7 +524,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out.toLowerCase(), contains('stale'));
       expect(
         laneFile('test-list.md').readAsStringSync(),
@@ -513,15 +547,15 @@ void main() {
     test('the receipt refresh stops the stale report from re-firing', () async {
       await seed();
       await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       await specFile().writeAsString(editedSpecAddsFr);
       await CliRunner(exitOnCompletion: false).runCapturing(planArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
 
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out.toLowerCase().contains('stale'),
         isFalse,
@@ -535,12 +569,12 @@ void main() {
         'plan is not stale', () async {
       await seed();
       await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
 
       final firstOut = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs(emitMarkers: true));
-      expect(exitCode, 0, reason: firstOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: firstOut);
       expect(
         await specFile().readAsString(),
         contains('**Type**: acceptance'),
@@ -550,7 +584,7 @@ void main() {
       final secondOut = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs(emitMarkers: true));
-      expect(exitCode, 0, reason: secondOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: secondOut);
       expect(
         secondOut.toLowerCase(),
         isNot(contains('stale')),
@@ -568,7 +602,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       final list = await laneFile('test-list.md').readAsString();
       expect(list.contains('| A1 |'), isTrue, reason: 'single-file rows');
@@ -591,12 +625,12 @@ void main() {
         'through the declared lane path without a stale report', () async {
       await seed(spec: lanesSpec);
       await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
 
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       expect(
         out.toLowerCase().contains('stale'),

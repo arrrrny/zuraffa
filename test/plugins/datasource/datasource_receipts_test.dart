@@ -10,6 +10,7 @@ import 'package:zuraffa/src/commands/datasource_command.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/core/proof/proof_checker.dart';
 import 'package:zuraffa/src/plugins/datasource/datasource_plugin.dart';
+import '../../helpers/cwd_mutex.dart';
 
 /// Spec #977 — proof receipts on the standalone `zfa datasource` path.
 ///
@@ -51,6 +52,7 @@ void main() {
   late String originalCwd;
 
   setUp(() async {
+    await CwdMutex.acquire();
     tempDir = await Directory.systemTemp.createTemp('zuraffa_977_receipt_');
     originalCwd = Directory.current.path;
     Directory.current = tempDir.path;
@@ -61,7 +63,7 @@ void main() {
     if (tempDir.existsSync()) {
       await tempDir.delete(recursive: true);
     }
-    exitCode = 0;
+    CwdMutex.release();
   });
 
   _InjectableDataSourceCommand command() {

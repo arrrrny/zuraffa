@@ -1,0 +1,242 @@
+# Mutation sampling — spec 1538, lib/src/plugins/tdd/services/behavior_test_writer.dart
+# Command per mutant: dart test test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart   (fast tier; C1 is slow-tagged)
+# Captured: 2026-09-13T09:47:00Z on feat/1538-void-returning-contract-compile-fix @ 5bbfc548
+
+### M1 — void branch removed (revert mutant)
+$ dart test test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart
+00:00 +0: loading test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart
+00:00 +0: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A1: a void scalar-param contract emits the statement-based void-safe capture — never a returned void
+00:00 +0 -1: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A1: a void scalar-param contract emits the statement-based void-safe capture — never a returned void [E]
+  Expected: contains 'Object? result;'
+    Actual: '// GENERATED TEST — `zfa tdd gen U1` (spec 044-test-tdd-generation).\n'
+              '//\n'
+              '// behavior_id: U1\n'
+              '// source_criterion: FR-1\n'
+              '// kind: unit\n'
+              '// description: the declared contract holds.\n'
+              '//\n'
+              '// This test asserts the observable behavior described above. It is\n'
+              '// "honest red" on first execution: the paired subject at\n'
+              '// `../../lib/tdd/u1_subject.dart` is unimplemented, so the test fails through an\n'
+              '// assertion (not an uncaught error, compile/load error, skip, or\n'
+              '// placeholder). Replace the subject\'s\n'
+              '// stub body with real implementation to make this test pass.\n'
+              'library;\n'
+              '\n'
+              'import \'package:test/test.dart\';\n'
+              'import \'../../lib/tdd/u1_subject.dart\' as subject;\n'
+              '\n'
+              'void main() {\n'
+              '  group(\'U1 (FR-1)\', () {\n'
+              '    test(\'U1 — the declared contract holds.\', () {\n'
+              '      final result = (() {\n'
+              '        try {\n'
+              '          return subject.subject_u1(r\'sample\');\n'
+              '        } on UnimplementedError catch (error) {\n'
+              '          return error;\n'
+              '        }\n'
+              '      })();\n'
+              '      // zfa:tdd: vacuous-guard (issue #1259): the assertion set below is the\n'
+              '      // UnimplementedError guard ONLY — a green here proves nothing about\n'
+              '      // the behavior (a dummy `return 0;` flips it green with zero\n'
+              '      // declared-contract code). Replace this guard with an assertion on\n'
+              '      // the observable outcome named by the behavior description, remove\n'
+              '      // this marker, and re-run make.\n'
+              '      expect(result, isNot(isA<UnimplementedError>()));\n'
+              '    });\n'
+              '  });\n'
+              '}\n'
+              ''
+     Which: does not contain 'Object? result;'
+  the void-safe capture declares a nullable variable, not a final with the IIFE initializer
+  
+  package:matcher                                                        expect
+  test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart 105:9  main.<fn>.<fn>
+  
+00:00 +0 -1: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A2: a void entity-param contract keeps the placeholder helpers composing with the void-safe capture (the issue symptom shape)
+00:00 +0 -2: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A2: a void entity-param contract keeps the placeholder helpers composing with the void-safe capture (the issue symptom shape) [E]
+  Expected: contains 'result = null;'
+    Actual: '// GENERATED TEST — `zfa tdd gen U3` (spec 044-test-tdd-generation).\n'
+              '//\n'
+              '// behavior_id: U3\n'
+              '// source_criterion: FR-1\n'
+              '// kind: unit\n'
+              '// description: the declared contract holds.\n'
+              '//\n'
+              '// This test asserts the observable behavior described above. It is\n'
+              '// "honest red" on first execution: the paired subject at\n'
+              '// `../../lib/tdd/u3_subject.dart` is unimplemented, so the test fails through an\n'
+              '// assertion (not an uncaught error, compile/load error, skip, or\n'
+              '// placeholder). Replace the subject\'s\n'
+              '// stub body with real implementation to make this test pass.\n'
+              'library;\n'
+              '\n'
+              'import \'package:test/test.dart\';\n'
+              'import \'../../lib/tdd/u3_subject.dart\' as subject;\n'
+              '\n'
+              'void main() {\n'
+              '  group(\'U3 (FR-1)\', () {\n'
+              '    test(\'U3 — the declared contract holds.\', () {\n'
+              '      Object? _arg0() => throw UnimplementedError(\'provide a representative argument for subject_u3 (declared param 0: SyncRequest)\');\n'
+              '          Object? _arg1() => throw UnimplementedError(\'provide a representative argument for subject_u3 (declared param 1: SyncOptions)\');\n'
+              '          final result = (() {\n'
+              '        try {\n'
+              '          return subject.subject_u3(_arg0(), _arg1());\n'
+              '        } on UnimplementedError catch (error) {\n'
+              '          return error;\n'
+              '        }\n'
+              '      })();\n'
+              '      // zfa:tdd: vacuous-guard (issue #1259): the assertion set below is the\n'
+              '      // UnimplementedError guard ONLY — a green here proves nothing about\n'
+              '      // the behavior (a dummy `return 0;` flips it green with zero\n'
+              '      // declared-contract code). Replace this guard with an assertion on\n'
+              '      // the observable outcome named by the behavior description, remove\n'
+              '      // this marker, and re-run make.\n'
+              '      expect(result, isNot(isA<UnimplementedError>()));\n'
+              '    });\n'
+              '  });\n'
+              '}\n'
+              ''
+     Which: does not contain 'result = null;'
+  the void-safe recording survives helper composition
+  
+  package:matcher                                                         expect
+  test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart 178:11  main.<fn>.<fn>
+  
+00:00 +0 -2: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A3: the void test reaches the designed vacuous-guard -> hand-step transition (marker + detector classification), not compile-error
+00:00 +1 -2: B: non-void generation stays byte-for-byte (SC-2) B1: a scalar-return contract keeps the IIFE capture and the typed outcome assertion
+00:00 +2 -2: B: non-void generation stays byte-for-byte (SC-2) B2: an entity-return contract keeps the IIFE + marker guard
+00:00 +3 -2: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A1: a void scalar-param contract emits the statement-based void-safe capture — never a returned void
+  test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A2: a void entity-param contract keeps the placeholder helpers composing with the void-safe capture (the issue symptom shape)
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
+exit=1
+
+### M2 — `result = null;` dropped (completion not recorded)
+$ dart test test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart
+00:00 +0: loading test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart
+00:00 +0: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A1: a void scalar-param contract emits the statement-based void-safe capture — never a returned void
+00:00 +0 -1: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A1: a void scalar-param contract emits the statement-based void-safe capture — never a returned void [E]
+  Expected: contains 'result = null;'
+    Actual: '// GENERATED TEST — `zfa tdd gen U1` (spec 044-test-tdd-generation).\n'
+              '//\n'
+              '// behavior_id: U1\n'
+              '// source_criterion: FR-1\n'
+              '// kind: unit\n'
+              '// description: the declared contract holds.\n'
+              '//\n'
+              '// This test asserts the observable behavior described above. It is\n'
+              '// "honest red" on first execution: the paired subject at\n'
+              '// `../../lib/tdd/u1_subject.dart` is unimplemented, so the test fails through an\n'
+              '// assertion (not an uncaught error, compile/load error, skip, or\n'
+              '// placeholder). Replace the subject\'s\n'
+              '// stub body with real implementation to make this test pass.\n'
+              'library;\n'
+              '\n'
+              'import \'package:test/test.dart\';\n'
+              'import \'../../lib/tdd/u1_subject.dart\' as subject;\n'
+              '\n'
+              'void main() {\n'
+              '  group(\'U1 (FR-1)\', () {\n'
+              '    test(\'U1 — the declared contract holds.\', () {\n'
+              '      Object? result;\n'
+              '        try {\n'
+              '          subject.subject_u1(r\'sample\');\n'
+              '          // mutant M2: completion not recorded\n'
+              '        } on UnimplementedError catch (error) {\n'
+              '          result = error;\n'
+              '        }\n'
+              '      // zfa:tdd: vacuous-guard (issue #1259): the assertion set below is the\n'
+              '      // UnimplementedError guard ONLY — a green here proves nothing about\n'
+              '      // the behavior (a dummy `return 0;` flips it green with zero\n'
+              '      // declared-contract code). Replace this guard with an assertion on\n'
+              '      // the observable outcome named by the behavior description, remove\n'
+              '      // this marker, and re-run make.\n'
+              '      expect(result, isNot(isA<UnimplementedError>()));\n'
+              '    });\n'
+              '  });\n'
+              '}\n'
+              ''
+     Which: does not contain 'result = null;'
+  completion of the void call is recorded explicitly
+  
+  package:matcher                                                        expect
+  test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart 117:9  main.<fn>.<fn>
+  
+00:00 +0 -1: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A2: a void entity-param contract keeps the placeholder helpers composing with the void-safe capture (the issue symptom shape)
+00:00 +0 -2: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A2: a void entity-param contract keeps the placeholder helpers composing with the void-safe capture (the issue symptom shape) [E]
+  Expected: contains 'result = null;'
+    Actual: '// GENERATED TEST — `zfa tdd gen U3` (spec 044-test-tdd-generation).\n'
+              '//\n'
+              '// behavior_id: U3\n'
+              '// source_criterion: FR-1\n'
+              '// kind: unit\n'
+              '// description: the declared contract holds.\n'
+              '//\n'
+              '// This test asserts the observable behavior described above. It is\n'
+              '// "honest red" on first execution: the paired subject at\n'
+              '// `../../lib/tdd/u3_subject.dart` is unimplemented, so the test fails through an\n'
+              '// assertion (not an uncaught error, compile/load error, skip, or\n'
+              '// placeholder). Replace the subject\'s\n'
+              '// stub body with real implementation to make this test pass.\n'
+              'library;\n'
+              '\n'
+              'import \'package:test/test.dart\';\n'
+              'import \'../../lib/tdd/u3_subject.dart\' as subject;\n'
+              '\n'
+              'void main() {\n'
+              '  group(\'U3 (FR-1)\', () {\n'
+              '    test(\'U3 — the declared contract holds.\', () {\n'
+              '      Object? _arg0() => throw UnimplementedError(\'provide a representative argument for subject_u3 (declared param 0: SyncRequest)\');\n'
+              '          Object? _arg1() => throw UnimplementedError(\'provide a representative argument for subject_u3 (declared param 1: SyncOptions)\');\n'
+              '          Object? result;\n'
+              '        try {\n'
+              '          subject.subject_u3(_arg0(), _arg1());\n'
+              '          // mutant M2: completion not recorded\n'
+              '        } on UnimplementedError catch (error) {\n'
+              '          result = error;\n'
+              '        }\n'
+              '      // zfa:tdd: vacuous-guard (issue #1259): the assertion set below is the\n'
+              '      // UnimplementedError guard ONLY — a green here proves nothing about\n'
+              '      // the behavior (a dummy `return 0;` flips it green with zero\n'
+              '      // declared-contract code). Replace this guard with an assertion on\n'
+              '      // the observable outcome named by the behavior description, remove\n'
+              '      // this marker, and re-run make.\n'
+              '      expect(result, isNot(isA<UnimplementedError>()));\n'
+              '    });\n'
+              '  });\n'
+              '}\n'
+              ''
+     Which: does not contain 'result = null;'
+  the void-safe recording survives helper composition
+  
+  package:matcher                                                         expect
+  test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart 178:11  main.<fn>.<fn>
+  
+00:00 +0 -2: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A3: the void test reaches the designed vacuous-guard -> hand-step transition (marker + detector classification), not compile-error
+00:00 +1 -2: B: non-void generation stays byte-for-byte (SC-2) B1: a scalar-return contract keeps the IIFE capture and the typed outcome assertion
+00:00 +2 -2: B: non-void generation stays byte-for-byte (SC-2) B2: an entity-return contract keeps the IIFE + marker guard
+00:00 +3 -2: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A1: a void scalar-param contract emits the statement-based void-safe capture — never a returned void
+  test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A2: a void entity-param contract keeps the placeholder helpers composing with the void-safe capture (the issue symptom shape)
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
+exit=1
+
+### Pristine — fix restored
+$ dart test test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart
+00:00 +0: loading test/plugins/tdd/services/bug_1538_void_guard_compile_test.dart
+00:00 +0: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A1: a void scalar-param contract emits the statement-based void-safe capture — never a returned void
+00:00 +1: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A2: a void entity-param contract keeps the placeholder helpers composing with the void-safe capture (the issue symptom shape)
+00:00 +2: A: void-returning contracts emit the compile-safe guard (SC-1/SC-3) A3: the void test reaches the designed vacuous-guard -> hand-step transition (marker + detector classification), not compile-error
+00:00 +3: B: non-void generation stays byte-for-byte (SC-2) B1: a scalar-return contract keeps the IIFE capture and the typed outcome assertion
+00:00 +4: B: non-void generation stays byte-for-byte (SC-2) B2: an entity-return contract keeps the IIFE + marker guard
+00:00 +5: All tests passed!
+exit=0

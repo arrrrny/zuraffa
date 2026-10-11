@@ -41,16 +41,15 @@ const Map<String, String> kExcluded = <String, String>{
       'and emits the existing self-certification envelope '
       '(entity, tests, compile, errors[], schema:1); canonical '
       'VerdictEnvelope migration is the follow-up backlog',
-  'lib/src/commands/capability_command.dart': 'pre-1105 emitter (backlog)',
+  // SPEC 1132 (EPIC 1 lane 2) migrated and REMOVED from this backlog:
+  // capability_command.dart, provider_verify_command.dart and
+  // benchmark_command.dart now emit the canonical VerdictEnvelope.
   'lib/src/commands/make_command.dart': 'pre-1105 emitter (backlog)',
   'lib/src/commands/skin_command.dart': 'pre-1105 emitter (backlog)',
   'lib/src/commands/manifest_command.dart':
       'manifest dump — a data document, not a verdict (backlog)',
   'lib/src/commands/doctor_command.dart': 'pre-1105 emitter (backlog)',
-  'lib/src/commands/provider_verify_command.dart': 'pre-1105 emitter (backlog)',
   'lib/src/plugins/tdd/commands/realize_mock_command.dart':
-      'pre-1105 emitter (backlog)',
-  'lib/src/plugins/benchmark/cli/benchmark_command.dart':
       'pre-1105 emitter (backlog)',
   // Input-JSON option + raw table-drift dump (pre-existing semantics,
   // not one of the 7 divergent verdict shapes named by the issue; the

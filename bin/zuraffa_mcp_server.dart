@@ -10,6 +10,7 @@ import 'package:zuraffa/src/mcp/v2_tools.dart'
     show v2ToolDefinitions, handleV2ToolCall, startWebSocketServer;
 import 'package:zuraffa/src/mcp/session_store.dart' show McpSessionStore;
 import 'package:zuraffa/src/mcp/file_watcher.dart' show McpFileWatcher;
+import 'package:zuraffa/src/utils/dart_toolchain_resolver.dart';
 
 /// Version loaded lazily to avoid heavy imports at startup
 String? _version;
@@ -1416,6 +1417,10 @@ Use quick for fast diagnostics, full for troubleshooting.''',
   String? _cachedDartPath;
   bool _dartProbeDone = false;
 
+  /// Toolchain resolver (spec 1509): PATH-first, environment-declared —
+  /// no hardcoded SDK locations.
+  final DartToolchainResolver _dartResolver = DartToolchainResolver();
+
   /// Execute zfa CLI process by spawning a subprocess
   /// This avoids importing the heavy zuraffa package which causes slow JIT startup
   Future<String> _runZuraffaProcess(List<String> args) async {
@@ -1602,45 +1607,19 @@ Use quick for fast diagnostics, full for troubleshooting.''',
   }
 
   /// Locate the dart executable, even when it is not in PATH.
+  ///
+  /// Spec 1509-toolchain-path-portable: resolution is delegated to
+  /// [DartToolchainResolver] (PATH-first, environment-declared —
+  /// ZURAFFA_DART_BIN / ZURAFFA_TOOLCHAIN_HINTS / FLUTTER_ROOT) so the
+  /// toolchain works in any environment, including ones without Flutter
+  /// at a hardcoded location (issue #1509, exit 127). The single-probe
+  /// cache contract is preserved.
   Future<String?> _findDartExecutable() async {
     if (_dartProbeDone) return _cachedDartPath;
     _dartProbeDone = true;
 
-    // 1. dart in PATH
-    try {
-      final whichDart = await Process.run('which', ['dart']);
-      if (whichDart.exitCode == 0) {
-        final path = whichDart.stdout.toString().trim();
-        if (path.isNotEmpty) return _cachedDartPath = path;
-      }
-    } catch (_) {}
-
-    // 2. dart next to the flutter binary
-    try {
-      final whichFlutter = await Process.run('which', ['flutter']);
-      if (whichFlutter.exitCode == 0) {
-        final flutterPath = whichFlutter.stdout.toString().trim();
-        if (flutterPath.isNotEmpty) {
-          final resolved = File(flutterPath).resolveSymbolicLinksSync();
-          final dartPath = '${File(resolved).parent.path}/dart';
-          if (await File(dartPath).exists()) return _cachedDartPath = dartPath;
-        }
-      }
-    } catch (_) {}
-
-    // 3. FLUTTER_ROOT or common Flutter SDK install locations
-    final home = Platform.environment['HOME'] ?? '';
-    final candidates = [
-      if (Platform.environment['FLUTTER_ROOT'] != null)
-        '${Platform.environment['FLUTTER_ROOT']}/bin/dart',
-      '$home/flutter/bin/dart',
-      '$home/development/flutter/bin/dart',
-      '/opt/flutter/bin/dart',
-      '/usr/local/flutter/bin/dart',
-    ];
-    for (final path in candidates) {
-      if (await File(path).exists()) return _cachedDartPath = path;
-    }
+    final resolved = await _dartResolver.resolve();
+    if (resolved != null) return _cachedDartPath = resolved;
 
     return null;
   }

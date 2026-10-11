@@ -4,6 +4,18 @@
 # default (tagged `slow`); every slow test also carries a tier tag:
 # `regression`, `integration`, `property`, `benchmark`.
 #
+# The `e2e` tag marks heavyweight end-to-end suites that drive the real CLI
+# against throwaway temp projects (real `dart test` / `dart pub get`
+# subprocesses) WITHOUT carrying the `slow` tag — e.g. the make-command
+# regression files (#1510). e2e-tagged files are honest under direct
+# `dart test <file>` invocations (the default preset no longer empties
+# them), while CI's fast lane keeps them excluded via
+# `--exclude-tags "flutter || e2e"` (the same guard runs in
+# `tools/run-tdd-tests.sh`). The heavy lanes that opt in explicitly
+# (`--preset=regression`, `--preset=all`) run them. `e2e:` carries the
+# same `timeout: 4x` ceiling the `slow` tag had — these suites spawn real
+# subprocesses and must outlast the 75s child guard.
+#
 # Full suite (heavy, full-local baseline only — NOT for CI / cloud agents):
 #   dart test --preset=all
 # CI and cloud/CI agents run the default fast tier (`dart test`). --preset=all
@@ -54,13 +66,16 @@ concurrency: 1
 # "A tag was used that wasn't specified in dart_test.yaml" warning. The default
 # run excludes `slow`; the slow tiers are selected by the presets below.
 #
-# Slow-tagged tests get a relaxed 4x timeout (4 × 30s = 120s): they spawn
-# `dart` subprocesses whose cold JIT compile can exceed the 30s default on
-# slower machines (2019 Intel Mac, loaded CI runners), and the relaxed
-# ceiling also keeps the helper's 75s child-guard (run_zfa_source.dart,
-# issue #531) SHORTER than the enclosing test timeout — with the bare 30s
-# default the test runner killed the test before the child guard could
-# fire its diagnostic.
+# Slow- and e2e-tagged tests get a relaxed 4x timeout (4 × 30s = 120s):
+# they spawn `dart` subprocesses whose cold JIT compile can exceed the 30s
+# default on slower machines (2019 Intel Mac, loaded CI runners), and the
+# relaxed ceiling also keeps the helper's 75s child-guard
+# (run_zfa_source.dart, issue #531) SHORTER than the enclosing test timeout
+# — with the bare 30s default the test runner killed the test before the
+# child guard could fire its diagnostic. `e2e` carries the same ceiling the
+# `slow` tag had: the re-tagged make-command suites (#1510) spawn real
+# `dart pub get` / `dart test` children, so the global 2x (60s) would sit
+# below the 75s child guard.
 tags:
   slow:
     timeout: 4x
@@ -70,6 +85,14 @@ tags:
   property:
   benchmark:
   ffi:
+    # sc_022 drives the real CLI through JIT children (cold VM + package
+    # compile per spawn, issue #531) plus fixture `dart test` runs: the
+    # lane's first test measured ~105s against the 4x (120s) ceiling —
+    # one slow spawn away from a false timeout on a loaded runner.
+    # 8x (240s) keeps the honest lane from flaking (#1678).
+    timeout: 8x
+  e2e:
+    timeout: 4x
 
 exclude_tags: slow
 
@@ -90,4 +113,15 @@ presets:
     exclude_tags: "false"
   flutter:
     include_tags: flutter
+    exclude_tags: "false"
+  ffi:
+    # The ffi_golden_lane's selector (#1678): the include filter AND the
+    # lift of the default `exclude_tags: slow` in one place. A preset's
+    # selector configuration WINS over the CLI selectors (verified:
+    # `--preset=<p> --tags <t>` runs <p>'s include_tags, not <t>'s), so
+    # `dart test --preset=all --tags ffi` was NOT the ffi lane — `all`
+    # has no include_tags, which un-scopes the run to the WHOLE tree
+    # (observed: the job executed slow/benchmark/property suites and hit
+    # its 30-minute ceiling). Keep the lane command as `--preset=ffi`.
+    include_tags: ffi
     exclude_tags: "false"

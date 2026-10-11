@@ -8,6 +8,7 @@ import 'package:zuraffa/src/core/proof/proof_checker.dart';
 import 'package:zuraffa/src/plugins/datasource/capabilities/create_datasource_capability.dart';
 import 'package:zuraffa/src/plugins/datasource/datasource_plugin.dart';
 import 'package:zuraffa/src/utils/string_utils.dart';
+import '../../helpers/cwd_mutex.dart';
 
 /// Spec #1131 (order 2) — receipts from `CreateDataSourceCapability.execute()`.
 ///
@@ -23,6 +24,7 @@ void main() {
   late String originalCwd;
 
   setUp(() async {
+    await CwdMutex.acquire();
     tempDir = await Directory.systemTemp.createTemp('zuraffa_1131_receipt_');
     originalCwd = Directory.current.path;
     Directory.current = tempDir.path;
@@ -33,7 +35,7 @@ void main() {
     if (tempDir.existsSync()) {
       await tempDir.delete(recursive: true);
     }
-    exitCode = 0;
+    CwdMutex.release();
   });
 
   void writeEntity(String entityName, String source) {

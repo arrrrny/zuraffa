@@ -9,8 +9,8 @@
 /// 1. **migrate** — generated-shape files exist at the legacy flat layout
 ///    that ANOTHER feature's registry owns (the pre-#827 multi-feature
 ///    project, bug #874): the owning feature's artifacts must be migrated
-///    to the namespaced layout (`zfa tdd migrate-paths <owner>`) — never
-///    adopted, which would corrupt ownership.
+///    to the namespaced layout (`zfa tdd migrate-paths --feature <owner>`)
+///    — never adopted, which would corrupt ownership.
 /// 2. **adopt** — generated-shape files exist on disk that NO feature's
 ///    registry owns (the post-crash/post-merge state): ownership must be
 ///    registered before anything else can run (`zfa tdd gen <id>
@@ -28,7 +28,9 @@
 ///    registry, which `reset` would wrongly answer by dropping certified
 ///    behaviors). The migration rewrites the recorded forms to the
 ///    portable project-relative POSIX form without moving any file
-///    (`zfa tdd migrate-paths <feature>`).
+///    (`zfa tdd migrate-paths --feature <feature>` — the resolved
+///    reference, since a bare name can re-resolve to a same-named
+///    `specs/` directory instead).
 /// 4. **resume** — the stores disagree on progress (an in-flight marker,
 ///    or claims whose matching cycle-log evidence is missing), or green
 ///    evidence has no backing artifact on disk (issue #1264's
@@ -43,6 +45,20 @@
 ///    unexpected-green → make subject-drift) or fake-completes on the
 ///    stale certification — the same recovery the run driver's stop
 ///    prescribes (`zfa tdd reset <feature>`).
+/// 5a. **hash-chain** — a schema-1 cycle-log entry's recomputed chain
+///    digest no longer matches its recorded `- hash:` link, its
+///    `- prev-hash:` link does not chain to the previous recorded hash,
+///    or a chain-claiming section carries no well-formed `- hash:` line
+///    (bug #828 — the walk restored by #1585 after the #840 rework
+///    dropped it): the certified facts were edited after certification,
+///    so every claim the log backs is untrusted. There is no automatic
+///    remedy — restore the cycle-log from a trusted source, then re-run
+///    `zfa tdd run <feature>` to re-certify. Legacy hash-less entries
+///    stay valid and unverifiable, and are never failed; sections from
+///    the certifier writers (`fixtures`, `mock-cert`, `world-*`,
+///    `realize*`) are verified when their hash recomputes and otherwise
+///    tolerated — the canonical payload cannot rebuild a legacy foreign
+///    scheme (review #1612; see `evidence_chain.dart`).
 /// 6. **none** — the stores agree; the feature is healthy.
 ///
 /// The same state always produces the same prescription (deterministic:
@@ -55,11 +71,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
+import '../../../core/project/receipt_store.dart';
 import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
 import '../services/cycle_evidence.dart';
+import '../services/evidence_chain.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/generated_shape.dart';
 import '../services/journal.dart';
 import '../services/import_resolution.dart';
@@ -77,6 +97,18 @@ class DoctorCommand extends Command<void> {
       help:
           'Emit a versioned verdict.v1 JSON envelope as the final stdout '
           'line (VISION §5, issue #969).',
+      negatable: false,
+    );
+    argParser.addFlag(
+      'repair',
+      help:
+          'Repair mode (issue #1495): garbage-collect every registry '
+          'record whose test AND subject files are gone from disk (no '
+          'relocation match). Surgical — healthy records stay, no file on '
+          'disk is touched (owned-and-absent has nothing to clobber), '
+          'audit-logged (action "repair"). A record that still owns a '
+          'surviving half is never collected — reset remains its remedy.',
+      defaultsTo: false,
       negatable: false,
     );
     argParser.addOption(
@@ -108,7 +140,8 @@ class DoctorCommand extends Command<void> {
       '--> fix: line with a JSON verdict (bugs #840, #874).';
 
   @override
-  String get invocation => 'zfa tdd doctor <feature> [--project <path>]';
+  String get invocation =>
+      'zfa tdd doctor <feature> [--repair] [--project <path>]';
 
   @override
   Future<void> run() =>
@@ -119,20 +152,31 @@ class DoctorCommand extends Command<void> {
     if (rest.isEmpty) {
       usageException('Feature name is required: zfa tdd doctor <feature>');
     }
-    final feature = rest.first;
     final projectFlag = argResults?['project'] as String?;
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
-    final featureDir = p.join(cwd, 'specs', feature);
+    // Issue #1471: resolve the reference once — the bug extension's
+    // `.specify/feature.json` pin included — so a bug feature is diagnosed
+    // in `.specify/bugs/<slug>`, never a fabricated `specs/<slug>`. The
+    // display label names the directory the command actually used.
+    final resolved = TddFeaturePaths.resolveWithPin(
+      projectRoot: cwd,
+      featureRef: rest.first,
+    );
+    final feature = resolved.name;
+    final featureDir = resolved.dir;
+    final featureLabel = p
+        .relative(featureDir, from: cwd)
+        .replaceAll(r'\', '/');
 
     if (!await Directory(featureDir).exists()) {
-      print('zfa tdd doctor: no feature directory at specs/$feature');
+      print('zfa tdd doctor: no feature directory at $featureLabel');
       _printVerdict(
         feature: feature,
         verdict: 'refused',
         prescription: 'none',
-        drifts: ['no feature directory at specs/$feature'],
+        drifts: ['no feature directory at $featureLabel'],
       );
       exitCode = 1;
       return;
@@ -166,7 +210,10 @@ class DoctorCommand extends Command<void> {
       drifts.add('run-state.json is corrupted: ${e.message}');
     }
 
-    final evidence = CycleEvidence(featureDir);
+    // Read-only, multi-read flow: the cached view serves every check from
+    // one disk read + parse (review #1612, finding 5). The doctor never
+    // writes the cycle log, so the cache cannot go stale mid-run.
+    final evidence = CycleEvidence.cached(featureDir);
     final red = await evidence.redEvidence();
     final green = await evidence.greenEvidence();
 
@@ -214,10 +261,13 @@ class DoctorCommand extends Command<void> {
           '${entry.value.map((path_) => _displayPath(cwd, path_)).join(', ')}',
         );
       }
+      // Issue #1573: the prescription must be the form the command
+      // actually parses — migrate-paths takes --feature, not a positional
+      // argument (a positional slug is silently discarded).
       final fix = ownersInvolved.length == 1
-          ? 'zfa tdd migrate-paths ${ownersInvolved.first}'
+          ? 'zfa tdd migrate-paths --feature ${ownersInvolved.first}'
           : 'zfa tdd migrate-paths';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -248,9 +298,9 @@ class DoctorCommand extends Command<void> {
       }
       final ids = unowned.keys.toList()..sort();
       final fix = ids
-          .map((id) => 'zfa tdd gen $id --adopt --feature $feature')
+          .map((id) => 'zfa tdd gen $id --adopt --feature ${resolved.ref}')
           .join(' && ');
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -279,8 +329,19 @@ class DoctorCommand extends Command<void> {
     // separates the two: a record whose missing paths all relocate is
     // routed to migrate-paths below; a record with a genuinely missing
     // artifact (probe finds nothing) still resets.
+    //
+    // Issue #1495: a record whose BOTH files are gone (no relocation
+    // match) owns NOTHING on disk — `zfa tdd doctor <feature> --repair`
+    // garbage-collects exactly those records (surgical, audit-logged);
+    // a record that still owns a surviving half is never collected (GC
+    // would orphan the survivor — reset remains its remedy).
     final missingFiles = <String>[];
     final relocatedRecords = <_RelocatedRecord>[];
+    // Issue #1495: per-record GC classification — a record is collectible
+    // only when BOTH recorded paths are genuinely missing (no relocation
+    // probe match, nothing on disk it owns).
+    final collectibleIds = <String>{};
+    final halfMissingIds = <String>{};
     for (final record in records) {
       // Records may be absolute (gen's default) or project-relative —
       // resolve both against the project root (issue #912: the raw
@@ -323,23 +384,81 @@ class DoctorCommand extends Command<void> {
           'recorded but missing from disk',
         );
       }
+      // Issue #1495 GC classification: both halves genuinely gone -> the
+      // record owns nothing on disk and is collectible; a surviving (or
+      // relocatable) half keeps the record un-collectible.
+      final testCollectible = missingTest && relocatedTest == null;
+      final subjectCollectible = missingSubject && relocatedSubject == null;
+      if (testCollectible && subjectCollectible) {
+        collectibleIds.add(record.behaviorId);
+      } else {
+        halfMissingIds.add(record.behaviorId);
+      }
     }
     if (missingFiles.isNotEmpty) {
       drifts.addAll(missingFiles);
-      final fix = 'zfa tdd reset $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      final repairMode = argResults?['repair'] as bool? ?? false;
+      if (repairMode && halfMissingIds.isEmpty) {
+        // Issue #1495: the surgical repair — drop EVERY gone-file record,
+        // keep every healthy record, touch no file on disk, audit-log.
+        final dropped = await registry.dropRecords(collectibleIds);
+        await _auditRepair(featureDir, feature, dropped);
+        final droppedIds = dropped.map((r) => r.behaviorId).toList()..sort();
+        print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
+        print(
+          '  repaired: dropped ${droppedIds.length} gone-file registry '
+          'record(s): ${droppedIds.join(', ')} — no file on disk was '
+          'touched (owned-and-absent has nothing to clobber; issue '
+          '#1495)',
+        );
+        print(
+          '   --> next: re-drive the collected behaviors from gen '
+          '(`zfa tdd gen <id> --feature ${resolved.ref}` or '
+          '`zfa tdd run ${resolved.ref}`)',
+        );
+        _printVerdict(
+          feature: feature,
+          verdict: 'repaired',
+          prescription: 'repair',
+          // Issue #1495 review: a concrete command, not a template with a
+          // literal `<id>` placeholder — the run driver re-drives the
+          // collected behaviors honestly.
+          fix: 'zfa tdd run ${resolved.ref}',
+          drifts: drifts,
+        );
+        exitCode = 0;
+        return;
+      }
+      final fix = repairMode && halfMissingIds.isNotEmpty
+          ? 'zfa tdd reset $feature'
+          : collectibleIds.isNotEmpty && halfMissingIds.isEmpty
+          ? 'zfa tdd doctor $feature --repair'
+          : 'zfa tdd reset $feature';
+      final why = repairMode
+          ? 'a half-missing record still owns a file on disk — collecting '
+                'it would orphan the survivor (issue #1495); the full reset '
+                'reconciles records AND owned artifacts'
+          : collectibleIds.isNotEmpty && halfMissingIds.isEmpty
+          ? 'drop the stale registry records only — the surgical '
+                'garbage-collect keeps every healthy record and touches no '
+                'file (issue #1495); `zfa tdd reset` remains the heavier '
+                'alternative'
+          : 'drop the stale registry records and owned artifacts, then '
+                're-drive from gen (resume cannot pass the ownership '
+                'preflight while records point at missing files)';
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
-      print(
-        '   --> fix: $fix — drop the stale registry records and owned '
-        'artifacts, then re-drive from gen (resume cannot pass the '
-        'ownership preflight while records point at missing files)',
-      );
+      print('   --> fix: $fix — $why');
       _printVerdict(
         feature: feature,
         verdict: 'drift',
-        prescription: 'reset',
+        // Issue #1495 review: match the prescription to its fix line —
+        // on a half-missing record the fix is the reset command, so the
+        // flag alone must not flip the machine-readable field (the same
+        // state diagnosed without the flag reports 'reset').
+        prescription: fix.contains('--repair') ? 'repair' : 'reset',
         fix: fix,
         drifts: drifts,
       );
@@ -362,8 +481,16 @@ class DoctorCommand extends Command<void> {
           'registry (the recorded form, not the artifacts, has drifted)',
         );
       }
-      final fix = 'zfa tdd migrate-paths $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      // Issue #1573: prescribe the flag form migrate-paths parses, naming
+      // the RESOLVED REFERENCE rather than the bare name. Re-resolving a
+      // bare name through `resolveWithPin` keeps `specs/<name>` whenever
+      // that directory exists, so a plain name would migrate a DIFFERENT
+      // registry than the one just diagnosed (doctor on
+      // `.specify/bugs/<slug>` with a same-named `specs/<slug>` present).
+      // The reference is what issue #1471 hands to child steps for exactly
+      // this reason: resolving it yields this same directory.
+      final fix = 'zfa tdd migrate-paths --feature ${resolved.ref}';
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -416,7 +543,7 @@ class DoctorCommand extends Command<void> {
         );
       }
       final fix = 'zfa tdd run $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -451,10 +578,14 @@ class DoctorCommand extends Command<void> {
     // POSIX form without moving any file.
     final formDrifts = <String>[];
     for (final record in records) {
+      // Issue #1573: the drift line prints the RAW recorded value — the
+      // exact string the registry carries. The old rendering piped it
+      // through display normalization, so the line claimed "machine-absolute"
+      // while showing a relative path the registry does not contain.
       if (p.isAbsolute(record.testPath)) {
         formDrifts.add(
           '${record.behaviorId}: the recorded test path is '
-          'machine-absolute (${_displayPath(cwd, p.normalize(record.testPath))}) '
+          'machine-absolute (${record.testPath}) '
           '— records must be project-relative to stay portable',
         );
       }
@@ -462,15 +593,23 @@ class DoctorCommand extends Command<void> {
         formDrifts.add(
           '${record.behaviorId}: the recorded subject path is '
           'machine-absolute '
-          '(${_displayPath(cwd, p.normalize(record.subjectPath))}) '
+          '(${record.subjectPath}) '
           '— records must be project-relative to stay portable',
         );
       }
     }
     if (formDrifts.isNotEmpty) {
       drifts.addAll(formDrifts);
-      final fix = 'zfa tdd migrate-paths $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      // Issue #1573: prescribe the flag form migrate-paths parses, naming
+      // the RESOLVED REFERENCE rather than the bare name. Re-resolving a
+      // bare name through `resolveWithPin` keeps `specs/<name>` whenever
+      // that directory exists, so a plain name would migrate a DIFFERENT
+      // registry than the one just diagnosed (doctor on
+      // `.specify/bugs/<slug>` with a same-named `specs/<slug>` present).
+      // The reference is what issue #1471 hands to child steps for exactly
+      // this reason: resolving it yields this same directory.
+      final fix = 'zfa tdd migrate-paths --feature ${resolved.ref}';
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -540,7 +679,7 @@ class DoctorCommand extends Command<void> {
     if (staleArtifacts.isNotEmpty) {
       staleArtifacts.sort();
       final fix = 'zfa tdd reset $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -597,8 +736,16 @@ class DoctorCommand extends Command<void> {
     }
     if (importDrifts.isNotEmpty) {
       drifts.addAll(importDrifts);
-      final fix = 'zfa tdd migrate-paths $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      // Issue #1573: prescribe the flag form migrate-paths parses, naming
+      // the RESOLVED REFERENCE rather than the bare name. Re-resolving a
+      // bare name through `resolveWithPin` keeps `specs/<name>` whenever
+      // that directory exists, so a plain name would migrate a DIFFERENT
+      // registry than the one just diagnosed (doctor on
+      // `.specify/bugs/<slug>` with a same-named `specs/<slug>` present).
+      // The reference is what issue #1471 hands to child steps for exactly
+      // this reason: resolving it yields this same directory.
+      final fix = 'zfa tdd migrate-paths --feature ${resolved.ref}';
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -641,7 +788,7 @@ class DoctorCommand extends Command<void> {
     if (runtimeDrifts.isNotEmpty) {
       drifts.addAll(runtimeDrifts);
       const fix = 'dart pub upgrade zuraffa';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -665,7 +812,7 @@ class DoctorCommand extends Command<void> {
       // A corrupt state file cannot be trusted for claims; reset is the
       // honest recovery for the state half.
       final fix = 'zfa tdd reset $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -721,7 +868,7 @@ class DoctorCommand extends Command<void> {
     }
     if (drifts.isNotEmpty) {
       final fix = 'zfa tdd run $feature';
-      print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
@@ -740,12 +887,220 @@ class DoctorCommand extends Command<void> {
       return;
     }
 
+    // ---- 3b. Hand-delta proof drift -> RE-CERTIFY / RESUME (1423) ----
+    // The proof-layer class the store-vs-store comparisons cannot see:
+    // a registry-recorded test/subject path whose disk digest differs
+    // from its latest receipt digest — the certified hand-delta state
+    // the run driver's `<id>:hand` stop prescribes (issue #1308). Every
+    // store "agrees" (the claims are evidence-backed) while `zfa tdd
+    // verify`'s proof preflight refuses the feature on the drifted
+    // digest: doctor must NOT report "stores agree" here (SC-4). The
+    // sanctioned completion re-receipts the hand-edited pair at the
+    // certification transitions (`verify-red --re-certify`, make's skip
+    // — spec 1423); re-driving the generator over a hand-delta would
+    // DESTROY the certified work (the #1375 destructive remedy) and is
+    // never the prescription. Which transition is prescribed derives
+    // from the behavior's last certification — see
+    // `_handDeltaProofDrifts`.
+    final handDelta = await _handDeltaProofDrifts(
+      cwd,
+      feature,
+      records,
+      evidence,
+    );
+    if (handDelta.lines.isNotEmpty) {
+      drifts.addAll(handDelta.lines);
+      final fix = handDelta.fix;
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
+      for (final drift in drifts) {
+        print('  drift: $drift');
+      }
+      print('   --> fix: $fix — ${handDelta.note}');
+      _printVerdict(
+        feature: feature,
+        verdict: 'drift',
+        prescription: handDelta.prescription,
+        fix: fix,
+        drifts: drifts,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // ---- 3c. Evidence hash-chain integrity -> RESTORE + RE-CERTIFY ----
+    // Bug #828 (restored by #1585): schema-1 cycle-log entries carry a
+    // tamper-evident hash chain (`- prev-hash:` / `- hash:`), and this
+    // command is the reader that verifies it — without the walk, a
+    // hand-edited entry reads as "stores agree" while the certified
+    // facts no longer match their evidence. The walk is shared with the
+    // replay reader (`verifyEvidenceChain`, review #1612 finding 3):
+    // every `prev-hash` must link the previous recorded hash, every
+    // canonical `hash` must equal the recomputed payload digest
+    // (`CycleLog.payloadFromFields`), and a chain-claiming section with
+    // no well-formed `- hash:` line is drift — the tail bypass where
+    // deleting the line hid the entry from the walk (finding 2).
+    // Certifier-written sections (`fixtures`, `mock-cert`, `world-*`,
+    // `realize*`) whose legacy `- hash:` predates the canonical chain are
+    // unverifiable, never failed (finding 1); entries written through
+    // `CycleLog.chainHashFromFields` verify cleanly.
+    final chainWalk = verifyEvidenceChain(await evidence.entries());
+    if (chainWalk.drifts.isNotEmpty) {
+      drifts.addAll(chainWalk.drifts.map((drift) => drift.message));
+      final fix =
+          'restore the cycle-log from a trusted source, then re-run '
+          '`zfa tdd run $feature` to re-certify';
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
+      for (final drift in drifts) {
+        print('  drift: $drift');
+      }
+      print(
+        '   --> fix: $fix — the entry was edited or reordered after it was '
+        'certified, so every claim it backs is untrusted; there is no '
+        'automatic remedy, and re-certification re-proves the behaviors '
+        'through the runner',
+      );
+      _printVerdict(
+        feature: feature,
+        verdict: 'drift',
+        prescription: 'resume',
+        fix: fix,
+        drifts: drifts,
+      );
+      exitCode = 1;
+      return;
+    }
+
     // ---- 4. Healthy --------------------------------------------------
-    print('zfa tdd doctor: feature $feature (specs/$feature/tdd)');
+    print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
     print('  stores agree — no drift detected');
     _printVerdict(feature: feature, verdict: 'healthy', prescription: 'none');
     exitCode = 0;
   }
+
+  /// The hand-delta proof-drift scan (spec 1423, SC-4): for every
+  /// registry-recorded test/subject path, compare the disk digest against
+  /// the LATEST receipt digest covering it through the shared
+  /// [ReceiptStore.latestForPath] resolution (the same one `ProofChecker`
+  /// applies). A mismatch is the certified hand-delta state the stores
+  /// cannot see: state claims and cycle-log evidence agree while
+  /// `zfa tdd verify`'s proof preflight refuses.
+  ///
+  /// Fail-open surfaces: an unreadable receipts tree, a feature with no
+  /// receipts, an unreceipted artifact path (the preflight's
+  /// missing-receipt gate owns that class), and a missing file (check 2
+  /// already reported it) all produce no hand-delta findings — never a
+  /// fabricated mismatch.
+  ///
+  /// The prescription derives from the FIRST drifted behavior's last
+  /// recorded certification, never from the mere presence of red
+  /// evidence — which the designed `<id>:hand` stop always leaves behind
+  /// (`zfa tdd run` certifies the honest red before the hand step).
+  /// `verify-red <id> --re-certify` fires ONLY on the unexpected-green
+  /// classification (`verify_red_command.dart:396`), so a behavior whose
+  /// last certification is red (an interrupted hand-delta) resumes
+  /// through the run loop, while a behavior last certified green (or
+  /// refactor) takes the direct transition. Both commands stay named so
+  /// a drifted-but-green pair is never pushed at the re-certify no-op.
+  /// The destructive generator re-drive (#1375) is never prescribed.
+  Future<({List<String> lines, String fix, String prescription, String note})>
+  _handDeltaProofDrifts(
+    String cwd,
+    String feature,
+    List<ArtifactRecord> records,
+    CycleEvidence evidence,
+  ) async {
+    const none = (lines: <String>[], fix: '', prescription: 'none', note: '');
+    final List<ReceiptRecord> receipts;
+    try {
+      receipts = await ReceiptStore(projectRoot: cwd).loadAll();
+    } catch (_) {
+      // Unreadable receipts tree — fail open here; the verify proof
+      // preflight still gates the audit on whatever it can read.
+      return none;
+    }
+    if (receipts.isEmpty || records.isEmpty) {
+      return none;
+    }
+
+    final lines = <String>[];
+    String? firstDrifted;
+    for (final record in records) {
+      for (final recorded in [record.testPath, record.subjectPath]) {
+        // Both recorded forms resolve to the project-relative POSIX shape
+        // the receipt store records (issue #1397 compat).
+        final relative = canonicalArtifactPath(cwd, recorded);
+        final recordedDigest = ReceiptStore.latestForPath(
+          receipts,
+          relative,
+        )?.entry.sha256;
+        if (recordedDigest == null) continue; // unreceipted: not this class
+        final file = File(p.join(cwd, relative));
+        if (!file.existsSync()) continue; // check 2 reported the deletion
+        final String diskDigest;
+        try {
+          diskDigest = crypto.sha256.convert(file.readAsBytesSync()).toString();
+        } on FileSystemException {
+          continue;
+        }
+        if (diskDigest == recordedDigest) continue; // no drift
+        lines.add(
+          '${record.behaviorId}: hand-delta drift — $relative matches no '
+          'receipt digest (receipt ${_shortDigest(recordedDigest)}, disk '
+          '${_shortDigest(diskDigest)}) — the certified hand-delta is not '
+          'receipted (issue #1423)',
+        );
+        firstDrifted ??= record.behaviorId;
+      }
+    }
+    if (lines.isEmpty) return none;
+
+    // Green-backed: the behavior's last recorded certification is a green
+    // (or refactor) one — the state the direct re-certify transition can
+    // close. A later red entry (a re-drive, an interrupted cycle)
+    // supersedes it: the pair must pass the loop again first.
+    final behaviorId = firstDrifted!;
+    final entries = await evidence.entries();
+    var lastRed = -1;
+    var lastGreen = -1;
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+      if (entry.behaviorId != behaviorId) continue;
+      if (entry.kind == 'red') lastRed = i;
+      if (entry.kind == 'green') lastGreen = i;
+    }
+    final tail =
+        're-run `zfa tdd doctor $feature` afterwards. Never re-drive the '
+        'generator over a hand-delta — it regenerates the guard test and '
+        'destroys the certified work (issue #1375).';
+    if (lastGreen > lastRed) {
+      return (
+        lines: lines,
+        fix: 'zfa tdd verify-red $behaviorId --re-certify',
+        prescription: 're-certify',
+        note:
+            'the re-certify transition re-receipts the hand-edited '
+            'test/subject pair with the current digest (spec 1423); if the '
+            'pair no longer passes, resume with `zfa tdd run $feature`. '
+            '$tail',
+      );
+    }
+    return (
+      lines: lines,
+      fix: 'zfa tdd run $feature',
+      prescription: 'resume',
+      note:
+          "the behavior's last certification is not green, so the "
+          're-certify transition cannot fire yet (it needs the pair to '
+          'pass) — resume the loop; the sanctioned transitions re-receipt '
+          'the hand-delta once it is green (spec 1423). If the drifted '
+          "behavior's test already passes, "
+          '`zfa tdd verify-red $behaviorId --re-certify` closes it '
+          'directly. $tail',
+    );
+  }
+
+  static String _shortDigest(String digest) =>
+      digest.length <= 12 ? digest : digest.substring(0, 12);
 
   /// Scan the gen default layout (`test/tdd/*.dart`, `lib/tdd/*.dart`)
   /// and return the generated-shape files found there with the behavior
@@ -777,9 +1132,34 @@ class DoctorCommand extends Command<void> {
   }
 
   /// The path relative to the project root, POSIX separators (the display
-  /// and verdict form for scanned artifacts).
+  /// and verdict form for scanned artifacts) — the shared
+  /// [TddFeaturePaths.displayDir] idiom, so every command renders one way.
   String _displayPath(String cwd, String absolute) =>
-      p.relative(absolute, from: cwd).replaceAll(r'\', '/');
+      TddFeaturePaths.displayDir(cwd: cwd, dir: absolute);
+
+  /// Append the garbage-collect audit record (issue #1495): one JSONL line
+  /// per repair run in `specs/<feature>/tdd/audit.log` — the same
+  /// discipline as the #840 adoption line. Records which behavior ids
+  /// were collected; no file on disk is touched.
+  Future<void> _auditRepair(
+    String featureDir,
+    String featureName,
+    List<ArtifactRecord> droppedRecords,
+  ) async {
+    final auditFile = File(p.join(featureDir, 'tdd', 'audit.log'));
+    await auditFile.parent.create(recursive: true);
+    final line = jsonEncode({
+      'at': DateTime.now().toUtc().toIso8601String(),
+      'action': 'repair',
+      'feature': featureName,
+      'command': 'doctor',
+      'dropped': droppedRecords.map((r) => r.behaviorId).toList(),
+    });
+    final sink = auditFile.openWrite(mode: FileMode.append);
+    sink.writeln(line);
+    await sink.flush();
+    await sink.close();
+  }
 
   /// The machine-readable JSON verdict (bug #840) — the LAST stdout line.
   void _printVerdict({
@@ -796,7 +1176,9 @@ class DoctorCommand extends Command<void> {
       _verdict
         ..feature = feature
         ..exitClass = verdict
-        ..outcome = verdict == 'healthy'
+        // Issue #1495 review: `repaired` is a SUCCESS verdict — the GC
+        // path exits 0, so the envelope must not gate it as fail.
+        ..outcome = (verdict == 'healthy' || verdict == 'repaired')
             ? VerdictOutcome.pass
             : VerdictOutcome.fail
         ..fix = fix

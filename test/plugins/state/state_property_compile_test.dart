@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Spec 976 (issue #976) — property-based compile tier for the state
 // plugin.
 //

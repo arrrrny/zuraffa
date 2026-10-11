@@ -8,6 +8,7 @@ import 'package:zuraffa/src/models/generated_file.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/datasource/capabilities/create_datasource_capability.dart';
 import 'package:zuraffa/src/plugins/datasource/datasource_plugin.dart';
+import '../../helpers/cwd_mutex.dart';
 
 /// Spec #1131 (order 4) — the full generate() path is wrapped in
 /// try/catch and every exception becomes
@@ -19,6 +20,7 @@ void main() {
   late String originalCwd;
 
   setUp(() async {
+    await CwdMutex.acquire();
     tempDir = await Directory.systemTemp.createTemp('zuraffa_1131_errors_');
     originalCwd = Directory.current.path;
     Directory.current = tempDir.path;
@@ -29,7 +31,7 @@ void main() {
     if (tempDir.existsSync()) {
       await tempDir.delete(recursive: true);
     }
-    exitCode = 0;
+    CwdMutex.release();
   });
 
   test(

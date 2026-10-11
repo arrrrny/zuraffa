@@ -18,6 +18,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../../plugins/tdd/services/cycle_evidence.dart';
+import '../../plugins/tdd/services/cycle_log.dart';
 import 'world_manifest.dart';
 
 /// Where a feature's worlds live.
@@ -278,17 +279,18 @@ Map<String, dynamic> _defaultArgsFor(ContractMethod method) {
 }
 
 /// Append a hash-chained world evidence entry to the feature's cycle
-/// log (`<featureDir>/tdd/cycle-log.md`), schema-1 chain format — the
-/// same format the run driver, doctor, and fixture commitment already
-/// parse. [kind] is `world-cert` / `world-run`; [hash] is the entry's
-/// chain hash (the world hash for certification, the run digest for
-/// runs).
+/// log (`<featureDir>/tdd/cycle-log.md`), schema-1 canonical chain — the
+/// payload every reader recomputes ([CycleLog.chainHashFromFields]).
+/// [kind] is `world-cert` / `world-run`; [subjectDigest] is the certified
+/// subject's digest (the world hash for certification, the run digest for
+/// runs), recorded in its own `- digest:` field beside the chain link
+/// (review #1612, finding 1).
 Future<void> appendWorldCycleEvidence({
   required String featureDir,
   required String behaviorId,
   required String kind,
   required String commandLine,
-  required String hash,
+  required String subjectDigest,
   required int exitCode,
   required String criterion,
   Map<String, String> extraLines = const {},
@@ -300,6 +302,16 @@ Future<void> appendWorldCycleEvidence({
   final cycleEvidence = CycleEvidence(featureDir);
   final prev = await cycleEvidence.lastHashFor(behaviorId) ?? 'genesis';
   final now = DateTime.now().toUtc().toIso8601String();
+  final hash = CycleLog.chainHashFromFields(
+    behaviorId: behaviorId,
+    kind: kind,
+    exit: exitCode.toString(),
+    command: commandLine,
+    criterion: criterion,
+    test: '',
+    timestamp: now,
+    prevHash: prev,
+  );
 
   final buffer = StringBuffer()
     ..writeln('## $now: $kind (spec 968)')
@@ -311,7 +323,8 @@ Future<void> appendWorldCycleEvidence({
     ..writeln('- command: `$commandLine`')
     ..writeln('- schema: 1')
     ..writeln('- prev-hash: $prev')
-    ..writeln('- hash: $hash');
+    ..writeln('- hash: $hash')
+    ..writeln('- digest: $subjectDigest');
   for (final line in extraLines.entries) {
     buffer.writeln('- ${line.key}: ${line.value}');
   }

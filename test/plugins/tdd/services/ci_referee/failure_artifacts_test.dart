@@ -127,6 +127,54 @@ void main() {
     expect(report.length, lessThan(50));
   });
 
+  test(
+    '1549: an in-fence Cycle line never truncates the red excerpt',
+    () async {
+      // A red entry whose captured output prints a markdown banner: the
+      // in-fence `## Cycle:` line is CONTENT — the fence-blind scan treated
+      // it as a new entry boundary and closed the excerpt early, losing the
+      // failing frame that follows it.
+      await writeCycleLog(
+        'f-fence',
+        testName: 'banner printer',
+        outputLines: [
+          '00:00 +0: loading test/f_fence_test.dart',
+          'Expected: <42>',
+          '  Actual: <13>',
+          '## Cycle: PHANTOM (green)',
+          'package:test failed at f_fence_test.dart:18',
+        ],
+      );
+
+      final failures = await FailureArtifactBuilder(root.path).build();
+
+      expect(failures, hasLength(1), reason: 'no spurious second artifact');
+      final artifact = failures.first;
+      expect(artifact.excerpt, contains('Expected: <42>'));
+      expect(
+        artifact.excerpt,
+        contains('package:test failed at f_fence_test.dart:18'),
+        reason: 'SC-2: the excerpt runs to the end of the captured output',
+      );
+      expect(
+        artifact.excerpt,
+        contains('## Cycle: PHANTOM (green)'),
+        reason:
+            'captured output is evidence — the in-fence line stays verbatim',
+      );
+      expect(
+        artifact.failingLine,
+        contains('f_fence_test.dart:18'),
+        reason: 'the post-banner failing frame is the failing line',
+      );
+      expect(
+        artifact.excerpt.split('\n').where((l) => l.isNotEmpty).length,
+        lessThanOrEqualTo(20),
+        reason: 'US4.AC1 still holds',
+      );
+    },
+  );
+
   test('A13: an over-limit report truncates gracefully and links to the full '
       'report, never silently dropping a failure', () async {
     // Ten features, each with a failing red entry.

@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 /// Bug #1267 — `zfa` resolves the project root from the raw CWD instead of
 /// the closest `pubspec.yaml`. When a generation command is invoked from a
 /// parent directory (or any directory that is not a project root), generated

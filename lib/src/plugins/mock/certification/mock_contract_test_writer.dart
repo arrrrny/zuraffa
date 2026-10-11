@@ -46,8 +46,23 @@ class ContractMethod {
 }
 
 /// Renders the certification contract test for one entity's mock.
+///
+/// [flutterTest] selects the host's test framework import (issue #1600, the
+/// #1513 sibling): on a Flutter host plain `package:test` does not resolve
+/// under the flutter_test runner, so the committed contract test must
+/// import `package:flutter_test/flutter_test.dart`. The default keeps the
+/// pure-Dart render byte-stable.
 class MockContractTestWriter {
-  const MockContractTestWriter();
+  const MockContractTestWriter({this.flutterTest = false});
+
+  /// Whether the host project is a Flutter project (its pubspec declares a
+  /// Flutter dependency).
+  final bool flutterTest;
+
+  /// The test framework import the rendered contract test uses.
+  String get testImport => flutterTest
+      ? 'package:flutter_test/flutter_test.dart'
+      : 'package:test/test.dart';
 
   /// The interface (abstract class) name for [entityName].
   static String interfaceName(String entityName) => '${entityName}DataSource';
@@ -202,7 +217,7 @@ class MockContractTestWriter {
         '// compilation — the certification goes red (the '
         'certification is live).',
       )
-      ..writeln("import 'package:test/test.dart';")
+      ..writeln("import '$testImport';")
       ..writeln("import 'package:zuraffa/mock.dart';");
 
     if (entityPath != null) buffer.writeln("import '${rel(entityPath)}';");

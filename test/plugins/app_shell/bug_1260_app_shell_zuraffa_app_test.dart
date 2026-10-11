@@ -1,11 +1,11 @@
-// BUG 1260 — `zfa app shell` emits MyApp + MaterialApp.router, never the
+// BUG 1260 — `zfa app shell` emits the raw shell + MaterialApp.router, never the
 // certified shell (issue #1260, remediation 3).
 //
 // ZuraffaApp is "the certified app shell of the skin lane" (route
 // observer + audit bus + violation chrome mounted in one place), but the
-// generated app shell cannot use it: the emitted `my_app.dart` builds a
+// generated app shell cannot use it: the emitted shell file builds a
 // raw `MaterialApp.router`. The certified surface must be REACHABLE from
-// the pipeline: `zfa app shell --zuraffa-app` emits a `MyApp` that mounts
+// the pipeline: `zfa app shell --zuraffa-app` emits a shell widget that mounts
 // `ZuraffaApp` and keeps the generated GoRouter tree functional beneath
 // it (`Router.withConfig(config: appRouter)` — GoRouter implements
 // RouterConfig<Object?>).
@@ -98,11 +98,11 @@ dependencies:
     }
 
     String myAppSrc() => File(
-      p.join(workspace.path, 'lib', 'src', 'app', 'my_app.dart'),
+      p.join(workspace.path, 'lib', 'src', 'app', 'my_test_app.dart'),
     ).readAsStringSync();
 
     test(
-      '--zuraffa-app: my_app.dart mounts ZuraffaApp over the GoRouter tree',
+      '--zuraffa-app: the shell file mounts ZuraffaApp over the GoRouter tree',
       () async {
         await withCertifiedDependency();
         final out = await runShell(['--zuraffa-app']);
@@ -130,11 +130,11 @@ dependencies:
           isNot(contains('MaterialApp.router(')),
           reason: 'the certified flag replaces the raw engine shell',
         );
-        // main.dart is unchanged: runApp(const MyApp()).
+        // main.dart is unchanged: runApp(const MyTestApp()).
         final mainSrc = File(
           p.join(workspace.path, 'lib', 'main.dart'),
         ).readAsStringSync();
-        expect(mainSrc, contains('runApp(const MyApp())'));
+        expect(mainSrc, contains('runApp(const MyTestApp())'));
       },
     );
 

@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Spec 077 / issue #1109 — service trust tier, compile bar (T013,
 // behaviors A11/A12, U11).
 //

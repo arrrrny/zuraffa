@@ -1,11 +1,14 @@
 ---
 name: speckit-chore-issue
-description: File a GitHub issue from a chore assessment (the 'report' phase) and record the issue link
+description: File a GitHub issue from a chore assessment (the 'report' phase) and
+  record the issue link
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: chore:commands/speckit.chore.issue.md
+  author: arrrrny
+  source: extension:chore
 ---
+
+# Chore Issue Skill
 
 # Report Chore (Create Issue)
 

@@ -37,6 +37,7 @@ import '../../../core/project/project_root.dart';
 import '../../../engine/engine_gate_receipt.dart';
 import '../models/verdict_envelope.dart';
 import '../services/explain_emitter.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/journal.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
@@ -91,19 +92,27 @@ class StatusCommand extends Command<void> {
         invocation,
       );
     }
-    final feature = stripSpecsPrefix(rest.first);
-    validateFeatureSegment(feature, invocation);
+    validateFeatureSegment(rest.first, invocation);
     final projectFlag = argResults?['project'] as String?;
     final projectRoot = projectFlag != null && projectFlag.isNotEmpty
         ? projectFlag
         : ProjectRoot.find(anchorDir: 'specs');
 
-    final featureDir = p.join(projectRoot, 'specs', feature);
+    // Issue #1471: the positional reference lands in a filesystem path —
+    // resolve it through the shared resolver (pin included) so a bug
+    // directory (`.specify/bugs/<slug>`) is read where it really lives
+    // instead of a fabricated `specs/<slug>`.
+    final resolved = TddFeaturePaths.resolveWithPin(
+      projectRoot: projectRoot,
+      featureRef: rest.first,
+    );
+    final feature = resolved.name;
+    final featureDir = resolved.dir;
     if (!await Directory(featureDir).exists()) {
       print(
         'zfa tdd status: no feature directory at '
-        '${p.relative(featureDir, from: projectRoot)} (project root: '
-        '$projectRoot)',
+        '${TddFeaturePaths.displayDir(cwd: projectRoot, dir: featureDir)} '
+        '(project root: $projectRoot)',
       );
       // SPEC 917/#838: the JSON verdict carries the remediation.
       _verdict
@@ -124,6 +133,7 @@ class StatusCommand extends Command<void> {
     final journal = await const JournalReader().read(
       feature: feature,
       projectRoot: projectRoot,
+      featureDir: featureDir,
     );
     final verdict = journal.verdict;
     print(

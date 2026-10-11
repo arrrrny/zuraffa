@@ -100,18 +100,21 @@ void main() {
       expect(exitCode, 0, reason: out);
       // A1, U1 and U2 driven in list order (A1's outer-loop section
       // comes first in the file); W1/W2 never spawn.
+      // Issue #1652: the same-drive-make refactor no longer spawns in
+      // phase 1 — every behavior's refactor defers to the phase-2b batch
+      // pass, which appends the refactors in list order after ALL makes.
       expect(fx.stepInvocations(), [
         'gen A1',
         'verify-red A1',
         'make A1',
-        'refactor A1',
         'gen U1',
         'verify-red U1',
         'make U1',
-        'refactor U1',
         'gen U2',
         'verify-red U2',
         'make U2',
+        'refactor A1',
+        'refactor U1',
         'refactor U2',
       ]);
       expect(
@@ -146,18 +149,19 @@ void main() {
       final out = await run('run-engine');
 
       expect(exitCode, 0, reason: out);
+      // Issue #1652: makes first, then the phase-2b batch refactors.
       expect(fx.stepInvocations(), [
         'gen B-001',
         'verify-red B-001',
         'make B-001',
-        'refactor B-001',
         'gen B-002',
         'verify-red B-002',
         'make B-002',
-        'refactor B-002',
         'gen B-003',
         'verify-red B-003',
         'make B-003',
+        'refactor B-001',
+        'refactor B-002',
         'refactor B-003',
       ]);
       final receipt = await readReceipt(engineReceiptPath());
@@ -242,15 +246,16 @@ void main() {
 
         expect(exitCode, 0, reason: out);
         // W1, W2 driven in list order; A1 is already DONE (engine lane) and
-        // is skipped, never re-driven from gen.
+        // is skipped, never re-driven from gen. Issue #1652: W1/W2's
+        // refactors defer to the phase-2b batch pass (after all makes).
         expect(fx.stepInvocations(), [
           'gen W1',
           'verify-red W1',
           'make W1',
-          'refactor W1',
           'gen W2',
           'verify-red W2',
           'make W2',
+          'refactor W1',
           'refactor W2',
         ]);
         expect(fx.stepInvocations().where((l) => l.contains('A1')), isEmpty);
@@ -389,19 +394,20 @@ void main() {
         final out = await run('run');
 
         expect(exitCode, 0, reason: out);
-        // Exactly the pre-split driver's step sequence.
+        // Exactly the pre-split driver's step sequence, with the #1652
+        // deferral: makes first, then the phase-2b batch refactors.
         expect(fx.stepInvocations(), [
           'gen B-001',
           'verify-red B-001',
           'make B-001',
-          'refactor B-001',
           'gen B-002',
           'verify-red B-002',
           'make B-002',
-          'refactor B-002',
           'gen B-003',
           'verify-red B-003',
           'make B-003',
+          'refactor B-001',
+          'refactor B-002',
           'refactor B-003',
         ]);
         expect(

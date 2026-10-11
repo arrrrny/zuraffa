@@ -1,8 +1,13 @@
 /// `zfa tdd` — top-level TDD plugin command (feature 041).
 library;
 
-import 'package:args/command_runner.dart';
 import 'dart:math';
+
+import 'package:args/args.dart';
+import 'package:args/command_runner.dart';
+
+import '../cli/text_wrap.dart';
+import '../cli/usage_length.dart';
 
 import '../plugins/tdd/commands/compose_command.dart';
 import '../plugins/tdd/commands/corpus_command.dart';
@@ -72,6 +77,14 @@ class TddCommand extends Command<void> {
 
   final TddPlugin plugin;
 
+  // Options block wraps at kUsageLineLength even when the runner width
+  // differs — ArgParser.usageLineLength is constructor-only, so only the
+  // description/summary wrapping in this class follows the runner.
+  final ArgParser _argParser = ArgParser(usageLineLength: kUsageLineLength);
+
+  @override
+  ArgParser get argParser => _argParser;
+
   @override
   String get name => 'tdd';
 
@@ -93,71 +106,24 @@ class TddCommand extends Command<void> {
     printUsage();
   }
 
-  static const int _lineLength = 80;
+  int get _lineLength => runner?.argParser.usageLineLength ?? kUsageLineLength;
 
-  static String _padRight(String source, int length) =>
-      source + ' ' * (length - source.length);
-
-  static List<String> _wrapTextAsLines(
-    String text, {
-    int start = 0,
-    int? length,
-  }) {
-    assert(start >= 0);
-    bool isWhitespace(String text, int index) {
-      var rune = text.codeUnitAt(index);
-      return rune >= 0x0009 && rune <= 0x000D ||
-          rune == 0x0020 ||
-          rune == 0x0085 ||
-          rune == 0x1680 ||
-          rune == 0x180E ||
-          rune >= 0x2000 && rune <= 0x200A ||
-          rune == 0x2028 ||
-          rune == 0x2029 ||
-          rune == 0x202F ||
-          rune == 0x205F ||
-          rune == 0x3000 ||
-          rune == 0xFEFF;
-    }
-
-    if (length == null) return text.split('\n');
-
-    var result = <String>[];
-    var effectiveLength = max(length - start, 10);
-    for (var line in text.split('\n')) {
-      line = line.trim();
-      if (line.length <= effectiveLength) {
-        result.add(line);
-        continue;
-      }
-
-      var currentLineStart = 0;
-      int? lastWhitespace;
-      for (var i = 0; i < line.length; ++i) {
-        if (isWhitespace(line, i)) lastWhitespace = i;
-
-        if (i - currentLineStart >= effectiveLength) {
-          if (lastWhitespace != null) i = lastWhitespace;
-
-          result.add(line.substring(currentLineStart, i).trim());
-
-          while (isWhitespace(line, i) && i < line.length) {
-            i++;
-          }
-
-          currentLineStart = i;
-          lastWhitespace = null;
-        }
-      }
-      result.add(line.substring(currentLineStart).trim());
-    }
-    return result;
-  }
+  static String _padRight(String source, int length) => source.padRight(length);
 
   @override
-  Never usageException(String message) =>
-      throw UsageException(message, _formatUsage());
+  Never usageException(String message) => throw UsageException(
+    wrapTextAsLines(message, length: _lineLength).join('\n'),
+    _formatUsage(),
+  );
 
+  @override
+  String get usage =>
+      '${wrapTextAsLines(description, length: _lineLength).join('\n')}\n\n'
+      '${_formatUsage()}';
+
+  // Diverges from base Command._usageWithoutDescription: the invocation line
+  // is not wrapped with a hanging indent and `usageFooter` is never consulted
+  // — irrelevant for TddCommand today (fixed short invocation, no footer).
   String _formatUsage() {
     var names = subcommands.keys.where(
       (name) => !subcommands[name]!.aliases.contains(name),
@@ -166,13 +132,13 @@ class TddCommand extends Command<void> {
     if (visible.isNotEmpty) names = visible;
     names = names.toList()..sort();
 
-    var length = names.map((name) => name.length).reduce(max);
+    var length = names.fold(0, (n, name) => max(n, name.length));
     var columnStart = length + 5;
 
     var buffer = StringBuffer('Available subcommands:');
     for (var name in names) {
       var command = subcommands[name]!;
-      var lines = _wrapTextAsLines(
+      var lines = wrapTextAsLines(
         command.summary,
         start: columnStart,
         length: _lineLength,
@@ -184,10 +150,12 @@ class TddCommand extends Command<void> {
         buffer.write(' ' * columnStart);
         buffer.write(line);
       }
+      buffer.writeln();
     }
     return 'Usage: $invocation\n'
         '${argParser.usage}\n'
-        '$buffer\n'
-        'Run "${runner!.executableName} help" to see global options.';
+        '$buffer'
+        '\n'
+        'Run "${runner?.executableName ?? 'zfa'} help" to see global options.';
   }
 }

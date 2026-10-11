@@ -1,11 +1,13 @@
 ---
 name: speckit-gym-run
-description: 'Spec-kit workflow command: speckit-gym-run'
+description: 'Extension command: speckit.gym.run'
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: gym:commands/speckit.gym.run.md
+  author: gym
+  source: extension:gym
 ---
+
+# Gym Run Skill
 
 # GYM: Run
 
@@ -36,3 +38,4 @@ Environment overrides:
 A thrown `verify`/`evaluate` is treated as a failure with the error reported
 (FR-015). With no curriculum defined, the runner reports empty and treats the gate
 as open (FR-012).
+

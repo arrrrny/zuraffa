@@ -47,7 +47,15 @@ void main() {
         ),
       );
       expect(plan.isExpressible, isTrue);
-      expect(plan.steps.first.args, ['entity', 'create', '-n', 'Product']);
+      // Bug #1503 (review finding 1): the certify step needs a BUILT entity
+      // (its sandbox resolves the .zorphy.dart parts).
+      expect(plan.steps.first.args, [
+        'entity',
+        'create',
+        '-n',
+        'Product',
+        '--build',
+      ]);
       expect(
         plan.steps.map((s) => s.args.first),
         containsAll(['entity', 'build']),

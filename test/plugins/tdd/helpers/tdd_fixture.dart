@@ -98,7 +98,23 @@ coverage: 'dart test --coverage'
   String testPathOf(String id) =>
       p.join(root.path, 'test', '${_snake(id)}_test.dart');
 
+  /// Absolute NAMESPACED test path for a behavior id — the
+  /// `test/tdd/<feature>/<id>_test.dart` layout `zfa tdd gen` computes
+  /// (the canonical form `migrate_paths_command` writes). Suites reading a
+  /// generated test must use this, not [testPathOf]'s flat default.
+  String namespacedTestPathOf(String id) =>
+      p.join(root.path, 'test', 'tdd', featureName, '${_snake(id)}_test.dart');
+
   String _snake(String id) => id.toLowerCase().replaceAll('-', '_');
+
+  /// The portable project-relative POSIX form of the behavior's test
+  /// path — the recorded form receipts carry (issue #1397).
+  String recordedTestPath(String id) => _recordedForm(testPathOf(id));
+
+  /// The portable project-relative POSIX form of the behavior's subject
+  /// path — the recorded form receipts carry (issue #1397).
+  String recordedSubjectPath(String id) =>
+      _recordedForm(p.join(root.path, 'lib', '${_snake(id)}_subject.dart'));
 
   /// Register a behavior: writes its test file (unless [writeTestFile] is
   /// false) and appends a gen-style record to the artifact registry.
@@ -685,9 +701,47 @@ case "$STEP" in
         echo "make: behavior=$ID outcome=adopted-placeholder feature=$FEATURE"
         exit 0
         ;;
+      adopt-interrupted)
+        # Issue #1398 crash-recovery adoption: green evidence appended
+        # (like `ok`/`adopt`) but the summary outcome is
+        # `adopted-interrupted` and the process exits 0 — exactly what
+        # the real `zfa tdd make` prints when the write-ahead interrupt
+        # marker proved the previous make died mid-flight and the resumed
+        # make adopted the passing subject.
+        printf '\n## Cycle: %s (green)\n\n- behavior: %s\n- kind: green\n- criterion: FR-003\n- exit: 0\n- at: 2026-08-30T00:00:00.000Z\n' "$ID" "$ID" >> "$CYCLE"
+        echo "make: behavior=$ID outcome=adopted-interrupted feature=$FEATURE"
+        exit 0
+        ;;
+      skip-fail)
+        # Issue #1652 remediation (verify mutant M3): the #693/#694-era
+        # drift contract shape — make's outcome token says `skipped` but
+        # the exit code disagrees (non-zero). The driver's bug-986 arm
+        # grades the token as the terminal classification; the refactor
+        # step that follows must defer like any other green make.
+        printf '\n## Cycle: %s (green)\n\n- behavior: %s\n- kind: green\n- criterion: FR-003\n- exit: 0\n- at: 2026-08-30T00:00:00.000Z\n' "$ID" "$ID" >> "$CYCLE"
+        echo "make: behavior=$ID outcome=skipped feature=$FEATURE"
+        exit 1
+        ;;
       ok-no-evidence)
         echo "make: behavior=$ID outcome=green feature=$FEATURE"
         exit 0
+        ;;
+      hand-step-red)
+        # Issue #1568 shape: the planner-declared hand-step seam — the
+        # target test still fails after generation (the honest red the
+        # forecast pre-declared), so the real make exits 1 with
+        # outcome=generation-error and its transcript carries the
+        # still-failing-target-test line.
+        echo 'zfa tdd make: target test still fails after generation (exit 1).'
+        echo "make: behavior=$ID outcome=generation-error feature=$FEATURE"
+        exit 1
+        ;;
+      crash-no-marker)
+        # Issue #1568 guard shape: a REAL generation failure on the same
+        # seam — outcome=generation-error WITHOUT the still-failing
+        # marker, so the driver's generic stop must stand.
+        echo "make: behavior=$ID outcome=generation-error feature=$FEATURE"
+        exit 1
         ;;
       exit0:*)
         echo "make: behavior=$ID outcome=${OUTCOME#exit0:} feature=$FEATURE"
@@ -703,6 +757,31 @@ case "$STEP" in
     case "$OUTCOME" in
       ok) echo "refactor: behavior=$ID outcome=clean feature=$FEATURE"; exit 0 ;;
       exit0:*) echo "refactor: behavior=$ID outcome=${OUTCOME#exit0:} feature=$FEATURE"; exit 0 ;;
+      flood)
+        # Issue #1412: a realistic failing-refactor transcript — the
+        # PASSING preflight block at the head (exactly what the take(3)
+        # excerpt used to print) and the failing-pass block at the tail
+        # (what the operator actually needs). 3 preflight lines + 241
+        # preflight-echo noise lines + the 7-line pass block = 251
+        # captured lines, mirroring the #1329 flood so the recorded
+        # 200-line tail contract (U-1412-4) and the console 10-line tail
+        # (U-1412-1/2) are provable on ONE transcript.
+        echo "zfa tdd refactor: preflight suite"
+        echo '   command: dart test {file} --plain-name "{name}"'
+        echo "   preflight exit: 0"
+        i=1
+        while [ "$i" -le 241 ]; do
+          echo "preflight noise line $i"
+          i=$((i + 1))
+        done
+        echo "zfa tdd refactor: applying passes"
+        echo "   pass: build"
+        echo "     command: $PROJECT/bin/zfa build"
+        echo "     exit: 1"
+        echo "     changed: (none)"
+        echo '   pass "build" failed — misfire-stop.'
+        echo "zfa tdd refactor: final error line"
+        exit 1 ;;
       *) echo "refactor: behavior=$ID outcome=$OUTCOME feature=$FEATURE"; exit 1 ;;
     esac
     ;;
@@ -1090,4 +1169,21 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 0;
     final raw = await file.readAsString();
     return raw.split('\n').where((l) => l.trim().isNotEmpty).toList();
   }
+}
+
+/// A symlink alias of [fx]'s root: passing the ALIAS as `--project`
+/// reproduces the macOS symlinked-root shape (`/var/folders` →
+/// `/private/var/folders`) deterministically on every POSIX platform
+/// (issue #1603). The alias is a DIFFERENT path string than the resolved
+/// root, so a raw-vs-canonical comparison misreads containment exactly
+/// like macOS does. Callers own the alias's lifetime — register
+/// `addTearDown(() => Link(aliasPath).deleteSync())`.
+Future<String> symlinkRootAlias(TddFixture fx) async {
+  final aliasPath = p.join(
+    Directory.systemTemp.path,
+    'tdd_alias_${DateTime.now().microsecondsSinceEpoch}_'
+    '${fx.featureName.replaceAll(RegExp('[^a-zA-Z0-9]'), '')}',
+  );
+  await Link(aliasPath).create(fx.root.path);
+  return aliasPath;
 }

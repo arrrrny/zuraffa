@@ -36,6 +36,7 @@ List<Map<String, dynamic>> v2ToolDefinitions() {
     _xrayTriggerMockTool(),
     _sessionSaveTool(),
     _sessionRestoreTool(),
+    _sessionRecordTool(),
     _dreamDraftSpecTool(),
   ];
 }
@@ -319,6 +320,39 @@ Map<String, dynamic> _sessionRestoreTool() {
   };
 }
 
+Map<String, dynamic> _sessionRecordTool() {
+  return {
+    'name': 'session_record',
+    'description':
+        'Record a tool call into the session\'s persisted call sequence '
+        '(spec 1136, EPIC 5 lane 3): the agent-side recording seam. A '
+        'recorded session is replayable with `zfa mcp replay '
+        '<sessionId>` — deterministic re-execution of the agent\'s '
+        'tool-call sequence against the scaffolded server.',
+    'inputSchema': {
+      'type': 'object',
+      'properties': {
+        'sessionId': {
+          'type': 'string',
+          'description': 'Unique session identifier',
+        },
+        'tool': {'type': 'string', 'description': 'The tool name to record'},
+        'arguments': {
+          'type': 'object',
+          'description': 'The tool arguments to record',
+        },
+        'expect_contains': {
+          'type': 'string',
+          'description':
+              'Optional assertion: the replayed response must contain '
+              'this substring',
+        },
+      },
+      'required': ['sessionId', 'tool'],
+    },
+  };
+}
+
 Map<String, dynamic> _dreamDraftSpecTool() {
   return {
     'name': 'dream_draft_spec',
@@ -563,6 +597,66 @@ Future<Map<String, dynamic>?> handleV2ToolCall({
             'isError': true,
           };
         }
+      }
+      return {
+        'content': [
+          {
+            'type': 'text',
+            'text': jsonEncode({
+              'success': false,
+              'message': 'Session persistence not available',
+            }),
+          },
+        ],
+        'isError': true,
+      };
+
+    case 'session_record':
+      // Spec 1136 lane 3: the agent-side recording seam. Appends the
+      // declared call to the session's persisted call sequence — the
+      // sequence `zfa mcp replay <sessionId>` re-executes.
+      if (sessionStore != null) {
+        final sessionId = args['sessionId'] as String;
+        final tool = args['tool'] as String;
+        if (tool.isEmpty) {
+          return {
+            'content': [
+              {
+                'type': 'text',
+                'text': jsonEncode({
+                  'success': false,
+                  'sessionId': sessionId,
+                  'message': '"tool" must be a non-empty tool name',
+                }),
+              },
+            ],
+            'isError': true,
+          };
+        }
+        await sessionStore.appendCall(
+          sessionId,
+          tool: tool,
+          arguments: args['arguments'] is Map
+              ? Map<String, dynamic>.from(args['arguments'] as Map)
+              : null,
+          expectContains: args['expect_contains'] as String?,
+        );
+        final recorded = (await sessionStore.callsOf(sessionId)).length;
+        return {
+          'content': [
+            {
+              'type': 'text',
+              'text': jsonEncode({
+                'success': true,
+                'sessionId': sessionId,
+                'recorded': recorded,
+                'message':
+                    'Call recorded; replay with '
+                    '`zfa mcp replay $sessionId`',
+              }),
+            },
+          ],
+        };
       }
       return {
         'content': [
