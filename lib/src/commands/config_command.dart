@@ -1,15 +1,22 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../cli/exit_protocol.dart';
 import '../config/zfa_config.dart';
 import '../core/project/project_root.dart';
 
 /// Config command - Manage ZFA configuration
 class ConfigCommand {
   Future<void> execute(List<String> args) async {
+    // SPEC 1132 (EPIC 1 honesty sweep): a bare invocation is a usage
+    // error — the usage block is printed AND the process must exit the
+    // canonical SPEC 917 usage code (2), via `exitCode` (never a hard
+    // `exit()`: the runner embeds dispatch in-process and a hard exit
+    // would kill the host isolate).
     if (args.isEmpty) {
       _printHelp();
-      exit(0);
+      exitCode = ExitProtocol.usage;
+      return;
     }
 
     final command = args[0];
@@ -31,21 +38,56 @@ class ConfigCommand {
         _printHelp();
         break;
       default:
+        // Unknown subcommand = usage error (SPEC 917): the operation
+        // could not run as invoked. Exit class 2 (was the failure 1 of
+        // the pre-sweep shape) and return via exitCode.
         print('❌ Unknown config command: $command\n');
         _printHelp();
-        exit(1);
+        exitCode = ExitProtocol.usage;
     }
   }
 
   Future<void> _handleInit(List<String> args) async {
-    final projectRoot = args.isEmpty ? null : args[0];
-
-    if (projectRoot != null && !Directory(projectRoot).existsSync()) {
-      print('❌ Directory not found: $projectRoot');
-      exit(1);
+    // Issue #1496: `zfa config init [--minimal] [projectRoot]` — the
+    // --minimal flag is positional-agnostic so an optional project root
+    // can still be passed in either order.
+    //
+    // Review fix: the runner feeds this handler raw args
+    // (`ArgParser.allowAnything()` in cli_runner.dart), so `--help` and
+    // misspelled flags arrive here instead of being consumed by the
+    // parser. Handle help first, then reject anything that is not
+    // --minimal/-m — a typo must not silently init the current directory.
+    if (args.contains('--help') || args.contains('-h')) {
+      _printHelp();
+      return;
+    }
+    final unknownOptions = args.where(
+      (arg) => arg.startsWith('-') && arg != '--minimal' && arg != '-m',
+    );
+    if (unknownOptions.isNotEmpty) {
+      print('❌ Unknown init option: ${unknownOptions.first}');
+      print('   Usage: zfa config init [--minimal] [projectRoot]');
+      print(ExitProtocol.fixLine('pass --minimal (or -m), or drop the flag'));
+      exitCode = ExitProtocol.usage;
+      return;
     }
 
-    await ZfaConfig.init(projectRoot: projectRoot);
+    final minimal = args.contains('--minimal') || args.contains('-m');
+    final positional = args
+        .where((arg) => !arg.startsWith('-'))
+        .toList(growable: false);
+    final projectRoot = positional.isEmpty ? null : positional.first;
+
+    if (projectRoot != null && !Directory(projectRoot).existsSync()) {
+      // Invalid invocation target: usage class (SPEC 917), and returned
+      // via exitCode — a hard exit() is embedded-dispatch unsafe
+      // (SPEC 1132).
+      print('❌ Directory not found: $projectRoot');
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+
+    await ZfaConfig.init(projectRoot: projectRoot, minimal: minimal);
   }
 
   Future<void> _handleShow(List<String> args) async {
@@ -64,9 +106,12 @@ class ConfigCommand {
 
   Future<void> _handleSet(List<String> args) async {
     if (args.length < 2) {
+      // Missing required arguments: usage class (SPEC 917 — the
+      // operation could not run as invoked).
       print('❌ Usage: zfa config set <key> <value>');
       print('   Example: zfa config set diByDefault true');
-      exit(1);
+      exitCode = ExitProtocol.usage;
+      return;
     }
 
     final key = args[0];
@@ -75,16 +120,34 @@ class ConfigCommand {
     final existing = ZfaConfig.load(projectRoot: projectRoot);
 
     if (existing == null) {
+      // State precondition (a missing config is not an invocation
+      // error): honest failure 1, returned via exitCode (SPEC 1132).
       print('❌ Configuration file not found.');
       print('   Run "zfa config init" to create one first.');
-      exit(1);
+      exitCode = ExitProtocol.failure;
+      return;
+    }
+
+    // Issue #1596 review: `load` returns a non-null config for an existing but
+    // unparseable `.zfa.json` too, so without this guard the write below would
+    // replace the user's file with defaults built from `_updatedConfig`.
+    final refusal = ZfaConfig.unparseableConfigMessage(
+      projectRoot: projectRoot,
+    );
+    if (refusal != null) {
+      // Corrupt/unparseable state: honest failure 1 via exitCode.
+      print(refusal);
+      exitCode = ExitProtocol.failure;
+      return;
     }
 
     final updated = _updatedConfig(existing, key, value);
     if (updated == null) {
+      // Unknown key = an invalid argument: usage class (SPEC 917).
       print('❌ Unknown configuration key: $key');
       print('   Valid keys: ${_supportedKeys().join(', ')}');
-      exit(1);
+      exitCode = ExitProtocol.usage;
+      return;
     }
 
     await ZfaConfig.save(updated, projectRoot: projectRoot);
@@ -163,6 +226,9 @@ COMMANDS:
   help                Show this help message
 
 OPTIONS:
+  init --minimal, -m  Keep every plugin default off (the pre-#1496
+                      behaviour) — select plugins per command with
+                      --preset=crud or --with=<plugin>
   --help, -h          Show this help message
 
 CONFIGURATION KEYS:
@@ -174,6 +240,7 @@ CONFIGURATION KEYS:
 
 EXAMPLES:
   zfa config init
+  zfa config init --minimal
   zfa config show
   zfa config set diByDefault true
   zfa config set repositoryByDefault true

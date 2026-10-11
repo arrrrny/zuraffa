@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
+import '../../plugins/repository/contract/repository_contract_manifest.dart';
+import '../../simulation/worlds/world_manifest.dart';
 import '../project/receipt_store.dart';
 import '../project/test_receipt.dart';
 
@@ -33,6 +36,16 @@ class ProofFinding {
   static const kindStaleSpec = 'stale_spec';
   static const kindStaleUsecase = 'stale_usecase';
   static const kindUnprovenanced = 'unprovenanced';
+
+  /// Spec 0973 — repository contract manifest findings.
+  static const kindManifestDrift = 'manifest_drift';
+  static const kindManifestCorrupt = 'manifest_corrupt';
+
+  /// Spec 1136 lane 5 — a world-run receipt whose recorded `world_hash`
+  /// no longer matches the committed world manifest (or whose manifest
+  /// is gone): the recorded green is no longer attributable to any
+  /// committed world version.
+  static const kindWorldDrift = 'world_drift';
 
   final String kind;
   final String path;
@@ -68,11 +81,18 @@ class ProofReport {
   final int filesChecked;
   final List<ProofFinding> findings;
 
+  /// Spec 1136 lane 5 — how many receipts of each kind were verified
+  /// (`world`, `spec-fuzz`, `entity`, `make`, `tdd`, `route`,
+  /// `usecase`, ...): the epic's "validates every receipt" surface,
+  /// broken down. Null when no receipts were found.
+  final Map<String, int>? receiptKinds;
+
   const ProofReport({
     required this.ok,
     required this.receipts,
     required this.filesChecked,
     required this.findings,
+    this.receiptKinds,
   });
 
   Map<String, dynamic> toJson() => {
@@ -83,6 +103,7 @@ class ProofReport {
     'valid': ok,
     'receipts': receipts,
     'filesChecked': filesChecked,
+    if (receiptKinds != null) 'kinds': receiptKinds,
     'findings': findings.map((f) => f.toJson()).toList(),
   };
 }
@@ -94,6 +115,17 @@ class ProofChecker {
   /// Files above this line count refuse a full line diff even if a
   /// snapshot somehow exists; the finding degrades to a digest report.
   static const int maxDiffLines = 2000;
+
+  /// Append-only logs (issue #1327): the run driver, prove, refactor and
+  /// the journal append evidence to these AFTER the verb receipts that
+  /// cover them were written — a digest mismatch against those receipts
+  /// is the sanctioned append class, not hand-drift. When the receipt
+  /// carries a snapshot of the log at receipt time and the current disk
+  /// bytes still start with exactly those bytes (nothing before or
+  /// inside the receipted region changed), the check passes. A snapshot
+  /// is required: without the receipted bytes there is nothing to pin
+  /// the prefix against, so legacy snapshot-less receipts still drift.
+  static const Set<String> appendOnlyBasenames = {'cycle-log.md'};
 
   const ProofChecker({required this.projectRoot, this.store});
 
@@ -125,6 +157,15 @@ class ProofChecker {
       final entry = covered.value.entry;
       final file = File(p.join(projectRoot, path));
       if (!file.existsSync()) {
+        // Issue #1429: a receipted REMOVAL is the expected-absence
+        // contract. The tombstone `zfa entity remove` writes records the
+        // deletion intent with `action: 'delete'`, so a missing artifact
+        // whose LATEST receipt entry is a deletion is provenance, not
+        // drift — the `deleted` finding must not fire (it was permanent:
+        // no verb could retire a mis-declared entity's receipt without
+        // hand-editing the store). Recreating the artifact still lands in
+        // the digest check below — a tombstone does not hide new bytes.
+        if (entry.action == 'delete') continue;
         findings.add(
           ProofFinding(
             kind: ProofFinding.kindDeleted,
@@ -137,8 +178,10 @@ class ProofChecker {
         );
         continue;
       }
-      final actual = _digestOf(file);
+      final actualBytes = file.readAsBytesSync();
+      final actual = crypto.sha256.convert(actualBytes).toString();
       if (actual != entry.sha256) {
+        if (_isSanctionedAppend(path, entry, actualBytes)) continue;
         final diff = _diffFor(entry.snapshot, file);
         findings.add(
           ProofFinding(
@@ -190,6 +233,107 @@ class ProofChecker {
           diff: _diffFor(spec.snapshot, specFile),
         ),
       );
+    }
+
+    // 2.5 Repository contract manifests (spec 0973): re-derive every
+    // manifest's method-table hash and re-check its interface/impl
+    // digests. A hand-edited artifact or a tampered method table makes
+    // the contract stale — the same green/red bar as proof receipts.
+    try {
+      final manifestStore = RepositoryContractManifestStore(
+        projectRoot: projectRoot,
+      );
+      for (final manifest in await manifestStore.loadAll()) {
+        final finding = manifestStore.verify(manifest);
+        if (finding == null) continue;
+        findings.add(
+          ProofFinding(
+            kind: finding.kind,
+            path: manifest.interface.path.isNotEmpty
+                ? manifest.interface.path
+                : manifest.entity,
+            receipt: RepositoryContractManifestStore.fileNameFor(
+              manifest.entity,
+            ),
+            detail: finding.detail,
+          ),
+        );
+      }
+    } catch (_) {
+      // Unreadable receipts tree — proof receipts above already handled
+      // what they can; never let manifest auditing crash the check.
+    }
+
+    // 2.6 World-run receipts (spec 1136 lane 5): re-derive every
+    // world-run receipt's recorded `world_hash` from the committed
+    // world manifest it names. A mutated (or missing) manifest means
+    // the recorded green is no longer attributable to any committed
+    // world version — drift detected as receipt mismatch.
+    for (final record in records) {
+      if (!record.fileName.startsWith('world-run-')) continue;
+      final worldHash = record.raw['world_hash'] as String?;
+      final scenario = record.raw['scenario'] as String?;
+      final feature = record.raw['feature'] as String?;
+      if (worldHash == null || scenario == null || feature == null) {
+        continue;
+      }
+      final manifestPath = p.join(
+        'specs',
+        feature,
+        'tdd',
+        'worlds',
+        '$scenario.world.json',
+      );
+      final manifestFile = File(p.join(projectRoot, manifestPath));
+      final String current;
+      if (!manifestFile.existsSync()) {
+        findings.add(
+          ProofFinding(
+            kind: ProofFinding.kindWorldDrift,
+            path: manifestPath,
+            receipt: record.fileName,
+            detail:
+                'world manifest for the recorded green run is gone — '
+                'the run (world hash ${_short(worldHash)}) is no longer '
+                'attributable to any committed world version; restore '
+                'the manifest or re-run `zfa simulate run $scenario '
+                '--feature $feature`',
+          ),
+        );
+        continue;
+      }
+      try {
+        current = WorldManifest.parse(manifestFile.readAsBytesSync()).worldHash;
+      } catch (_) {
+        findings.add(
+          ProofFinding(
+            kind: ProofFinding.kindWorldDrift,
+            path: manifestPath,
+            receipt: record.fileName,
+            detail:
+                'world manifest is unreadable — the recorded green run '
+                '(world hash ${_short(worldHash)}) cannot be '
+                're-derived; repair the manifest or re-run `zfa '
+                'simulate run $scenario --feature $feature`',
+          ),
+        );
+        continue;
+      }
+      if (current != worldHash) {
+        findings.add(
+          ProofFinding(
+            kind: ProofFinding.kindWorldDrift,
+            path: manifestPath,
+            receipt: record.fileName,
+            detail:
+                'world drift: receipt says world-hash ${_short(worldHash)} '
+                'but the committed manifest hashes to ${_short(current)} '
+                '— the green run was recorded against a different world; '
+                're-run `zfa simulate run $scenario --feature $feature` '
+                'against the current world',
+          ),
+        );
+      }
     }
 
     // 3. Unprovenanced artifacts under audited coverage roots.
@@ -293,7 +437,53 @@ class ProofChecker {
       receipts: records.length + testReceipts.length,
       filesChecked: latest.length + testReceiptFiles,
       findings: findings,
+      receiptKinds: records.isEmpty && testReceipts.isEmpty
+          ? null
+          : _receiptKinds(records),
     );
+  }
+
+  /// Spec 1136 lane 5 — the receipt-kind breakdown: how many receipts
+  /// of each kind the check verified. Named receipts classify by their
+  /// stable prefix; timestamped ones by their command verb.
+  static Map<String, int> _receiptKinds(List<ReceiptRecord> records) {
+    final kinds = <String, int>{};
+    for (final record in records) {
+      final name = record.fileName;
+      final command = record.receipt.command;
+      final String kind;
+      if (name.startsWith('world-run-')) {
+        kind = 'world';
+      } else if (name.startsWith('spec-fuzz-')) {
+        kind = 'spec-fuzz';
+      } else if (name.startsWith('routes-')) {
+        kind = 'route';
+      } else if (name.startsWith('mcp-replay-')) {
+        kind = 'mcp-replay';
+      } else if (name.startsWith('mock-')) {
+        kind = 'mock';
+      } else if (name.startsWith('state-')) {
+        kind = 'state';
+      } else if (name.startsWith('provider-')) {
+        kind = 'provider';
+      } else if (name.startsWith('datasource-')) {
+        kind = 'datasource';
+      } else if (name.startsWith('usecase-')) {
+        kind = 'usecase';
+      } else if (command.startsWith('entity')) {
+        kind = 'entity';
+      } else if (command.startsWith('tdd')) {
+        kind = 'tdd';
+      } else if (command.startsWith('make')) {
+        kind = 'make';
+      } else if (command.startsWith('spec')) {
+        kind = 'spec';
+      } else {
+        kind = 'other';
+      }
+      kinds[kind] = (kinds[kind] ?? 0) + 1;
+    }
+    return kinds;
   }
 
   Iterable<ProofFinding> _unprovenancedUnder(
@@ -321,6 +511,27 @@ class ProofChecker {
         detail: 'no receipt covers this file under audit root "$root"',
       );
     }
+  }
+
+  /// Whether the drift on [path] is the sanctioned append class
+  /// (issue #1327): an append-only log whose receipt carries a snapshot
+  /// and whose disk bytes are exactly [snapshotBytes] followed by more
+  /// bytes. Anything that touches the receipted region — an edit, a
+  /// reformat, a truncation, a different leading byte — is still drift.
+  bool _isSanctionedAppend(
+    String path,
+    GenerationReceiptFile entry,
+    List<int> actualBytes,
+  ) {
+    final snapshot = entry.snapshot;
+    if (snapshot == null) return false;
+    if (!appendOnlyBasenames.contains(p.basename(path))) return false;
+    final receiptedBytes = const Utf8Encoder().convert(snapshot);
+    if (actualBytes.length < receiptedBytes.length) return false;
+    for (var i = 0; i < receiptedBytes.length; i++) {
+      if (actualBytes[i] != receiptedBytes[i]) return false;
+    }
+    return true;
   }
 
   String? _diffFor(String? snapshot, File current) {

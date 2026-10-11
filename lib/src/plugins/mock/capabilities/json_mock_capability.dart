@@ -27,11 +27,6 @@ class JsonMockCapability implements ZuraffaCapability {
         'type': 'string',
         'description': 'Domain folder for grouping JSON files',
       },
-      'outputDir': {
-        'type': 'string',
-        'description': 'Output directory for generated files',
-        'default': 'lib/src',
-      },
       'force': {
         'type': 'boolean',
         'description': 'Force overwrite existing JSON files',

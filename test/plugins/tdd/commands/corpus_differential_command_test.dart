@@ -33,6 +33,7 @@ void main() {
   late Directory scratchRoot;
   late TddPlugin plugin;
   final recordedGit = <String>[];
+  final compiledCandidates = <String>[];
 
   /// Builds the command under test with the fake layers wired in.
   ///
@@ -52,6 +53,22 @@ void main() {
     return CorpusDifferentialCommand(
       plugin,
       scratchRoot: scratchRoot,
+      // No-JIT policy: the ref worktree's entrypoint is COMPILED before any
+      // step spawns it (`ZfaExecutable.ensureCompiled`). The fixture's stub
+      // `bin/zfa.dart` is scripted, not real code, so the compile is faked
+      // here: each worktree's artifact is derived from the candidate path,
+      // which keeps the `wt-from` / `wt-to` label the fakes key on. Every
+      // candidate is recorded so the seam's contract — the ref worktree's
+      // entrypoint, and nothing else — is asserted rather than assumed.
+      ensureCompiled:
+          (candidate, {sourceRoot, packagesFile, runner, environment}) async {
+            compiledCandidates.add(candidate);
+            // Strip the FULL `.dart` suffix: `length - 4` would leave the
+            // separator (`.../bin/zfa.`) behind.
+            return candidate.endsWith('/bin/zfa.dart')
+                ? candidate.substring(0, candidate.length - '.dart'.length)
+                : candidate;
+          },
       gitRunner: (args, cwd) async {
         final argv = args.join(' ');
         recordedGit.add(argv);
@@ -86,12 +103,20 @@ void main() {
           }
           return ok('Got dependencies!');
         }
-        final bin = command[1].toString();
+        // No-JIT policy: a zfa step now spawns the compiled worktree
+        // artifact as the executable itself (`command.first`), not
+        // `dart <worktree>/bin/zfa.dart` — the label rides the same
+        // worktree path either way.
+        final bin = command.first.toString();
         final label = bin.contains('wt-from')
             ? 'wt-from'
             : bin.contains('wt-to')
             ? 'wt-to'
-            : 'none';
+            // Every non-pubget spawn is a step against a ref worktree's
+            // compiled artifact. An unrecognized target means the seam's
+            // contract broke, and every label-keyed branch below would be
+            // skipped silently — fail loudly instead of reporting a match.
+            : throw StateError('unexpected zfa spawn target: $bin');
         return stepSpawn(command, cwd, label);
       },
     );
@@ -134,6 +159,7 @@ void main() {
     scratchRoot = Directory(p.join(temp.path, 'scratch-root'))..createSync();
     plugin = TddPlugin();
     recordedGit.clear();
+    compiledCandidates.clear();
   });
 
   tearDown(() {
@@ -249,28 +275,12 @@ void main() {
   });
 
   test(
-    'a hang-vs-complete divergence: exit 1 with the named finding',
+    'the no-JIT compile seam is handed each ref worktree entrypoint',
     () async {
       await writeCorpus();
       final cmd = commandWith(
-        stepSpawn: (command, cwd, label) async {
-          final argv = command.join(' ');
-          if (label == 'wt-from' && argv.contains(' gen U2 ')) {
-            // The #744 class: the second gen never returns on the broken
-            // ref; the budget kills it and the vector records a hang.
-            throw ProcessTimeoutException(
-              executable: 'dart',
-              arguments: const [],
-              timeout: const Duration(seconds: 1),
-              workingDirectory: cwd,
-              output: '',
-            );
-          }
-          if (argv.contains(' gen U2 ')) {
-            return ok('{"behaviorId":"U2","verdict":"created"}\n');
-          }
-          return ok('{"behaviorId":"U1","verdict":"created"}\n');
-        },
+        stepSpawn: (command, cwd, label) async =>
+            ok('{"behaviorId":"U1","verdict":"created"}\n'),
       );
       final runner = CommandRunner('zfa-test', 'test')..addCommand(cmd);
       await runner.run([
@@ -280,9 +290,114 @@ void main() {
         '--project',
         repoRoot.path,
       ]);
-      expect(exitCode, 1);
+      // Pins the contract this command's seam exists for: the runner compiles
+      // the ref worktree's source entrypoint, so the forwarded seam must
+      // receive exactly those two candidates — never null, never the
+      // project's own entrypoint.
+      expect(
+        compiledCandidates,
+        unorderedEquals([
+          p.join(scratchRoot.path, 'wt-from', 'bin', 'zfa.dart'),
+          p.join(scratchRoot.path, 'wt-to', 'bin', 'zfa.dart'),
+        ]),
+      );
     },
   );
+
+  test('a repaired hang (baseline hang → head complete): exit 0, '
+      'reported as an improvement, never a gate failure', () async {
+    await writeCorpus();
+    final cmd = commandWith(
+      stepSpawn: (command, cwd, label) async {
+        final argv = command.join(' ');
+        if (label == 'wt-from' && argv.contains(' gen U2 ')) {
+          // The #744 class: the second gen never returns on the broken
+          // baseline ref; the budget kills it and the vector records a
+          // hang. HEAD completes — the improvement direction.
+          throw ProcessTimeoutException(
+            executable: 'dart',
+            arguments: const [],
+            timeout: const Duration(seconds: 1),
+            workingDirectory: cwd,
+            output: '',
+          );
+        }
+        if (argv.contains(' gen U2 ')) {
+          return ok('{"behaviorId":"U2","verdict":"created"}\n');
+        }
+        return ok('{"behaviorId":"U1","verdict":"created"}\n');
+      },
+    );
+    final runner = CommandRunner('zfa-test', 'test')..addCommand(cmd);
+    await runner.run([
+      'differential',
+      '--from',
+      'origin/master',
+      '--project',
+      repoRoot.path,
+    ]);
+    expect(exitCode, 0);
+  });
+
+  test('a REGRESSED step (baseline complete → head failed): exit 1 with the '
+      'named finding', () async {
+    await writeCorpus();
+    final cmd = commandWith(
+      stepSpawn: (command, cwd, label) async {
+        final argv = command.join(' ');
+        if (label == 'wt-to' && argv.contains(' gen U2 ')) {
+          // The regression direction: the baseline completes the
+          // second gen, HEAD fails it.
+          return fail('', 'generation declined');
+        }
+        if (argv.contains(' gen U2 ')) {
+          return ok('{"behaviorId":"U2","verdict":"created"}\n');
+        }
+        return ok('{"behaviorId":"U1","verdict":"created"}\n');
+      },
+    );
+    final runner = CommandRunner('zfa-test', 'test')..addCommand(cmd);
+    await runner.run([
+      'differential',
+      '--from',
+      'origin/master',
+      '--project',
+      repoRoot.path,
+    ]);
+    expect(exitCode, 1);
+  });
+
+  test('a REGRESSED artifact inventory (baseline artifact lost on head): '
+      'exit 1', () async {
+    await writeCorpus();
+    final cmd = commandWith(
+      stepSpawn: (command, cwd, label) async {
+        final argv = command.join(' ');
+        if (label == 'wt-from' && argv.contains(' gen U1 ')) {
+          // The baseline emits an artifact HEAD no longer emits —
+          // the artifact-removed (regression) direction.
+          Directory(p.join(cwd, 'lib', 'tdd')).createSync(recursive: true);
+          File(
+            p.join(cwd, 'lib', 'tdd', 'legacy_extra.dart'),
+          ).writeAsStringSync('void m(){}');
+          return ok('{"behaviorId":"U1","verdict":"created"}\n');
+        }
+        if (argv.contains(' gen U2 ')) {
+          return ok('{"behaviorId":"U2","verdict":"created"}\n');
+        }
+        return ok('{"behaviorId":"U1","verdict":"created"}\n');
+      },
+    );
+    final runner = CommandRunner('zfa-test', 'test')..addCommand(cmd);
+    await runner.run([
+      'differential',
+      '--from',
+      'origin/master',
+      '--project',
+      repoRoot.path,
+    ]);
+    expect(exitCode, 1);
+  });
 
   test('an artifact-inventory divergence is a differ verdict', () async {
     await writeCorpus();

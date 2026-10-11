@@ -1,0 +1,25 @@
+{
+  "feature": "1444-setup-zuraffa-app",
+  "behavior_states": {
+    "A2": "pending",
+    "A5": "pending",
+    "A7": "pending",
+    "A1": "pending",
+    "A3": "pending",
+    "A4": "pending",
+    "A6": "pending",
+    "U1": "pending",
+    "U2": "pending",
+    "U3": "pending",
+    "U4": "pending",
+    "U5": "pending",
+    "U6": "pending",
+    "U7": "pending",
+    "U8": "pending",
+    "U9": "pending",
+    "U10": "pending",
+    "contract:A1": "pending",
+    "contract:A2": "pending"
+  },
+  "dropped": []
+}

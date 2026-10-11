@@ -57,7 +57,7 @@ void main() {
     test('the stub compiles with only the material import', () {
       final content = const SubjectWriter().render(behavior);
       expect(content, contains("import 'package:flutter/material.dart';"));
-      expect(content, isNot(contains('shadcn_ui')));
+      expect(content, isNot(contains('zuraffa_ui')));
     });
 
     test('the stub header keeps behavior traceability', () {

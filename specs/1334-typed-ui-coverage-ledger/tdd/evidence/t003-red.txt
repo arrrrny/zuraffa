@@ -1,0 +1,124 @@
+00:00 +0: loading test/tdd/1334-typed-ui-coverage-ledger/t003_per_screen_gate_test.dart
+00:00 +0 -1: loading test/tdd/1334-typed-ui-coverage-ledger/t003_per_screen_gate_test.dart [E]
+  Failed to load "test/tdd/1334-typed-ui-coverage-ledger/t003_per_screen_gate_test.dart":
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:20:11: Error: No named parameter with the name 'screen'.
+            screen: '/login',
+            ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:32:9: Error: No named parameter with the name 'screen'.
+          screen: '/login',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:38:9: Error: No named parameter with the name 'screen'.
+          screen: '/login',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:45:9: Error: No named parameter with the name 'screen'.
+          screen: '/login',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:51:9: Error: No named parameter with the name 'screen'.
+          screen: '/login',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:58:9: Error: No named parameter with the name 'screen'.
+          screen: '/login',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:71:9: Error: No named parameter with the name 'screen'.
+          screen: '/deal_list',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:77:9: Error: No named parameter with the name 'screen'.
+          screen: '/deal_list',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:84:9: Error: No named parameter with the name 'screen'.
+          screen: '/deal_list',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:91:9: Error: No named parameter with the name 'screen'.
+          screen: '/deal_list',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:97:9: Error: No named parameter with the name 'screen'.
+          screen: '/deal_list',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:106:43: Error: Member not found: 'TypedCoverageGate.evaluateScreens'.
+    final gamingVerdict = TypedCoverageGate.evaluateScreens(
+                                            ^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:139:43: Error: Member not found: 'TypedCoverageGate.evaluateScreens'.
+    final honestVerdict = TypedCoverageGate.evaluateScreens(
+                                            ^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:149:42: Error: Member not found: 'TypedCoverageGate.evaluateScreens'.
+    final mixedVerdict = TypedCoverageGate.evaluateScreens(
+                                           ^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:163:9: Error: No named parameter with the name 'screen'.
+          screen: '/login',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:169:9: Error: No named parameter with the name 'screen'.
+          screen: '/login', // NO prover — a row gap
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:174:9: Error: No named parameter with the name 'screen'.
+          screen: '/login',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:181:9: Error: No named parameter with the name 'screen'.
+          screen: '/login',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:187:9: Error: No named parameter with the name 'screen'.
+          screen: '/login',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:194:9: Error: No named parameter with the name 'screen'.
+          screen: '/login',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:201:43: Error: Member not found: 'TypedCoverageGate.evaluateScreens'.
+    final rowGapVerdict = TypedCoverageGate.evaluateScreens(
+                                            ^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t3_subject.dart:212:5: Error: Undefined name 'ScreenTraceStatus'.
+      ScreenTraceStatus.partiallyTraced,
+      ^^^^^^^^^^^^^^^^^
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/tdd/1334-typed-ui-coverage-ledger/t003_per_screen_gate_test.dart: loading test/tdd/1334-typed-ui-coverage-ledger/t003_per_screen_gate_test.dart

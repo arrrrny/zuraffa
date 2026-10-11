@@ -84,7 +84,7 @@ void main() {
       expect(plugin.runAfter, contains('gql'));
       expect(plugin.runAfter, contains('cache'));
       expect(plugin.runAfter, contains('route'));
-      expect(plugin.runAfter, contains('shadcn'));
+      expect(plugin.runAfter, contains('skin'));
       expect(plugin.runAfter, contains('test'));
     });
   });

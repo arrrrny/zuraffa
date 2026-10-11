@@ -1,0 +1,38 @@
+{
+  "family": "rest",
+  "fixtures": {
+    "GET /v1/quote/USD-TRY": {
+      "status": 200,
+      "body": {
+        "symbol": "USD-TRY",
+        "price": 41.2,
+        "change": -0.15
+      }
+    },
+    "GET /v1/search?q=kayak": {
+      "status": 200,
+      "body": {
+        "results": [
+          {
+            "title": "Kayak 1",
+            "price": 2499.0
+          },
+          {
+            "title": "Kayak 2",
+            "price": 3199.0
+          }
+        ]
+      }
+    },
+    "POST /v1/lists": {
+      "status": 201,
+      "body": {
+        "id": "list-1"
+      }
+    }
+  },
+  "scriptedFaults": {
+    "GET /v1/unstable": 500
+  },
+  "latencyMs": 0
+}

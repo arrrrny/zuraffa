@@ -1,0 +1,9 @@
+00:00 +0: loading /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a4_test.dart
+00:00 +0: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a4_test.dart: A4 (AC-4) A4 — the app navigates to the route 'deal_list'
+00:01 +1: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a3_test.dart: A3 (AC-3) A3 — the app shows 'Sign in'
+00:02 +2: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a7_test.dart: A7 (AC-7) A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'
+00:02 +3: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a7_test.dart: A7 (AC-7) A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'
+00:02 +4: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a5_test.dart: A5 (AC-5) A5 — the 'Sign in failed' banner is not shown
+00:02 +5: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a5_test.dart: A5 (AC-5) A5 — the 'Sign in failed' banner is not shown
+00:02 +6: /home/z/my-project/zuraffa/example/test/tdd/004-login-ui/a6_test.dart: A6 (AC-6) A6 — the 'Sign in' button is disabled
+00:03 +7: All tests passed!

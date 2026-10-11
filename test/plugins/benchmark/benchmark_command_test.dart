@@ -12,6 +12,8 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
+import 'package:zuraffa/src/core/verdict_envelope.dart';
 import 'package:zuraffa/src/plugins/benchmark/benchmark_plugin.dart';
 import 'package:zuraffa/src/plugins/benchmark/cli/benchmark_command.dart';
 
@@ -67,7 +69,7 @@ void main() {
       expect(output, contains('beta-benchmark'));
       expect(output, contains('1.0.0'));
       expect(output, contains('db'));
-      expect(command.exitCode, 0);
+      expect(exitCode, 0);
     });
 
     test('run reports and exits', () async {
@@ -89,7 +91,7 @@ void main() {
       expect(output.toLowerCase(), contains('error'));
 
       // Exit code reflects the overall status (non-zero on failure).
-      expect(command.exitCode, isNonZero);
+      expect(exitCode, isNonZero);
     });
 
     test('scenario filter', () async {
@@ -108,7 +110,7 @@ void main() {
 
       expect(output, contains('chosen-benchmark'));
       expect(output, isNot(contains('skipped-benchmark')));
-      expect(command.exitCode, 0);
+      expect(exitCode, 0);
     });
 
     test('dry run validates only', () async {
@@ -131,7 +133,7 @@ void main() {
       expect(output.toLowerCase(), contains('valid'));
       // Nothing executed.
       expect(scenario.calls, isEmpty);
-      expect(command.exitCode, 0);
+      expect(exitCode, 0);
     });
 
     test('baseline subcommands', () async {
@@ -214,8 +216,17 @@ void main() {
         () => runner.run(['benchmark', 'list', '--json']),
       );
 
+      // SPEC 1132 / EPIC 1 lane 2: `--json` emits the canonical
+      // verdict.v1 envelope — the scenario registry rides in
+      // details.scenarios (the old bare {"scenarios":[...]} shape was
+      // the #1105 backlog divergence this sweep migrated).
       final decoded = jsonDecode(output) as Map<String, dynamic>;
-      final scenarios = decoded['scenarios'] as List<dynamic>;
+      expect(decoded['schema'], VerdictEnvelope.canonicalSchema);
+      expect(decoded['verdict'], 'pass');
+      expect(decoded['exit_class'], 0);
+      final scenarios =
+          (decoded['details'] as Map<String, dynamic>)['scenarios']
+              as List<dynamic>;
       expect(scenarios, hasLength(1));
       expect(scenarios.first['id'], 'json-benchmark');
     });
@@ -230,13 +241,15 @@ void main() {
           await runner.run(['benchmark', 'teleport']);
         } on UsageException catch (e) {
           // The args package surfaces unknown subcommands as usage errors.
+          // SPEC 917: the runner publishes the canonical usage code (2);
+          // mirror it here the way CliRunner._runDispatched does.
           print(e.message);
-          command.exitCode = 64;
+          exitCode = ExitProtocol.usage;
         }
       });
 
       expect(output.toLowerCase(), contains('usage'));
-      expect(command.exitCode, isNonZero);
+      expect(exitCode, ExitProtocol.usage);
     });
 
     test('run honours --timeout (CLI flag wired to runner)', () async {
@@ -261,7 +274,7 @@ void main() {
       // The per-scenario timeout (review finding: --timeout was parsed but
       // never applied) now fails the scenario instead of hanging.
       expect(output.toLowerCase(), contains('timed out'));
-      expect(command.exitCode, isNonZero);
+      expect(exitCode, isNonZero);
     });
 
     test(
@@ -285,7 +298,7 @@ void main() {
         // FR-007 isolation is now reachable from the CLI (review finding:
         // the isolate runner was previously dead code at the CLI surface).
         expect(output, contains('isolated-benchmark'));
-        expect(command.exitCode, 0);
+        expect(exitCode, 0);
       },
     );
 
@@ -323,7 +336,7 @@ void main() {
       // Review finding: a current run that errored must not be reported as
       // "no change" with exit 0.
       expect(output.toLowerCase(), contains('did not pass'));
-      expect(command.exitCode, isNonZero);
+      expect(exitCode, isNonZero);
     });
   });
 }

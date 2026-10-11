@@ -5,6 +5,8 @@ import 'package:args/command_runner.dart';
 
 import '../graphql/cache/schema_cache.dart';
 import '../graphql/introspection/introspection_client.dart';
+import '../cli/exit_protocol.dart';
+import '../plugins/plugin_gate/plugin_gate.dart';
 
 /// `zfa graphql pull` — fetch a GraphQL schema via introspection and cache
 /// it locally (spec 037 FR-001).
@@ -44,6 +46,15 @@ class PullCommand extends Command<void> {
 
   @override
   Future<void> run() async {
+    // Spec 1653 (issue #1661): the graphql capability is opt-in. Leaf
+    // subcommands dispatch without passing through GraphqlCommand.run(),
+    // so the gate is enforced here too (review finding on #1678).
+    final gateRefusal = PluginGate.refusalFor('graphql');
+    if (gateRefusal != null) {
+      print('❌ $gateRefusal');
+      exitCode = ExitProtocol.usage;
+      return;
+    }
     final endpointArg = argResults?['endpoint'] as String?;
     if (endpointArg == null || endpointArg.isEmpty) {
       print(
@@ -51,14 +62,14 @@ class PullCommand extends Command<void> {
         'Usage: zfa graphql pull --endpoint=<url> [--name=<name>]',
       );
       print(usage);
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
     final endpoint = Uri.tryParse(endpointArg);
     if (endpoint == null || !endpoint.hasScheme || !endpoint.hasAuthority) {
       print('❌ Error: invalid endpoint URL: $endpointArg');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -73,7 +84,7 @@ class PullCommand extends Command<void> {
           '❌ Error: --headers must be a valid JSON object. '
           'Got: $headersArg',
         );
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }

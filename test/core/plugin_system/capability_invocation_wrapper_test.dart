@@ -278,6 +278,26 @@ void main() {
       expect(receipt.capability, 'enable');
       expect(receipt.plugin, 'sync');
     });
+
+    test(
+      'resolved entity stays canonical when args also contain entity',
+      () async {
+        final wrapper = CapabilityInvocationWrapper(
+          capability: writingCapability(),
+          pluginId: 'di',
+          projectRoot: workspace.path,
+        );
+
+        await wrapper.execute({'name': 'Product', 'entity': 'PublicAlias'});
+
+        final receipt = (await ReceiptStore(
+          projectRoot: workspace.path,
+        ).loadAll()).single.receipt;
+        expect(receipt.target, 'Product');
+        expect(receipt.entity, 'Product');
+        expect(receipt.input['entity'], 'Product');
+      },
+    );
   });
 
   group('mutation hardening — exact contracts the audit must not lose', () {

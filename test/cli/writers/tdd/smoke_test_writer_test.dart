@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/writers/tdd/app_module_writer.dart';
 import 'package:zuraffa/src/cli/writers/tdd/smoke_test_writer.dart';
+import 'package:zuraffa/src/plugins/app_shell/builders/app_shell_builder.dart';
 
 void main() {
   late Directory tmpDir;
@@ -120,5 +121,60 @@ void main() {
       expect(result, isNull, reason: 'skip-if-exists sentinel preserved');
       expect(file.readAsStringSync(), '// Custom user test\n');
     });
+  });
+
+  // Issue #1673: `zfa tdd init` writes this smoke test but never creates the
+  // app shell, so the shell-pumping half (the `lib/src/app/<stem>.dart`
+  // import plus the routing group) must be gated on the shell actually being
+  // on disk — otherwise the day-zero baseline is compile-red and the #664
+  // contract breaks.
+  group('issue #1673 — shell-pumping half is gated', () {
+    test(
+      'probeShell omits the routing group when no shell is on disk',
+      () async {
+        const writer = SmokeTestWriter();
+        final path = await writer.write(tmpDir.path, 'myapp', probeShell: true);
+        expect(path, isNotNull);
+        final content = File(
+          p.join(tmpDir.path, 'test/bootstrap_smoke_test.dart'),
+        ).readAsStringSync();
+        expect(content, isNot(contains('src/app/')));
+        expect(content, isNot(contains('testWidgets')));
+        // The half that does not depend on the shell stays.
+        expect(content, contains('final container = MyappContainer();'));
+      },
+    );
+
+    test(
+      'probeShell emits the routing group once the shell is on disk',
+      () async {
+        final stem = AppShellNaming.fromAppName('myapp').stem;
+        final shell = File(p.join(tmpDir.path, 'lib/src/app/$stem.dart'));
+        shell.createSync(recursive: true);
+        shell.writeAsStringSync('// shell\n');
+        const writer = SmokeTestWriter();
+        await writer.write(tmpDir.path, 'myapp', probeShell: true);
+        final content = File(
+          p.join(tmpDir.path, 'test/bootstrap_smoke_test.dart'),
+        ).readAsStringSync();
+        expect(content, contains("import 'package:myapp/src/app/$stem.dart';"));
+        expect(content, contains('testWidgets'));
+      },
+    );
+
+    test(
+      'the emitted Flutter smoke test carries no unused material import',
+      () {
+        // Nothing in the template references a material.dart symbol the
+        // flutter_test / app imports do not already provide, so the import
+        // was an unused_import warning on every generated project.
+        final rendered = const SmokeTestWriter().render('myapp');
+        expect(
+          rendered,
+          contains("import 'package:flutter_test/flutter_test.dart';"),
+        );
+        expect(rendered, isNot(contains('package:flutter/material.dart')));
+      },
+    );
   });
 }

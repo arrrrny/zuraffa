@@ -21,7 +21,12 @@
           "speckit.spec-stats.runs"
         ]
       },
-      "registered_skills": [],
+      "registered_skills": [
+        "speckit-spec-stats-report",
+        "speckit-spec-stats-open",
+        "speckit-spec-stats-not-green",
+        "speckit-spec-stats-runs"
+      ],
       "installed_at": "2026-08-28T18:30:26.932682+00:00"
     },
     "bug": {
@@ -48,7 +53,14 @@
           "speckit.bug.test"
         ]
       },
-      "registered_skills": [],
+      "registered_skills": [
+        "speckit-bug-assess",
+        "speckit-bug-issue",
+        "speckit-bug-fetch",
+        "speckit-bug-fix",
+        "speckit-bug-pr",
+        "speckit-bug-test"
+      ],
       "installed_at": "2026-09-03T08:59:26.006548+00:00"
     },
     "git": {
@@ -73,7 +85,13 @@
           "speckit.git.commit"
         ]
       },
-      "registered_skills": [],
+      "registered_skills": [
+        "speckit-git-feature",
+        "speckit-git-validate",
+        "speckit-git-remote",
+        "speckit-git-initialize",
+        "speckit-git-commit"
+      ],
       "installed_at": "2026-09-03T08:59:26.464351+00:00"
     },
     "gh-triage": {
@@ -92,7 +110,10 @@
           "speckit.gh-triage.feature"
         ]
       },
-      "registered_skills": [],
+      "registered_skills": [
+        "speckit-gh-triage-triage",
+        "speckit-gh-triage-feature"
+      ],
       "installed_at": "2026-09-03T08:59:26.915769+00:00"
     },
     "gym": {
@@ -117,7 +138,13 @@
           "speckit.gym.drop"
         ]
       },
-      "registered_skills": [],
+      "registered_skills": [
+        "speckit-gym-init",
+        "speckit-gym-run",
+        "speckit-gym-warmup",
+        "speckit-gym-gate",
+        "speckit-gym-drop"
+      ],
       "installed_at": "2026-09-03T08:59:27.376786+00:00"
     },
     "tdd": {
@@ -140,7 +167,12 @@
           "speckit.tdd.verify"
         ]
       },
-      "registered_skills": [],
+      "registered_skills": [
+        "speckit-tdd-setup",
+        "speckit-tdd-plan",
+        "speckit-tdd-run",
+        "speckit-tdd-verify"
+      ],
       "installed_at": "2026-09-03T08:59:27.819861+00:00"
     },
     "chore": {
@@ -165,7 +197,13 @@
           "speckit.chore.pr"
         ]
       },
-      "registered_skills": [],
+      "registered_skills": [
+        "speckit-chore-assess",
+        "speckit-chore-issue",
+        "speckit-chore-fetch",
+        "speckit-chore-implement",
+        "speckit-chore-pr"
+      ],
       "installed_at": "2026-09-03T08:59:28.263840+00:00"
     }
   }

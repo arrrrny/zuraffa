@@ -26,13 +26,16 @@ import 'package:path/path.dart' as p;
 import '../models/behavior.dart';
 import 'finder_taxonomy.dart';
 import 'i18n_key_contract.dart';
+import 'scenario_example.dart';
+import 'unit_contract_shape.dart';
+import 'vacuous_guard.dart';
 import 'widget_scaffold.dart';
 
 /// Writes a Dart test file that pairs with the subject for a behavior.
 class BehaviorTestWriter {
   /// The app shell the generated WIDGET test pumps the feature view in
-  /// (issue #912 defect 2): default [WidgetAppShell.shadapp] — zuraffa
-  /// apps are shadcn_ui apps — overridable per project.
+  /// (issue #912 defect 2): default [WidgetAppShell.zuraffaapp] — zuraffa
+  /// apps are zuraffa_ui apps — overridable per project.
   ///
   /// Issue #965: [i18nKeys] carries the feature's declared i18n surfaces;
   /// a scenario literal equal to a declared anchor asserts through the
@@ -42,10 +45,15 @@ class BehaviorTestWriter {
   /// pubspec (relative fallback) — emitted only when a keyed surface is
   /// emitted. An empty table keeps the pre-#965 template byte-for-byte.
   const BehaviorTestWriter({
-    this.widgetShell = WidgetAppShell.shadapp,
+    this.widgetShell = WidgetAppShell.zuraffaapp,
     this.i18nKeys = I18nKeyTable.empty,
     this.i18nImport,
     this.i18nExpansion = const [],
+    this.contractShape,
+    this.scenarioExample,
+    this.flutterTest = false,
+    this.projectRoot,
+    this.featureDir,
   });
 
   final WidgetAppShell widgetShell;
@@ -61,6 +69,68 @@ class BehaviorTestWriter {
   /// `testWidgets` per locale re-pumps the view and re-asserts every
   /// keyed presence surface through its resolved key. Empty = no tier.
   final List<String> i18nExpansion;
+
+  /// The contract-derived subject shape (issue #1259): when the spec
+  /// declares the behavior's Layer Contract, the test asserts the
+  /// DECLARED outcome surface — a typed `isA<T>()` for scalar declared
+  /// returns, or (for entity returns whose type cannot exist yet) the
+  /// guard carrying the vacuous-guard marker so `make` refuses green
+  /// until a real outcome assertion lands.
+  ///
+  /// Issue #1512 (review): the UNIT lane only. The acceptance lane's
+  /// captured subject is a PARAMETERLESS `void <target>()` scenario
+  /// runner ([SubjectWriter] gen stub, preserved by `tdd wire` / `tdd
+  /// compose`), and `gen_command.dart` never resolves a shape for an
+  /// acceptance row — so an acceptance behavior IGNORES this shape rather
+  /// than emitting a pair production never builds. The acceptance row's
+  /// declared outcome is asserted through the composition lane the planner
+  /// routes to (`generation_planner.dart` branch 3b).
+  final UnitContractShape? contractShape;
+
+  /// The acceptance scenario's concrete example values (issue #1651):
+  /// when the spec's scenarios carry the declared contract's example
+  /// (`Given 2 and 3 ... Then the sum 5`), the paired UNIT test calls
+  /// the subject with the scenario's arguments and asserts the
+  /// scenario's concrete outcome (`expect(result, equals(5))`) instead
+  /// of the type-only `isA<T>()` check the scaffold representative
+  /// arguments satisfy — the assertion DISCRIMINATES, so a
+  /// `return 0;` dummy fails the test. Null (no matching scenario)
+  /// keeps the legacy declared shape byte-for-byte. UNIT-lane only:
+  /// the acceptance lane ignores it (its void-safe capture is
+  /// argument-free by design, issue #1512).
+  final ScenarioExample? scenarioExample;
+
+  /// Whether the host project runs on the Flutter test runner
+  /// (`flutter_test`) instead of plain `dart test` (issue #1349/#1351
+  /// family): on Flutter projects the plain `test` package is not
+  /// resolvable, so the unit/acceptance/ffi/persistence templates import
+  /// `package:flutter_test/flutter_test.dart` (which re-exports the same
+  /// group/test/expect API). Defaults to `false` — pure-Dart output is
+  /// byte-stable.
+  final bool flutterTest;
+
+  /// Issue #1518: the seam context the gen-time guard-only warning
+  /// resolves the hand-delta seam from — the project root the warning's
+  /// paths are relativized against, and the feature dir the lane-plan/
+  /// test-list shape check reads from disk. Gen provides both (it has the
+  /// resolved feature dir — it may be a `.specify/bugs/<slug>` dir, issue
+  /// #1471, so the writer cannot derive it from `behavior.feature`).
+  /// Nullable for the direct-library callers (the old `const
+  /// BehaviorTestWriter()` keeps compiling): with no context the warning
+  /// prescribes the conservative legacy single-file branch — the feature-
+  /// derived canonical `specs/<feature>/tdd/test-list.md` path. BOTH
+  /// fields must be set for the disk resolution; either one missing falls
+  /// back to the conservative branch.
+  final String? projectRoot;
+
+  /// Issue #1518: the feature dir of the behavior being written (see
+  /// [projectRoot]). Nullable — see [projectRoot].
+  final String? featureDir;
+
+  /// The test-framework import the non-widget templates emit.
+  String get _testImport => flutterTest
+      ? "package:flutter_test/flutter_test.dart"
+      : "package:test/test.dart";
 
   /// Escapes [raw] for safe interpolation into a single-quoted Dart
   /// string literal (issue #912 defect 1): backslash, the single quote
@@ -142,6 +212,75 @@ class BehaviorTestWriter {
         ? _renderWidgetTest(behavior, relativeSubjectPath, golden)
         : _renderTest(behavior, relativeSubjectPath);
     await testFile.writeAsString(content);
+    // Issue #1308: the gen-time guard-only warning. When THIS writer emits
+    // a guard-only UNIT test for a FALLBACK-ROUTED behavior (no traced
+    // contract row — `contractShape == null` — and the prose heuristics
+    // did not match), the paired test's only assertion is the bare
+    // UnimplementedError guard and `make`'s issue #1259 vacuous-green
+    // guard will refuse it: the two-cycle driver dead-ends one step later
+    // with no actionable guidance unless gen names the gap NOW. The
+    // warning is loud (machine-greppable [vacuousGuardWarningToken] + the
+    // shared branched remedy), names the behavior and the gap, and does
+    // NOT fail the step: the test is still emitted, exactly as before (the
+    // generated shape is unchanged — FR-002/#1308). The traced entity/void
+    // path (marker present) stays silent here — its warning is the marker
+    // itself, surfaced by the run driver as the designed hand-delta seam.
+    // Issue #1518: the remedy line is BRANCHED by feature shape — the
+    // seam is resolved from disk exactly like the run-side
+    // `_vacuousFallbackRemedy` (#1502), through the same
+    // [vacuousGuardFallbackRemedyFor] wording: the pre-#1518 warning
+    // hardcoded the pre-#1483 bare-`04-ENGINE.md` advice, so a legacy
+    // single-file feature's transcript carried the WRONG remedy first
+    // (gen warning → nonexistent lane plan) and the RIGHT remedy second
+    // (the stop → the test-list traces cell).
+    if (behavior.kind == BehaviorKind.unit &&
+        contractShape == null &&
+        contentIsVacuousGreen(content) &&
+        !contentCarriesVacuousGuardMarker(content)) {
+      print(
+        'zfa tdd gen: WARNING [$vacuousGuardWarningToken] behavior '
+        '"${behavior.id}" — the generated unit test\'s only assertion is '
+        'the bare UnimplementedError guard: no `traces:` line to a '
+        'declared contract row derives a real outcome assertion, and the '
+        'prose heuristics did not match. `make` will refuse this test '
+        'vacuous-green (issue #1259) and the run will stop here '
+        '(issue #1308).',
+      );
+      print('   --> fix: ${_guardOnlyRemedy(behavior)}');
+    }
+  }
+
+  /// Issue #1518: the gen-time guard-only warning's remedy, BRANCHED by
+  /// feature shape — resolved from disk exactly like the run-side
+  /// `_vacuousFallbackRemedy` (issue #1502), through the ONE shared
+  /// [lanePlanSeamPath] resolver so the rule that picks the seam cannot
+  /// drift between the two sides again (the engine plan when it exists,
+  /// else the skin plan, else the test list — the lane plan pair on disk
+  /// is the hand-delta seam; its absence is the legacy single-file shape
+  /// and the seam is the test list itself). Paths are printed relative to
+  /// [projectRoot] — the full path of the file to edit.
+  ///
+  /// Without the seam context (either field null — direct library use,
+  /// e.g. the writer test suites), the conservative legacy single-file
+  /// branch is prescribed: the feature-derived canonical
+  /// `specs/<feature>/tdd/test-list.md`. Messaging only — the warning's
+  /// fire conditions and the generated test shape are unchanged.
+  String _guardOnlyRemedy(Behavior behavior) {
+    final root = projectRoot;
+    final dir = featureDir;
+    if (root != null && dir != null) {
+      return vacuousGuardFallbackRemedyFor(
+        lanePlanPath: lanePlanSeamPath(projectRoot: root, featureDir: dir),
+        testListPath: p.relative(
+          p.join(dir, 'tdd', 'test-list.md'),
+          from: root,
+        ),
+      );
+    }
+    return vacuousGuardFallbackRemedyFor(
+      lanePlanPath: null,
+      testListPath: p.join('specs', behavior.feature, 'tdd', 'test-list.md'),
+    );
   }
 
   String _renderTest(Behavior b, String relativeSubjectPath) {
@@ -151,6 +290,18 @@ class BehaviorTestWriter {
       '${b.id} (${b.sourceCriterion})',
     );
     final assertion = _deriveAssertion(b);
+    // SPEC 1489 + issue #1691: the paired test imports EVERY existing
+    // entity the declared signature references. The return entity because
+    // the assertion references the declared type (the entity-return
+    // scalarOutcome path — `isA<Task>()` cannot compile against an
+    // unimported type); the param entities because SPEC 1489 LIFTED the
+    // declared param types — the `_argN()` placeholder helper renders the
+    // lifted type (`LoginParams _arg0()`, the spec 991 seam), which is
+    // exactly when the entity exists on disk and enters `entityImports`.
+    // No unused imports by construction (issue #1691): every entry is a
+    // type the emitted test references. Empty for every legacy shape —
+    // the template stays byte-identical.
+    final entityImportLines = _testEntityImportLines();
     return '''
 // GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
 //
@@ -167,8 +318,8 @@ class BehaviorTestWriter {
 // stub body with real implementation to make this test pass.
 library;
 
-import 'package:test/test.dart';
-import '$relativeSubjectPath' as subject;
+import '$_testImport';
+${entityImportLines}import '$relativeSubjectPath' as subject;
 
 void main() {
   group('$escapedGroupDescription', () {
@@ -180,18 +331,61 @@ void main() {
 ''';
   }
 
+  /// The entity-import lines the paired unit test emits (SPEC 1489, as
+  /// widened by issue #1691): the FULL `shape.entityImports` set — param
+  /// entities (declaration order) first, then the return entity —
+  /// deduplicated by the shape derivation, a superset of
+  /// `returnEntityImports`.
+  ///
+  /// Issue #1691: the pre-1489 rationale excluded param entities (the
+  /// `Object? _arg0()` degradation needs no import). SPEC 1489 lifted the
+  /// declared param types when the entity exists on disk — the `_argN()`
+  /// placeholder helper then renders the lifted type
+  /// (`LoginParams _arg0()` at the capture site) and the import is
+  /// REQUIRED and guaranteed USED: `entityImports` only contains
+  /// entities that exist on disk — the exact lift condition — and a
+  /// lifted entity param always takes the helper seam (no scalar literal,
+  /// no scenario claim covers an entity type), while a lifted entity
+  /// return always feeds the `isA<T>()` assertion. Unused-import risk is
+  /// nil by construction; the SUBJECT writer already emits the full set
+  /// (SC-2) — the test writer was not extended the same way.
+  ///
+  /// The block is terminated by a blank separator line so it stays
+  /// visually distinct from the subject import (same idiom as the stub's
+  /// `importBlock` in subject_writer.dart). Empty for scalar-only shapes,
+  /// for missing entities (the guard path), and for every legacy shape —
+  /// the template stays byte-identical.
+  String _testEntityImportLines() {
+    final shape = contractShape;
+    if (shape == null) return '';
+    if (shape.entityImports.isEmpty) return '';
+    return "${shape.entityImports.map((uri) => "import '$uri';").join('\n')}\n\n";
+  }
+
   /// Derive the test's assertion from the behavior description. The
   /// assertion must NOT be a placeholder `expect(true, isFalse)` — it must
   /// assert the observable behavior (FR-010).
   ///
-  /// Heuristic: if the description contains a number (`returns 42`),
-  /// assert `subject.<target>() == <number>`. Otherwise, assert that the
-  /// paired stub is no longer unimplemented. In both cases an
-  /// `UnimplementedError` is captured as the assertion's actual value, so
-  /// the generated test is deliberately red without leaking the error.
+  /// Issue #1259 ordering: a DECLARED Layer Contract derives the
+  /// assertion surface FIRST — the spec's declared outcome outranks the
+  /// prose heuristics (the #920 "declaration outranks inference"
+  /// ordering, now applied to the test half too). The heuristics below
+  /// serve undeclared behaviors only.
+  ///
+  /// Issue #1512 (review): the declared shape is a UNIT-lane surface. An
+  /// acceptance behavior never consumes it — its captured subject is a
+  /// parameterless `void` scenario runner that returns nothing, so a
+  /// declared `isA<T>()` outcome assertion would sit on a value the pair
+  /// can never produce. Acceptance rows take the heuristics + the
+  /// fallback guard below, and their declared outcome is asserted through
+  /// the composition lane (`tdd compose`).
   String _deriveAssertion(Behavior b) {
     final target = b.target.isEmpty ? 'subjectUnderTest' : b.target;
     final description = b.description;
+    final shape = contractShape;
+    if (shape != null && b.kind != BehaviorKind.acceptance) {
+      return _declaredAssertion(b, target, shape);
+    }
     // Look for "returns N" or "= N".
     // On first run, capture the stub's UnimplementedError as the actual
     // result so the value comparison produces an assertion failure.
@@ -201,7 +395,7 @@ void main() {
     ).firstMatch(description);
     if (returnsMatch != null) {
       final expected = returnsMatch.group(1);
-      return '${_captureInvocation(b, target)}\n'
+      return '${_captureInvocation(b, target, null)}\n'
           '      expect(result, equals($expected));';
     }
     // Look for "throws <ExceptionName>" — only known Dart built-in types
@@ -234,27 +428,284 @@ void main() {
       // Unknown exception types and UnimplementedError fall through to the
       // generic assertion to avoid either an unimported type or a green stub.
     }
-    return '${_captureInvocation(b, target)}\n'
+    // Issue #1512: the UNDECLARED acceptance fallback's guard is the
+    // vacuous-green class — the void-safe capture returns null for any
+    // non-throwing subject, so an EMPTY body flips it green. Emit the
+    // acceptance-lane fallback token naming the lane's actual remedy (the
+    // composition lane) so the gap is named on the artifact and the shared
+    // `contentIsVacuousGreen` detector refuses it mechanically — never
+    // silent. The token is DELIBERATELY not the #1259 `vacuousGuardMarker`:
+    // marker presence is the run driver's traced hand-delta seam
+    // discriminator (`stopped_at=<id>:hand`, `run_driver_core.dart`), and
+    // this fallback is not a traced contract — the marker would reclassify
+    // its honest `stopped_at=<id>:make` gap and prescribe an assertion the
+    // void scenario runner cannot carry (issue #1512 review). The UNIT
+    // lane keeps its #1308 two-class dispatch unchanged (the marker stays
+    // ABSENT on the unit fallback path; its gap is the gen-time warning
+    // token instead).
+    final guard = 'expect(result, isNot(isA<UnimplementedError>()));';
+    if (b.kind == BehaviorKind.acceptance) {
+      return '${_captureInvocation(b, target, null)}\n'
+          '      $acceptanceFallbackGuardComment\n'
+          '      $guard';
+    }
+    return '${_captureInvocation(b, target, null)}\n      $guard';
+  }
+
+  /// The contract-derived assertion surface (issue #1259).
+  ///
+  /// Scalar declared returns assert the declared outcome surface. Issue
+  /// #1651: when a scenario example resolved (the spec's acceptance
+  /// scenarios carry the declared method's concrete example), the
+  /// assertion pins the CONCRETE outcome (`expect(result, equals(5))`)
+  /// and the capture passes the scenario's arguments — a `return 0;`
+  /// dummy satisfies a type check but fails a value assertion. With NO
+  /// scenario value the type-only `isA<T>()` check stands as the
+  /// FALLBACK — and (review of #1667) a type check alone is still a
+  /// VACUOUS green, because the #1517 func pass fills the subject with
+  /// `return 0;`, which satisfies it — so the scalar typed fallback
+  /// carries the [vacuousGuardMarker] ([typeOnlyVacuousGuardComment])
+  /// and `make` refuses the dummy-body green until the author replaces
+  /// it with an outcome-VALUE assertion. An EXISTING entity return's
+  /// `isA<Entity>()` carries NO marker: the #1517 dummy cannot satisfy
+  /// an entity type — the assertion fails red on its own, so it
+  /// discriminates. A MISSING entity keeps `scalarOutcome` false — the
+  /// red surface starts at the guard, which carries the same marker
+  /// with the same contract.
+  String _declaredAssertion(
+    Behavior b,
+    String target,
+    UnitContractShape shape,
+  ) {
+    if (shape.scalarOutcome) {
+      final scenarioArgs = _scenarioArgumentExpressions(shape);
+      final expected = _scenarioExpectedLiteral(shape);
+      final capture = _captureInvocation(b, target, shape, scenarioArgs);
+      if (expected != null) {
+        return '$capture\n'
+            '      expect(result, equals($expected));';
+      }
+      final marker = isAssertableScalarType(shape.declaredReturn)
+          ? '      $typeOnlyVacuousGuardComment\n'
+          : '';
+      return '$capture\n'
+          '$marker'
+          '      expect(result, isA<${shape.declaredReturn}>());';
+    }
+    return '${_captureInvocation(b, target, shape, null)}\n'
+        '      $vacuousGuardComment\n'
         '      expect(result, isNot(isA<UnimplementedError>()));';
   }
 
-  String _captureInvocation(Behavior behavior, String target) {
-    // Issue #1035: the UNIT lane's capture initializer is provably
+  /// The scenario's expected-outcome literal for the declared RETURN
+  /// type (issue #1651) — `5` for `int`, `'Hello Alice'` for `String` —
+  /// ready for `equals(<literal>)`. Null when no scenario resolved or
+  /// no Then value fits the declared type (the typed fallback stands).
+  String? _scenarioExpectedLiteral(UnitContractShape shape) {
+    final scenario = scenarioExample;
+    if (scenario == null) return null;
+    final value = ScenarioResolver.expectedForType(
+      shape.declaredReturn.trim(),
+      scenario.thenValues,
+    );
+    if (value == null) return null;
+    return _literalExpression(value);
+  }
+
+  /// The scenario-derived argument expressions for the declared
+  /// positional parameters (issue #1651), in declaration order. Null —
+  /// keep the whole legacy argument surface — when the scenario cannot
+  /// improve the shape: no scenario, no parameters, any NAMED parameter
+  /// (the positional mapping is ambiguous), or any parameter neither
+  /// the scenario nor the scalar-literal table can express (the `_argN`
+  /// seam owns those wholesale, so a partial derivation never mixes a
+  /// helper into a scenario call).
+  List<String>? _scenarioArgumentExpressions(UnitContractShape shape) {
+    final scenario = scenarioExample;
+    if (scenario == null) return null;
+    if (shape.params.isEmpty) return null;
+    if (shape.params.any((param) => param.named)) return null;
+    final remaining = List.of(scenario.givenValues);
+    final expressions = <String>[];
+    for (final param in shape.params) {
+      final claimed = ScenarioResolver.claimArgumentForType(
+        param.type,
+        remaining,
+      );
+      if (claimed != null) {
+        expressions.add(_literalExpression(claimed));
+        continue;
+      }
+      final fallback = _scalarLiteral(param.type);
+      if (fallback == null) return null;
+      expressions.add(fallback);
+    }
+    return expressions;
+  }
+
+  /// The Dart expression for one scenario value: numbers and booleans
+  /// verbatim (`2`, `2.0`, `-4`, `true`), strings as escaped
+  /// single-quoted literals (the writer's own escaping — issue #912
+  /// defect 1's contract applies to scenario content too).
+  String _literalExpression(ScenarioValue value) {
+    switch (value.kind) {
+      case ScenarioValueKind.string:
+        return "'${escapeDartString(value.literal)}'";
+      case ScenarioValueKind.number:
+      case ScenarioValueKind.boolean:
+        return value.literal;
+    }
+  }
+
+  /// The declared parameters' argument expressions at the capture site:
+  /// scalar declared types get representative literals; everything else
+  /// (entity types that may not exist yet) gets an `_argN()` placeholder
+  /// helper whose throw is CAUGHT by the capture (the red stays at the
+  /// assertion level) and whose message names the exact remedy.
+  ///
+  /// Issue #1323 (spec 991 FR-004): `Object` is covered — the
+  /// representative expression `Object()` — so the common Object-typed
+  /// declared param (e.g. `StreamErrorHandler: reason(Object error) ->
+  /// String`) generates a real argument at the capture site and never
+  /// dead-ends into the `_argN()` hand-delta seam. Entity-typed and
+  /// other non-scalar params keep the seam (FR-003: the escape hatch
+  /// stands for truly un-schematicable types).
+  static String? _scalarLiteral(String type) {
+    switch (type) {
+      case 'String':
+        return "r'sample'";
+      case 'int':
+      case 'num':
+        return '0';
+      case 'bool':
+        return 'false';
+      case 'double':
+        return '0.0';
+      case 'Object':
+        return 'Object()';
+    }
+    return null;
+  }
+
+  /// The capture + arg-helper block for a declared shape. Helpers are
+  /// declared BEFORE the capture (local functions must precede use) and
+  /// live inside the test closure.
+  ///
+  /// Issue #1512 (review): [shape] is the UNIT-lane contract surface. The
+  /// acceptance lane IGNORES it — `behavior_test_writer.dart`'s public API
+  /// accepts a shape, but `gen_command.dart` resolves one only for
+  /// `BehaviorKind.unit`, and the paired acceptance subject is a
+  /// parameterless `void <target>()` scenario runner ([SubjectWriter] gen
+  /// stub; `tdd wire` / `tdd compose` preserve that signature). Threading
+  /// declared args into it, or returning its (void) result, is a
+  /// `use_of_void_result` + arity compile error against a pair production
+  /// actually builds — so an injected shape is inert here rather than
+  /// emitting an artifact only tests can reach.
+  String _captureInvocation(
+    Behavior behavior,
+    String target,
+    UnitContractShape? shape, [
+    List<String>? scenarioArgs,
+  ]) {
+    final acceptance = behavior.kind == BehaviorKind.acceptance;
+    final helpers = StringBuffer();
+    var args = '';
+    if (shape != null && !acceptance) {
+      final argExprs = <String>[];
+      for (var i = 0; i < shape.params.length; i++) {
+        final param = shape.params[i];
+        // Issue #1651: a scenario-derived argument list replaces the
+        // representative-literal table wholesale (every entry compiles
+        // against the declared param — the derivation refuses partial
+        // shapes), so no `_argN` helper is emitted on that path.
+        final scenarioExpr = scenarioArgs == null
+            ? null
+            : (i < scenarioArgs.length ? scenarioArgs[i] : null);
+        String expression;
+        var needsHelper = false;
+        if (scenarioExpr != null) {
+          expression = scenarioExpr;
+        } else {
+          final literal = _scalarLiteral(param.type);
+          if (literal != null) {
+            expression = literal;
+          } else {
+            expression = '_arg$i()';
+            needsHelper = true;
+          }
+        }
+        // SPEC 1536: a named parameter passes a NAMED argument at the
+        // capture site (`level: _arg0()`) — the subject's signature
+        // renders the `{...}` group, so a positional call would not
+        // compile. Positional params keep the legacy argument list.
+        argExprs.add(param.named ? '${param.name}: $expression' : expression);
+        if (needsHelper) {
+          helpers.write(
+            "${param.type} _arg$i() => throw UnimplementedError('provide a "
+            "representative argument for $target (declared param $i: "
+            "${param.declaredType})');\n          ",
+          );
+        }
+      }
+      args = argExprs.join(', ');
+    }
+    // Issue #1538: a VOID-returning declared contract cannot feed the IIFE
+    // capture. The subject renders its declared return verbatim (`void
+    // subject_u3(...)` — void is a renderable scalar), so the default
+    // branch's `return subject.<target>(<args>)` returns a void expression
+    // from an `Object? Function()` closure: `use_of_void_result` +
+    // `return_of_invalid_type_from_closure` — the pair dies at
+    // `verify-red -> compile-error` and never reaches the designed
+    // vacuous-guard -> hand-step transition (the #1259 marker dispatch,
+    // #1308). The capture becomes the statement-based form: the call
+    // stands alone (its void result is never used), completion records
+    // `result = null`, and a thrown UnimplementedError records
+    // `result = error` — the same honest red, now compiling. The declared
+    // subject signature is untouched (the subject IS the declared
+    // contract; #1443's `Object?` degradation is the SEAM lane's scaffold
+    // remedy, not this lane's). `Future<void>` and every other declared
+    // return keep the default branch: their values are not void
+    // expressions at the return site.
+    final voidReturn =
+        !acceptance && shape != null && shape.declaredReturn.trim() == 'void';
+    if (voidReturn) {
+      return '$helpers'
+          'Object? result;\n'
+          '        try {\n'
+          '          subject.$target($args);\n'
+          '          result = null;\n'
+          '        } on UnimplementedError catch (error) {\n'
+          '          result = error;\n'
+          '        }';
+    } // Issue #1035: the UNIT lane's capture initializer is provably
     // non-nullable (the closure returns the subject's value or the
     // caught UnimplementedError — never null), so an explicit `Object?`
     // annotation trips unnecessary_nullable_for_final_variable_declarations
     // in the generated test. Inference types the capture correctly for
     // both the red stub (static return type) and the implemented subject;
-    // the acceptance lane's capture CAN be null (`return null;`), so it
+    // the acceptance lane's capture IS null (`return null;` — the
+    // parameterless void scenario runner has no value to return), so it
     // keeps the explicit nullable annotation its initializer matches.
-    final capture = behavior.kind == BehaviorKind.acceptance
-        ? 'final Object? result'
-        : 'final result';
-    final invocation = behavior.kind == BehaviorKind.acceptance
-        ? 'subject.$target();\n          return null;'
-        : 'return subject.$target();';
-    return '''$capture = (() {
-        try {
+    //
+    // Issue #1512: the acceptance capture stays the VOID-SAFE, ARGUMENT-FREE
+    // form. `make`'s vacuous-green refusal covers this lane too (issue
+    // #1488 widened the #1259 unit-lane scope: the composition lane never
+    // touches the paired test — the 044 ownership contract — so a
+    // guard-only acceptance test would stay guard-only for its whole life
+    // and certify nothing), so the guard-only acceptance test is the lane's
+    // correct RED surface — the stub throws, the capture returns the error,
+    // the guard fails — and the author completes the designed hand step (a
+    // real outcome assertion) before any green certifies.
+    final String capture;
+    final String invocation;
+    if (acceptance) {
+      capture = 'final Object? result';
+      invocation = 'subject.$target();\n          return null;';
+    } else {
+      capture = 'final result';
+      invocation = 'return subject.$target($args);';
+    }
+    return '''$helpers$capture = (() {        try {
           $invocation
         } on UnimplementedError catch (error) {
           return error;
@@ -275,7 +726,7 @@ void main() {
   /// still resolves — and so is portable.
   String _relativeSubjectPath(String testPath, String subjectPath) {
     if (p.isAbsolute(subjectPath) && p.isAbsolute(testPath)) {
-      final packageImport = _packageSubjectImport(testPath, subjectPath);
+      final packageImport = packageSubjectImportFor(testPath, subjectPath);
       if (packageImport != null) return packageImport;
       // Compute the relative path from testPath's parent to subjectPath.
       final rel = p.relative(subjectPath, from: p.dirname(testPath));
@@ -290,7 +741,12 @@ void main() {
   /// enclosing project's `lib/` and the package name is resolvable from
   /// the nearest `pubspec.yaml` (walked up from the test file's
   /// directory); null otherwise (caller falls back to the relative shape).
-  String? _packageSubjectImport(String testPath, String subjectPath) {
+  ///
+  /// Issue #1513: promoted from the private instance `_packageSubjectImport`
+  /// to a public static so the contract lane answers the same question with
+  /// the same rule — one source of truth for the `package:` subject import
+  /// across every lane that imports a paired seam.
+  static String? packageSubjectImportFor(String testPath, String subjectPath) {
     var dir = p.dirname(testPath);
     String? projectRoot;
     for (var i = 0; i < 24; i++) {
@@ -324,7 +780,7 @@ void main() {
 
   /// Render the WIDGET test (bug #830): a `testWidgets` pair that boots
   /// the feature view through the subject's view-builder contract, pumps
-  /// it inside a configurable app shell (issue #912 defect 2 — ShadApp
+  /// it inside a configurable app shell (issue #912 defect 2 — ZuraffaApp
   /// by default, MaterialApp for plain-Material projects), and asserts
   /// the acceptance scenario through finders DERIVED from the scenario
   /// description (issue #912 defect 3 — a bare `findsOneWidget`
@@ -352,12 +808,12 @@ void main() {
     );
     final target = b.target.isEmpty ? 'subjectUnderTest' : b.target;
     final snakeId = _toSnakeCase(b.id);
-    // Issue #912 defect 2: the shell is configurable; the shadcn shell
+    // Issue #912 defect 2: the shell is configurable; the skin shell
     // needs its own import (material.dart stays for Scaffold + Theme).
     final shellName = widgetShell.widgetName;
-    final shellImport = widgetShell == WidgetAppShell.shadapp
-        ? "import 'package:shadcn_ui/shadcn_ui.dart';\n"
-        : '';
+    final shellImport = widgetShell.importPath == null
+        ? ''
+        : "import '${widgetShell.importPath}';\n";
     // Issue #964 (finder-kind taxonomy): the scenario verb decides the
     // assertion class — presence stays find.text, navigation becomes a
     // route-outcome assertion on a recording NavigatorObserver, absence
@@ -425,6 +881,12 @@ void main() {
               '      // route name rendered as on-screen text.\n'
               '      final observer = _RouteRecorder();\n'
         : '';
+    // Bug #1261 scaffold honesty: the header mentions golden baselines
+    // ONLY when a golden hook was actually emitted — never when gen ran
+    // without a golden gate, and not for a route-outcome scenario (whose
+    // hook is withheld per issue #964). The scaffold never promises a
+    // harness that does not exist.
+    final goldenHookEmitted = golden && !routeObserver;
     final pumpCall = routeObserver
         ? 'await tester.pumpWidget($shellName(\n'
               '        navigatorObservers: <NavigatorObserver>[observer],\n'
@@ -523,8 +985,7 @@ ${keyed ? "// i18n: slang test shell, base locale '${I18nScaffold.baseLocale}' p
 // still throws, the error lands in the guard assertion instead of
 // escaping the pump (classified runner/compile, not red — issue #830
 // widget failure taxonomy). Widget tests run on the flutter profile's
-// slower tier; golden baselines are committed per platform under
-// test/tdd/goldens/.
+// slower tier${goldenHookEmitted ? '; golden baselines are committed per platform under\n// test/tdd/goldens/' : ''}.
 library;
 
 import 'package:flutter/material.dart';
@@ -549,7 +1010,7 @@ $observerDecl      final Object? built = (() {
       })();
       expect(built, isNot(isA<UnimplementedError>()));
       final view = built! as Widget;
-      // Boot the view inside an app shell so Theme.of / ShadTheme.of /
+      // Boot the view inside an app shell so Theme.of / ZfaTheme.of /
       // Navigator / MediaQuery lookups resolve (issue #830 remediation 2;
       // shell configurable per issue #912 defect 2).
 $localePin      $pumpCall
@@ -649,7 +1110,7 @@ $goldenBlock    });$expansionTests
 // gated by `dart test --preset=integration` in CI.
 library;
 
-import 'package:test/test.dart';
+import '$_testImport';
 import '$relativeSubjectPath' as subject;
 
 void main() {
@@ -718,7 +1179,7 @@ Object? _captured(Object? Function() invoke) {
 //      read crash.
 library;
 
-import 'package:test/test.dart';
+import '$_testImport';
 import 'package:zuraffa/zuraffa.dart';
 import '$relativeSubjectPath' as subject;
 

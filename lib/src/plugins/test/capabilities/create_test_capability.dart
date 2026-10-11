@@ -1,7 +1,10 @@
+import 'package:path/path.dart' as p;
+
 import '../../../core/plugin_system/capability.dart';
 import '../test_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
+import '../test_explain.dart';
 
 class CreateTestCapability implements ZuraffaCapability {
   final TestPlugin plugin;
@@ -45,6 +48,19 @@ class CreateTestCapability implements ZuraffaCapability {
         'description': 'Enable verbose logging',
         'default': false,
       },
+      // Spec 1129: the human twin of the certification envelope. The
+      // schema property makes the flag surface manifest-verifiable (the
+      // #902/#904 drift classes) and advertises it to MCP clients; the
+      // CLI bespoke create grammar accepts the same flag.
+      'explain': {
+        'type': 'boolean',
+        'description':
+            'Attach the human-readable explain block (generated files, '
+            'test kinds unit/integration/widget, per-file '
+            'self-certification, trust tiers) to the result data; the '
+            'CLI prints it after the regular output (spec 1129)',
+        'default': false,
+      },
     },
     'required': ['name'],
   };
@@ -77,7 +93,8 @@ class CreateTestCapability implements ZuraffaCapability {
 
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
-    final files = await _generateFiles(args, dryRun: args['dryRun'] ?? false);
+    final dryRun = args['dryRun'] ?? false;
+    final files = await _generateFiles(args, dryRun: dryRun);
 
     // Spec 980 / FR-001: self-certification gate. The plugin ran a scoped
     // `dart analyze` on every written test file and printed the machine
@@ -88,16 +105,70 @@ class CreateTestCapability implements ZuraffaCapability {
     final certification = plugin.lastCertification;
     final compilePassed = certification?.compile ?? true;
 
+    // Spec 1334 (verify misfire #1385, EPIC #1132 honesty floor): a
+    // non-dry-run that produced ZERO artifacts while at least one test was
+    // skipped for a MISSING DEPENDENCY (UseCase / native mock / repository
+    // source absent) must not report success. The old behavior printed the
+    // skips under `Skipped (use --force to overwrite)` — misattributing
+    // the cause — and exited 0, so fleet automation could not tell
+    // "generated" from "did nothing". Dry runs are exempt (preview is
+    // explicit user intent); overwrite-conflict skips (no reason, or
+    // 'overwrite-conflict') keep the historical benign semantics; runs
+    // that produced at least one artifact keep the certification gate as
+    // their only failure path. Receipt contract unchanged (#769): this
+    // run wrote nothing, so the wrapper persists no receipt.
+    final artifacts = files
+        .where(
+          (f) =>
+              f.action == 'created' ||
+              f.action == 'overwritten' ||
+              f.action == 'updated' ||
+              f.action == 'deleted',
+        )
+        .toList();
+    final missingDepSkips = files
+        .where(
+          (f) => f.action == 'skipped' && f.skipReason == 'missing-dependency',
+        )
+        .toList();
+    final honestGateFailed =
+        !dryRun && artifacts.isEmpty && missingDepSkips.isNotEmpty;
+
+    final success = compilePassed && !honestGateFailed;
+
     return ExecutionResult(
-      success: compilePassed,
+      success: success,
       files: files.map((f) => f.path).toList(),
       data: {
         'generatedFiles': files,
         if (certification != null) 'certification': certification.toJson(),
+        // Spec 1129: the human-readable block, additive to the spec 980
+        // data contract (the envelope shape above is untouched — the
+        // --json semantics are unchanged). The generic CapabilityCommand
+        // prints data['explain'] verbatim (Spec #1131), so MCP clients
+        // get the same block the bespoke CLI command prints.
+        if (args['explain'] == true)
+          'explain': buildTestExplain(
+            // The certified entity IS the verdict line's entity
+            // (config.name); fall back to the raw invocation name when
+            // nothing was certified (dry run / empty generation).
+            entity:
+                certification?.entity ??
+                (args['name']?.toString() ?? 'unknown'),
+            files: files,
+            certification: certification,
+          ),
       },
-      message: compilePassed
-          ? null
-          : 'Generated tests do not compile: ${certification!.verdictLine}',
+      message: !success
+          ? (honestGateFailed
+                ? 'Nothing generated: ${missingDepSkips.length} test '
+                      'generation(s) skipped — dependency sources missing '
+                      '(${missingDepSkips.map((f) => p.basename(f.path)).join(', ')}). '
+                      '--> fix: create the missing sources first '
+                      '(e.g. zfa usecase create <Entity> --methods=get,update), '
+                      'then re-run zfa test create'
+                : 'Generated tests do not compile: ${certification!.verdictLine}')
+          : null,
     );
   }
 

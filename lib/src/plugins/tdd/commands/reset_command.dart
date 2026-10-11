@@ -4,22 +4,56 @@
 /// The command:
 ///   1. Resolves the feature directory (`specs/<feature>`) and loads the
 ///      artifact registry BEFORE touching anything.
-///   2. Prints the diff summary — every registry record it will drop and
-///      every owned file it will delete — BEFORE acting.
-///   3. Deletes ONLY the files the registry records own (the recorded
-///      `test_path`/`subject_path` of the feature's behaviors). Files on
-///      disk that no record owns are FOREIGN: they are counted, reported
-///      as kept, and never deleted.
-///   4. Drops the registry (`tdd/artifacts.json`) and the feature's
-///      run-state (`tdd/run-state.json`) — the two mutable stores a
-///      restart needs clean. The cycle-log is append-only evidence and is
-///      never touched; the audit log is history and is never touched.
-///   5. Emits the machine-readable JSON verdict as the final stdout line
+///   2. Normalizes every recorded path against the project root (issue
+///      #1331): a RELATIVE recorded path must resolve against the
+///      project root — never against the invoking process's CWD — and an
+///      ABSOLUTE path recorded by another checkout resolves as-is. Both
+///      forms are the same ownership answer (the #912/#1312 class).
+///   3. Scans the generated layouts (`test/tdd`, `lib/tdd` —
+///      recursively, the namespaced layout lives in feature
+///      subdirectories) for generated-shape files whose provenance
+///      header names a DROPPED behavior id: a path-drifted file is still
+///      owned by the reset and is deleted (issue #1331). A drifted file
+///      another feature's live registry owns is foreign-owned — kept and
+///      reported by name, never deleted (bug #874).
+///   4. Prints the diff summary — every registry record it will drop,
+///      every owned file it will delete, every path-drift warning, and
+///      every foreign-but-owned-looking file BY NAME — BEFORE acting.
+///      Files on disk that no record and no provenance header tie to a
+///      dropped behavior are FOREIGN: counted, reported as kept, and
+///      never deleted.
+///   5. Deletes the owned files, drops the registry
+///      (`tdd/artifacts.json`) and the feature's run-state
+///      (`tdd/run-state.json`) — two of the three mutable stores a
+///      restart needs clean. The cycle-log is append-only evidence and
+///      is never touched; the audit log is history and is never touched.
+///   6. Appends a reset TOMBSTONE to the unified journal
+///      (`tdd/journal.json`, issue #1264): one entry naming every
+///      dropped behavior id, invalidating the green evidence those
+///      behaviors left behind in the cycle-log. Without it the run
+///      driver re-derives done from the surviving evidence and skips the
+///      dropped behaviors as "already done" (the phantom done-state). The
+///      tombstone is append-only — the journal's history stays intact.
+///   7. Invalidates the baseline caches (issue #1550): the corpus-wide
+///      baseline cache (`.zfa/corpus/run-baseline.json`, spec 069 T004)
+///      and the feature-local `specs/<feature>/tdd/run-baseline.json`.
+///      The corpus cache is the THIRD store with the same restart
+///      contract — its dependency fingerprint survives the reset (the
+///      fingerprint hashes pubspec + suite template, never the TDD
+///      state), so a left-behind snapshot makes the next run reuse a
+///      pre-reset baseline and believe the dropped behaviors are green.
+///   8. Validates its own outcome (issue #1331): every planned deletion
+///      is re-statted after acting — the reported deleted-file count
+///      matches the printed "will delete N owned files" list, and any
+///      survivor is named in a warning instead of being silently kept.
+///   9. Emits the machine-readable JSON verdict as the final stdout line
 ///      and exits 0 on success, 1 on refusal (unknown feature).
 ///
 /// Ownership rule (hard constraint): reset NEVER deletes foreign files —
-/// the delete set is exactly the union of the registry records' paths,
-/// intersected with what actually exists on disk.
+/// the delete set is exactly the union of the dropped registry records'
+/// paths (normalized) that exist on disk, plus the generated-shape files
+/// whose provenance names a dropped behavior id and that no OTHER
+/// feature's registry owns.
 library;
 
 import 'dart:io';
@@ -28,10 +62,18 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
+import '../services/corpus_baseline_cache.dart';
+import '../services/cross_feature_ownership.dart';
+import '../services/entity_lookup.dart';
+import '../services/generated_shape.dart';
+import '../services/journal.dart';
+import '../services/run_baseline_cache.dart';
+import '../services/test_list_reader.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
+import '../../../core/project/receipt_store.dart';
 
 class ResetCommand extends Command<void> {
   ResetCommand(this.plugin) {
@@ -108,66 +150,510 @@ class ResetCommand extends Command<void> {
 
     final registry = ArtifactRegistry(featureDir: featureDir);
     final records = await registry.loadAll();
+    final droppedIds = records.map((record) => record.behaviorId).toList();
 
-    // The delete set: exactly the files the registry records OWN that
-    // exist on disk. Everything else on disk is foreign and survives.
+    // Issue #1429: the phase-0 entity rollback plan. Phase-0 scaffolds
+    // exactly what the feature's test list declares under Key Entities
+    // (run_driver_core reads the SAME TestListReader source), so reset
+    // reads the same source and reverts the scaffolds + receipts for the
+    // DECLARED names only — an entity another feature (or hand-written
+    // code) owns is never reset's business. Receipts are scoped by the
+    // `plugin: 'entity'` + `entity: <declared name>` pair: entity
+    // receipts live in the GLOBAL store with no `input['feature']`, so
+    // the declared names are the only honest scoping available. A
+    // shared entity is self-healing: the next run's phase-0 re-creates
+    // and re-receipts it (entity create is convergent).
+    final declaredEntities = await TestListReader(featureDir).readEntities();
+    final entityPlans = <({String name, String? file, String? dir})>[];
+    for (final entity in declaredEntities) {
+      final scaffold = await locateEntityScaffold(cwd, entity.name);
+      entityPlans.add((
+        name: entity.name,
+        file: scaffold.file,
+        dir: scaffold.dir,
+      ));
+    }
+    final receiptStore = ReceiptStore(projectRoot: cwd);
+    final declaredNames = declaredEntities
+        .map((e) => e.name.toLowerCase())
+        .toSet();
+    final entityReceiptsToPrune = (await receiptStore.loadAll())
+        .where(
+          (r) =>
+              r.receipt.plugin == 'entity' &&
+              r.receipt.entity != null &&
+              declaredNames.contains(r.receipt.entity!.toLowerCase()),
+        )
+        .toList();
+
+    // Issue #1331: the delete set starts from the recorded paths
+    // NORMALIZED against the project root. The raw `File(path)` check
+    // resolved a relative recorded path against the PROCESS CWD and an
+    // absolute path from another checkout as-is — records whose paths
+    // no longer matched were dropped while their files silently stayed
+    // (the half-state the documented reset → run recovery loop could
+    // never re-drive).
     final ownedExisting = <String>[];
+    // Per dropped record: the recorded paths that did NOT exist at reset
+    // time (the path-drift class the old reset kept silent about).
+    final pathDrift = <String>[];
+    // Issue #1380: the namespace agreement applies to the RECORDED paths
+    // too — a poisoned/stale record naming another feature's namespace is
+    // path drift (kept + warned), never a delete.
+    String? foreignNamespaceSegment(String normalized) {
+      for (final lane in ['test/tdd', 'lib/tdd']) {
+        final laneAbs = p.join(cwd, lane);
+        if (p.isWithin(laneAbs, normalized)) {
+          final segments = p.relative(normalized, from: laneAbs).split('/');
+          if (segments.length >= 2) return segments.first;
+        }
+      }
+      return null;
+    }
+
     for (final record in records) {
-      for (final path in [record.testPath, record.subjectPath]) {
-        if (File(path).existsSync() && !ownedExisting.contains(path)) {
-          ownedExisting.add(path);
+      for (final (role, raw) in [
+        ('test', record.testPath),
+        ('subject', record.subjectPath),
+      ]) {
+        final normalized = normalizeArtifactPath(cwd, raw);
+        if (File(normalized).existsSync()) {
+          final foreignSegment = foreignNamespaceSegment(normalized);
+          if (foreignSegment != null && foreignSegment != feature) {
+            pathDrift.add(
+              '${record.behaviorId}: recorded $role path '
+              '${_displayPath(cwd, normalized)} is in another '
+              'feature\'s namespace ($foreignSegment) — kept, never '
+              'deleted',
+            );
+            continue;
+          }
+          if (!ownedExisting.contains(normalized)) {
+            ownedExisting.add(normalized);
+          }
+        } else {
+          pathDrift.add(
+            '${record.behaviorId}: recorded $role path '
+            '${_displayPath(cwd, normalized)} did not exist at reset time',
+          );
         }
       }
     }
-    final foreignKept = _countForeignGeneratedFiles(cwd, ownedExisting);
 
-    // Diff summary BEFORE acting (bug #840).
+    // Issue #1331: recover the path-drifted files. A generated-shape
+    // file whose provenance header names a DROPPED behavior id is owned
+    // by this reset even when its recorded path no longer matches — the
+    // provenance header is the durable ownership marker (the same
+    // two-signal check gen's --adopt verifies). A drifted file ANOTHER
+    // feature's live registry owns is foreign-owned: kept and reported
+    // by name, never deleted (bug #874).
+    final scan = await _findDriftedOwnedFiles(
+      cwd: cwd,
+      feature: feature,
+      droppedIds: droppedIds.toSet(),
+      alreadyOwned: ownedExisting,
+    );
+    final recoveredDrifted = scan.recoveredById.values
+        .expand((paths) => paths)
+        .toList();
+    final deleteSet = [...ownedExisting, ...recoveredDrifted];
+    final foreignKept = _countForeignGeneratedFiles(cwd, deleteSet);
+
+    // Diff summary BEFORE acting (bug #840) — now with the drift
+    // warnings the old reset omitted (issue #1331).
     print('zfa tdd reset: feature $feature (specs/$feature/tdd)');
     print('  will drop ${records.length} registry record(s):');
     for (final record in records) {
       print('    - ${record.behaviorId} (${record.testPath})');
     }
-    print('  will delete ${ownedExisting.length} owned file(s):');
-    for (final path in ownedExisting) {
-      print('    - ${p.relative(path, from: cwd)}');
+    print('  will delete ${deleteSet.length} owned file(s):');
+    for (final path in deleteSet) {
+      print('    - ${_displayPath(cwd, path)}');
+    }
+    for (final drift in pathDrift) {
+      print('  path drift: $drift');
+    }
+    for (final entry in scan.recoveredById.entries) {
+      if (entry.value.isEmpty) continue;
+      print(
+        '  path drift: ${entry.key} — drifted artifacts recovered by the '
+        'provenance scan and deleted: '
+        '${entry.value.map((path_) => _displayPath(cwd, path_)).join(', ')}',
+      );
+    }
+    for (final entry in scan.foreignOwnedLookingById.entries) {
+      if (entry.value.isEmpty) continue;
+      print(
+        '  path drift: ${entry.key} — foreign-but-owned-looking file(s) '
+        'kept (another feature\'s registry owns them): '
+        '${entry.value.map((path_) => _displayPath(cwd, path_)).join(', ')}',
+      );
     }
     print('  will reset tdd/run-state.json');
+    // Issue #1550: the baseline caches are the third store with the same
+    // restart contract — announced BEFORE acting, like every other reset
+    // effect. The corpus-wide snapshot's fingerprint survives the reset
+    // (it hashes pubspec + suite template, never the TDD state), so a
+    // left-behind cache would make the next run reuse a pre-reset
+    // baseline and believe the dropped behaviors are green.
+    final corpusCachePath = CorpusBaselineCache.pathFor(projectRoot: cwd);
+    final featureBaselinePath = RunBaselineCache.pathFor(
+      featureDir: featureDir,
+    );
+    print(
+      '  will invalidate the corpus baseline cache '
+      '(${_displayPath(cwd, corpusCachePath)}; spec 069 T004)',
+    );
+    print(
+      '  will invalidate the feature baseline cache '
+      '(${_displayPath(cwd, featureBaselinePath)})',
+    );
     print(
       '  will keep $foreignKept foreign generated file(s) untouched '
       '(never deleted)',
     );
+    // Issue #1264: the dropped behaviors' surviving cycle-log evidence is
+    // invalidated (the journal tombstone) — announced BEFORE acting, like
+    // every other reset effect.
+    if (droppedIds.isNotEmpty) {
+      print(
+        '  will invalidate the green evidence of ${droppedIds.length} '
+        'dropped behavior(s) (journal tombstone)',
+      );
+    }
+    // Issue #1429: the phase-0 entity rollback is announced BEFORE
+    // acting, like every other reset effect — the diff-summary contract
+    // (receipts first, matching the act order below).
+    if (entityReceiptsToPrune.isNotEmpty) {
+      print(
+        '  will prune ${entityReceiptsToPrune.length} entity receipt(s) '
+        'from .zfa/receipts/:',
+      );
+      for (final record in entityReceiptsToPrune) {
+        print('    - ${record.fileName} (entity ${record.receipt.entity})');
+      }
+    }
+    if (entityPlans.isNotEmpty) {
+      print(
+        '  will revert ${entityPlans.length} declared phase-0 entity '
+        'scaffold(s) (issue #1429):',
+      );
+      for (final plan in entityPlans) {
+        print(
+          '    - ${plan.name}'
+          '${plan.file != null ? ' (${_displayPath(cwd, plan.file!)})' : ' (no scaffold on disk)'}',
+        );
+      }
+    }
 
     // Act: owned files first, then the registry, then run-state.
-    for (final path in ownedExisting) {
-      await File(path).delete();
+    final actuallyDeleted = <String>[];
+    final survivors = <String>[];
+    for (final path in deleteSet) {
+      try {
+        await File(path).delete();
+        actuallyDeleted.add(path);
+      } on FileSystemException {
+        // Issue #1331 outcome validation: a deletion that did not land
+        // is named, never silently swallowed.
+        survivors.add(path);
+      }
+    }
+    for (final path in survivors) {
+      print(
+        '  reset validation: FAILED to delete '
+        '${_displayPath(cwd, path)} — the file survives on disk',
+      );
+    }
+    if (survivors.isNotEmpty) {
+      // A surviving owned file must NOT lose its registry record: with
+      // the registry dropped, the survivor is outside every future
+      // reset's delete set forever (the orphan class). Retain the
+      // registry and run-state, skip the tombstone (the behaviors are
+      // NOT invalidated — they still own their records), and fail.
+      print(
+        '  reset validation: ${survivors.length} owned file(s) survived — '
+        'the registry and run-state are RETAINED so a later reset still '
+        'owns them. --> fix: resolve the cause (permissions, locks, a '
+        'running process holding the file), then re-run '
+        '`zfa tdd reset $feature`.',
+      );
+      _printVerdict(
+        feature: feature,
+        verdict: 'refused',
+        reason: '${survivors.length} owned file(s) survived deletion',
+        droppedFiles: deleteSet
+            .map((path_) => _displayPath(cwd, path_))
+            .toList(),
+        droppedRecords: records.length,
+        foreignKept: foreignKept,
+        invalidatedBehaviors: const [],
+        deletedFiles: actuallyDeleted
+            .map((path_) => _displayPath(cwd, path_))
+            .toList(),
+        pathDrift: pathDrift,
+        foreignOwnedLooking: scan.foreignOwnedLookingById.values
+            .expand((paths) => paths)
+            .map((path_) => _displayPath(cwd, path_))
+            .toList(),
+      );
+      exitCode = 1;
+      return;
     }
     final registryFile = File(registry.registryPath);
     if (await registryFile.exists()) await registryFile.delete();
     final runStateFile = File(p.join(featureDir, 'tdd', 'run-state.json'));
     if (await runStateFile.exists()) await runStateFile.delete();
 
-    print('zfa tdd reset: feature=$feature dropped=${records.length}');
+    // Issue #1429: prune the declared entities' receipts FIRST — before
+    // any scaffold is deleted. Receipts gone while the scaffold still
+    // lives is a strictly safer intermediate than the reverse (live
+    // receipts pointing at freshly deleted scaffolds would fire
+    // permanent `deleted` findings on every `zfa proof check` until a
+    // re-run heals it), and a scaffold deletion that fails afterwards
+    // lands in the existing refusal path. Best-effort with honesty: a
+    // receipt that refuses to be pruned is named and fails the reset.
+    final prunedReceipts = <String>[];
+    var receiptPruneFailures = 0;
+    for (final record in entityReceiptsToPrune) {
+      final receiptFile = File(
+        p.join(receiptStore.directory.path, record.fileName),
+      );
+      if (!receiptFile.existsSync()) continue;
+      try {
+        await receiptFile.delete();
+        prunedReceipts.add(record.fileName);
+      } on FileSystemException {
+        receiptPruneFailures++;
+        print(
+          '  reset validation: FAILED to prune receipt '
+          '${record.fileName} — it survives in .zfa/receipts/',
+        );
+      }
+    }
+    if (receiptPruneFailures > 0) {
+      _printVerdict(
+        feature: feature,
+        verdict: 'refused',
+        reason: '$receiptPruneFailures entity receipt(s) survived pruning',
+        droppedRecords: records.length,
+        foreignKept: foreignKept,
+        invalidatedBehaviors: droppedIds,
+        deletedFiles: actuallyDeleted
+            .map((path_) => _displayPath(cwd, path_))
+            .toList(),
+        pathDrift: pathDrift,
+        prunedReceipts: prunedReceipts,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // Issue #1429: revert the phase-0 entity scaffolds — AFTER their
+    // receipts are pruned, so no failure window leaves receipts pointing
+    // at deleted scaffolds. The canonical per-entity directory is
+    // deleted whole (the scaffold source plus any sibling generated part
+    // files); a fallback match outside the canonical layout deletes the
+    // FILE only (locateEntityScaffold classifies). The same
+    // outcome-validation contract as the behavior files: a deletion that
+    // did not land is named, and the reset REFUSES (exit 1) so the
+    // operator re-runs instead of silently losing ownership of the
+    // survivors.
+    final revertedEntities = <String>[];
+    final entitySurvivors = <String>[];
+    for (final plan in entityPlans) {
+      final dirExists = plan.dir != null && Directory(plan.dir!).existsSync();
+      final fileExists = plan.file != null && File(plan.file!).existsSync();
+      if (!dirExists && !fileExists) continue;
+      try {
+        if (dirExists) {
+          await Directory(plan.dir!).delete(recursive: true);
+        } else {
+          await File(plan.file!).delete();
+        }
+        revertedEntities.add(plan.name);
+      } on FileSystemException {
+        entitySurvivors.add(plan.file ?? plan.name);
+      }
+    }
+    for (final survivor in entitySurvivors) {
+      print(
+        '  reset validation: FAILED to delete entity scaffold '
+        '${_displayPath(cwd, survivor)} — the scaffold survives on disk',
+      );
+    }
+    if (entitySurvivors.isNotEmpty) {
+      print(
+        '  reset validation: ${entitySurvivors.length} entity '
+        'scaffold(s) survived — the registry and run-state were already '
+        'dropped; re-run `zfa tdd reset $feature` after resolving the '
+        'cause (permissions, locks, a running process holding the file).',
+      );
+      _printVerdict(
+        feature: feature,
+        verdict: 'refused',
+        reason:
+            '${entitySurvivors.length} entity scaffold(s) survived '
+            'deletion',
+        droppedRecords: records.length,
+        foreignKept: foreignKept,
+        invalidatedBehaviors: droppedIds,
+        deletedFiles: actuallyDeleted
+            .map((path_) => _displayPath(cwd, path_))
+            .toList(),
+        pathDrift: pathDrift,
+        revertedEntities: revertedEntities,
+        prunedReceipts: prunedReceipts,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // Issue #1550: invalidate the baseline caches — the corpus-wide
+    // cache (spec 069 T004) alongside the registry + run-state, and the
+    // feature-local snapshot with it. A surviving snapshot would carry
+    // the PRE-RESET suite baseline: the next run's driver hits the
+    // `corpus-wide reuse` path (fingerprint match — the fingerprint
+    // never covered the TDD state) and believes the dropped behaviors
+    // are green. Deletion is the invalidation: the next capture starts
+    // from an empty cache, honestly stamped post-reset.
+    final corpusCacheFile = File(corpusCachePath);
+    if (await corpusCacheFile.exists()) await corpusCacheFile.delete();
+    final featureBaselineFile = File(featureBaselinePath);
+    if (await featureBaselineFile.exists()) {
+      await featureBaselineFile.delete();
+    }
+
+    // Issue #1264: tombstone the dropped behaviors — append the journal
+    // entry that invalidates their surviving green evidence, so the run
+    // driver re-drives them instead of skipping them as "already done".
+    await JournalWriter(
+      featureDir,
+    ).appendResetTombstone(behaviorIds: droppedIds);
+
+    // Issue #1331: the reported count is the ACTUAL deletion count —
+    // the printed "will delete N owned files" list must match what was
+    // really deleted.
+    print(
+      'zfa tdd reset: feature=$feature dropped=${records.length} '
+      'deleted=${actuallyDeleted.length} '
+      'entities_reverted=${revertedEntities.length} '
+      'receipts_pruned=${prunedReceipts.length}',
+    );
     _printVerdict(
       feature: feature,
       verdict: 'reset',
-      droppedFiles: ownedExisting
-          .map((path_) => p.relative(path_, from: cwd))
-          .toList(),
+      droppedFiles: deleteSet.map((path_) => _displayPath(cwd, path_)).toList(),
       droppedRecords: records.length,
       foreignKept: foreignKept,
+      invalidatedBehaviors: droppedIds,
+      deletedFiles: actuallyDeleted
+          .map((path_) => _displayPath(cwd, path_))
+          .toList(),
+      pathDrift: pathDrift,
+      foreignOwnedLooking: scan.foreignOwnedLookingById.values
+          .expand((paths) => paths)
+          .map((path_) => _displayPath(cwd, path_))
+          .toList(),
+      invalidatedCaches: [
+        _displayPath(cwd, corpusCachePath),
+        _displayPath(cwd, featureBaselinePath),
+      ],
+      revertedEntities: revertedEntities,
+      prunedReceipts: prunedReceipts,
     );
     exitCode = 0;
   }
 
+  /// Issue #1331: scan the generated layouts (`test/tdd`, `lib/tdd` —
+  /// recursively: the namespaced layout lives in feature
+  /// subdirectories) for generated-shape files whose provenance header
+  /// names one of the DROPPED behavior ids. Returns the drifted owned
+  /// files per behavior id (deleted by the reset) and the
+  /// foreign-but-owned-looking files per behavior id (another feature's
+  /// live registry owns them — kept and reported, never deleted).
+  Future<
+    ({
+      Map<String, List<String>> recoveredById,
+      Map<String, List<String>> foreignOwnedLookingById,
+    })
+  >
+  _findDriftedOwnedFiles({
+    required String cwd,
+    required String feature,
+    required Set<String> droppedIds,
+    required List<String> alreadyOwned,
+  }) async {
+    final recoveredById = <String, List<String>>{};
+    final foreignOwnedLookingById = <String, List<String>>{};
+    // Cross-registry safety (bug #874): another feature's live registry
+    // owning the path makes it foreign-owned — adopting it into this
+    // reset's delete set would corrupt ownership. The ownership map is
+    // built ONCE (each per-file query would reload every registry).
+    final ownersByPath = await ownershipByPathAcrossFeatures(cwd);
+    for (final dir in [p.join(cwd, 'test', 'tdd'), p.join(cwd, 'lib', 'tdd')]) {
+      final d = Directory(dir);
+      if (!d.existsSync()) continue;
+      for (final entity in d.listSync(recursive: true).whereType<File>()) {
+        if (!entity.path.endsWith('.dart')) continue;
+        final normalized = p.normalize(entity.path);
+        if (alreadyOwned.contains(normalized)) continue;
+        String content;
+        try {
+          content = entity.readAsStringSync();
+        } on FileSystemException {
+          continue;
+        }
+        final id = behaviorIdFromContent(content);
+        if (id == null || !droppedIds.contains(id)) continue;
+        final shaped =
+            matchesGeneratedTestShape(content, id) ||
+            matchesGeneratedSubjectShape(content, id);
+        if (!shaped) continue;
+        // Issue #1380: a bare behavior id (A1, U1, ...) is SHARED across
+        // features — a generated-shape file under ANOTHER feature's
+        // namespace (test/tdd/<other-feature>/…) is foreign even when
+        // its header names a dropped id, and even when no live registry
+        // owns it. The namespace segment after the lane root must equal
+        // the feature being reset; flat (pre-namespaced) candidates keep
+        // the header-match behavior.
+        final laneRelative = p.relative(normalized, from: dir);
+        final segments = laneRelative.split('/');
+        if (segments.length >= 2 && segments.first != feature) {
+          foreignOwnedLookingById.putIfAbsent(id, () => []).add(normalized);
+          continue;
+        }
+        final owner = ownersByPath[normalizeArtifactPath(cwd, normalized)];
+        if (owner != null && owner != feature) {
+          foreignOwnedLookingById.putIfAbsent(id, () => []).add(normalized);
+          continue;
+        }
+        recoveredById.putIfAbsent(id, () => []).add(normalized);
+      }
+    }
+    return (
+      recoveredById: recoveredById,
+      foreignOwnedLookingById: foreignOwnedLookingById,
+    );
+  }
+
+  /// The path relative to the project root, POSIX separators (the display
+  /// and verdict form for reset's artifacts).
+  String _displayPath(String cwd, String absolute) =>
+      p.relative(absolute, from: cwd).replaceAll(r'\', '/');
+
   /// Count generated-layout files on disk that are NOT in the owned delete
   /// set — the foreign files reset keeps (reported, never touched).
+  /// Issue #1331: the scan is RECURSIVE (the namespaced layout lives in
+  /// feature subdirectories the flat listing never saw) and compares
+  /// normalized paths (the delete set's form).
   int _countForeignGeneratedFiles(String cwd, List<String> owned) {
     var foreign = 0;
     for (final dir in [p.join(cwd, 'test', 'tdd'), p.join(cwd, 'lib', 'tdd')]) {
       final d = Directory(dir);
       if (!d.existsSync()) continue;
-      for (final entity in d.listSync().whereType<File>()) {
-        if (!owned.contains(entity.path)) foreign++;
+      for (final entity in d.listSync(recursive: true).whereType<File>()) {
+        if (!owned.contains(p.normalize(entity.path))) foreign++;
       }
     }
     return foreign;
@@ -183,13 +669,22 @@ class ResetCommand extends Command<void> {
     List<String> droppedFiles = const [],
     int droppedRecords = 0,
     int foreignKept = 0,
+    List<String> invalidatedBehaviors = const [],
+    List<String> deletedFiles = const [],
+    List<String> pathDrift = const [],
+    List<String> foreignOwnedLooking = const [],
+    List<String> invalidatedCaches = const [],
+    List<String> revertedEntities = const [],
+    List<String> prunedReceipts = const [],
   }) {
     if (!_jsonMode) {
       print(
         'reset: feature=$feature verdict=$verdict'
         '${reason != null ? ' reason="$reason"' : ''}'
         ' dropped_records=$droppedRecords'
-        ' foreign_files_kept=$foreignKept',
+        ' foreign_files_kept=$foreignKept'
+        ' entities_reverted=${revertedEntities.length}'
+        ' receipts_pruned=${prunedReceipts.length}',
       );
       return;
     }
@@ -206,6 +701,39 @@ class ResetCommand extends Command<void> {
     if (reason != null) _verdict.details['reason'] = reason;
     if (droppedFiles.isNotEmpty) {
       _verdict.details['dropped_files'] = droppedFiles;
+    }
+    if (invalidatedBehaviors.isNotEmpty) {
+      _verdict.details['invalidated_behaviors'] = invalidatedBehaviors;
+    }
+    // Issue #1331: the outcome-validation details — the ACTUAL deletions
+    // (the printed will-delete list, proved), the per-record path-drift
+    // warnings, and the foreign-but-owned-looking files reported by name.
+    if (deletedFiles.isNotEmpty) {
+      _verdict.details['deleted_files'] = deletedFiles;
+    }
+    if (pathDrift.isNotEmpty) {
+      _verdict.details['path_drift'] = pathDrift;
+    }
+    if (foreignOwnedLooking.isNotEmpty) {
+      _verdict.details['foreign_owned_looking'] = foreignOwnedLooking;
+    }
+    // Issue #1550: the baseline caches the reset invalidated (the
+    // corpus-wide cache + the feature-local snapshot), by display path.
+    // The list is the POST-condition, not a deletion log: every entry is
+    // guaranteed absent after the reset, whether or not it existed on
+    // disk before (deleting an absent cache is an idempotent no-op) —
+    // "invalidated", never "deleted".
+    if (invalidatedCaches.isNotEmpty) {
+      _verdict.details['invalidated_caches'] = invalidatedCaches;
+    }
+    // Issue #1429: the phase-0 entity rollback — the declared entities
+    // whose scaffolds were reverted and the receipts pruned from the
+    // global store, by name.
+    if (revertedEntities.isNotEmpty) {
+      _verdict.details['reverted_entities'] = revertedEntities;
+    }
+    if (prunedReceipts.isNotEmpty) {
+      _verdict.details['pruned_receipts'] = prunedReceipts;
     }
   }
 }

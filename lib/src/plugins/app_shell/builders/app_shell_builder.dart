@@ -2,6 +2,35 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../utils/string_utils.dart';
+
+/// The app shell's derived identity (issue #1465): the file stem and the
+/// widget class the emitted `app/<stem>.dart` declares.
+///
+/// Threaded through [AppShellBuilder.buildMyApp] /
+/// [AppShellBuilder.buildMain] as one value so a call site cannot pass a
+/// stem and a class that disagree — that mismatch would emit a `main.dart`
+/// importing a file the shell builder never wrote.
+class AppShellNaming {
+  const AppShellNaming({required this.stem, required this.widgetClass});
+
+  /// Derives the identity from the Dart package [appName]: `zik_zak` →
+  /// `zik_zak.dart` / `ZikZakApp`.
+  factory AppShellNaming.fromAppName(String appName) => AppShellNaming(
+    stem: AppShellBuilder.shellFileStemFor(appName),
+    widgetClass: AppShellBuilder.shellWidgetNameFor(appName),
+  );
+
+  /// The legacy identity (`my_app.dart` / `MyApp`). The builder defaults
+  /// keep every existing consumer of the old output byte-identical.
+  static const legacy = AppShellNaming(stem: 'my_app', widgetClass: 'MyApp');
+
+  /// The shell file stem: `zik_zak` → `zik_zak` (`app/zik_zak.dart`).
+  final String stem;
+
+  /// The class the shell file declares: `zik_zak` → `ZikZakApp`.
+  final String widgetClass;
+}
 
 /// Emitter for the zfa app-shell glue files.
 ///
@@ -10,21 +39,25 @@ import '../../../core/builder/shared/spec_library.dart';
 /// into a runnable Flutter app:
 ///
 ///  * `lib/main.dart` — `void main()` → `setupDependencies(...)` →
-///    `runApp(const MyApp())`. The call mirrors the generated DI's
+///    `runApp(const <naming.widgetClass>())`. The call mirrors the generated DI's
 ///    `setupDependencies` signature: `setupDependencies(GetIt instance)`
 ///    for the canonical GetIt-based DI emitted by `zfa di`, or
 ///    `setupDependencies()` for a no-arg custom entrypoint. When the DI is
 ///    asynchronous, main becomes `async` and `await`s the call; the canonical
 ///    synchronous DI is called without `await`. See issue #370.
-///  * `<outputDir>/app/my_app.dart` — `MyApp` widget that builds a
-///    `MaterialApp.router` configured with [appRouter].
+///  * `<outputDir>/app/<naming.stem>.dart` — the `<naming.widgetClass>`
+///    widget that builds a `MaterialApp.router` configured with
+///    [appRouter]. The file stem and class name derive from the target
+///    package name (issue #1465) via [AppShellNaming.fromAppName]; the
+///    defaults keep the legacy `my_app.dart` / `MyApp` identity for
+///    `my_app`-named projects.
 ///  * `<outputDir>/routing/app_router.dart` — `final GoRouter appRouter =
 ///    GoRouter(routes: getAllRoutes());`.
 ///
 /// When `xray: true` is passed (issue #360), `main.dart` additionally
 /// starts the X-Ray bridge server in debug mode and invokes
 /// `registerAllXRayDecks()` (from the barrel at
-/// `<outputDir>/xray/xray_decks.dart`), and `my_app.dart` wraps
+/// `<outputDir>/xray/xray_decks.dart`), and the shell file wraps
 /// `MaterialApp.router` in an `XRayScope(viewId: 'App', ...)`. The
 /// barrel file is emitted by [buildXRayDecksBarrel] so the import always
 /// resolves.
@@ -69,8 +102,12 @@ class MainApp extends StatelessWidget {
   ///
   /// [appName] is the Dart package name (from `pubspec.yaml`); used to
   /// import the generated DI barrel at
-  /// `package:<appName>/<outputDir>/di/index.dart` (and the MyApp widget
-  /// at `package:<appName>/<outputDir>/app/my_app.dart`).
+  /// `package:<appName>/<outputDir>/di/index.dart` (and the shell widget
+  /// at `package:<appName>/<outputDir>/app/<naming.stem>.dart`).
+  /// [naming] is the shell identity (issue #1465: derived from the package
+  /// name via [AppShellNaming.fromAppName]; the default keeps the legacy
+  /// `my_app.dart` / `MyApp`) — main imports the stem and `runApp`s the
+  /// class, so the two generators can never disagree.
   /// [outputDir] is the project-root-relative directory the `app/` and
   /// `routing/` glue files were written to (default `lib/src`); the
   /// entrypoint always lands at `lib/main.dart`, so the package imports
@@ -99,19 +136,21 @@ class MainApp extends StatelessWidget {
   /// generators can never disagree again. See issue #370.
   String buildMain({
     required String appName,
+    AppShellNaming naming = AppShellNaming.legacy,
     bool mockHint = false,
     String outputDir = 'lib/src',
     bool diTakesGetIt = false,
     bool diIsAsync = false,
     bool xray = false,
+    String coreImport = 'package:zuraffa/zuraffa.dart',
   }) {
     // main.dart lives at lib/main.dart, so package: imports must resolve
     // relative to lib/. Map the output dir ("lib/src" -> "src",
     // "lib/custom" -> "custom", "lib" -> "").
     final importBase = _packageImportBase(outputDir);
     final myAppImport = importBase.isEmpty
-        ? 'package:$appName/app/my_app.dart'
-        : 'package:$appName/$importBase/app/my_app.dart';
+        ? 'package:$appName/app/${naming.stem}.dart'
+        : 'package:$appName/$importBase/app/${naming.stem}.dart';
     final diImport = importBase.isEmpty
         ? 'package:$appName/di/index.dart'
         : 'package:$appName/$importBase/di/index.dart';
@@ -134,12 +173,13 @@ class MainApp extends StatelessWidget {
       ],
     ];
     if (diTakesGetIt) {
-      // `GetIt` is re-exported by `package:zuraffa/zuraffa.dart` (the same
-      // import the DI `service_locator.dart` uses), so generated apps —
-      // which already depend on `zuraffa` for their DI tree — can resolve
-      // it without adding `get_it` as a direct dependency. main.dart needs
+      // `GetIt` is re-exported by the core barrel (the same import the DI
+      // `service_locator.dart` uses), so generated apps can resolve it
+      // without adding `get_it` as a direct dependency. main.dart needs
       // `GetIt` only to pass `GetIt.instance` into `setupDependencies`.
-      directives.add(Directive.import('package:zuraffa/zuraffa.dart'));
+      // For Flutter apps the barrel is `zuraffa_flutter`; for pure Dart
+      // it is `zuraffa` directly.
+      directives.add(Directive.import(coreImport));
     }
 
     // Mirror the generated DI's `setupDependencies` signature: pass
@@ -186,7 +226,9 @@ class MainApp extends StatelessWidget {
       );
     }
     bodyStatements.add(
-      refer('runApp').call([CodeExpression(Code('const MyApp()'))]).statement,
+      refer(
+        'runApp',
+      ).call([CodeExpression(Code('const ${naming.widgetClass}()'))]).statement,
     );
 
     final main = Method((m) {
@@ -261,41 +303,151 @@ Future<void> _startXRayBridge() async {
     return emittedCode;
   }
 
-  /// Builds `lib/src/app/my_app.dart`.
+  /// Builds `<outputDir>/app/<naming.stem>.dart`.
   ///
-  /// Emits a `MyApp` StatelessWidget that returns a `MaterialApp.router`
-  /// bound to [appRouter]. The optional [title] is used as the
-  /// MaterialApp title. The default theme is the framework light theme
-  /// — generated apps are expected to layer their own theme on top, but
-  /// the shell must compile and render out of the box.
+  /// Emits a `[AppShellNaming.widgetClass]` StatelessWidget that returns a
+  /// `MaterialApp.router` bound to [appRouter]. The optional [title] is
+  /// used as the MaterialApp title. The default theme is the framework
+  /// light theme — generated apps are expected to layer their own theme on
+  /// top, but the shell must compile and render out of the box.
+  ///
+  /// [naming] is the shell identity (issue #1465: derived from the package
+  /// name via [AppShellNaming.fromAppName]; the default keeps the legacy
+  /// `MyApp` literal so `my_app`-named projects — and every existing
+  /// consumer of the old output — get identical bytes). Deriving the class
+  /// name is collision-aware: a name whose PascalCase form equals a symbol
+  /// the emitted file already imports (`material` → `MaterialApp`,
+  /// `zuraffa` → `ZuraffaApp`) takes a `ShellApp` suffix instead, so the
+  /// declared class can never shadow the import it builds with.
   ///
   /// When [xray] is true (issue #360), the `MaterialApp.router` is
   /// wrapped in `XRayScope(viewId: 'App', child: ...)` so the bridge
   /// server can serialize the widget tree. `XRayScope` is a no-op
   /// pass-through when X-Ray mode is disabled.
-  String buildMyApp({String? title, bool xray = false}) {
-    // No direct go_router import: MyApp never references a go_router
+  ///
+  /// When [skinAudit] is true (issue #1102), the router content is
+  /// wrapped in `SkinAuditChrome` through the shell's `builder:` — the
+  /// debug-only violation-banner mount. The chrome is inert in release
+  /// builds (kDebugMode guard inside the kit), and without the flag the
+  /// output is byte-identical to the pre-1102 emission.
+  ///
+  /// When [zuraffaApp] is true (issue #1260), the shell widget is the
+  /// skin lane's CERTIFIED `ZuraffaApp` (package:zuraffa_ui) instead of
+  /// `MaterialApp.router`: the route-contract observer, audit bus and
+  /// violation chrome mount in one place, and the generated GoRouter
+  /// tree stays functional beneath the shell via `Router.withConfig`.
+  /// The target project must declare `zuraffa_ui` (preflighted by the
+  /// command).
+  String buildMyApp({
+    String? title,
+    AppShellNaming naming = AppShellNaming.legacy,
+    bool xray = false,
+    bool skinAudit = false,
+    bool zuraffaApp = false,
+  }) {
+    // No direct go_router import: the shell widget never references a
+    // go_router
     // symbol (MaterialApp.router comes from material.dart; appRouter
-    // arrives via ../routing/app_router.dart, which imports go_router
-    // itself). A direct import here is an unused_import — the only
-    // analyzer complaint left on a freshly generated shell, and it made
-    // `flutter analyze` exit 1 on every generated app (issue #469
-    // follow-up). In xray mode the zuraffa_flutter barrel re-exports
-    // go_router anyway, so downstream symbols stay reachable.
+    // arrives via ../routing/app_router.dart, which imports the
+    // zuraffa_flutter barrel — issue #1284: zuraffa_flutter re-exports
+    // go_router, so generated files never import package:go_router
+    // directly and consumer pubspecs need no go_router entry). A direct
+    // import here is an unused_import — the only analyzer complaint left
+    // on a freshly generated shell, and it made `flutter analyze` exit 1
+    // on every generated app (issue #469 follow-up).
     final directives = <Directive>[
       Directive.import('package:flutter/material.dart'),
       Directive.import('../routing/app_router.dart'),
+      // #1260: the certified shell (ZuraffaApp) comes from the skin lane's
+      // certified vocabulary package. Preflighted by the command: the
+      // target pubspec must declare zuraffa_ui before any file is written.
+      if (zuraffaApp) Directive.import('package:zuraffa_ui/zuraffa_ui.dart'),
       if (xray)
         Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
+      // #1102: the debug chrome (banner) comes from the emitted kit.
+      if (skinAudit) Directive.import('../skin/skin_contract_auditor.dart'),
     ];
 
     final materialApp = refer('MaterialApp').property('router').call([], {
       'title': literalString(title ?? 'Zuraffa App'),
       'routerConfig': refer('appRouter'),
       'debugShowCheckedModeBanner': literalFalse,
+      // #1102: the violation-banner mount. `builder` wraps the
+      // navigator; the chrome overlays the banner above it when live
+      // violations exist and passes through otherwise (the builder's
+      // child is nullable — error screens pass null — so the chrome
+      // falls back to an empty box, never a null crash).
+      if (skinAudit)
+        'builder': Method(
+          (m) => m
+            ..requiredParameters.add(Parameter((p) => p..name = 'context'))
+            ..requiredParameters.add(Parameter((p) => p..name = 'child'))
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('SkinAuditChrome')
+                      .call([], {
+                        'child': refer('child').ifNullThen(
+                          CodeExpression(Code('const SizedBox.shrink()')),
+                        ),
+                      })
+                      .returned
+                      .statement,
+                ),
+            ),
+        ).closure,
     });
 
-    final returnedWidget = xray
+    // #1260: the CERTIFIED shell composition. ZuraffaApp has no
+    // routerConfig — it is a home/named-routes shell — so the generated
+    // GoRouter tree stays functional beneath it via
+    // `Router.withConfig(config: appRouter)` (GoRouter implements
+    // RouterConfig<Object?>). The certified mounts ride the shell:
+    // ZuraffaRouteObserver + ZfaAuditBus + ZfaViolationChrome come from
+    // ZuraffaApp itself; --skin-audit rides the shell's `builder:` (the
+    // same SkinAuditChrome the MaterialApp.builder carried pre-#1260);
+    // --xray wraps the routed home in XRayScope.
+    final routerHome = refer(
+      'Router',
+    ).newInstanceNamed('withConfig', [], {'config': refer('appRouter')});
+    final routedHome = xray
+        ? refer(
+            'XRayScope',
+          ).call([], {'viewId': literalString('App'), 'child': routerHome})
+        : routerHome;
+    final certifiedShell = refer('ZuraffaApp').call([], {
+      'title': literalString(title ?? 'Zuraffa App'),
+      'debugShowCheckedModeBanner': literalFalse,
+      'home': routedHome,
+      // #1102 mount point under the certified shell: the chrome wraps the
+      // navigator content through ZuraffaApp's builder (preserved inside
+      // the shell's own violation chrome); child is nullable — error
+      // screens pass null — so it falls back to an empty box, never a
+      // null crash.
+      if (skinAudit)
+        'builder': Method(
+          (m) => m
+            ..requiredParameters.add(Parameter((p) => p..name = 'context'))
+            ..requiredParameters.add(Parameter((p) => p..name = 'child'))
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('SkinAuditChrome')
+                      .call([], {
+                        'child': refer('child').ifNullThen(
+                          CodeExpression(Code('const SizedBox.shrink()')),
+                        ),
+                      })
+                      .returned
+                      .statement,
+                ),
+            ),
+        ).closure,
+    });
+
+    final returnedWidget = zuraffaApp
+        ? certifiedShell
+        : xray
         ? refer(
             'XRayScope',
           ).call([], {'viewId': literalString('App'), 'child': materialApp})
@@ -303,7 +455,7 @@ Future<void> _startXRayBridge() async {
 
     final myApp = Class(
       (c) => c
-        ..name = 'MyApp'
+        ..name = naming.widgetClass
         ..extend = refer('StatelessWidget')
         ..constructors.add(
           Constructor(
@@ -354,12 +506,116 @@ Future<void> _startXRayBridge() async {
 
   /// Builds `lib/src/routing/app_router.dart`.
   ///
-  /// Emits a top-level `final GoRouter appRouter = GoRouter(routes:
-  /// getAllRoutes());` wired to the generated `getAllRoutes()` from
-  /// `lib/src/routing/index.dart`.
-  String buildAppRouter() {
+  /// Emits a top-level `final GoRouter appRouter = GoRouter(...)` wired to
+  /// the generated `getAllRoutes()` from `lib/src/routing/index.dart`, plus
+  /// the `ZfaDayZeroPlaceholder` widget.
+  ///
+  /// Day-zero fallback (issue #1673): a fresh project boots with an EMPTY
+  /// route table (`getAllRoutes() => const []`, issue #626) and GoRouter
+  /// would throw `no route for location: /`. The emitted router therefore
+  /// swaps in a placeholder `GoRoute(path: '/')` when the table is empty
+  /// and installs an `errorBuilder` rendering the same placeholder for any
+  /// unknown location. Both checks are runtime-side in this generated file,
+  /// so they heal automatically once `zfa route <Entity>` regenerates the
+  /// routing index with real routes — the index regenerator never touches
+  /// this file.
+  ///
+  /// When [skinAudit] is true (issue #1102), the router carries the
+  /// `SkinRouteContractObserver` (a `NavigatorObserver`) with a route
+  /// contract table built from `getAllRoutes()` — declared =
+  /// conforming; the navigator root `/` conforms by construction
+  /// (pilot lesson 3). Without the flag the output is byte-identical
+  /// to the pre-1102 emission apart from the #1673 fallback.
+  ///
+  /// [title] feeds the placeholder's AppBar; defaults to `Zuraffa App`.
+  String buildAppRouter({bool skinAudit = false, String? title}) {
+    if (!skinAudit) {
+      return _buildBareAppRouter(title: title);
+    }
+
     final directives = [
-      Directive.import('package:go_router/go_router.dart'),
+      Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
+      // #1673: the placeholder widget is built from material types.
+      Directive.import('package:flutter/material.dart'),
+      Directive.import('index.dart'),
+      // #1102: the route observer + the pure table type.
+      Directive.import('../skin/skin_contract_auditor.dart'),
+      Directive.import('package:zuraffa/skin.dart'),
+    ];
+
+    final appRouter = Field(
+      (f) => f
+        ..name = 'appRouter'
+        ..type = refer('GoRouter')
+        ..modifier = FieldModifier.final$
+        ..assignment = refer('GoRouter').call([], {
+          'routes': _routesArgument(),
+          'errorBuilder': _placeholderBuilderClosure(),
+          'observers': literalList([
+            refer('SkinRouteContractObserver').call([], {
+              // The contract table from the declared route barrel:
+              // every GoRoute the generated router declares conforms
+              // (name, else path); an undeclared push is the
+              // violation. The navigator root '/' conforms by
+              // construction (RouteContractTable.navigatorRootRoute —
+              // pilot lesson 3).
+              'table': refer('RouteContractTable')
+                  .property('fromRouteNames')
+                  .call([
+                    refer('getAllRoutes')
+                        .call([])
+                        .property('whereType')
+                        .call([], {}, [refer('GoRoute')])
+                        .property('map')
+                        .call([
+                          Method(
+                            (m) => m
+                              ..requiredParameters.add(
+                                Parameter((p) => p..name = 'route'),
+                              )
+                              ..lambda = true
+                              ..body = refer('route')
+                                  .property('name')
+                                  .ifNullThen(refer('route').property('path'))
+                                  .code,
+                          ).closure,
+                        ])
+                        .property('toSet')
+                        .call([]),
+                  ]),
+            }),
+          ]),
+        }).code,
+    );
+
+    final library = specLibrary.library(
+      specs: [appRouter, _dayZeroPlaceholderClass(title)],
+      directives: directives,
+    );
+
+    return specLibrary.emitLibrary(
+      library,
+      leadingComment:
+          '// Generated by zfa\n'
+          '//\n'
+          '// #1673: day-zero fallback — when getAllRoutes() is empty the\n'
+          "// placeholder home claims '/', and errorBuilder renders the\n"
+          '// placeholder for unknown locations instead of throwing.\n'
+          '//\n'
+          '// #1102: the SkinRouteContractObserver validates every push\n'
+          '// against the route contract table built from getAllRoutes()\n'
+          "// (declared = conforming). The navigator root '/' (\n"
+          '// RouteContractTable.navigatorRootRoute) conforms by\n'
+          '// construction, so cold start never flags a phantom violation.',
+      wrapWithGeneratedMarkers: false,
+    );
+  }
+
+  String _buildBareAppRouter({String? title}) {
+    final directives = [
+      Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
+      // #1673: the placeholder widget is built from material types.
+      Directive.import('package:flutter/material.dart'),
       Directive.import('index.dart'),
     ];
 
@@ -368,22 +624,141 @@ Future<void> _startXRayBridge() async {
         ..name = 'appRouter'
         ..type = refer('GoRouter')
         ..modifier = FieldModifier.final$
-        ..assignment = refer(
-          'GoRouter',
-        ).call([], {'routes': refer('getAllRoutes').call([])}).code,
+        ..assignment = refer('GoRouter').call([], {
+          'routes': _routesArgument(),
+          'errorBuilder': _placeholderBuilderClosure(),
+        }).code,
     );
 
     final library = specLibrary.library(
-      specs: [appRouter],
+      specs: [appRouter, _dayZeroPlaceholderClass(title)],
       directives: directives,
     );
 
     return specLibrary.emitLibrary(
       library,
-      leadingComment: '// Generated by zfa',
+      leadingComment:
+          '// Generated by zfa\n'
+          '//\n'
+          '// #1673: day-zero fallback — when getAllRoutes() is empty the\n'
+          "// placeholder home claims '/', and errorBuilder renders the\n"
+          '// placeholder for unknown locations instead of throwing.',
       wrapWithGeneratedMarkers: false,
     );
   }
+
+  /// #1673: the `routes:` argument — `getAllRoutes()` unchanged when the
+  /// table has entries; a single placeholder `GoRoute(path: '/')` swapped
+  /// in at router-construction time when the day-zero table is empty.
+  Expression _routesArgument() => refer('getAllRoutes')
+      .call([])
+      .property('isEmpty')
+      .conditional(
+        literalList([
+          refer('GoRoute').call([], {
+            'path': literalString('/'),
+            'builder': _placeholderBuilderClosure(),
+          }),
+        ]),
+        refer('getAllRoutes').call([]),
+      );
+
+  /// #1673: the shared `(context, state) => ZfaDayZeroPlaceholder(uri:
+  /// state.uri)` closure used by both the empty-table fallback route and
+  /// the `errorBuilder`. The unmatched location is threaded in so the copy
+  /// stays true once real routes exist (a 404 for a typo'd deep link), not
+  /// just on day zero.
+  Expression _placeholderBuilderClosure() => Method(
+    (m) => m
+      ..requiredParameters.add(Parameter((p) => p..name = 'context'))
+      ..requiredParameters.add(Parameter((p) => p..name = 'state'))
+      ..lambda = true
+      ..body = refer(
+        'ZfaDayZeroPlaceholder',
+      ).call([], {'uri': refer('state').property('uri')}).code,
+  ).closure;
+
+  /// #1673: the placeholder widget — a Scaffold with the app title and a
+  /// hint to run `zfa route <Entity>`, rendered for the day-zero home and
+  /// for any location the router cannot match. [ZfaDayZeroPlaceholder.uri]
+  /// carries the location that reached the placeholder, so the copy stays
+  /// true on an app that already has routes (a 404 after a typo'd deep
+  /// link) instead of claiming there are no routes.
+  Class _dayZeroPlaceholderClass(String? title) => Class(
+    (c) => c
+      ..name = 'ZfaDayZeroPlaceholder'
+      ..docs.add(
+        '/// Day-zero placeholder home (issue #1673): shown until the first\n'
+        '/// `zfa route <Entity>` generates a real route module, and rendered\n'
+        '/// by the router\'s `errorBuilder` for any unmatched location.\n'
+        '/// [uri] is the location that reached the placeholder.',
+      )
+      ..extend = refer('StatelessWidget')
+      ..fields.add(
+        Field(
+          (f) => f
+            ..name = 'uri'
+            ..type = refer('Uri')
+            ..modifier = FieldModifier.final$,
+        ),
+      )
+      ..constructors.add(
+        Constructor(
+          (ctor) => ctor
+            ..constant = true
+            ..optionalParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'uri'
+                  ..named = true
+                  ..required = true
+                  ..toThis = true,
+              ),
+            )
+            ..optionalParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'key'
+                  ..type = refer('Key?')
+                  ..named = true
+                  ..toSuper = true,
+              ),
+            ),
+        ),
+      )
+      ..methods.add(
+        Method(
+          (m) => m
+            ..name = 'build'
+            ..returns = refer('Widget')
+            ..annotations.add(refer('override'))
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'context'
+                  ..type = refer('BuildContext'),
+              ),
+            )
+            ..body = refer('Scaffold')
+                .call([], {
+                  'appBar': refer('AppBar').call([], {
+                    'title': refer(
+                      'Text',
+                    ).call([literalString(title ?? 'Zuraffa App')]),
+                  }),
+                  'body': refer('Center').call([], {
+                    'child': refer('Text').call([
+                      literalString(
+                        'No route matched \${uri} — run `zfa route <Entity>` to add views.',
+                      ),
+                    ]),
+                  }),
+                })
+                .returned
+                .statement,
+        ),
+      ),
+  );
 
   /// Returns `true` if [diIndexContent] declares a `setupDependencies`
   /// function (i.e. contains a real `setupDependencies(...)` declaration,
@@ -573,6 +948,40 @@ Future<void> _startXRayBridge() async {
     ).firstMatch(pubspecContent);
     return m?.group(1);
   }
+
+  /// Symbols the emitted shell file already imports. A generated class name
+  /// equal to one of these would shadow the import it needs — Dart resolves
+  /// the local declaration first — and the shell would stop compiling:
+  /// `material` → `class MaterialApp` shadows `flutter/material.dart`'s
+  /// `MaterialApp.router`, and `zuraffa` → `class ZuraffaApp` shadows the
+  /// certified shell `ZuraffaApp` from `zuraffa_ui` (the identity `zfa
+  /// setup` always emits, since it passes `zuraffaApp: true`).
+  static const shellWidgetReservedNames = <String>{'MaterialApp', 'ZuraffaApp'};
+
+  /// Derives the shell widget class name from the Dart package name
+  /// (issue #1465): `zik_zak` → `ZikZakApp`, `xyx` → `XyxApp`. A name whose
+  /// PascalCase form already ends in `App` is used as-is, so `my_app` →
+  /// `MyApp` — the derivation collapses to the legacy literal and existing
+  /// `my_app` projects keep byte-identical output.
+  ///
+  /// The derivation is collision-aware: a name that would declare a symbol
+  /// the emitted file already imports ([shellWidgetReservedNames]) takes a
+  /// `ShellApp` suffix instead — `material` → `MaterialShellApp`, `zuraffa`
+  /// → `ZuraffaShellApp` — so the wrapper never shadows the very class it
+  /// builds.
+  static String shellWidgetNameFor(String appName) {
+    final pascal = StringUtils.convertToPascalCase(appName);
+    final candidate = pascal.endsWith('App') ? pascal : '${pascal}App';
+    if (!shellWidgetReservedNames.contains(candidate)) return candidate;
+    final base = candidate.substring(0, candidate.length - 'App'.length);
+    return '${base}ShellApp';
+  }
+
+  /// Derives the shell file stem from the Dart package name (issue #1465):
+  /// `zik_zak` → `zik_zak.dart`. Package names are already snake_case Dart
+  /// identifiers, so the stem is the name itself; `my_app` maps to the
+  /// legacy `my_app.dart`.
+  static String shellFileStemFor(String appName) => appName;
 
   /// Returns true when [content] is the untouched `flutter create --empty`
   /// Hello-World boilerplate (`MainApp` rendering 'Hello World!').

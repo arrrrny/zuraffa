@@ -15,8 +15,7 @@ library;
 
 import 'package:test/test.dart';
 
-import '../../../lib/tdd/073-slice-isolation/a2_subject.dart' as subject;
-
+import 'package:zuraffa/tdd/073-slice-isolation/a2_subject.dart' as subject;
 void main() {
   group('A2 (AC-2)', () {
     test('A2 — it is green — no test references the host.', () {

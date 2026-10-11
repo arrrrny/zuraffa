@@ -6,6 +6,7 @@ import 'package:args/args.dart';
 import '../models/generator_config.dart';
 import '../models/generator_result.dart';
 import 'base_plugin_command.dart';
+import 'test_create_command.dart';
 import '../plugins/test/test_plugin.dart';
 
 /// CLI command that generates tests for existing use cases.
@@ -17,7 +18,15 @@ class TestCommand extends PluginCommand {
   final TestPlugin plugin;
 
   /// Creates a command bound to the provided [plugin].
-  TestCommand(this.plugin) : super(plugin) {
+  ///
+  /// [projectRoot] scopes the receipt store (issue #996) for tests and
+  /// embedded runners; the CLI resolves it from the working directory.
+  TestCommand(this.plugin, {String? projectRoot}) : super(plugin) {
+    // SPEC 917 / #876 classification: these parent-level flags ARE live —
+    // [execute] (the programmatic/MCP path) parses the shared parent
+    // grammar below. run() is dispatch-only, so the gate certifies them
+    // through [consumedParentFlags] (spec #979) instead of flagging them
+    // dead: they are parsed, advertised, and read.
     argParser.addOption(
       'methods',
       abbr: 'm',
@@ -43,7 +52,25 @@ class TestCommand extends PluginCommand {
           'Print the test self-certification envelope '
           '{entity, tests, compile, errors[], schema:1} as JSON',
     );
+
+    // Spec 1129: `create` is a MANUAL subcommand (TestCreateCommand) so
+    // `--json` can be the machine verdict OUTPUT flag on the live create
+    // grammar (the route precedent, issue #971 orders 2-5) and
+    // `--explain` (spec 1129) can ride the same surface. The generic
+    // CapabilityCommand registration is skipped via
+    // [manualSubcommandNames]; the capability itself stays the single
+    // execution path behind the bespoke command.
+    addSubcommand(TestCreateCommand(plugin, projectRoot: projectRoot));
   }
+
+  @override
+  Set<String> get manualSubcommandNames => const {'create'};
+
+  /// SPEC 917 / #876: [execute] reads --methods/--domain/--json off the
+  /// parent grammar (see the constructor); declared so
+  /// `zfa manifest --verify` certifies them as live.
+  @override
+  Set<String> get consumedParentFlags => const {'methods', 'domain', 'json'};
 
   @override
   /// Command identifier used by the CLI registry.

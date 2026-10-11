@@ -1,0 +1,25 @@
+flutter test pid=9426
+VM URI: http://127.0.0.1:34151/UXi3OGPnOHc=/ (after 4s)
+=== driving the anchor through the LIVE widget-test runner ===
+   connecting to ws://127.0.0.1:34151/UXi3OGPnOHc=/ws
+   connected: 1 isolate(s)
+   isolate is paused (PauseStart) — resuming
+   isolate resumed and running
+   isolate isolates/8017093793833691: 1039 library/libraries, 1019 seam candidate(s)
+   verdict notFound — target may still be booting; polling until 90s deadline
+   connecting to ws://127.0.0.1:34151/UXi3OGPnOHc=/ws
+   connected: 1 isolate(s)
+   isolate isolates/8017093793833691: 1039 library/libraries, 1019 seam candidate(s)
+zfa skin drive: anchor=zfa:signin-guest verdict=found (exit 0)
+{"result":"found","tapped":true}
+drive exit code: 0
+=== runner log (tail) — the test's own trace ===
+00:00 +0: loading /home/z/my-project/scratch_1112/test/skin/drive_target_test.dart
+The Dart VM service is listening on http://127.0.0.1:34151/UXi3OGPnOHc=/
+The Flutter DevTools debugger and profiler is available at: http://127.0.0.1:34151/UXi3OGPnOHc=/devtools/?uri=ws://127.0.0.1:34151/UXi3OGPnOHc=/ws
+
+The test process has been started. Set any relevant breakpoints and then resume the test in the debugger.
+00:00 +0: the drive target holds a live anchor tree
+DRIVE_TARGET_READY
+Shell: TAPPED:signin-guest
+SC2 PROOF: PASS (drive exit 0 — found+tapped)

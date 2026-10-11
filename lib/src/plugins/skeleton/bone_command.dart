@@ -14,6 +14,7 @@ import 'generators/bone_generator.dart';
 import 'generators/di_choice_resolver.dart';
 import 'generators/spec_reader.dart';
 import 'models/bone.dart';
+import '../../cli/exit_protocol.dart';
 
 /// The `zfa bone` command.
 class BoneCommand extends Command<void> {
@@ -68,7 +69,16 @@ generate options:
   @override
   Future<void> run() async {
     final args = argResults!.arguments;
-    if (args.isEmpty || args.first == '--help' || args.first == '-h') {
+    // SPEC 1132 (EPIC 1 honesty sweep): explicit --help/-h is a SUCCESS
+    // (exit 0); a bare invocation is a usage error — the usage block
+    // prints AND the process exits SPEC 917 canonical 2 (was the
+    // pre-sweep silent 0).
+    if (args.isEmpty) {
+      print(_usage);
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    if (args.first == '--help' || args.first == '-h') {
       print(_usage);
       return;
     }
@@ -83,8 +93,11 @@ generate options:
       case 'validate':
         await _validate(args.sublist(1));
       default:
+        // Unknown subcommand = usage error (SPEC 917): exit 2 (was the
+        // pre-sweep silent 0).
         print('Unknown bone subcommand: $subcommand');
         print(_usage);
+        exitCode = ExitProtocol.usage;
     }
   }
 

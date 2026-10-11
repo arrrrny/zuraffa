@@ -1,15 +1,20 @@
 // Spec #972 — `zfa usecase create --json` per-method verdicts (FR-2) and
 // the generation receipt (FR-3).
 //
-// The --json envelope is the machine contract:
-//   {"schema": 1, "entity": ..., "methods": [
-//      {"name": "get", "action": "created"},
-//      {"name": "toggle", "action": "skipped", "reason": "..."}]}
+// The --json envelope is the machine contract — the ONE canonical frame
+// (SPEC 1105):
+//   {"schema": "zuraffa.verdict.v1", "command": "zfa usecase create <Entity>",
+//    "verdict": "pass", "subject": {"kind": "usecase", "id": "<Entity>"},
+//    "details": {"methods": [
+//       {"name": "get", "action": "created"},
+//       {"name": "toggle", "action": "skipped", "reason": "..."}]}}
 // with action ∈ {created, appended, skipped} (deleted on the revert path).
 //
-// The receipt lands at .zfa/receipts/usecase-<entity>.json (proof.v1):
-// requested vs generated vs skipped methods + guard reason codes, with
-// per-file digests, so `zfa proof check` can verify it end-to-end.
+// Issue #1138: the receipt is keyed
+// usecase-create-<entity>-<timestamp>.json (proof.v1): requested vs
+// generated vs skipped methods + guard reason codes, with per-file
+// digests + the full capability provenance contract, so
+// `zfa proof check` can verify it end-to-end.
 library;
 
 import 'dart:convert';
@@ -58,10 +63,14 @@ environment:
     ]);
 
     final envelope = _parseEnvelope(output);
-    expect(envelope['schema'], 1);
-    expect(envelope['entity'], 'Product');
+    expect(envelope['schema'], 'zuraffa.verdict.v1');
+    expect(envelope['command'], 'zfa usecase create Product');
+    expect(envelope['verdict'], 'pass');
+    expect((envelope['subject'] as Map)['id'], 'Product');
 
-    final methods = (envelope['methods'] as List).cast<Map<String, dynamic>>();
+    final methods =
+        ((envelope['details'] as Map<String, dynamic>)['methods'] as List)
+            .cast<Map<String, dynamic>>();
     expect(methods, hasLength(2), reason: 'default methods: get, update');
     expect(
       methods.first['name'],
@@ -73,22 +82,21 @@ environment:
     expect(methods.last['action'], 'created');
 
     // The receipt: requested vs generated vs skipped + guard codes.
-    final receiptPath = p.join(
-      workspace.path,
-      '.zfa',
-      'receipts',
-      'usecase-Product.json',
-    );
-    expect(
-      File(receiptPath).existsSync(),
-      isTrue,
-      reason: 'receipt must land at .zfa/receipts/usecase-<entity>.json',
-    );
+    // Issue #1138: keyed usecase-create-<entity>-<timestamp>.json.
+    final receiptsDir = Directory(p.join(workspace.path, '.zfa', 'receipts'));
+    final receiptFile = receiptsDir
+        .listSync()
+        .whereType<File>()
+        .where((f) => p.basename(f.path).startsWith('usecase-create-Product-'))
+        .single;
     final receipt =
-        jsonDecode(await File(receiptPath).readAsString())
-            as Map<String, dynamic>;
+        jsonDecode(await receiptFile.readAsString()) as Map<String, dynamic>;
     expect(receipt['schema'], 'proof.v1');
-    expect(receipt['command'], 'usecase');
+    expect(receipt['command'], 'usecase create');
+    expect(receipt['plugin'], 'usecase');
+    expect(receipt['capability'], 'create');
+    expect(receipt['entity'], 'Product');
+    expect(receipt['receipt_version'], 1);
     expect(receipt['target'], 'Product');
     expect(receipt['repro'], contains('zfa usecase create Product'));
 
@@ -149,7 +157,9 @@ environment:
     ]);
 
     final envelope = _parseEnvelope(output);
-    final methods = (envelope['methods'] as List).cast<Map<String, dynamic>>();
+    final methods =
+        ((envelope['details'] as Map<String, dynamic>)['methods'] as List)
+            .cast<Map<String, dynamic>>();
     expect(methods, hasLength(2));
     for (final verdict in methods) {
       expect(
@@ -182,7 +192,9 @@ environment:
     ]);
 
     final envelope = _parseEnvelope(output);
-    final methods = (envelope['methods'] as List).cast<Map<String, dynamic>>();
+    final methods =
+        ((envelope['details'] as Map<String, dynamic>)['methods'] as List)
+            .cast<Map<String, dynamic>>();
     expect(methods, hasLength(2));
 
     final get = methods.firstWhere((m) => m['name'] == 'get');
@@ -197,13 +209,15 @@ environment:
     );
 
     // The receipt records requested vs generated vs skipped + codes.
+    // Issue #1138: keyed usecase-create-<entity>-<timestamp>.json.
+    final receiptsDir = Directory(p.join(workspace.path, '.zfa', 'receipts'));
+    final receiptFile = receiptsDir
+        .listSync()
+        .whereType<File>()
+        .where((f) => p.basename(f.path).startsWith('usecase-create-Task-'))
+        .single;
     final receipt =
-        jsonDecode(
-              await File(
-                p.join(workspace.path, '.zfa', 'receipts', 'usecase-Task.json'),
-              ).readAsString(),
-            )
-            as Map<String, dynamic>;
+        jsonDecode(await receiptFile.readAsString()) as Map<String, dynamic>;
     final input = receipt['input'] as Map<String, dynamic>;
     expect(input['requested_methods'], ['get', 'toggle']);
     expect(input['generated_methods'], ['get']);
@@ -213,7 +227,7 @@ environment:
     expect(codes['toggle'], contains('TaskRepository.toggle'));
   });
 
-  test('missing entity name is a usage error (exit 64), not a crash', () async {
+  test('missing entity name is a usage error (exit 2), not a crash', () async {
     final output = await runner.runCapturing([
       '-C',
       workspace.path,
@@ -222,7 +236,13 @@ environment:
       '--json',
     ]);
     expect(output, contains('Usage'));
-    expect(exitCode, 64, reason: 'usage-error family: $output');
+    expect(
+      exitCode,
+      2,
+      reason:
+          'usage-error family: $output (SPEC 917: canonical usage 2 — the '
+          'legacy 64 is retired)',
+    );
   });
 }
 

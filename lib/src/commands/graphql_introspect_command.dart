@@ -6,6 +6,8 @@ import 'package:args/command_runner.dart';
 import '../graphql/graphql_introspection_service.dart';
 import '../graphql/graphql_schema_translator.dart';
 import '../graphql/graphql_schema.dart';
+import '../cli/exit_protocol.dart';
+import '../plugins/plugin_gate/plugin_gate.dart';
 
 /// CLI command for introspecting a remote GraphQL endpoint and printing
 /// a generation plan (entities, enums, input types).
@@ -57,8 +59,17 @@ class IntrospectCommand extends Command<void> {
 
   @override
   Future<void> run() async {
+    // Spec 1653 (issue #1661): the graphql capability is opt-in. Leaf
+    // subcommands dispatch without passing through GraphqlCommand.run(),
+    // so the gate is enforced here too (review finding on #1678).
+    final gateRefusal = PluginGate.refusalFor('graphql');
+    if (gateRefusal != null) {
+      print('❌ $gateRefusal');
+      exitCode = ExitProtocol.usage;
+      return;
+    }
     if (argResults!.rest.isEmpty) {
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       print('Usage: zfa graphql introspect <endpoint-url> [options]');
       print('  endpoint-url    The GraphQL endpoint URL to introspect');
       print('');
@@ -87,7 +98,10 @@ class IntrospectCommand extends Command<void> {
           (key, value) => MapEntry(key, value.toString()),
         );
       } catch (e) {
+        // Bug #1139 (exit-code sweep): malformed input is a usage error,
+        // never a lying exit 0.
         print('Error: --headers must be a valid JSON object. Got: $headersStr');
+        exitCode = ExitProtocol.usage;
         return;
       }
     }
@@ -95,7 +109,10 @@ class IntrospectCommand extends Command<void> {
     // Validate URL
     final uri = Uri.tryParse(endpoint);
     if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
+      // Bug #1139 (exit-code sweep): malformed input is a usage error,
+      // never a lying exit 0.
       print('Error: Invalid endpoint URL: $endpoint');
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -116,11 +133,14 @@ class IntrospectCommand extends Command<void> {
     );
 
     if (schema == null) {
+      // Bug #1139 (exit-code sweep, #856 pattern): an introspection
+      // failure is a real failure — never a lying exit 0.
       print('Failed to introspect schema from $endpoint.');
       print('Possible causes:');
       print('  - The endpoint is not reachable');
       print('  - The endpoint does not support GraphQL introspection');
       print('  - The server returned an error or non-200 status code');
+      exitCode = 1;
       return;
     }
 

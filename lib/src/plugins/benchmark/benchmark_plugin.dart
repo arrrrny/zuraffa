@@ -24,6 +24,7 @@ import 'capabilities/list_benchmarks_capability.dart';
 import 'capabilities/register_benchmark_capability.dart';
 import 'capabilities/run_benchmark_capability.dart';
 import 'cli/benchmark_command.dart';
+import 'first_party_scenarios.dart' show FirstPartyBenchmarkProvider;
 import 'scenario_provider.dart';
 
 export '../../core/benchmark/benchmark_contract.dart';
@@ -41,9 +42,16 @@ export 'scenario_provider.dart';
 /// (FR-015).
 class BenchmarkPlugin extends ZuraffaPlugin implements CliAwarePlugin {
   /// Creates the benchmark plugin.
+  ///
+  /// Issue #1149 (kill list — fix list): the plugin self-registers
+  /// [FirstPartyBenchmarkProvider] so `zfa benchmark list/run` ships with
+  /// real scenarios instead of an empty registry. Third-party providers
+  /// can still register more via [registerScenarioProvider].
   BenchmarkPlugin({BenchmarkRegistry? registry, BenchmarkRunner? runner})
     : registry = registry ?? InMemoryBenchmarkRegistry(),
-      runner = runner ?? DefaultBenchmarkRunner();
+      runner = runner ?? DefaultBenchmarkRunner() {
+    registerScenarioProvider(const FirstPartyBenchmarkProvider());
+  }
 
   /// The plugin's registry — scenarios land here.
   final BenchmarkRegistry registry;

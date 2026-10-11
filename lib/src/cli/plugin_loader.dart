@@ -1,13 +1,14 @@
 import 'dart:io';
 
 import '../config/zfa_config.dart';
+import '../core/plugin_system/capability.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/generator_options.dart';
+import 'package:zuraffa/src/domain/entities/feature_contract/feature_contract.dart';
 import '../plugins/controller/controller_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/di/di_plugin.dart';
-import '../plugins/gql/gql_plugin.dart';
 import '../plugins/graphql/graphql_plugin.dart';
 import '../plugins/cache/cache_plugin.dart';
 import '../plugins/sqlite/sqlite_plugin.dart';
@@ -15,7 +16,6 @@ import '../plugins/sync/sync_plugin.dart';
 import '../plugins/route/route_plugin.dart';
 import '../plugins/provider/provider_plugin.dart';
 import '../plugins/state/state_plugin.dart';
-import '../plugins/observer/observer_plugin.dart';
 import '../plugins/test/test_plugin.dart';
 import '../plugins/gym/gym_plugin.dart';
 import '../plugins/mock/mock_plugin.dart';
@@ -28,7 +28,7 @@ import '../plugins/service/service_plugin.dart';
 import '../plugins/usecase/usecase_plugin.dart';
 import '../plugins/view/view_plugin.dart';
 import '../plugins/feature/feature_plugin.dart';
-import '../plugins/shadcn/shadcn_plugin.dart';
+import '../plugins/skin/skin_plugin.dart';
 import '../plugins/strategy/strategy_plugin.dart';
 import '../plugins/module/module_plugin.dart';
 import '../plugins/mcp/mcp_plugin.dart';
@@ -41,18 +41,48 @@ import '../plugins/slice/slice_plugin.dart';
 class PluginConfig {
   final Set<String> disabled;
 
-  PluginConfig({Set<String>? disabled}) : disabled = disabled ?? {};
+  /// Issue #1586: [disabled] arrives as an unmodifiable view when loaded from
+  /// `.zfa.json` (`ZfaConfig` stores `disabledPlugins` via `Set.unmodifiable`).
+  /// `zfa plugin enable/disable` mutates this set in place
+  /// (`plugin_command.dart`), so [PluginConfig] must OWN a mutable copy taken
+  /// at this ownership boundary — passing the view by reference crashed every
+  /// `enable`/`disable` with `Unsupported operation: Cannot change an
+  /// unmodifiable set`. [Set.of] copies into a fresh growable set; the config
+  /// format and `ZfaConfig`'s immutability contract are unchanged.
+  PluginConfig({Set<String>? disabled})
+    : disabled = Set.of(disabled ?? const <String>{});
 
   static PluginConfig load({String? projectRoot}) {
     final config = ZfaConfig.load(projectRoot: projectRoot);
     return PluginConfig(disabled: config?.disabledPlugins);
   }
 
-  void save({String? projectRoot}) {
+  /// Persists [disabled] into the project's `.zfa.json`.
+  ///
+  /// Issue #1586: this future MUST be awaited by callers (see
+  /// `plugin_command.dart`). `ZfaConfig.save` writes asynchronously through
+  /// `FileUtils.writeFile`; the CLI runner `_exit(...)`es right after the
+  /// command returns, so a fire-and-forget save was killed before the bytes
+  /// landed — `zfa plugin enable/disable` would report success while losing
+  /// the state change. Awaiting here matches the established pattern
+  /// (`config_command.dart`); the save pipeline and file format are unchanged.
+  ///
+  /// Returns `false` — writing nothing — when the existing `.zfa.json` could
+  /// not be parsed. `ZfaConfig.load` maps that case onto a default config, so
+  /// persisting would silently replace the user's `presets`, `aliases`, `ui`,
+  /// `features` and `tdd` sections with generated defaults; the caller must
+  /// surface the refusal instead of reporting success.
+  Future<bool> save({String? projectRoot}) async {
     final root = projectRoot ?? Directory.current.path;
+    final refusal = ZfaConfig.unparseableConfigMessage(projectRoot: root);
+    if (refusal != null) {
+      print(refusal);
+      return false;
+    }
     final existing = ZfaConfig.load(projectRoot: root) ?? ZfaConfig();
     final updated = existing.copyWith(disabledPlugins: disabled);
-    ZfaConfig.save(updated, projectRoot: root);
+    await ZfaConfig.save(updated, projectRoot: root);
+    return true;
   }
 }
 
@@ -77,17 +107,57 @@ class PluginLoader {
   final bool verbose;
   final PluginConfig config;
 
+  /// The active typed feature contract (spec 1098, issue #1098), when the
+  /// invocation resolved one. When set, [buildRegistry] re-resolves the
+  /// plugin set per feature: a plugin whose every capability refuses the
+  /// feature is not instantiated into the registry. `null` (the default)
+  /// keeps the historical global, unscoped behavior.
+  final FeatureContract? feature;
+
   PluginLoader({
     required this.outputDir,
     required this.dryRun,
     required this.force,
     required this.verbose,
     required this.config,
+    this.feature,
   });
 
+  /// Filters [plugins] down to those that serve [feature] (spec 1098).
+  ///
+  /// A plugin is dropped only when at least one of its capabilities
+  /// declares the [FeatureScopedCapability] protocol AND refuses the
+  /// feature. Plugins without capabilities, or whose capabilities don't
+  /// declare the protocol, are unscoped and always kept.
+  static List<ZuraffaPlugin> filterForFeature(
+    List<ZuraffaPlugin> plugins,
+    FeatureContract feature,
+  ) {
+    return [
+      for (final plugin in plugins)
+        if (_servesFeature(plugin, feature)) plugin,
+    ];
+  }
+
+  static bool _servesFeature(ZuraffaPlugin plugin, FeatureContract feature) {
+    final capabilities = plugin.capabilities;
+    if (capabilities.isEmpty) return true;
+    for (final capability in capabilities) {
+      final scoped = capability is FeatureScopedCapability ? capability : null;
+      if (scoped != null && !scoped.supportsFeature(feature)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   PluginRegistry buildRegistry() {
+    final candidates = _plugins();
+    final scoped = feature == null
+        ? candidates
+        : filterForFeature(candidates, feature!);
     final registry = PluginRegistry();
-    for (final plugin in _plugins()) {
+    for (final plugin in scoped) {
       if (!config.disabled.contains(plugin.id)) {
         registry.register(plugin);
       }
@@ -124,7 +194,6 @@ class PluginLoader {
       ViewPlugin(outputDir: outputDir, options: options),
       FeaturePlugin(outputDir: outputDir, options: options),
       StatePlugin(outputDir: outputDir, options: options),
-      ObserverPlugin(outputDir: outputDir, options: options),
       TestPlugin(outputDir: outputDir, options: options),
       GymPlugin(outputDir: outputDir, options: options),
       MockPlugin(outputDir: outputDir, options: options),
@@ -136,9 +205,13 @@ class PluginLoader {
       CachePlugin(outputDir: outputDir, options: options),
       SqlitePlugin(outputDir: outputDir, options: options),
       SyncPlugin(outputDir: outputDir, options: options),
-      GqlPlugin(outputDir: outputDir, options: options),
+      // Issue #1149 (kill list): GqlPlugin deleted — it was a duplicate of
+      // GraphqlPlugin sharing the same output paths. The correct getList
+      // operation naming and FileSystem injection were folded into
+      // GraphqlBuilder, and `--with=gql` aliases to graphql (see
+      // PluginAliasResolver) for one deprecation cycle.
       GraphqlPlugin(outputDir: outputDir, options: options),
-      ShadcnPlugin(outputDir: outputDir, options: options),
+      SkinPlugin(outputDir: outputDir, options: options),
       StrategyPlugin(outputDir: outputDir, options: options),
       MethodAppendPlugin(outputDir: outputDir, options: options),
       ModuleGeneratorPlugin(outputDir: outputDir, options: options),

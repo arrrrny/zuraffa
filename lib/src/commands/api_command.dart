@@ -1,3 +1,5 @@
+import 'dart:io';
+import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../models/generated_file.dart';
 import '../plugins/api/api_plugin.dart';
 import '../plugins/api/capabilities/create_api_bridge_capability.dart';
@@ -34,6 +36,13 @@ class ApiCommand extends PluginCommand {
   @override
   String get invocation => 'zfa api <EntityName> [options]';
 
+  /// SPEC 917 / #876 sweep: run()'s programmatic positional path reads
+  /// every parent-level flag listed below — they are LIVE, declared here so
+  /// `zfa manifest --verify` certifies them instead of flagging them dead
+  /// (spec #979).
+  @override
+  Set<String> get consumedParentFlags => const {'domain', 'name'};
+
   @override
   Future<void> run() async {
     // Dispatch to subcommands (e.g. capabilities registered by PluginCommand).
@@ -63,11 +72,23 @@ class ApiCommand extends PluginCommand {
         .whereType<CreateApiBridgeCapability>()
         .firstOrNull;
     if (capability == null) {
+      // Bug #1139 (exit-code sweep, #856 pattern): an internal error is a
+      // failure — never a lying exit 0.
       print('❌ Internal error: CreateApiBridgeCapability not found');
+      exitCode = 1;
       return;
     }
 
-    final result = await capability.execute({
+    // Issue #1138: execute through the CapabilityInvocationWrapper so the
+    // standalone invocation auto-persists a proof.v1 receipt (schema
+    // {plugin, capability, entity, hash, methodset, files,
+    // receipt_version: 1}) — the same contract the capability-subcommand
+    // path already ships. Best-effort inside the wrapper.
+    final wrapper = CapabilityInvocationWrapper(
+      capability: capability,
+      pluginId: plugin.id,
+    );
+    final result = await wrapper.execute({
       'name': entityName,
       'domain': domain,
       'dryRun': isDryRun,
@@ -81,7 +102,10 @@ class ApiCommand extends PluginCommand {
           result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
+      // Bug #1139 (exit-code sweep, #856 pattern): a failed generation is a
+      // failure — the process must never exit 0 after printing an error.
       print('❌ Failed to generate API bridge: ${result.message}');
+      exitCode = 1;
     }
   }
 }

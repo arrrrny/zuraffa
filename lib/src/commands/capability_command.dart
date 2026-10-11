@@ -8,7 +8,9 @@ import '../core/plugin_system/capability.dart';
 import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/project_root.dart';
 import '../core/plugin_system/plan_store.dart';
+import '../core/verdict_envelope.dart';
 import '../utils/string_utils.dart';
+import '../cli/exit_protocol.dart';
 
 class CapabilityCommand extends Command<void> {
   final ZuraffaCapability capability;
@@ -43,7 +45,14 @@ class CapabilityCommand extends Command<void> {
       final props = schema['properties'] as Map<String, dynamic>;
       props.forEach((key, value) {
         final type = value['type'];
-        final help = value['description'];
+        // SPEC 917 (help-text leg): package:args HIDES options without a
+        // help line from `--help`. A schema property without a
+        // description would derive a parseable-but-hidden flag — the
+        // "help text and flags disagree" drift `zfa manifest --verify`
+        // exists to catch — so every derived option always carries a
+        // help line (the schema description when present, a plain
+        // sentence otherwise).
+        final help = value['description'] ?? 'The $key argument.';
         final def = value['default'];
         final isFlag = type == 'boolean';
         final isList = type == 'array';
@@ -221,8 +230,66 @@ class CapabilityCommand extends Command<void> {
         }
       }
       if (missing.isNotEmpty) {
-        print('❌ Error: Missing required arguments: ${missing.join(', ')}');
-        exitCode = 64;
+        // Issue #978: error paths are machine-actionable. Every refusal
+        // ends with a `--> fix:` line naming the invocation + the missing
+        // required flags (the VISION.md verdict protocol), and machine
+        // mode (`--json`) gets a single parseable verdict object instead
+        // of prose (issue #778).
+        //
+        // SPEC 1132 / EPIC 1 lane 2 (issue #1105 backlog): the machine
+        // mode refusal emits the ONE canonical the canonical verdict schema
+        // envelope (verdict `error`, exit class 2) — the legacy
+        // `{"schema":1,...}` shape left the canonical parser
+        // (`VerdictEnvelope.fromJson`) throwing. The envelope is the ONLY
+        // thing on stdout in machine mode (#778 single-object convention,
+        // as `provider verify --json` and `benchmark list --json` keep);
+        // the prose refusal is human mode only.
+        final fixFlags = missing
+            .map((key) {
+              final flag = key.contains('-')
+                  ? key
+                  : StringUtils.camelToSnake(key).replaceAll('_', '-');
+              return '--$flag <$flag>';
+            })
+            .join(' ');
+        final commandPath = parent != null ? '${parent!.name} $name' : name;
+        final fix = 'zfa $commandPath $fixFlags';
+        final machineMode = argResults?['json'] != null;
+        if (machineMode) {
+          VerdictEnvelope.emit(
+            VerdictEnvelope(
+              command: 'zfa $commandPath',
+              verdict: VerdictKind.error,
+              exitClass: ExitProtocol.usage,
+              subject: VerdictSubject(
+                kind: 'capability',
+                id: name,
+                extra: {'plugin': ?pluginId, 'capability': name},
+              ),
+              findings: [
+                for (final key in missing)
+                  VerdictFinding(
+                    kind: 'missing-argument',
+                    fix:
+                        'pass --${key.contains('-') ? key : StringUtils.camelToSnake(key).replaceAll('_', '-')}'
+                        ' <${key.contains('-') ? key : StringUtils.camelToSnake(key).replaceAll('_', '-')}>',
+                    extra: {'argument': key},
+                  ),
+              ],
+              fix: fix,
+              details: {
+                'error': 'Missing required arguments: ${missing.join(', ')}',
+                'missing': missing,
+                'plugin': ?pluginId,
+                'capability': name,
+              },
+            ),
+          );
+        } else {
+          print('❌ Error: Missing required arguments: ${missing.join(', ')}');
+          print('   --> fix: $fix');
+        }
+        exitCode = ExitProtocol.usage;
         return;
       }
     }
@@ -251,6 +318,25 @@ class CapabilityCommand extends Command<void> {
       );
       final result = await wrapper.execute(args);
       if (result.success) {
+        // Issue #978: machine verdict mode. When the caller passed `--json`
+        // (the machine-input channel) and the capability returned a
+        // structured `verdict` in its result data, print exactly one
+        // parseable verdict object (issue #778 convention — no prose) and
+        // set the exit code from the verdict's own `ok` flag. Capabilities
+        // without a verdict keep the prose path unchanged.
+        final machineMode = argResults?['json'] != null;
+        final verdict = result.data?['verdict'];
+        if (machineMode && verdict is Map<String, dynamic>) {
+          print(jsonEncode(verdict));
+          final ok = verdict['ok'] == true;
+          if (!ok) {
+            final fix = verdict['fix'];
+            print('   --> fix: $fix');
+          }
+          exitCode = ok ? 0 : 1;
+          return;
+        }
+
         // Spec 0974: the #769 zero-files guard only applies to GENERATOR
         // capabilities — the ones that report their artifacts under
         // data['generatedFiles']. Read-only capabilities (e.g. the
@@ -283,6 +369,14 @@ class CapabilityCommand extends Command<void> {
           print('✅ ${result.message}');
         }
 
+        // Spec #1131: `--explain` — a capability may answer with a
+        // human-readable explanation instead of artifacts (read-only).
+        // Print it verbatim; the exit stays 0.
+        final explain = result.data?['explain'];
+        if (explain is String && explain.isNotEmpty) {
+          print(explain);
+        }
+
         final created = files.where((f) => f.action == 'created').toList();
         final overwritten = files
             .where((f) => f.action == 'overwritten')
@@ -311,11 +405,23 @@ class CapabilityCommand extends Command<void> {
         }
 
         if (skipped.isNotEmpty) {
-          print('\n⏭ Skipped (use --force to overwrite):');
+          // Issue #1719 review: on a `--revert` run a `skipped` action
+          // means the file was already gone — "use --force to overwrite"
+          // is wrong advice (there is nothing to overwrite).
+          print(
+            '\n⏭ Skipped${args['revert'] == true ? ' (nothing to revert)' : ' (use --force to overwrite)'}:',
+          );
           for (final file in skipped) {
             print('  ${file.path}');
           }
         }
+
+        // Issue #996: every successful standalone capability invocation
+        // ships a `proof.v1` receipt — persisted by the wrapper above
+        // (the sole writer on this path, issue #1130), so `zfa di create`,
+        // `zfa cache adapter`, `zfa repository create`, etc. all carry
+        // provenance. Best-effort inside the wrapper: a receipt failure
+        // degrades to a warning, never a CLI failure.
       } else {
         print('❌ Failed: ${result.message}');
         // Issue #767: a failed capability execution must not report success

@@ -28,15 +28,5 @@ Dart 3.11+ / Flutter 3.41+: Follow standard conventions
 - 013-plugin-usecase-abstraction: Added DI override support (`override: true` on ZuraffaDIContainer), UseCase interceptor pipeline (InterceptorRegistry, InterceptableUseCase), UseCase contract codegen (UseCaseContractFactory), and `zfa plugin add` CLI action.
 
 <!-- MANUAL ADDITIONS START -->
-## OpenWiki
-
-This repository has documentation located in the /openwiki directory.
-
-Start here:
-- [OpenWiki quickstart](openwiki/quickstart.md)
-
-OpenWiki includes repository overview, architecture notes, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
-
-When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
 
 <!-- MANUAL ADDITIONS END -->

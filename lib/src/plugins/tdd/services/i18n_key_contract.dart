@@ -12,7 +12,7 @@
 /// ### Layer Contracts
 ///
 /// **Presentation**:
-/// - `LoginSection`: `ShadInput` for email, `key: auth.signIn -> 'Sign in'`
+/// - `LoginSection`: `ZfaInput` for email, `key: auth.signIn -> 'Sign in'`
 /// ```
 ///
 /// Extraction rides the EXISTING [LayerContract] shape, so both producers —

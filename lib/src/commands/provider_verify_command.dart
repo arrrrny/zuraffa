@@ -1,10 +1,11 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../core/verdict_envelope.dart';
 import '../plugins/provider/provider_verifier.dart';
 import '../utils/string_utils.dart';
+import '../cli/exit_protocol.dart';
 
 /// Spec 979, orders 2 + 4 — `zfa provider verify <Entity>`.
 ///
@@ -12,10 +13,12 @@ import '../utils/string_utils.dart';
 /// `<Entity>` still contains `UnimplementedError` method bodies, and when
 /// the provider is missing a method its target Service interface
 /// declares. Every finding prints the file, the method, and a
-/// `--> fix:` line. `--json` emits the single machine verdict envelope
-/// ({schema:1, ok, entity, providerFile, interface, methods[], stubCount,
-/// findings[]}) per the #778 convention. Exit codes: 0 = verified clean,
-/// 1 = findings, 64 = usage (no entity).
+/// `--> fix:` line. `--json` emits the single canonical
+/// the canonical verdict schema envelope (SPEC 1132 / EPIC 1 lane 2, issue #1105
+/// backlog: the legacy `{schema:1, ok, ...}` `ProviderVerifyReport` dump
+/// left `VerdictEnvelope.fromJson` throwing) — the report's payload
+/// rides in `details`, its findings in the canonical `findings` array.
+/// Exit codes: 0 = verified clean, 1 = findings, 2 = usage (no entity).
 class ProviderVerifyCommand extends Command<void> {
   /// Injectable for tests (the CLI resolves the project root from the
   /// scoped working directory).
@@ -26,6 +29,15 @@ class ProviderVerifyCommand extends Command<void> {
       'json',
       negatable: false,
       help: 'Emit the machine verdict envelope instead of prose.',
+    );
+    argParser.addFlag(
+      'explain',
+      negatable: false,
+      help:
+          'Emit a human-readable explanation block: registered methods, '
+          'resolved types, and the verdict with --> fix: hints. '
+          'Suppressed when --json is also passed (the --json envelope '
+          'shape is unchanged). Spec 1128 order 1.',
     );
     argParser.addOption(
       'service',
@@ -53,7 +65,7 @@ class ProviderVerifyCommand extends Command<void> {
         '❌ Usage: zfa provider verify <Entity> [--service <Interface>] '
         '[--json]',
       );
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -68,7 +80,44 @@ class ProviderVerifyCommand extends Command<void> {
     );
 
     if (argResults?['json'] == true) {
-      print(jsonEncode(report.toJson()));
+      // SPEC 1132 / EPIC 1 lane 2: the canonical the canonical verdict schema
+      // envelope — the ONLY `--json` shape (one parser, `details` is the
+      // free-form surface carrying the ProviderVerifyReport payload).
+      // The envelope is the LAST stdout line.
+      VerdictEnvelope.emit(
+        VerdictEnvelope(
+          command: 'zfa provider verify',
+          verdict: report.ok ? VerdictKind.pass : VerdictKind.fail,
+          exitClass: report.ok ? ExitProtocol.success : ExitProtocol.failure,
+          subject: VerdictSubject(
+            kind: 'provider',
+            id: report.entity,
+            extra: {'interface': report.interface},
+          ),
+          findings: [
+            for (final finding in report.findings)
+              VerdictFinding(
+                kind: finding.kind,
+                fix: finding.fix,
+                file: finding.file.isEmpty ? null : finding.file,
+                member: finding.method.isEmpty ? null : finding.method,
+                extra: {'detail': finding.detail},
+              ),
+          ],
+          details: {
+            'entity': report.entity,
+            'providerFile': report.providerFile,
+            'interface': report.interface,
+            'methods': report.methods,
+            'stubCount': report.stubCount,
+            'findings': [
+              for (final finding in report.findings) finding.toJson(),
+            ],
+          },
+        ),
+      );
+    } else if (argResults?['explain'] == true) {
+      _printExplain(report);
     } else {
       _printText(report);
     }
@@ -80,6 +129,62 @@ class ProviderVerifyCommand extends Command<void> {
       return Directory.current.path;
     } catch (_) {
       return '.';
+    }
+  }
+
+  /// Spec 1128 (order 1) — `--explain` presentation path.
+  ///
+  /// Emits a human-readable block derived entirely from the existing
+  /// [ProviderVerifyReport] fields (no new AST traversal, no schema
+  /// change). The block names the entity under verification, the resolved
+  /// Service interface, the provider file, the methods registered on the
+  /// provider class (the AST scan), the verdict, and every `--> fix:`
+  /// hint when there are findings. Suppressed when `--json` is also
+  /// passed (the machine envelope shape is the single source of truth
+  /// for CI consumers — spec 1128 hard constraint).
+  void _printExplain(ProviderVerifyReport report) {
+    final file = report.providerFile ?? '(no provider file found)';
+    print('Provider Verify — Explain — ${report.entity}');
+    print('  entity        : ${report.entity}');
+    print('  interface     : ${report.interface}');
+    print('  provider file : $file');
+    // Registered methods — the interface method set (what the provider
+    // is expected to mirror). Surviving stubs are flagged inline so a
+    // reader sees which methods exist but are not yet filled.
+    final stubs = report.stubFindings.map((f) => f.method).toSet();
+    if (report.methods.isEmpty) {
+      print('  methods       : (none resolved — interface file not found)');
+    } else {
+      print('  methods       : ${report.methods.length} registered');
+      for (final method in report.methods) {
+        final marker = stubs.contains(method) ? ' [STUB]' : '';
+        print('    - $method$marker');
+      }
+    }
+    print('  stub count    : ${report.stubCount}');
+    // Verdict line.
+    if (report.ok) {
+      print(
+        '  verdict       : ✅ verified — no stubs, every interface '
+        'method implemented.',
+      );
+    } else {
+      print(
+        '  verdict       : ❌ not verified — '
+        '${report.findings.length} finding(s).',
+      );
+    }
+    // --> fix: hints (when present). Each finding carries its own fix line.
+    if (report.findings.isEmpty) return;
+    print('');
+    print('  hints:');
+    for (final finding in report.findings) {
+      final method = finding.method.isEmpty ? '' : '${finding.method}: ';
+      print('    [${finding.kind}] $method${finding.detail}');
+      if (finding.file.isNotEmpty) {
+        print('      file: ${finding.file}');
+      }
+      print('      ${finding.fix}');
     }
   }
 

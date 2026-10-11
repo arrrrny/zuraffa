@@ -367,5 +367,108 @@ void main() {
         expect(report.unconfirmedShared, contains(contains('primary_button')));
       },
     );
+
+    test('B-1144a: ephemeral sandbox state (.dart_tool, build, pubspec.lock) '
+        'is never scanned as agent-created', () async {
+      final view = await putFile(
+        projectRoot,
+        'lib/src/presentation/pages/product/product_view.dart',
+        'original',
+      );
+      await putFile(
+        sandbox,
+        'lib/src/presentation/pages/product/product_view.dart',
+        'original',
+      );
+      // The agent ran pub get / tests in the sandbox: tooling state
+      // accumulates at the same relative paths the host carries.
+      await putFile(
+        sandbox,
+        '.dart_tool/package_config.json',
+        '{"ephemeral": true}',
+      );
+      await putFile(sandbox, 'build/app.dill', 'ephemeral');
+      await putFile(sandbox, 'pubspec.lock', 'lockfile');
+
+      final manifest = buildManifest([
+        SliceFile(
+          relativePath: 'lib/src/presentation/pages/product/product_view.dart',
+          ownership: FileOwnership.owned,
+          hashAtCut: hashOf(view),
+          layer: 'presentation',
+        ),
+      ]);
+
+      final report = await SliceMerger().merge(
+        manifest: manifest,
+        sandboxDir: sandbox,
+        projectRoot: projectRoot,
+        confirmSharedOverwrite: (_) => true,
+        confirmSharedDelete: (_) => true,
+      );
+
+      expect(report.conflicts, isEmpty);
+      expect(report.created, isEmpty);
+      expect(
+        File(
+          p.join(projectRoot, '.dart_tool/package_config.json'),
+        ).existsSync(),
+        isFalse,
+        reason: 'tooling state never leaks into the project',
+      );
+    });
+
+    test('B-1144b: a re-merge over an identical already-landed creation is a '
+        'skip, not a conflict; a differing one still conflicts', () async {
+      final view = await putFile(
+        projectRoot,
+        'lib/src/presentation/pages/product/product_view.dart',
+        'original',
+      );
+      await putFile(
+        sandbox,
+        'lib/src/presentation/pages/product/product_view.dart',
+        'original',
+      );
+      await putFile(sandbox, 'lib/src/domain/usecases/new_usecase.dart', 'v1');
+
+      final manifest = buildManifest([
+        SliceFile(
+          relativePath: 'lib/src/presentation/pages/product/product_view.dart',
+          ownership: FileOwnership.owned,
+          hashAtCut: hashOf(view),
+          layer: 'presentation',
+        ),
+      ]);
+
+      final merger = SliceMerger();
+      final first = await merger.merge(
+        manifest: manifest,
+        sandboxDir: sandbox,
+        projectRoot: projectRoot,
+        confirmSharedOverwrite: (_) => true,
+        confirmSharedDelete: (_) => true,
+      );
+      expect(
+        first.created,
+        contains('lib/src/domain/usecases/new_usecase.dart'),
+      );
+
+      // The agent then drifts the file inside the sandbox; the project
+      // keeps the already-landed version.
+      await putFile(sandbox, 'lib/src/domain/usecases/new_usecase.dart', 'v2');
+
+      final second = await merger.merge(
+        manifest: manifest,
+        sandboxDir: sandbox,
+        projectRoot: projectRoot,
+        confirmSharedOverwrite: (_) => true,
+        confirmSharedDelete: (_) => true,
+      );
+      expect(
+        second.conflicts,
+        contains('lib/src/domain/usecases/new_usecase.dart'),
+      );
+    });
   });
 }

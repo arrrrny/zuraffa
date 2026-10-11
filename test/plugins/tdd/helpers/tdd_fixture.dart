@@ -49,11 +49,11 @@ dev_dependencies:
     // Resolve dependencies so `dart test` in the temp project succeeds even
     // when the host pub cache is cold (Linux CI).  Silently ignore errors —
     // tests that don't spawn `dart test` don't need deps.
-    await Process.run('dart', [
-      'pub',
-      'get',
-      '--no-example',
-    ], workingDirectory: root.path).catchError((_) {});
+    await Process.run(
+      'dart',
+      ['pub', 'get', '--no-example'],
+      workingDirectory: root.path,
+    ).catchError((_) => ProcessResult(0, 0, '', ''));
     if (writeProfile) {
       await fx._writeProfile(singleTemplate, suiteTemplate);
     }
@@ -98,7 +98,23 @@ coverage: 'dart test --coverage'
   String testPathOf(String id) =>
       p.join(root.path, 'test', '${_snake(id)}_test.dart');
 
+  /// Absolute NAMESPACED test path for a behavior id — the
+  /// `test/tdd/<feature>/<id>_test.dart` layout `zfa tdd gen` computes
+  /// (the canonical form `migrate_paths_command` writes). Suites reading a
+  /// generated test must use this, not [testPathOf]'s flat default.
+  String namespacedTestPathOf(String id) =>
+      p.join(root.path, 'test', 'tdd', featureName, '${_snake(id)}_test.dart');
+
   String _snake(String id) => id.toLowerCase().replaceAll('-', '_');
+
+  /// The portable project-relative POSIX form of the behavior's test
+  /// path — the recorded form receipts carry (issue #1397).
+  String recordedTestPath(String id) => _recordedForm(testPathOf(id));
+
+  /// The portable project-relative POSIX form of the behavior's subject
+  /// path — the recorded form receipts carry (issue #1397).
+  String recordedSubjectPath(String id) =>
+      _recordedForm(p.join(root.path, 'lib', '${_snake(id)}_subject.dart'));
 
   /// Register a behavior: writes its test file (unless [writeTestFile] is
   /// false) and appends a gen-style record to the artifact registry.
@@ -116,19 +132,27 @@ coverage: 'dart test --coverage'
       await file.parent.create(recursive: true);
       await file.writeAsString(testContent ?? _redTest(description));
     }
+    final subjectPath = p.join(root.path, 'lib', '${_snake(id)}_subject.dart');
     _records.add({
       'behavior_id': id,
       'feature': featureName,
       'source_criterion': sourceCriterion,
-      'test_path': path,
-      'subject_path': p.join(root.path, 'lib', '${_snake(id)}_subject.dart'),
-      'runnable_test_name': '$path::$id::$description',
+      // The portable project-relative recorded form (issue #1397): the
+      // canonical recorded form a post-fix gen writes.
+      'test_path': _recordedForm(path),
+      'subject_path': _recordedForm(subjectPath),
+      'runnable_test_name': '${_recordedForm(path)}::$id::$description',
       'test_ownership': 'created',
       'subject_ownership': 'created',
       'created_at': '2026-08-30T00:00:00.000Z',
     });
     await _flushRegistry();
   }
+
+  /// The portable recorded form of an absolute fixture path: project-
+  /// relative POSIX (issue #1397).
+  String _recordedForm(String absolute) =>
+      p.relative(absolute, from: root.path).replaceAll(r'\', '/');
 
   /// Seed an existing red-evidence entry (for no-arg inference tests).
   Future<void> seedRedEvidence(String behaviorId) async {
@@ -161,6 +185,15 @@ Expected: <2>
     await File(
       artifactsPath,
     ).writeAsString(jsonEncode({'feature': featureName, 'records': _records}));
+  }
+
+  /// The registry record a `zfa tdd gen` run wrote for [id] (bug #827
+  /// namespaced paths travel in the record — the single path contract).
+  Future<Map<String, dynamic>> registryRecordOf(String id) async {
+    final raw = await File(artifactsPath).readAsString();
+    final doc = jsonDecode(raw) as Map<String, dynamic>;
+    final records = (doc['records'] as List).cast<Map<String, dynamic>>();
+    return records.firstWhere((r) => r['behavior_id'] == id);
   }
 
   // -------------------------------------------------------------------
@@ -441,8 +474,19 @@ void main() {
         .where((r) => r.kind == 'widget')
         .map((r) => (r.id, r.description, r.traces, r.state))
         .toList();
+    // Issue #1007: contract-kind rows get the Contract loop section plan
+    // writes (the reader resolves their kind from the section header).
+    final contract = rows
+        .where((r) => r.kind == 'contract')
+        .map((r) => (r.id, r.description, r.traces, r.state))
+        .toList();
     final unit = rows
-        .where((r) => r.kind != 'acceptance' && r.kind != 'widget')
+        .where(
+          (r) =>
+              r.kind != 'acceptance' &&
+              r.kind != 'widget' &&
+              r.kind != 'contract',
+        )
         .map((r) => (r.id, r.description, r.traces, r.state))
         .toList();
     final buf = StringBuffer()
@@ -458,6 +502,11 @@ void main() {
     }
     if (unit.isNotEmpty) {
       buf.write(_renderTestListSection('Inner loop: unit behaviors', unit));
+    }
+    if (contract.isNotEmpty) {
+      buf.write(
+        _renderTestListSection('Contract loop: contract behaviors', contract),
+      );
     }
     await File(testListPath).writeAsString(buf.toString());
   }
@@ -577,8 +626,20 @@ case "$STEP" in
       refused-widget)
         # Issue #938 shape: the fix line, then the machine-parseable
         # verdict JSON as the FINAL stdout line, exit 1.
-        echo "--> fix: add shadcn_ui (flutter pub add shadcn_ui --dev) or re-run with --skip-widget"
-        echo "{\"command\":\"gen\",\"behavior\":\"$ID\",\"verdict\":\"refused\",\"reason\":\"pubspec.yaml does not declare shadcn_ui - widget-lane behaviors boot a ShadApp shell whose import would die at compile (issue #938). Run: flutter pub add shadcn_ui\",\"kind\":\"widget\"}"
+        echo "--> fix: add zuraffa_ui (flutter pub add zuraffa_ui --dev) or re-run with --skip-widget"
+        echo "{\"command\":\"gen\",\"behavior\":\"$ID\",\"verdict\":\"refused\",\"reason\":\"pubspec.yaml does not declare zuraffa_ui - widget-lane behaviors boot a ZuraffaApp shell whose import would die at compile (issue #938). Run: flutter pub add zuraffa_ui\",\"kind\":\"widget\"}"
+        exit 1 ;;
+      flood)
+        # Issue #1329: >200 lines of captured noise so the driver's
+        # truncated-tail contract is provable end-to-end (250 noise
+        # lines + the final error line = 251 captured lines; the tail
+        # keeps the LAST 200 and names the dropped count).
+        i=1
+        while [ "$i" -le 250 ]; do
+          echo "gen noise line $i"
+          i=$((i + 1))
+        done
+        echo "zfa tdd gen: final error line"
         exit 1 ;;
       *) echo "zfa tdd gen: $OUTCOME"; exit 1 ;;
     esac
@@ -620,9 +681,67 @@ case "$STEP" in
         echo "make: behavior=$ID outcome=skipped feature=$FEATURE"
         exit 0
         ;;
+      adopt)
+        # Issue #1331 adopted re-drive: green evidence appended (like
+        # `ok`/`skip`) but the summary outcome is `adopted` and the
+        # process exits 0 — exactly what the real `zfa tdd make` prints
+        # when the last reset tombstone invalidated the surviving
+        # certification and the make adopted the passing subject.
+        printf '\n## Cycle: %s (green)\n\n- behavior: %s\n- kind: green\n- criterion: FR-003\n- exit: 0\n- at: 2026-08-30T00:00:00.000Z\n' "$ID" "$ID" >> "$CYCLE"
+        echo "make: behavior=$ID outcome=adopted feature=$FEATURE"
+        exit 0
+        ;;
+      adopt-placeholder)
+        # Issue #1345 placeholder re-drive: green evidence appended (like
+        # `ok`/`adopt`) but the summary outcome is `adopted-placeholder`
+        # and the process exits 0 — exactly what the real `zfa tdd make`
+        # prints when the tombstoned re-drive re-entered the acceptance
+        # pipeline at compose/make phase-2.
+        printf '\n## Cycle: %s (green)\n\n- behavior: %s\n- kind: green\n- criterion: FR-003\n- exit: 0\n- at: 2026-08-30T00:00:00.000Z\n' "$ID" "$ID" >> "$CYCLE"
+        echo "make: behavior=$ID outcome=adopted-placeholder feature=$FEATURE"
+        exit 0
+        ;;
+      adopt-interrupted)
+        # Issue #1398 crash-recovery adoption: green evidence appended
+        # (like `ok`/`adopt`) but the summary outcome is
+        # `adopted-interrupted` and the process exits 0 — exactly what
+        # the real `zfa tdd make` prints when the write-ahead interrupt
+        # marker proved the previous make died mid-flight and the resumed
+        # make adopted the passing subject.
+        printf '\n## Cycle: %s (green)\n\n- behavior: %s\n- kind: green\n- criterion: FR-003\n- exit: 0\n- at: 2026-08-30T00:00:00.000Z\n' "$ID" "$ID" >> "$CYCLE"
+        echo "make: behavior=$ID outcome=adopted-interrupted feature=$FEATURE"
+        exit 0
+        ;;
+      skip-fail)
+        # Issue #1652 remediation (verify mutant M3): the #693/#694-era
+        # drift contract shape — make's outcome token says `skipped` but
+        # the exit code disagrees (non-zero). The driver's bug-986 arm
+        # grades the token as the terminal classification; the refactor
+        # step that follows must defer like any other green make.
+        printf '\n## Cycle: %s (green)\n\n- behavior: %s\n- kind: green\n- criterion: FR-003\n- exit: 0\n- at: 2026-08-30T00:00:00.000Z\n' "$ID" "$ID" >> "$CYCLE"
+        echo "make: behavior=$ID outcome=skipped feature=$FEATURE"
+        exit 1
+        ;;
       ok-no-evidence)
         echo "make: behavior=$ID outcome=green feature=$FEATURE"
         exit 0
+        ;;
+      hand-step-red)
+        # Issue #1568 shape: the planner-declared hand-step seam — the
+        # target test still fails after generation (the honest red the
+        # forecast pre-declared), so the real make exits 1 with
+        # outcome=generation-error and its transcript carries the
+        # still-failing-target-test line.
+        echo 'zfa tdd make: target test still fails after generation (exit 1).'
+        echo "make: behavior=$ID outcome=generation-error feature=$FEATURE"
+        exit 1
+        ;;
+      crash-no-marker)
+        # Issue #1568 guard shape: a REAL generation failure on the same
+        # seam — outcome=generation-error WITHOUT the still-failing
+        # marker, so the driver's generic stop must stand.
+        echo "make: behavior=$ID outcome=generation-error feature=$FEATURE"
+        exit 1
         ;;
       exit0:*)
         echo "make: behavior=$ID outcome=${OUTCOME#exit0:} feature=$FEATURE"
@@ -638,6 +757,31 @@ case "$STEP" in
     case "$OUTCOME" in
       ok) echo "refactor: behavior=$ID outcome=clean feature=$FEATURE"; exit 0 ;;
       exit0:*) echo "refactor: behavior=$ID outcome=${OUTCOME#exit0:} feature=$FEATURE"; exit 0 ;;
+      flood)
+        # Issue #1412: a realistic failing-refactor transcript — the
+        # PASSING preflight block at the head (exactly what the take(3)
+        # excerpt used to print) and the failing-pass block at the tail
+        # (what the operator actually needs). 3 preflight lines + 241
+        # preflight-echo noise lines + the 7-line pass block = 251
+        # captured lines, mirroring the #1329 flood so the recorded
+        # 200-line tail contract (U-1412-4) and the console 10-line tail
+        # (U-1412-1/2) are provable on ONE transcript.
+        echo "zfa tdd refactor: preflight suite"
+        echo '   command: dart test {file} --plain-name "{name}"'
+        echo "   preflight exit: 0"
+        i=1
+        while [ "$i" -le 241 ]; do
+          echo "preflight noise line $i"
+          i=$((i + 1))
+        done
+        echo "zfa tdd refactor: applying passes"
+        echo "   pass: build"
+        echo "     command: $PROJECT/bin/zfa build"
+        echo "     exit: 1"
+        echo "     changed: (none)"
+        echo '   pass "build" failed — misfire-stop.'
+        echo "zfa tdd refactor: final error line"
+        exit 1 ;;
       *) echo "refactor: behavior=$ID outcome=$OUTCOME feature=$FEATURE"; exit 1 ;;
     esac
     ;;
@@ -886,14 +1030,15 @@ int ${symbol}_value() => $value;
     await File(subjectPath).parent.create(recursive: true);
     await File(subjectPath).writeAsString(subjectContent ?? _stubSubject(id));
 
-    // 3. Registry record.
+    // 3. Registry record — the portable project-relative recorded form
+    // (issue #1397).
     _records.add({
       'behavior_id': id,
       'feature': featureName,
       'source_criterion': sourceCriterion,
-      'test_path': testPath,
-      'subject_path': subjectPath,
-      'runnable_test_name': '$testPath::$id::$description',
+      'test_path': _recordedForm(testPath),
+      'subject_path': _recordedForm(subjectPath),
+      'runnable_test_name': '${_recordedForm(testPath)}::$id::$description',
       'test_ownership': 'created',
       'subject_ownership': 'created',
       'created_at': '2026-08-30T00:00:00.000Z',
@@ -1024,4 +1169,21 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 0;
     final raw = await file.readAsString();
     return raw.split('\n').where((l) => l.trim().isNotEmpty).toList();
   }
+}
+
+/// A symlink alias of [fx]'s root: passing the ALIAS as `--project`
+/// reproduces the macOS symlinked-root shape (`/var/folders` →
+/// `/private/var/folders`) deterministically on every POSIX platform
+/// (issue #1603). The alias is a DIFFERENT path string than the resolved
+/// root, so a raw-vs-canonical comparison misreads containment exactly
+/// like macOS does. Callers own the alias's lifetime — register
+/// `addTearDown(() => Link(aliasPath).deleteSync())`.
+Future<String> symlinkRootAlias(TddFixture fx) async {
+  final aliasPath = p.join(
+    Directory.systemTemp.path,
+    'tdd_alias_${DateTime.now().microsecondsSinceEpoch}_'
+    '${fx.featureName.replaceAll(RegExp('[^a-zA-Z0-9]'), '')}',
+  );
+  await Link(aliasPath).create(fx.root.path);
+  return aliasPath;
 }

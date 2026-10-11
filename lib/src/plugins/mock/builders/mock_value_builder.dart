@@ -13,23 +13,35 @@ class MockValueBuilder {
 
   List<Map<String, dynamic>> generateMockValuesForJson(
     String entityName,
-    Map<String, String> fields,
-  ) {
+    Map<String, String> fields, {
+    int baseSeed = 1,
+    int? deterministicEpochMillis,
+  }) {
     final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
       entityName,
       outputDir,
     );
 
     return List.generate(3, (i) {
-      final seed = i + 1;
-      final map = _generateFieldValuesForJson(entityName, fields, seed: seed);
+      final seed = baseSeed + i;
+      final map = _generateFieldValuesForJson(
+        entityName,
+        fields,
+        seed: seed,
+        epochMillis: deterministicEpochMillis,
+      );
 
       if (subtypes.isNotEmpty) {
         final subtype = subtypes[seed % subtypes.length];
         final subtypeFields = EntityAnalyzer.analyzeEntity(subtype, outputDir);
         if (subtypeFields.isNotEmpty) {
           map.addAll(
-            _generateFieldValuesForJson(subtype, subtypeFields, seed: seed),
+            _generateFieldValuesForJson(
+              subtype,
+              subtypeFields,
+              seed: seed,
+              epochMillis: deterministicEpochMillis,
+            ),
           );
         }
         map['_type'] = subtype;
@@ -43,15 +55,21 @@ class MockValueBuilder {
     String entityName,
     Map<String, String> fields, {
     int seed = 1,
+    int? epochMillis,
   }) {
     final map = <String, dynamic>{};
     for (final entry in fields.entries) {
-      map[entry.key] = _jsonValueFor(entry.key, entry.value, seed);
+      map[entry.key] = _jsonValueFor(entry.key, entry.value, seed, epochMillis);
     }
     return map;
   }
 
-  dynamic _jsonValueFor(String fieldName, String fieldType, int seed) {
+  dynamic _jsonValueFor(
+    String fieldName,
+    String fieldType,
+    int seed, [
+    int? epochMillis,
+  ]) {
     final isNullable = fieldType.endsWith('?');
     final baseType = fieldType.replaceAll('?', '');
 
@@ -61,23 +79,33 @@ class MockValueBuilder {
 
     if (baseType.startsWith('List<') && baseType.endsWith('>')) {
       final innerType = baseType.substring(5, baseType.length - 1);
-      return _jsonListValue(innerType, seed);
+      return _jsonListValue(innerType, seed, epochMillis);
     }
 
     if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
-      return _jsonMapValue(baseType, seed);
+      return _jsonMapValue(baseType, seed, epochMillis);
     }
 
-    final primitive = _jsonPrimitiveValue(baseType, fieldName, seed);
+    final primitive = _jsonPrimitiveValue(
+      baseType,
+      fieldName,
+      seed,
+      epochMillis,
+    );
     if (primitive != null) return primitive;
 
-    final entityValue = _jsonEntityValue(baseType, seed);
+    final entityValue = _jsonEntityValue(baseType, seed, epochMillis);
     if (entityValue != null) return entityValue;
 
     return '$fieldName $seed';
   }
 
-  dynamic _jsonPrimitiveValue(String baseType, String fieldName, int seed) {
+  dynamic _jsonPrimitiveValue(
+    String baseType,
+    String fieldName,
+    int seed, [
+    int? epochMillis,
+  ]) {
     switch (baseType) {
       case 'String':
         return '$fieldName $seed';
@@ -88,6 +116,14 @@ class MockValueBuilder {
       case 'bool':
         return seed % 2 == 1;
       case 'DateTime':
+        // Spec 1001: with a deterministic epoch (seeded generation) the
+        // timestamp derives from the seed — byte-identical replays.
+        if (epochMillis != null) {
+          return DateTime.fromMillisecondsSinceEpoch(
+            epochMillis + seed * 86400000,
+            isUtc: true,
+          ).toIso8601String();
+        }
         return DateTime.now()
             .subtract(Duration(days: seed * 30))
             .toIso8601String();
@@ -105,7 +141,7 @@ class MockValueBuilder {
     return enumValues[seed % enumValues.length];
   }
 
-  dynamic _jsonEntityValue(String baseType, int seed) {
+  dynamic _jsonEntityValue(String baseType, int seed, [int? epochMillis]) {
     if (baseType.isEmpty || baseType[0] != baseType[0].toUpperCase()) {
       return null;
     }
@@ -128,6 +164,7 @@ class MockValueBuilder {
         subtype,
         subtypeFields,
         seed: seed,
+        epochMillis: epochMillis,
       );
       nested['_type'] = subtype;
       return nested;
@@ -136,13 +173,18 @@ class MockValueBuilder {
     final entityFields = EntityAnalyzer.analyzeEntity(cleanType, outputDir);
     if (entityFields.isNotEmpty &&
         !entityHelper.isDefaultFields(entityFields)) {
-      return _generateFieldValuesForJson(cleanType, entityFields, seed: seed);
+      return _generateFieldValuesForJson(
+        cleanType,
+        entityFields,
+        seed: seed,
+        epochMillis: epochMillis,
+      );
     }
 
     return {'_type': cleanType};
   }
 
-  List<dynamic> _jsonListValue(String innerType, int seed) {
+  List<dynamic> _jsonListValue(String innerType, int seed, [int? epochMillis]) {
     final count = 3;
     if (innerType.isEmpty) return <dynamic>['item 1', 'item 2', 'item 3'];
 
@@ -160,18 +202,27 @@ class MockValueBuilder {
 
     if (isEntity) {
       return List.generate(count, (i) {
-        final value = _jsonEntityValue(innerType, seed + i);
+        final value = _jsonEntityValue(innerType, seed + i, epochMillis);
         return value ?? 'item $i';
       });
     }
 
     return List.generate(count, (i) {
-      final prim = _jsonPrimitiveValue(innerType, 'item', seed + i);
+      final prim = _jsonPrimitiveValue(
+        innerType,
+        'item',
+        seed + i,
+        epochMillis,
+      );
       return prim ?? 'item $i';
     });
   }
 
-  Map<String, dynamic> _jsonMapValue(String mapType, int seed) {
+  Map<String, dynamic> _jsonMapValue(
+    String mapType,
+    int seed, [
+    int? epochMillis,
+  ]) {
     final innerTypes = mapType.substring(4, mapType.length - 1);
     final typeParts = innerTypes.split(',').map((s) => s.trim()).toList();
     if (typeParts.length != 2) return <String, dynamic>{};
@@ -181,15 +232,26 @@ class MockValueBuilder {
 
     return {
       for (int i = 0; i < 3; i++)
-        (_jsonPrimitiveValue(keyType, 'key', seed + i)?.toString() ?? 'key$i'):
-            _jsonValueFor('value', valueType, seed + i),
+        (_jsonPrimitiveValue(
+              keyType,
+              'key',
+              seed + i,
+              epochMillis,
+            )?.toString() ??
+            'key$i'): _jsonValueFor(
+          'value',
+          valueType,
+          seed + i,
+          epochMillis,
+        ),
     };
   }
 
   List<Expression> generateMockDataInstances(
     String entityName,
-    Map<String, String> fields,
-  ) {
+    Map<String, String> fields, {
+    int baseSeed = 1,
+  }) {
     if (EntityAnalyzer.isEnum(entityName, outputDir)) {
       return [
         refer(entityName).property('values').index(literalNum(0)),
@@ -206,7 +268,7 @@ class MockValueBuilder {
       3,
       (i) => refer(
         entityName,
-      ).call(const [], generateConstructorCallArgs(fields, seed: i + 1)),
+      ).call(const [], generateConstructorCallArgs(fields, seed: baseSeed + i)),
     );
   }
 

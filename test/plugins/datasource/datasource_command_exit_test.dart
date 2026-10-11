@@ -126,9 +126,10 @@ void main() {
     // _exit(64) (cli_runner.dart). run() itself is reachable through
     // direct programmatic invocation (MCP embedding, hosts) — that is
     // the branch datasource_command.dart:50-53 owns, and it must exit
-    // 64 via reportSubcommandUsage(), never fall through as success.
+    // via reportSubcommandUsage() (SPEC 917: the canonical usage 2 — the
+    // legacy 64 is retired), never fall through as success.
     test(
-      'programmatic run() with no entity exits 64 via reportSubcommandUsage',
+      'programmatic run() with no entity exits 2 via reportSubcommandUsage',
       () async {
         exitCode = 0;
         final plugin = DataSourcePlugin(
@@ -142,7 +143,13 @@ void main() {
         // through looking like a success.
         final output = await captureOutput(() => command.run());
 
-        expect(exitCode, 64, reason: 'bare command must signal usage error 64');
+        expect(
+          exitCode,
+          2,
+          reason:
+              'bare command must signal a usage error (SPEC 917: canonical '
+              '2 — the legacy 64 is retired)',
+        );
         expect(output, contains('Usage'));
         expect(output, contains('--help'));
       },

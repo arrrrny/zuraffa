@@ -1,0 +1,42 @@
+00:00 +0: loading test/plugins/tdd/run_command_test.dart
+00:00 +0: #1590 progress liveness A-1590-3: a resumed in-flight step names the resume + owner pid
+00:06 +0 -1: #1590 progress liveness A-1590-3: a resumed in-flight step names the resume + owner pid [E]
+  Expected: contains '[run] B-002 gen — scaffold test + stub (resuming in-flight step from run-state.json, owner pid 3391)'
+    Actual: 'zfa tdd run: feature 090-run-driver — 3 behavior(s)\n'
+              '   1 already done — skipping\n'
+              '   suite baseline: dart test (once per run — issue #741)\n'
+              '[run] B-002 gen -> ok\n'
+              '[run] B-002 verify-red -> certified\n'
+              '[run] B-002 make -> green\n'
+              '[run] B-002 refactor -> clean\n'
+              '[run] B-003 gen -> ok\n'
+              '[run] B-003 verify-red -> certified\n'
+              '[run] B-003 make -> green\n'
+              '[run] B-003 refactor -> clean\n'
+              'run: feature=090-run-driver result=complete pending=0 red=0 green=0 done=3\n'
+              ''
+     Which: does not contain '[run] B-002 gen — scaffold test + stub (resuming in-flight step from run-state.json, owner pid 3391)'
+  zfa tdd run: feature 090-run-driver — 3 behavior(s)
+     1 already done — skipping
+     suite baseline: dart test (once per run — issue #741)
+  [run] B-002 gen -> ok
+  [run] B-002 verify-red -> certified
+  [run] B-002 make -> green
+  [run] B-002 refactor -> clean
+  [run] B-003 gen -> ok
+  [run] B-003 verify-red -> certified
+  [run] B-003 make -> green
+  [run] B-003 refactor -> clean
+  run: feature=090-run-driver result=complete pending=0 red=0 green=0 done=3
+  
+  
+  package:matcher                                expect
+  test/plugins/tdd/run_command_test.dart 2317:7  main.<fn>.<fn>
+  
+00:06 +0 -1: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/run_command_test.dart: #1590 progress liveness A-1590-3: a resumed in-flight step names the resume + owner pid
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.

@@ -10,6 +10,7 @@ import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/sync_builder.dart';
 import 'capabilities/create_sync_capability.dart';
+import 'capabilities/simulate_sync_capability.dart';
 
 /// Manages offline-first sync generation for the data layer.
 ///
@@ -38,7 +39,10 @@ class SyncPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   @override
-  List<ZuraffaCapability> get capabilities => [CreateSyncCapability(this)];
+  List<ZuraffaCapability> get capabilities => [
+    CreateSyncCapability(this),
+    SimulateSyncCapability(this),
+  ];
 
   @override
   Command createCommand() => SyncCommand(this);

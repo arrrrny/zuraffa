@@ -42,10 +42,10 @@ void main() {
     );
   }
 
-  test('U5: dream_draft_spec is listed by v2ToolDefinitions (12 tools) with '
+  test('U5: dream_draft_spec is listed by v2ToolDefinitions (13 tools) with '
       'a valid input schema', () {
     final tools = v2ToolDefinitions();
-    expect(tools.length, 12);
+    expect(tools.length, 13);
     final tool = tools.firstWhere((t) => t['name'] == 'dream_draft_spec');
     final schema = tool['inputSchema'] as Map<String, dynamic>;
     expect(schema['type'], 'object');

@@ -15,8 +15,7 @@ library;
 
 import 'package:test/test.dart';
 
-import '../../../lib/tdd/072-dependency-mocks/a3_subject.dart' as subject;
-
+import 'package:zuraffa/tdd/072-dependency-mocks/a3_subject.dart' as subject;
 void main() {
   group('A3 (AC-3)', () {
     test('A3 — the generated artifacts are byte-for-byte identical.', () {

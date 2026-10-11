@@ -2,12 +2,6 @@
 //
 // Two grammars, one command (spec 0971, T004):
 //
-//   * `zfa route verify` (no positional) — the drift observability seam
-//     (bug: route-dual-system-unreconciled): reads the route table from
-//     disk (CLI side: `*_routes.dart`, DDA side: generated
-//     `zfa_router.g.dart` if present), runs drift detection, and emits a
-//     result in text, plain, or JSON form.
-//
 //   * `zfa route verify <Entity>` (spec 0971 order 4) — the A+ verdict:
 //     resolves the entity's routes receipt
 //     (`.zfa/receipts/routes-<Entity>.json`, order 3) as the declared
@@ -16,6 +10,23 @@
 //     route-table test artifact digest), runs the generated route-table
 //     test headlessly, emits a verdict receipt, and exits 0/1 with
 //     `--> fix:` lines on every mismatch.
+//
+//   * `zfa route verify` (no positional) — the drift observability seam
+//     (bug: route-dual-system-unreconciled): reads the route table from
+//     disk (CLI side: `*_routes.dart` / `*_shell.dart`, DDA side:
+//     generated `zfa_router.g.dart` if present), runs drift detection,
+//     and emits an honest verdict in text, plain, or JSON form.
+//
+// Bug 1060: drift verify used to be a permanent no-op PASS — when one or
+// both route systems were missing it printed "no drift" and exited 0.
+// The drift verdict set is now honest and pinned to exit codes:
+//
+//   verdict             exit code    meaning
+//   ------------------  -----------  --------------------------------------
+//   match                0           both systems present, path sets agree
+//   drift                1           overlap findings and/or one-sided paths
+//   insufficient-input   2           a system has no routes at all; with
+//                                    --strict it fails the run (exit 1)
 //
 // The headless test runner is injectable (the tdd realize suite-runner
 // pattern): real `flutter test` / `dart test` in production, faked in
@@ -29,12 +40,93 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../core/project/receipt_store.dart';
+import '../core/verdict_envelope.dart';
+import '../cli/exit_protocol.dart';
 import '../plugins/route/builders/route_table_test_builder.dart';
 import '../plugins/route/route_receipt.dart';
 import '../utils/string_utils.dart';
 import '../version.dart';
 import '../plugins/route/route_drift_detector.dart';
 import '../plugins/route/route_table.dart';
+
+/// The honest verdict of a `zfa route verify` drift run. Never collapse a
+/// missing-input run into a PASS.
+enum RouteVerifyVerdict {
+  /// Both systems contributed routes and no drift was found.
+  match,
+
+  /// Overlap drift and/or one-sided paths were found.
+  drift,
+
+  /// At least one route system contributed no entries, so the two systems
+  /// could not be reconciled.
+  insufficientInput;
+
+  /// The stable machine-readable name used in text and `--json` output.
+  String get label => switch (this) {
+    RouteVerifyVerdict.match => 'match',
+    RouteVerifyVerdict.drift => 'drift',
+    RouteVerifyVerdict.insufficientInput => 'insufficient-input',
+  };
+
+  /// The exit code this verdict exits with when `--strict` is [strict].
+  int exitCode({required bool strict}) => switch (this) {
+    RouteVerifyVerdict.match => 0,
+    RouteVerifyVerdict.drift => 1,
+    // Without --strict, insufficient-input exits 2 so it is distinguishable
+    // from drift; with --strict it fails the run with the uniform error code.
+    RouteVerifyVerdict.insufficientInput => strict ? 1 : 2,
+  };
+}
+
+/// The verdict plus every finding that backs it. Pure data — the command
+/// renders it to text, plain, or JSON.
+class RouteVerifyResult {
+  const RouteVerifyResult({
+    required this.verdict,
+    required this.overlaps,
+    required this.oneSided,
+    this.missingInput,
+  });
+
+  final RouteVerifyVerdict verdict;
+
+  /// Paths declared by BOTH systems (from [RouteDriftDetector]).
+  final List<RouteDrift> overlaps;
+
+  /// Paths declared by exactly one system while both systems are populated.
+  /// Drift-class findings: the other system drifted from the declaring one.
+  final List<RouteDrift> oneSided;
+
+  /// Human-readable description of which route input is missing. Set only
+  /// for [RouteVerifyVerdict.insufficientInput].
+  final String? missingInput;
+
+  Map<String, Object?> toJson() => {
+    'verdict': verdict.label,
+    'drift': overlaps
+        .map(
+          (d) => {
+            'path': d.path,
+            'sources': canonicalRouteEntries(
+              d.sources,
+            ).map((s) => s.toJson()).toList(),
+          },
+        )
+        .toList(),
+    'oneSided': oneSided
+        .map(
+          (d) => {
+            'path': d.path,
+            'sources': canonicalRouteEntries(
+              d.sources,
+            ).map((s) => s.toJson()).toList(),
+          },
+        )
+        .toList(),
+    if (missingInput != null) 'missingInput': missingInput,
+  };
+}
 
 /// Runs one route-table test headlessly: returns the process exit code
 /// and captured output. Throws [ProcessException] when no runner is
@@ -59,6 +151,15 @@ class RouteVerifyCommand extends Command<void> {
           'artifact; entity mode: the schema-1 verdict envelope).',
     );
     argParser.addFlag(
+      'explain',
+      negatable: false,
+      help:
+          'After the verdict, describe it in prose (issue #1122): what the '
+          'drift verdict means, which systems were reconciled and which '
+          'paths drifted. With --json the artifact gains an additive '
+          '`explain` key.',
+    );
+    argParser.addFlag(
       'plain',
       negatable: false,
       help: 'Strip emoji and color from output (CI-friendly).',
@@ -66,7 +167,9 @@ class RouteVerifyCommand extends Command<void> {
     argParser.addFlag(
       'strict',
       negatable: false,
-      help: 'Treat drift warnings as errors (exit 1).',
+      help:
+          'Fail hard on any non-match verdict: drift exits 1, and '
+          'insufficient-input also exits 1 (without --strict it exits 2).',
     );
     argParser.addOption(
       'out',
@@ -83,9 +186,14 @@ class RouteVerifyCommand extends Command<void> {
 
   @override
   String get description =>
-      'Verify routes: with <Entity>, prove the declared table against the '
-      'current tree and run the route-table test headlessly (spec 0971); '
-      'without, compare CLI-generated and DDA-annotated routes for drift.';
+      'Verify routes. With <Entity>: prove the declared route-table receipt '
+      'against the current tree and run the route-table test headlessly '
+      '(spec 0971). Without: compare CLI-generated and DDA-annotated routes '
+      'for drift. Drift verdicts and exit codes: match → exit 0 (both '
+      'systems present, path sets agree); drift → exit 1 (overlapping or '
+      'one-sided paths, each named); insufficient-input → exit 2 (a system '
+      'has no routes at all; with --strict it exits 1). Insufficient-input '
+      'is never a silent PASS.';
 
   @override
   Future<void> run() async {
@@ -303,7 +411,7 @@ class RouteVerifyCommand extends Command<void> {
 
     // 5. Emit the verdict receipt (order 4): the #963 ledger and CI can
     //    read the LATEST verdict at the deterministic path.
-    await _writeVerdictReceipt(
+    final receiptWritten = await _writeVerdictReceipt(
       entity: entity,
       ok: ok,
       declaredRoutes: declaredRoutes,
@@ -313,25 +421,38 @@ class RouteVerifyCommand extends Command<void> {
       findings: findings,
     );
 
-    final envelope = <String, dynamic>{
-      'schema': 1,
-      'verdict': ok ? 'pass' : 'fail',
-      'entity': entity,
-      'routes': declaredRoutes,
-      'resolvedRoutes': manifest.declaredRoutes
-          .map((r) => r.path)
-          .toList(growable: false),
-      'deepLinks': declaredLinks,
-      'routeTableTestPath': testPath,
-      'testRun': testRun,
-      'findings': findings,
-    };
+    // SPEC 1105: the canonical envelope. The route-specific surface
+    // (tables, test run) lives in details; the proof receipt the run
+    // wrote is listed under receipts when it actually landed.
+    final envelope = VerdictEnvelope(
+      command: 'zfa route verify $entity',
+      verdict: ok ? VerdictKind.pass : VerdictKind.fail,
+      exitClass: ok ? ExitProtocol.success : ExitProtocol.failure,
+      subject: VerdictSubject(kind: 'route', id: entity),
+      receipts: receiptWritten
+          ? [
+              '.zfa/receipts/${RouteReceiptWriter.receiptFileName('$entity-verify')}',
+            ]
+          : const <String>[],
+      findings: [
+        for (final finding in findings) VerdictFinding.fromJson(finding),
+      ],
+      details: {
+        'routes': declaredRoutes,
+        'resolvedRoutes': manifest.declaredRoutes
+            .map((r) => r.path)
+            .toList(growable: false),
+        'deepLinks': declaredLinks,
+        'routeTableTestPath': testPath,
+        'testRun': testRun,
+      },
+    );
 
-    final encoded = jsonEncode(envelope);
+    final encoded = envelope.toJsonLine();
     if (outPath != null) {
       await File(outPath).writeAsString('$encoded\n');
     } else if (asJson) {
-      print(encoded);
+      VerdictEnvelope.emit(envelope);
     } else {
       _printEntityVerdict(entity, ok, findings, testRun, plain: plain);
     }
@@ -440,7 +561,9 @@ class RouteVerifyCommand extends Command<void> {
     return (exitCode: result.exitCode, output: output);
   }
 
-  Future<void> _writeVerdictReceipt({
+  /// Returns true when the verdict receipt actually landed on disk (the
+  /// envelope's `receipts` list only lists receipts that exist).
+  Future<bool> _writeVerdictReceipt({
     required String entity,
     required bool ok,
     required List<Map<String, dynamic>> declaredRoutes,
@@ -477,9 +600,11 @@ class RouteVerifyCommand extends Command<void> {
           },
         },
       );
+      return true;
     } catch (_) {
       // Best-effort: the verdict is already on stdout; a receipt-write
       // failure must not flip the exit code.
+      return false;
     }
   }
 
@@ -494,23 +619,31 @@ class RouteVerifyCommand extends Command<void> {
     required List<Map<String, dynamic>> deepLinks,
     required Map<String, dynamic>? testRun,
   }) {
-    final envelope = <String, dynamic>{
-      'schema': 1,
-      'verdict': 'fail',
-      'entity': entity,
-      'routes': routes,
-      'deepLinks': deepLinks,
-      'routeTableTestPath': null,
-      'testRun': testRun,
-      'findings': [
-        ...findings,
-        {'kind': 'verify-error', 'detail': message, 'fix': fix},
+    final envelope = VerdictEnvelope(
+      command: 'zfa route verify $entity',
+      verdict: VerdictKind.fail,
+      exitClass: ExitProtocol.failure,
+      subject: VerdictSubject(kind: 'route', id: entity),
+      findings: [
+        for (final finding in findings) VerdictFinding.fromJson(finding),
+        VerdictFinding(
+          kind: 'verify-error',
+          fix: fix,
+          extra: {'detail': message},
+        ),
       ],
-    };
+      details: {
+        'routes': routes,
+        'deepLinks': deepLinks,
+        'routeTableTestPath': null,
+        'testRun': testRun,
+      },
+    );
+    final encoded = envelope.toJsonLine();
     if (outPath != null) {
-      File(outPath).writeAsStringSync('${jsonEncode(envelope)}\n');
+      File(outPath).writeAsStringSync('$encoded\n');
     } else if (asJson) {
-      print(jsonEncode(envelope));
+      VerdictEnvelope.emit(envelope);
     } else {
       print('❌ $message');
       print('--> fix: $fix');
@@ -558,24 +691,23 @@ class RouteVerifyCommand extends Command<void> {
     final outPath = argResults?['out'] as String?;
 
     final table = _readRouteTable();
-    final drifts = _detector.detect(table);
+    final result = _assess(table);
+    final explain = argResults?['explain'] == true;
 
     if (json) {
       final payload = {
         'version': table.version,
+        ...result.toJson(),
         'routes': canonicalRouteEntries(
           table.routes,
         ).map((e) => e.toJson()).toList(),
-        'drift': drifts
-            .map(
-              (d) => {
-                'path': d.path,
-                'sources': canonicalRouteEntries(
-                  d.sources,
-                ).map((s) => s.toJson()).toList(),
-              },
-            )
-            .toList(),
+        // Issue #1122: additive prose block — the base artifact keys are
+        // unchanged.
+        if (explain)
+          'explain': {
+            'verdict': result.verdict.label,
+            'prose': _driftVerdictProse(table, result, strict: strict),
+          },
       };
       final encoded = jsonEncode(payload);
       if (outPath != null) {
@@ -584,37 +716,165 @@ class RouteVerifyCommand extends Command<void> {
       } else {
         stdout.writeln(encoded);
       }
-    } else if (plain) {
-      stdout.writeln('routes: ${table.routes.length}');
-      stdout.writeln('drift: ${drifts.length}');
-      stdout.write(
-        _renderDrifts(drifts, driftPrefix: 'DRIFT', sourceIndent: '  '),
-      );
     } else {
-      stdout.writeln('routes: ${table.routes.length}');
-      stdout.writeln('drift: ${drifts.length}');
-      stdout.write(
-        _renderDrifts(drifts, driftPrefix: '⚠️  DRIFT', sourceIndent: '    '),
+      final buf = StringBuffer();
+      buf.writeln('verdict: ${result.verdict.label}');
+      buf.writeln('routes: ${table.routes.length}');
+      buf.writeln('drift: ${result.overlaps.length}');
+      if (result.missingInput != null) {
+        buf.writeln('missing-input: ${result.missingInput}');
+      }
+      buf.write(
+        _renderFindings(
+          result.overlaps,
+          oneSided: result.oneSided,
+          driftPrefix: plain ? 'DRIFT' : '⚠️  DRIFT',
+          sourceIndent: plain ? '  ' : '    ',
+        ),
       );
+      // Issue #1122: describe the drift verdict in prose, after the
+      // machine-verdict block.
+      if (explain) {
+        buf.writeln('explain:');
+        buf.writeln('  ${_driftVerdictProse(table, result, strict: strict)}');
+      }
+      stdout.write(buf.toString());
     }
 
-    if (drifts.isNotEmpty && strict) {
-      exitCode = 1;
-    }
+    exitCode = result.verdict.exitCode(strict: strict);
   }
 
-  /// Render drift findings to a string. [driftPrefix] is prepended to
-  /// each drift path; [sourceIndent] precedes each source line.
+  /// Issue #1122: the drift-mode `--explain` prose — the verdict
+  /// described in a sentence that names the reconciled systems, the
+  /// drifted paths, and the exit code.
+  String _driftVerdictProse(
+    RouteTable table,
+    RouteVerifyResult result, {
+    required bool strict,
+  }) => switch (result.verdict) {
+    RouteVerifyVerdict.match =>
+      'verdict: match — both route systems (the CLI `*_routes.dart` / '
+          '`*_shell.dart` modules and the DDA `zfa_router.g.dart`) declare '
+          'the same ${table.routes.map((e) => e.path).toSet().length} '
+          'path(s); nothing to reconcile (exit 0).',
+    RouteVerifyVerdict.drift =>
+      'verdict: drift — the CLI modules and the DDA router disagree: '
+          '${result.overlaps.length} overlap finding(s) and '
+          '${result.oneSided.length} one-sided path(s): '
+          '${result.oneSided.map((d) => d.path).join(', ')}. Reconcile the '
+          'two systems by regenerating the drifted side (exit 1).',
+    RouteVerifyVerdict.insufficientInput =>
+      'verdict: insufficient-input — ${result.missingInput ?? 'a route '
+                  'system contributed no entries'}; the systems cannot be '
+          'reconciled (exit ${RouteVerifyVerdict.insufficientInput.exitCode(strict: strict)}'
+          '${strict ? '' : '; 1 with --strict'}).',
+  };
+
+  /// Pure: computes the honest verdict from the walked route table. The
+  /// [RouteDriftDetector] stays untouched — overlap findings come from it;
+  /// one-sided findings are computed here from the same table.
+  ///
+  /// Verdict semantics (bug 1060):
+  /// - a system with no entries at all → insufficient-input (never a PASS);
+  /// - both systems populated and the path sets AGREE → match. The
+  ///   detector's overlap findings are reconciled agreements in this state
+  ///   (both systems declare the same paths), not conflicts;
+  /// - both systems populated and the path sets DISAGREE → drift: the
+  ///   detector's overlap findings plus every one-sided path, each named.
+  RouteVerifyResult _assess(RouteTable table) {
+    final cli = table.routes
+        .where((entry) => entry.source == RouteSource.cli)
+        .toList();
+    final dda = table.routes
+        .where((entry) => entry.source == RouteSource.dda)
+        .toList();
+
+    if (cli.isEmpty || dda.isEmpty) {
+      final missing = <String>[
+        if (cli.isEmpty) 'CLI routes (*_routes.dart / *_shell.dart)',
+        if (dda.isEmpty) 'DDA router (zfa_router.g.dart)',
+      ];
+      return RouteVerifyResult(
+        verdict: RouteVerifyVerdict.insufficientInput,
+        overlaps: const [],
+        oneSided: const [],
+        missingInput:
+            'no entries found for ${missing.join(' and ')} under lib/ — '
+            'the systems cannot be reconciled',
+      );
+    }
+
+    final cliPaths = cli.map((e) => e.path).toSet();
+    final ddaPaths = dda.map((e) => e.path).toSet();
+
+    if (cliPaths.length == ddaPaths.length && cliPaths.containsAll(ddaPaths)) {
+      // Full agreement: every path declared by one system is declared by
+      // the other. Nothing to reconcile — that is what match means.
+      return RouteVerifyResult(
+        verdict: RouteVerifyVerdict.match,
+        overlaps: const [],
+        oneSided: const [],
+      );
+    }
+
+    final overlaps = _detector.detect(table);
+    final oneSided = _oneSidedFindings(cli, dda);
+    return RouteVerifyResult(
+      verdict: RouteVerifyVerdict.drift,
+      overlaps: overlaps,
+      oneSided: oneSided,
+    );
+  }
+
+  /// Pure: paths declared by exactly one system while BOTH systems are
+  /// populated. Each finding names the offending path and every declaring
+  /// entry, in canonical order.
+  List<RouteDrift> _oneSidedFindings(
+    List<RouteEntry> cli,
+    List<RouteEntry> dda,
+  ) {
+    final cliPaths = cli.map((e) => e.path).toSet();
+    final ddaPaths = dda.map((e) => e.path).toSet();
+    final orphaned = <RouteEntry>[
+      ...cli.where((e) => !ddaPaths.contains(e.path)),
+      ...dda.where((e) => !cliPaths.contains(e.path)),
+    ];
+    final byPath = <String, List<RouteEntry>>{};
+    for (final entry in orphaned) {
+      byPath.putIfAbsent(entry.path, () => []).add(entry);
+    }
+    final findings = [
+      for (final entry in byPath.entries)
+        RouteDrift(
+          path: entry.key,
+          sources: canonicalRouteEntries(entry.value),
+        ),
+    ]..sort((a, b) => a.path.compareTo(b.path));
+    return findings;
+  }
+
+  /// Render overlap + one-sided findings to a string. [driftPrefix] is
+  /// prepended to each drift path; [sourceIndent] precedes each source line.
   /// The plain path uses `DRIFT` (no emoji) + 2-space indent; the
-  /// default path uses `⚠️  DRIFT` + 4-space indent.
-  String _renderDrifts(
-    List<RouteDrift> drifts, {
+  /// default path uses `⚠️  DRIFT` + 4-space indent. One-sided findings are
+  /// drift-class: the same prefix with an explicit `(one-sided)` marker.
+  String _renderFindings(
+    List<RouteDrift> overlaps, {
+    List<RouteDrift> oneSided = const [],
     String driftPrefix = '⚠️  DRIFT',
     String sourceIndent = '    ',
   }) {
     final buf = StringBuffer();
-    for (final d in drifts) {
+    for (final d in overlaps) {
       buf.writeln('$driftPrefix ${d.path}');
+      for (final s in d.sources) {
+        buf.writeln(
+          '$sourceIndent${s.source.name}: ${s.file}:${s.line} (${s.name})',
+        );
+      }
+    }
+    for (final d in oneSided) {
+      buf.writeln('$driftPrefix (one-sided) ${d.path}');
       for (final s in d.sources) {
         buf.writeln(
           '$sourceIndent${s.source.name}: ${s.file}:${s.line} (${s.name})',
@@ -624,7 +884,8 @@ class RouteVerifyCommand extends Command<void> {
     return buf.toString();
   }
 
-  /// Reads CLI `*_routes.dart` modules and the DDA `zfa_router.g.dart`.
+  /// Reads CLI `*_routes.dart` / `*_shell.dart` modules and the DDA
+  /// `zfa_router.g.dart`.
   RouteTable _readRouteTable() {
     final libDirectory = Directory(p.join(_projectRoot, 'lib'));
     if (!libDirectory.existsSync()) {
@@ -645,7 +906,8 @@ class RouteVerifyCommand extends Command<void> {
       final fileName = p.basename(file.path);
       if (fileName == 'zfa_router.g.dart') {
         dda.addAll(_parseRoutes(file, RouteSource.dda));
-      } else if (fileName.endsWith('_routes.dart') &&
+      } else if ((fileName.endsWith('_routes.dart') ||
+              fileName.endsWith('_shell.dart')) &&
           fileName != 'app_routes.dart') {
         cli.addAll(_parseRoutes(file, RouteSource.cli));
       }

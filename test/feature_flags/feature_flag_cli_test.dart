@@ -1,3 +1,6 @@
+@Tags(['slow'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -5,6 +8,21 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../helpers/run_zfa_source.dart';
+
+/// Enclosing-test ceiling for this suite, stretched by
+/// `ZFA_TEST_TIMEOUT_SCALE` (issue #1187). Base 3 minutes: covers the
+/// helper's worst-case two sequential spawns (2 x 75s child guard = 150s)
+/// with headroom, and grows with the child guard at any scale so the
+/// guard's fail-fast diagnostic always fires before the test dies. These
+/// tests exercise flag plumbing, not speed (issue #1187).
+///
+/// Note: an explicit `Timeout(Duration)` constructor bypasses
+/// `dart_test.yaml`'s `slow: timeout: 4x` factor — the override is
+/// intentional so the ceiling can stretch together with the child guard at
+/// any scale.
+final Timeout kZfaScaledSuiteTimeout = Timeout(
+  scaleDuration(const Duration(minutes: 3)),
+);
 
 /// A1, A2, A3, U3 — `zfa feature list/enable/disable` over a real temp
 /// project, driven through the real CLI subprocess (precompiled AOT via
@@ -100,7 +118,7 @@ environment:
       expect(json.first['name'], 'pro-analytics');
       expect(json.first['enabled'], isTrue);
     });
-  });
+  }, timeout: kZfaScaledSuiteTimeout);
 
   group('zfa feature enable/disable', () {
     test('A3: disable updates .zfa.json and the list reflects it', () async {
@@ -133,7 +151,7 @@ environment:
         listText.split('\n').firstWhere((l) => l.contains('beta-scheduler')),
         contains('disabled'),
       );
-    });
+    }, timeout: kZfaScaledSuiteTimeout);
 
     test('enable re-enables a disabled feature', () async {
       writeConfig({
@@ -160,7 +178,7 @@ environment:
       expect(result.exitCode, isNot(0), reason: 'undeclared feature must fail');
       expect('${result.stdout}${result.stderr}', contains('ghost'));
     });
-  });
+  }, timeout: kZfaScaledSuiteTimeout);
 
   group('invalid config handling', () {
     for (final command in const [
@@ -221,7 +239,7 @@ environment:
         expect(File(configPath()).readAsStringSync(), original);
       },
     );
-  });
+  }, timeout: kZfaScaledSuiteTimeout);
 
   group('scaffold dispatch preserved (U3)', () {
     test('non-flag tokens keep the scaffold/generator behavior', () async {
@@ -234,5 +252,5 @@ environment:
       expect(output, anyOf(contains('usage'), contains('zfa')));
       expect(output, isNot(contains('no features declared')));
     });
-  });
+  }, timeout: kZfaScaledSuiteTimeout);
 }

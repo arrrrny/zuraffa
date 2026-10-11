@@ -43,6 +43,7 @@ import '../services/entity_lookup.dart' show toSnakeCase;
 import '../services/era_tagged_log.dart';
 import '../services/realize_mock_receipt.dart';
 import '../services/realize_state.dart';
+import '../services/scratch_tmpdir.dart';
 import '../services/tier2_firestore/fake_firebase_firestore.dart';
 import '../services/tier2_firestore/tier2_mock_provider.dart';
 import '../tdd_plugin.dart';
@@ -144,8 +145,48 @@ class RealizeMockCommand extends Command<void> {
   /// The project root this invocation resolved (driver spawn cwd).
   String _resolvedRoot = '';
 
+  /// Spec 1520: this invocation's per-run scratch environment
+  /// (`ScratchTmpDir.childEnvironment`) — set by [run] after the scratch is
+  /// acquired, read by the default suite runner / tier-1 driver so every
+  /// `dart test` child writes its kernel dir inside the run's own scratch
+  /// instead of the shared user TMPDIR (issue #1520). Null — scratchless
+  /// run — inherits the ambient TMPDIR as before.
+  Map<String, String>? _scratchEnv;
+
   @override
   Future<void> run() async {
+    // Spec 1520 (issue #1520): ONE scratch dir per invocation, injected
+    // into every child's environment and deleted best-effort at run end
+    // (the finally below) — the #1507 leak fixed by construction.
+    final rest0 = argResults?.rest ?? const <String>[];
+    final entityLabel = rest0.isNotEmpty ? rest0.first.trim() : '';
+    final scratch = await ScratchTmpDir.acquire(
+      label: entityLabel.isNotEmpty ? entityLabel : 'realize-mock',
+      projectRoot: _scratchProjectRoot(),
+    );
+    try {
+      _scratchEnv = scratch?.childEnvironment();
+      await _runScratched();
+    } finally {
+      _scratchEnv = null;
+      await scratch?.dispose();
+    }
+  }
+
+  /// The project root the scratch-root resolution uses (.zfa.json tier) —
+  /// best-effort: an unresolvable root degrades to the env-only tiers.
+  String? _scratchProjectRoot() {
+    try {
+      final projectFlag = (argResults?['project'] as String?)?.trim() ?? '';
+      return projectFlag.isNotEmpty
+          ? projectFlag
+          : ProjectRoot.find(anchorDir: 'specs');
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> _runScratched() async {
     final rest = argResults?.rest ?? const <String>[];
     final entity = rest.isNotEmpty ? rest.first.trim() : '';
     final against = (argResults?['against'] as String?)?.trim() ?? '';
@@ -215,6 +256,13 @@ class RealizeMockCommand extends Command<void> {
     print('   feature: $feature');
 
     final contractTests = <String>[];
+    final override = resolved.contractTestOverride;
+    if (override != null) {
+      final path = p.normalize(
+        p.isAbsolute(override) ? override : p.join(cwd, override),
+      );
+      if (await File(path).exists()) contractTests.add(path);
+    }
     for (final record in resolved.records) {
       final path = p.normalize(
         p.isAbsolute(record.testPath)
@@ -275,8 +323,17 @@ class RealizeMockCommand extends Command<void> {
     // `input.op`), optionally carrying a recorded Tier-1 oracle
     // (`mockOutput`) and `seed` records pre-loaded into the Tier-2
     // store before the invocation.
+    //
+    // Issue #1391: the directory also holds the #832 registry
+    // artifacts `mock certify --feature` writes by design (issue
+    // #1001: manifest.json, mock-cert.*.json — both schema 1). The
+    // scan classifies by schema: a document is a contract case iff it
+    // is stamped realize-diff.v1; every other document is skipped
+    // (visibly) instead of crashing the differential gate.
     // ---------------------------------------------------------------
-    final fixturesDir = Directory(p.join(featureDir, 'tdd', 'fixtures'));
+    final fixturesDir = Directory(
+      resolved.fixturesDir ?? p.join(featureDir, 'tdd', 'fixtures'),
+    );
     if (!await fixturesDir.exists()) {
       _fail(
         'zfa tdd realize-mock: no committed contract cases — the '
@@ -326,19 +383,58 @@ class RealizeMockCommand extends Command<void> {
     final mismatches = <RealizeMockMethodRecord>[];
     for (final file in fixtureFiles) {
       final caseId = p.basenameWithoutExtension(file.path);
+      final raw = await file.readAsString();
       Map<String, dynamic>? fixture;
       try {
-        final decoded = jsonDecode(await file.readAsString());
+        final decoded = jsonDecode(raw);
         if (decoded is Map<String, dynamic>) fixture = decoded;
       } on FormatException {
         fixture = null;
       }
-      final input = fixture?['input'];
-      if (fixture == null || input is! Map<String, dynamic>) {
+
+      // Issue #1391: classify by schema — a document is a contract case
+      // iff it is stamped realize-diff.v1. Anything else (the #832
+      // registry artifacts with their schema 1, a schema-less document,
+      // unparseable JSON without the stamp) is a foreign document here:
+      // skip it with a visible log line instead of failing the gate.
+      // Skipping is for FOREIGN documents only — a document stamped
+      // realize-diff.v1 that is malformed (unparseable, or
+      // input/input.op missing) still fails closed.
+      final schema = fixture?['schema'];
+      if (schema != 'realize-diff.v1') {
+        // A document that will not decode but still carries the gate's
+        // OWN stamp is a corrupt contract case, not a foreign file: the
+        // records guard below would otherwise certify whatever is left.
+        if (fixture == null && raw.contains('realize-diff.v1')) {
+          _fail(
+            'zfa tdd realize-mock: fixture $caseId is not parseable JSON '
+            'but is stamped realize-diff.v1 — the contract case is '
+            'corrupt; fix the fixture before certifying.',
+            entity: entity,
+            against: against,
+            feature: feature,
+            methods: records.length,
+            mismatch: mismatches.length,
+            outcome: RealizeMockOutcome.runnerError,
+          );
+          return;
+        }
+        print(
+          '   skipped ${p.basename(file.path)} '
+          '(schema ${_schemaLabel(schema)})',
+        );
+        continue;
+      }
+      // The schema stamp implies a decoded document: a null fixture has
+      // a null schema and was skipped (or failed closed) above
+      // (non-null promotion).
+      final doc = fixture!;
+      final input = doc['input'];
+      if (input is! Map<String, dynamic>) {
         _fail(
-          'zfa tdd realize-mock: fixture $caseId is not a '
-          'realize-diff.v1 document (schema, input.op missing) — fix the '
-          'fixture before certifying.',
+          'zfa tdd realize-mock: fixture $caseId is stamped '
+          'realize-diff.v1 but carries no input map — fix the fixture '
+          'before certifying.',
           entity: entity,
           against: against,
           feature: feature,
@@ -369,7 +465,7 @@ class RealizeMockCommand extends Command<void> {
 
       // Tier 1: the recorded oracle, else the driver protocol.
       Object? tier1Result;
-      final recorded = fixture['mockOutput'];
+      final recorded = doc['mockOutput'];
       if (recorded is Map<String, dynamic>) {
         tier1Result = recorded;
       } else {
@@ -392,7 +488,7 @@ class RealizeMockCommand extends Command<void> {
 
       // Tier 2: a fresh Firestore-shaped provider, seeded per case.
       final provider = _tier2ProviderFactory()(entity);
-      final seed = fixture['seed'];
+      final seed = doc['seed'];
       if (seed is List) {
         final seedRecords = <Map<String, dynamic>>[];
         for (final entry in seed) {
@@ -442,6 +538,28 @@ class RealizeMockCommand extends Command<void> {
         '   method ${op.padRight(24)} tier1=${_preview(tier1Result)} '
         'tier2=${_preview(tier2Result)} diff=$diff',
       );
+    }
+
+    // ---------------------------------------------------------------
+    // Issue #1391: every scanned document was skipped as foreign — no
+    // contract cases remain. An empty surface is never certified: fail
+    // BLOCKED naming the skip (never the pre-fix runner-error crash,
+    // never a zero-method certification).
+    // ---------------------------------------------------------------
+    if (records.isEmpty) {
+      _fail(
+        'zfa tdd realize-mock: specs/<feature>/tdd/fixtures/ holds no '
+        'realize-diff.v1 contract cases — no realize-diff.v1 contract '
+        'cases remain after skipping ${fixtureFiles.length} foreign '
+        'document(s). An empty surface is never certified.',
+        entity: entity,
+        against: against,
+        feature: feature,
+        methods: 0,
+        mismatch: 0,
+        outcome: RealizeMockOutcome.blocked,
+      );
+      return;
     }
 
     // ---------------------------------------------------------------
@@ -586,8 +704,91 @@ class RealizeMockCommand extends Command<void> {
         return _EntityResolution(featureFlag, records);
       }
     }
-    return null;
+
+    // Issue #1367: the mock plugin's certification registry is a
+    // resolution home of its own. `zfa mock create --certify` proves the
+    // mock and writes test/mock/<entity>/mock-cert.<Entity>.json naming
+    // its contract test — but nothing in specs/ knew, so the epic's two
+    // halves could not compose. When no artifacts registry names the
+    // entity, resolve through the certification receipt: its
+    // contract_test is the Tier-1 test and each certified method
+    // synthesizes a realize-diff case under .zfa/realize-mock/.
+    return _mockCertResolution(cwd, entity);
   }
+
+  /// Issue #1367: resolves [entity] through the mock certification
+  /// receipt (`test/mock/<snake>/mock-cert.<Entity>.json`). Null when no
+  /// receipt exists — the honest unknown-entity refusal stands.
+  _EntityResolution? _mockCertResolution(String cwd, String entity) {
+    final snake = _camelToSnake(entity);
+    final receiptFile = File(
+      p.join(cwd, 'test', 'mock', snake, 'mock-cert.$entity.json'),
+    );
+    if (!receiptFile.existsSync()) return null;
+
+    final Map<String, dynamic> doc;
+    try {
+      final decoded = jsonDecode(receiptFile.readAsStringSync());
+      if (decoded is! Map<String, dynamic>) return null;
+      doc = decoded;
+    } on FormatException {
+      return null;
+    }
+    final contractTest = doc['contract_test'];
+    if (contractTest is! String || contractTest.isEmpty) return null;
+
+    // One realize-diff case per CERTIFIED method (satisfied: true) — an
+    // unsatisfied method is not a proven contract surface.
+    final methods = <String>[];
+    for (final m in (doc['methods'] as List<dynamic>? ?? const [])) {
+      if (m is Map<String, dynamic> &&
+          m['name'] is String &&
+          m['satisfied'] == true) {
+        methods.add(m['name'] as String);
+      }
+    }
+
+    // A receipt certifying NOTHING is a broken certification — name it
+    // (the generic empty-fixtures BLOCKED that follows would otherwise
+    // hide the drift behind a message about fixture files).
+    if (methods.isEmpty) {
+      print(
+        'zfa tdd realize-mock: the mock-cert receipt for $entity '
+        'certifies no methods ($receiptFile) — the differential has no '
+        'proven surface to gate.',
+      );
+      print(
+        '   --> fix: re-run `zfa mock create $entity --certify` in an '
+        'environment that resolves the framework.',
+      );
+    }
+
+    final fixturesDir = Directory(
+      p.join(cwd, '.zfa', 'realize-mock', snake, 'fixtures'),
+    );
+    fixturesDir.createSync(recursive: true);
+    for (final method in methods) {
+      File(p.join(fixturesDir.path, '$method.json')).writeAsStringSync(
+        const JsonEncoder.withIndent('  ').convert({
+          'schema': 'realize-diff.v1',
+          'id': method,
+          'input': {'op': method},
+        }),
+      );
+    }
+    return _EntityResolution(
+      'mock-cert-$snake',
+      const [],
+      fixturesDir: fixturesDir.path,
+      contractTestOverride: contractTest,
+    );
+  }
+
+  /// The mock plugin's snake_case convention (MockContractTestWriter's
+  /// contractTestPath lays the files down this way).
+  static String _camelToSnake(String s) => s
+      .replaceAllMapped(RegExp('[A-Z]'), (m) => '_${m[0]!.toLowerCase()}')
+      .replaceFirst(RegExp('^_'), '');
 
   /// The records whose descriptions name [entity] (the `create entity X`
   /// convention), or null when none do.
@@ -616,11 +817,16 @@ class RealizeMockCommand extends Command<void> {
   RealizeSuiteRunner _suiteRunner() {
     final override = _suiteRunnerOverride;
     if (override != null) return override;
+    // Spec 1520: the default spawn path carries the run's scratch TMPDIR so
+    // this `dart test` child's kernel dir lands inside the run's own
+    // scratch (issue #1520); null inherits the ambient TMPDIR as before.
     return (paths, workingDirectory) async {
-      final result = await Process.run('dart', [
-        'test',
-        ...paths,
-      ], workingDirectory: workingDirectory);
+      final result = await Process.run(
+        'dart',
+        ['test', ...paths],
+        workingDirectory: workingDirectory,
+        environment: _scratchEnv,
+      );
       return (
         exitCode: result.exitCode,
         output: '${result.stdout}${result.stderr}',
@@ -642,14 +848,19 @@ class RealizeMockCommand extends Command<void> {
           '(see the realize command docs).',
         );
       }
-      final process = await Process.start('dart', [
-        'run',
-        'tool/realize_driver.dart',
-        '--binding',
-        'tier1',
-        '--entity',
-        entity,
-      ], workingDirectory: _resolvedRoot);
+      final process = await Process.start(
+        'dart',
+        [
+          'run',
+          'tool/realize_driver.dart',
+          '--binding',
+          'tier1',
+          '--entity',
+          entity,
+        ],
+        workingDirectory: _resolvedRoot,
+        environment: _scratchEnv,
+      );
       process.stdin.write(jsonEncode(input));
       await process.stdin.close();
       final stdoutText = await process.stdout.transform(utf8.decoder).join();
@@ -720,6 +931,29 @@ class RealizeMockCommand extends Command<void> {
     return encoded.length > 60 ? '${encoded.substring(0, 57)}...' : encoded;
   }
 
+  /// Issue #1391: the schema value as the skip log renders it — the
+  /// decoded JSON value verbatim (`1` for the #832 registry artifacts,
+  /// the string verbatim for string schemas), or `unknown` when the
+  /// document carries no schema or was not parseable. The rendered label
+  /// is capped like [_preview] so a pathologically long schema cannot
+  /// print an unbounded line. Total: a decoded JSON value is always
+  /// encodable; `on JsonUnsupportedObjectError` is the explicit guard
+  /// for that contract without a blanket catch that would also swallow
+  /// `Error`s.
+  static String _schemaLabel(Object? schema) {
+    if (schema == null) return 'unknown';
+    final label = schema is String ? schema : _encodeSchema(schema);
+    return label.length > 60 ? '${label.substring(0, 57)}...' : label;
+  }
+
+  static String _encodeSchema(Object? schema) {
+    try {
+      return jsonEncode(schema);
+    } on JsonUnsupportedObjectError {
+      return '$schema';
+    }
+  }
+
   /// Canonical JSON shape for comparison: map keys sorted recursively so
   /// two structurally-equal documents compare equal regardless of key
   /// order (value AND type equality still enforced by the encoding).
@@ -744,7 +978,23 @@ class _RegistryEntry {
 }
 
 class _EntityResolution {
-  const _EntityResolution(this.feature, this.records);
+  const _EntityResolution(
+    this.feature,
+    this.records, {
+    this.fixturesDir,
+    this.contractTestOverride,
+  });
+
   final String feature;
   final List<ArtifactRecord> records;
+
+  /// Issue #1367 fallback home: when the resolution came from the mock
+  /// certification receipt (no spec-kit registry names the entity), the
+  /// realize-diff cases live under `.zfa/realize-mock/<entity>/fixtures/`
+  /// instead of `specs/<feature>/tdd/fixtures/`.
+  final String? fixturesDir;
+
+  /// Issue #1367: the certified mock's Tier-1 contract test, named by
+  /// the mock-cert receipt's `contract_test` field.
+  final String? contractTestOverride;
 }

@@ -1,6 +1,7 @@
 // Spec 0971 / T002 — `zfa route create --json` emits a machine verdict
-// envelope: `{routes[], deepLinks, schemeRegistrations, routeTableTestPath,
-// schema:1}` (issue #971 order 2).
+// envelope — the ONE canonical `zuraffa.verdict.v1` (SPEC 1105): the
+// route surface (routes[], deepLinks, schemeRegistrations,
+// routeTableTestPath) lives in `details` (issue #971 order 2).
 //
 // The route plugin is the strongest generator after tdd but its agent
 // contract is 3/5: no --json verdict. This pins the envelope schema an
@@ -27,6 +28,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/route_command.dart';
+import 'package:zuraffa/src/core/verdict_envelope.dart';
 import 'package:zuraffa/src/plugins/route/route_plugin.dart';
 
 Future<String> capturePrints(Future<void> Function() body) async {
@@ -102,44 +104,62 @@ dependencies:
   }
 
   group('spec 0971 T002: route create --json envelope schema', () {
-    test('emits {routes[], deepLinks, schemeRegistrations, '
-        'routeTableTestPath, schema:1}', () async {
+    test('emits the canonical zuraffa.verdict.v1 frame with the route '
+        'surface in details', () async {
       final out = await createJson();
       final envelope = envelopeFrom(out);
 
-      // The five contract keys of issue #971 order 2.
+      // The canonical frame (SPEC 1105).
       expect(
         envelope['schema'],
-        equals(1),
-        reason: 'the envelope must pin schema version 1',
+        'zuraffa.verdict.v1',
+        reason: 'the ONE canonical schema identifier (issue #1105)',
       );
+      expect(envelope['command'], 'zfa route create Product');
+      expect(envelope['verdict'], 'pass');
+      expect(envelope['exit_class'], 0);
+      expect(envelope['subject'], {'kind': 'route', 'id': 'Product'});
+      expect(envelope['artifacts'], isA<Map<String, dynamic>>());
+      expect((envelope['artifacts'] as Map)['created'], isNotEmpty);
+
+      // The route surface moved into details — the only plugin-specific
+      // area of the schema.
+      final details = envelope['details'] as Map<String, dynamic>;
       expect(
-        envelope['routes'],
+        details['routes'],
         isA<List>(),
-        reason: 'routes[] must be present',
+        reason: 'routes[] must be present (in details)',
       );
       expect(
-        envelope['deepLinks'],
+        details['deepLinks'],
         isA<List>(),
-        reason: 'deepLinks must be present',
+        reason: 'deepLinks must be present (in details)',
       );
       expect(
-        envelope['schemeRegistrations'],
+        details['schemeRegistrations'],
         isA<List>(),
-        reason: 'schemeRegistrations must be present',
+        reason: 'schemeRegistrations must be present (in details)',
       );
       expect(
-        envelope['routeTableTestPath'],
+        details['routeTableTestPath'],
         isA<String>(),
-        reason: 'routeTableTestPath must be present',
+        reason: 'routeTableTestPath must be present (in details)',
       );
       expect(exitCode, 0, reason: 'a successful create exits 0');
+
+      // The ONE parser round-trips the emitter's output (SPEC 1105
+      // acceptance).
+      final parsed = VerdictEnvelope.fromJson(envelope);
+      expect(parsed.verdict, VerdictKind.pass);
+      expect(parsed.subject?.kind, 'route');
     });
 
     test('routes[] carries the declared table (get+update defaults)', () async {
       final out = await createJson();
       final envelope = envelopeFrom(out);
-      final routes = (envelope['routes'] as List).cast<Map<String, dynamic>>();
+      final routes =
+          ((envelope['details'] as Map<String, dynamic>)['routes'] as List)
+              .cast<Map<String, dynamic>>();
 
       expect(routes, isNotEmpty);
       final paths = routes.map((r) => r['path']).toList();
@@ -155,8 +175,9 @@ dependencies:
     test('deepLinks carries the typed-param patterns', () async {
       final out = await createJson();
       final envelope = envelopeFrom(out);
-      final deepLinks = (envelope['deepLinks'] as List)
-          .cast<Map<String, dynamic>>();
+      final deepLinks =
+          ((envelope['details'] as Map<String, dynamic>)['deepLinks'] as List)
+              .cast<Map<String, dynamic>>();
 
       expect(deepLinks, isNotEmpty);
       final patterns = deepLinks.map((d) => d['pattern']).toList();
@@ -172,7 +193,9 @@ dependencies:
       () async {
         final out = await createJson();
         final envelope = envelopeFrom(out);
-        final testPath = envelope['routeTableTestPath'] as String;
+        final testPath =
+            ((envelope['details'] as Map<String, dynamic>)['routeTableTestPath']
+                as String);
 
         expect(
           p.posix.normalize(testPath),
@@ -190,7 +213,10 @@ dependencies:
     test('schemeRegistrations stays empty without --scheme', () async {
       final out = await createJson();
       final envelope = envelopeFrom(out);
-      expect(envelope['schemeRegistrations'], isEmpty);
+      expect(
+        (envelope['details'] as Map<String, dynamic>)['schemeRegistrations'],
+        isEmpty,
+      );
     });
 
     test('the run still generated the route modules on disk', () async {

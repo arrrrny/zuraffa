@@ -15,29 +15,72 @@ import 'package:path/path.dart' as p;
 
 import '../models/routing.dart';
 import 'routing_resolver.dart';
+import 'scenario_example.dart';
 import 'spec_parser.dart';
 import 'test_list_reader.dart';
 
 class DeclaredRouting {
   const DeclaredRouting._();
 
-  /// The declared signature for [behaviorId], resolved from the
-  /// feature's test-list trace cell against the spec's contract rows.
-  /// Null when the behavior is undeclared or any artifact is missing
-  /// or unreadable — callers fall back to their legacy inference (the
+  /// Issue #1485: the feature's contract documents — every `*.md` file
+  /// under `<featureDir>/contracts/`, sorted by file name (the
+  /// multi-file collision policy is deterministic last-wins). A feature
+  /// with no `contracts/` directory yields an empty list: the
+  /// declared-row source reads exactly what it read before. Only
+  /// markdown is enumerated — code files inside contracts/ are never
+  /// parsed — and an unreadable file contributes nothing (the plan's
+  /// zero-rows warning names the directory).
+  static List<({String file, String md})> contractFiles(String featureDir) {
+    final dir = Directory(p.join(featureDir, 'contracts'));
+    if (!dir.existsSync()) return const [];
+    final files = <({String file, String md})>[];
+    for (final entity in dir.listSync()) {
+      if (entity is! File) continue;
+      if (!entity.path.endsWith('.md')) continue;
+      try {
+        files.add((
+          file: p.basename(entity.path),
+          md: entity.readAsStringSync(),
+        ));
+      } on FileSystemException {
+        continue; // unreadable: contributes nothing, never crashes plan
+      }
+    }
+    files.sort((a, b) => a.file.compareTo(b.file));
+    return files;
+  }
+
+  /// Issue #1420: the FULL declared routing decision for [behaviorId],
+  /// resolved from the feature's test-list trace cell against the spec's
+  /// contract rows — the surface, the entity name, and the signature
+  /// together, so a caller can serve every declared aspect (gen's
+  /// row-only entity-trace synthesis; the run driver's stop-messaging
+  /// probe) without dropping the aspects `declaredSignatureFor` never
+  /// carried.
+  ///
+  /// Null when the behavior is undeclared or any artifact is missing or
+  /// unreadable — callers fall back to their legacy inference (the
   /// labeled fallback window; strict surfaces are handled at plan). A
-  /// malformed spec declaration throws [StateError]: the caller
-  /// surfaces the `--> fix:` message and a non-zero exit instead of a
-  /// silent prose fallback.
-  static Future<Signature?> declaredSignatureFor({
+  /// malformed spec declaration throws [StateError]: the caller surfaces
+  /// the `--> fix:` message and a non-zero exit instead of a silent prose
+  /// fallback. The run driver's stop-messaging probe (issue #1420) is the
+  /// one fail-open caller by design: it is already a terminal messaging
+  /// path, so it prints this refusal's `--> fix:` line inside the
+  /// vacuous-green stop (gen's `declaration refused` shape) instead of
+  /// rethrowing.
+  /// [featureDir] is the already-resolved feature directory (bug
+  /// features live under `.specify/bugs/<slug>`, not `specs/<name>`).
+  /// When omitted, the legacy `specs/<featureName>` path is used.
+  static Future<RoutingDecision?> declaredRoutingFor({
     required String cwd,
     required String featureName,
     required String behaviorId,
+    String? featureDir,
   }) async {
-    final featureDir = p.join(cwd, 'specs', featureName);
+    final resolvedDir = featureDir ?? p.join(cwd, 'specs', featureName);
     final List<BehaviorRow> rows;
     try {
-      rows = await TestListReader(featureDir).read();
+      rows = await TestListReader(resolvedDir).read();
     } on TestListReadException {
       return null; // unreadable list: legacy inference, the fallback window
     }
@@ -50,7 +93,7 @@ class DeclaredRouting {
         ? const <String>[]
         : SpecParser.traceTokens(row.traces);
     if (traces.isEmpty) return null;
-    final specFile = File(p.join(featureDir, 'spec.md'));
+    final specFile = File(p.join(resolvedDir, 'spec.md'));
     if (!specFile.existsSync()) return null;
     final String specMd;
     try {
@@ -58,17 +101,69 @@ class DeclaredRouting {
     } on FileSystemException {
       return null; // unreadable spec: legacy inference, the fallback window
     }
-    // Malformed declarations (StateError) propagate on purpose.
+    // Malformed declarations (StateError) propagate on purpose. Issue
+    // #1485: the declared rows include the feature's contracts/*.md
+    // rows — a trace bound at plan time resolves its declared signature
+    // at gen time from the SAME merged source (declare once, resolve
+    // everywhere).
     final declarations = SpecDeclarations(
-      contractRows: {
-        for (final r in const SpecParser().parseContractRows(specMd)) r.name: r,
-      },
+      contractRows: SpecParser.declaredContractRows(
+        specMd,
+        contractFiles: contractFiles(resolvedDir),
+      ).rows,
     );
     final result = const RoutingResolver().resolve(
       row: RoutingRow(behaviorId: behaviorId, traces: traces),
       declarations: declarations,
     );
-    if (result is RoutingDecision) return result.signature;
-    return null;
+    return result is RoutingDecision ? result : null;
   }
+
+  /// Issue #1651 (review): the feature spec's parsed acceptance
+  /// scenarios — the SAME fail-open read gen's scenario-example
+  /// resolution, make's 9b gate, and the run driver's placeholder stop
+  /// consume. ONE shim instead of three per-surface copies: the reads
+  /// and the swallowing posture live here so the surfaces cannot drift
+  /// when the failure posture changes. Empty when the spec is missing,
+  /// unreadable, or unparsable — the #1310 floor stands unless the spec
+  /// positively names a derivable outcome.
+  static List<ScenarioExample> scenariosFailOpen(String featureDir) {
+    try {
+      final specFile = File(p.join(featureDir, 'spec.md'));
+      if (!specFile.existsSync()) return const [];
+      return SpecParser.parseScenarioExamples(specFile.readAsStringSync());
+    } on FileSystemException {
+      return const [];
+    } on FormatException {
+      return const [];
+    }
+  }
+
+  /// The declared signature for [behaviorId], resolved from the
+  /// feature's test-list trace cell against the spec's contract rows.
+  /// Null when the behavior is undeclared or any artifact is missing
+  /// or unreadable — callers fall back to their legacy inference (the
+  /// labeled fallback window; strict surfaces are handled at plan). A
+  /// malformed spec declaration throws [StateError]: the caller
+  /// surfaces the `--> fix:` message and a non-zero exit instead of a
+  /// silent prose fallback.
+  /// [featureDir] is the already-resolved feature directory (bug
+  /// features live under `.specify/bugs/<slug>`, not `specs/<name>`).
+  /// When omitted, the legacy `specs/<featureName>` path is used.
+  ///
+  /// Issue #1420: the reads ride [declaredRoutingFor] — the ONE
+  /// resolution source — and this method keeps its exact legacy result:
+  /// the resolved signature, or null when the decision carries none
+  /// (the row-only entity class among them).
+  static Future<Signature?> declaredSignatureFor({
+    required String cwd,
+    required String featureName,
+    required String behaviorId,
+    String? featureDir,
+  }) async => (await declaredRoutingFor(
+    cwd: cwd,
+    featureName: featureName,
+    behaviorId: behaviorId,
+    featureDir: featureDir,
+  ))?.signature;
 }

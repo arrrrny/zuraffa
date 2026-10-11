@@ -1,4 +1,11 @@
 /// `zfa tdd init` — idempotently ensure the Part-1 TDD environment exists.
+///
+/// Spec 1528 (issue #1528): the writer sequence moved VERBATIM into
+/// `TddBaselineInit` (services/baseline_init.dart) so the `zfa tdd run` /
+/// `zfa tdd gen` entry preflight executes the SAME idempotent sequence.
+/// This command's observable behavior is byte-identical: the service
+/// prints the same lines through the stdout/stderr sinks and throws the
+/// same misfire StateError.
 library;
 
 import 'dart:io';
@@ -6,11 +13,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
-import '../../../cli/writers/tdd/app_module_writer.dart';
-import '../../../cli/writers/tdd/dart_test_yaml_writer.dart';
-import '../../../cli/writers/tdd/pubspec_dev_dependencies_patcher.dart';
-import '../../../cli/writers/tdd/smoke_test_writer.dart';
-import '../../../cli/writers/tdd/tdd_profile_writer.dart';
+import '../services/baseline_init.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
@@ -43,6 +46,30 @@ class InitCommand extends Command<void> {
           'Flutter). With --force, those files are replaced in place.',
       negatable: false,
     );
+    argParser.addFlag(
+      'skin',
+      help:
+          'Opt into the SKIN lane (issue #1260): also adds the skin lane\'s '
+          'CERTIFIED dependency — `zuraffa_ui: ^0.1.0`, the identified '
+          'Zfa* vocabulary whose ZuraffaApp is the certified app shell — '
+          'to the project pubspec under dependencies: (runtime, not dev). '
+          'Refuses loudly on pure-Dart targets (zuraffa_ui is a Flutter '
+          'SDK package).',
+      negatable: false,
+    );
+    argParser.addFlag(
+      'mutation',
+      help:
+          'Opt into mutation testing (issue #1653): also injects '
+          '`mutation_test: ^1.8.0` into the project pubspec\'s '
+          'dev_dependencies. mutation_test is the `tdd verify` lane\'s '
+          'tool; WITHOUT this flag the default baseline omits it, so a '
+          'project mid-migration never pays mutation_test\'s '
+          'analyzer-versioned cold-resolution cost in every analyze/fix/'
+          'test compile. Idempotent: re-run with --mutation later to add '
+          'just the missing dep to an already-initialized project.',
+      negatable: false,
+    );
   }
 
   final TddPlugin plugin;
@@ -72,128 +99,27 @@ class InitCommand extends Command<void> {
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
-    final isFlutter = await _isFlutterProject(cwd);
     final force = argResults?['force'] == true;
+    // Issue #1260 remediation 2: skin-lane opt-in — the certified
+    // dependency is added to the project's dependencies: (runtime).
+    final skin = argResults?['skin'] == true;
+    // Issue #1653: mutation-testing opt-in — the dev-deps baseline gains
+    // `mutation_test: ^1.8.0` only under this flag.
+    final mutation = argResults?['mutation'] == true;
 
-    stdout.writeln(
-      'zfa tdd init: ensuring TDD baseline in $cwd '
-      '(${isFlutter ? "Flutter" : "Dart"})'
-      '${force ? " (force: overwrite on content mismatch)" : ""}',
-    );
-
-    final failures = <String>[];
-
-    try {
-      final written = await TddProfileWriter(
-        profile: isFlutter ? TddProfile.flutter : TddProfile.dart,
-      ).write(cwd, force: force);
-      stdout.writeln(
-        written == null
-            ? '   ✓ .specify/memory/tdd-profile.md (already present)'
-            : '   ✓ .specify/memory/tdd-profile.md (created)',
-      );
-    } on StateError catch (e) {
-      stdout.writeln('   ✗ .specify/memory/tdd-profile.md: $e');
-      failures.add('tdd_profile_writer: $e');
-    }
-
-    try {
-      final written = await const DartTestYamlWriter().write(cwd);
-      stdout.writeln(
-        written == null
-            ? '   ✓ dart_test.yaml (already present)'
-            : '   ✓ dart_test.yaml (created)',
-      );
-    } on StateError catch (e) {
-      stdout.writeln('   ✗ dart_test.yaml: $e');
-      failures.add('dart_test_yaml_writer: $e');
-    }
-
-    final appName = _deriveAppName(cwd);
-    try {
-      // Issue #664: gate the smoke-test flavor behind the project flavor —
-      // a pure Dart package must not receive `package:flutter_test` imports
-      // it cannot resolve.
-      final written = await SmokeTestWriter(
-        isFlutter: isFlutter,
-      ).write(cwd, appName);
-      stdout.writeln(
-        written == null
-            ? '   ✓ test/bootstrap_smoke_test.dart (already present)'
-            : '   ✓ test/bootstrap_smoke_test.dart (created)',
-      );
-    } on StateError catch (e) {
-      stdout.writeln('   ✗ test/bootstrap_smoke_test.dart: $e');
-      failures.add('smoke_test_writer: $e');
-    }
-
-    // Issue #626: in a Flutter project the smoke test asserts the
-    // zfa-generated app module (<AppName>Container in lib/app.dart), so
-    // the baseline is only green when the module exists. Skip-if-exists —
-    // existing user content is never touched (FR-008).
-    if (isFlutter) {
-      try {
-        final written = await const AppModuleWriter(
-          isFlutter: true,
-        ).write(cwd, appName);
-        stdout.writeln(
-          written == null
-              ? '   ✓ lib/app.dart (already present)'
-              : '   ✓ lib/app.dart (created)',
-        );
-      } on StateError catch (e) {
-        stdout.writeln('   ✗ lib/app.dart: $e');
-        failures.add('app_module_writer: $e');
-      }
-    }
-
-    try {
-      final added = await PubspecDevDependenciesPatcher(
-        isFlutter: isFlutter,
-      ).ensure(cwd);
-      if (added.isEmpty) {
-        stdout.writeln('   ✓ pubspec.yaml dev_dependencies (already complete)');
-      } else {
-        stdout.writeln(
-          '   ✓ pubspec.yaml dev_dependencies (added: ${added.join(', ')})',
-        );
-      }
-    } on FormatException catch (e) {
-      stdout.writeln('   ✗ pubspec.yaml dev_dependencies: $e');
-      failures.add('pubspec_dev_dependencies_patcher: $e');
-    } on StateError catch (e) {
-      stdout.writeln('   ✗ pubspec.yaml dev_dependencies: $e');
-      failures.add('pubspec_dev_dependencies_patcher: $e');
-    }
-
-    if (failures.isNotEmpty) {
-      stderr.writeln(
-        '\nzfa tdd init: misfire — ${failures.length} writer(s) failed. '
-        'Resolve the failures above and re-run `zfa tdd init`.',
-      );
-      for (final f in failures) {
-        stderr.writeln('  - $f');
-      }
-      throw StateError('zfa tdd init: misfire');
-    }
-
-    stdout.writeln(
-      '\nTDD baseline ensured. Run `flutter test` (or '
-      '`dart test`) to confirm a green baseline.',
+    // Spec 1528: the shared idempotent writer sequence (TddBaselineInit) —
+    // identical stdout/stderr output, identical misfire StateError. The
+    // ✗ writer lines stay on stdout and only the trailing misfire block
+    // goes to stderr, exactly as the pre-#1528 inline loop wrote them.
+    await TddBaselineInit().ensure(
+      projectRoot: cwd,
+      force: force,
+      skin: skin,
+      mutation: mutation,
+      onLine: stdout.writeln,
+      onError: stdout.writeln,
+      onMisfire: stderr.writeln,
     );
     _verdict.details['failures'] = 0;
-  }
-
-  Future<bool> _isFlutterProject(String cwd) async {
-    final pubspec = File('$cwd/pubspec.yaml');
-    if (!await pubspec.exists()) return false;
-    final raw = await pubspec.readAsString();
-    return raw.contains('environment:') &&
-        (raw.contains('flutter') || raw.contains('sdk: flutter'));
-  }
-
-  String _deriveAppName(String cwd) {
-    final base = cwd.split(Platform.pathSeparator).last;
-    return base.isEmpty ? 'myapp' : base;
   }
 }

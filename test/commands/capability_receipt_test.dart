@@ -255,8 +255,8 @@ class Product {
       );
     });
 
-    test('shadcn <layout> Product (list layout)', () async {
-      // Shadcn widgets are Flutter widgets (Constitution VII, issue
+    test('skin <layout> Product (list layout)', () async {
+      // Skin widgets are Flutter widgets (Constitution VII, issue
       // #512): the generator skips pure-Dart targets with a warning, so
       // the fixture workspace must declare the flutter SDK.
       await File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
@@ -270,9 +270,9 @@ dependencies:
     sdk: flutter
 ''');
       await expectReceipt(
-        label: 'zfa shadcn list Product',
-        args: ['shadcn', 'list', 'Product'],
-        plugin: 'shadcn',
+        label: 'zfa skin list Product',
+        args: ['skin', 'list', 'Product'],
+        plugin: 'skin',
         capability: 'list',
         entity: 'Product',
       );

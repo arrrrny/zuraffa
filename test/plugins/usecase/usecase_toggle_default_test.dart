@@ -57,10 +57,11 @@ environment:
 
     // The envelope's requested set is the honest default: get, update.
     final envelope = jsonDecode(output.trim()) as Map<String, dynamic>;
-    final methods = (envelope['methods'] as List)
-        .cast<Map<String, dynamic>>()
-        .map((m) => m['name'] as String)
-        .toList();
+    final methods =
+        ((envelope['details'] as Map<String, dynamic>)['methods'] as List)
+            .cast<Map<String, dynamic>>()
+            .map((m) => m['name'] as String)
+            .toList();
     expect(methods, ['get', 'update'], reason: 'default methods: $methods');
 
     // And no toggle usecase file was emitted.
@@ -149,10 +150,11 @@ environment:
       ]);
 
       final envelope = jsonDecode(output.trim()) as Map<String, dynamic>;
-      final methods = (envelope['methods'] as List)
-          .cast<Map<String, dynamic>>()
-          .map((m) => m['name'] as String)
-          .toList();
+      final methods =
+          ((envelope['details'] as Map<String, dynamic>)['methods'] as List)
+              .cast<Map<String, dynamic>>()
+              .map((m) => m['name'] as String)
+              .toList();
       expect(methods, containsAll(['get', 'toggle']));
 
       final usecaseDir = Directory(

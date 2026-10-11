@@ -21,6 +21,7 @@ import '../models/slice_manifest.dart';
 import '../verifier/analyze_runner.dart';
 import '../verifier/import_verifier.dart';
 import '../verifier/slice_verifier.dart';
+import '../verifier/suite_command.dart';
 
 /// Process execution seam for the analyzer (see [AnalyzeRunner]).
 typedef AnalyzeLauncher =
@@ -44,11 +45,14 @@ class VerifySliceCapability implements ZuraffaCapability {
            sliceVerifier ?? SliceVerifier(suiteRunner: _processSuiteRunner),
        _manifestWriter = manifestWriter ?? ManifestWriter();
 
-  /// The default sandbox suite runner: the sandbox's own `dart test`,
-  /// run to completion in-process.
+  /// The default sandbox suite runner: the sandbox's own test suite,
+  /// run to completion in-process. A Flutter sandbox runs `flutter test`
+  /// (`dart test` cannot resolve flutter_test from the SDK); a pure-Dart
+  /// sandbox runs `dart test` (issue #1144).
   static SuiteOutcome _processSuiteRunner(String sandboxDir) {
+    final driver = suiteCommandFor(sandboxDir);
     final result = Process.runSync(
-      'dart',
+      driver,
       ['test'],
       workingDirectory: sandboxDir,
       runInShell: true,

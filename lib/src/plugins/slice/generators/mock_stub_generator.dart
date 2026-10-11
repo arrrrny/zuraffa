@@ -46,6 +46,7 @@ class MockStubGenerator {
     required String projectRoot,
     required SliceDepth depth,
     String? sandboxRoot,
+    Set<String>? mirroredFiles,
   }) async {
     if (depth == SliceDepth.full) return null;
     if (boundary.mockStrategy == 'existing') return null;
@@ -83,11 +84,33 @@ class MockStubGenerator {
     buffer.writeln();
 
     if (interfaceIncluded) {
-      final interfaceImport = p.relative(
-        interfacePath,
-        from: p.join(targetRoot, 'lib', 'src', 'mocks'),
-      );
+      final mockDir = p.join(targetRoot, 'lib', 'src', 'mocks');
+      final interfaceImport = p.relative(interfacePath, from: mockDir);
       buffer.writeln("import '${interfaceImport.replaceAll('\\', '/')}';");
+      // The stubbed members reference the interface's own imported types
+      // (e.g. the User entity in `Future<User> signIn(...)`) — re-emit the
+      // interface's project-relative imports, rewritten for the mock's
+      // directory and filtered to files the sandbox actually mirrors, so
+      // the mock resolves without dragging unmirrored layers in
+      // (issue #1144).
+      for (final imported in _mirroredImportsOf(
+        source,
+        // Anchor at the PROJECT path of the interface: the source was read
+        // from the sandbox copy when the interface is included, and its
+        // relative imports must resolve against the project tree to match
+        // the mirror set (issue #1144).
+        interfaceDir: p.dirname(p.join(projectRoot, boundary.interfaceFile)),
+        projectRoot: projectRoot,
+        mirroredFiles: mirroredFiles,
+      )) {
+        final rel = p.relative(imported, from: projectRoot);
+        // The mock lives INSIDE the sandbox: rewrite the import to the
+        // sandbox's own mirrored copy, never a path escaping the sandbox
+        // back into the host (issue #1144).
+        final sandboxTarget = p.join(targetRoot, rel);
+        final importRel = p.relative(sandboxTarget, from: mockDir);
+        buffer.writeln("import '${importRel.replaceAll('\\', '/')}';");
+      }
       buffer.writeln();
     } else {
       // The concrete interface lives in an excluded layer at this depth (e.g.
@@ -219,6 +242,36 @@ class MockStubGenerator {
       }
     }
     return signatures;
+  }
+
+  /// The interface's project-relative imports whose target files are part
+  /// of the slice mirror ([mirroredFiles], project-relative), resolved
+  /// from [interfaceDir]. Skips `dart:` and `package:` URIs and any target
+  /// outside the project — the mock stays within what the slice actually
+  /// mirrors (issue #1144).
+  List<String> _mirroredImportsOf(
+    String source, {
+    required String interfaceDir,
+    required String projectRoot,
+    required Set<String>? mirroredFiles,
+  }) {
+    final unit = _parser.parseSource(source).unit;
+    if (unit == null) return const [];
+    final mirrored = <String>[];
+    for (final directive in unit.directives) {
+      if (directive is! ImportDirective) continue;
+      final uri = directive.uri.stringValue;
+      if (uri == null || uri.isEmpty) continue;
+      if (uri.startsWith('dart:') || uri.startsWith('package:')) continue;
+      final resolved = p.canonicalize(p.join(interfaceDir, uri));
+      if (!p.isWithin(p.canonicalize(projectRoot), resolved)) continue;
+      final rel = p.relative(resolved, from: projectRoot);
+      final isMirrored =
+          mirroredFiles?.contains(rel) ?? File(resolved).existsSync();
+      if (!isMirrored) continue;
+      mirrored.add(resolved);
+    }
+    return mirrored;
   }
 
   String _stubMethod(MethodDeclaration method) {

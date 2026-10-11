@@ -16,6 +16,7 @@
 // test files as drift prescribed to `zfa tdd migrate-paths`.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -42,7 +43,14 @@ environment:
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
 
-  Future<void> seedRegistry(String testPath, String subjectPath) async {
+  Future<void> seedRegistry(
+    String testPath,
+    String subjectPath, {
+    String? genFingerprint,
+  }) async {
+    final fingerprintSuffix = genFingerprint == null
+        ? ''
+        : ',\n      "gen_fingerprint": "$genFingerprint"';
     File(p.join(tmpDir.path, 'specs', featureName, 'tdd', 'artifacts.json'))
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('''
@@ -58,7 +66,7 @@ environment:
       "runnable_test_name": "$testPath::A1::returns 42",
       "test_ownership": "created",
       "subject_ownership": "created",
-      "created_at": "2026-09-01T00:00:00.000Z"
+      "created_at": "2026-09-01T00:00:00.000Z"$fingerprintSuffix
     }
   ]
 }
@@ -238,4 +246,97 @@ void main() {}
       expect(out, contains('migrate-paths'));
     });
   });
+
+  group(
+    'issue #1388: the migrate-paths rewriters keep the gen fingerprint',
+    () {
+      final digest = List.filled(64, 'a').join();
+
+      test('the flat->namespaced move rewrite preserves the digest '
+          '(_withPaths)', () async {
+        const flatTest = 'test/tdd/a1_test.dart';
+        const flatSubject = 'lib/tdd/a1_subject.dart';
+        await seedRegistry(flatTest, flatSubject, genFingerprint: digest);
+        await testAt(flatTest).parent.create(recursive: true);
+        await testAt(flatTest).writeAsString('void main() {}');
+        await testAt(flatSubject).parent.create(recursive: true);
+        await testAt(
+          flatSubject,
+        ).writeAsString('int subjectUnderTest() => 42;');
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'migrate-paths',
+          '--project',
+          tmpDir.path,
+        ]);
+
+        expect(out, contains('migrated=1'));
+        final stored = _storedRecord(tmpDir.path);
+        expect(
+          stored['test_path'],
+          'test/tdd/$featureName/a1_test.dart',
+          reason: 'the move rewriter must still rebuild the record paths',
+        );
+        expect(
+          stored['gen_fingerprint'],
+          digest,
+          reason:
+              'the rewriter rebuilt the record but dropped gen_fingerprint — '
+              '#1388 reopens',
+        );
+      });
+
+      test('the recorded-form rewrite preserves the digest '
+          '(_withPortablePaths)', () async {
+        const namespacedTest = 'test/tdd/$featureName/a1_test.dart';
+        const namespacedSubject = 'lib/tdd/$featureName/a1_subject.dart';
+        // The registry carries the machine-absolute form of an
+        // ALREADY-namespaced pair: the command rewrites the recorded form
+        // alone, no artifact moves.
+        await seedRegistry(
+          p.join(tmpDir.path, namespacedTest),
+          p.join(tmpDir.path, namespacedSubject),
+          genFingerprint: digest,
+        );
+        await testAt(namespacedTest).parent.create(recursive: true);
+        await testAt(namespacedTest).writeAsString('void main() {}');
+        await testAt(namespacedSubject).parent.create(recursive: true);
+        await testAt(
+          namespacedSubject,
+        ).writeAsString('int subjectUnderTest() => 42;');
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing([
+          'tdd',
+          'migrate-paths',
+          '--project',
+          tmpDir.path,
+        ]);
+
+        expect(out, contains('rewriting the recorded form'));
+        expect(out, contains('migrated=1'));
+        final stored = _storedRecord(tmpDir.path);
+        expect(stored['test_path'], namespacedTest);
+        expect(stored['subject_path'], namespacedSubject);
+        expect(
+          stored['gen_fingerprint'],
+          digest,
+          reason:
+              'the recorded-form rewriter dropped gen_fingerprint — '
+              '#1388 reopens',
+        );
+      });
+    },
+  );
+}
+
+/// The single record the feature's registry holds after a run.
+Map<String, dynamic> _storedRecord(String projectRoot) {
+  final raw = File(
+    p.join(projectRoot, 'specs', featureName, 'tdd', 'artifacts.json'),
+  ).readAsStringSync();
+  final decoded = jsonDecode(raw) as Map<String, dynamic>;
+  return (decoded['records'] as List).single as Map<String, dynamic>;
 }

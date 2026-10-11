@@ -73,7 +73,44 @@ class GeneratorConfig {
   final String? mockJsonDomain;
   final bool useMockInDi;
   final bool generateDi;
+
+  /// Issue #1109: the engine preset's test scaffold emits the pure-Dart
+  /// `package:test` framework import even when the host project is a
+  /// Flutter app (the engine lane is CORE — zero flutter_test in the
+  /// engine test tree).
+  final bool engineSlice;
   final bool generateXRay;
+
+  /// Issue #1102: when true, the view plugin wraps the generated
+  /// view's `Widget get view` in the runtime skin-contract auditor
+  /// (`SkinContractAuditor`) with a starter `k<ViewName>SkinRows`
+  /// contract, and emits the auditor kit file when it is not already
+  /// present (skip-if-exists, the #1005 hand-written-seam precedent).
+  final bool generateSkin;
+
+  /// Issue #1112: the zfa: anchor contract ids the generated view
+  /// declares (`--anchor signin-guest --anchor log-out`). Each anchor
+  /// gains its `SkinContractRow.anchorExists` row and its generated
+  /// `debugTap<PascalAnchor>()` VM-service driver function. Empty by
+  /// default — byte-compat with pre-1112 generation.
+  final List<String> anchors;
+
+  /// Spec 1110 (issue #1110): the mock failure preset. When true, the
+  /// mock chain additionally emits a `<Entity>FailingMockProvider` whose
+  /// every method throws the framework's sealed failure type (a
+  /// `ServerFailure`, an `AppFailure` subtype) — the framework feature
+  /// that replaces the pilot's hand-written `_FailingAuthService`
+  /// (005-login-engine). The succeeding (certifiable) mock artifacts are
+  /// still generated: the failure-path double is a twin, not a
+  /// replacement.
+  final bool failMock;
+
+  /// Spec 1001 (issue #1001): deterministic mock generation seed. When
+  /// non-null, every generated mock record derives from this seed, so
+  /// the same seed + inputs reproduce byte-identical mocks (replayable
+  /// generation). Null keeps the historical default record seeds
+  /// (1, 2, 3).
+  final int? seed;
 
   /// When true, the view plugin generates v6 dual-layer state
   /// (DomainState + ViewState + DualLayerPresenter) and ControlledWidget /
@@ -104,7 +141,7 @@ class GeneratorConfig {
     this.methods = const [],
     this.repo,
     this.service,
-    this.usecases = const [],
+    List<String> usecases = const [],
     this.variants = const [],
     this.domain,
     this.repoMethod,
@@ -156,7 +193,12 @@ class GeneratorConfig {
     this.mockJsonDomain,
     this.useMockInDi = false,
     this.generateDi = false,
+    this.engineSlice = false,
     this.generateXRay = false,
+    this.generateSkin = false,
+    this.anchors = const [],
+    this.failMock = false,
+    this.seed,
     this.generateV6State = false,
     this.diFramework = 'get_it',
     this.generateRoute = false,
@@ -175,7 +217,14 @@ class GeneratorConfig {
     this.verbose = false,
     this.revert = false,
     required this.outputDir,
-  }) : multipleParams = multipleParams != null && multipleParams.isNotEmpty
+  }) : // Whitespace-padded multi-option tokens (`--usecases=login, logout`)
+       // are trimmed once here so every downstream derivation (class refs,
+       // field names, import paths) sees the same clean token (#1723 review).
+       usecases = usecases
+           .map((token) => token.trim())
+           .where((token) => token.isNotEmpty)
+           .toList(growable: false),
+       multipleParams = multipleParams != null && multipleParams.isNotEmpty
            ? multipleParams
            : GeneratorConfig.parseParams(paramsType),
        queryFieldType = queryFieldType ?? idFieldType;
@@ -228,15 +277,23 @@ class GeneratorConfig {
           : null,
       enableSqlite: json['sqlite'] == true || json['enable_sqlite'] == true,
       generateMock: json['mock'] == true || json['generate_mock'] == true,
+      engineSlice: json['engine'] == true || json['engine_slice'] == true,
       generateMockDataOnly:
           json['mock_data_only'] == true ||
           json['generate_mock_data_only'] == true,
       generateMockJson:
           json['mock_json'] == true || json['generate_mock_json'] == true,
       mockJsonDomain: json['mock_json_domain'],
+      seed: json['seed'] is int ? json['seed'] as int : null,
       useMockInDi: json['use_mock'] == true || json['use_mock_in_di'] == true,
       generateDi: json['di'] == true || json['generate_di'] == true,
       generateXRay: json['xray'] == true || json['generate_xray'] == true,
+      generateSkin: json['skin'] == true || json['generate_skin'] == true,
+      anchors: (json['anchors'] ?? json['anchor']) is List
+          ? ((json['anchors'] ?? json['anchor']) as List)
+                .cast<String>()
+                .toList()
+          : const [],
       generateV6State:
           json['v6_state'] == true ||
           json['v6State'] == true ||
@@ -335,7 +392,12 @@ class GeneratorConfig {
     String? mockJsonDomain,
     bool? useMockInDi,
     bool? generateDi,
+    bool? engineSlice,
     bool? generateXRay,
+    bool? generateSkin,
+    List<String>? anchors,
+    bool? failMock,
+    int? seed,
     bool? generateV6State,
     String? diFramework,
     bool? generateRoute,
@@ -404,12 +466,17 @@ class GeneratorConfig {
       syncBackoffBaseMs: syncBackoffBaseMs ?? this.syncBackoffBaseMs,
       syncBackoffMaxMs: syncBackoffMaxMs ?? this.syncBackoffMaxMs,
       generateMock: generateMock ?? this.generateMock,
+      engineSlice: engineSlice ?? this.engineSlice,
       generateMockDataOnly: generateMockDataOnly ?? this.generateMockDataOnly,
       generateMockJson: generateMockJson ?? this.generateMockJson,
       mockJsonDomain: mockJsonDomain ?? this.mockJsonDomain,
       useMockInDi: useMockInDi ?? this.useMockInDi,
       generateDi: generateDi ?? this.generateDi,
       generateXRay: generateXRay ?? this.generateXRay,
+      generateSkin: generateSkin ?? this.generateSkin,
+      anchors: anchors ?? this.anchors,
+      failMock: failMock ?? this.failMock,
+      seed: seed ?? this.seed,
       generateV6State: generateV6State ?? this.generateV6State,
       diFramework: diFramework ?? this.diFramework,
       generateRoute: generateRoute ?? this.generateRoute,
@@ -677,9 +744,11 @@ class GeneratorConfig {
     'sync_backoff_base_ms': syncBackoffBaseMs,
     'sync_backoff_max_ms': syncBackoffMaxMs,
     'mock': generateMock,
+    'engine_slice': engineSlice,
     'mock_data_only': generateMockDataOnly,
     'mock_json': generateMockJson,
     'mock_json_domain': mockJsonDomain,
+    'seed': seed,
     'use_mock': useMockInDi,
     'di': generateDi,
     'di_framework': diFramework,

@@ -17,6 +17,8 @@ import '../cli/services/corpus_catalog.dart';
 import '../cli/services/corpus_importer.dart';
 import '../cli/services/corpus_walk_ledger.dart';
 import '../cli/services/corpus_walker.dart';
+import '../plugins/tdd/models/verdict_envelope.dart';
+import '../plugins/tdd/services/verdict_emitter.dart';
 import '../plugins/tdd/services/tdd_timeout.dart';
 
 class CorpusCommand extends Command<void> {
@@ -79,7 +81,17 @@ class CorpusImportCommand extends Command<void> {
           'directory is used. Tests pass the temp fixture root here '
           'instead of mutating Directory.current.',
     );
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (SPEC 917, issue #838).',
+      negatable: false,
+    );
   }
+
+  /// SPEC 917/#838: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'import';
@@ -93,7 +105,14 @@ class CorpusImportCommand extends Command<void> {
   String get invocation => 'zfa corpus import <source> [--dry-run] [--force]';
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(
+    this,
+    _verdict,
+    _run,
+    commandOverride: 'corpus import',
+  );
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       usageException(
@@ -166,7 +185,17 @@ class CorpusCatalogCommand extends Command<void> {
           'App root containing specs/. When omitted, the current working '
           'directory is used (the corpus import\'s rule).',
     );
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (SPEC 917, issue #838).',
+      negatable: false,
+    );
   }
+
+  /// SPEC 917/#838: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'catalog';
@@ -185,13 +214,27 @@ class CorpusCatalogCommand extends Command<void> {
   static const _exitRunnerError = 2;
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(
+    this,
+    _verdict,
+    _run,
+    commandOverride: 'corpus catalog',
+  );
+
+  Future<void> _run() async {
     final target = argResults?['target'] as String?;
     if (target == null || target.isEmpty) {
       print(
         'zfa corpus catalog: --target is required (the corpus being '
         'cataloged, e.g. zik_zak — it names the catalog/ledger files).',
       );
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..outcome = VerdictOutcome.error
+        ..exitClass = 'runner-error'
+        ..fix =
+            'pass --target <name> (the corpus being cataloged — it '
+            'names the catalog/ledger files under corpus/)';
       exitCode = _exitRunnerError;
       return;
     }
@@ -231,6 +274,14 @@ class CorpusCatalogCommand extends Command<void> {
       exitCode = _exitOk;
     } on CorpusCatalogException catch (e) {
       print('zfa corpus catalog: $e');
+      // SPEC 917/#838: the JSON verdict carries the remediation — a
+      // missing manifest/source names the catalog contract.
+      _verdict
+        ..outcome = VerdictOutcome.error
+        ..exitClass = 'runner-error'
+        ..fix =
+            'import the corpus first (`zfa corpus import <source>`) '
+            'or pass --source <dir> to catalog it directly, then re-run';
       exitCode = _exitRunnerError;
     }
   }
@@ -283,7 +334,17 @@ class CorpusRunCommand extends Command<void> {
           'Hard deadline in minutes for each spawned per-feature command '
           '(default 10). Fractions allowed.',
     );
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (SPEC 917, issue #838).',
+      negatable: false,
+    );
   }
+
+  /// SPEC 917/#838: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'run';
@@ -304,13 +365,27 @@ class CorpusRunCommand extends Command<void> {
   static const _exitRunnerError = 2;
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(
+    this,
+    _verdict,
+    _run,
+    commandOverride: 'corpus run',
+  );
+
+  Future<void> _run() async {
     final target = argResults?['target'] as String?;
     if (target == null || target.isEmpty) {
       print(
         'zfa corpus run: --target is required (the corpus being walked, '
         'e.g. zik_zak).',
       );
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..outcome = VerdictOutcome.error
+        ..exitClass = 'runner-error'
+        ..fix =
+            'pass --target <name> (the corpus being walked — it names '
+            'the catalog/ledger files under corpus/)';
       exitCode = _exitRunnerError;
       return;
     }
@@ -420,7 +495,17 @@ class CorpusLedgerCommand extends Command<void> {
           'Hard deadline in minutes for each spawned per-feature command '
           '(default 10). Fractions allowed.',
     );
+    argParser.addFlag(
+      'json',
+      help:
+          'Emit a versioned verdict.v1 JSON envelope as the final stdout '
+          'line (SPEC 917, issue #838).',
+      negatable: false,
+    );
   }
+
+  /// SPEC 917/#838: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'ledger';
@@ -441,13 +526,27 @@ class CorpusLedgerCommand extends Command<void> {
   static const _exitRunnerError = 2;
 
   @override
-  Future<void> run() async {
+  Future<void> run() => runWithVerdictEnvelope(
+    this,
+    _verdict,
+    _run,
+    commandOverride: 'corpus ledger',
+  );
+
+  Future<void> _run() async {
     final target = argResults?['target'] as String?;
     if (target == null || target.isEmpty) {
       print(
         'zfa corpus ledger: --target is required (the corpus being '
         'walked, e.g. zik_zak).',
       );
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..outcome = VerdictOutcome.error
+        ..exitClass = 'runner-error'
+        ..fix =
+            'pass --target <name> (the corpus being walked — it names '
+            'the catalog/ledger files under corpus/)';
       exitCode = _exitRunnerError;
       return;
     }

@@ -288,6 +288,14 @@ class CutSliceCapability implements ZuraffaCapability {
     // Boundary mocks (FR-003) — depth-aware via the generator (U31).
     final generatedFiles = <String>[];
     final mockRegistrations = <MockRegistration>[];
+    // The mirror set: project-relative paths the walk included. Boundary
+    // mocks are generated BEFORE the tree is mirrored, so the generator
+    // consults this set (not the sandbox filesystem) when it decides
+    // which of the interface's own imports to re-emit (issue #1144).
+    final mirroredFiles = {
+      for (final nodePath in walkResult.graph.nodes.keys)
+        p.relative(nodePath, from: projectRoot),
+    };
     for (final boundary in walkResult.boundaries) {
       final interfaceIncluded = layerAllowedAtDepth(
         classifyLayer(boundary.interfaceFile),
@@ -310,6 +318,7 @@ class CutSliceCapability implements ZuraffaCapability {
         projectRoot: projectRoot,
         sandboxRoot: sandboxDir,
         depth: depth,
+        mirroredFiles: mirroredFiles,
       );
       if (mock == null) continue;
       final mockAbs = p.join(sandboxDir, mock.relativePath);

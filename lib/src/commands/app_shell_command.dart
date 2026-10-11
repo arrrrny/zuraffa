@@ -1,17 +1,26 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
-
+import 'package:yaml/yaml.dart';
 import '../config/zfa_config.dart';
 
 import '../core/context/file_system.dart';
+import '../core/dependencies/dependency_wirer.dart';
+import '../core/dependencies/generated_import_scanner.dart';
+import '../core/dependencies/pubspec_auto_add.dart';
+import '../core/plugin_system/capability_invocation_wrapper.dart';
+import '../core/project/receipt_store.dart';
 import '../models/generated_file.dart';
 import '../package/package_mode.dart';
 import '../plugins/app_shell/builders/app_shell_builder.dart';
+import '../skin/builders/skin_contract_kit_builder.dart';
+import '../skew/skew_contract.dart';
 import '../utils/file_utils.dart';
 import '../utils/project_flavor.dart';
 import '../core/project/project_root.dart';
+import '../version.dart';
 
 /// `zfa app shell` — generates the app-shell glue files for a zfa-only
 /// Flutter app.
@@ -20,9 +29,11 @@ import '../core/project/project_root.dart';
 /// into a runnable Flutter app:
 ///
 ///  * `lib/main.dart` — `void main()` → `await setupDependencies()` →
-///    `runApp(const MyApp())`.
-///  * `<outputDir>/app/my_app.dart` — `MyApp` widget (`MaterialApp.router`
-///    bound to [appRouter]).
+///    `runApp(const <shellWidgetName>())`.
+///  * `<outputDir>/app/<shellStem>.dart` — the `<shellWidgetName>` widget
+///    (`MaterialApp.router` bound to [appRouter]). Both derive from the
+///    target package name (issue #1465); `my_app` keeps the legacy
+///    `my_app.dart` / `MyApp`.
 ///  * `<outputDir>/routing/app_router.dart` —
 ///    `final GoRouter appRouter = GoRouter(routes: getAllRoutes());`.
 ///
@@ -38,12 +49,16 @@ import '../core/project/project_root.dart';
 /// The command refuses to overwrite an existing `lib/main.dart` unless
 /// `--force` is passed (user apps often customize main with error
 /// zones, observability, or `WidgetsFlutterBinding.ensureInitialized()`
-/// calls). `my_app.dart` and `app_router.dart` are pure glue and are
+/// calls). The shell file and `app_router.dart` are pure glue and are
 /// always overwritten.
 class AppShellCommand extends Command<void> {
-  AppShellCommand({FileSystem? fileSystem, AppShellBuilder? builder})
-    : _fileSystem = fileSystem ?? const DefaultFileSystem(),
-      _builder = builder ?? const AppShellBuilder() {
+  AppShellCommand({
+    FileSystem? fileSystem,
+    AppShellBuilder? builder,
+    PubspecProcessRunner? processRunner,
+  }) : _fileSystem = fileSystem ?? const DefaultFileSystem(),
+       _builder = builder ?? const AppShellBuilder(),
+       _processRunner = processRunner {
     argParser
       ..addFlag('dry-run', negatable: false, help: 'Preview without writing')
       ..addFlag(
@@ -65,7 +80,32 @@ class AppShellCommand extends Command<void> {
         'xray',
         negatable: false,
         help:
-            'Wire the X-Ray bridge server into main.dart (debug mode) and wrap MyApp in XRayScope. Defaults to the xray key in .zfa.json plugins.defaults. Emits the <outputDir>/xray/xray_decks.dart barrel so the import in main.dart always resolves.',
+            'Wire the X-Ray bridge server into main.dart (debug mode) and wrap the shell widget in XRayScope. Defaults to the xray key in .zfa.json plugins.defaults. Emits the <outputDir>/xray/xray_decks.dart barrel so the import in main.dart always resolves.',
+      )
+      ..addFlag(
+        'skin-audit',
+        negatable: false,
+        help:
+            'Mount the runtime skin-contract auditor (issue #1102): the '
+            'GoRouter carries the SkinRouteContractObserver (route '
+            'contract from getAllRoutes(), navigator root conforms by '
+            'construction) and the shell widget wraps the router in the '
+            'SkinAuditChrome violation banner via MaterialApp.builder '
+            '(debug-only). Emits the <outputDir>/skin/'
+            'skin_contract_auditor.dart kit when missing (hand edits are '
+            'preserved).',
+      )
+      ..addFlag(
+        'zuraffa-app',
+        negatable: false,
+        help:
+            'Mount the CERTIFIED app shell (issue #1260): the shell file '
+            'builds ZuraffaApp — the skin lane\'s certified shell '
+            '(route-contract observer + audit bus + violation chrome in '
+            'one place, package:zuraffa_ui) — with the generated GoRouter '
+            'tree functional beneath it via Router.withConfig. Requires '
+            'the target pubspec to declare zuraffa_ui (refused with the '
+            'exact remedy otherwise).',
       )
       ..addOption('title', help: 'Application title (default: "Zuraffa App")')
       ..addOption(
@@ -89,12 +129,18 @@ class AppShellCommand extends Command<void> {
   final FileSystem _fileSystem;
   final AppShellBuilder _builder;
 
+  /// Issue #1265: the `pub add` spawner for the mechanical auto-add of
+  /// the packages the shell emits imports for (go_router). Injectable so
+  /// tests stay hermetic (the doctor `ZfaProcessRunner` convention);
+  /// null delegates to the default `Process.run` spawner.
+  final PubspecProcessRunner? _processRunner;
+
   @override
   String get name => 'shell';
 
   @override
   String get description =>
-      'Generate the app shell (main.dart + MyApp + app_router.dart)';
+      'Generate the app shell (main.dart + shell widget + app_router.dart)';
 
   @override
   String get invocation => 'zfa app shell [options]';
@@ -108,6 +154,8 @@ class AppShellCommand extends Command<void> {
     final title = argResults!['title'] as String?;
     final outputDir = argResults!['output'] as String;
     final xrayFlag = argResults!['xray'] as bool? ?? false;
+    final skinAudit = argResults!['skin-audit'] as bool? ?? false;
+    final zuraffaApp = argResults!['zuraffa-app'] as bool? ?? false;
 
     // --output must live under lib/: main.dart (always at lib/main.dart)
     // imports the glue files via package: URIs, which only resolve inside
@@ -128,7 +176,7 @@ class AppShellCommand extends Command<void> {
         (argResults!['root'] as String?) ?? ProjectRoot.safeCurrentPath();
 
     // Spec 025 (FR-003): package-mode projects never get an app shell —
-    // main.dart/my_app.dart/app_router.dart are app artifacts. A package
+    // main.dart/the app shell/app_router.dart are app artifacts. A package
     // contributes architecture through its registrar + module instead.
     if (PackageMode.isEnabled(projectRoot)) {
       throw AppShellException(
@@ -141,6 +189,38 @@ class AppShellCommand extends Command<void> {
 
     final config = ZfaConfig.load(projectRoot: projectRoot);
     final xray = xrayFlag || (config?.xrayByDefault ?? false);
+
+    // Issue #1197: --skin-audit emits imports of package:zuraffa/skin.dart.
+    // When the target's resolved core predates the skin barrel, refuse
+    // up front (before any file is written) with the actionable skew
+    // report instead of emitting an app shell that cannot compile.
+    if (skinAudit) {
+      try {
+        SkewContract.requireSurfaces(
+          projectRoot: projectRoot,
+          command: 'zfa app shell --skin-audit',
+          requiredUris: ['skin.dart'],
+        );
+      } on VersionSkewException catch (e) {
+        throw AppShellException(e.toString());
+      }
+    }
+
+    // Issue #1197: --xray emits an import of the core-internal
+    // XRayOverlayState registry (src/plugins/xray/xray_overlay.dart,
+    // spec 036) — also post-v6.1.0. Same two-end floor, same refusal.
+    if (xray) {
+      try {
+        SkewContract.requireSurfaces(
+          projectRoot: projectRoot,
+          command: 'zfa app shell --xray',
+          requiredUris: ['src/plugins/xray/xray_overlay.dart'],
+        );
+      } on VersionSkewException catch (e) {
+        throw AppShellException(e.toString());
+      }
+    }
+
     final pubspecPath = p.join(projectRoot, 'pubspec.yaml');
     final pubspecFile = File(pubspecPath);
     if (!await _fileSystem.exists(pubspecPath) && !pubspecFile.existsSync()) {
@@ -150,9 +230,43 @@ class AppShellCommand extends Command<void> {
       );
     }
 
+    final pubspecContent = await _fileSystem.read(pubspecPath);
+
+    // Issue #1260: the certified shell emits an import of
+    // package:zuraffa_ui/zuraffa_ui.dart. When the target's pubspec does
+    // not declare zuraffa_ui, that import cannot resolve: refuse up front
+    // (before any file is written) with the actionable remedy instead of
+    // emitting an app that cannot compile (#938 errors-are-an-API
+    // discipline). Deterministic: the check only READS the pubspec.
+    // This preflight intentionally precedes the pure-Dart return so an
+    // explicitly requested --zuraffa-app is rejected with its required
+    // dependency remedy instead of being silently skipped.
+    if (zuraffaApp) {
+      YamlNode? doc;
+      try {
+        doc = loadYaml(pubspecContent);
+      } on YamlException {
+        doc = null;
+      }
+      final dependencies = doc is YamlMap ? doc['dependencies'] : null;
+      final declaresZuraffaUi = dependencies is YamlMap
+          ? dependencies.containsKey('zuraffa_ui')
+          : false;
+      if (!declaresZuraffaUi) {
+        throw AppShellException(
+          'The certified shell requires the skin lane\'s certified '
+          'dependency (issue #1260).\n'
+          '   pubspec.yaml does not declare zuraffa_ui, and --zuraffa-app '
+          'emits `import \'package:zuraffa_ui/zuraffa_ui.dart\';` — an '
+          'import that would die at compile.\n'
+          '   --> fix: flutter pub add zuraffa_ui',
+        );
+      }
+    }
+
     // #512: the app shell wires a Flutter `MaterialApp.router` entrypoint and
     // depends on zuraffa_flutter. In a pure-Dart target package (pubspec.yaml
-    // without a `flutter:` dependency) emitting main.dart/my_app.dart/app_router.dart
+    // without a `flutter:` dependency) emitting main.dart/the shell/app_router.dart
     // breaks `dart analyze` (Constitution VII: Engine Purity). Skip with a clear
     // warning. (No pubspec found => unknown flavor => preserve historical
     // Flutter generation.)
@@ -168,7 +282,6 @@ class AppShellCommand extends Command<void> {
       return;
     }
 
-    final pubspecContent = await _fileSystem.read(pubspecPath);
     final appName = AppShellBuilder.parseAppName(pubspecContent);
     if (appName == null || !RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(appName)) {
       throw AppShellException(
@@ -240,6 +353,12 @@ class AppShellCommand extends Command<void> {
 
     final files = <GeneratedFile>[];
 
+    // Issue #1265: the exact sources this run emits — the pubspec gap
+    // post-pass below diffs the package: imports they carry against the
+    // target's declared dependencies. In-memory (not re-read from disk)
+    // so --dry-run previews the same gap the real run would heal.
+    final emittedSources = <String>[];
+
     // 1. lib/src/routing/app_router.dart — pure glue, always overwritten.
     final appRouterPath = p.join(
       projectRoot,
@@ -247,10 +366,16 @@ class AppShellCommand extends Command<void> {
       'routing',
       'app_router.dart',
     );
+    // #1673: the day-zero placeholder's AppBar shows the shell title.
+    final appRouterContent = _builder.buildAppRouter(
+      skinAudit: skinAudit,
+      title: title,
+    );
+    emittedSources.add(appRouterContent);
     files.add(
       await FileUtils.writeFile(
         appRouterPath,
-        _builder.buildAppRouter(),
+        appRouterContent,
         'app_router',
         force: true,
         dryRun: dryRun,
@@ -259,19 +384,68 @@ class AppShellCommand extends Command<void> {
       ),
     );
 
-    // 2. lib/src/app/my_app.dart — pure glue, always overwritten.
-    final myAppPath = p.join(projectRoot, outputDir, 'app', 'my_app.dart');
+    // 2. the name-derived shell widget — pure glue, always overwritten.
+    // Issue #1465: the file stem and class derive from the package name
+    // (zik_zak → zik_zak.dart / ZikZakApp); `my_app` collapses to the
+    // legacy literals. A shell written by an older zfa still lives at the
+    // old fixed my_app.dart — never deleted or silently overwritten; the
+    // notice below names it so the user can clean it up.
+    final naming = AppShellNaming.fromAppName(appName);
+    final shellStem = naming.stem;
+    final shellWidget = naming.widgetClass;
+    final myAppPath = p.join(projectRoot, outputDir, 'app', '$shellStem.dart');
+    final myAppContent = _builder.buildMyApp(
+      title: title,
+      naming: naming,
+      xray: xray,
+      skinAudit: skinAudit,
+      zuraffaApp: zuraffaApp,
+    );
+    emittedSources.add(myAppContent);
     files.add(
       await FileUtils.writeFile(
         myAppPath,
-        _builder.buildMyApp(title: title, xray: xray),
-        'my_app',
+        myAppContent,
+        shellStem,
         force: true,
         dryRun: dryRun,
         verbose: verbose,
         fileSystem: _fileSystem,
       ),
     );
+
+    // 2d. <outputDir>/skin/skin_contract_auditor.dart — the runtime
+    //     skin-contract auditor kit (issue #1102). Only emitted when
+    //     --skin-audit is set so the shell/app_router imports resolve;
+    //     existing kits are preserved (the #1005 hand-written-seam
+    //     precedent — hand edits survive regeneration; --force
+    //     regenerates main.dart but never needs a different kit).
+    if (skinAudit) {
+      final skinKitPath = p.join(
+        projectRoot,
+        outputDir,
+        SkinContractKitBuilder.kitDir,
+        SkinContractKitBuilder.kitFileName,
+      );
+      final skinKitExists = await _fileSystem.exists(skinKitPath);
+      if (!skinKitExists) {
+        final skinKitContent = const SkinContractKitBuilder().build();
+        emittedSources.add(skinKitContent);
+        files.add(
+          await FileUtils.writeFile(
+            skinKitPath,
+            skinKitContent,
+            'skin_contract_kit',
+            force: true,
+            dryRun: dryRun,
+            verbose: verbose,
+            fileSystem: _fileSystem,
+          ),
+        );
+      } else if (verbose) {
+        print('  skipped: $skinKitPath already exists (hand edits preserved).');
+      }
+    }
 
     // 2b. <outputDir>/xray/xray_decks.dart - X-Ray Control Deck
     // registration barrel. Only emitted when --xray is set so the
@@ -287,10 +461,12 @@ class AppShellCommand extends Command<void> {
       );
       final xrayDecksExists = await _fileSystem.exists(xrayDecksPath);
       if (!xrayDecksExists) {
+        final decksContent = _builder.buildXRayDecksBarrel();
+        emittedSources.add(decksContent);
         files.add(
           await FileUtils.writeFile(
             xrayDecksPath,
-            _builder.buildXRayDecksBarrel(),
+            decksContent,
             'xray_decks',
             force: true,
             dryRun: dryRun,
@@ -318,10 +494,12 @@ class AppShellCommand extends Command<void> {
       );
       final stubExists = await _fileSystem.exists(stubPath);
       if (!stubExists) {
+        final stubContent = _builder.buildXRayBridgeLauncherStub();
+        emittedSources.add(stubContent);
         files.add(
           await FileUtils.writeFile(
             stubPath,
-            _builder.buildXRayBridgeLauncherStub(),
+            stubContent,
             'xray_bridge_launcher_stub',
             force: true,
             dryRun: dryRun,
@@ -351,14 +529,20 @@ class AppShellCommand extends Command<void> {
         existingMain,
       );
     }
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
     final mainContent = _builder.buildMain(
       appName: appName,
+      naming: naming,
       mockHint: mock,
       outputDir: outputDir,
       diTakesGetIt: diTakesGetIt,
       diIsAsync: diIsAsync,
       xray: xray,
+      coreImport: coreImport,
     );
+    emittedSources.add(mainContent);
     files.add(
       await FileUtils.writeFile(
         mainPath,
@@ -373,6 +557,74 @@ class AppShellCommand extends Command<void> {
 
     _logSummary(files, dryRun: dryRun, verbose: verbose);
 
+    // SPEC 1132 / EPIC 1 lane 3 (issue #1138 family): `zfa app shell` is
+    // a standalone generation path — it ships a proof.v1 receipt
+    // before reporting success, so `zfa proof check` can fail the tree
+    // on drift. The #996 contract: best-effort on the success path ONLY
+    // (a receipt failure never flips a green verb red), no receipt on
+    // dry-run, and only for artifacts this run actually wrote
+    // (created/overwritten — #769: no artifact, no receipt).
+    if (!dryRun) {
+      try {
+        final receiptFiles = <GenerationReceiptFile>[];
+        for (final file in files) {
+          if (file.action != 'created' && file.action != 'overwritten') {
+            continue;
+          }
+          final onDisk = File(file.path);
+          if (!onDisk.existsSync()) continue;
+          final bytes = onDisk.readAsBytesSync();
+          receiptFiles.add(
+            GenerationReceiptFile(
+              path: _relativeToRoot(file.path),
+              action: file.action,
+              sha256: crypto.sha256.convert(bytes).toString(),
+              bytes: bytes.length,
+              snapshot: bytes.length <= ReceiptStore.maxSnapshotBytes
+                  ? onDisk.readAsStringSync()
+                  : null,
+            ),
+          );
+        }
+        receiptFiles.sort((a, b) => a.path.compareTo(b.path));
+        if (receiptFiles.isNotEmpty) {
+          final runHash = CapabilityInvocationWrapper.computeRunHash(
+            files: receiptFiles,
+            entity: appName,
+            methodset: const [],
+          );
+          await ReceiptStore(projectRoot: projectRoot).saveCapability(
+            GenerationReceipt(
+              command: 'app shell',
+              target: appName,
+              repro: 'zfa app shell',
+              at: DateTime.now().toUtc(),
+              generatorVersion: version,
+              input: {
+                'entity': appName,
+                'output': outputDir,
+                'force': force,
+                'mock': mock,
+                'title': title,
+                'xray': xray,
+                'skinAudit': skinAudit,
+                'zuraffaApp': zuraffaApp,
+              },
+              files: receiptFiles,
+              plugin: 'app',
+              capability: 'shell',
+              entity: appName,
+              methodset: const [],
+              runHash: runHash,
+            ),
+          );
+        }
+      } catch (e) {
+        // Best-effort (#996): the artifacts exist; never fail here.
+        stderr.writeln('⚠️  app shell receipt not written: $e');
+      }
+    }
+
     if (mainExists && !force && !dryRun) {
       if (replacingHelloWorldStub) {
         print(
@@ -382,8 +634,93 @@ class AppShellCommand extends Command<void> {
       } else {
         print(
           '\nℹ️  lib/main.dart already exists — skipped (use --force to '
-          'overwrite). my_app.dart and app_router.dart were regenerated.',
+          'overwrite). $shellStem.dart and app_router.dart were regenerated.',
         );
+      }
+    }
+
+    // Issue #1465 migration: a shell generated by an older zfa lives at
+    // the old fixed `my_app.dart` path. Regeneration now writes the
+    // name-derived file; the legacy file is user-facing surface main.dart
+    // may still import, so it is never deleted or silently overwritten —
+    // the notice names it and leaves the decision to the user.
+    if (shellStem != 'my_app' &&
+        !dryRun &&
+        await _fileSystem.exists(
+          p.join(projectRoot, outputDir, 'app', 'my_app.dart'),
+        )) {
+      print(
+        '\nℹ️  Found the legacy app shell at ${p.join(outputDir, 'app', 'my_app.dart')} '
+        '(written by an older zfa). The new shell is '
+        '${p.join(outputDir, 'app', '$shellStem.dart')}. The legacy file '
+        'was left untouched — delete it (and update lib/main.dart) once '
+        'nothing imports it.',
+      );
+    }
+
+    // Issue #1265 — the shell DECLARES the imports it emits. The router
+    // builder hard-requires go_router (app_router.dart imports
+    // package:go_router), yet a stock consumer project's pubspec may not
+    // declare it — the shell's own output would not compile. Diff the
+    // package: imports of the emitted sources against the target pubspec
+    // and auto-add the hosted gap via one `<flutter|dart> pub add`
+    // invocation; when that is impossible, surface the same
+    // `⚠️ doesn't declare … --> fix:` diagnostic `zfa make` prints.
+    // --dry-run only previews the gap (no mutation, no spawned process).
+    final importedPackages = GeneratedImportScanner.extractPackageImports(
+      emittedSources,
+      hostPackage: appName,
+    ).toList()..sort();
+    final missingPackages = GeneratedImportScanner.missingFromPubspec(
+      pubspecContent,
+      importedPackages,
+    ).toList()..sort();
+    final isFlutterTarget = DependencyWirer.isFlutterProject(pubspecContent);
+    final hostedMissing =
+        missingPackages
+            .where((name) => !GeneratedImportScanner.isSdkPackage(name))
+            .toList()
+          ..sort();
+
+    var pubsyncAutoAdded = const <String>[];
+    if (!dryRun && hostedMissing.isNotEmpty) {
+      final outcome = await PubspecAutoAdd.add(
+        projectRoot: projectRoot,
+        packages: hostedMissing,
+        isFlutter: isFlutterTarget,
+        runner: _processRunner,
+      );
+      pubsyncAutoAdded = outcome.added;
+      if (outcome.added.isNotEmpty) {
+        for (final line in PubspecGapReporter.successLines(
+          added: outcome.added,
+          commandLine: outcome.commandLine!,
+        )) {
+          print(line);
+        }
+      }
+    }
+
+    final addedSet = pubsyncAutoAdded.toSet();
+    final remainingPackages =
+        missingPackages.where((name) => !addedSet.contains(name)).toList()
+          ..sort();
+    if (remainingPackages.isNotEmpty) {
+      final remainingHosted = remainingPackages
+          .where((name) => !GeneratedImportScanner.isSdkPackage(name))
+          .toList();
+      final remainingSdk = remainingPackages
+          .where(GeneratedImportScanner.isSdkPackage)
+          .toList();
+      for (final line in PubspecGapReporter.gapWarningLines(
+        missing: remainingPackages,
+        pubAddOneLiner: GeneratedImportScanner.pubAddOneLiner(
+          missing: remainingHosted,
+          isFlutter: isFlutterTarget,
+        ),
+        sdkMissingPackages: remainingSdk,
+      )) {
+        print(line);
       }
     }
 
@@ -391,7 +728,8 @@ class AppShellCommand extends Command<void> {
       print('\n\u2705 App shell generated.');
       if (xray) {
         print(
-          '   \u{1FA7B} X-Ray bridge wired: server starts in debug mode, MyApp wrapped in XRayScope.',
+          '   \u{1FA7B} X-Ray bridge wired: server starts in debug mode, '
+          '$shellWidget wrapped in XRayScope.',
         );
         print(
           '   Run `zfa xray deck --entity <Entity>` to populate the Control Deck barrel.',
@@ -400,6 +738,17 @@ class AppShellCommand extends Command<void> {
       print('\n\u2500\u2500 Next steps \u2500\u2500');
       print('   flutter run   # or `flutter build apk` / `dart run`');
     }
+  }
+
+  /// Project-relative POSIX path (the make-path receipt convention,
+  /// shared with CapabilityInvocationWrapper's normalization): the
+  /// digest-and-path contract `zfa proof check` re-derives.
+  String _relativeToRoot(String path) {
+    if (path.isEmpty) return path;
+    final root =
+        (argResults!['root'] as String?) ?? ProjectRoot.safeCurrentPath();
+    final relative = p.isAbsolute(path) ? p.relative(path, from: root) : path;
+    return relative.replaceAll('\\', '/');
   }
 
   void _logSummary(

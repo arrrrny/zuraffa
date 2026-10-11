@@ -6,6 +6,7 @@ import 'package:meta/meta.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../models/generated_file.dart';
 import 'capability_command.dart';
+import '../cli/exit_protocol.dart';
 
 /// Base class for all plugin-based CLI commands.
 ///
@@ -138,7 +139,7 @@ abstract class PluginCommand extends Command<void> {
   void reportSubcommandUsage() {
     print('❌ Usage: zfa $name <subcommand> [arguments]');
     print('   Run `zfa $name --help` to list subcommands.');
-    exitCode = 64;
+    exitCode = ExitProtocol.usage;
   }
 
   /// Prints a summary of generated files.

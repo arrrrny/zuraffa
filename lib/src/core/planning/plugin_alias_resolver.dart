@@ -4,6 +4,11 @@ class PluginAliasResolver {
     'vpc': ['view', 'presenter', 'controller'],
     'full-ui': ['view', 'presenter', 'controller', 'state', 'route'],
     'quality': ['test', 'mock', 'di'],
+    // Issue #1149 (kill list): the gql plugin was deleted after folding its
+    // naming fix + FileSystem injection into graphql. `gql` resolves to
+    // `graphql` for one deprecation cycle so existing scripts and plans
+    // keep working, with the intent documented right here.
+    'gql': ['graphql'],
   };
 
   const PluginAliasResolver._();

@@ -9,7 +9,11 @@
 .packages
 pubspec.lock
 .pub/
-apps/
+# BUG-1188: a bare `apps/` rule is FORBIDDEN here — it excludes the parent
+# directory itself, and git cannot re-include paths under an excluded parent,
+# so it silently defeats the !apps/zikzak_demo/ negation below and makes the
+# AGENTS.md-mandated apps/zikzak_demo/PROGRESS.md stop record uncommittable.
+# Scratch apps are ignored by the /apps/* + !apps/zikzak_demo/ block instead.
 build/
 ios/.generated/
 ios/Flutter/Generated.xcconfig
@@ -64,3 +68,32 @@ mutation-test-report/
 # `contracts` rule above targets generated contract build dirs, not
 # spec documents.
 !specs/**/contracts/
+
+# Local dev note (2026-09-09): apps/*/examples pubspec.yaml files carry
+# machine-local dependency_overrides (path deps to ../../ and sibling zorphy).
+# They are tracked, so they CANNOT be gitignored; they are held out of commits
+# via git update-index --skip-worktree (reversible with --no-skip-worktree).
+# A bare apps/ ignore rule is forbidden — see the BUG-1188 comment above.
+
+# TDD cycle-log pins TMPDIR to the clone-local .tmpdir/ — per-run scratch
+# (test lists, timeout helpers) must never be committed.
+.tmpdir/
+
+# zread wiki pages published to the website are generated, not source:
+# tools/sync-website-docs.sh copies them from .zread/wiki/ (the source of
+# truth) into website/static/docs/ for both local preview and CI. Only the
+# viewer (website/static/docs/index.html) is committed.
+website/static/docs/*.md
+website/static/docs/wiki.json
+mutation-test-1693-report/
+
+# The ROOT tdd/ directory is per-run scratch, not a source artifact. The TDD
+# tooling OVERWRITES tdd/test-list.md and tdd/verification.md with the CURRENT
+# work item's single report (verify_command: "overwrites any stale copy"), so
+# every branch rewrites the whole file and tracking it conflicted on EVERY
+# open PR. Those conflicts were resolved by keeping both sides, which is what
+# left master carrying two concatenated reports (issue #1685's + spec 1693's,
+# two titles, two `Verdict: PASS` blocks) inside one file. Durable
+# per-work-item records live under specs/<feature>/tdd/ and
+# .specify/bugs/<id>/tdd/; the root mirror is regenerated and stays local.
+/tdd/

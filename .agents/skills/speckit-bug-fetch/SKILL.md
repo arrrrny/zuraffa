@@ -1,11 +1,14 @@
 ---
 name: speckit-bug-fetch
-description: Load an existing GitHub issue into the bug workflow (the complement of bug.issue) and seed a triage draft
+description: Load an existing GitHub issue into the bug workflow (the complement of
+  bug.issue) and seed a triage draft
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: bug:commands/speckit.bug.fetch.md
+  author: arrrrny
+  source: extension:bug
 ---
+
+# Bug Fetch Skill
 
 # Fetch Bug (Load Existing Issue)
 

@@ -65,6 +65,9 @@ $body
       'tdd',
       'plan',
       featureName,
+      // Issue #1480: the subject here is persistence MARKING on unit
+      // rows — the fixtures plan the legacy fallback shape on purpose.
+      '--allow-unit-fallback',
       '--project',
       tmpDir.path,
     ]);
@@ -74,7 +77,9 @@ $body
   test('persistence-worded FRs are marked with [persistence]', () async {
     await seedSpec('''
 - **FR-001**: [persistent] cached listing is served from Hive with a 24h TTL
+  traces: ListingCache
 - **FR-002**: [persistent] corrupted box recovers through the clear + re-fetch path
+  traces: BoxRecovery
 ''');
     final list = await runPlan();
     expect(
@@ -97,12 +102,13 @@ $body
   test('non-persistence FRs are NOT marked', () async {
     await seedSpec('''
 - **FR-001**: returns 42 when invoked with no args
+  traces: Calculator
 ''');
     final list = await runPlan();
     expect(
       list,
       contains(
-        '| U1 | returns 42 when invoked with no args | FR-001 | PENDING |',
+        '| U1 | returns 42 when invoked with no args | FR-001, Calculator | PENDING |',
       ),
     );
     expect(
@@ -115,6 +121,7 @@ $body
   test('the marker is idempotent across a re-plan', () async {
     await seedSpec('''
 - **FR-001**: [persistent] offline queue replays against the cache after reconnect
+  traces: ReplayQueue
 ''');
     final first = await runPlan();
     expect(
@@ -134,12 +141,13 @@ $body
       'unmarked (the keyword trigger is retired)', () async {
     await seedSpec('''
 - **FR-001**: caches the result for display alongside the query
+  traces: QueryCache
 ''');
     final list = await runPlan();
     expect(
       list,
       contains(
-        '| U1 | caches the result for display alongside the query | FR-001 | PENDING |',
+        '| U1 | caches the result for display alongside the query | FR-001, QueryCache | PENDING |',
       ),
     );
   });

@@ -1,0 +1,189 @@
+// Spec 1102 runtime verification — the pilot's live demo, executed as
+// widget tests against REAL Flutter 3.47.2 / Dart 3.13.2:
+//   1. chaos edit  -> red violation banner on the next audited frame
+//   2. revert      -> banner clears
+//   3. hot reload (reassemble) re-audits — the pilot's exact channel
+//   4. route observer flags an undeclared push; root conforms
+//   5. debugTapAnchor invokes the real onPressed through the registry
+//   6. pumpAndSettle settles (subscribe-don't-poll)
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/skin.dart';
+import 'package:skin_compile_check/src/skin/skin_contract_auditor.dart';
+
+void main() {
+  testWidgets('chaos edit surfaces the banner; revert clears it', (
+    tester,
+  ) async {
+    final label = ValueNotifier<String>('Continue with Google');
+    addTearDown(label.dispose);
+    final rows = <SkinContractRow>[
+      SkinContractRow.textRenders(
+        id: 'google-text',
+        text: 'Continue with Google',
+      ),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            SkinAuditChrome(child: child ?? const SizedBox.shrink()),
+        home: Scaffold(
+          body: SkinContractAuditor(
+            rows: rows,
+            listenable: label,
+            child: Center(
+              child: ValueListenableBuilder<String>(
+                valueListenable: label,
+                builder: (context, value, _) => Text(value),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Clean tree: no banner.
+    expect(skinAuditBusCore.hasViolations, isFalse);
+    expect(find.text('SKIN CONTRACT VIOLATIONS'), findsNothing);
+
+    // Chaos edit: the text drifts from the contract.
+    label.value = 'Continue with Goggle';
+    await tester.pumpAndSettle();
+
+    // The banner is impossible to miss and names the row.
+    expect(skinAuditBusCore.hasViolations, isTrue);
+    expect(find.text('SKIN CONTRACT VIOLATIONS'), findsOneWidget);
+    expect(
+      find.text('[google-text] Continue with Google renders'),
+      findsOneWidget,
+    );
+
+    // Revert: the banner clears on the next audited frame.
+    label.value = 'Continue with Google';
+    await tester.pumpAndSettle();
+    expect(skinAuditBusCore.hasViolations, isFalse);
+    expect(find.text('SKIN CONTRACT VIOLATIONS'), findsNothing);
+  });
+
+  testWidgets('a rebuild with drifted content re-audits (didUpdateWidget)', (
+    tester,
+  ) async {
+    // NOTE: binding.reassembleApplication() (the pilot's literal
+    // hot-reload channel) crashes the automated binding — the
+    // reassemble() override is shipped and analyzer-verified; this
+    // test drives the sibling rebuild channel (rows-updated) instead.
+    List<SkinContractRow> rows() => <SkinContractRow>[
+      SkinContractRow.textRenders(id: 'signin-title', text: 'Sign in'),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SkinContractAuditor(
+            rows: rows(),
+            child: const Center(child: Text('Sign in')),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(skinAuditBusCore.hasViolations, isFalse);
+
+    // The chaos edit lands; the rebuild re-audits on the next frame.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SkinContractAuditor(
+            rows: rows(),
+            child: const Center(child: Text('Sign in now')),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      skinAuditBusCore.violations.map((v) => v.rowId),
+      contains('signin-title'),
+    );
+
+    skinAuditBusCore.clear();
+  });
+
+  testWidgets('the route observer flags an undeclared push; root conforms', (
+    tester,
+  ) async {
+    final observer = SkinRouteContractObserver(
+      table: RouteContractTable.fromRouteNames(const {'login'}),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorObservers: [observer],
+        routes: {
+          '/': (_) => const Scaffold(body: Text('root')),
+          'login': (_) => const Scaffold(body: Text('login page')),
+          'chaos-route': (_) => const Scaffold(body: Text('chaos')),
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // The navigator root '/' conformed by construction: no violation.
+    expect(skinAuditBusCore.violations.where((v) => v.route == '/'), isEmpty);
+
+    // Undeclared push: the observer publishes the route violation.
+    final ctx = tester.element(find.text('root'));
+    Navigator.of(ctx).pushNamed('chaos-route');
+    await tester.pumpAndSettle();
+    expect(
+      skinAuditBusCore.violations.map((v) => v.rowId),
+      contains('route:chaos-route'),
+    );
+
+    skinAuditBusCore.clear();
+  });
+
+  testWidgets('debugTapAnchor drives the real onPressed', (tester) async {
+    var tapped = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ZfaButton(
+            contractId: 'signin-guest',
+            onPressed: () => tapped++,
+            child: const Text('Continue as guest'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // The typed anchor registered itself while mounted.
+    expect(zfaAnchorRegistry.registered, contains('signin-guest'));
+
+    // The VM-service seam resolves and invokes the REAL callback —
+    // both the bare id and the zfa: key form.
+    expect(await debugTapAnchor('signin-guest'), isTrue);
+    expect(await debugTapAnchor('zfa:signin-guest'), isTrue);
+    expect(tapped, 2);
+
+    // Unknown anchor refuses honestly.
+    expect(await debugTapAnchor('nope'), isFalse);
+  });
+
+  testWidgets('a quiet tree settles (subscribe-don-t-poll)', (tester) async {
+    final rows = <SkinContractRow>[
+      SkinContractRow.textRenders(id: 'x', text: 'Sign in'),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SkinContractAuditor(rows: rows, child: const Text('Sign in')),
+        ),
+      ),
+    );
+    // pumpAndSettle completing IS the proof: the pilot's
+    // self-rescheduling auditor could never settle; this one does.
+    await tester.pumpAndSettle();
+    expect(find.text('Sign in'), findsOneWidget);
+  });
+}

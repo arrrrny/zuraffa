@@ -1,0 +1,17 @@
+00:00 +0: loading test/tdd/0966-typed-ledger-rows/t007_verb_matrix_test.dart
+00:00 +0: test/tdd/0966-typed-ledger-rows/t007_verb_matrix_test.dart: T7 (FR-005) T7 - the full plan-time verb→kind matrix: every branch classifies and the precedence rules hold (sequence > navigation > absence > state > presence).
+00:00 +1: loading test/tdd/0966-typed-ledger-rows/t005_xray_kind_coverage_test.dart
+00:00 +1: test/tdd/0966-typed-ledger-rows/t005_xray_kind_coverage_test.dart: T5 (FR-006) T5 - XRay overlay renders kind coverage per screen; the all-9-literals-Column view is partially traced (absence + sequence untraced); the deck lists kind entries.
+00:00 +2: loading test/tdd/0966-typed-ledger-rows/t006_golden_advisory_test.dart
+00:00 +2: test/tdd/0966-typed-ledger-rows/t006_golden_advisory_test.dart: T6 (FR-007) T6 - goldens stay advisory: never block the merge gate regardless of state, per-platform tolerance carried, reported separately; the navigation verb yields a navigation row.
+00:00 +3: loading test/tdd/0966-typed-ledger-rows/t003_sequence_traced_test.dart
+00:00 +3: test/tdd/0966-typed-ledger-rows/t003_sequence_traced_test.dart: T3 (FR-003) T3 - sequence rows: tap → loading → resolve traced as a chain end-to-end; an unrecorded chain never counts as proof.
+00:00 +4: loading test/tdd/0966-typed-ledger-rows/t001_typed_row_schema_test.dart
+00:00 +4: test/tdd/0966-typed-ledger-rows/t001_typed_row_schema_test.dart: T1 (FR-001) T1 - typed ledger row schema: kinds from scenario verbs at plan time; untraced kinds (absence + sequence) are gate gaps on the all-9-literals-Column view.
+00:00 +5: loading test/tdd/0966-typed-ledger-rows/t004_state_traced_test.dart
+00:00 +5: test/tdd/0966-typed-ledger-rows/t004_state_traced_test.dart: T4 (FR-004) T4 - state rows: the FR-005-class attribute (buttons disabled in flight) is traced end-to-end in 004-login-ui; an unrecorded attribute never counts as proof.
+00:00 +6: loading test/tdd/0966-typed-ledger-rows/t008_artifact_pins_test.dart
+00:00 +6: test/tdd/0966-typed-ledger-rows/t008_artifact_pins_test.dart: T8 (FR-006) T8 - artifact strength pins: markdown table shape verbatim, completeness/partially-traced polarity, remaining verb branches, no wrong-semantics leaks.
+00:00 +7: loading test/tdd/0966-typed-ledger-rows/t002_absence_traced_test.dart
+00:00 +7: test/tdd/0966-typed-ledger-rows/t002_absence_traced_test.dart: T2 (FR-002) T2 - absence assertions: the error banner hidden initially is traced when hidden; a permanently-rendered banner cannot satisfy it; a malformed absence assertion never counts.
+00:00 +8: All tests passed!

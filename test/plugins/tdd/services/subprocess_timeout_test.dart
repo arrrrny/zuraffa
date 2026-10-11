@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Bug #742 regression tests — no TDD subprocess invocation may await its
 // child indefinitely. Every spawn site carries a deadline: a hanging child
 // is killed (SIGKILL) at the deadline, the outcome is a runnerError/timeout
@@ -11,6 +12,7 @@ library;
 
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/plugins/tdd/models/cycle_entry.dart';
@@ -47,6 +49,26 @@ Future<(Directory, String)> _sleeper() => _script(
 Future<(Directory, String)> _quickExit() =>
     _script('void main() { print("done"); }');
 
+/// A hanging child that is NOT a Dart source.
+///
+/// The no-JIT policy AOT compiles a `.dart` entrypoint before any zfa child
+/// spawns (see `ZfaExecutable`), so a fixture that hands the runner a
+/// `child.dart` no longer gets a `dart <script>` child — the runner has to
+/// be driven with the plain-script shape every other `--zfa-bin` fixture
+/// uses. The "hang → killed → runner-error" contract under test does not
+/// depend on what the child runs.
+///
+/// `exec sleep` keeps the hanging child a SINGLE process: a shell that forks
+/// a `sleep` grandchild leaves that grandchild holding the inherited stdout
+/// pipe after the kill, and the runner's post-kill drain never completes.
+Future<(Directory, String)> _hangingScript() async {
+  final dir = await Directory.systemTemp.createTemp('tdd_timeout_script_');
+  final file = File('${dir.path}/zfa');
+  await file.writeAsString('#!/bin/sh\nexec sleep 3600\n');
+  await Process.run('chmod', ['+x', file.path]);
+  return (dir, file.path);
+}
+
 Future<(Directory, String)> _script(String source) async {
   final dir = await Directory.systemTemp.createTemp('tdd_timeout_');
   final file = File('${dir.path}/child.dart');
@@ -64,6 +86,12 @@ void main() {
 
   Future<(Directory, String)> makeQuick() async {
     final r = await _quickExit();
+    scratch.add(r.$1);
+    return r;
+  }
+
+  Future<(Directory, String)> makeHangingScript() async {
+    final r = await _hangingScript();
     scratch.add(r.$1);
     return r;
   }
@@ -306,7 +334,10 @@ void main() {
     test(
       'a hanging step process is killed and mapped to runner-error',
       () async {
-        final (dir, sleeperPath) = await makeSleeper();
+        // A plain (non-.dart) hanging child: the no-JIT policy compiles a
+        // `.dart` entrypoint, so the fixture is the script shape every
+        // other `--zfa-bin` fake uses.
+        final (dir, sleeperPath) = await makeHangingScript();
         final runner = StepRunner(zfaBin: sleeperPath, timeout: hangTimeout);
         final result = await runner.run(
           step: 'gen',
@@ -326,7 +357,7 @@ void main() {
     test(
       'a hanging corpus step is killed and mapped to runner-error',
       () async {
-        final (dir, sleeperPath) = await makeSleeper();
+        final (dir, sleeperPath) = await makeHangingScript();
         final runner = CorpusStepRunner(
           zfaBin: sleeperPath,
           timeout: hangTimeout,
@@ -550,6 +581,83 @@ void main() {
         // No green evidence may be appended for a timed-out make.
         final log = File(fx.cycleLogPath).readAsStringSync();
         expect(log, isNot(contains('kind: green')));
+      },
+    );
+  });
+
+  group('runTimed kill diagnostics — spec 1529 (U4)', () {
+    test(
+      'the timeout exception carries the ACTUAL elapsed wall time',
+      () async {
+        final (dir, sleeperPath) = await makeSleeper();
+        ProcessTimeoutException? caught;
+        final sw = Stopwatch()..start();
+        try {
+          await runTimed(
+            Platform.resolvedExecutable,
+            [sleeperPath],
+            workingDirectory: dir.path,
+            timeout: hangTimeout,
+          );
+        } on ProcessTimeoutException catch (e) {
+          caught = e;
+        }
+        sw.stop();
+        expect(caught, isNotNull);
+        // The measured elapsed must be REAL (at least the deadline, and
+        // within a generous tolerance of the observed wall time) — not
+        // a parroting of the configured deadline alone.
+        expect(caught!.elapsed, greaterThanOrEqualTo(hangTimeout));
+        expect(
+          caught.elapsed,
+          lessThanOrEqualTo(sw.elapsed + const Duration(seconds: 2)),
+        );
+      },
+    );
+
+    test(
+      'the timeout exception carries the descendant snapshot (best-effort)',
+      () async {
+        // The child spawns a GRANDCHILD (the real misfire's shape: the
+        // make step child sits inside a `flutter test` grandchild), then
+        // waits for it forever — the kill lands on the child while the
+        // tree below it is observable.
+        final (grandchildDir, grandchildPath) = await makeSleeper();
+        final (dir, parentPath) = await _script(
+          "import 'dart:io';\n\n"
+          "Future<void> main(List<String> args) async {\n"
+          "  final grandchild = await Process.start(Platform.resolvedExecutable, [args[0]]);\n"
+          "  await grandchild.exitCode;\n"
+          "}",
+        );
+        ProcessTimeoutException? caught;
+        try {
+          await runTimed(
+            Platform.resolvedExecutable,
+            [parentPath, grandchildPath],
+            workingDirectory: dir.path,
+            timeout: hangTimeout,
+          );
+        } on ProcessTimeoutException catch (e) {
+          caught = e;
+        }
+        expect(caught, isNotNull);
+        // On POSIX the snapshot observed the real tree: the grandchild
+        // sleeper's script path shows up in some descendant argv.
+        if (Platform.isWindows) {
+          expect(caught!.descendantArgvs, isEmpty);
+        } else {
+          expect(caught!.descendantArgvs, isNotEmpty);
+          expect(
+            caught.descendantArgvs.join('\n'),
+            contains(p.basename(grandchildDir.path)),
+            reason: 'the still-running grandchild is observable',
+          );
+          // The #742 kill lands on the DIRECT child only (the tree-kill
+          // is issue #1520's companion work) — reap the orphan here so
+          // the test leaves no process behind.
+          await Process.run('pkill', ['-f', grandchildPath]);
+        }
       },
     );
   });

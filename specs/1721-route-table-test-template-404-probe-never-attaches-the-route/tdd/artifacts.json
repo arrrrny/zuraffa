@@ -1,0 +1,16 @@
+{
+  "feature": "1721-route-table-test-template-404-probe-never-attaches-the-route",
+  "records": [
+    {
+      "behavior_id": "U1",
+      "feature": "1721-route-table-test-template-404-probe-never-attaches-the-route",
+      "source_criterion": "AC-1721",
+      "test_path": "test/plugins/route/route_table_test_builder_test.dart",
+      "subject_path": "lib/src/plugins/route/builders/route_table_test_builder.dart",
+      "runnable_test_name": "test/plugins/route/route_table_test_builder_test.dart::U1::#1721: 404 probe attaches the router via testWidgets + pumpWidget",
+      "test_ownership": "reused",
+      "subject_ownership": "reused",
+      "created_at": "2026-09-19T16:07:32.000000Z"
+    }
+  ]
+}

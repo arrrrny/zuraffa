@@ -84,7 +84,7 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     'gql',
     'cache',
     'route',
-    'shadcn',
+    'skin',
   ];
 
   @override
@@ -133,6 +133,11 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateRepository:
           context.data['repository'] == true ||
           context.data['generateRepository'] == true,
+      // Issue #1109: the engine preset's test scaffold stays pure Dart —
+      // `package:test`, never `flutter_test` — so the engine test tree
+      // passes the zero-Flutter-imports boundary even in Flutter host
+      // projects.
+      engineSlice: context.data['engine'] == true,
     );
 
     return generate(config, context: context);
@@ -194,7 +199,15 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // these files, so it is a no-op there. (The `test_builder_test` "skips when
     // native mock missing" case calls `generateForMethod` directly, bypassing this
     // plugin, so that guard is intentionally preserved.)
-    if (config.generateTest && config.isEntityBased) {
+    // Issue #1176: when THIS run generates the mock/datasource stack,
+    // the real mock generators own those files — writing placeholders
+    // here (force:true) races them and the placeholder survives,
+    // leaving `implements ProductDataSource` with no import. The
+    // placeholder is only for the id-neutral `--test`-ONLY path where
+    // the data layer was never generated and never will be.
+    final runGeneratesMockStack =
+        config.generateMock || config.generateDataSource || config.generateData;
+    if (config.generateTest && config.isEntityBased && !runGeneratesMockStack) {
       await _ensureNativeMockInfra(config, fs);
     }
 

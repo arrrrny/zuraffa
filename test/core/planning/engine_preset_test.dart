@@ -43,16 +43,21 @@ void main() {
     });
 
     test('the engine preset does not disturb the existing presets', () {
+      // Issue #1194 (part of #908 P0): crud/read-only now bundle `mock`
+      // (the make-default mocked tier — same default the engine preset
+      // already had); everything else about the presets is unchanged.
       expect(PresetRegistry.pluginIdsFor('crud'), [
         'usecase',
         'repository',
         'datasource',
+        'mock',
         'di',
       ]);
       expect(PresetRegistry.pluginIdsFor('read-only'), [
         'usecase',
         'repository',
         'datasource',
+        'mock',
         'di',
       ]);
       expect(

@@ -2,7 +2,7 @@
 
 [![Pub Version](https://img.shields.io/pub/v/zuraffa)](https://pub.dev/packages/zuraffa)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Documentation](https://img.shields.io/badge/docs-docusaurus-blue)](https://arrrrny.github.io/zuraffa/)
+[![Documentation](https://img.shields.io/badge/docs-zuraffa.com-blue)](https://zuraffa.com/docs/)
 [![zread](https://img.shields.io/badge/Ask_Zread-_.svg?style=flat&color=00b0aa&labelColor=000000&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuOTYxNTYgMS42MDAxSDIuMjQxNTZDMS44ODgxIDEuNjAwMSAxLjYwMTU2IDEuODg2NjQgMS42MDE1NiAyLjI0MDFWNC45NjAxQzEuNjAxNTYgNS4zMTM1NiAxLjg4ODEgNS42MDAxIDIuMjQxNTYgNS42MDAxSDQuOTYxNTZDNS4zMTUwMiA1LjYwMDEgNS42MDE1NiA1LjMxMzU2IDUuNjAxNTYgNC45NjAxVjIuMjQwMUM1LjYwMTU2IDEuODg2NjQgNS4zMTUwMiAxLjYwMDEgNC45NjE1NiAxLjYwMDFaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00Ljk2MTU2IDEwLjM5OTlIMi4yNDE1NkMxLjg4ODEgMTAuMzk5OSAxLjYwMTU2IDEwLjY4NjQgMS42MDE1NiAxMS4wMzk5VjEzLjc1OTlDMS42MDE1NiAxNC4xMTM0IDEuODg4MSAxNC4zOTk5IDIuMjQxNTYgMTQuMzk5OUg0Ljk2MTU2QzUuMzE1MDIgMTQuMzk5OSA1LjYwMTU2IDE0LjExMzQgNS42MDE1NiAxMy43NTk5VjExLjAzOTlDNS42MDE1NiAxMC42ODY0IDUuMzE1MDIgMTAuMzk5OSA0Ljk2MTU2IDEwLjM5OTlaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik0xMy43NTg0IDEuNjAwMUgxMS4wMzg0QzEwLjY4NSAxLjYwMDEgMTAuMzk4NCAxLjg4NjY0IDEwLjM5ODQgMi4yNDAxVjQuOTYwMUMxMC4zOTg0IDUuMzEzNTYgMTAuNjg1IDUuNjAwMSAxMS4wMzg0IDUuNjAwMUgxMy43NTg0QzE0LjExMTkgNS42MDAxIDE0LjM5ODQgNS4zMTM1NiAxNC4zOTg0IDQuOTYwMVYyLjI0MDFDMTQuMzk4NCAxLjg4NjY0IDE0LjExMTkgMS42MDAxIDEzLjc1ODQgMS42MDAxWiIgZmlsbD0iI2ZmZiIvPgo8cGF0aCBkPSJNNCAxMkwxMiA0TDQgMTJaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00IDEyTDEyIDQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K&logoColor=ffffff)](https://zread.ai/arrrrny/zuraffa)
 
 **The AI-first Clean Architecture framework for Flutter.**
@@ -122,6 +122,8 @@ Use `zfa build` instead of calling `build_runner` directly in docs and agent wor
 | `zfa make`             | Canonical architecture generator           |
 | `zfa build`            | Run the codegen/build step                 |
 | `zfa feature scaffold` | Wrapper over the normalized feature preset |
+| `zfa package create`   | Scaffold a Zuraffa-native reusable package |
+| `zfa package plugin`   | Scaffold a publish-ready federated plugin monorepo (app package + platform core + android/ios/macos adapters + publish pipeline) |
 | `zfa config`           | Manage `.zfa.json` project defaults        |
 | `zfa manifest`         | Inspect available plugins and capabilities |
 | `zfa doctor`           | Inspect local tooling and project health   |
@@ -217,6 +219,38 @@ version lives in `tools/proof_smoke.sh`:
 - run: dart run bin/zfa.dart proof check lib/src --format=json
 ```
 
+### The proof chain (v2, issue #1148)
+
+`zfa proof chain` validates the WHOLE chain end-to-end — every receipt in
+`.zfa/receipts/` AND the tdd stores under `specs/`:
+
+1. **Receipt digests** — every recorded file path + SHA-256 matches the
+   current file on disk (expected/actual digests in every drift item).
+2. **Behavior coverage** — every spec's declared behaviors have green
+   evidence in `tdd/cycle-log.md` (missing = gap).
+3. **Generated-test integrity** — every tdd-registered test exists and its
+   imports resolve (`--run-tests` executes them, exit-1 on failure).
+4. **Route verifies** — every declared route table has a passing (or
+   skipped-with-reason) verify verdict receipt.
+5. **Usecase verifies** — every usecase-create receipt entity passes the
+   conformance gate.
+6. **Xray coverage** — every declared ledger kind is traced by green
+   evidence or named as a gap.
+
+Exit codes: `0` chain intact (gaps are open links, reported — never
+silent, never failed), `1` drift detected, `2` infrastructure error.
+`--json` emits one `proof-chain.v1` verdict object with category,
+severity, file, expected, actual and fix per item:
+
+```bash
+zfa proof chain                         # human verdict, exit 0/1/2
+zfa proof chain --json                  # proof-chain.v1 envelope for CI
+zfa proof chain --run-tests             # also execute the registered suite
+```
+
+The CI dream from issue #1148: `zfa proof chain && flutter test` — no
+human reviews a black box; every commit is provable.
+
 ---
 
 ## `make` first, `feature` second
@@ -260,6 +294,26 @@ Zuraffa owns the architecture skeleton. Human or agent implementation work shoul
 
 ---
 
+## The exit-code protocol + machine verdicts (SPEC 917)
+
+zfa exits are a **protocol**, not a grab-bag of codes — the golden table is asserted against the live CLI by `test/commands/exit_protocol_golden_test.dart` and enforced in CI by `.github/workflows/conformance.yml`:
+
+| code | name      | meaning                                                                  |
+|------|-----------|--------------------------------------------------------------------------|
+| 0    | success   | GREEN / complete — the operation ran and passed                          |
+| 1    | failure   | RED (honest, in-loop) / stopped / audit failure (see the verdict's `exit_class`) |
+| 2    | usage     | the operation could not run as invoked (legacy 64 maps here)             |
+| 3    | drift     | contract/spec drift — manifest ↔ CLI flag drift, corrupt state evidence  |
+| 4    | conflict  | state conflict — concurrent run ownership, evidence lock inconsistency   |
+
+Every non-zero exit ends with a machine-actionable `--> fix:` line: errors are an API, not an apology. `255`/`-9`/`137` are external-kill signals zfa never emits.
+
+**The treaty gate**: `zfa manifest --verify [pluginIds...]` certifies manifest `inputSchemas` ↔ CLI flags ↔ help text for every CLI-aware plugin (schema→flags, help text, dead-flag, and resolution legs). Drift exits **3**; a clean pass exits 0 and drops into CI. `--format json` emits one machine-verifiable `manifest-verify.v1` document.
+
+**Machine verdicts**: every `zfa tdd` verb and every `zfa corpus` subcommand accepts `--json` and closes with a versioned `verdict.v1` envelope as the final stdout line (errors included — the envelope carries the same `--> fix:` remediation). The driving verbs (`tdd run`, `run-engine`, `run-skin`) also accept `--stream`: one NDJSON `step-verdict.v1` event per completed loop step as it happens, terminated by the final `verdict.v1` envelope. The table itself is printed by `zfa --help` and embedded in `zfa schema` (`x-zfa-exit-protocol`).
+
+---
+
 ## Migration notes
 
 If you are coming from pre-v5 guidance:
@@ -282,7 +336,49 @@ zfa mock Product
 
 # Generate JSON mock data with fromJson-based helpers
 zfa mock json Product
+
+# Tier-1 certified mock: auto-generated contract test proven in a
+# throwaway sandbox (dart analyze + dart test) + per-method receipt
+zfa mock create Login --certify
+
+# Deterministic, replayable generation (same seed → byte-identical mocks)
+zfa mock create Login --seed=42
+
+# Re-certify live and register the mock in the #832 fixture registry
+zfa mock certify Login
+
+# Re-run the certification gate against the mocks on disk — read-only,
+# exit 0 conforming / 1 with --> fix: lines on entity drift (--json emits
+# the canonical zuraffa.verdict.v1 envelope)
+zfa mock verify Login
+
+# Explain a mock: method coverage, skipped members, per-method
+certification status, MockData.forMethod fixture-selector bindings
+zfa mock explain Login
 ```
+
+`--certify` (spec 1001, VISION §9 "mocks the framework certifies, not the
+agent") writes `test/mock/<snake>/<snake>_mock_contract_test.dart` — every
+interface method pinned through the interface type, so interface drift
+turns the certification red — plus a `mock-cert.<Entity>.json` receipt with
+per-method `satisfied` flags and the contract digest. `zfa mock certify
+<Entity>` re-proves the contract live and registers the receipt in the
+feature's `tdd/fixtures/` #832 manifest (`mocks:` provenance, hash-chained
+`kind: mock-cert` cycle evidence). `zfa tdd run-engine <feature>` (and the
+`zfa tdd run` preflight) refuse to proceed when any CORE (declared Key
+Entity) mock is present but uncertified.
+
+`zfa mock verify <Entity>` (spec 1121) re-runs the SAME conformance gate
+`--certify` uses against the mock files already on disk and the current
+entity source — read-only, so re-proving after an entity edit never
+generates. Drift exits 1 with `--> fix:` lines naming the missing/incorrect
+members; `zfa mock verify <Entity> --json` emits one canonical
+`zuraffa.verdict.v1` envelope (findings, drifts, certification record).
+`zfa mock explain <Entity>` (also spec 1121) reports the mock's surface:
+covered and skipped methods, per-method certification status from the
+committed receipt (`certified`, `certified-red`, `uncertified`, `missing`),
+and the `MockData.forMethod` fixture-selector bindings (issue #1034);
+`--json` carries the full report under the envelope's `details.explain`.
 
 JSON mocks produce standalone JSON files under `data/mock_json/{domain}/` and Dart helpers that load them via `fromJson`. Swap JSON content for instant prototyping without code changes or regeneration.
 

@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 import 'dart:io';
 
 import 'package:test/test.dart';

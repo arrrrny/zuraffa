@@ -7,29 +7,71 @@ import 'package:path/path.dart' as p;
 import 'package:zorphy/zorphy.dart';
 
 import '../config/zfa_config.dart';
+import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/receipt_store.dart';
 import '../utils/entity_field_injector.dart';
 import '../utils/entity_type_validator.dart';
 import '../utils/entity_utils.dart';
 import '../utils/framework_export_surface.dart';
+import '../utils/flutter_symbols.dart';
 import '../utils/string_utils.dart';
 import '../version.dart';
+import '../core/dependencies/builder_dependency_preflight.dart';
+import '../core/dependencies/pubspec_auto_add.dart' show PubspecProcessRunner;
+import '../core/format/format_runner.dart';
 import '../plugins/cli/cli_plugin.dart';
+import '../plugins/tdd/services/entity_lookup.dart';
+import '../cli/exit_protocol.dart';
 
 class EntityCommand {
   static const String fixedEntityOutput = ZfaConfig.fixedEntityOutput;
+
+  /// Issue #1322: the `pub add --dev` spawner for the phase-0
+  /// builder-dependency preflight. Injectable so tests stay hermetic (the
+  /// doctor_checks.dart `ZfaProcessRunner` convention); null delegates to
+  /// the default spawner.
+  final PubspecProcessRunner? _pubRunner;
+
+  /// Issue #1506: the pub-get-enforcing, scope-limited format runner.
+  /// Injectable so tests can record the exact `dart format` invocation
+  /// without spawning a formatter; null uses the default runner.
+  final FormatRunner? _formatRunner;
+
+  EntityCommand({PubspecProcessRunner? pubRunner, FormatRunner? formatRunner})
+    : _pubRunner = pubRunner,
+      _formatRunner = formatRunner;
+
+  /// SPEC 917: whether this invocation owns the process (CLI mode) or is
+  /// embedded (in-process dispatch / MCP), where a raw `exit()` would kill
+  /// the host isolate mid-run. Set by [execute]; consulted by [_bail].
+  bool _exitsOnCompletion = true;
+
+  /// SPEC 917: terminate the command with [code] in BOTH modes — raw
+  /// `exit(code)` when we own the process, an unwinding [_EntityBail]
+  /// sentinel when embedded (the host runner reads `exitCode`).
+  Never _bail(int code) {
+    exitCode = code;
+    if (_exitsOnCompletion) exit(code);
+    throw _EntityBail(code);
+  }
 
   Future<void> execute(
     List<String> args, {
     bool exitOnCompletion = true,
   }) async {
+    _exitsOnCompletion = exitOnCompletion;
     if (args.isEmpty) {
       _printHelp();
       // Issue #1059: bare `zfa entity` prints usage and did nothing — that is
-      // a usage error, not a success. Exit 64 (EX_USAGE), matching the #1039
-      // lying-success sweep convention (reportSubcommandUsage() -> exit 64).
-      exitCode = 64;
-      if (exitOnCompletion) exit(64);
+      // a usage error, not a success. Exit 64 (EX_USAGE) with the ❌ banner,
+      // matching the #1039 lying-success sweep convention
+      // (reportSubcommandUsage() -> ❌ + exit 64). The banner goes to stderr
+      // so _printHelp() itself stays ❌-free — explicit `zfa entity --help`
+      // must stay exit 0 with clean help text (the #764 contract).
+      stderr.writeln('❌ Usage: zfa entity <subcommand> [arguments]');
+      stderr.writeln('   Run `zfa entity --help` to list subcommands.');
+      exitCode = ExitProtocol.usage;
+      if (exitOnCompletion) exit(ExitProtocol.usage);
       return;
     }
 
@@ -58,7 +100,17 @@ class EntityCommand {
     final depCheck = _checkDependencies();
     if (depCheck != null) {
       print(depCheck);
-      if (exitOnCompletion) exit(1);
+      // SPEC 917: the missing-dependency failure closes with the
+      // machine-actionable fix line (the check text already suggests
+      // `dart pub add` / `zfa doctor` — the canonical remediation).
+      print(
+        ExitProtocol.fixLine(
+          'add the missing dependencies (see above: `dart pub add '
+          'zorphy_annotation build_runner`) or run `zfa doctor`',
+        ),
+      );
+      exitCode = ExitProtocol.failure;
+      if (exitOnCompletion) exit(ExitProtocol.failure);
       return;
     }
 
@@ -67,6 +119,10 @@ class EntityCommand {
         case 'create':
         case 'new':
           await _handleCreate(subCommand, subArgs, config);
+          break;
+        case 'remove':
+        case 'delete':
+          await _handleRemove(subCommand, subArgs);
           break;
         case 'enum':
           await _handleEnum(subArgs);
@@ -98,8 +154,16 @@ class EntityCommand {
           // Issue #1059 sweep: with exitOnCompletion=false (in-process/MCP
           // embedding) this path used to fall through with exitCode still 0 —
           // the same lying-success pattern. Propagate the failure code.
-          exitCode = 1;
-          if (exitOnCompletion) exit(1);
+          // SPEC 917: an unknown subcommand is a usage error (canonical 2,
+          // was 1) and the output closes with the machine-actionable fix.
+          print(
+            ExitProtocol.fixLine(
+              're-run with `zfa entity --help` to list the valid '
+              'subcommands, then re-invoke',
+            ),
+          );
+          exitCode = ExitProtocol.usage;
+          if (exitOnCompletion) exit(ExitProtocol.usage);
       }
 
       if (runBuild) {
@@ -111,9 +175,21 @@ class EntityCommand {
         print('\n🎨 Formatting generated code...');
         await _runFormat();
       }
+    } on _EntityBail {
+      // SPEC 917 embedded-mode unwind: _bail already reported the failure
+      // and set exitCode — the embedding runner dispatches the exit.
+      return;
     } catch (e) {
       print('❌ Error: $e');
-      if (exitOnCompletion) exit(1);
+      // SPEC 917: every non-zero exit closes with the machine-actionable
+      // fix line — the honest failure points at the doctor.
+      print(
+        ExitProtocol.fixLine(
+          're-run with --verbose for the stack trace, then run `zfa doctor`',
+        ),
+      );
+      exitCode = ExitProtocol.failure;
+      if (exitOnCompletion) exit(ExitProtocol.failure);
     }
   }
 
@@ -176,9 +252,13 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     if (name == null || name.isEmpty) {
       print('Error: Entity name is required. Use -n or --name to specify.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'pass the entity name: `zfa entity create -n <Name> --fields=...`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
     }
-
     // Issue #942: refuse entity names that collide with the framework's
     // export surface BEFORE writing anything. The generated
     // datasource/mock/repository/usecase/provider templates import the
@@ -212,7 +292,24 @@ ${missing.map((d) => '   • $d').join('\n')}
         '`zfa entity create ${name}Entity --fields=...` — pick a name '
         'that does not match a zuraffa export.',
       );
-      exit(1);
+      _bail(ExitProtocol.failure);
+    }
+
+    // Issue #1429: warn when the entity name collides with a Flutter SDK
+    // type (e.g. PlatformException, BuildContext). `tdd run` phase-0
+    // scaffolds whatever the spec's Key Entities table declares, so a
+    // documentation-only row naming an SDK type materializes a dead
+    // domain duplicate whose unqualified references are ambiguous the
+    // moment both imports are in scope. A warning, never a refusal: the
+    // duplicate may be intentional. phase-0 inherits the warning because
+    // it spawns the real `zfa entity create`.
+    if (collidesWithFlutterSdkType(name)) {
+      print(
+        '⚠️  Entity "$name" collides with a Flutter SDK type name '
+        '(package:flutter). A same-named domain class invites import '
+        'ambiguity when both are in scope — rename it (e.g. '
+        '${name}Envelope) unless the duplicate is intentional.',
+      );
     }
 
     final outputDir = fixedEntityOutput;
@@ -242,7 +339,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
       print('');
       print('No files were written. See \'zfa entity --help\' for details.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the errors above and re-run `zfa entity create`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
 
     // Validate field types BEFORE writing anything (issue #296):
@@ -269,7 +371,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
       print('');
       print('No files were written. Resolve the above and re-run.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the errors above and re-run `zfa entity create`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
 
     final useFilter =
@@ -327,7 +434,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       );
       print('');
       print('No files were written. See \'zfa entity --help\' for details.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the errors above and re-run `zfa entity create`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
 
     // Spec 0806-zfa-replay FR-006 (convergent generation): `entity create`
@@ -354,6 +466,50 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
 
     final creator = EntityCreator(baseOutputDir: outputDir);
+
+    // Issue #1322 (AC-1): the phase-0 preflight. The entity we are about
+    // to write carries @Zorphy part statements the BUILDER package must
+    // generate — if the builder package is not even in the dependency
+    // graph, build_runner silently generates nothing and the #276 safety
+    // net used to misdiagnose the state as a `generate_for` glob problem.
+    // Ensure every builder package the effective build.yaml registers (or
+    // the canonical scaffold would register) is resolvable BEFORE writing:
+    // auto-add the missing dev dependency, refuse as a BLOCKING step when
+    // the add fails. A no-op when the package is already resolvable.
+    final preflight =
+        await BuilderDependencyPreflight.ensureBuilderDependencies(
+          projectRoot: Directory.current.path,
+          dryRun: entityConfig.dryRun,
+          runner: _pubRunner,
+        );
+    if (preflight.added.isNotEmpty) {
+      print(
+        '✅ Added missing builder package(s) to dev_dependencies: '
+        '${preflight.added.join(", ")}',
+      );
+      print('    ran: `${preflight.commandLine}`');
+    }
+    if (preflight.dryRun && preflight.missing.isNotEmpty) {
+      print(
+        '   Would add missing builder package(s): '
+        '${preflight.missing.map((b) => b.package).join(", ")}',
+      );
+      print('   via `${preflight.commandLine}`');
+    }
+    if (preflight.blocked) {
+      print(
+        '❌ Cannot create entity "$name": the builder package(s) '
+        '${preflight.failed.join(", ")} are not in the dependency graph '
+        '(.dart_tool/package_config.json) and the automatic add failed. '
+        'No files were written.',
+      );
+      print(
+        '--> fix: `${preflight.commandLine ?? BuilderDependencyPreflight.pubAddDevCommand(preflight.failed)}` '
+        '(then re-run `zfa entity create`) (issue #1322)',
+      );
+      _bail(ExitProtocol.failure);
+    }
+
     final result = await creator.create(entityConfig);
 
     if (result.isSuccess) {
@@ -401,8 +557,180 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
     } else {
       print('❌ ${result.error}');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the error above and re-run `zfa entity add-field`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
+  }
+
+  /// Bug #1429: `zfa entity remove <Name>` — the receipted entity-removal
+  /// verb. Deletes the entity scaffold (the canonical per-entity directory
+  /// when the scaffold follows the `<entities>/<snake>/` layout, the
+  /// located file otherwise) and writes a TOMBSTONE receipt into
+  /// `.zfa/receipts/` whose file entries carry `action: 'delete'` — the
+  /// marker `ProofChecker` reads so a receipted absence is provenance,
+  /// not drift. Idempotent recovery (the exact path the issue documents):
+  /// when the scaffold was already hand-deleted but entity receipts
+  /// remain, the tombstone is still written, so a corrected spec never
+  /// requires hand-editing the provenance store.
+  Future<void> _handleRemove(String command, List<String> args) async {
+    final parsed = _parseArgs(args);
+    final name = _resolveEntityName(parsed);
+    if (name == null || name.isEmpty) {
+      print(
+        'Error: Entity name is required. Use -n or --name, or pass it '
+        'positionally.',
+      );
+      print(
+        ExitProtocol.fixLine(
+          'pass the entity name: `zfa entity remove -n <Name>`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
+    }
+
+    // The same lookup the run driver's phase-0 entity loop uses, so the
+    // removal target is exactly what phase-0 would re-create.
+    //
+    // Cross-layer note: entity_lookup.dart lives under plugins/tdd
+    // because the TDD loop owns the canonical-path contract; importing
+    // it here keeps `entity remove` and phase-0 on ONE conversion
+    // (toSnakeCase) instead of a drifting duplicate.
+    final scaffold = await locateEntityScaffold(Directory.current.path, name);
+    final snake = toSnakeCase(name);
+    final store = ReceiptStore(projectRoot: Directory.current.path);
+    final records = await store.loadAll();
+    final priorReceipts = records
+        .where(
+          (r) =>
+              r.receipt.plugin == 'entity' &&
+              r.receipt.entity?.toLowerCase() == name.toLowerCase(),
+        )
+        .toList();
+    final scaffoldFileExists =
+        scaffold.file != null && File(scaffold.file!).existsSync();
+    final scaffoldDirExists =
+        scaffold.dir != null && Directory(scaffold.dir!).existsSync();
+    if (!scaffoldFileExists && !scaffoldDirExists && priorReceipts.isEmpty) {
+      print(
+        '❌ Cannot remove entity "$name": no scaffold under '
+        'lib/src/domain/entities and no entity receipts in .zfa/receipts/.',
+      );
+      print(
+        ExitProtocol.fixLine(
+          'check the entity name with `zfa entity list`, then re-run '
+          '`zfa entity remove -n <Name>`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
+    }
+
+    // The tombstone covers every path the entity's prior receipts
+    // shipped plus the located scaffold — the union of paths a stale
+    // receipt could point at.
+    final coveredPaths = <String>{};
+    for (final record in priorReceipts) {
+      for (final file in record.receipt.files) {
+        coveredPaths.add(file.path);
+      }
+    }
+    if (scaffold.file != null) {
+      coveredPaths.add(_projectRelativePosix(scaffold.file!));
+    }
+    if (coveredPaths.isEmpty) {
+      coveredPaths.add(
+        _projectRelativePosix(p.join(fixedEntityOutput, snake, '$snake.dart')),
+      );
+    }
+
+    String digestFor(String path) {
+      final file = File(p.join(Directory.current.path, path));
+      if (file.existsSync()) {
+        return crypto.sha256.convert(file.readAsBytesSync()).toString();
+      }
+      // Already-absent path: the empty-content digest (deterministic;
+      // the action is what ProofChecker keys on).
+      return crypto.sha256.convert(const <int>[]).toString();
+    }
+
+    // Covered paths that still exist at tombstone time (prior-receipt
+    // stragglers outside the deleted scaffold) record their real byte
+    // length so the receipt describes reality; absent paths record 0.
+    int bytesFor(String path) {
+      final file = File(p.join(Directory.current.path, path));
+      if (file.existsSync()) {
+        return file.lengthSync();
+      }
+      return 0;
+    }
+
+    // Act: delete the scaffold, then ship the tombstone.
+    if (scaffoldDirExists) {
+      await Directory(scaffold.dir!).delete(recursive: true);
+      print(
+        '✓ Removed entity directory: ${_projectRelativePosix(scaffold.dir!)}',
+      );
+    } else if (scaffoldFileExists) {
+      await File(scaffold.file!).delete();
+      print('✓ Removed entity file: ${_projectRelativePosix(scaffold.file!)}');
+    }
+    if (!scaffoldFileExists && !scaffoldDirExists) {
+      print(
+        'ℹ️  Scaffold already absent (hand-deleted recovery path) — '
+        'writing the tombstone that retires the stale receipts.',
+      );
+    }
+
+    final files = coveredPaths
+        .map(
+          (path) => GenerationReceiptFile(
+            path: path,
+            action: 'delete',
+            sha256: digestFor(path),
+            bytes: bytesFor(path),
+          ),
+        )
+        .toList();
+    final saved = await store.saveNamed(
+      'entity-remove-$snake.json',
+      GenerationReceipt(
+        command: 'entity remove',
+        target: name,
+        repro: 'zfa entity remove -n $name',
+        at: DateTime.now().toUtc(),
+        generatorVersion: version,
+        input: const <String, dynamic>{'removed': true},
+        files: files,
+        plugin: 'entity',
+        capability: 'remove',
+        entity: name,
+        methodset: const <String>[],
+        runHash: CapabilityInvocationWrapper.computeRunHash(
+          files: files,
+          entity: name,
+          methodset: const <String>[],
+        ),
+        receiptVersion: CapabilityInvocationWrapper.receiptVersion,
+      ),
+    );
+    print('✓ Tombstone receipt written: ${_projectRelativePosix(saved.path)}');
+    print(
+      '\nThe removal is now provenance: `zfa proof check` treats the '
+      'deleted scaffold as expected absence (issue #1429).',
+    );
+  }
+
+  /// The entity name from `-n/--name` or the first positional argument.
+  String? _resolveEntityName(Map<String, dynamic> parsed) {
+    final named = parsed['name'] as String?;
+    if (named != null && named.isNotEmpty) return named;
+    final rest = parsed['rest'];
+    if (rest is String && rest.isNotEmpty) return rest;
+    if (rest is List && rest.isNotEmpty) return rest.first.toString();
+    return null;
   }
 
   /// autoId entities reference `package:uuid/uuid.dart` in the generated
@@ -451,6 +779,9 @@ ${missing.map((d) => '   • $d').join('\n')}
         );
       }
       if (files.isEmpty) return;
+      // Issue #1138: full capability provenance on the standalone
+      // receipt. The capability name is the command's second segment
+      // (`entity create` → create, `entity add-field` → add-field).
       await ReceiptStore(projectRoot: Directory.current.path).save(
         GenerationReceipt(
           command: command,
@@ -460,6 +791,18 @@ ${missing.map((d) => '   • $d').join('\n')}
           generatorVersion: version,
           input: input,
           files: files,
+          plugin: 'entity',
+          capability: command.startsWith('entity ')
+              ? command.substring('entity '.length)
+              : command,
+          entity: target,
+          methodset: const [],
+          runHash: CapabilityInvocationWrapper.computeRunHash(
+            files: files,
+            entity: target,
+            methodset: const [],
+          ),
+          receiptVersion: CapabilityInvocationWrapper.receiptVersion,
         ),
       );
     } catch (e) {
@@ -490,7 +833,12 @@ ${missing.map((d) => '   • $d').join('\n')}
         return ZorphyKind.valueObject;
       default:
         print('❌ Unknown kind "$kind". Expected: entity | value_object.');
-        exit(1);
+        print(
+          ExitProtocol.fixLine(
+            'pass --kind entity (or --kind value_object) and re-run',
+          ),
+        );
+        _bail(ExitProtocol.usage);
     }
   }
 
@@ -500,7 +848,12 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     if (name == null || name.isEmpty) {
       print('Error: Enum name is required. Use -n or --name to specify.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'pass the enum name: `zfa entity enum -n <Name> --value=...`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
     }
 
     final values = _asStringList(parsed['value']);
@@ -508,7 +861,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       print(
         'Error: Enum values are required. Use --value with comma-separated values.',
       );
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'pass at least one value: `zfa entity enum -n <Name> --value=a,b`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
     }
 
     final enumConfig = EnumConfig(
@@ -542,7 +900,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       print('✓ Created enum: ${result.filePath}');
     } else {
       print('❌ ${result.error}');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the error above and re-run `zfa entity enum`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
   }
 
@@ -552,7 +915,12 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     if (name == null || name.isEmpty) {
       print('Error: Entity name is required. Use -n or --name to specify.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'pass the entity name: `zfa entity add-field -n <Name> --field=...`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
     }
 
     final fieldStrings = [
@@ -563,7 +931,13 @@ ${missing.map((d) => '   • $d').join('\n')}
       print(
         'Error: At least one field is required. Use --field or --fields to specify.',
       );
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'pass at least one field: `zfa entity add-field -n <Name> '
+          '--field=name:String`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
     }
 
     final fields = _parseFields(fieldStrings);
@@ -589,7 +963,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
       print('');
       print('No files were modified. See \'zfa entity --help\' for details.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the errors above and re-run `zfa entity add-field`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
 
     // Validate field types BEFORE writing anything (issue #296):
@@ -614,7 +993,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
       print('');
       print('No files were modified. Resolve the above and re-run.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the errors above and re-run `zfa entity add-field`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
 
     final dryRun = parsed['dry_run'] as bool? ?? false;
@@ -669,7 +1053,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
     } else {
       print('❌ ${result.error}');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the error above and re-run `zfa entity add-field`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
   }
 
@@ -885,13 +1274,24 @@ ${missing.map((d) => '   • $d').join('\n')}
     final rest = args.where((a) => !a.startsWith('-')).toList();
     if (rest.isEmpty) {
       print('Error: JSON file path is required.');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'pass the JSON file: `zfa entity from-json <path/to/file.json>`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
     }
 
     final jsonFile = File(rest.first);
     if (!await jsonFile.exists()) {
       print('Error: JSON file not found: ${jsonFile.path}');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'check the path (missing file: ${jsonFile.path}) and re-run '
+          '`zfa entity from-json`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
 
     final parsed = _parseArgs(args);
@@ -926,7 +1326,12 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
     } else {
       print('❌ ${result.error}');
-      exit(1);
+      print(
+        ExitProtocol.fixLine(
+          'resolve the error above and re-run `zfa entity from-json`',
+        ),
+      );
+      _bail(ExitProtocol.failure);
     }
   }
 
@@ -1010,7 +1415,19 @@ ${missing.map((d) => '   • $d').join('\n')}
       final parts = _smartSplit(group);
       for (final part in parts) {
         try {
-          fields.add(FieldDefinition.parse(part));
+          final parsed = FieldDefinition.parse(part);
+          // Issue #1270: recognize built-in primitive aliases in the field
+          // TYPE (`Boolean` → `bool`) BEFORE validation/emission so
+          // primitives are emitted directly as Dart built-ins instead of
+          // being rejected as unresolvable custom entity references. The
+          // alias rewrite applies to the parsed type only — field names and
+          // JSON wire names are untouched, and non-primitive resolution is
+          // unchanged.
+          fields.add(
+            parsed.copyWith(
+              type: EntityUtils.normalizePrimitiveTypeAliases(parsed.type),
+            ),
+          );
         } catch (e) {
           print('Warning: $e');
         }
@@ -1208,11 +1625,39 @@ ${missing.map((d) => '   • $d').join('\n')}
   }
 
   Future<void> _runFormat() async {
-    final process = await Process.start('dart', [
-      'format',
-      '.',
-    ], mode: ProcessStartMode.inheritStdio);
-    await process.exitCode;
+    // Issue #1506: the format scope is the generated entity output tree —
+    // the ONLY place this command writes Dart sources (create, add-field,
+    // enum and from-json all target fixedEntityOutput). The previous
+    // `dart format .` swept the whole package tree (test/, bin/, tool/,
+    // corpus/, examples/) and, in a project without package resolution,
+    // spammed per-file `Package resolution error` warnings while
+    // rewriting hundreds of unrelated files. FormatRunner additionally
+    // enforces `dart pub get --no-example` before any formatter run and
+    // skips with a single actionable warning when resolution cannot be
+    // established.
+    final runner = _formatRunner ?? FormatRunner();
+    final result = await runner.formatPaths([fixedEntityOutput]);
+    if (result.pubGetRan) {
+      // The enforcement is a real side effect in a consumer project (it
+      // can rewrite pubspec.lock and touch the network) — name it so the
+      // mutation is observable instead of silent.
+      print(
+        'ℹ️  resolved dependencies with `dart pub get --no-example` '
+        'before formatting.',
+      );
+    }
+    final output = result.output?.trim();
+    if (output != null && output.isNotEmpty) {
+      // The `Formatted N files (M changed)` summary (and any formatter
+      // error) reached the console through the previous inheritStdio
+      // path; carry it through instead of dropping it.
+      print(output);
+    }
+    if (result.warning != null) {
+      print('⚠️  ${result.warning}');
+    } else if (result.exitCode != 0) {
+      print('⚠️  dart format exited ${result.exitCode} for $fixedEntityOutput');
+    }
   }
 
   Future<void> _handleBuild(List<String> subArgs) async {
@@ -1288,9 +1733,13 @@ ${missing.map((d) => '   • $d').join('\n')}
     if (subArgs.isEmpty) {
       // Issue #1059: bare `zfa entity cli` printed usage and returned without
       // setting exitCode — a command that did nothing exited 0. Usage errors
-      // go to stderr with exit 64, matching the #1039 fleet sweep convention.
-      stderr.writeln('Usage: zfa entity cli <EntityName>');
-      exitCode = 64;
+      // go to stderr with exit 64 and the ❌ banner (the #1039 fleet sweep
+      // convention shared with reportSubcommandUsage in
+      // base_plugin_command.dart) — a bare usage line with no error banner
+      // is the lying-success family bug #1107 pins.
+      stderr.writeln('❌ Usage: zfa entity cli <EntityName>');
+      stderr.writeln('   Run `zfa entity cli --help` for the full contract.');
+      exitCode = ExitProtocol.usage;
       return;
     }
     // Delegate to the CliGeneratorPlugin which handles writing + receipts.
@@ -1311,6 +1760,8 @@ SUBCOMMANDS:
   new         Quick-create a simple entity (basic defaults)
   enum        Create a new Zorphy enum
   add-field   Add field(s) to an existing entity
+  remove      Remove an entity and write a tombstone receipt (issue #1429)
+  delete      Alias of remove
   from-json   Create entity from JSON file
   list        List all Zorphy entities
   build       Run build_runner build (with optional --clean, --force)
@@ -1363,6 +1814,15 @@ ADD-FIELD COMMAND:
                             For types that are NEVER entities (external classes
                             like plugin wrappers), use the `!Type` prefix
                             instead (see FIELD SYNTAX below).
+
+REMOVE COMMAND:
+  zfa entity remove -n <Name>   (alias: delete)
+  Deletes the entity scaffold (lib/src/domain/entities/<snake>/) and writes
+  a tombstone receipt to .zfa/receipts/ (file entries action: 'delete') so
+  `zfa proof check` treats the absence as provenance, not drift. When the
+  scaffold is already gone but entity receipts remain (a hand-deleted
+  mis-declared entity), the tombstone is still written — the documented
+  recovery path from issue #1429, no hand-editing the provenance store.
 
 FIELD SYNTAX:
   name:type                 Basic field, Dart name = JSON wire name
@@ -1419,4 +1879,17 @@ NOTES:
 For more information, visit: https://github.com/arrrrny/zorphy
 ''');
   }
+}
+
+/// SPEC 917: the embedded-mode unwind sentinel — thrown by [_bail] when the
+/// command does NOT own the process, so the failure unwinds through the
+/// switch to [execute]'s `on _EntityBail` handler instead of a raw `exit()`
+/// killing the host isolate (the embedding runner reads `exitCode`).
+final class _EntityBail implements Exception {
+  _EntityBail(this.code);
+
+  final int code;
+
+  @override
+  String toString() => '_EntityBail($code)';
 }

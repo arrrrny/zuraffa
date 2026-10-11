@@ -1,0 +1,15 @@
+{
+  "feature": "bug-tdd-run-baseline-timeout",
+  "behavior_states": {
+    "A1": "red",
+    "A2": "pending",
+    "A3": "pending",
+    "A4": "pending",
+    "U1": "pending",
+    "U2": "pending",
+    "U3": "pending",
+    "U4": "pending",
+    "U5": "pending"
+  },
+  "dropped": []
+}

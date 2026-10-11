@@ -87,6 +87,24 @@ class SuiteGuard {
   }) {
     final failed = <String>{};
 
+    // Issue #1258 (enabling fix): the pinned compact reporter pads every
+    // progress line to the terminal width with TRAILING spaces (and
+    // redraws via bare `\r`), and emits no trailing `Failing tests:`
+    // block for a red run. The `$`-anchored failure grammar below
+    // matched none of that, so a REAL red suite parsed as zero failures
+    // and `parseable: false` — every make/run baseline refused on
+    // SDKs whose compact reporter pads. Normalize line endings and
+    // strip trailing whitespace per line before matching: the failure
+    // markers (`-N` + `[E]`) stay required, only the padding noise is
+    // removed. Leading whitespace is preserved (the trailing-block
+    // grammar keys on indentation).
+    final normalized = output
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n')
+        .split('\n')
+        .map((line) => line.trimRight())
+        .join('\n');
+
     // package:test default reporter emits one progress line per test:
     //   00:01 +1 -1: test/foo_test.dart: group name test name [E]
     //   00:01 +5: test/bar_test.dart: another test
@@ -103,7 +121,7 @@ class SuiteGuard {
       r'^\d\d:\d\d \+\d+(?: ~\d+)? -\d+(?: ~\d+)?: (.+?) \[E\]$',
       multiLine: true,
     );
-    for (final m in progressFailure.allMatches(output)) {
+    for (final m in progressFailure.allMatches(normalized)) {
       final id = m.group(1)!.trim();
       if (id.isNotEmpty) {
         failed.add(id);
@@ -119,7 +137,7 @@ class SuiteGuard {
     final block = RegExp(
       r'(?:Some tests failed|Failing tests|Failed tests|Failed:)[^\n]*\n((?:[ \t]+(?:-\s+)?.+\n?)+)',
     );
-    for (final m in block.allMatches(output)) {
+    for (final m in block.allMatches(normalized)) {
       for (final line in m.group(1)!.split('\n')) {
         final trimmed = line.trim();
         if (trimmed.isEmpty) continue;
@@ -137,9 +155,9 @@ class SuiteGuard {
     // or compiler failure rather than a trustworthy suite snapshot.
     final anyProgress = RegExp(r'^\d\d:\d\d [+\-~\d ]+:', multiLine: true);
     final hasTranscriptMarker =
-        anyProgress.hasMatch(output) ||
-        block.hasMatch(output) ||
-        output.contains('All tests passed!');
+        anyProgress.hasMatch(normalized) ||
+        block.hasMatch(normalized) ||
+        normalized.contains('All tests passed!');
     final parseable =
         hasTranscriptMarker && (exitCode == 0 || failed.isNotEmpty);
 

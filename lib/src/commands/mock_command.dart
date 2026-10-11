@@ -1,18 +1,22 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../core/plugin_system/capability.dart';
+import '../core/verdict_envelope.dart';
 import '../models/generated_file.dart';
+import '../plugins/mock/capabilities/certify_mock_capability.dart';
 import '../plugins/mock/capabilities/create_mock_capability.dart';
 import '../plugins/mock/capabilities/dependency_mock_capability.dart';
+import '../plugins/mock/capabilities/explain_mock_capability.dart';
 import '../plugins/mock/capabilities/json_mock_capability.dart';
 import '../plugins/mock/mock_plugin.dart';
 import '../plugins/mock/services/mock_certification.dart';
 import 'base_plugin_command.dart';
+import 'mock_verify_command.dart';
+import '../cli/exit_protocol.dart';
 
 class MockCommand extends PluginCommand {
   @override
@@ -23,29 +27,35 @@ class MockCommand extends PluginCommand {
   /// skipped, or the duplicate registration would leave `JsonMockCommand`
   /// unparented and crash `mock json --help` (issue #761). `create` is
   /// manual since issue #970: its `--json` is the OUTPUT envelope flag, not
-  /// CapabilityCommand's input-JSON option.
+  /// CapabilityCommand's input-JSON option. Same for `DependencyMockCommand`
+  /// (issue #960) and `CertifyMockCommand` (spec 1001) — both own CLI exit
+  /// codes. `verify` (spec 1121) and `explain` (spec 1121) are manual for
+  /// the same reason: MockVerifyCommand owns its exit-code contract, and
+  /// MockExplainCommand wraps MockExplainCapability's run() contract.
   @override
-  Set<String> get manualSubcommandNames => {'create', 'json', 'dependency'};
+  Set<String> get manualSubcommandNames => {
+    'create',
+    'json',
+    'dependency',
+    'certify',
+    'verify',
+    'explain',
+  };
 
   MockCommand(this.plugin) : super(plugin) {
     addSubcommand(CreateMockCommand(plugin));
     addSubcommand(DataMockCommand(plugin));
     addSubcommand(JsonMockCommand(plugin));
     addSubcommand(DependencyMockCommand(plugin));
-    argParser.addFlag(
-      'data-only',
-      help: 'Generate only mock data (fixtures)',
-      defaultsTo: false,
-    );
-    argParser.addFlag(
-      'json',
-      help: 'Generate JSON mock data with fromJson-based helpers',
-      defaultsTo: false,
-    );
-    argParser.addOption('service', help: 'Service name for mock provider');
-    argParser.addOption('domain', help: 'Domain folder for the mock provider');
-    argParser.addOption('params', help: 'Parameter type for mock methods');
-    argParser.addOption('returns', help: 'Return type for mock methods');
+    addSubcommand(CertifyMockCommand(plugin));
+    addSubcommand(MockVerifyCommand(plugin));
+    addSubcommand(MockExplainCommand(plugin));
+    // SPEC 917 / #876 sweep: the parent-level generator flags
+    // (--data-only/--json/--service/--domain/--params/--returns) were
+    // parsed and advertised but NEVER read — run() is dispatch-only (the
+    // live surfaces are the manual subcommands above and the capability
+    // schema). Silent parent options are the #876 "flags that lie" family;
+    // `zfa manifest --verify` certifies the parent surface (spec #979).
   }
 
   @override
@@ -124,6 +134,15 @@ class CreateMockCommand extends Command<void> {
     argParser.addOption('domain', help: 'Domain folder for the mock provider');
     argParser.addOption('params', help: 'Parameter type for mock methods');
     argParser.addOption('returns', help: 'Return type for mock methods');
+    // SPEC 917 / #904: the capability inputSchema declares `seed` — the
+    // CLI must accept what the manifest advertises (deterministic,
+    // replayable generation, spec 1001).
+    argParser.addOption(
+      'seed',
+      help:
+          'Deterministic generation seed (spec 1001): the same seed '
+          'reproduces byte-identical mocks (replayable generation)',
+    );
     argParser.addFlag(
       'json',
       negatable: false,
@@ -140,6 +159,16 @@ class CreateMockCommand extends Command<void> {
           'interface (scoped dart analyze); drift exits 1 with a '
           '`--> fix:` line naming the missing/incorrect members',
     );
+    argParser.addFlag(
+      'fail',
+      negatable: false,
+      help:
+          'Mock failure preset (spec 1110): additionally emit a '
+          '<Entity>FailingMockProvider — a throwing double whose every '
+          'method throws the sealed failure type — for failure-path '
+          'behaviors (the framework twin of the pilot hand-rolled '
+          '_FailingAuthService)',
+    );
   }
 
   @override
@@ -153,7 +182,7 @@ class CreateMockCommand extends Command<void> {
     final results = argResults;
     if (results == null) {
       print('❌ Usage: zfa mock create <EntityName> [options]');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final entityName = results.rest.isNotEmpty
@@ -162,7 +191,7 @@ class CreateMockCommand extends Command<void> {
     if (entityName == null || entityName.isEmpty) {
       print('❌ Usage: zfa mock create <EntityName> [options]');
       // Published-exitCode pattern (issue #767/#970): never a bare exit().
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -197,11 +226,24 @@ class CreateMockCommand extends Command<void> {
       'domain': ?domain,
       'params': ?results['params'],
       'returns': ?results['returns'],
+      // SPEC 917 / #904: --seed is accepted at the CLI and forwarded
+      // (CreateMockCapability: integer seed, replayable generation).
+      if (results['seed'] != null)
+        'seed': int.tryParse(results['seed'] as String),
+      // Spec 1110: the --fail preset flows into the generation chain.
+      'fail': results['fail'] == true,
+      // Spec 1001 / 1110: --certify routes into CreateMockCapability's
+      // sandbox certification (the contract test + mock-cert.<Entity>.json
+      // receipt) — the receipt the engine cert-gate requires. The manual
+      // command must forward the flag explicitly: the auto-registered
+      // CapabilityCommand (issue #970 bypass) never runs here.
+      'certify': results['certify'] == true,
     };
 
     await _runMockGeneration(
       commandLine: 'zfa mock create $entityName',
       entity: entityName,
+      capabilityName: 'create',
       execute: () => capability.execute(args),
       jsonMode: results['json'] == true,
       verbose: verbose,
@@ -263,7 +305,7 @@ class DataMockCommand extends Command<void> {
     final results = argResults;
     if (results == null || results.rest.isEmpty) {
       print('❌ Usage: zfa mock data <EntityName> [options]');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -275,6 +317,7 @@ class DataMockCommand extends Command<void> {
     await _runMockGeneration(
       commandLine: 'zfa mock data $entityName',
       entity: entityName,
+      capabilityName: 'create',
       execute: () => capability.execute({
         'name': entityName,
         'dataOnly': true,
@@ -343,11 +386,11 @@ class JsonMockCommand extends Command<void> {
     final results = argResults;
     if (results == null || (results.rest.isEmpty && results['name'] == null)) {
       print('❌ Usage: zfa mock json <EntityName> [options]');
-      // Issue #970 (T001, same bug class as #767): a bare exit(64) here
+      // Issue #970 (T001, same bug class as #767): a bare exit(ExitProtocol.usage) here
       // killed the ENTIRE host process — fatal for in-process hosts (MCP
       // server, embedded runner, dart test). Publish the usage-error code
       // and return; the host observes it through dart:io exitCode.
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -361,6 +404,7 @@ class JsonMockCommand extends Command<void> {
     await _runMockGeneration(
       commandLine: 'zfa mock json $entityName',
       entity: entityName,
+      capabilityName: 'json',
       execute: () => capability.execute({
         'name': entityName,
         'domain': results['domain'],
@@ -378,6 +422,172 @@ class JsonMockCommand extends Command<void> {
   }
 }
 
+/// `zfa mock certify <Name>` (spec 1001, issue #1001): re-proves the
+/// mock's contract live and registers it in the #832 registry entry.
+/// The capability owns exit codes + the machine summary line.
+class CertifyMockCommand extends Command<void> {
+  final MockPlugin plugin;
+
+  CertifyMockCommand(this.plugin) {
+    // SPEC 917 / #904: the capability inputSchema declares `name` as a
+    // required property — a manifest-driven client sends `--name <value>`
+    // and the CLI must accept it (the positional keeps precedence).
+    argParser.addOption(
+      'name',
+      help: 'Entity name (alternative to the positional argument)',
+    );
+    argParser.addOption(
+      'feature',
+      help:
+          'Feature directory under specs/ (defaults to the pinned '
+          '.specify/feature.json)',
+    );
+    argParser.addOption(
+      'project',
+      help:
+          'Project root containing specs/ (defaults to the current '
+          'working directory)',
+    );
+    argParser.addOption(
+      'fixtures-dir',
+      help:
+          'Explicit fixtures directory for the #832 registry entry '
+          '(default: specs/<feature>/tdd/fixtures)',
+    );
+    argParser.addFlag(
+      'force',
+      abbr: 'f',
+      negatable: false,
+      help: 'Overwrite existing artifacts',
+    );
+    argParser.addFlag(
+      'verbose',
+      abbr: 'v',
+      negatable: false,
+      help: 'Enable detailed logging',
+    );
+  }
+
+  @override
+  String get name => 'certify';
+
+  @override
+  String get description =>
+      'Re-certify a mock live (contract test in a sandbox) and add it '
+      'to the #832 registry entry (spec 1001)';
+
+  @override
+  Future<void> run() async {
+    final results = argResults;
+    // SPEC 917 / #904: --name is the manifest-driven spelling of the
+    // positional EntityName (positional keeps precedence, issue #771).
+    final flaggedName = results?['name'] as String?;
+    if (results == null ||
+        (results.rest.isEmpty &&
+            (flaggedName == null || flaggedName.isEmpty))) {
+      print(
+        '❌ Usage: zfa mock certify <EntityName> [--feature <f>] '
+        '[--project <dir>] [--fixtures-dir <dir>]',
+      );
+      exitCode = CertifyMockCapability.exitUsage;
+      return;
+    }
+    final argv = <String>[
+      if (results.rest.isNotEmpty) results.rest.first else flaggedName!,
+      if (results['feature'] != null) ...['--feature', results['feature']!],
+      if (results['project'] != null) ...['--project', results['project']!],
+      if (results['fixtures-dir'] != null) ...[
+        '--fixtures-dir',
+        results['fixtures-dir']!,
+      ],
+      if (results['force'] == true) '--force',
+      if (results['verbose'] == true) '--verbose',
+    ];
+    final capability = CertifyMockCapability(plugin);
+    exitCode = await capability.run(argv);
+  }
+}
+
+/// `zfa mock explain <Entity>` (spec 1121, issue #1121 order 3): the
+/// fleshed-out explanation of the entity's mock — method coverage, skipped
+/// members, per-method certification status, and the #1034
+/// `MockData.forMethod` selector bindings. The capability owns exit codes;
+/// this wrapper is the CLI grammar.
+class MockExplainCommand extends Command<void> {
+  final MockPlugin plugin;
+
+  MockExplainCommand(this.plugin) {
+    // SPEC 917 / #904: the capability inputSchema declares `name` as a
+    // required property — a manifest-driven client sends `--name <value>`
+    // and the CLI must accept it (the positional keeps precedence).
+    argParser.addOption(
+      'name',
+      help: 'Entity name (alternative to the positional argument)',
+    );
+    argParser.addOption(
+      'project',
+      help:
+          'Project root containing lib/src (defaults to the current '
+          'working directory)',
+    );
+    argParser.addFlag(
+      'verbose',
+      abbr: 'v',
+      negatable: false,
+      help: 'Enable detailed logging',
+    );
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help:
+          'Emit the canonical ${VerdictEnvelope.canonicalSchema} envelope '
+          'whose details.explain carries the structured report '
+          '(issue #1105)',
+    );
+  }
+
+  @override
+  String get name => 'explain';
+
+  @override
+  String get description =>
+      'Explain a mock: coverage, skipped members, per-method certification '
+      'status, fixture-selector bindings (spec 1121)';
+
+  @override
+  Future<void> run() async {
+    final results = argResults;
+    // SPEC 917 / #904: --name is the manifest-driven spelling of the
+    // positional EntityName (positional keeps precedence, issue #771).
+    final flaggedName = results?['name'] as String?;
+    if (results == null ||
+        (results.rest.isEmpty &&
+            (flaggedName == null || flaggedName.isEmpty))) {
+      final fix = ExitProtocol.fixLine(
+        're-run with the entity whose mock is explained — '
+        '`zfa mock explain <Entity>` (after `zfa mock create <Entity>`)',
+      );
+      if (results?['json'] == true) {
+        stderr.writeln('❌ Usage: zfa mock explain <Entity> [--json]');
+        stderr.writeln(fix);
+      } else {
+        print('❌ Usage: zfa mock explain <Entity> [--json] [--project <dir>]');
+        print(fix);
+      }
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    final argv = <String>[
+      if (results.rest.isNotEmpty) results.rest.first else flaggedName!,
+      if (results['project'] != null) ...['--project', results['project']!],
+      if (results['json'] == true) '--json',
+      if (results['verbose'] == true) '--verbose',
+    ];
+    final capability = MockExplainCapability();
+    exitCode = await capability.run(argv);
+  }
+}
+
 /// `zfa mock dependency <Name>` (issue #960): the certified mock for a
 /// declared External Dependencies & Contracts row. The capability owns
 /// exit codes + the machine summary line.
@@ -385,6 +595,13 @@ class DependencyMockCommand extends Command<void> {
   final MockPlugin plugin;
 
   DependencyMockCommand(this.plugin) {
+    // SPEC 917 / #904: the capability inputSchema declares `name` as a
+    // required property — a manifest-driven client sends `--name <value>`
+    // and the CLI must accept it (the positional keeps precedence).
+    argParser.addOption(
+      'name',
+      help: 'Entity name (alternative to the positional argument)',
+    );
     argParser.addOption(
       'feature',
       help:
@@ -416,7 +633,12 @@ class DependencyMockCommand extends Command<void> {
   @override
   Future<void> run() async {
     final results = argResults;
-    if (results == null || results.rest.isEmpty) {
+    // SPEC 917 / #904: --name is the manifest-driven spelling of the
+    // positional EntityName (positional keeps precedence, issue #771).
+    final flaggedName = results?['name'] as String?;
+    if (results == null ||
+        (results.rest.isEmpty &&
+            (flaggedName == null || flaggedName.isEmpty))) {
       print(
         '❌ Usage: zfa mock dependency <Name> [--feature <f>] '
         '[--project <dir>] [--force]',
@@ -425,7 +647,7 @@ class DependencyMockCommand extends Command<void> {
       return;
     }
     final argv = <String>[
-      results.rest.first,
+      if (results.rest.isNotEmpty) results.rest.first else flaggedName!,
       if (results['feature'] != null) ...['--feature', results['feature']!],
       if (results['project'] != null) ...['--project', results['project']!],
       if (results['force'] == true) '--force',
@@ -459,6 +681,7 @@ Future<void> _runMockGeneration({
   String? domain,
   List<String> methods = const [],
   bool certify = false,
+  String capabilityName = 'create',
 }) async {
   final projectRoot = Directory.current.path;
 
@@ -507,6 +730,12 @@ Future<void> _runMockGeneration({
   // on-disk bytes — a dry run certifies nothing.
   MockCertification? certification;
   String? receiptPath;
+  // Issue #1539 (PR #1616 review finding 1): the machine envelope must
+  // disclose the unverified compiler verdict too — a `--json` consumer
+  // cannot otherwise tell "the compiler verdict was obtained" from "the
+  // compiler never ran", the exact silent-pass shape this fix exists to
+  // prevent. Null unless the crash path left the certification standing.
+  String? analyzeUnverified;
   if (!dryRun) {
     try {
       certification = await MockCertificationService.certify(
@@ -526,6 +755,8 @@ Future<void> _runMockGeneration({
         commandLine: commandLine,
         certification: certification,
         files: files,
+        capabilityName: capabilityName,
+        methodset: methods,
       );
     } catch (e) {
       // Best-effort (issue #807 convention): the artifacts already exist,
@@ -554,6 +785,29 @@ Future<void> _runMockGeneration({
       }
       exitCode = 1;
     } else {
+      // Issue #1539: a crashed analyze on BOTH passes (retried once)
+      // leaves the structural certification standing — the exit must not
+      // contradict the persisted (conforms) receipt. The unverified
+      // compiler verdict is disclosed loudly, never a silent pass: on the
+      // human path here, and in the `--json` envelope below.
+      //
+      // The wording comes from the shared formatter (PR #1616 review
+      // finding 6) so `mock verify` cannot drift from it, and the receipt
+      // clause reports the best-effort write's actual outcome (finding 4)
+      // instead of asserting a receipt that was never persisted.
+      analyzeUnverified = report.analyzeUnverified;
+      if (analyzeUnverified != null) {
+        for (final line in analyzeUnverifiedNotice(
+          entity: entity,
+          registryId: certification.registryId,
+          crashOutput: analyzeUnverified,
+          subject: 'mock certification: $entity — ',
+          hasReceipt: true,
+          receiptWritten: receiptPath != null,
+        )) {
+          _emit(jsonMode, line);
+        }
+      }
       _emit(
         jsonMode,
         '✅ mock certification: $entity conforms to '
@@ -564,12 +818,17 @@ Future<void> _runMockGeneration({
   }
 
   if (jsonMode) {
-    final envelope = _buildEnvelope(
-      files: files,
-      fixturesDir: _fixturesDirFor(files, jsonMock: jsonMock),
-      certification: certification?.withReceipt(receiptPath),
+    VerdictEnvelope.emit(
+      _buildEnvelope(
+        commandLine: commandLine,
+        entity: entity,
+        files: files,
+        fixturesDir: _fixturesDirFor(files, jsonMock: jsonMock),
+        certification: certification?.withReceipt(receiptPath),
+        receiptPath: receiptPath,
+        analyzeUnverified: analyzeUnverified,
+      ),
     );
-    print(jsonEncode(envelope));
     return;
   }
 
@@ -613,12 +872,22 @@ Future<void> _runMockGeneration({
   }
 }
 
-/// The `--json` envelope (issue #970 order 2):
-/// `{files[], actions, fixturesDir, certification, schema:1}`.
-Map<String, dynamic> _buildEnvelope({
+/// The `--json` envelope (issue #970 order 2; SPEC 1105 canonical shape):
+/// the mock surface (files[], actions, fixturesDir, certification) lives
+/// in the canonical envelope's `details` map.
+///
+/// [analyzeUnverified] is the issue #1539 crash output when the scoped
+/// analyze never produced a compiler verdict; it is emitted next to the
+/// certification so a machine consumer can tell a compiler-verified mock
+/// from one certified on structure alone (PR #1616 review finding 1).
+VerdictEnvelope _buildEnvelope({
+  required String commandLine,
+  required String entity,
   required List<GeneratedFile> files,
   required String? fixturesDir,
   required MockCertification? certification,
+  required String? receiptPath,
+  required String? analyzeUnverified,
 }) {
   final actions = <String, int>{
     'created': 0,
@@ -631,16 +900,42 @@ Map<String, dynamic> _buildEnvelope({
     final key = actions.containsKey(file.action) ? file.action : null;
     if (key != null) actions[key] = actions[key]! + 1;
   }
-  return {
-    'schema': 1,
-    'files': [
-      for (final file in files)
-        {'path': file.path, 'action': file.action, 'type': file.type},
-    ],
-    'actions': actions,
-    'fixturesDir': fixturesDir,
-    'certification': certification?.toEnvelopeJson(),
-  };
+  return VerdictEnvelope(
+    command: commandLine,
+    verdict: VerdictKind.pass,
+    exitClass: ExitProtocol.success,
+    subject: VerdictSubject(kind: 'mock', id: entity),
+    artifacts: VerdictArtifacts(
+      created: [
+        for (final file in files)
+          if (file.action == 'created') file.path,
+      ],
+      modified: [
+        for (final file in files)
+          if (file.action == 'overwritten' || file.action == 'updated')
+            file.path,
+      ],
+      deleted: [
+        for (final file in files)
+          if (file.action == 'deleted') file.path,
+      ],
+    ),
+    receipts: receiptPath == null ? null : [receiptPath],
+    details: {
+      'files': [
+        for (final file in files)
+          {'path': file.path, 'action': file.action, 'type': file.type},
+      ],
+      'actions': actions,
+      'fixturesDir': fixturesDir,
+      'certification': certification?.toEnvelopeJson(),
+      // Issue #1539 (PR #1616 review finding 1): non-null only in the
+      // double-crash shape, mirroring `mock verify --json`. Absent (not
+      // null) in every other run so the published details key set for a
+      // plain generation is unchanged.
+      'analyzeUnverified': ?analyzeUnverified,
+    },
+  );
 }
 
 /// Where this run's mock fixtures landed: the directory of the first

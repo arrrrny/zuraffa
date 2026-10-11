@@ -13,7 +13,14 @@ env:
 
 jobs:
   dart_core:
-    timeout-minutes: 30
+    # 45 (was 30): the fast suite outgrew the old budget — the #1629 run was
+    # canceled at 30m17s and the same command took 41 minutes locally. Left
+    # as headroom: #1632 re-homes the heavyweight suites behind the slow/e2e
+    # tiers and scopes the lane to runner-default parallelism, so the step
+    # should now land far under either budget (the tier-integrity pins keep
+    # it there). Sharding (tools/run_tests_chunked.sh) remains the durable
+    # shape if the lane regrows.
+    timeout-minutes: 45
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +29,7 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.2"
+          sdk: "3.13.3"
       - name: "Get dependencies"
         run: dart pub get --no-example
       - name: "Dart Analyze (pure Dart, no Flutter)"
@@ -36,7 +43,30 @@ jobs:
         # Exclude the Flutter-generation tests (tagged `flutter`); those are
         # covered by the `test` (flutter) job below. This keeps `dart_core` a
         # true pure-Dart suite that runs on the Dart SDK only.
-        run: dart test test --exclude-tags flutter
+        # Also exclude `e2e` — heavyweight suites that drive real
+        # `dart test`/`dart pub get` subprocesses in temp fixtures (#1510).
+        # The tier-integrity pins (B5–B7, #1632) keep the untagged drift
+        # out of this lane.
+        # SERIAL (dart_test.yaml's global `concurrency: 1`) BY DESIGN, NOT
+        # an oversight: `Directory.current` is process-global and the suite
+        # isolates share one VM, so any parallel lane in which one suite
+        # chdirs (CliRunner's `-C` windows, test-side sandboxes) silently
+        # REDIRECTS every concurrent suite's relative-path I/O into the
+        # window's tree — unfixable by locking, because the locks serialize
+        # only the window creators, never the unaware relative-I/O users.
+        # `--concurrency=4` produced exactly that: three consecutive red
+        # master runs of rotating, mutually-unrelated failures — service/
+        # route/dream/usecase/doctor verdicts reading a sibling's exit code
+        # (dart:io `exitCode` is process-global too), plus relative-path
+        # readers resolving inside a sibling's temp fixture
+        # (`File('docs/openwiki/cli.md')`, plugin-loader/barrel sources —
+        # 18 reds on 1ab1a426) — and CwdMutex→CliRunner lock-ordering
+        # deadlocks the old 30s blind stale-break was accidentally
+        # escaping. The #1632 re-homing dropped the measured serial
+        # residual to ~736s (~12 min), far inside this job's 45m budget.
+        # Sharding (tools/run_tests_chunked.sh) is the shape to reach for
+        # IF the lane regrows — NOT concurrency.
+        run: dart test test --exclude-tags "flutter || e2e"
 
   proof_smoke:
     # Issue #807 (proof-carrying generation): generate a sandbox project,
@@ -50,11 +80,58 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.2"
+          sdk: "3.13.3"
       - name: "Get dependencies"
         run: dart pub get --no-example
       - name: "Proof smoke (receipts + proof check gate)"
         run: bash tools/proof_smoke.sh
+
+  spec_fuzz:
+    # Issue #967 (spec-mutation arena, VISION §7): the seeded weakness
+    # demo as a CI gate — the weak toy spec MUST be flagged (the job
+    # fails if it is not) and the strengthened spec MUST kill every
+    # mutant (the job fails if any survive). This is the gate that
+    # blocks "certified" status on survived mutations; the survivors'
+    # severity:contract gap-ledger entries additionally block the
+    # corpus referee's production verdict.
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configuring Dart environment
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.13.3"
+      - name: "Get dependencies"
+        run: dart pub get --no-example
+      - name: "Spec fuzz demo (seeded weakness: flagged weak, certified strong)"
+        run: bash tools/spec_fuzz_demo.sh
+
+  template_publish_gate:
+    # Bug 1198 (part of #908 P0): the loop is the template's referee.
+    # Every generator template (usecase, service, repository, datasource,
+    # mock, di, view/skin, state, route) must pass its TDD-loop trust-tier
+    # suite (structural + compile + behavioral + byte-stability diff
+    # guard). A failing template blocks the pipeline; the release workflow
+    # runs the same gate before publishing.
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configuring Dart environment
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.13.3"
+      - name: "Get dependencies"
+        run: dart pub get --no-example
+      - name: "Template self-hosting gate (pure-Dart lane)"
+        # Pure-Dart lane here; the flutter lane (downstream-compile gate)
+        # runs in the `test` job below via `flutter test --tags flutter`.
+        run: SKIP_FLUTTER_LANE=1 bash tools/template_publish_gate.sh
 
   analyze:
     timeout-minutes: 15
@@ -93,7 +170,7 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.2"
+          sdk: "3.13.3"
       - name: "Get dependencies"
         # Required so dart format can resolve analysis_options.yaml's
         # `package:lints/recommended.yaml` include; without a package
@@ -135,6 +212,29 @@ jobs:
         with:
           files: ./coverage/lcov.info
 
+  flutter_consumer_smoke:
+    # Issue #1189: the gate that was missing. `dart pub get --no-example`
+    # and `flutter packages get --no-example` (all jobs above) skip the
+    # example/ sub-package, so a regular dependency that breaks every
+    # Flutter consumer (`analyzer ^14.3.0` + `test any` vs flutter_test's
+    # SDK pins) shipped to master undetected. This job resolves and
+    # compiles a Flutter consumer against this checkout — with ZERO
+    # dependency_overrides — so the next constraint bump cannot silently
+    # break Flutter resolution again.
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configuring flutter environment
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.flutter_version }}
+          channel: "stable"
+      - name: "Flutter consumer smoke gate (resolve + compile, no overrides)"
+        run: bash tools/flutter_smoke_gate.sh
+
   ffi_golden_lane:
     # Bug #835: the FFI/OCR golden fixture lane is a CI gate. The lane
     # itself lives in the consuming project (the generated
@@ -144,7 +244,9 @@ jobs:
     # red -> binding wiring -> contract green -> golden lane e2e against
     # the real CLI. Scoped to the `ffi` tag (NOT --preset=integration) —
     # the full integration tier spins up heavy temp builds that the
-    # dart_test.yaml policy keeps off CI agents.
+    # dart_test.yaml policy keeps off CI agents; the `ffi` preset carries
+    # the lane's scoping (include_tags: ffi) and the lift of the default
+    # `slow` exclusion together (issue #1678).
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -154,10 +256,22 @@ jobs:
       - name: Configuring Dart environment
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: "3.13.2"
+          sdk: "3.13.3"
       - name: "Get dependencies"
         run: dart pub get --no-example
       - name: "FFI golden fixture lane (tag-scoped)"
-        # Never empty: sc_022 carries the ffi tag. A zero-match run exits
-        # 79 — an honest gate failure if the lane is ever emptied.
-        run: dart test --tags ffi
+        # Never empty: sc_022 (slow+integration+ffi) is the lane's content
+        # and a zero-match run exits 79 — an honest gate failure if the
+        # lane is ever emptied. A bare `--tags ffi` WAS exactly that empty
+        # selection: the default `exclude_tags: slow` filtered sc_022 out,
+        # and the job stayed green only because an unrelated MinIO suite's
+        # markTestSkipped counted as a matched suite — until #1678 moved
+        # that suite into packages/zuraffa_storage and the long-dormant
+        # lane failed honestly. The lane needs BOTH the tag scoping and
+        # the lift of the `slow` exclusion, and a preset's selector
+        # configuration wins over CLI selectors — `--preset=all --tags
+        # ffi` un-scoped the run to the WHOLE tree (slow/benchmark/
+        # property suites included) and died at this job's 30-minute
+        # ceiling. The dedicated `ffi` preset carries both halves
+        # (dart_test.yaml); it is NOT --preset=integration.
+        run: dart test --preset=ffi

@@ -1,0 +1,37 @@
+00:00 +0: loading test/tdd/1334-typed-ui-coverage-ledger/t008_artifact_pins_test.dart
+00:00 +0 -1: loading test/tdd/1334-typed-ui-coverage-ledger/t008_artifact_pins_test.dart [E]
+  Failed to load "test/tdd/1334-typed-ui-coverage-ledger/t008_artifact_pins_test.dart":
+  lib/tdd/1334-typed-ui-coverage-ledger/t8_subject.dart:20:9: Error: No named parameter with the name 'screen'.
+          screen: '/login',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t8_subject.dart:26:9: Error: No named parameter with the name 'screen'.
+          screen: '/login',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t8_subject.dart:64:11: Error: No named parameter with the name 'screen'.
+            screen: '/login',
+            ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t8_subject.dart:70:37: Error: Member not found: 'TypedCoverageGate.evaluateScreens'.
+    final verdict = TypedCoverageGate.evaluateScreens(
+                                      ^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t8_subject.dart:116:30: Error: Member not found: 'TypedLedgerBuilder.fromLedgerJson'.
+      rows: TypedLedgerBuilder.fromLedgerJson(
+                               ^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t8_subject.dart:121:5: Error: No named parameter with the name 'legacy'.
+      legacy: true,
+      ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:481:31: Context: Found this candidate, but the arguments don't match.
+    static TypedCoverageVerdict evaluate({
+                                ^^^^^^^^
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/tdd/1334-typed-ui-coverage-ledger/t008_artifact_pins_test.dart: loading test/tdd/1334-typed-ui-coverage-ledger/t008_artifact_pins_test.dart

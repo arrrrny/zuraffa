@@ -63,15 +63,9 @@ void main() {
       () async {
         // Register an artifact for which the subject exists but the
         // paired test fails (preflight red).
-        final subjectFile = await writeSubject(
-          'lib/b003_subject.dart',
-          'library;',
-        );
-        final record = sampleRecord(
-          subjectPath: p.relative(subjectFile.path, from: tmpDir.path),
-          testPath: 'test/b003_test.dart',
-        );
+        final record = sampleRecord();
         await registry.register(record);
+        await writeSubject('lib/b003_subject.dart', 'library;');
         // The test file does NOT exist on disk → `dart test` preflight fails.
 
         final auditor = MutationAuditor(
@@ -91,14 +85,9 @@ void main() {
     test(
       'tool unavailable → NOT_ASSESSED — mutation tool unavailable (FR-015)',
       () async {
-        final subjectFile = await writeSubject(
-          'lib/b003_subject.dart',
-          'library;',
-        );
-        final record = sampleRecord(
-          subjectPath: p.relative(subjectFile.path, from: tmpDir.path),
-        );
+        final record = sampleRecord();
         await registry.register(record);
+        await writeSubject('lib/b003_subject.dart', 'library;');
 
         final auditor = MutationAuditor(
           featureDir: featureDir,
@@ -121,14 +110,9 @@ void main() {
     test(
       'empty/incomplete/unparseable report → NOT_ASSESSED (FR-016)',
       () async {
-        final subjectFile = await writeSubject(
-          'lib/b003_subject.dart',
-          'library;',
-        );
-        final record = sampleRecord(
-          subjectPath: p.relative(subjectFile.path, from: tmpDir.path),
-        );
+        final record = sampleRecord();
         await registry.register(record);
+        await writeSubject('lib/b003_subject.dart', 'library;');
 
         final auditor = MutationAuditor(
           featureDir: featureDir,
@@ -159,14 +143,9 @@ void main() {
     test(
       'killed/survived/timed-out recorded as three separate buckets (FR-014)',
       () async {
-        final subjectFile = await writeSubject(
-          'lib/b003_subject.dart',
-          'library;',
-        );
-        final record = sampleRecord(
-          subjectPath: p.relative(subjectFile.path, from: tmpDir.path),
-        );
+        final record = sampleRecord();
         await registry.register(record);
+        await writeSubject('lib/b003_subject.dart', 'library;');
 
         final auditor = MutationAuditor(
           featureDir: featureDir,
@@ -197,14 +176,9 @@ void main() {
     );
 
     test('strict policy: survived → FAIL_SURVIVED (FR-017)', () async {
-      final subjectFile = await writeSubject(
-        'lib/b003_subject.dart',
-        'library;',
-      );
-      final record = sampleRecord(
-        subjectPath: p.relative(subjectFile.path, from: tmpDir.path),
-      );
+      final record = sampleRecord();
       await registry.register(record);
+      await writeSubject('lib/b003_subject.dart', 'library;');
 
       final auditor = MutationAuditor(
         featureDir: featureDir,
@@ -228,14 +202,9 @@ void main() {
     });
 
     test('strict policy: timeout-only → FAIL_TIMEOUT (FR-017)', () async {
-      final subjectFile = await writeSubject(
-        'lib/b003_subject.dart',
-        'library;',
-      );
-      final record = sampleRecord(
-        subjectPath: p.relative(subjectFile.path, from: tmpDir.path),
-      );
+      final record = sampleRecord();
       await registry.register(record);
+      await writeSubject('lib/b003_subject.dart', 'library;');
 
       final auditor = MutationAuditor(
         featureDir: featureDir,
@@ -259,14 +228,9 @@ void main() {
     });
 
     test('all killed → PASS (FR-017)', () async {
-      final subjectFile = await writeSubject(
-        'lib/b003_subject.dart',
-        'library;',
-      );
-      final record = sampleRecord(
-        subjectPath: p.relative(subjectFile.path, from: tmpDir.path),
-      );
+      final record = sampleRecord();
       await registry.register(record);
+      await writeSubject('lib/b003_subject.dart', 'library;');
 
       final auditor = MutationAuditor(
         featureDir: featureDir,
@@ -292,16 +256,12 @@ void main() {
     test(
       'report traces outcome to behavior id + source criterion (FR-018)',
       () async {
-        final subjectFile = await writeSubject(
-          'lib/b003_subject.dart',
-          'library;',
-        );
         final record = sampleRecord(
           behaviorId: 'B-003',
           sourceCriterion: 'FR-007',
-          subjectPath: p.relative(subjectFile.path, from: tmpDir.path),
         );
         await registry.register(record);
+        await writeSubject('lib/b003_subject.dart', 'library;');
 
         final auditor = MutationAuditor(
           featureDir: featureDir,
@@ -328,15 +288,13 @@ void main() {
     );
 
     test('source restoration verified by sha256 post-audit (FR-021)', () async {
+      final record = sampleRecord();
+      await registry.register(record);
       final subjectFile = await writeSubject(
         'lib/b003_subject.dart',
         'library;',
       );
       final originalContent = await subjectFile.readAsString();
-      final record = sampleRecord(
-        subjectPath: p.relative(subjectFile.path, from: tmpDir.path),
-      );
-      await registry.register(record);
 
       // The mutation runner mutates the file in-place; restoration must
       // bring it back.
@@ -373,6 +331,8 @@ void main() {
       // the auditor only restores subject files, never test files. The
       // auditor's restore scope is exactly the subject paths from the
       // registry, never the test paths.
+      final record = sampleRecord();
+      await registry.register(record);
       final subjectFile = await writeSubject(
         'lib/b003_subject.dart',
         'library;',
@@ -381,11 +341,6 @@ void main() {
         'test/b003_test.dart',
         '// user test',
       );
-      final record = sampleRecord(
-        subjectPath: p.relative(subjectFile.path, from: tmpDir.path),
-        testPath: p.relative(testFile.path, from: tmpDir.path),
-      );
-      await registry.register(record);
 
       final originalTestContent = await testFile.readAsString();
 
@@ -445,14 +400,9 @@ void main() {
     });
 
     test('non-sensitive repro diagnostics (FR-020)', () async {
-      final subjectFile = await writeSubject(
-        'lib/b003_subject.dart',
-        'library;',
-      );
-      final record = sampleRecord(
-        subjectPath: p.relative(subjectFile.path, from: tmpDir.path),
-      );
+      final record = sampleRecord();
       await registry.register(record);
+      await writeSubject('lib/b003_subject.dart', 'library;');
 
       final auditor = MutationAuditor(
         featureDir: featureDir,

@@ -223,6 +223,7 @@ environment:
   sdk: ^3.11.0
 dependencies:
   zuraffa_flutter: any
+  zuraffa_ui: ^0.1.0
   zorphy_annotation: any
   json_annotation: ^4.12.0
 dev_dependencies:
@@ -230,7 +231,7 @@ dev_dependencies:
   json_serializable: ^6.13.2
   flutter_lints: ^6.0.0
 dependency_overrides:
-  analyzer: ^13.1.0
+  analyzer: ^14.0.0
   meta: ^1.19.0
 ''';
       final missing = DependencyWirer.findMissing(fullPubspec, isFlutter: true);

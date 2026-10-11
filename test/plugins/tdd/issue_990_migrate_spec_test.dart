@@ -29,18 +29,30 @@ void main() {
   late String featureDir;
   const featureName = '001-demo';
 
-  List<String> planArgs({bool migrate = false}) => [
+  List<String> planArgs({bool migrate = false, bool noEmitMarkers = false}) => [
     'tdd',
     'plan',
     featureName,
     if (migrate) '--migrate-spec',
+    // Issue #1186: `tdd plan` emits classified `**Type**` grammar markers
+    // into the spec by default. That emission is pinned by
+    // plan_marker_emission_1186_test.dart; the M-tier below pins the
+    // template-version marker contract (#990) in isolation, so it opts
+    // out of the grammar emission to keep the byte-identity assertions
+    // about the template marker alone.
+    if (noEmitMarkers) '--no-emit-markers',
     '--project',
     tmpDir.path,
   ];
 
-  Future<String> runPlan({bool migrate = false}) async {
+  Future<String> runPlan({
+    bool migrate = false,
+    bool noEmitMarkers = false,
+  }) async {
     final runner = CliRunner(exitOnCompletion: false);
-    return runner.runCapturing(planArgs(migrate: migrate));
+    return runner.runCapturing(
+      planArgs(migrate: migrate, noEmitMarkers: noEmitMarkers),
+    );
   }
 
   Future<String> readSpec() =>
@@ -121,7 +133,7 @@ $kMinimalAcceptance
 ''';
       await writeRawSpec(featureDir, rawSpec);
 
-      final out = await runPlan(migrate: true);
+      final out = await runPlan(migrate: true, noEmitMarkers: true);
 
       expect(exitCode, 0, reason: out);
       expect(out, contains('migrated'), reason: out);
@@ -176,7 +188,7 @@ $kMinimalAcceptance
 ''');
       final before = await readSpec();
 
-      final out = await runPlan(migrate: true);
+      final out = await runPlan(migrate: true, noEmitMarkers: true);
 
       expect(exitCode, 0, reason: out);
       expect(await readSpec(), before, reason: 'no rewrite, no churn');
@@ -238,7 +250,7 @@ $kMinimalAcceptance
 ''';
       await writeRawSpec(featureDir, rawSpec);
 
-      final out = await runPlan(migrate: true);
+      final out = await runPlan(migrate: true, noEmitMarkers: true);
 
       expect(exitCode, 0, reason: out);
       final after = await readSpec();

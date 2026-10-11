@@ -12,13 +12,26 @@
 /// `refactorActions` list renders as the `actions:` block per
 /// contracts/refactor.md, and `isNoOp` flags a clean no-op entry.
 ///
+/// Extended by issue #1329: the `error` kind records a FAILED STEP's
+/// diagnostic evidence (the spawned command, the exit code, and the
+/// truncated stderr/stdout tail — the same evidence shape the red/green
+/// cycles record) appended by the run driver's error-outcome path. The
+/// kind is deliberately NOT `red`: red is CERTIFIED red evidence the
+/// reconciliation and the make skip transition key on, and an error entry
+/// must never satisfy it — the retry after a transient failure re-drives
+/// the failed step honestly. The optional `outcome` field names the
+/// step's own failure token (`error`, `crashed`, `runner-error`, ...);
+/// it renders as the `- outcome:` line only when set, outside the
+/// chain-hash payload (the `- evidence:` / `- subject-hash:` additive
+/// precedents), so the evidence schema stays v1.
+///
 /// Existing red/green rendering stays byte-compatible (U10 invariant).
 library;
 
 import 'generation_plan.dart';
 import 'refactor_action.dart';
 
-enum CycleEntryKind { red, green, refactor }
+enum CycleEntryKind { red, green, refactor, error, refresh }
 
 enum FailureClass {
   assertionFailure,
@@ -27,6 +40,22 @@ enum FailureClass {
   unexpectedGreen,
   skipped,
   runnerError,
+}
+
+/// Issue #1653: the single duration formatter for the refactor receipt's
+/// per-phase and per-pass timing evidence (and the init pre-resolve's ✓
+/// line, which shares the vocabulary). `< 60s` renders one-decimal seconds
+/// (`12.3s`); a minute or more renders `XmYYs` (`1m05s`); sub-second
+/// durations still show one decimal (`0.0s`) so a zero-measurement reads
+/// as a measurement, not a gap.
+String formatPhaseDuration(Duration duration) {
+  final ms = duration.inMilliseconds;
+  if (duration.inMinutes > 0) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+    return '${minutes}m${seconds.toString().padLeft(2, '0')}s';
+  }
+  return '${(ms / 1000).toStringAsFixed(1)}s';
 }
 
 class CycleLogEntry {
@@ -45,8 +74,28 @@ class CycleLogEntry {
   /// evidence schema stays at v1.
   final String? redEvidence;
 
+  /// The sha256 of the subject file at certification time (issue #1036):
+  /// red entries record the subject shape the certified red exercised,
+  /// green entries the shape the certified green exercised. The make
+  /// skip transition compares the CURRENT subject hash against these to
+  /// refuse a skip on a subject the certified evidence never exercised
+  /// (the born-green placeholder class). Nullable — legacy entries and
+  /// runs with no subject artifact omit the field. Rendered as the
+  /// optional `- subject-hash:` field line, outside the chain-hash
+  /// payload, so the evidence schema stays at v1 (the `- evidence:`
+  /// precedent).
+  final String? subjectHash;
+
   /// The spec criterion the behavior traces to (e.g. `FR-006`).
   final String sourceCriterion;
+
+  /// The step's own failure outcome token for `error` entries (issue
+  /// #1329): `error` (a spawned step exited non-zero), `crashed`,
+  /// `runner-error`, ... — the token the driver printed. Nullable; only
+  /// the error-outcome recording sets it. Rendered as the optional
+  /// `- outcome:` field line, outside the chain-hash payload, so the
+  /// evidence schema stays at v1 (the `- evidence:` precedent).
+  final String? outcome;
 
   /// The registry-recorded path of the test that produced this entry.
   /// For refactor entries this is the suite scope the command re-proved
@@ -85,6 +134,16 @@ class CycleLogEntry {
   /// New failures introduced by the generation, if any (green entries).
   final List<String> suiteNewFailures;
 
+  /// Issue #1653: per-phase wall durations for refactor entries —
+  /// `preflight` (the absolute-green suite run), `registry` (the fixed
+  /// pass batch), `re-proof` (the post-pass suite run(s), #1333 retries
+  /// included). Rendered as the additive optional `- phases:` line AFTER
+  /// the certified facts, OUTSIDE the chain-hash payload (the `- outcome:`
+  /// / `- subject-hash:` precedents) — the evidence schema stays v1 and
+  /// legacy entries stay parseable. "Without heartbeats the 8m32s would be
+  /// indistinguishable from a stuck step" — this is the heartbeat.
+  final Map<String, Duration>? phaseDurations;
+
   CycleLogEntry({
     required this.behaviorId,
     required this.kind,
@@ -95,13 +154,16 @@ class CycleLogEntry {
     required this.testPath,
     required this.timestamp,
     this.classification,
+    this.outcome,
     this.redEvidence,
+    this.subjectHash,
     this.refactorActions = const [],
     this.isNoOp = false,
     this.generationSteps = const [],
     this.suiteBaselineFailures = 0,
     this.suiteGuardFailures = 0,
     this.suiteNewFailures = const [],
+    this.phaseDurations,
   }) : assert(
          kind != CycleEntryKind.red || classification != null,
          'Red entries must carry a failure classification.',
@@ -120,6 +182,12 @@ class CycleLogEntry {
     if (redEvidence != null) {
       buf.writeln('- evidence: $redEvidence');
     }
+    if (subjectHash != null) {
+      buf.writeln('- subject-hash: $subjectHash');
+    }
+    if (outcome != null) {
+      buf.writeln('- outcome: $outcome');
+    }
     buf
       ..writeln('- criterion: $sourceCriterion')
       ..writeln('- test: $testPath')
@@ -128,6 +196,18 @@ class CycleLogEntry {
       ..writeln('- at: $timestamp');
     if (isNoOp) {
       buf.writeln('- no-op: true');
+    }
+    // Issue #1653: the additive per-phase timing evidence. Rendered only
+    // for refactor entries and only when the command handed the durations
+    // in — every legacy entry (and every non-refactor kind) renders
+    // byte-identically to before.
+    if (kind == CycleEntryKind.refactor &&
+        phaseDurations != null &&
+        phaseDurations!.isNotEmpty) {
+      final rendered = phaseDurations!.entries
+          .map((e) => '${e.key}=${formatPhaseDuration(e.value)}')
+          .join(' ');
+      buf.writeln('- phases: $rendered');
     }
     buf
       ..writeln('- output:')
@@ -146,6 +226,22 @@ class CycleLogEntry {
         } else {
           buf.writeln('  changed: ${action.filesChanged.join(', ')}');
         }
+        // Issue #1653: the per-pass heartbeat — how long THIS pass ran.
+        // Additive, only when the registry measured it (a scheduling-
+        // skipped pass ran no process and records no duration).
+        if (action.duration != null) {
+          buf.writeln('  duration: ${formatPhaseDuration(action.duration!)}');
+        }
+        // Issue #1624: a scheduling-skipped pass is auditable as such —
+        // the process never spawned, so the evidence says so explicitly
+        // (the same additive-note precedent #1587's skipped build step
+        // uses). The gate's full note stays in the action record.
+        if (action.skipped) {
+          buf.writeln(
+            '  note: skipped — the pass had no build-relevant input '
+            '(issue #1624)',
+          );
+        }
       }
     }
 
@@ -158,6 +254,15 @@ class CycleLogEntry {
           buf.writeln('  - step: ${step.command}');
           buf.writeln('    exit: ${step.exitCode}');
           buf.writeln('    purpose: ${step.purpose}');
+          // Issue #1587: a scheduling-skipped build step is auditable
+          // as such — the subprocess never spawned, so the evidence
+          // says so explicitly (the additive optional-line precedent).
+          if (step.buildSkipped) {
+            buf.writeln(
+              '    note: skipped — no builder-consumable input changed '
+              '(issue #1587)',
+            );
+          }
         }
       }
       final newFailures = suiteNewFailures.isEmpty
@@ -186,6 +291,10 @@ class CycleLogEntry {
         return 'green';
       case CycleEntryKind.refactor:
         return 'refactor';
+      case CycleEntryKind.error:
+        return 'error';
+      case CycleEntryKind.refresh:
+        return 'refresh';
     }
   }
 

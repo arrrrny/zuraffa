@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 // Spec 893 — simulation flavor detection (T001).
 //
 // FR-001: a single build-time flag (`--dart-define=SIMULATION=true`)

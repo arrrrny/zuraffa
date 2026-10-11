@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:zuraffa/src/cli/zfa_executable.dart';
 
 import 'project_root.dart';
 
@@ -9,6 +10,104 @@ import 'project_root.dart';
 ///
 /// Resolve once per test file via [initZfaSourceBin] (call it from `setUpAll`).
 String? zfaSourceBin;
+
+/// Parses the raw `ZFA_TEST_TIMEOUT_SCALE` environment value into the
+/// multiplier applied to every subprocess timeout budget in this helper
+/// (issue #1187).
+///
+/// Rules:
+/// - missing / blank / unparsable values -> 1.0 (the validated defaults);
+/// - `NaN` / infinite values -> 1.0 (they would poison every budget into a
+///   hang);
+/// - values below 1.0 clamp up to 1.0 — the scale exists to RELAX budgets
+///   on slow machines, never to tighten them below what CI validates
+///   against.
+///
+/// Exposed as a pure function so the scale mechanism is unit-testable
+/// without spawning a subprocess (see
+/// `test/helpers/zfa_test_timeout_scale_test.dart`).
+double parseTimeoutScale(String? raw) {
+  if (raw == null) return 1.0;
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return 1.0;
+  final value = double.tryParse(trimmed);
+  if (value == null || value.isNaN || value.isInfinite) return 1.0;
+  if (value < 1.0) return 1.0;
+  return value;
+}
+
+/// The process-wide timeout scale, read once at isolate start from
+/// `ZFA_TEST_TIMEOUT_SCALE` via [parseTimeoutScale].
+///
+/// Set it to stretch every budget proportionally on slow hardware — e.g.
+/// `ZFA_TEST_TIMEOUT_SCALE=2 dart test test/feature_flags --preset=all`
+/// doubles the 75s child guard (150s), the 100s AOT compile budget (200s)
+/// and every suite `Timeout` built through [scaleDuration] (issue #1187:
+/// 2019 Intel Mac baseline, modest CI runners).
+final double zfaTestTimeoutScale = parseTimeoutScale(
+  Platform.environment['ZFA_TEST_TIMEOUT_SCALE'],
+);
+
+/// Stretch [base] by [zfaTestTimeoutScale].
+///
+/// Use this for suite-level `Timeout` declarations so the enclosing test
+/// ceiling grows together with the child guard it supervises — the child
+/// guard MUST stay shorter than the enclosing test timeout for its
+/// fail-fast diagnostic to fire first (see [runZfaSource]).
+Duration scaleDuration(Duration base) =>
+    Duration(milliseconds: (base.inMilliseconds * zfaTestTimeoutScale).round());
+
+/// Effective default child budget for [runZfaSource]: 75s x
+/// [zfaTestTimeoutScale].
+Duration get zfaDefaultChildTimeout =>
+    scaleDuration(const Duration(seconds: 75));
+
+/// Effective AOT compile budget for the shared build cache:
+/// [kZfaCompileBaseTimeout] (100s) stretched by [zfaTestTimeoutScale] — the
+/// same budget `ZfaExecutable.ensureCompiled` derives from the same
+/// environment variable (issue #1187).
+Duration get zfaCompileTimeout => scaleDuration(kZfaCompileBaseTimeout);
+
+/// Base budget for EVERY cold source spawn (issue #1623).
+///
+/// Under the documented degraded-environment escape hatch
+/// (`ZFA_ALLOW_JIT=1` — the only path that spawns `dart bin/zfa.dart`), the
+/// child pays the Dart VM front-end + JIT compile of the whole package
+/// before it runs a single command: **84s measured cold start alone** on
+/// the host that filed #1623 (`time dart bin/zfa.dart --version` → 1m24s).
+/// Warm caches are no guarantee either — **71s measured WARM** — so every
+/// source spawn gets the dedicated budget (~2.9x headroom over the cold
+/// measurement) instead of gambling on in-file spawn order; an earlier
+/// spent-once model budgeted only the first spawn and was removed after
+/// the PR #1638 review measured the warm start. 240s also stays BELOW the
+/// enclosing const test ceilings at scale 1.0 (B9b's 6-minute `Timeout`,
+/// B9's 8-minute ceiling), preserving the guard-fires-before-the-ceiling
+/// invariant; higher scales are an explicit operator choice (pair with
+/// `--timeout xN`, see `test/README.md`).
+const Duration kZfaColdSourceBaseTimeout = Duration(seconds: 240);
+
+/// Effective cold source spawn budget: [kZfaColdSourceBaseTimeout]
+/// (240s) stretched by [zfaTestTimeoutScale]. Like every budget here, the
+/// scale only ever RELAXES it (>= 240s at any valid scale).
+Duration get zfaColdSourceChildTimeout =>
+    scaleDuration(kZfaColdSourceBaseTimeout);
+
+/// The budget a `runZfaSource` spawn spends, derived from the spawn shape
+/// (issue #1623). Pure and subprocess-free so the matrix is unit-testable
+/// (see `test/helpers/zfa_test_timeout_scale_test.dart`).
+///
+/// - [explicit] — a caller-passed timeout: returned VERBATIM. Explicit
+///   budgets are never auto-scaled (documented in `test/README.md`);
+///   callers wanting scale-aware custom budgets use [scaleDuration].
+/// - [sourceSpawn] — the resolved entrypoint is a Dart source (the
+///   `ZFA_ALLOW_JIT=1` shape, `ZfaExecutable.isDartScript`): its JIT start
+///   exceeds the 75s guard even warm (84s cold / 71s warm measured,
+///   issue #1623), so EVERY source spawn takes the cold budget.
+Duration resolveChildTimeout({Duration? explicit, required bool sourceSpawn}) {
+  if (explicit != null) return explicit;
+  if (sourceSpawn) return zfaColdSourceChildTimeout;
+  return zfaDefaultChildTimeout;
+}
 
 /// The absolute zuraffa project root, resolved once via [initZfaSourceBin].
 ///
@@ -19,8 +118,8 @@ String? zfaSourceBin;
 /// a safe, hermetic CWD for the child (issue #506).
 late String zfaProjectRoot;
 
-/// Precompiled AOT executable for `bin/zfa.dart`, built once per test file in
-/// [initZfaSourceBin].
+/// Compiled AOT executable for `bin/zfa.dart`, resolved once per test file
+/// in [initZfaSourceBin] through `ZfaExecutable.ensureCompiled`.
 ///
 /// Every spawned `dart bin/zfa.dart` process paid the cost of the `dart`
 /// front-end + JIT compile of the entire zuraffa package before it could run a
@@ -28,139 +127,49 @@ late String zfaProjectRoot;
 /// ~20s of cold compile per spawn that already exceeds the 2-minute *group*
 /// timeout on its own (issue #531). Running a precompiled AOT executable
 /// instead drops each spawn to milliseconds, which is what makes the group
-/// complete well within budget. `null` when the build is unavailable/failed,
-/// in which case [runZfaSource] falls back to `dart bin/zfa.dart`.
+/// complete well within budget.
+///
+/// The no-JIT policy keeps this contract in production too: the cache and the
+/// freshness rules now live in `lib/src/cli/zfa_executable.dart`, shared with
+/// every child the CLI spawns. A build that cannot happen is a hard failure
+/// (see [initZfaSourceBin]) — the pre-policy silent `dart bin/zfa.dart`
+/// fallback survives only under `ZFA_ALLOW_JIT=1`.
 String? zfaExePath;
 
-/// Resolve [zfaSourceBin], [zfaProjectRoot], and (best-effort) [zfaExePath].
+/// Resolve [zfaSourceBin], [zfaProjectRoot], and [zfaExePath].
 ///
 /// Uses [findProjectRoot], which tolerates a contaminated `Directory.current`
 /// (see `test/helpers/project_root.dart`): it only rewrites the process CWD
 /// when the current directory is already invalid, never while a valid
 /// directory is the process CWD. Call this from `setUpAll` so the per-test
 /// bodies never touch the process-global working directory.
+///
+/// Throws (failing the whole test file loudly) when the AOT build cannot
+/// happen and `ZFA_ALLOW_JIT=1` is not set: the no-JIT policy forbids
+/// silently degrading every spawn in the file to a slow, JIT-compiled
+/// `dart bin/zfa.dart` child.
 Future<void> initZfaSourceBin() async {
   final root = await findProjectRoot();
   zfaProjectRoot = root;
   zfaSourceBin = p.join(root, 'bin', 'zfa.dart');
-  zfaExePath = await _buildZfaExeIfPossible();
+  zfaExePath = await _resolveZfaExecutable();
 }
 
-/// Build an AOT executable for [zfaSourceBin] under `.dart_tool` (reusing a
-/// prior build when no CLI dependency has changed).
-///
-/// Returns the executable path on success, or `null` if `dart compile exe` is
-/// unavailable or fails (e.g. under a constrained environment), so the caller
-/// can fall back to running the source. The compile child is supervised with a
-/// kill-on-timeout guard so a hung build never leaks into `setUpAll`.
-Future<String?> _buildZfaExeIfPossible() async {
-  final exeDir = p.join(zfaProjectRoot, '.dart_tool', 'zfa_cli_bin');
-  final exePath = p.join(exeDir, 'zfa_exe');
-  final exeFile = File(exePath);
-  final lockPath = p.join(exeDir, 'build.lock');
-  final lockFile = File(lockPath);
-
-  // Reuse a previous build unless the entrypoint or any file under lib/src is
-  // newer than the executable (invalidate the cache when CLI deps change).
-  if (exeFile.existsSync() && !_isExeStale(exeFile)) {
-    return exePath;
-  }
-
-  await Directory(exeDir).create(recursive: true);
-
-  // Serialize the AOT build across parallel test files. Each test file calls
-  // `initZfaSourceBin()` in its own `setUpAll`, and `dart test` runs multiple
-  // files concurrently — without a lock every file starts its own
-  // `dart compile exe` writing to the same `.dart_tool/zfa_cli_bin/zfa_exe`.
-  // The losers either exec a half-written binary (Linux ETXTBSY /
-  // "Text file busy" — the failure that made `zfa feature enable notes` die on
-  // the CI runner, issue #644) or fall back to the slow `dart bin/zfa.dart`
-  // path and time out. The lock makes exactly one process compile; everyone
-  // else waits for the result and reuses the cached binary.
-  RandomAccessFile? lock;
+/// The entrypoint every spawn in this helper uses: the shared compiled
+/// artifact, or the source path under the explicit `ZFA_ALLOW_JIT=1` escape
+/// hatch. A compile failure is never swallowed.
+Future<String> _resolveZfaExecutable() async {
   try {
-    lock = await _acquireLock(lockFile);
-    // Re-check staleness while holding the lock: another process may have just
-    // finished a build while we waited.
-    if (exeFile.existsSync() && !_isExeStale(exeFile)) {
-      return exePath;
-    }
-
-    // Build to a temp path and atomically rename into place. On Linux the
-    // kernel refuses to exec a file that is currently being written (ETXTBSY /
-    // "Text file busy"), and parallel test files each call
-    // `_buildZfaExeIfPossible()` in their own `setUpAll`. Writing the final
-    // path directly means a concurrent test can start the AOT binary while
-    // `dart compile exe` is still appending to it — the exact race that made
-    // `zfa feature enable notes` fail on the CI runner with
-    // `sh: 1: .../zfa_exe: Text file busy` (issue #644). Compiling to a temp
-    // sibling and `renameSync`-ing it makes the final path appear fully-formed
-    // or not at all, so no spawn ever lands on a half-written binary.
-    final tmpPath = p.join(exeDir, 'zfa_exe.tmp');
-    final tmpFile = File(tmpPath);
-    if (tmpFile.existsSync()) tmpFile.deleteSync();
-    final result = await _runSupervised(
-      ['dart', 'compile', 'exe', zfaSourceBin!, '--output', tmpPath],
-      timeout: const Duration(seconds: 100),
-      workingDirectory: zfaProjectRoot,
+    return await ZfaExecutable.ensureCompiled(zfaSourceBin!);
+  } on ZfaCompilationException catch (e) {
+    throw StateError(
+      'the no-JIT policy requires a compiled zfa for subprocess tests, but '
+      'the AOT build did not produce one:\n$e\n'
+      'Fix the build (or the disk/SDK it needs), or set $kZfaAllowJitEnv=1 '
+      'to spawn `dart bin/zfa.dart` — degraded environments only.',
     );
-    if (result.exitCode == 0 && tmpFile.existsSync()) {
-      tmpFile.renameSync(exePath);
-      return exePath;
-    }
-  } on Object {
-    // Any failure (compile error, timeout, missing SDK) → source fallback.
-  } finally {
-    await lock?.close();
-  }
-  return null;
-}
-
-/// Acquire an exclusive advisory lock on [lockFile], retrying with a short
-/// backoff until it succeeds.
-///
-/// Uses `File.open()` + `lockSync()` (POSIX `flock`) so the lock is tied to the
-/// file descriptor, not a process — a crashed or killed test process releases
-/// it automatically. `dart test` runs multiple test files concurrently, so
-/// every caller must contend for the same lock; the retry loop prevents the
-/// build from being attempted twice in parallel.
-Future<RandomAccessFile> _acquireLock(File lockFile) async {
-  final deadline = DateTime.now().add(const Duration(minutes: 5));
-  while (true) {
-    RandomAccessFile? file;
-    try {
-      file = await lockFile.open(mode: FileMode.write);
-      file.lockSync();
-      return file;
-    } on Object {
-      await file?.close();
-      // `flock` on an already-locked file throws on some platforms; retry
-      // rather than failing the whole test file. Some platforms don't
-      // support `FileLock` at all, in which case the retry loop still lets
-      // the build happen (serially) when possible.
-      if (DateTime.now().isAfter(deadline)) rethrow;
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }
   }
 }
-
-/// True when [exeFile] is older than the CLI entrypoint ([zfaSourceBin]) or any
-/// file under `lib/src`, meaning the cached AOT executable is stale and must be
-/// rebuilt so the integration tests don't run against stale CLI code.
-bool _isExeStale(File exeFile) {
-  final exeMtime = exeFile.lastModifiedSync();
-  if (_isNewer(zfaSourceBin!, exeMtime)) return true;
-  final libDir = Directory(p.join(zfaProjectRoot, 'lib', 'src'));
-  if (libDir.existsSync()) {
-    for (final entity in libDir.listSync(recursive: true)) {
-      if (entity is File && _isNewer(entity.path, exeMtime)) return true;
-    }
-  }
-  return false;
-}
-
-bool _isNewer(String path, DateTime reference) =>
-    File(path).lastModifiedSync().isAfter(reference);
 
 /// Run `zfa` as a subprocess with an explicit [workingDirectory].
 ///
@@ -171,21 +180,39 @@ bool _isNewer(String path, DateTime reference) =>
 /// end-to-end CLI tests from contaminating — or being contaminated by — other
 /// test files under parallel `dart test` (issue #506).
 ///
-/// Prefers the precompiled AOT executable ([zfaExePath]); falls back to
-/// `dart bin/zfa.dart` when it is unavailable. Both paths are supervised by the
-/// same kill-on-timeout guard ([_runSupervised]) so a hung child fails fast
-/// instead of silently occupying the test until the group timeout is exhausted
-/// (issue #531).
+/// The child is the compiled AOT executable ([zfaExePath]) — `dart
+/// bin/zfa.dart` survives only under the explicit `ZFA_ALLOW_JIT=1` escape
+/// hatch, shaped by `ZfaExecutable.commandFor` so no site can drift. Both
+/// paths are supervised by the same kill-on-timeout guard ([_runSupervised])
+/// so a hung child fails fast instead of silently occupying the test until
+/// the group timeout is exhausted (issue #531).
 Future<ProcessResult> runZfaSource(
   List<String> args, {
   required String workingDirectory,
-  Duration timeout = const Duration(seconds: 75),
+  Duration? timeout,
 }) async {
   assert(zfaSourceBin != null, 'call initZfaSourceBin() in setUpAll');
+  final exe = zfaExePath;
+  assert(exe != null, 'call initZfaSourceBin() in setUpAll');
 
-  final command = zfaExePath != null
-      ? [zfaExePath!, ...args] // AOT fast path (milliseconds per spawn)
-      : ['dart', zfaSourceBin!, ...args]; // source fallback
+  // Default budget: 75s base x ZFA_TEST_TIMEOUT_SCALE (issue #1187). Nullable
+  // parameter (instead of a const default) because the scaled budget is
+  // computed at isolate start, not a compile-time constant.
+  //
+  // Issue #1623: a source spawn (the ZFA_ALLOW_JIT=1 shape, where the
+  // child pays an 84s-measured cold JIT start before doing any work — 71s
+  // even warm) takes the dedicated 240s cold budget on EVERY spawn; the
+  // flat 75s guard cannot cover it. The decision is pure
+  // (resolveChildTimeout).
+  final sourceSpawn = ZfaExecutable.isDartScript(exe!);
+  final childTimeout = resolveChildTimeout(
+    explicit: timeout,
+    sourceSpawn: sourceSpawn,
+  );
+
+  // AOT fast path (milliseconds per spawn); the `dart <script>` shape only
+  // exists under ZFA_ALLOW_JIT=1 (enforced by commandFor).
+  final command = ZfaExecutable.commandFor(exe, args);
 
   // Child guard MUST be shorter than the enclosing test *group* timeout (see
   // `xray_mock_cli_test.dart:38`). A hanging/over-slow spawn is killed here and
@@ -196,20 +223,24 @@ Future<ProcessResult> runZfaSource(
   // group cap. Callers that drive `build_runner` (e.g. `zfa build`) pass a
   // longer budget, because the first `build.dart` AOT compile + codegen can
   // legitimately exceed 75s under concurrency contention (#531, SC-001).
+  // Slow machines raise the default via ZFA_TEST_TIMEOUT_SCALE (#1187) and
+  // the feature_flags suite's scaled `Timeout` ceilings grow with it, so the
+  // guard stays inside the ceiling at any scale.
 
   // On Linux a freshly-written AOT binary can refuse to execute with
   // `Text file busy` (ETXTBSY) for a few milliseconds after the write
   // completes, and the AOT path is the one that lands on the CI runner. The
-  // atomic rename in `_buildZfaExeIfPossible` removes the half-written-binary
-  // window; this retry is the second line of defense for the rare case where
-  // the kernel still holds the exec cache. The fallback `dart` path never
-  // hits ETXTBSY, so retries only cost a few milliseconds.
+  // atomic rename in `ZfaExecutable.ensureCompiled` removes the
+  // half-written-binary window; this retry is the second line of defense for
+  // the rare case where the kernel still holds the exec cache. The JIT
+  // escape-hatch `dart` path never hits ETXTBSY, so retries only cost a few
+  // milliseconds.
   const maxRetries = 3;
   for (var attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await _runSupervised(
         command,
-        timeout: timeout,
+        timeout: childTimeout,
         workingDirectory: workingDirectory,
       );
     } on ProcessException catch (e) {

@@ -1,11 +1,13 @@
-// Subject T6 (spec 0966, issue #966): goldens stay advisory, navigation
-// is a kind of its own.
+// Subject T6 (spec 0966, issue #966; kinds refined by spec 1334, issue
+// #1143): goldens stay advisory, navigation is a kind of its own.
 //
 // FR-005: the navigation verb yields a NAVIGATION row (the route
 // outcome sign-in → deal_list). FR-007 + AC-11: golden rows are
 // advisory with per-platform tolerance — they never block the merge
 // gate regardless of state (recorded decision: flaky economics on slow
-// CI) and the deck reports them separately as advisory.
+// CI) and the deck reports them separately as advisory. Issue #1143
+// refines the data model: golden is an advisory FLAG on a presence
+// row, not a sixth kind — the 0966 advisory semantics hold verbatim.
 library;
 
 import 'package:test/test.dart';
@@ -22,15 +24,18 @@ Object? subject_t6() {
   expect(nav.kind, LedgerRowKind.navigation);
   expect(nav.surface, 'deal_list');
 
-  // --- the golden scenario yields an ADVISORY golden row --------------
+  // --- the golden scenario yields an ADVISORY presence row (1143) -----
   final golden = DeclaredLedgerRow.fromScenario(
     surface: 'login view matches the golden',
     scenario: 'the login view matches the golden snapshot on every platform',
     platformTolerance: {'ios': 0.5, 'android': 1.0, 'web': 2.0},
   );
-  expect(golden.kind, LedgerRowKind.golden);
+  expect(golden.kind, LedgerRowKind.presence); // golden is a flag, not a kind
   expect(golden.surface, 'login view matches the golden');
-  expect(golden.advisory, isTrue); // advisory by kind, never gate surface
+  expect(
+    golden.advisory,
+    isTrue,
+  ); // advisory by plan-time flag, never gate surface
   expect(golden.platformTolerance['android'], 1.0);
 
   // --- the gate: goldens NEVER block the merge gate (AC-11) -----------
@@ -48,7 +53,7 @@ Object? subject_t6() {
     ],
     greenBehaviors: const {'A1', 'A4'},
   );
-  final goldenRow = ledger.singleWhere((r) => r.kind == LedgerRowKind.golden);
+  final goldenRow = ledger.singleWhere((r) => r.advisory);
   expect(goldenRow.state, 'NOT-DONE'); // red goldens are visible...
   final verdict = TypedCoverageGate.evaluate(
     feature: '004-login-ui',
@@ -59,11 +64,12 @@ Object? subject_t6() {
   expect(verdict.advisoryRows, hasLength(1));
   expect(verdict.encode(), contains('"platformTolerance":{"ios":0.5,'));
 
-  // kind coverage excludes advisory rows (they are not gate surface).
-  expect(
-    verdict.kindCoverage.every((c) => c.kind != LedgerRowKind.golden),
-    isTrue,
+  // kind coverage excludes advisory rows (they are not gate surface —
+  // the golden row never inflates the presence kind totals).
+  final presenceCoverage = verdict.kindCoverage.singleWhere(
+    (c) => c.kind == LedgerRowKind.presence,
   );
+  expect(presenceCoverage.total, 1); // "Sign In" only — not the golden
 
   // --- the deck reports goldens separately as advisory (FR-007) -------
   final advisoryEntries = XrayLedgerDeck.advisoryEntries(ledger);

@@ -1,5 +1,7 @@
 # Feature Specification: [FEATURE NAME]
 
+**Template Version**: `zuraffa-1.0`
+
 **Feature Branch**: `[###-feature-name]`
 
 **Created**: [DATE]
@@ -33,8 +35,20 @@
 
 **Acceptance Scenarios**:
 
+<!--
+  Routing declaration (issue #1186): every scenario MUST carry a `**Type**`
+  marker on the line after its Given/When/Then header — `zfa tdd plan` routes
+  the behavior by it (never by prose sniffing) and `--strict-routing` refuses
+  a scenario without one. Use `acceptance` for plain business outcomes,
+  `widget` for UI-observable outcomes (renders, navigates, shows), and the
+  other declared kinds (unit, theme, ffi, platform) when the scenario
+  exercises that lane.
+-->
+
 1. **Given** [initial state], **When** [action], **Then** [expected outcome]
+   **Type**: acceptance
 2. **Given** [initial state], **When** [action], **Then** [expected outcome]
+   **Type**: acceptance
 
 ---
 
@@ -49,6 +63,7 @@
 **Acceptance Scenarios**:
 
 1. **Given** [initial state], **When** [action], **Then** [expected outcome]
+   **Type**: acceptance
 
 ---
 
@@ -63,6 +78,7 @@
 **Acceptance Scenarios**:
 
 1. **Given** [initial state], **When** [action], **Then** [expected outcome]
+   **Type**: acceptance
 
 ---
 
@@ -87,8 +103,18 @@
 
 ### Functional Requirements
 
+<!--
+  Contract traces (issue #1186): every functional requirement that exercises
+  a declared contract row (Layer Contracts, Key Entities, External
+  Dependencies) MUST name it on a `traces:` continuation line — the plan
+  routes the behavior by the DECLARED row (never by prose sniffing) and
+  `--strict-routing` requires it. A trace to a name that no row declares is
+  refused (dangling reference) naming the spec line.
+-->
+
 - **FR-001**: System MUST [specific capability, e.g., "allow users to create accounts"]
 - **FR-002**: System MUST [specific capability, e.g., "validate email addresses"]
+            traces: Validator
 - **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
 - **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
 - **FR-005**: System MUST [behavior, e.g., "log all security events"]
@@ -98,10 +124,39 @@
 - **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
 - **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
 
-### Key Entities *(include if feature involves data)*
+## Layer Contracts
 
-- **[Entity 1]**: [What it represents, key attributes without implementation]
-- **[Entity 2]**: [What it represents, relationships to other entities]
+<!--
+  ACTION REQUIRED (issue #1186): declare the interfaces the requirements
+  exercise, one bullet per row under a bold layer label. `zfa tdd plan`
+  derives a CONTRACT behavior per declared method (issue #1007) and routes
+  traced FRs by these rows (issue #1186: `traces:` under the FR). Declared
+  signatures must be `name(Params) -> Return` — a malformed Function
+  signature refuses the plan naming the row. Delete this section when the
+  feature declares no interfaces.
+-->
+
+**Function**:
+- `Validator`: `validate(Input) -> Result`
+
+**Domain**:
+- `[Interface]`: `[method](Params) -> Return`
+
+**Presentation**:
+- `[Controller]`: `[method](Params) -> Return`
+
+### Key Entities
+
+<!--
+  ACTION REQUIRED: declare the feature's data entities as a 3-column table
+  (the zuraffa-1.0 grammar). Each row is a declared contract row an FR can
+  trace to (`traces: <Entity>`); the loop creates and wires them at run
+  time. Delete this section when the feature involves no data.
+-->
+
+| Entity | Fields | Purpose |
+| -- | -- | -- |
+| [Entity1] | `id: String`, `status: String` | [What it represents] |
 
 ## Lanes *(include when the feature splits engine vs. skin)*
 
@@ -140,6 +195,33 @@ Lanes:
   - lane: BOTH
     behaviors: [A3 (acceptance: navigates to deal_list)]
     flutter_allowed: conditionally
+```
+
+## Skin Contract *(include when the skin surface needs a declared contract)*
+
+<!--
+  ACTION REQUIRED (issue #1004, adaptive-layout platform matrix):
+  declare the skin's typed contract — the adaptive platform slots, the
+  per-platform overrides, the view state machine, and the routes the
+  skin can navigate to. `zfa tdd plan` renders these into `tdd/04-SKIN.md`
+  as typed rows (the platform matrix, the state machine, the route
+  table) plus a machine-parseable JSON contract the loop referees the
+  skin against — never prose. Requires a `## Lanes` section (the
+  contract rides the SKIN lane), and the `adaptive_slots` declared here
+  must match the SKIN lane's. Unknown keys, duplicates, and slot/override
+  drift refuse the plan naming the offending key.
+-->
+
+```yaml
+Skin Contract:
+  adaptive_slots: [mobile, ios, android, macos]
+  platform_overrides:
+    ios:
+      home_indicator_safe_area: required
+    macos:
+      title_bar_alignment: trailing
+  states: [initial, loading, data, error, empty]
+  routes: [login, deal_list, settings]
 ```
 
 ## Success Criteria *(mandatory)*

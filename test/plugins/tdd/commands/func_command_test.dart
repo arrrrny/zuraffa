@@ -22,8 +22,10 @@
 //         content is preserved.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
@@ -250,4 +252,73 @@ $helper
     expect(subject, contains('String subject_b_001()'));
     expect(subject, isNot(contains('UnimplementedError')));
   });
+
+  test(
+    'U-1603c: a missing subject recorded on the CANONICAL side of a '
+    'symlinked root reports "missing subject file", never "outside the '
+    'project root" (#1603)',
+    () async {
+      await fx.registerBehavior(
+        id: 'B-001',
+        description: 'render returns a non-empty string',
+        // registerBehavior records subject_path but writes no subject
+        // file — the missing-artifact case exactly.
+      );
+      // Simulate a legacy registry where gen recorded the CANONICAL
+      // absolute subject path (Directory.current is canonicalized on
+      // macOS): the record travels the resolved side of the root symlink
+      // while `--project` travels the raw side (issue #1603).
+      final canonicalRoot = await Directory(
+        fx.root.path,
+      ).resolveSymbolicLinks();
+      final registryFile = File(fx.artifactsPath);
+      final registry =
+          jsonDecode(await registryFile.readAsString()) as Map<String, dynamic>;
+      final records = (registry['records'] as List<dynamic>)
+          .cast<Map<String, dynamic>>();
+      for (final record in records) {
+        if (record['behavior_id'] == 'B-001') {
+          record['subject_path'] = p.join(
+            canonicalRoot,
+            'lib',
+            'b_001_subject.dart',
+          );
+          record['test_path'] = p.join(
+            canonicalRoot,
+            'test',
+            'b_001_test.dart',
+          );
+        }
+      }
+      await registryFile.writeAsString(jsonEncode(registry));
+
+      // Pass the ALIAS as --project: the raw cwd then canonicalizes to a
+      // different prefix — macOS's /var → /private/var shape (#1603).
+      final aliasPath = await symlinkRootAlias(fx);
+      addTearDown(() => Link(aliasPath).deleteSync());
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'func',
+        'B-001',
+        '--project',
+        aliasPath,
+      ]);
+
+      expect(exitCode, isNot(0), reason: 'out: $out');
+      expect(out, contains('runner-error'));
+      expect(out, contains('missing subject file'));
+      expect(out, contains('zfa tdd gen B-001'));
+      expect(
+        out,
+        isNot(contains('outside the project root')),
+        reason:
+            'the project\'s own recorded subject is never outside the '
+            'root — the two path strings only disagreed because one side '
+            'of the root symlink is canonical and the other is raw (#1603)',
+      );
+    },
+    onPlatform: {'windows': const Skip('symlink creation may need privileges')},
+  );
 }

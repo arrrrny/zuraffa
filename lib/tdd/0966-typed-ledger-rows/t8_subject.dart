@@ -111,10 +111,11 @@ Object? subject_t8() {
   expect(malformed, contains('| error banner | absence |  | NOT-DONE |  |  |'));
 
   // --- advisory rows are not gate surface in the markdown counts -------
+  // (issue #1143: a golden row is a presence row flagged advisory)
   final withGolden = TypedLedgerBuilder.toJson([
     const TypedLedgerRow(
       surface: 'login golden',
-      kind: LedgerRowKind.golden,
+      kind: LedgerRowKind.presence,
       state: 'NOT-DONE',
       advisory: true,
       platformTolerance: {'ios': 0.5},

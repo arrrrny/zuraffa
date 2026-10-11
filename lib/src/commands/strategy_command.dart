@@ -1,3 +1,4 @@
+import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/strategy/strategy_plugin.dart';
@@ -42,6 +43,18 @@ class StrategyCommand extends PluginCommand {
   String get description =>
       'Generate FetchStrategy abstract base, concrete variants, and StrategySelector';
 
+  /// SPEC 917 / #876 sweep: run()'s programmatic positional path reads
+  /// every parent-level flag listed below — they are LIVE, declared here so
+  /// `zfa manifest --verify` certifies them instead of flagging them dead
+  /// (spec #979).
+  @override
+  Set<String> get consumedParentFlags => const {
+    'domain',
+    'params',
+    'returns',
+    'strategies',
+  };
+
   @override
   Future<void> run() async {
     // Delegate to subcommand (e.g. `zfa strategy create`) if one was given.
@@ -66,7 +79,14 @@ class StrategyCommand extends PluginCommand {
         plugin.capabilities.firstWhere((c) => c is CreateStrategyCapability)
             as CreateStrategyCapability;
 
-    final result = await capability.execute({
+    // Issue #1138: route the standalone invocation through the
+    // CapabilityInvocationWrapper so a successful run persists its
+    // proof.v1 receipt (best-effort inside the wrapper).
+    final wrapper = CapabilityInvocationWrapper(
+      capability: capability,
+      pluginId: plugin.id,
+    );
+    final result = await wrapper.execute({
       'name': entityName,
       'strategies': strategies,
       'params': params,

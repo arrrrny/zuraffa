@@ -35,10 +35,19 @@ const Set<String> kRequiredEnvelopeKeys = {
 };
 
 /// The only keys allowed beyond the required set (optional fields).
-const Set<String> kOptionalEnvelopeKeys = {'feature', 'fix'};
+/// `subject` and `findings` are the SPEC 1106 verify-gate extension —
+/// the tdd verbs never set them (omitted from the JSON), so the verbs'
+/// emitted shapes are unchanged; the keys are legal envelope surface for
+/// verify-gate commands (`di verify`, `datasource check`).
+const Set<String> kOptionalEnvelopeKeys = {
+  'feature',
+  'fix',
+  'subject',
+  'findings',
+};
 
 /// The canonical schema name (never drifts).
-const String kSchemaName = 'verdict.v1';
+const String kSchemaName = 'zuraffa.verdict.v1';
 
 /// The allowed verdict categories.
 const Set<String> kVerdictCategories = {'pass', 'fail', 'stopped', 'error'};
@@ -95,10 +104,43 @@ void main() {
 
   setUp(() {
     tmp = Directory.systemTemp.createTempSync('bug969_json_');
+    // Issue #1528: gen's entry preflight is a SILENT NO-OP when the TDD
+    // profile exists (no writes at all — no pubspec read, no baseline
+    // writes) — seed it so these tests keep pinning gen's own behavior
+    // byte-for-byte in a pubspec-less fixture. The missing-profile
+    // auto-init path is covered by commands/issue_1528_setup_error_test.dart.
+    final memoryDir = Directory(p.join(tmp.path, '.specify', 'memory'));
+    memoryDir.createSync(recursive: true);
+    File(p.join(memoryDir.path, 'tdd-profile.md')).writeAsStringSync('''
+# TDD Profile — fixture
+
+## Commands
+
+- Single test: `dart test {file} --plain-name "{name}"`
+- Full suite: `dart test`
+
+## Keys (machine-readable)
+
+```yaml
+runner: dart
+single: 'dart test {file} --plain-name "{name}"'
+suite: 'dart test'
+file: 'dart test {file}'
+coverage: 'dart test --coverage'
+```
+''');
   });
 
   tearDown(() {
     if (tmp.existsSync()) tmp.deleteSync(recursive: true);
+    // `dart:io exitCode` is process-global across suite isolates — the
+    // commands this suite drives stop with non-zero codes (the T005
+    // marker-less plan probe exits 3, the verdicts/refusal probes exit
+    // 64/2) and the value stands between invocations. Reset it here so a
+    // concurrent suite reading exitCode never sees this suite's last
+    // dispatched code (the cross-suite leak that flaked bug_919 A10,
+    // bug #1107; same hazard family as issue #1096).
+    exitCode = 0;
   });
 
   Future<String> runJson(List<String> args) {
@@ -610,7 +652,7 @@ void main() {
         final last = _lastNonEmptyLine(out);
         expect(last.startsWith('{"schema"'), isFalse);
         // The compact envelope encoding never appears in captured output.
-        expect(out, isNot(contains('"schema":"verdict.v1"')));
+        expect(out, isNot(contains('"schema":"zuraffa.verdict.v1"')));
       },
     );
   });

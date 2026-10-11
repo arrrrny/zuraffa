@@ -62,6 +62,18 @@ This document summarizes breaking changes introduced in the v2 series. Use it al
 - New `--strict-routing` flag (plan + make): undeclared routing intent exits 1
   with the spec line and the declaration to add; no fallback lanes engage and
   no artifacts are written.
+- Issue #1186: the fallback is a ONE-TIME migration. `zfa tdd plan` (by
+  default) emits the classified `**Type**` marker back into `spec.md` for
+  every scenario the legacy classifier routed — the next plan routes those
+  behaviors `[declared:]` with zero fallback lines, and `--strict-routing`
+  becomes usable. Pass `--no-emit-markers` to keep the spec untouched. The
+  speckit spec template now emits the markers from birth: every scenario
+  example carries `**Type**`, the FR section shows the `traces:` continuation,
+  and the template declares `## Layer Contracts` (plus the bare `### Key
+  Entities` heading the parser actually reads — the suffixed heading never
+  matched). Unit behaviors still need an author-declared contract trace: a
+  classifier cannot invent a row name.
 - Action required: add `**Type**` markers / contract traces to specs you want
   fully declared, then adopt `--strict-routing`. Undeclared specs keep routing
-  through the labeled fallback until then.
+  through the labeled fallback until then — a single plain `zfa tdd plan`
+  run migrates the scenario markers for you.

@@ -1,9 +1,27 @@
+@Tags(['slow'])
+library;
+
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../helpers/run_zfa_source.dart';
+
+/// Enclosing-test ceiling for this suite, stretched by
+/// `ZFA_TEST_TIMEOUT_SCALE` (issue #1187). Base 3 minutes: covers one
+/// `zfa make` spawn through the helper's 75s child guard with headroom
+/// (worst case: cold source fallback on old hardware) and grows with the
+/// guard at any scale. These tests exercise flag plumbing, not speed
+/// (issue #1187).
+///
+/// Note: an explicit `Timeout(Duration)` constructor bypasses
+/// `dart_test.yaml`'s `slow: timeout: 4x` factor — the override is
+/// intentional so the ceiling can stretch together with the child guard at
+/// any scale.
+final Timeout kZfaScaledSuiteTimeout = Timeout(
+  scaleDuration(const Duration(minutes: 3)),
+);
 
 /// A5, A6, U6 — a disabled feature's slice is skipped before planning:
 /// zero files written, skip reason printed; an enabled feature proceeds.
@@ -78,7 +96,7 @@ class ProAnalytics {
       contains('skipped'),
       reason: 'the skip reason must be printed',
     );
-  });
+  }, timeout: kZfaScaledSuiteTimeout);
 
   test('A5/U6: enabled feature slice proceeds past the flag gate', () async {
     File(p.join(workspace.path, '.zfa.json')).writeAsStringSync('''
@@ -107,7 +125,7 @@ class ProAnalytics {
       isNot(contains('skipped')),
       reason: 'enabled feature must not be flag-skipped',
     );
-  });
+  }, timeout: kZfaScaledSuiteTimeout);
 
   test(
     'disabled gate blocks the entity-file guard too (skip before planning)',
@@ -131,5 +149,6 @@ class ProAnalytics {
         contains('skipped'),
       );
     },
+    timeout: kZfaScaledSuiteTimeout,
   );
 }

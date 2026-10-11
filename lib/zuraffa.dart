@@ -5,7 +5,6 @@ import 'src/core/failure_reporter.dart';
 import 'src/core/failure_reporter_registry.dart';
 import 'src/core/hook.dart';
 import 'src/core/hook_registry.dart';
-import 'src/core/otel_failure_reporter.dart';
 import 'src/core/otel_log_exporter.dart';
 import 'src/core/retry_policy.dart';
 import 'src/core/zuraffa_bridge_facade.dart';
@@ -204,12 +203,6 @@ export 'src/core/failure_report_queue.dart' show FailureReportQueue;
 export 'src/core/failure_report_store.dart' show FailureReportStore;
 export 'src/core/failure_reporter.dart';
 export 'src/core/failure_reporter_registry.dart' show FailureReporterRegistry;
-export 'src/core/otel_failure_reporter.dart' show OtelFailureReporter;
-export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
-export 'src/core/otel_tracer.dart' show OtelTracer;
-
-export 'package:opentelemetry/api.dart' hide SpanStatus;
-
 export 'src/core/retry_policies.dart'
     show ExponentialBackoffRetryPolicy, FixedIntervalRetryPolicy, NoRetryPolicy;
 export 'src/core/retry_policy.dart' show ReportRetryPolicy;
@@ -217,24 +210,36 @@ export 'src/core/retry_policy.dart' show ReportRetryPolicy;
 /// Artifact publisher — general-purpose hook system for publishing
 /// artifacts (HTML, images, files) for any reason (failure, scan, debug).
 export 'src/core/artifact_publisher.dart'
-    show ArtifactPublisher, ArtifactHook, ArtifactContext, MinIOArtifactHook;
+    show ArtifactPublisher, ArtifactHook, ArtifactContext;
 
 /// UseCase Hook system — intercept any UseCase at pre/success/failure phases
 export 'src/core/hook.dart' show Hook, HookPhase, HookContext;
 export 'src/core/hook_registry.dart' show HookRegistry;
-export 'src/core/telemetry_hook.dart' show TelemetryHook;
 
 /// Failure hooks — backward-compatible layer delegating to ArtifactPublisher.
 export 'src/core/failure_hooks.dart'
-    show
-        FailureHook,
-        FailureHookManager,
-        FailureContext,
-        MinIOUploadHook,
-        ResultFailureHooks;
+    show FailureHook, FailureHookManager, FailureContext;
 
 /// Lightweight S3-compatible MinIO client with AWS Signature V4.
-export 'src/core/minio_client.dart' show MinioClient;
+
+/// Unified TDD journal (spec 1113, issue #1113): the one machine-
+/// parseable record of run-engine then run-skin. `JournalReader` is the
+/// ONE canonical read API any tool (theater, status, prove, simulate)
+/// consumes — journal entries, the refs-followed lane receipts, the
+/// cycle-log content, the per-behavior green evidence, and the derived
+/// one-line verdict.
+export 'src/plugins/tdd/services/journal.dart'
+    show
+        JournalReader,
+        JournalWriter,
+        JournalEntry,
+        JournalStepError,
+        JournalSchema,
+        JournalException,
+        FeatureJournal,
+        JournalVerdict,
+        JournalBehavior,
+        journalFileFingerprint;
 
 export 'src/core/generation/generation_context.dart';
 export 'src/core/context/file_system.dart';
@@ -381,6 +386,10 @@ export 'src/core/usecase/zuraffa_usecase.dart';
 export 'src/core/context/zuraffa_context.dart';
 
 /// TelemetryMesh — global trace/span coordinator and auto-instrumentation.
+export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
+export 'src/core/trace_observer.dart' show TraceObserver;
+export 'src/simulation/simulation_adapters.dart'
+    show SpanSnapshot, SimulationSpanCapture;
 export 'src/core/telemetry/telemetry_mesh.dart';
 
 // ============================================================
@@ -466,9 +475,11 @@ export 'src/state/slices/signal_slice.dart';
 
 // SlicePresenter — manages multiple slices with backward-compatible state.
 export 'src/state/presenter/slice_presenter.dart';
-
-// FragmentBuilder — widget subscribing to a single slice.
-export 'src/state/widgets/fragment_builder.dart';
+// v6 state widgets (ControlledWidget, SignalBuilder, FragmentBuilder) and
+// their pure-Dart host machinery are owned solely by zuraffa_flutter and are
+// deliberately NOT exported here. Re-exporting same-named core copies makes
+// every Flutter package that depends on both packages fail `dart analyze`
+// with ambiguous_export (BUG-1173; spec 014 pure-dart-core-split).
 
 // StateMigrator — converts v5 .state.dart to v6 slice pattern.
 // The StateMigrator class is hidden from public API but remains accessible
@@ -499,15 +510,6 @@ export 'src/state/cache/cache_binding.dart';
 // CacheBindingPlugin — DDA plugin for @Cacheable processing.
 export 'src/state/generator/cache_binding_generator.dart';
 
-// WidgetHost — pure-Dart mount/lifecycle layer for ControlledWidget views.
-export 'src/state/widgets/widget_host.dart';
-
-// ControlledWidget — base widget with typed controller and lifecycle hooks.
-export 'src/state/widgets/controlled_widget.dart';
-
-// SignalBuilder — rebuilds on pure UI Signal changes.
-export 'src/state/widgets/signal_builder.dart';
-
 // ViewTemplateGenerator — generates ControlledWidget-based views.
 export 'src/state/generator/view_template_generator.dart';
 
@@ -520,6 +522,7 @@ export 'src/graphql/types/graphql_type.dart';
 
 // SchemaParser — two-pass introspection JSON parser.
 export 'src/graphql/schema/schema_parser.dart';
+export 'src/graphql/codegen/codegen_types.dart';
 
 // SchemaCache — load/save schema.json with HTTP fetch stub.
 export 'src/graphql/cache/schema_cache.dart';
@@ -543,33 +546,10 @@ export 'src/graphql/mapping/type_mapper.dart';
 // DocumentBuilder — query/mutation/subscription document generation.
 export 'src/graphql/document/document_builder.dart';
 
-// GraphQLDocumentBuilder — AST-based .graphql file generation via package:gql.
-export 'src/graphql/gql/graphql_document_builder.dart';
-
-// DocumentsDartGenerator — documents.dart with DocumentNode constants.
-export 'src/graphql/gql/documents_dart_generator.dart';
-
-// NamingUtils — shared naming utilities for consistent variable naming.
-export 'src/graphql/gql/naming_utils.dart';
-
-// GraphQLValidator — validates documents against the cached schema.
-export 'src/graphql/validators/graphql_validator.dart';
-
-// GqlFilePreserver — preserves valid user-edited .graphql files.
-export 'src/graphql/preservers/gql_file_preserver.dart';
-
-// ============================================================
-// V6 GraphQL Client Runtime & Subscriptions
-// ============================================================
-
-// GraphQLClientFactory — assembles GraphQLClient from .zfa.json config.
-export 'src/graphql/client/graphql_client_factory.dart';
-
-// GraphQLClientProvider — singleton lazily-built client provider.
-export 'src/graphql/client/graphql_client_provider.dart';
-
-// SubscriptionStream — GraphQL subscription -> SignalResult streams.
-export 'src/graphql/client/subscription_stream.dart';
+// The gql-based surfaces (document builder, documents generator, naming
+// utils, validator, file preserver) and the GraphQL client runtime
+// (client factory/provider, subscription streams) moved to
+// package:zuraffa_graphql (spec 1653) — import them from that package.
 
 // ============================================================
 // V6 GraphQL Codegen — Schema-to-Full-Stack Generation
@@ -584,26 +564,14 @@ export 'src/graphql/codegen/dto_generator.dart';
 // UnionGenerator — GraphQL UNION types -> sealed class hierarchies.
 export 'src/graphql/codegen/union_generator.dart';
 
-// DatasourceGenerator — package:graphql remote datasource.
-export 'src/graphql/codegen/datasource_generator.dart';
-
 // RepositoryGenerator — interface + impl delegating to datasource.
 export 'src/graphql/codegen/repository_generator.dart';
-
-// DiGenerator — ZuraffaContainer registrations.
-export 'src/graphql/codegen/di_generator.dart';
-
-// SliceOrchestrator — orchestrates all generators for a schema slice.
-export 'src/graphql/codegen/slice_orchestrator.dart';
 
 // ErrorMappingConfig — .zfa.json graphql.errorMapping -> AppFailure mapping.
 export 'src/graphql/codegen/error_mapping_config.dart';
 
 // UnionResultHandler — union result -> AppFailure/SignalResult codegen.
 export 'src/graphql/codegen/union_result_handler.dart';
-
-// GraphqlGenerateCommand — `zfa graphql generate` command class.
-export 'src/graphql/codegen/graphql_generate_command.dart';
 
 // GraphQL introspection — fetch and parse remote schemas.
 export 'src/graphql/graphql_introspection_service.dart';
@@ -702,84 +670,45 @@ export 'src/i18n/i18n_service.dart';
 // Pure-Dart (FR-012): no package:flutter import anywhere in this subtree.
 export 'src/cli/standard/standard.dart';
 
-// ── 023-agent-plugin-ui-render — agent-authored live, interactive UI ──
-// `ui.render` tool + streaming UI event channel + action-loop closure.
-// Agents author a component tree validated against the UI Vocabulary Schema;
-// user interactions route back as semantic actions. confirm-tier actions are
-// gated by a policy shell. Per-mission-type vocabulary narrowing restricts
-// the agent's allowed components. Pure-Dart (no package:flutter import
-// anywhere in this subtree).
-//
-// `ValidationResult` is hidden here to avoid an ambiguous-export conflict with
-// `package:zuraffa/src/core/plugin_system/plugin_lifecycle.dart`, which already
-// exports a same-named type from the plugin-lifecycle subsystem. Consumers
-// that need the ui_render ValidationResult should import
-// `package:zuraffa/src/agent/ui_render/ui_vocabulary_schema.dart` directly.
-// NOTE: `MissionTraceRecorder` is defined by BOTH the ui_render plugin
-// (#023) and the policy shell (#027, this PR). They are unrelated features
-// (render-tree trace vs tool-call trace) that coincidentally share the name.
-// The policy shell's `MissionTraceRecorder` is kept in the public barrel;
-// ui_render's remains available via its own relative import and is hidden here
-// to avoid an ambiguous-export error. See zuraffa.dart policy-shell export.
-// ---------------------------------------------------------------------------
-// UI Vocabulary Authority (spec 024 — shadcn plugin)
-// ---------------------------------------------------------------------------
+// ── Skin UI Vocabulary Authority (spec 024 — skin plugin) ────────────
+// The skin-side vocabulary surface used by `zfa make <Name> --ui` and the
+// skin plugin. (The agent-side ui_render plugin that also consumed this
+// vocabulary moved behind the dedicated agent barrel — issue #1344.)
 
 // NodeRegistry — the authoritative built-in + composite node vocabulary.
-export 'src/plugins/shadcn/vocabulary/ui_node_registry.dart';
+export 'src/plugins/skin/vocabulary/ui_node_registry.dart';
 
 // VocabularySchemaExporter + UiRenderInputSchema (SC-004).
-export 'src/plugins/shadcn/vocabulary/vocabulary_schema_exporter.dart';
+export 'src/plugins/skin/vocabulary/vocabulary_schema_exporter.dart';
 
 // UiPayloadValidator — per-category payload diagnostics.
-export 'src/plugins/shadcn/vocabulary/payload_validator.dart';
+export 'src/plugins/skin/vocabulary/payload_validator.dart';
 
 // CompositeScaffolder — zfa make <Name> --ui.
-export 'src/plugins/shadcn/vocabulary/composite_scaffolder.dart';
+export 'src/plugins/skin/vocabulary/composite_scaffolder.dart';
 
 // UiVocabularyExportCapability — MCP-discoverable export (FR-006).
-export 'src/plugins/shadcn/capabilities/ui_vocabulary_export_capability.dart';
+export 'src/plugins/skin/capabilities/ui_vocabulary_export_capability.dart';
 
-export 'src/agent/ui_render/ui_render.dart'
-    hide ValidationResult, ValidationError, MissionTraceRecorder;
-
-// ── 026-agent-kernel-mission — mission coalescing, cancellation, partial-salvage ──
-// The agent kernel's efficiency + safety core. Identical missions coalesce
-// into one execution via a composite key (spark type + normalized value +
-// country + strategy variant); mid-execution cancellation triggers a grace
-// period that disposes resources and salvages partials as `cancelled_partial`;
-// an idempotency cache serves repeated submissions within TTL. Single-isolate
-// assumption documented; MissionExecutor is the multi-isolate extension point.
-// Pure-Dart (no package:flutter import anywhere in this subtree).
-export 'src/agent/kernel/agent_kernel.dart'
-    hide
-        CancelToken,
-        Mission,
-        MissionEvent,
-        MissionEventCompleted,
-        MissionEventFailed;
-
-// ── 027-agent-policy-shell — ToolGatingHook, MissionBudgetHook, MissionTraceRecorder ──
-// Framework-default safety/governance layer. Tool permission registry
-// (safe/confirm/admin) evaluated before every tool call; four-dimension
-// mission budgets (calls, wall-clock, tokens, per-tool-class seconds) with
-// typed budget-exceeded events and cancellation; hashed-argument Mission
-// Trace JSON with concurrent-streaming integrity and an oversized-result
-// guard. All hooks composable and individually disableable. Pure-Dart.
-export 'src/agent/policy/policy_shell.dart' hide ToolCallContext;
-
-// ── 028-agent-runtime-plugin — AgentRuntimePlugin + McpToolProvider SPI ──
-// In-proc kernel host over dart_agent_core. McpToolProvider SPI for device
-// packages to self-describe; McpToolRegistry assembles a flat, collision-safe
-// tool registry from SPI providers + generated usecase tools + remote MCP
-// servers. AgentKernel delegates the agent loop entirely to
-// StatefulAgent.runStream (no loop duplication — FR-013). Composes system
-// prompt from playbook + tool manifests; wires FallbackLLMClient as default;
-// persists per-mission session state via FileStateStorage; supports ordered
-// AgentHook registration for policy concerns; exposes kernel.status().
-// Pure-Dart (no package:flutter import anywhere in this subtree).
-export 'src/agent/runtime/agent_runtime_plugin.dart'
-    hide McpTool, AgentHook, McpToolRegistry, AgentKernel;
+// ── Agent runtime — gated behind the dedicated barrel (issue #1344) ──
+// The agent runtime (ui_render, kernel, policy shell, runtime plugin —
+// formerly the specs 023/026/027/028 export sites) is NO LONGER
+// re-exported from the default barrel. Re-exporting it from here collided
+// with ecosystem packages such as zuraffa_agent, which declare their own
+// same-named domain entities (LlmClient, RiskTier, ToolResult, and the
+// wider agent-domain name class), producing ambiguous-import errors at
+// load time for every file importing both packages.
+//
+// Consumers who WANT the agent runtime import it explicitly:
+//
+//     import 'package:zuraffa/agent.dart';
+//
+// The dedicated barrel carries the exact export surface (including the
+// hide clauses arbitrating the kernel-vs-runtime and ui_render-vs-policy
+// same-name conflicts) that the default barrel used to expose. Direct
+// deep imports of the runtime's source files are unaffected. This is a
+// non-breaking narrowing of the default export surface — the same split
+// pattern as Flutter's material vs widgets libraries.
 
 // ============================================================
 // Framework Configuration
@@ -939,8 +868,6 @@ class Zuraffa {
   // Failure and Log Reporting
   // ============================================================
 
-  static OtelLogExporter? _otelLogExporter;
-
   /// Register a failure reporter.
   ///
   /// Failures from all UseCases and FailureHandlers will be
@@ -948,13 +875,23 @@ class Zuraffa {
   ///
   /// ## Example
   /// ```dart
+  /// class MyCustomReporter extends FailureReporter {
+  ///   @override
+  ///   String get id => 'my-custom-reporter';
+  ///
+  ///   @override
+  ///   Future<void> reportBatch(List<FailureReport> reports) async {
+  ///     for (final report in reports) {
+  ///       await myHttpClient.post('/errors', body: {
+  ///         'type': report.failure.runtimeType.toString(),
+  ///         'message': report.failure.message,
+  ///       });
+  ///     }
+  ///   }
+  /// }
+  ///
   /// void main() {
-  ///   Zuraffa.addFailureReporter(
-  ///     OtelFailureReporter(
-  ///       collectorEndpoint: Uri.parse('https://otel.example.com/v1/traces'),
-  ///       serviceName: 'my_app',
-  ///     ),
-  ///   );
+  ///   Zuraffa.addFailureReporter(MyCustomReporter());
   ///   runApp(MyApp());
   /// }
   /// ```
@@ -987,56 +924,22 @@ class Zuraffa {
     await FailureReporterRegistry.instance.unregister(id);
   }
 
-  /// Convenience: set up OpenTelemetry failure reporting in one call.
-  ///
-  /// ## Example
-  /// ```dart
-  /// void main() {
-  ///   Zuraffa.enableOtelReporting(
-  ///     collectorEndpoint: Uri.parse('https://otel.example.com/v1/traces'),
-  ///     serviceName: 'my_app',
-  ///     apiKey: 'my_api_key',
-  ///   );
-  ///   runApp(MyApp());
-  /// }
-  /// ```
-  static Future<void> enableOtelReporting({
-    required Uri collectorEndpoint,
-    required String serviceName,
-    String? apiKey,
-    ReportRetryPolicy? retryPolicy,
-    int? maxQueueSize,
-    Duration? flushInterval,
-    bool persistFailures = false,
-    bool exportLogs = false,
-    ZuraffaLogLevel remoteLogLevel = ZuraffaLogLevel.warning,
-  }) async {
-    await addFailureReporter(
-      OtelFailureReporter(
-        collectorEndpoint: collectorEndpoint,
-        serviceName: serviceName,
-        apiKey: apiKey,
-      ),
-      retryPolicy: retryPolicy,
-      maxQueueSize: maxQueueSize,
-      flushInterval: flushInterval,
-      persistFailures: persistFailures,
-    );
-
-    if (exportLogs) {
-      _otelLogExporter?.dispose();
-      _otelLogExporter = OtelLogExporter(
-        collectorBaseEndpoint: collectorEndpoint,
-        serviceName: serviceName,
-        apiKey: apiKey,
-        remoteLogLevel: remoteLogLevel,
-      )..start();
-    }
-  }
-
   /// Flush all pending failure reports.
   static Future<void> flushFailureReports() async {
     await FailureReporterRegistry.instance.flush();
+  }
+
+  /// The remote log exporter wired by [OtelLogExporter]-based setups
+  /// (spec 1653: the exporter is vendor-free and stays in core; the
+  /// observability companion constructs and registers it).
+  static OtelLogExporter? _otelLogExporter;
+
+  /// Register a remote log exporter for disposal with
+  /// [disposeFailureReporters]. The observability companion calls this
+  /// from its enableOtelReporting equivalent.
+  static void registerOtelLogExporter(OtelLogExporter exporter) {
+    _otelLogExporter?.dispose();
+    _otelLogExporter = exporter;
   }
 
   /// Dispose all failure reporters and flush pending reports.
@@ -1054,18 +957,21 @@ class Zuraffa {
 
   /// Register an artifact hook that reacts to published artifacts.
   ///
-  /// Common hooks include [MinIOArtifactHook] for uploading to storage.
-  ///
   /// ## Example
   /// ```dart
-  /// Zuraffa.registerArtifactHook(MinIOArtifactHook(
-  ///   client: MinioClient(
-  ///     endpoint: 'http://localhost:9000',
-  ///     accessKey: 'minioadmin',
-  ///     secretKey: 'minioadmin',
-  ///   ),
-  ///   bucket: 'artifacts',
-  /// ));
+  /// class AlertHook extends ArtifactHook {
+  ///   @override
+  ///   String get id => 'alert';
+  ///
+  ///   @override
+  ///   Future<void> onPublish(ArtifactContext context) async =>
+  ///       alertClient.send(
+  ///         channel: '#app-errors',
+  ///         text: 'Artifact from ${context.source}: ${context.label}',
+  ///       );
+  /// }
+  ///
+  /// Zuraffa.registerArtifactHook(AlertHook());
   /// ```
   static void registerArtifactHook(ArtifactHook hook) {
     ArtifactPublisher.instance.register(hook);
@@ -1074,67 +980,6 @@ class Zuraffa {
   /// Unregister an artifact hook by its [id].
   static void unregisterArtifactHook(String id) {
     ArtifactPublisher.instance.unregister(id);
-  }
-
-  /// Convenience: set up MinIO artifact storage in one call.
-  ///
-  /// Registers a [MinIOArtifactHook] that handles all artifact types —
-  /// HTML on failure, scanned images, debug snapshots, etc.
-  ///
-  /// - [endpoint]: MinIO server URL, e.g. `http://localhost:9000`
-  /// - [accessKey]: S3 access key (MinIO username)
-  /// - [secretKey]: S3 secret key (MinIO password)
-  /// - [bucket]: target bucket name (auto-created on first upload)
-  /// - [region]: AWS region (default: `us-east-1`)
-  /// - [pathPrefix]: optional prefix like `prod/` or `staging/`
-  ///
-  /// ## Example
-  /// ```dart
-  /// void main() async {
-  ///   Zuraffa.setEnvironment(Environment.production);
-  ///   await Zuraffa.enableOtelReporting(
-  ///     collectorEndpoint: Uri.parse('https://otel.example.com/v1/traces'),
-  ///     serviceName: 'my_app',
-  ///   );
-  ///   Zuraffa.enableMinIOArtifacts(
-  ///     endpoint: 'https://minio.myapp.com',
-  ///     accessKey: env.minioAccessKey,
-  ///     secretKey: env.minioSecretKey,
-  ///     bucket: 'artifacts',
-  ///     pathPrefix: 'prod/',
-  ///   );
-  ///   runApp(MyApp());
-  /// }
-  /// ```
-  static void enableMinIOArtifacts({
-    required String endpoint,
-    required String accessKey,
-    required String secretKey,
-    required String bucket,
-    String region = 'us-east-1',
-    bool ensureBucketExists = false,
-    String? pathPrefix,
-    bool includeReasonInKey = true,
-    bool includeSourceInKey = true,
-    Map<String, String> extensionOverrides = const {},
-  }) {
-    registerArtifactHook(
-      MinIOArtifactHook.fromParams(
-        endpoint: endpoint,
-        accessKey: accessKey,
-        secretKey: secretKey,
-        bucket: bucket,
-        region: region,
-        ensureBucketExists: ensureBucketExists,
-        pathPrefix: pathPrefix,
-        includeReasonInKey: includeReasonInKey,
-        includeSourceInKey: includeSourceInKey,
-        extensionOverrides: extensionOverrides,
-      ),
-    );
-    Logger.root.info(
-      'Zuraffa MinIO artifact storage enabled: $endpoint/$bucket',
-    );
   }
 
   /// Publish an artifact to all registered hooks (fire-and-forget).
@@ -1254,7 +1099,6 @@ class Zuraffa {
   ///
   /// ## Example
   /// ```dart
-  /// Zuraffa.registerHook(TelemetryHook());
   /// Zuraffa.registerHook(EngagementHook(repository));
   /// ```
   static void registerHook(Hook hook) {
@@ -1328,30 +1172,6 @@ class Zuraffa {
   /// @deprecated Use [unregisterArtifactHook] instead.
   static void unregisterFailureHook(String id) {
     FailureHookManager().unregister(id);
-  }
-
-  /// Convenience: set up MinIO artifact uploads for scrape failures.
-  ///
-  /// @deprecated Use [enableMinIOArtifacts] instead.
-  static void enableMinIOFailureArtifacts({
-    required String endpoint,
-    required String accessKey,
-    required String secretKey,
-    required String bucket,
-    String region = 'us-east-1',
-    bool ensureBucketExists = false,
-    String? pathPrefix,
-    String htmlContentType = 'text/html; charset=utf-8',
-  }) {
-    enableMinIOArtifacts(
-      endpoint: endpoint,
-      accessKey: accessKey,
-      secretKey: secretKey,
-      bucket: bucket,
-      region: region,
-      ensureBucketExists: ensureBucketExists,
-      pathPrefix: pathPrefix,
-    );
   }
 
   /// Dispose all artifact and failure hooks.

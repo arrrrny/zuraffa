@@ -16,14 +16,7 @@ import 'package:path/path.dart' as p;
 
 import 'artifact_registry.dart';
 
-/// Normalizes a recorded artifact path to the absolute form used for
-/// ownership comparisons. Registries may record absolute paths (gen's
-/// default) or project-relative ones; both must resolve to the same
-/// ownership answer.
-String normalizeArtifactPath(String projectRoot, String recorded) =>
-    p.isAbsolute(recorded)
-    ? p.normalize(recorded)
-    : p.normalize(p.join(projectRoot, recorded));
+export 'artifact_registry.dart' show normalizeArtifactPath;
 
 /// Maps every artifact path recorded across ALL feature registries
 /// (`specs/<feature>/tdd/artifacts.json` under [projectRoot]) to the

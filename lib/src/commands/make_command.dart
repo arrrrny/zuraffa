@@ -11,11 +11,14 @@ import 'package:path/path.dart' as p;
 import 'package:zorphy/zorphy.dart'
     show EntityConfig, EntityCreator, FieldDefinition;
 
-import '../plugins/shadcn/vocabulary/composite_scaffolder.dart';
-import '../plugins/shadcn/vocabulary/ui_node_registry.dart';
+import '../plugins/skin/vocabulary/composite_scaffolder.dart';
+import '../plugins/skin/vocabulary/ui_node_registry.dart';
 import '../config/zfa_config.dart';
 import '../cli/plugin_loader.dart';
 import '../core/branding/branding_writer.dart';
+import '../core/dependencies/generated_import_scanner.dart';
+import '../core/dependencies/pubspec_auto_add.dart';
+import '../core/dependencies/pubspec_zuraffa_ensure.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugin_context.dart';
 import '../core/project/project_root.dart';
@@ -28,10 +31,15 @@ import '../feature_flags/feature_flag_config.dart';
 import '../models/generated_file.dart';
 import '../plugins/provider/provider_receipt.dart';
 import '../plugins/provider/provider_verifier.dart';
+import '../plugins/repository/plan/repository_emission_plan.dart';
+import '../plugins/repository/repository_plugin.dart';
+import '../plugins/mock/services/mock_certification.dart';
 import '../plugins/usecase/usecase_expectation_post_pass.dart';
 import '../utils/entity_field_resolver.dart';
 import '../utils/string_utils.dart';
 import '../utils/framework_export_surface.dart';
+import '../utils/id_gate_diagnostic.dart';
+import '../cli/exit_protocol.dart';
 
 /// Command to run multiple plugins explicitly.
 /// Usage: `zfa make <Name> <plugin1> <plugin2> ... [flags]`
@@ -61,7 +69,7 @@ class MakeCommand extends Command<void> {
     'service',
     'api',
     'sync',
-    'shadcn',
+    'skin',
     'test', // value objects generate no usecases, so there are no usecase tests to emit
   };
 
@@ -115,7 +123,7 @@ class MakeCommand extends Command<void> {
   /// Spec 1002: plugins the engine preset hard-excludes — every
   /// Flutter-importing presentation plugin. The engine slice is pure
   /// Dart (no view, no presenter, no controller, no state, no route, no
-  /// shadcn), so these are dropped with a notice even when a config
+  /// skin), so these are dropped with a notice even when a config
   /// default or an alias pulled them into the plan.
   static const Set<String> _engineExcludedPluginIds = {
     'view',
@@ -123,7 +131,7 @@ class MakeCommand extends Command<void> {
     'controller',
     'state',
     'route',
-    'shadcn',
+    'skin',
   };
 
   /// Spec 1002: the default method set for `zfa make engine <Entity>`
@@ -136,10 +144,36 @@ class MakeCommand extends Command<void> {
     'delete',
   ];
 
+  /// Issue #1185: plugin ids that make a `zfa make` run view-bearing.
+  /// When the resolved plan carries any of these, the run produces
+  /// presentation-layer output whose usecase bindings hang off the
+  /// method set.
+  static const Set<String> _viewBearingPluginIds = {
+    'view',
+    'presenter',
+    'controller',
+  };
+
+  /// Issue #1185: the default method set for entity-backed view-bearing
+  /// runs when neither `--methods` nor a `--from-json` config supplies
+  /// one — the same set the presenter/controller plugins already fall
+  /// back to when no method set reaches them
+  /// (`['get', 'update', 'toggle']`), made authoritative in one place
+  /// the way spec 1002 did for the engine preset. Applied AFTER plan
+  /// resolution so it can never change the resolved plugin chain, and
+  /// only for entity-backed runs: with `--no-entity` there is no entity
+  /// surface to hang methods on, so the honest default stays "no entity
+  /// methods" and the guarded presenter path emits the bare VPC scaffold.
+  static const List<String> _viewDefaultMethods = ['get', 'update', 'toggle'];
+
   final PluginRegistry registry;
   late final PluginManager manager;
 
-  MakeCommand(this.registry) {
+  MakeCommand(
+    this.registry, {
+    String? projectRoot,
+    PubspecProcessRunner? processRunner,
+  }) : _processRunner = processRunner {
     argParser.addFlag(
       'ui',
       negatable: false,
@@ -147,12 +181,12 @@ class MakeCommand extends Command<void> {
           'Scaffold a composite UI component (spec 024): node entity + '
           'renderer extension + schema registration',
     );
-    final projectRoot = _findProjectRoot();
+    final resolvedProjectRoot = projectRoot ?? _findProjectRoot();
     manager = PluginManager(
       registry: registry,
-      config: ZfaConfig.load(projectRoot: projectRoot),
-      pluginConfig: PluginConfig.load(projectRoot: projectRoot),
-      projectRoot: projectRoot,
+      config: ZfaConfig.load(projectRoot: resolvedProjectRoot),
+      pluginConfig: PluginConfig.load(projectRoot: resolvedProjectRoot),
+      projectRoot: resolvedProjectRoot,
     );
     _addCoreOptions();
     _addPluginOptions();
@@ -165,6 +199,12 @@ class MakeCommand extends Command<void> {
     // See issue #441.
     return ProjectRoot.find();
   }
+
+  /// Issue #1265: the `pub add` spawner for the mechanical auto-add of
+  /// undeclared generated-import packages. Injectable so tests stay
+  /// hermetic (the doctor_checks.dart `ZfaProcessRunner` convention);
+  /// null delegates to the default `Process.run` spawner.
+  final PubspecProcessRunner? _processRunner;
 
   void _addCoreOptions() {
     argParser.addOption(
@@ -224,8 +264,27 @@ class MakeCommand extends Command<void> {
       negatable: false,
       help: 'Explain the normalized execution plan and exit',
     );
+    argParser.addFlag(
+      'json',
+      negatable: false,
+      help:
+          'Emit the resolved plan — including the repository emission plan '
+          '(spec 0973) — as a single JSON object; implies --format json for '
+          'plan/explain output',
+    );
 
     argParser.addMultiOption('methods', help: 'Entity methods to generate');
+    // Named --engine-feature, not --feature: the `feature` plugin id
+    // already occupies the --feature flag (enable/disable that plugin)
+    // in _addPluginOptions.
+    argParser.addOption(
+      'engine-feature',
+      help:
+          'Feature directory the engine receipt is written to '
+          '(specs/<feature>/tdd/engine.receipt.json; issue #1109). '
+          'Defaults to the active feature contract, the pinned '
+          '.specify/feature.json, or the entity snake name.',
+    );
     argParser.addMultiOption(
       'usecases',
       help: 'UseCases to inject into presenter/controller',
@@ -298,6 +357,49 @@ class MakeCommand extends Command<void> {
       negatable: false,
       help: 'Generate views with X-Ray scope/node decoration (issue #360)',
     );
+    argParser.addFlag(
+      'skin',
+      negatable: false,
+      help:
+          'Generate views with the runtime skin-contract auditor wrap '
+          '(issues #1102/#1166); the auditor kit file is emitted when '
+          'missing',
+    );
+    argParser.addMultiOption(
+      'anchor',
+      help:
+          'A zfa: anchor the generated --skin view declares (repeatable; '
+          'issue #1112) — emits the anchorExists contract row and the '
+          'debugTap<PascalAnchor>() VM-service driver function per anchor.',
+    );
+    // Issue #1194 (part of #908 P0 "make-default→mock + mocked tier"):
+    // the mocked tier is the DEFAULT — a fresh data-preset slice boots on
+    // certified mocks (--dart-define=SIMULATION=true). This flag opts
+    // OUT for teams who want compile-only slices (no mock datasource,
+    // no simulation binding, no seeds).
+    argParser.addFlag(
+      'compile-only',
+      negatable: false,
+      help:
+          'Opt out of the mocked tier (issue #1194): generate the slice '
+          'without the certified mock datasource / simulation-mode '
+          'binding — compile-only, not demo-green. The mocked tier is the '
+          'default (boots on certified mocks via '
+          '--dart-define=SIMULATION=true).',
+    );
+    // Issue #1149 (kill list): the gql plugin was deleted and `--with=gql`
+    // aliases to `graphql` for one deprecation cycle. The boolean flag
+    // used to be auto-registered from the (now gone) plugin id, so it is
+    // declared here explicitly to keep `--gql` / `--no-gql` scripts
+    // working during that cycle. PlanResolver maps it onto graphql.
+    argParser.addFlag(
+      'gql',
+      help:
+          'Deprecated alias for --graphql (issue #1149): the gql plugin '
+          'was folded into graphql. Use --graphql instead.',
+      defaultsTo: true,
+      negatable: true,
+    );
   }
 
   void _addPluginOptions() {
@@ -315,6 +417,7 @@ class MakeCommand extends Command<void> {
       'without',
       'plan',
       'explain',
+      'json',
       'methods',
       'usecases',
       'variants',
@@ -342,6 +445,9 @@ class MakeCommand extends Command<void> {
       'test',
       'append',
       'xray',
+      'skin',
+      'anchor',
+      'compile-only',
     };
 
     for (final plugin in registry.plugins) {
@@ -425,6 +531,16 @@ class MakeCommand extends Command<void> {
 
   String? _uiProjectRootOverride;
 
+  /// Issue #1194: the tier this run landed in ('MOCKED' or
+  /// 'COMPILE-ONLY'), or null when the plan had no data tier. Recorded in
+  /// the run context (→ proof.v1 receipt input + run artifact) and
+  /// surfaced in the JSON summary.
+  String? _tierLabel;
+
+  /// Read by [_logSummary] so the JSON summary carries the tier.
+  @visibleForTesting
+  String? get contextTierLabel => _tierLabel;
+
   /// Runs the `zfa make <Name> --ui` composite scaffolding flow (spec 024
   /// FR-002). Exposed for in-process tests; the CLI path reaches it via
   /// the `--ui` flag.
@@ -465,7 +581,7 @@ class MakeCommand extends Command<void> {
     if (argResults?['ui'] == true) {
       if (rest.isEmpty) {
         print('❌ Usage: zfa make <Name> --ui');
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
       await _scaffoldComposite(rest.first);
@@ -493,7 +609,7 @@ class MakeCommand extends Command<void> {
         'Example: zfa make engine Login '
         '--methods=get,getList,create,update,delete',
       );
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     if (engineMode) {
@@ -506,7 +622,7 @@ class MakeCommand extends Command<void> {
           '❌ --preset=$explicitPreset conflicts with the `engine` mode '
           'token (the engine preset is implied by the token itself).',
         );
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }
@@ -540,6 +656,16 @@ class MakeCommand extends Command<void> {
       // The engine preset is implied by the mode token; the plan resolves
       // through the same PresetRegistry entry `--preset=engine` uses.
       normalizedOptions['preset'] = 'engine';
+      // Issue #1109 markers read downstream:
+      //   - 'engine': the test plugin forces the pure-Dart `package:test`
+      //     framework import (the engine lane is CORE — zero flutter_test,
+      //     even when the host project is a Flutter app).
+      //   - 'feature': the explicit --engine-feature override for the v2
+      //     engine receipt's specs/<feature>/tdd/ location.
+      normalizedOptions['engine'] = true;
+      if (argResults?.wasParsed('engine-feature') == true) {
+        normalizedOptions['feature'] = argResults?['engine-feature'] as String?;
+      }
       // Spec 1002 default method set — only when neither the CLI flag
       // nor a --from-json config supplied one.
       if (!argResults!.wasParsed('methods') &&
@@ -553,6 +679,26 @@ class MakeCommand extends Command<void> {
       argResults: argResults!,
       options: normalizedOptions,
     );
+
+    // Issue #1185: default the method set for entity-backed view-bearing
+    // runs the way spec 1002 did for the engine preset. Without it, a
+    // `--with=vpc --view` run with no method set used to reach
+    // PresenterPlugin._buildMethods with an empty usecase list and crash
+    // with "Bad state: No element" on the unguarded `useCases.first`.
+    // The default is injected AFTER plan resolution (PlanResolver
+    // ._hasEntityMethods implies the usecase plugin from a non-empty
+    // method set — that stays the user's explicit choice) and skipped for
+    // --no-entity runs, where the guarded plugin path emits the bare VPC
+    // scaffold the same way `--methods=get --no-entity` always has.
+    final noEntityRequested =
+        argResults?['no-entity'] == true ||
+        normalizedOptions['no-entity'] == true;
+    if (plan.pluginIds.any(_viewBearingPluginIds.contains) &&
+        !argResults!.wasParsed('methods') &&
+        !normalizedOptions.containsKey('methods') &&
+        !noEntityRequested) {
+      normalizedOptions['methods'] = List<String>.from(_viewDefaultMethods);
+    }
 
     final planOnly =
         argResults?['plan'] == true || argResults?['explain'] == true;
@@ -591,13 +737,23 @@ class MakeCommand extends Command<void> {
     }
 
     if (planOnly) {
-      _printPlan(plan);
+      _printPlan(
+        plan,
+        emission: _repositoryEmissionSection(plan, normalizedOptions),
+      );
       return;
     }
 
     final activePlugins = plan.activePlugins;
     if (activePlugins.isEmpty) {
+      // Issue #1496: the dead-end message now names the remedy — the two
+      // supported ways to select plugins when the config enables none.
       print('❌ No active plugins to run.');
+      print('   The plan resolved to zero plugins (no flags, and .zfa.json');
+      print('   enables none by default).');
+      print('--> fix: pass --preset=crud for the standard data slice, or');
+      print('   --with=<plugin> to select individual plugins (e.g.');
+      print('   --with=usecase,repository). See `zfa make --help`.');
       return;
     }
 
@@ -746,32 +902,7 @@ class MakeCommand extends Command<void> {
               );
               activePlugins.removeWhere((p) => impliedIdDependent.contains(p));
             } else {
-              print(
-                '❌ Cannot generate architecture for "$entityName": the entity '
-                'has no id field.',
-              );
-              print('');
-              print('Entities need a real identity. Choose one of:');
-              print(
-                '  1. Add an id field:    zfa entity add-field -n '
-                '$entityName --field id:String',
-              );
-              print(
-                '  2. Auto-generate one:  recreate with '
-                'zfa entity create -n $entityName --auto-id <fields...>',
-              );
-              print(
-                '  3. Mark it as a value object if it is an immutable '
-                'composition type (no identity, no CRUD surface):',
-              );
-              print(
-                '       zfa entity create -n $entityName --kind=value_object '
-                '<fields...>',
-              );
-              print(
-                '     or add @ZValueObject / kind: ZorphyKind.valueObject '
-                'to its annotation.',
-              );
+              printIdGateDiagnostic(entityName);
               print('');
               // Thrown (not `exit(1)`) so the CLI runner's catch-all prints the
               // diagnostic and exits 1 — while `runCapturing` tests can assert
@@ -817,6 +948,34 @@ class MakeCommand extends Command<void> {
       print(
         '🚀 Running plugins: ${activePlugins.map((p) => p.id).join(", ")} for $entityName...',
       );
+    }
+
+    // ── Issue #1194 (part of #908 P0): the make-default mocked tier ──
+    // A fresh data-preset slice lands in the MOCKED tier: the mock plugin
+    // emits the certified mock datasource + mock data seeds + the
+    // simulation-mode binding (registerLazySingleton<EntityDataSource>
+    // (() => EntityMockDataSource()) behind the real interface), and di
+    // wires registerSimulationBindings into di/index.dart — the app boots
+    // on mocks via --dart-define=SIMULATION=true on first run, before any
+    // real adapter is written. `--compile-only` opts out (compile-only
+    // slice: no mocked tier, the pre-#1194 shape). The tier is recorded in
+    // the run context so the proof.v1 generation receipt, the run
+    // artifact, and the JSON summary all carry it (receipt/ladder
+    // vocabulary: MOCKED; swapping to REAL is `zfa tdd realize`'s job —
+    // companion issue).
+    final compileOnly =
+        normalizedOptions['compile-only'] == true ||
+        argResults!['compile-only'] == true;
+    final mockedTier = !compileOnly && activePlugins.any((p) => p.id == 'mock');
+    _tierLabel = compileOnly
+        ? 'COMPILE-ONLY'
+        : mockedTier
+        ? 'MOCKED'
+        : null;
+    if (compileOnly) {
+      context.data['tier'] = 'COMPILE-ONLY';
+    } else if (mockedTier) {
+      context.data['tier'] = 'MOCKED';
     }
 
     try {
@@ -865,7 +1024,154 @@ class MakeCommand extends Command<void> {
         }
       }
 
-      _logSummary(files, context.core.verbose, plan: plan);
+      // Issue #1190 — pubspec ↔ generated-imports post-pass: the files
+      // this run wrote may import packages the target's pubspec doesn't
+      // declare, which floods the first run with
+      // depend_on_referenced_packages infos (and fails strict CI).
+      // Surface the exact `pub add` one-liner on completion instead of
+      // leaving the user to translate analyzer noise.
+      final pubsyncGap = (!isDryRun && !isRevert && files.isNotEmpty)
+          ? _pubsyncGapForFiles(files)
+          : null;
+
+      // Issue #1530 — ENSURE `zuraffa` when the files this run wrote
+      // import `package:zuraffa/...`: the core package was never
+      // declared by the standard wiring for Flutter targets (only
+      // `zuraffa_flutter` / `zuraffa_ui`), so generated imports fired
+      // `depend_on_referenced_packages` and `zfa build`'s analyze gate
+      // went red on zfa-generated code. The ensure is the offline-safe
+      // textual declaration (the `zfa tdd init --skin` patcher
+      // discipline for `zuraffa_ui`): no process spawn, idempotent,
+      // hand-edit preserving. Runs BEFORE the #1265 auto-add so the
+      // ensured declaration is not re-`pub add`ed.
+      var zuraffaEnsured = false;
+      if (pubsyncGap != null) {
+        try {
+          final ensureOutcome = await const PubspecZuraffaEnsure()
+              .ensureForImports(
+                manager.projectRoot,
+                pubsyncGap.importedPackages,
+              );
+          if (ensureOutcome.added) {
+            zuraffaEnsured = true;
+            print(
+              '✅ Ensured zuraffa: ${ensureOutcome.constraint} in '
+              'pubspec.yaml dependencies — generated files import '
+              'package:zuraffa (issue #1530). Run pub get to re-resolve.',
+            );
+          }
+        } on FormatException catch (e) {
+          print(
+            '   ⚠️ pubspec.yaml could not be patched to declare zuraffa: '
+            '$e',
+          );
+        } on UnsupportedError catch (e) {
+          print(
+            '   ⚠️ pubspec.yaml could not be patched to declare zuraffa: '
+            '${e.message}',
+          );
+        } on StateError catch (e) {
+          print(
+            '   ⚠️ pubspec.yaml could not be patched to declare zuraffa: '
+            '${e.message}',
+          );
+        }
+      }
+
+      // Issue #1265 — auto-add, don't warn-only: the make generator now
+      // DECLARES what it emits. One mechanical `<flutter|dart> pub add`
+      // heals the hosted gap (the same fix path `zfa doctor
+      // generated-imports --fix` uses); the ⚠️ diagnostic remains only
+      // for what the add could not heal (offline, SDK-provided packages).
+      // The #1530 ensure's declaration counts as an auto-declared dep
+      // (the JSON contract: "packages the run declared in pubspec.yaml
+      // itself, so agents don't re-run `pub add` for them").
+      var pubsyncAutoAdded = <String>[
+        if (zuraffaEnsured) PubspecZuraffaEnsure.packageName,
+      ];
+      final autoAddPackages = (pubsyncGap?.pubAddPackages ?? const <String>[])
+          .where(
+            (name) =>
+                !(zuraffaEnsured && name == PubspecZuraffaEnsure.packageName),
+          )
+          .toList();
+      if (pubsyncGap != null &&
+          pubsyncGap.hasMissing &&
+          autoAddPackages.isNotEmpty) {
+        final outcome = await PubspecAutoAdd.add(
+          projectRoot: manager.projectRoot,
+          packages: autoAddPackages,
+          isFlutter: pubsyncGap.isFlutterProject,
+          runner: _processRunner,
+        );
+        pubsyncAutoAdded = [...pubsyncAutoAdded, ...outcome.added];
+        if (outcome.added.isNotEmpty) {
+          for (final line in PubspecGapReporter.successLines(
+            added: outcome.added,
+            commandLine: outcome.commandLine!,
+          )) {
+            print(line);
+          }
+        }
+      }
+
+      // The ⚠️ diagnostics downstream must reflect the POST-ensure
+      // pubspec state: when the ensure declared `zuraffa`, the stale
+      // pre-ensure gap would print a `doesn't declare zuraffa` warning
+      // contradicting the receipt line above it — filter it out.
+      final effectiveGap = (pubsyncGap != null && zuraffaEnsured)
+          ? PubspecDependencyGap(
+              importedPackages: pubsyncGap.importedPackages,
+              missing: pubsyncGap.missing
+                  .where((name) => name != PubspecZuraffaEnsure.packageName)
+                  .toList(),
+              isFlutterProject: pubsyncGap.isFlutterProject,
+            )
+          : pubsyncGap;
+
+      _logSummary(
+        files,
+        context.core.verbose,
+        plan: plan,
+        pubsyncGap: effectiveGap,
+        pubsyncAutoAdded: pubsyncAutoAdded,
+      );
+
+      // ── Issue #1194: certified mocks BY DEFAULT ──────────────────────
+      // A mocked-tier run structurally certifies the emitted mock against
+      // the interface it implements (AST member conformance + fixture
+      // digests of the final on-disk bytes) and ships the
+      // `.zfa/receipts/mock-<entity>.json` receipt — the same
+      // certification `zfa mock create --certify` computes. A fresh slice
+      // is demo-green without a separate certify step. Best-effort by
+      // design (issue #807 convention): the artifacts already exist, so a
+      // receipt failure degrades to a warning instead of failing the run.
+      if (mockedTier && !isDryRun && !isRevert) {
+        await _certifyEmittedMock(
+          entityName: entityName,
+          files: files,
+          context: context,
+        );
+      }
+
+      // Issue #1194: name the tier in the run output so the developer
+      // knows which tier they are on and how to run/swap it. JSON mode
+      // carries the tier inside the summary document instead.
+      if (argResults?['format'] != 'json') {
+        if (mockedTier) {
+          print(
+            '🧪 Tier: MOCKED — boots on certified mocks with '
+            '--dart-define=SIMULATION=true (zfa tdd realize swaps to '
+            'REAL).',
+          );
+        } else if (compileOnly) {
+          print(
+            '⚙️  Tier: COMPILE-ONLY (--compile-only) — no mocked tier '
+            'emitted; the slice is compile-green, not demo-green.',
+          );
+        }
+      }
+
       // Spec 1002: the engine tail — mock certification, engine check,
       // and the auto-receipt — runs after the generation transaction
       // committed, so the checker reads the real on-disk tree.
@@ -919,6 +1225,31 @@ class MakeCommand extends Command<void> {
     if (argResults?['format'] != 'json') {
       print('✅ Done.');
     }
+  }
+
+  /// Issue #1190: diffs the package imports of the files THIS RUN wrote
+  /// against the target pubspec.yaml. Only created/overwritten/updated
+  /// `.dart` files contribute (skipped files keep their pre-run state and
+  /// deleted/reverted files no longer exist); unreadable paths are
+  /// skipped — `zfa doctor generated-imports` re-scans the whole tree.
+  PubspecDependencyGap? _pubsyncGapForFiles(List<GeneratedFile> files) {
+    final dartFiles = <File>[];
+    for (final file in files) {
+      if (file.action == 'deleted' || file.action == 'reverted') continue;
+      if (file.action == 'skipped') continue;
+      final normalized = file.path.replaceAll('\\', '/');
+      if (!normalized.endsWith('.dart')) continue;
+      final absolute = path.isAbsolute(file.path)
+          ? file.path
+          : p.join(manager.projectRoot, file.path);
+      final f = File(absolute);
+      if (f.existsSync()) dartFiles.add(f);
+    }
+    if (dartFiles.isEmpty) return null;
+    return GeneratedImportScanner.analyzeFiles(
+      dartFiles: dartFiles,
+      projectRoot: manager.projectRoot,
+    );
   }
 
   /// Spec #972 FR-4: runs the usecase interface-expectation post-pass
@@ -1069,6 +1400,74 @@ class MakeCommand extends Command<void> {
     return rel.replaceAll('\\', '/');
   }
 
+  /// Issue #1194 (part of #908 P0 "make-default→mock + mocked tier"):
+  /// certified mocks BY DEFAULT. A make run that emitted the mocked tier
+  /// structurally certifies the mock against the interface it implements
+  /// (AST member conformance + fixture digests of the final on-disk
+  /// bytes) and ships the `.zfa/receipts/mock-<entity>.json` receipt —
+  /// the same certification `zfa mock create --certify` computes — so a
+  /// fresh slice is demo-green (certified mocks, not just mocks) without
+  /// a separate certify step. Best-effort by design (issue #807
+  /// convention): the artifacts already exist, so a receipt failure
+  /// degrades to a warning instead of failing the run.
+  Future<void> _certifyEmittedMock({
+    required String entityName,
+    required List<GeneratedFile> files,
+    required PluginContext context,
+  }) async {
+    // Only certify when the run actually emitted mock artifacts. A
+    // value-object or enum-entity run may keep the mock plugin active
+    // without a datasource mock; certifying nothing is honest there (the
+    // mock data emission, when present, is still covered via the fixture
+    // digests below).
+    final emittedMock = files.any(
+      (f) => f.type == 'mock_datasource' || f.type == 'mock_data',
+    );
+    if (!emittedMock) return;
+
+    try {
+      // Mirror MockPlugin's method resolution so the certification reads
+      // the same generation shape the run used.
+      final methods =
+          context.data['methods']?.cast<String>().toList() ??
+          (context.get<bool>('no-entity') == true ||
+                  context.data['service'] != null
+              ? <String>[]
+              : ['get', 'update', 'toggle']);
+      final service = context.data['service'] is String
+          ? context.data['service'] as String?
+          : null;
+
+      final certification = await MockCertificationService.certify(
+        entity: entityName,
+        outputDir: context.core.outputDir,
+        files: files,
+        projectRoot: manager.projectRoot,
+        service: service,
+        domain: context.data['domain'] as String?,
+        methods: methods,
+        repo: context.data['repo'] as String?,
+      );
+      await MockCertificationService.writeReceipt(
+        projectRoot: manager.projectRoot,
+        entity: entityName,
+        commandLine: 'zfa make $entityName (mocked tier default)',
+        certification: certification,
+        files: files,
+        capabilityName: 'make',
+        methodset: methods,
+      );
+      if (argResults?['format'] != 'json') {
+        print(
+          '🧪 Certified mock for "$entityName": '
+          '${certification.registryId}',
+        );
+      }
+    } catch (e) {
+      print('⚠️  Mock-certification receipt not written: $e');
+    }
+  }
+
   Future<Map<String, dynamic>?> _loadJsonConfig() async {
     try {
       if (argResults?['from-stdin'] == true) {
@@ -1191,9 +1590,50 @@ class MakeCommand extends Command<void> {
     return normalized;
   }
 
-  void _printPlan(dynamic plan) {
-    if (argResults?['format'] == 'json') {
-      print(jsonEncode({'success': true, 'plan': plan.toJson()}));
+  /// Spec 0973: resolves the repository plugin's emission plan for this
+  /// run — what will be emitted and why (which variants, which flags
+  /// triggered them) — WITHOUT running generation or changing activation.
+  /// Null when the repository plugin is not part of the plan.
+  RepositoryEmissionPlan? _repositoryEmissionSection(
+    dynamic plan,
+    Map<String, dynamic> normalizedOptions,
+  ) {
+    final argResults = this.argResults;
+    if (argResults == null) return null;
+    try {
+      final repositoryPlugins = plan.activePlugins
+          .whereType<RepositoryPlugin>()
+          .toList();
+      if (repositoryPlugins.isEmpty) return null;
+
+      // Build the same context generation would build (schema defaults,
+      // activation sync, normalized options) so the explanation can never
+      // drift from what generation actually does.
+      final previewContext = manager.buildContext(
+        name: plan.name as String,
+        argResults: argResults,
+        activePlugins: plan.activePlugins,
+        overrideOutputDir: fixedOutputDir,
+      );
+      previewContext.data.addAll(normalizedOptions);
+      return repositoryPlugins.first.explainEmission(previewContext);
+    } catch (_) {
+      // Explaining must never fail the run — omit the section instead.
+      return null;
+    }
+  }
+
+  void _printPlan(dynamic plan, {RepositoryEmissionPlan? emission}) {
+    final jsonMode =
+        argResults?['format'] == 'json' || argResults?['json'] == true;
+    if (jsonMode) {
+      print(
+        jsonEncode({
+          'success': true,
+          'plan': plan.toJson(),
+          if (emission != null) 'emission': emission.toJson(),
+        }),
+      );
       return;
     }
 
@@ -1209,20 +1649,51 @@ class MakeCommand extends Command<void> {
         print('    - $warning');
       }
     }
+    if (emission != null) {
+      print(emission.renderText());
+    }
   }
 
   void _logSummary(
     List<GeneratedFile> files,
     bool verbose, {
     required dynamic plan,
+    PubspecDependencyGap? pubsyncGap,
+    List<String> pubsyncAutoAdded = const [],
   }) {
     if (argResults?['format'] == 'json') {
+      // Issue #1265: what the run could not declare itself is what
+      // remains missing after the auto-add attempt (auto-added packages
+      // are reported separately; SDK-provided packages always remain).
+      final pubsyncRemaining = _pubsyncRemainingMissing(
+        pubsyncGap,
+        pubsyncAutoAdded,
+      );
       print(
         jsonEncode({
           'success': true,
           'plan': plan.toJson(),
           'files': files.map((file) => file.toJson()).toList(),
           'warnings': plan.warnings,
+          // Issue #1194: the tier the run landed in — MOCKED (default,
+          // boots on certified mocks) or COMPILE-ONLY (--compile-only
+          // opt-out). Absent when the plan had no data tier at all.
+          if (contextTierLabel != null) 'tier': contextTierLabel,
+          // Issue #1265: packages the run declared in pubspec.yaml
+          // itself, so agents don't re-run `pub add` for them.
+          if (pubsyncAutoAdded.isNotEmpty)
+            'auto_added_pubspec_deps': pubsyncAutoAdded,
+          // Issue #1190: machine-consumable pubspec-dep gap — agents can
+          // run the one-liner without parsing analyzer output.
+          if (pubsyncRemaining.isNotEmpty)
+            'missing_pubspec_deps': {
+              'packages': pubsyncRemaining,
+              'suggested_fix': GeneratedImportScanner.pubAddOneLiner(
+                missing: pubsyncRemaining,
+                isFlutter: pubsyncGap!.isFlutterProject,
+              ),
+              'sdk_packages': pubsyncGap.sdkMissingPackages,
+            },
         }),
       );
       return;
@@ -1262,6 +1733,47 @@ class MakeCommand extends Command<void> {
           print('$prefix ${file.path}');
         }
       }
+    }
+
+    // Issue #1190/#1265 — completion-time pubspec-dep suggestion (now
+    // only for what the auto-add could not heal).
+    _printPubsyncSuggestion(pubsyncGap, pubsyncAutoAdded);
+  }
+
+  /// Issue #1265: the gap packages that REMAIN undeclared after the
+  /// auto-add attempt — everything the `pub add` did not cover
+  /// (failed/offline packages and SDK-provided ones never auto-add).
+  List<String> _pubsyncRemainingMissing(
+    PubspecDependencyGap? gap,
+    List<String> autoAdded,
+  ) {
+    if (gap == null || !gap.hasMissing) return const [];
+    final added = autoAdded.toSet();
+    return gap.missing.where((name) => !added.contains(name)).toList()..sort();
+  }
+
+  /// Issue #1190/#1265: prints the generated-imports ↔ pubspec gap and
+  /// the exact `pub add` one-liner that heals it — but ONLY for the
+  /// packages the auto-add could not declare (offline/failed adds and
+  /// SDK-provided packages). The wording comes from the shared
+  /// [PubspecGapReporter] so every generator stays consistent.
+  void _printPubsyncSuggestion(
+    PubspecDependencyGap? gap,
+    List<String> autoAdded,
+  ) {
+    if (gap == null || !gap.hasMissing) return;
+    final remaining = _pubsyncRemainingMissing(gap, autoAdded);
+    if (remaining.isEmpty) return;
+    final oneLiner = GeneratedImportScanner.pubAddOneLiner(
+      missing: remaining,
+      isFlutter: gap.isFlutterProject,
+    );
+    for (final line in PubspecGapReporter.gapWarningLines(
+      missing: remaining,
+      pubAddOneLiner: oneLiner,
+      sdkMissingPackages: gap.sdkMissingPackages,
+    )) {
+      print(line);
     }
   }
 
@@ -1348,13 +1860,64 @@ class MakeCommand extends Command<void> {
       engineCheckPassed: checkResult.passed,
       engineCheckFailures: checkResult.failures,
       generatedFiles: files.map((file) => file.path).toList(),
+      // Spec 1098: attribute the receipt to the active feature contract
+      // when one is in play (grouped copy lands under .zfa/receipts/<id>/).
+      featureId: context.core.feature?.id,
+      // Spec 1110: record which mock double the cycle targets — the
+      // --fail preset's throwing twin ('failing') vs the certified mock
+      // ('succeeding', the default).
+      failureMode: context.data['fail'] == true ? 'failing' : 'succeeding',
     );
     final receiptPath = p.relative(receiptFile.path, from: projectRoot);
+
+    // Issue #1109: the v2 engine receipt — specs/<feature>/tdd/
+    // engine.receipt.json with the CERT-GATE shape (per-method
+    // mock_certified + mock_class, sorted source_files). Resolution:
+    // explicit --engine-feature → active feature contract → pinned
+    // .specify/feature.json → the entity snake (fresh projects).
+    // Written even when some methods are uncertified — the `false`
+    // values are the #1014 CERT-GATE signal.
+    final v2Feature = (context.data['feature'] as String?)?.isNotEmpty == true
+        ? context.data['feature'] as String
+        : context.core.feature?.id ??
+              EngineReceiptWriter.pinnedFeature(projectRoot) ??
+              EngineReceiptWriter.engineFeatureFallback(entityName);
+    final v2ReceiptFile = await writer.writeV2(
+      projectRoot: projectRoot,
+      feature: v2Feature,
+      entityName: entityName,
+      methods: [
+        for (final method in methods)
+          EngineReceiptMethod(
+            name: method,
+            mockCertified:
+                checkResult.mockCertification?.methods[method] == true,
+            mockClass: checkResult.mockCertification?.mockClass,
+          ),
+      ],
+      // Contract: project-root relative, deduped, sorted (the writer
+      // sorts; generators may report absolute or relative paths). The
+      // entity file is included — the chain's `entity create` step
+      // writes it before the plugin transaction, so it never appears in
+      // the transaction's generated-file list.
+      sourceFiles: {
+        slice.entityFile,
+        ...files
+            .map((file) => file.path)
+            .map(
+              (path) => p.isAbsolute(path)
+                  ? p.relative(path, from: projectRoot)
+                  : path,
+            ),
+      }.toList(),
+    );
+    final v2ReceiptPath = p.relative(v2ReceiptFile.path, from: projectRoot);
 
     if (format == 'json') {
       print(
         jsonEncode({
           'engine_receipt': receiptPath,
+          'engine_receipt_v2': v2ReceiptPath,
           'engine_check': {
             'passed': checkResult.passed,
             'getit_types': checkResult.resolutions.length,
@@ -1386,6 +1949,7 @@ class MakeCommand extends Command<void> {
         );
       }
       print('🧾 Engine receipt: $receiptPath');
+      print('🧾 Engine receipt v2: $v2ReceiptPath');
     }
 
     if (checkResult.passed) {

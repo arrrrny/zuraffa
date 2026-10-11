@@ -89,25 +89,86 @@ abstract class ${entity}Service {
     );
 
     test(
-      'minimal invocation without a service interface fails with an actionable message',
+      'minimal invocation without a service interface returns success: false '
+      'with an actionable message (spec 1128 order 2 — graceful failure, was '
+      'a thrown StateError under B+)',
       () async {
+        // Spec 1128 (order 2): the full execute() path is wrapped in
+        // try/catch matching the di/repository pattern. The thrown
+        // StateError from `_generateFiles` (the #768 missing-service path)
+        // is now caught and returned as
+        // `ExecutionResult(success: false, message: 'provider create
+        // failed for Cart: <StateError message>')`. The diagnostic content
+        // that used to live in the StateError body now lives in the
+        // ExecutionResult message — same actionable substrings, different
+        // carrier. A malformed entity must NOT crash with an uncaught
+        // exception.
+        final result = await capability.execute({'name': 'Cart'});
+
         expect(
-          () => capability.execute({'name': 'Cart'}),
-          throwsA(
-            isA<StateError>().having(
-              (e) => e.message,
-              'message',
-              allOf(
-                contains('CartService'),
-                contains('domain/services/cart_service.dart'),
-                contains('zfa service create --name Cart'),
-              ),
-            ),
+          result.success,
+          isFalse,
+          reason:
+              'a malformed entity (missing service interface) must '
+              'return success: false instead of throwing',
+        );
+        expect(
+          result.files,
+          isEmpty,
+          reason: 'no files should be reported on a failed run',
+        );
+        expect(
+          result.message,
+          isNotNull,
+          reason: 'the failure must surface an actionable message',
+        );
+        expect(
+          result.message,
+          allOf(
+            contains('provider create failed'),
+            contains('CartService'),
+            contains('domain/services/cart_service.dart'),
+            contains('zfa service create --name Cart'),
           ),
-          reason: 'the error must say what is missing and how to fix it',
+          reason:
+              'the message must carry the same actionable diagnostics '
+              'the B+ StateError carried, prefixed with the capability name',
         );
       },
     );
+
+    test('a missing provider file (malformed entity) does not crash with an '
+        'uncaught exception — spec 1128 order 4 error-handling path', () async {
+      // This is the spec-1128-order-4 dedicated error-handling test.
+      // The capability MUST NOT propagate an exception from execute();
+      // it MUST return an ExecutionResult(success:false). The previous
+      // test covers the missing-service-interface path (the only known
+      // throwing path under B+); this one asserts the broader contract
+      // — ANY exception from `_generateFiles` becomes a graceful failure.
+      final result = await capability.execute({'name': 'MissingThing'});
+
+      expect(
+        result.success,
+        isFalse,
+        reason:
+            'an entity whose service interface does not exist must '
+            'gracefully return success: false',
+      );
+      expect(
+        result.message,
+        anyOf(
+          contains('provider create failed'),
+          contains('MissingThingService'),
+          contains('zfa service create --name MissingThing'),
+        ),
+        reason: 'the failure message must be actionable',
+      );
+      expect(
+        result.files,
+        isEmpty,
+        reason: 'no files may be reported on a failed run',
+      );
+    });
 
     test('explicit opt-out (--no-data) is still honored', () async {
       writeServiceInterface('Cart');

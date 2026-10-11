@@ -15,13 +15,11 @@ class CacheCommand extends PluginCommand {
   Set<String> get manualSubcommandNames => const {'verify'};
 
   CacheCommand(this.plugin) : super(plugin) {
-    argParser.addOption(
-      'policy',
-      help: 'Cache policy (daily, hourly, etc.)',
-      defaultsTo: 'daily',
-    );
-    argParser.addOption('storage', help: 'Storage backend (hive, etc.)');
-    argParser.addOption('ttl', help: 'Time to live in minutes');
+    // SPEC 917 / #876 sweep: the parent-level --policy/--storage/--ttl were
+    // parsed and advertised but NEVER read — run() is dispatch-only (the
+    // live surface is `zfa cache create ...` from the capability schema).
+    // Silent parent options are the #876 "flags that lie" family;
+    // `zfa manifest --verify` certifies the surface.
     addSubcommand(CacheVerifyCommand(plugin));
   }
 

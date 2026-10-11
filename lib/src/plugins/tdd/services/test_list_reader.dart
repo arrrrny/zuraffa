@@ -56,6 +56,16 @@
 /// written by `zfa tdd fake <channel> --behavior <id>` — gen refuses a
 /// platform row whose scenario is missing. `zfa tdd make`/`run` stop
 /// honestly on platform ids (the planner does not express them yet).
+///
+/// CONTRACT KIND EXTENSION (issue #1007): a `## Contract loop:` section
+/// header marks CONTRACT rows — one declared entity method, controller
+/// method or usecase per row, written by `zfa tdd plan` from the spec's
+/// Layer Contracts section with `contract:<id>` row ids. The gen pair is
+/// a contract test scaffold (enumerating the contract's cases) + a
+/// contract seam subject, and a failing contract test is BLOCKED — never
+/// RED — so the row's state cell may also read BLOCKED (it parses to
+/// [BehaviorState.blocked], the state the run driver persists when
+/// verify-red reports the blocked verdict).
 library;
 
 import 'dart:io';
@@ -63,6 +73,9 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/behavior.dart';
+import 'cycle_log_sections.dart';
+import 'finder_taxonomy.dart';
+import 'lane_plans.dart';
 import 'lane_split.dart';
 import 'spec_parser.dart';
 
@@ -76,6 +89,9 @@ class BehaviorRow {
     required this.kind,
     required this.target,
     this.persistence = false,
+    this.lane,
+    this.golden = false,
+    this.finderKinds,
   });
 
   final String id;
@@ -84,10 +100,37 @@ class BehaviorRow {
   final BehaviorState state;
   final BehaviorKind kind;
 
+  /// The two-cycle lane tag the row carries (spec 1008-two-cycle-driver,
+  /// issue #1008): `core`, `skin` or `both`, parsed from the ` [core]` /
+  /// ` [skin]` / ` [both]` tags in the behavior cell (stripped from
+  /// [description] exactly like `[persistence]`). Null = untagged — the
+  /// engine-lane (CORE) default of the pre-split world; the split
+  /// receipt and the 04-ENGINE.md / 04-SKIN.md plan pair (#1000)
+  /// override tags when present.
+  final String? lane;
+
   /// Whether the plan marked the behavior persistence-kind with the
   /// ` [persistence]` tag (bug #833). The tag is stripped from
   /// [description] so generated assertion prose never leaks it.
   final bool persistence;
+
+  /// Whether the plan marked the behavior golden-gated with the
+  /// ` [golden]` tag (bug #1261): the lane plan's declaration that the
+  /// behavior's widget test carries a `matchesGoldenFile` baseline hook.
+  /// gen turns the mark into the golden hook WITHOUT the `--golden`
+  /// flag. The tag is stripped from [description] exactly like
+  /// `[persistence]`.
+  final bool golden;
+
+  /// The finder-kind column the plan writes for WIDGET rows (issue
+  /// #1140): the scenario verbs' predicted assertion classes, parsed
+  /// from the 5-data-column shape `| id | behavior | kind | traces |
+  /// state |`. Null = the row carries NO kind column (every legacy
+  /// 4-column list) — gen then re-derives from the description as
+  /// before. Empty = the plan declared `none` (no derivable finder).
+  /// Non-empty = a declared contract gen reconciles against the
+  /// description and refuses on drift.
+  final List<ScenarioAssertionClass>? finderKinds;
 
   /// The subject function this behavior targets. Never empty: rows
   /// without an explicit target resolve to `subject_<snake-id>`
@@ -97,7 +140,8 @@ class BehaviorRow {
   @override
   String toString() =>
       'BehaviorRow(id: $id, kind: ${kind.name}, state: ${state.name}, '
-      'persistence: $persistence, traces: $traces)';
+      'persistence: $persistence, lane: $lane, traces: $traces, '
+      'finderKinds: $finderKinds)';
 }
 
 /// The `[persistence]` marker contract (bug #833).
@@ -147,6 +191,50 @@ class PersistenceMarker {
   }
 
   /// Split a behavior cell into (description, persistence): the tag is
+  /// removed wherever it sits, everything else is kept verbatim.
+  static (String, bool) extract(String cell) {
+    var text = cell;
+    var marked = false;
+    while (true) {
+      final idx = text.toLowerCase().indexOf(tag);
+      if (idx < 0) break;
+      marked = true;
+      text = text.substring(0, idx) + text.substring(idx + tag.length);
+    }
+    if (!marked) return (cell, false);
+    return (text.replaceAll(RegExp(r'\s+'), ' ').trim(), true);
+  }
+}
+
+/// The `[golden]` marker contract (bug #1261).
+///
+/// The plan marks a SKIN behavior golden-gated by appending ` [golden]`
+/// to the behavior cell of the 04-SKIN.md row; the shared reader parses
+/// the mark into [BehaviorRow.golden] and strips it from the description
+/// prose. The marker lives here — the SINGLE format contract — so plan
+/// (mark), reader (parse) and any tooling agree on the exact tag shape.
+/// gen turns the mark into a `matchesGoldenFile` baseline hook WITHOUT
+/// the `--golden` flag: a regenerating agent can read the gate straight
+/// from the lane plan.
+class GoldenMarker {
+  const GoldenMarker._();
+
+  /// The exact tag appended by plan and parsed by the reader.
+  static const String tag = '[golden]';
+
+  /// Whether [description] carries the marker.
+  static bool isMarked(String description) =>
+      description.toLowerCase().contains(tag);
+
+  /// Append the tag to [description]; idempotent — an already-marked
+  /// description is returned unchanged.
+  static String mark(String description) {
+    final trimmed = description.trim();
+    if (isMarked(trimmed)) return trimmed;
+    return '$trimmed $tag';
+  }
+
+  /// Split a behavior cell into (description, golden): the tag is
   /// removed wherever it sits, everything else is kept verbatim.
   static (String, bool) extract(String cell) {
     var text = cell;
@@ -242,39 +330,55 @@ class TestListReader {
   /// shape funnels through — section headers set the kind, declarative
   /// sections are skipped, table rows parse in the canonical 4-column
   /// or deprecated 6-column shapes.
+  ///
+  /// Fence-aware (issue #1575): headers come from [fenceAwareLines], so
+  /// a `## ` line inside a fenced code block (a markdown banner inside a
+  /// fenced example — the #1467 phantom-section defect on a different
+  /// input file) can no longer flip `kind` or the declarative-section
+  /// state. The row grammar and the section vocabulary are unchanged.
   List<BehaviorRow> _parseRows(String content, {required String path}) {
-    final lines = content.split('\n');
     final rows = <BehaviorRow>[];
     BehaviorKind? kind;
     var inDeclarativeSection = false;
-    var deprecatedDialectWarned = false;
-    for (var i = 0; i < lines.length; i++) {
-      final raw = lines[i];
-      final trimmed = raw.trim();
-      if (trimmed.startsWith('## ')) {
-        final header = trimmed.substring(3).toLowerCase();
-        if (header.startsWith('outer loop')) {
+    // Spec 1008 (two-cycle driver): the note is per-FILE guidance, and one
+    // CLI invocation may read the same list more than once (the meta
+    // `zfa tdd run` resolves lanes once per lane pass). Print it once per
+    // process per file — separate processes (separate commands) each
+    // print their own, exactly as before.
+    var deprecatedDialectWarned = _deprecationNotedFiles.contains(path);
+    for (final (:lineNo, :raw, :header) in fenceAwareLines(content)) {
+      if (header != null) {
+        final lowered = header.toLowerCase();
+        if (lowered.startsWith('outer loop')) {
           // Bug #830: `## Outer loop: widget behaviors` marks the UI
           // acceptance section — its rows are widget kind, still outer-loop
           // (acceptance-level) but asserted through a testWidgets pair.
-          kind = header.contains('widget')
+          kind = lowered.contains('widget')
               ? BehaviorKind.widget
               : BehaviorKind.acceptance;
-        } else if (header.startsWith('inner loop')) {
+        } else if (lowered.startsWith('inner loop')) {
           kind = BehaviorKind.unit;
-        } else if (header.startsWith('theme harness')) {
+        } else if (lowered.startsWith('theme harness')) {
           // Theme-harness section (issue #841): theme-kind behaviors whose
           // gen pair is the theme-harness widget test + subject contract.
           kind = BehaviorKind.theme;
-        } else if (header.startsWith('native loop')) {
+        } else if (lowered.startsWith('native loop')) {
           // Bug #835: the native loop section carries FFI/OCR
           // native-boundary behaviors. Rows under it are ffi-kind.
           kind = BehaviorKind.ffi;
-        } else if (header.startsWith('platform harness')) {
+        } else if (lowered.startsWith('platform harness')) {
           // Platform-harness section (issue #831): platform-kind behaviors
           // whose gen pair drives a platform channel through the certified
           // fake + committed scenario written by `zfa tdd fake`.
           kind = BehaviorKind.platform;
+        } else if (lowered.startsWith('contract loop')) {
+          // Contract-loop section (issue #1007): CONTRACT-kind behaviors —
+          // one declared entity method, controller method or usecase per
+          // row, written by plan from the spec's Layer Contracts section.
+          // A failing contract test is BLOCKED (never RED), so this lane
+          // never feeds the red-evidence path (verify-red refuses to
+          // certify contract reds; the blocked receipt is the record).
+          kind = BehaviorKind.contract;
         } else {
           kind = null;
         }
@@ -289,16 +393,27 @@ class TestListReader {
         // deps-declaring (zuraffa-1.0) spec.
         // Issue #1000: the Lane split section of a meta-index carries
         // the pointer table — declarations, not behaviors.
+        // Issue #1004: the Skin Contract rows (platform matrix, state
+        // machine, routes) are the typed contract the loop referees
+        // the skin against — declarations, not behaviors.
         inDeclarativeSection =
-            header.startsWith('key entities') ||
-            header.startsWith('external dependencies') ||
-            header.startsWith('layer contracts') ||
-            header.startsWith('lane split') ||
-            header.startsWith('adaptive view slots') ||
-            header.startsWith('boundary') ||
-            header.startsWith('shared seam behaviors');
+            lowered.startsWith('key entities') ||
+            lowered.startsWith('external dependencies') ||
+            lowered.startsWith('layer contracts') ||
+            lowered.startsWith('lane split') ||
+            lowered.startsWith('adaptive view slots') ||
+            lowered.startsWith('boundary') ||
+            lowered.startsWith('shared seam behaviors') ||
+            lowered.startsWith('platform contract') ||
+            lowered.startsWith('state machine contract') ||
+            lowered.startsWith('route contract') ||
+            lowered.startsWith('skin contract') ||
+            // Bug #1261: the visual-contract rows (the golden-gated
+            // behaviors) are declarations, not behaviors.
+            lowered.startsWith('visual contract');
         continue;
       }
+      final trimmed = raw.trim();
       if (inDeclarativeSection) continue;
       if (!trimmed.startsWith('|')) continue;
       final cells = _splitRow(trimmed).map((c) => c.trim()).toList();
@@ -319,7 +434,7 @@ class TestListReader {
       final (row: row, dialect: dialect) = _parseDataRow(
         cells,
         kind: kind,
-        lineNo: i + 1,
+        lineNo: lineNo,
         raw: raw,
       );
       if (row != null) rows.add(row);
@@ -329,6 +444,7 @@ class TestListReader {
       // did nothing wrong.
       if (dialect == _DeprecatedDialect.genLegacy && !deprecatedDialectWarned) {
         deprecatedDialectWarned = true;
+        _deprecationNotedFiles.add(path);
         stderr.writeln(
           'zfa: $path: deprecated 6-column test-list rows detected '
           '(id/behavior/traces/kind/state/target). Migrate by manually '
@@ -363,21 +479,22 @@ class TestListReader {
   /// pre-829 artifact), and rows that do not carry a name cell are
   /// skipped rather than rejected — the section is an extraction aid,
   /// not a behavior contract.
+  ///
+  /// Fence-aware (issue #1575): headers come from [fenceAwareLines], so
+  /// an in-fence `## ` banner can no longer close the section and drop
+  /// the entity rows after it.
   Future<List<DeclaredEntity>> readEntities() async {
     final specMd = await _sectionsSource();
     if (specMd.isEmpty) return const [];
-    final lines = specMd.split('\n');
     final entities = <DeclaredEntity>[];
     var inEntitySection = false;
-    for (final raw in lines) {
-      final trimmed = raw.trim();
-      if (trimmed.startsWith('## ')) {
-        inEntitySection = trimmed
-            .substring(3)
-            .toLowerCase()
-            .startsWith('key entities');
+    for (final walk in fenceAwareLines(specMd)) {
+      final header = walk.header;
+      if (header != null) {
+        inEntitySection = header.toLowerCase().startsWith('key entities');
         continue;
       }
+      final trimmed = walk.raw.trim();
       if (!inEntitySection) continue;
       if (!trimmed.startsWith('|')) continue;
       final cells = _splitRow(trimmed).map((c) => c.trim()).toList();
@@ -411,21 +528,22 @@ class TestListReader {
   /// Lenient like [readEntities]: a list without the section yields an
   /// empty list (every pre-919 artifact); header/separator rows and rows
   /// without a dependency name are skipped rather than rejected.
+  ///
+  /// Fence-aware (issue #1575): headers come from [fenceAwareLines], so
+  /// an in-fence `## ` banner can no longer close the section and drop
+  /// the dependency rows after it.
   Future<List<SpecDependency>> readDependencies() async {
     final specMd = await _sectionsSource();
     if (specMd.isEmpty) return const [];
-    final lines = specMd.split('\n');
     final dependencies = <SpecDependency>[];
     var inSection = false;
-    for (final raw in lines) {
-      final trimmed = raw.trim();
-      if (trimmed.startsWith('## ')) {
-        inSection = trimmed
-            .substring(3)
-            .toLowerCase()
-            .startsWith('external dependencies');
+    for (final walk in fenceAwareLines(specMd)) {
+      final header = walk.header;
+      if (header != null) {
+        inSection = header.toLowerCase().startsWith('external dependencies');
         continue;
       }
+      final trimmed = walk.raw.trim();
       if (!inSection || !trimmed.startsWith('|')) continue;
       final cells = _splitRow(trimmed).map((c) => c.trim()).toList();
       // Leading empty cell + the four data cells.
@@ -448,23 +566,24 @@ class TestListReader {
   /// Parse the `## Layer contracts` section plan writes (bug #919):
   /// `### <layer>` headings and `- `<interface>`: `sig1`, `sig2``
   /// bullets beneath them.
+  ///
+  /// Fence-aware (issue #1575): headers come from [fenceAwareLines], so
+  /// an in-fence `## ` banner can no longer close the section (and reset
+  /// the layer) and drop the contract bullets after it.
   Future<List<LayerContract>> readLayerContracts() async {
     final specMd = await _sectionsSource();
     if (specMd.isEmpty) return const [];
-    final lines = specMd.split('\n');
     final contracts = <LayerContract>[];
     var inSection = false;
     var layer = '';
-    for (final raw in lines) {
-      final trimmed = raw.trim();
-      if (trimmed.startsWith('## ')) {
-        inSection = trimmed
-            .substring(3)
-            .toLowerCase()
-            .startsWith('layer contracts');
+    for (final walk in fenceAwareLines(specMd)) {
+      final header = walk.header;
+      if (header != null) {
+        inSection = header.toLowerCase().startsWith('layer contracts');
         if (!inSection) layer = '';
         continue;
       }
+      final trimmed = walk.raw.trim();
       if (!inSection || trimmed.isEmpty) continue;
       final layerM = RegExp(r'^###\s+(.+)$').firstMatch(trimmed);
       if (layerM != null) {
@@ -514,15 +633,61 @@ class TestListReader {
       final state = _parseState(cells[4]);
       if (state == null) malformed('unknown state "${cells[4]}"');
       final (description, persistence) = PersistenceMarker.extract(cells[2]);
+      final (laneUntagged, lane) = LaneMarker.extract(description);
+      final (untagged, golden) = GoldenMarker.extract(laneUntagged);
       return (
         row: BehaviorRow(
           id: id,
-          description: description,
+          description: untagged,
           traces: cells[3],
           state: state,
           kind: kind,
           target: resolveDefaultTarget(id),
           persistence: persistence,
+          lane: lane,
+          golden: golden,
+        ),
+        dialect: _DeprecatedDialect.none,
+      );
+    }
+
+    // Finder-kind row (issue #1140): the plan's WIDGET table shape
+    // `| id | behavior | kind | traces | state |` — five data columns
+    // (six cells). The kind cell must parse as taxonomy labels
+    // (comma-joined, or `none`); anything else in a 6-cell row is a
+    // malformed line naming the offending cell — never a silent
+    // positional mis-read of a shape the reader does not speak.
+    if (cells.length == 6) {
+      final declaredKinds = FinderTaxonomy.tryParseKindCell(cells[3]);
+      if (declaredKinds == null) {
+        malformed(
+          'unparseable finder-kind cell "${cells[3]}" (issue #1140 '
+          'vocabulary: ${ScenarioAssertionClass.values.map((c) => c.label).join(', ')}, '
+          'or `none`)',
+        );
+      }
+      if (kind == null) {
+        malformed('table row outside an outer/inner loop behavior section');
+      }
+      final id = cells[1];
+      if (id.isEmpty) malformed('empty behavior id');
+      final state = _parseState(cells[5]);
+      if (state == null) malformed('unknown state "${cells[5]}"');
+      final (description, persistence) = PersistenceMarker.extract(cells[2]);
+      final (laneUntagged, lane) = LaneMarker.extract(description);
+      final (untagged, golden) = GoldenMarker.extract(laneUntagged);
+      return (
+        row: BehaviorRow(
+          id: id,
+          description: untagged,
+          traces: cells[4],
+          state: state,
+          kind: kind,
+          target: resolveDefaultTarget(id),
+          persistence: persistence,
+          lane: lane,
+          golden: golden,
+          finderKinds: declaredKinds.toList(growable: false),
         ),
         dialect: _DeprecatedDialect.none,
       );
@@ -541,15 +706,19 @@ class TestListReader {
         final state = _parseState(cells[5]);
         if (state == null) malformed('unknown state "${cells[5]}"');
         final (description, persistence) = PersistenceMarker.extract(cells[2]);
+        final (laneUntagged, lane) = LaneMarker.extract(description);
+        final (untagged, golden) = GoldenMarker.extract(laneUntagged);
         return (
           row: BehaviorRow(
             id: id,
-            description: description,
+            description: untagged,
             traces: cells[3],
             state: state,
             kind: kindFromCell,
             target: resolveDefaultTarget(id, cell: cells[6]),
             persistence: persistence,
+            lane: lane,
+            golden: golden,
           ),
           dialect: _DeprecatedDialect.genLegacy,
         );
@@ -570,15 +739,19 @@ class TestListReader {
         final state = _parseState(cells[5]);
         if (state == null) malformed('unknown state "${cells[5]}"');
         final (description, persistence) = PersistenceMarker.extract(cells[2]);
+        final (laneUntagged, lane) = LaneMarker.extract(description);
+        final (untagged, golden) = GoldenMarker.extract(laneUntagged);
         return (
           row: BehaviorRow(
             id: id,
-            description: description,
+            description: untagged,
             traces: cells[3],
             state: state,
             kind: kind,
             target: resolveDefaultTarget(id, cell: cells[6]),
             persistence: persistence,
+            lane: lane,
+            golden: golden,
           ),
           dialect: _DeprecatedDialect.extensionShape,
         );
@@ -594,13 +767,24 @@ class TestListReader {
   /// The subject function this behavior targets (moved from gen's private
   /// parser, bug #617): an explicit non-path cell wins; an empty or
   /// path-like cell (`/`, `::`, `$`) falls back to `subject_<snake-id>`.
+  ///
+  /// Issue #1007: the snake-id fold now covers EVERY non-alphanumeric
+  /// character (not just `-`), so the `contract:A1` ids plan writes for
+  /// contract rows resolve to a valid Dart identifier
+  /// (`subject_contract_a1`, never `subject_contract:a1` — the `:` leaked
+  /// into the generated subject's function name before, and the pair died
+  /// at compile). Existing id shapes (`A1`, `B-001`) fold identically to
+  /// the previous `replaceAll('-', '_')` behavior.
   static String resolveDefaultTarget(String id, {String cell = ''}) {
     final isPathLike =
         cell.isEmpty ||
         cell.contains('/') ||
         cell.contains('::') ||
         cell.contains(r'$');
-    if (isPathLike) return 'subject_${id.toLowerCase().replaceAll('-', '_')}';
+    if (isPathLike) {
+      final snakeId = id.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+      return 'subject_$snakeId';
+    }
     return cell;
   }
 
@@ -682,3 +866,8 @@ class TestListReader {
 /// (specs/044–049, spec 050 FR-007) is spec-sanctioned and reads
 /// silently.
 enum _DeprecatedDialect { none, genLegacy, extensionShape }
+
+/// The test-list/plan files this process already printed the gen-legacy
+/// deprecation note for (spec 1008: one note per file per process — the
+/// two-cycle driver reads the list once per lane pass).
+final Set<String> _deprecationNotedFiles = {};

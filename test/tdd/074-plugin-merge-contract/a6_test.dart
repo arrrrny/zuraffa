@@ -10,8 +10,8 @@ library;
 
 import 'package:test/test.dart';
 
-import '../../../lib/tdd/074-plugin-merge-contract/a6_subject.dart' as subject;
-
+import 'package:zuraffa/tdd/074-plugin-merge-contract/a6_subject.dart'
+    as subject;
 void main() {
   group('A6 (AC-6)', () {
     test('A6 — every dependency touchpoint serves the certified mock..', () {

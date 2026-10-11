@@ -1,0 +1,99 @@
+# TDD Verification: 1653-trim-heavy-deps (#1661)
+
+- **Feature**: `specs/1653-trim-heavy-deps`
+- **Date**: 2026-09-15
+- **Mode**: LLM-guided fallback audit (`ZFA_MISSING` — the zuraffa repo
+  cannot drive `zfa tdd verify` on its own development; the #1632/#1651
+  precedents)
+- **Verdict**: **PASS** (upgraded from PASS_WITH_GAPS after the
+  enabled-path delegation gap closed — see Addendum)
+
+## Audit dimensions
+
+### 1. Test-first evidence
+
+- The pin suites were written and proven RED before the fix landed
+  (`tdd/cycle-log.md` red cycle): manifest pins failed with the four
+  heavy packages present, the plugin-gate pins failed against the
+  pre-existing generation-plugin-only command (capturing its real
+  output `Enabled plugin: graphql`), and the trace-seam suite was a
+  missing-API compile red.
+- The audit's mutation pass then caught a WEAK PIN: the manifest
+  block-capture regex never matched the real pubspec (lazy/lookahead
+  interaction), so the first U1 green was vacuous. The regex was
+  rewritten (`dotAll` + multiline inner anchor) and the pin re-proven
+  red (mutant: reintroduce `graphql` → the U1 graphql test FAILS) and
+  green (clean manifest → pass). The vacuity class this repo's own
+  tooling polices was caught here by the audit — recorded as evidence
+  the audit works, and as a lesson (mutation-check every content pin).
+
+### 2. Mutation results (targeted)
+
+| Mutant | Result |
+| ------ | ------ |
+| `PluginGate.refusalFor` short-circuits to `null` (gate disabled) | **killed** — U6 refusal tests fail |
+| `graphql: ^5.2.4` reintroduced into root `pubspec.yaml` | **killed** (after the pin-regex repair) — U1 graphql test fails |
+| restore | all pins + family green |
+
+### 3. Test smells — none found
+
+- Hermetic temp-dir fixtures; no sleeps; no order dependence.
+- Refusals assert exact guidance text (single-source catalog wording).
+- Tier discipline: companions carry their own suites; the core pins are
+  fast-lane (the permanent regression guard for SC-001/SC-002).
+
+### 4. Acceptance-criteria coverage
+
+- A1 (fresh consumer): lockfile has 0 of graphql/gql/minio/opentelemetry,
+  no protobuf/xml; only core's own direct deps remain. `dart analyze lib`
+  0 errors.
+- A2 (seamless enabled): observability init pins the
+  TraceObserver→OtelTracer wiring; the graphql generation surface is
+  exercised by the companion's moved golden suites (47 tests).
+- A3 (honest disabled): gate unit pins + the `zfa graphql` command entry
+  wired to `PluginGate.refusalFor` before any generation.
+- A4 (companion health): all three companions `dart analyze` 0 errors
+  and `dart test` green (47 / 14+1 skip / 19).
+
+### 5. Regression state
+
+- Root affected lanes: `test/plugins/tdd/commands` +541;
+  `test/commands` + `test/graphql` + `test/simulation` +734;
+  `test/core` pins + plugin_gate +22. A full background lane pass
+  reached +3297 before the machine's kernel cache filled the disk
+  (`No space left on device` — the documented AGENTS.md hazard); the 6
+  apparent failures were cache load errors, re-verified green after
+  cleanup.
+
+## Addendum (second audit pass, 2026-09-15): gap #1 closed
+
+The enabled path is now implemented and process-proven end-to-end:
+
+- companion entrypoint `packages/zuraffa_graphql/bin/zuraffa_graphql.dart`
+  (hosts `generate` at top level);
+- `PluginGate.companionEntry` resolves the companion bin from the
+  project's package_config;
+- core `zfa graphql` registers a `generate` delegate subcommand that
+  enforces the gate and spawns the companion through
+  `ZfaExecutable.ensureCompiled`/`commandFor` (no-JIT), forwarding
+  stdout/stderr and the exit code;
+- E2E (`test/graphql/graphql_generate_delegation_e2e_test.dart`, e2e
+  tier): enabled+resolvable fixture → `zfa graphql generate` → exit 0,
+  `✅ Generated`, artifacts written into the project. Mutation-checked:
+  with the gate disabled the refusal pins fail; with the heavy dep
+  reintroduced the manifest pin fails.
+
+Remaining notes (follow-ups, not correctness holes):
+
+
+1. **Lane run shape**: the default lane was verified in chunks (disk
+   hazard), not as one `dart test test` invocation.
+3. **Runtime otel family**: `SimulationWorld` otel fixtures now require
+   injecting the companion's capture; the legacy no-injection path
+   skips the family honestly (pinned).
+
+## Verdict
+
+**PASS_WITH_GAPS** — all behaviors green with red-first evidence, no
+smells, mutations killed, acceptance criteria met; the named gaps are
+follow-ups, not correctness holes.

@@ -11,6 +11,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/tdd/services/runner.dart';
+import 'package:zuraffa/src/plugins/tdd/services/suite_guard.dart';
 
 void main() {
   late Directory tmp;
@@ -452,6 +453,53 @@ stacks:
       // which the truncated pre-fix command would still print. Only the
       // real `dart --version` report emits "Dart SDK version: ".
       expect(record.output, contains('Dart SDK version: '));
+    });
+
+    test('runSuite folds CRLF before failure-block parsing (PR #1219 '
+        'review regression)', () async {
+      // `replaceAll('\r', '\n')` alone turns each CRLF into TWO newlines.
+      // The blank line after `Failing tests:` then breaks the trailing
+      // failure-block regex in SuiteGuard.parse — a non-zero suite would
+      // record zero named failures (unparseable, U18) instead of the
+      // real red.
+      final script = File(p.join(tmp.path, 'crlf_suite.sh'))
+        ..writeAsStringSync(
+          "printf 'Failing tests:\\r\\n'\n"
+          "printf '  test/foo_test.dart: foo breaks\\r\\n'\n"
+          'exit 1\n',
+          mode: FileMode.write,
+        );
+      await _writeProfile(tmp.path, '''
+---
+stacks:
+  dart:
+    suite: bash "${script.path}"
+---
+# TDD Profile
+''');
+      final template = await runner.loadSuiteTemplate(
+        workingDirectory: tmp.path,
+      );
+      final record = await runner.runSuite(
+        suiteTemplate: template,
+        workingDirectory: tmp.path,
+      );
+
+      expect(record.exitCode, 1);
+      final snapshot = const SuiteGuard().parse(
+        command: record.command,
+        exitCode: record.exitCode,
+        output: record.output,
+        capturedAt: '2026-09-06T00:00:00.000Z',
+      );
+      expect(snapshot.parseable, isTrue);
+      expect(
+        snapshot.failedTests,
+        contains('test/foo_test.dart: foo breaks'),
+        reason:
+            'CRLF must fold to a single newline so the trailing '
+            'failure block parses; output=${record.output}',
+      );
     });
   });
 }

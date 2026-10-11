@@ -7,6 +7,7 @@ import 'package:zuraffa/src/core/plugin_system/capability.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_interface.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_registry.dart';
 import 'package:zuraffa/src/core/plugin_system/plan_store.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 
 /// Issue #767 — systemic exit-code contract for the plan/apply pipeline.
 ///
@@ -16,9 +17,9 @@ import 'package:zuraffa/src/core/plugin_system/plan_store.dart';
 /// [ApplyCommand] printed ❌ and still exited 0, so scripts/CI/MCP
 /// harnesses read failed applications as successes:
 ///
-///   FR-1: plan not found        → ❌ + exit 64 (bad request family)
-///   FR-2: plan invalid          → ❌ + exit 64 (bad request family)
-///   FR-3: plugin not found      → ❌ + exit 64 (bad request family)
+///   FR-1: plan not found        → ❌ + exit 2 (bad request family)
+///   FR-2: plan invalid          → ❌ + exit 2 (bad request family)
+///   FR-3: plugin not found      → ❌ + exit 2 (bad request family)
 ///   FR-4: execute reports fail  → ❌ + exit 1  (runtime failure, same
 ///         code the shared CapabilityCommand failure path uses)
 ///   FR-5: success               → ✅ + exit 0 (regression guard) and
@@ -53,12 +54,12 @@ void main() {
     return captured.first;
   }
 
-  test('FR-1 — plan not found exits 64', () async {
+  test('FR-1 — plan not found exits 2', () async {
     final code = await runApply(['apply', '--plan-id', 'nope']);
-    expect(code, equals(64));
+    expect(code, equals(ExitProtocol.usage));
   });
 
-  test('FR-2 — invalid plan exits 64', () async {
+  test('FR-2 — invalid plan exits 2', () async {
     await PlanStore.instance.savePlan(
       EffectReport(
         planId: 'bad_plan',
@@ -75,10 +76,10 @@ void main() {
       () async => code = await runApply(['apply', '--plan-id', 'bad_plan']),
       prints(contains('❌ Plan is invalid')),
     );
-    expect(code, equals(64));
+    expect(code, equals(ExitProtocol.usage));
   });
 
-  test('FR-3 — plugin not found exits 64', () async {
+  test('FR-3 — plugin not found exits 2', () async {
     await PlanStore.instance.savePlan(
       EffectReport(
         planId: 'orphan_plan',
@@ -93,7 +94,7 @@ void main() {
       () async => code = await runApply(['apply', '--plan-id', 'orphan_plan']),
       prints(contains('❌ Plugin not found: ghost_plugin')),
     );
-    expect(code, equals(64));
+    expect(code, equals(ExitProtocol.usage));
   });
 
   test('FR-4 — execute failure exits 1', () async {

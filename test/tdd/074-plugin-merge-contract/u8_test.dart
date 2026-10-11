@@ -10,8 +10,8 @@ library;
 
 import 'package:test/test.dart';
 
-import '../../../lib/tdd/074-plugin-merge-contract/u8_subject.dart' as subject;
-
+import 'package:zuraffa/tdd/074-plugin-merge-contract/u8_subject.dart'
+    as subject;
 void main() {
   group('U8 (FR-008)', () {
     test(

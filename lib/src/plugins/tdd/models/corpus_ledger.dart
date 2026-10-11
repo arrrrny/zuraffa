@@ -8,6 +8,15 @@ library;
 
 enum GapLedgerKind { gap, resolution }
 
+/// The severity classes a gap entry carries (issue #1007). A
+/// contract-test failure (`severity: contract`) is the HIGHEST severity:
+/// the corpus-economics gate treats it before every standard gap — an
+/// unsatisfied declared contract means generated and hand-written code
+/// would be graded by different rules, the exact drift `zfa dream`
+/// exists to kill. Every pre-existing ledger entry (no `severity` field)
+/// reads as `standard`.
+enum GapSeverity { standard, contract }
+
 class GapLedgerEntry {
   const GapLedgerEntry({
     required this.id,
@@ -22,6 +31,7 @@ class GapLedgerEntry {
     this.issueLink,
     this.status = 'open',
     this.resolves,
+    this.severity,
   });
 
   /// `gap-###` for gaps, `res-###` for resolutions (monotonic per series).
@@ -65,6 +75,18 @@ class GapLedgerEntry {
   /// Resolution entries only: the gap entry id this closes.
   final String? resolves;
 
+  /// The gap's severity (issue #1007): `contract` for contract-test
+  /// failures (highest — the corpus treats them before every standard
+  /// gap), `standard` otherwise. Null on resolution entries and on
+  /// pre-1007 ledger entries (which read as `standard`).
+  final String? severity;
+
+  /// The parsed severity (issue #1007).
+  GapSeverity get gapSeverity {
+    if (severity == GapSeverity.contract.name) return GapSeverity.contract;
+    return GapSeverity.standard;
+  }
+
   const GapLedgerEntry.gap({
     required this.id,
     required this.at,
@@ -76,6 +98,7 @@ class GapLedgerEntry {
     this.failingCommand,
     this.issueLink,
     this.status = 'open',
+    this.severity,
   }) : kind = GapLedgerKind.gap,
        resolves = null;
 
@@ -91,7 +114,8 @@ class GapLedgerEntry {
        expectedResult = null,
        failingCommand = null,
        issueLink = null,
-       status = 'resolved';
+       status = 'resolved',
+       severity = null;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -106,6 +130,7 @@ class GapLedgerEntry {
     if (issueLink != null) 'issue_link': issueLink,
     if (status != null) 'status': status,
     if (resolves != null) 'resolves': resolves,
+    if (severity != null) 'severity': severity,
   };
 
   static GapLedgerEntry fromJson(dynamic decoded) {
@@ -158,6 +183,7 @@ class GapLedgerEntry {
       issueLink: optionalString('issue_link'),
       status: optionalString('status'),
       resolves: optionalString('resolves'),
+      severity: optionalString('severity'),
     );
   }
 }
@@ -172,6 +198,7 @@ class GapLedgerTotals {
     required this.found,
     required this.filed,
     required this.merged,
+    required this.contractGaps,
     required this.blocking,
     required this.open,
   });
@@ -185,12 +212,17 @@ class GapLedgerTotals {
   /// Gaps whose status is `merged` (the fix landed in zuraffa).
   final int merged;
 
+  /// OPEN contract-severity gaps (issue #1007): contract-test failures —
+  /// the highest-severity class the corpus-economics gate treats.
+  final int contractGaps;
+
   /// Unresolved gaps whose feature is not done/waived — the ones blocking
   /// corpus completion (named in the final report).
   final List<GapLedgerEntry> blocking;
 
-  /// Every unresolved gap, regardless of feature state (bug #846: the
-  /// corpus refuses a `complete` verdict while ANY of these is open).
+  /// Every unresolved gap, contract-severity FIRST (issue #1007),
+  /// regardless of feature state (bug #846: the corpus refuses a
+  /// `complete` verdict while ANY of these is open).
   final List<GapLedgerEntry> open;
 
   /// Compute totals from [entries]; [doneFeatures] are the features whose
@@ -213,7 +245,18 @@ class GapLedgerTotals {
         resolvedIds.contains(gap.id);
 
     final open = gaps.where((gap) => !isResolved(gap)).toList();
-    final blocking = open
+    // Issue #1007: contract-severity gaps (contract-test failures) are
+    // the HIGHEST severity — the open list reports them FIRST, so the
+    // corpus-economics gate treats them before every standard gap. The
+    // partition is stable within each tier (append order preserved).
+    final openContract = open
+        .where((gap) => gap.gapSeverity == GapSeverity.contract)
+        .toList();
+    final openStandard = open
+        .where((gap) => gap.gapSeverity != GapSeverity.contract)
+        .toList();
+    final orderedOpen = [...openContract, ...openStandard];
+    final blocking = orderedOpen
         .where((gap) => !doneFeatures.contains(gap.feature))
         .toList();
 
@@ -221,8 +264,9 @@ class GapLedgerTotals {
       found: gaps.length,
       filed: gaps.where((g) => g.issueLink != null).length,
       merged: gaps.where((g) => g.status == 'merged').length,
+      contractGaps: openContract.length,
       blocking: blocking,
-      open: open,
+      open: orderedOpen,
     );
   }
 }

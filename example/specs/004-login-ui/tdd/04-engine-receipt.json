@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "feature": "004-login-ui",
+  "lane": "engine",
+  "verdict": "green",
+  "result": "complete",
+  "behaviors": [
+    "A1",
+    "A2",
+    "U2"
+  ],
+  "counts": {
+    "total": 3,
+    "pending": 0,
+    "red": 0,
+    "green": 0,
+    "done": 3
+  },
+  "stopped_at": null,
+  "at": "2026-09-11T00:12:50.291171Z"
+}

@@ -17,6 +17,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
+import '../../core/plugin_system/capability_invocation_wrapper.dart';
 import '../../core/project/receipt_store.dart';
 import '../../models/generated_file.dart';
 import '../../version.dart';
@@ -73,6 +74,15 @@ class RouteReceiptWriter {
         ? null
         : await _sha256Of(p.join(projectRoot, testPath));
 
+    // Issue #1138: the routes receipt carries the full capability
+    // provenance contract ({plugin, capability, entity, hash, methodset,
+    // receipt_version: 1}) while KEEPING its deterministic ledger name
+    // `routes-<Entity>.json` — the #963 route-coverage ledger and
+    // `zfa route verify` read this document by path.
+    final methodset = (input['methods'] as List?)
+        ?.map((m) => m.toString())
+        .toList(growable: false);
+
     final receipt = GenerationReceipt(
       command: 'zfa route create',
       target: entity,
@@ -81,6 +91,16 @@ class RouteReceiptWriter {
       generatorVersion: version,
       input: input,
       files: receiptFiles,
+      plugin: 'route',
+      capability: 'create',
+      entity: entity,
+      methodset: methodset ?? const [],
+      runHash: CapabilityInvocationWrapper.computeRunHash(
+        files: receiptFiles,
+        entity: entity,
+        methodset: methodset ?? const [],
+      ),
+      receiptVersion: CapabilityInvocationWrapper.receiptVersion,
     );
 
     return ReceiptStore(projectRoot: projectRoot).saveNamed(

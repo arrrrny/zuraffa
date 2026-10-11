@@ -52,11 +52,17 @@ class GraphqlPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'type': 'string',
         'description': 'Path to .graphql schema file',
       },
-      'type': {
+      // Issue #1149: the operation-type and return-fields keys adopt the
+      // deleted gql plugin's collision-free `gql-` prefix. The previous
+      // `type` key collided with the usecase plugin's `type` schema
+      // property (default `usecase`), so `zfa make X --methods=getList
+      // --with=graphql` emitted `usecase CreateProduct` instead of a
+      // GraphQL query.
+      'gql-type': {
         'type': 'string',
         'description': 'GraphQL operation type (query, mutation, subscription)',
       },
-      'returns': {'type': 'string', 'description': 'GraphQL return fields'},
+      'gql-returns': {'type': 'string', 'description': 'GraphQL return fields'},
       'input-type': {'type': 'string', 'description': 'Input type name'},
       'input-name': {'type': 'string', 'description': 'Input variable name'},
       'op-name': {'type': 'string', 'description': 'Operation name'},
@@ -74,8 +80,11 @@ class GraphqlPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       revert: context.core.revert,
       generateGql: true,
       methods: context.data['methods']?.cast<String>().toList() ?? [],
-      gqlReturns: context.get<String>('returns'),
-      gqlType: context.get<String>('type'),
+      // Issue #1149: read the collision-free `gql-` prefixed keys (folded
+      // in from the deleted gql plugin) so the usecase plugin's `type`
+      // default can no longer leak in as the GraphQL operation type.
+      gqlReturns: context.get<String>('gql-returns'),
+      gqlType: context.get<String>('gql-type'),
       gqlInputType: context.get<String>('input-type'),
       gqlInputName: context.get<String>('input-name'),
       gqlName: context.get<String>('op-name'),

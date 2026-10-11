@@ -1,0 +1,238 @@
+{
+  "behaviors": [
+    {
+      "args": {
+        "email": "ada@example.com",
+        "password": "s3cret!"
+      },
+      "backoffBaseMs": 50,
+      "backoffFactor": 2.0,
+      "driver": "invoke",
+      "expect": "red",
+      "id": "checkout-flow-signIn",
+      "maxAttempts": 1,
+      "method": "signIn",
+      "touchpoint": "FirebaseAuth"
+    },
+    {
+      "args": {},
+      "backoffBaseMs": 50,
+      "backoffFactor": 2.0,
+      "driver": "invoke",
+      "expect": "green",
+      "id": "checkout-flow-signOut",
+      "maxAttempts": 1,
+      "method": "signOut",
+      "touchpoint": "FirebaseAuth"
+    },
+    {
+      "args": {
+        "batch": {}
+      },
+      "backoffBaseMs": 50,
+      "backoffFactor": 2.0,
+      "driver": "retry-sync",
+      "expect": "green",
+      "id": "checkout-flow-push-retry-sync",
+      "maxAttempts": 4,
+      "method": "push",
+      "touchpoint": "RestSync"
+    },
+    {
+      "args": {
+        "batch": {}
+      },
+      "backoffBaseMs": 50,
+      "backoffFactor": 2.0,
+      "driver": "retry-sync",
+      "expect": "green",
+      "id": "checkout-flow-push-partial-write-repair",
+      "maxAttempts": 3,
+      "method": "push",
+      "touchpoint": "RestSync"
+    },
+    {
+      "args": {
+        "cursor": "c-0"
+      },
+      "backoffBaseMs": 50,
+      "backoffFactor": 2.0,
+      "driver": "invoke",
+      "expect": "green",
+      "id": "checkout-flow-pull",
+      "maxAttempts": 1,
+      "method": "pull",
+      "touchpoint": "RestSync"
+    }
+  ],
+  "corpus": {
+    "FirebaseAuth": {
+      "signIn": {
+        "fixture": {
+          "displayName": "Ada Lovelace",
+          "email": "ada@example.com",
+          "uid": "u-ada-001"
+        }
+      },
+      "signOut": {
+        "fixture": null
+      }
+    },
+    "RestSync": {
+      "pull": {
+        "fixture": {
+          "cursor": "c-1",
+          "hasMore": false,
+          "items": [
+            {
+              "id": "item-1",
+              "title": "Kayak paddle"
+            },
+            {
+              "id": "item-2",
+              "title": "Dry bag"
+            }
+          ]
+        }
+      },
+      "push": {
+        "fixture": {
+          "count": 2,
+          "status": "synced"
+        }
+      }
+    }
+  },
+  "description": "The spec 968 demo world (acceptance criterion 1): a retry-with-backoff checkout sync developed green inside a committed, CI-verifiable world. Touchpoints from the declared dependency table (FirebaseAuth composes the #832 certified adapter; RestSync is corpus-served); virtual time (seed 968); banded latency; failure storms: auth expiry mid-flow, network flap over push calls 1-2, partial write at push call 4.",
+  "failureSchedule": {
+    "storms": [
+      {
+        "description": "the session expires mid-flow \u2014 honest consumers surface it, never blind-retry it",
+        "failure": {
+          "code": "user-token-expired",
+          "type": "auth"
+        },
+        "fromCall": 1,
+        "kind": "auth-expiry",
+        "method": "signIn",
+        "name": "auth-expiry-mid-flow",
+        "toCall": 1,
+        "touchpoint": "FirebaseAuth"
+      },
+      {
+        "description": "network flaps over the first two push calls \u2014 retry-with-backoff must survive",
+        "failure": {
+          "status": 503,
+          "type": "http"
+        },
+        "fromCall": 1,
+        "kind": "network-flap",
+        "method": "push",
+        "name": "network-flap-push",
+        "toCall": 2,
+        "touchpoint": "RestSync"
+      },
+      {
+        "description": "a half-written push response \u2014 honest syncs detect and repair",
+        "failure": {
+          "type": "partial"
+        },
+        "fromCall": 4,
+        "kind": "partial-write",
+        "method": "push",
+        "name": "partial-write-push",
+        "toCall": 4,
+        "touchpoint": "RestSync"
+      }
+    ]
+  },
+  "feature": "968-simulation-worlds",
+  "latency": {
+    "FirebaseAuth": {
+      "fast": [
+        5,
+        15
+      ],
+      "slow": [
+        120,
+        400
+      ],
+      "slowEvery": 4,
+      "timeout": [
+        800,
+        1500
+      ],
+      "timeoutEvery": 25
+    },
+    "RestSync": {
+      "fast": [
+        5,
+        15
+      ],
+      "slow": [
+        120,
+        400
+      ],
+      "slowEvery": 4,
+      "timeout": [
+        800,
+        1500
+      ],
+      "timeoutEvery": 25
+    }
+  },
+  "scenario": "checkout-flow",
+  "schema": 1,
+  "spec": 968,
+  "time": {
+    "seed": 968
+  },
+  "touchpoints": [
+    {
+      "contract": "signIn(email, password) -> User, signOut() -> void",
+      "family": "firebase-auth",
+      "methods": [
+        {
+          "name": "signIn",
+          "params": [
+            "email",
+            "password"
+          ],
+          "returns": "User"
+        },
+        {
+          "name": "signOut",
+          "params": [],
+          "returns": "void"
+        }
+      ],
+      "name": "FirebaseAuth",
+      "priority": "P1",
+      "type": "service"
+    },
+    {
+      "contract": "push(batch) -> SyncResult, pull(cursor) -> Page",
+      "family": "generic",
+      "methods": [
+        {
+          "name": "push",
+          "params": [
+            "batch"
+          ],
+          "returns": "SyncResult"
+        },
+        {
+          "name": "pull",
+          "params": [
+            "cursor"
+          ],
+          "returns": "Page"
+        }
+      ],
+      "name": "RestSync",
+      "priority": "P1",
+      "type": "service"
+    }
+  ],
+  "version": 1
+}

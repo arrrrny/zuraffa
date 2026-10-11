@@ -187,6 +187,7 @@ class DiVerifyCapability implements ZuraffaCapability {
               file: relative,
               kind: 'dangling import',
               type: null,
+              member: importUri,
               detail: "import '$importUri' points at a missing file",
               fix:
                   '--> fix: create ${_relative(root, target)} or fix the '
@@ -222,6 +223,7 @@ class DiVerifyCapability implements ZuraffaCapability {
             file: relative,
             kind: 'dangling binding',
             type: type,
+            member: type,
             detail:
                 'getIt<$type> in $relative binds a class that does not '
                 'exist on disk',
@@ -334,6 +336,11 @@ class _Finding {
   final String file;
   final String kind;
   final String? type;
+
+  /// The machine-verdict member the finding is about (SPEC 1106): the
+  /// unresolvable type for a dangling binding, the dead import URI for a
+  /// dangling import. `null` only for legacy constructors in tests.
+  final String? member;
   final String detail;
   final String fix;
 
@@ -341,6 +348,7 @@ class _Finding {
     required this.file,
     required this.kind,
     required this.type,
+    this.member,
     required this.detail,
     required this.fix,
   });
@@ -348,6 +356,7 @@ class _Finding {
   Map<String, dynamic> toJson() => {
     'file': file,
     'kind': kind,
+    if (member != null) 'member': member,
     if (type != null) 'class': type,
     'detail': detail,
     'fix': fix,

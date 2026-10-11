@@ -212,6 +212,76 @@ void main() {
     });
   });
 
+  group('ArtifactRegistry — surgical record drop (issue #1495)', () {
+    test(
+      'dropRecords removes exactly the named records and keeps the rest',
+      () async {
+        await registry.register(
+          sampleRecord(behaviorId: 'B-001', sourceCriterion: 'FR-001'),
+        );
+        await registry.register(
+          sampleRecord(behaviorId: 'B-002', sourceCriterion: 'FR-005'),
+        );
+        await registry.register(
+          sampleRecord(behaviorId: 'B-003', sourceCriterion: 'FR-007'),
+        );
+
+        final dropped = await registry.dropRecords({'B-002'});
+
+        expect(dropped.map((r) => r.behaviorId), ['B-002']);
+        final remaining = (await registry.loadAll())
+            .map((r) => r.behaviorId)
+            .toList();
+        expect(remaining, ['B-001', 'B-003']);
+        // The registry file stays parseable with the same feature label.
+        final raw =
+            jsonDecode(await File(registry.registryPath).readAsString())
+                as Map<String, dynamic>;
+        expect(raw['feature'], '044-test-tdd-generation');
+        expect((raw['records'] as List), hasLength(2));
+      },
+    );
+
+    test('dropRecords drops every named id in one write', () async {
+      await registry.register(
+        sampleRecord(behaviorId: 'B-001', sourceCriterion: 'FR-001'),
+      );
+      await registry.register(
+        sampleRecord(behaviorId: 'B-002', sourceCriterion: 'FR-005'),
+      );
+
+      final dropped = await registry.dropRecords({'B-001', 'B-002'});
+
+      expect(dropped.map((r) => r.behaviorId).toSet(), {'B-001', 'B-002'});
+      expect(await registry.loadAll(), isEmpty);
+    });
+
+    test('dropRecords with an unknown id is a no-op (empty drop)', () async {
+      await registry.register(
+        sampleRecord(behaviorId: 'B-001', sourceCriterion: 'FR-001'),
+      );
+
+      final dropped = await registry.dropRecords({'B-UNKNOWN'});
+
+      expect(dropped, isEmpty);
+      expect(await registry.loadAll(), hasLength(1));
+    });
+
+    test('dropRecords never touches files on disk (registry-only)', () async {
+      final record = sampleRecord();
+      await registry.register(record);
+      final testFile = File(record.testPath);
+      await testFile.parent.create(recursive: true);
+      await testFile.writeAsString('// owned test content');
+      final shaBefore = _sha256(testFile);
+
+      await registry.dropRecords({record.behaviorId});
+
+      expect(_sha256(testFile), shaBefore);
+      expect(await registry.loadAll(), isEmpty);
+    });
+  });
+
   group('ArtifactRegistry — read-back for verify (FR-012)', () {
     test('reads back all records for a feature', () async {
       await registry.register(
@@ -236,6 +306,213 @@ void main() {
     test('loadAll on empty registry returns empty list (FR-012)', () async {
       final records = await registry.loadAll();
       expect(records, isEmpty);
+    });
+  });
+
+  group('ArtifactRegistry — path-form normalization (issue #1397)', () {
+    final relTest = 'test/tdd/044-test-tdd-generation/b003_test.dart';
+    final relSubject = 'lib/tdd/044-test-tdd-generation/b003_subject.dart';
+    final portableTest = 'test/tdd/044-test-tdd-generation/b003_test.dart';
+
+    /// Seed the registry file directly with one record whose paths carry
+    /// [testPath]/[subjectPath] verbatim (the recorded form).
+    Future<void> seedRegistry(
+      String testPath,
+      String subjectPath, {
+      String? genFingerprint,
+    }) async {
+      final regFile = File(registry.registryPath);
+      await regFile.parent.create(recursive: true);
+      await regFile.writeAsString(
+        jsonEncode({
+          'feature': '044-test-tdd-generation',
+          'records': [
+            {
+              'behavior_id': 'B-003',
+              'feature': '044-test-tdd-generation',
+              'source_criterion': 'FR-007',
+              'test_path': testPath,
+              'subject_path': subjectPath,
+              'runnable_test_name': '$testPath::B-003::asserts behavior',
+              'test_ownership': 'created',
+              'subject_ownership': 'created',
+              'created_at': '2026-08-29T20:00:00Z',
+              'gen_fingerprint': ?genFingerprint,
+            },
+          ],
+        }),
+      );
+    }
+
+    /// Create both prior artifacts on disk under the project layout.
+    Future<void> seedArtifacts() async {
+      for (final rel in [relTest, relSubject]) {
+        final file = File(p.join(tmpDir.path, rel));
+        await file.parent.create(recursive: true);
+        await file.writeAsString('// prior artifact');
+      }
+    }
+
+    ArtifactRecord offering(
+      String testPath,
+      String subjectPath, {
+      String? genFingerprint,
+    }) => ArtifactRecord(
+      behaviorId: 'B-003',
+      feature: '044-test-tdd-generation',
+      sourceCriterion: 'FR-007',
+      testPath: testPath,
+      subjectPath: subjectPath,
+      runnableTestName: '$testPath::B-003::asserts behavior',
+      testOwnership: Ownership.created,
+      subjectOwnership: Ownership.created,
+      createdAt: '2026-08-29T20:00:00Z',
+      genFingerprint: genFingerprint,
+    );
+
+    test('preflight reuses when the prior record is project-relative and '
+        'the caller offers the machine-absolute form (issue #1397)', () async {
+      // The issue state: the registry's prior record (the fixture's a5
+      // shape) is project-relative, while gen computes machine-absolute
+      // paths for the SAME files. The gate must compare resolved paths,
+      // not string forms.
+      await seedArtifacts();
+      await seedRegistry(relTest, relSubject);
+
+      final result = await registry.preflight(
+        offering(p.join(tmpDir.path, relTest), p.join(tmpDir.path, relSubject)),
+      );
+
+      expect(result.testOwnership, Ownership.reused);
+      expect(result.subjectOwnership, Ownership.reused);
+    });
+
+    test('preflight reuses when the prior record is machine-absolute and '
+        'the caller offers the project-relative form (issue #1397)', () async {
+      // The inverse mix: the prior record is machine-absolute (the
+      // fixture's a3/a4/a6/a7 shape) and the caller names the same files
+      // project-relatively.
+      await seedArtifacts();
+      await seedRegistry(
+        p.join(tmpDir.path, relTest),
+        p.join(tmpDir.path, relSubject),
+      );
+
+      final result = await registry.preflight(offering(relTest, relSubject));
+
+      expect(result.testOwnership, Ownership.reused);
+      expect(result.subjectOwnership, Ownership.reused);
+    });
+
+    test('persists records in the portable project-relative POSIX form '
+        '(issue #1397)', () async {
+      // gen (pre-fix) wrote machine-absolute paths; the registry must
+      // persist the portable form so committed registries survive other
+      // machines.
+      await seedArtifacts();
+      final absolute = offering(
+        p.join(tmpDir.path, relTest),
+        p.join(tmpDir.path, relSubject),
+      );
+
+      await registry.append(absolute);
+
+      final raw = await File(registry.registryPath).readAsString();
+      expect(
+        raw,
+        isNot(contains(tmpDir.path)),
+        reason: 'no machine-specific absolute path may survive persist',
+      );
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final stored =
+          (decoded['records'] as List).single as Map<String, dynamic>;
+      expect(stored['test_path'], relTest);
+      expect(stored['subject_path'], relSubject);
+      // The runnable name's path segment is rebuilt with the persisted
+      // form; the id and description segments are preserved verbatim.
+      expect(
+        stored['runnable_test_name'],
+        '$portableTest::B-003::asserts behavior',
+      );
+    });
+
+    test('still conflicts when the forms resolve to different files '
+        '(no over-normalization)', () async {
+      // Normalization must never merge distinct ownership boundaries: a
+      // record pointing at another tree is a real conflict.
+      await seedArtifacts();
+      await seedRegistry(relTest, relSubject);
+
+      await expectLater(
+        registry.preflight(
+          offering('test/other/b003_test.dart', 'lib/other/b003_subject.dart'),
+        ),
+        throwsA(isA<OwnershipConflict>()),
+      );
+    });
+
+    group('gen fingerprint survives the path-form copiers (issue #1388)', () {
+      final digest = List.filled(64, 'a').join();
+
+      test('loadAll re-anchors a stale absolute path and keeps the digest '
+          '(_reanchorRecord)', () async {
+        // A registry written on another machine: the absolute paths no
+        // longer resolve, but their lane suffixes do under this project
+        // root, so the reader's reanchor pass rebuilds each record.
+        await seedArtifacts();
+        await seedRegistry(
+          '/stale-sandbox/checkout-a/$relTest',
+          '/stale-sandbox/checkout-a/$relSubject',
+          genFingerprint: digest,
+        );
+
+        final records = await registry.loadAll();
+
+        expect(records, hasLength(1));
+        expect(records.single.testPath, relTest);
+        expect(records.single.subjectPath, relSubject);
+        expect(
+          records.single.genFingerprint,
+          digest,
+          reason:
+              '_reanchorRecord rebuilt the record but dropped '
+              'gen_fingerprint — #1388 reopens',
+        );
+      });
+
+      test('append persists the portable path form and keeps the digest '
+          '(_canonicalize)', () async {
+        await seedArtifacts();
+
+        await registry.append(
+          offering(
+            p.join(tmpDir.path, relTest),
+            p.join(tmpDir.path, relSubject),
+            genFingerprint: digest,
+          ),
+        );
+
+        final raw = await File(registry.registryPath).readAsString();
+        final stored =
+            ((jsonDecode(raw) as Map<String, dynamic>)['records'] as List)
+                    .single
+                as Map<String, dynamic>;
+        expect(
+          stored['test_path'],
+          relTest,
+          reason: '_canonicalize must still persist the portable form',
+        );
+        expect(
+          stored['gen_fingerprint'],
+          digest,
+          reason:
+              '_canonicalize rewrote the record but dropped gen_fingerprint '
+              '— #1388 reopens',
+        );
+
+        // ... and the digest survives the reanchor reader as well.
+        expect((await registry.loadAll()).single.genFingerprint, digest);
+      });
     });
   });
 }

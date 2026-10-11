@@ -32,6 +32,11 @@
 ///      test file is never
 ///      touched (044 ownership contract), and the stub's function NAME
 ///      is preserved so the immutable test keeps compiling against it.
+///      Issue #1517: when the installed body is a DUMMY (not a still-red
+///      scaffold), the gen-time honest-red claims the stub header and doc
+///      comment carry are reconciled to the scaffolded-dummy state — the
+///      file describes the state it actually contains; contract traces
+///      are preserved verbatim.
 ///   4. Is idempotent: a subject with no `UnimplementedError` left is
 ///      reported `already-implemented` and exits 0, so a resumed
 ///      pipeline re-running the step stays green.
@@ -45,8 +50,12 @@ import 'package:path/path.dart' as p;
 import '../models/routing.dart';
 import '../services/artifact_registry.dart';
 import '../services/declared_routing.dart';
+import '../services/path_canonicalizer.dart';
 import '../services/subject_signature_deriver.dart';
+import '../services/subject_provenance.dart';
+import '../services/subject_writer.dart';
 import '../services/tdd_generation_receipt.dart';
+import '../services/unit_contract_shape.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
@@ -56,6 +65,14 @@ import '../../../core/project/project_root.dart';
 enum FuncOutcome {
   scaffolded('scaffolded'),
   alreadyImplemented('already-implemented'),
+
+  /// Issue #1565: the subject is gen's CONTRACT-DERIVED stub (provenance
+  /// markers + the declaration shape gen emits) whose signature func's
+  /// bounded set does not cover — the subject is ALREADY the declared
+  /// contract the behavior needs, so the step is an honest no-op success
+  /// (exit 0, nothing rewritten, the body stays the author's hand work).
+  contractDerivedNoop('contract-derived-noop'),
+
   runnerError('runner-error');
 
   const FuncOutcome(this.label);
@@ -173,8 +190,30 @@ class FuncCommand extends Command<void> {
           ? recordedSubject
           : p.join(normalizedCwd, recordedSubject),
     );
-    if (!p.equals(normalizedCwd, subjectPath) &&
-        !p.isWithin(normalizedCwd, subjectPath)) {
+    // Compare CANONICAL forms: the recorded path may travel one side of a
+    // symlink (`/var/...`) while the project root resolves through the
+    // other (`/private/var/...`), so an unresolved comparison misreads the
+    // project's own subject as "outside the project root" (issue #1603).
+    String canonicalRoot;
+    try {
+      canonicalRoot = await Directory(normalizedCwd).resolveSymbolicLinks();
+    } on FileSystemException {
+      // Symmetric with the subject side below: a root that cannot resolve
+      // is canonicalized through its nearest EXISTING ancestor, never left
+      // raw (review of #1611).
+      canonicalRoot = await canonicalizeMissingPath(normalizedCwd);
+    }
+    String canonicalSubject;
+    try {
+      canonicalSubject = await File(subjectPath).resolveSymbolicLinks();
+    } on FileSystemException {
+      // A missing subject file (the U-F5 artifact case) has nothing to
+      // resolve: canonicalize it so the wrong refusal branch is never hit
+      // before the missing-subject check below (issue #1603).
+      canonicalSubject = await canonicalizeMissingPath(subjectPath);
+    }
+    if (!p.equals(canonicalRoot, canonicalSubject) &&
+        !p.isWithin(canonicalRoot, canonicalSubject)) {
       print(
         'zfa tdd func: the registry record for behavior '
         '"${record.behaviorId}" points outside the project root at '
@@ -210,7 +249,7 @@ class FuncCommand extends Command<void> {
     // 3. Parse the stub and emit the scaffolded implementation.
     // -------------------------------------------------------------
     final raw = await subjectFile.readAsString();
-    final stub = _stubSignature.firstMatch(raw);
+    final stub = SubjectProvenance.funcRewritableStubPattern.firstMatch(raw);
     if (stub == null) {
       // Spec 0806 FR-006 (convergent generation): the refusal must key on
       // an ACTUAL `throw UnimplementedError(…)` the command might have
@@ -220,8 +259,41 @@ class FuncCommand extends Command<void> {
       // implementation, so a substring check refuses every already-done
       // subject and breaks deterministic replay of recorded `tdd func`
       // steps (exit 1 on a converged tree).
-      final hasUnimplementedThrow = _unimplementedThrow.hasMatch(raw);
+      final hasUnimplementedThrow = SubjectProvenance.hasUnimplementedThrow(
+        raw,
+      );
       if (hasUnimplementedThrow) {
+        // Issue #1565: provenance-aware recognition. A gen CONTRACT-DERIVED
+        // stub (both provenance markers + the declaration shape the #1259
+        // template emits) whose declared signature rides entity types
+        // (SPEC 1489 verbatim rendering) is OUTSIDE func's bounded rewrite
+        // set — and that is correct: the signature IS the spec's declared
+        // contract, so scaffolding from prose would either invent a shape
+        // (#1259's forbidden class) or rewrite the declaration to itself.
+        // The subject is already what the behavior needs; the step is an
+        // honest no-op success and the body stays the author's hand work.
+        // Every other unrecognized shape keeps the guard below.
+        final contractDerivedNoop =
+            SubjectProvenance.isContractDerivedGenStub(raw) &&
+            SubjectProvenance.contractDerivedDeclarationPattern.hasMatch(raw);
+        if (contractDerivedNoop) {
+          print(
+            'zfa tdd func: subject at "$recordedSubject" is gen\'s '
+            'CONTRACT-DERIVED stub (issue #1259) — the declared signature '
+            'is already in place and is not rewritten from prose.',
+          );
+          print(
+            '   nothing to scaffold: implement the declared contract body '
+            'by hand (the paired test stays honestly red until then).',
+          );
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: FuncOutcome.contractDerivedNoop,
+            feature: resolved.featureName,
+          );
+          exitCode = 0;
+          return;
+        }
         print(
           'zfa tdd func: subject at "$recordedSubject" carries an '
           'UnimplementedError in an unrecognized shape — refusing to '
@@ -252,6 +324,7 @@ class FuncCommand extends Command<void> {
     // calls `subject.<name>()` and must keep compiling against the
     // scaffolded signature (044 ownership contract).
     final functionName = stub.group(2)!;
+    final stubParams = (stub.group(3) ?? '').trim();
 
     // Feature 071 (issue #920's durable fix): a DECLARED signature from
     // the behavior's function contract row outranks prose inference.
@@ -278,12 +351,44 @@ class FuncCommand extends Command<void> {
       return;
     }
 
+    // Issue #1259: a PARAMETRIZED stub without a declaration cannot be
+    // rewritten from prose — the behavior record carries no input schema
+    // (the reason the legacy surface was no-arg), so rewriting the
+    // declared parametrized shape to an invented no-arg body would break
+    // the paired test's invocation (and re-open the invented-shape
+    // class). Refuse with the remedy; the declared path below serves
+    // every stub gen writes for contract-declared behaviors.
+    if (declared == null && stubParams.isNotEmpty) {
+      print(
+        'zfa tdd func: subject at "$recordedSubject" carries a parametrized '
+        'signature but the behavior declares no contract row to derive it '
+        'from — refusing to invent a shape (issue #1259).',
+      );
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: FuncOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+
     final scaffolded = _renderScaffolded(
       description: description,
       functionName: functionName,
       declared: declared,
     );
-    final updated = raw.replaceRange(stub.start, stub.end, scaffolded);
+    var updated = raw.replaceRange(stub.start, stub.end, scaffolded);
+    // Issue #1517: a DUMMY body invalidates the gen-time honest-red
+    // claims the stub header and doc comment carry ("MINIMAL COMPILABLE
+    // STUB ... honest red", "Throws [UnimplementedError] until the real
+    // implementation lands."). The file must describe the state it
+    // actually contains — reconcile the claims. A still-red scaffold (a
+    // non-renderable declared return that keeps UnimplementedError) is
+    // left alone: its claims remain true there.
+    if (!scaffolded.contains('UnimplementedError')) {
+      updated = _reconcileHeaderClaimsForDummyBody(updated);
+    }
     await subjectFile.writeAsString(updated);
     // Issue #969 T003: the scaffolded subject becomes self-certifying.
     await TddGenerationReceipts.writeBestEffort(
@@ -306,18 +411,179 @@ class FuncCommand extends Command<void> {
   // Resolution + rendering helpers.
   // -------------------------------------------------------------------
 
-  static final RegExp _stubSignature = RegExp(
-    r'^(int|void)[ \t]+([A-Za-z_][A-Za-z0-9_]*)\(\)[ \t]*=>[ \t]*'
-    r'throw[ \t]+UnimplementedError\([^;\r\n]*\);[ \t]*$',
-    multiLine: true,
-  );
+  // The stub declaration func rewrites and the UnimplementedError throw
+  // scan the refusal keys on are the shared SubjectProvenance members
+  // (issue #1565) so make's plan decision consults the SAME patterns this
+  // command refuses on.
 
-  /// Spec 0806 FR-006: an actual throw statement — what the refusal keys
-  /// on. Distinguished from the stub header's doc comment, which merely
-  /// mentions `UnimplementedError` and survives implementation.
-  static final RegExp _unimplementedThrow = RegExp(
-    r'throw[ \t]+(?:const[ \t]+)?UnimplementedError\s*\(',
-  );
+  // -------------------------------------------------------------------
+  // Issue #1517: header/doc reconciliation for the scaffolded-dummy
+  // state. SubjectWriter bakes honest-red claims into the stub header
+  // ("MINIMAL COMPILABLE STUB ... honest red") and doc comment ("Throws
+  // [UnimplementedError] until the real implementation lands.") —
+  // gen-time-accurate, fill-time-stale: once func installs a dummy body
+  // the paired test compiles and may go green on the dummy alone. When
+  // the body func just installed is a DUMMY, the claims below are
+  // rewritten to the scaffolded-dummy state. The patterns tolerate the
+  // `// `/`/// ` prefixes and the exact line wraps SubjectWriter emits.
+  // -------------------------------------------------------------------
+
+  /// The scaffolded-dummy state claim (the header variant).
+  static const _dummyHeaderClaim =
+      'Scaffolded dummy per `zfa tdd func` (issue #1517): the body below '
+      'is a placeholder that compiles against the signature — the paired '
+      'test may pass on this dummy alone. Replace this dummy body with '
+      'the real implementation.';
+
+  /// The scaffolded-dummy state claim (the doc-comment variant).
+  static const _dummyDocClaim =
+      'Scaffolded dummy per `zfa tdd func` (issue #1517) — replace this '
+      'dummy body with the real implementation.';
+
+  /// The gen-time honest-red claim sentences SubjectWriter renders into
+  /// the unit / acceptance / contract-derived stub headers, and the doc
+  /// comment line every stub carries — consumed from the writer's own
+  /// templates ([StubClaims]) so the two sides cannot drift apart.
+  static final List<RegExp> _staleHeaderClaims = [
+    _claimPattern(StubClaims.unitHeader),
+    _claimPattern(StubClaims.acceptanceHeader),
+    _claimPattern(StubClaims.contractHeader),
+    _claimPattern(StubClaims.docLine),
+  ];
+
+  /// Builds a pattern matching [wrapped] even where SubjectWriter wraps
+  /// it across comment lines: the template's own wraps are normalized
+  /// back to spaces, then a space in the sentence matches intra-line
+  /// whitespace OR a newline followed by the next line's comment prefix
+  /// (consumed, so replacements must re-supply prefixes).
+  static RegExp _claimPattern(String wrapped) {
+    final sentence = wrapped.replaceAll(RegExp(r'\r?\n[/]+[ \t]?'), ' ');
+    final body = sentence
+        .split(' ')
+        .map(RegExp.escape)
+        .join(r'(?:[ \t]+|\r?\n[ \t]*(?://+)[ \t]*)');
+    return RegExp(body);
+  }
+
+  /// Rewrites the gen-time honest-red claims for the scaffolded-dummy
+  /// state (issue #1517). Contract traces (behavior_id, source_criterion,
+  /// description, declared-signature fence, declared parameters) are
+  /// preserved verbatim — the rewrite only touches claim sentences.
+  ///
+  /// Only the generated comment blocks are in scope: the stub header
+  /// (`// GENERATED STUB` through its terminating `library;`) and the
+  /// declaration doc comment. A file-wide rewrite would let the residual
+  /// sweep delete unrelated user-authored comments (review of #1523).
+  static String _reconcileHeaderClaimsForDummyBody(String source) {
+    var updated = source;
+    // Later regions first so an earlier replacement's changed length
+    // cannot invalidate the remaining offsets.
+    for (final (start, end) in _claimRegions(updated).reversed) {
+      final block = updated.substring(start, end);
+      final reconciled = _reconcileClaimBlock(block);
+      if (reconciled != block) {
+        updated = updated.replaceRange(start, end, reconciled);
+      }
+    }
+    // A subject whose header carried no claim sentences (hand-authored
+    // stub) still gets the state statement — the file must describe the
+    // scaffolded-dummy state even when there was nothing stale to
+    // replace.
+    if (!updated.contains('Scaffolded dummy')) {
+      final library = RegExp(r'^library;', multiLine: true).firstMatch(updated);
+      const note =
+          '// Scaffolded dummy per `zfa tdd func` (issue #1517) — replace\n'
+          '// this dummy body with the real implementation.\n';
+      updated = library == null
+          ? '$note$updated'
+          : updated.replaceRange(library.start, library.start, note);
+    }
+    return updated;
+  }
+
+  /// The generated comment blocks the #1517 rewrite may touch: the stub
+  /// header and the declaration doc comment. Empty when neither is
+  /// present — a hand-authored subject has nothing generated to
+  /// reconcile, and its own comments must survive untouched.
+  static List<(int, int)> _claimRegions(String source) {
+    final regions = <(int, int)>[];
+    final header = RegExp(
+      r'^// GENERATED STUB[\s\S]*?^library;[ \t]*$',
+      multiLine: true,
+    ).firstMatch(source);
+    if (header != null) {
+      regions.add((header.start, header.end));
+    }
+    final docRuns = RegExp(
+      r'^(?:///[^\n]*\n)+',
+      multiLine: true,
+    ).allMatches(source).toList();
+    if (docRuns.isNotEmpty) {
+      // The declaration doc comment is the last `///` run in the stub.
+      final doc = docRuns.last;
+      regions.add((doc.start, doc.end));
+    }
+    return regions;
+  }
+
+  /// Reconciles the claim sentences inside one comment block, then sweeps
+  /// the residual stale markers a re-wrapped (template drift) or
+  /// hand-authored variant may still carry — trace lines are exempt so a
+  /// pathological description can never be torn out of the header.
+  static String _reconcileClaimBlock(String block) {
+    var text = block;
+    for (final claim in _staleHeaderClaims) {
+      text = text.replaceAllMapped(claim, (m) {
+        final isDocClaim = m.input
+            .substring(m.start, m.end)
+            .startsWith('Throws [UnimplementedError]');
+        final replacement = isDocClaim ? _dummyDocClaim : _dummyHeaderClaim;
+        final lineStart = m.start == 0
+            ? 0
+            : m.input.lastIndexOf('\n', m.start - 1) + 1;
+        final beforeMatch = m.input.substring(lineStart, m.start);
+        // The match starts the line's content (only a comment prefix
+        // before it): the prefix stays, the replacement splices in.
+        if (beforeMatch.isEmpty ||
+            RegExp(r'^[/]+[ \t]*$').hasMatch(beforeMatch)) {
+          return replacement;
+        }
+        // A claim replaced mid-line (the contract-unit sentence starts
+        // after "when implementing. ") moves to its own comment line,
+        // prefixed like the line it came from. These claims always sit in
+        // comments, so `// ` is the safe default prefix (review of #1523).
+        final prefix =
+            RegExp(r'[/]+[ \t]*').firstMatch(beforeMatch)?.group(0) ?? '// ';
+        return '\n$prefix$replacement';
+      });
+    }
+    const traceKeys = [
+      'behavior_id:',
+      'source_criterion:',
+      'description:',
+      'Declared parameters:',
+    ];
+    const staleMarkers = [
+      'honest red',
+      'MINIMAL COMPILABLE',
+      'does NOT satisfy',
+      'assertion-level failure',
+      'UnimplementedError',
+    ];
+    text = text
+        .split('\n')
+        .where((line) {
+          final trimmed = line.trim();
+          if (!trimmed.startsWith('//')) return true;
+          if (traceKeys.any(trimmed.contains)) return true;
+          return !staleMarkers.any(trimmed.contains);
+        })
+        .join('\n');
+    // A mid-line splice leaves the separator's space on the line it
+    // vacated; trim line-end whitespace so the emitted subject stays
+    // `dart format --set-exit-if-changed` clean (review of #1523).
+    return text.replaceAll(RegExp(r'[ \t]+$', multiLine: true), '');
+  }
 
   /// The behavior description the record carries — the record's own
   /// parsing contract ([ArtifactRecord.descriptionSegment]), shared with
@@ -334,8 +600,17 @@ class FuncCommand extends Command<void> {
     // present — the prose deriver runs ONLY on the fallback branch
     // (issue #920: no invented return types when a declaration exists).
     if (declared != null) {
-      return '''${declared.returnType} $functionName() {
-  ${_declaredStubBody(declared.returnType, functionName)}
+      // Issue #1259: the DECLARED SHAPE — params from the request
+      // entity, return from the result entity — not just the return
+      // type. Non-renderable declared types (entities that may not
+      // exist yet) render as `Object?` and the scaffold stays red
+      // (`UnimplementedError`) instead of a dummy value.
+      final shape = UnitContractShape.of(declared);
+      // SPEC 1536: the ONE shared renderer — named params render in a
+      // trailing `{...}` group; positional rows stay byte-for-byte.
+      final params = UnitContractShape.renderParameterList(shape.params);
+      return '''${shape.returnType} $functionName($params) {
+  ${_declaredStubBody(shape.returnType, functionName, shape)}
 }''';
     }
     final derived = deriveSubjectSignature(description);
@@ -348,15 +623,21 @@ class FuncCommand extends Command<void> {
   /// A minimal compiling body honoring the declared return type. For
   /// non-primitive declared returns the honest scaffold stays red —
   /// `UnimplementedError` — instead of inventing a vacuous value
-  /// (issue #920: a green suite that measures nothing).
-  String _declaredStubBody(String returnType, String functionName) {
+  /// (issue #920: a green suite that measures nothing; issue #1259: the
+  /// declared entity contract is named in the error so the implementer
+  /// knows the shape the spec declared).
+  String _declaredStubBody(
+    String returnType,
+    String functionName,
+    UnitContractShape shape,
+  ) {
     if (returnType == 'String') return "return '$functionName';";
     if (returnType == 'int') return 'return 0;';
     if (returnType == 'double') return 'return 0.0;';
     if (returnType == 'bool') return 'return true;';
     if (returnType == 'void') return '';
     return "throw UnimplementedError('implement per declared signature: "
-        '$functionName -> $returnType\');';
+        '${shape.declaredSignature}\');';
   }
 
   Future<_Resolved?> _resolve(
@@ -422,6 +703,10 @@ class FuncCommand extends Command<void> {
       ..outcome = switch (outcome) {
         FuncOutcome.scaffolded => VerdictOutcome.pass,
         FuncOutcome.alreadyImplemented => VerdictOutcome.stopped,
+        // Issue #1565: a no-op success — the subject is already the
+        // declared contract. `stopped` (the already-implemented class):
+        // exit 0, nothing generated, nothing to certify from this step.
+        FuncOutcome.contractDerivedNoop => VerdictOutcome.stopped,
         FuncOutcome.runnerError => VerdictOutcome.fail,
       }
       ..details['behavior'] = behavior

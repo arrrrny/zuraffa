@@ -20,6 +20,7 @@ import '../zap/zap_golden.dart';
 import '../zap/zap_host.dart';
 import '../zap/zap_protocol.dart';
 import '../zap/zap_schema.dart';
+import '../cli/exit_protocol.dart';
 
 class ZapCommand extends Command<void> {
   @override
@@ -55,7 +56,7 @@ class ZapCommand extends Command<void> {
       '  schema     Print a ZAP JSON Schema; --export writes the full '
       'published contract',
     );
-    exitCode = 64;
+    exitCode = ExitProtocol.usage;
   }
 }
 
@@ -240,7 +241,7 @@ class ZapSchemaCommand extends Command<void> {
         '${ZapSchema.types.join('|')}',
       );
       print(usage);
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 

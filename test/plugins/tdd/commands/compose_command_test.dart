@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Tests for `ComposeCommand` (spec 052-acceptance-make-composition,
 // T006: A3..A8 acceptance + U9..U16 unit behaviors).
 //
@@ -224,7 +225,9 @@ int subject_u_001() {
 
       expect(exitCode, isNot(0), reason: out);
       expect(out, contains('outcome=runner-error'));
-      expect(out, contains(fx.subjectPathOf('U-001')));
+      // The registry records the portable project-relative form
+      // (issue #1397), and the error names that recorded artifact.
+      expect(out, contains('lib/u_001_subject.dart'));
     });
 
     test(
@@ -330,9 +333,47 @@ int subject_u_001() {
 
       expect(exitCode, isNot(0), reason: out);
       expect(out, contains('outcome=runner-error'));
-      expect(out, contains(fx.subjectPathOf('A-001')));
+      // The registry records the portable project-relative form
+      // (issue #1397), and the error names that recorded artifact.
+      expect(out, contains('lib/a_001_subject.dart'));
       expect(out, contains('zfa tdd gen'));
     });
+
+    test(
+      'U-1603d: a missing subject under a symlinked project root reports '
+      '"missing subject file", never "outside the project root" (#1603)',
+      () async {
+        await File(fx.subjectPathOf('A-001')).delete();
+        // Pass the ALIAS as --project: the raw cwd then canonicalizes to a
+        // different prefix — macOS's /var → /private/var shape (#1603).
+        final aliasPath = await symlinkRootAlias(fx);
+        addTearDown(() => Link(aliasPath).deleteSync());
+
+        final out = await runner.runCapturing([
+          'tdd',
+          'compose',
+          '--project',
+          aliasPath,
+          'A-001',
+        ]);
+
+        expect(exitCode, isNot(0), reason: out);
+        expect(out, contains('outcome=runner-error'));
+        expect(out, contains('missing subject file'));
+        expect(out, contains('lib/a_001_subject.dart'));
+        expect(
+          out,
+          isNot(contains('outside the project root')),
+          reason:
+              "the project's own recorded subject is never outside the "
+              'root — the raw path only looked that way because the root '
+              'canonicalizes through a symlink (#1603)',
+        );
+      },
+      onPlatform: {
+        'windows': const Skip('symlink creation may need privileges'),
+      },
+    );
 
     test(
       'U12: an in-root subject symlink targeting outside the project is refused',

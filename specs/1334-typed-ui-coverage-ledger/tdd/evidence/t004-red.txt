@@ -1,0 +1,64 @@
+00:00 +0: loading test/tdd/1334-typed-ui-coverage-ledger/t004_per_kind_overlay_rendering_test.dart
+00:00 +0 -1: loading test/tdd/1334-typed-ui-coverage-ledger/t004_per_kind_overlay_rendering_test.dart [E]
+  Failed to load "test/tdd/1334-typed-ui-coverage-ledger/t004_per_kind_overlay_rendering_test.dart":
+  lib/tdd/1334-typed-ui-coverage-ledger/t4_subject.dart:22:11: Error: No named parameter with the name 'screen'.
+            screen: '/login',
+            ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t4_subject.dart:34:9: Error: No named parameter with the name 'screen'.
+          screen: '/deal_list',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t4_subject.dart:40:9: Error: No named parameter with the name 'screen'.
+          screen: '/deal_list',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t4_subject.dart:47:9: Error: No named parameter with the name 'screen'.
+          screen: '/deal_list',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t4_subject.dart:53:9: Error: No named parameter with the name 'screen'.
+          screen: '/deal_list',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t4_subject.dart:60:9: Error: No named parameter with the name 'screen'.
+          screen: '/deal_list',
+          ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t4_subject.dart:68:38: Error: Member not found: 'TypedLedgerBuilder.screenReports'.
+    final reports = TypedLedgerBuilder.screenReports({
+                                       ^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t4_subject.dart:74:40: Error: Member not found: 'XrayLedgerOverlay.renderScreen'.
+    final loginLines = XrayLedgerOverlay.renderScreen(reports['/login']!);
+                                         ^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t4_subject.dart:88:39: Error: Member not found: 'XrayLedgerOverlay.renderScreen'.
+    final dealLines = XrayLedgerOverlay.renderScreen(reports['/deal_list']!);
+                                        ^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t4_subject.dart:99:38: Error: Member not found: 'XrayLedgerOverlay.renderByScreen'.
+    final byScreen = XrayLedgerOverlay.renderByScreen(reports);
+                                       ^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t4_subject.dart:105:40: Error: Member not found: 'XrayLedgerDeck.screenEntries'.
+    final screenEntries = XrayLedgerDeck.screenEntries(reports);
+                                         ^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t4_subject.dart:126:15: Error: Undefined name 'UiSurfaceKind'.
+          kind: UiSurfaceKind.text,
+                ^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t4_subject.dart:124:13: Error: Couldn't find constructor 'UiSurfaceRow'.
+        const UiSurfaceRow(
+              ^^^^^^^^^^^^
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/tdd/1334-typed-ui-coverage-ledger/t004_per_kind_overlay_rendering_test.dart: loading test/tdd/1334-typed-ui-coverage-ledger/t004_per_kind_overlay_rendering_test.dart

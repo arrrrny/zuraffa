@@ -1,0 +1,32 @@
+00:00 +0: loading test/tdd/1334-typed-ui-coverage-ledger/t005_plan_time_kinds_verbatim_test.dart
+00:00 +0 -1: loading test/tdd/1334-typed-ui-coverage-ledger/t005_plan_time_kinds_verbatim_test.dart [E]
+  Failed to load "test/tdd/1334-typed-ui-coverage-ledger/t005_plan_time_kinds_verbatim_test.dart":
+  lib/tdd/1334-typed-ui-coverage-ledger/t5_subject.dart:53:7: Error: No named parameter with the name 'screen'.
+        screen: '/login',
+        ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t5_subject.dart:60:7: Error: No named parameter with the name 'screen'.
+        screen: '/login',
+        ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t5_subject.dart:73:39: Error: Member not found: 'TypedLedgerBuilder.groupByScreen'.
+    final byScreen = TypedLedgerBuilder.groupByScreen(derived);
+                                        ^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t5_subject.dart:65:15: Error: The argument type 'List<dynamic>' can't be assigned to the parameter type 'List<DeclaredLedgerRow>'.
+   - 'List' is from 'dart:core'.
+   - 'DeclaredLedgerRow' is from 'package:zuraffa/src/tdd/services/typed_ledger_row.dart' ('lib/src/tdd/services/typed_ledger_row.dart').
+      declared: declared,
+                ^
+  lib/tdd/1334-typed-ui-coverage-ledger/t5_subject.dart:72:33: Error: The getter 'screen' isn't defined for the type 'TypedLedgerRow'.
+   - 'TypedLedgerRow' is from 'package:zuraffa/src/tdd/services/typed_ledger_row.dart' ('lib/src/tdd/services/typed_ledger_row.dart').
+  Try correcting the name to the name of an existing getter, or defining a getter or field named 'screen'.
+    expect(derived.every((r) => r.screen == '/login'), isTrue);
+                                  ^^^^^^
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/tdd/1334-typed-ui-coverage-ledger/t005_plan_time_kinds_verbatim_test.dart: loading test/tdd/1334-typed-ui-coverage-ledger/t005_plan_time_kinds_verbatim_test.dart

@@ -30,7 +30,10 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/proof/proof_checker.dart';
 import '../../../core/project/receipt_store.dart';
+import '../services/behavior_kind_trace.dart';
 import '../services/mutation_auditor.dart';
+import '../services/explain_emitter.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/receipt_preflight.dart';
 import '../services/requirement_scan.dart';
 import '../services/tdd_timeout.dart';
@@ -39,6 +42,7 @@ import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 import '../services/mutation_scope.dart';
+import '../../../cli/exit_protocol.dart';
 
 class VerifyCommand extends Command<void> {
   VerifyCommand(this.plugin) {
@@ -49,6 +53,7 @@ class VerifyCommand extends Command<void> {
           'line (VISION §5, issue #964).',
       negatable: false,
     );
+    argParser.addFlag('explain', help: kExplainFlagHelp, negatable: false);
     argParser.addOption(
       'feature',
       help:
@@ -114,6 +119,13 @@ class VerifyCommand extends Command<void> {
     final cwd = projectFlag != null && projectFlag.isNotEmpty
         ? p.absolute(projectFlag)
         : ProjectRoot.find(anchorDir: 'specs');
+    // Issue #1471: resolve the --feature reference once — the bug
+    // extension's `.specify/feature.json` pin included — so a bug feature
+    // is audited in `.specify/bugs/<slug>`, never a fabricated
+    // `specs/<slug>`. Null when no --feature was given.
+    final resolved = (feature != null && feature.isNotEmpty)
+        ? TddFeaturePaths.resolveWithPin(projectRoot: cwd, featureRef: feature)
+        : null;
 
     // Bug #742: the --timeout override for the preflight and the mutation
     // run (one uniform deadline for both when given).
@@ -145,15 +157,13 @@ class VerifyCommand extends Command<void> {
             "(got '$runnerFlag') --> fix: pass dart|flutter, or set the "
             'file: key in .specify/memory/tdd-profile.md and omit --runner',
           );
-          exitCode = 64;
+          exitCode = ExitProtocol.usage;
           return;
       }
     }
 
     // Resolve the feature directory. Treat empty string as absent.
-    final featureName = (feature != null && feature.isNotEmpty)
-        ? feature
-        : _resolveFeatureFromCwd(cwd);
+    final featureName = resolved?.name ?? _resolveFeatureFromCwd(cwd);
     if (featureName == null) {
       stderr.writeln(
         'zfa tdd verify: no --feature specified and no feature directory '
@@ -161,7 +171,11 @@ class VerifyCommand extends Command<void> {
       );
       throw StateError('zfa tdd verify: feature not specified');
     }
-    final featureDir = p.join(cwd, 'specs', featureName);
+    final featureDir = resolved?.dir ?? p.join(cwd, 'specs', featureName);
+    final verificationRelPath = TddFeaturePaths.displayDir(
+      cwd: cwd,
+      dir: p.join(featureDir, 'tdd', 'verification.md'),
+    );
 
     // Drift gate (bug #846): when the plan artifact carries a
     // traceability hash, the spec contract must be unchanged — a spec
@@ -313,6 +327,18 @@ class VerifyCommand extends Command<void> {
       'timed_out=${report.timedOutCount} '
       'mutation_was_run=${report.mutationWasRun}',
     );
+    // Issue #1376 (EPIC #1133 exit criterion 3): the kind trace — WHAT
+    // KINDS the referee watched, not just how many mutants died. Print
+    // only on full-run reports (non-empty kind map), so NOT_ASSESSED
+    // output stays byte-compatible.
+    if (report.behaviorKindsByBehavior.isNotEmpty) {
+      print(
+        BehaviorKindTrace.kindCountsLine(
+          BehaviorKindTrace.kindCounts(report.behaviorKindsByBehavior),
+          notTracedCount: report.notTracedBehaviors.length,
+        ),
+      );
+    }
     // Issue #969: the gate label IS the exit class (shipped taxonomy).
     _verdict
       ..exitClass = report.gate.label
@@ -324,9 +350,52 @@ class VerifyCommand extends Command<void> {
       ..details['timed_out'] = report.timedOutCount
       ..details['mutation_was_run'] = report.mutationWasRun
       ..feature = featureName;
+    // Issue #1376: the kind trace rides the verdict envelope so machine
+    // consumers read the kinds without parsing markdown (FR-005).
+    if (report.behaviorKindsByBehavior.isNotEmpty) {
+      _verdict.details['behavior_kinds'] = BehaviorKindTrace.detailsObject(
+        kindsByBehavior: report.behaviorKindsByBehavior,
+        notTraced: report.notTracedBehaviors,
+      );
+    }
 
     // Write verification.md from the REAL run (never a stale copy).
     await _writeVerificationMd(featureDir, report);
+
+    // Issue #1125: the audit's explain block — the gate decision, the
+    // mutation counts the summary line names, the preflight's receipt
+    // accounting, and the fix hints the report printed. Populated AFTER
+    // verification.md is written so the artifacts list is honest.
+    _verdict.explain = TddExplain(
+      command: 'verify',
+      features: [featureName],
+      lane: 'none — the audit assesses evidence, it drives no lane',
+      receipts: [
+        if (receiptGate.gateActive)
+          '${receiptGate.receipts} shipped receipt(s) validated '
+              '(receipt preflight, .zfa/receipts/)'
+        else
+          'none shipped — proof-carrying generation not in use',
+      ],
+      fixHints: [
+        for (final s in report.survivors)
+          'add or strengthen a scope test that fails on the mutant at '
+              '${s.file}:${s.line} '
+              '(${report.reportPath ?? 'see the mutation report for the diff'})',
+        if (report.notAssessedReason != null)
+          'make the mutation phase runnable — add mutation_test to '
+              'dev_dependencies (dart pub add dev:mutation_test) and '
+              're-run',
+      ],
+      summary:
+          'Verify ran the mutation audit for $featureName: '
+          'gate=${report.gate.label}, killed=${report.killedCount}, '
+          'survived=${report.survivedCount}, '
+          'timed_out=${report.timedOutCount}, '
+          'mutation_was_run=${report.mutationWasRun}'
+          '${report.notAssessedReason == null ? '' : ' — not assessed: ${report.notAssessedReason}'}'
+          '. The full report is $verificationRelPath.',
+    );
 
     // Bug #837 exit protocol: a quality failure (survived or timed-out
     // mutants) is a real gate verdict — exit 1 with the per-mutant report
@@ -342,7 +411,7 @@ class VerifyCommand extends Command<void> {
       throw UsageException(
         'mutation audit gate: ${report.gate.label}'
             '${report.notAssessedReason != null ? ' (${report.notAssessedReason})' : ''}',
-        'See specs/$featureName/tdd/verification.md for the full report.',
+        'See $verificationRelPath for the full report.',
       );
     }
   }
@@ -411,20 +480,31 @@ class _TraceabilityDrift {
   final String reason;
 }
 
-/// `--feature` lands in a filesystem path, so it must stay a single plain
-/// directory segment: a value like `../../etc` would otherwise create and
-/// append to a file outside `specs/`.
+/// `--feature` lands in a filesystem path: accept exactly the shapes
+/// [TddFeaturePaths] resolves (a plain segment, `specs/<name>`,
+/// `.specify/bugs/<slug>`, or an absolute path) and refuse the rest —
+/// `.`, `..`, a traversal shape, a nested shape below the feature level,
+/// or a trailing separator (issue #1471). A RELATIVE reference therefore
+/// can never create or append to a file outside the feature directory: a
+/// value like `../../etc` is refused, and every accepted relative shape
+/// resolves under the project root.
+///
+/// An ABSOLUTE reference is accepted deliberately (documented shape 4):
+/// the caller explicitly named that directory, exactly as `plan` has
+/// allowed since issue #1182. It is the one shape that may name a
+/// directory outside the project root, and it does so by explicit
+/// request, not by a smuggled relative traversal.
 void _validateFeatureSegment(String feature) {
-  if (feature.contains('/') ||
-      feature.contains(r'\') ||
-      feature == '.' ||
-      feature == '..') {
-    throw UsageException(
-      'invalid --feature "$feature": expected a single spec directory name '
-          'such as 044-test-tdd-generation, not a path.',
-      'zfa tdd verify [--feature <name>]',
-    );
+  if (TddFeaturePaths.isSupportedRef(feature) &&
+      !feature.endsWith('/') &&
+      !feature.endsWith(r'\')) {
+    return;
   }
+  throw UsageException(
+    'invalid --feature "$feature": expected a single spec directory name '
+        'such as 044-test-tdd-generation, not a path.',
+    'zfa tdd verify [--feature <name>]',
+  );
 }
 
 /// Try to resolve the feature directory from the cwd. Used when --feature

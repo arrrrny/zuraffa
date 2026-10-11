@@ -14,6 +14,7 @@ import 'package:path/path.dart' as p;
 
 import '_pascal_case.dart';
 import 'sandbox_scaffold.dart';
+import '../../../domain/entities/feature_contract/feature_contract_decorators.dart';
 import '../models/slice_manifest.dart';
 
 /// Composes the runnable sandbox over a cut tree.
@@ -25,6 +26,12 @@ class SandboxComposition {
   /// certified fake per declared dependency, and the feature's receipts
   /// (`specs/<feature>/**`) into [sandboxDir]. Appends every written
   /// path to [generatedFiles] (manifest bookkeeping).
+  ///
+  /// Spec 1098: when [feature] is set, every emitted harness artifact is
+  /// stamped with the `@FeatureOwned('<feature>')` comment decorator so
+  /// the ownership knowledge survives round-trips through hand-edits,
+  /// re-generation and xray scans — read back by
+  /// `FeatureContractDecorators.scan`, not guessed from path conventions.
   void compose({
     required String projectRoot,
     required String sandboxDir,
@@ -35,7 +42,11 @@ class SandboxComposition {
   }) {
     final scaffoldRoutes = [
       for (final route in routes)
-        SandboxRoute(path: route.path, page: route.page),
+        SandboxRoute(
+          path: route.path,
+          page: route.page,
+          import: _resolvePageImport(sandboxDir, route.page),
+        ),
     ];
     final scaffoldBindings = [
       for (final dependency in dependencies)
@@ -49,19 +60,28 @@ class SandboxComposition {
     _write(
       sandboxDir: sandboxDir,
       path: p.join(sandboxDir, 'lib', 'main.dart'),
-      content: SandboxScaffold.main(feature: feature),
+      content: _withFeatureDecorator(
+        feature: feature,
+        source: SandboxScaffold.main(feature: feature, routes: scaffoldRoutes),
+      ),
       generatedFiles: generatedFiles,
     );
     _write(
       sandboxDir: sandboxDir,
       path: p.join(sandboxDir, 'lib', 'router.dart'),
-      content: SandboxScaffold.router(routes: scaffoldRoutes),
+      content: _withFeatureDecorator(
+        feature: feature,
+        source: SandboxScaffold.router(routes: scaffoldRoutes),
+      ),
       generatedFiles: generatedFiles,
     );
     _write(
       sandboxDir: sandboxDir,
       path: p.join(sandboxDir, 'lib', 'di.dart'),
-      content: SandboxScaffold.di(bindings: scaffoldBindings),
+      content: _withFeatureDecorator(
+        feature: feature,
+        source: SandboxScaffold.di(bindings: scaffoldBindings),
+      ),
       generatedFiles: generatedFiles,
     );
 
@@ -92,6 +112,17 @@ class SandboxComposition {
         );
       }
     }
+  }
+
+  /// Stamps the `@FeatureOwned` decorator onto [source] when [feature] is
+  /// non-empty (spec 1098). Deterministic: identical inputs yield
+  /// byte-identical output (FR-007).
+  static String _withFeatureDecorator({
+    required String? feature,
+    required String source,
+  }) {
+    if (feature == null || feature.isEmpty) return source;
+    return '${FeatureContractDecorators.ownedLine(feature)}\n$source';
   }
 
   /// The certified fake installed for a declared dependency row —
@@ -148,6 +179,31 @@ class SandboxComposition {
           );
         }(),
     ];
+  }
+
+  /// Resolves the file in the mirrored slice tree that declares
+  /// `class [page]`, as an import path relative to `lib/` (the router
+  /// harness lives at `lib/router.dart`). Deterministic: lexically first
+  /// declaring file wins. Null when no mirrored file declares the class —
+  /// the router then keeps the bare symbol so the analyzer names the
+  /// declared-but-missing page (issue #1144).
+  static String? _resolvePageImport(String sandboxDir, String page) {
+    final libDir = Directory(p.join(sandboxDir, 'lib'));
+    if (!libDir.existsSync()) return null;
+    if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(page)) return null;
+    final pattern = RegExp('class\\s+$page\\b');
+    final declaringFiles = <String>[];
+    for (final entity in libDir.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      if (pattern.hasMatch(entity.readAsStringSync())) {
+        declaringFiles.add(entity.path);
+      }
+    }
+    if (declaringFiles.isEmpty) return null;
+    declaringFiles.sort();
+    return p
+        .relative(declaringFiles.first, from: p.join(sandboxDir, 'lib'))
+        .replaceAll('\\', '/');
   }
 
   static void _write({

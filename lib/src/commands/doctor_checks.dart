@@ -7,6 +7,9 @@
 ///
 /// - `deps`           — TDD dev-deps present (mocktail/coverage/mutation_test)
 ///                      + zuraffa pin vs CLI version (warn-only)
+/// - `generated-imports` — package imports under lib/ + test/ that the
+///                      pubspec doesn't declare (issue #1190); offers the
+///                      exact `pub add` one-liner and heals it under --fix
 /// - `artifacts`      — build_runner partial outputs (entity source without
 ///                      sibling `.g.dart`/`.zorphy.dart`)
 /// - `baseline-cache` — `specs/*/tdd/run-baseline.json` readable, schema-valid,
@@ -14,6 +17,9 @@
 ///                      reports WHY instead of silently falling back)
 /// - `config`         — `.zfa.json` parses + plugin keys are known
 /// - `profile`        — TDD project has `.specify/memory/tdd-profile.md`
+/// - `binary-staleness` — installed `zfa` binary's build commit (recorded
+///                      by `scripts/rebuild.sh`) matches the enclosing
+///                      zuraffa checkout's HEAD (issue #1184; warn-only)
 ///
 /// Fixes are mechanical and idempotent: `dart pub add` for missing dev-deps,
 /// build_runner for stale artifacts, deletion for corrupt/stale baseline
@@ -32,7 +38,10 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../config/zfa_config.dart';
+import '../cli/binary_staleness.dart';
+import '../core/dependencies/generated_import_scanner.dart';
 import '../plugins/tdd/tdd_plugin.dart';
+import '../skew/skew_contract.dart';
 import '../version.dart';
 import 'tdd_command.dart';
 
@@ -80,14 +89,23 @@ class DoctorCheckResult {
 typedef ZfaProcessRunner =
     Future<ProcessResult> Function(String executable, List<String> args);
 
-/// Runs the five named environment checks against a project root.
+/// Runs the six named environment checks against a project root.
 class DoctorChecksRunner {
-  DoctorChecksRunner({ZfaProcessRunner? processRunner, String? projectDir})
-    : _processRunner = processRunner ?? _defaultProcessRunner,
-      _projectDir = projectDir;
+  DoctorChecksRunner({
+    ZfaProcessRunner? processRunner,
+    String? projectDir,
+    String? binaryDir,
+  }) : _processRunner = processRunner ?? _defaultProcessRunner,
+       _projectDir = projectDir,
+       _binaryDir = binaryDir;
 
   final ZfaProcessRunner _processRunner;
   final String? _projectDir;
+
+  /// Test seam: simulates "the process IS an installed binary in this
+  /// directory"; null derives from the running executable (source runs
+  /// under the Dart VM resolve to nothing — see `BinaryStaleness`).
+  final String? _binaryDir;
 
   /// Dev-deps the TDD loop needs after a fresh clone (issue #793).
   static const requiredDevDeps = {'mocktail', 'coverage', 'mutation_test'};
@@ -107,10 +125,13 @@ class DoctorChecksRunner {
   /// AFTER healing (fixed or honestly still failing).
   Future<List<DoctorCheckResult>> runAll({required bool fix}) async => [
     await _checkDeps(fix: fix),
+    await _checkGeneratedImports(fix: fix),
     await _checkArtifacts(fix: fix),
     await _checkBaselineCache(fix: fix),
     await _checkConfig(fix: fix),
     await _checkProfile(fix: fix),
+    await _checkRuntimeSkew(),
+    await _checkBinaryStaleness(),
   ];
 
   DoctorCheckResult _pass(String id, String detail) =>
@@ -212,6 +233,86 @@ class DoctorChecksRunner {
           detail: 'installed ${missing.join(', ')}',
           suggestedFix: suggested,
           fixedItems: missing,
+        );
+      }
+      return _fail(
+        id,
+        '$detail (pub add failed with exit ${result.exitCode})',
+        suggested,
+      );
+    }
+    return _fail(id, detail, suggested);
+  }
+
+  // ---------------------------------------------------------------------------
+  // generated-imports (issue #1190)
+  // ---------------------------------------------------------------------------
+
+  /// Issue #1190: generated code imports packages the target's pubspec
+  /// doesn't declare — the analyzer surfaces that as noisy
+  /// `depend_on_referenced_packages` infos and strict CI fails. This check
+  /// scans `lib/` + `test/` for `package:` imports and diffs them against
+  /// the pubspec declarations; the remedy is the exact `pub add` one-liner
+  /// (run under --fix via the injectable process runner, hermetic in tests).
+  Future<DoctorCheckResult> _checkGeneratedImports({required bool fix}) async {
+    const id = 'generated-imports';
+    final pubspecFile = File(p.join(_root, 'pubspec.yaml'));
+    if (!pubspecFile.existsSync()) {
+      return DoctorCheckResult(
+        id: id,
+        status: DoctorCheckStatus.skipped,
+        detail: 'no pubspec.yaml (not a Dart project)',
+      );
+    }
+
+    final gap = GeneratedImportScanner.scanProject(projectRoot: _root);
+    if (gap == null) {
+      return DoctorCheckResult(
+        id: id,
+        status: DoctorCheckStatus.skipped,
+        detail: 'pubspec.yaml unreadable (not diffable)',
+      );
+    }
+    if (gap.importedPackages.isEmpty) {
+      return _pass(id, 'no package imports under lib/ or test/');
+    }
+    if (!gap.hasMissing) {
+      return _pass(
+        id,
+        'all ${gap.importedPackages.length} imported package(s) declared '
+        'in pubspec.yaml',
+      );
+    }
+
+    final detail =
+        'generated code imports ${gap.missing.length} package(s) '
+        'pubspec.yaml doesn\'t declare: ${gap.missing.join(', ')}';
+    final oneLiner = gap.pubAddOneLiner;
+    // SDK-provided packages (flutter, flutter_test, ...) cannot be pub
+    // added — they need an `sdk: flutter` declaration instead.
+    final sdkNote = gap.sdkMissingPackages.isEmpty
+        ? null
+        : 'declare ${gap.sdkMissingPackages.join(', ')} with '
+              '`sdk: flutter` in pubspec.yaml';
+    final suggested = oneLiner ?? sdkNote;
+
+    if (fix && oneLiner != null) {
+      final exe = gap.isFlutterProject ? 'flutter' : 'dart';
+      final result = await _processRunner(exe, [
+        'pub',
+        'add',
+        ...gap.pubAddPackages,
+      ]);
+      if (result.exitCode == 0) {
+        return DoctorCheckResult(
+          id: id,
+          status: DoctorCheckStatus.fixed,
+          detail:
+              'pub add installed '
+              '${gap.pubAddPackages.join(', ')}'
+              '${sdkNote == null ? '' : '; $sdkNote'}',
+          suggestedFix: suggested,
+          fixedItems: gap.pubAddPackages,
         );
       }
       return _fail(
@@ -499,6 +600,213 @@ class DoctorChecksRunner {
     }
     return _fail(id, 'missing .specify/memory/tdd-profile.md', suggested);
   }
+
+  // ---------------------------------------------------------------------------
+  // runtime-skew (issue #1197)
+  // ---------------------------------------------------------------------------
+
+  /// The generator/runtime version-skew triangle (issue #1197, feeding
+  /// #1184's staleness check): target pubspec pin vs installed core
+  /// (what the package config resolves to) vs the running generator.
+  /// Also enforces the floors stamped into generation receipts
+  /// (`min_core_version`): a receipt generated against a newer core
+  /// than the installed one is a diagnosed downgrade, not a mystery.
+  Future<DoctorCheckResult> _checkRuntimeSkew() async {
+    const id = 'runtime-skew';
+    final pubspecFile = File(p.join(_root, 'pubspec.yaml'));
+    if (!pubspecFile.existsSync()) {
+      return DoctorCheckResult(
+        id: id,
+        status: DoctorCheckStatus.skipped,
+        detail: 'no pubspec.yaml (not a Dart project)',
+      );
+    }
+
+    String? pin;
+    try {
+      final doc = loadYaml(pubspecFile.readAsStringSync()) as YamlMap;
+      final pinValue = (doc['dependencies'] as YamlMap?)?['zuraffa'];
+      if (pinValue is String) pin = pinValue;
+    } catch (_) {
+      // The deps check already reports pubspec problems — stay silent.
+    }
+
+    final core = SkewContract.resolveCore(_root);
+    if (core == null) {
+      return DoctorCheckResult(
+        id: id,
+        status: DoctorCheckStatus.warn,
+        detail:
+            'installed zuraffa core not resolved (no pub get?); skew vs '
+            'generator v$version unknown — pin: ${pin ?? 'none'}',
+        suggestedFix: 'dart pub get',
+      );
+    }
+
+    final notes = <String>[
+      'generator v$version | installed core v${core.version ?? 'unknown'}'
+          '${core.fromPackageConfig ? '' : ' (generator checkout)'}'
+          ' | pin: ${pin ?? 'none'}',
+    ];
+
+    // Advisory triangle drift (warn-only — availability is enforced at
+    // the emission sites and via receipt floors below).
+    var warn = false;
+    if (pin != null) {
+      final pinMajor = int.tryParse(
+        RegExp(r'\d+').firstMatch(pin)?.group(0) ?? '',
+      );
+      final cliMajor = int.tryParse(version.split('.').first);
+      if (pinMajor != null && cliMajor != null && pinMajor < cliMajor) {
+        notes.add('pubspec pin $pin is behind CLI v$version');
+        warn = true;
+      }
+      // Installed vs pin: a stale `pub upgrade` (the #1184 staleness
+      // case) leaves the package config behind the declared pin.
+      final pinMin = _pinMinVersion(pin);
+      if (pinMin != null &&
+          core.version != null &&
+          compareVersions(core.version!, pinMin) < 0) {
+        notes.add('installed core v${core.version} is older than the pin $pin');
+        warn = true;
+      }
+      if (core.version != null &&
+          compareVersions(core.version!, supportedCoreFloor) < 0) {
+        notes.add(
+          'installed core v${core.version} predates the supported floor '
+          'v$supportedCoreFloor',
+        );
+        warn = true;
+      }
+    }
+
+    // Receipt floors: a generation stamped against a newer core than
+    // the installed one is a real skew (the #1197 downgrade case).
+    final receiptViolations = _receiptFloorViolations(core);
+    if (receiptViolations.isNotEmpty) {
+      notes.addAll(receiptViolations);
+      return _fail(id, notes.join('; '), 'dart pub upgrade zuraffa');
+    }
+
+    if (warn) {
+      return DoctorCheckResult(
+        id: id,
+        status: DoctorCheckStatus.warn,
+        detail: notes.join('; '),
+        suggestedFix: 'dart pub upgrade zuraffa',
+      );
+    }
+    return _pass(id, notes.single);
+  }
+
+  /// Strips the constraint characters off a pubspec version pin
+  /// (`^6.1.0`, `>=6.0.0 <7.0.0` → first bare version) and returns it,
+  /// or null when the pin carries no parseable version ('any').
+  String? _pinMinVersion(String pin) {
+    final cleaned = pin.replaceAll(RegExp(r'[\^~><=\[\]]'), '').trim();
+    for (final token in cleaned.split(RegExp(r'\s+'))) {
+      if (token.isEmpty) continue;
+      if (RegExp(r'^\d+(\.\d+){0,2}$').hasMatch(token)) return token;
+      return null;
+    }
+    return null;
+  }
+
+  /// Scans `.zfa/receipts/**` for stamps the installed core no longer
+  /// satisfies. Returns human-readable violation lines (empty = ok).
+  List<String> _receiptFloorViolations(InstalledCore core) {
+    final violations = <String>[];
+    final receiptsDir = Directory(p.join(_root, '.zfa', 'receipts'));
+    if (!receiptsDir.existsSync()) return violations;
+    final files =
+        receiptsDir
+            .listSync(recursive: true, followLinks: false)
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.json'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
+    for (final file in files) {
+      Object? json;
+      try {
+        json = jsonDecode(file.readAsStringSync());
+      } catch (_) {
+        continue; // unreadable receipts are not a skew problem
+      }
+      if (json is! Map) continue;
+      final floor = json['min_core_version'];
+      if (floor is! String) continue;
+      final installed = core.version;
+      if (installed == null) continue; // advisory only when unknown
+      if (compareVersions(installed, floor) < 0) {
+        violations.add(
+          '${p.relative(file.path, from: _root)}: min_core_version $floor '
+          'exceeds installed core v$installed (receipt generated against '
+          'a newer core — generated artifacts may not resolve)',
+        );
+      }
+    }
+    return violations;
+  }
+
+  // ---------------------------------------------------------------------------
+  // binary-staleness (issue #1184)
+  // ---------------------------------------------------------------------------
+
+  /// Issue #1184: `~/.local/bin/zfa` is a compiled snapshot; when the
+  /// operator runs it inside a zuraffa checkout whose HEAD differs from the
+  /// commit recorded at build time (`scripts/rebuild.sh` writes
+  /// `zfa.build_commit` next to the binary), it silently runs stale code.
+  ///
+  /// WARN, not FAIL: the binary still executes, and failing would flip
+  /// doctor's exit contract for every stale-install workflow. Every
+  /// unknowable input (source run, no marker, no zuraffa checkout, no git
+  /// HEAD) is a SKIP, never a false alarm.
+  Future<DoctorCheckResult> _checkBinaryStaleness() async {
+    const id = 'binary-staleness';
+    final result = await BinaryStaleness(
+      binaryDir: _binaryDir,
+    ).probeDetailed(cwd: _root);
+
+    if (result.isSkipped) {
+      return DoctorCheckResult(
+        id: id,
+        status: DoctorCheckStatus.skipped,
+        detail: _skipDetail(result.skipReason!),
+      );
+    }
+
+    final report = result.report!;
+    if (!report.isStale) {
+      return _pass(
+        id,
+        'installed zfa matches this checkout '
+        '(${BinaryStaleness.shortCommit(report.buildCommit)})',
+      );
+    }
+    return DoctorCheckResult(
+      id: id,
+      status: DoctorCheckStatus.warn,
+      detail:
+          'installed zfa (${BinaryStaleness.shortCommit(report.buildCommit)}) '
+          'is older than this checkout '
+          '(${BinaryStaleness.shortCommit(report.checkoutHead)})',
+      suggestedFix: 'scripts/rebuild.sh',
+    );
+  }
+
+  String _skipDetail(StalenessSkipReason reason) => switch (reason) {
+    StalenessSkipReason.sourceRun =>
+      'no installed binary (running from source — nothing to '
+          'staleness-check)',
+    StalenessSkipReason.noMarker =>
+      'no $zfaBuildCommitMarker marker next to the installed '
+          'binary — rebuild once via scripts/rebuild.sh to enable '
+          'staleness checks',
+    StalenessSkipReason.noCheckout =>
+      'not inside a zuraffa checkout — staleness not applicable',
+    StalenessSkipReason.noHead =>
+      'cannot resolve git HEAD for the zuraffa checkout',
+  };
 }
 
 /// The `--format json` verdict object for the named environment checks:

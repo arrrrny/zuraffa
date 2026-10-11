@@ -27,6 +27,17 @@
 ///   differently-broken one); any refusal or missing artifact exits non-zero.
 /// - **Idempotent**: already-namespaced records are untouched and re-runs
 ///   migrate zero records.
+/// - **Form-normalizing (issue #1397)**: an already-namespaced record
+///   whose recorded path FORM is not the portable project-relative POSIX
+///   form — typically a machine-absolute path an older gen wrote — is
+///   rewritten in the registry alone (paths + the runnable name's path
+///   segment); the files live at the same resolved location, so nothing
+///   moves and no import changes. A committed registry whose absolute
+///   paths name a project root that no longer exists on this machine (a
+///   checkout relocated between machines) is repaired the same way when
+///   the artifacts sit at the same project-relative locations under the
+///   current root. A recorded artifact missing from disk is reported and
+///   left unchanged, like any other rewrite this command cannot verify.
 /// - **Package-URI aware + self-checked (issue #912 defect 4)**: the moved
 ///   test's subject reference is rewritten in BOTH forms — the relative
 ///   path AND the `package:<host>/tdd/...` URI — composed tests get every
@@ -57,6 +68,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
+import '../services/feature_path_resolver.dart';
 import '../services/import_resolution.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -119,6 +131,18 @@ class MigratePathsCommand extends Command<void> {
   Future<void> run() => runWithVerdictEnvelope(this, _verdict, _run);
 
   Future<void> _run() async {
+    // Issue #1573: the feature is a --feature flag, not a positional
+    // argument. The old behavior silently discarded positional arguments
+    // and fell through to the whole-project sweep — an invocation meant
+    // for ONE feature rewrote EVERY registry. Refuse loudly instead.
+    final rest = argResults?.rest ?? const <String>[];
+    if (rest.isNotEmpty) {
+      usageException(
+        'zfa tdd migrate-paths takes no positional argument — pass the '
+        'feature as a flag: zfa tdd migrate-paths --feature <name> '
+        '(unrecognized positional argument "${rest.first}").',
+      );
+    }
     final dryRun = argResults?['dry-run'] as bool? ?? false;
     final featureFlag = argResults?['feature'] as String?;
     final projectFlag = argResults?['project'] as String?;
@@ -134,7 +158,10 @@ class MigratePathsCommand extends Command<void> {
     for (final entry in _scanRegistries(cwd, featureFlag)) {
       sawAnyRegistry = true;
       final registry = ArtifactRegistry(featureDir: entry.featureDir);
-      final records = await registry.loadAll();
+      // Raw load (issue #1397 x #1357): the form rewrite must plan against
+      // the RAW stored forms — the reanchored view would make every
+      // relocated record look already-portable and migrate nothing.
+      final records = await registry.loadAll(reanchor: false);
       if (records.isEmpty) continue;
 
       final updated = <ArtifactRecord>[];
@@ -150,9 +177,100 @@ class MigratePathsCommand extends Command<void> {
         final plan = _plan(record, cwd, entry.featureName);
 
         // Already namespaced (or a custom layout this command does not
-        // own): leave the record exactly as it is.
+        // own): leave the record exactly as it is — unless its recorded
+        // path FORM is not the portable project-relative POSIX form
+        // (issue #1397): a machine-absolute form is rewritten in the
+        // registry alone (the file lives at the same resolved location,
+        // so no artifact moves and no import is rewritten).
         if (plan == null) {
-          updated.add(record);
+          var testFrom = _resolve(cwd, record.testPath);
+          var subjectFrom = _resolve(cwd, record.subjectPath);
+          // Relocated-registry repair (issue #1397): a committed registry's
+          // machine-absolute path may name a project root that does not
+          // exist on THIS machine (a checkout moved between machines),
+          // while the artifact sits at the same project-relative location
+          // under the current root. Before failing honest, probe the
+          // recorded path's longest suffix under the project root — a pair
+          // that relocates together is repaired, a pair that does not is
+          // still reported missing.
+          if (!File(testFrom).existsSync() || !File(subjectFrom).existsSync()) {
+            final foundTest = probeRelocatedArtifact(cwd, record.testPath);
+            final foundSubject = probeRelocatedArtifact(
+              cwd,
+              record.subjectPath,
+            );
+            if (foundTest != null && foundSubject != null) {
+              testFrom = foundTest;
+              subjectFrom = foundSubject;
+            }
+          }
+          // Fail-honest: a missing recorded artifact cannot be verified,
+          // and silently rewriting the record would just relocate the
+          // break (the same doctrine as the move path below).
+          if (!File(testFrom).existsSync() || !File(subjectFrom).existsSync()) {
+            missing++;
+            final missingHalf = File(testFrom).existsSync()
+                ? 'subject "${record.subjectPath}"'
+                : 'test "${record.testPath}"';
+            print(
+              'zfa tdd migrate-paths: MISSING for behavior '
+              '"${record.behaviorId}" in ${entry.featureName}: the recorded '
+              '$missingHalf does not exist on disk. The record is left '
+              'unchanged — restore or remove the artifact first.',
+            );
+            updated.add(record);
+            continue;
+          }
+          final formTest = _rel(cwd, testFrom);
+          final formSubject = _rel(cwd, subjectFrom);
+          if (formTest == _posix(record.testPath) &&
+              formSubject == _posix(record.subjectPath)) {
+            updated.add(record);
+            continue;
+          }
+          final formPlan = _MigrationPlan(
+            testPath: formTest,
+            subjectPath: formSubject,
+            record: _withPortablePaths(record, formTest, formSubject),
+          );
+          print(
+            'zfa tdd migrate-paths: ${dryRun ? 'would rewrite' : 'rewriting'} '
+            'the recorded form for ${record.behaviorId} in '
+            '${entry.featureName}: "${_posix(record.testPath)}" -> '
+            '${formPlan.testPath}, "${_posix(record.subjectPath)}" -> '
+            '${formPlan.subjectPath}',
+          );
+          if (!dryRun) {
+            // The cycle-log evidence may name the OLD recorded form; keep
+            // the certified evidence pointing at the strings the registry
+            // now carries. The resolved forms are identical, so only the
+            // recorded-form replaces can fire.
+            try {
+              await _rewriteCycleLogPaths(
+                featureDir: entry.featureDir,
+                cwd: cwd,
+                record: record,
+                plan: formPlan,
+                testFrom: testFrom,
+                testTo: testFrom,
+                subjectFrom: subjectFrom,
+                subjectTo: subjectFrom,
+              );
+            } on FileSystemException catch (e) {
+              refused++;
+              print(
+                'zfa tdd migrate-paths: REFUSED for behavior '
+                '"${record.behaviorId}" in ${entry.featureName}: the '
+                'cycle-log evidence rewrite failed: ${e.message}. The '
+                'record was left unchanged.',
+              );
+              updated.add(record);
+              continue;
+            }
+          }
+          migrated++;
+          registryDirty = true;
+          updated.add(formPlan.record);
           continue;
         }
 
@@ -166,8 +284,8 @@ class MigratePathsCommand extends Command<void> {
         if (!File(testFrom).existsSync() || !File(subjectFrom).existsSync()) {
           missing++;
           final missingHalf = File(testFrom).existsSync()
-              ? 'subject "$record.subjectPath"'
-              : 'test "$record.testPath"';
+              ? 'subject "${record.subjectPath}"'
+              : 'test "${record.testPath}"';
           print(
             'zfa tdd migrate-paths: MISSING for behavior '
             '"${record.behaviorId}" in ${entry.featureName}: the recorded '
@@ -563,6 +681,41 @@ class MigratePathsCommand extends Command<void> {
   bool _isFlat(List<String> segments, String root) =>
       segments.length == 3 && segments[0] == root && segments[1] == 'tdd';
 
+  /// Rebuild the runnable name's path segment (the first `::` segment)
+  /// with the portable test path, preserving every later segment verbatim
+  /// — unlike the flat-move rebuild, a form rewrite must not touch the id
+  /// or description. A first segment that does not name the test path
+  /// (hand-edited) is left untouched.
+  ArtifactRecord _withPortablePaths(
+    ArtifactRecord record,
+    String testPath,
+    String subjectPath,
+  ) {
+    final segments = record.runnableTestName.split('::');
+    // gen and the migration itself build the runnable name's first
+    // segment as the EXACT recorded test path string; a first segment
+    // that differs (hand-edited) is left untouched.
+    final firstIsTestPath =
+        segments.isNotEmpty && segments.first == record.testPath;
+    final runnableTestName = firstIsTestPath
+        ? (segments.length == 1
+              ? testPath
+              : '$testPath::${segments.skip(1).join('::')}')
+        : record.runnableTestName;
+    return ArtifactRecord(
+      behaviorId: record.behaviorId,
+      feature: record.feature,
+      sourceCriterion: record.sourceCriterion,
+      testPath: testPath,
+      subjectPath: subjectPath,
+      runnableTestName: runnableTestName,
+      testOwnership: record.testOwnership,
+      subjectOwnership: record.subjectOwnership,
+      createdAt: record.createdAt,
+      genFingerprint: record.genFingerprint,
+    );
+  }
+
   /// The runnable name is `<testPath>::<id>::<description>` — rebuild it
   /// with the namespaced test path, preserving the recorded description
   /// (mirrors make's `_descriptionFor` split).
@@ -583,6 +736,7 @@ class MigratePathsCommand extends Command<void> {
       testOwnership: record.testOwnership,
       subjectOwnership: record.subjectOwnership,
       createdAt: record.createdAt,
+      genFingerprint: record.genFingerprint,
     );
   }
 
@@ -731,12 +885,66 @@ class MigratePathsCommand extends Command<void> {
 
   List<_RegistryEntry> _scanRegistries(String cwd, String? featureFlag) {
     if (featureFlag != null && featureFlag.isNotEmpty) {
-      final featureDir = p.join(cwd, 'specs', featureFlag);
-      return [_RegistryEntry(featureFlag, featureDir)];
+      return [_resolveFlaggedRegistry(cwd, featureFlag)];
     }
+    // Growable copy: `_scanSpecsRegistries` returns a `const []` when the
+    // project carries no `specs/` directory, and `addAll` on a const list
+    // throws `Unsupported operation: Cannot add to an unmodifiable list`
+    // even when the argument iterable is empty. A bug-only project (bug
+    // registries, no specs/) reaches exactly this path through the
+    // doctor's flag-less multi-owner prescription.
+    final entries = List<_RegistryEntry>.of(_scanSpecsRegistries(cwd));
+    // Issue #1573: the sweep covers the bug extension's registries too —
+    // a project can carry machine-absolute forms under
+    // .specify/bugs/<slug>/tdd/ that a specs/-only scan never examined.
+    entries.addAll(_scanBugRegistries(cwd));
+    return entries;
+  }
+
+  /// Issue #1573: a `--feature` reference resolves the way every TDD
+  /// command in the family resolves one (issue #1471) — explicit
+  /// `specs/<name>` / `.specify/bugs/<slug>` / absolute references go
+  /// through [TddFeaturePaths.resolveWithPin]; a plain name keeps the
+  /// legacy `specs/<name>` location, and when THAT carries no registry
+  /// the bug extension's conventional `.specify/bugs/<name>` directory
+  /// is probed (no pin file required) so the bug registry the doctor
+  /// diagnoses is reachable through the flag form the doctor prescribes.
+  _RegistryEntry _resolveFlaggedRegistry(String cwd, String ref) {
+    final resolved = TddFeaturePaths.resolveWithPin(
+      projectRoot: cwd,
+      featureRef: ref,
+    );
+    if (File(p.join(resolved.dir, 'tdd', 'artifacts.json')).existsSync()) {
+      return _RegistryEntry(resolved.name, resolved.dir);
+    }
+    final isPlain = !ref.contains('/') && !ref.contains(r'\');
+    if (isPlain) {
+      final bugDir = p.join(cwd, '.specify', 'bugs', ref);
+      if (File(p.join(bugDir, 'tdd', 'artifacts.json')).existsSync()) {
+        return _RegistryEntry(ref, bugDir);
+      }
+    }
+    return _RegistryEntry(resolved.name, resolved.dir);
+  }
+
+  List<_RegistryEntry> _scanSpecsRegistries(String cwd) {
     final specsDir = Directory(p.join(cwd, 'specs'));
     if (!specsDir.existsSync()) return const [];
     final dirs = specsDir.listSync().whereType<Directory>().toList()
+      ..sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
+    final entries = <_RegistryEntry>[];
+    for (final dir in dirs) {
+      if (File(p.join(dir.path, 'tdd', 'artifacts.json')).existsSync()) {
+        entries.add(_RegistryEntry(p.basename(dir.path), dir.path));
+      }
+    }
+    return entries;
+  }
+
+  List<_RegistryEntry> _scanBugRegistries(String cwd) {
+    final bugsDir = Directory(p.join(cwd, '.specify', 'bugs'));
+    if (!bugsDir.existsSync()) return const [];
+    final dirs = bugsDir.listSync().whereType<Directory>().toList()
       ..sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
     final entries = <_RegistryEntry>[];
     for (final dir in dirs) {

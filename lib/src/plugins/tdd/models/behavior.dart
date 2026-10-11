@@ -1,6 +1,8 @@
 /// Behavior entity for the `zfa tdd` plugin.
 library;
 
+import '../services/finder_taxonomy.dart';
+
 /// The subject kind a behavior's paired test + subject express.
 ///
 /// `widget` (bug #830): the behavior's acceptance scenario is UI-observable
@@ -25,9 +27,30 @@ library;
 /// location). Its gen pair is a channel test that installs the certified
 /// fake (`zfa tdd fake`) and asserts on the OBSERVED calls — arguments
 /// recorded, ordering preserved — plus a channel-calling subject stub.
-enum BehaviorKind { acceptance, unit, widget, theme, ffi, platform }
+///
+/// `contract` (issue #1007): a CONTRACT behavior — one declared entity
+/// method, controller method or usecase of the spec's Layer Contracts
+/// section, planned by `zfa tdd plan` as a `contract:<id>` row under the
+/// `## Contract loop:` section. Unlike every other kind its pair proves
+/// the implementation satisfies a DECLARED contract, not that a piece of
+/// code does what its author said: `zfa tdd gen` emits a contract test
+/// scaffold that enumerates the contract's cases plus a contract seam
+/// subject, and a failing contract test is graded BLOCKED (never RED) by
+/// `zfa tdd verify-red` — the substrate for `zfa dream`, where generated
+/// and hand-written code are graded by the same rules.
+enum BehaviorKind { acceptance, unit, widget, theme, ffi, platform, contract }
 
-enum BehaviorState { pending, red, green, mocked, done }
+/// The per-behavior cycle state the run driver advances through.
+///
+/// `blocked` (issue #1007): a CONTRACT behavior whose contract test
+/// failed — the declared contract is NOT satisfied by the implementation.
+/// Distinct from RED on purpose: RED is the honest first state of a unit
+/// or widget behavior (the TDD loop EXPECTS the failing test and proceeds
+/// to make/GREEN); BLOCKED refuses to proceed — the cycle cannot reach
+/// GREEN until the implementation satisfies the declared contract. The
+/// verdict carries its own receipt (`contract-blocked.<id>.json`) and the
+/// corpus-economics gap ledger records the stop at the highest severity.
+enum BehaviorState { pending, blocked, red, green, mocked, done }
 
 class Behavior {
   final String id;
@@ -45,6 +68,15 @@ class Behavior {
   /// drill + registrar gate surfaces).
   final bool persistence;
 
+  /// The test-list row's declared finder kinds (issue #1140) — the plan
+  /// table's `kind` cell for widget rows, carried through gen so the
+  /// emitted assertion templates are the DECLARED ones and a drifted
+  /// column is refused. Null = the row carries no kind column (legacy
+  /// 4-column lists); empty = the plan declared `none`; non-empty = a
+  /// declared contract. `zfa tdd gen` reconciles it against the
+  /// description-derived prediction for widget rows.
+  final List<ScenarioAssertionClass>? finderKinds;
+
   Behavior({
     required this.id,
     required this.feature,
@@ -53,8 +85,16 @@ class Behavior {
     required this.sourceCriterion,
     required this.target,
     this.persistence = false,
+    this.golden = false,
     this.state = BehaviorState.pending,
+    this.finderKinds,
   });
+
+  /// Whether the test-list row declared the behavior golden-gated (bug
+  /// #1261): the ` [golden]` tag a SKIN lane plan writes from the spec's
+  /// `golden:` declaration. gen appends the `matchesGoldenFile` baseline
+  /// hook for widget-kind rows carrying it — no `--golden` flag needed.
+  final bool golden;
 
   @override
   bool operator ==(Object other) =>

@@ -25,8 +25,10 @@ import 'package:args/command_runner.dart';
 
 import '../../../core/benchmark/baseline_store.dart';
 import '../../../core/benchmark/isolate_benchmark_runner.dart';
+import '../../../core/verdict_envelope.dart';
 import '../benchmark_plugin.dart';
 import '../capabilities/register_benchmark_capability.dart';
+import '../../../cli/exit_protocol.dart';
 
 /// The `zfa benchmark` command (FR-011).
 class BenchmarkCommand extends Command<void> {
@@ -36,9 +38,10 @@ class BenchmarkCommand extends Command<void> {
   /// The benchmark plugin providing registry + runner.
   final BenchmarkPlugin plugin;
 
-  /// Exit code of the last invocation: 0 on success, 1 on benchmark
-  /// failure/regression, 64 on usage errors.
-  int exitCode = 0;
+  /// SPEC 917: the shadowing `int exitCode` instance field is gone — the
+  /// command publishes through the dart:io global `exitCode` (honored by
+  /// CliRunner._runDispatched), never through a field that silences it
+  /// (the #767 "instance field shadows the global" bug class).
 
   @override
   String get name => 'benchmark';
@@ -79,7 +82,16 @@ run options:
   @override
   Future<void> run() async {
     final args = argResults!.arguments;
-    if (args.isEmpty || args.first == '--help' || args.first == '-h') {
+    // SPEC 1132 (EPIC 1 honesty sweep): explicit --help/-h is a SUCCESS
+    // (exit 0); a bare invocation is a usage error — the usage block
+    // prints AND the process exits SPEC 917 canonical 2 (was the
+    // pre-sweep silent 0).
+    if (args.isEmpty) {
+      print(_usage);
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    if (args.first == '--help' || args.first == '-h') {
       print(_usage);
       return;
     }
@@ -104,7 +116,8 @@ run options:
       default:
         print('Unknown benchmark subcommand: $subcommand');
         print(_usage);
-        exit(64);
+        exitCode = ExitProtocol.usage;
+        return;
     }
   }
 
@@ -125,7 +138,8 @@ run options:
         .toList();
     if (registerCaps.isEmpty) {
       print('❌ RegisterBenchmarkCapability not available');
-      exit(1);
+      exitCode = ExitProtocol.failure;
+      return;
     }
 
     final result = await registerCaps.first.execute({
@@ -133,7 +147,8 @@ run options:
     });
     if (!result.success) {
       print('❌ Failed to register benchmark scenarios: ${result.message}');
-      exit(1);
+      exitCode = ExitProtocol.failure;
+      return;
     }
 
     final scenarios = await plugin.registry.getAll();
@@ -158,7 +173,7 @@ run options:
         config = jsonDecode(configJson) as Map<String, dynamic>;
       } catch (error) {
         print('Invalid --config JSON: $error');
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }
@@ -194,7 +209,7 @@ run options:
 
     if (selected.isEmpty) {
       print('No benchmark scenarios registered.');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -235,23 +250,34 @@ run options:
     final scenarios = await plugin.registry.getAll();
 
     if (results['json'] as bool) {
-      print(
-        jsonEncode({
-          'scenarios': [
-            for (final scenario in scenarios)
-              {
-                'id': scenario.id,
-                'name': scenario.name,
-                'version': scenario.version,
-                'description': scenario.description,
-                'tags': scenario.tags,
-                'thresholds': {
-                  for (final entry in scenario.thresholds.entries)
-                    entry.key: entry.value.toJson(),
+      // SPEC 1132 / EPIC 1 lane 2 (issue #1105 backlog): the canonical
+      // the canonical verdict schema envelope — the raw `{"scenarios":[...]}`
+      // document carried no schema and broke the ONE parser contract.
+      // The scenario registry rides in `details.scenarios`; the
+      // envelope is the LAST stdout line.
+      VerdictEnvelope.emit(
+        VerdictEnvelope(
+          command: 'zfa benchmark list',
+          verdict: VerdictKind.pass,
+          exitClass: ExitProtocol.success,
+          subject: const VerdictSubject(kind: 'benchmark', id: 'registry'),
+          details: {
+            'scenarios': [
+              for (final scenario in scenarios)
+                {
+                  'id': scenario.id,
+                  'name': scenario.name,
+                  'version': scenario.version,
+                  'description': scenario.description,
+                  'tags': scenario.tags,
+                  'thresholds': {
+                    for (final entry in scenario.thresholds.entries)
+                      entry.key: entry.value.toJson(),
+                  },
                 },
-              },
-          ],
-        }),
+            ],
+          },
+        ),
       );
       return;
     }
@@ -279,7 +305,7 @@ run options:
   Future<void> _baseline(List<String> rest) async {
     if (rest.isEmpty) {
       print(_usage);
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final action = rest.first;
@@ -297,7 +323,7 @@ run options:
       default:
         print('Unknown baseline action: $action');
         print(_usage);
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
     }
   }
 
@@ -312,7 +338,7 @@ run options:
     final scenario = await plugin.registry.get(scenarioId);
     if (scenario == null) {
       print('Unknown scenario: $scenarioId');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -361,7 +387,7 @@ run options:
       print(
         'No baseline found for $scenarioId${label == null ? '' : ' (label: $label)'}',
       );
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -398,7 +424,7 @@ run options:
       print(
         'No baseline found for $scenarioId${label == null ? '' : ' (label: $label)'}',
       );
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -406,7 +432,7 @@ run options:
     final scenario = await plugin.registry.get(scenarioId);
     if (scenario == null) {
       print('Unknown scenario: $scenarioId');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -419,11 +445,26 @@ run options:
     // compare exited 0 when the current run errored).
     if (current.status != BenchmarkStatus.passed) {
       final error = current.metadata['error'];
-      print(
-        'Current run for $scenarioId did not pass '
-        '(${current.status.name})'
-        '${error != null ? ': $error' : ''}',
-      );
+      if (results['json'] as bool) {
+        // SPEC 1132 / EPIC 1 lane 2: a run that errored or failed is still
+        // a verdict — `--json` must not fall back to prose here, or a
+        // machine consumer keeps a special case for this one surface.
+        VerdictEnvelope.emit(
+          VerdictEnvelope(
+            command: 'zfa benchmark baseline compare',
+            verdict: VerdictKind.fail,
+            exitClass: ExitProtocol.failure,
+            subject: VerdictSubject(kind: 'benchmark', id: scenarioId),
+            details: {'status': current.status.name, 'error': ?error},
+          ),
+        );
+      } else {
+        print(
+          'Current run for $scenarioId did not pass '
+          '(${current.status.name})'
+          '${error != null ? ': $error' : ''}',
+        );
+      }
       exitCode = 1;
       return;
     }
@@ -436,7 +477,26 @@ run options:
     );
 
     if (results['json'] as bool) {
-      print(jsonEncode(comparison.toJson()));
+      // SPEC 1132 / EPIC 1 lane 2 (issue #1105 backlog): the canonical
+      // the canonical verdict schema envelope — the comparison payload rides in
+      // `details.comparison`; the envelope is the LAST stdout line.
+      VerdictEnvelope.emit(
+        VerdictEnvelope(
+          command: 'zfa benchmark baseline compare',
+          verdict: comparison.overallStatus == ComparisonStatus.regressed
+              ? VerdictKind.fail
+              : VerdictKind.pass,
+          exitClass: comparison.overallStatus == ComparisonStatus.regressed
+              ? ExitProtocol.failure
+              : ExitProtocol.success,
+          subject: VerdictSubject(kind: 'benchmark', id: scenarioId),
+          details: {
+            'baseline': baseline.toJson(),
+            'comparison': comparison.toJson(),
+            'tolerancePercent': tolerance,
+          },
+        ),
+      );
     } else {
       print(
         'Comparison for $scenarioId against "${baseline.label}" '
@@ -493,7 +553,7 @@ run options:
     final reportFile = File('${_storeDir(results)}/last-report.json');
     if (!await reportFile.exists()) {
       print('No benchmark report found. Run `zfa benchmark run` first.');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final suite = BenchmarkSuiteResult.fromJson(
@@ -549,7 +609,7 @@ run options:
     } on FormatException catch (error) {
       print(error.message);
       print(_usage);
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return null;
     }
   }
@@ -558,7 +618,7 @@ run options:
     if (results.rest.isEmpty) {
       print('Missing $name');
       print(_usage);
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return false;
     }
     return true;

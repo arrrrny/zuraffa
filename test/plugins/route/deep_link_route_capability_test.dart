@@ -85,7 +85,10 @@ void main() {
       expect(content.contains('class ScanBarcodeRoutes'), isTrue);
       expect(content.contains('scanBarcodeRoutes'), isTrue);
       expect(content.contains("'/scan/barcode/:barcode'"), isTrue);
-      expect(content.contains('package:go_router/go_router.dart'), isTrue);
+      expect(
+        content.contains('package:zuraffa_flutter/zuraffa_flutter.dart'),
+        isTrue,
+      );
       // Default placeholder builder (no view).
       expect(content.contains('SizedBox'), isTrue);
 

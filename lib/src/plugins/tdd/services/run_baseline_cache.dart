@@ -39,9 +39,18 @@ class RunBaselineCache {
       p.join(featureDir, 'tdd', fileName);
 
   /// Persist [snapshot] for the feature and return the written path.
+  ///
+  /// Spec 1529: [durationMs] records the wall time of the capture that
+  /// produced the snapshot so a REUSE run can scale the per-step budget
+  /// from the measured baseline without re-measuring, and [fingerprint]
+  /// records the corpus dependency fingerprint the capture was keyed on
+  /// so make's trimmed re-certification can prove the environment is the
+  /// one the baseline certified. Older cache readers ignore both keys.
   Future<String> write({
     required String featureDir,
     required SuiteSnapshot snapshot,
+    int? durationMs,
+    String? fingerprint,
   }) async {
     final file = File(pathFor(featureDir: featureDir));
     await file.parent.create(recursive: true);
@@ -52,9 +61,47 @@ class RunBaselineCache {
         'failedTests': snapshot.failedTests.toList(),
         'capturedAt': snapshot.capturedAt,
         'parseable': snapshot.parseable,
+        'duration_ms': ?durationMs,
+        'dependency_fingerprint': ?fingerprint,
       }),
     );
     return file.path;
+  }
+
+  /// The recorded capture duration in milliseconds, or null when the
+  /// file is missing/unreadable or predates spec 1529 (no key) — the
+  /// budget derivation then degrades to the floor (safe failure).
+  Future<int?> readDurationMs(String path) async {
+    return _readOptionalInt(path, 'duration_ms');
+  }
+
+  /// The recorded corpus dependency fingerprint, or null when the file
+  /// is missing/unreadable or predates spec 1529 (no key) — make's
+  /// trimmed re-certification then fails closed to the existing
+  /// full-suite guard (safe failure).
+  Future<String?> readFingerprint(String path) async {
+    try {
+      final json = jsonDecode(await File(path).readAsString());
+      if (json is! Map<String, dynamic>) return null;
+      final value = json['dependency_fingerprint'];
+      if (value is! String || value.isEmpty) return null;
+      return value;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Shared optional-int reader: null on missing/corrupt/mistyped keys.
+  Future<int?> _readOptionalInt(String path, String key) async {
+    try {
+      final json = jsonDecode(await File(path).readAsString());
+      if (json is! Map<String, dynamic>) return null;
+      final value = json[key];
+      if (value is! int || value <= 0) return null;
+      return value;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Load a cached snapshot. Returns null when the file is missing,

@@ -14,9 +14,14 @@ class PresetRegistry {
     // Spec 1002: the engine slice — every generator EXCEPT the
     // Flutter-importing presentation plugins. `zfa make engine <Entity>`
     // (or `--preset=engine`) chains usecase → service → provider →
-    // repository → datasource → mock → di in one command, followed by
-    // the engine check + receipt tail the MakeCommand engine path runs.
-    // No view, no presenter, no controller, no state, no route.
+    // repository → datasource → mock → di → test in one command, followed
+    // by the engine check + receipt tail the MakeCommand engine path runs.
+    // No view, no presenter, no controller, no state, no route. The
+    // trailing `test` (issue #1109 FR-001) lands the per-method test
+    // scaffold in the same one-shot run — it runs last (its runAfter
+    // covers every other plugin) and the engine lane forces its pure-Dart
+    // `package:test` framework import so the engine test tree stays
+    // flutter-free even in Flutter host projects.
     'engine': [
       'usecase',
       'service',
@@ -25,6 +30,7 @@ class PresetRegistry {
       'datasource',
       'mock',
       'di',
+      'test',
     ],
     // #348: `di` is bundled with the data presets so the canonical
     // `zfa make X --preset=crud` (or `--preset=read-only`) produces a
@@ -32,8 +38,21 @@ class PresetRegistry {
     // already includes di; crud/read-only were the only two that didn't,
     // and the resulting app compiled but crashed at runtime with
     // `GetIt: DataSource is not registered` (issue #346).
-    'crud': ['usecase', 'repository', 'datasource', 'di'],
-    'read-only': ['usecase', 'repository', 'datasource', 'di'],
+    //
+    // #1194 (part of #908 P0 "make-default→mock + mocked tier"): `mock`
+    // is bundled with the data presets too — the SAME default the engine
+    // preset already had. A fresh slice lands in the MOCKED tier: the
+    // mock plugin emits the certified mock datasource + mock data seeds
+    // + the simulation-mode binding (registerLazySingleton<Entity
+    // DataSource>(() => EntityMockDataSource()) behind the real
+    // interface), and di wires registerSimulationBindings into
+    // di/index.dart — the app boots on certified mocks under
+    // --dart-define=SIMULATION=true on first run, before any real
+    // adapter is written. Swapping to REAL is `zfa tdd realize`'s job
+    // (companion issue). Teams who want the old compile-only slices pass
+    // `--compile-only`.
+    'crud': ['usecase', 'repository', 'datasource', 'mock', 'di'],
+    'read-only': ['usecase', 'repository', 'datasource', 'mock', 'di'],
     'service-feature': [
       'service',
       'provider',

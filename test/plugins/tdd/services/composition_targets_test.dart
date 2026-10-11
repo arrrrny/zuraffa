@@ -110,7 +110,9 @@ void main() {
       expect(result, isA<CompositionTargetFailure>());
       final failure = result as CompositionTargetFailure;
       expect(failure.code, 'missing-anchor-subject');
-      expect(failure.message, contains(fx.subjectPathOf('U-001')));
+      // The registry records the portable project-relative form
+      // (issue #1397), and the failure names that recorded artifact.
+      expect(failure.message, contains('lib/u_001_subject.dart'));
     });
 
     test('U4: the compose target never anchors against itself and a '

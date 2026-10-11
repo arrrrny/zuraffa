@@ -18,9 +18,13 @@
 /// The command:
 ///   1. Resolves the behavior's registry record (same resolution rules
 ///      as `func`/`wire`/`make`) and its `subject_path` artifact.
-///   2. Parses the gen'd view-builder stub — the exact
+///   2. Parses the gen'd view-builder stub — the
 ///      `Widget <name>() => throw UnimplementedError(...);` shape
-///      SubjectWriter emits for widget-kind rows (bug #830).
+///      (bug #830) OR the `Widget <name>() => const SizedBox.shrink();`
+///      INERT shape (issue #959) SubjectWriter emits for widget-kind
+///      rows — the view step rewrites either red surface to the
+///      composed view (issue #1141: the regeneration loop must run
+///      gen → view end-to-end on fresh stubs).
 ///   3. Derives the minimal view composition from two DECLARED sources,
 ///      never from the test (044 ownership contract):
 ///        - the behavior description's scenario assertions (issue #964
@@ -36,6 +40,14 @@
 ///          the same information `zfa make --with=vpc` uses for
 ///          presenters): each declared component token maps to a
 ///          deterministic always-compiling core-Flutter stand-in.
+///   3b. Issue #1141 — the localization audit: the RENDERED view is
+///      audited BEFORE any write (errors-are-an-API). Every quoted
+///      user-facing string must trace to a ledger surface (derived from
+///      the declared test list rows + Presentation contract + key
+///      table); a declared key's anchor may never render as a quoted
+///      literal (the key is the contract). Violations refuse the write
+///      with `--> fix:` lines — a machine-generated view that would
+///      fail the host's 100% localization gate never lands.
 ///   4. Replaces ONLY the stub declaration with the minimal view: a
 ///      private-ish `StatelessWidget` skeleton plus the view-builder
 ///      returning it. Scenario-specific behavior inside the view
@@ -64,11 +76,21 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/behavior_test_writer.dart' show BehaviorTestWriter;
+import '../services/feature_path_resolver.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
+import '../services/path_canonicalizer.dart';
+import '../services/platform_layout_contract.dart';
+import '../services/spec_parser.dart' show LayerContract;
+import '../../../skin/contract/adaptive_skin_contract.dart';
+import '../../../skin/contract/adaptive_skin_contract_parser.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/test_list_reader.dart';
+import '../services/ui_ledger_projection.dart';
+import '../services/widget_vocabulary_gate.dart';
+import '../../skin/vocabulary/ui_node_registry.dart';
+import '../../../tdd/services/ui_ledger_builder.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
@@ -204,8 +226,35 @@ class ViewCommand extends Command<void> {
           ? recordedSubject
           : p.join(normalizedCwd, recordedSubject),
     );
-    if (!p.equals(normalizedCwd, subjectPath) &&
-        !p.isWithin(normalizedCwd, subjectPath)) {
+    // macOS (and any symlinked temp root): the recorded path may come
+    // through one side of a symlink (`/var/...`) while the project root
+    // resolves through the other (`/private/var/...`). Compare CANONICAL
+    // forms — an unresolved comparison misreads the project's own
+    // subject as "outside the project root".
+    String canonicalRoot;
+    try {
+      canonicalRoot = await Directory(normalizedCwd).resolveSymbolicLinks();
+    } on FileSystemException {
+      // Symmetric with the subject side below: a root that cannot resolve
+      // is canonicalized through its nearest EXISTING ancestor, never left
+      // raw (review of #1611).
+      canonicalRoot = await canonicalizeMissingPath(normalizedCwd);
+    }
+    String canonicalSubject;
+    try {
+      canonicalSubject = await File(subjectPath).resolveSymbolicLinks();
+    } on FileSystemException {
+      // A missing subject file (the U-V3 artifact case) has nothing to
+      // resolve: canonicalize through its nearest EXISTING ancestor and
+      // re-append the remaining segments. Taking the raw path here made
+      // a symlinked temp root (`/var/folders` → `/private/var/folders`
+      // on macOS) read the project's own recorded path as "outside the
+      // project root" — the wrong refusal branch (issue #1603; the same
+      // fix wire carries since pull/1516 review, c1e287da).
+      canonicalSubject = await canonicalizeMissingPath(subjectPath);
+    }
+    if (!p.equals(canonicalRoot, canonicalSubject) &&
+        !p.isWithin(canonicalRoot, canonicalSubject)) {
       print(
         'zfa tdd view: the registry record for behavior '
         '"${record.behaviorId}" points outside the project root at '
@@ -241,7 +290,14 @@ class ViewCommand extends Command<void> {
     // 3. Parse the stub and gather the declared composition inputs.
     // -------------------------------------------------------------
     final raw = await subjectFile.readAsString();
-    final stub = _stubSignature.firstMatch(raw);
+    // Issue #1141: SubjectWriter emits TWO red shapes for widget-kind
+    // rows — the throwing stub (bug #830) and, since issue #959, the
+    // INERT stub (`Widget <name>() => const SizedBox.shrink();`). The
+    // view step rewrites either; anything else is a hand-written file
+    // this command refuses to guess at (or an already-implemented view
+    // on a resumed pipeline).
+    final stub =
+        _stubSignature.firstMatch(raw) ?? _inertStubSignature.firstMatch(raw);
     if (stub == null) {
       final hasUnimplementedError = raw.contains('UnimplementedError');
       if (hasUnimplementedError) {
@@ -287,7 +343,7 @@ class ViewCommand extends Command<void> {
     // Declared source 2 — the Presentation layer contract (the
     // zuraffa-1.0 template's `### Layer Contracts → **Presentation**`
     // section, written by plan into the test list).
-    final featureDir = p.join(normalizedCwd, 'specs', resolved.featureName);
+    final featureDir = resolved.featureDir;
     final components = await _presentationComponents(featureDir);
     if (components.isEmpty) {
       print(
@@ -296,6 +352,69 @@ class ViewCommand extends Command<void> {
       );
     } else {
       print('   contract: ${components.join(', ')}');
+    }
+
+    // EPIC 3 / issue #1134, lane 4 — the widget vocabulary gate (the
+    // same gate `zfa tdd plan` enforces, defense in depth): every
+    // declared component token is validated against the `zfa ui
+    // schema` vocabulary — the built-ins MERGED with the project's
+    // registered composites (`.zfa/ui/components/`, the same merge
+    // `zfa ui schema` exports) — BEFORE any write. An out-of-vocabulary
+    // reference (grid/table — not implemented, the #1149 removal)
+    // refuses the view: no unchecked layout code is ever emitted
+    // (exit criterion 3).
+    final vocabularyViolations = WidgetVocabularyGate.validate(
+      components,
+      vocabulary: NodeRegistry.load(projectRoot: normalizedCwd).allNames,
+    );
+    if (vocabularyViolations.isNotEmpty) {
+      print(
+        'zfa tdd view: widget vocabulary gate FAILED — '
+        '${vocabularyViolations.length} out-of-vocabulary component '
+        'token(s); no artifacts written:',
+      );
+      for (final violation in vocabularyViolations) {
+        print('   - ${violation.message}');
+      }
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: ViewOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    // Declared source 4 — the platform layout contract (issue #1142,
+    // extending #1004's adaptive slots and #1102's runtime auditor):
+    // the Presentation table declares the platform layout slots per
+    // feature with an `adaptive_layouts` bullet. A feature that declares
+    // no slots keeps the single-layout skeleton (zero drift); a feature
+    // that declares slots gets the AdaptiveViewState skeleton with one
+    // layout stub per slot, each traced independently in the coverage
+    // ledger. A malformed declaration refuses BEFORE any write
+    // (errors-are-an-API).
+    List<String> layoutSlots;
+    try {
+      layoutSlots =
+          (await _platformLayoutContract(featureDir))?.slots ?? const [];
+    } on PlatformLayoutContractException catch (error) {
+      print('zfa tdd view: ${error.message}');
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: ViewOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+    if (layoutSlots.isEmpty) {
+      print('   layouts: no platform slots declared — single-layout view');
+    } else {
+      print(
+        '   layouts: ${layoutSlots.join(', ')} — AdaptiveViewState with '
+        'one layout stub per slot (issue #1142)',
+      );
     }
 
     // Declared source 3 — the i18n key contract (issue #965): the key is
@@ -337,27 +456,8 @@ class ViewCommand extends Command<void> {
     // clobbered) even when THIS behavior's literals are unkeyed — the
     // localization gate needs every declared key present. Expansion
     // locales (issue #965 optional tier) scaffold alongside the base.
-    if (i18nKeys.isNotEmpty) {
-      final scaffolded = I18nScaffold.ensure(
-        I18nScaffold.baseFilePath(normalizedCwd),
-        i18nKeys.contracts,
-      );
-      print(
-        '   scaffold: lib/i18n/strings.i18n.json '
-        '(${scaffolded ? 'missing keys scaffolded' : 'already complete'})',
-      );
-      final expansionLocales = _resolveI18nExpansion(argResults, normalizedCwd);
-      for (final locale in expansionLocales) {
-        final expanded = I18nScaffold.ensure(
-          I18nScaffold.expansionFilePath(normalizedCwd, locale),
-          i18nKeys.contracts,
-        );
-        print(
-          '   scaffold: lib/i18n/strings_$locale.i18n.json '
-          '(${expanded ? 'missing keys scaffolded' : 'already complete'})',
-        );
-      }
-    }
+    // Issue #1141: the scaffold runs only AFTER the pre-write audit
+    // passes (errors-are-an-API — a refused view writes nothing).
 
     // -------------------------------------------------------------
     // 4. Emit the deterministic minimal view (issue #939 remediation).
@@ -371,6 +471,7 @@ class ViewCommand extends Command<void> {
       viewClass: viewClass,
       analysis: keyedAnalysis,
       components: components,
+      layoutSlots: layoutSlots,
     );
     // The gen'd stub carries a doc-comment block immediately above the
     // declaration ("Throws [UnimplementedError] until the real
@@ -401,6 +502,79 @@ class ViewCommand extends Command<void> {
               fromDir: p.dirname(subjectPath),
             ),
           );
+
+    // -------------------------------------------------------------
+    // 4b. Issue #1141 — the localization audit (BEFORE any write).
+    // -------------------------------------------------------------
+    // Every quoted user-facing string in the rendered view must trace
+    // to a ledger surface (the declared test list rows + Presentation
+    // contract + key table), and a declared key's anchor may never
+    // render as a quoted literal. A violation refuses the write with
+    // per-violation `--> fix:` lines — the machine-generated view that
+    // would fail the host's 100% localization gate never lands.
+    final auditLedger = await _auditLedger(
+      featureDir: featureDir,
+      fallbackBehaviorId: record.behaviorId,
+      fallbackDescription: description,
+      components: components,
+      keys: i18nKeys,
+    );
+    final audit = UiViewAudit.audit(
+      viewSource: updatedWithImport,
+      ledger: auditLedger,
+      anchorToKey: i18nKeys.anchorToKey,
+      // The behavior-id marker (#939) plus the #1142 per-platform TODO
+      // placeholders — the adaptive_layout_scaffold_builder seam markers
+      // are generator identity, never user-facing copy.
+      markerLiterals: [
+        record.behaviorId,
+        ..._todoMarkers(viewClass: viewClass, slots: layoutSlots),
+      ],
+    );
+    if (!audit.isClean) {
+      print(
+        'zfa tdd view: i18n audit FAILED — '
+        '${audit.violations.length} violation(s); no artifacts written:',
+      );
+      for (final violation in audit.violations) {
+        print('   - ${violation.message}');
+      }
+      _printSummary(
+        behavior: record.behaviorId,
+        outcome: ViewOutcome.runnerError,
+        feature: resolved.featureName,
+      );
+      exitCode = 1;
+      return;
+    }
+    print(
+      '   i18n audit: clean — ${audit.ledgerRowCount} surface(s) '
+      'declared, 0 violation(s) (issue #1141)',
+    );
+
+    // The scaffold (post-audit): missing declared keys land in lib/i18n.
+    if (i18nKeys.isNotEmpty) {
+      final scaffolded = I18nScaffold.ensure(
+        I18nScaffold.baseFilePath(normalizedCwd),
+        i18nKeys.contracts,
+      );
+      print(
+        '   scaffold: lib/i18n/strings.i18n.json '
+        '(${scaffolded ? 'missing keys scaffolded' : 'already complete'})',
+      );
+      final expansionLocales = _resolveI18nExpansion(argResults, normalizedCwd);
+      for (final locale in expansionLocales) {
+        final expanded = I18nScaffold.ensure(
+          I18nScaffold.expansionFilePath(normalizedCwd, locale),
+          i18nKeys.contracts,
+        );
+        print(
+          '   scaffold: lib/i18n/strings_$locale.i18n.json '
+          '(${expanded ? 'missing keys scaffolded' : 'already complete'})',
+        );
+      }
+    }
+
     await subjectFile.writeAsString(updatedWithImport);
     // Issue #969 T003: the scaffolded subject becomes self-certifying.
     await TddGenerationReceipts.writeBestEffort(
@@ -414,7 +588,7 @@ class ViewCommand extends Command<void> {
     // ledger so `zfa proof check` recognises it.
     try {
       final receipts = NuanceReceipts(
-        featureDir: p.join(normalizedCwd, 'specs', resolved.featureName),
+        featureDir: resolved.featureDir,
         projectRoot: normalizedCwd,
       );
       await receipts.record(
@@ -445,26 +619,33 @@ class ViewCommand extends Command<void> {
     multiLine: true,
   );
 
+  /// The INERT widget-stub shape SubjectWriter emits since issue #959:
+  /// `Widget <name>() => const SizedBox.shrink();` — a valid widget that
+  /// displays nothing (red is certified on the authored assertions, not
+  /// the guard). Issue #1141: the view step rewrites this shape too, so
+  /// the regeneration loop runs gen → view end-to-end on fresh stubs.
+  static final RegExp _inertStubSignature = RegExp(
+    r'^(Widget)[ \t]+([A-Za-z_][A-Za-z0-9_]*)\(\)[ \t]*=>[ \t]*'
+    r'const[ \t]+SizedBox\.shrink\(\);[ \t]*$',
+    multiLine: true,
+  );
+
   /// The declared component tokens of the feature's Presentation layer
   /// contract, de-duplicated order-preservingly. `key:` tokens (issue
   /// #965) are i18n SURFACES, not components — they never render as
-  /// labeled stand-ins. Empty when the feature's test list declares no
+  /// labeled stand-ins. The #1142 platform-slot declaration bullets
+  /// (`adaptive_layouts` and aliases) are SLOT declarations, not
+  /// components — their tokens never render as stand-ins either.
+  /// Empty when the feature's test list declares no
   /// `Presentation` section (the view then composes the scenario
   /// assertions only — still deterministic).
   static Future<List<String>> _presentationComponents(String featureDir) async {
     try {
       final contracts = await TestListReader(featureDir).readLayerContracts();
-      final tokens = <String>[];
-      for (final contract in contracts) {
-        if (!contract.layer.toLowerCase().contains('presentation')) continue;
-        for (final method in contract.methods) {
-          final token = method.trim();
-          if (token.isEmpty) continue;
-          if (I18nKeyContract.isKeyToken(token)) continue;
-          if (!tokens.contains(token)) tokens.add(token);
-        }
-      }
-      return tokens;
+      // The single derivation (issue #1142): the same component-token
+      // extraction plan's ledger projection uses, so the skeleton and
+      // the ledger can never disagree on what a component IS.
+      return UiLedgerProjection.componentTokensOf(contracts);
     } on TestListReadException {
       // An unreadable list degrades to the literal-only composition —
       // the same fail-open note discipline _rowKind applies to kinds
@@ -481,6 +662,42 @@ class ViewCommand extends Command<void> {
   /// the component tokens above).
   static Future<I18nKeyTable> _loadI18nKeys(String featureDir) =>
       I18nKeyTable.loadForFeature(featureDir);
+
+  /// Issue #1141: the audit's ledger rows — derived from the DECLARED
+  /// test list rows (the plan artifact is the ledger of record; a view
+  /// whose literals drift from the declared rows surfaces as untraced)
+  /// plus the Presentation component tokens and the key table. When no
+  /// list is readable (a fixture, or a pre-plan edge), the composition's
+  /// own record is the fallback source — the non-i18n zero-drift world
+  /// (a behavior's own scenario literals are always declared rows of
+  /// their view).
+  static Future<List<UiSurfaceRow>> _auditLedger({
+    required String featureDir,
+    required String fallbackBehaviorId,
+    required String fallbackDescription,
+    required List<String> components,
+    required I18nKeyTable keys,
+  }) async {
+    List<LedgerBehaviorInput> behaviors;
+    try {
+      behaviors = [
+        for (final row in await TestListReader(featureDir).read())
+          LedgerBehaviorInput(id: row.id, description: row.description),
+      ];
+    } on TestListReadException {
+      behaviors = [
+        LedgerBehaviorInput(
+          id: fallbackBehaviorId,
+          description: fallbackDescription,
+        ),
+      ];
+    }
+    return UiLedgerProjection.rows(
+      behaviors: behaviors,
+      keys: keys,
+      componentTokens: components,
+    );
+  }
 
   /// Resolves the expansion locales for the optional i18n tier (issue
   /// #965): the explicit `--i18n-expansion` flag wins over the `.zfa.json`
@@ -553,12 +770,76 @@ class ViewCommand extends Command<void> {
   /// (navigation, validation, state) is the sanctioned handcraft seam —
   /// the header comment names it, the loop only certifies compile +
   /// verb-matched assertions.
+  ///
+  /// Issue #1142: a feature whose Presentation contract declares
+  /// platform layout slots renders the ADAPTIVE shape — an
+  /// `AdaptiveViewState` skeleton with one layout stub per declared
+  /// slot (the production ZikZak login shape), each stub carrying the
+  /// composed surfaces plus the adaptive_layout_scaffold_builder TODO
+  /// placeholder. An empty [layoutSlots] keeps the single-layout
+  /// skeleton (zero drift for features that never declare slots).
   static String _renderView({
     required String behaviorId,
     required String criterion,
     required String description,
     required String functionName,
     required String viewClass,
+    required ScenarioAnalysis analysis,
+    required List<String> components,
+    List<String> layoutSlots = const [],
+  }) {
+    final children = _composedChildren(
+      behaviorId: behaviorId,
+      analysis: analysis,
+      components: components,
+    );
+    final body = children.join('\n');
+    final header = _commentSafe(description);
+    if (layoutSlots.isEmpty) {
+      return '''
+/// View-builder subject for behavior $behaviorId (issue #939): returns
+/// the deterministic minimal view composed from the declared Presentation
+/// layer contract and the scenario assertions of the behavior description
+/// (issue #964 finder-kind taxonomy: presence literals render as Text,
+/// route/enabled-state literals as a labeled affordance, absence literals
+/// render nothing). Scenario-specific behavior (navigation, validation,
+/// state) is the sanctioned handcraft seam — implement it in [$viewClass].
+Widget $functionName() => $viewClass();
+
+/// The minimal view for behavior $behaviorId (issue #939 skeleton).
+///
+/// $header
+class $viewClass extends StatelessWidget {
+  const $viewClass({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+$body
+      ],
+    );
+  }
+}''';
+    }
+    return _renderAdaptiveView(
+      behaviorId: behaviorId,
+      description: description,
+      functionName: functionName,
+      viewClass: viewClass,
+      header: header,
+      body: body,
+      slots: layoutSlots,
+    );
+  }
+
+  /// The composed child lines of the minimal view — the shared
+  /// derivation the single-layout (#939) and adaptive (#1142) shapes
+  /// both render, so a slot's layout stub satisfies the SAME declared
+  /// surfaces the paired widget test asserts.
+  static List<String> _composedChildren({
+    required String behaviorId,
     required ScenarioAnalysis analysis,
     required List<String> components,
   }) {
@@ -588,34 +869,215 @@ class ViewCommand extends Command<void> {
         "            Text('${BehaviorTestWriter.escapeDartString(behaviorId)}'),",
       );
     }
-    final body = children.join('\n');
-    final header = _commentSafe(description);
+    return children;
+  }
+
+  /// The per-platform TODO placeholder literals (#1142): the
+  /// adaptive_layout_scaffold_builder seam marker per declared slot —
+  /// `TODO: Implement <view> <slot> layout`. Generator identity, allow-
+  /// listed in the localization audit and emitted inside every layout
+  /// stub.
+  static List<String> _todoMarkers({
+    required String viewClass,
+    required List<String> slots,
+  }) => [for (final slot in slots) 'TODO: Implement $viewClass $slot layout'];
+
+  /// The snake identifier the per-slot keys use (`A001View` → `a001`,
+  /// the same `View`-suffix strip the adaptive_layout_scaffold_builder
+  /// applies to the view name).
+  static String _slotKeyPrefix(String viewClass) =>
+      viewClass.replaceAll('View', '').toLowerCase();
+
+  /// The AdaptiveViewState skeleton (issue #1142): a StatefulWidget whose
+  /// state resolves the declared platform slot in build (the production
+  /// login's `_resolveSlot` shape) and renders THAT slot's layout stub,
+  /// one per declared slot, each carrying the composed surfaces plus the
+  /// adaptive_layout_scaffold_builder TODO placeholder. The per-slot key
+  /// (`<snake>-slot-<slot>`) is the branch identity the paired test and
+  /// the #1102 runtime auditor resolve — a layout that never renders is
+  /// a coverage gap the ledger names per platform.
+  static String _renderAdaptiveView({
+    required String behaviorId,
+    required String description,
+    required String functionName,
+    required String viewClass,
+    required String header,
+    required String body,
+    required List<String> slots,
+  }) {
+    final snake = _slotKeyPrefix(viewClass);
+    final narrowSlot = slots.first;
+    // The wide-surface branch cases: the host-platform mappings the
+    // production login resolves (ios/android/macos), emitted ONLY for
+    // declared slots, in the canonical TargetPlatform order.
+    final platformCases = <String>[
+      if (slots.contains('ios'))
+        "      case TargetPlatform.iOS:\n        return 'ios';",
+      if (slots.contains('android'))
+        "      case TargetPlatform.android:\n        return 'android';",
+      if (slots.contains('macos'))
+        "      case TargetPlatform.macOS:\n        return 'macos';",
+    ];
+    // EPIC 3 / issue #1134 review — the WIDTH-defined slots (the
+    // adaptive_layout_scaffold_builder targets: tablet, desktop) are
+    // reachable in the generated resolver too. Without these branches a
+    // declared tablet/desktop stub could never render — the resolver
+    // knew only the host-platform slots — so the contract's accepted
+    // vocabulary emitted dead layouts.
+    final widthBranches = <String>[
+      if (slots.contains('tablet')) "    if (width < 1024) return 'tablet';",
+      if (slots.contains('desktop')) "    if (width >= 1024) return 'desktop';",
+    ];
+    final resolveSwitch = platformCases.isEmpty
+        ? "    return '$narrowSlot';"
+        : '    switch (Theme.of(context).platform) {\n'
+              '${platformCases.join('\n')}\n'
+              "      default:\n        return '$narrowSlot';\n    }";
+    // The build switch: one case per non-default slot (declaration
+    // order), the FIRST declared slot as the `_` fallback — the branch
+    // the test environment resolves when no platform case matches.
+    String layoutClassOf(String slot) =>
+        '$viewClass${PlatformLayoutContract.classSuffix(slot)}Layout';
+    final cases = <String>[
+      for (final slot in slots.skip(1))
+        "        '$slot' => const ${layoutClassOf(slot)}("
+            "slotKey: Key('$snake-slot-$slot')),",
+    ];
+    final buildSwitch =
+        '        ${cases.isEmpty ? '' : '${cases.join('\n')}\n'}'
+        '_ => const ${layoutClassOf(narrowSlot)}('
+        "slotKey: Key('$snake-slot-$narrowSlot')),";
+
+    final layoutStubs = [
+      for (final slot in slots)
+        '''
+/// The `$slot` slot layout stub for behavior $behaviorId (issue #1142):
+/// the platform layout the skin fills — the TODO placeholder follows the
+/// adaptive_layout_scaffold_builder pattern (spec 1004's platform
+/// matrix; the #1102 runtime auditor reads the live branch through the
+/// slot key). Traced independently in the coverage ledger: a slot no
+/// green behavior exercised stays NOT-DONE there.
+class ${layoutClassOf(slot)} extends StatelessWidget {
+  const ${layoutClassOf(slot)}({super.key, required this.slotKey});
+
+  /// The slot-identifying key (`$snake-slot-$slot`).
+  final Key slotKey;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          // TODO: Implement $viewClass $slot layout — the sanctioned
+          // handcraft seam (the loop certifies compile + assertions).
+          Text('TODO: Implement $viewClass $slot layout',
+              textAlign: TextAlign.center),
+$body
+        ],
+      ),
+    );
+  }
+}''',
+    ].join('\n\n');
+
     return '''
 /// View-builder subject for behavior $behaviorId (issue #939): returns
 /// the deterministic minimal view composed from the declared Presentation
 /// layer contract and the scenario assertions of the behavior description
-/// (issue #964 finder-kind taxonomy: presence literals render as Text,
-/// route/enabled-state literals as a labeled affordance, absence literals
-/// render nothing). Scenario-specific behavior (navigation, validation,
-/// state) is the sanctioned handcraft seam — implement it in [$viewClass].
+/// (issue #964 finder-kind taxonomy). Scenario-specific behavior
+/// (navigation, validation, state) is the sanctioned handcraft seam —
+/// implement it in [$viewClass] and its per-slot layouts.
 Widget $functionName() => $viewClass();
 
-/// The minimal view for behavior $behaviorId (issue #939 skeleton).
+/// The minimal adaptive view for behavior $behaviorId (issue #1142
+/// skeleton): an AdaptiveViewState with one layout stub per declared
+/// platform slot — the production shape the single-layout Column could
+/// never be.
 ///
 /// $header
-class $viewClass extends StatelessWidget {
+class $viewClass extends StatefulWidget {
   const $viewClass({super.key});
 
   @override
+  State<$viewClass> createState() => _${viewClass}State();
+}
+
+/// The AdaptiveViewState (issue #1142): platform slot resolution in
+/// build, one branch per declared slot.
+class _${viewClass}State extends State<$viewClass> {
+  /// Resolves the platform slot for the current build: a phone-width
+  /// surface is the `$narrowSlot` slot on every platform; wider surfaces
+  /// branch on the declared width-defined slots (tablet/desktop) and
+  /// then on the host platform (declared slots only).
+  String _resolveSlot(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < 600) return '$narrowSlot';
+${widthBranches.isEmpty ? '' : '${widthBranches.join('\n')}\n'}$resolveSwitch
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-$body
-      ],
+    final slot = _resolveSlot(context);
+    return Scaffold(
+      body: switch (slot) {
+$buildSwitch
+      },
     );
   }
-}''';
+}
+
+$layoutStubs''';
+  }
+
+  /// The declared platform layout contract of the feature (issue
+  /// #1142): the Presentation table's `adaptive_layouts` bullet, parsed
+  /// through [PlatformLayoutContract]. EPIC 3 / issue #1134 lane 1
+  /// (extending #1004): when no Presentation bullet declares slots, the
+  /// feature's `## Skin Contract` `adaptive_slots` drive the skeleton
+  /// (the contract drives generation) — resolved through
+  /// [PlatformLayoutContract.resolve], the single derivation the plan
+  /// ledger shares. Null when the feature declares no slots anywhere.
+  ///
+  /// A malformed Skin Contract slot THROWS
+  /// [PlatformLayoutContractException] (errors-are-an-API — the plan
+  /// refuses the same declaration); a MISSING spec.md or a contract-less
+  /// spec degrades to no declaration (the fail-open discipline
+  /// _presentationComponents applies — the contract is a declaration
+  /// the deterministic default optimizes over, and the plan re-surfaces
+  /// malformation honestly).
+  static Future<PlatformLayoutContract?> _platformLayoutContract(
+    String featureDir,
+  ) async {
+    final contracts = <LayerContract>[];
+    try {
+      contracts.addAll(await TestListReader(featureDir).readLayerContracts());
+    } on TestListReadException {
+      // An unreadable list degrades to no declaration — the same
+      // fail-open note discipline _presentationComponents applies (the
+      // kind/contract is an optimization over the deterministic default;
+      // other steps re-surface malformation honestly).
+      return null;
+    }
+    AdaptiveSkinContract? skinContract;
+    final specFile = File(p.join(featureDir, 'spec.md'));
+    if (await specFile.exists()) {
+      try {
+        skinContract = parseAdaptiveSkinContract(await specFile.readAsString());
+      } on AdaptiveSkinContractParseException catch (error) {
+        // A malformed Skin Contract SHAPE (an unknown field, a bad
+        // nesting) is a declared-contract refusal like an unknown slot:
+        // translate it so the caller's named refusal + machine-summary
+        // path fires (errors-are-an-API) instead of the generic handler.
+        throw PlatformLayoutContractException(
+          'skin contract: ${error.message}',
+        );
+      }
+    }
+    return PlatformLayoutContract.resolve(
+      contracts: contracts,
+      skinContract: skinContract,
+    );
   }
 
   /// The deterministic always-compiling core-Flutter stand-in for a
@@ -672,7 +1134,7 @@ $body
     for (final entry in await _scanRegistries(cwd, featureFlag)) {
       final record = await entry.registry.findRecord(behaviorId);
       if (record != null) {
-        matches.add(_Resolved(record, entry.featureName));
+        matches.add(_Resolved(record, entry.featureName, entry.featureDir));
       }
     }
     if (matches.length > 1) {
@@ -690,9 +1152,16 @@ $body
     String? featureFlag,
   ) async {
     if (featureFlag != null && featureFlag.isNotEmpty) {
-      final featureDir = p.join(cwd, 'specs', featureFlag);
+      final resolved = TddFeaturePaths.resolveWithPin(
+        projectRoot: cwd,
+        featureRef: featureFlag,
+      );
       return [
-        _RegistryEntry(featureFlag, ArtifactRegistry(featureDir: featureDir)),
+        _RegistryEntry(
+          resolved.name,
+          resolved.dir,
+          ArtifactRegistry(featureDir: resolved.dir),
+        ),
       ];
     }
     final specsDir = Directory(p.join(cwd, 'specs'));
@@ -706,6 +1175,7 @@ $body
         entries.add(
           _RegistryEntry(
             p.basename(dir.path),
+            dir.path,
             ArtifactRegistry(featureDir: dir.path),
           ),
         );
@@ -741,13 +1211,15 @@ class _ViewResolutionError implements Exception {
 }
 
 class _RegistryEntry {
-  const _RegistryEntry(this.featureName, this.registry);
+  const _RegistryEntry(this.featureName, this.featureDir, this.registry);
   final String featureName;
+  final String featureDir;
   final ArtifactRegistry registry;
 }
 
 class _Resolved {
-  const _Resolved(this.record, this.featureName);
+  const _Resolved(this.record, this.featureName, this.featureDir);
   final ArtifactRecord record;
   final String featureName;
+  final String featureDir;
 }

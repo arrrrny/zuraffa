@@ -39,16 +39,23 @@ class CompositionPlanner {
   ///
   /// Issue #923: the anchors may be green unit subjects or entity-wired
   /// ones (the `wiredEntityAnchor` implementation anchor, bug #610) — the
-  /// purpose line names the mix so the audit trail stays honest.
+  /// purpose line names the mix so the audit trail stays honest. Issue
+  /// #1162: bug features may also contribute stub-only subjects; the
+  /// purpose line labels them so the composition never overstates what
+  /// it rests on.
   GenerationPlan plan(
     BehaviorSummary summary,
     List<ComposableUnitSubject> anchors,
   ) {
     final wired = anchors.where((a) => a.entityWired).length;
-    final anchorSummary = wired == 0
-        ? '${anchors.length} green unit subject(s)'
-        : '${anchors.length - wired} green, $wired entity-wired unit '
-              'subject(s)';
+    final stub = anchors.where((a) => a.stubOnly).length;
+    final green = anchors.length - wired - stub;
+    final parts = <String>[
+      if (green > 0) '$green green',
+      if (wired > 0) '$wired entity-wired',
+      if (stub > 0) '$stub stub-only',
+    ];
+    final anchorSummary = '${parts.join(', ')} unit subject(s)';
     return GenerationPlan(
       behaviorId: summary.behaviorId,
       feature: summary.feature,

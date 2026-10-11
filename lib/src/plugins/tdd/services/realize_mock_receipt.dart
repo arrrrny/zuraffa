@@ -25,6 +25,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../../version.dart';
+
 /// One per-method comparison row: the method, both tiers' results, and
 /// the verdict on their equality.
 class RealizeMockMethodRecord {
@@ -90,7 +92,7 @@ class RealizeMockReceiptWriter {
     required List<String> contractTests,
     required List<RealizeMockMethodRecord> methods,
     required String verdict,
-    String generatorVersion = '6.1.0',
+    String generatorVersion = version,
   }) {
     return <String, dynamic>{
       'schema': 'proof.v1',

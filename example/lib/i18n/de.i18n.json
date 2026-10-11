@@ -1,0 +1,7 @@
+{
+  "auth": {
+    "error": "Anmeldung fehlgeschlagen – bitte versuche es erneut",
+    "signIn": "Jetzt bei ZIKZAK anmelden",
+    "working": "Anmeldung läuft, bitte kurz warten…"
+  }
+}

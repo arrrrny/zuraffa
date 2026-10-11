@@ -62,8 +62,11 @@ class MockCertifier {
         ? p.relative(mockData.path, from: projectRoot)
         : null;
 
-    final implemented = mockDatasource.existsSync()
-        ? _methodNames(mockDatasource.readAsStringSync())
+    final mockSource = mockDatasource.existsSync()
+        ? mockDatasource.readAsStringSync()
+        : null;
+    final implemented = mockSource != null
+        ? _methodNames(mockSource)
         : const <String>{};
 
     final certified = <String, bool>{
@@ -77,6 +80,10 @@ class MockCertifier {
     return MockCertificationResult(
       mockDatasourcePath: mockDatasourcePath,
       mockDataPath: mockDataPath,
+      // Issue #1109: the mock class the engine receipt records per
+      // method (`mock_class`). Parsed from the generated file so the
+      // receipt carries what actually exists, not a guessed name.
+      mockClass: mockSource != null ? _firstClassName(mockSource) : null,
       methods: certified,
     );
   }
@@ -101,5 +108,20 @@ class MockCertifier {
       }
     }
     return names;
+  }
+
+  /// The first class declared in [source] — the generated mock
+  /// datasource class name (e.g. `UserMockDataSource`). Null when the
+  /// file declares no class (or fails to parse).
+  static String? _firstClassName(String source) {
+    final result = const FileParser().parseSource(source);
+    final unit = result.unit;
+    if (unit == null) return null;
+    for (final declaration in unit.declarations) {
+      if (declaration is ClassDeclaration) {
+        return declaration.namePart.typeName.lexeme;
+      }
+    }
+    return null;
   }
 }

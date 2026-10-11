@@ -14,6 +14,13 @@
 //   Upgrade path: `zfa app shell` succeeds on a fresh setup (bootstrap DI)
 //   and the smoke test stays green after the upgrade.
 //
+// Spec 1395 adds the dependency-declaration gate: the day-zero app module
+// imports `package:zuraffa_flutter/zuraffa_flutter.dart` and uses `GetIt`,
+// so the SAME pass that writes the module must declare `zuraffa_flutter` +
+// `get_it` under `dependencies:` (idempotently) and the fresh tree must
+// `dart analyze` with 0 errors — the #942 build gate's severity contract,
+// which the acceptance composition (A2 phase 2) refuses on otherwise.
+//
 // These tests spawn `flutter create` / `flutter pub get` / `flutter test`
 // and are therefore tagged slow + integration.
 @Tags(['slow', 'integration'])
@@ -164,6 +171,121 @@ void main() {
           }
         },
       );
+    },
+  );
+
+  group(
+    'spec 1395: the day-zero app module declares its deps (setup pass)',
+    timeout: const Timeout(Duration(minutes: 12)),
+    () {
+      test('fresh zfa setup declares zuraffa_flutter + get_it and dart analyze '
+          'reports 0 errors; a re-run does not duplicate', () async {
+        final sandbox = await Directory.systemTemp.createTemp(
+          'zfa_spec1395_deps_',
+        );
+        try {
+          const app = 'zik_zak_tdd';
+          final appDir = p.join(sandbox.path, app);
+
+          final setup = await runZfaSource([
+            'setup',
+            app,
+            '--platforms=linux',
+            '--no-git',
+          ], workingDirectory: sandbox.path);
+          expect(
+            setup.exitCode,
+            0,
+            reason: 'zfa setup must succeed: ${combinedOutput(setup)}',
+          );
+          final setupOut = combinedOutput(setup);
+          expect(setupOut, contains('lib/app.dart'));
+
+          // The #1395 contract: the SAME pass that wrote lib/app.dart
+          // declared the module's runtime deps. Both land under
+          // `dependencies:` (runtime — lib/app.dart is runtime source).
+          final pubspecFile = File(p.join(appDir, 'pubspec.yaml'));
+          final pubspec = pubspecFile.readAsStringSync();
+          expect(
+            pubspec,
+            contains('zuraffa_flutter:'),
+            reason:
+                'the generated lib/app.dart imports '
+                'package:zuraffa_flutter/zuraffa_flutter.dart — the '
+                'day-zero pass must declare it (spec 1395)',
+          );
+          expect(
+            pubspec,
+            contains('get_it:'),
+            reason:
+                'the generated app module exposes '
+                '`final GetIt di = GetIt.instance` — the day-zero pass '
+                'must declare get_it (spec 1395)',
+          );
+          final depsMatch = RegExp(
+            r'^dependencies:',
+            multiLine: true,
+          ).firstMatch(pubspec)!;
+          final devMatch = RegExp(
+            r'^dev_dependencies:',
+            multiLine: true,
+          ).firstMatch(pubspec);
+          final barrelIdx = pubspec.indexOf('zuraffa_flutter');
+          final getItIdx = pubspec.indexOf('get_it');
+          expect(barrelIdx, greaterThan(depsMatch.start));
+          expect(getItIdx, greaterThan(depsMatch.start));
+          if (devMatch != null) {
+            expect(barrelIdx, lessThan(devMatch.start));
+            expect(getItIdx, lessThan(devMatch.start));
+          }
+
+          // The #942 gate severity contract on the fresh tree: 0 errors
+          // (info lints are style, non-fatal by design — issue #1035).
+          final analyze = await Process.run('dart', [
+            'analyze',
+            'lib',
+          ], workingDirectory: appDir);
+          final analyzeOut = '${analyze.stdout}\n${analyze.stderr}';
+          expect(
+            RegExp(r'^\s*error - ', multiLine: true).hasMatch(analyzeOut),
+            isFalse,
+            reason:
+                'the fresh consumer tree must analyze with 0 errors after '
+                'zfa setup (spec 1395 / the #942 gate). Output:\n'
+                '$analyzeOut',
+          );
+
+          // Cross-command idempotency: re-running `zfa tdd init` (whose
+          // #1349 self-heal shares the patcher) must not duplicate the
+          // deps.
+          final reinit = await runZfaSource([
+            'tdd',
+            'init',
+          ], workingDirectory: appDir);
+          expect(
+            reinit.exitCode,
+            0,
+            reason:
+                'zfa tdd init must succeed on the setup-created tree: '
+                '${combinedOutput(reinit)}',
+          );
+          final repubspec = pubspecFile.readAsStringSync();
+          expect(
+            'zuraffa_flutter:'.allMatches(repubspec).length,
+            1,
+            reason: 'a re-run must not duplicate the barrel dependency',
+          );
+          expect(
+            'get_it:'.allMatches(repubspec).length,
+            1,
+            reason: 'a re-run must not duplicate get_it',
+          );
+        } finally {
+          if (sandbox.existsSync()) {
+            await sandbox.delete(recursive: true);
+          }
+        }
+      });
     },
   );
 }

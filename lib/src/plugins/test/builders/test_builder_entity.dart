@@ -126,7 +126,15 @@ extension TestBuilderEntity on TestBuilder {
       print(
         '  ⚠️  Skipping test generation for $className: UseCase file ($useCaseFileName) not found.',
       );
-      return GeneratedFile(path: filePath, type: 'test', action: 'skipped');
+      // Spec 1334: structured skip cause — a missing UseCase source is a
+      // dependency problem, not an overwrite conflict (--force cannot fix
+      // it). The capability verdict gate keys on this reason.
+      return GeneratedFile(
+        path: filePath,
+        type: 'test',
+        action: 'skipped',
+        skipReason: 'missing-dependency',
+      );
     }
 
     final missingNativeMockFile =
@@ -144,13 +152,27 @@ extension TestBuilderEntity on TestBuilder {
         '  ⚠️  Skipping test generation for $className: Native mock '
         'file ($missingNativeMockFile) not found.',
       );
-      return GeneratedFile(path: filePath, type: 'test', action: 'skipped');
+      // Spec 1334: structured skip cause (missing dependency — see the
+      // UseCase-file skip above).
+      return GeneratedFile(
+        path: filePath,
+        type: 'test',
+        action: 'skipped',
+        skipReason: 'missing-dependency',
+      );
     }
 
     // #354: detect Flutter vs pure-Dart from pubspec.yaml so the test
     // framework + zuraffa core imports resolve. `zfa setup --dart` only
     // wires `test` + `zuraffa` (no `flutter_test`, no `zuraffa_flutter`).
-    final isFlutter = await _isFlutterProject(projectRoot);
+    // Issue #1109: the engine preset forces the pure-Dart test framework
+    // import regardless — the engine lane is CORE, so the engine test
+    // tree must carry zero `flutter_test` imports even when the host
+    // project is a Flutter app (`flutter test` runs package:test tests
+    // fine).
+    final isFlutter = config.engineSlice
+        ? false
+        : await _isFlutterProject(projectRoot);
     // Always import zuraffa core: every generated test defines a
     // `Throwing{Entity}DataSource` (mixin `Loggable`/`FailureHandler`, params
     // types `QueryParams`/`ToggleParams`/`Field`/…) regardless of the use case

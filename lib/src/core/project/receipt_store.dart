@@ -120,7 +120,7 @@ class GenerationReceipt {
 
   /// Capability name of the standalone invocation (issue #996): `create`
   /// for `zfa di create`, `adapter` for `zfa cache adapter`, `enable`
-  /// for `zfa sync enable`, the layout for `zfa shadcn <layout>`.
+  /// for `zfa sync enable`, the layout for `zfa skin <layout>`.
   final String? capability;
 
   /// The entity the capability operated on (issue #996).
@@ -140,6 +140,16 @@ class GenerationReceipt {
   /// `receipt_version`). 1 for both capability and make-path receipts.
   final int receiptVersion;
 
+  /// The declared core floor this run generated under (issue #1197):
+  /// the oldest core the emitted artifacts are guaranteed to compile
+  /// against. Null on legacy receipts.
+  final String? minCoreVersion;
+
+  /// The zuraffa core version the run actually resolved and generated
+  /// against (issue #1197). Null when no core was resolvable (scaffold
+  /// runs) — doctor treats that as unknown, never a false claim.
+  final String? generatedAgainstCore;
+
   const GenerationReceipt({
     this.schema = 'proof.v1',
     required this.command,
@@ -156,6 +166,8 @@ class GenerationReceipt {
     this.methodset,
     this.runHash,
     this.receiptVersion = 1,
+    this.minCoreVersion,
+    this.generatedAgainstCore,
   });
 
   Map<String, dynamic> toJson() => {
@@ -174,6 +186,9 @@ class GenerationReceipt {
     if (methodset != null) 'methodset': methodset,
     if (runHash != null) 'hash': runHash,
     'receipt_version': receiptVersion,
+    if (minCoreVersion != null) 'min_core_version': minCoreVersion,
+    if (generatedAgainstCore != null)
+      'generated_against_core': generatedAgainstCore,
   };
 
   factory GenerationReceipt.fromJson(Map<String, dynamic> json) =>
@@ -207,6 +222,8 @@ class GenerationReceipt {
             .toList(growable: false),
         runHash: json['hash'] as String?,
         receiptVersion: json['receipt_version'] as int? ?? 1,
+        minCoreVersion: json['min_core_version'] as String?,
+        generatedAgainstCore: json['generated_against_core'] as String?,
       );
 }
 
@@ -215,7 +232,17 @@ class ReceiptRecord {
   final String fileName;
   final GenerationReceipt receipt;
 
-  const ReceiptRecord({required this.fileName, required this.receipt});
+  /// The full parsed document (spec 1136 lane 5): the typed extras a
+  /// producer merged on top of the proof.v1 payload (`world_hash`,
+  /// fuzz verdicts, ...) survive `loadAll` here — [GenerationReceipt]
+  /// alone ignores unknown keys.
+  final Map<String, dynamic> raw;
+
+  const ReceiptRecord({
+    required this.fileName,
+    required this.receipt,
+    this.raw = const {},
+  });
 }
 
 /// Reads and writes generation receipts under `<project>/.zfa/receipts/`.
@@ -233,15 +260,30 @@ class ReceiptStore {
 
   /// Persists [receipt] as a JSON document; returns the file.
   ///
-  /// By default the document is timestamped (`$stamp-$cmd-$target.json`).
-  /// When [fileName] is provided (spec #977: standalone plugin receipts
-  /// such as `datasource-<entity>.json`), that name is used instead —
-  /// sanitized the same way, with a `.json` suffix ensured. `loadAll`
-  /// picks up both naming schemes, so `zfa proof check` verifies either.
+  /// By default the document is timestamped (`$stamp-$cmd-$target.json`)
+  /// so a project's generation history is append-only. Pass [fileName]
+  /// to write a STABLE name instead (issue #976: `state-<entity>.json`;
+  /// spec #977: standalone plugin receipts such as
+  /// `datasource-<entity>.json`) — a per-entity/per-plugin surface,
+  /// refreshed in place on regeneration (the latest-wins semantics
+  /// `ProofChecker` already applies per artifact path). The name must
+  /// be a bare file name inside the receipts directory (no path
+  /// separators, no `..`); its base is sanitized the same way as the
+  /// timestamped form, with a `.json` suffix ensured. `loadAll` picks
+  /// up both naming schemes, so `zfa proof check` verifies either.
   Future<File> save(GenerationReceipt receipt, {String? fileName}) async {
     await directory.create(recursive: true);
     final String resolvedName;
     if (fileName != null) {
+      if (fileName.contains('/') ||
+          fileName.contains('\\') ||
+          fileName.contains('..')) {
+        throw ArgumentError.value(
+          fileName,
+          'fileName',
+          'must be a bare <name>.json inside the receipts directory',
+        );
+      }
       final base = fileName.replaceAll(RegExp(r'\.json$'), '');
       resolvedName = '${_sanitize(base)}.json';
     } else {
@@ -346,6 +388,7 @@ class ReceiptStore {
           ReceiptRecord(
             fileName: p.basename(file.path),
             receipt: GenerationReceipt.fromJson(json),
+            raw: json,
           ),
         );
       } catch (_) {

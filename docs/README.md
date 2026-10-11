@@ -1,7 +1,13 @@
 # Zuraffa Documentation
 
+## TDD Workflow
+
+- [ZFA TDD Cycle — External Agent Guideline](zfa-tdd-guide.md) - From zero to a completed engine+skin TDD cycle: setup, spec authoring, plan, run, verify, misfire protocol
+
 ## Architecture
 
+- [Writing Zuraffa Packages](writing_zuraffa_packages.md) - Greenfield guide: create, generate, consume, and publish zuraffa-native packages and federated plugins
+- [Package Migration Guide](package_migration_guide.md) - Brownfield playbook: convert an existing Dart/Flutter package into a zuraffa package or federated plugin, rebuilt test-first (automated by the `zuraffa-migrate` speckit extension)
 - [v4 vs v5 Comparison](v4_vs_v5_comparison.md) - Migration guide from legacy Zuraffa to v5
 - [Offline-First Sync Plugin](architecture/offline-first-sync.md) - Local-first persistence with background synchronization
 

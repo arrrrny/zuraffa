@@ -19,6 +19,7 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/plugins/tdd/models/cycle_entry.dart';
 import 'package:zuraffa/src/plugins/tdd/services/cycle_log.dart';
+import 'package:zuraffa/src/simulation/fixture_registry.dart';
 
 import 'helpers/tdd_fixture.dart';
 
@@ -44,7 +45,8 @@ void main() {
     return runner.runCapturing([
       'tdd',
       'doctor',
-      '--feature',
+      // Issue #1585: doctor takes the feature POSITIONALLY — it declares
+      // only --json/--repair/--project, so a --feature flag is a usage error.
       feature,
       '--project',
       fx.root.path,
@@ -55,9 +57,11 @@ void main() {
       jsonDecode(await File(fx.runStatePath).readAsString())
           as Map<String, dynamic>;
 
-  /// The write-ahead journal path (`tdd/journal.json`), sibling of the
-  /// run state file.
-  String journalPath() => p.join(p.dirname(fx.runStatePath), 'journal.json');
+  /// The write-ahead transaction path (`tdd/transaction.json`), sibling
+  /// of the run state file (renamed from `tdd/journal.json` by spec 1113
+  /// — the unified TDD journal owns that name now).
+  String journalPath() =>
+      p.join(p.dirname(fx.runStatePath), 'transaction.json');
 
   Future<void> seedJournal({
     required String behavior,
@@ -76,6 +80,21 @@ void main() {
         'at': '2026-09-01T00:00:00.000Z',
         'status': 'pending',
       }),
+    );
+  }
+
+  Future<void> seedRefactorEvidence({required int exitCode}) async {
+    await CycleLog(p.join(fx.root.path, 'specs', feature)).append(
+      CycleLogEntry(
+        behaviorId: '$feature-refactor',
+        kind: CycleEntryKind.refactor,
+        runnerCommand: 'dart test',
+        exitCode: exitCode,
+        capturedOutput: 're-proof exit: $exitCode',
+        sourceCriterion: 'FR-3',
+        testPath: 'test/',
+        timestamp: '2026-09-01T00:00:01.000Z',
+      ),
     );
   }
 
@@ -212,6 +231,65 @@ void main() {
       expect(state['behavior_states']['B-001'], 'done', reason: out);
     });
 
+    test(
+      'a failed refactor diagnostic does not complete journal replay',
+      () async {
+        final dead = await Process.start('sh', ['-c', 'exit 0']);
+        final deadPid = dead.pid;
+        await dead.exitCode;
+        await fx.registerBehavior(id: 'B-001', description: 'first behavior');
+        await fx.seedRedEvidence('B-001');
+        await fx.seedGreenEvidence('B-001');
+        await fx.seedRunState(
+          states: {'B-001': 'green'},
+          inFlightBehaviorId: 'B-001',
+          inFlightStep: 'refactor',
+          inFlightOwnerPid: deadPid,
+        );
+        await seedJournal(
+          behavior: 'B-001',
+          step: 'refactor',
+          ownerPid: deadPid,
+        );
+        await seedRefactorEvidence(exitCode: 1);
+
+        final out = await drive();
+
+        expect(exitCode, 0, reason: out);
+        expect(fx.stepInvocations(), ['refactor B-001'], reason: out);
+      },
+    );
+
+    test(
+      'a successful refactor entry still completes journal replay',
+      () async {
+        final dead = await Process.start('sh', ['-c', 'exit 0']);
+        final deadPid = dead.pid;
+        await dead.exitCode;
+        await fx.registerBehavior(id: 'B-001', description: 'first behavior');
+        await fx.seedRedEvidence('B-001');
+        await fx.seedGreenEvidence('B-001');
+        await fx.seedRunState(
+          states: {'B-001': 'green'},
+          inFlightBehaviorId: 'B-001',
+          inFlightStep: 'refactor',
+          inFlightOwnerPid: deadPid,
+        );
+        await seedJournal(
+          behavior: 'B-001',
+          step: 'refactor',
+          ownerPid: deadPid,
+        );
+        await seedRefactorEvidence(exitCode: 0);
+
+        final out = await drive();
+
+        expect(exitCode, 0, reason: out);
+        expect(fx.stepInvocations(), isEmpty, reason: out);
+        expect(out, contains('refactor -> replayed'), reason: out);
+      },
+    );
+
     test('bug 828: every committed step clears the journal — a completed run '
         'leaves no pending transaction behind', () async {
       final out = await drive();
@@ -253,7 +331,14 @@ void main() {
       final out = await doctor();
 
       expect(exitCode, 0, reason: out);
-      expect(out, contains('drifts=0'), reason: out);
+      // Issue #1585: the legacy `doctor: feature=<f> drifts=<n>` summary
+      // line was replaced by the verdict envelope (bug #840 / issue
+      // #969); zero drifts is now the empty `drifts` array on the final
+      // machine-readable line.
+      final verdict =
+          jsonDecode(out.trim().split('\n').last) as Map<String, dynamic>;
+      expect(verdict['verdict'], 'healthy', reason: out);
+      expect(verdict['drifts'], isEmpty, reason: out);
     });
 
     test('bug 828 RED: a pending journal is reported as an interrupted '
@@ -354,5 +439,147 @@ void main() {
       expect(out, contains('--> fix:'), reason: out);
       expect(out.toLowerCase(), contains('hash'), reason: out);
     });
+
+    test('bug 828 RED: doctor detects a broken prev-hash LINKAGE (the '
+        'reordered/edited trail) and prescribes a fix', () async {
+      // The content arm covers `- hash:`; the linkage arm covers
+      // `- prev-hash:`. This pin isolates the linkage walk: the recorded
+      // prev-hash no longer chains, so the drift must name the linkage
+      // ("does not link") — a walk that only recomputed content digests
+      // would read this trail as healthy.
+      final log = CycleLog(p.dirname(p.dirname(fx.cycleLogPath)));
+      await log.append(
+        CycleLogEntry(
+          behaviorId: 'B-001',
+          kind: CycleEntryKind.red,
+          runnerCommand: 'dart test b_001_test.dart',
+          exitCode: 1,
+          capturedOutput: 'Expected: <2>\n  Actual: <1>',
+          classification: FailureClass.assertionFailure,
+          sourceCriterion: 'FR-001',
+          testPath: 'test/tdd/b_001_test.dart',
+          timestamp: '2026-09-01T00:00:00.000Z',
+        ),
+      );
+      // Tamper: sever the link to the genesis hash — the trail no longer
+      // chains.
+      final file = File(fx.cycleLogPath);
+      await file.writeAsString(
+        (await file.readAsString()).replaceAll(
+          '- prev-hash: ${CycleLog.genesisHash}',
+          '- prev-hash: '
+              '0000000000000000000000000000000000000000000000000000000000000000',
+        ),
+      );
+
+      final out = await doctor();
+
+      expect(exitCode, 1, reason: out);
+      expect(out, contains('--> fix:'), reason: out);
+      expect(out, contains('does not link'), reason: out);
+    });
+
+    test('review #1612: a fixtures section written through the converged '
+        'certifier chain is NOT reported as tampering', () async {
+      // The certifier writer chains through CycleLog.chainHashFromFields
+      // (the canonical payload) and keeps the manifest digest in its own
+      // `- digest:` field, so the doctor's walk verifies the section
+      // instead of flagging every committed simulation certification.
+      final fixturesDir = p.join(fx.featureDir, 'tdd', 'fixtures');
+      await Directory(fixturesDir).create(recursive: true);
+      await File(
+        p.join(fixturesDir, 'auth-world.json'),
+      ).writeAsString('{"uid":"u-1"}\n');
+      final registry = FixtureRegistry(fixturesDir);
+      await registry.writeManifest(families: ['firebase-auth']);
+      await registry.appendCycleEvidence(
+        featureDir: fx.featureDir,
+        families: ['firebase-auth'],
+        commandLine:
+            'zfa simulate --scaffold specs/$feature --family firebase-auth',
+      );
+
+      final out = await doctor();
+
+      expect(exitCode, 0, reason: out);
+      final verdict =
+          jsonDecode(out.trim().split('\n').last) as Map<String, dynamic>;
+      expect(verdict['verdict'], 'healthy', reason: out);
+      expect(verdict['drifts'], isEmpty, reason: out);
+    });
+
+    test('review #1612: a LEGACY foreign-writer section (the manifest '
+        'digest in - hash:) is tolerated, never failed', () async {
+      // The pre-convergence committed format: the certifier stamped the
+      // manifest digest into `- hash:`, a payload the canonical walk
+      // cannot rebuild. It must not read as tampering.
+      await File(fx.cycleLogPath).parent.create(recursive: true);
+      await File(fx.cycleLogPath).writeAsString(
+        '# Cycle Log\n\n'
+        '## 2026-09-01T00:00:00Z: certified simulation fixtures (bug #832)\n'
+        '- behavior: $feature-fixtures\n'
+        '- kind: fixtures\n'
+        '- at: 2026-09-01T00:00:00Z\n'
+        '- exit: 0\n'
+        '- criterion: certified fixture world committed under tdd/fixtures/ '
+        'and hashed into the manifest digest\n'
+        '- command: `zfa simulate --scaffold specs/$feature`\n'
+        '- schema: 1\n'
+        '- prev-hash: genesis\n'
+        '- hash: d08179e0${'0' * 56}\n',
+      );
+
+      final out = await doctor();
+
+      expect(exitCode, 0, reason: out);
+      expect(
+        jsonDecode(out.trim().split('\n').last)['verdict'],
+        'healthy',
+        reason: out,
+      );
+    });
+
+    test(
+      'review #1612: a chain-claiming section whose - hash: line is '
+      'rewritten to non-hex is reported — the hash-less tail bypass',
+      () async {
+        // The bypass the walk could not see: the LAST hashed entry of a
+        // behavior, its `- hash:` line mangled (not deleted) so the parser
+        // stops capturing it — the section still advertises `- schema: 1`
+        // / `- prev-hash:`, so the guard must report it instead of
+        // skipping.
+        final log = CycleLog(p.dirname(p.dirname(fx.cycleLogPath)));
+        await log.append(
+          CycleLogEntry(
+            behaviorId: 'B-001',
+            kind: CycleEntryKind.red,
+            runnerCommand: 'dart test b_001_test.dart',
+            exitCode: 1,
+            capturedOutput: 'Expected: <2>\n  Actual: <1>',
+            classification: FailureClass.assertionFailure,
+            sourceCriterion: 'FR-001',
+            testPath: 'test/tdd/b_001_test.dart',
+            timestamp: '2026-09-01T00:00:00.000Z',
+          ),
+        );
+        final file = File(fx.cycleLogPath);
+        final raw = await file.readAsString();
+        final recorded = RegExp(
+          r'^- hash: ([0-9a-f]{64})$',
+          multiLine: true,
+        ).firstMatch(raw)!;
+        await file.writeAsString(
+          raw.replaceFirst(
+            recorded.group(0)!,
+            '- hash: ${recorded.group(1)!.toUpperCase()}',
+          ),
+        );
+
+        final out = await doctor();
+
+        expect(exitCode, 1, reason: out);
+        expect(out, contains('cannot be verified'), reason: out);
+      },
+    );
   });
 }

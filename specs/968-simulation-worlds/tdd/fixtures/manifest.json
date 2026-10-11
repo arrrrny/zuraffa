@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "bug": 832,
+  "families": [
+    "firebase-auth",
+    "vendure",
+    "rest",
+    "admob",
+    "otel"
+  ],
+  "files": {
+    "admob-world.json": {
+      "sha256": "48fcc2a132ddef9f9430ae87101e8e4adb3ef8b2256ad31456bf4ec8b8624d19",
+      "bytes": 104
+    },
+    "auth-world.json": {
+      "sha256": "2faa624e6fa82d4b2e712fb7d9d290fa7fb656fdc7fd845173cfda7a30caec72",
+      "bytes": 376
+    },
+    "otel-world.json": {
+      "sha256": "e372cb31ae5acf3ad3ccf734f74af303cb5739b9c158e0830b541b3b80a11da2",
+      "bytes": 109
+    },
+    "rest-world.json": {
+      "sha256": "5d7e70a2e4d834a9474a5803c1cb13f06275647fcb013f6f1419cd7623a460d3",
+      "bytes": 658
+    },
+    "vendure-golden.json": {
+      "sha256": "c2e536f7b837ab098f0bb0c4dfe715ca136fa5c465b1a2a3682bc140510ce3dd",
+      "bytes": 600
+    }
+  },
+  "digest": "16015ea9b01d513db3e7ed6792c954608a5e220b791fe5be1d7bf775f28baccd"
+}

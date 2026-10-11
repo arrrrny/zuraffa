@@ -174,7 +174,7 @@ import 'dart:io';
 
 Future<void> main() async {
   // Detect Flutter vs pure-Dart from pubspec.yaml. The generated $entityName
-  // code may pull in Flutter-only deps (e.g. shadcn_ui views), so prefer
+  // code may pull in Flutter-only deps (e.g. zuraffa_ui views), so prefer
   // `flutter build` when a flutter block is present.
   final pubspec = File('pubspec.yaml');
   if (!pubspec.existsSync()) {

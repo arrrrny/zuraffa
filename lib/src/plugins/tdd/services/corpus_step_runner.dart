@@ -12,8 +12,9 @@
 ///   surfaced, never absorbed (FR-004).
 ///
 /// The entrypoint is the `--zfa-bin` override when given (a `.dart`
-/// entrypoint runs through `dart`; anything else — a compiled executable
-/// or a scripted fake — executes directly), else the package root's
+/// entrypoint is AOT compiled through `ZfaExecutable.ensureCompiled` first
+/// — the no-JIT policy — while anything else, a compiled executable or a
+/// scripted fake, executes directly), else the package root's
 /// `bin/zfa.dart`. A missing summary line or a spawn failure is a
 /// `runner-error` misfire, never a silent success and never a crash
 /// (FR-011).
@@ -21,6 +22,7 @@ library;
 
 import 'dart:io';
 
+import '../../../cli/zfa_executable.dart';
 import 'step_runner.dart';
 import 'tdd_timeout.dart';
 
@@ -79,7 +81,9 @@ class CorpusStepRunner {
     CorpusSpawner? spawner,
     Future<String> Function()? entryResolver,
     Duration? timeout,
+    ZfaEnsureCompiled? ensureCompiled,
   }) : timeout = timeout ?? TddTimeouts.defaultStepProcess,
+       _ensureCompiled = ensureCompiled ?? ZfaExecutable.ensureCompiled,
        _spawner =
            spawner ??
            ((List<String> command, String workingDirectory) =>
@@ -99,6 +103,7 @@ class CorpusStepRunner {
 
   final CorpusSpawner _spawner;
   final Future<String> Function() _entryResolver;
+  final ZfaEnsureCompiled _ensureCompiled;
 
   String? _resolvedEntry;
 
@@ -153,14 +158,15 @@ class CorpusStepRunner {
   }) async {
     final String entry;
     try {
-      entry = _resolvedEntry ??= zfaBin ?? await _resolveDefault();
+      // No-JIT policy: the override is compiled here too, so `--zfa-bin`
+      // pointing at a source entrypoint cannot spawn through the VM.
+      entry = _resolvedEntry ??= zfaBin != null
+          ? await _ensureCompiled(zfaBin!)
+          : await _resolveDefault();
     } on Object catch (e) {
       return _runnerError(step, 'entrypoint resolution failed: $e');
     }
-    final command = [
-      ...(entry.endsWith('.dart') ? ['dart', entry] : [entry]),
-      ...argv,
-    ];
+    final command = ZfaExecutable.commandFor(entry, argv);
 
     final ProcessResult process;
     try {

@@ -5,8 +5,11 @@ import 'package:args/command_runner.dart';
 import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
 
+import '../core/dependencies/pubspec_auto_add.dart';
+import '../cli/usage_length.dart';
 import '../commands/schema_command.dart';
 import '../commands/simulate_command.dart';
+
 import '../commands/ui_command.dart';
 import '../commands/validate_command.dart';
 import '../commands/create_command.dart' as create;
@@ -27,17 +30,22 @@ import '../commands/generate_commands_command.dart';
 import '../commands/apply_command.dart';
 import '../commands/module_command.dart';
 import '../commands/xray_command.dart';
+import '../commands/observer_removed_command.dart';
 import '../commands/setup_command.dart';
 import '../commands/replay_command.dart';
+import '../commands/spec_command.dart';
 import '../commands/tdd_command.dart';
 import '../commands/app_shell_command.dart';
 import '../commands/package_command.dart';
 import '../commands/engine_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
+import '../core/project/project_root.dart';
 import '../plugins/tdd/tdd_plugin.dart';
 import '../core/error/suggestion_engine.dart';
 import '../version.dart';
+import 'exit_protocol.dart';
+import 'binary_staleness.dart';
 import 'plugin_loader.dart';
 import '../commands/agent_command.dart';
 import '../commands/zap_command.dart';
@@ -64,16 +72,57 @@ class CliRunner {
   /// Guard against overlapping `run`/`runCapturing` calls on the same instance.
   /// The scoped chdir in [_withDirectory] mutates the process-wide
   /// `Directory.current`; concurrent invocations would race on it. We reject
-  /// re-entrancy with a clear error rather than serialize with a shared lock
-  /// (which risks deadlocks and does not coordinate across isolates).
+  /// same-instance re-entrancy with a clear error. Cross-ISOLATE overlaps
+  /// (two `dart test` suites, each driving its own [CliRunner] in one VM)
+  /// are handled by the lock file in [_withDirectory] — this per-instance
+  /// flag cannot see another suite's runner.
   bool _active = false;
 
-  CliRunner({this.exitOnCompletion = true}) : _runner = _buildRunner();
+  /// Stale-binary probe (issue #1184): injectable so tests can point it at
+  /// a fake install dir; defaults to deriving from the running executable.
+  final BinaryStaleness _staleness;
+
+  /// Sink for the #1184 staleness warning. Defaults to stderr — a warning
+  /// must never pollute machine-parsed stdout (`zfa doctor --format json`).
+  final void Function(String message) _onStalenessWarning;
+
+  static void _defaultStalenessWarning(String message) =>
+      stderr.writeln(message);
+
+  /// The exit code the LAST [runCapturing] invocation on this isolate
+  /// dispatched, snapshotted per-isolate.
+  ///
+  /// `dart:io exitCode` is PROCESS-GLOBAL — `dart test` runs test files
+  /// as concurrent isolates of one process, so a sibling suite's command
+  /// finishing between this run's teardown and the caller's
+  /// `expect(exitCode, ...)` read clobbers the value this invocation
+  /// produced (the same cross-suite shared-state family as the
+  /// `Directory.current` race, issue #1096). [lastDispatchedExitCode] is
+  /// a Dart static — per-isolate storage — so callers that need the
+  /// HERMETIC value read this instead of the global. Set on every
+  /// [runCapturing] exit path, inside the body-wide exit-span hold.
+  static int lastDispatchedExitCode = 0;
+
+  CliRunner({
+    this.exitOnCompletion = true,
+    BinaryStaleness? staleness,
+    void Function(String message)? onStalenessWarning,
+    PubspecProcessRunner? makeProcessRunner,
+  }) : _staleness = staleness ?? BinaryStaleness(),
+       _onStalenessWarning = onStalenessWarning ?? _defaultStalenessWarning,
+       _makeProcessRunner = makeProcessRunner,
+       _runner = _buildRunner();
+
+  /// Issue #1265: the `pub add` spawner handed to `zfa make` for the
+  /// mechanical auto-add of undeclared generated-import packages.
+  /// Injectable so tests driving the full CLI stay hermetic (no network).
+  final PubspecProcessRunner? _makeProcessRunner;
 
   static CommandRunner<void> _buildRunner() =>
-      CommandRunner<void>(
+      _CrashSafeCommandRunner(
           'zfa',
           'Zuraffa Code Generator - Clean Architecture for Flutter',
+          usageLineLength: kUsageLineLength,
         )
         ..argParser.addFlag(
           'version',
@@ -97,6 +146,20 @@ class CliRunner {
               'Run as if zfa was started in <dir> (scoped; the process '
               'working directory is restored afterward).',
         );
+
+  /// Bug #1267: the generation commands whose output paths are resolved
+  /// against the process CWD (`lib/src/domain/...` and friends). When one of
+  /// these is dispatched WITHOUT the global `-C` flag, the runner auto-detects
+  /// the project root by searching upward from the CWD for the nearest
+  /// `pubspec.yaml` and applies it as the same scoped chdir `-C` uses — so an
+  /// invocation from a parent directory (or a project subdirectory) targets
+  /// the project the shell actually means instead of scattering generated
+  /// files relative to wherever the invocation happened to start.
+  static const Set<String> _rootBoundGenerationCommands = {
+    'entity',
+    'make',
+    'build',
+  };
 
   /// Top-level commands whose execution path never consumes the plugin
   /// registry (no plugin-provided subcommands, no generator plugins needed).
@@ -168,7 +231,9 @@ class CliRunner {
     _runner.addCommand(_InitializeCommand());
     _runner.addCommand(_EntityCommand());
     _runner.addCommand(_PluginCommand());
-    _runner.addCommand(MakeCommand(registry));
+    _runner.addCommand(
+      MakeCommand(registry, processRunner: _makeProcessRunner),
+    );
     _runner.addCommand(EngineCommand());
     _runner.addCommand(DoctorCommand());
     _runner.addCommand(ProofCommand());
@@ -179,16 +244,26 @@ class CliRunner {
     _runner.addCommand(ApplyCommand(registry));
     _runner.addCommand(ModuleCommand());
     _runner.addCommand(XrayCommand());
+    // Issue #1149 (kill list): the observer plugin is gone; the command
+    // name now delivers an honest removal verdict (exit 2 — the legacy 64
+    // canonicalized by SPEC 917) instead of silently vanishing or —
+    // worse — lying about generation.
+    _runner.addCommand(ObserverRemovedCommand());
     _runner.addCommand(UpdateCommand());
     _runner.addCommand(SetupCommand());
     _runner.addCommand(CorpusCommand());
     _runner.addCommand(TddCommand(TddPlugin()));
+    // Spec 0967: the spec-mutation arena (`zfa spec fuzz`) — the
+    // intent-layer referee round (VISION §7).
+    _runner.addCommand(SpecCommand());
     _runner.addCommand(ReplayCommand());
     _runner.addCommand(DreamCommand());
     _runner.addCommand(AppCommand());
     _runner.addCommand(UiCommand());
     _runner.addCommand(PackageCommand());
     _runner.addCommand(SimulateCommand());
+    // Spec 1276: the `zfa skin` group is owned by the skin plugin
+    // (mounted with the runtime auditor subcommands kit/verify/drive).
     _runner.addCommand(AgentCommand());
     _runner.addCommand(ZapCommand());
   }
@@ -232,8 +307,35 @@ class CliRunner {
       // `zfa -C <dir> generate ...` are classified correctly even though `-C`
       // shifts `args.first` / `args.isEmpty`.
       final commandArgs = _stripDirectory(args);
-      await _withDirectory(directory, () async {
+      // Bug #1267: root-bound generation commands auto-detect the project
+      // root when no `-C` was given; a rootless walk refuses with the
+      // canonical error instead of scattering files under the CWD.
+      final (autoRoot, noProjectFound) = _resolveGenerationRoot(
+        directory,
+        commandArgs,
+      );
+      if (noProjectFound) {
+        print('❌ ${ProjectRoot.noProjectFoundMessage}');
+        print(
+          ExitProtocol.fixLine(
+            'cd into the project directory (the nearest folder with a '
+            'pubspec.yaml) or pass -C <path> explicitly.',
+          ),
+        );
+        _exit(ExitProtocol.usage);
+        return;
+      }
+      await _withDirectory(directory ?? autoRoot, () async {
         _ensureInitialized(args, directory: directory);
+
+        // Issue #1184: the installed `zfa` binary is a compiled snapshot;
+        // when the enclosing zuraffa checkout's HEAD differs from the commit
+        // recorded at build time, every shell invocation silently ran stale
+        // code. Surface ONE advisory line BEFORE dispatching anything —
+        // including `--version`/help, since a false repro costs an operator
+        // (or agent) the same hour regardless of which subcommand it hit.
+        // See [_warnIfBinaryStale] for the silence rules.
+        await _warnIfBinaryStale();
 
         if (commandArgs.isEmpty) {
           _printHelp();
@@ -250,7 +352,7 @@ class CliRunner {
 
         if (_isRemovedGenerateCommand(commandArgs)) {
           _printRemovedGenerateMessage();
-          _exit(64);
+          _exit(ExitProtocol.usage);
           return;
         }
 
@@ -261,9 +363,36 @@ class CliRunner {
     }
   }
 
+  /// Issue #1184: emit the stale-binary warning when provably stale.
+  ///
+  /// Silence rules (see `BinaryStaleness`): running from source (no
+  /// installed binary), no build-commit marker, cwd outside a zuraffa
+  /// worktree, or an unresolvable worktree HEAD — an advisory must never
+  /// fire on unprovable input, and must never break the invocation.
+  ///
+  /// `runCapturing` (MCP-embedded) deliberately does NOT warn: its stdout
+  /// is machine-parsed protocol output, and the #1184 false-repro trap is
+  /// the interactive shell path.
+  Future<void> _warnIfBinaryStale() async {
+    final String? message;
+    try {
+      message = await _staleness.warningFor(cwd: Directory.current.path);
+    } on IOException {
+      return; // advisory only — never fail the CLI over it
+    } on FormatException {
+      return;
+    }
+    if (message != null) _onStalenessWarning(message);
+  }
+
   /// Run the dispatched command, honoring a failure exit code set by the
   /// command (dart:io `exitCode`); calling `exit(0)` unconditionally would
   /// clobber it.
+  ///
+  /// SPEC 917 (the ratified exit protocol): usage errors exit the canonical
+  /// 2 (the legacy 64 is retired — [ExitProtocol.canonicalize]), and EVERY
+  /// non-zero exit ends with a machine-actionable `--> fix:` line (VISION
+  /// §4: errors are an API, not an apology).
   Future<void> _runDispatched(List<String> args) async {
     try {
       await _runner.run(args);
@@ -271,21 +400,51 @@ class CliRunner {
     } on UsageException catch (e) {
       print('❌ ${e.message}');
       print(e.usage);
-      _exit(64);
+      print(ExitProtocol.fixLine(_usageFixFor(e.message)));
+      _exit(ExitProtocol.usage);
     } catch (e, stack) {
       print('❌ Error: $e');
       _addSuggestions(e.toString());
       if (args.contains('--verbose') || args.contains('-v')) {
         print('\nStack trace:\n$stack');
       }
-      _exit(1);
+      print(
+        ExitProtocol.fixLine(
+          "re-run with --verbose to capture the stack trace, then run "
+          '`zfa doctor`',
+        ),
+      );
+      _exit(ExitProtocol.failure);
     }
+  }
+
+  /// The machine-actionable remediation for a usage error: the invocation
+  /// grammar lives in the command's help, so that is the fix every
+  /// "could not run as invoked" failure points at.
+  String _usageFixFor(String message) {
+    if (message.contains('Could not find an option') ||
+        message.contains('Could not find a subcommand')) {
+      return "re-run with --help to list the valid flags and subcommands, "
+          "then re-invoke";
+    }
+    return "re-run with --help to check the invocation grammar, then "
+        "re-invoke";
   }
 
   /// If [directory] is non-null, scope [body] to a temporary working
   /// directory (restored afterward). This is the safe replacement for tests
   /// assigning `Directory.current` directly: the change is confined to this
   /// invocation and never leaks into the shared process-global CWD.
+  ///
+  /// The whole chdir window (capture `saved` → chdir → body → restore) is
+  /// serialized across isolates through [_cwdLockFile] (issue #1096):
+  /// `dart test` runs suites as concurrent isolates of ONE process, and
+  /// `Directory.current` is process-wide. Without the lock, suite B can
+  /// capture `saved` while suite A's window is open (B then restores the
+  /// process into A's temp root), and every relative write A performs while
+  /// B's window overlaps lands in B's root — the observed service-verdict
+  /// flake. Suites that never pass `-C` never touch the lock, so parallel
+  /// execution of other suites is unaffected.
   ///
   /// Crucially, command construction (`_ensureInitialized`) must happen
   /// *inside* this scope: commands resolve their project root from
@@ -299,20 +458,278 @@ class CliRunner {
       await body();
       return;
     }
-    final saved = Directory.current;
-    Directory.current = p.absolute(directory);
+    await _acquireCwdLock();
     try {
-      await body();
+      final saved = Directory.current;
+      Directory.current = p.absolute(directory);
+      try {
+        await body();
+      } finally {
+        // `Directory.current` is PROCESS-WIDE while the test runner executes
+        // suites as concurrent isolates in one VM. Between the capture above
+        // and this restore, another isolate can legitimately delete the saved
+        // directory (its own temp-dir teardown) — restoring to it then throws
+        // PathNotFoundException inside an UNRELATED test (observed as a flaky
+        // U19 in setup_corpus_specs_test once the #767 suites changed suite
+        // scheduling). Walk up to the nearest ancestor that still exists
+        // instead of failing; the root always exists.
+        Directory.current = nearestExistingDirectory(saved.path);
+      }
     } finally {
-      // `Directory.current` is PROCESS-WIDE while the test runner executes
-      // suites as concurrent isolates in one VM. Between the capture above
-      // and this restore, another isolate can legitimately delete the saved
-      // directory (its own temp-dir teardown) — restoring to it then throws
-      // PathNotFoundException inside an UNRELATED test (observed as a flaky
-      // U19 in setup_corpus_specs_test once the #767 suites changed suite
-      // scheduling). Walk up to the nearest ancestor that still exists
-      // instead of failing; the root always exists.
-      Directory.current = nearestExistingDirectory(saved.path);
+      // Release only AFTER the restore so the next window captures a stable
+      // process CWD (the restore is part of the critical section).
+      _releaseCwdLock();
+    }
+  }
+
+  /// Cross-isolate lock guarding the [_withDirectory] chdir window.
+  ///
+  /// Keyed by PID on purpose: the race only exists WITHIN one process (each
+  /// process owns a private working directory), and all dart-test suite
+  /// isolates share the runner process's PID, so they contend on one file —
+  /// exactly the mutual exclusion needed. A spawned `zfa` CLI runs in its
+  /// own process, gets its own lock file, and can never deadlock against
+  /// its parent. The lock lives in the system temp dir so it works for any
+  /// checkout and needs no writable project state.
+  static File get _cwdLockFile =>
+      File(p.join(Directory.systemTemp.path, 'zfa_cwd_lock_$pid.lock'));
+
+  /// How long a lock file may go without a heartbeat before an acquirer
+  /// treats its holder as dead (killed mid-window by a per-test timeout —
+  /// `dart test` kills the isolate WITHOUT running its `finally`, so the
+  /// file would otherwise leak and block every later window in the
+  /// process). A live holder touches the file every
+  /// [_lockHeartbeatEvery], so a healthy window — however long — is never
+  /// broken; only holder DEATH is.
+  static const Duration staleCwdLockAfter = Duration(seconds: 30);
+
+  /// The heartbeat interval: frequent enough that a live holder's file age
+  /// stays far below [staleCwdLockAfter] even on a loaded runner.
+  static const Duration _lockHeartbeatEvery = Duration(seconds: 5);
+
+  /// The CWD-window heartbeat timer, live only while this isolate holds
+  /// [_cwdLockFile]. Isolate death cancels it implicitly — which is the
+  /// point: the file's mtime goes cold and the next acquirer recovers.
+  static Timer? _cwdLockHeartbeat;
+
+  static void _startCwdLockHeartbeat() {
+    _stopCwdLockHeartbeat();
+    _cwdLockHeartbeat = Timer.periodic(_lockHeartbeatEvery, (_) {
+      try {
+        _cwdLockFile.setLastModifiedSync(DateTime.now());
+      } on FileSystemException {
+        // The waiter's break-race deleted the file — the next heartbeat
+        // tick is best-effort; release still deletes idempotently.
+      }
+    });
+  }
+
+  static void _stopCwdLockHeartbeat() {
+    _cwdLockHeartbeat?.cancel();
+    _cwdLockHeartbeat = null;
+  }
+
+  /// The age of [file]'s last heartbeat, or null when it vanished between
+  /// the probe and this stat (a waiter's break-race won — retry create).
+  static Duration? _lockFileAge(File file) {
+    try {
+      return DateTime.now().difference(file.lastModifiedSync());
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  /// Acquires the cross-isolate chdir lock, waiting for the current holder
+  /// for as long as its heartbeat stays fresh. Exclusive-create
+  /// (`File.createSync(exclusive: true)`) is the atomic serialization
+  /// point; it works across isolates AND processes, unlike
+  /// `RandomAccessFile.lock` (POSIX fcntl locks are per-process and cannot
+  /// arbitrate between isolates of one VM).
+  ///
+  /// Staleness replaces the deadline: a LIVE holder heartbeats the lock
+  /// file every few seconds, so the file going cold is proof the holder
+  /// died mid-window (isolate killed by a per-test timeout — its `finally`
+  /// never runs and the file would otherwise leak for the whole run).
+  /// Under the `--concurrency=4` dart_core lane (#1632) a holder's chdir
+  /// window legitimately spans a fixture-heavy dispatch (real
+  /// `pub get`/`dart test` children), so time-based ceilings were
+  /// un-workable in BOTH directions: the former 30-second break destroyed
+  /// exclusion mid-run (a waiter expired, broke a LIVE holder's lock, and
+  /// the two suites interleaved their process-global CWD writes — the
+  /// rotating doctor/service/dream/theater/usecase CI reds), while a
+  /// minutes-long ceiling made every waiter hit its own test timeout
+  /// first. Heartbeats give both properties: live holders are never
+  /// broken, dead holders are recovered within ~[staleCwdLockAfter].
+  ///
+  /// The break path is bounded: if the cold file resists three break
+  /// rounds (a foreign user's file this user cannot delete), the acquire
+  /// degrades — it proceeds WITHOUT exclusivity (pre-#1096 behavior)
+  /// rather than spinning forever.
+  static Future<void> _acquireCwdLock() async {
+    var breakAttempts = 0;
+    while (true) {
+      try {
+        _cwdLockFile.createSync(exclusive: true);
+        _startCwdLockHeartbeat();
+        return;
+      } on FileSystemException {
+        final age = _lockFileAge(_cwdLockFile);
+        if (age != null && age < staleCwdLockAfter) {
+          // Held by a live holder — wait (it will release; the heartbeat
+          // proves it is alive).
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          continue;
+        }
+        // Cold file: the holder died mid-window (or the file vanished
+        // between the probe and this create). Break it and retry — the
+        // exclusive-create above is still the only serialization point.
+        if (++breakAttempts > 3) {
+          // Degraded mode: the cold file survived three break rounds
+          // (e.g. a foreign user's file in the shared system temp that
+          // this user cannot delete). Proceed without exclusivity — a
+          // degraded run beats an infinite hang.
+          stderr.writeln(
+            'zfa: warning: stale CWD lock (${_cwdLockFile.path}) could '
+            'not be broken; continuing WITHOUT exclusion — concurrent '
+            'runs may interleave their working directories.',
+          );
+          return;
+        }
+        try {
+          _cwdLockFile.deleteSync();
+        } on FileSystemException {
+          // Unbreakable (e.g. a foreign user's file) — the bounded
+          // break counter above degrades after three failed rounds.
+        }
+        try {
+          _cwdLockFile.createSync(exclusive: true);
+          _startCwdLockHeartbeat();
+          return;
+        } on FileSystemException {
+          // Someone else won the break race — loop and re-check.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+      }
+    }
+  }
+
+  /// Releases the cross-isolate chdir lock. Best-effort: a lost release
+  /// self-heals through the heartbeat staleness check (the file goes cold
+  /// and the next acquirer breaks it).
+  static void _releaseCwdLock() {
+    _stopCwdLockHeartbeat();
+    try {
+      _cwdLockFile.deleteSync();
+    } on FileSystemException {
+      // Already gone (another waiter broke a stale lock).
+    }
+  }
+
+  /// Separate cross-isolate lock held across the WHOLE [runCapturing]
+  /// dispatch — reset, command body, snapshot, re-apply — so the
+  /// PROCESS-GLOBAL `dart:io exitCode` has exactly one writer at a time
+  /// among concurrent isolates. `Directory.current` and `exitCode` fail
+  /// in the same way (issue #1096 family): `dart test` runs suites as
+  /// concurrent isolates of ONE VM while both are process-wide. Micro-
+  /// spans around only the three runner-side writes were tried first
+  /// (#1632) and proven insufficient by the lane itself: a SUCCESSFUL
+  /// command never writes the global, so its code has to survive the
+  /// entire command body, and every sibling dispatch's writes landed
+  /// freely in that window (the rotating 1309/doctor-U14/skin/
+  /// 965/1365/1481/846 false codes). A separate file (not the CWD lock)
+  /// keeps the two lock orders from ever nesting: this hold is taken
+  /// BEFORE the dispatch while the body may take the CWD lock for a
+  /// `-C` window — same-file locking would risk a hold-and-wait cycle
+  /// between two concurrent dispatches.
+  static File get _exitSpanLockFile =>
+      File(p.join(Directory.systemTemp.path, 'zfa_exit_lock_$pid.lock'));
+
+  /// How long the exit-span lock file may go without a heartbeat before an
+  /// acquirer treats its holder as dead (see [staleCwdLockAfter] — same
+  /// death mode, the isolate killed mid-span by a per-test timeout).
+  static const Duration staleExitSpanLockAfter = Duration(seconds: 30);
+
+  /// The exit-span heartbeat timer, live only while this isolate holds
+  /// [_exitSpanLockFile] (same death-detection mechanism as the CWD lock's).
+  static Timer? _exitSpanHeartbeat;
+
+  static void _startExitSpanHeartbeat() {
+    _stopExitSpanHeartbeat();
+    _exitSpanHeartbeat = Timer.periodic(_lockHeartbeatEvery, (_) {
+      try {
+        _exitSpanLockFile.setLastModifiedSync(DateTime.now());
+      } on FileSystemException {
+        // The waiter's break-race deleted the file — best-effort tick.
+      }
+    });
+  }
+
+  static void _stopExitSpanHeartbeat() {
+    _exitSpanHeartbeat?.cancel();
+    _exitSpanHeartbeat = null;
+  }
+
+  /// Acquires the exit-span lock — same protocol as [_acquireCwdLock]
+  /// (exclusive-create, heartbeat-staleness break, bounded-degrade
+  /// fallback when the cold file resists the break).
+  static Future<void> _acquireExitSpanLock() async {
+    // Heartbeat staleness, not a time ceiling — same rationale as
+    // _acquireCwdLock: a fixture-heavy dispatch legitimately holds the
+    // span for minutes under the `-j4` lane (the former 30-second
+    // stale-break broke LIVE holders and interleaved process-global
+    // exitCode writes — the rotating doctor-U14/1309/skin/965/1365/1481/
+    // 846 false codes), while a minutes-long ceiling made waiters hit
+    // their own test timeouts first. The heartbeat proves liveness; only
+    // a COLD file (holder killed mid-span) is broken.
+    var breakAttempts = 0;
+    while (true) {
+      try {
+        _exitSpanLockFile.createSync(exclusive: true);
+        _startExitSpanHeartbeat();
+        return;
+      } on FileSystemException {
+        final age = _lockFileAge(_exitSpanLockFile);
+        if (age != null && age < staleExitSpanLockAfter) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          continue;
+        }
+        if (++breakAttempts > 3) {
+          // Degraded mode: the cold file survived three break rounds
+          // (e.g. a foreign user's file in the shared system temp that
+          // this user cannot delete). Proceed without exclusivity — a
+          // degraded run beats an infinite hang.
+          stderr.writeln(
+            'zfa: warning: stale exit-span lock (${_exitSpanLockFile.path}) '
+            'could not be broken; continuing WITHOUT exclusion — concurrent '
+            'runs may interleave their exit-code writes.',
+          );
+          return;
+        }
+        try {
+          _exitSpanLockFile.deleteSync();
+        } on FileSystemException {
+          // Unbreakable (e.g. a foreign user's file) — the bounded break
+          // counter above degrades after three failed rounds.
+        }
+        try {
+          _exitSpanLockFile.createSync(exclusive: true);
+          _startExitSpanHeartbeat();
+          return;
+        } on FileSystemException {
+          // Someone else won the break race — loop and re-check.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+      }
+    }
+  }
+
+  /// Releases the exit-span lock (best-effort, same as [_releaseCwdLock]).
+  static void _releaseExitSpanLock() {
+    _stopExitSpanHeartbeat();
+    try {
+      _exitSpanLockFile.deleteSync();
+    } on FileSystemException {
+      // Already gone (another waiter broke a stale lock).
     }
   }
 
@@ -328,6 +745,41 @@ class CliRunner {
       dir = Directory(parentPath);
     }
     return dir.path;
+  }
+
+  /// Bug #1267 auto-detect for the root-bound generation commands.
+  ///
+  /// Returns `(autoRoot, notFound)`:
+  /// * `autoRoot` non-null — apply it as the scoped CWD before dispatch (the
+  ///   nearest ancestor of the CWD carrying a `pubspec.yaml`);
+  /// * `autoRoot` null, `notFound` false — dispatch unchanged (an explicit
+  ///   `-C` was given and wins, the command is not root-bound, or the CWD
+  ///   itself already carries a `pubspec.yaml`);
+  /// * `notFound` true — no `pubspec.yaml` exists in any ancestor: the
+  ///   caller must refuse with [ProjectRoot.noProjectFoundMessage] instead
+  ///   of guessing a root and scattering generated files.
+  (String?, bool) _resolveGenerationRoot(
+    String? directory,
+    List<String> commandArgs,
+  ) {
+    // An explicit `-C` always wins — its behavior is byte-identical to the
+    // pre-#1267 contract.
+    if (directory != null) return (null, false);
+    if (commandArgs.isEmpty ||
+        !_rootBoundGenerationCommands.contains(commandArgs.first)) {
+      return (null, false);
+    }
+    // Help must be reachable from any directory (issue #764): a help-only
+    // invocation never touches the project filesystem, so the root walk
+    // must not intercept it.
+    const helpFlags = {'--help', '-h', 'help'};
+    if (commandArgs.skip(1).any(helpFlags.contains)) return (null, false);
+    final cwd = ProjectRoot.safeCurrentPath();
+    // Fast path: the CWD already is a project root — nothing to shift.
+    if (File(p.join(cwd, 'pubspec.yaml')).existsSync()) return (null, false);
+    final detected = ProjectRoot.findOrNull(startPath: cwd);
+    if (detected == null) return (null, true);
+    return (detected, false);
   }
 
   /// Extract the global `-C`/`--directory` value from [args] (manual scan so
@@ -372,6 +824,22 @@ class CliRunner {
       );
     }
     _active = true;
+    // Hold the exit-span lock across the WHOLE dispatch — reset, command
+    // body, snapshot, re-apply — not around the three writes alone. The
+    // #1632 `-j4` lane proved micro-spans insufficient: a SUCCESSFUL
+    // command never writes the global at all, so its code (the reset's 0)
+    // must survive the ENTIRE command body, and a sibling's writes
+    // landing anywhere in that body-length window poisoned the snapshot
+    // (the rotating 1309/doctor-U14/skin/965/1365/1481/846 false codes).
+    // With every dispatch body-wide-excluded, the only writers left are
+    // sibling COMMAND bodies — which run inside their own dispatch's
+    // hold, so they cannot overlap either. Bare-CommandRunner test
+    // dispatches (skin_command_test) join the same exclusion through
+    // test/helpers/exit_span_mutex.dart. Cost: CLI-driving dispatches
+    // serialize against each other (fixtures, file IO and non-CLI work
+    // still parallelize); a dispatch longer than 30s degrades to the
+    // stale-break protocol instead of hanging the waiters.
+    await _acquireExitSpanLock();
     // Reset the global exitCode so each runCapturing invocation is
     // hermetic — `dart:io exit(N)` inside the dispatched command sets
     // exitCode and would otherwise leak across runs (a prior test
@@ -380,55 +848,109 @@ class CliRunner {
     // is preserved through the `_runDispatched` path, which uses its
     // own `_exit(exitCode)` to honor whatever the command set.
     exitCode = 0;
+    // Spec 1008: dart:io's exitCode is PROCESS-GLOBAL, not per-isolate —
+    // `dart test` runs test files as concurrent isolates of one process.
+    // The dispatched code is snapshotted after the runner returns and
+    // re-applied in the finally, so the caller reads either the hermetic
+    // [lastDispatchedExitCode] or the global re-apply — both inside the
+    // body-wide hold above.
+    var dispatchedExitCode = 0;
     final output = <String>[];
     try {
       final directory = _extractDirectory(args);
       // Strip the global `-C`/`--directory` flag so the empty / version /
       // removed-generate pre-checks classify correctly (see [run]).
       final commandArgs = _stripDirectory(args);
-      await _withDirectory(directory, () async {
-        _ensureInitialized(args, directory: directory);
-
-        if (commandArgs.isEmpty) {
-          _printHelpTo(output.add);
-          return;
-        }
-
-        if (_isVersionCommand(commandArgs)) {
-          output.add('zfa v$version');
-          output.add('Zuraffa Code Generator');
-          return;
-        }
-
-        if (_isRemovedGenerateCommand(commandArgs)) {
-          _printRemovedGenerateMessageTo(output.add);
-          return;
-        }
-
-        await runZoned(
-          () async {
-            try {
-              await _runner.run(args);
-            } on UsageException catch (e) {
-              output.add('❌ ${e.message}');
-              output.add(e.usage);
-            } catch (e, stack) {
-              output.add('❌ Error: $e');
-              _addSuggestionsTo(output.add, e.toString());
-              if (args.contains('--verbose') || args.contains('-v')) {
-                output.add('\nStack trace:\n$stack');
-              }
-            }
-          },
-          zoneSpecification: ZoneSpecification(
-            print: (self, parent, zone, line) {
-              output.add(line);
-            },
+      // Bug #1267: mirrors the run() auto-detect — the MCP/embedded path
+      // refuses a rootless generation invocation with the same canonical
+      // error and the same usage exit code.
+      final (autoRoot, noProjectFound) = _resolveGenerationRoot(
+        directory,
+        commandArgs,
+      );
+      if (noProjectFound) {
+        output.add('❌ ${ProjectRoot.noProjectFoundMessage}');
+        output.add(
+          ExitProtocol.fixLine(
+            'cd into the project directory (the nearest folder with a '
+            'pubspec.yaml) or pass -C <path> explicitly.',
           ),
         );
-      });
+        dispatchedExitCode = ExitProtocol.usage;
+      } else {
+        await _withDirectory(directory ?? autoRoot, () async {
+          _ensureInitialized(args, directory: directory);
+
+          if (commandArgs.isEmpty) {
+            _printHelpTo(output.add);
+            return;
+          }
+
+          if (_isVersionCommand(commandArgs)) {
+            output.add('zfa v$version');
+            output.add('Zuraffa Code Generator');
+            return;
+          }
+
+          if (_isRemovedGenerateCommand(commandArgs)) {
+            _printRemovedGenerateMessageTo(output.add);
+            // SPEC 917: the removed verb is a usage error — the canonical 2,
+            // mirroring the run() pre-dispatch path.
+            dispatchedExitCode = ExitProtocol.usage;
+            return;
+          }
+
+          await runZoned(
+            () async {
+              try {
+                await _runner.run(args);
+                // Snapshot the dispatched code. Inside the body-wide
+                // exit-span hold this read cannot observe a sibling's
+                // write (every dispatcher — runCapturing or the
+                // ExitSpanMutex test seam — holds the same lock for its
+                // whole window); taken synchronously so the command's
+                // final write and this read share one event-loop turn
+                // even in the degraded stale-break case.
+                dispatchedExitCode = exitCode;
+              } on UsageException catch (e) {
+                output.add('❌ ${e.message}');
+                output.add(e.usage);
+                output.add(ExitProtocol.fixLine(_usageFixFor(e.message)));
+                dispatchedExitCode = ExitProtocol.usage;
+              } catch (e, stack) {
+                output.add('❌ Error: $e');
+                _addSuggestionsTo(output.add, e.toString());
+                if (args.contains('--verbose') || args.contains('-v')) {
+                  output.add('\nStack trace:\n$stack');
+                }
+                output.add(
+                  ExitProtocol.fixLine(
+                    "re-run with --verbose to capture the stack trace, then "
+                    "run `zfa doctor`",
+                  ),
+                );
+                dispatchedExitCode = ExitProtocol.failure;
+              }
+            },
+            zoneSpecification: ZoneSpecification(
+              print: (self, parent, zone, line) {
+                output.add(line);
+              },
+            ),
+          );
+        });
+      }
     } finally {
       _active = false;
+      // Re-apply this invocation's own exit code AFTER the teardown (the
+      // CWD restore, the zone unwind) — still inside the body-wide hold,
+      // so no sibling write can land between the snapshot and this
+      // publish (issue #1096 family).
+      exitCode = dispatchedExitCode;
+      // The hermetic snapshot: per-isolate static, immune to the sibling
+      // clobber the global re-apply above stays exposed to (bug #1107).
+      lastDispatchedExitCode = dispatchedExitCode;
+      _releaseExitSpanLock();
     }
 
     return output.isEmpty ? '' : '${output.join('\n')}\n';
@@ -480,6 +1002,7 @@ BOOTSTRAP:
   setup <name>        Create a new Flutter/Dart app with zuraffa deps wired in
   init                Alias of initialize — wire deps + scaffold a test entity
   package create <name>  Create a Zuraffa-native reusable package (spec 025)
+  package plugin <name>  Create a publish-ready federated plugin monorepo (spec 1601)
   corpus import <dir> Import an extracted spec corpus (spec 050, issue #627)
   corpus catalog      Classify a corpus target's specs CORE/SKIN (epic #1017)
   corpus run          Walk the corpus under a failure budget (epic #1017)
@@ -505,11 +1028,15 @@ MODULAR COMMANDS:
   view <Name>         Generate View/Presenter/Controller
   di <Name>           Generate dependency injection
   test <Name>         Generate unit tests
-  app shell           Generate app shell (main.dart + MyApp + app_router.dart)
+  app shell           Generate app shell (main.dart + shell widget + app_router.dart)
 
 OPTIONS:
   -v, --version       Print version
   -h, --help          Show help
+
+EXIT CODES (the ratified protocol, SPEC 917 / VISION §4):
+${ExitProtocol.tableDoc.split('\n').map((l) => '  $l').join('\n')}
+  Every non-zero exit ends with a machine-actionable `--> fix:` line.
 
 Run "zfa <command> --help" for more information.
 ''');
@@ -524,6 +1051,12 @@ Run "zfa <command> --help" for more information.
     printFn('   Use `zfa make <Name> ...` for canonical generation.');
     printFn(
       '   Use `zfa feature <Name>` or `zfa feature scaffold <Name>` for the feature wrapper.',
+    );
+    printFn(
+      ExitProtocol.fixLine(
+        'zfa make <Name> [options] (or `zfa feature '
+        'scaffold <Name>`)',
+      ),
     );
   }
 
@@ -554,9 +1087,15 @@ class _ConfigCommand extends Command<void> {
   @override
   String get description => 'Manage ZFA configuration';
 
+  // Issue #1496: `config init --minimal` — the config subcommand handles
+  // its own flags, so pass everything through unparsed (same pattern as
+  // _InitializeCommand).
+  @override
+  ArgParser get argParser => ArgParser.allowAnything();
+
   @override
   Future<void> run() async {
-    await config.ConfigCommand().execute(argResults!.rest.toList());
+    await config.ConfigCommand().execute(argResults!.arguments);
   }
 }
 
@@ -618,6 +1157,55 @@ class _EntityCommand extends Command<void> {
   @override
   Future<void> run() async {
     final allArgs = argResults!.arguments;
-    await EntityCommand().execute(allArgs);
+    // SPEC 917: embedded dispatch must unwind (EntityCommand._bail →
+    // exitCode), never raw-exit mid-suite — the runner dispatches the exit.
+    await EntityCommand().execute(allArgs, exitOnCompletion: false);
+  }
+}
+
+/// Issue #1360: package:args' error path crashes with a null-check
+/// TypeError when a parser-only-registered subcommand (bug #856's
+/// grammar: `argParser.addCommand` without `addSubcommand`) receives an
+/// UNDECLARED option — the ArgParserException's command chain names a
+/// subcommand that [Command.subcommands] cannot resolve, and the
+/// library `!`-fires. Recover the original exception and walk the chain
+/// defensively so the user sees the clean usage error the parser
+/// intended.
+class _CrashSafeCommandRunner extends CommandRunner<void> {
+  _CrashSafeCommandRunner(
+    super.executableName,
+    super.description, {
+    super.usageLineLength,
+  });
+
+  @override
+  ArgResults parse(Iterable<String> args) {
+    try {
+      return super.parse(args);
+    } on TypeError {
+      ArgParserException original;
+      try {
+        // Re-derive the parser's own verdict. A clean throw here is the
+        // crash's trigger; a successful parse means the TypeError came
+        // from elsewhere — rethrow it untouched.
+        argParser.parse(args);
+        rethrow;
+      } on ArgParserException catch (error) {
+        original = error;
+      }
+      // CommandRunner and Command share no base class that declares the
+      // maps, so the defensive walk is dynamically typed: the runner
+      // exposes `commands`, a Command exposes `subcommands`.
+      dynamic command = this;
+      for (final name in original.commands) {
+        final map = identical(command, this)
+            ? commands
+            : command.subcommands as Map<String, Command<void>>;
+        final next = map[name];
+        if (next == null) break;
+        command = next;
+      }
+      throw command.usageException(original.message);
+    }
   }
 }

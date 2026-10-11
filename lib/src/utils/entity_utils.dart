@@ -1,4 +1,38 @@
+import 'zuraffa_barrel_exports.dart';
+
 class EntityUtils {
+  /// Rewrites recognized primitive type ALIASES to their canonical Dart
+  /// built-in names inside a field type expression (issue #1270).
+  ///
+  /// `zfa entity create -n Login --field isLoading:Boolean` — users (and
+  /// other codegen ecosystems) spell the boolean primitive `Boolean`, but
+  /// the Dart built-in is `bool`. Without recognition, the alias is
+  /// classified as a custom entity reference and rejected with
+  /// `Unknown type "Boolean" — no matching entity directory or enum file
+  /// found`, forcing users to scaffold an enum/entity directory for a
+  /// Dart built-in (or to fall back to computed getters, the workaround in
+  /// the issue report).
+  ///
+  /// The alias is rewritten case-insensitively at word boundaries, so plain
+  /// fields (`Boolean`), nullables (`Boolean?`) and generic inners
+  /// (`List<Boolean>`, `Map<String, Boolean>`) all normalize to `bool`;
+  /// custom types whose name merely CONTAINS the alias (`BooleanFilter`)
+  /// are untouched, and no other token is rewritten — existing resolution
+  /// of non-primitive types is unchanged (#296/#308 semantics preserved).
+  ///
+  /// Applied to the parsed field TYPE only (never the field name or JSON
+  /// wire name) by `zfa entity create` / `zfa entity add-field` before
+  /// validation and emission, so the generated entity declares the built-in
+  /// (`bool get isLoading;`) — the inline-primitive remediation preferred
+  /// by the assessment: primitives are Dart built-ins and must not require
+  /// directory scaffolding.
+  static String normalizePrimitiveTypeAliases(String type) {
+    return type.replaceAllMapped(
+      RegExp(r'\bboolean\b', caseSensitive: false),
+      (_) => 'bool',
+    );
+  }
+
   /// Extracts entity types from a field type string (e.g. List Product -> [Product])
   static List<String> extractEntityTypes(String fieldType) {
     final types = <String>[];
@@ -18,6 +52,32 @@ class EntityUtils {
 
     if (baseType.startsWith('\$')) {
       baseType = baseType.substring(1);
+    }
+
+    // #1198 follow-up (spec-1003 finding #7): strip framework param
+    // wrappers BEFORE flattening generics. `QueryParams<Product>` used to
+    // flatten to the phantom `QueryParamsProduct`, and generated code (mock
+    // provider in the service lane, triad lanes) emitted imports for a
+    // `query_params_product` entity file that does not exist — caught for
+    // real by the template self-hosting loop's compile tier while driving
+    // the canonical `zfa make` plugin order. A wrapper is a zuraffa
+    // param/contract type, not an entity; the entity is its type argument.
+    for (final wrapper in const [
+      'QueryParams',
+      'ListQueryParams',
+      'UpdateParams',
+      'DeleteParams',
+      'InitializationParams',
+      'Params',
+      'Filter',
+      'Sort',
+    ]) {
+      if (baseType.startsWith('$wrapper<') && baseType.endsWith('>')) {
+        baseType = baseType
+            .substring(wrapper.length + 1, baseType.length - 1)
+            .trim();
+        break;
+      }
     }
 
     baseType = baseType
@@ -69,8 +129,31 @@ class EntityUtils {
   /// zorphy concrete class and its `Patch` pair — so the barrel import
   /// carries a `hide` clause for exactly those symbols, and the entity's
   /// own definitions win resolution.
-  static List<String> barrelHideNames(String entityName) => <String>[
-    entityName,
-    '${entityName}Patch',
-  ];
+  /// Issue #1176: the hide list is filtered to names the resolved
+  /// zuraffa barrel actually exports — hiding a name the barrel never
+  /// exports is an `undefined_hidden_name` warning, and `zfa build`'s
+  /// analyze gate fails on warnings. Issue #1530: an unresolved surface
+  /// yields an EMPTY list, so the import carries no `hide` combinator
+  /// (the legacy unconditional-hide fallback is gone).
+  static List<String> barrelHideNames(String entityName) =>
+      ZuraffaBarrelExports.filter(<String>[entityName, '${entityName}Patch']);
+
+  /// [barrelHideNames] for generated files that import
+  /// `package:zuraffa/mock.dart` (issue #1418).
+  ///
+  /// The hide combinator is verified against the library it is attached
+  /// to: the mock barrel's own resolved export surface (the bare
+  /// `export 'package:zuraffa/zuraffa.dart';` re-export in
+  /// `src/mock/mock.dart` unions the zuraffa surface, so today's #942
+  /// protection carries over unchanged; a diverged or restricted mock
+  /// barrel drops the names it does not actually export — an unverified
+  /// hide is the `undefined_hidden_name` warning that fails `zfa build`'s
+  /// analyze gate). An unresolved surface yields an EMPTY list — no
+  /// combinator (#1530 FR-001 carryover). Use [barrelHideNames] for
+  /// imports of `package:zuraffa/zuraffa.dart` itself.
+  static List<String> mockBarrelHideNames(String entityName) =>
+      ZuraffaBarrelExports.filterMock(<String>[
+        entityName,
+        '${entityName}Patch',
+      ]);
 }

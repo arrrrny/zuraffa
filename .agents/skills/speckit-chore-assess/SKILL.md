@@ -1,11 +1,14 @@
 ---
 name: speckit-chore-assess
-description: Scope a maintenance chore against the codebase and the project constitution, and write an assessment
+description: Scope a maintenance chore against the codebase and the project constitution,
+  and write an assessment
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: chore:commands/speckit.chore.assess.md
+  author: arrrrny
+  source: extension:chore
 ---
+
+# Chore Assess Skill
 
 # Assess Chore
 

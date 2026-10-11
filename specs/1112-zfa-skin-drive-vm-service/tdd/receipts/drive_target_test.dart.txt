@@ -1,0 +1,47 @@
+// Issue #1112 — the widget-test-runner drive target: pumps the
+// anchor app, announces readiness, and STAYS ALIVE long enough for
+// `zfa skin drive` (run from a shell) to connect to this runner's
+// VM service and tap the anchor. This is the "same command on a
+// widget-test runner returns the same JSON shape" proof.
+library;
+
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:skin_drive_app/src/skin/skin_contract_auditor.dart';
+import 'package:zuraffa/skin.dart';
+
+void main() {
+  testWidgets('the drive target holds a live anchor tree', (tester) async {
+    var guestTaps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              ZfaButton(
+                contractId: 'signin-guest',
+                onPressed: () {
+                  guestTaps++;
+                  debugPrint('TAPPED:signin-guest');
+                },
+                child: const Text('Continue as Guest'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    // The marker the shell driver waits for.
+    debugPrint('DRIVE_TARGET_READY');
+    // Hold the runner alive for the external drive; the shell kills
+    // the test run (or the timeout fires) after the drive completes.
+    await Future<void>.delayed(const Duration(seconds: 120));
+    // The drive MUST have run the real handler by now.
+    // ignore: avoid_print
+    print('GUEST_TAPS_AT_END:$guestTaps');
+    expect(guestTaps, greaterThanOrEqualTo(1));
+  });
+}

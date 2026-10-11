@@ -50,6 +50,11 @@ class GapLedgerStore {
 
   /// Append a gap entry (the runner's only write on a stop). The id is
   /// assigned monotonically (`gap-###`).
+  ///
+  /// Issue #1007: [severity] grades the gap — `contract` marks a
+  /// contract-test failure (a run stopped at `result=blocked`), the
+  /// highest-severity class the corpus-economics gate treats; omitted,
+  /// the gap reads as `standard` (every pre-1007 shape).
   Future<GapLedgerEntry> appendGap({
     required String feature,
     String? behavior,
@@ -57,6 +62,7 @@ class GapLedgerStore {
     String? outcome,
     required String expectedResult,
     String? failingCommand,
+    String? severity,
   }) async {
     final entries = await load();
     final next = _nextId(entries, GapLedgerKind.gap);
@@ -69,6 +75,7 @@ class GapLedgerStore {
       outcome: outcome,
       expectedResult: expectedResult,
       failingCommand: failingCommand,
+      severity: severity,
     );
     await _persist([...entries, entry]);
     return entry;

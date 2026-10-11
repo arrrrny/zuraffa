@@ -1,0 +1,55 @@
+00:00 +0: loading test/tdd/1334-typed-ui-coverage-ledger/t006_legacy_mode_test.dart
+00:00 +0 -1: loading test/tdd/1334-typed-ui-coverage-ledger/t006_legacy_mode_test.dart [E]
+  Failed to load "test/tdd/1334-typed-ui-coverage-ledger/t006_legacy_mode_test.dart":
+  lib/tdd/1334-typed-ui-coverage-ledger/t6_subject.dart:38:37: Error: Member not found: 'TypedLedgerBuilder.fromLedgerJson'.
+    final parsed = TypedLedgerBuilder.fromLedgerJson(legacyJson);
+                                      ^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t6_subject.dart:67:39: Error: Member not found: 'TypedLedgerBuilder.fromLedgerJson'.
+    final allGreen = TypedLedgerBuilder.fromLedgerJson(allGreenJson);
+                                        ^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t6_subject.dart:72:5: Error: No named parameter with the name 'legacy'.
+      legacy: allGreen.legacy,
+      ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:481:31: Context: Found this candidate, but the arguments don't match.
+    static TypedCoverageVerdict evaluate({
+                                ^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t6_subject.dart:80:37: Error: Member not found: 'TypedLedgerBuilder.fromLedgerJson'.
+    final oneRed = TypedLedgerBuilder.fromLedgerJson(legacyJson);
+                                      ^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t6_subject.dart:84:5: Error: No named parameter with the name 'legacy'.
+      legacy: oneRed.legacy,
+      ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:481:31: Context: Found this candidate, but the arguments don't match.
+    static TypedCoverageVerdict evaluate({
+                                ^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t6_subject.dart:97:40: Error: Member not found: 'TypedLedgerBuilder.groupByScreen'.
+      ledgerByScreen: TypedLedgerBuilder.groupByScreen(allGreen.rows),
+                                         ^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t6_subject.dart:95:43: Error: Member not found: 'TypedCoverageGate.evaluateScreens'.
+    final legacyScreens = TypedCoverageGate.evaluateScreens(
+                                            ^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t6_subject.dart:107:40: Error: Member not found: 'TypedLedgerBuilder.groupByScreen'.
+      ledgerByScreen: TypedLedgerBuilder.groupByScreen(allGreen.rows),
+                                         ^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t6_subject.dart:105:44: Error: Member not found: 'TypedCoverageGate.evaluateScreens'.
+    final typedSameShape = TypedCoverageGate.evaluateScreens(
+                                             ^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t6_subject.dart:130:43: Error: Member not found: 'TypedLedgerBuilder.fromLedgerJson'.
+    final goldenParsed = TypedLedgerBuilder.fromLedgerJson(goldenLedgerJson);
+                                            ^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t6_subject.dart:142:29: Error: Member not found: 'TypedLedgerBuilder.fromLedgerJson'.
+    expect(TypedLedgerBuilder.fromLedgerJson(noKindJson).legacy, isTrue);
+                              ^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t6_subject.dart:146:44: Error: Member not found: 'TypedLedgerBuilder.fromLedgerJson'.
+    final unknownParsed = TypedLedgerBuilder.fromLedgerJson(unknownJson);
+                                             ^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t6_subject.dart:159:42: Error: Member not found: 'TypedLedgerBuilder.fromLedgerJson'.
+    final fromVerdict = TypedLedgerBuilder.fromLedgerJson(verdictJson);
+                                           ^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t6_subject.dart:173:43: Error: Member not found: 'TypedLedgerBuilder.fromLedgerJson'.
+    final roundTripped = TypedLedgerBuilder.fromLedgerJson(
+                                            ^^^^^^^^^^^^^^
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/tdd/1334-typed-ui-coverage-ledger/t006_legacy_mode_test.dart: loading test/tdd/1334-typed-ui-coverage-ledger/t006_legacy_mode_test.dart

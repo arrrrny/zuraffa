@@ -8,8 +8,10 @@ import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../core/context/file_system.dart';
+import '../../core/project/project_root.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../skew/skew_contract.dart';
 import '../../utils/entity_analyzer.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
@@ -20,7 +22,9 @@ import '../method_append/capabilities/method_capability.dart';
 import '../di/builders/simulation_binding_builder.dart';
 import 'builders/mock_builder.dart';
 import 'capabilities/create_mock_capability.dart';
+import 'capabilities/certify_mock_capability.dart';
 import 'capabilities/dependency_mock_capability.dart';
+import 'capabilities/explain_mock_capability.dart';
 import 'capabilities/json_mock_capability.dart';
 
 /// Manages mock data and provider generation for testing.
@@ -55,8 +59,12 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   List<ZuraffaCapability> get capabilities => [
     CreateMockCapability(this),
+    CertifyMockCapability(this),
     DependencyMockCapability(this),
     JsonMockCapability(this),
+    // Spec 1121: the explain surface is a capability so `zfa manifest`
+    // surfaces it; its CLI grammar is the manual MockExplainCommand.
+    MockExplainCapability(),
     MethodCapability(
       this,
       methodAppendBuilder: methodAppendBuilder,
@@ -94,6 +102,17 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'default': false,
         'description': 'Generate JSON mock data with fromJson-based helpers',
       },
+      // Spec 1110 (issue #1110): declared on the plugin schema so
+      // MakeCommand auto-exposes `--fail` and buildContext flows the
+      // parsed value into the generation context.
+      'fail': {
+        'type': 'boolean',
+        'default': false,
+        'description':
+            'Emit the <Entity>FailingMockProvider: a throwing double whose '
+            'every method throws the sealed failure type (the failure-path '
+            'twin of the certified mock; spec 1110)',
+      },
     },
   };
 
@@ -126,6 +145,10 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateMockJson: context.get<bool>('mock-json') ?? false,
       mockJsonDomain: context.data['mock-json-domain'],
       noEntity: context.data['no-entity'] == true,
+      // Spec 1110 (issue #1110): the `--fail` mock preset flows from the
+      // CLI (make engine Login --fail / mock create Login --fail) through
+      // the shared context into the generator chain.
+      failMock: context.data['fail'] == true,
       // #294: read id-field / query-field from the CLI/MakeCommand-resolved
       // context so generators don't hardcode `EntityFields.id` for
       // entities whose id field is e.g. `depotId`.
@@ -275,6 +298,17 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             outputDir: outputDir,
             options: options,
             fileSystem: fs,
+          );
+          // Issue #1197: the simulation binding imports
+          // package:zuraffa/simulation.dart (spec 893). Refuse when the
+          // target's resolved core predates the simulation barrel
+          // instead of emitting a binding that cannot compile.
+          SkewContract.requireSurfaces(
+            projectRoot: context?.core.projectRoot.isNotEmpty == true
+                ? context!.core.projectRoot
+                : ProjectRoot.safeCurrentPath(),
+            command: 'zfa mock (simulation binding)',
+            requiredUris: ['simulation.dart'],
           );
           // Issue #1031: the simulation binding must follow the shape the
           // mock lane actually generated. Service mode emits

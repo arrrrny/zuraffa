@@ -1,0 +1,3 @@
+00:00 +0: loading test/tdd/1334-typed-ui-coverage-ledger/t001_five_kinds_golden_advisory_test.dart
+00:00 +0: T1 (FR-001, FR-002) T1 - five kinds + golden advisory.
+00:00 +1: All tests passed!

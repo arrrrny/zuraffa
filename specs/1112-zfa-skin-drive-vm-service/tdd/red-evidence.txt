@@ -1,0 +1,166 @@
+00:00 +0: loading test/skin/tap_result_test.dart
+00:00 +0 -1: loading test/skin/tap_result_test.dart [E]
+  Failed to load "test/skin/tap_result_test.dart":
+  test/skin/tap_result_test.dart:11:8: Error: Error when reading 'lib/src/skin/tap_result.dart': No such file or directory
+  import 'package:zuraffa/src/skin/tap_result.dart';
+         ^
+  test/skin/tap_result_test.dart:16:22: Error: Method not found: 'TapFound'.
+        const result = TapFound();
+                       ^^^^^^^^
+  test/skin/tap_result_test.dart:25:22: Error: Method not found: 'TapDisabled'.
+        const result = TapDisabled();
+                       ^^^^^^^^^^^
+  test/skin/tap_result_test.dart:30:22: Error: Method not found: 'TapNotFound'.
+        const result = TapNotFound();
+                       ^^^^^^^^^^^
+  test/skin/tap_result_test.dart:35:22: Error: Method not found: 'TapError'.
+        const result = TapError('cannot connect to ws://127.0.0.1:1/ws');
+                       ^^^^^^^^
+  test/skin/tap_result_test.dart:43:20: Error: Couldn't find constructor 'TapFound'.
+        expect(const TapFound().label, 'found');
+                     ^^^^^^^^
+  test/skin/tap_result_test.dart:44:20: Error: Couldn't find constructor 'TapDisabled'.
+        expect(const TapDisabled().label, 'disabled');
+                     ^^^^^^^^^^^
+  test/skin/tap_result_test.dart:45:20: Error: Couldn't find constructor 'TapNotFound'.
+        expect(const TapNotFound().label, 'notFound');
+                     ^^^^^^^^^^^
+  test/skin/tap_result_test.dart:46:20: Error: Couldn't find constructor 'TapError'.
+        expect(const TapError('x').label, 'error');
+                     ^^^^^^^^
+  test/skin/tap_result_test.dart:51:9: Error: Undefined name 'TapResult'.
+          TapResult.fromJson({'result': 'found', 'tapped': true}),
+          ^^^^^^^^^
+  test/skin/tap_result_test.dart:52:15: Error: Couldn't find constructor 'TapFound'.
+          const TapFound(),
+                ^^^^^^^^
+  test/skin/tap_result_test.dart:55:9: Error: Undefined name 'TapResult'.
+          TapResult.fromJson({'result': 'disabled', 'tapped': false}),
+          ^^^^^^^^^
+  test/skin/tap_result_test.dart:56:15: Error: Couldn't find constructor 'TapDisabled'.
+          const TapDisabled(),
+                ^^^^^^^^^^^
+  test/skin/tap_result_test.dart:59:9: Error: Undefined name 'TapResult'.
+          TapResult.fromJson({'result': 'notFound', 'tapped': false}),
+          ^^^^^^^^^
+  test/skin/tap_result_test.dart:60:15: Error: Couldn't find constructor 'TapNotFound'.
+          const TapNotFound(),
+                ^^^^^^^^^^^
+  test/skin/tap_result_test.dart:63:9: Error: Undefined name 'TapResult'.
+          TapResult.fromJson({
+          ^^^^^^^^^
+  test/skin/tap_result_test.dart:68:15: Error: Couldn't find constructor 'TapError'.
+          const TapError('boom'),
+                ^^^^^^^^
+  test/skin/tap_result_test.dart:73:22: Error: Undefined name 'TapResult'.
+        final result = TapResult.fromJson({'result': 'wat'});
+                       ^^^^^^^^^
+  test/skin/tap_result_test.dart:74:26: Error: 'TapError' isn't a type.
+        expect(result, isA<TapError>());
+                           ^^^^^^^^
+  test/skin/tap_result_test.dart:75:25: Error: 'TapError' isn't a type.
+        expect((result as TapError).message, contains('wat'));
+                          ^^^^^^^^
+  test/skin/tap_result_test.dart:79:20: Error: Couldn't find constructor 'TapFound'.
+        expect(const TapFound(), const TapFound());
+                     ^^^^^^^^
+  test/skin/tap_result_test.dart:79:38: Error: Couldn't find constructor 'TapFound'.
+        expect(const TapFound(), const TapFound());
+                                       ^^^^^^^^
+  test/skin/tap_result_test.dart:80:20: Error: Couldn't find constructor 'TapFound'.
+        expect(const TapFound(), isNot(const TapDisabled()));
+                     ^^^^^^^^
+  test/skin/tap_result_test.dart:80:44: Error: Couldn't find constructor 'TapDisabled'.
+        expect(const TapFound(), isNot(const TapDisabled()));
+                                             ^^^^^^^^^^^
+  test/skin/tap_result_test.dart:81:20: Error: Couldn't find constructor 'TapError'.
+        expect(const TapError('a'), const TapError('a'));
+                     ^^^^^^^^
+  test/skin/tap_result_test.dart:81:41: Error: Couldn't find constructor 'TapError'.
+        expect(const TapError('a'), const TapError('a'));
+                                          ^^^^^^^^
+  test/skin/tap_result_test.dart:82:20: Error: Couldn't find constructor 'TapError'.
+        expect(const TapError('a'), isNot(const TapError('b')));
+                     ^^^^^^^^
+  test/skin/tap_result_test.dart:82:47: Error: Couldn't find constructor 'TapError'.
+        expect(const TapError('a'), isNot(const TapError('b')));
+                                                ^^^^^^^^
+00:00 +0 -1: loading test/skin/builders/skin_kit_driver_seam_test.dart
+00:00 +0 -2: loading test/skin/builders/skin_kit_driver_seam_test.dart [E]
+  Failed to load "test/skin/builders/skin_kit_driver_seam_test.dart":
+  test/skin/builders/skin_kit_driver_seam_test.dart:115:37: Error: Member not found: 'bridgeFileName'.
+        expect(SkinContractKitBuilder.bridgeFileName, 'zfa_anchor_test_bridge.dart');
+                                      ^^^^^^^^^^^^^^
+  test/skin/builders/skin_kit_driver_seam_test.dart:81:30: Error: The method 'buildBridge' isn't defined for the type 'SkinContractKitBuilder'.
+   - 'SkinContractKitBuilder' is from 'package:zuraffa/src/skin/builders/skin_contract_kit_builder.dart' ('lib/src/skin/builders/skin_contract_kit_builder.dart').
+  Try correcting the name to the name of an existing method, or defining a method named 'buildBridge'.
+        () => bridge = builder.buildBridge(
+                               ^^^^^^^^^^^
+00:00 +0 -2: loading test/plugins/view/view_skin_driver_seam_test.dart
+00:00 +0 -3: loading test/plugins/view/view_skin_driver_seam_test.dart [E]
+  Failed to load "test/plugins/view/view_skin_driver_seam_test.dart":
+  test/plugins/view/view_skin_driver_seam_test.dart:25:5: Error: No named parameter with the name 'anchors'.
+      anchors: anchors,
+      ^^^^^^^
+  lib/src/plugins/view/builders/view_class_builder.dart:38:9: Context: Found this candidate, but the arguments don't match.
+    const ViewClassSpec({
+          ^^^^^^^^^^^^^
+00:00 +0 -3: loading test/commands/skin_drive_command_test.dart
+00:00 +0 -4: loading test/commands/skin_drive_command_test.dart [E]
+  Failed to load "test/commands/skin_drive_command_test.dart":
+  test/commands/skin_drive_command_test.dart:104:16: Error: Undefined name 'SkinDriveCommand'.
+          expect(SkinDriveCommand.exitCodeForLabel('found'), 0);
+                 ^^^^^^^^^^^^^^^^
+  test/commands/skin_drive_command_test.dart:105:16: Error: Undefined name 'SkinDriveCommand'.
+          expect(SkinDriveCommand.exitCodeForLabel('disabled'), 1);
+                 ^^^^^^^^^^^^^^^^
+  test/commands/skin_drive_command_test.dart:106:16: Error: Undefined name 'SkinDriveCommand'.
+          expect(SkinDriveCommand.exitCodeForLabel('notFound'), 2);
+                 ^^^^^^^^^^^^^^^^
+  test/commands/skin_drive_command_test.dart:107:16: Error: Undefined name 'SkinDriveCommand'.
+          expect(SkinDriveCommand.exitCodeForLabel('error'), 3);
+                 ^^^^^^^^^^^^^^^^
+00:00 +0 -4: loading test/skin/vm_tap_driver_test.dart
+00:00 +0 -5: loading test/skin/vm_tap_driver_test.dart [E]
+  Failed to load "test/skin/vm_tap_driver_test.dart":
+  test/skin/vm_tap_driver_test.dart:13:8: Error: Error when reading 'lib/src/skin/driver/vm_tap_driver.dart': No such file or directory
+  import 'package:zuraffa/src/skin/driver/vm_tap_driver.dart';
+         ^
+  test/skin/vm_tap_driver_test.dart:14:8: Error: Error when reading 'lib/src/skin/tap_result.dart': No such file or directory
+  import 'package:zuraffa/src/skin/tap_result.dart';
+         ^
+  test/skin/vm_tap_driver_test.dart:74:28: Error: Undefined name 'VmTapDriver'.
+        final result = await VmTapDriver.drive(
+                             ^^^^^^^^^^^
+  test/skin/vm_tap_driver_test.dart:78:28: Error: Couldn't find constructor 'TapFound'.
+        expect(result, const TapFound());
+                             ^^^^^^^^
+  test/skin/vm_tap_driver_test.dart:90:28: Error: Undefined name 'VmTapDriver'.
+        final result = await VmTapDriver.drive(
+                             ^^^^^^^^^^^
+  test/skin/vm_tap_driver_test.dart:94:28: Error: Couldn't find constructor 'TapNotFound'.
+        expect(result, const TapNotFound());
+                             ^^^^^^^^^^^
+  test/skin/vm_tap_driver_test.dart:98:28: Error: Undefined name 'VmTapDriver'.
+        final result = await VmTapDriver.drive(
+                             ^^^^^^^^^^^
+  test/skin/vm_tap_driver_test.dart:102:28: Error: Couldn't find constructor 'TapDisabled'.
+        expect(result, const TapDisabled());
+                             ^^^^^^^^^^^
+  test/skin/vm_tap_driver_test.dart:106:28: Error: Undefined name 'VmTapDriver'.
+        final result = await VmTapDriver.drive(
+                             ^^^^^^^^^^^
+  test/skin/vm_tap_driver_test.dart:110:26: Error: 'TapError' isn't a type.
+        expect(result, isA<TapError>());
+                           ^^^^^^^^
+  test/skin/vm_tap_driver_test.dart:111:25: Error: 'TapError' isn't a type.
+        expect((result as TapError).message, isNotEmpty);
+                          ^^^^^^^^
+00:00 +0 -5: Some tests failed.
+
+Failing tests:
+  test/commands/skin_drive_command_test.dart: loading test/commands/skin_drive_command_test.dart
+  test/plugins/view/view_skin_driver_seam_test.dart: loading test/plugins/view/view_skin_driver_seam_test.dart
+  test/skin/builders/skin_kit_driver_seam_test.dart: loading test/skin/builders/skin_kit_driver_seam_test.dart
+  test/skin/tap_result_test.dart: loading test/skin/tap_result_test.dart
+  test/skin/vm_tap_driver_test.dart: loading test/skin/vm_tap_driver_test.dart

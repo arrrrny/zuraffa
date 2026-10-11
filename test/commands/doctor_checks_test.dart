@@ -26,6 +26,8 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/commands/doctor_checks.dart';
+import 'package:zuraffa/src/version.dart';
+import '../helpers/cwd_mutex.dart';
 
 const _tddDevDeps = {'mocktail', 'coverage', 'mutation_test'};
 
@@ -52,7 +54,7 @@ Future<Directory> _sandbox() async {
 
 String _pubspec({
   Set<String> devDeps = _tddDevDeps,
-  String zuraffa = '^6.0.0',
+  String zuraffa = '^$version',
 }) {
   final sb = StringBuffer()
     ..writeln('name: sandbox')
@@ -72,7 +74,7 @@ String _pubspec({
 Future<File> _writePubspec(
   Directory dir, {
   Set<String> devDeps = _tddDevDeps,
-  String zuraffa = '^6.0.0',
+  String zuraffa = '^$version',
 }) => File(
   '${dir.path}/pubspec.yaml',
 ).writeAsString(_pubspec(devDeps: devDeps, zuraffa: zuraffa));
@@ -92,12 +94,20 @@ Future<File> _writeBaseline(
 }
 
 Future<T> _withDir<T>(String path, Future<T> Function() body) async {
+  // The sandbox chdir runs inside the shared cross-isolate CWD lock (the
+  // same file CliRunner's `-C` windows serialize through, issue #1096):
+  // under the #1632 `-j4` lane, an unserialized window lets a sibling's
+  // chdir flip the process CWD mid-doctor, and the `saved` capture can
+  // land inside a sibling's temp fixture — a directory its teardown
+  // deletes before this restore.
+  await CwdMutex.acquire();
   final saved = Directory.current;
   Directory.current = path;
   try {
     return await body();
   } finally {
     Directory.current = saved;
+    CwdMutex.release();
   }
 }
 
@@ -435,10 +445,16 @@ void main() {
         final checks = decoded['checks'] as List;
         expect(checks.map((c) => c['id']).toSet(), {
           'deps',
+          'generated-imports', // issue #1190
           'artifacts',
           'baseline-cache',
           'config',
           'profile',
+          'runtime-skew', // issue #1197
+          // Issue #1184: installed-binary staleness probe (skips silently
+          // when the CLI is not a marker-carrying installed binary, as in
+          // this in-process source run).
+          'binary-staleness',
         });
         expect(decoded['ok'], isTrue);
         // json mode suppresses prose sections entirely.
@@ -456,7 +472,7 @@ void main() {
         final runner = CliRunner(exitOnCompletion: false);
         final out = await runner.runCapturing(['doctor']);
         expect(out, contains('[FAIL] deps'));
-        expect(exitCode, 1);
+        expect(CliRunner.lastDispatchedExitCode, 1);
       });
 
       final healthy = await _sandbox();
@@ -472,7 +488,7 @@ void main() {
       await _withDir(healthy.path, () async {
         final runner = CliRunner(exitOnCompletion: false);
         await runner.runCapturing(['doctor']);
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
       });
     });
 
@@ -487,7 +503,7 @@ void main() {
           final runner = CliRunner(exitOnCompletion: false);
           final out = await runner.runCapturing(['doctor', '--migration-only']);
           expect(out.contains('Environment Checks'), isFalse);
-          expect(exitCode, 0);
+          expect(CliRunner.lastDispatchedExitCode, 0);
         });
       },
     );
@@ -503,7 +519,7 @@ void main() {
         final out = await runner.runCapturing(['doctor', '--dry-run']);
         expect(out, contains('would fix: dart pub add dev:mocktail'));
         expect(out, contains('would fix'));
-        expect(exitCode, 1);
+        expect(CliRunner.lastDispatchedExitCode, 1);
       });
 
       expect(

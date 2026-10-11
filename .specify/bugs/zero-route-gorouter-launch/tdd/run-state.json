@@ -1,0 +1,14 @@
+{
+  "feature": "zero-route-gorouter-launch",
+  "behavior_states": {
+    "A3": "green",
+    "A4": "pending",
+    "A5": "pending",
+    "A6": "pending",
+    "A8": "pending",
+    "A1": "pending",
+    "A2": "pending",
+    "A7": "pending"
+  },
+  "dropped": []
+}

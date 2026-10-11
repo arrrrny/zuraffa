@@ -133,6 +133,12 @@ class SimulationBindingBuilder {
               // Single --dart-define flavor switch (FR-001): the binding is
               // inert in the real flavor and dead-code-eliminated in AOT.
               Code('if (!kSimulationMode) return;'),
+              // #1178 family: unregister-first so a double
+              // registerSimulationBindings call (composition root already
+              // chains it) re-registers instead of throwing.
+              Code(
+                'if (getIt.isRegistered<$interfaceName>()) getIt.unregister<$interfaceName>();',
+              ),
               refer('getIt')
                   .property('registerLazySingleton')
                   .call(

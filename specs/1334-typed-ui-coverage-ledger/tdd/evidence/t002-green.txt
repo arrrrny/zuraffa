@@ -1,0 +1,3 @@
+00:00 +0: loading test/tdd/1334-typed-ui-coverage-ledger/t002_per_screen_all_five_kinds_report_test.dart
+00:00 +0: T2 (FR-003) T2 - per-screen all-five-kinds report.
+00:00 +1: All tests passed!

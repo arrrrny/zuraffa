@@ -88,5 +88,17 @@ void main() {
         isNull,
       );
     });
+
+    test('U39c (issue #1144): main already carrying the sandbox content is a '
+        'skip, not a conflict — a re-merge is idempotent', () {
+      expect(
+        detector.decide(
+          cutHash: 'abc',
+          sandboxHash: 'changed-by-agent',
+          mainHash: 'changed-by-agent',
+        ),
+        equals(MergeDecision.skip),
+      );
+    });
   });
 }

@@ -271,7 +271,7 @@ dependencies:
       );
     });
 
-    test('--json emits the verdict envelope (schema 1)', () async {
+    test('--json emits the canonical verdict envelope (SPEC 1105)', () async {
       await createProductRoutes();
 
       exitCode = 0;
@@ -304,16 +304,25 @@ dependencies:
             'verify --json must print one '
             'parseable verdict object:\n$output',
       );
-      expect(envelope!['schema'], equals(1));
+      // SPEC 1105: the ONE canonical frame; the route surface lives in
+      // details.
+      expect(envelope!['schema'], 'zuraffa.verdict.v1');
+      expect(envelope['command'], 'zfa route verify Product');
       expect(envelope['verdict'], equals('pass'));
-      expect(envelope['entity'], equals('Product'));
-      expect(envelope['routes'], isA<List>());
-      expect(envelope['deepLinks'], isA<List>());
+      expect(envelope['exit_class'], equals(0));
+      expect(envelope['subject'], {'kind': 'route', 'id': 'Product'});
       expect(
-        envelope['routeTableTestPath'],
+        (envelope['receipts'] as List).join(),
+        contains('routes-Product-verify.json'),
+      );
+      final details = envelope['details'] as Map<String, dynamic>;
+      expect(details['routes'], isA<List>());
+      expect(details['deepLinks'], isA<List>());
+      expect(
+        details['routeTableTestPath'],
         equals('test/routing/route_table_test.dart'),
       );
-      expect(envelope['testRun'], isA<Map>());
+      expect(details['testRun'], isA<Map>());
     });
   });
 }

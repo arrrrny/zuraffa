@@ -1,11 +1,13 @@
 ---
 name: speckit-gym-drop
-description: 'Spec-kit workflow command: speckit-gym-drop'
+description: 'Extension command: speckit.gym.drop'
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: gym:commands/speckit.gym.drop.md
+  author: gym
+  source: extension:gym
 ---
+
+# Gym Drop Skill
 
 # GYM: Drop
 
@@ -38,3 +40,4 @@ powershell .specify/extensions/gym/scripts/powershell/gym.ps1 drop `
 
 Writes the card to each configured store and prints the recorded paths. Missing
 fields are flagged but the card is still recorded (FR-010).
+

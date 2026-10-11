@@ -2,12 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import '../cli/exit_protocol.dart';
 
-import '../plugins/shadcn/vocabulary/payload_validator.dart';
-import '../plugins/shadcn/vocabulary/ui_node_registry.dart';
-import '../plugins/shadcn/vocabulary/vocabulary_schema_exporter.dart';
+import '../plugins/skin/vocabulary/payload_validator.dart';
+import '../plugins/skin/vocabulary/ui_node_registry.dart';
+import '../plugins/skin/vocabulary/vocabulary_schema_exporter.dart';
 
-/// `zfa ui` — the shadcn plugin's UI vocabulary authority commands
+/// `zfa ui` — the skin plugin's UI vocabulary authority commands
 /// (spec 024): `schema`, `validate`, `preview`.
 class UiCommand extends Command<void> {
   UiCommand({bool Function()? pluginAvailable})
@@ -26,7 +27,7 @@ class UiCommand extends Command<void> {
 
   @override
   String get description =>
-      'UI vocabulary authority commands (shadcn plugin): schema, validate, '
+      'UI vocabulary authority commands (skin plugin): schema, validate, '
       'preview';
 }
 
@@ -52,7 +53,7 @@ class UiSchemaCommand extends Command<void> {
     argParser.addFlag(
       'no-plugin',
       negatable: false,
-      help: 'Simulate the shadcn plugin being unavailable (diagnostics)',
+      help: 'Simulate the skin plugin being unavailable (diagnostics)',
     );
   }
 
@@ -69,8 +70,8 @@ class UiSchemaCommand extends Command<void> {
   Future<void> run() async {
     if (argResults?['no-plugin'] == true || !pluginAvailable()) {
       print(
-        '❌ shadcn plugin not found — install it first '
-        '(add the shadcn plugin to your project).',
+        '❌ skin plugin not found — install it first '
+        '(add the skin plugin to your project).',
       );
       exitCode = 1;
       return;
@@ -127,7 +128,7 @@ class UiValidateCommand extends Command<void> {
   @override
   Future<void> run() async {
     if (!pluginAvailable()) {
-      print('❌ shadcn plugin not found — install it first.');
+      print('❌ skin plugin not found — install it first.');
       exitCode = 1;
       return;
     }
@@ -135,7 +136,7 @@ class UiValidateCommand extends Command<void> {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       print('❌ Usage: zfa ui validate <payload.json> [--project-root=<dir>]');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final path = rest.first;
@@ -210,7 +211,7 @@ class UiPreviewCommand extends Command<void> {
   @override
   Future<void> run() async {
     if (!pluginAvailable()) {
-      print('❌ shadcn plugin not found — install it first.');
+      print('❌ skin plugin not found — install it first.');
       exitCode = 1;
       return;
     }
@@ -218,7 +219,7 @@ class UiPreviewCommand extends Command<void> {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       print('❌ Usage: zfa ui preview <payload.json> [--project-root=<dir>]');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final path = rest.first;

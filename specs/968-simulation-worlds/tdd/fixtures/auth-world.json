@@ -1,0 +1,20 @@
+{
+  "family": "firebase-auth",
+  "initialUser": null,
+  "users": [
+    {
+      "email": "ada@example.com",
+      "password": "s3cret!",
+      "uid": "u-ada-001",
+      "displayName": "Ada Lovelace"
+    }
+  ],
+  "scriptedErrors": [
+    {
+      "email": "disabled@example.com",
+      "code": "user-disabled"
+    }
+  ],
+  "deletionRequiresRecentLogin": false,
+  "latencyMs": 0
+}

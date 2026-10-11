@@ -20,9 +20,12 @@
 ///
 /// The migration is:
 ///
-/// - **One-shot**: a feature whose `split-receipt.json` already exists
-///   (or whose test-list is already a meta-index) is REFUSED (exit 1)
-///   naming the receipt — never a silent re-split.
+/// - **One-shot, with an explicit escape (issue #1309)**: a feature
+///   whose `split-receipt.json` already exists (or whose test-list is
+///   already a meta-index) is REFUSED (exit 1) naming the receipt and
+///   the ACTUAL remedies — `--force` to re-split, or `zfa tdd plan` to
+///   refresh the lane plans from the current spec — never a silent
+///   re-split.
 /// - **Fail-honest**: a feature with no legacy test list refuses
 ///   naming the file to plan first; a prior list the shared reader
 ///   cannot parse refuses with the reader's error.
@@ -35,14 +38,20 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/lane.dart';
+import '../models/verdict_envelope.dart';
 import '../services/lane_split.dart';
 import '../services/spec_parser.dart';
+import '../../../skin/contract/adaptive_skin_contract.dart';
+import '../../../skin/contract/adaptive_skin_contract_parser.dart';
 import '../services/test_list_reader.dart';
+import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
+import 'run_command.dart';
 
 class SplitCommand extends Command<void> {
   SplitCommand(this.plugin) {
@@ -54,9 +63,21 @@ class SplitCommand extends Command<void> {
           'current working directory is used. Tests pass the temp fixture '
           'root here instead of mutating Directory.current.',
     );
+    argParser.addFlag('json', help: kJsonFlagHelp, negatable: false);
+    argParser.addFlag(
+      'force',
+      help:
+          'Re-split even when a split receipt exists (issue #1309): the '
+          'behavior rows re-read through the shared reader and the lane '
+          'plans, the meta-index, and the receipt are overwritten.',
+      negatable: false,
+    );
   }
 
   final TddPlugin plugin;
+
+  /// SPEC 917/#838: the envelope carrier the wrapper reads on exit.
+  final VerdictContext _verdict = VerdictContext();
 
   @override
   String get name => 'split';
@@ -73,7 +94,10 @@ class SplitCommand extends Command<void> {
   String get invocation => 'zfa tdd split <feature>';
 
   @override
-  Future<void> run() async {
+  Future<void> run() =>
+      runWithVerdictEnvelope(this, _verdict, _run, featureFromRest: true);
+
+  Future<void> _run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       usageException('Feature name is required: zfa tdd split <feature>');
@@ -88,16 +112,37 @@ class SplitCommand extends Command<void> {
     final listFile = File('$tddDir/test-list.md');
     final receiptFile = File('$tddDir/${LaneSplitFiles.receipt}');
 
-    // One-shot guard: the receipt is the migration record.
+    // One-shot guard: the receipt is the migration record. Issue
+    // #1309: the refusal names the ACTUAL remedies — the old message
+    // pointed only at re-planning, which (for a spec with no
+    // `## Lanes`) rewrites only test-list.md and deadlocks with this
+    // command's own "already split" refusal.
+    final force = argResults?['force'] as bool? ?? false;
     if (await receiptFile.exists()) {
+      if (!force) {
+        print(
+          'zfa tdd split: REFUSED — $feature is already split '
+          '(${receiptFile.path} exists) — use `zfa tdd split --force` '
+          'to re-split, or `zfa tdd plan $feature` to refresh lane '
+          'plans from the current spec (issue #1309).',
+        );
+        // SPEC 917/#838: the JSON verdict carries the remediation.
+        _verdict
+          ..outcome = VerdictOutcome.fail
+          ..exitClass = 'refused'
+          ..fix =
+              '$feature already has ${receiptFile.path} — use '
+              '`zfa tdd split --force $feature` to re-split, or '
+              '`zfa tdd plan $feature` to refresh lane plans from the '
+              'current spec';
+        exitCode = 1;
+        return;
+      }
       print(
-        'zfa tdd split: REFUSED — $feature is already split '
-        '(${receiptFile.path} exists). The split is one-shot; re-planning '
-        'the feature (`zfa tdd plan $feature`) rewrites the lane plans '
-        'from the spec.',
+        'zfa tdd split: --force — re-splitting over the existing '
+        'receipt (${receiptFile.path}); the old lane plans, the '
+        'meta-index, and the receipt are overwritten (issue #1309).',
       );
-      exitCode = 1;
-      return;
     }
 
     if (!await listFile.exists()) {
@@ -105,17 +150,31 @@ class SplitCommand extends Command<void> {
         'zfa tdd split: REFUSED — no test list at ${listFile.path}. Run '
         '`zfa tdd plan $feature` first, then split.',
       );
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'refused'
+        ..fix =
+            'plan the feature first: `zfa tdd plan $feature` writes '
+            'tdd/test-list.md, then re-run split';
       exitCode = 1;
       return;
     }
     final listContent = await listFile.readAsString();
-    if (LaneSplitFiles.find(listContent) != null) {
+    if (!force && LaneSplitFiles.find(listContent) != null) {
       print(
         'zfa tdd split: REFUSED — ${listFile.path} is already the lane '
         'meta-index (no $receiptFile, so the migration record was lost — '
-        'restore it or re-run `zfa tdd plan $feature` to rewrite the '
-        'lane plans from the spec).',
+        'restore it, re-run `zfa tdd plan $feature` to rewrite the '
+        'lane plans from the spec, or pass `--force` to re-split '
+        'anyway — issue #1309).',
       );
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'refused'
+        ..fix =
+            're-run `zfa tdd plan $feature` to rewrite the lane plans '
+            'from the spec (the migration record was lost), or pass '
+            '`--force` to re-split anyway';
       exitCode = 1;
       return;
     }
@@ -136,6 +195,60 @@ class SplitCommand extends Command<void> {
     final lanes = specMd.isEmpty
         ? const <LaneDeclaration>[]
         : const SpecParser().parseLanes(specMd);
+
+    // Issue #1365: the split path renders the SAME typed skin contract
+    // `zfa tdd plan` renders (specs 078/1004 — platform matrix, state
+    // machine, route table, machine JSON). A malformed section refuses
+    // the split before any artifact is written — errors are an API, the
+    // fix line names the drift.
+    AdaptiveSkinContract? skinContract;
+    if (specMd.isNotEmpty) {
+      try {
+        skinContract = parseAdaptiveSkinContract(specMd);
+      } on AdaptiveSkinContractParseException catch (e) {
+        print('zfa tdd split: skin contract refused — ${e.message}');
+        print('  (spec: $specFile). No lane plans were written.');
+        print(
+          '  --> fix: correct the `## Skin Contract` yaml section named '
+          'above, then re-run `zfa tdd split --force`.',
+        );
+        _verdict
+          ..outcome = VerdictOutcome.fail
+          ..exitClass = 'skin-contract-refused'
+          ..fix =
+              'fix the `## Skin Contract` section named in the refusal, '
+              'then re-run zfa tdd split --force'
+          ..details['reason'] = e.message;
+        exitCode = 2;
+        return;
+      }
+      // Plan refuses a contract without declared lanes (the contract
+      // rides the SKIN lane); split must agree on the same spec —
+      // rendering it into a heuristic SKIN lane would reintroduce the
+      // plan/split drift this fix closes.
+      if (skinContract != null && lanes.isEmpty) {
+        print(
+          'zfa tdd split: skin contract refused — the `## Skin Contract` '
+          'section declares a skin contract, but the spec declares no '
+          '`## Lanes` section ($specFile). The contract rides the SKIN '
+          'lane: without the lane split there is no authoritative SKIN '
+          'assignment. No lane plans were written.',
+        );
+        print(
+          '  --> fix: declare `## Lanes` (CORE/SKIN/BOTH) alongside the '
+          'Skin Contract, or drop the `## Skin Contract` section; re-run '
+          '`zfa tdd split --force`.',
+        );
+        _verdict
+          ..outcome = VerdictOutcome.fail
+          ..exitClass = 'skin-contract-without-lanes'
+          ..fix =
+              'declare `## Lanes` alongside `## Skin Contract`, then '
+              're-run zfa tdd split --force';
+        exitCode = 2;
+        return;
+      }
+    }
     final declared = <String, Lane>{};
     for (final lane in lanes) {
       final parsed = Lane.parse(lane.lane);
@@ -156,7 +269,13 @@ class SplitCommand extends Command<void> {
 
     // The emitted lane rows: the prior rows verbatim (id, description,
     // traces, state, kind preserved — the migration never rewords a
-    // row), assigned to their lane.
+    // row), assigned to their lane. Bug #1261: the SKIN lane's golden
+    // declaration rides the migration too — widget-kind rows the SKIN
+    // lane declares golden keep the gate as a ` [golden]` tag.
+    final goldenIds = <String>{
+      for (final lane in lanes)
+        if (Lane.parse(lane.lane) == Lane.skin) ...lane.goldenIds,
+    };
     final allRows = [
       for (final row in rows)
         LaneRow(
@@ -166,6 +285,7 @@ class SplitCommand extends Command<void> {
           state: row.state.name.toUpperCase(),
           kind: row.kind,
           lane: classification[row.id]!,
+          golden: goldenIds.contains(row.id) && row.kind == BehaviorKind.widget,
         ),
     ];
     final engineRows = allRows.where((r) => r.lane.destinedForEngine).toList();
@@ -185,6 +305,7 @@ class SplitCommand extends Command<void> {
       feature: feature,
       rows: skinRows,
       adaptiveSlots: adaptiveSlots,
+      skinContract: skinContract,
     );
     final contractMd = renderContractPlan(
       feature: feature,
@@ -235,18 +356,33 @@ class SplitCommand extends Command<void> {
     ).writeAsString(contractMd);
     await listFile.writeAsString(metaMd);
 
-    // The receipt: the audit record of the one-shot migration.
+    // The receipt: the audit record of the one-shot migration. Issue
+    // #1309: the receipt also records the spec state it was derived
+    // from — the sha256 of the spec content and the spec file's mtime —
+    // so a later `zfa tdd plan` can detect a stale split (a spec edited
+    // after the split) by comparing digests instead of guessing from
+    // timestamps alone.
+    final specHash = sha256.convert(utf8.encode(specMd)).toString();
+    final specExists = await specFile.exists();
+    final specMtime = specExists
+        ? (await specFile.lastModified()).toUtc().toIso8601String()
+        : null;
     final receipt = {
       'feature': feature,
       'split_at': DateTime.now().toUtc().toIso8601String(),
       'source': 'tdd/test-list.md',
       'rows': rows.length,
+      'spec_hash': specHash,
+      'spec_mtime': ?specMtime,
       'classification': {
         for (final entry in classification.entries)
           entry.key: entry.value.label,
       },
       'classification_source': sources,
       'adaptive_slots': adaptiveSlots,
+      // Bug #1261: the golden ids the migrated skin plan carries — the
+      // audit record of the visual contract the spec declared.
+      'golden_ids': goldenIds.toList()..sort(),
       'files': [
         'tdd/${LaneSplitFiles.engine}',
         'tdd/${LaneSplitFiles.skin}',
@@ -272,11 +408,13 @@ class SplitCommand extends Command<void> {
 
   /// The kind heuristic (issue #1000): widget/theme rows are SKIN (their
   /// gen pair — testWidgets + view builder / theme harness — imports
-  /// Flutter); acceptance/unit/ffi/platform rows are CORE.
+  /// Flutter); acceptance/unit/contract/ffi/platform rows are CORE
+  /// (spec 1007: a contract test is pure Dart, so it rides the engine).
   static Lane _heuristic(BehaviorRow row) => switch (row.kind) {
     BehaviorKind.widget || BehaviorKind.theme => Lane.skin,
     BehaviorKind.acceptance ||
     BehaviorKind.unit ||
+    BehaviorKind.contract ||
     BehaviorKind.ffi ||
     BehaviorKind.platform => Lane.core,
   };

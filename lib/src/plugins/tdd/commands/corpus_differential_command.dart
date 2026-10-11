@@ -10,15 +10,22 @@
 /// dependencies resolved; each entry's `project/` scaffold is copied
 /// into a fresh scratch dir per (entry, ref) and driven there. The
 /// gate is honest by construction: a killed step records `hang` (the
-/// #744 class), a diverging vector fails the gate naming the exact
+/// #744 class), a REGRESSING vector fails the gate naming the exact
 /// entry and step pair (e.g. `u2-flow: hang vs complete`), and every
 /// invocation ends with the machine summary line
 /// `differential: entries=<n> compared=<n> differing=<n> errors=<n>
 /// from=<ref> to=<ref> result=<match|differ|runner-error>`.
 ///
-/// Exit codes: 0 vectors match (no behavioral divergence), 1 a
-/// behavioral divergence exists, 2 runner-error (bad ref, missing or
-/// corrupt corpus, setup failure).
+/// The gate is DIRECTIONAL: it blocks behavior in the WORSE direction
+/// only. A head ref that strictly improves on the baseline (a step
+/// that `failed`/`hang`ed on the baseline `complete`s here, or emits
+/// artifacts the broken baseline never produced) is reported as
+/// `improved` and passes — a generator-fix PR must not be red because
+/// it fixed the very divergence the gate caught.
+///
+/// Exit codes: 0 no regression (vectors match, or every divergence is
+/// in the improving direction), 1 a behavioral regression exists,
+/// 2 runner-error (bad ref, missing or corrupt corpus, setup failure).
 library;
 
 import 'dart:io';
@@ -27,9 +34,11 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
+import '../../../cli/zfa_executable.dart';
 import '../models/differential_vector.dart';
 import '../services/differential_corpus.dart';
 import '../services/differential_ref_runner.dart';
+import '../services/scratch_tmpdir.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
@@ -40,9 +49,11 @@ class CorpusDifferentialCommand extends Command<void> {
     DifferentialSpawner? spawner,
     DifferentialGitRunner? gitRunner,
     Directory? scratchRoot,
+    ZfaEnsureCompiled? ensureCompiled,
   }) : _spawnerOverride = spawner,
        _gitRunnerOverride = gitRunner,
-       _scratchRootOverride = scratchRoot {
+       _scratchRootOverride = scratchRoot,
+       _ensureCompiledOverride = ensureCompiled {
     argParser.addFlag(
       'json',
       help:
@@ -100,13 +111,20 @@ class CorpusDifferentialCommand extends Command<void> {
   final DifferentialGitRunner? _gitRunnerOverride;
   final Directory? _scratchRootOverride;
 
+  /// No-JIT compile seam (see `ZfaExecutable`): the ref worktree's
+  /// `bin/zfa.dart` is AOT compiled before any step spawns it. Tests inject
+  /// a fake so a scripted stub entrypoint is never really compiled — the
+  /// #1629 review flagged exactly this path (the differential command's own
+  /// tests script `wt-from`/`wt-to` stubs).
+  final ZfaEnsureCompiled? _ensureCompiledOverride;
+
   @override
   String get name => 'differential';
 
   @override
   String get description =>
       'Run the regression corpus against two generator refs and fail on '
-      'any behavioral divergence (bug #805).';
+      'any behavioral REGRESSION (bug #805).';
 
   @override
   String get invocation =>
@@ -218,10 +236,21 @@ class CorpusDifferentialCommand extends Command<void> {
       return;
     }
 
+    // Spec 1520 (issue #1520): ONE scratch TMPDIR per invocation for the
+    // runner's children (worktree setup, pub get, dart test steps) —
+    // distinct from [scratchBase] (the worktree/entry scratch the runner
+    // materializes), this one isolates the CHILDREN's temp writes from the
+    // shared user TMPDIR. Deleted best-effort in the finally below.
+    final scratch = await ScratchTmpDir.acquire(
+      label: 'corpus-differential',
+      projectRoot: projectRoot,
+    );
     final runner = DifferentialRefRunner(
       spawner: _spawnerOverride,
       gitRunner: _gitRunnerOverride,
       budget: Duration(seconds: budgetSeconds),
+      childEnvironment: scratch?.childEnvironment(),
+      ensureCompiled: _ensureCompiledOverride,
     );
 
     // Ref resolution + worktree materialization + setup.
@@ -295,6 +324,7 @@ class CorpusDifferentialCommand extends Command<void> {
       // Drive both refs, compare, report.
       var compared = 0;
       var differing = 0;
+      var improved = 0;
       for (final entry in entries) {
         final EntryVector fromVector;
         final EntryVector toVector;
@@ -342,14 +372,31 @@ class CorpusDifferentialCommand extends Command<void> {
 
         compared++;
         final findings = compareEntryVectors(from: fromVector, to: toVector);
+        final regressions = findings.where((f) => f.regression).toList();
         if (findings.isEmpty) {
           print('[diff] ${entry.name} -> match');
           continue;
         }
+        if (regressions.isEmpty) {
+          // Behavior changed ONLY in the improving direction (the head
+          // side repairs steps the baseline failed or hung on, or emits
+          // artifacts the broken baseline never produced). Report it —
+          // the divergence is real and worth reading — but never fail
+          // the gate for a fix.
+          improved++;
+          print(
+            '[diff] ${entry.name} -> improved '
+            '(${fromVector.outcomeSummary} vs ${toVector.outcomeSummary})',
+          );
+          for (final f in findings) {
+            print('   ${f.kind}: ${f.detail}');
+          }
+          continue;
+        }
         differing++;
         print(
-          '[diff] ${entry.name} -> differ (${fromVector.outcomeSummary} '
-          'vs ${toVector.outcomeSummary})',
+          '[diff] ${entry.name} -> differ '
+          '(${fromVector.outcomeSummary} vs ${toVector.outcomeSummary})',
         );
         for (final f in findings) {
           print('   ${f.kind}: ${f.detail}');
@@ -357,6 +404,12 @@ class CorpusDifferentialCommand extends Command<void> {
       }
 
       final result = differing > 0 ? 'differ' : 'match';
+      if (improved > 0) {
+        print(
+          'differential: $improved entry(s) improved over $from '
+          '(baseline behavior repaired by $to) — gate passed',
+        );
+      }
       summary(
         entries: entries.length,
         compared: compared,
@@ -375,6 +428,9 @@ class CorpusDifferentialCommand extends Command<void> {
           // Removal must never mask the run's verdict.
         }
       }
+      // Spec 1520: the children's scratch TMPDIR goes with the run,
+      // best-effort — the verdict stands regardless.
+      await scratch?.dispose();
       if (!keepScratch && _scratchRootOverride == null) {
         try {
           await scratchBase.delete(recursive: true);

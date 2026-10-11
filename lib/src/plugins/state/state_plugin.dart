@@ -39,8 +39,13 @@ class StatePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   String get version => '1.0.0';
 
+  /// Spec 1126 (order 4): the REAL config vocabulary — the keys
+  /// [generateWithContext] reads from the shared make/context data. The
+  /// old `{'properties': {}}` silently accepted anything (the #1122
+  /// defect family); [validateStateConfig] now enforces this schema at
+  /// the command and capability boundaries.
   @override
-  JsonSchema get configSchema => {'type': 'object', 'properties': {}};
+  JsonSchema get configSchema => stateConfigSchema;
 
   @override
   Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
@@ -88,3 +93,113 @@ class StatePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     return [file];
   }
 }
+
+/// Validates state config values against [schema] (default:
+/// [stateConfigSchema]) and returns one human-readable violation per
+/// problem. Empty list means the config is valid.
+///
+/// Runtime guard (spec 1126 order 4, the issue #1122 constraint): an
+/// object schema whose `properties` is empty is REFUSED — an empty
+/// schema would silently accept anything, which is exactly the C+
+/// defect this upgrade removes.
+///
+/// Checks, per config entry:
+/// * unknown property key (not declared by the schema) — the
+///   "config schema rejects unknown keys" acceptance criterion,
+/// * value type mismatch (`boolean` / `string` / `array`).
+List<String> validateStateConfig(
+  Map<String, dynamic> config, {
+  JsonSchema? schema,
+}) {
+  final effective = schema ?? stateConfigSchema;
+  final propsRaw = effective['properties'];
+  final props = propsRaw is Map
+      ? Map<String, dynamic>.from(propsRaw)
+      : const <String, dynamic>{};
+  if (props.isEmpty) {
+    return [
+      'state config schema is empty {} — refusing to validate: an empty '
+          'schema would silently accept anything (spec 1126)',
+    ];
+  }
+
+  final violations = <String>[];
+  for (final entry in config.entries) {
+    final key = entry.key;
+    final value = entry.value;
+    final propRaw = props[key];
+    if (propRaw is! Map) {
+      violations.add(
+        "unknown state config property '$key' (allowed: "
+        '${props.keys.join(', ')})',
+      );
+      continue;
+    }
+    final prop = Map<String, dynamic>.from(propRaw);
+    switch (prop['type'] as String?) {
+      case 'boolean':
+        if (value is! bool) {
+          violations.add(
+            "state config '$key' must be a boolean, got "
+            "'$value'",
+          );
+        }
+      case 'string':
+        if (value is! String) {
+          violations.add("state config '$key' must be a string, got '$value'");
+        }
+      case 'array':
+        if (value is! List) {
+          violations.add("state config '$key' must be an array, got '$value'");
+        } else {
+          final items = prop['items'];
+          final itemEnum = items is Map
+              ? (Map<String, dynamic>.from(items)['enum'] as List?)
+              : null;
+          if (itemEnum != null) {
+            for (final element in value) {
+              if (!itemEnum.contains(element)) {
+                violations.add(
+                  "state config '$key' has unknown element '$element' "
+                  '(allowed: ${itemEnum.map((v) => '$v').join(', ')})',
+                );
+              }
+            }
+          }
+        }
+      default:
+        break;
+    }
+  }
+  return violations;
+}
+
+/// The state plugin's config schema as a standalone constant so
+/// [validateStateConfig] and the tests can reference the vocabulary
+/// without instantiating the plugin.
+const JsonSchema stateConfigSchema = {
+  'type': 'object',
+  'properties': {
+    'methods': {
+      'type': 'array',
+      'items': {'type': 'string'},
+      'default': ['get', 'update'],
+      'description':
+          'CRUD methods the state derives members from '
+          '(get, create, update, delete, watch, getList, watchList).',
+    },
+    'no-entity': {
+      'type': 'boolean',
+      'default': false,
+      'description':
+          'Emit entity-free state (no entity field; custom '
+          'mode).',
+    },
+    'domain': {
+      'type': 'string',
+      'description':
+          'Domain folder the state file is emitted under '
+          '(defaults to the entity snake name).',
+    },
+  },
+};

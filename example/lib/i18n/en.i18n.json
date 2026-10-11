@@ -1,0 +1,7 @@
+{
+  "auth": {
+    "error": "Sign in failed",
+    "signIn": "Sign in",
+    "working": "Signing in…"
+  }
+}

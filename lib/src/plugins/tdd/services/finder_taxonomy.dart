@@ -123,8 +123,12 @@ class ScenarioAnalysis {
 
 /// The scenario → assertion classifier and test-assertion emitter.
 abstract final class FinderTaxonomy {
-  /// A quoted literal: `'…'` or `"…"`.
-  static final RegExp quoted = RegExp("'([^']+)'|\"([^\"]+)\"");
+  /// A quoted literal: `'…'` or `"…"`. A single quote must begin at a
+  /// non-word boundary, so possessives such as `receipt's` never open a
+  /// literal and pair with a later apostrophe to invent a UI surface.
+  static final RegExp quoted = RegExp(
+    r'''(?:^|[^A-Za-z0-9])'([^'\r\n]+)'(?![A-Za-z0-9])|"([^"\r\n]+)"''',
+  );
 
   /// Navigation verbs — active and passive conjugations (bug #936
   /// grammar: Then-clauses are passive by convention).
@@ -450,6 +454,53 @@ abstract final class FinderTaxonomy {
     ];
     if (parts.isEmpty) return '';
     return '// scenario-assertions: ${parts.join(', ')}';
+  }
+
+  /// The full predicted kind set for [description] (issue #1140): every
+  /// quoted literal's derived class, plus the sequence marker when the
+  /// scenario carries an in-flight clause. This is the same derivation
+  /// [kindCellFor] renders and [BehaviorTestWriter] emits — one
+  /// classification, three consumers.
+  static Set<ScenarioAssertionClass> predictedKinds(String description) {
+    final analysis = analyze(description);
+    return {
+      ...analysis.requiredClasses,
+      if (analysis.sequence) ScenarioAssertionClass.sequence,
+    };
+  }
+
+  /// The plan table's finder-kind cell for [description] (issue #1140):
+  /// [predictedKinds] rendered as comma-joined labels in enum order, or
+  /// `none` when no finder kind is derivable (a scenario without quoted
+  /// literals — gen keeps it an honest scaffolded placeholder).
+  static String kindCellFor(String description) {
+    final kinds = predictedKinds(description);
+    if (kinds.isEmpty) return 'none';
+    return ScenarioAssertionClass.values
+        .where(kinds.contains)
+        .map((c) => c.label)
+        .join(', ');
+  }
+
+  /// Parses the plan table's finder-kind cell (issue #1140): comma-joined
+  /// [ScenarioAssertionClass.label] tokens, or `none` for a scenario with
+  /// no derivable finder kind. Returns null for an unknown token — the
+  /// reader turns null into a malformed-row error naming the vocabulary,
+  /// so a hand-typo'd cell fails loudly instead of silently losing the
+  /// declared kinds.
+  static Set<ScenarioAssertionClass>? tryParseKindCell(String cell) {
+    final trimmed = cell.trim();
+    if (trimmed.isEmpty || trimmed == 'none') {
+      return const <ScenarioAssertionClass>{};
+    }
+    final kinds = <ScenarioAssertionClass>{};
+    for (final token in trimmed.split(',')) {
+      final t = token.trim().toLowerCase();
+      final match = ScenarioAssertionClass.values.where((c) => c.label == t);
+      if (match.isEmpty) return null;
+      kinds.add(match.first);
+    }
+    return kinds;
   }
 
   /// The kind gate (issue #964 proposal 3): given the scenario analysis

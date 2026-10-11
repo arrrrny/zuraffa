@@ -105,43 +105,54 @@ abstract final class UiLedgerBuilder {
       },
   ]);
 
-  /// The untraced-surface audit (issue #965 composing #963): every
-  /// hardcoded user-facing string in a generated view — a quoted string
-  /// literal inside `Text(...)` — must trace to a ledger surface. A
-  /// string is TRACED when
-  ///   - a `text` row names it verbatim (the quoted-literal contract), or
-  ///   - it is the anchor of a declared i18n key whose `t.<key>` row the
-  ///     ledger carries (the key contract — the EN literal is the anchor,
-  ///     the accessor `Text(t.app.name)` is code identity and needs no
-  ///     tracing at all).
-  /// Returns the untraced literals in first-occurrence order,
-  /// de-duplicated; empty means the view is fully traced.
-  static List<String> untracedHardcodedStrings({
-    required String viewSource,
-    required List<UiSurfaceRow> ledger,
-    Map<String, String> anchorToKey = const {},
-  }) {
+  /// Every quoted user-facing string literal inside `Text(...)` in
+  /// [viewSource], in first-occurrence order, de-duplicated. The
+  /// scanner both [untracedHardcodedStrings] and the #1141 view audit
+  /// share, so the detector and the gate can never disagree on what
+  /// counts as a hardcoded string.
+  static List<String> quotedUserFacingStrings(String viewSource) {
     // A quoted string inside Text(...): single or double quotes, with a
     // comma or closing paren after (a call argument, never a prefix like
     // TextEditingController(text: ...) — the user-facing WIDGET call).
     final quoted = RegExp(
       '''Text\\(\\s*(['"])((?:[^'\\\\]|\\\\.)*?)\\1\\s*[,)]''',
     );
-    final tracedTextRows = {
-      for (final row in ledger)
-        if (row.kind == UiSurfaceKind.text) row.surface,
-    };
-    final tracedKeyRows = {
-      for (final row in ledger)
-        if (row.kind == UiSurfaceKind.key) row.surface,
-    };
-    final violations = <String>[];
+    final literals = <String>[];
     for (final match in quoted.allMatches(viewSource)) {
       final literal = match.group(2)!;
-      if (tracedTextRows.contains(literal)) continue;
+      if (!literals.contains(literal)) literals.add(literal);
+    }
+    return literals;
+  }
+
+  /// The untraced-surface audit (issue #965 composing #963, wired by
+  /// #1141): every hardcoded user-facing string in a generated view —
+  /// a quoted string literal inside `Text(...)` — must trace to a ledger
+  /// surface. A string is TRACED when
+  ///   - any ledger row names it verbatim (a renderable surface: text,
+  ///     route, or affordance — the quoted-literal contract), or
+  ///   - it is the anchor of a declared i18n key whose `t.<key>` row the
+  ///     ledger carries (the key contract — the EN literal is the anchor,
+  ///     the accessor `Text(t.app.name)` is code identity and needs no
+  ///     tracing at all), or
+  ///   - it is one of [allowLiterals] (the #939 behavior-id marker).
+  /// Returns the untraced literals in first-occurrence order,
+  /// de-duplicated; empty means the view is fully traced.
+  static List<String> untracedHardcodedStrings({
+    required String viewSource,
+    required List<UiSurfaceRow> ledger,
+    Map<String, String> anchorToKey = const {},
+    Iterable<String> allowLiterals = const [],
+  }) {
+    final allowed = allowLiterals.toSet();
+    final tracedSurfaces = {for (final row in ledger) row.surface};
+    final violations = <String>[];
+    for (final literal in quotedUserFacingStrings(viewSource)) {
+      if (allowed.contains(literal)) continue;
+      if (tracedSurfaces.contains(literal)) continue;
       final key = anchorToKey[literal];
-      if (key != null && tracedKeyRows.contains('t.$key')) continue;
-      if (!violations.contains(literal)) violations.add(literal);
+      if (key != null && tracedSurfaces.contains('t.$key')) continue;
+      violations.add(literal);
     }
     return violations;
   }

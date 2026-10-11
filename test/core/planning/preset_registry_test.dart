@@ -43,6 +43,21 @@ void main() {
         containsAll(['usecase', 'repository', 'datasource', 'di']),
       );
     });
+
+    // #1194 (part of #908 P0 "make-default→mock + mocked tier"): the data
+    // presets bundle `mock` — the same default the engine preset already
+    // had — so a fresh slice lands in the MOCKED tier (certified mock
+    // datasource behind the real interface via the simulation-mode
+    // binding, mock data seeds, registerSimulationBindings wired).
+    test('crud, read-only and engine presets include mock (issue #1194)', () {
+      for (final preset in ['crud', 'read-only', 'engine']) {
+        expect(
+          PresetRegistry.pluginIdsFor(preset),
+          contains('mock'),
+          reason: '$preset must emit the mocked tier (issue #1194)',
+        );
+      }
+    });
   });
 
   group('PluginAliasResolver', () {

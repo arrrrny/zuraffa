@@ -1,5 +1,25 @@
 # AI Agents Guide for Zuraffa
 
+## ZURAFFA MISFIRE RULE (HARD, NON-NEGOTIABLE — HARDCODED TOP RULE)
+
+**On ANY misfire (test failure, compilation error, runtime crash, unexpected output) related to zuraffa:**
+
+1. **STOP IMMEDIATELY** on the first misfire.
+2. **Report the issue** to zuraffa GitHub (`arrrrny/zuraffa`) with: the command that failed, expected vs actual output, and root cause.
+3. **Continue with a workaround** to make the task pass (e.g., skip the failing test, use an alternative approach, or mock the failing component).
+4. **Add a comment** in the code explaining the workaround applied and linking to the zuraffa GitHub issue.
+
+**On ANY misfire related to the repo itself (not zuraffa):**
+
+1. **STOP IMMEDIATELY** on the first misfire.
+2. **Report the issue** to the repo's GitHub with full details.
+3. **Continue with a workaround** to make the task pass.
+4. **Add a comment** in the code explaining the workaround applied.
+
+This rule takes precedence over all other rules. Never skip a misfire or rationalize it away.
+
+---
+
 This file defines the current v5 contract for AI agents working in Zuraffa projects.
 
 ## Generation contract: use the canonical v5 workflow
@@ -39,7 +59,30 @@ zfa build
 - **Do not hand-create entities.** Use `zfa entity create`.
 - **Do not call `build_runner` directly in normal agent flows.** Use `zfa build`.
 - **Do not invent alternate folder structures.** Zuraffa v5 assumes a fixed domain root.
-- **Always run `dart format lib test` before every commit and push.** CI enforces `dart format --set-exit-if-changed lib test` — any unformatted file blocks the build. Run it, stage the results, then commit. Never push without formatting first.
+- **Always run `dart pub get --no-example` before formatting, then `dart format lib test` before every commit and push.** Formatting without package resolution (a fresh clone has none) makes `dart format` fail to resolve `analysis_options.yaml`'s `package:lints/recommended.yaml` include — it spams a `Package resolution error` warning per file and rewrites hundreds of unrelated files (#1506). CI enforces `dart format --set-exit-if-changed lib test` — any unformatted file blocks the build. Run pub get, format, stage the results, then commit. Never push without formatting first.
+
+## No-JIT rule: every zfa child is a COMPILED binary
+
+NOTHING may spawn the zfa CLI in JIT mode. `dart <path>/bin/zfa.dart …` pays the Dart
+VM front-end plus a full-package JIT compile before the child runs a single command
+(~20s cold per spawn — issue #531 measured it), and it makes the child run whatever
+the tree happens to be at that moment.
+
+- **Dev/TDD loop entrypoint is `scripts/zfa …`** (or the installed `~/.local/bin/zfa`).
+  It compiles the source once into `.dart_tool/zfa_cli_bin/zfa_exe` — the same cache
+  `lib/src/cli/zfa_executable.dart` and `test/helpers/run_zfa_source.dart` use — and
+  reuses it while the source is unchanged.
+- **`dart bin/zfa.dart` is reserved for `dart test` itself.** Never use it as the loop's
+  entrypoint, and never hand it to a child process.
+- **`scripts/rebuild.sh` installs the system binary; it is not part of the loop.**
+- **In code, never hand-roll the argv.** Resolve the entrypoint through
+  `ZfaExecutable.ensureCompiled` (a `.dart` candidate is AOT compiled; a compile that
+  cannot happen throws — there is no silent fallback) and shape the child argv through
+  `ZfaExecutable.commandFor` (the `dart` prefix is reachable only under the explicit
+  `ZFA_ALLOW_JIT=1` escape hatch, for degraded environments that cannot run
+  `dart compile exe`).
+- `test/core/no_jit_zfa_spawn_scan_test.dart` sweeps `lib/src` for the old shapes and
+  fails the build if one returns.
 
 ## STOP-ON-ROADBLOCK RULE (HARD, NON-NEGOTIABLE — HARDCODED)
 
@@ -260,15 +303,53 @@ Long-running or user-visible commands (e.g. `flutter run`, `zfa build`, `bun run
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read specs/016-fix-make-test-no-id/plan.md
 
-## OpenWiki
-
-This repository has documentation located in the /openwiki directory.
-
-Start here:
-- [OpenWiki quickstart](openwiki/quickstart.md)
-
-OpenWiki includes repository overview, architecture notes, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
-
-When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
-
 <!-- SPECKIT END -->
+
+<!-- local-ci:begin -->
+## Running CI locally — `scripts/local_ci.sh`
+
+GitHub Actions is billing-blocked on our private repos: every workflow run ends in
+~3s with **zero steps executed**, so a red check here means nothing. Run the same
+gate locally instead:
+
+```bash
+./scripts/local_ci.sh              # every job of the pull_request workflow
+./scripts/local_ci.sh --plan       # print every step that would run, run nothing
+./scripts/local_ci.sh --list       # workflows, triggers and jobs in this repo
+./scripts/local_ci.sh --job <id>   # one job only
+./scripts/local_ci.sh --event push # simulate the push-triggered workflow
+./scripts/local_ci.sh --keep-going # do not stop at the first failure
+./scripts/local_ci.sh -v           # echo each command before running it
+```
+
+It reads `.github/workflows/*` at run time and executes that workflow's jobs and
+steps in order, so it cannot drift from CI — it is not a second copy of the gate.
+Edit the workflow and the local run changes with it. Exit 0 means every executed
+step passed.
+
+What it cannot reproduce, and prints on startup instead of guessing:
+
+- **Linux.** CI runs `ubuntu-latest`; this runs on macOS. The step set is the
+  same, the platform is not. `sudo apt-get install` steps are mapped to a local
+  presence probe rather than silently passed.
+- **GitHub context.** A step needing `${{ secrets.* }}`, `${{ inputs.* }}`,
+  `${{ vars.* }}`, `${{ steps.* }}` or `${{ github.event.* }}` is SKIPPED with the
+  reason printed, never run with a guessed value.
+- **`uses:` actions** are not executed. Toolchain setups (`setup-dart`,
+  `setup-node`, `flutter-action`, `rust-toolchain`, …) become a version assertion
+  against the local tool; checkout/cache/artifact are noted as no-ops; anything
+  else is skipped by name. A Windows-runner job is skipped outright.
+- **`container:`** jobs run on the host toolchain, not in the declared image.
+- **`continue-on-error: true`** steps are advisory locally, exactly as in CI.
+- **Local-only checkout state.** CI checks out the committed tree; this checkout
+  also has gitignored and untracked paths, which whole-tree commands (e.g.
+  `dart analyze .`) see. A step that fails naming only such paths is reported as
+  a LOCAL-ONLY failure, not as a CI failure — pass `--strict` to count it anyway.
+  A step that would `git clone` over a sibling checkout that already exists here
+  is skipped; `--allow-outside-clone` forces it.
+
+Canonical copy: `arrrrny/forklift` → `scripts/local_ci.sh` (reference:
+`docs/forklift-scripts.md`).
+<!-- local-ci:end -->
+
+

@@ -62,7 +62,13 @@ class ModuleOrchestratorBuilder {
                     ..annotations.add(refer('override'))
                     ..name = 'routes'
                     ..type = MethodType.getter
-                    ..returns = refer('Map<String, ZuraffaRouteBuilder>')
+                    // Issue #1149 (kill list — module merge): the core
+                    // ZuraffaPlugin contract declares routes as
+                    // `Map<String, ZuraffaRouteHandler>`. This builder
+                    // previously emitted `ZuraffaRouteBuilder`, a type
+                    // that does not exist in package:zuraffa, so every
+                    // generated orchestrator failed to compile.
+                    ..returns = refer('Map<String, ZuraffaRouteHandler>')
                     ..body = Code('return const {};'),
                 ),
               ]),

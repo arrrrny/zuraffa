@@ -3,12 +3,14 @@ import 'package:path/path.dart' as path;
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/context/file_system.dart';
+import '../../../core/transaction/generation_transaction.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/entity_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../datasource/builders/interface_generator.dart';
+import 'failing_mock_provider_builder.dart';
 import 'mock_data_builder.dart';
 import 'mock_datasource_builder.dart';
 import 'mock_provider_builder.dart';
@@ -29,6 +31,8 @@ class MockBuilder {
   // (uri_does_not_exist + implements_non_class).
   final DataSourceInterfaceBuilder interfaceBuilder;
   final MockProviderBuilder providerBuilder;
+  // Spec 1110: the `--fail` preset's throwing double.
+  final FailingMockProviderBuilder failingProviderBuilder;
   final MockEntityGraphBuilder entityGraphBuilder;
   final MockJsonBuilder jsonBuilder;
   final FileSystem fileSystem;
@@ -42,6 +46,7 @@ class MockBuilder {
     MockDataSourceBuilder? dataSourceBuilder,
     DataSourceInterfaceBuilder? interfaceBuilder,
     MockProviderBuilder? providerBuilder,
+    FailingMockProviderBuilder? failingProviderBuilder,
     MockEntityGraphBuilder? entityGraphBuilder,
     MockJsonBuilder? jsonBuilder,
     FileSystem? fileSystem,
@@ -76,6 +81,13 @@ class MockBuilder {
              outputDir: outputDir,
              options: options,
              specLibrary: specLibrary ?? const SpecLibrary(),
+             fileSystem: fileSystem ?? FileSystem.create(),
+           ),
+       failingProviderBuilder =
+           failingProviderBuilder ??
+           FailingMockProviderBuilder(
+             outputDir: outputDir,
+             options: options,
              fileSystem: fileSystem ?? FileSystem.create(),
            ),
        entityGraphBuilder =
@@ -206,13 +218,76 @@ class MockBuilder {
           interfaceSnake,
           '${interfaceSnake}_datasource.dart',
         );
-        if (!await fileSystem.exists(interfacePath)) {
+        // Issue #1418: --force must regenerate the WHOLE generated pair.
+        // The old guard was pure create-if-absent: an existing interface
+        // was never invalidated by --force (nor by a --methods change),
+        // while the mock body always regenerated from the current
+        // --methods — the pair drifted and `--certify` dead-ended on
+        // `Missing concrete implementation`. Under `force && !revert` the
+        // interface writer is invoked unconditionally and its fresh-write
+        // path (exists && (append || !force) → else force overwrite)
+        // regenerates the interface from the current config.methods — the
+        // same pattern the datasource and repository plugins already use.
+        // Non-force keeps the #417 create-if-absent contract byte-for-byte
+        // (the writer is not invoked on an existing file, so its append
+        // path cannot fire from the mock lane), and revert keeps the
+        // revert contract (the guard does not fire over it — the same
+        // precedence the #1570 staleness arming uses).
+        //
+        // Invariant (PR #1649 review): this guard arms on `config.force`,
+        // but the writer's overwrite path fires on `options.force`
+        // (DataSourceInterfaceBuilder.generate → FileUtils.writeFile(force:
+        // options.force)). The two cannot diverge on real call paths —
+        // MockPlugin.generate re-delegates with GeneratorOptions mirrored
+        // from config whenever they disagree — and a future direct
+        // MockBuilder caller must preserve that mirroring, or a
+        // guard-fired writer invocation is silently skipped (ledger
+        // `skipped`, no regeneration).
+        // PR #1649 follow-up (A-1530-6): under `force && !revert` the
+        // writer must not fire when THIS RUN already owns the file — a
+        // combined `make Product datasource --with mock --force` has the
+        // datasource plugin's own force-overwrite of the same interface
+        // pending in the shared transaction, and GenerationTransaction
+        // rejects two operations for one path ("Multiple operations for
+        // …"). Standalone `mock create --force` has no pending claim and
+        // still regenerates. Same "check current transaction first" seam
+        // as DiscoveryEngine; raw-path equality mirrors the transaction's
+        // own duplicate detection (both writers emit the identical joined
+        // path).
+        final interfacePending =
+            GenerationTransaction.current?.operations.any(
+              (op) => op.path == interfacePath,
+            ) ??
+            false;
+        if (!await fileSystem.exists(interfacePath) ||
+            (config.force && !config.revert && !interfacePending)) {
           files.add(await interfaceBuilder.generate(config));
         }
         files.add(await dataSourceBuilder.generateMockDataSource(config));
+        // Spec 1110 (issue #1110): the `--fail` preset — a throwing twin
+        // of the certified mock, emitted beside the mock datasource
+        // (same interface, every method throws the sealed failure type).
+        // The succeeding mock artifacts above are still generated: the
+        // pair (succeeding + failing) is the feature.
+        if (config.failMock) {
+          files.add(
+            await failingProviderBuilder.generateFailingMockProvider(config),
+          );
+        }
       }
       if (config.hasService) {
         files.add(await providerBuilder.generateMockProvider(config));
+        if (config.failMock) {
+          // Honest scope notice (never a silent skip): the failure preset
+          // targets the entity datasource seam; the service-mode provider
+          // twin is future work.
+          print(
+            '⚠️  --fail preset: the failing provider is emitted for the '
+            'entity datasource interface; the service-mode failing '
+            'provider (spec 1110) is not generated for '
+            '"${config.effectiveService}".',
+          );
+        }
       }
     }
 

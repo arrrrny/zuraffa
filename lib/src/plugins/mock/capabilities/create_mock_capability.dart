@@ -1,11 +1,14 @@
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 import '../../../core/plugin_system/capability.dart';
-import '../mock_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
-import '../../../engine/mock_certifier.dart';
 import '../builders/simulation_fixture_writer.dart';
+import '../certification/mock_certification_sandbox.dart';
+import '../certification/mock_certifier.dart';
+import '../mock_plugin.dart';
 
 class CreateMockCapability implements ZuraffaCapability {
   final MockPlugin plugin;
@@ -54,18 +57,6 @@ class CreateMockCapability implements ZuraffaCapability {
             'specs/<feature>/tdd/fixtures) and re-certify it through the '
             '#832 fixture registry (spec 893)',
       },
-      // Spec 1002 (engine preset): `mock create --certify` verifies every
-      // requested method landed on the generated mock datasource with
-      // seeded data present, reports the per-method outcome, and fails
-      // the execution when any method is uncertified.
-      'certify': {
-        'type': 'boolean',
-        'description':
-            'Certify every requested method on the generated mock '
-            '(implemented member + seeded mock data); fail when any '
-            'method is uncertified',
-        'default': false,
-      },
       'dryRun': {
         'type': 'boolean',
         'description': 'Run without writing files',
@@ -96,6 +87,33 @@ class CreateMockCapability implements ZuraffaCapability {
       'returns': {
         'type': 'string',
         'description': 'Return type for mock methods',
+      },
+      // Spec 1001 (issue #1001) Tier-1 certified mocks; spec 1002
+      // (engine preset): every requested method must land on the
+      // generated mock datasource with seeded data present.
+      'certify': {
+        'type': 'boolean',
+        'description':
+            'After generating the mock, run the auto-generated contract '
+            'test in a temp sandbox (dart analyze + dart test) and write '
+            'the mock-cert.<Entity>.json receipt with per-method '
+            'satisfied flags and the contract digest (spec 1001)',
+        'default': false,
+      },
+      // Spec 1110 (issue #1110): the mock failure preset — a throwing
+      // twin of the certified mock for failure-path behaviors.
+      'fail': {
+        'type': 'boolean',
+        'description':
+            'Emit the <Entity>FailingMockProvider: a throwing double whose '
+            'every method throws the sealed failure type (spec 1110)',
+        'default': false,
+      },
+      'seed': {
+        'type': 'integer',
+        'description':
+            'Deterministic generation seed (spec 1001): the same seed '
+            'reproduces byte-identical mocks (replayable generation)',
       },
     },
     'required': ['name'],
@@ -131,68 +149,161 @@ class CreateMockCapability implements ZuraffaCapability {
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
     final files = await _generateFiles(args, dryRun: args['dryRun'] ?? false);
 
-    // Spec 1002: `zfa mock create <Entity> --certify` — verify every
-    // requested method after generation and report the per-method
-    // outcome. A method that did not land on the mock datasource (or a
-    // missing seeded data fixture) fails the execution so automation
-    // never reads an incomplete mock as a win.
-    final certify = args['certify'] == true;
-    if (certify && args['dryRun'] != true) {
-      final entityName = args['name'] as String;
-      final config = GeneratorConfig(
-        name: entityName,
-        outputDir: plugin.outputDir,
-        service: args['service'],
-      );
-      final certifiedEntity = config.repo != null
-          ? config.repo!.replaceAll('Repository', '')
-          : config.name;
-      final requested =
-          (args['methods'] as List?)?.cast<String>() ?? const <String>[];
-      final methods = requested.isEmpty
-          ? (args['service'] != null
-                ? const <String>[]
-                : const ['get', 'update', 'toggle'])
-          : requested;
-      final projectRoot = Directory.current.path;
-      final certification = MockCertifier.certify(
-        entity: certifiedEntity,
-        methods: methods,
-        projectRoot: projectRoot,
-      );
-      print('🔍 Mock certification for "$certifiedEntity":');
-      for (final entry in certification.methods.entries) {
-        print(
-          '  ${entry.value ? "✅" : "❌"} '
-          '${entry.key}: ${entry.value ? "certified" : "uncertified"}',
-        );
-      }
-      if (!certification.certified) {
-        return ExecutionResult(
-          success: false,
-          message:
-              'mock certification failed for "$certifiedEntity": '
-              '${certification.methods.entries.where((e) => !e.value).map((e) => e.key).join(", ")} '
-              'uncertified — regenerate with `zfa mock create '
-              '$certifiedEntity --methods=... --certify`',
-          files: files.map((f) => f.path).toList(),
-          data: {
-            'generatedFiles': files,
-            'mockCertified': certification.methods,
-          },
-        );
-      }
-      return ExecutionResult(
-        success: true,
-        files: files.map((f) => f.path).toList(),
-        data: {'generatedFiles': files, 'mockCertified': certification.methods},
-      );
+    // Spec 1001 (issue #1001): `zfa mock create <Entity> --certify` —
+    // after generating the mock, run the auto-generated contract test in
+    // a temp sandbox and write the mock-cert.<Entity>.json receipt. A red
+    // contract is an honest failure: success=false, exit 1, the receipt
+    // still records per-method satisfied: false so the drift is legible.
+    if (args['certify'] == true && args['dryRun'] != true) {
+      return _certify(args, files);
     }
 
     return ExecutionResult(
       success: true,
       files: files.map((f) => f.path).toList(),
       data: {'generatedFiles': files},
+    );
+  }
+
+  Future<ExecutionResult> _certify(
+    Map<String, dynamic> args,
+    List<GeneratedFile> files,
+  ) async {
+    final name = args['name'] as String;
+    final seed = args['seed'] is int ? args['seed'] as int : null;
+    final verbose = args['verbose'] == true;
+    // The capability runs against the plugin's outputDir which is
+    // project-relative (lib/src); the project root is the cwd (the CLI
+    // resolves it before dispatch).
+    final projectRoot = Directory.current.path;
+    // Issue #1600: the certifier is shaped by the HOST — a Flutter
+    // project's contract test imports the Flutter test framework and is
+    // proven with the Flutter toolchain.
+    final certifier = MockCertifier.forProject(projectRoot);
+
+    // Spec 1110 composition: the spec 1001 sandbox certification is an
+    // ENVIRONMENT-DEPENDENT proof — it needs a resolvable zuraffa
+    // package root (the target project's package_config, the running
+    // CLI's bin/ entrypoint, or a repo pubspec). When the root cannot
+    // be resolved (in-process hosts like `dart test`'s CliRunner, or a
+    // project without the zuraffa dependency), the sandbox is not
+    // runnable. That is NOT drift: the command's exit code stays
+    // governed by the generation + the #970 structural gate, and the
+    // un-certified state stays loud — no mock-cert receipt is written,
+    // so the spec 1110 engine cert-gate refuses the entity downstream
+    // until it is certified in a resolvable environment.
+    final frameworkRoot = MockCertificationSandbox.resolveFrameworkRoot(
+      projectRoot,
+    );
+    if (frameworkRoot == null) {
+      stdout.writeln(
+        '⚠️  mock-cert: the certification sandbox cannot resolve the '
+        'zuraffa package root — no mock-cert.$name.json receipt written. '
+        'The engine cert-gate (spec 1110) will refuse "$name" as '
+        'uncertified until `zfa mock create $name --certify` runs in an '
+        'environment that resolves the framework (a real CLI invocation '
+        'or a project with the zuraffa dependency).',
+      );
+      return ExecutionResult(
+        success: true,
+        files: files.map((f) => f.path).toList(),
+        data: {
+          'generatedFiles': files,
+          'certified': false,
+          'certSandboxUnresolved': true,
+        },
+      );
+    }
+
+    // Issue #1600: a Flutter-shaped proof without the Flutter toolchain is
+    // the same environment-dependent class — not a red contract. The
+    // un-certified state stays loud (no receipt → the spec 1110 cert-gate
+    // refuses downstream), and the exit stays generation-governed.
+    if (certifier.sandbox.flutterTest &&
+        !MockCertificationSandbox.flutterOnPath()) {
+      stdout.writeln(
+        '⚠️  mock-cert: the Flutter-shaped contract test cannot be '
+        'certified — no flutter executable on PATH. No mock-cert.$name.json '
+        'receipt written. The engine cert-gate (spec 1110) will refuse '
+        '"$name" as uncertified until `zfa mock create $name --certify` '
+        'runs with the Flutter SDK installed.',
+      );
+      return ExecutionResult(
+        success: true,
+        files: files.map((f) => f.path).toList(),
+        data: {
+          'generatedFiles': files,
+          'certified': false,
+          'certSandboxUnresolved': true,
+        },
+      );
+    }
+
+    final outcome = await certifier.certify(
+      entityName: name,
+      projectRoot: projectRoot,
+      outputDir: plugin.outputDir,
+      seed: seed,
+      // create is the RE-PIN path: the mock was (re)generated against
+      // the current interface, so the contract is re-rendered to match.
+      rePin: true,
+      verbose: verbose,
+    );
+    final written = await certifier.writeContractArtifacts(
+      entityName: name,
+      projectRoot: projectRoot,
+      outcome: outcome,
+    );
+    for (final file in written) {
+      files.add(
+        GeneratedFile(
+          path: file.path,
+          content: await file.readAsString(),
+          action: 'created',
+          type: p.basename(file.path).startsWith('mock-cert.')
+              ? 'mock_cert_receipt'
+              : 'mock_contract_test',
+        ),
+      );
+    }
+
+    final receipt = outcome.receipt;
+    if (!outcome.certified) {
+      final unsatisfied = receipt == null
+          ? outcome.methodNames
+          : receipt.methods.where((m) => !m.value).map((m) => m.key).toList();
+      final reason = outcome.logs.isNotEmpty
+          ? outcome.logs.join('\n')
+          : 'contract test did not prove every method satisfied';
+      stdout.writeln(
+        '❌ mock certification for $name failed — unsatisfied: '
+        '${unsatisfied.join(', ')}',
+      );
+      return ExecutionResult(
+        success: false,
+        message: 'mock certification failed for $name: $reason',
+        files: files.map((f) => f.path).toList(),
+        data: {
+          'generatedFiles': files,
+          'certified': false,
+          if (receipt != null) 'mockCertReceipt': receipt.toJson(),
+        },
+      );
+    }
+
+    stdout.writeln(
+      '⚙ mock-cert: entity=$name methods=${receipt!.methods.length} '
+      'satisfied=${receipt.methods.where((m) => m.value).length} '
+      'digest=${receipt.contractDigest.substring(0, 12)}…',
+    );
+    return ExecutionResult(
+      success: true,
+      files: files.map((f) => f.path).toList(),
+      data: {
+        'generatedFiles': files,
+        'certified': true,
+        'mockCertReceipt': receipt.toJson(),
+      },
     );
   }
 
@@ -210,6 +321,7 @@ class CreateMockCapability implements ZuraffaCapability {
     final params = args['params'];
     final returns = args['returns'];
     final fixturesDir = args['fixturesDir'] as String?;
+    final seed = args['seed'] is int ? args['seed'] as int : null;
     // Issue #770: semantic default for direct execute() callers that omit
     // the key — the canonical entity-CRUD set (#294). Explicit values are
     // honored. There is deliberately no static schema default for this key
@@ -241,6 +353,11 @@ class CreateMockCapability implements ZuraffaCapability {
       dryRun: dryRun,
       force: force,
       verbose: verbose,
+      // Spec 1110: the --fail preset — the throwing twin of the
+      // certified mock.
+      failMock: args['fail'] == true,
+      // Spec 1001: deterministic, replayable mock generation.
+      seed: seed,
     );
 
     final files = await plugin.generate(config);

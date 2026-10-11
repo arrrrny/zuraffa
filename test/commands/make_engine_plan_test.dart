@@ -1,3 +1,6 @@
+@Tags(['e2e'])
+library;
+
 // Spec 1002 — `zfa make engine <Entity>` grammar + plan resolution.
 //
 // The engine mode token must:
@@ -18,6 +21,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../helpers/run_zfa_source.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 
 void main() {
   setUpAll(initZfaSourceBin);
@@ -113,8 +117,12 @@ class $name {
     expect(result.stdout as String, contains('Usage'));
   });
 
-  test('non-engine make semantics are unchanged (crud preset)', () async {
-    // Hard constraint: existing make semantics for non-engine presets.
+  test('non-engine make semantics (crud preset now mock-first)', () async {
+    // Issue #1194 (part of #908 P0): the crud preset now bundles `mock`
+    // — a fresh `zfa make X --preset=crud` slice lands in the MOCKED tier
+    // (certified mock datasource + simulation binding + seeds; di wires
+    // registerSimulationBindings). `--compile-only` opts out (the
+    // pre-#1194 compile-only shape). The engine preset is unchanged.
     await writeEntity('Product');
 
     final plan = await planFor(['make', 'Product', '--preset=crud']);
@@ -125,6 +133,7 @@ class $name {
       'usecase',
       'repository',
       'datasource',
+      'mock',
       'di',
     ]);
   });
@@ -153,7 +162,11 @@ class $name {
       '--preset=crud',
     ], workingDirectory: workspace.path);
 
-    expect(result.exitCode, 64, reason: 'conflicting preset is a usage error');
+    expect(
+      result.exitCode,
+      ExitProtocol.usage,
+      reason: 'conflicting preset is a usage error',
+    );
     expect(result.stdout as String, contains('conflicts'));
   });
 }

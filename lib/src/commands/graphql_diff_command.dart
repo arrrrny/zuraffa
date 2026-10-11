@@ -6,6 +6,8 @@ import 'package:args/command_runner.dart';
 import '../graphql/cache/schema_cache.dart';
 import '../graphql/diff/schema_diff.dart';
 import '../graphql/graphql_schema.dart';
+import '../cli/exit_protocol.dart';
+import '../plugins/plugin_gate/plugin_gate.dart';
 
 /// `zfa graphql diff <name>` — compare the freshly cached schema for
 /// `<name>` against the previously cached version and report breaking vs
@@ -49,6 +51,15 @@ class DiffCommand extends Command<void> {
 
   @override
   Future<void> run() async {
+    // Spec 1653 (issue #1661): the graphql capability is opt-in. Leaf
+    // subcommands dispatch without passing through GraphqlCommand.run(),
+    // so the gate is enforced here too (review finding on #1678).
+    final gateRefusal = PluginGate.refusalFor('graphql');
+    if (gateRefusal != null) {
+      print('❌ $gateRefusal');
+      exitCode = ExitProtocol.usage;
+      return;
+    }
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       print(
@@ -56,7 +67,7 @@ class DiffCommand extends Command<void> {
         'Usage: zfa graphql diff <name> [--dir=<cache-dir>]',
       );
       print(usage);
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
     final schemaName = rest.first;
@@ -84,7 +95,7 @@ class DiffCommand extends Command<void> {
     } else {
       if (oldPath != null || newPath != null) {
         print('❌ Error: --old and --new must be provided together.');
-        exitCode = 64;
+        exitCode = ExitProtocol.usage;
         return;
       }
 

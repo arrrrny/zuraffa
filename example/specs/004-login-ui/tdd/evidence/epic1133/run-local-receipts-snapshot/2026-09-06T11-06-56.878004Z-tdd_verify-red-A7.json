@@ -1,0 +1,20 @@
+{
+  "schema": "proof.v1",
+  "command": "tdd verify-red",
+  "target": "A7",
+  "repro": "zfa tdd verify-red",
+  "at": "2026-09-06T11:06:56.878004Z",
+  "generator_version": "6.1.0",
+  "input": {
+    "feature": "004-login-ui"
+  },
+  "files": [
+    {
+      "path": "specs/004-login-ui/tdd/cycle-log.md",
+      "action": "update",
+      "sha256": "4851651ac0e657cf465ecde68efd72f064572571d6c76893039df8fa87ef46b6",
+      "bytes": 24376
+    }
+  ],
+  "receipt_version": 1
+}

@@ -1,0 +1,13 @@
+00:00 +0: loading test/tdd/1334-typed-ui-coverage-ledger/t001_five_kinds_golden_advisory_test.dart
+00:00 +0 -1: loading test/tdd/1334-typed-ui-coverage-ledger/t001_five_kinds_golden_advisory_test.dart [E]
+  Failed to load "test/tdd/1334-typed-ui-coverage-ledger/t001_five_kinds_golden_advisory_test.dart":
+  lib/tdd/1334-typed-ui-coverage-ledger/t1_subject.dart:37:19: Error: Enums can't be instantiated.
+      LedgerRowKind.isGoldenScenario(
+                    ^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t1_subject.dart:42:24: Error: Enums can't be instantiated.
+    expect(LedgerRowKind.isGoldenScenario("shows the 'Sign In' title"), isFalse);
+                         ^^^^^^^^^^^^^^^^
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/tdd/1334-typed-ui-coverage-ledger/t001_five_kinds_golden_advisory_test.dart: loading test/tdd/1334-typed-ui-coverage-ledger/t001_five_kinds_golden_advisory_test.dart

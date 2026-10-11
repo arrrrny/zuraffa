@@ -448,8 +448,14 @@ extension RepositoryImplementationGeneratorCached
           ).property('delete').call([refer('params')]).awaited.statement,
         )
         ..statements.add(
+          // Bug 1675: the delete body used to emit `_cachePolicy.markStale`
+          // — a method the published `CachePolicy` API (isValid / markFresh
+          // / invalidate / clear) does not declare, so every cached
+          // repository with a delete method failed to compile at the
+          // consumer. Drop the cached entry through the API that exists:
+          // `invalidate`.
           refer('_cachePolicy')
-              .property('markStale')
+              .property('invalidate')
               .call([literalString(baseCacheKey)])
               .awaited
               .statement,

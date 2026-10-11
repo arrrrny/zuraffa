@@ -1,4 +1,7 @@
+import 'dart:io';
+import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../models/generated_file.dart';
+import '../core/plugin_system/capability.dart';
 import 'base_plugin_command.dart';
 import '../plugins/view/view_plugin.dart';
 import '../plugins/route/route_plugin.dart';
@@ -43,7 +46,40 @@ class ViewCommand extends PluginCommand {
       help: 'Generate with X-Ray integration',
       defaultsTo: false,
     );
+    argParser.addFlag(
+      'skin',
+      help:
+          'Generate with the runtime skin-contract auditor wrap (issue '
+          '#1102): the view getter mounts SkinContractAuditor with a '
+          'starter k<ViewName>SkinRows contract, and the auditor kit '
+          '(skin/skin_contract_auditor.dart) is emitted when missing.',
+      defaultsTo: false,
+    );
+    argParser.addMultiOption(
+      'anchor',
+      help:
+          'A zfa: anchor contract id this view declares (repeatable; '
+          'issue #1112, requires --skin). Each anchor gains its '
+          'anchorExists contract row and a generated '
+          'debugTap<PascalAnchor>() VM-service driver function.',
+    );
   }
+
+  /// SPEC 917 / #876 sweep: run()'s programmatic positional path reads
+  /// every parent-level flag listed below — they are LIVE, declared here so
+  /// `zfa manifest --verify` certifies them instead of flagging them dead
+  /// (spec #979).
+  @override
+  Set<String> get consumedParentFlags => const {
+    'anchor',
+    'di',
+    'methods',
+    'route',
+    'skin',
+    'state',
+    'v6-state',
+    'xray',
+  };
 
   @override
   Future<void> run() async {
@@ -73,6 +109,8 @@ class ViewCommand extends PluginCommand {
     final generateXRay = argResults!.wasParsed('xray')
         ? (argResults?['xray'] as bool? ?? false)
         : (config?.xrayByDefault ?? false);
+    final generateSkin = argResults?['skin'] as bool? ?? false;
+    final anchors = (argResults?['anchor'] as List<String>?) ?? const [];
 
     final capability = plugin.capabilities.firstWhere(
       (c) => c.name == capabilityName,
@@ -80,7 +118,12 @@ class ViewCommand extends PluginCommand {
 
     if (capabilityName == 'register') {
       final entities = argResults!.rest.skip(2).toList();
-      final result = await capability.execute({
+      // Issue #1138: wrapper-persisted proof.v1 receipt (best-effort).
+      final wrapper = CapabilityInvocationWrapper(
+        capability: capability,
+        pluginId: plugin.id,
+      );
+      final result = await wrapper.execute({
         'target': entityName,
         'entities': entities,
         'dryRun': isDryRun,
@@ -101,7 +144,12 @@ class ViewCommand extends PluginCommand {
       final routeResult = await _generateRoutes(entityName, capabilityName);
 
       // Generate view
-      final viewResult = await capability.execute({
+      // Issue #1138: wrapper-persisted proof.v1 receipt (best-effort).
+      final viewWrapper = CapabilityInvocationWrapper(
+        capability: capability,
+        pluginId: plugin.id,
+      );
+      final viewResult = await viewWrapper.execute({
         'name': entityName,
         'methods': methods,
         'di': generateDi,
@@ -109,6 +157,8 @@ class ViewCommand extends PluginCommand {
         'v6-state': generateV6State,
         'route': false, // Don't generate route in view capability
         'xray': generateXRay,
+        'skin': generateSkin,
+        'anchors': anchors,
         'dryRun': isDryRun,
         'force': isForce,
         'verbose': isVerbose,
@@ -117,18 +167,35 @@ class ViewCommand extends PluginCommand {
 
       // Combine results
       final allFiles = <GeneratedFile>[];
+      // Bug #1139 (exit-code sweep, #856 pattern): a failed capability run
+      // is a failure — the process must never exit 0 after reporting it.
+      final routeFailed =
+          routeResult is ExecutionResult && !routeResult.success;
+      if (!viewResult.success || routeFailed) {
+        print(
+          '❌ Failed to generate view and routes: '
+          '${viewResult.message ?? routeResult?.message ?? "unknown error"}',
+        );
+        exitCode = 1;
+        return;
+      }
       if (viewResult.data?['generatedFiles'] != null) {
         allFiles.addAll(viewResult.data!['generatedFiles']);
       }
-      if (routeResult.data?['generatedFiles'] != null) {
-        allFiles.addAll(routeResult.data!['generatedFiles']);
+      if (routeResult?.data?['generatedFiles'] != null) {
+        allFiles.addAll(routeResult?.data!['generatedFiles']);
       }
 
       print('\n✅ Generated view and routes successfully!');
       logSummary(allFiles);
     } else {
       // Generate only view
-      final result = await capability.execute({
+      // Issue #1138: wrapper-persisted proof.v1 receipt (best-effort).
+      final wrapper = CapabilityInvocationWrapper(
+        capability: capability,
+        pluginId: plugin.id,
+      );
+      final result = await wrapper.execute({
         'name': entityName,
         'methods': methods,
         'di': generateDi,
@@ -136,11 +203,23 @@ class ViewCommand extends PluginCommand {
         'v6-state': generateV6State,
         'route': false,
         'xray': generateXRay,
+        'skin': generateSkin,
+        'anchors': anchors,
         'dryRun': isDryRun,
         'force': isForce,
         'verbose': isVerbose,
         'outputDir': outputDir,
       });
+
+      // Bug #1139 (exit-code sweep, #856 pattern): a failed generation is a
+      // failure — the process must never exit 0 after printing an error.
+      if (!result.success) {
+        print(
+          '❌ Failed to generate view: ${result.message ?? "unknown error"}',
+        );
+        exitCode = 1;
+        return;
+      }
 
       final files =
           result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
@@ -172,7 +251,14 @@ class ViewCommand extends PluginCommand {
           .toList();
     }
 
-    final result = await routeCapability.execute({
+    // Issue #1138: the route capability runs as its own standalone
+    // invocation here — persist its own proof.v1 receipt under the
+    // route plugin id (best-effort inside the wrapper).
+    final wrapper = CapabilityInvocationWrapper(
+      capability: routeCapability,
+      pluginId: routePlugin.id,
+    );
+    final result = await wrapper.execute({
       'name': entityName,
       'methods': routeMethods,
       'dryRun': isDryRun,

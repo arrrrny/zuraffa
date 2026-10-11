@@ -136,26 +136,28 @@ void main() {
       expect(exitCode, 0);
     });
 
-    test(
-      'U27: missing profile misfire-stops before any run, exit non-zero',
-      () async {
-        final profile = File('${fx.root.path}/.specify/memory/tdd-profile.md');
-        profile.deleteSync();
-        final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(verifyRedArgs(fx, 'B-001'));
-        expect(out.toLowerCase(), contains('tdd-profile.md'));
-        expect(
-          out,
-          contains(
-            'verify-red: behavior=B-001 classification=unresolved '
-            'certified=false feature=${fx.featureName}',
-          ),
-        );
-        expect(exitCode, isNot(0));
-        // No evidence written.
-        expect(File(fx.cycleLogPath).existsSync(), isFalse);
-      },
-    );
+    test('U27 (#1528): missing profile is a setup condition — fail closed as '
+        'classification=setup-error before any run, exit non-zero', () async {
+      final profile = File('${fx.root.path}/.specify/memory/tdd-profile.md');
+      profile.deleteSync();
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(verifyRedArgs(fx, 'B-001'));
+      expect(out.toLowerCase(), contains('tdd-profile.md'));
+      expect(
+        out,
+        contains(
+          'verify-red: behavior=B-001 classification=setup-error '
+          'certified=false feature=${fx.featureName}',
+        ),
+      );
+      expect(out, isNot(contains('classification=unresolved')));
+      expect(exitCode, isNot(0));
+      // No evidence written; no auto-init write either (the read-only
+      // FR-008 contract holds — the baseline self-heal is the run/gen
+      // entries' preflight, not verify-red's).
+      expect(File(fx.cycleLogPath).existsSync(), isFalse);
+      expect(profile.existsSync(), isFalse);
+    });
   });
 
   /// Shared body for the dishonest-red matrix (US2 / T012): a rejected run

@@ -1,7 +1,13 @@
 /// `zfa tdd` — top-level TDD plugin command (feature 041).
 library;
 
+import 'dart:math';
+
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+
+import '../cli/text_wrap.dart';
+import '../cli/usage_length.dart';
 
 import '../plugins/tdd/commands/compose_command.dart';
 import '../plugins/tdd/commands/corpus_command.dart';
@@ -15,6 +21,7 @@ import '../plugins/tdd/commands/init_command.dart';
 import '../plugins/tdd/commands/make_command.dart';
 import '../plugins/tdd/commands/migrate_paths_command.dart';
 import '../plugins/tdd/commands/plan_command.dart';
+import '../plugins/tdd/commands/prove_command.dart';
 import '../plugins/tdd/commands/replay_command.dart';
 import '../plugins/tdd/commands/realize_command.dart';
 import '../plugins/tdd/commands/realize_mock_command.dart';
@@ -22,7 +29,10 @@ import '../plugins/tdd/commands/refactor_command.dart';
 import '../plugins/tdd/commands/referee_command.dart';
 import '../plugins/tdd/commands/reset_command.dart';
 import '../plugins/tdd/commands/run_command.dart';
+import '../plugins/tdd/commands/run_engine_command.dart';
+import '../plugins/tdd/commands/run_skin_command.dart';
 import '../plugins/tdd/commands/split_command.dart';
+import '../plugins/tdd/commands/status_command.dart';
 import '../plugins/tdd/commands/theater_command.dart';
 import '../plugins/tdd/commands/verify_command.dart';
 import '../plugins/tdd/commands/verify_red_command.dart';
@@ -45,11 +55,16 @@ class TddCommand extends Command<void> {
     addSubcommand(ViewCommand(plugin));
     addSubcommand(RefactorCommand(plugin));
     addSubcommand(RunCommand(plugin));
+    addSubcommand(RunEngineCommand(plugin));
+    addSubcommand(RunSkinCommand(plugin));
     addSubcommand(SplitCommand(plugin));
     addSubcommand(IngestCommand(plugin));
+    addSubcommand(StatusCommand(plugin));
+    addSubcommand(ProveCommand(plugin));
     addSubcommand(ReplayCommand(plugin));
     addSubcommand(TheaterCommand(plugin));
     addSubcommand(VerifyCommand(plugin));
+    addSubcommand(VerdictsCommand(plugin));
     addSubcommand(MigratePathsCommand(plugin));
     addSubcommand(CorpusCommand(plugin));
     addSubcommand(RefereeCommand(plugin));
@@ -57,11 +72,18 @@ class TddCommand extends Command<void> {
     addSubcommand(ResetCommand(plugin));
     addSubcommand(DoctorCommand(plugin));
     addSubcommand(RealizeCommand(plugin));
-    addSubcommand(VerdictsCommand(plugin));
     addSubcommand(RealizeMockCommand(plugin));
   }
 
   final TddPlugin plugin;
+
+  // Options block wraps at kUsageLineLength even when the runner width
+  // differs — ArgParser.usageLineLength is constructor-only, so only the
+  // description/summary wrapping in this class follows the runner.
+  final ArgParser _argParser = ArgParser(usageLineLength: kUsageLineLength);
+
+  @override
+  ArgParser get argParser => _argParser;
 
   @override
   String get name => 'tdd';
@@ -69,8 +91,12 @@ class TddCommand extends Command<void> {
   @override
   String get description =>
       'Drive the full TDD red-green-refactor cycle (init, plan, gen, '
-      'verify-red, make, wire, func, refactor, run, split, verify). See '
-      'specs/041-tdd-setup-plugin/spec.md for the full contract.';
+      'verify-red, make, wire, func, refactor, run, run-engine, run-skin, '
+      'split, status, prove, verify). See specs/041-tdd-setup-plugin/spec.md '
+      'for the full contract; specs/1000-spec-template-core-skin-lanes/spec.md '
+      'for the lane split, specs/1008-two-cycle-driver/spec.md for the '
+      'two-cycle runner, and specs/1113-unified-tdd-journal/spec.md for the '
+      'unified journal.';
 
   @override
   String get invocation => 'zfa tdd <subcommand> [options]';
@@ -78,5 +104,58 @@ class TddCommand extends Command<void> {
   @override
   Future<void> run() async {
     printUsage();
+  }
+
+  int get _lineLength => runner?.argParser.usageLineLength ?? kUsageLineLength;
+
+  static String _padRight(String source, int length) => source.padRight(length);
+
+  @override
+  Never usageException(String message) => throw UsageException(
+    wrapTextAsLines(message, length: _lineLength).join('\n'),
+    _formatUsage(),
+  );
+
+  @override
+  String get usage =>
+      '${wrapTextAsLines(description, length: _lineLength).join('\n')}\n\n'
+      '${_formatUsage()}';
+
+  // Diverges from base Command._usageWithoutDescription: the invocation line
+  // is not wrapped with a hanging indent and `usageFooter` is never consulted
+  // — irrelevant for TddCommand today (fixed short invocation, no footer).
+  String _formatUsage() {
+    var names = subcommands.keys.where(
+      (name) => !subcommands[name]!.aliases.contains(name),
+    );
+    var visible = names.where((name) => !subcommands[name]!.hidden);
+    if (visible.isNotEmpty) names = visible;
+    names = names.toList()..sort();
+
+    var length = names.fold(0, (n, name) => max(n, name.length));
+    var columnStart = length + 5;
+
+    var buffer = StringBuffer('Available subcommands:');
+    for (var name in names) {
+      var command = subcommands[name]!;
+      var lines = wrapTextAsLines(
+        command.summary,
+        start: columnStart,
+        length: _lineLength,
+      );
+      buffer.writeln();
+      buffer.write('  ${_padRight(name, length)}   ${lines.first}');
+      for (var line in lines.skip(1)) {
+        buffer.writeln();
+        buffer.write(' ' * columnStart);
+        buffer.write(line);
+      }
+      buffer.writeln();
+    }
+    return 'Usage: $invocation\n'
+        '${argParser.usage}\n'
+        '$buffer'
+        '\n'
+        'Run "${runner?.executableName ?? 'zfa'} help" to see global options.';
   }
 }

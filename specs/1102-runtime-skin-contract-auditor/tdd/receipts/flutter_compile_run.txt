@@ -1,0 +1,11 @@
+$ flutter analyze (Flutter 3.47.2 / Dart 3.13.2, scratch app w/ local zuraffa + pub zuraffa_flutter)
+
+6 issues found. (ran in 14.4s)
+
+$ flutter test --timeout 30s
+00:01 +5: /tmp/skin_compile_check/test/widget_test.dart: the skin-audited app shell boots
+00:01 +6: All tests passed!
+
+$ flutter --version
+Flutter 3.47.2 • channel stable • https://github.com/flutter/flutter.git
+Framework • revision d3b14c8769 (9 days ago) • 2026-08-26 16:07:51 -0700

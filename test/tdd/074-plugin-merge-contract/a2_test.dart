@@ -10,8 +10,8 @@ library;
 
 import 'package:test/test.dart';
 
-import '../../../lib/tdd/074-plugin-merge-contract/a2_subject.dart' as subject;
-
+import 'package:zuraffa/tdd/074-plugin-merge-contract/a2_subject.dart'
+    as subject;
 void main() {
   group('A2 (AC-2)', () {
     test('A2 — it resolves to the feature\'s page..', () {

@@ -1,3 +1,4 @@
+@Tags(['slow'])
 // Spec 069-corpus-economics — T002: batched gen / verify-red.
 //
 // The TDD loop spawns one `dart test` per behavior (verify-red runs the
@@ -126,7 +127,7 @@ void main() {
       final lastLine = out.trim().split('\n').last;
       final verdict = jsonDecode(lastLine) as Map<String, dynamic>;
       expect(verdict['command'], 'gen');
-      expect(verdict['schema'], 'verdict.v1');
+      expect(verdict['schema'], 'zuraffa.verdict.v1');
       final d1 = verdict['details'] as Map<String, dynamic>;
       expect(d1['verdict'], 'created');
       expect(d1['batch'], isTrue);
@@ -289,7 +290,7 @@ void main() {
       final verdict = jsonDecode(lastLine) as Map<String, dynamic>;
       expect(verdict['command'], 'gen');
       expect(verdict['verdict'], 'stopped');
-      expect(verdict['schema'], 'verdict.v1');
+      expect(verdict['schema'], 'zuraffa.verdict.v1');
       final d4 = verdict['details'] as Map<String, dynamic>;
       expect(d4['batch'], isTrue);
       expect(d4['stopped_at'], 'B-001');

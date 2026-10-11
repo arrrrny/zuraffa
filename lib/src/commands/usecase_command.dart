@@ -1,70 +1,34 @@
 import 'base_plugin_command.dart';
 import '../plugins/usecase/usecase_plugin.dart';
 import 'usecase_create_command.dart';
+import 'usecase_verify_command.dart';
 
 class UseCaseCommand extends PluginCommand {
   @override
   final UseCasePlugin plugin;
 
   UseCaseCommand(this.plugin) : super(plugin) {
-    argParser.addOption(
-      'methods',
-      abbr: 'm',
-      help:
-          'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
-      defaultsTo: 'get,update',
-    );
-    argParser.addOption(
-      'type',
-      abbr: 't',
-      allowed: [
-        'future',
-        'stream',
-        'completable',
-        'sync',
-        'background',
-        'os_background',
-      ],
-      defaultsTo: 'future',
-      help: 'Execution strategy (default: future/fetch)',
-    );
-    argParser.addMultiOption(
-      'usecases',
-      abbr: 'u',
-      help: 'List of usecases to orchestrate (e.g. GetUser,GetProfile)',
-      splitCommas: true,
-    );
-    argParser.addOption(
-      'domain',
-      help: 'Domain name (required for non-entity usecases)',
-    );
-    argParser.addOption(
-      'repo',
-      help: 'Repository class to inject (e.g. UserRepository)',
-    );
-    argParser.addOption(
-      'service',
-      help: 'Service class to inject (e.g. AuthService)',
-    );
-    argParser.addOption(
-      'params',
-      help: 'Parameter type (e.g. String, UserParams)',
-    );
-    argParser.addOption(
-      'returns',
-      help: 'Return type (e.g. void, User, List<User>)',
-    );
+    // SPEC 917 / #876 sweep: the parent-level generator flags
+    // (--methods/--type/--usecases/--domain/--repo/--service/--params/
+    // --returns) were parsed and advertised but NEVER read — run() is
+    // dispatch-only (the live surface is `zfa usecase create ...`, whose
+    // parser owns its flags). Silent parent options are the #876 "flags
+    // that lie" family; they are gone and `zfa manifest --verify`
+    // certifies the parent surface (spec #979).
 
     // Spec #972 FR-2: the rich first-party `create` subcommand registers
     // itself (per-method --json verdicts, receipts, exit codes). Listed in
     // [manualSubcommandNames] so the auto-registration below skips the
     // capability-derived duplicate (issue #761: a duplicate addSubcommand
     // would leave one of them unparented and crash --help).
+    // SPEC 1119: the first-party `verify` gate registers itself the same
+    // way (per-method conformance + entity drift, exit 1 with fix lines).
     addSubcommand(UseCaseCreateCommand(plugin));
+    addSubcommand(UseCaseVerifyCommand(plugin));
   }
 
   @override
-  Set<String> get manualSubcommandNames => const {'create'};
+  Set<String> get manualSubcommandNames => const {'create', 'verify'};
 
   @override
   String get name => 'usecase';

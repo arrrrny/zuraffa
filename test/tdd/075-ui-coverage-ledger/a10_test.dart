@@ -10,8 +10,7 @@ library;
 
 import 'package:test/test.dart';
 
-import '../../../lib/tdd/075-ui-coverage-ledger/a10_subject.dart' as subject;
-
+import 'package:zuraffa/tdd/075-ui-coverage-ledger/a10_subject.dart' as subject;
 void main() {
   group('A10 (AC-10)', () {
     test('A10 - the overlay reflects the new state on the next paint..', () {

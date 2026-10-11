@@ -9,6 +9,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/version.dart';
 import 'package:crypto/crypto.dart';
 import 'package:zuraffa/src/core/project/receipt_store.dart';
 import 'package:zuraffa/src/plugins/tdd/services/ci_referee/feature_provenance.dart';
@@ -86,7 +87,7 @@ void main() {
         target: feature,
         repro: 'zfa tdd gen',
         at: DateTime.utc(2026, 9, 2),
-        generatorVersion: '6.1.0',
+        generatorVersion: version,
         input: const {},
         files: [
           GenerationReceiptFile(

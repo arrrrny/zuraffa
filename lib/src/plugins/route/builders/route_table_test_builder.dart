@@ -429,7 +429,7 @@ class RouteTableTestBuilder {
 // onException signal), so view-level DI never leaks into this suite.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
+import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 
 import '$indexImport';
 
@@ -480,12 +480,24 @@ void main() {
       }
     });
 
-    test('unknown paths hit the 404 handler', () async {
-      expect(
-        await _resolvesWithoutException('$unknownPathLiteral'),
-        isFalse,
-        reason: 'an unknown path must NOT resolve — it must hit 404',
+    // Issue #1721: the 404 probe must attach the router to a widget tree
+    // (via testWidgets + pumpWidget) BEFORE router.go(...). go_router defers
+    // route matching until the router is attached, so a plain `test(...)`
+    // that calls router.go() on a bare GoRouter never fires onException,
+    // _resolvesWithoutException always returns true, and the
+    // `expect(..., isFalse)` assertion fails unconditionally.
+    testWidgets('unknown paths hit the 404 handler', (tester) async {
+      var exceptional = false;
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: _tableWithSyntheticRoot(),
+        onException: (context, state, router) => exceptional = true,
       );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      router.go('$unknownPathLiteral');
+      await tester.pump();
+      expect(exceptional, isTrue);
     });
 
     testWidgets('unknown path renders the 404 error page', (tester) async {
@@ -640,7 +652,7 @@ Future<bool> _resolvesWithoutException(String location) async {
 // Deterministic: no platform channel — the fixture URI is what the engine
 // delivers after platform dispatch strips the scheme.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
+import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 
 import '$indexImport';
 
@@ -719,7 +731,7 @@ List<RouteBase> _tableWithSyntheticRoot() => <RouteBase>[
 // pumping the shell module never builds an entity view.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
+import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 
 import '$shellImport';
 

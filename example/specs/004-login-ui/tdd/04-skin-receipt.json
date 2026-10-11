@@ -1,0 +1,35 @@
+{
+  "schema": "skin.v1",
+  "feature": "004-login-ui",
+  "command": "zfa tdd run-skin 004-login-ui",
+  "behaviors": [
+    {
+      "behavior": "W1",
+      "conformance": true,
+      "test": "test/presentation/pages/login/login_view_test.dart",
+      "subject": "lib/src/presentation/pages/login/login_view.dart",
+      "platform_slot_fills": [
+        "mobile",
+        "ios",
+        "android",
+        "macos"
+      ]
+    }
+  ],
+  "platform_slot_fills": [
+    "mobile",
+    "ios",
+    "android",
+    "macos"
+  ],
+  "hand_edits": [
+    {
+      "behavior": "W1",
+      "file": "lib/src/presentation/pages/login/login_view.dart",
+      "logged_at": "2026-09-05T04:35:00Z"
+    }
+  ],
+  "skin_event_trace_digest": "467f7024f331c8a5be6cacf7fc050225f0a292a4cdc98a11e03c2fd0d7ffcffb",
+  "red_witness": true,
+  "generated_at": "2026-09-05T05:14:52.048707Z"
+}

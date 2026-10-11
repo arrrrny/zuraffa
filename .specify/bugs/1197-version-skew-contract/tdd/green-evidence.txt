@@ -1,0 +1,37 @@
+00:00 +0: loading test/skew/bug_1197_receipt_stamp_test.dart
+00:00 +0: test/skew/bug_1197_receipt_stamp_test.dart: GenerationReceipt skew fields round-trip min_core_version + generated_against_core
+00:00 +1: test/skew/bug_1197_receipt_stamp_test.dart: GenerationReceipt skew fields legacy receipts without the stamps still parse (back-compat)
+00:00 +2: test/skew/bug_1197_receipt_stamp_test.dart: TddGenerationReceipts stamping written receipts carry the generator version + core floor
+00:00 +3: test/skew/bug_1197_receipt_stamp_test.dart: stamps bind the resolved core SkewContract reports its generator version for stamping
+00:00 +4: loading test/skew/bug_1197_two_end_matrix_test.dart
+00:00 +4: test/skew/bug_1197_two_end_matrix_test.dart: (setUpAll)
+00:00 +4: test/skew/bug_1197_two_end_matrix_test.dart: the two ends of the matrix master end exposes the skin barrel
+00:00 +5: test/skew/bug_1197_two_end_matrix_test.dart: the two ends of the matrix oldest supported core (v6.1.0 tag) does NOT expose it
+00:00 +6: test/skew/bug_1197_two_end_matrix_test.dart: emitted imports resolve on both ends skin kit emission (zfa skin kit / view --skin / app shell)
+00:00 +7: test/skew/bug_1197_two_end_matrix_test.dart: emitted imports resolve on both ends app router emission with --skin-audit
+00:00 +8: test/skew/bug_1197_two_end_matrix_test.dart: emitted imports resolve on both ends view emission with --skin
+00:00 +9: test/skew/bug_1197_two_end_matrix_test.dart: emitted imports resolve on both ends bare emissions (no skin) import only two-end-stable APIs
+00:00 +10: test/skew/bug_1197_two_end_matrix_test.dart: the whole emission surface (static sweep) every Directive.import package:zuraffa URI is two-end safe or floored
+00:00 +11: test/skew/bug_1197_two_end_matrix_test.dart: (tearDownAll)
+00:00 +11: loading test/skew/bug_1197_doctor_skew_test.dart
+00:01 +11: test/skew/bug_1197_doctor_skew_test.dart: is part of the named check set (#793 registry)
+00:01 +12: test/skew/bug_1197_doctor_skew_test.dart: skipped when there is no pubspec (not a Dart project)
+00:01 +13: test/skew/bug_1197_doctor_skew_test.dart: pass when pin, installed core and generator agree
+00:01 +14: test/skew/bug_1197_doctor_skew_test.dart: warn when the pubspec pin major is behind the CLI major
+00:01 +15: test/skew/bug_1197_doctor_skew_test.dart: warn when the installed core is older than the pin
+00:01 +16: test/skew/bug_1197_doctor_skew_test.dart: fail when a receipt floor (min_core_version) exceeds the installed core
+00:01 +17: test/skew/bug_1197_doctor_skew_test.dart: pass when receipt floors are satisfied by the installed core
+00:01 +18: test/skew/bug_1197_doctor_skew_test.dart: warn (not fail) when no installed core is resolvable
+00:01 +19: loading test/skew/bug_1197_skew_contract_test.dart
+00:01 +19: test/skew/bug_1197_skew_contract_test.dart: floors registry exposes the supported core floor of the two-end matrix
+00:01 +20: test/skew/bug_1197_skew_contract_test.dart: floors registry registers the skin barrel as a declared floor
+00:01 +21: test/skew/bug_1197_skew_contract_test.dart: InstalledCore exposes URIs that exist under the core lib/
+00:01 +22: test/skew/bug_1197_skew_contract_test.dart: InstalledCore resolved core surfaces its pubspec version
+00:01 +23: test/skew/bug_1197_skew_contract_test.dart: SkewContract.evaluate ok verdict when the resolved core exposes required surfaces
+00:01 +24: test/skew/bug_1197_skew_contract_test.dart: SkewContract.evaluate fail verdict naming the missing surface when core lacks the floor
+00:01 +25: test/skew/bug_1197_skew_contract_test.dart: SkewContract.evaluate fail-open verdict when no core is resolvable
+00:01 +26: test/skew/bug_1197_skew_contract_test.dart: SkewContract.evaluate requireSurfaces throws VersionSkewException on missing surface
+00:01 +27: test/skew/bug_1197_skew_contract_test.dart: SkewContract.evaluate requireSurfaces is a no-op when surfaces exist
+00:01 +28: test/skew/bug_1197_skew_contract_test.dart: version comparison orders semver-ish versions
+00:01 +29: All tests passed!
+exit=0

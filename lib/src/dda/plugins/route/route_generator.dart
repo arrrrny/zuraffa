@@ -141,7 +141,9 @@ class RouteGenerator {
           }
         }
       }
-      b.directives.add(cb.Directive.import('package:go_router/go_router.dart'));
+      b.directives.add(
+        cb.Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
+      );
       b.directives.add(cb.Directive.import('package:flutter/material.dart'));
       b.directives.add(cb.Directive.import('package:zuraffa/zuraffa.dart'));
       for (final uri in viewImports.toList()..sort()) {

@@ -19,9 +19,13 @@
 /// split files, so gen/make/run keep working unmodified.
 library;
 
+import 'dart:convert';
+
+import '../../../skin/contract/adaptive_skin_contract.dart';
 import '../models/behavior.dart';
 import '../models/lane.dart';
 import 'spec_parser.dart';
+import 'test_list_reader.dart' show GoldenMarker;
 
 /// The lane-split plan file names (issue #1000 naming).
 class LaneSplitFiles {
@@ -93,6 +97,7 @@ class LaneRow {
     required this.state,
     required this.kind,
     required this.lane,
+    this.golden = false,
   });
 
   final String id;
@@ -102,8 +107,18 @@ class LaneRow {
   final BehaviorKind kind;
   final Lane lane;
 
+  /// Bug #1261: whether the behavior is golden-gated — the SKIN lane's
+  /// `golden:` declaration resolved onto this row. Rendered as the
+  /// ` [golden]` tag in the row's behavior cell (the same machine shape
+  /// as ` [persistence]`, parsed by [GoldenMarker] in the shared
+  /// reader); gen turns the tag into the matchesGoldenFile hook without
+  /// the `--golden` flag.
+  final bool golden;
+
   /// The canonical 4-column row line every lane plan table carries.
-  String get tableLine => '| $id | $description | $traces | $state |';
+  String get tableLine =>
+      '| $id | ${golden ? GoldenMarker.mark(description) : description} '
+      '| $traces | $state |';
 }
 
 /// Render the ENGINE plan (`04-ENGINE.md`).
@@ -121,11 +136,22 @@ String renderEnginePlan({
   Map<String, List<String>> provenance = const {},
 }) {
   final acceptance = rows
-      .where((r) => r.kind == BehaviorKind.acceptance)
+      .where(
+        (r) =>
+            r.kind == BehaviorKind.acceptance ||
+            // Issue #1432: a platform-typed acceptance scenario routes to
+            // this lane — it renders as an outer-loop row with the same
+            // columns as the acceptance rows (the loop's reader resolves
+            // it with the same positional contract). Filtering it out was
+            // the silent drop: the route log claimed the lane while the
+            // artifact omitted the row.
+            r.kind == BehaviorKind.platform,
+      )
       .toList();
   final widget = rows.where((r) => r.kind == BehaviorKind.widget).toList();
   final unit = rows.where((r) => r.kind == BehaviorKind.unit).toList();
   final ffi = rows.where((r) => r.kind == BehaviorKind.ffi).toList();
+  final contract = rows.where((r) => r.kind == BehaviorKind.contract).toList();
 
   final buf = StringBuffer()
     ..writeln('# Engine Plan: $feature (CORE + BOTH)')
@@ -164,6 +190,13 @@ String renderEnginePlan({
         'lane assignment.',
     rows: ffi,
   );
+  // Issue #1007 / #1419: the derived contract rows the plan's route log
+  // already claims — one per declared method, BLOCKED-capable state.
+  // Written HERE, not by the callers, so `zfa tdd plan` and
+  // `zfa tdd split` cannot diverge on the same shared renderer (the
+  // split path's index and receipt declared rows this file omitted).
+  renderContractLoopSection(buf, contract);
+  if (contract.isNotEmpty) buf.writeln();
   _declarations(buf, entities, dependencies, layerContracts);
   _provenance(buf, provenance);
   buf.writeln();
@@ -171,14 +204,29 @@ String renderEnginePlan({
 }
 
 /// Render the SKIN plan (`04-SKIN.md`).
+///
+/// Issue #1004: a spec declaring the adaptive `## Skin Contract`
+/// section additionally renders the typed contract rows — the
+/// platform matrix, the state machine, the route table — plus the
+/// machine-parseable JSON contract block the loop referees the skin
+/// against. A spec without the declaration ([skinContract] null)
+/// renders exactly the pre-1004 shape.
 String renderSkinPlan({
   required String feature,
   required List<LaneRow> rows,
   required List<String> adaptiveSlots,
   Map<String, List<String>> provenance = const {},
+  AdaptiveSkinContract? skinContract,
 }) {
   final acceptance = rows
-      .where((r) => r.kind == BehaviorKind.acceptance)
+      .where(
+        (r) =>
+            r.kind == BehaviorKind.acceptance ||
+            // Issue #1432: same as the engine plan — the platform-typed
+            // acceptance scenario is routed here, so its row renders in
+            // the acceptance outer-loop section instead of vanishing.
+            r.kind == BehaviorKind.platform,
+      )
       .toList();
   final widget = rows.where((r) => r.kind == BehaviorKind.widget).toList();
   final unit = rows.where((r) => r.kind == BehaviorKind.unit).toList();
@@ -204,6 +252,9 @@ String renderSkinPlan({
     }
     buf.writeln();
   }
+  if (skinContract != null) {
+    _renderSkinContract(buf, skinContract, rows);
+  }
   _section(
     buf,
     title: '## Outer loop: acceptance behaviors',
@@ -225,6 +276,7 @@ String renderSkinPlan({
     intro: 'One per functional requirement in `spec.md`.',
     rows: unit,
   );
+  _renderVisualContract(buf, rows);
   _provenance(buf, provenance);
   buf.writeln();
   return buf.toString();
@@ -310,18 +362,19 @@ String renderMetaIndex({
     ..writeln()
     ..writeln(LaneSplitFiles.metaSection)
     ..writeln()
-    ..writeln('| lane | behaviors | flutter allowed | plan |')
-    ..writeln('| ---- | --------- | --------------- | ---- |');
+    ..writeln('| lane | behaviors | flutter allowed | golden | plan |')
+    ..writeln('| ---- | --------- | --------------- | ------ | ---- |');
   for (final lane in lanes) {
     final declared = lane.behaviorIds.join(', ');
     final resolved = classification.entries
         .where((e) => e.value.label == lane.lane.toUpperCase())
         .map((e) => e.key)
         .join(', ');
+    final golden = lane.goldenIds.isEmpty ? '-' : lane.goldenIds.join(', ');
     buf.writeln(
       '| ${lane.lane} | ${resolved.isNotEmpty ? resolved : declared} '
       '| ${lane.flutterAllowed.isEmpty ? '-' : lane.flutterAllowed} '
-      '| ${_planColumn(lane.lane)} |',
+      '| $golden | ${_planColumn(lane.lane)} |',
     );
   }
   buf
@@ -345,6 +398,136 @@ String _planColumn(String laneName) {
   };
 }
 
+/// Renders the #1004 skin-contract sections into the SKIN plan: the
+/// platform matrix, the state machine, the route table — each as
+/// declarative rows [TestListReader] skips (declarations, not
+/// behaviors) — plus the machine-parseable JSON contract block
+/// generated from the typed model.
+void _renderSkinContract(
+  StringBuffer buf,
+  AdaptiveSkinContract contract,
+  List<LaneRow> skinRows,
+) {
+  final behaviors = skinRows.map((r) => r.id).join(', ');
+
+  // -- Platform contract: the adaptive-layout platform matrix ------
+  buf
+    ..writeln('## Platform contract')
+    ..writeln()
+    ..writeln(
+      'The adaptive-layout platform matrix (issue #1004): every SKIN '
+      'behavior renders the declared slots on every adaptive '
+      'platform; platform overrides refine the contract per platform.',
+    )
+    ..writeln()
+    ..writeln('| platform | contract | behaviors | source |')
+    ..writeln('| -------- | -------- | --------- | ------ |');
+  for (final platform in contract.adaptiveSlots) {
+    final overrides = contract.platformOverrides[platform];
+    final statement = overrides == null || overrides.isEmpty
+        ? 'renders the adaptive slots'
+        : 'renders the adaptive slots; '
+              '${overrides.entries.map((e) => '${e.key}: ${e.value}').join('; ')}';
+    final source = overrides == null || overrides.isEmpty
+        ? 'adaptive_slots'
+        : 'adaptive_slots, platform_overrides.$platform';
+    buf.writeln('| $platform | $statement | $behaviors | $source |');
+  }
+  buf.writeln();
+
+  // -- State machine contract ---------------------------------------
+  final happy = contract.happyPathStates;
+  final alternates = contract.alternateStates;
+  buf
+    ..writeln('## State machine contract')
+    ..writeln()
+    ..writeln(
+      'The declared state machine (issue #1004): the happy path runs '
+      'the declared states in order — states: '
+      '${happy.join(' -> ')}'
+      '${alternates.isEmpty ? '' : ' (alternate states: ${alternates.join(', ')})'}.',
+    )
+    ..writeln()
+    ..writeln('| state | transition | source |')
+    ..writeln('| ----- | ---------- | ------ |');
+  for (var i = 0; i < happy.length; i++) {
+    final transition = i < happy.length - 1
+        ? '${happy[i]} -> ${happy[i + 1]}'
+        : 'terminal';
+    buf.writeln('| ${happy[i]} | $transition | states |');
+  }
+  for (final state in alternates) {
+    buf.writeln('| $state | alternate | states |');
+  }
+  buf.writeln();
+
+  // -- Route contract ------------------------------------------------
+  buf
+    ..writeln('## Route contract')
+    ..writeln()
+    ..writeln(
+      'The declared routes (issue #1004): navigation target, screen '
+      'class, and route path for every route the skin can navigate '
+      'to.',
+    )
+    ..writeln()
+    ..writeln('| navigation target | screen class | route path | source |')
+    ..writeln('| ----------------- | ------------ | ---------- | ------ |');
+  for (final route in contract.routeContracts) {
+    buf.writeln(
+      '| ${route.target} | ${route.screenClass} | ${route.path} '
+      '| routes |',
+    );
+  }
+  buf.writeln();
+
+  // -- The machine contract -------------------------------------------
+  // Generated from the typed model (`toJson`), never hand-written:
+  // the loop referees the skin against this block, not prose.
+  const encoder = JsonEncoder.withIndent('  ');
+  buf
+    ..writeln('## Skin contract (machine)')
+    ..writeln()
+    ..writeln(
+      'The typed contract (issue #1004): machine-parseable JSON '
+      'generated from the typed model — schema-validated, never '
+      'prose.',
+    )
+    ..writeln()
+    ..writeln('```json')
+    ..writeln(encoder.convert(contract.toJson()))
+    ..writeln('```')
+    ..writeln();
+}
+
+/// Renders the visual-contract section into the SKIN plan (bug #1261):
+/// the golden-gated SKIN behaviors — the spec's `golden:` declaration
+/// resolved onto the lane rows. The section is the human-readable
+/// surface; the machine truth rides the rows' ` [golden]` tags (parsed
+/// by the shared reader, honored by gen without the `--golden` flag).
+void _renderVisualContract(StringBuffer buf, List<LaneRow> rows) {
+  final goldenRows = rows.where((r) => r.golden).toList();
+  if (goldenRows.isEmpty) return;
+  buf
+    ..writeln('## Visual contract')
+    ..writeln()
+    ..writeln(
+      'Golden-gated skin behaviors (bug #1261): each row\'s generated '
+      'widget test carries a matchesGoldenFile baseline hook — gen '
+      'picks the gate up from the lane plan, no `--golden` flag '
+      'needed. Baselines are committed per platform under '
+      'test/tdd/goldens/ and refreshed with `flutter test '
+      '--update-goldens`.',
+    )
+    ..writeln()
+    ..writeln('| behavior | golden gate |')
+    ..writeln('| -------- | ----------- |');
+  for (final row in goldenRows) {
+    buf.writeln('| ${row.id} | matchesGoldenFile |');
+  }
+  buf.writeln();
+}
+
 void _section(
   StringBuffer buf, {
   required String title,
@@ -364,6 +547,51 @@ void _section(
   }
   buf.writeln();
 }
+
+/// The CONTRACT loop section (issue #1007) — the declared entity method,
+/// controller method and usecase contracts the spec's `## Layer
+/// Contracts` section derives.
+///
+/// Issue #1419: the section lives here, in the shared engine renderer,
+/// rather than at the `zfa tdd plan` call site — `zfa tdd split` calls
+/// the same renderer, and a caller-side copy left the split path writing
+/// an engine plan that omitted the very rows its meta-index and receipt
+/// classified. Rows are supplied by the caller (the engine plan filters
+/// `BehaviorKind.contract` from its own row list); an empty list renders
+/// nothing — the section is omitted, never rendered vacant.
+///
+/// The title, intro, and 4-column shape match the legacy single-file
+/// plan's contract table, so [TestListReader] resolves the rows with
+/// contract kind and the BLOCKED semantics of spec 1007 unchanged.
+///
+/// The CALLER owns the blank line that separates this section from the
+/// next one — the lane renderers' `_section` convention already leaves a
+/// trailing blank, while the legacy single-file plan's blocks carry
+/// their own leading blank.
+void renderContractLoopSection(StringBuffer buf, List<LaneRow> rows) {
+  if (rows.isEmpty) return;
+  buf
+    ..writeln('## Contract loop: contract behaviors')
+    ..writeln()
+    ..writeln(
+      'One per declared entity method, controller method and usecase '
+      'in `spec.md` Layer Contracts (issue #1007). A contract test '
+      'proves the implementation satisfies the DECLARED contract — '
+      'a failing contract test is BLOCKED (never RED) and blocks the '
+      'cycle from proceeding to GREEN.',
+    )
+    ..writeln()
+    ..writeln('| id | behavior | traces | state |')
+    ..writeln('| -- | -------- | ------ | ----- |');
+  for (final row in rows) {
+    buf.writeln(
+      '| ${row.id} | ${_escapeCell(row.description)} | ${row.traces} | '
+      '${row.state} |',
+    );
+  }
+}
+
+String _escapeCell(String text) => text.replaceAll('|', r'\|');
 
 void _provenance(StringBuffer buf, Map<String, List<String>> provenance) {
   if (provenance.isEmpty) return;
@@ -450,7 +678,13 @@ void _declarations(
         ..writeln('### ${entry.key}')
         ..writeln();
       for (final c in entry.value) {
-        buf.writeln('- `${c.interfaceName}`: ${c.methods.join(', ')}');
+        // Bug #919 (fixed by #1141): methods stay BACKTICKED so
+        // TestListReader.readLayerContracts round-trips the contract
+        // (components + key: tokens survive the plan → test-list leg).
+        buf.writeln(
+          '- `${c.interfaceName}`: '
+          '${c.methods.map((m) => '`$m`').join(', ')}',
+        );
       }
     }
     buf.writeln();

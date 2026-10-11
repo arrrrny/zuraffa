@@ -9,11 +9,10 @@ import '../models/generator_result.dart';
 import '../models/generated_file.dart';
 import '../plugins/provider/provider_plugin.dart';
 import '../plugins/state/state_plugin.dart';
-import '../plugins/observer/observer_plugin.dart';
 import '../plugins/test/test_plugin.dart';
 import '../plugins/gym/gym_plugin.dart';
 import '../plugins/mock/mock_plugin.dart';
-import '../plugins/gql/gql_plugin.dart';
+import '../plugins/tui/tui_plugin.dart';
 import '../plugins/cache/cache_plugin.dart';
 import '../plugins/sqlite/sqlite_plugin.dart';
 import '../plugins/route/route_plugin.dart';
@@ -26,7 +25,7 @@ import '../plugins/controller/controller_plugin.dart';
 import '../plugins/di/di_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/service/service_plugin.dart';
-import '../plugins/shadcn/shadcn_plugin.dart';
+import '../plugins/skin/skin_plugin.dart';
 import '../plugins/strategy/strategy_plugin.dart';
 import '../core/generator_options.dart';
 import '../core/generation/generation_context.dart';
@@ -95,21 +94,23 @@ class CodeGenerator {
     _registerPlugin(DataSourcePlugin(outputDir: outputDir, options: options));
     _registerPlugin(ServicePlugin(outputDir: outputDir, options: options));
     _registerPlugin(StatePlugin(outputDir: outputDir, options: options));
-    _registerPlugin(ObserverPlugin(outputDir: outputDir, options: options));
     _registerPlugin(TestPlugin(outputDir: outputDir, options: options));
     _registerPlugin(GymPlugin(outputDir: outputDir, options: options));
     _registerPlugin(MockPlugin(outputDir: outputDir, options: options));
-    _registerPlugin(GqlPlugin(outputDir: outputDir, options: options));
     _registerPlugin(CachePlugin(outputDir: outputDir, options: options));
     _registerPlugin(SqlitePlugin(outputDir: outputDir, options: options));
     _registerPlugin(RoutePlugin(outputDir: outputDir, options: options));
-    _registerPlugin(ShadcnPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(SkinPlugin(outputDir: outputDir, options: options));
     _registerPlugin(StrategyPlugin(outputDir: outputDir, options: options));
     _registerPlugin(MethodAppendPlugin(outputDir: outputDir, options: options));
     // Slice plugin (specs/043-slice-plugin): context-isolated codebase
     // extraction. Registered here as well so non-CLI hosts (MCP, library
     // embedders) see the same plugin set the CLI does.
     _registerPlugin(SlicePlugin());
+    // Issue #1149 (kill list — tui fate): the TUI plugin is a
+    // FileGeneratorPlugin now; register it here too so non-CLI hosts
+    // (MCP, library embedders) see the same plugin set the CLI does.
+    _registerPlugin(TuiPlugin(outputDir: outputDir, options: options));
 
     final loadedConfig = ZfaConfig.load(projectRoot: projectRoot);
     final loadedPluginConfig = PluginConfig.load(projectRoot: projectRoot);

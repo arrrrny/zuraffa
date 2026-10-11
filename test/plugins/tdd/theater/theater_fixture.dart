@@ -23,6 +23,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
+import 'package:zuraffa/src/version.dart';
 
 import 'package:zuraffa/src/core/project/receipt_store.dart';
 import 'package:zuraffa/src/plugins/tdd/models/cycle_entry.dart';
@@ -295,7 +296,7 @@ loop: outside-in
       target: target,
       repro: 'zfa tdd gen $target --feature $featureName',
       at: at,
-      generatorVersion: '6.1.0',
+      generatorVersion: version,
       input: {'feature': featureName, 'behavior': target},
       files: files,
     );

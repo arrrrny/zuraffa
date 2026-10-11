@@ -14,7 +14,13 @@ class SandboxRoute {
   final String path;
   final String page;
 
-  const SandboxRoute({required this.path, required this.page});
+  /// The sandbox-relative import that defines [page] (resolved by the
+  /// composition against the mirrored tree, e.g.
+  /// `src/presentation/pages/login/login_view.dart`); null when the
+  /// declared page class is not found in the slice tree.
+  final String? import;
+
+  const SandboxRoute({required this.path, required this.page, this.import});
 }
 
 /// One declared dependency binding (declared at cut from the 072
@@ -114,8 +120,14 @@ class SandboxLocator {
 abstract final class SandboxScaffold {
   /// `lib/main.dart` — the shell bootstrap pumping the feature shell
   /// with mock DI.
-  static String main({required String feature}) =>
-      '''
+  static String main({
+    required String feature,
+    List<SandboxRoute> routes = const [],
+  }) {
+    final initialRoute = routes.isEmpty
+        ? ''
+        : "\n      initialRoute: '${routes.first.path}',";
+    return '''
 // GENERATED — slice sandbox for $feature (issue #961).
 //
 // Runnable on certified mocks alone: no host imports, no whole-app boot.
@@ -128,23 +140,37 @@ import 'router.dart';
 
 Future<void> main() async {
   bindSandboxDependencies();
-  runApp(SliceApp());
+  runApp(const SliceApp());
 }
 
 /// The sandbox app: the feature shell over the slice router.
 class SliceApp extends StatelessWidget {
+  const SliceApp({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(routerConfig: buildSliceRouter());
+    return MaterialApp(
+      routes: sliceRoutes(),$initialRoute
+    );
   }
 }
 ''';
+  }
 
   /// `lib/router.dart` — the router harness exposing exactly the
   /// declared routes.
   static String router({required List<SandboxRoute> routes}) {
     final entries = routes
         .map((r) => "    '${r.path}': (ctx) => ${r.page}(),")
+        .join('\n');
+    // Every declared page that resolves to a mirrored file is imported;
+    // an unresolvable page symbol stays bare so the analyzer names it
+    // (declared-but-missing is a fact of the declaration, not silence).
+    final imports = routes
+        .map((r) => r.import)
+        .whereType<String>()
+        .toSet()
+        .map((import) => "import '$import';")
         .join('\n');
     return '''
 // GENERATED — slice router harness (issue #961).
@@ -153,7 +179,7 @@ class SliceApp extends StatelessWidget {
 library;
 
 import 'package:flutter/material.dart';
-
+$imports
 /// Build the slice router: every declared route resolves to its page.
 Map<String, WidgetBuilder> sliceRoutes() {
   return <String, WidgetBuilder>{
@@ -162,7 +188,7 @@ $entries
 }
 
 /// Navigation helper the shell and tests share.
-Widget pageFor(String path) {
+Widget pageFor(BuildContext context, String path) {
   final routes = sliceRoutes();
   final builder = routes[path];
   if (builder == null) {
@@ -172,7 +198,7 @@ Widget pageFor(String path) {
       'declared routes)',
     );
   }
-  return builder(builder);
+  return builder(context);
 }
 ''';
   }

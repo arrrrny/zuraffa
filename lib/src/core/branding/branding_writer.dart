@@ -206,19 +206,33 @@ class BrandingWriter {
       p.join(projectRoot, 'assets', 'zuraffa_app_icons'),
     ).createSync(recursive: true);
 
-    // Inject after "uses-material-design: true"
-    if (content.contains('uses-material-design: true')) {
-      content = content.replaceFirst(
-        'uses-material-design: true',
-        'uses-material-design: true\n  assets:\n    - assets/zuraffa_app_icons/',
-      );
-    } else if (content.contains('flutter:')) {
-      // Block-style "flutter:" (no inline { — newline-terminated). Insert
-      // "assets:" as a child of the block on the next line.
-      content = content.replaceFirst(
-        RegExp(r'flutter:\s*\n'),
-        'flutter:\n  assets:\n    - assets/zuraffa_app_icons/\n',
-      );
+    // Inject after "uses-material-design: true" — MERGING into an
+    // existing `flutter: assets:` list when one is present. Appending a
+    // second `assets:` key made the pubspec unparseable (duplicate
+    // mapping key) and took down pub get / build_runner / zfa build for
+    // the whole target app.
+    final lines = content.split('\n');
+    final materialIdx = lines.indexWhere(
+      (l) => l.trim() == 'uses-material-design: true',
+    );
+    if (materialIdx >= 0) {
+      var assetsIdx = -1;
+      for (var i = materialIdx + 1; i < lines.length; i++) {
+        final line = lines[i];
+        if (line.startsWith('  assets:')) {
+          assetsIdx = i;
+          break;
+        }
+        // Left the `flutter:` block — stop scanning.
+        if (line.isNotEmpty && !line.startsWith(' ')) break;
+      }
+      if (assetsIdx >= 0) {
+        lines.insert(assetsIdx + 1, '    - assets/zuraffa_app_icons/');
+      } else {
+        lines.insert(materialIdx + 1, '  assets:');
+        lines.insert(materialIdx + 2, '    - assets/zuraffa_app_icons/');
+      }
+      content = lines.join('\n');
     }
     await pubspecFile.writeAsString(content);
   }

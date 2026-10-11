@@ -81,14 +81,17 @@ final class SimulationWorld {
 
   /// OpenTelemetry family (capture-and-assert exporter), or `null` when
   /// the committed world does not include this family.
-  final OtelAdapter? otel;
+  final SimulationSpanCapture? otel;
 
   bool _guardInstalled = false;
 
   /// Load and verify the world under [fixturesDir]. Throws
   /// [FixtureMismatch] when the committed fixtures drift from the
   /// certified manifest.
-  static Future<SimulationWorld> load(String fixturesDir) async {
+  static Future<SimulationWorld> load(
+    String fixturesDir, {
+    SimulationSpanCapture? otelCapture,
+  }) async {
     final registry = FixtureRegistry(fixturesDir);
     final manifest = await registry.readManifest();
     await registry.verifyManifest();
@@ -114,7 +117,7 @@ final class SimulationWorld {
       admob: families.contains('admob')
           ? AdMobAdapter(world: await read('admob-world.json'))
           : null,
-      otel: families.contains('otel') ? OtelAdapter() : null,
+      otel: otelCapture,
     );
   }
 
@@ -399,7 +402,8 @@ final class SimulationWorld {
       final armed = !otel.isShutdown;
       final capturedSomething = otel.captured.isNotEmpty;
       final allExpectedPresent =
-          expected.every(otel.hasSpan) || !capturedSomething;
+          expected.every((span) => otel.byName(span) != null) ||
+          !capturedSomething;
       results.add(
         PlayResult(
           family: 'otel',

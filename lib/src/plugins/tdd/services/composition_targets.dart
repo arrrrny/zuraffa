@@ -14,7 +14,10 @@
 /// cycle-log evidence remains the source of truth for "already-green" —
 /// the same evidence the run driver's reconciliation consumes — so
 /// discovery stays independent of `tdd/run-state.json` (the driver owns
-/// run state; the make pipeline owns the cycle log).
+/// run state; the make pipeline owns the cycle log). Issue #1550: a
+/// green claim the REGISTRY contradicts (the record is absent — the
+/// artifacts were dropped, e.g. by a reset) is the `stale-evidence`
+/// refusal, never an anchor and never a silent skip.
 ///
 /// The TARGET (the behavior being made) may be acceptance-kind or
 /// widget-kind (issue #939): both compose against the feature's green
@@ -38,8 +41,8 @@ import 'artifact_registry.dart';
 import 'cycle_evidence.dart';
 import 'test_list_reader.dart';
 
-/// One anchor a composition may wire against: a green or entity-wired
-/// unit subject.
+/// One anchor a composition may wire against: a green, entity-wired, or
+/// (bug features, issue #1162) stub-only unit subject.
 ///
 /// Issue #923: an anchor no longer requires green cycle-log evidence —
 /// a unit subject the `zfa tdd wire` step implemented against its entity
@@ -49,6 +52,16 @@ import 'test_list_reader.dart';
 /// subject and defers the real green transition to when the unit
 /// subjects are filled with business logic; [entityWired] records which
 /// anchors carry only that wiring so the audit trail stays honest.
+///
+/// Issue #1162: [stubOnly] anchors go one honest step further for BUG
+/// features — a unit subject that exists on disk (gen wrote it) but is
+/// neither green nor wired is still a composable anchor, because compose
+/// REFERENCES anchor subjects without calling them: the composed
+/// scenario runner does not throw, the paired test's scenario assertions
+/// genuinely execute, and the composed skeleton's real green lands when
+/// the unit subjects are filled in later cycles. The audit trail labels
+/// these `[stub]` everywhere (discovery print, compose output, and the
+/// composed file header).
 class ComposableUnitSubject {
   final String behaviorId;
 
@@ -66,17 +79,24 @@ class ComposableUnitSubject {
   /// against wiring alone (no green cycle-log evidence yet, issue #923).
   final bool entityWired;
 
+  /// Issue #1162: true for anchors that are neither green nor wired —
+  /// the stub-only composition lane for bug features. The composed
+  /// scenario references the stub subject as an implementation anchor;
+  /// the audit trail labels it `[stub]` so the accounting stays honest.
+  final bool stubOnly;
+
   const ComposableUnitSubject({
     required this.behaviorId,
     required this.subjectPath,
     required this.symbol,
     this.entityWired = false,
+    this.stubOnly = false,
   });
 
   @override
   String toString() =>
       'ComposableUnitSubject($behaviorId: $subjectPath#$symbol'
-      '${entityWired ? ', entity-wired' : ''})';
+      '${entityWired ? ', entity-wired' : ''}${stubOnly ? ', stub' : ''})';
 }
 
 /// The result of a discovery run: either resolved anchors or a typed,
@@ -93,7 +113,17 @@ class CompositionTargetResolved extends CompositionTargetResult {
 
 class CompositionTargetFailure extends CompositionTargetResult {
   /// Machine token: `no-green-units`, `missing-anchor-subject`,
-  /// `target-not-acceptance`, `no-test-list`, `malformed-test-list`.
+  /// `stale-evidence`, `target-not-acceptance`, `no-test-list`,
+  /// `malformed-test-list`.
+  ///
+  /// `stale-evidence` (issue #1550) is the green-PREMISE contradiction:
+  /// the unit row carries green cycle-log evidence while its registry
+  /// record is ABSENT — the evidence survives the append-only cycle-log
+  /// but the artifacts it certified were dropped (canonically by a
+  /// `tdd reset`, which also invalidates the journal evidence the
+  /// discovery does not consult). A refusal, never a partial anchor
+  /// set: the caller re-derives the dropped artifacts
+  /// (`zfa tdd gen <id>` + re-drive) before composing.
   final String code;
 
   /// Human-readable message naming the artifact / file at fault.
@@ -128,12 +158,36 @@ class CompositionTargets {
     return false;
   }
 
+  /// Whether [featureDir] is a BUG feature (issue #1162): the bug
+  /// extension's TDD lane drives features rooted at `.specify/bugs/<slug>`
+  /// (the bug.fix contract), bridged into the specs/ scan as a
+  /// `bug-<slug>` symlink. Both shapes detect: the bridge keeps the
+  /// `bug-` prefix in the directory's basename, and an unbridged
+  /// `feature_directory` pin resolves to the real `.specify/bugs/` path.
+  static bool isBugFeatureDir(String featureDir) {
+    if (p.basename(featureDir).startsWith('bug-')) return true;
+    final dir = Directory(featureDir);
+    final real = dir.existsSync() ? dir.resolveSymbolicLinksSync() : featureDir;
+    final segments = real.split(Platform.pathSeparator);
+    return segments.contains('.specify') && segments.contains('bugs');
+  }
+
   /// Discover the composable anchors for composing [behaviorId]'s subject
   /// in [featureDir] (a `specs/<feature>` path under [projectRoot]).
+  ///
+  /// Issue #1162: [allowStubAnchors] (bug features only — gate the flag
+  /// with [isBugFeatureDir] at the call site) extends the anchor search
+  /// with STUB-only unit subjects: unit-kind rows whose subject artifact
+  /// exists on disk (registry-recorded) but carries neither green
+  /// evidence nor the wire anchor. Such anchors are labeled [stubOnly]
+  /// so every audit surface stays honest about what the composition
+  /// rests on. Non-bug features keep the strict gate: their
+  /// `no-green-units` stop is unchanged.
   Future<CompositionTargetResult> discover({
     required String projectRoot,
     required String featureDir,
     required String behaviorId,
+    bool allowStubAnchors = false,
   }) async {
     // 1. The feature's test list — the kind source of truth. A missing or
     //    malformed list fails closed (the fallback must not guess kinds).
@@ -202,6 +256,20 @@ class CompositionTargets {
     //    composes against the entity-wired subject even while the unit is
     //    a stub, deferring the real green transition to when the unit
     //    subjects are filled with business logic.
+    //
+    //    Issue #1550: the green-unit premise is verified against the
+    //    REGISTRY first. A green row whose registry record is ABSENT is
+    //    the stale-evidence refusal — the cycle-log's green claim
+    //    survives (append-only) while the artifacts it certified were
+    //    dropped or never recorded (canonically by a reset — the #1264
+    //    tombstone that invalidates the claim lives in the journal,
+    //    which discovery does not consult; an unreadable registry
+    //    reports the same absence). Classifying it `stale-evidence` (not
+    //    the legacy `missing-anchor-subject` → `runner-error`) names the
+    //    actual inconsistency: the premise is stale, re-derive the
+    //    artifacts. A record PRESENT but file missing stays
+    //    `missing-anchor-subject` — the registry premise is intact,
+    //    the tree drifted.
     final anchors = <ComposableUnitSubject>[];
     for (final row in rows) {
       if (row.kind != BehaviorKind.unit) continue;
@@ -210,11 +278,17 @@ class CompositionTargets {
       if (green.contains(row.id)) {
         if (recorded == null) {
           return CompositionTargetFailure(
-            code: 'missing-anchor-subject',
+            code: 'stale-evidence',
             message:
-                'green unit subject "${row.id}" has no registry record with a '
-                'subject_path in ${p.join(featureDir, 'tdd', 'artifacts.json')}. '
-                'Run `zfa tdd gen ${row.id}` to restore its artifacts.',
+                'green unit subject "${row.id}" carries green evidence in '
+                'tdd/cycle-log.md but has no registry record in '
+                '${p.join(featureDir, 'tdd', 'artifacts.json')} — the green '
+                'premise and the registry disagree. The artifacts were '
+                'dropped or never recorded (a `zfa tdd reset` drops them and '
+                'tombstones the evidence in tdd/journal.json; an unreadable '
+                'registry reports the same absence). Re-derive the artifacts: '
+                'run `zfa tdd gen ${row.id}` and re-drive the behavior before '
+                'composing.',
           );
         }
         final normalized = p.normalize(
@@ -266,6 +340,32 @@ class CompositionTargets {
           entityWired: true,
         ),
       );
+    }
+
+    // Issue #1162: the bug-feature stub-only lane. Still no anchors after
+    // the green/wired scan, and the caller allowed stubs: unit rows whose
+    // subject artifact exists on disk become [stub] anchors (compose
+    // references anchors without calling them, so the composed scenario
+    // is non-throwing and the paired test's assertions genuinely run).
+    if (anchors.isEmpty && allowStubAnchors) {
+      for (final row in rows) {
+        if (row.kind != BehaviorKind.unit) continue;
+        if (row.id == behaviorId) continue; // never anchor against itself
+        final recorded = subjectPathById[row.id];
+        if (recorded == null) continue; // never gen'd — not on disk
+        final normalized = p.normalize(
+          p.isAbsolute(recorded) ? recorded : p.join(projectRoot, recorded),
+        );
+        if (!File(normalized).existsSync()) continue;
+        anchors.add(
+          ComposableUnitSubject(
+            behaviorId: row.id,
+            subjectPath: normalized,
+            symbol: row.target,
+            stubOnly: true,
+          ),
+        );
+      }
     }
 
     if (anchors.isEmpty) {

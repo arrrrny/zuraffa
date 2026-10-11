@@ -6,6 +6,9 @@
 ///
 ///   sandbox == cut              -> skip      (agent never touched it)
 ///   sandbox != cut, main == cut -> safeCopy  (only the agent changed it)
+///   sandbox != cut, main == sandbox -> skip   (main already carries the
+///                                                sandbox content — a
+///                                                re-merge is idempotent)
 ///   sandbox != cut, main != cut -> conflict  (both sides changed it)
 ///   sandbox missing             -> sandboxDeleted (agent removed it)
 library;
@@ -49,6 +52,13 @@ class ConflictDetector {
     // moved underneath the slice too.
     if (mainHash == cutHash) {
       return MergeDecision.safeCopy;
+    }
+    // Main already carries the sandbox content: a previous merge applied
+    // this exact version (retry after a partial failure, or a re-merge
+    // after export/import). Nothing to do — and NOT a conflict: the two
+    // sides are content-identical (issue #1144).
+    if (mainHash == sandboxHash) {
+      return MergeDecision.skip;
     }
     return MergeDecision.conflict;
   }

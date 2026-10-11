@@ -5,6 +5,7 @@ import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/sync/sync_plugin.dart';
 import 'package:zuraffa/src/plugins/sync/capabilities/create_sync_capability.dart';
+import 'package:zuraffa/src/plugins/sync/capabilities/simulate_sync_capability.dart';
 
 /// Tests for [SyncPlugin] registration, config schema, and capability
 /// resolution (T047, FR-014).
@@ -50,10 +51,11 @@ void main() {
     expect(direction['default'], equals('push'));
   });
 
-  test('resolves CreateSyncCapability', () {
+  test('resolves CreateSyncCapability + SimulateSyncCapability', () {
     final plugin = plugin0();
-    expect(plugin.capabilities, hasLength(1));
+    expect(plugin.capabilities, hasLength(2));
     expect(plugin.capabilities.first, isA<CreateSyncCapability>());
+    expect(plugin.capabilities.last, isA<SimulateSyncCapability>());
   });
 
   test('creates a SyncCommand', () {

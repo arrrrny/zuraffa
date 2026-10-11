@@ -101,7 +101,7 @@ void main() {
       '--no-pr',
       '--json',
     ]);
-    expect(out2, contains('verdict.v1'));
+    expect(out2, contains('zuraffa.verdict.v1'));
     final last = out2.trim().split('\n').last;
     expect(jsonDecode(last), isA<Map<String, dynamic>>());
     expect((jsonDecode(last) as Map)['command'], 'dream');

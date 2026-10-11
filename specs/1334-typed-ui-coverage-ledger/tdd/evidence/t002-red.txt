@@ -1,0 +1,73 @@
+00:00 +0: loading test/tdd/1334-typed-ui-coverage-ledger/t002_per_screen_all_five_kinds_report_test.dart
+00:00 +0 -1: loading test/tdd/1334-typed-ui-coverage-ledger/t002_per_screen_all_five_kinds_report_test.dart [E]
+  Failed to load "test/tdd/1334-typed-ui-coverage-ledger/t002_per_screen_all_five_kinds_report_test.dart":
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:32:11: Error: No named parameter with the name 'screen'.
+            screen: '/login',
+            ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:40:39: Error: Member not found: 'TypedLedgerBuilder.kindCoverageAllKinds'.
+    final coverage = TypedLedgerBuilder.kindCoverageAllKinds(
+                                        ^^^^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:65:39: Error: Member not found: 'TypedLedgerBuilder.groupByScreen'.
+    final byScreen = TypedLedgerBuilder.groupByScreen(gamingLedger);
+                                        ^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:70:38: Error: Member not found: 'TypedLedgerBuilder.screenReports'.
+    final reports = TypedLedgerBuilder.screenReports(byScreen);
+                                       ^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:74:24: Error: Undefined name 'ScreenTraceStatus'.
+    expect(login.status, ScreenTraceStatus.partiallyTraced);
+                         ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:90:11: Error: No named parameter with the name 'screen'.
+            screen: '/empty',
+            ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:84:46: Error: Member not found: 'TypedLedgerBuilder.screenReports'.
+    final untracedReports = TypedLedgerBuilder.screenReports({
+                                               ^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:97:24: Error: Undefined name 'ScreenTraceStatus'.
+    expect(empty.status, ScreenTraceStatus.untraced);
+                         ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:108:11: Error: No named parameter with the name 'screen'.
+            screen: '/login',
+            ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:114:11: Error: No named parameter with the name 'screen'.
+            screen: '/login',
+            ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:121:11: Error: No named parameter with the name 'screen'.
+            screen: '/login',
+            ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:127:11: Error: No named parameter with the name 'screen'.
+            screen: '/login',
+            ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:134:11: Error: No named parameter with the name 'screen'.
+            screen: '/login',
+            ^^^^^^
+  lib/src/tdd/services/typed_ledger_row.dart:163:9: Context: Found this candidate, but the arguments don't match.
+    const DeclaredLedgerRow({
+          ^^^^^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:102:44: Error: Member not found: 'TypedLedgerBuilder.screenReports'.
+    final honestReports = TypedLedgerBuilder.screenReports({
+                                             ^^^^^^^^^^^^^
+  lib/tdd/1334-typed-ui-coverage-ledger/t2_subject.dart:143:25: Error: Undefined name 'ScreenTraceStatus'.
+    expect(honest.status, ScreenTraceStatus.fullyTraced);
+                          ^^^^^^^^^^^^^^^^^
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  test/tdd/1334-typed-ui-coverage-ledger/t002_per_screen_all_five_kinds_report_test.dart: loading test/tdd/1334-typed-ui-coverage-ledger/t002_per_screen_all_five_kinds_report_test.dart

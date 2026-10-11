@@ -88,6 +88,10 @@ class MockDataBuilder {
     final mockInstances = valueBuilder.generateMockDataInstances(
       entityName,
       entityFields,
+      // Spec 1001: --seed shifts the record seeds so the same seed
+      // reproduces byte-identical mocks (replayable generation). The
+      // default (null → baseSeed 1) keeps the historical 1/2/3 records.
+      baseSeed: config.seed ?? 1,
     );
 
     final imports = entityHelper.collectNestedEntityImports(

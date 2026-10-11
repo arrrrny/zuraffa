@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/version.dart';
 import 'package:zuraffa/src/core/project/receipt_store.dart';
 
 void main() {
@@ -22,7 +23,7 @@ void main() {
     target: target,
     repro: repro,
     at: at ?? DateTime.utc(2026, 9, 3, 10, 0, 0),
-    generatorVersion: '6.1.0',
+    generatorVersion: version,
     input: const {
       'plugin_ids': ['usecase'],
     },
@@ -74,7 +75,7 @@ void main() {
       expect(json['schema'], 'proof.v1');
       expect(json['command'], 'make');
       expect(json['target'], 'Product');
-      expect(json['generator_version'], '6.1.0');
+      expect(json['generator_version'], version);
       expect((json['files'] as List).first['sha256'], 'a' * 64);
     });
 

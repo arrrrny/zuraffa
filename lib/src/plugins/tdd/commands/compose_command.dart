@@ -23,9 +23,12 @@
 ///   4. Discovers the feature's composable green unit subjects via
 ///      `CompositionTargets` (unit-kind test-list rows ∩ green cycle-log
 ///      evidence ∩ existing subject artifacts). Zero anchors →
-///      `no-green-units` misfire-stop; a missing anchor artifact →
-///      `runner-error` misfire-stop; a unit-kind target → fail-closed
-///      refusal (composition is the acceptance-subject surface only).
+///      `no-green-units` misfire-stop; a green unit whose registry
+///      record is absent → `stale-evidence` refusal (issue #1550 — the
+///      green premise is stale, re-derive the artifacts); a missing
+///      anchor artifact → `runner-error` misfire-stop; a unit-kind
+///      target → fail-closed refusal (composition is the
+///      acceptance-subject surface only).
 ///   5. Replaces the subject's `UnimplementedError` stub body with the
 ///      minimal composed implementation: the green unit subject files are
 ///      imported and referenced as the implementation anchor (spec 047
@@ -48,6 +51,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/artifact_registry.dart';
 import '../services/composition_targets.dart';
+import '../services/cycle_log_sections.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -60,6 +64,12 @@ enum ComposeOutcome {
   alreadyComposed('already-composed'),
   notCertifiedRed('not-certified-red'),
   noGreenUnits('no-green-units'),
+  // Issue #1550: the green-unit premise is contradicted by the registry
+  // — a unit the cycle-log advertises green has no registry record (its
+  // artifacts were dropped, canonically by a reset). An actionable
+  // refusal naming the stale premise, never a runner-error the operator
+  // cannot act on.
+  staleEvidence('stale-evidence'),
   runnerError('runner-error');
 
   const ComposeOutcome(this.label);
@@ -259,12 +269,22 @@ class ComposeCommand extends Command<void> {
       projectRoot: resolvedCwd,
       featureDir: target.featureDir,
       behaviorId: record.behaviorId,
+      // Issue #1162: bug features may compose against stub-only unit
+      // subjects (honestly labeled `[stub]`) — the sanctioned path from
+      // a prose scenario's certified red to green. Non-bug features keep
+      // the strict no-green-units gate (unchanged).
+      allowStubAnchors: CompositionTargets.isBugFeatureDir(target.featureDir),
     );
     if (discovery is CompositionTargetFailure) {
       print('zfa tdd compose: ${discovery.message}');
-      final outcome = discovery.code == 'no-green-units'
-          ? ComposeOutcome.noGreenUnits
-          : ComposeOutcome.runnerError;
+      // Issue #1550: the stale green premise is its own outcome — a unit
+      // advertised green with no registry record is a stale-evidence
+      // refusal (re-derive the artifacts), not a runner-error.
+      final outcome = switch (discovery.code) {
+        'no-green-units' => ComposeOutcome.noGreenUnits,
+        'stale-evidence' => ComposeOutcome.staleEvidence,
+        _ => ComposeOutcome.runnerError,
+      };
       _printSummary(
         behavior: record.behaviorId,
         outcome: outcome,
@@ -275,14 +295,26 @@ class ComposeCommand extends Command<void> {
     }
     final anchors = (discovery as CompositionTargetResolved).anchors;
     // Issue #923: the anchor set may mix green subjects with entity-wired
-    // stubs — the audit line names both honestly.
+    // stubs — the audit line names both honestly. Issue #1162: it may
+    // also include stub-only subjects (bug features), labeled [stub].
     final wiredCount = anchors.where((a) => a.entityWired).length;
-    final anchorSummary = wiredCount == 0
-        ? '${anchors.length} green unit subject(s)'
-        : '${anchors.length - wiredCount} green, $wiredCount entity-wired '
-              'unit subject(s)';
+    final stubCount = anchors.where((a) => a.stubOnly).length;
+    final greenCount = anchors.length - wiredCount - stubCount;
+    final parts = <String>[
+      if (greenCount > 0) '$greenCount green',
+      if (wiredCount > 0) '$wiredCount entity-wired',
+      if (stubCount > 0) '$stubCount stub-only',
+    ];
+    final anchorSummary = '${parts.join(', ')} unit subject(s)';
     print(
-      '   anchors: ${anchors.map((a) => a.entityWired ? '${a.behaviorId} [entity-wired]' : a.behaviorId).join(', ')} '
+      '   anchors: ${anchors.map((a) {
+        final label = a.stubOnly
+            ? ' [stub]'
+            : a.entityWired
+            ? ' [entity-wired]'
+            : '';
+        return '${a.behaviorId}$label';
+      }).join(', ')} '
       '($anchorSummary)',
     );
 
@@ -411,11 +443,17 @@ class ComposeCommand extends Command<void> {
     }
     // Issue #923: the anchor list may include entity-wired subjects whose
     // behaviors are still stubs — name each anchor's status so the audit
-    // trail says exactly what the composition rests on.
+    // trail says exactly what the composition rests on. Issue #1162:
+    // stub-only anchors (bug features) carry the same honesty.
     final anchorList = anchors
         .map(
           (a) =>
-              '${a.behaviorId} (${a.subjectPath})${a.entityWired ? ' [entity-wired]' : ''}',
+              '${a.behaviorId} (${a.subjectPath})'
+              '${a.stubOnly
+                  ? ' [stub]'
+                  : a.entityWired
+                  ? ' [entity-wired]'
+                  : ''}',
         )
         .join(', ');
     final body = returnType == 'void'
@@ -507,13 +545,18 @@ $returnType $functionName() {$body}
     final file = File(p.join(featureDir, 'tdd', 'cycle-log.md'));
     if (!await file.exists()) return false;
     final raw = await file.readAsString();
-    for (final section in raw.split('\n## ')) {
+    // Issue #1353: scan EVERY section — a stale non-red section from an
+    // earlier failed attempt must not shadow a later certified-red section
+    // for the same behavior (mirrors MakeCommand._hasCertifiedRed).
+    for (final section in splitCycleLogSections(raw)) {
       final behavior = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,
       ).firstMatch(section);
       if (behavior == null || behavior.group(1) != behaviorId) continue;
-      return RegExp(r'^- kind: red$', multiLine: true).hasMatch(section);
+      if (RegExp(r'^- kind: red$', multiLine: true).hasMatch(section)) {
+        return true;
+      }
     }
     return false;
   }
@@ -632,7 +675,7 @@ $returnType $functionName() {$body}
     if (!await file.exists()) return const {};
     final raw = await file.readAsString();
     final certified = <String>{};
-    for (final section in raw.split('\n## ')) {
+    for (final section in splitCycleLogSections(raw)) {
       final behavior = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,

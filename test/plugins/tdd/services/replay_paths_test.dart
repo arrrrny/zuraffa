@@ -133,6 +133,29 @@ void main() {
       );
     });
 
+    test('the compiled anchor replaces a recorded pair even when it '
+        'resolves locally — no `dart <script>` child (no-JIT policy)', () {
+      final command = ReplayPaths.reAnchorEntrypoint(
+        '/present/sdk/bin/dart /present/checkout/bin/zfa.dart tdd gen A1',
+        resolvedDart: '/local/dart-sdk/bin/dart',
+        compiledEntrypoint: '/local/checkout/.dart_tool/zfa_cli_bin/zfa_exe',
+        exists: (path) => path.startsWith('/present/'),
+      );
+      expect(
+        command,
+        '/local/checkout/.dart_tool/zfa_cli_bin/zfa_exe tdd gen A1',
+      );
+    });
+
+    test('a bare zfa prefix keeps the 066 PATH contract (PATH lookup, never '
+        'a VM spawn)', () {
+      final command = ReplayPaths.reAnchorEntrypoint(
+        'zfa tdd gen A1 --feature f',
+        compiledEntrypoint: '/local/checkout/.dart_tool/zfa_cli_bin/zfa_exe',
+      );
+      expect(command, 'zfa tdd gen A1 --feature f');
+    });
+
     test('non-entrypoint commands pass through unchanged', () {
       const recorded = 'sh .specify/check_a1.sh lib/a1_subject.dart OK';
       final command = ReplayPaths.reAnchorEntrypoint(

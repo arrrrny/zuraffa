@@ -35,6 +35,8 @@ import '../../../core/project/receipt_store.dart';
 import '../models/artifact_record.dart';
 import '../models/red_classification.dart';
 import '../services/artifact_registry.dart';
+import '../services/cycle_log_sections.dart';
+import '../services/journal.dart';
 import '../services/test_list_reader.dart';
 
 /// Raised when the theater cannot load a feature's journal: unknown
@@ -228,6 +230,7 @@ class TheaterSnapshot {
     required this.cycles,
     required this.receiptCount,
     required this.cycleLogPresent,
+    required this.journal,
   });
 
   final String feature;
@@ -238,6 +241,13 @@ class TheaterSnapshot {
   /// Distinct #807 receipt documents attributed to this feature.
   final int receiptCount;
   final bool cycleLogPresent;
+
+  /// Spec 1113: the feature's unified journal, read through
+  /// [JournalReader] — the entries, the refs-followed lane receipts, and
+  /// the derived one-line verdict render beside the cycle-log timeline
+  /// (the bottom pane's live status line). The theater never opens a
+  /// journal file itself.
+  final FeatureJournal journal;
 
   int get greenCount =>
       behaviors.where((b) => b.status == TheaterProofStatus.green).length;
@@ -306,14 +316,26 @@ class TheaterData {
       );
     }
 
+    // Spec 1113: the unified journal stream — entries, refs-followed
+    // lane receipts, the cycle-log CONTENT, the per-behavior green
+    // evidence, and the derived verdict — all read through the ONE
+    // canonical JournalReader API. The theater parses the cycle-log
+    // markdown it hands us with its own superset parser (the timeline's
+    // rich rendering fields), but the FILE READ happens in
+    // JournalReader, not here.
+    final journal = await const JournalReader().read(
+      feature: feature,
+      projectRoot: projectRoot,
+    );
+
     // The test-list descriptions (lenient: absence degrades to the
     // registry's own description segment).
     final descriptions = await _readDescriptions(featureDir, records);
 
-    // The cycle-log timeline (a missing log yields zero cycles).
-    final cycleLogFile = File(p.join(featureDir, 'tdd', 'cycle-log.md'));
-    final cycles = await cycleLogFile.exists()
-        ? TheaterLogParser.parse(await cycleLogFile.readAsString())
+    // The cycle-log timeline (a missing log yields zero cycles) — the
+    // content from the journal stream.
+    final cycles = journal.cycleLog.isNotEmpty
+        ? TheaterLogParser.parse(journal.cycleLog)
         : const <TheaterCycle>[];
 
     // Receipts: per-feature layout + flat attributed store.
@@ -341,7 +363,8 @@ class TheaterData {
       behaviors: behaviors,
       cycles: cycles,
       receiptCount: receipts.documents.length,
-      cycleLogPresent: await cycleLogFile.exists(),
+      cycleLogPresent: journal.cycleLog.isNotEmpty,
+      journal: journal,
     );
   }
 
@@ -577,7 +600,7 @@ class TheaterLogParser {
 
   static List<TheaterCycle> parse(String raw) {
     final cycles = <TheaterCycle>[];
-    for (final section in raw.split('\n## ')) {
+    for (final section in splitCycleLogSections(raw)) {
       final behavior = RegExp(
         r'^- behavior: (\S+)',
         multiLine: true,

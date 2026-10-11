@@ -2,6 +2,7 @@ import 'package:path/path.dart' as path;
 
 import '../core/context/file_system.dart';
 import '../models/generator_config.dart';
+import '../plugins/repository/contract/repository_contract_manifest.dart';
 import 'method_extractor.dart';
 import 'string_utils.dart';
 
@@ -38,6 +39,14 @@ class SourceInterfaceGuard {
 
   /// Returns the subset of [methods] declared on the entity's source
   /// interface, printing a skip notice for every dropped method.
+  ///
+  /// Spec 0973: when a **fresh** repository contract manifest exists for
+  /// the entity (`.zfa/receipts/repository-<entity>.json`, interface digest
+  /// intact), its method set IS the interface contract and wins over a
+  /// source parse — one source of truth. Anything else (no manifest,
+  /// stale manifest, tampered method table, service interface) falls back
+  /// to parsing the interface file exactly as before (issue #921
+  /// fail-open behavior).
   Future<List<String>> filterMethods(
     GeneratorConfig config, {
     List<String> methods = const [],
@@ -87,7 +96,18 @@ class SourceInterfaceGuard {
     }
 
     final filePath = interface.filePath;
-    final className = interface.className;
+    var className = interface.className;
+
+    // Contract manifest fast path (spec 0973) — repository interfaces only.
+    if (!config.hasService) {
+      final contract = await _loadFreshContract(config);
+      if (contract != null) {
+        final declared = contract.methodNames.toSet();
+        className = contract.interface.className;
+        return _filterAgainst(methods, declared, className, filePath, config);
+      }
+    }
+
     if (!await fs.exists(filePath)) {
       // The source interface will be created by this same generation plan
       // (repository/service plugin active in the plan) or does not exist
@@ -122,6 +142,16 @@ class SourceInterfaceGuard {
     }
 
     final declared = parsed.map((m) => m.fieldName).toSet();
+    return _filterAgainst(methods, declared, className, filePath, config);
+  }
+
+  SourceInterfaceGuardResult _filterAgainst(
+    List<String> methods,
+    Set<String> declared,
+    String className,
+    String? filePath,
+    GeneratorConfig config,
+  ) {
     final filtered = <String>[];
     final dropped = <SourceInterfaceDrop>[];
     for (final method in methods) {
@@ -148,6 +178,23 @@ class SourceInterfaceGuard {
       interfacePath: filePath,
       className: className,
     );
+  }
+
+  /// Loads the entity's repository contract manifest when it is fresh —
+  /// null otherwise (missing, stale, corrupt, or any lookup failure).
+  Future<RepositoryContractManifest?> _loadFreshContract(
+    GeneratorConfig config,
+  ) async {
+    try {
+      final store = RepositoryContractManifestStore(
+        projectRoot: repositoryProjectRootFor(config.outputDir),
+      );
+      final manifest = await store.loadForEntity(config.name);
+      if (manifest == null) return null;
+      return store.isFresh(manifest) ? manifest : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Resolves the source interface the generated use cases will call

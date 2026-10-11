@@ -1,9 +1,10 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-
+import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plan_store.dart';
+import '../cli/exit_protocol.dart';
 
 /// Command to apply a previously generated plan.
 class ApplyCommand extends Command<void> {
@@ -36,20 +37,20 @@ class ApplyCommand extends Command<void> {
     // 1 = runtime failure, mirroring the shared CapabilityCommand runner.
     if (plan == null) {
       print('❌ Plan not found: $planId');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
     if (!plan.isValid) {
       print('❌ Plan is invalid: ${plan.message}');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
     final plugin = registry.getById(plan.pluginId);
     if (plugin == null) {
       print('❌ Plugin not found: ${plan.pluginId}');
-      exitCode = 64;
+      exitCode = ExitProtocol.usage;
       return;
     }
 
@@ -61,7 +62,14 @@ class ApplyCommand extends Command<void> {
 
     print('🚀 Executing plan $planId (${plugin.id}:${capability.name})...');
 
-    final result = await capability.execute(plan.args);
+    // Issue #1138: applying a stored plan IS a standalone capability
+    // invocation — persist its proof.v1 receipt (best-effort inside
+    // the wrapper).
+    final wrapper = CapabilityInvocationWrapper(
+      capability: capability,
+      pluginId: plugin.id,
+    );
+    final result = await wrapper.execute(plan.args);
 
     if (result.success) {
       print('✅ Success! Created/Modified:');

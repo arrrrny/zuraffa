@@ -1,11 +1,13 @@
 ---
 name: speckit-gym-init
-description: 'Spec-kit workflow command: speckit-gym-init'
+description: 'Extension command: speckit.gym.init'
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: github-spec-kit
-  source: gym:commands/speckit.gym.init.md
+  author: gym
+  source: extension:gym
 ---
+
+# Gym Init Skill
 
 # GYM: Init
 
@@ -32,3 +34,4 @@ The project now has a runnable curriculum. Edit the copied reps/exercises (or ad
 your own) to match YOUR software, then run `speckit.gym.warmup` or `speckit.gym.run`.
 
 See `.specify/extensions/gym/examples/gym/01-example-rep.mjs` and `.specify/extensions/gym/examples/exercises/01-example-exercise.mjs` for the rep/exercise module shape.
+

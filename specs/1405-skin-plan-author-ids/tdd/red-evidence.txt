@@ -1,0 +1,30 @@
+RED evidence — issue #1405 (recorded against the unfixed tree, Dart 3.13.3)
+
+Command: dart test test/plugins/tdd/services/skin_plan_author_test.dart
+Result: loading failure — lib/src/plugins/tdd/services/skin_plan_author.dart
+does not exist (the SkinPlanAuthor format contract is absent). Suite: 0
+passed, 1 load error.
+
+Command: dart test test/plugins/tdd/commands/issue_1405_skin_plan_author_ids_test.dart
+Result: 3 passed / 5 FAILED.
+
+RED rows (fail, as required):
+  A-1405-1  a leading-id token with leaked prose plans W1 with the prose in
+            the behavior column            [pre-fix: id column carries
+            "W1 (renders the login screen pixel-perfect"]
+  A-1405-1  a bare-prose token after a leading W-id also sanitizes
+  A-1405-2  the issue's malformed declaration refuses exit 2 naming the
+            no-pattern token, and writes NO 04-SKIN.md
+            [pre-fix: exit 0, 04-SKIN.md written with prose ids — the bug]
+  A-1405-2  the refusal names each prose fragment with the fix line
+  A-1405-2  a prose fragment wedged between clean ids still refuses the
+            whole plan
+
+GREEN-by-design rows (pass pre-fix, pinned as regression guards):
+  A-1405-3  clean W1-W9 plans nine strict W rows the reader resolves as
+            nine skin behaviors (clean specs already worked — FR-005)
+  A-1405-4  the canonical #1000 lane fixture still plans exit 0 unchanged
+  U-1405-6  CORE annotations keep their documented behavior column form
+
+Kernel cache hygiene per the verify protocol: rm -rf .dart_tool/test/ and
+$TMPDIR/dart_test.kernel.* before the first run.

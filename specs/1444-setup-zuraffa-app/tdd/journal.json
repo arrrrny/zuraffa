@@ -1,0 +1,228 @@
+{
+  "schema": 1,
+  "feature": "1444-setup-zuraffa-app",
+  "entries": [
+    {
+      "feature": "1444-setup-zuraffa-app",
+      "cycle": "engine",
+      "phase": "drive",
+      "started_at": "2026-09-10T08:38:57.406631Z",
+      "finished_at": "2026-09-10T08:39:18.939611Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "stopped_at=phase-0:entity"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [
+        "A2",
+        "A5",
+        "A7",
+        "U1",
+        "U2",
+        "U3",
+        "U4",
+        "U5",
+        "U6",
+        "U7",
+        "U8",
+        "U9",
+        "U10",
+        "contract:A1",
+        "contract:A2"
+      ],
+      "counts": {
+        "total": 15,
+        "pending": 15,
+        "red": 0,
+        "green": 0,
+        "done": 0
+      },
+      "stopped_at": "phase-0:entity"
+    },
+    {
+      "feature": "1444-setup-zuraffa-app",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-10T08:38:57.405232Z",
+      "finished_at": "2026-09-10T08:39:18.941874Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane stopped at phase-0:entity",
+        "engine lane result=runner-error — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "runner-error",
+      "behaviors": [],
+      "stopped_at": null
+    },
+    {
+      "feature": "1444-setup-zuraffa-app",
+      "cycle": "engine",
+      "phase": "drive",
+      "started_at": "2026-09-10T08:39:46.723434Z",
+      "finished_at": "2026-09-10T08:51:44.362234Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "stopped_at=A2:verify-red",
+        "step_error=A2:verify-red outcome=compile-error exit=1"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "stopped",
+      "behaviors": [
+        "A2",
+        "A5",
+        "A7",
+        "U1",
+        "U2",
+        "U3",
+        "U4",
+        "U5",
+        "U6",
+        "U7",
+        "U8",
+        "U9",
+        "U10",
+        "contract:A1",
+        "contract:A2"
+      ],
+      "counts": {
+        "total": 15,
+        "pending": 15,
+        "red": 0,
+        "green": 0,
+        "done": 0
+      },
+      "stopped_at": "A2:verify-red",
+      "error": {
+        "behavior": "A2",
+        "step": "verify-red",
+        "outcome": "compile-error",
+        "exit_code": 1,
+        "command": "dart /Users/arrrrny/Developer/zuraffa/bin/zfa.dart tdd verify-red A2 --feature 1444-setup-zuraffa-app --project /Users/arrrrny/Developer/zuraffa --timeout 25.0000",
+        "output": "zfa tdd verify-red: behavior A2\n   feature: 1444-setup-zuraffa-app\n   test: test/tdd/1444-setup-zuraffa-app/a2_test.dart\n   command: dart test {file} --plain-name \"{name}\"\n   runner exit: 1\n   classification: compile-error\nverify-red: behavior=A2 classification=compile-error certified=false feature=1444-setup-zuraffa-app\n\nzfa tdd verify-red: classification compile-error — fix the compile error in the test or its subject, then re-run `zfa tdd verify-red <behavior-id>`\n   no evidence written"
+      }
+    },
+    {
+      "feature": "1444-setup-zuraffa-app",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-10T08:39:46.722133Z",
+      "finished_at": "2026-09-10T08:51:44.385592Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane stopped at A2:verify-red",
+        "engine lane result=stopped — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "stopped",
+      "behaviors": [],
+      "stopped_at": null
+    },
+    {
+      "feature": "1444-setup-zuraffa-app",
+      "cycle": "engine",
+      "phase": "drive",
+      "started_at": "2026-09-10T08:52:51.168824Z",
+      "finished_at": "2026-09-10T08:53:28.859812Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "stopped_at=A2:verify-red",
+        "step_error=A2:verify-red outcome=compile-error exit=1"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "stopped",
+      "behaviors": [
+        "A2",
+        "A5",
+        "A7",
+        "U1",
+        "U2",
+        "U3",
+        "U4",
+        "U5",
+        "U6",
+        "U7",
+        "U8",
+        "U9",
+        "U10",
+        "contract:A1",
+        "contract:A2"
+      ],
+      "counts": {
+        "total": 15,
+        "pending": 15,
+        "red": 0,
+        "green": 0,
+        "done": 0
+      },
+      "stopped_at": "A2:verify-red",
+      "error": {
+        "behavior": "A2",
+        "step": "verify-red",
+        "outcome": "compile-error",
+        "exit_code": 1,
+        "command": "dart /Users/arrrrny/Developer/zuraffa/bin/zfa.dart tdd verify-red A2 --feature 1444-setup-zuraffa-app --project /Users/arrrrny/Developer/zuraffa --timeout 25.0000",
+        "output": "zfa tdd verify-red: behavior A2\n   feature: 1444-setup-zuraffa-app\n   test: test/tdd/1444-setup-zuraffa-app/a2_test.dart\n   command: dart test {file} --plain-name \"{name}\"\n   runner exit: 1\n   classification: compile-error\nverify-red: behavior=A2 classification=compile-error certified=false feature=1444-setup-zuraffa-app\n\nzfa tdd verify-red: classification compile-error — fix the compile error in the test or its subject, then re-run `zfa tdd verify-red <behavior-id>`\n   no evidence written"
+      }
+    },
+    {
+      "feature": "1444-setup-zuraffa-app",
+      "cycle": "meta",
+      "phase": "aggregate",
+      "started_at": "2026-09-10T08:52:51.167467Z",
+      "finished_at": "2026-09-10T08:53:28.881126Z",
+      "gate_state": "red",
+      "receipts": [
+        "tdd/04-engine-receipt.json"
+      ],
+      "violations": [
+        "engine lane stopped at A2:verify-red",
+        "engine lane result=stopped — fail fast, no skin step spawned"
+      ],
+      "refs": {
+        "engine_receipt": "tdd/04-engine-receipt.json",
+        "skin_receipt": null,
+        "contract_schema": null
+      },
+      "result": "stopped",
+      "behaviors": [],
+      "stopped_at": null
+    }
+  ]
+}

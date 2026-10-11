@@ -90,7 +90,10 @@ void main() {
       expect(content.contains("path: '/profile'"), isTrue);
       expect(content.contains('navigationShell.currentIndex'), isTrue);
       expect(content.contains('navigationShell.goBranch'), isTrue);
-      expect(content.contains('package:go_router/go_router.dart'), isTrue);
+      expect(
+        content.contains('package:zuraffa_flutter/zuraffa_flutter.dart'),
+        isTrue,
+      );
       expect(content.contains('package:flutter/material.dart'), isTrue);
 
       final errors = syntaxErrors(content);
@@ -169,7 +172,7 @@ void main() {
       () async {
         // First seed an entity route module so the index has both kinds.
         await File('$outputDir/routing/product_routes.dart').writeAsString('''
-import 'package:go_router/go_router.dart';
+import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:zuraffa/zuraffa.dart';
 

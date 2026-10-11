@@ -2,6 +2,7 @@ import 'package:code_builder/code_builder.dart';
 import 'package:dart_style/dart_style.dart';
 
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../skin/anchors.dart';
 import 'lifecycle_builder.dart';
 import 'view_constructor_builder.dart';
 
@@ -22,6 +23,20 @@ class ViewClassSpec {
   final bool isCustom;
   final bool isStateful;
   final bool withXRay;
+  // #1102: when true, the view getter's widget is wrapped in the
+  // runtime skin-contract auditor (SkinContractAuditor) and the file
+  // gains the k<ViewName>SkinRows starter contract (the hand-edit
+  // seam users extend). Without the flag the output is
+  // byte-identical to the pre-1102 emission.
+  final bool withSkinAudit;
+  // #1112: the zfa: anchor contract ids this view declares (the
+  // `zfa:signin-*` vocabulary the pilot proved). Each anchor gets
+  // its SkinContractRow.anchorExists contract row AND a generated
+  // `debugTap<PascalAnchor>()` VM-service driver function — the
+  // per-view seam so the function lookup is just
+  // `debugTap<PascalAnchor>()`. Empty (the default) emits neither —
+  // byte-compat with pre-1112 generation.
+  final List<String> anchors;
   // #359: when non-null, the view body renders the entity's mock data
   // (a ListView over <Entity>MockData.sampleList for list views, a Card
   // with <Entity>MockData.sample<Entity> for detail views) instead of
@@ -45,6 +60,8 @@ class ViewClassSpec {
     this.isCustom = false,
     this.isStateful = false,
     this.withXRay = false,
+    this.withSkinAudit = false,
+    this.anchors = const [],
     this.stateClassName,
     this.mockDataImportPath,
   });
@@ -86,6 +103,20 @@ class ViewClassBuilder {
     final viewClass = _buildViewClass(spec);
     final stateClass = _buildStateClass(spec);
     final directives = spec.imports.toSet().map(_parseImport).toList();
+    // #1102: the auditor wrap needs the pure contract core (row type)
+    // and the emitted kit (auditor widget). The relative depth matches
+    // the view file location (<outputDir>/presentation/pages/<entity>/)
+    // — the same depth the #359 mock-data import uses.
+    if (spec.withSkinAudit && !spec.isCustom) {
+      directives.addAll([
+        Directive.import('package:zuraffa/skin.dart'),
+        Directive(
+          (d) => d
+            ..type = DirectiveType.import
+            ..url = '../../../skin/skin_contract_auditor.dart',
+        ),
+      ]);
+    }
 
     final library = specLibrary.library(
       specs: [viewClass, stateClass],
@@ -117,8 +148,103 @@ class ViewClassBuilder {
       formatted = '$formatted\n$enumFormatted';
     }
 
+    // #1102: the runtime skin-contract auditor seam — the starter row
+    // list appended AFTER the state class (hand-editable, preserved by
+    // regeneration because the wrap generation is flag-gated and the
+    // kit emission is skip-if-exists).
+    if (spec.withSkinAudit) {
+      final rowsRaw = _buildSkinRowsSource(spec);
+      final rowsFormatted = DartFormatter(
+        languageVersion: DartFormatter.latestLanguageVersion,
+      ).format(rowsRaw);
+      formatted = '$formatted\n$rowsFormatted';
+    }
+
     return formatted;
   }
+
+  /// #1102: the k<ViewName>SkinRows starter contract — one row per
+  /// generation concern (the view's own heading text renders). Users
+  /// extend this list (the #1005 hand-written-seam precedent: the
+  /// file is theirs once generated; regeneration never touches an
+  /// existing file without --force).
+  ///
+  /// #1112: every declared anchor also gains its
+  /// `SkinContractRow.anchorExists` row AND its generated
+  /// `debugTap<PascalAnchor>()` VM-service driver function — the
+  /// per-view seam (`zfa make --skin --anchor signin-guest` emits
+  /// `debugTapSigninGuest()`), so the function lookup is just
+  /// `debugTap<PascalAnchor>()`.
+  String _buildSkinRowsSource(ViewClassSpec spec) {
+    final title = spec.entityName ?? spec.viewName;
+    final rowsName = 'k${spec.viewName}SkinRows';
+    final anchorRows = spec.anchors
+        .map(
+          (anchor) =>
+              "  SkinContractRow.anchorExists(\n"
+              "    id: '$anchor-anchor',\n"
+              "    anchor: '$anchor',\n"
+              "  ),",
+        )
+        .join('\n');
+
+    final buffer = StringBuffer('''
+/// The runtime skin contract for ${spec.viewName} (issue #1102).
+///
+/// The auditor evaluates every row against the live tree on every
+/// audited frame (debug builds only); a failing row surfaces on the
+/// impossible-to-miss violation banner. Extend this list — the
+/// named helpers (SkinContractRow.textRenders, .anchorExists,
+/// .progressIndicator) take optional platform gating read from
+/// Theme.of(context).platform (the same override-aware source the
+/// layout gates on).
+final List<SkinContractRow> $rowsName = [
+  SkinContractRow.textRenders(
+    id: '${spec.viewName.toLowerCase()}-title',
+    text: '$title',
+  ),
+''');
+    if (anchorRows.isNotEmpty) buffer.writeln(anchorRows);
+    buffer.writeln('];');
+
+    if (spec.anchors.isNotEmpty) {
+      buffer.writeln('''
+/// The per-view VM-service driver seam (issue #1112): one function
+/// per `zfa:` anchor, so the function lookup is just
+/// `debugTap<PascalAnchor>()` — the pilot's
+/// `debugTapAnchor('zfa:<id>')` walk, named. Generated; hand edits
+/// belong in new helpers, the anchors list drives these.
+///''');
+      for (final fn in _driverSeamFunctions(spec.anchors)) {
+        buffer.writeln(fn);
+      }
+    }
+    return buffer.toString();
+  }
+
+  /// The deduplicated `debugTap<PascalAnchor>()` sources for
+  /// [anchors], in declaration order (issue #1112).
+  static List<String> _driverSeamFunctions(Iterable<String> anchors) {
+    final seen = <String>{};
+    final functions = <String>[];
+    for (final anchor in anchors) {
+      final pascal = _pascalCase(anchor);
+      if (pascal.isEmpty || !seen.add(pascal)) continue;
+      functions.add(
+        "Future<TapResult> debugTap$pascal() => "
+        "debugTapAnchor('${ZfaAnchors.keyFor(anchor)}');",
+      );
+    }
+    return functions;
+  }
+
+  /// `signin-guest` → `SigninGuest`, `log-out` → `LogOut`,
+  /// `guest` → `Guest` (the `debugTap<PascalAnchor>()` naming).
+  static String _pascalCase(String raw) => raw
+      .split(RegExp(r'[-_\s]+'))
+      .where((part) => part.isNotEmpty)
+      .map((part) => part[0].toUpperCase() + part.substring(1))
+      .join();
 
   String _buildCustomView(ViewClassSpec spec, {String? leadingComment}) {
     if (spec.isStateful) {
@@ -427,6 +553,23 @@ class ViewClassBuilder {
       ).call([], {'builder': builderClosure}),
     });
 
+    // #1102: the auditor wrap — pilot lesson 2: the overridable skin
+    // seam is `Widget get view`, NOT build (CleanViewState.build is
+    // @nonVirtual). The auditor wraps the whole view body (outermost,
+    // so it audits everything the view renders, XRay included).
+    final viewBody = spec.withXRay
+        ? refer('XRayScope').call([], {
+            'viewId': literalString(spec.viewName),
+            'child': scaffoldWidget,
+          })
+        : scaffoldWidget;
+    final auditedViewBody = spec.withSkinAudit
+        ? refer('SkinContractAuditor').call([], {
+            'rows': refer('k${spec.viewName}SkinRows'),
+            'child': viewBody,
+          })
+        : viewBody;
+
     final viewGetter = Method(
       (m) => m
         ..name = 'view'
@@ -434,17 +577,7 @@ class ViewClassBuilder {
         ..type = MethodType.getter
         ..returns = refer('Widget')
         ..body = Block(
-          (b) => b
-            ..statements.add(
-              (spec.withXRay
-                      ? refer('XRayScope').call([], {
-                          'viewId': literalString(spec.viewName),
-                          'child': scaffoldWidget,
-                        })
-                      : scaffoldWidget)
-                  .returned
-                  .statement,
-            ),
+          (b) => b..statements.add(auditedViewBody.returned.statement),
         ),
     );
 
