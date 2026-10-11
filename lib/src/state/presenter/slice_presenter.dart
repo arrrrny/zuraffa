@@ -1,4 +1,5 @@
 import 'dart:collection';
+
 import 'package:zuraffa/zuraffa.dart';
 
 /// A presenter that manages multiple [SignalSlice]s — one per UseCase.

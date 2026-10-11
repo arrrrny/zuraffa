@@ -1,7 +1,9 @@
 import 'dart:io';
+
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
+
 import '../config/zfa_config.dart';
 import '../core/dependencies/dependency_wirer.dart';
 import '../utils/file_utils.dart';

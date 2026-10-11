@@ -1,6 +1,7 @@
 // MCP Server 2.0 — arch.inspect and arch.refactor capabilities.
 
 import 'dart:io';
+
 import 'package:path/path.dart' as p;
 
 class ArchEntity {

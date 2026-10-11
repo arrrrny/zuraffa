@@ -1,4 +1,5 @@
 import 'package:path/path.dart' as path;
+
 import '../../../models/generated_file.dart';
 import '../../../core/context/file_system.dart';
 

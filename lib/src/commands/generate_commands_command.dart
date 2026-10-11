@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:args/command_runner.dart';
+
 import '../core/plugin_system/plugin_registry.dart';
 
 /// Maps a plugin id to the extension command category subdirectory.

@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:args/command_runner.dart';
+
 import '../cli/exit_protocol.dart';
 import '../models/generator_config.dart';
 

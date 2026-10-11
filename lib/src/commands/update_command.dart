@@ -1,5 +1,7 @@
 import 'dart:io';
+
 import 'package:args/command_runner.dart';
+
 import '../package/pub_dev.dart';
 import '../version.dart';
 

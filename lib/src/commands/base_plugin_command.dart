@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
+
 import '../core/plugin_system/plugin_interface.dart';
 import '../models/generated_file.dart';
 import 'capability_command.dart';

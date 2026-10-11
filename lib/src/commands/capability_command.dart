@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+
 import '../models/generated_file.dart';
 import '../core/plugin_system/capability.dart';
 import '../core/plugin_system/capability_invocation_wrapper.dart';

@@ -1,4 +1,5 @@
 import 'package:args/command_runner.dart';
+
 import '../../commands/usecase_command.dart';
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';

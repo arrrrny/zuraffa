@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as path;
+
 import '../../config/zfa_config.dart';
 import '../../domain/entities/feature_contract/feature_contract.dart';
 import '../../utils/string_utils.dart';

@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:args/command_runner.dart';
 
 import '../cli/exit_protocol.dart';

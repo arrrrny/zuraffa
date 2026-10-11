@@ -4,6 +4,7 @@ import 'dart:isolate';
 // Pure-Dart: kIsWeb replaced with bool.fromEnvironment.
 
 import 'package:meta/meta.dart';
+
 import '../core/cancel_token.dart';
 import '../core/failure.dart';
 import '../core/failure_reporter_registry.dart';

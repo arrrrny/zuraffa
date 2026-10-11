@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:graphql/client.dart';
 import 'package:zuraffa/zuraffa.dart';
 

@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+
 import '../core/result.dart';
 import '../core/failure.dart';
 import '../core/failure_reporter_registry.dart';

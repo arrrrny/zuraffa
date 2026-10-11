@@ -4,8 +4,10 @@
 library;
 
 import 'dart:io';
+
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
+
 import 'graphql_schema_translator.dart';
 import '../core/builder/shared/spec_library.dart';
 import '../utils/file_utils.dart';
