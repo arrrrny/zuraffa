@@ -677,7 +677,8 @@ void main() {
           '        } on UnimplementedError catch (error) {\n'
           '          result = error;\n'
           '        }';
-    } // Issue #1035: the UNIT lane's capture initializer is provably
+    }
+    // Issue #1035: the UNIT lane's capture initializer is provably
     // non-nullable (the closure returns the subject's value or the
     // caught UnimplementedError — never null), so an explicit `Object?`
     // annotation trips unnecessary_nullable_for_final_variable_declarations
@@ -705,7 +706,8 @@ void main() {
       capture = 'final result';
       invocation = 'return subject.$target($args);';
     }
-    return '''$helpers$capture = (() {        try {
+    return '''$helpers$capture = (() {
+        try {
           $invocation
         } on UnimplementedError catch (error) {
           return error;

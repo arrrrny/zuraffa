@@ -131,7 +131,8 @@ class SubjectWriter {
 // source_criterion: ${b.sourceCriterion}
 // description: ${b.description}
 //
-// ${StubClaims.unitHeader}//
+// ${StubClaims.unitHeader}
+//
 // The subject name is derived from the behavior id (`subject_u1`) and is
 // deliberately snake_cased — the generator KNOWS the name it emits, so
 // the lint its shape provably trips is suppressed here rather than
@@ -195,7 +196,8 @@ Widget $target() => const SizedBox.shrink();
 // source_criterion: ${b.sourceCriterion}
 // description: ${b.description}
 //
-// ${StubClaims.acceptanceHeader}//
+// ${StubClaims.acceptanceHeader}
+//
 // The subject name is derived from the behavior id (`subject_a1`) and is
 // deliberately snake_cased — the generator KNOWS the name it emits, so
 // the lint its shape provably trips is suppressed here rather than
