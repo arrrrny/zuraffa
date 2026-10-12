@@ -1,3 +1,23 @@
+## [7.1.0] - 2026-10-12
+
+### Added
+- "Built with Zuraffa" showcase on the website, linking ZikZak (#1727).
+
+### Fixed
+- `zfa make --force` / `--revert` work again and no longer duplicate members in
+  generated providers (#1719).
+- VPC usecase references are consistently PascalCase with no suffix doubling, and
+  dry-run detects existing usecases (#1720).
+- Route-table test template: the 404 probe never attached the route (#1721).
+- Generated TDD artifacts are lint-clean and the build analyze gate filters info
+  severity (#1731).
+- `zfa tdd help` aligns multi-line descriptions (#1730).
+
+### Changed
+- `scripts/local_ci.sh` replays the GitHub Actions workflow against the local
+  toolchain (GitHub Actions is billing-blocked on the private repos), and the
+  agent misfire rule is documented in `AGENTS.md`.
+
 ## [7.0.1] - 2026-09-23
 
 ### Change
