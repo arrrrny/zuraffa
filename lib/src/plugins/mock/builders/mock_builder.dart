@@ -277,6 +277,41 @@ class MockBuilder {
       }
       if (config.hasService) {
         files.add(await providerBuilder.generateMockProvider(config));
+        // Issue #1735: the provider imports a `<snake>_mock_data.dart` fixture
+        // for every entity type it names, but only the target entity's fixture
+        // came out of the mock-data path above — a service-mode run with a
+        // `--params` type emitted the import and no file, so its own output
+        // failed `dart analyze` with uri_does_not_exist. Emit the rest here, in
+        // the same run, so every import the provider writes resolves.
+        final emitted = files.map((file) => file.path).toSet();
+        for (final fixtureType in await providerBuilder.fixtureEntityTypes(
+          config,
+        )) {
+          if (!EntityAnalyzer.entityFileExists(
+            fixtureType,
+            outputDir,
+            fileSystem: fileSystem,
+          )) {
+            continue;
+          }
+          final fixtureConfig = config.copyWith(
+            name: fixtureType,
+            generateMockDataOnly: true,
+          );
+          final fixtureFile = await dataBuilder.generateMockDataFile(
+            fixtureConfig,
+          );
+          if (fixtureFile.path.isEmpty || !emitted.add(fixtureFile.path)) {
+            continue;
+          }
+          files.add(fixtureFile);
+          files.addAll(
+            await entityGraphBuilder.generateNestedEntityMockFiles(
+              config: fixtureConfig,
+              generateMockDataFile: dataBuilder.generateMockDataFile,
+            ),
+          );
+        }
         if (config.failMock) {
           // Honest scope notice (never a silent skip): the failure preset
           // targets the entity datasource seam; the service-mode provider

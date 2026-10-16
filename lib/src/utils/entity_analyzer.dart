@@ -105,33 +105,38 @@ class EntityAnalyzer {
     FileSystem? fileSystem,
   }) {
     final fs = fileSystem ?? const DefaultFileSystem();
+    return findEnumSourcePath(typeName, outputDir, fileSystem: fs) != null;
+  }
+
+  /// The file that declares [typeName] as an `enum`, or `null` when no
+  /// candidate declares it.
+  ///
+  /// The probe order is the historical [isEnum] order — the conventional
+  /// `enums/` barrel, a per-name `enums/<snake>.dart`, then the per-entity
+  /// folder `<snake>/<snake>.dart`. Callers that need to IMPORT the enum go
+  /// through this instead of assuming the barrel exists: a project may declare
+  /// its enum in its own folder and carry no `enums/` directory at all
+  /// (issue #1735).
+  static String? findEnumSourcePath(
+    String typeName,
+    String outputDir, {
+    FileSystem? fileSystem,
+  }) {
+    final fs = fileSystem ?? const DefaultFileSystem();
     final typeSnake = StringUtils.camelToSnake(typeName);
     final enumDir = p.join(outputDir, 'domain', 'entities', 'enums');
-    final indexFile = p.join(enumDir, 'index.dart');
-    if (fs.existsSync(indexFile)) {
-      final content = fs.readSync(indexFile);
-      if (content.contains('enum $typeName')) return true;
+    final candidates = <String>[
+      p.join(enumDir, 'index.dart'),
+      p.join(enumDir, '$typeSnake.dart'),
+      p.join(outputDir, 'domain', 'entities', typeSnake, '$typeSnake.dart'),
+    ];
+
+    for (final candidate in candidates) {
+      if (!fs.existsSync(candidate)) continue;
+      if (fs.readSync(candidate).contains('enum $typeName')) return candidate;
     }
 
-    final enumPath = p.join(enumDir, '$typeSnake.dart');
-    if (fs.existsSync(enumPath)) {
-      final content = fs.readSync(enumPath);
-      return content.contains('enum $typeName');
-    }
-
-    final entityPath = p.join(
-      outputDir,
-      'domain',
-      'entities',
-      typeSnake,
-      '$typeSnake.dart',
-    );
-    if (fs.existsSync(entityPath)) {
-      final content = fs.readSync(entityPath);
-      return content.contains('enum $typeName');
-    }
-
-    return false;
+    return null;
   }
 
   static List<String> getEnumValues(
@@ -370,6 +375,14 @@ class EntityAnalyzer {
     }
   }
 
+  /// The import a consumer in [fromDir] writes to bring [entityName] into
+  /// scope, relative to its own directory.
+  ///
+  /// Enums resolve to the file that DECLARES them (issue #1735): assuming the
+  /// conventional `domain/entities/enums/index.dart` barrel is only correct for
+  /// projects that keep their enums there, and silently wrong — a
+  /// `uri_does_not_exist` plus an unresolvable type — for the per-entity
+  /// layout [findEnumSourcePath] already probes.
   static String getEntityImportPath(
     String entityName,
     String outputDir, {
@@ -377,8 +390,13 @@ class EntityAnalyzer {
     FileSystem? fileSystem,
   }) {
     final fs = fileSystem ?? const DefaultFileSystem();
-    if (isEnum(entityName, outputDir, fileSystem: fs)) {
-      return '../../domain/entities/enums/index.dart';
+    final enumFilePath = findEnumSourcePath(
+      entityName,
+      outputDir,
+      fileSystem: fs,
+    );
+    if (enumFilePath != null) {
+      return _relativeImportPath(enumFilePath, outputDir, fromDir);
     }
 
     final entityFilePath = _findEntitySourcePathSync(
@@ -388,13 +406,33 @@ class EntityAnalyzer {
     );
     if (entityFilePath == null) {
       final entitySnake = StringUtils.camelToSnake(entityName);
-      return '../../domain/entities/$entitySnake/$entitySnake.dart';
+      return '${_relativeUpPrefix(fromDir)}domain/entities/'
+          '$entitySnake/$entitySnake.dart';
     }
 
+    return _relativeImportPath(entityFilePath, outputDir, fromDir);
+  }
+
+  static String _relativeImportPath(
+    String filePath,
+    String outputDir,
+    String fromDir,
+  ) {
     final fromPath = p.join(outputDir, fromDir);
     return p.posix.normalize(
-      p.relative(entityFilePath, from: fromPath).replaceAll(p.separator, '/'),
+      p.relative(filePath, from: fromPath).replaceAll(p.separator, '/'),
     );
+  }
+
+  /// The `../` prefix that climbs from `<outputDir>/<fromDir>` back to
+  /// `<outputDir>` — the depth of [fromDir], so the conventional-layout
+  /// fallbacks below stay correct for a consumer that is not at `data/mock`.
+  static String _relativeUpPrefix(String fromDir) {
+    final depth = p.posix
+        .split(fromDir.replaceAll(p.separator, '/'))
+        .where((segment) => segment.isNotEmpty && segment != '.')
+        .length;
+    return '../' * depth;
   }
 
   /// Detects if an entity is polymorphic (has explicitSubTypes in @Zorphy)
