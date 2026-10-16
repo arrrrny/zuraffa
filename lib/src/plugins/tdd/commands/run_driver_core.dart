@@ -572,17 +572,18 @@ class RunDriverCore {
       loaded = await _replayJournal(tx, loaded, evidence, journal, label);
     }
 
+    // Review #1608: the registry resolves each behavior's registered
+    // subject path — the born-green subject binding below (and every
+    // later phase) reads it, so it is constructed once, here.
+    final registry = ArtifactRegistry(featureDir: featureDir);
     // Issue #1324: the behaviors whose current-generation green evidence
     // is backed by its certified test file on disk — computed AFTER WAL
     // replay so a green append pending in the journal is visible.
     final certifiedGreenBacked = await _certifiedGreenBacked(
       evidence,
       projectRoot,
+      registry,
     );
-    // Review #1608: the registry resolves each behavior's registered
-    // subject path — the born-green subject binding below (and every
-    // later phase) reads it, so it is constructed once, here.
-    final registry = ArtifactRegistry(featureDir: featureDir);
     // Issue #1592: the behaviors whose LAST green entry certifies the
     // born-green hand transition (the #1411 journal marker) AND binds the
     // current subject — the class whose blocked re-entry converges at
@@ -3326,9 +3327,17 @@ class RunDriverCore {
   /// [CycleEvidence.orphanedGreenEvidence] applies), so a behavior is
   /// only re-driven from gen when its certified test file is provably
   /// gone (the #1264 orphaned class, whose recovery re-enters at gen).
+  ///
+  /// Issue #1736: the recorded `- test:` line is HISTORY — the cycle-log
+  /// is append-only, so a pair moved by `zfa tdd migrate-paths` leaves the
+  /// entry naming the path it was certified at. [registry] (the source of
+  /// truth for where an artifact IS) is consulted before a behavior is
+  /// declared un-backed, so a sanctioned move never re-drives gen over a
+  /// valid certification.
   Future<Set<String>> _certifiedGreenBacked(
     CycleEvidence evidence,
     String projectRoot,
+    ArtifactRegistry registry,
   ) async {
     final lastGreen = <String, ParsedCycleEntry>{};
     for (final entry in await evidence.entries()) {
@@ -3336,6 +3345,9 @@ class RunDriverCore {
       lastGreen[entry.behaviorId] = entry;
     }
     final backed = <String>{};
+    // Issue #1736: the registry answers for a recorded path that no longer
+    // resolves — read once, and only when a line actually misses.
+    Map<String, ArtifactRecord>? byBehavior;
     for (final MapEntry(key: behaviorId, value: entry) in lastGreen.entries) {
       final test = entry.test;
       if (test == null || test.isEmpty) {
@@ -3346,7 +3358,24 @@ class RunDriverCore {
       final resolved = p.isAbsolute(cleanTest)
           ? p.normalize(cleanTest)
           : p.normalize(p.join(projectRoot, cleanTest));
-      if (File(resolved).existsSync()) backed.add(behaviorId);
+      if (File(resolved).existsSync()) {
+        backed.add(behaviorId);
+        continue;
+      }
+      byBehavior ??= {
+        for (final record in await registry.loadAll())
+          record.behaviorId: record,
+      };
+      final current = byBehavior[behaviorId]?.testPath;
+      if (current != null &&
+          current.isNotEmpty &&
+          File(
+            p.isAbsolute(current)
+                ? p.normalize(current)
+                : p.normalize(p.join(projectRoot, current)),
+          ).existsSync()) {
+        backed.add(behaviorId);
+      }
     }
     return backed;
   }

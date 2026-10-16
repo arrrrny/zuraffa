@@ -625,7 +625,7 @@ void main() {
 
     test('a REAL generated legacy pair keeps compiling after migration — the '
         "moved test's subject import is rewritten to the namespaced depth and "
-        'the cycle log follows', () async {
+        'the cycle log stays verbatim (issue #1736)', () async {
       await seedFeature('300-legacy-real');
       // The legacy state exactly as a pre-#827 binary left it: the pair
       // written by the REAL writers at the flat layout (so the test
@@ -710,6 +710,9 @@ void main() {
 - exit: 1
 - at: 2026-09-01T00:00:00.000Z
 ''');
+      // Issue #1736: the cycle-log is append-only evidence — the migration
+      // must leave it byte-identical, whatever it records.
+      final cycleLogBefore = await File(cycleLogPath).readAsString();
 
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(migrateArgs());
@@ -781,13 +784,10 @@ void main() {
         contains(freshImportLine),
       );
 
-      // The cycle log's recorded paths follow the move.
-      final cycleLog = await File(cycleLogPath).readAsString();
-      expect(
-        cycleLog,
-        contains(p.join('test', 'tdd', '300-legacy-real', 'a1_test.dart')),
-      );
-      expect(cycleLog, isNot(contains(flatTestPath)));
+      // The cycle log is history, not a live pointer: the migration
+      // repaired the registry alone and left the log byte-identical
+      // (issue #1736 — rewriting it invalidated every entry's hash).
+      expect(await File(cycleLogPath).readAsString(), cycleLogBefore);
     });
   });
 }
