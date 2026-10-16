@@ -317,9 +317,23 @@ class MockProviderBuilder {
           entityName.replaceAll('MockData', ''),
         );
         final isMockData = entityName.endsWith('MockData');
+        // Review #1739: the same conventional-layout assumption the create
+        // path above no longer makes. A hardcoded
+        // `domain/entities/<snake>/<snake>.dart` only resolves for a project
+        // that keeps every entity AND enum in its per-entity folder; for an
+        // enum declared in a barrel, or any other declaring site, the append
+        // run emits a URI that does not resolve — and the two paths then
+        // disagree about where an entity import comes from. `fromDir` is the
+        // depth this literal assumed, so conventional layouts stay
+        // byte-identical.
         final importPath = isMockData
             ? '../../mock/${entitySnake}_mock_data.dart'
-            : '../../../domain/entities/$entitySnake/$entitySnake.dart';
+            : EntityAnalyzer.getEntityImportPath(
+                entityName,
+                outputDir,
+                fromDir: 'data/providers/${config.effectiveDomain}',
+                fileSystem: fileSystem,
+              );
 
         if (!updated.contains(importPath)) {
           final importRequest = AppendRequest.import(

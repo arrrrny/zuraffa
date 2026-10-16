@@ -18,8 +18,12 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
+import 'package:zuraffa/src/core/context/file_system.dart';
 import 'package:zuraffa/src/core/plugin_system/capability.dart';
+import 'package:zuraffa/src/core/transaction/generation_transaction.dart';
 import 'package:zuraffa/src/models/generated_file.dart';
+import 'package:zuraffa/src/models/generator_config.dart';
+import 'package:zuraffa/src/plugins/mock/builders/mock_provider_builder.dart';
 import 'package:zuraffa/src/plugins/mock/capabilities/create_mock_capability.dart';
 import 'package:zuraffa/src/plugins/mock/mock_plugin.dart';
 
@@ -42,10 +46,13 @@ class LoginResponse {
 ''';
 
 const _authRequestSource = '''
+import '../authentication_method/authentication_method.dart';
+
 class AuthRequest {
   final String email;
+  final AuthenticationMethod method;
 
-  const AuthRequest({required this.email});
+  const AuthRequest({required this.email, required this.method});
 }
 ''';
 
@@ -89,7 +96,9 @@ void main() {
     }
   });
 
-  Future<ExecutionResult> runServiceModeMock() async {
+  Future<ExecutionResult> runServiceModeMock([
+    Map<String, Object> overrides = const {},
+  ]) async {
     final plugin = MockPlugin(
       outputDir: outputDir,
       options: const GeneratorOptions(dryRun: false, force: true),
@@ -102,6 +111,7 @@ void main() {
       'returns': 'LoginResponse',
       'methods': const <String>[],
       'force': true,
+      ...overrides,
     });
   }
 
@@ -114,6 +124,24 @@ void main() {
       final generated = (result.data?['generatedFiles'] as List<dynamic>)
           .cast<GeneratedFile>();
       expect(generated, isNotEmpty);
+
+      // The loop writes as a side effect of asking for a fixture, so a
+      // duplicated path means the same file was written twice — harmless on
+      // the direct-write path, a `Multiple operations` transaction conflict
+      // (and a failed commit) when the run is wrapped in one. The shared
+      // `AuthenticationMethod` field makes two fixture types contend for one
+      // nested fixture, which is how the second half of that bug shows.
+      final paths = generated
+          .map((f) => f.path)
+          .where((x) => x.isNotEmpty)
+          .toList();
+      expect(
+        paths.toSet().length,
+        paths.length,
+        reason:
+            'emitted twice: '
+            '${paths.where((x) => paths.where((y) => y == x).length > 1).toSet()}',
+      );
 
       final unresolved = <String>[];
       for (final file in generated) {
@@ -199,6 +227,132 @@ void main() {
       );
     },
   );
+
+  test(
+    'issue #1735: a primitive --returns still emits the params fixture',
+    () async {
+      // The fixture config used to inherit the service's `returnsType` /
+      // `useCaseType`, and service mode is always `isCustomUseCase`, so a
+      // primitive `--returns` short-circuited `generateMockDataFile` to an
+      // empty path: the provider imported the params fixture and no file was
+      // written, with the run still reporting success.
+      final result = await runServiceModeMock(const {'returns': 'String'});
+      expect(result.success, isTrue, reason: result.message);
+
+      final generated = (result.data?['generatedFiles'] as List<dynamic>)
+          .cast<GeneratedFile>();
+      final paths = generated.map((f) => f.path).toSet();
+
+      final provider = generated.firstWhere(
+        (f) => f.path.endsWith('data/providers/auth/auth_mock_provider.dart'),
+        orElse: () => throw StateError(
+          'no mock provider emitted; generated: '
+          '${generated.map((f) => p.relative(f.path, from: outputDir)).join(', ')}',
+        ),
+      );
+
+      expect(
+        provider.content ?? '',
+        contains('auth_request_mock_data.dart'),
+        reason: 'precondition: the provider is the side that emits the import',
+      );
+      expect(
+        paths.any((x) => x.endsWith('data/mock/auth_request_mock_data.dart')),
+        isTrue,
+        reason:
+            'a primitive return type must not suppress the params fixture the '
+            'provider imports (issue #1735)',
+      );
+    },
+  );
+
+  test(
+    'issue #1735: the service-mode run commits inside one transaction',
+    () async {
+      // `make … --with mock` wraps every plugin in a GenerationTransaction,
+      // where two operations for one path fail validation ("Multiple
+      // operations for …"). The run's own fixture writes used to produce
+      // exactly that — silently absorbed by `zfa mock create`'s direct
+      // writes, fatal here.
+      final transaction = GenerationTransaction(dryRun: false, force: true);
+      final result = await GenerationTransaction.run(
+        transaction,
+        runServiceModeMock,
+      );
+      expect(result.success, isTrue, reason: result.message);
+
+      final commit = await transaction.commit(FileSystem.create());
+      expect(
+        commit.conflicts,
+        isEmpty,
+        reason:
+            'the run emitted two operations for one path:\n'
+            '${commit.conflicts.join('\n')}',
+      );
+      expect(commit.success, isTrue);
+    },
+  );
+
+  test('issue #1735: the appendToExisting path resolves its import like the '
+      'create path', () async {
+    // The append branch kept the hardcoded
+    // `domain/entities/<snake>/<snake>.dart` this PR removed from the
+    // create path, so a type declared anywhere else — an enum in the
+    // conventional barrel, say — got a URI that does not resolve.
+    _write(
+      outputDir,
+      'domain/entities/enums/index.dart',
+      'enum SessionState {\n  active,\n  expired,\n}\n',
+    );
+    _write(outputDir, 'domain/services/session_service.dart', '''
+import '../entities/enums/index.dart';
+
+abstract class SessionService {
+  Future<void> store(SessionState params);
+}
+''');
+    _write(outputDir, 'data/providers/session/session_mock_provider.dart', '''
+// GENERATED - DO NOT EDIT
+// Generated by zfa for: Session
+import 'dart:async';
+
+import 'package:zuraffa/mock.dart';
+
+import '../../../domain/services/session_service.dart';
+
+/// Mock provider for SessionService
+class SessionMockProvider
+    with Loggable, FailureHandler
+    implements SessionService {
+  SessionMockProvider([Duration? delay])
+    : _delay = delay ?? const Duration(milliseconds: 100);
+
+  final Duration _delay;
+}
+
+// END GENERATED
+''');
+
+    final file = await MockProviderBuilder(outputDir: outputDir)
+        .generateMockProvider(
+          GeneratorConfig(
+            name: 'Session',
+            service: 'SessionService',
+            domain: 'session',
+            paramsType: 'SessionState',
+            appendToExisting: true,
+            outputDir: outputDir,
+          ),
+        );
+
+    expect(
+      file.content ?? '',
+      contains("import '../../../domain/entities/enums/index.dart';"),
+      reason:
+          'the appended import must point at the enum declaration, not the '
+          'per-entity folder this project does not have (issue #1735)',
+    );
+  });
 }
 
 void _write(String outputDir, String relativePath, String content) {
