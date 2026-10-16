@@ -144,7 +144,9 @@ class CycleEvidence {
   /// honors it without checking the tree reports done/green for behaviors
   /// whose test files no longer exist. The green entry's `- test:` line
   /// names the registered test path it certified (absolute or
-  /// project-relative); a missing file orphans the evidence. Entries
+  /// project-relative); a missing file orphans the evidence — unless the
+  /// live registry records the behavior's artifact at a location that
+  /// exists (the #1736 fallback in the paragraph below). Entries
   /// without a `- test:` line cannot be checked and are conservatively
   /// treated as backed (legacy tolerance — never fails what it cannot
   /// read).
@@ -169,7 +171,11 @@ class CycleEvidence {
       if (entry.kind != 'green') continue;
       lastGreen[entry.behaviorId] = entry;
     }
-    final registry = await _recordsByBehavior();
+    // Issue #1736 (review #1737): the registry read is lazy — the sibling
+    // run-driver fallback (`_certifiedGreenBacked`) loads it only on the
+    // first recorded path that misses, so a healthy feature (zero
+    // orphans) never pays a registry read plus JSON decode here either.
+    Map<String, ArtifactRecord>? registry;
     final orphans = <String>{};
     for (final MapEntry(key: behaviorId, value: entry) in lastGreen.entries) {
       final test = entry.test;
@@ -182,6 +188,7 @@ class CycleEvidence {
       // Issue #1736: the appended-evidence fix-up — ask the live registry
       // where the behavior's artifact is NOW before calling the evidence
       // orphaned.
+      registry ??= await _recordsByBehavior();
       final current = registry[behaviorId]?.testPath;
       if (current != null &&
           current.isNotEmpty &&

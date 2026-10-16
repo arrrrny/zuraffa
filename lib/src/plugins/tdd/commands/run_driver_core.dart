@@ -3362,10 +3362,22 @@ class RunDriverCore {
         backed.add(behaviorId);
         continue;
       }
-      byBehavior ??= {
-        for (final record in await registry.loadAll())
-          record.behaviorId: record,
-      };
+      // An unreadable store leaves [byBehavior] empty, so the recorded
+      // path alone decides and the behavior stays un-backed — the
+      // pre-#1736 behavior. The doctor-side twin
+      // (`CycleEvidence._recordsByBehavior`) applies the same tolerance
+      // (review #1737, CodeRabbit), so a corrupt `artifacts.json` never
+      // aborts the run from this fallback.
+      if (byBehavior == null) {
+        try {
+          byBehavior = {
+            for (final record in await registry.loadAll())
+              record.behaviorId: record,
+          };
+        } on Exception {
+          byBehavior = const {};
+        }
+      }
       final current = byBehavior[behaviorId]?.testPath;
       if (current != null &&
           current.isNotEmpty &&
