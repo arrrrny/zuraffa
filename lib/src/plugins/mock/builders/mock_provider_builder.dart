@@ -112,22 +112,28 @@ class MockProviderBuilder {
         ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
         : '../../../domain/services/${serviceSnake}_service.dart';
 
-    final directives = [
-      Directive.import('dart:async'),
-      // Canonical zuraffa-native mock marker: detects native mocking for static
-      // tooling (e.g. speckit-tdd-setup) without a third-party double library.
-      Directive.import('package:zuraffa/mock.dart'),
-      Directive.import(serviceImport),
-    ];
+    final directives = <Directive>[];
+    final importedUris = <String>{};
+
+    // One import per URI: the blanket entity-type sweep below re-adds what the
+    // target-entity import already claimed, and a doubled import is a
+    // duplicated line in every emitted provider (issue #1735, minor).
+    void addImport(String uri) {
+      if (importedUris.add(uri)) directives.add(Directive.import(uri));
+    }
+
+    addImport('dart:async');
+    // Canonical zuraffa-native mock marker: detects native mocking for static
+    // tooling (e.g. speckit-tdd-setup) without a third-party double library.
+    addImport('package:zuraffa/mock.dart');
+    addImport(serviceImport);
 
     final isStandardEntityMock = config.methods.isNotEmpty;
     final isPrimitiveMock = isPrimitive && !isStandardEntityMock;
 
     if (!isPrimitiveMock) {
-      directives.add(
-        Directive.import(
-          '../../mock/${StringUtils.camelToSnake(targetEntity)}_mock_data.dart',
-        ),
+      addImport(
+        '../../mock/${StringUtils.camelToSnake(targetEntity)}_mock_data.dart',
       );
     }
 
@@ -162,61 +168,35 @@ class MockProviderBuilder {
 
     final methods = <Method>[];
 
-    final servicePath = config.isEntityBased
-        ? path.join(
-            outputDir,
-            'domain',
-            'services',
-            config.effectiveDomain,
-            '${serviceSnake}_service.dart',
-          )
-        : path.join(
-            outputDir,
-            'domain',
-            'services',
-            '${serviceSnake}_service.dart',
-          );
-
-    final existingMethods = await MethodExtractor.extractMethodsFromInterface(
-      servicePath,
+    final existingMethods = await _serviceInterfaceMethods(
+      config,
       serviceName,
-      fileSystem: fileSystem,
+      serviceSnake,
     );
 
-    final entityTypes = <String>{};
-    if (config.isEntityBased) {
-      entityTypes.add(config.name);
-    }
-    entityTypes.addAll(EntityUtils.extractEntityTypes(returns));
-    if (config.paramsType != null && config.paramsType != 'NoParams') {
-      entityTypes.addAll(EntityUtils.extractEntityTypes(config.paramsType!));
-    }
-
-    for (final info in existingMethods) {
-      if (info.paramsType != null && info.paramsType != 'NoParams') {
-        entityTypes.addAll(EntityUtils.extractEntityTypes(info.paramsType!));
-      }
-      if (info.returnsType != null && info.returnsType != 'void') {
-        entityTypes.addAll(EntityUtils.extractEntityTypes(info.returnsType!));
-      }
-    }
+    final entityTypes = _providerEntityTypes(config, existingMethods);
 
     for (final entityName in entityTypes) {
       final entitySnake = StringUtils.camelToSnake(entityName);
-      if (EntityAnalyzer.isEnum(
+      // Issue #1735: resolve the file that DECLARES the type instead of
+      // assuming the conventional layout. An enum may live in its own
+      // per-entity folder with no `domain/entities/enums/` directory at all,
+      // and importing the barrel then is a `uri_does_not_exist` plus an
+      // unresolvable type in every method signature that names it.
+      addImport(
+        EntityAnalyzer.getEntityImportPath(
+          entityName,
+          outputDir,
+          fromDir: 'data/providers/${config.effectiveDomain}',
+          fileSystem: fileSystem,
+        ),
+      );
+      if (!EntityAnalyzer.isEnum(
         entityName,
         outputDir,
         fileSystem: fileSystem,
       )) {
-        directives.add(
-          Directive.import('../../../domain/entities/enums/index.dart'),
-        );
-      } else {
-        final entityPath =
-            '../../../domain/entities/$entitySnake/$entitySnake.dart';
-        directives.add(Directive.import(entityPath));
-        final mockDataImport = '../../mock/${entitySnake}_mock_data.dart';
-        directives.add(Directive.import(mockDataImport));
+        addImport('../../mock/${entitySnake}_mock_data.dart');
       }
     }
 
@@ -337,9 +317,23 @@ class MockProviderBuilder {
           entityName.replaceAll('MockData', ''),
         );
         final isMockData = entityName.endsWith('MockData');
+        // Review #1739: the same conventional-layout assumption the create
+        // path above no longer makes. A hardcoded
+        // `domain/entities/<snake>/<snake>.dart` only resolves for a project
+        // that keeps every entity AND enum in its per-entity folder; for an
+        // enum declared in a barrel, or any other declaring site, the append
+        // run emits a URI that does not resolve — and the two paths then
+        // disagree about where an entity import comes from. `fromDir` is the
+        // depth this literal assumed, so conventional layouts stay
+        // byte-identical.
         final importPath = isMockData
             ? '../../mock/${entitySnake}_mock_data.dart'
-            : '../../../domain/entities/$entitySnake/$entitySnake.dart';
+            : EntityAnalyzer.getEntityImportPath(
+                entityName,
+                outputDir,
+                fromDir: 'data/providers/${config.effectiveDomain}',
+                fileSystem: fileSystem,
+              );
 
         if (!updated.contains(importPath)) {
           final importRequest = AppendRequest.import(
@@ -389,6 +383,92 @@ class MockProviderBuilder {
       skipRevertIfExisted: true,
       fileSystem: fileSystem,
     );
+  }
+
+  /// The entity types whose `<snake>_mock_data.dart` fixture this provider's
+  /// generated imports reference, so a caller can emit them in the same run —
+  /// an import with no file behind it is a `uri_does_not_exist` in the
+  /// provider the run itself wrote (issue #1735).
+  ///
+  /// Enum types are excluded: they contribute a declaration import, never a
+  /// fixture.
+  Future<Set<String>> fixtureEntityTypes(GeneratorConfig config) async {
+    final serviceName = config.effectiveService;
+    final serviceSnake = config.serviceSnake;
+    if (serviceName == null || serviceSnake == null) return <String>{};
+
+    final existingMethods = await _serviceInterfaceMethods(
+      config,
+      serviceName,
+      serviceSnake,
+    );
+
+    return _providerEntityTypes(config, existingMethods)
+        .where(
+          (entityName) => !EntityAnalyzer.isEnum(
+            entityName,
+            outputDir,
+            fileSystem: fileSystem,
+          ),
+        )
+        .toSet();
+  }
+
+  Future<List<ParsedUseCaseInfo>> _serviceInterfaceMethods(
+    GeneratorConfig config,
+    String serviceName,
+    String serviceSnake,
+  ) {
+    final servicePath = config.isEntityBased
+        ? path.join(
+            outputDir,
+            'domain',
+            'services',
+            config.effectiveDomain,
+            '${serviceSnake}_service.dart',
+          )
+        : path.join(
+            outputDir,
+            'domain',
+            'services',
+            '${serviceSnake}_service.dart',
+          );
+
+    return MethodExtractor.extractMethodsFromInterface(
+      servicePath,
+      serviceName,
+      fileSystem: fileSystem,
+    );
+  }
+
+  /// Every entity type the provider names — its own entity, the returns and
+  /// params types, and the same pair for each method of the service interface
+  /// it conforms to.
+  Set<String> _providerEntityTypes(
+    GeneratorConfig config,
+    List<ParsedUseCaseInfo> existingMethods,
+  ) {
+    final entityTypes = <String>{};
+    if (config.isEntityBased) {
+      entityTypes.add(config.name);
+    }
+    entityTypes.addAll(
+      EntityUtils.extractEntityTypes(config.returnsType ?? 'void'),
+    );
+    if (config.paramsType != null && config.paramsType != 'NoParams') {
+      entityTypes.addAll(EntityUtils.extractEntityTypes(config.paramsType!));
+    }
+
+    for (final info in existingMethods) {
+      if (info.paramsType != null && info.paramsType != 'NoParams') {
+        entityTypes.addAll(EntityUtils.extractEntityTypes(info.paramsType!));
+      }
+      if (info.returnsType != null && info.returnsType != 'void') {
+        entityTypes.addAll(EntityUtils.extractEntityTypes(info.returnsType!));
+      }
+    }
+
+    return entityTypes;
   }
 
   List<Method> _generateMockProviderMethods(

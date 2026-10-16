@@ -277,6 +277,81 @@ class MockBuilder {
       }
       if (config.hasService) {
         files.add(await providerBuilder.generateMockProvider(config));
+        // Issue #1735: the provider imports a `<snake>_mock_data.dart` fixture
+        // for every entity type it names, but only the target entity's fixture
+        // came out of the mock-data path above — a service-mode run with a
+        // `--params` type emitted the import and no file, so its own output
+        // failed `dart analyze` with uri_does_not_exist. Emit the rest here, in
+        // the same run, so every import the provider writes resolves.
+        final emitted = files.map((file) => file.path).toSet();
+        for (final fixtureType in await providerBuilder.fixtureEntityTypes(
+          config,
+        )) {
+          if (!EntityAnalyzer.entityFileExists(
+            fixtureType,
+            outputDir,
+            fileSystem: fileSystem,
+          )) {
+            continue;
+          }
+          // Review #1739: the fixture's identity only — never the parent
+          // SERVICE's `returnsType` / `useCaseType` / `isCustomUseCase`, which
+          // `copyWith` carried over. `generateMockDataFile` short-circuits a
+          // primitive `--returns` to an empty path, so a service returning
+          // `String` dropped the params fixture the provider still imported.
+          // The nested builder builds its configs from scratch for the same
+          // reason; `seed` flows through to keep spec 1001's replays stable.
+          final fixtureConfig = GeneratorConfig(
+            name: fixtureType,
+            generateMockDataOnly: true,
+            outputDir: outputDir,
+            revert: config.revert,
+            force: config.force,
+            verbose: config.verbose,
+            seed: config.seed,
+          );
+          // Review #1739: claim the path BEFORE writing. `generateMockDataFile`
+          // writes as a side effect, so the post-hoc check this loop used to
+          // run could not stop a second write of a path the mock-data path
+          // above had already emitted — one operation per path, and two for
+          // that path is exactly what GenerationTransaction rejects
+          // ("Multiple operations for …") when the run is wrapped in one.
+          final fixturePath = dataBuilder.mockDataPathFor(fixtureType);
+          if (!emitted.add(fixturePath)) continue;
+          final fixtureFile = await dataBuilder.generateMockDataFile(
+            fixtureConfig,
+          );
+          if (fixtureFile.path.isEmpty) {
+            // Nothing was written (primitive / completable shape), so release
+            // the claim and let a later fixture type take this path.
+            emitted.remove(fixturePath);
+            continue;
+          }
+          files.add(fixtureFile);
+          files.addAll(
+            await entityGraphBuilder.generateNestedEntityMockFiles(
+              config: fixtureConfig,
+              // The nested builder de-duplicates only within its own call, so
+              // a nested entity/enum shared by two fixture types was written
+              // once per type. Claim its path through the same set, and report
+              // the loser as an honest skip.
+              generateMockDataFile: (nestedConfig) async {
+                final nestedPath = dataBuilder.mockDataPathFor(
+                  nestedConfig.name,
+                );
+                if (!emitted.add(nestedPath)) {
+                  return GeneratedFile(
+                    path: '',
+                    content: '',
+                    action: 'skipped',
+                    type: 'mock_data',
+                  );
+                }
+                return dataBuilder.generateMockDataFile(nestedConfig);
+              },
+            ),
+          );
+        }
         if (config.failMock) {
           // Honest scope notice (never a silent skip): the failure preset
           // targets the entity datasource seam; the service-mode provider

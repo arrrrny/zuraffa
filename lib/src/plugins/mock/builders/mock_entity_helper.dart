@@ -28,7 +28,7 @@ class MockEntityHelper {
     String outputDir,
   ) {
     final imports = <String>[];
-    bool hasEnums = false;
+    final enumTypes = <String>{};
 
     for (final entry in fields.entries) {
       final fieldType = entry.value;
@@ -49,7 +49,7 @@ class MockEntityHelper {
 
         final entityFields = EntityAnalyzer.analyzeEntity(baseType, outputDir);
         if (EntityAnalyzer.isEnum(baseType, outputDir)) {
-          hasEnums = true;
+          enumTypes.add(baseType);
           final entitySnake = StringUtils.camelToSnake(baseType);
           imports.add('${entitySnake}_mock_data.dart');
           continue;
@@ -70,7 +70,7 @@ class MockEntityHelper {
               'NoParams',
             ].contains(baseType)) {
           if (EntityAnalyzer.isEnum(baseType, outputDir)) {
-            hasEnums = true;
+            enumTypes.add(baseType);
             final entitySnake = StringUtils.camelToSnake(baseType);
             imports.add('${entitySnake}_mock_data.dart');
           }
@@ -78,8 +78,18 @@ class MockEntityHelper {
       }
     }
 
-    if (hasEnums) {
-      imports.insert(0, '../../domain/entities/enums/index.dart');
+    // Issue #1735: the mock data body names the enum type directly, so it needs
+    // the enum DECLARATION in scope — not a `domain/entities/enums/index.dart`
+    // barrel that only exists when the project happens to keep its enums there.
+    if (enumTypes.isNotEmpty) {
+      final enumImports =
+          enumTypes
+              .map(
+                (type) => EntityAnalyzer.getEntityImportPath(type, outputDir),
+              )
+              .toList()
+            ..sort();
+      imports.insertAll(0, enumImports);
     }
 
     return imports.toSet().toList();
