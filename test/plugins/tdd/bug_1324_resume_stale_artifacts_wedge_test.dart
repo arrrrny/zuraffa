@@ -448,4 +448,66 @@ void main() {
       );
     },
   );
+
+  test(
+    'B8: a sanctioned move keeps the pair certified — the registry resolves '
+    'the recorded path and resume never re-drives gen (issue #1736)',
+    () async {
+      const feature = '1736-move-keeps-certified';
+      fx = await TddFixture.create(featureName: feature);
+      addTearDown(fx.dispose);
+      await fx.writeFakeZfa();
+      await fx.seedTestList([
+        (
+          id: 'A1',
+          description: 'the A1 behavior',
+          traces: 'FR-001',
+          state: 'PENDING',
+          kind: 'unit',
+        ),
+      ]);
+      // A claim parked at gen: absent the #1324 guard the window starts
+      // at index 0 and gen clobbers the certified pair — the harm the
+      // guard exists to prevent, and the only shape that reaches it.
+      await fx.seedRunState(
+        states: {'A1': 'green'},
+        inFlightBehaviorId: 'A1',
+        inFlightStep: 'gen',
+      );
+      // The sanctioned move: the pair now lives at its namespaced path
+      // (where the registry records it — the live source of truth),
+      // while the append-only cycle-log keeps naming the pre-move flat
+      // path. That line is HISTORY and no longer resolves on disk, so
+      // only the registry fallback in `_certifiedGreenBacked` backs the
+      // certification.
+      await fx.registerBehavior(
+        id: 'A1',
+        description: 'the A1 behavior',
+        testPath: fx.namespacedTestPathOf('A1'),
+        testContent: TddFixture.greenTest('the A1 behavior'),
+      );
+      final subjectFile = File(p.join(fx.root.path, 'lib', 'a1_subject.dart'));
+      await subjectFile.parent.create(recursive: true);
+      await subjectFile.writeAsString('int a1Value() => 42;\n');
+      await fx.seedRedEvidence('A1');
+      await fx.seedGreenEvidence('A1');
+      // Fixture sanity: the recorded `- test:` line really misses.
+      expect(File(fx.testPathOf('A1')).existsSync(), isFalse);
+      expect(File(fx.namespacedTestPathOf('A1')).existsSync(), isTrue);
+
+      final out = await drive(feature);
+      final invocations = fx.stepInvocations();
+
+      expect(
+        invocations,
+        isNot(contains('gen A1')),
+        reason:
+            'the recorded `- test:` line is history; the registry resolves '
+            'the moved pair, so the green certification holds and gen must '
+            'not clobber it: $invocations',
+      );
+      expect(invocations, contains('refactor A1'), reason: out);
+      expect(out, contains('result=complete'), reason: out);
+    },
+  );
 }

@@ -15,9 +15,19 @@
 ///   file is nobody's contract — the registry is the source of truth
 ///   (bug #720) — so it is left untouched.
 /// - **Pair-atomic**: a record's test and subject move together. If either
-///   move fails — or the moved test's relative subject import / the cycle
-///   log's recorded paths cannot be rewritten — everything rolls back so
-///   the pair is never split and never left un-compilable.
+///   move fails — or the moved test's relative subject import cannot be
+///   rewritten — everything rolls back so the pair is never split and never
+///   left un-compilable.
+/// - **Append-only evidence is never rewritten (issue #1736)**: the
+///   migration repairs the REGISTRY alone; `tdd/cycle-log.md` comes out of
+///   a run byte-identical. It is a hash-chained append-only transcript
+///   (bug #828) whose `- test:` / `- command:` fields are part of each
+///   entry's `- hash:` payload, so rewriting a recorded path inside it
+///   invalidated the chain and made `doctor` report every touched entry as
+///   tampered — with "restore the log from a trusted source" as the only
+///   remedy. The paths inside the log are what was executed at the time;
+///   a form rewrite moves nothing, so they still resolve, and `doctor`
+///   prescribes this command only for the registry's recorded form.
 /// - **Ownership-preserving**: a move onto an existing namespaced target is
 ///   REFUSED (reported, counted, exit 1) — the guardrail that refuses to
 ///   overwrite non-owned content (044 FR-008) applies to the migration
@@ -240,34 +250,11 @@ class MigratePathsCommand extends Command<void> {
             '${formPlan.testPath}, "${_posix(record.subjectPath)}" -> '
             '${formPlan.subjectPath}',
           );
-          if (!dryRun) {
-            // The cycle-log evidence may name the OLD recorded form; keep
-            // the certified evidence pointing at the strings the registry
-            // now carries. The resolved forms are identical, so only the
-            // recorded-form replaces can fire.
-            try {
-              await _rewriteCycleLogPaths(
-                featureDir: entry.featureDir,
-                cwd: cwd,
-                record: record,
-                plan: formPlan,
-                testFrom: testFrom,
-                testTo: testFrom,
-                subjectFrom: subjectFrom,
-                subjectTo: subjectFrom,
-              );
-            } on FileSystemException catch (e) {
-              refused++;
-              print(
-                'zfa tdd migrate-paths: REFUSED for behavior '
-                '"${record.behaviorId}" in ${entry.featureName}: the '
-                'cycle-log evidence rewrite failed: ${e.message}. The '
-                'record was left unchanged.',
-              );
-              updated.add(record);
-              continue;
-            }
-          }
+          // Issue #1736: the cycle-log is NEVER rewritten. It is
+          // append-only hash-chained evidence, and the form rewrite
+          // moves nothing — the recorded lines still name a file that
+          // resolves on this machine, while rewriting them invalidated
+          // every entry's `- hash:` and red the store as tampered.
           migrated++;
           registryDirty = true;
           updated.add(formPlan.record);
@@ -343,10 +330,10 @@ class MigratePathsCommand extends Command<void> {
             //
             // Issue #912 defect 4: the rewrite now covers BOTH reference
             // forms (relative AND the self-package URI) and VERIFIES the
-            // subject reference resolves before moving on; the cycle-log
-            // rewrite + the cross-pair/self-check pass run AFTER the whole
-            // registry's pairs moved (below), so composed tests and
-            // refused pairs are handled without split-brain state.
+            // subject reference resolves before moving on; the
+            // cross-pair/self-check pass runs AFTER the whole registry's
+            // pairs moved (below), so composed tests and refused pairs are
+            // handled without split-brain state.
             try {
               _rewriteMovedTestReferences(
                 cwd: cwd,
@@ -406,11 +393,11 @@ class MigratePathsCommand extends Command<void> {
       //   2. the self-check — every moved test's relative and
       //      self-package imports must resolve on disk BEFORE success;
       //      a pair that cannot resolve rolls back and is refused;
-      //   3. the cycle-log evidence rewrite, only for pairs that
-      //      verified;
-      // then the repair pass for already-migrated-but-broken records —
-      // which runs EVEN when nothing moved this run (the re-run repair
-      // scenario).
+      //   3. empty legacy flat-dir cleanup for pairs that verified.
+      // The cycle-log is deliberately NOT touched (issue #1736): it is
+      // append-only hash-chained evidence. Then the repair pass for
+      // already-migrated-but-broken records — which runs EVEN when nothing
+      // moved this run (the re-run repair scenario).
       // -------------------------------------------------------------
       if (!dryRun) {
         final pkg = hostPackageName(cwd);
@@ -493,35 +480,11 @@ class MigratePathsCommand extends Command<void> {
             verified.add(moved);
           }
 
-          // 3. Cycle-log evidence rewrite for verified pairs.
+          // 3. Empty legacy flat-dir cleanup for verified pairs. The
+          // cycle-log evidence is never rewritten (issue #1736) — it is
+          // append-only, hash-chained history, and a rewrite invalidated
+          // every entry's chain.
           for (final moved in verified) {
-            try {
-              await _rewriteCycleLogPaths(
-                featureDir: entry.featureDir,
-                cwd: cwd,
-                record: moved.record,
-                plan: moved.plan,
-                testFrom: moved.testFrom,
-                testTo: moved.testTo,
-                subjectFrom: moved.subjectFrom,
-                subjectTo: moved.subjectTo,
-              );
-            } on FileSystemException catch (e) {
-              File(moved.subjectTo).renameSync(moved.subjectFrom);
-              final content = File(moved.testTo).readAsStringSync();
-              File(moved.testTo).renameSync(moved.testFrom);
-              File(moved.testFrom).writeAsStringSync(content);
-              updated[moved.updatedIndex] = moved.record;
-              migrated--;
-              refused++;
-              print(
-                'zfa tdd migrate-paths: REFUSED for behavior '
-                '"${moved.record.behaviorId}" in ${entry.featureName}: the '
-                'cycle-log evidence rewrite failed: ${e.message}. The pair '
-                'was rolled back.',
-              );
-              continue;
-            }
             _cleanupEmptyLegacyDirs(cwd, moved.plan);
           }
         }
@@ -839,31 +802,6 @@ class MigratePathsCommand extends Command<void> {
   static String _uriBasename(String uri) =>
       p.basename(Uri.tryParse(uri)?.path ?? uri);
 
-  /// Rewrite the feature's cycle-log evidence lines that name the moved
-  /// paths (`- test:` and `- command:` entries), so certified evidence
-  /// keeps pointing at files that exist. Both the recorded form and its
-  /// resolved absolute form may appear; both are replaced.
-  Future<void> _rewriteCycleLogPaths({
-    required String featureDir,
-    required String cwd,
-    required ArtifactRecord record,
-    required _MigrationPlan plan,
-    required String testFrom,
-    required String testTo,
-    required String subjectFrom,
-    required String subjectTo,
-  }) async {
-    final file = File(p.join(featureDir, 'tdd', 'cycle-log.md'));
-    if (!await file.exists()) return;
-    var raw = await file.readAsString();
-    raw = raw
-        .replaceAll(record.testPath, plan.testPath)
-        .replaceAll(record.subjectPath, plan.subjectPath)
-        .replaceAll(testFrom, testTo)
-        .replaceAll(subjectFrom, subjectTo);
-    await file.writeAsString(raw);
-  }
-
   String _posix(String path) => path.replaceAll(r'\', '/');
 
   Future<void> _writeRecords(
@@ -988,7 +926,7 @@ class _MigrationRewriteFailure implements Exception {
 }
 
 /// One pair moved by THIS run — the post-move pass (cross-pair rewrites,
-/// self-check, cycle-log rewrite, rollback) reads these.
+/// self-check, legacy-dir cleanup, rollback) reads these.
 class _MovedPair {
   const _MovedPair({
     required this.record,

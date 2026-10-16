@@ -18,6 +18,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../models/artifact_record.dart';
+import 'artifact_registry.dart';
 import 'born_green.dart';
 import 'cycle_log_sections.dart';
 
@@ -142,10 +144,23 @@ class CycleEvidence {
   /// honors it without checking the tree reports done/green for behaviors
   /// whose test files no longer exist. The green entry's `- test:` line
   /// names the registered test path it certified (absolute or
-  /// project-relative); a missing file orphans the evidence. Entries
+  /// project-relative); a missing file orphans the evidence — unless the
+  /// live registry records the behavior's artifact at a location that
+  /// exists (the #1736 fallback in the paragraph below). Entries
   /// without a `- test:` line cannot be checked and are conservatively
   /// treated as backed (legacy tolerance — never fails what it cannot
   /// read).
+  ///
+  /// Issue #1736: a recorded path that no longer resolves is not
+  /// automatically an orphan, because the line is HISTORY. The cycle-log
+  /// is append-only (never rewritten), so after `zfa tdd migrate-paths`
+  /// moved a pair the entry still names the path the artifact was
+  /// certified at. The live registry is the source of truth for where the
+  /// artifact IS: when it records the behavior's test file at a location
+  /// that exists, the evidence is backed. Only when neither the recorded
+  /// line nor the registry resolves is the evidence orphaned — the
+  /// #1264 class the check exists for (a deleted artifact, which the
+  /// registry cannot answer for either).
   Future<Set<String>> orphanedGreenEvidence({
     required String projectRoot,
   }) async {
@@ -156,6 +171,11 @@ class CycleEvidence {
       if (entry.kind != 'green') continue;
       lastGreen[entry.behaviorId] = entry;
     }
+    // Issue #1736 (review #1737): the registry read is lazy — the sibling
+    // run-driver fallback (`_certifiedGreenBacked`) loads it only on the
+    // first recorded path that misses, so a healthy feature (zero
+    // orphans) never pays a registry read plus JSON decode here either.
+    Map<String, ArtifactRecord>? registry;
     final orphans = <String>{};
     for (final MapEntry(key: behaviorId, value: entry) in lastGreen.entries) {
       final test = entry.test;
@@ -164,14 +184,41 @@ class CycleEvidence {
       // (e.g. `test/foo_test.dart::A1`). Strip the suffix before checking
       // file existence so the real path is resolved.
       final cleanTest = test.contains('::') ? test.split('::').first : test;
-      final resolved = p.isAbsolute(cleanTest)
-          ? p.normalize(cleanTest)
-          : p.normalize(p.join(projectRoot, cleanTest));
-      if (!File(resolved).existsSync()) {
-        orphans.add(behaviorId);
+      if (_resolves(cleanTest, projectRoot)) continue;
+      // Issue #1736: the appended-evidence fix-up — ask the live registry
+      // where the behavior's artifact is NOW before calling the evidence
+      // orphaned.
+      registry ??= await _recordsByBehavior();
+      final current = registry[behaviorId]?.testPath;
+      if (current != null &&
+          current.isNotEmpty &&
+          _resolves(current, projectRoot)) {
+        continue;
       }
+      orphans.add(behaviorId);
     }
     return orphans;
+  }
+
+  /// Whether [path] (absolute or project-relative) names a file on disk.
+  bool _resolves(String path, String projectRoot) {
+    final resolved = p.isAbsolute(path)
+        ? p.normalize(path)
+        : p.normalize(p.join(projectRoot, path));
+    return File(resolved).existsSync();
+  }
+
+  /// The feature's registry records keyed by behavior id (issue #1736).
+  /// A registry that cannot be read yields an empty map — the recorded
+  /// path alone then decides, exactly as it did before the registry was
+  /// consulted, so an unreadable store never invents an orphan.
+  Future<Map<String, ArtifactRecord>> _recordsByBehavior() async {
+    try {
+      final records = await ArtifactRegistry(featureDir: featureDir).loadAll();
+      return {for (final record in records) record.behaviorId: record};
+    } on Exception {
+      return const {};
+    }
   }
 
   /// Whether the behavior's LAST green evidence entry certifies the
