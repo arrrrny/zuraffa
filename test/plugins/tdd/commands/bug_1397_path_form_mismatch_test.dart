@@ -445,7 +445,8 @@ void main() {
           p.join(tmpDir.path, 'specs', feature, 'tdd', 'cycle-log.md'),
         );
         await cycleLog.parent.create(recursive: true);
-        await cycleLog.writeAsString('''
+        final cycleLogBody =
+            '''
 # Cycle Log
 
 ## Cycle 1
@@ -453,7 +454,8 @@ void main() {
 - behavior: A1
 - test: $foreignTestPath
 - command: dart test $foreignTestPath
-''');
+''';
+        await cycleLog.writeAsString(cycleLogBody);
         final testSha = File(absTestPath).readAsStringSync();
         final subjectSha = File(absSubjectPath).readAsStringSync();
 
@@ -471,12 +473,12 @@ void main() {
           stored['runnable_test_name'],
           '$relTestPath::A1::returns 42 when invoked with no args',
         );
-        // The cycle-log's foreign absolute evidence is rewritten to the
-        // portable relative form, never to this machine's absolute paths.
-        final rewritten = cycleLog.readAsStringSync();
-        expect(rewritten, isNot(contains(foreignRoot)));
-        expect(rewritten, contains('- test: $relTestPath'));
-        expect(rewritten, contains('dart test $relTestPath'));
+        // Issue #1736: the cycle-log is append-only, hash-chained
+        // evidence — the migration repairs the registry alone and leaves
+        // the log byte-identical, foreign absolute paths included. Those
+        // paths are what was executed at the time; a form rewrite moves
+        // nothing, so the recorded line still names a live file here.
+        expect(cycleLog.readAsStringSync(), cycleLogBody);
         // A relocated repair still moves nothing.
         expect(File(absTestPath).readAsStringSync(), testSha);
         expect(File(absSubjectPath).readAsStringSync(), subjectSha);

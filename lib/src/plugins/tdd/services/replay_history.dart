@@ -217,6 +217,16 @@ class ReplayHistory {
           ? resolved
           : p.join(projectRoot, resolved);
       if (!await File(resolvedPath).exists()) {
+        // Issue #1736: this check is DELIBERATELY stricter than the
+        // doctor's `orphanedGreenEvidence`, which falls back to the live
+        // registry before declaring evidence orphaned. `zfa tdd replay`
+        // audits the recorded facts: the log is append-only, so a
+        // `zfa tdd migrate-paths` move legitimately leaves this line
+        // naming the pre-move location. Reporting it is an audit finding
+        // (the red entry was recorded against a path that is gone from
+        // this tree), not a tampering verdict — replay prescribes
+        // nothing destructive, so the divergence is safe. Do NOT add the
+        // registry fallback here without revisiting that contract.
         return IntegrityOutcome.broken(
           reason: 'red-missing-test-artifact: $testPath',
           entryKind: 'red',
