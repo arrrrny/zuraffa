@@ -145,8 +145,89 @@ targets:
         anyOf(
           BuildYamlStatus.missing,
           BuildYamlStatus.missingZorphyBuilder,
+          BuildYamlStatus.notApplicable,
           BuildYamlStatus.ok,
         ),
+      );
+    });
+
+    // ── Issue #1709: a project that provably does not use the zuraffa/zorphy
+    // code-generation pipeline must not be dead-ended by a build.yaml that
+    // omits the zorphy builder registration. ────────────────────────────────
+
+    group('check() — zorphy pipeline not in use (#1709)', () {
+      /// A minimal non-zuraffa Dart/Flutter package: a real pubspec.yaml, a
+      /// `build.yaml` for its OWN builders, plain Dart sources, and no
+      /// zorphy dependency or `@Zorphy` annotation anywhere.
+      void writeNonZuraffaProject({required String dartSource}) {
+        File(p.join(sandbox.path, 'pubspec.yaml')).writeAsStringSync('''
+name: shadapp
+dependencies:
+  flutter:
+    sdk: flutter
+''');
+        File(p.join(sandbox.path, 'build.yaml')).writeAsStringSync('''
+targets:
+  \$default:
+    builders:
+      slang_build_runner:
+        enabled: true
+''');
+        Directory(p.join(sandbox.path, 'lib/src')).createSync(recursive: true);
+        File(
+          p.join(sandbox.path, 'lib/src/app.dart'),
+        ).writeAsStringSync(dartSource);
+      }
+
+      test(
+        'returns notApplicable when there is no zorphy dep and no annotation',
+        () {
+          writeNonZuraffaProject(dartSource: 'class App {}');
+          expect(
+            BuildYamlGuard.check(projectRoot: sandbox.path),
+            BuildYamlStatus.notApplicable,
+          );
+        },
+      );
+
+      test('returns missingZorphyBuilder when pubspec declares zorphy', () {
+        writeNonZuraffaProject(dartSource: 'class App {}');
+        File(p.join(sandbox.path, 'pubspec.yaml')).writeAsStringSync('''
+name: shadapp
+dependencies:
+  zorphy_annotation: ^1.0.0
+''');
+        expect(
+          BuildYamlGuard.check(projectRoot: sandbox.path),
+          BuildYamlStatus.missingZorphyBuilder,
+        );
+      });
+
+      test('returns missingZorphyBuilder when a @Zorphy source exists', () {
+        writeNonZuraffaProject(dartSource: '@Zorphy()\nclass Product {}');
+        expect(
+          BuildYamlGuard.check(projectRoot: sandbox.path),
+          BuildYamlStatus.missingZorphyBuilder,
+        );
+      });
+
+      test(
+        'stays missingZorphyBuilder without a pubspec (keeps the #276 guard)',
+        () {
+          // No pubspec.yaml → no dependency graph to prove zorphy is absent,
+          // so the guard keeps failing closed on a bare build.yaml.
+          File(p.join(sandbox.path, 'build.yaml')).writeAsStringSync('''
+targets:
+  \$default:
+    builders:
+      json_serializable:
+        enabled: true
+''');
+          expect(
+            BuildYamlGuard.check(projectRoot: sandbox.path),
+            BuildYamlStatus.missingZorphyBuilder,
+          );
+        },
       );
     });
 
