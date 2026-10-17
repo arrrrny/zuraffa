@@ -123,7 +123,10 @@ final RegExp _cfeDiagnostic = RegExp(
 );
 
 final RegExp _assertionSignature = RegExp(
-  r'Expected:.*\n\s*Actual:|TestFailure',
+  r'^\s*Expected:[\s\S]{0,4000}?^\s*Actual:|'
+  r'^\s*Actual:[\s\S]{0,4000}?^\s*Expected:|'
+  r'TestFailure',
+  multiLine: true,
 );
 
 bool _hasLoadSignature(String output) {
