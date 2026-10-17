@@ -484,7 +484,11 @@ void main() {
         exceptional = false;
         router.go(declared);
         await tester.pump();
-        expect(exceptional, isFalse);
+        expect(
+          exceptional,
+          isFalse,
+          reason: 'declared route \$declared does not resolve to a route',
+        );
       }
     });
 
@@ -520,7 +524,7 @@ void main() {
       expect(find.byType(RouteTableTestNotFound), findsOneWidget);
     });
 
-    test('deep-link patterns parse into typed params', () async {
+    testWidgets('deep-link patterns parse into typed params', (tester) async {
 $fixtureGroups
     });
   });
@@ -580,7 +584,11 @@ List<GoRoute> _flattenRoutes(List<RouteBase> routes) {
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       router.go('${_dartEscape(plainFixture)}');
       await tester.pump();
-      expect(exceptional, isFalse);
+      expect(
+        exceptional,
+        isFalse,
+        reason: 'deep link fixture must resolve: ${_dartEscape(plainFixture)}',
+      );
       // routeInformationProvider round-trips the delivered URI.
       expect(
         router.routeInformationProvider.value.uri.path,
@@ -600,7 +608,12 @@ List<GoRoute> _flattenRoutes(List<RouteBase> routes) {
       await tester.pumpWidget(MaterialApp.router(routerConfig: encodedRouter));
       encodedRouter.go('${_dartEscape(encodedFixture)}?source=qr');
       await tester.pump();
-      expect(exceptional, isFalse);
+      expect(
+        exceptional,
+        isFalse,
+        reason:
+            'URL-encoded deep link must resolve: ${_dartEscape(encodedFixture)}',
+      );
       expect(
         encodedRouter.routeInformationProvider.value.uri.path,
         '${_dartEscape(encodedFixture)}',
@@ -669,7 +682,11 @@ void main() {
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       router.go(k${namePascal}Pattern.replaceFirst(RegExp(r':[A-Za-z_][A-Za-z0-9_]*'), '123456'));
       await tester.pump();
-      expect(exceptional, isFalse);
+      expect(
+        exceptional,
+        isFalse,
+        reason: 'the declared deep link must resolve to its route',
+      );
     });
 
     testWidgets('routeInformationProvider + typed params from URI fixtures',
@@ -689,7 +706,11 @@ $fixtureGroup
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       router.go(k${namePascal}Unknown + '/deep');
       await tester.pump();
-      expect(exceptional, isTrue);
+      expect(
+        exceptional,
+        isTrue,
+        reason: 'an unknown deep link must hit the 404 handler',
+      );
     });
   });
 }
