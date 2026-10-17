@@ -371,6 +371,13 @@ class ArtifactRegistry {
   /// [findRecordTolerant] is its single-record twin. The tolerance semantic
   /// matches [CycleEvidence._recordsByBehavior]: "an unreadable store never
   /// invents an orphan."
+  ///
+  /// The catch is deliberately `on Exception`, not
+  /// [ArtifactRegistryCorruptException] specifically: a read that cannot
+  /// produce records is treated as "no records" on the decision path, whether
+  /// the cause is corruption or an environment-level failure (permission
+  /// denied, ENOSPC, a half-synced mount). Corruption stays loud where it
+  /// matters — the write path still throws.
   Future<List<ArtifactRecord>> loadAllTolerant({bool reanchor = true}) async {
     try {
       return await loadAll(reanchor: reanchor);
@@ -390,15 +397,15 @@ class ArtifactRegistry {
 
   /// Tolerant [findRecord] for the run path's DECISION reads (issue #1738):
   /// an unreadable store yields `null`, exactly as a behavior with no record
-  /// would. See [loadAllTolerant] for the rationale — the write path keeps
+  /// would. Delegates to [loadAllTolerant] so the tolerance has exactly one
+  /// home. See [loadAllTolerant] for the rationale — the write path keeps
   /// throwing, and the tolerance semantic matches
   /// [CycleEvidence._recordsByBehavior].
   Future<ArtifactRecord?> findRecordTolerant(String behaviorId) async {
-    try {
-      return await findRecord(behaviorId);
-    } on Exception {
-      return null;
+    for (final record in await loadAllTolerant()) {
+      if (record.behaviorId == behaviorId) return record;
     }
+    return null;
   }
 
   /// Refresh the gen reuse fingerprint of [behaviorId]'s record (issue
