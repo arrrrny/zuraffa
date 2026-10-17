@@ -44,14 +44,26 @@ extension CacheBuilderRegistrar on CacheBuilder {
       }
 
       if (!hasManualAdditions) {
-        if (await fileSystem.exists(registrarPath)) {
-          if (options.dryRun) {
-            if (options.verbose) print('  Dry run: Deleting $registrarPath');
-          } else {
-            await fileSystem.delete(registrarPath);
+        // An existing registrar that still carries AdapterSpec entries is
+        // hand-maintained state, not an empty artifact — let the merge path
+        // below decide what survives instead of deleting it outright
+        // (issue #1734 follow-up: this branch used to truncate a
+        // hand-maintained registrar before the merge ever ran).
+        final registrarHasAdapters =
+            await fileSystem.exists(registrarPath) &&
+            RegExp(
+              r'AdapterSpec<(\w+)>\(\)',
+            ).hasMatch(await fileSystem.read(registrarPath));
+        if (!registrarHasAdapters) {
+          if (await fileSystem.exists(registrarPath)) {
+            if (options.dryRun) {
+              if (options.verbose) print('  Dry run: Deleting $registrarPath');
+            } else {
+              await fileSystem.delete(registrarPath);
+            }
           }
+          return;
         }
-        return;
       }
     }
 
@@ -88,14 +100,85 @@ extension CacheBuilderRegistrar on CacheBuilder {
       }
     }
 
+    // ── Merge with existing registrar (issue #1734) ──
+    // Read the existing registrar and extract AdapterSpec entries and
+    // imports so hand-maintained adapters are not silently truncated.
+    if (await fileSystem.exists(registrarPath)) {
+      final existingContent = await fileSystem.read(registrarPath);
+
+      final specRegex = RegExp(r'AdapterSpec<(\w+)>\(\)');
+      final retainedEnumNames = <String>{};
+      for (final match in specRegex.allMatches(existingContent)) {
+        final name = match.group(1)!;
+        if (processedEntities.contains(name)) continue;
+        // Keep only specs whose entity or enum still resolves. Re-emitting a
+        // spec for a deleted/renamed entity recreates the exact
+        // `spec.type.element == null` crash this PR fixes — the pre-fix
+        // registrar is precisely a carrier of such specs (issue #1734).
+        final resolved = await resolveCacheEntityLocation(
+          name,
+          outputDir: outputDir,
+          fileSystem: fileSystem,
+        );
+        if (resolved == null) {
+          if (config.verbose) {
+            print('  Dropping AdapterSpec<$name>: no matching entity');
+          }
+          continue;
+        }
+        processedEntities.add(name);
+        adapterEntities.add(name);
+        if (resolved.isEnum) retainedEnumNames.add(name);
+        if (!imports.contains(resolved.importPath)) {
+          imports.add(resolved.importPath);
+        }
+      }
+
+      final importRegex = RegExp(r"import\s+'([^']+)'");
+      for (final match in importRegex.allMatches(existingContent)) {
+        final importPath = match.group(1)!;
+        // Retain an import only when a retained spec needs it: either it is
+        // the import the spec's type is named after (hand-maintained
+        // adapters may live outside ../domain/entities/, e.g. package:
+        // imports — dropping those produced an uncompilable registrar), or
+        // it is the enums barrel carrying a retained enum spec. Imports of
+        // dropped specs must not survive, or the registrar references types
+        // that no longer exist.
+        final neededByRetainedSpec = adapterEntities.any(
+          (name) =>
+              importPath.endsWith('/${StringUtils.camelToSnake(name)}.dart'),
+        );
+        final neededByRetainedEnum =
+            retainedEnumNames.isNotEmpty &&
+            importPath.endsWith('/enums/index.dart');
+        if ((neededByRetainedSpec || neededByRetainedEnum) &&
+            !imports.contains(importPath)) {
+          imports.add(importPath);
+        }
+      }
+    }
+
     for (final filePath in files) {
       final fileName = path.basename(filePath);
       final entitySnake = fileName.replaceAll('_cache.dart', '');
       final entityName = StringUtils.convertToPascalCase(entitySnake);
-      final importPath = '../domain/entities/$entitySnake/$entitySnake.dart';
 
-      if (!imports.contains(importPath)) {
-        imports.add(importPath);
+      // Check if entity exists (regular or enum) — issue #1734
+      final resolved = await resolveCacheEntityLocation(
+        entityName,
+        outputDir: outputDir,
+        fileSystem: fileSystem,
+      );
+
+      if (resolved == null) {
+        if (config.verbose) {
+          print('  Skipping $fileName: no matching entity for $entityName');
+        }
+        continue;
+      }
+
+      if (!imports.contains(resolved.importPath)) {
+        imports.add(resolved.importPath);
       }
       if (!processedEntities.contains(entityName)) {
         processedEntities.add(entityName);

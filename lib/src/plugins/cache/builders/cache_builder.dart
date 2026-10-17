@@ -10,6 +10,7 @@ import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../entity_location_resolver.dart';
 
 part 'cache_policy_builder.dart';
 part 'cache_builder_registrar.dart';
