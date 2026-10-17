@@ -75,6 +75,65 @@ void main() {
   String postResetAt() =>
       DateTime.now().toUtc().add(const Duration(seconds: 2)).toIso8601String();
 
+  /// Seed a red-evidence entry for [behaviorId] with an explicit [at] —
+  /// the post-reset red re-certification an honest re-drive that stopped
+  /// before `make` leaves behind (mirrors [seedBornGreenEvidence]).
+  Future<void> seedRedEvidenceAt(
+    String behaviorId, {
+    required String at,
+  }) async {
+    final file = File(fx.cycleLogPath);
+    if (!await file.exists()) {
+      await file.parent.create(recursive: true);
+      await file.writeAsString('# Cycle Log\n\n');
+    }
+    await file.writeAsString('''
+## Cycle: $behaviorId (red)
+
+- behavior: $behaviorId
+- kind: red
+- classification: assertionFailure
+- criterion: FR-007
+- test: ${fx.testPathOf(behaviorId)}
+- exit: 1
+- at: $at
+
+''', mode: FileMode.append);
+  }
+
+  /// Seed a LEGACY schema-0 green-evidence entry: `- kind: green` with NO
+  /// `- at:` line at all (the shape whose timestamp cannot be read).
+  Future<void> seedGreenEvidenceNoAt(String behaviorId) async {
+    final file = File(fx.cycleLogPath);
+    if (!await file.exists()) {
+      await file.parent.create(recursive: true);
+      await file.writeAsString('# Cycle Log\n\n');
+    }
+    await file.writeAsString('''
+## Cycle: $behaviorId (green)
+
+- behavior: $behaviorId
+- kind: green
+- criterion: FR-003
+- test: ${fx.testPathOf(behaviorId)}
+- exit: 0
+
+''', mode: FileMode.append);
+  }
+
+  /// Blank the LAST reset tombstone's `started_at` to an unparseable
+  /// string — the unreadable-timestamp corner `JournalReader` hands back
+  /// as `at: null` while still reporting the invalidated ids.
+  Future<void> corruptResetTombstoneStartedAt() async {
+    final file = File('${fx.featureDir}/tdd/journal.json');
+    final journal =
+        jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+    final entries = (journal['entries'] as List).cast<Map<String, dynamic>>();
+    entries.lastWhere((e) => e['phase'] == 'reset')['started_at'] =
+        'not-a-timestamp';
+    await file.writeAsString(jsonEncode(journal));
+  }
+
   setUp(() async {
     fx = await TddFixture.create(featureName: feature);
     await fx.writeFakeZfa();
@@ -188,6 +247,131 @@ void main() {
       reason:
           'both post-reset binds accumulate — neither re-opens from gen: '
           '$runOut',
+    );
+  });
+
+  test('issue #1696: a post-reset RED entry survives — the run re-enters at '
+      'make, never from gen', () async {
+    await fx.seedTestList([
+      (
+        id: 'U1',
+        description: 'the U1 behavior',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    await fx.registerBehavior(id: 'U1', description: 'the U1 behavior');
+    await fx.seedRedEvidence('U1');
+    await fx.seedGreenEvidence('U1');
+    await fx.seedRunState(states: {'U1': 'done'});
+
+    final resetOut = await runCli(['reset', feature]);
+    expect(exitCode, 0, reason: resetOut);
+
+    // The post-reset RED re-certification — an honest re-drive that
+    // stopped after verify-red, before `make`. Pre-fix the tombstone
+    // subtraction drops it too, so U1 reconciles pending and re-drives
+    // from gen (clobbering the partial work); post-fix the red evidence
+    // survives and the behavior re-enters at make.
+    await fx.registerBehavior(id: 'U1', description: 'the U1 behavior');
+    await seedRedEvidenceAt('U1', at: postResetAt());
+
+    final runOut = await drive();
+
+    expect(exitCode, 0, reason: runOut);
+    expect(
+      fx.stepInvocations(),
+      isNot(contains('gen U1')),
+      reason:
+          'a post-reset red entry must survive — no re-drive from gen: '
+          '$runOut',
+    );
+    expect(
+      fx.stepInvocations(),
+      contains('make U1'),
+      reason: 'the surviving red re-enters the behavior at make: $runOut',
+    );
+  });
+
+  test('issue #1696: a legacy green entry with NO `- at:` stays invalidated '
+      '(fail-closed)', () async {
+    await fx.seedTestList([
+      (
+        id: 'U1',
+        description: 'the U1 behavior',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    await fx.registerBehavior(id: 'U1', description: 'the U1 behavior');
+    await fx.seedRedEvidence('U1');
+    await fx.seedGreenEvidence('U1');
+    await fx.seedRunState(states: {'U1': 'done'});
+
+    final resetOut = await runCli(['reset', feature]);
+    expect(exitCode, 0, reason: resetOut);
+
+    // A green entry whose timestamp cannot be read cannot prove it
+    // postdates the reset — the pre-#1696 invalidation stands, so the
+    // dropped behavior re-drives from gen (the #1264 phantom never
+    // returns).
+    await fx.registerBehavior(id: 'U1', description: 'the U1 behavior');
+    await seedGreenEvidenceNoAt('U1');
+
+    final runOut = await drive();
+
+    expect(exitCode, 0, reason: runOut);
+    expect(
+      fx.stepInvocations(),
+      contains('gen U1'),
+      reason:
+          'an untimestamped green entry stays invalidated — U1 must '
+          're-drive from gen: $runOut',
+    );
+  });
+
+  test('issue #1696: an unreadable reset-tombstone timestamp fails closed — '
+      'it never resurrects the dropped evidence', () async {
+    await fx.seedTestList([
+      (
+        id: 'U1',
+        description: 'the U1 behavior',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    await fx.registerBehavior(id: 'U1', description: 'the U1 behavior');
+    await fx.seedRedEvidence('U1');
+    await fx.seedGreenEvidence('U1');
+    await fx.seedRunState(states: {'U1': 'done'});
+
+    final resetOut = await runCli(['reset', feature]);
+    expect(exitCode, 0, reason: resetOut);
+    // The tombstone's ids parse but its reset time does not.
+    await corruptResetTombstoneStartedAt();
+    expect(
+      await File('${fx.featureDir}/tdd/journal.json').readAsString(),
+      contains('not-a-timestamp'),
+      reason: 'the tombstone started_at was blanked to an unparseable value',
+    );
+
+    await fx.registerBehavior(id: 'U1', description: 'the U1 behavior');
+    // A post-reset bind whose evidence WOULD be revived under a parseable
+    // tombstone timestamp — the fail-closed corner keeps it invalidated.
+    await seedBornGreenEvidence('U1', at: postResetAt());
+
+    final runOut = await drive();
+
+    expect(exitCode, 0, reason: runOut);
+    expect(
+      fx.stepInvocations(),
+      contains('gen U1'),
+      reason:
+          'an unreadable tombstone timestamp must fail closed — U1 '
+          're-drives from gen: $runOut',
     );
   });
 }
