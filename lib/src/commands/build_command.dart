@@ -12,11 +12,13 @@ import 'build_yaml_guard.dart';
 import '../core/ast/file_parser.dart';
 import '../core/dependencies/builder_dependency_preflight.dart';
 import '../core/generation/tracked_generated_output_guard.dart';
+import '../core/generator_options.dart';
 import '../core/project/project_root.dart';
 import '../dda/plugins/route/route_build_stage.dart';
 import '../feature_flags/feature_flag_config.dart';
 import '../feature_flags/registry_emitter.dart';
 import '../models/generator_config.dart';
+import '../plugins/cache/builders/cache_builder.dart';
 
 class BuildCommand extends Command {
   final FileParser _fileParser = const FileParser();
@@ -196,6 +198,16 @@ class BuildCommand extends Command {
       return;
     }
 
+    // Issue #1732: the Hive registrar's import block and adapter spec list
+    // are written by the adapter/migrate flow only, while its `.g.dart` part
+    // is build_runner output driven by the entity source. A hand-added (or
+    // newly nested) entity therefore leaves the part referencing a type the
+    // host library cannot resolve (`'Pagination' isn't a type`) and the
+    // analyze gate below then fails on generated code it cannot heal.
+    // Refresh the registrar from the current entity graph BEFORE
+    // build_runner regenerates the part, so the two halves stay in step.
+    await refreshHiveRegistrar();
+
     // Spec 1540 (restore-or-refuse): snapshot every git-tracked
     // generated-name file (tracked ∧ present) BEFORE build_runner runs, so
     // its stale-output cleanup cannot silently orphan a hand-authored
@@ -288,6 +300,76 @@ class BuildCommand extends Command {
       print('\n❌ Build failed with exit code $exitCode');
       exit(1);
     }
+  }
+
+  /// Refreshes the Hive registrar's import block and adapter spec list from
+  /// the current entity graph (issue #1732).
+  ///
+  /// The registrar host library (`<outputDir>/cache/hive_registrar.dart`)
+  /// carries an import block for every entity and nested entity type it
+  /// registers, plus the `AdapterSpec<X>()` list its `.g.dart` part is
+  /// generated from. Only the adapter/migrate flow (`zfa cache adapter`)
+  /// ever rewrote that host file; `zfa build` only ran build_runner, which
+  /// regenerates the `.g.dart` part from the entity source and so picks up a
+  /// newly referenced (or newly nested) entity type on its own. A hand-added
+  /// entity therefore left the part reading `fields[n] as Pagination?` while
+  /// the host library never imported `Pagination` — the generated part does
+  /// not compile and the analyze gate below refuses a tree it cannot heal.
+  ///
+  /// Regenerating here — before build_runner runs — keeps the two halves in
+  /// step. The regeneration is the SAME code path `zfa cache adapter` uses,
+  /// so the two can never drift.
+  ///
+  /// A silent no-op (returns `false`, writes nothing) when the project has
+  /// no registrar, so every non-cache project is byte-identical to before.
+  /// It is also a no-op when the registrar exists but no `*_cache.dart`
+  /// source does: the regeneration DELETES an orphaned registrar, and a
+  /// `zfa build` must never delete a file the operator did not ask it to.
+  ///
+  /// Returns `true` when a registrar was regenerated.
+  @visibleForTesting
+  Future<bool> refreshHiveRegistrar({String? projectRoot}) async {
+    final root = projectRoot ?? ProjectRoot.safeCurrentPath();
+    final outputDir = GeneratorConfig.fixedOutputDir;
+    final cacheDirPath = p.join(root, outputDir, 'cache');
+    final registrarPath = p.join(cacheDirPath, 'hive_registrar.dart');
+    final registrar = File(registrarPath);
+    if (!registrar.existsSync()) return false;
+
+    // Never let `zfa build` delete an orphaned registrar: refresh only when
+    // there is a `*_cache.dart` source to rebuild the adapter set from.
+    final cacheDir = Directory(cacheDirPath);
+    final hasCacheFiles =
+        cacheDir.existsSync() &&
+        cacheDir.listSync().whereType<File>().any((f) {
+          final name = p.basename(f.path);
+          return name.endsWith('_cache.dart') &&
+              !name.endsWith('index.dart') &&
+              !name.endsWith('timestamp_cache.dart');
+        });
+    if (!hasCacheFiles) return false;
+
+    final before = registrar.readAsStringSync();
+    final outputPath = p.join(root, outputDir);
+    await CacheBuilder(
+      outputDir: outputPath,
+      options: const GeneratorOptions(force: true),
+    ).regenerateHiveRegistrar(
+      GeneratorConfig(
+        name: 'hive_registrar',
+        outputDir: outputPath,
+        enableCache: true,
+        cacheStorage: 'hive',
+      ),
+    );
+
+    if (registrar.existsSync() && registrar.readAsStringSync() != before) {
+      print(
+        '🔄 Refreshed Hive registrar ($registrarPath) — its import block '
+        'was stale (issue #1732)',
+      );
+    }
+    return true;
   }
 
   /// Spec 1540 (restore-or-refuse): detects git-tracked generated-name
