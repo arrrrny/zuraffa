@@ -88,11 +88,85 @@ extension CacheBuilderRegistrar on CacheBuilder {
       }
     }
 
+    // ── Merge with existing registrar (issue #1734) ──
+    // Read the existing registrar and extract AdapterSpec entries and
+    // imports so hand-maintained adapters are not silently truncated.
+    if (await fileSystem.exists(registrarPath)) {
+      final existingContent = await fileSystem.read(registrarPath);
+
+      final specRegex = RegExp(r'AdapterSpec<(\w+)>\(\)');
+      for (final match in specRegex.allMatches(existingContent)) {
+        final name = match.group(1)!;
+        if (!processedEntities.contains(name)) {
+          processedEntities.add(name);
+          adapterEntities.add(name);
+        }
+      }
+
+      final importRegex = RegExp(r"import\s+'([^']+)'");
+      for (final match in importRegex.allMatches(existingContent)) {
+        final importPath = match.group(1)!;
+        if (importPath.startsWith('../domain/entities/') &&
+            !imports.contains(importPath)) {
+          imports.add(importPath);
+        }
+      }
+    }
+
     for (final filePath in files) {
       final fileName = path.basename(filePath);
       final entitySnake = fileName.replaceAll('_cache.dart', '');
       final entityName = StringUtils.convertToPascalCase(entitySnake);
-      final importPath = '../domain/entities/$entitySnake/$entitySnake.dart';
+
+      // Check if entity exists (regular or enum) — issue #1734
+      final entityPath = path.join(
+        outputDir,
+        'domain',
+        'entities',
+        entitySnake,
+        '$entitySnake.dart',
+      );
+      final enumIndexPath = path.join(
+        outputDir,
+        'domain',
+        'entities',
+        'enums',
+        'index.dart',
+      );
+      final enumFilePath = path.join(
+        outputDir,
+        'domain',
+        'entities',
+        'enums',
+        '$entitySnake.dart',
+      );
+
+      var entityExists = await fileSystem.exists(entityPath);
+      var importPath = '../domain/entities/$entitySnake/$entitySnake.dart';
+
+      if (!entityExists) {
+        if (await fileSystem.exists(enumIndexPath)) {
+          final content = await fileSystem.read(enumIndexPath);
+          if (content.contains('enum $entityName')) {
+            entityExists = true;
+            importPath = '../domain/entities/enums/index.dart';
+          }
+        }
+        if (!entityExists && await fileSystem.exists(enumFilePath)) {
+          final content = await fileSystem.read(enumFilePath);
+          if (content.contains('enum $entityName')) {
+            entityExists = true;
+            importPath = '../domain/entities/enums/$entitySnake.dart';
+          }
+        }
+      }
+
+      if (!entityExists) {
+        if (config.verbose) {
+          print('  Skipping $fileName: no matching entity for $entityName');
+        }
+        continue;
+      }
 
       if (!imports.contains(importPath)) {
         imports.add(importPath);

@@ -369,11 +369,64 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
           final cachedEntityName = StringUtils.convertToPascalCase(
             entitySnakeFromCache,
           );
+
+          // Check if entity exists (regular or enum) — issue #1734
+          final cacheEntityPath = path.join(
+            outputDir,
+            'domain',
+            'entities',
+            entitySnakeFromCache,
+            '$entitySnakeFromCache.dart',
+          );
+          final cacheEnumIndexPath = path.join(
+            outputDir,
+            'domain',
+            'entities',
+            'enums',
+            'index.dart',
+          );
+          final cacheEnumFilePath = path.join(
+            outputDir,
+            'domain',
+            'entities',
+            'enums',
+            '$entitySnakeFromCache.dart',
+          );
+
+          var cacheEntityExists = await fs.exists(cacheEntityPath);
+          var cacheImportPath =
+              '../domain/entities/$entitySnakeFromCache/$entitySnakeFromCache.dart';
+
+          if (!cacheEntityExists) {
+            if (await fs.exists(cacheEnumIndexPath)) {
+              final content = await fs.read(cacheEnumIndexPath);
+              if (content.contains('enum $cachedEntityName')) {
+                cacheEntityExists = true;
+                cacheImportPath = '../domain/entities/enums/index.dart';
+              }
+            }
+            if (!cacheEntityExists && await fs.exists(cacheEnumFilePath)) {
+              final content = await fs.read(cacheEnumFilePath);
+              if (content.contains('enum $cachedEntityName')) {
+                cacheEntityExists = true;
+                cacheImportPath =
+                    '../domain/entities/enums/$entitySnakeFromCache.dart';
+              }
+            }
+          }
+
+          if (!cacheEntityExists) {
+            if (verbose) {
+              print(
+                '  Skipping $cacheFileName: no matching entity for $cachedEntityName',
+              );
+            }
+            continue;
+          }
+
           if (!processedEntities.contains(cachedEntityName)) {
             processedEntities.add(cachedEntityName);
             adapterEntities.add(cachedEntityName);
-            final cacheImportPath =
-                '../domain/entities/$entitySnakeFromCache/$entitySnakeFromCache.dart';
             if (!imports.contains(cacheImportPath)) {
               imports.add(cacheImportPath);
             }

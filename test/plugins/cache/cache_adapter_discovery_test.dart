@@ -151,6 +151,7 @@ void main() {
     test('entities with only a cache file (no manual additions entry) are '
         're-registered on regeneration', () async {
       await writeEntity('Product', 'class Product { final String id; }\n');
+      await writeEntity('Legacy', 'class Legacy { final String id; }\n');
       // Simulate a pre-existing cache file for an entity never run
       // through `cache adapter` — the registrar regeneration scans
       // *_cache.dart files.
