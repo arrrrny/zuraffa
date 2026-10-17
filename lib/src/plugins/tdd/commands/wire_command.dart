@@ -292,7 +292,7 @@ class WireCommand extends Command<void> {
     if (stub != null) {
       final matched = stub.group(0)!;
       final wrapped = RegExp(r'=>\s*\n\s*throw').hasMatch(matched);
-      if (wrapped && !raw.contains('issue #1007')) {
+      if (wrapped && !raw.contains('CONTRACT SEAM (issue #1007)')) {
         stub = null;
       }
     }
@@ -578,20 +578,29 @@ class WireCommand extends Command<void> {
     // Extract the method(params) -> Return portion (stripping any
     // leading interface qualifier) so the declared return still
     // resolves when the spec artifacts are absent.
-    for (final m in RegExp(
-      r'`[^`]*?([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?\s*\([^)]*\)\s*->\s*[^`]+)`',
-    ).allMatches(raw)) {
-      var text = m.group(1)!.trim();
-      final open = text.indexOf('(');
-      if (open > 0) {
-        final prefix = text.substring(0, open);
-        final dot = prefix.lastIndexOf('.');
-        if (dot >= 0) text = text.substring(dot + 1).trim();
-      }
-      try {
-        return UnitContractShape.of(Signature.parse(text));
-      } on FormatException {
-        continue;
+    //
+    // Review (pull/1765): anchor the scan to the `/// Contract seam
+    // for ...` line so an earlier unrelated backticked signature cannot
+    // bind, and capture every qualifier segment (not just one) so a
+    // multi-segment qualified method (e.g. `Foo.Bar.baz`) keeps its
+    // full qualifier chain before the final qualifier is stripped.
+    for (final line in raw.split('\n')) {
+      if (!line.contains('Contract seam for')) continue;
+      for (final m in RegExp(
+        r'`[^`]*?([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\s*\([^)]*\)\s*->\s*[^`]+)`',
+      ).allMatches(line)) {
+        var text = m.group(1)!.trim();
+        final open = text.indexOf('(');
+        if (open > 0) {
+          final prefix = text.substring(0, open);
+          final dot = prefix.lastIndexOf('.');
+          if (dot >= 0) text = text.substring(dot + 1).trim();
+        }
+        try {
+          return UnitContractShape.of(Signature.parse(text));
+        } on FormatException {
+          continue;
+        }
       }
     }
     return null;

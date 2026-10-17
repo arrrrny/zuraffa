@@ -117,7 +117,7 @@ class HandSurface {
     if (singleLine) return true;
     final wrapped = RegExp(r'=>\s*\n\s*throw').hasMatch(raw);
     if (!wrapped) return false;
-    return raw.contains('issue #1007');
+    return raw.contains('CONTRACT SEAM (issue #1007)');
   }
 
   /// The seam file path for [behaviorId], project-relative POSIX. The
