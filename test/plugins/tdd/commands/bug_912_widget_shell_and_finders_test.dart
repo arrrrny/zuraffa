@@ -196,7 +196,7 @@ coverage: 'dart test --coverage'
       await File(p.join(specDir.path, 'tdd', 'test-list.md')).writeAsString('''
 | id | behavior | traces | kind | state | target |
 |----|----------|--------|------|-------|--------|
-| $behaviorId | $description | SC-1 | widget | PENDING | subject_$behaviorId |
+| $behaviorId | $description | SC-1 | widget | PENDING | subject_${behaviorId.toLowerCase().replaceAll('-', '_')} |
 ''');
     }
 
