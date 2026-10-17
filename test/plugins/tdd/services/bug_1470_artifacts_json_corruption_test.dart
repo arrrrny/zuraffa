@@ -177,4 +177,84 @@ void main() {
       expect(await registry.findRecord('B-001'), isNull);
     });
   });
+
+  // Bug #1738 — the run path's DECISION reads must degrade a corrupt registry
+  // to "no records" instead of aborting the drive, while the #1470 "loud on
+  // write / loud on the throwing readers" contract stays exactly as it is.
+  // `loadAllTolerant` / `findRecordTolerant` encode that property; these
+  // assertions pin it so a future edit that narrows or drops the catch turns
+  // red instead of silently regressing #1738.
+  group('bug #1738 — tolerant readers degrade corruption to empty, the '
+      'throwing contract is unchanged', () {
+    test('loadAllTolerant returns [] / findRecordTolerant returns null on a '
+        'truncated registry', () async {
+      await seedThenCorrupt('{"feature":"x","reco');
+
+      expect(await registry.loadAllTolerant(), isEmpty);
+      expect(await registry.findRecordTolerant('B-001'), isNull);
+    });
+
+    test(
+      'every corrupt shape the throwing readers reject is swallowed by '
+      'the tolerant readers — and still thrown by the throwing ones',
+      () async {
+        const corruptShapes = [
+          '{]]}', // unparseable JSON (reader path)
+          '{"feature": "044-test-tdd-generation"}', // no "records" list
+          '{}', // empty object, no "records"
+          '["B-001"]', // non-object top level
+          '{"records": {"behavior_id": "B-001"}}', // "records" is not a list
+          '{"records": [42]}', // record entry is not an object
+        ];
+        for (final content in corruptShapes) {
+          await seedThenCorrupt(content);
+
+          expect(
+            await registry.loadAllTolerant(),
+            isEmpty,
+            reason: 'loadAllTolerant for registry content: $content',
+          );
+          expect(
+            await registry.findRecordTolerant('B-001'),
+            isNull,
+            reason: 'findRecordTolerant for registry content: $content',
+          );
+
+          // The #1470 contract is deliberately unchanged: the throwing readers
+          // still surface the corruption.
+          await expectLater(
+            registry.loadAll(),
+            throwsA(isA<ArtifactRegistryCorruptException>()),
+            reason: 'loadAll for registry content: $content',
+          );
+          await expectLater(
+            registry.findRecord('B-001'),
+            throwsA(isA<ArtifactRegistryCorruptException>()),
+            reason: 'findRecord for registry content: $content',
+          );
+        }
+      },
+    );
+
+    test(
+      'a valid registry reads unchanged through the tolerant readers',
+      () async {
+        await seedValidRegistry();
+
+        final all = await registry.loadAllTolerant();
+        expect(all.map((r) => r.behaviorId), ['B-001', 'B-002']);
+        expect(
+          (await registry.findRecordTolerant('B-001'))?.behaviorId,
+          'B-001',
+        );
+        expect(await registry.findRecordTolerant('B-404'), isNull);
+      },
+    );
+
+    test('a MISSING registry is still empty through the tolerant readers '
+        '(no throw)', () async {
+      expect(await registry.loadAllTolerant(), isEmpty);
+      expect(await registry.findRecordTolerant('B-001'), isNull);
+    });
+  });
 }
