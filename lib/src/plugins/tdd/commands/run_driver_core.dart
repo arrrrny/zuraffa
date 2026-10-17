@@ -555,13 +555,20 @@ class RunDriverCore {
     //    green evidence skipped the dropped behaviors as "already done"
     //    (the phantom done-state). The tombstone is the per-behavior
     //    evidence invalidation record the reset wrote.
+    //    Issue #1696: the invalidation is bounded by the tombstone's
+    //    TIMESTAMP — evidence recorded after the reset is the operator's
+    //    post-reset re-bind (`zfa tdd make <id> --born-green`) and is
+    //    authoritative again, so out-of-band binds accumulate instead of
+    //    being re-driven from gen on the next reconciliation.
     // -----------------------------------------------------------------
     final evidence = CycleEvidence(featureDir);
-    final tombstoned = await JournalReader.tombstonedBehaviors(featureDir);
-    final redEvidence = (await evidence.redEvidence()).difference(tombstoned);
-    final greenEvidence = (await evidence.greenEvidence()).difference(
-      tombstoned,
+    final tombstone = await JournalReader.lastResetTombstone(featureDir);
+    final scopedEvidence = await evidence.evidenceRespectingTombstone(
+      tombstoned: tombstone.behaviors,
+      tombstoneAt: tombstone.at,
     );
+    final redEvidence = scopedEvidence.red;
+    final greenEvidence = scopedEvidence.green;
 
     // -----------------------------------------------------------------
     // 4b. Bug #828: replay the write-ahead journal BEFORE reconciling.
