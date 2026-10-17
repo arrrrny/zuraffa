@@ -566,6 +566,13 @@ class BuildCommand extends Command {
       case BuildYamlStatus.missingZorphyBuilder:
         print(BuildYamlGuard.missingZorphyBuilderMessage);
         return false;
+      case BuildYamlStatus.notApplicable:
+        // Issue #1709: the project does not use the zuraffa code-generation
+        // pipeline — nothing for the zorphy builder to generate, so the
+        // build proceeds with the project's own builders instead of
+        // dead-ending on a build.yaml that was never meant to register it.
+        print(BuildYamlGuard.notApplicableNote);
+        return true;
     }
   }
 
@@ -585,6 +592,13 @@ class BuildCommand extends Command {
           '   ⚠️  build.yaml exists but omits the zorphy builder — build would write 0 outputs.',
         );
         print('       Add `zorphy:zorphy` under targets.\$default.builders.');
+        break;
+      case BuildYamlStatus.notApplicable:
+        // Issue #1709: no zorphy usage → the omitted registration is not a
+        // misconfiguration; the build would proceed with the project's own
+        // builders. The preview shares the guard's reason clause so it cannot
+        // drift from the runtime note.
+        print('   ${BuildYamlGuard.notApplicableDryRunNote}');
         break;
     }
   }
@@ -776,60 +790,12 @@ class BuildCommand extends Command {
   /// an `@Zorphy` / `@ZorphyMixin` annotation. `//` line comments are stripped
   /// before matching so a comment that merely mentions `@Zorphy` does not
   /// false-positive (important so the safety net never breaks a correctly
-  /// configured project — zuraffa#276).
+  /// configured project — zuraffa#276). The scan lives in [BuildYamlGuard]
+  /// (shared with the #1709 pipeline-usage guard) so the two callers cannot
+  /// drift apart.
   @visibleForTesting
-  bool hasZorphyAnnotatedSources({String? projectRoot}) {
-    final libPath = projectRoot != null ? p.join(projectRoot, 'lib') : 'lib';
-    final libDir = Directory(libPath);
-    if (!libDir.existsSync()) return false;
-    for (final entity in libDir.listSync(recursive: true)) {
-      if (entity is File && entity.path.endsWith('.dart')) {
-        final name = p.basename(entity.path);
-        if (name.endsWith('.zorphy.dart') || name.endsWith('.g.dart')) continue;
-        try {
-          final src = entity.readAsStringSync();
-          if (_containsZorphyAnnotation(src)) {
-            return true;
-          }
-        } catch (_) {
-          // Ignore unreadable files.
-        }
-      }
-    }
-    return false;
-  }
-
-  /// Returns true when [source] contains an `@Zorphy` or `@ZorphyMixin`
-  /// annotation outside of `//` line comments.
-  static bool _containsZorphyAnnotation(String source) {
-    final re = RegExp(r'@Zorphy(?:Mixin)?\b');
-    for (final line in source.split('\n')) {
-      if (re.hasMatch(_stripLineComment(line))) return true;
-    }
-    return false;
-  }
-
-  /// Strips a `//` line comment from [line], ignoring `//` that appears inside
-  /// a single- or double-quoted string literal.
-  static String _stripLineComment(String line) {
-    var inSingle = false;
-    var inDouble = false;
-    for (var i = 0; i < line.length; i++) {
-      final ch = line[i];
-      if (ch == "'" && !inDouble) {
-        inSingle = !inSingle;
-      } else if (ch == '"' && !inSingle) {
-        inDouble = !inDouble;
-      } else if (ch == '/' &&
-          i + 1 < line.length &&
-          line[i + 1] == '/' &&
-          !inSingle &&
-          !inDouble) {
-        return line.substring(0, i);
-      }
-    }
-    return line;
-  }
+  bool hasZorphyAnnotatedSources({String? projectRoot}) =>
+      BuildYamlGuard.hasZorphyAnnotatedSources(projectRoot: projectRoot);
 
   /// Post-build guard (issue #395): runs `dart analyze` and returns `false`
   /// when it reports any ERROR- or WARNING-severity issue (issue #1035:
