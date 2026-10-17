@@ -13,6 +13,7 @@ import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../skew/skew_contract.dart';
 import '../../utils/entity_analyzer.dart';
+import '../../utils/entity_utils.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import '../method_append/builders/inject_builder.dart';
@@ -233,6 +234,14 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         final entityName = config.repo != null
             ? config.repo!.replaceAll('Repository', '')
             : config.name;
+        // Issue #1747 (review #3): resolve the same target the builder
+        // uses (custom-use-case returns type) so the two sites cannot
+        // disagree for custom-use-case configs.
+        final targetEntity =
+            config.isCustomUseCase && config.returnsType != null
+            ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
+                  entityName
+            : entityName;
         // Issue #1037: an enum entity has no CRUD datasource surface, so
         // it gets no simulation binding either — and the binding emitter
         // must not run for it. Issue #1747 extends exactly that treatment
@@ -246,14 +255,15 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         // shared with the builder ([EntityAnalyzer.lacksCrudSurface]) so
         // the two can never disagree.
         final fixtureOnlyEntity =
-            EntityAnalyzer.isEnum(entityName, outputDir, fileSystem: fs) ||
-            EntityAnalyzer.lacksCrudSurface(
-              entityName,
-              outputDir,
-              fileSystem: fs,
-            );
+            EntityAnalyzer.isEnum(targetEntity, outputDir, fileSystem: fs) ||
+            (!config.hasService &&
+                EntityAnalyzer.lacksCrudSurface(
+                  targetEntity,
+                  outputDir,
+                  fileSystem: fs,
+                ));
         if (fixtureOnlyEntity) {
-          final purged = await _purgeCrudDatasourceArtifacts(entityName, fs);
+          final purged = await _purgeCrudDatasourceArtifacts(targetEntity, fs);
           // The index must never outlive its bindings: a pre-#1037 run can
           // leave it importing this entity's binding even when the binding
           // file is already gone (a previous heal removed it), so the
@@ -269,7 +279,7 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           if (await fs.exists(indexPath)) {
             try {
               indexReferencesEntity = (await fs.read(indexPath)).contains(
-                '${StringUtils.camelToSnake(entityName)}'
+                '${StringUtils.camelToSnake(targetEntity)}'
                 '_simulation_datasource_di.dart',
               );
             } catch (_) {

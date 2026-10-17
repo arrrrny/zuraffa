@@ -667,7 +667,20 @@ class EntityAnalyzer {
 
     final entitiesDir = p.join(outputDir, 'domain', 'entities');
     if (!fs.existsSync(entitiesDir) || !fs.isDirectorySync(entitiesDir)) {
-      return directMatch?.path;
+      // Only treat the direct match as an entity source when it actually
+      // declares the entity (#1747 nit): an unrelated file with the same
+      // snake-cased name must not drive hasCrudSurface/lacksCrudSurface.
+      if (directMatch != null) {
+        try {
+          final content = fs.readSync(directMatch.path);
+          if (_containsEntityDeclaration(content, entityName)) {
+            return directMatch.path;
+          }
+        } catch (_) {
+          return directMatch.path;
+        }
+      }
+      return null;
     }
 
     for (final filePath in fs.listSync(entitiesDir, recursive: true)) {
@@ -688,7 +701,19 @@ class EntityAnalyzer {
       }
     }
 
-    return directMatch?.path;
+    // Final fallback: only the direct match that actually declares the
+    // entity qualifies; otherwise there is no resolvable source.
+    if (directMatch != null) {
+      try {
+        final content = fs.readSync(directMatch.path);
+        if (_containsEntityDeclaration(content, entityName)) {
+          return directMatch.path;
+        }
+      } catch (_) {
+        return directMatch.path;
+      }
+    }
+    return null;
   }
 
   static bool _containsEntityDeclaration(String content, String entityName) {
