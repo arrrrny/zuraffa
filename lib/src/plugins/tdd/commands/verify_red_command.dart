@@ -343,9 +343,13 @@ class VerifyRedCommand extends Command<void> {
         : p.join(cwd, record.testPath);
     final testName = _runnableNameOf(record);
     print('   command: $template');
+    final ownedPaths = _ownedRelativePaths(record, cwd);
     _ReadOnlyTreeSnapshot beforeRun;
     try {
-      beforeRun = await _ReadOnlyTreeSnapshot.capture(cwd);
+      beforeRun = await _ReadOnlyTreeSnapshot.capture(
+        cwd,
+        ownedPaths: ownedPaths,
+      );
     } on FileSystemException catch (e) {
       print('zfa tdd verify-red: cannot snapshot test/ and lib/: ${e.message}');
       _printSummary(
@@ -380,7 +384,10 @@ class VerifyRedCommand extends Command<void> {
 
     List<String> changedPaths;
     try {
-      final afterRun = await _ReadOnlyTreeSnapshot.capture(cwd);
+      final afterRun = await _ReadOnlyTreeSnapshot.capture(
+        cwd,
+        ownedPaths: ownedPaths,
+      );
       changedPaths = beforeRun.changedPaths(afterRun);
     } on FileSystemException catch (e) {
       changedPaths = ['snapshot failed: ${e.message}'];
@@ -1128,9 +1135,16 @@ class VerifyRedCommand extends Command<void> {
 
     // 4. Read-only integrity: the batch run must not modify test/ or
     //    lib/ (FR-008), same as the single run.
+    final ownedPaths = <String>{};
+    for (final t in targets) {
+      ownedPaths.addAll(_ownedRelativePaths(t.record, cwd));
+    }
     _ReadOnlyTreeSnapshot? beforeRun;
     try {
-      beforeRun = await _ReadOnlyTreeSnapshot.capture(cwd);
+      beforeRun = await _ReadOnlyTreeSnapshot.capture(
+        cwd,
+        ownedPaths: ownedPaths,
+      );
     } on FileSystemException catch (e) {
       print('zfa tdd verify-red: cannot snapshot test/ and lib/: ${e.message}');
       print(
@@ -1181,7 +1195,10 @@ class VerifyRedCommand extends Command<void> {
 
     List<String> changedPaths;
     try {
-      final afterRun = await _ReadOnlyTreeSnapshot.capture(cwd);
+      final afterRun = await _ReadOnlyTreeSnapshot.capture(
+        cwd,
+        ownedPaths: ownedPaths,
+      );
       changedPaths = beforeRun.changedPaths(afterRun);
     } on FileSystemException catch (e) {
       changedPaths = ['snapshot failed: ${e.message}'];
@@ -1503,33 +1520,51 @@ class _ResolvedTarget {
   final String featureName;
 }
 
+/// Issue #1754: the set of project-relative paths a behavior owns — its
+/// registered test path and its `<id>_subject.dart`. Only these paths
+/// participate in the read-only integrity check.
+Set<String> _ownedRelativePaths(ArtifactRecord record, String cwd) {
+  final result = <String>{};
+  for (final raw in <String>[record.testPath, record.subjectPath]) {
+    if (raw.trim().isEmpty) continue;
+    final abs = p.isAbsolute(raw) ? raw : p.join(cwd, raw);
+    final relative = p
+        .normalize(p.relative(abs, from: cwd))
+        .replaceAll(p.separator, '/');
+    result.add(relative);
+  }
+  return result;
+}
+
 /// Content and shape snapshot for the command's read-only source trees.
 class _ReadOnlyTreeSnapshot {
   const _ReadOnlyTreeSnapshot(this.entries);
 
   final Map<String, String> entries;
 
-  static Future<_ReadOnlyTreeSnapshot> capture(String projectRoot) async {
+  static Future<_ReadOnlyTreeSnapshot> capture(
+    String projectRoot, {
+    required Set<String> ownedPaths,
+  }) async {
+    // Issue #1754: only the paths the behavior owns are snapshotted, so
+    // unrelated writes elsewhere under test/ or lib/ cannot abort the
+    // lane. Each owned path is recorded as `file:<sha256>` when present,
+    // `directory`/`link:<target>` for other entity kinds, or `missing`
+    // when absent — so additions and deletions are still detected.
     final entries = <String, String>{};
-    for (final treeName in const ['test', 'lib']) {
-      final tree = Directory(p.join(projectRoot, treeName));
-      if (!await tree.exists()) continue;
-      entries['$treeName/'] = 'directory';
-      await for (final entity in tree.list(
-        recursive: true,
-        followLinks: false,
-      )) {
-        final relative = p.normalize(
-          p.relative(entity.path, from: projectRoot),
-        );
-        if (entity is File) {
-          entries[relative] =
-              'file:${sha256.convert(await entity.readAsBytes())}';
-        } else if (entity is Directory) {
-          entries['$relative/'] = 'directory';
-        } else if (entity is Link) {
-          entries[relative] = 'link:${await entity.target()}';
-        }
+    for (final relative in ownedPaths) {
+      final normalized = relative.replaceAll(p.separator, '/');
+      final abs = p.join(projectRoot, normalized);
+      final type = FileSystemEntity.typeSync(abs, followLinks: false);
+      if (type == FileSystemEntityType.file) {
+        entries[normalized] =
+            'file:${sha256.convert(await File(abs).readAsBytes())}';
+      } else if (type == FileSystemEntityType.directory) {
+        entries['$normalized/'] = 'directory';
+      } else if (type == FileSystemEntityType.link) {
+        entries[normalized] = 'link:${await Link(abs).target()}';
+      } else {
+        entries[normalized] = 'missing';
       }
     }
     return _ReadOnlyTreeSnapshot(entries);
