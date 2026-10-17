@@ -51,6 +51,7 @@ void main() {
 
 **Domain**:
 - `AuthRepo`: `login(AuthRequest) -> bool`
+- `ShellNavItem`: `branchIndex(int index) -> int?`
 ''';
 
   setUp(() {
@@ -68,6 +69,7 @@ void main() {
 | -- | -------- | ------ | ----- |
 | U1 | exposes exactly the four share attachment kinds in declaration order | FR-001, SharedAttachmentType | PENDING |
 | U2 | authenticates the user | FR-002, AuthRepo.login | PENDING |
+| U3 | reports the nav item branch index | FR-002, ShellNavItem.branchIndex (lib/src/domain/entities/shell_nav_item/shell_nav_item.dart) | PENDING |
 ''');
   });
 
@@ -132,5 +134,32 @@ void main() {
     expect(d.surface, GenerationSurface.entityPipeline);
     expect(d.signature, isNotNull, reason: 'the contract lane keeps its path');
     expect(d.signature!.name, 'login');
+  });
+
+  test('U-1750-E1: an ANNOTATED traces cell resolves the declared signature '
+      '— gen reads the same decision (issue #1750)', () async {
+    // The reconciler's `component_of()` shape: before the fix the
+    // `(`-carrying token was dropped whole, the row read as unbound, and
+    // this decision came back null — gen then degraded to the legacy
+    // stub (`int subject_u2()`) instead of the declared
+    // `int? subject_u2(int index)`.
+    final decision = await DeclaredRouting.declaredRoutingFor(
+      cwd: tmp.path,
+      featureName: feature,
+      featureDir: p.join(tmp.path, 'specs', feature),
+      behaviorId: 'U3',
+    );
+
+    expect(
+      decision,
+      isA<RoutingDecision>(),
+      reason: 'the annotated cell is a binding, not an unbound trace',
+    );
+    final d = decision as RoutingDecision;
+    expect(d.surface, GenerationSurface.entityPipeline);
+    expect(d.signature, isNotNull);
+    expect(d.signature!.name, 'branchIndex');
+    expect(d.signature!.parameters, ['int index']);
+    expect(d.signature!.returnType, 'int?');
   });
 }

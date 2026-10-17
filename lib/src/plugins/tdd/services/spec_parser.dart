@@ -2094,7 +2094,14 @@ class SpecParser {
   /// declared inline signature is never comma-split (round-2 review
   /// fix 2). A span carrying `(` documents an expected signature, not a
   /// contract-row reference — such tokens are dropped so they neither
-  /// resolve nor dangle. Every `traces:` consumer (parser, make, func)
+  /// resolve nor dangle. Issue #1750: a TRAILING parenthesised
+  /// annotation is provenance, not part of the member reference
+  /// (`ShellNavItem.branchIndex (lib/src/…/shell_nav_item.dart)`, the
+  /// reconciler's `component_of()` shape) — it is stripped first, in the
+  /// same shape [_expandBehaviorTokens] strips plan-time annotations, so
+  /// the annotated cell resolves the declared signature instead of being
+  /// dropped whole (which left `traces` empty and gen silently degraded
+  /// to the legacy stub). Every `traces:` consumer (parser, make, func)
   /// routes through this helper so they all see the same tokens.
   static List<String> traceTokens(String raw) => RegExp(r'`[^`]*`|[^,]+')
       .allMatches(raw)
@@ -2102,8 +2109,29 @@ class SpecParser {
       .where((t) => t.isNotEmpty)
       .map((t) => t.replaceAll('`', '').trim())
       .where((t) => t.isNotEmpty)
+      .map(_stripTrailingAnnotation)
+      .where((t) => t.isNotEmpty)
       .where((t) => !t.contains('('))
       .toList();
+
+  /// Issue #1750: strip a trailing parenthesised annotation from a
+  /// trace token (`Row.method (provenance)` -> `Row.method`), the
+  /// resolver-side twin of [_expandBehaviorTokens]' plan-time strip.
+  /// The annotation must be separated from the reference by whitespace
+  /// — `ShellNavItem.branchIndex (lib/…)` is an annotation, while
+  /// `compute(x)` / `format(Template) -> String` are signature-shaped
+  /// spans that stay whole for [traceTokens]' drop rule (the #1484
+  /// review pin: a signature-only first binding is EMPTY and stays
+  /// empty). Only a TRAILING group is an annotation; a span that still
+  /// carries `(` after the strip is left for the drop rule too.
+  static String _stripTrailingAnnotation(String token) {
+    final m = RegExp(r'\s+\([^)]*\)\s*$').firstMatch(token);
+    if (m != null) {
+      final head = token.substring(0, m.start).trim();
+      if (head.isNotEmpty && !head.contains('(')) return head;
+    }
+    return token;
+  }
 
   /// The FR contract-trace continuation scan (feature 071): a `traces:`
   /// line within an FR's block names the contract rows the requirement
