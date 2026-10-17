@@ -66,9 +66,22 @@ void main() {
         contains('alarm'),
         reason: 'the smoke check must bound the zfa --version wall clock',
       );
-      final smokeIndex = content.indexOf('--version');
-      final bannerIndex = content.indexOf('Rebuild complete');
-      expect(bannerIndex, greaterThan(-1));
+      // Anchor both markers to CODE text: a bare `--version` / `Rebuild
+      // complete` also appears in the surrounding comment prose, so the
+      // assertion could otherwise be satisfied by the comments' own order
+      // while the smoke-check code moved below the banner.
+      final smokeIndex = content.indexOf('alarm shift');
+      final bannerIndex = content.indexOf('echo "✅ Rebuild complete');
+      expect(
+        smokeIndex,
+        greaterThan(-1),
+        reason: 'the perl smoke-check invocation must be present in the script',
+      );
+      expect(
+        bannerIndex,
+        greaterThan(-1),
+        reason: 'the success banner must be present in the script',
+      );
       expect(
         smokeIndex,
         lessThan(bannerIndex),
@@ -99,7 +112,16 @@ case "\$args" in
   "pub get"*) exit 0 ;;
   *zfa_bundle*)
     mkdir -p build/zfa_bundle/bundle/bin
-    printf '#!/bin/bash\\nexit 1\\n' > build/zfa_bundle/bundle/bin/zfa
+    cat > build/zfa_bundle/bundle/bin/zfa <<'ZFA_STUB'
+#!/bin/bash
+# A "broken" install whose smoke check must still actually execute this file:
+# record that it ran, then fail. Without the marker the failure-path test could
+# pass because the rebuild aborted before ever reaching the smoke check.
+if [ -n "\$ZFA_SMOKE_MARKER" ]; then
+  echo "smoke-check-ran" >> "\$ZFA_SMOKE_MARKER"
+fi
+exit 1
+ZFA_STUB
     chmod +x build/zfa_bundle/bundle/bin/zfa
     exit 0 ;;
   *mcp_server_bundle*)
@@ -124,9 +146,18 @@ exit 0
         ...Platform.environment,
         'PATH': '${bin.path}:${Platform.environment['PATH']}',
         'ZURAFFA_BIN': '${sandbox.path}/install',
+        'ZFA_SMOKE_MARKER': '${sandbox.path}/smoke.marker',
       },
     );
 
+    final smokeMarker = File('${sandbox.path}/smoke.marker');
+    expect(
+      smokeMarker.existsSync(),
+      isTrue,
+      reason:
+          'the smoke check must actually run the installed zfa — the fake '
+          'zfa records its own execution',
+    );
     expect(
       result.exitCode,
       isNot(0),

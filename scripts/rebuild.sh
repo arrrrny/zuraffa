@@ -46,8 +46,14 @@ install_binary_atomically() {
   local src="$1"
   local name="$2"
   local dest="$INSTALL_DIR/$name"
-  local tmp="$dest.rebuild.$$"
-  rm -f "$tmp"
+  # Create the sibling staging file with `mktemp` (a unique, unpredictable
+  # name) instead of a guessable `$dest.rebuild.$$` in an `INSTALL_DIR` that an
+  # explicit `ZURAFFA_BIN` may point at a directory writable by other users.
+  # `cp` follows a destination symlink, so a predictable staging path is a
+  # symlink-clobber hazard. A privileged install into a less-trusted directory
+  # is unsupported.
+  local tmp
+  tmp=$(mktemp "$dest.XXXXXX")
   cp "$src" "$tmp"
   chmod +x "$tmp" 2>/dev/null || true
   if ! cmp -s "$src" "$tmp"; then
@@ -80,8 +86,24 @@ install_binary_atomically build/zfa_bundle/bundle/bin/zfa zfa
 # on stock macOS, so bound the child with an `alarm` via perl (always present);
 # `ZFA_SMOKE_TIMEOUT` overrides the 30s budget on a slow/loaded machine.
 ZFA_SMOKE_TIMEOUT="${ZFA_SMOKE_TIMEOUT:-30}"
+# A non-numeric value silently un-bounds the check: perl numifies it, so
+# `ZFA_SMOKE_TIMEOUT=abc` becomes `alarm 0`, which *cancels* the timer and lets
+# the child run forever — the exact 8-minute hang this check exists to catch.
+case "$ZFA_SMOKE_TIMEOUT" in
+  '' | *[!0-9]*)
+    echo "  ❌ ZFA_SMOKE_TIMEOUT must be a whole number of seconds (got '$ZFA_SMOKE_TIMEOUT')" >&2
+    exit 1
+    ;;
+esac
+if [ "$ZFA_SMOKE_TIMEOUT" -eq 0 ]; then
+  echo "  ❌ ZFA_SMOKE_TIMEOUT must be greater than 0 s (0 would disable the bound)" >&2
+  exit 1
+fi
 echo "🔎 Verifying installed zfa (zfa --version, ${ZFA_SMOKE_TIMEOUT}s budget)..."
-if ! perl -e 'alarm shift; exec @ARGV' "$ZFA_SMOKE_TIMEOUT" "$INSTALL_DIR/zfa" --version > /dev/null 2>&1; then
+# `exec` returns instead of replacing the process when the target cannot be
+# executed (missing +x, bad interpreter); without an explicit failure path the
+# one-line perl program then exits 0 and the check passes without running zfa.
+if ! perl -e 'alarm shift; exec @ARGV or die "exec failed: $!"' "$ZFA_SMOKE_TIMEOUT" "$INSTALL_DIR/zfa" --version > /dev/null 2>&1; then
   echo "  ❌ $INSTALL_DIR/zfa --version failed or did not exit within ${ZFA_SMOKE_TIMEOUT}s — installed binary is broken; rerun scripts/rebuild.sh" >&2
   exit 1
 fi

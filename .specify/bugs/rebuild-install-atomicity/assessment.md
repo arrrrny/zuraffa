@@ -48,15 +48,15 @@ regression test reproduces that deterministically by building a bundle whose
 
 ## Suspected Code Paths
 
-- `scripts/rebuild.sh:74` (old) — `cp build/zfa_bundle/bundle/bin/zfa
+- `scripts/rebuild.sh:49` (old) — `cp build/zfa_bundle/bundle/bin/zfa
   "$INSTALL_DIR/zfa"` installs straight onto the live path: an in-place `cp`
   can be observed half-written, and nothing checks the landed bytes.
-- `scripts/rebuild.sh:75` (old) — `chmod` + unconditional
+- `scripts/rebuild.sh:50-51` (old) — `chmod` + unconditional
   `echo "  ✅ $INSTALL_DIR/zfa"`; no verification of the installed binary.
-- `scripts/rebuild.sh:119` (old) — `echo "✅ Rebuild complete …"` runs with no
+- `scripts/rebuild.sh:84` (old) — `echo "✅ Rebuild complete …"` runs with no
   smoke test; `zfa --version` is only *suggested* at the end.
 - The same non-atomic `cp` shape existed for `zuraffa_mcp_server`
-  (`scripts/rebuild.sh:116`, old).
+  (`scripts/rebuild.sh:79`, old).
 
 ## Root Cause Hypothesis
 
