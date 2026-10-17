@@ -1,5 +1,6 @@
 import '../core/plugin_system/discovery_engine.dart';
 import '../core/context/file_system.dart';
+import 'entity_field_resolver.dart';
 import 'string_utils.dart';
 
 import 'package:path/path.dart' as p;
@@ -373,6 +374,99 @@ class EntityAnalyzer {
     } catch (_) {
       return false;
     }
+  }
+
+  /// True when [typeName]'s source IS on disk but declares no CRUD surface —
+  /// issue #1747's shape, and the single predicate the mock lane shares
+  /// between the builders that emit the class-shaped artifacts
+  /// ([MockBuilder]) and the ones that emit the DI binding beside them
+  /// ([MockPlugin]): both must agree, or the run leaves a binding importing
+  /// a datasource that was never written.
+  ///
+  /// A target with no entity file at all is NOT this shape — there is
+  /// nothing to probe, and that path keeps its historical behaviour.
+  static bool lacksCrudSurface(
+    String typeName,
+    String outputDir, {
+    FileSystem? fileSystem,
+  }) {
+    final fs = fileSystem ?? const DefaultFileSystem();
+    return entityFileExists(typeName, outputDir, fileSystem: fs) &&
+        !hasCrudSurface(typeName, outputDir, fileSystem: fs);
+  }
+
+  /// True when [typeName] declares the CRUD surface the generated
+  /// datasource / mock-datasource body calls (issue #1747): a `<Type>Patch`
+  /// companion, a `copyWithField` method, and a resolvable identity field.
+  ///
+  /// A plain DTO or value class carries none of these, so emitting the
+  /// class-shaped CRUD stack for it writes code the analyzer cannot compile
+  /// (`<Type>Patch` isn't a type, `.id` isn't defined, `copyWithField` isn't
+  /// defined) while the mock certification still reports `(conforms)`.
+  ///
+  /// The probe reads the entity source AND its `part` companions — a Zorphy
+  /// entity's concrete class, its `copyWithField`, and its `<Type>Patch` all
+  /// live in the generated `.zorphy.dart` part, which
+  /// [_findEntitySourcePathSync] deliberately skips as a declaration site.
+  static bool hasCrudSurface(
+    String typeName,
+    String outputDir, {
+    FileSystem? fileSystem,
+  }) {
+    final fs = fileSystem ?? const DefaultFileSystem();
+    final entityPath = _findEntitySourcePathSync(
+      typeName,
+      outputDir,
+      fileSystem: fs,
+    );
+    if (entityPath == null) return false;
+
+    final String surface;
+    try {
+      surface = _readEntitySurface(entityPath, fs);
+    } catch (_) {
+      return false;
+    }
+
+    // A value object is explicitly identity-free — never a CRUD entity.
+    if (EntityFieldResolver.detectsValueObject(surface)) return false;
+
+    if (!RegExp(
+      r'\b(?:class|mixin|typedef)\s+' + RegExp.escape(typeName) + r'Patch\b',
+    ).hasMatch(surface)) {
+      return false;
+    }
+    if (!RegExp(r'\bcopyWithField\b').hasMatch(surface)) return false;
+
+    return _hasIdentityField(surface);
+  }
+
+  /// [entityPath]'s source concatenated with every `part '…'` it pulls in.
+  static String _readEntitySurface(String entityPath, FileSystem fs) {
+    final content = fs.readSync(entityPath);
+    final dir = p.dirname(entityPath);
+    final buffer = StringBuffer(content);
+    final partPattern = RegExp(
+      r"""^\s*part\s+'([^']+)'\s*;""",
+      multiLine: true,
+    );
+    for (final match in partPattern.allMatches(content)) {
+      final partPath = p.join(dir, match.group(1)!);
+      if (fs.existsSync(partPath)) buffer.writeln(fs.readSync(partPath));
+    }
+    return buffer.toString();
+  }
+
+  /// True when [surface] declares an identity — a field literally named
+  /// `id`, a field ending in `Id`, or `@Zorphy(autoId: true)`. The same
+  /// resolution order `zfa make` applies (see [EntityFieldResolver]).
+  static bool _hasIdentityField(String surface) {
+    if (EntityFieldResolver.detectsAutoId(surface)) return true;
+    for (final field in EntityFieldResolver.parseEntityFields(surface)) {
+      if (field.name == 'id') return true;
+      if (field.name.length > 2 && field.name.endsWith('Id')) return true;
+    }
+    return false;
   }
 
   /// The import a consumer in [fromDir] writes to bring [entityName] into

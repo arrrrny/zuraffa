@@ -235,17 +235,25 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             : config.name;
         // Issue #1037: an enum entity has no CRUD datasource surface, so
         // it gets no simulation binding either — and the binding emitter
-        // must not run for it. A pre-#1037 run may have left the
-        // class-shaped artifacts on disk; purge them (generated-marker
-        // files only) and rebuild the simulation index so one re-run
-        // heals the tree.
-        final isEnumEntity = EntityAnalyzer.isEnum(
-          entityName,
-          outputDir,
-          fileSystem: fs,
-        );
-        if (isEnumEntity) {
-          final purged = await _purgeEnumDatasourceArtifacts(entityName, fs);
+        // must not run for it. Issue #1747 extends exactly that treatment
+        // to any OTHER type whose source carries no CRUD surface (a plain
+        // DTO or value class): MockBuilder declines to write the datasource
+        // pair for it, so a binding here would import two files that were
+        // never emitted and break the build a second way. A pre-#1037 /
+        // pre-#1747 run may have left the class-shaped artifacts on disk;
+        // purge them (generated-marker files only) and rebuild the
+        // simulation index so one re-run heals the tree. The predicate is
+        // shared with the builder ([EntityAnalyzer.lacksCrudSurface]) so
+        // the two can never disagree.
+        final fixtureOnlyEntity =
+            EntityAnalyzer.isEnum(entityName, outputDir, fileSystem: fs) ||
+            EntityAnalyzer.lacksCrudSurface(
+              entityName,
+              outputDir,
+              fileSystem: fs,
+            );
+        if (fixtureOnlyEntity) {
+          final purged = await _purgeCrudDatasourceArtifacts(entityName, fs);
           // The index must never outlive its bindings: a pre-#1037 run can
           // leave it importing this entity's binding even when the binding
           // file is already gone (a previous heal removed it), so the
@@ -426,12 +434,13 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     return [];
   }
 
-  /// Issue #1037 self-heal: removes the class-shaped datasource artifacts a
-  /// pre-#1037 run left on disk for an enum entity. Only files carrying the
-  /// generated marker are deleted — a hand-written file in those paths is
-  /// never touched. Returns the removed relative paths (for the honest log
-  /// the caller prints).
-  Future<List<String>> _purgeEnumDatasourceArtifacts(
+  /// Issue #1037/#1747 self-heal: removes the class-shaped datasource
+  /// artifacts an older run left on disk for a type the mock lane now
+  /// treats as fixture-only (an enum entity, or any source that declares no
+  /// CRUD surface). Only files carrying the generated marker are deleted —
+  /// a hand-written file in those paths is never touched. Returns the
+  /// removed relative paths (for the honest log the caller prints).
+  Future<List<String>> _purgeCrudDatasourceArtifacts(
     String entityName,
     FileSystem fs,
   ) async {
