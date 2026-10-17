@@ -322,6 +322,52 @@ class CycleEvidence {
     return last;
   }
 
+  /// Issue #1696: the red/green evidence sets a reset tombstone leaves
+  /// standing — the tombstoned behaviors' evidence is invalidated ONLY
+  /// when it PREDATES the tombstone.
+  ///
+  /// Issue #1264's reset tombstone invalidates the evidence a reset left
+  /// behind (the reset drops the artifacts, so the surviving certification
+  /// no longer describes the tree). That invalidation is bounded by the
+  /// tombstone's timestamp: evidence recorded AT or AFTER the reset is the
+  /// operator's post-reset re-bind (the `zfa tdd make <id> --born-green`
+  /// skip transition) and is authoritative again — the same "predates the
+  /// tombstone" rule make's re-drive probe (`_tombstonedReDrive`, issue
+  /// #1331) already applies. Subtracting the tombstoned ids
+  /// unconditionally hid every post-reset bind from reconciliation, so the
+  /// run re-drove the previously bound behavior from gen and clobbered the
+  /// hand-delta pair (issue #1696).
+  ///
+  /// Fail-closed: a tombstoned behavior whose surviving entry carries a
+  /// missing or unparseable timestamp (legacy schema-0 entries) stays
+  /// invalidated — the #1264 phantom never comes back.
+  Future<({Set<String> red, Set<String> green})> evidenceRespectingTombstone({
+    required Set<String> tombstoned,
+    required DateTime? tombstoneAt,
+  }) async {
+    final red = await redEvidence();
+    final green = await greenEvidence();
+    if (tombstoned.isEmpty || tombstoneAt == null) {
+      return (red: red, green: green);
+    }
+    // The tombstoned ids with at least one entry of the kind recorded at
+    // or after the tombstone — those post-reset re-binds survive.
+    final revivableRed = <String>{};
+    final revivableGreen = <String>{};
+    for (final entry in await entries()) {
+      if (!tombstoned.contains(entry.behaviorId)) continue;
+      final at = entry.at;
+      final parsed = at == null ? null : DateTime.tryParse(at);
+      if (parsed == null || parsed.isBefore(tombstoneAt)) continue;
+      if (entry.kind == 'red') revivableRed.add(entry.behaviorId);
+      if (entry.kind == 'green') revivableGreen.add(entry.behaviorId);
+    }
+    return (
+      red: red.difference(tombstoned).union(revivableRed),
+      green: green.difference(tombstoned).union(revivableGreen),
+    );
+  }
+
   Future<Set<String>> _evidence(String kind) async {
     if (_cache && _kindSets.containsKey(kind)) return _kindSets[kind]!;
     final raw = await _readRaw();
