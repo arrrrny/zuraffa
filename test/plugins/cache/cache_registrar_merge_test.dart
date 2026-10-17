@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/cache/cache_plugin.dart';
 import 'package:zuraffa/src/plugins/cache/capabilities/create_cache_adapter_capability.dart';
 
@@ -96,14 +97,30 @@ void main() {
         expect(content, contains('AdapterSpec<Status>()'));
         // The import should point to the enum file
         expect(content, contains('enums/status.dart'));
+
+        // The manual additions entry must carry the resolved enum import —
+        // writing the entity-directory path for an enum points at a file
+        // that does not exist and the next regeneration retains the broken
+        // import.
+        final manualAdditions = await File(
+          p.join(outputDir, 'cache', 'hive_manual_additions.txt'),
+        ).readAsString();
+        expect(manualAdditions, contains('enums/status.dart|Status'));
+        expect(
+          manualAdditions,
+          isNot(contains('entities/status/status.dart|Status')),
+        );
       },
     );
   });
 
   group('issue #1734: merge-preserving regeneration', () {
     test('hand-maintained AdapterSpec entries survive regeneration', () async {
-      // Set up a real entity
+      // Set up real entities for every adapter the seeded registrar names —
+      // the merge keeps only specs whose entity still resolves.
       await writeEntity('Product');
+      await writeEntity('UrlEndpoint');
+      await writeEntity('Parser');
 
       // Simulate a hand-maintained registrar with extra adapters
       final cacheDir = p.join(outputDir, 'cache');
@@ -140,10 +157,36 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
 
       final content = await registrarContent();
       expect(content, contains('AdapterSpec<Product>()'));
+      // Assert the whole contract for a hand-maintained adapter: the spec,
+      // its import, and its registration statement must all survive — a
+      // dropped import or registration would still pass a bare
+      // AdapterSpec substring check.
+      expect(
+        content,
+        contains("import '../domain/entities/url_endpoint/url_endpoint.dart';"),
+        reason: 'hand-maintained adapter import must survive regeneration',
+      );
+      expect(
+        content,
+        contains('registerAdapter(UrlEndpointAdapter())'),
+        reason:
+            'hand-maintained adapter registration must survive regeneration',
+      );
       expect(
         content,
         contains('AdapterSpec<UrlEndpoint>()'),
         reason: 'hand-maintained adapter must survive regeneration',
+      );
+      expect(
+        content,
+        contains("import '../domain/entities/parser/parser.dart';"),
+        reason: 'hand-maintained adapter import must survive regeneration',
+      );
+      expect(
+        content,
+        contains('registerAdapter(ParserAdapter())'),
+        reason:
+            'hand-maintained adapter registration must survive regeneration',
       );
       expect(
         content,
@@ -185,11 +228,8 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
 }
 ''');
 
-        // Remove the category cache file so only Product's cache file exists
-        // (simulating a scenario where the registrar has more adapters than
-        // the current cache file set)
-        // The hand-maintained Category adapter must survive.
-
+        // No *_cache.dart files exist: the registrar is the only source
+        // naming Category, so it must survive on the merge path alone.
         await capability.execute({'name': 'Product'});
 
         final content = await registrarContent();
@@ -200,6 +240,127 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
           reason:
               'hand-maintained Category adapter must survive even without a cache file',
         );
+      },
+    );
+  });
+
+  group('review follow-up: merge validation and preservation (PR #1740)', () {
+    test(
+      'a non-resolving AdapterSpec already in the registrar is dropped on regeneration',
+      () async {
+        // The pre-fix generator wrote exactly this artifact: a spec for an
+        // entity that no longer exists. Regeneration must heal it — keeping
+        // the spec re-crashes hive_ce_generator with the #1734 null check.
+        await writeEntity('Product');
+
+        final cacheDir = p.join(outputDir, 'cache');
+        await Directory(cacheDir).create(recursive: true);
+        await File(p.join(cacheDir, 'hive_registrar.dart')).writeAsString('''
+import 'package:zuraffa/zuraffa.dart';
+import '../domain/entities/product/product.dart';
+import '../domain/entities/pending_navigation/pending_navigation.dart';
+
+part 'hive_registrar.g.dart';
+
+extension HiveRegistrar on HiveInterface {
+  @GenerateAdapters([AdapterSpec<Product>(), AdapterSpec<PendingNavigation>()])
+  void registerAdapters() {
+    Hive.registerAdapter(ProductAdapter());
+    Hive.registerAdapter(PendingNavigationAdapter());
+  }
+}
+''');
+
+        await capability.execute({'name': 'Product'});
+
+        final content = await registrarContent();
+        expect(content, contains('AdapterSpec<Product>()'));
+        expect(
+          content,
+          isNot(contains('AdapterSpec<PendingNavigation>()')),
+          reason:
+              'a spec whose entity no longer resolves must not be re-emitted',
+        );
+        expect(
+          content,
+          isNot(contains('pending_navigation/pending_navigation.dart')),
+        );
+      },
+    );
+
+    test(
+      'the registrar survives regeneration when no cache files exist and manual additions are comment-only',
+      () async {
+        await writeEntity('UrlEndpoint');
+
+        final cacheDir = p.join(outputDir, 'cache');
+        await Directory(cacheDir).create(recursive: true);
+        await File(p.join(cacheDir, 'hive_registrar.dart')).writeAsString('''
+import 'package:zuraffa/zuraffa.dart';
+import '../domain/entities/url_endpoint/url_endpoint.dart';
+
+part 'hive_registrar.g.dart';
+
+extension HiveRegistrar on HiveInterface {
+  @GenerateAdapters([AdapterSpec<UrlEndpoint>()])
+  void registerAdapters() {
+    Hive.registerAdapter(UrlEndpointAdapter());
+  }
+}
+''');
+        // Comment-only manual additions: the old code deleted the registrar
+        // on this path before the merge ever ran.
+        await File(
+          p.join(cacheDir, 'hive_manual_additions.txt'),
+        ).writeAsString('# Hive Manual Additions\n# (no entries)\n');
+
+        await plugin.cacheBuilder.regenerateHiveRegistrar(
+          GeneratorConfig(
+            name: 'UrlEndpoint',
+            outputDir: outputDir,
+            enableCache: true,
+            cacheStorage: 'hive',
+          ),
+        );
+
+        final registrarFile = File(p.join(cacheDir, 'hive_registrar.dart'));
+        expect(await registrarFile.exists(), isTrue);
+        final content = await registrarFile.readAsString();
+        expect(content, contains('AdapterSpec<UrlEndpoint>()'));
+        expect(
+          content,
+          contains(
+            "import '../domain/entities/url_endpoint/url_endpoint.dart';",
+          ),
+        );
+      },
+    );
+
+    test(
+      'an enum whose name is a prefix of the cache file stem produces no AdapterSpec',
+      () async {
+        // status_cache.dart + `enum StatusCode` must not emit
+        // AdapterSpec<Status>() — the bare substring match re-admitted the
+        // #1734 null-check crash class.
+        final enumsDir = p.join(outputDir, 'domain', 'entities', 'enums');
+        await Directory(enumsDir).create(recursive: true);
+        await File(
+          p.join(enumsDir, 'status.dart'),
+        ).writeAsString('enum StatusCode { ok, err }\n');
+
+        final cacheDir = p.join(outputDir, 'cache');
+        await Directory(cacheDir).create(recursive: true);
+        await File(
+          p.join(cacheDir, 'status_cache.dart'),
+        ).writeAsString('// generated cache for a status-like name\n');
+
+        await writeEntity('Product');
+        await capability.execute({'name': 'Product'});
+
+        final content = await registrarContent();
+        expect(content, isNot(contains('AdapterSpec<Status>()')));
+        expect(content, isNot(contains('enums/status.dart')));
+        expect(content, contains('AdapterSpec<Product>()'));
       },
     );
   });

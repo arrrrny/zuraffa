@@ -13,6 +13,7 @@ import '../../../utils/entity_analyzer.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../cache_plugin.dart';
+import '../entity_location_resolver.dart';
 
 /// Capability that registers Hive type adapters for an entity and all its
 /// sub-entities by updating the `hive_registrar.dart` file.
@@ -235,53 +236,18 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
     final fs = plugin.cacheBuilder.fileSystem;
 
     // Check if entity file exists - support both regular entities and enums
-    final entityFilePath = path.join(
-      outputDir,
-      'domain',
-      'entities',
-      entitySnake,
-      '$entitySnake.dart',
+    // (shared resolver: declaration-boundary enum match, issue #1734).
+    final resolvedLocation = await resolveCacheEntityLocation(
+      entityName,
+      outputDir: outputDir,
+      fileSystem: fs,
     );
+    final enumExists = resolvedLocation?.isEnum ?? false;
+    final enumImportPath =
+        resolvedLocation?.importPath ??
+        '../domain/entities/$entitySnake/$entitySnake.dart';
 
-    // Also check for enum in enums directory
-    final enumIndexPath = path.join(
-      outputDir,
-      'domain',
-      'entities',
-      'enums',
-      'index.dart',
-    );
-    final enumFilePath = path.join(
-      outputDir,
-      'domain',
-      'entities',
-      'enums',
-      '$entitySnake.dart',
-    );
-
-    bool entityExists = await fs.exists(entityFilePath);
-    bool enumExists = false;
-    String enumImportPath = '../domain/entities/$entitySnake/$entitySnake.dart';
-
-    if (!entityExists) {
-      // Check enums directory
-      if (await fs.exists(enumIndexPath)) {
-        final content = await fs.read(enumIndexPath);
-        if (content.contains('enum $entityName')) {
-          enumExists = true;
-          enumImportPath = '../domain/entities/enums/index.dart';
-        }
-      }
-      if (!enumExists && await fs.exists(enumFilePath)) {
-        final content = await fs.read(enumFilePath);
-        if (content.contains('enum $entityName')) {
-          enumExists = true;
-          enumImportPath = '../domain/entities/enums/$entitySnake.dart';
-        }
-      }
-    }
-
-    if (!entityExists && !enumExists) {
+    if (resolvedLocation == null) {
       // List available entities for helpful error message
       final entitiesDir = path.join(outputDir, 'domain', 'entities');
       final available = <String>[];
@@ -296,6 +262,13 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
             }
             // Also check enums directory
             if (dirName == 'enums') {
+              final enumIndexPath = path.join(
+                outputDir,
+                'domain',
+                'entities',
+                'enums',
+                'index.dart',
+              );
               if (await fs.exists(enumIndexPath)) {
                 final content = await fs.read(enumIndexPath);
                 final enumMatches = RegExp(r'enum\s+(\w+)').allMatches(content);
@@ -371,51 +344,14 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
           );
 
           // Check if entity exists (regular or enum) — issue #1734
-          final cacheEntityPath = path.join(
-            outputDir,
-            'domain',
-            'entities',
-            entitySnakeFromCache,
-            '$entitySnakeFromCache.dart',
-          );
-          final cacheEnumIndexPath = path.join(
-            outputDir,
-            'domain',
-            'entities',
-            'enums',
-            'index.dart',
-          );
-          final cacheEnumFilePath = path.join(
-            outputDir,
-            'domain',
-            'entities',
-            'enums',
-            '$entitySnakeFromCache.dart',
+          // (shared resolver: declaration-boundary enum match).
+          final cachedLocation = await resolveCacheEntityLocation(
+            cachedEntityName,
+            outputDir: outputDir,
+            fileSystem: fs,
           );
 
-          var cacheEntityExists = await fs.exists(cacheEntityPath);
-          var cacheImportPath =
-              '../domain/entities/$entitySnakeFromCache/$entitySnakeFromCache.dart';
-
-          if (!cacheEntityExists) {
-            if (await fs.exists(cacheEnumIndexPath)) {
-              final content = await fs.read(cacheEnumIndexPath);
-              if (content.contains('enum $cachedEntityName')) {
-                cacheEntityExists = true;
-                cacheImportPath = '../domain/entities/enums/index.dart';
-              }
-            }
-            if (!cacheEntityExists && await fs.exists(cacheEnumFilePath)) {
-              final content = await fs.read(cacheEnumFilePath);
-              if (content.contains('enum $cachedEntityName')) {
-                cacheEntityExists = true;
-                cacheImportPath =
-                    '../domain/entities/enums/$entitySnakeFromCache.dart';
-              }
-            }
-          }
-
-          if (!cacheEntityExists) {
+          if (cachedLocation == null) {
             if (verbose) {
               print(
                 '  Skipping $cacheFileName: no matching entity for $cachedEntityName',
@@ -427,8 +363,8 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
           if (!processedEntities.contains(cachedEntityName)) {
             processedEntities.add(cachedEntityName);
             adapterEntities.add(cachedEntityName);
-            if (!imports.contains(cacheImportPath)) {
-              imports.add(cacheImportPath);
+            if (!imports.contains(cachedLocation.importPath)) {
+              imports.add(cachedLocation.importPath);
             }
             // Also discover sub-entities of this cached entity
             await _collectSubtypeAdapters(
@@ -501,20 +437,26 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
     final newLines = <String>[];
     for (var i = 0; i < adapterEntities.length; i++) {
       final entity = adapterEntities[i];
-      final entitySnakeName = StringUtils.camelToSnake(entity);
-      // Use the correct import path for enums
-      String importPath;
-      if (entity == entityName && enumExists) {
-        importPath = enumImportPath;
-      } else {
-        importPath =
-            '../domain/entities/$entitySnakeName/$entitySnakeName.dart';
-      }
 
-      if (!existingEntityEntries.contains(entity)) {
-        newLines.add('$importPath|$entity');
-        existingEntityEntries.add(entity);
-      }
+      if (existingEntityEntries.contains(entity)) continue;
+
+      // Write the resolved import path: an enum discovered via a
+      // `*_cache.dart` scan resolves to its enums/*.dart file — writing the
+      // entity-directory path for it points at a file that does not exist,
+      // and the next regeneration retains the broken import (issue #1734
+      // follow-up).
+      final resolved = await resolveCacheEntityLocation(
+        entity,
+        outputDir: outputDir,
+        fileSystem: fs,
+      );
+      final entitySnakeName = StringUtils.camelToSnake(entity);
+      final importPath =
+          resolved?.importPath ??
+          '../domain/entities/$entitySnakeName/$entitySnakeName.dart';
+
+      newLines.add('$importPath|$entity');
+      existingEntityEntries.add(entity);
     }
 
     // If there's no existing file, add the header
@@ -591,11 +533,12 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
     // Store discovered entities for execute() to use
     args['_discoveredEntities'] = adapterEntities;
     args['_wroteManualAdditions'] = wroteManualAdditions;
-    args['_entitySourcePath'] = entityExists
-        ? entityFilePath
-        : (enumExists
-              ? (await fs.exists(enumFilePath) ? enumFilePath : enumIndexPath)
-              : null);
+    // Registrar/entity import paths are cache-dir-relative, so normalize
+    // against the cache directory to get the entity source absolute path.
+    // [resolvedLocation] is non-null here: the null case threw above.
+    args['_entitySourcePath'] = path.normalize(
+      path.join(outputDir, 'cache', resolvedLocation.importPath),
+    );
 
     if (verbose) {
       print('Adapter registration complete.');
