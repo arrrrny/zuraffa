@@ -211,14 +211,14 @@ class CycleEvidence {
   /// The feature's registry records keyed by behavior id (issue #1736).
   /// A registry that cannot be read yields an empty map — the recorded
   /// path alone then decides, exactly as it did before the registry was
-  /// consulted, so an unreadable store never invents an orphan.
+  /// consulted, so an unreadable store never invents an orphan. The
+  /// tolerance lives in [ArtifactRegistry.loadAllTolerant] — the single
+  /// home for corrupt-registry reads on the run path (issue #1738).
   Future<Map<String, ArtifactRecord>> _recordsByBehavior() async {
-    try {
-      final records = await ArtifactRegistry(featureDir: featureDir).loadAll();
-      return {for (final record in records) record.behaviorId: record};
-    } on Exception {
-      return const {};
-    }
+    final records = await ArtifactRegistry(
+      featureDir: featureDir,
+    ).loadAllTolerant();
+    return {for (final record in records) record.behaviorId: record};
   }
 
   /// Whether the behavior's LAST green evidence entry certifies the

@@ -1031,7 +1031,7 @@ class RunDriverCore {
       final inFlightStep = current.inFlightBehaviorId == row.id
           ? current.inFlightStep
           : null;
-      final hasGenArtifacts = await registry.findRecord(row.id) != null;
+      final hasGenArtifacts = await registry.findRecordTolerant(row.id) != null;
       final result = await _driveBehavior(
         row: row,
         steps: _stepsFor(
@@ -2702,7 +2702,7 @@ class RunDriverCore {
           // the subject side. The disk probe stays as the registry-less
           // fallback (the legacy flat layout).
           if (row.kind == BehaviorKind.acceptance) {
-            final record = await registry.findRecord(row.id);
+            final record = await registry.findRecordTolerant(row.id);
             final handStepPaths = acceptanceHandStepPathsFor(
               behaviorId: row.id,
               projectRoot: projectRoot,
@@ -2742,7 +2742,7 @@ class RunDriverCore {
           // unchanged. Fail-open on any missing artifact — the fallback
           // arm keeps serving shapes this probe cannot classify.
           if (row.kind == BehaviorKind.unit) {
-            final placeholderRecord = await registry.findRecord(row.id);
+            final placeholderRecord = await registry.findRecordTolerant(row.id);
             final dummyDetected = await _placeholderGreenDetected(
               projectRoot: projectRoot,
               record: placeholderRecord,
@@ -3369,14 +3369,10 @@ class RunDriverCore {
       // (review #1737, CodeRabbit), so a corrupt `artifacts.json` never
       // aborts the run from this fallback.
       if (byBehavior == null) {
-        try {
-          byBehavior = {
-            for (final record in await registry.loadAll())
-              record.behaviorId: record,
-          };
-        } on Exception {
-          byBehavior = const {};
-        }
+        byBehavior = {
+          for (final record in await registry.loadAllTolerant())
+            record.behaviorId: record,
+        };
       }
       final current = byBehavior[behaviorId]?.testPath;
       if (current != null &&
@@ -3445,7 +3441,7 @@ class RunDriverCore {
   }) async {
     final certified = entry.subjectHash;
     if (certified == null) return false;
-    final record = await registry.findRecord(behaviorId);
+    final record = await registry.findRecordTolerant(behaviorId);
     if (record == null) return false;
     final subjectPath = normalizeArtifactPath(projectRoot, record.subjectPath);
     final subjectFile = File(subjectPath);
@@ -3466,7 +3462,7 @@ class RunDriverCore {
           BehaviorState.pending) {
         continue;
       }
-      if (await registry.findRecord(row.id) != null) {
+      if (await registry.findRecordTolerant(row.id) != null) {
         return true;
       }
       final snakeId = _snakeCase(row.id);
