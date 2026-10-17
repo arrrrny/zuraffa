@@ -1,3 +1,11 @@
+@Tags(['e2e'])
+// The functional half drives the real `scripts/rebuild.sh` under a throwaway
+// temp project with a stub `dart` and a stub `zfa` — genuine subprocesses, so
+// the #1632 fast-lane budget census classifies it as heavyweight. `e2e` keeps
+// it off dart_core while direct `dart test <file>` and `--preset=all` still
+// run it.
+library;
+
 import 'dart:io';
 
 import 'package:test/test.dart';
