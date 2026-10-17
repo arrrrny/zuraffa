@@ -919,10 +919,17 @@ class JournalReader {
   static const _skinLane = 'skin';
 
   /// Issue #1264: the behavior ids the feature's LAST reset tombstone
-  /// invalidated — the empty set when no tombstone exists. The run
-  /// driver's reconciliation subtracts these from the cycle-log evidence
-  /// sets, so a reset's dropped behaviors re-drive instead of skipping
-  /// as "already done" off surviving green evidence.
+  /// invalidated — the empty set when no tombstone exists.
+  ///
+  /// Review #1749: deprecated — it hands back the ids with the reset
+  /// timestamp DISCARDED, the exact unconditional-subtraction shape
+  /// issue #1696 came from (a post-reset re-bind was invalidated too).
+  /// Read [lastResetTombstone] instead and bound the invalidation by its
+  /// `at`.
+  @Deprecated(
+    'Use lastResetTombstone — the discarded timestamp is the '
+    'issue #1696 unconditional-subtraction footgun',
+  )
   static Future<Set<String>> tombstonedBehaviors(String featureDir) async =>
       (await lastResetTombstone(featureDir)).behaviors;
 
@@ -933,10 +940,14 @@ class JournalReader {
   /// certification predates the tombstone — stale by decree) from a live
   /// drift (the evidence postdates the reset — authoritative again).
   ///
-  /// Fail-closed: a missing journal, a corrupt one, or a tombstone
-  /// without a parseable `started_at` returns an empty behavior set
-  /// (never an adoption class); the #1036 refusal then stands exactly as
-  /// before this probe existed.
+  /// A missing or corrupt journal reports NO tombstone (empty behaviors,
+  /// `at: null`). A tombstone whose `started_at` is missing or
+  /// unparseable keeps its invalidated behavior ids but reports
+  /// `at: null` — consumers that bound the invalidation by the reset
+  /// time must fail CLOSED on that (issue #1696): make's
+  /// `_tombstonedReDrive` refuses, and the run driver's reconciliation
+  /// keeps the pre-#1696 unconditional subtraction, so the #1036 refusal
+  /// stands exactly as before this probe existed.
   static Future<({Set<String> behaviors, DateTime? at})> lastResetTombstone(
     String featureDir,
   ) async {

@@ -322,6 +322,78 @@ class CycleEvidence {
     return last;
   }
 
+  /// Issue #1696: the red/green evidence sets a reset tombstone leaves
+  /// standing — the tombstoned behaviors' evidence is invalidated ONLY
+  /// when it PREDATES the tombstone.
+  ///
+  /// Issue #1264's reset tombstone invalidates the evidence a reset left
+  /// behind (the reset drops the artifacts, so the surviving certification
+  /// no longer describes the tree). That invalidation is bounded by the
+  /// tombstone's timestamp: evidence recorded AT or AFTER the reset is the
+  /// operator's post-reset re-bind (the `zfa tdd make <id> --born-green`
+  /// skip transition) and is authoritative again — the same "predates the
+  /// tombstone" rule make's re-drive probe (`_tombstonedReDrive`, issue
+  /// #1331) already applies. Subtracting the tombstoned ids
+  /// unconditionally hid every post-reset bind from reconciliation, so the
+  /// run re-drove the previously bound behavior from gen and clobbered the
+  /// hand-delta pair (issue #1696).
+  ///
+  /// Fail-closed on two corners:
+  ///
+  /// - an UNREADABLE tombstone timestamp (`tombstoneAt == null` while
+  ///   [tombstoned] is non-empty): the ids parse but the reset time does
+  ///   not, so no evidence can be proven to postdate it — keep the
+  ///   pre-#1696 unconditional subtraction (the same refusal make's
+  ///   `_tombstonedReDrive` makes on `tombstoneAt == null`). An EMPTY
+  ///   tombstone is the no-op case, not the fail-closed one: nothing is
+  ///   invalidated, so the unfiltered evidence stands.
+  /// - a tombstoned behavior whose surviving entry carries a missing or
+  ///   unparseable timestamp (legacy schema-0 entries) stays invalidated.
+  ///
+  /// Either way the #1264 phantom done-state never comes back.
+  ///
+  /// Review #1749: one `entries()` pass derives both evidence sets and
+  /// the revival sets — the uncached driver view used to read the cycle
+  /// log three times (red + green + entries) for the same data.
+  Future<({Set<String> red, Set<String> green})> evidenceRespectingTombstone({
+    required Set<String> tombstoned,
+    required DateTime? tombstoneAt,
+  }) async {
+    // An empty tombstone invalidates nothing — the no-op case.
+    if (tombstoned.isEmpty) {
+      return (red: await redEvidence(), green: await greenEvidence());
+    }
+    // The tombstone's ids parse but its reset time does not: fail closed
+    // exactly as before #1696 — subtract them all, so a dropped behavior
+    // can never reconcile to done off its surviving certification.
+    if (tombstoneAt == null) {
+      return (
+        red: (await redEvidence()).difference(tombstoned),
+        green: (await greenEvidence()).difference(tombstoned),
+      );
+    }
+    final red = <String>{};
+    final green = <String>{};
+    // The tombstoned ids with at least one entry of the kind recorded at
+    // or after the tombstone — those post-reset re-binds survive.
+    final revivableRed = <String>{};
+    final revivableGreen = <String>{};
+    for (final entry in await entries()) {
+      if (entry.kind == 'red') red.add(entry.behaviorId);
+      if (entry.kind == 'green') green.add(entry.behaviorId);
+      if (!tombstoned.contains(entry.behaviorId)) continue;
+      final at = entry.at;
+      final parsed = at == null ? null : DateTime.tryParse(at);
+      if (parsed == null || parsed.isBefore(tombstoneAt)) continue;
+      if (entry.kind == 'red') revivableRed.add(entry.behaviorId);
+      if (entry.kind == 'green') revivableGreen.add(entry.behaviorId);
+    }
+    return (
+      red: red.difference(tombstoned).union(revivableRed),
+      green: green.difference(tombstoned).union(revivableGreen),
+    );
+  }
+
   Future<Set<String>> _evidence(String kind) async {
     if (_cache && _kindSets.containsKey(kind)) return _kindSets[kind]!;
     final raw = await _readRaw();
