@@ -359,6 +359,11 @@ coverage: 'dart test --coverage'
         '**Template Version**: `zuraffa-1.0`\n\n- **SC-1**: $description\n',
       );
       await Directory(p.join(specDir.path, 'tdd')).create(recursive: true);
+      // Issue #1743: the target cell becomes the subject FUNCTION NAME
+      // verbatim, so it must be a legal Dart identifier. `subject_$behaviorId`
+      // rendered `subject_S1256-W9` for this fixture's id — a name the
+      // reader now rejects. Snake-case the id exactly like the default
+      // target does.
       await File(p.join(specDir.path, 'tdd', 'test-list.md')).writeAsString('''
 | id | behavior | traces | kind | state | target |
 |----|----------|--------|------|-------|--------|
