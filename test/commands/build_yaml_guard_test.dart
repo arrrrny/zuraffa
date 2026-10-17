@@ -203,6 +203,52 @@ dependencies:
         );
       });
 
+      test('returns missingZorphyBuilder when dev_dependencies declares the '
+          'zorphy builder', () {
+        // The builder-name key (`zorphy`, not `zorphy_annotation`) in a
+        // non-`dependencies` section — pins both halves of the per-section
+        // probe (review note on #1748).
+        writeNonZuraffaProject(dartSource: 'class App {}');
+        File(p.join(sandbox.path, 'pubspec.yaml')).writeAsStringSync('''
+name: shadapp
+dev_dependencies:
+  zorphy: ^2.0.0
+''');
+        expect(
+          BuildYamlGuard.check(projectRoot: sandbox.path),
+          BuildYamlStatus.missingZorphyBuilder,
+        );
+      });
+
+      test('returns missingZorphyBuilder when dependency_overrides declares '
+          'zorphy_annotation', () {
+        writeNonZuraffaProject(dartSource: 'class App {}');
+        File(p.join(sandbox.path, 'pubspec.yaml')).writeAsStringSync('''
+name: shadapp
+dependency_overrides:
+  zorphy_annotation: ^1.0.0
+''');
+        expect(
+          BuildYamlGuard.check(projectRoot: sandbox.path),
+          BuildYamlStatus.missingZorphyBuilder,
+        );
+      });
+
+      test('returns notApplicable when pubspec is unparseable and there are no '
+          'annotations', () {
+        // The documented fail-open decision: an unparseable pubspec yields
+        // no dependency proof, and the annotation scan already established
+        // this is not a zorphy-annotated project (review note on #1748).
+        writeNonZuraffaProject(dartSource: 'class App {}');
+        File(
+          p.join(sandbox.path, 'pubspec.yaml'),
+        ).writeAsStringSync('name: [unclosed\n  bad: : :\n');
+        expect(
+          BuildYamlGuard.check(projectRoot: sandbox.path),
+          BuildYamlStatus.notApplicable,
+        );
+      });
+
       test('returns missingZorphyBuilder when a @Zorphy source exists', () {
         writeNonZuraffaProject(dartSource: '@Zorphy()\nclass Product {}');
         expect(

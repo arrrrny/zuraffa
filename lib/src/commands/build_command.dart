@@ -596,12 +596,9 @@ class BuildCommand extends Command {
       case BuildYamlStatus.notApplicable:
         // Issue #1709: no zorphy usage → the omitted registration is not a
         // misconfiguration; the build would proceed with the project's own
-        // builders.
-        print(
-          '   ℹ️  build.yaml omits the zorphy builder, but this project has '
-          'no @Zorphy sources and no zorphy dependency — build would proceed '
-          '(issue #1709).',
-        );
+        // builders. The preview shares the guard's reason clause so it cannot
+        // drift from the runtime note.
+        print('   ${BuildYamlGuard.notApplicableDryRunNote}');
         break;
     }
   }

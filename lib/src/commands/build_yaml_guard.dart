@@ -225,14 +225,29 @@ class BuildYamlGuard {
    delete build.yaml and re-run `zfa build` to have it scaffolded for you.
 ''';
 
+  /// Why an omitted zorphy-builder registration is not a misconfiguration for
+  /// this project — the clause shared by [notApplicableNote] and
+  /// [notApplicableDryRunNote]. Kept as one constant so the runtime note and
+  /// its dry-run preview always carry the same finding and cannot drift apart
+  /// (review note on #1748).
+  static const String notApplicableReason =
+      'this project has no @Zorphy sources and no zorphy dependency — the '
+      'zuraffa code-generation pipeline is not in use';
+
   /// The informational line shown when [check] returned
   /// [BuildYamlStatus.notApplicable]: the project's `build.yaml` omits the
   /// zorphy builder, but nothing in the project uses zorphy, so the guard
   /// stands aside and the build proceeds with the project's own builders
   /// (issue #1709). Kept here so tests can assert against it.
   static const String notApplicableNote =
-      'ℹ️  build.yaml does not register the zorphy builder, but this project '
-      'has no @Zorphy sources and no zorphy dependency — the zuraffa '
-      'code-generation pipeline is not in use, so the build continues with '
-      'the project\'s own builders (issue #1709).';
+      'ℹ️  build.yaml does not register the zorphy builder, but '
+      '$notApplicableReason, so the build continues with the project\'s own '
+      'builders (issue #1709).';
+
+  /// Dry-run counterpart of [notApplicableNote]: the same finding in future
+  /// tense, so a preview never claims a build that did not happen. Composed
+  /// from the same [notApplicableReason] clause so the two stay in step.
+  static const String notApplicableDryRunNote =
+      'ℹ️  build.yaml omits the zorphy builder, but $notApplicableReason, so '
+      'the build would proceed with the project\'s own builders (issue #1709).';
 }
