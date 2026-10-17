@@ -174,6 +174,23 @@ void main() {
       expect(SpecParser.findUnboundFrTraces(spec, bound), isEmpty);
     });
 
+    test('an annotated member reference binds the bare reference (issue '
+        '#1750)', () {
+      const spec = '''
+- **FR-002**: The system MUST report the nav item branch index.
+          traces: ShellNavItem.branchIndex (lib/src/domain/entities/shell_nav_item/shell_nav_item.dart)
+''';
+      final bound = SpecParser.parseFrContractTraces(spec);
+      expect(bound['U1'], [
+        'ShellNavItem.branchIndex',
+      ], reason: 'the annotation is provenance, not part of the reference');
+      expect(
+        SpecParser.findUnboundFrTraces(spec, bound),
+        isEmpty,
+        reason: 'the annotated cell is a binding, not an unbound trace',
+      );
+    });
+
     test('an ownerless traces: line (after a heading, before any FR) is '
         'not reported', () {
       const spec = '''
