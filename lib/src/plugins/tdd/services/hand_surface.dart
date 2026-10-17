@@ -87,6 +87,39 @@ class HandSurface {
     return false;
   }
 
+  /// Whether the seam at [seamPath] (project-relative) is a shape
+  /// `zfa tdd wire` can parse and rewrite (bug #1752). A wrapped
+  /// (multi-line) arrow-throw seam is wireable only when it carries the
+  /// contract-seam provenance marker (`issue #1007`); the FFI harness
+  /// (bug #835) and hand-written wrapped seams are not. A missing file
+  /// reads as wireable (the canonical display fallback — the hint stays
+  /// actionable for a seam that has not landed on disk).
+  static bool seamIsWireable({
+    required String projectRoot,
+    required String seamPath,
+  }) {
+    final file = File(p.join(projectRoot, seamPath));
+    if (!file.existsSync()) return true;
+    String raw;
+    try {
+      raw = file.readAsStringSync();
+    } catch (_) {
+      return true;
+    }
+    final singleLine = RegExp(
+      r'^[A-Za-z_][A-Za-z0-9_]*(?:<[^()<>=]*(?:<[^()<>=]*>)?[^()<>=]*>)?'
+      r'[ \t]*\??'
+      r'[ \t]+[A-Za-z_][A-Za-z0-9_]*'
+      r'\([^)]*\)'
+      r'[ \t]*=>[ \t]*throw UnimplementedError\(',
+      multiLine: true,
+    ).hasMatch(raw);
+    if (singleLine) return true;
+    final wrapped = RegExp(r'=>\s*\n\s*throw').hasMatch(raw);
+    if (!wrapped) return false;
+    return raw.contains('issue #1007');
+  }
+
   /// The seam file path for [behaviorId], project-relative POSIX. The
   /// SUBJECT seam wins when it is on disk
   /// (`lib/tdd/<feature>/<snake>_subject.dart` — the throwing stub the
@@ -152,14 +185,27 @@ class HandSurface {
         ? ''
         : ' ${contract.trim()}';
     final entity = entityFromContract(contract);
-    if (entity == null ||
-        entityExists(projectRoot: projectRoot, entityName: entity)) {
+    // Bug #1752: prescribe the wire command only when the seam on disk is
+    // a shape `zfa tdd wire` can actually parse (and the traced entity
+    // exists). A seam wire refuses (the FFI harness's wrapped shape, or a
+    // hand-written wrapped seam) degrades to the hand-implement
+    // instruction instead — never a dead-end command.
+    final wireable = entity == null
+        ? true
+        : entityExists(projectRoot: projectRoot, entityName: entity) &&
+              seamIsWireable(projectRoot: projectRoot, seamPath: seamPath);
+    if (entity == null || wireable) {
       return 'hand surface: seam $seamPath — implement the declared '
           'contract$contractPart there (e.g. '
           '`${wireCommandFor(behaviorId, contract: contract)}`)';
     }
+    if (!entityExists(projectRoot: projectRoot, entityName: entity)) {
+      return 'hand surface: seam $seamPath — implement the declared '
+          'contract$contractPart there by hand (no generated entity "$entity" '
+          'exists; the wire step needs `zfa entity create -n $entity` first)';
+    }
     return 'hand surface: seam $seamPath — implement the declared '
-        'contract$contractPart there by hand (no generated entity "$entity" '
-        'exists; the wire step needs `zfa entity create -n $entity` first)';
+        'contract$contractPart there by hand (the seam shape is not one '
+        '`zfa tdd wire` can rewrite; implement it directly)';
   }
 }
