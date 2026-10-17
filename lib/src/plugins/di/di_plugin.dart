@@ -42,6 +42,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   /// Resolved zuraffa barrel import for the target project flavor.
   /// Set once in [generate] before any sub-generators run.
   String _coreImport = 'package:zuraffa/zuraffa.dart';
+  String _simulationImport = 'package:zuraffa/simulation.dart';
 
   /// Creates a [DiPlugin].
   DiPlugin({
@@ -261,6 +262,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // Dart and unknown-flavor projects keep `package:zuraffa/zuraffa.dart`.
     final flavor = await detectProjectFlavor(config.outputDir, fs);
     _coreImport = _resolveCoreImport(flavor);
+    _simulationImport = _resolveSimulationImport(flavor);
 
     // Spec 025 (FR-010/FR-011): the package-shape marker in the project's
     // build.yaml switches the emission tail from the app locator pair
@@ -450,7 +452,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         _coreImport,
         // Spec 893: real adapters never register under the simulation
         // flavor — mocks are served exclusively in simulation mode.
-        'package:zuraffa/simulation.dart',
+        _simulationImport,
         '../../data/datasources/$baseSnake/${baseSnake}_remote_datasource.dart',
         '../../data/datasources/$baseSnake/${baseSnake}_datasource.dart',
       ],
@@ -571,7 +573,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         ..add(
           // Spec 893: real adapters never register under the simulation
           // flavor — mocks are served exclusively in simulation mode.
-          'package:zuraffa/simulation.dart',
+          _simulationImport,
         ),
       body: Block(
         (b) => b
@@ -645,7 +647,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'package:sqlite3/sqlite3.dart',
         // Spec 893: real adapters never register under the simulation
         // flavor — mocks are served exclusively in simulation mode.
-        'package:zuraffa/simulation.dart',
+        _simulationImport,
         '../../data/datasources/$baseSnake/${baseSnake}_sqlite_datasource.dart',
       ],
       body: Block(
@@ -1996,6 +1998,14 @@ void resetDependencies(GetIt getIt) {
       ProjectFlavor.flutter => 'package:zuraffa_flutter/zuraffa_flutter.dart',
       ProjectFlavor.pureDart ||
       ProjectFlavor.unknown => 'package:zuraffa/zuraffa.dart',
+    };
+  }
+
+  static String _resolveSimulationImport(ProjectFlavor flavor) {
+    return switch (flavor) {
+      ProjectFlavor.flutter => 'package:zuraffa_flutter/zuraffa_flutter.dart',
+      ProjectFlavor.pureDart ||
+      ProjectFlavor.unknown => 'package:zuraffa/simulation.dart',
     };
   }
 }

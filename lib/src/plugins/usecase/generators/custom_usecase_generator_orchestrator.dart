@@ -40,7 +40,11 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
         : (config.returnsType ?? 'void');
     final baseClass = _baseClass(config, paramsType, returnsType);
 
-    final usecaseImports = <String>['package:zuraffa/zuraffa.dart'];
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
+    final usecaseImports = <String>[coreImport];
     final usecaseFields = <Field>[];
     final usecaseParams = <Parameter>[];
 

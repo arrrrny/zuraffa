@@ -15,6 +15,7 @@ import '../../skew/skew_contract.dart';
 import '../../utils/entity_analyzer.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
+import '../../utils/project_flavor.dart';
 import '../method_append/builders/inject_builder.dart';
 import '../method_append/builders/method_append_builder.dart';
 import '../method_append/capabilities/inject_capability.dart';
@@ -277,11 +278,20 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
               // and returns null, so the stale index is rewritten as the
               // empty skeleton instead of being left behind (#1037).
               if (await fs.exists(indexPath)) {
+                final flavor = await detectProjectFlavor(outputDir, fileSystem);
+                final coreImport = flavor == ProjectFlavor.pureDart
+                    ? 'package:zuraffa/zuraffa.dart'
+                    : 'package:zuraffa_flutter/zuraffa_flutter.dart';
+                final simulationImport = flavor == ProjectFlavor.pureDart
+                    ? 'package:zuraffa/simulation.dart'
+                    : 'package:zuraffa_flutter/zuraffa_flutter.dart';
                 files.add(
                   await FileUtils.writeFile(
                     indexPath,
                     SimulationBindingEmitter.builder.buildIndexFile(
                       registrations: const [],
+                      coreImport: coreImport,
+                      simulationImport: simulationImport,
                     ),
                     'di_simulation_index',
                     force: true,

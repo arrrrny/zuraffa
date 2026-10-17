@@ -385,7 +385,7 @@ class ZfaConfig {
     // or generated code for `package:zuraffa/mock.dart` / `zuraffaMockLibrary`.
     'mocking': const <String, dynamic>{
       'library': 'zuraffa-native',
-      'import': 'package:zuraffa/mock.dart',
+      'import': 'package:zuraffa_flutter/zuraffa_flutter.dart',
       'marker': 'zuraffaMockLibrary',
       'mockSources': <String>[
         'mockDataSource',
