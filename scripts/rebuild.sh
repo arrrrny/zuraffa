@@ -34,6 +34,31 @@ rm -f "$PUB_STDERR"
 echo "  ✅ Dependencies resolved"
 mkdir -p "$INSTALL_DIR"
 
+# Install a freshly-built binary atomically and prove the bytes that land are
+# the bytes we built (issue #1744). `cp` writes straight into the destination,
+# so a reader/executor of the old path (or an interrupted copy) can observe a
+# torn file — the issue showed an installed zfa that differed from its own just
+# built bundle by a ~4 KB window, then SEGV'd with SEGV_MAPERR. Stage the copy
+# in a sibling temp file, verify it byte-for-byte with `cmp -s`, then rename it
+# into place: a rename is atomic on one filesystem, so no reader ever sees a
+# partial binary.
+install_binary_atomically() {
+  local src="$1"
+  local name="$2"
+  local dest="$INSTALL_DIR/$name"
+  local tmp="$dest.rebuild.$$"
+  rm -f "$tmp"
+  cp "$src" "$tmp"
+  chmod +x "$tmp" 2>/dev/null || true
+  if ! cmp -s "$src" "$tmp"; then
+    echo "  ❌ $name: staged copy is not byte-identical to $src" >&2
+    rm -f "$tmp"
+    exit 1
+  fi
+  mv -f "$tmp" "$dest"
+  echo "  ✅ $dest"
+}
+
 # Compile zfa CLI — use dart build cli for build hooks support. stderr is
 # captured and only printed on failure so the success path stays terse.
 echo "🔨 Compiling zfa..."
@@ -46,9 +71,21 @@ if ! dart build cli --target=bin/zfa.dart -o build/zfa_bundle > /dev/null 2> "$Z
   exit 1
 fi
 rm -f "$ZFA_STDERR"
-cp build/zfa_bundle/bundle/bin/zfa "$INSTALL_DIR/zfa"
-chmod +x "$INSTALL_DIR/zfa" 2>/dev/null || true
-echo "  ✅ $INSTALL_DIR/zfa"
+install_binary_atomically build/zfa_bundle/bundle/bin/zfa zfa
+
+# Smoke-check the freshly installed CLI (issue #1744). The old script only
+# *suggested* `zfa --version` at the end and printed `✅ Rebuild complete`
+# regardless of whether the binary it just installed could run. A binary that
+# installs but cannot execute must fail the rebuild loudly. `timeout(1)` is not
+# on stock macOS, so bound the child with an `alarm` via perl (always present);
+# `ZFA_SMOKE_TIMEOUT` overrides the 30s budget on a slow/loaded machine.
+ZFA_SMOKE_TIMEOUT="${ZFA_SMOKE_TIMEOUT:-30}"
+echo "🔎 Verifying installed zfa (zfa --version, ${ZFA_SMOKE_TIMEOUT}s budget)..."
+if ! perl -e 'alarm shift; exec @ARGV' "$ZFA_SMOKE_TIMEOUT" "$INSTALL_DIR/zfa" --version > /dev/null 2>&1; then
+  echo "  ❌ $INSTALL_DIR/zfa --version failed or did not exit within ${ZFA_SMOKE_TIMEOUT}s — installed binary is broken; rerun scripts/rebuild.sh" >&2
+  exit 1
+fi
+echo "  ✅ zfa --version ok"
 
 # Record the source commit this binary was built from (issue #1184). The
 # installed CLI reads $INSTALL_DIR/zfa.build_commit at startup and warns —
@@ -76,9 +113,7 @@ if ! dart build cli --target=bin/zuraffa_mcp_server.dart -o build/mcp_server_bun
   exit 1
 fi
 rm -f "$MCP_STDERR"
-cp build/mcp_server_bundle/bundle/bin/zuraffa_mcp_server "$INSTALL_DIR/zuraffa_mcp_server"
-chmod +x "$INSTALL_DIR/zuraffa_mcp_server" 2>/dev/null || true
-echo "  ✅ $INSTALL_DIR/zuraffa_mcp_server"
+install_binary_atomically build/mcp_server_bundle/bundle/bin/zuraffa_mcp_server zuraffa_mcp_server
 
 echo ""
 echo "✅ Rebuild complete — installed to $INSTALL_DIR"
