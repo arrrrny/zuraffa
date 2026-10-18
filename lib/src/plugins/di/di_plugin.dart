@@ -860,6 +860,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final serviceName = config.effectiveService;
     final serviceSnake = config.serviceSnake;
     final providerName = config.effectiveProvider;
+    final providerImplName = config.effectiveProviderImpl ?? providerName;
     if (serviceName == null || serviceSnake == null || providerName == null) {
       return null;
     }
@@ -931,7 +932,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                                       ).call([])
                                     : refer(
                                         'getIt',
-                                      ).call([], {}, [refer(providerName)]))
+                                      ).call([], {}, [refer(providerImplName!)]))
                                 .code,
                     ).closure,
                   ],
@@ -1021,6 +1022,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     FileSystem fs,
   ) async {
     final providerName = config.effectiveProvider;
+    final providerImplName = config.effectiveProviderImpl ?? providerName;
     final providerSnake = config.providerSnake;
     if (providerName == null || providerSnake == null) {
       return null;
@@ -1053,7 +1055,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
               Method(
                 (m) => m
                   ..lambda = true
-                  ..body = refer(providerName).call([]).code,
+                  ..body = refer(providerImplName!).call([]).code,
               ).closure,
             ]).statement,
           ),

@@ -574,6 +574,19 @@ class GeneratorConfig {
     return '${baseName}Provider';
   }
 
+  // Distinct implementation class name for the provider when its name would
+  // otherwise collide with the service interface (e.g. `--service
+  // OnboardingProvider`): emitting `class OnboardingProvider implements
+  // OnboardingProvider` is recursive. Append `Impl` in that case only;
+  // otherwise keep the provider name verbatim (issue #1825 review).
+  String? get effectiveProviderImpl {
+    final pn = effectiveProvider;
+    if (pn == null) return null;
+    final es = effectiveService;
+    if (es != null && pn == es) return '${pn}Impl';
+    return pn;
+  }
+
   // Get provider snake case name (without Provider suffix)
   String? get providerSnake {
     final s = service ?? (useService ? '${name}Service' : null);
