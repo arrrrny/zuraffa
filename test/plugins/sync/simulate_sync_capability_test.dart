@@ -115,4 +115,38 @@ void main() {
     expect(output, contains('offline-flap'));
     expect(output, contains('payment-decline'));
   });
+  test('M1: multi-device mode runs GREEN', () async {
+    final (code, output) = await runZfa([
+      'sync',
+      'simulate',
+      '--devices',
+      '2',
+      '--days',
+      '3',
+      '--seed',
+      '1',
+    ]);
+    expect(code, 0, reason: output);
+    expect(output, contains('verdict=GREEN'));
+    expect(output, contains('converged=true'));
+    expect(output, contains('anomalies=0'));
+  });
+
+  test('M2: --help documents --devices', () async {
+    final (code, output) = await runZfa(['sync', 'simulate', '--help']);
+    expect(code, 0, reason: output);
+    expect(output, contains('devices'));
+  });
+
+  test('M3: invalid --devices fails with usage error', () async {
+    final (code, output) = await runZfa([
+      'sync',
+      'simulate',
+      '--devices',
+      '0',
+    ]);
+    expect(code, 1, reason: output);
+    expect(output, contains('Invalid --devices'));
+  });
+
 }
