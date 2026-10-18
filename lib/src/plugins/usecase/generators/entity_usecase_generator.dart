@@ -629,7 +629,7 @@ class EntityUseCaseGenerator {
         sourceName.replaceAll('Service', ''),
       );
       final servicePath =
-          '../../services/${config.effectiveDomain}/${serviceSnake}_service.dart';
+          '../../services/${config.effectiveDomain}/${serviceSnake}.dart';
       imports.add(servicePath);
     } else {
       final repoPath =

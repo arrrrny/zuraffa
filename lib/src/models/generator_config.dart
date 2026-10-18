@@ -536,30 +536,27 @@ class GeneratorConfig {
     return [];
   }
 
-  // Get effective service name with Service suffix
+  // Get effective service name — the interface class name. `--service`
+  // names the service to mock directly; a bare base name without a
+  // recognized kind suffix gets `Service` appended for backwards
+  // compatibility, but a `Provider`-suffixed name is kept verbatim (it is
+  // a declared service interface in its own right, issue #1822).
   String? get effectiveService {
     if (service == null) {
       return useService ? '${name}Service' : null;
     }
     final s = service!;
     if (s.endsWith('Service')) return s;
-    if (s.endsWith('Provider')) {
-      return '${s.substring(0, s.length - 8)}Service';
-    }
+    if (s.endsWith('Provider')) return s;
     return '${s}Service';
   }
 
-  // Get service snake case name (without Service suffix)
+  // Get service snake case name (full snake of the effective service name,
+  // i.e. the interface file stem without extension — issue #1822).
   String? get serviceSnake {
-    final s = service ?? (useService ? '${name}Service' : null);
-    if (s == null) return null;
-    var baseName = s;
-    if (baseName.endsWith('Service')) {
-      baseName = baseName.substring(0, baseName.length - 7);
-    } else if (baseName.endsWith('Provider')) {
-      baseName = baseName.substring(0, baseName.length - 8);
-    }
-    return _camelToSnake(baseName);
+    final es = effectiveService;
+    if (es == null) return null;
+    return _camelToSnake(es);
   }
 
   // Get effective provider name with Provider suffix

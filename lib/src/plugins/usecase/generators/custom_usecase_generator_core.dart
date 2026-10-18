@@ -44,7 +44,7 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
           'Service name must be specified via --service or config.service',
         );
       }
-      imports.add('../../services/${serviceSnake}_service.dart');
+      imports.add('../../services/${serviceSnake}.dart');
     }
     if (config.hasMultipleParams) {
       imports.addAll(

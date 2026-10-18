@@ -863,7 +863,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (serviceName == null || serviceSnake == null || providerName == null) {
       return null;
     }
-    final fileName = '${serviceSnake}_service_di.dart';
+    final fileName = '${serviceSnake}_di.dart';
     final diPath = path.join(outputDir, 'di', 'services', fileName);
 
     if (config.revert) {
@@ -887,11 +887,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             'domain',
             'services',
             config.effectiveDomain,
-            '${serviceSnake}_service.dart',
+            '${serviceSnake}.dart',
           ),
         )
-        ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
-        : '../../domain/services/${serviceSnake}_service.dart';
+        ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}.dart'
+        : '../../domain/services/${serviceSnake}.dart';
 
     final imports = [_coreImport, serviceImport];
 
@@ -1245,11 +1245,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                 'domain',
                 'services',
                 domainSnake,
-                '${serviceSnake}_service.dart',
+                '${serviceSnake}.dart',
               ),
             )
-            ? '../../domain/services/$domainSnake/${serviceSnake}_service.dart'
-            : '../../domain/services/${serviceSnake}_service.dart';
+            ? '../../domain/services/$domainSnake/${serviceSnake}.dart'
+            : '../../domain/services/${serviceSnake}.dart';
         imports.add(serviceImport);
       } else {
         imports.add('../../domain/repositories/${repoSnake}_repository.dart');
@@ -1342,11 +1342,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                 'domain',
                 'services',
                 domainSnake,
-                '${serviceSnake}_service.dart',
+                '${serviceSnake}.dart',
               ),
             )
-            ? '../../domain/services/$domainSnake/${serviceSnake}_service.dart'
-            : '../../domain/services/${serviceSnake}_service.dart';
+            ? '../../domain/services/$domainSnake/${serviceSnake}.dart'
+            : '../../domain/services/${serviceSnake}.dart';
 
         imports.add(serviceImport);
         constructorParams.add(

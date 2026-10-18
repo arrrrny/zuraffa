@@ -106,7 +106,7 @@ extension TestBuilderEntity on TestBuilder {
     // Use DiscoveryEngine to find the actual files for correct imports
     final entityFile = discovery.findFileSync('$entitySnake.dart');
     final targetFile = discovery.findFileSync(
-      '${targetSnake}_$targetSuffix.dart',
+      useService ? '$targetSnake.dart' : '${targetSnake}_$targetSuffix.dart',
     );
     final useCaseFile = discovery.findFileSync(useCaseFileName);
     final dataSourceFile = discovery.findFileSync(
@@ -206,7 +206,7 @@ extension TestBuilderEntity on TestBuilder {
     } else {
       directives.add(
         Directive.import(
-          'package:$packageName/src/domain/$targetDir/${targetSnake}_$targetSuffix.dart',
+          'package:$packageName/src/domain/$targetDir/${useService ? targetSnake : '${targetSnake}_$targetSuffix'}.dart',
         ),
       );
     }

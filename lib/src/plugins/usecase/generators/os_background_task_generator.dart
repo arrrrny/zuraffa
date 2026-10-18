@@ -62,7 +62,7 @@ class OsBackgroundTaskGenerator {
           'Service name must be specified via --service or config.service',
         );
       }
-      dependencyImports.add('../../services/${serviceSnake}_service.dart');
+      dependencyImports.add('../../services/${serviceSnake}.dart');
       final serviceBaseName = serviceName.endsWith('Service')
           ? serviceName.substring(0, serviceName.length - 7)
           : serviceName;
