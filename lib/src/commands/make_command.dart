@@ -663,7 +663,6 @@ class MakeCommand extends Command<void> {
     }
     if (requestedPreset == 'module') {
       normalizedOptions['no-entity'] = true;
-      normalizedOptions['no_entity'] = true;
     }
     if (engineMode) {
       // The engine preset is implied by the mode token; the plan resolves
@@ -729,7 +728,7 @@ class MakeCommand extends Command<void> {
     // missing entity is generated (with a minimal `id: String` identity)
     // instead of rejected, so `zfa make engine Login` is a true one-shot. In
     // plan-only mode nothing is written, so the guard is simply skipped.
-    if (argResults?['no-entity'] != true &&
+    if (!noEntityRequested &&
         !EntityFieldResolver.entityFileExists(
           entityName: entityName,
           projectRoot: manager.projectRoot,
