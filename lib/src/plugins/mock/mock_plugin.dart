@@ -279,12 +279,12 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
               // empty skeleton instead of being left behind (#1037).
               if (await fs.exists(indexPath)) {
                 final flavor = await detectProjectFlavor(outputDir, fileSystem);
-                final coreImport = flavor == ProjectFlavor.pureDart
-                    ? 'package:zuraffa/zuraffa.dart'
-                    : 'package:zuraffa_flutter/zuraffa_flutter.dart';
-                final simulationImport = flavor == ProjectFlavor.pureDart
-                    ? 'package:zuraffa/simulation.dart'
-                    : 'package:zuraffa_flutter/zuraffa_flutter.dart';
+                final coreImport = flavor == ProjectFlavor.flutter
+                    ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+                    : 'package:zuraffa/zuraffa.dart';
+                final simulationImport = flavor == ProjectFlavor.flutter
+                    ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+                    : 'package:zuraffa/simulation.dart';
                 files.add(
                   await FileUtils.writeFile(
                     indexPath,
