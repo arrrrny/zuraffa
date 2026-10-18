@@ -747,8 +747,12 @@ int _topLevelEquals(String text) {
       if (i + 1 < text.length && (text[i + 1] == '=' || text[i + 1] == '>')) {
         continue;
       }
-      if (i > 0 && (text[i - 1] == '=' || text[i - 1] == '!' ||
-          text[i - 1] == '<' || text[i - 1] == '>' || text[i - 1] == '?')) {
+      if (i > 0 &&
+          (text[i - 1] == '=' ||
+              text[i - 1] == '!' ||
+              text[i - 1] == '<' ||
+              text[i - 1] == '>' ||
+              text[i - 1] == '?')) {
         continue;
       }
       return i;
