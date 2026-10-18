@@ -983,9 +983,11 @@ class VerifyRedCommand extends Command<void> {
     // Issue #1778 (review): use a whole-name containment check rather
     // than a bare substring, so a renamed title that merely contains the
     // old name as a substring is not treated as present (false negative).
-    final present = recorded.isNotEmpty &&
-        titles.any((t) =>
-            RegExp('\\b${RegExp.escape(recorded)}\\b').hasMatch(t));
+    final present =
+        recorded.isNotEmpty &&
+        titles.any(
+          (t) => RegExp('\\b${RegExp.escape(recorded)}\\b').hasMatch(t),
+        );
     if (present) return record;
     String? candidate;
     // Rebind only on genuine description drift: the new title must
