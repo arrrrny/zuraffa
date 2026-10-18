@@ -36,23 +36,23 @@ precedent).
 
 | id  | behavior                                                                          | traces      | kind    | state | test                                                    |
 | --- | ---------------------------------------------------------------------------------- | ----------- | ------- | ----- | -------------------------------------------------------- |
-| U1  | A file appears in `.zfa/receipts/` after a successful wrapped execution            | FR-001      | example | DONE  | wrapper test `T001 — ... a file appears`                |
-| U2  | A failed execution writes no receipt                                               | FR-001      | example | DONE  | wrapper test `a failed execution ...`                   |
-| U3  | A successful execution with zero files writes no receipt (issue #769 line)         | FR-001      | example | DONE  | wrapper test `zero files ...`                            |
-| U4  | Skipped and deleted actions are excluded (no final bytes from the run)             | FR-001      | example | DONE  | wrapper test `skipped and deleted ...`                   |
-| U5  | Receipt persistence is best-effort: an unwritable store warns, the run survives    | FR-001      | example | DONE  | wrapper test `best-effort ...`                           |
-| U6  | The receipt hash binds entity + methodset + per-file `(path, action, digest)` — canonical derivation pinned | FR-003 | example | DONE  | wrapper test `hash binds the run ...`                    |
-| U7  | methodset from the `--methods` arg; entity from args/result; present-but-empty when no methods | FR-003 | example | DONE  | wrapper test `methodset defaults ...`                  |
-| U8  | `execute()` forwards args verbatim and returns the wrapped result                  | FR-001      | example | DONE  | wrapper test `plain capability delegation`               |
+| U1  | A file appears in `.zfa/receipts/` after a successful wrapped execution            | FR-001      | example | DONE  | |
+| U2  | A failed execution writes no receipt                                               | FR-001      | example | DONE  | |
+| U3  | A successful execution with zero files writes no receipt (issue #769 line)         | FR-001      | example | DONE  | |
+| U4  | Skipped and deleted actions are excluded (no final bytes from the run)             | FR-001      | example | DONE  | |
+| U5  | Receipt persistence is best-effort: an unwritable store warns, the run survives    | FR-001      | example | DONE  | |
+| U6  | The receipt hash binds entity + methodset + per-file `(path, action, digest)` — canonical derivation pinned | FR-003 | example | DONE  | |
+| U7  | methodset from the `--methods` arg; entity from args/result; present-but-empty when no methods | FR-003 | example | DONE  | |
+| U8  | `execute()` forwards args verbatim and returns the wrapped result                  | FR-001      | example | DONE  | |
 | U9  | `CapabilityCommand.run()` executes through the wrapper; pluginId from constructor/parent; failure protocol (exit 1, no receipt) intact | FR-001, FR-002 | example | DONE | `test/commands/capability_command_receipt_hook_test.dart` |
 
 ### `lib/src/plugins/tdd/services/receipt_preflight.dart`
 
 | id  | behavior                                                                 | traces  | kind    | state | test                                            |
 | --- | -------------------------------------------------------------------------- | ------- | ------- | ----- | -------------------------------------------------- |
-| U10 | No receipts shipped → vacuous pass (legacy projects keep working)         | FR-005  | example | DONE  | preflight test `vacuous pass ...`                  |
-| U11 | Receipt-covered, valid audited subject → pass, gate active                | FR-005  | example | DONE  | preflight test `receipt-covered ...`               |
-| U12 | Missing receipt for an audited subject → GATE FAILURE                     | FR-005  | example | DONE  | preflight test `missing receipt ...`               |
-| U13 | Drifted receipt (modified after the run) → GATE FAILURE                   | FR-005  | example | DONE  | preflight test `drifted receipt ...`               |
-| U14 | Receipted artifact deleted → GATE FAILURE                                 | FR-005  | example | DONE  | preflight test `receipted artifact deleted ...`    |
-| U15 | The gate runs BEFORE the mutation audit in `zfa tdd verify` (exit 1, no audit start) | FR-005 | example | DONE | preflight test CLI group                          |
+| U10 | No receipts shipped → vacuous pass (legacy projects keep working)         | FR-005  | example | DONE  | |
+| U11 | Receipt-covered, valid audited subject → pass, gate active                | FR-005  | example | DONE  | |
+| U12 | Missing receipt for an audited subject → GATE FAILURE                     | FR-005  | example | DONE  | |
+| U13 | Drifted receipt (modified after the run) → GATE FAILURE                   | FR-005  | example | DONE  | |
+| U14 | Receipted artifact deleted → GATE FAILURE                                 | FR-005  | example | DONE  | |
+| U15 | The gate runs BEFORE the mutation audit in `zfa tdd verify` (exit 1, no audit start) | FR-005 | example | DONE | |
