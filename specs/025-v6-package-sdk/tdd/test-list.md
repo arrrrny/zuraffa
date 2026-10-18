@@ -30,7 +30,7 @@ Grouped by the plan.md component that owns them.
 | id  | behavior                                                                                                    | traces        | kind | state | test |
 | --- | ----------------------------------------------------------------------------------------------------------- | ------------- | ---- | ----- | ---- |
 | U1  | `build.yaml` containing `zfa: package_mode: true` → `isEnabled` true; absent marker / `false` / missing file → false | FR-010, FR-011 | unit | DONE | `test/package_sdk/package_mode_test.dart` |
-| U1b | Marker read is scoped to the project root the FileSystem is rooted at (a sibling app's build.yaml does not leak) | FR-011 | unit | DONE | same, rooted-fs case |
+| U1b | Marker read is scoped to the project root the FileSystem is rooted at (a sibling app's build.yaml does not leak) | FR-011 | unit | DONE | |
 
 ### Package scaffold (`lib/src/package/package_scaffold.dart` + command)
 
@@ -39,7 +39,7 @@ Grouped by the plan.md component that owns them.
 | U2  | Scaffold writes the full standard layout: pubspec.yaml, build.yaml (marker + builders), analysis_options.yaml, domain/data dirs, module stub, registrar stub, barrel, test harness, README | FR-001 | unit | DONE | `test/package_sdk/package_scaffold_test.dart` |
 | U3  | pubspec carries correct v6 constraints (zuraffa caret at the running major.minor, zorphy, zorphy_annotation, dev build_runner/test) and `publish_to: none` | FR-001, US1-S4 | unit | DONE | same |
 | U3b | `--zuraffa-path` swaps the hosted zuraffa dep for a path dependency (local-dev flow used by tests/examples) | FR-001 | unit | DONE | same |
-| U4  | Scaffolded module stub compiles semantically: extends `PackageModule`, `pluginId` = package name, `registerDependencies` calls the registrar, empty routes; barrel exports module + registrar | FR-001, FR-006 | unit | DONE | same (content assertions) |
+| U4  | Scaffolded module stub compiles semantically: extends `PackageModule`, `pluginId` = package name, `registerDependencies` calls the registrar, empty routes; barrel exports module + registrar | FR-001, FR-006 | unit | DONE | |
 | U4b | Scaffolded smoke test imports the barrel and constructs the module (test harness present, FR-001) | FR-001 | unit | DONE | same |
 
 ### PackageModule contract + engine lifecycle (`core/module/`)

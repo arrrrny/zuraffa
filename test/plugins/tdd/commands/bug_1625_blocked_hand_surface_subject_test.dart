@@ -438,8 +438,7 @@ void seedSubject(TddFixture fx, String behaviorId) {
   );
   file.createSync(recursive: true);
   file.writeAsStringSync(
-    "int add(int a, int b) =>\n"
-    "    throw UnimplementedError('not implemented');\n",
+    "int add(int a, int b) => throw UnimplementedError('not implemented');\n",
   );
 }
 

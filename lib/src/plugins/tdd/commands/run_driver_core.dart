@@ -84,7 +84,8 @@ import '../services/unit_contract_shape.dart';
 import '../services/tdd_timeout.dart';
 import '../services/step_timeout_receipt.dart';
 import '../services/vacuous_guard.dart';
-import '../services/widget_scaffold.dart' show scaffoldedMarker;
+import '../services/widget_scaffold.dart'
+    show contentIsScaffolded, scaffoldedMarker;
 import '../services/tdd_transaction.dart';
 import '../../../core/dependencies/builder_dependency_preflight.dart';
 import '../../../cli/zfa_executable.dart';
@@ -555,13 +556,20 @@ class RunDriverCore {
     //    green evidence skipped the dropped behaviors as "already done"
     //    (the phantom done-state). The tombstone is the per-behavior
     //    evidence invalidation record the reset wrote.
+    //    Issue #1696: the invalidation is bounded by the tombstone's
+    //    TIMESTAMP — evidence recorded after the reset is the operator's
+    //    post-reset re-bind (`zfa tdd make <id> --born-green`) and is
+    //    authoritative again, so out-of-band binds accumulate instead of
+    //    being re-driven from gen on the next reconciliation.
     // -----------------------------------------------------------------
     final evidence = CycleEvidence(featureDir);
-    final tombstoned = await JournalReader.tombstonedBehaviors(featureDir);
-    final redEvidence = (await evidence.redEvidence()).difference(tombstoned);
-    final greenEvidence = (await evidence.greenEvidence()).difference(
-      tombstoned,
+    final tombstone = await JournalReader.lastResetTombstone(featureDir);
+    final scopedEvidence = await evidence.evidenceRespectingTombstone(
+      tombstoned: tombstone.behaviors,
+      tombstoneAt: tombstone.at,
     );
+    final redEvidence = scopedEvidence.red;
+    final greenEvidence = scopedEvidence.green;
 
     // -----------------------------------------------------------------
     // 4b. Bug #828: replay the write-ahead journal BEFORE reconciling.
@@ -1061,6 +1069,7 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
+        bornGreenCertified: bornGreenCertifiedBehaviors.contains(row.id),
         handSteps: handSteps,
         // Issue #1624: the phase-1 per-behavior refactor opts into the
         // pass-batch ledger too. Phase 1 was the remaining spawn shape
@@ -1158,6 +1167,7 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
+        bornGreenCertified: bornGreenCertifiedBehaviors.contains(row.id),
         handSteps: handSteps,
         // Issue #1652: the phase-2a re-attempted make also green-applies
         // (and may be the last tree change before a phase-2b spawn).
@@ -1234,6 +1244,7 @@ class RunDriverCore {
         label: label,
         feature: feature,
         greenEvidenceIds: greenEvidence,
+        bornGreenCertified: bornGreenCertifiedBehaviors.contains(row.id),
         handSteps: handSteps,
         // Issue #1588: the phase-2 refactor pass is the batch — every
         // spawn opts into the pass-batch ledger and hands the lane's
@@ -1886,11 +1897,21 @@ class RunDriverCore {
     // at the run-start baseline is tolerated by that pre-existing design;
     // the subject binding above is what keeps a drifted subject out of
     // this window.
+    // Issue #1759: the born-green class has no pending-state arm. The
+    // #1592 widening covered BLOCKED only; a born-green-certified
+    // PENDING behavior (the hand-first class that reconciles to pending
+    // under a tombstone or an in-flight marker) entered the guard via
+    // `start == 0` but was mapped to `make` (index 2), and the flagless
+    // make the driver spawns refuses `not-certified-red` — the loop.
+    // Map a born-green-certified pending behavior to refactor (index 3)
+    // instead, mirroring the blocked arm, so the run converges without
+    // re-spawning the already-run `--born-green` make.
     if (hasGreenEvidence &&
         greenTestBacked &&
         (start == 0 ||
-            (state == BehaviorState.blocked && bornGreenCertified))) {
-      start = state == BehaviorState.pending ? 2 : 3;
+            (state == BehaviorState.blocked && bornGreenCertified) ||
+            (state == BehaviorState.pending && bornGreenCertified))) {
+      start = (state == BehaviorState.pending && !bornGreenCertified) ? 2 : 3;
     }
     return full.sublist(start.clamp(0, full.length));
   }
@@ -1959,6 +1980,7 @@ class RunDriverCore {
     required String label,
     required String feature,
     required Set<String> greenEvidenceIds,
+    bool bornGreenCertified = false,
     Set<String>? unblockedThisRun,
     // Issue #1568: the hand-steps recorded THIS pass — the end-of-pass
     // summary names them and `_finish` journals them. Required: every
@@ -2094,9 +2116,11 @@ class RunDriverCore {
           // REFACTOR spawns only.
           parkedSeamPaths: _parkedSeamPaths,
           parkedFailureIdentifiers: _parkedFailureIdentifiers,
-          extraArgs: step == 'refactor' && batchRefactor
-              ? _refactorBatchArgs(rows, updated)
-              : const [],
+          extraArgs: [
+            if (step == 'refactor' && batchRefactor)
+              ..._refactorBatchArgs(rows, updated),
+            if (step == 'make' && bornGreenCertified) '--born-green',
+          ],
         );
       } on StateError catch (e) {
         // Entrypoint resolution failed before any spawn: runner-error.
@@ -3678,7 +3702,7 @@ class RunDriverCore {
   bool _testCarriesScaffoldedMarker(String? testPath) {
     if (testPath == null) return false;
     try {
-      return File(testPath).readAsStringSync().contains(scaffoldedMarker);
+      return contentIsScaffolded(File(testPath).readAsStringSync());
     } on FileSystemException {
       return false;
     }
@@ -3800,7 +3824,7 @@ class RunDriverCore {
         // Issue #1373: the scaffolded placeholder's own vocabulary — the
         // remedy is the author finders flow, not the #1308 outcome
         // assertion.
-        if (File(testPath).readAsStringSync().contains(scaffoldedMarker)) {
+        if (contentIsScaffolded(File(testPath).readAsStringSync())) {
           return 'hand-step=$behaviorId:hand — this is a SCAFFOLDED widget '
               'test (the $scaffoldedMarker marker, issue #912 defect 3): '
               'author concrete scenario finders, then run '

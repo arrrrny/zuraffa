@@ -341,11 +341,11 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
               'domain',
               'services',
               config.effectiveDomain,
-              '${serviceSnake}_service.dart',
+              '$serviceSnake.dart',
             );
             final serviceImport = await fs.exists(domainServicePath)
-                ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
-                : '../../domain/services/${serviceSnake}_service.dart';
+                ? '../../domain/services/${config.effectiveDomain}/$serviceSnake.dart'
+                : '../../domain/services/$serviceSnake.dart';
             // MockProviderBuilder always writes the mock provider under
             // data/providers/<domain>/ in service mode (`hasService`).
             final mockProviderName = providerName.replaceAll(

@@ -191,11 +191,13 @@ class SimulationBindingBuilder {
       '$body\n\n'
       '// END GENERATED';
 
-  /// `AuthService` -> `Auth` (the `<Name>` of `<Name>Service ->
-  /// <Name>MockProvider` binding names).
+  /// `AuthService` -> `Auth`, `OnboardingProvider` -> `Onboarding` (the
+  /// `<Name>` of `<Name>…` -> `<Name>MockProvider` binding names).
   static String stripServiceSuffix(String serviceName) =>
       serviceName.endsWith('Service')
       ? serviceName.substring(0, serviceName.length - 7)
+      : serviceName.endsWith('Provider')
+      ? serviceName.substring(0, serviceName.length - 8)
       : serviceName;
 
   /// Emits `di/simulation/index.dart` exposing

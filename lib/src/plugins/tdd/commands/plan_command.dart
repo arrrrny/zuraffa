@@ -23,6 +23,7 @@ import '../models/routing.dart';
 import '../services/declared_routing.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/feature_path_resolver.dart';
+import '../services/artifact_registry.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/explain_emitter.dart';
 import '../services/lane_split.dart';
@@ -698,6 +699,46 @@ class PlanCommand extends Command<void> {
     }
     final reconciled = [for (final entry in reconciledEntries) entry.behavior];
 
+    // Issue #1805: refuse when a planned behavior's id already has a recorded
+    // artifacts.json entry whose source_criterion disagrees with the plan's.
+    try {
+      final reg = ArtifactRegistry(featureDir: featureDir);
+      final recs = await reg.loadAll();
+      final byId = <String, ArtifactRecord>{
+        for (final rec in recs) rec.behaviorId: rec,
+      };
+      for (final beh in reconciled) {
+        final prior = byId[beh.id];
+        // Issue #1388: only refuse on a true positional U-id remap — i.e.
+        // when the base FR token changes. A traces drift that keeps the same
+        // base token is a legitimate regeneration trigger, not a remap.
+        final priorBaseToken = prior?.sourceCriterion.split(',').first.trim();
+        final planBaseToken = beh.sourceCriterion.split(',').first.trim();
+        if (prior != null && priorBaseToken != planBaseToken) {
+          stderr.writeln(
+            'zfa tdd plan: behavior ${beh.id} criterion changed from '
+            'recorded artifacts.json entry',
+          );
+          stderr.writeln('  id: ${beh.id}');
+          stderr.writeln(
+            '  recorded criterion: ${prior.sourceCriterion} '
+            '(artifacts.json)',
+          );
+          stderr.writeln('  plan criterion: ${beh.sourceCriterion}');
+          stderr.writeln(
+            '   --> fix: reconcile the positional U-id mapping — '
+            'rotate the affected artifacts.json records and their '
+            'test/subject pairs to the new ids, then re-run '
+            '`zfa tdd plan $feature`.',
+          );
+          exitCode = 2;
+          return;
+        }
+      }
+    } on Exception {
+      // Fail open on an unreadable registry.
+    }
+
     // Bug #835: hand-written ffi (native-boundary) rows survive
     // re-planning. Plan derives only acceptance/unit behaviors from
     // spec.md, so an ffi row would otherwise be silently re-homed as a
@@ -1127,13 +1168,28 @@ class PlanCommand extends Command<void> {
             // dropping the row again.
             contractBehaviors: contractBehaviors,
           );
-    if (laneResult != null && laneResult.refusals.isNotEmpty) {
+    // Bug #1745: the engine plan's purity gate also covers the
+    // declarations no behavior row carries — the `### Key Entities`
+    // fields and the `## Layer Contracts` signatures render into
+    // 04-ENGINE.md verbatim, and a `**Presentation**` contract must not
+    // silently default to CORE.
+    final laneRefusals = <String>[
+      ...?laneResult?.refusals,
+      if (laneResult != null)
+        ..._enginePurityRefusals(
+          entities: entities,
+          layerContracts: layerContracts,
+          contractBehaviors: contractBehaviors,
+          declaredLaneIds: {for (final lane in lanes) ...lane.behaviorIds},
+        ),
+    ];
+    if (laneResult != null && laneRefusals.isNotEmpty) {
       print(
-        'zfa tdd plan: lane contract FAILED — ${laneResult.refusals.length} '
+        'zfa tdd plan: lane contract FAILED — ${laneRefusals.length} '
         'lane violation(s) (spec: $specPath). No test list was written; '
         'fix the ## Lanes section and re-run `zfa tdd plan`.',
       );
-      for (final refusal in laneResult.refusals) {
+      for (final refusal in laneRefusals) {
         print('  $refusal');
       }
       exitCode = 2;
@@ -2584,6 +2640,118 @@ class PlanCommand extends Command<void> {
   static const _flutterReference =
       'package:fl'
       'utter';
+
+  /// The Flutter TYPE names a CORE-lane declaration may not name (bug
+  /// #1745). The guard was the bare [_flutterReference] substring test
+  /// alone, so a CORE plan could declare `Widget`/`IconData` Key Entities
+  /// and Layer Contract signatures and plan cleanly — the types rendered
+  /// straight into `04-ENGINE.md`, the artifact whose own header says the
+  /// engine lane is pure Dart by construction.
+  static const _flutterTypeNames = [
+    'Widget',
+    'IconData',
+    'BuildContext',
+    'Color',
+    'TextStyle',
+  ];
+
+  /// The first Flutter type name [text] names, or null. Whole-word
+  /// matched: `IconData`/`TextStyle` are ordinary identifiers elsewhere
+  /// (a `TextStyleGuide` entity is not a Flutter type), and
+  /// `StatefulWidget` is a distinct type the author has to name to be
+  /// flagged.
+  static String? _flutterTypeIn(String text) {
+    for (final name in _flutterTypeNames) {
+      if (RegExp('\\b$name\\b').hasMatch(text)) return name;
+    }
+    return null;
+  }
+
+  /// Bug #1745: the engine-purity gate over the declarations the ENGINE
+  /// plan renders but no behavior row carries — the `## Layer Contracts`
+  /// signatures and the `### Key Entities` fields. Both land in
+  /// `04-ENGINE.md` verbatim, so both are the engine lane's purity
+  /// boundary.
+  ///
+  /// Two rules, each naming the offending declaration the way the
+  /// existing noFlutter guard does:
+  ///
+  /// 1. A Key Entity field or a Layer Contract signature naming a Flutter
+  ///    type refuses.
+  /// 2. A contract derived from the `**Presentation**` layer does NOT
+  ///    default to CORE. The presentation surface is the SKIN lane's, and
+  ///    the SKIN plan renders no contract section, so the silent default
+  ///    emitted a presentation artifact into the engine lane — inverting
+  ///    the dependency the split exists to create (the engine lane's green
+  ///    came to depend on a skin artifact that may not exist yet). The
+  ///    author's explicit CORE declaration in `## Lanes` is honored:
+  ///    declarations win, gaps refuse — never a silent default.
+  ///
+  /// Non-empty refuses the plan before any artifact is written.
+  List<String> _enginePurityRefusals({
+    required List<SpecEntity> entities,
+    required List<LayerContract> layerContracts,
+    required List<Behavior> contractBehaviors,
+    required Set<String> declaredLaneIds,
+  }) {
+    final refusals = <String>[];
+    for (final entity in entities) {
+      for (final field in entity.fields) {
+        final type = _flutterTypeIn(field.type);
+        if (type == null) continue;
+        refusals.add(
+          'noFlutter guard: entity "${entity.name}" declares the Flutter '
+          'type "$type" (field "${field.name}: ${field.type}") — the '
+          'engine plan (04-ENGINE.md) is pure Dart, and the Key Entities '
+          'table renders into it. --> fix: drop the Flutter type from the '
+          'entity fields (the widget surface belongs to the SKIN lane).',
+        );
+      }
+    }
+    final layerOfInterface = {
+      for (final contract in layerContracts)
+        contract.interfaceName: contract.layer,
+    };
+    final signatureOfMethod = {
+      for (final contract in layerContracts)
+        for (final method in contract.methods)
+          if (_methodNameOf(method).isNotEmpty)
+            '${contract.interfaceName}.${_methodNameOf(method)}': method,
+    };
+    for (final behavior in contractBehaviors) {
+      final iface = behavior.sourceCriterion.split('.').first;
+      final layer = layerOfInterface[iface] ?? '';
+      final signature = signatureOfMethod[behavior.sourceCriterion];
+      final type = _flutterTypeIn('$iface ${signature ?? ''}');
+      if (type != null) {
+        refusals.add(
+          'noFlutter guard: behavior "${behavior.id}" '
+          '(${behavior.sourceCriterion}) is derived from the '
+          '`## Layer Contracts` ${layer.isEmpty ? '' : '`$layer` '}'
+          'declaration "${signature ?? iface}" and declares the Flutter '
+          'type "$type" — the contract row renders into the engine plan '
+          '(04-ENGINE.md), which is pure Dart. --> fix: drop the Flutter '
+          'type from the declared contract signature.',
+        );
+        continue;
+      }
+      if (layer.toLowerCase().contains('presentation') &&
+          !declaredLaneIds.contains(behavior.id)) {
+        refusals.add(
+          'noFlutter guard: behavior "${behavior.id}" '
+          '(${behavior.sourceCriterion}) is derived from the '
+          '`**Presentation**` layer contract "$iface" — a Presentation '
+          'contract declares the SKIN surface, and the SKIN plan renders '
+          'no contract section, so defaulting it to the CORE lane emits a '
+          'presentation artifact into the engine lane (bug #1745). '
+          '--> fix: declare "${behavior.id}" in the CORE lane row of '
+          '`## Lanes` when the contract is pure Dart (the engine lane '
+          'renders it), or drop the `**Presentation**` declaration.',
+        );
+      }
+    }
+    return refusals;
+  }
 
   _LaneResult _resolveLanes(
     List<LaneDeclaration> lanes,

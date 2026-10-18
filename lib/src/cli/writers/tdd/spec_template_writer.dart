@@ -255,6 +255,24 @@ const String kZuraffaSpecTemplate = r'''# Feature Specification: [FEATURE NAME]
   description. `adaptive_slots` lists the adaptive-layout contract slots the
   skin must provide.
 
+  VISUAL / PIXEL ARM (issue #1826): the SKIN lane also carries an
+  opt-in visual/pixel arm — declare `golden: true` (every behavior
+  the lane declares) or `golden: [W1, W3]` (the subset) on the SKIN
+  row. Plan marks those rows with the `[golden]` tag and renders a
+  `## Visual contract` section; gen emits a `matchesGoldenFile`
+  baseline hook for them, so a screen's pixel fidelity can be
+  certified the same way its behaviour is, instead of being pinned to
+  design-system internals.
+
+  GUIDANCE (issue #1826): SKIN behaviors must NOT bind to
+  design-system property state — do not assert
+  `tester.widget<X>(...).prop`. Prefer interaction-shaped finders
+  (e.g. `onPressed == null`) or text/shape-shaped finders over
+  `widget<X>(...).prop` assertions; a property assertion and the
+  reference pixels can be mutually exclusive, and correcting the test
+  changes its hand-delta digest. The golden arm above is the honest
+  pixel contract.
+
   A spec WITHOUT this section plans the legacy single-file test list; a spec
   WITH it makes `zfa tdd plan` emit the split plan: `tdd/04-ENGINE.md`
   (CORE + BOTH — pure Dart, the noFlutter guard rejects any Flutter
@@ -277,6 +295,7 @@ Lanes:
     behaviors: [W1-W4]
     flutter_allowed: true
     adaptive_slots: [mobile, ios, android, macos]
+    golden: [W1]
   - lane: BOTH
     behaviors: [A3 (acceptance: navigates to deal_list)]
     flutter_allowed: conditionally

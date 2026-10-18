@@ -191,6 +191,11 @@ class FailingMockProviderBuilder {
           returns: 'Future<List<$entityName>>',
           paramsType: 'ListQueryParams<$entityName>',
         );
+      case 'list':
+        return build(
+          returns: 'Future<List<$entityName>>',
+          paramsType: 'NoParams',
+        );
       case 'create':
         return Method(
           (m) => m
