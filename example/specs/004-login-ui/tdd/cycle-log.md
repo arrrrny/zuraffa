@@ -1741,3 +1741,514 @@ To run this test again: /home/z/tools/flutter/bin/cache/dart-sdk/bin/dart test /
 - prev-hash: 4d5b2725c7d8cffe3e884d33c20ec154404fb346ae280c0cd7dc512c2061c1d3
 - hash: fa8251f5ab568e20b459e60a21ed4da6eeb6a560d1eb2199a140bfc990239531
 
+## Cycle: W1 (red)
+
+- behavior: W1
+- kind: red
+- classification: assertionFailure
+- criterion: FR-001
+- test: test/presentation/pages/login/login_view_test.dart
+- command: `flutter test test/presentation/pages/login/login_view_test.dart --plain-name "the login view fills every declared platform slot"`
+- exit: 1
+- at: 2026-10-18T09:56:48.727959Z
+- output:
+```
+(… 55 earlier lines …)
+The test description was:
+  W1 — the login view fills every declared platform slot
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+00:35 +0 -1: W1 — the login view fills every declared platform slot [E]                                                                                                                                
+  Test failed. See exception logs above.
+  The test description was: W1 — the login view fills every declared platform slot
+  
+
+To run this test again: /usr/local/share/flutter/bin/cache/dart-sdk/bin/dart test /private/tmp/issue-1015/example/test/presentation/pages/login/login_view_test.dart -p vm --plain-name 'W1 — the login view fills every declared platform slot'
+
+00:35 +0 -1: Some tests failed.
+```
+
+- schema: 1
+- prev-hash: b97546b5824b6489ef52d8a7f60cad8ebcc87f3d02d8c00efbd7385f8293d12d
+- hash: 5849218fd297d6e95223995978c664b83ae5cbd613ed488144388252734b8b31
+
+## Cycle: W1 (green)
+
+- behavior: W1
+- kind: green
+- criterion: FR-001
+- test: test/presentation/pages/login/login_view_test.dart
+- command: `flutter test test/presentation/pages/login/login_view_test.dart --plain-name "the login view fills every declared platform slot"`
+- exit: 0
+- at: 2026-10-18T09:57:10.085147Z
+- output:
+```
+(… 9 earlier lines …)
+00:09 +0: loading /private/tmp/issue-1015/example/test/presentation/pages/login/login_view_test.dart                                                                                                   
+00:09 +0: W1 — the login view fills every declared platform slot                                                                                                                                       
+00:10 +0: W1 — the login view fills every declared platform slot                                                                                                                                       
+00:11 +0: W1 — the login view fills every declared platform slot                                                                                                                                       
+00:11 +0: W1 — the login view fills every declared platform slot                                                                                                                                       
+skin-event: behavior=W1 slot=mobile
+skin-event: behavior=W1 slot=ios
+skin-event: behavior=W1 slot=android
+skin-event: behavior=W1 slot=macos
+
+00:14 +1: W1 — the login view fills every declared platform slot                                                                                                                                       
+00:14 +1: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: 5849218fd297d6e95223995978c664b83ae5cbd613ed488144388252734b8b31
+- hash: 94b57ed36a26e66469f77a7bcdf3e6190a0db7840407fdd0c299de9cec9a8131
+
+## Cycle: U1 (red)
+
+- behavior: U1
+- kind: red
+- classification: assertionFailure
+- criterion: FR-001, adaptive_layouts
+- test: test/tdd/004-login-ui/u1_test.dart
+- command: `flutter test test/tdd/004-login-ui/u1_test.dart --plain-name "The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos)."`
+- exit: 1
+- at: 2026-10-18T09:57:25.993617Z
+- output:
+```
+(… 10 earlier lines …)
+00:08 +0 -1: U1 (FR-001, adaptive_layouts) U1 — The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos). [E]                                   
+  Expected: not <Instance of 'UnimplementedError'>
+    Actual: UnimplementedError:<UnimplementedError: zfa tdd run-skin: temporary inert stub - the issue #1005 red witness; the hand-written bytes are restored verbatim after the run>
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/tdd/004-login-ui/u1_test.dart 33:9             main.<fn>.<fn>
+  
+
+To run this test again: /usr/local/share/flutter/bin/cache/dart-sdk/bin/dart test /private/tmp/issue-1015/example/test/tdd/004-login-ui/u1_test.dart -p vm --plain-name 'U1 (FR-001, adaptive_layouts) U1 — The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos).'
+
+00:08 +0 -1: Some tests failed.
+```
+
+- schema: 1
+- prev-hash: fa8251f5ab568e20b459e60a21ed4da6eeb6a560d1eb2199a140bfc990239531
+- hash: b8afdc9da56884bd8ff85dbec5b66e0ad3f3a69501f60e31c4e55e122f91b28f
+
+## Cycle: U1 (green)
+
+- behavior: U1
+- kind: green
+- criterion: FR-001, adaptive_layouts
+- test: test/tdd/004-login-ui/u1_test.dart
+- command: `flutter test test/tdd/004-login-ui/u1_test.dart --plain-name "The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos)."`
+- exit: 0
+- at: 2026-10-18T09:57:40.600695Z
+- output:
+```
+00:00 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/u1_test.dart                                                                                                                   
+00:01 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/u1_test.dart                                                                                                                   
+00:02 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/u1_test.dart                                                                                                                   
+00:03 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/u1_test.dart                                                                                                                   
+00:04 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/u1_test.dart                                                                                                                   
+00:05 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/u1_test.dart                                                                                                                   
+00:06 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/u1_test.dart                                                                                                                   
+00:07 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/u1_test.dart                                                                                                                   
+00:07 +0: U1 (FR-001, adaptive_layouts) U1 — The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos).                                          
+00:07 +1: U1 (FR-001, adaptive_layouts) U1 — The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos).                                          
+00:08 +1: U1 (FR-001, adaptive_layouts) U1 — The system shall present the adaptive login view with the declared platform slots (mobile, ios, android, macos).                                          
+00:08 +1: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: b8afdc9da56884bd8ff85dbec5b66e0ad3f3a69501f60e31c4e55e122f91b28f
+- hash: 676db7161cb126d6fda9055ff7f6107359a92448797cf7cc4945486213c84dbe
+
+## Cycle: A3 (red)
+
+- behavior: A3
+- kind: red
+- classification: assertionFailure
+- criterion: AC-3
+- test: test/tdd/004-login-ui/a3_test.dart
+- command: `flutter test test/tdd/004-login-ui/a3_test.dart --plain-name "the app shows 'Sign in'"`
+- exit: 1
+- at: 2026-10-18T09:57:57.668225Z
+- output:
+```
+(… 30 earlier lines …)
+The test description was:
+  A3 — the app shows 'Sign in'
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+00:10 +0 -1: A3 (AC-3) A3 — the app shows 'Sign in' [E]                                                                                                                                                
+  Test failed. See exception logs above.
+  The test description was: A3 — the app shows 'Sign in'
+  
+
+To run this test again: /usr/local/share/flutter/bin/cache/dart-sdk/bin/dart test /private/tmp/issue-1015/example/test/tdd/004-login-ui/a3_test.dart -p vm --plain-name 'A3 (AC-3) A3 — the app shows '\''Sign in'\'''
+
+00:10 +0 -1: Some tests failed.
+```
+
+- schema: 1
+- prev-hash: 17e3db98dddd89a001e1117fb8adcd75671bd240cba73fe4ac3b3c78c34d9191
+- hash: 311041de6b2993141528ee14f7332d6e9d1cb67103f5520dedac22e3eab612f2
+
+## Cycle: A3 (green)
+
+- behavior: A3
+- kind: green
+- criterion: AC-3
+- test: test/tdd/004-login-ui/a3_test.dart
+- command: `flutter test test/tdd/004-login-ui/a3_test.dart --plain-name "the app shows 'Sign in'"`
+- exit: 0
+- at: 2026-10-18T09:58:16.274838Z
+- output:
+```
+(… 3 earlier lines …)
+00:03 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a3_test.dart                                                                                                                   
+00:04 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a3_test.dart                                                                                                                   
+00:05 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a3_test.dart                                                                                                                   
+00:06 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a3_test.dart                                                                                                                   
+00:07 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a3_test.dart                                                                                                                   
+00:07 +0: A3 (AC-3) A3 — the app shows 'Sign in'                                                                                                                                                       
+00:08 +0: A3 (AC-3) A3 — the app shows 'Sign in'                                                                                                                                                       
+00:09 +0: A3 (AC-3) A3 — the app shows 'Sign in'                                                                                                                                                       
+00:10 +0: A3 (AC-3) A3 — the app shows 'Sign in'                                                                                                                                                       
+00:11 +0: A3 (AC-3) A3 — the app shows 'Sign in'                                                                                                                                                       
+00:11 +1: A3 (AC-3) A3 — the app shows 'Sign in'                                                                                                                                                       
+00:11 +1: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: 311041de6b2993141528ee14f7332d6e9d1cb67103f5520dedac22e3eab612f2
+- hash: 7f4768d35437af98e41263253a421f9e61c2b4e8ee97aba7735ad1ae6e989b84
+
+## Cycle: A4 (red)
+
+- behavior: A4
+- kind: red
+- classification: assertionFailure
+- criterion: AC-4
+- test: test/tdd/004-login-ui/a4_test.dart
+- command: `flutter test test/tdd/004-login-ui/a4_test.dart --plain-name "the app navigates to the route 'deal_list'"`
+- exit: 1
+- at: 2026-10-18T09:58:32.316511Z
+- output:
+```
+(… 30 earlier lines …)
+The test description was:
+  A4 — the app navigates to the route 'deal_list'
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+00:10 +0 -1: A4 (AC-4) A4 — the app navigates to the route 'deal_list' [E]                                                                                                                             
+  Test failed. See exception logs above.
+  The test description was: A4 — the app navigates to the route 'deal_list'
+  
+
+To run this test again: /usr/local/share/flutter/bin/cache/dart-sdk/bin/dart test /private/tmp/issue-1015/example/test/tdd/004-login-ui/a4_test.dart -p vm --plain-name 'A4 (AC-4) A4 — the app navigates to the route '\''deal_list'\'''
+
+00:10 +0 -1: Some tests failed.
+```
+
+- schema: 1
+- prev-hash: 55a67ffb5b63c93d27faa8b702c1b635afc634ef2090e912c13bd9c6942a5080
+- hash: 457fbccde2ce2996322e9b97a4fa8bb4cc6979e1de0e95f335594ebc37f0aa54
+
+## Cycle: A4 (green)
+
+- behavior: A4
+- kind: green
+- criterion: AC-4
+- test: test/tdd/004-login-ui/a4_test.dart
+- command: `flutter test test/tdd/004-login-ui/a4_test.dart --plain-name "the app navigates to the route 'deal_list'"`
+- exit: 0
+- at: 2026-10-18T09:58:50.955376Z
+- output:
+```
+(… 3 earlier lines …)
+00:03 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a4_test.dart                                                                                                                   
+00:04 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a4_test.dart                                                                                                                   
+00:05 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a4_test.dart                                                                                                                   
+00:06 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a4_test.dart                                                                                                                   
+00:07 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a4_test.dart                                                                                                                   
+00:08 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a4_test.dart                                                                                                                   
+00:08 +0: A4 (AC-4) A4 — the app navigates to the route 'deal_list'                                                                                                                                    
+00:09 +0: A4 (AC-4) A4 — the app navigates to the route 'deal_list'                                                                                                                                    
+00:10 +0: A4 (AC-4) A4 — the app navigates to the route 'deal_list'                                                                                                                                    
+00:11 +0: A4 (AC-4) A4 — the app navigates to the route 'deal_list'                                                                                                                                    
+00:11 +1: A4 (AC-4) A4 — the app navigates to the route 'deal_list'                                                                                                                                    
+00:11 +1: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: 457fbccde2ce2996322e9b97a4fa8bb4cc6979e1de0e95f335594ebc37f0aa54
+- hash: 4807aa316a74025dee6fdb669438d71bae4fbb2f89d9b826c49a5bbcdc2e57c1
+
+## Cycle: A5 (red)
+
+- behavior: A5
+- kind: red
+- classification: assertionFailure
+- criterion: AC-5
+- test: test/tdd/004-login-ui/a5_test.dart
+- command: `flutter test test/tdd/004-login-ui/a5_test.dart --plain-name "the 'Sign in failed' banner is not shown"`
+- exit: 1
+- at: 2026-10-18T09:59:11.721786Z
+- output:
+```
+(… 32 earlier lines …)
+The test description was:
+  A5 — the 'Sign in failed' banner is not shown
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+00:13 +0 -1: A5 (AC-5) A5 — the 'Sign in failed' banner is not shown [E]                                                                                                                               
+  Test failed. See exception logs above.
+  The test description was: A5 — the 'Sign in failed' banner is not shown
+  
+
+To run this test again: /usr/local/share/flutter/bin/cache/dart-sdk/bin/dart test /private/tmp/issue-1015/example/test/tdd/004-login-ui/a5_test.dart -p vm --plain-name 'A5 (AC-5) A5 — the '\''Sign in failed'\'' banner is not shown'
+
+00:14 +0 -1: Some tests failed.
+```
+
+- schema: 1
+- prev-hash: 6fdf192aed16ba1bd220254fdb7ef443973cdb5e9c4857fdeb89523bd7c24646
+- hash: 07604f995c94e9943c1b4aa3aeb86221bdcccd99b6cb84d29aed9b419b24f0b0
+
+## Cycle: A5 (green)
+
+- behavior: A5
+- kind: green
+- criterion: AC-5
+- test: test/tdd/004-login-ui/a5_test.dart
+- command: `flutter test test/tdd/004-login-ui/a5_test.dart --plain-name "the 'Sign in failed' banner is not shown"`
+- exit: 0
+- at: 2026-10-18T09:59:30.166798Z
+- output:
+```
+(… 4 earlier lines …)
+00:04 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a5_test.dart                                                                                                                   
+00:05 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a5_test.dart                                                                                                                   
+00:06 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a5_test.dart                                                                                                                   
+00:07 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a5_test.dart                                                                                                                   
+00:08 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a5_test.dart                                                                                                                   
+00:08 +0: A5 (AC-5) A5 — the 'Sign in failed' banner is not shown                                                                                                                                      
+00:09 +0: A5 (AC-5) A5 — the 'Sign in failed' banner is not shown                                                                                                                                      
+00:10 +0: A5 (AC-5) A5 — the 'Sign in failed' banner is not shown                                                                                                                                      
+00:11 +0: A5 (AC-5) A5 — the 'Sign in failed' banner is not shown                                                                                                                                      
+00:12 +0: A5 (AC-5) A5 — the 'Sign in failed' banner is not shown                                                                                                                                      
+00:12 +1: A5 (AC-5) A5 — the 'Sign in failed' banner is not shown                                                                                                                                      
+00:12 +1: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: 07604f995c94e9943c1b4aa3aeb86221bdcccd99b6cb84d29aed9b419b24f0b0
+- hash: edf9a78d89c5499daf656d854e1f31e422f4057f4ad009f48d369d73200e07fa
+
+## Cycle: A6 (red)
+
+- behavior: A6
+- kind: red
+- classification: assertionFailure
+- criterion: AC-6
+- test: test/tdd/004-login-ui/a6_test.dart
+- command: `flutter test test/tdd/004-login-ui/a6_test.dart --plain-name "the 'Sign in' button is disabled"`
+- exit: 1
+- at: 2026-10-18T09:59:48.801909Z
+- output:
+```
+(… 32 earlier lines …)
+  A6 — the 'Sign in' button is disabled
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+00:11 +0 -1: A6 (AC-6) A6 — the 'Sign in' button is disabled [E]                                                                                                                                       
+  Test failed. See exception logs above.
+  The test description was: A6 — the 'Sign in' button is disabled
+  
+
+To run this test again: /usr/local/share/flutter/bin/cache/dart-sdk/bin/dart test /private/tmp/issue-1015/example/test/tdd/004-login-ui/a6_test.dart -p vm --plain-name 'A6 (AC-6) A6 — the '\''Sign in'\'' button is disabled'
+
+00:11 +0 -1: Some tests failed.                                                                                                                                                                        
+Waiting for another flutter command to release the startup lock...
+```
+
+- schema: 1
+- prev-hash: beafdd386540ece0c8728398034f344670366c2efcfb898f5cc279fe0d453e59
+- hash: f6f5415f10bcaac0d1189ac1c8bd4f23260aaf90a38569e710d296fccab3e5ed
+
+## Cycle: A6 (green)
+
+- behavior: A6
+- kind: green
+- criterion: AC-6
+- test: test/tdd/004-login-ui/a6_test.dart
+- command: `flutter test test/tdd/004-login-ui/a6_test.dart --plain-name "the 'Sign in' button is disabled"`
+- exit: 0
+- at: 2026-10-18T10:00:13.700571Z
+- output:
+```
+(… 9 earlier lines …)
+00:10 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a6_test.dart                                                                                                                   
+00:11 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a6_test.dart                                                                                                                   
+00:12 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a6_test.dart                                                                                                                   
+00:13 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a6_test.dart                                                                                                                   
+00:13 +0: A6 (AC-6) A6 — the 'Sign in' button is disabled                                                                                                                                              
+00:14 +0: A6 (AC-6) A6 — the 'Sign in' button is disabled                                                                                                                                              
+00:15 +0: A6 (AC-6) A6 — the 'Sign in' button is disabled                                                                                                                                              
+00:16 +0: A6 (AC-6) A6 — the 'Sign in' button is disabled                                                                                                                                              
+00:17 +0: A6 (AC-6) A6 — the 'Sign in' button is disabled                                                                                                                                              
+00:18 +0: A6 (AC-6) A6 — the 'Sign in' button is disabled                                                                                                                                              
+00:18 +1: A6 (AC-6) A6 — the 'Sign in' button is disabled                                                                                                                                              
+00:18 +1: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: f6f5415f10bcaac0d1189ac1c8bd4f23260aaf90a38569e710d296fccab3e5ed
+- hash: 3c244a72d5072e7f4e60b015802e5ea60bc4e007a483d2dd26c32fa86c07b16a
+
+## Cycle: A7 (red)
+
+- behavior: A7
+- kind: red
+- classification: assertionFailure
+- criterion: AC-7
+- test: test/tdd/004-login-ui/a7_test.dart
+- command: `flutter test test/tdd/004-login-ui/a7_test.dart --plain-name "while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'"`
+- exit: 1
+- at: 2026-10-18T10:00:33.568051Z
+- output:
+```
+(… 33 earlier lines …)
+  A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates
+  to the route 'deal_list'
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+00:12 +0 -1: A7 (AC-7) A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list' [E]                                                 
+  Test failed. See exception logs above.
+  The test description was: A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'
+  
+
+To run this test again: /usr/local/share/flutter/bin/cache/dart-sdk/bin/dart test /private/tmp/issue-1015/example/test/tdd/004-login-ui/a7_test.dart -p vm --plain-name 'A7 (AC-7) A7 — while the sign-in request is in flight the app shows '\''Signing in…'\'' and then the app navigates to the route '\''deal_list'\'''
+
+00:12 +0 -1: Some tests failed.
+```
+
+- schema: 1
+- prev-hash: 2e1b0f203fdd28ac32f62e9720b7f621a00a90e1b4a31da492ddb9ee384e43af
+- hash: 5e428cdd50de832236b56db5fc205dc624be94a80299d6414014e981a25fc194
+
+## Cycle: A7 (green)
+
+- behavior: A7
+- kind: green
+- criterion: AC-7
+- test: test/tdd/004-login-ui/a7_test.dart
+- command: `flutter test test/tdd/004-login-ui/a7_test.dart --plain-name "while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'"`
+- exit: 0
+- at: 2026-10-18T10:00:58.279400Z
+- output:
+```
+(… 8 earlier lines …)
+00:08 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a7_test.dart                                                                                                                   
+00:09 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a7_test.dart                                                                                                                   
+00:10 +0: loading /private/tmp/issue-1015/example/test/tdd/004-login-ui/a7_test.dart                                                                                                                   
+00:10 +0: A7 (AC-7) A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'                                                        
+00:11 +0: A7 (AC-7) A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'                                                        
+00:12 +0: A7 (AC-7) A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'                                                        
+00:13 +0: A7 (AC-7) A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'                                                        
+00:14 +0: A7 (AC-7) A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'                                                        
+00:15 +0: A7 (AC-7) A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'                                                        
+00:16 +0: A7 (AC-7) A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'                                                        
+00:16 +1: A7 (AC-7) A7 — while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'                                                        
+00:16 +1: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: 5e428cdd50de832236b56db5fc205dc624be94a80299d6414014e981a25fc194
+- hash: f97ec7153a498bd37df0e5b654338f245d51cd6682385f597617bc88fce3892c
+
+## Cycle: W1 (red)
+
+- behavior: W1
+- kind: red
+- classification: assertionFailure
+- criterion: FR-001
+- test: test/presentation/pages/login/login_view_test.dart
+- command: `flutter test test/presentation/pages/login/login_view_test.dart --plain-name "the login view fills every declared platform slot"`
+- exit: 1
+- at: 2026-10-18T10:02:06.224382Z
+- output:
+```
+(… 31 earlier lines …)
+The test description was:
+  W1 — the login view fills every declared platform slot
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+00:11 +0 -1: W1 — the login view fills every declared platform slot [E]                                                                                                                                
+  Test failed. See exception logs above.
+  The test description was: W1 — the login view fills every declared platform slot
+  
+
+To run this test again: /usr/local/share/flutter/bin/cache/dart-sdk/bin/dart test /private/tmp/issue-1015/example/test/presentation/pages/login/login_view_test.dart -p vm --plain-name 'W1 — the login view fills every declared platform slot'
+
+00:11 +0 -1: Some tests failed.
+```
+
+- schema: 1
+- prev-hash: 94b57ed36a26e66469f77a7bcdf3e6190a0db7840407fdd0c299de9cec9a8131
+- hash: d0c6387ba96c2121f5671f590fd32df2b237870c08862d6b8d31bedca07bf13d
+
+## Cycle: W1 (green)
+
+- behavior: W1
+- kind: green
+- criterion: FR-001
+- test: test/presentation/pages/login/login_view_test.dart
+- command: `flutter test test/presentation/pages/login/login_view_test.dart --plain-name "the login view fills every declared platform slot"`
+- exit: 0
+- at: 2026-10-18T10:02:28.432030Z
+- output:
+```
+(… 9 earlier lines …)
+00:08 +0: W1 — the login view fills every declared platform slot                                                                                                                                       
+00:09 +0: W1 — the login view fills every declared platform slot                                                                                                                                       
+00:10 +0: W1 — the login view fills every declared platform slot                                                                                                                                       
+00:11 +0: W1 — the login view fills every declared platform slot                                                                                                                                       
+00:11 +0: W1 — the login view fills every declared platform slot                                                                                                                                       
+skin-event: behavior=W1 slot=mobile
+skin-event: behavior=W1 slot=ios
+skin-event: behavior=W1 slot=android
+skin-event: behavior=W1 slot=macos
+
+00:14 +1: W1 — the login view fills every declared platform slot                                                                                                                                       
+00:14 +1: All tests passed!
+```
+- generation:
+  (none)
+- suite: baseline=0 guard=0 new=(none)
+
+- schema: 1
+- prev-hash: d0c6387ba96c2121f5671f590fd32df2b237870c08862d6b8d31bedca07bf13d
+- hash: a5639f8fd4802fc4bc052cc133225267ad61d1006c5a53ab26add1b23d084c7e
+
