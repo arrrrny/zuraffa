@@ -709,7 +709,12 @@ class PlanCommand extends Command<void> {
       };
       for (final beh in reconciled) {
         final prior = byId[beh.id];
-        if (prior != null && prior.sourceCriterion != beh.sourceCriterion) {
+        // Issue #1388: only refuse on a true positional U-id remap — i.e.
+        // when the base FR token changes. A traces drift that keeps the same
+        // base token is a legitimate regeneration trigger, not a remap.
+        final priorBaseToken = prior?.sourceCriterion.split(',').first.trim();
+        final planBaseToken = beh.sourceCriterion.split(',').first.trim();
+        if (prior != null && priorBaseToken != planBaseToken) {
           stderr.writeln(
             'zfa tdd plan: behavior ${beh.id} criterion changed from '
             'recorded artifacts.json entry',
