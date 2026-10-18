@@ -73,7 +73,8 @@ class SpecDiffCommand extends Command<void> {
       features.add(positional.first);
     } else if (specsDir.existsSync()) {
       for (final e in specsDir.listSync()) {
-        if (e is Directory) {
+        if (e is Directory &&
+            File(p.join(e.path, 'spec.md')).existsSync()) {
           features.add(p.basename(e.path));
         }
       }
@@ -86,7 +87,12 @@ class SpecDiffCommand extends Command<void> {
       final featureDir = p.join(projectRoot, 'specs', f);
       final specFile = File(p.join(featureDir, 'spec.md'));
       final specExists = specFile.existsSync();
-      final specMd = specExists ? specFile.readAsStringSync() : '';
+      if (!specExists) {
+        stderr.writeln('spec diff: no spec.md for feature "$f" at $featureDir');
+        exitCode = 2;
+        return;
+      }
+      final specMd = specFile.readAsStringSync();
       final specLines = specMd.split('\n');
 
       // Parse behaviors (best-effort; a spec with no scenarios yields none).
@@ -143,11 +149,12 @@ class SpecDiffCommand extends Command<void> {
             'behavior': b,
             'detail': 'behavior $b specified but absent from code/registry',
           });
-          plan.add('regenerate behavior $b: zfa tdd gen $f --behavior $b');
+          plan.add('regenerate behavior $b: zfa tdd gen $b --feature $f');
         }
       }
       // Code present that no behavior justifies.
       for (final id in registryIds) {
+        if (id.startsWith('contract:')) continue;
         if (!expectedSet.contains(id)) {
           pairs.add({
             'kind': 'unjustified_code',
@@ -234,6 +241,8 @@ class SpecDiffCommand extends Command<void> {
 
         final declared = <String>[for (final fld in ent.fields) fld.name];
         final declaredSet = declared.toSet();
+        // No typed field list in the spec -> nothing to compare.
+        if (declared.isEmpty) continue;
 
         // spec line for this entity: find Key Entities row/bullet.
         final specLine = _entitySpecLine(specMd, ent.name);
@@ -341,12 +350,6 @@ class SpecDiffCommand extends Command<void> {
       for (final pair in (e['pairs'] as List)) {
         stdout.writeln('    - ${pair['detail'] ?? pair}');
       }
-      // Name spec line for entity drift.
-      for (final pair in (e['pairs'] as List)) {
-        if (pair is Map && pair['specLine'] != null) {
-          stdout.writeln('      spec line: ${pair['specLine']}');
-        }
-      }
     }
     stdout.writeln('drift score: ${entries.isEmpty ? 0 : totalDrift}');
     exitCode = totalDrift > 0 ? 1 : 0;
@@ -365,22 +368,20 @@ class SpecDiffCommand extends Command<void> {
   }
 
   int _entitySpecLine(String specMd, String entityName) {
-    final lines = specMd.split('\n');
+    final lines = SpecParser.normalizeSpecText(specMd).split('\n');
+    final nameRe = RegExp('\\b${RegExp.escape(entityName)}\\b');
+    var inKeyEntities = false;
     for (var i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      if (line.contains(entityName) &&
-          (line.contains('Fields') ||
-              line.contains('|') ||
-              line.contains('**'))) {
-        // Ensure it's in Key Entities-ish: contains entity name and a field-ish colon or table.
-        if (line.contains(':') || line.contains('|')) {
-          return i + 1;
-        }
+      final t = lines[i].trim();
+      if (t.startsWith('#')) {
+        inKeyEntities = t.toLowerCase().contains('key entities');
+        continue;
       }
+      if (inKeyEntities && nameRe.hasMatch(t)) return i + 1;
     }
     // Fallback: first occurrence.
     for (var i = 0; i < lines.length; i++) {
-      if (lines[i].contains(entityName)) return i + 1;
+      if (nameRe.hasMatch(lines[i])) return i + 1;
     }
     return 1;
   }
