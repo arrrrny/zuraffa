@@ -2002,10 +2002,9 @@ void resetDependencies(GetIt getIt) {
   }
 
   static String _resolveSimulationImport(ProjectFlavor flavor) {
-    return switch (flavor) {
-      ProjectFlavor.flutter => 'package:zuraffa_flutter/zuraffa_flutter.dart',
-      ProjectFlavor.pureDart ||
-      ProjectFlavor.unknown => 'package:zuraffa/simulation.dart',
-    };
+    // zuraffa_flutter does not re-export the simulation symbols
+    // (kSimulationMode / SimulationFlavor), so always pull them from the
+    // zuraffa package which owns them (#1722).
+    return 'package:zuraffa/simulation.dart';
   }
 }

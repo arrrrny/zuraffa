@@ -282,9 +282,7 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                 final coreImport = flavor == ProjectFlavor.flutter
                     ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
                     : 'package:zuraffa/zuraffa.dart';
-                final simulationImport = flavor == ProjectFlavor.flutter
-                    ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
-                    : 'package:zuraffa/simulation.dart';
+                final simulationImport = 'package:zuraffa/simulation.dart';
                 files.add(
                   await FileUtils.writeFile(
                     indexPath,
