@@ -54,6 +54,7 @@ class BehaviorTestWriter {
     this.flutterTest = false,
     this.projectRoot,
     this.featureDir,
+    this.omitVacuousMarker = false,
   });
 
   final WidgetAppShell widgetShell;
@@ -126,6 +127,13 @@ class BehaviorTestWriter {
   /// Issue #1518: the feature dir of the behavior being written (see
   /// [projectRoot]). Nullable — see [projectRoot].
   final String? featureDir;
+
+  /// When true, the writer omits the vacuous-guard marker from the
+  /// generated assertion set — used by the regeneration path, where the
+  /// stale guard-only pair is being re-rendered into the declared shape
+  /// and the marker would otherwise (re)classify the regenerated pair as
+  /// guard-only (issue #1463).
+  final bool omitVacuousMarker;
 
   /// The test-framework import the non-widget templates emit.
   String get _testImport => flutterTest
@@ -485,15 +493,19 @@ void main() {
         return '$capture\n'
             '      expect(result, equals($expected));';
       }
-      final marker = isAssertableScalarType(shape.declaredReturn)
-          ? '      $typeOnlyVacuousGuardComment\n'
-          : '';
+      final marker =
+          (omitVacuousMarker || !isAssertableScalarType(shape.declaredReturn))
+          ? ''
+          : '      $typeOnlyVacuousGuardComment\n';
       return '$capture\n'
           '$marker'
           '      expect(result, isA<${shape.declaredReturn}>());';
     }
+    final guardComment = omitVacuousMarker
+        ? ''
+        : '      $vacuousGuardComment\n';
     return '${_captureInvocation(b, target, shape, null)}\n'
-        '      $vacuousGuardComment\n'
+        '$guardComment'
         '      expect(result, isNot(isA<UnimplementedError>()));';
   }
 

@@ -84,7 +84,8 @@ import '../services/unit_contract_shape.dart';
 import '../services/tdd_timeout.dart';
 import '../services/step_timeout_receipt.dart';
 import '../services/vacuous_guard.dart';
-import '../services/widget_scaffold.dart' show scaffoldedMarker;
+import '../services/widget_scaffold.dart'
+    show contentIsScaffolded, scaffoldedMarker;
 import '../services/tdd_transaction.dart';
 import '../../../core/dependencies/builder_dependency_preflight.dart';
 import '../../../cli/zfa_executable.dart';
@@ -3706,7 +3707,7 @@ class RunDriverCore {
   bool _testCarriesScaffoldedMarker(String? testPath) {
     if (testPath == null) return false;
     try {
-      return File(testPath).readAsStringSync().contains(scaffoldedMarker);
+      return contentIsScaffolded(File(testPath).readAsStringSync());
     } on FileSystemException {
       return false;
     }
@@ -3828,7 +3829,7 @@ class RunDriverCore {
         // Issue #1373: the scaffolded placeholder's own vocabulary — the
         // remedy is the author finders flow, not the #1308 outcome
         // assertion.
-        if (File(testPath).readAsStringSync().contains(scaffoldedMarker)) {
+        if (contentIsScaffolded(File(testPath).readAsStringSync())) {
           return 'hand-step=$behaviorId:hand — this is a SCAFFOLDED widget '
               'test (the $scaffoldedMarker marker, issue #912 defect 3): '
               'author concrete scenario finders, then run '

@@ -29,6 +29,13 @@ const String feature = '004-login-ui';
 /// SKIN lane declaring a platform-typed acceptance scenario (A1 — the
 /// issue's shape), an acceptance-typed one (A2), and the FR-derived unit
 /// behavior (U1) — every row lands in 04-SKIN.md.
+///
+/// Bug #1745: the `PlatformEnvelope` contract is declared under the
+/// Domain label. A `**Presentation**` contract no longer silently
+/// defaults to CORE (it must be declared in a lane row), and this
+/// fixture's subject is the platform lane, not the contract's layer —
+/// the derived contract row is byte-for-byte what the Presentation label
+/// produced.
 const String platformLanesSpec = '''
 **Template Version**: `zuraffa-1.0`
 
@@ -41,7 +48,7 @@ const String platformLanesSpec = '''
 
 ## Layer Contracts
 
-**Presentation**:
+**Domain**:
 - `PlatformEnvelope`: `map(Reply) -> Envelope`
 
 ## Functional Requirements
