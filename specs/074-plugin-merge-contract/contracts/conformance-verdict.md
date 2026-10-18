@@ -21,6 +21,8 @@
   "routes": {"pass": true, "resolved": ["/login"], "offenders": []},
   "di": {"pass": true, "tokensResolved": 4, "offenders": []},
   "views": {"pass": true, "offenders": []},
+  "cache": {"pass": true, "offenders": []},
+  "i18n": {"pass": true, "offenders": []},
   "featureSuite": {"pass": true, "newFailures": []},
   "passed": true
 }
@@ -29,7 +31,7 @@
 ## Summary line (final stdout line)
 
 ```text
-slice-merge: feature=<f> host=<path> routes=<pass|fail> di=<pass|fail> views=<pass|fail> feature-suite=<pass|fail> rolled-back=<bool> outcome=<landed|refused|rolled-back>
+slice-merge: feature=<f> host=<path> routes=<pass|fail> di=<pass|fail> views=<pass|fail> cache=<pass|fail> i18n=<pass|fail> feature-suite=<pass|fail> rolled-back=<bool> outcome=<landed|refused|rolled-back>
 ```
 
 ## Rollback proof

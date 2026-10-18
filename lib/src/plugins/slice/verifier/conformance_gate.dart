@@ -346,6 +346,7 @@ abstract final class ConformanceGate {
   /// corresponding translation entry, and there are no hardcoded
   /// user-facing strings. Offenders name the key/file with a fix hint.
   static MergeCheck i18n({
+    String name = 'i18n',
     Map<String, String>? viewSources,
     Map<String, String>? views,
     Iterable<String>? translationKeys,
@@ -355,6 +356,7 @@ abstract final class ConformanceGate {
     Iterable<String>? allowedLiterals,
   }) {
     return _i18n(
+      name: name,
       viewSources: viewSources ?? views ?? const <String, String>{},
       translationKeys: <String>{
         ...?translationKeys,
@@ -377,6 +379,7 @@ abstract final class ConformanceGate {
     Map<String, String>? translations,
     Iterable<String>? allowedLiterals,
   }) => i18n(
+    name: 'localization',
     viewSources: viewSources,
     views: views,
     translationKeys: translationKeys,
@@ -395,6 +398,7 @@ abstract final class ConformanceGate {
     Map<String, String>? translations,
     Iterable<String>? allowedLiterals,
   }) => i18n(
+    name: 'l10n',
     viewSources: viewSources,
     views: views,
     translationKeys: translationKeys,
@@ -415,6 +419,7 @@ abstract final class ConformanceGate {
     Map<String, String>? translations,
   }) {
     return _i18n(
+      name: 'localizationKeys',
       viewSources: viewSources ?? views ?? const <String, String>{},
       translationKeys: <String>{
         ...?translationKeys,
@@ -436,6 +441,7 @@ abstract final class ConformanceGate {
     Iterable<String>? allowedLiterals,
   }) {
     return _i18n(
+      name: 'hardcodedStrings',
       viewSources: viewSources ?? views ?? const <String, String>{},
       translationKeys: const <String>{},
       allowedLiterals: allowedLiterals ?? const <String>[],
@@ -445,6 +451,7 @@ abstract final class ConformanceGate {
   }
 
   static MergeCheck _i18n({
+    String name = 'i18n',
     required Map<String, String> viewSources,
     required Set<String> translationKeys,
     required Iterable<String> allowedLiterals,
@@ -486,7 +493,7 @@ abstract final class ConformanceGate {
       }
     }
     return MergeCheck(
-      name: 'i18n',
+      name: name,
       pass: offenders.isEmpty,
       offenders: offenders,
       evidence: resolvedKeys..sort(),
