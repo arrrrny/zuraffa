@@ -191,11 +191,18 @@ class MockProviderBuilder {
           fileSystem: fileSystem,
         ),
       );
-      if (!EntityAnalyzer.isEnum(
-        entityName,
-        outputDir,
-        fileSystem: fileSystem,
-      )) {
+      // Issue #1798: only the mock-data file for the type the provider
+      // actually consumes (the return/target entity) is ever referenced in
+      // the generated method bodies. Param-only entity types are typed in
+      // signatures but never read through their mock data, so importing their
+      // mock-data file is an unused_import that the build gate rejects.
+      // Enums are excluded regardless — they carry no mock-data fixture.
+      if (entityName == targetEntity &&
+          !EntityAnalyzer.isEnum(
+            entityName,
+            outputDir,
+            fileSystem: fileSystem,
+          )) {
         addImport('../../mock/${entitySnake}_mock_data.dart');
       }
     }
