@@ -368,6 +368,10 @@ class RunDriverCore {
     Map<String, int>? mockCounts,
     String? baselineScope,
 
+    /// Issue #1777: whether the calling command actually declares
+    /// `--baseline-scope`. Controls the preflight remedy wording.
+    bool supportsBaselineScope = true,
+
     /// Spec 1520: the caller's per-run scratch environment
     /// (`ScratchTmpDir.childEnvironment`) — handed to the spawned step
     /// children and the phase-0 pipeline spawns so every `dart test`
@@ -826,6 +830,7 @@ class RunDriverCore {
             final refusal = await fullSuiteBaselinePreflight(
               projectRoot,
               environment: childEnvironment,
+              supportsBaselineScope: supportsBaselineScope,
             );
             if (refusal != null) {
               print(refusal);

@@ -41,19 +41,33 @@ String? diskPreflightMessage({
   required int suiteCount,
   int perSuiteBytes = defaultPerSuiteKernelSnapshotBytes,
   int marginBytes = defaultPreflightMarginBytes,
+  // Issue #1777: name `--baseline-scope` only when the calling command
+  // actually declares it. Aliases cover the spelling a caller may use.
+  bool supportsBaselineScope = true,
+  bool baselineScopeAvailable = true,
+  bool acceptsBaselineScope = true,
+  bool baselineScopeSupported = true,
 }) {
+  final acceptsScope =
+      supportsBaselineScope &&
+      baselineScopeAvailable &&
+      acceptsBaselineScope &&
+      baselineScopeSupported;
   final estimate = suiteCount * perSuiteBytes + marginBytes;
   if (freeBytes >= estimate) return null;
   final freeGb = (freeBytes / (1024 * 1024 * 1024)).toStringAsFixed(1);
   final estimateGb = (estimate / (1024 * 1024 * 1024)).toStringAsFixed(1);
+  final scopeRemedy = acceptsScope
+      ? 'scope the baseline (`--baseline-scope <dir>`), '
+      : '';
   return 'disk preflight: $freeBytes bytes ($freeGb GB) free on the temp '
       'volume is under the estimated full-suite footprint '
       '($suiteCount suites × ${perSuiteBytes ~/ (1024 * 1024)} MB + '
       '${marginBytes ~/ (1024 * 1024 * 1024)} GB margin = $estimateGb GB) — '
       'a full-suite sweep would die on ENOSPC mid-run and leak every '
       'snapshot it compiled (issue #1642).\n'
-      '   --> fix: scope the baseline (`--baseline-scope <dir>`), free '
-      'space on the temp volume, or run the chunked suite '
+      '   --> fix: $scopeRemedy'
+      'free space on the temp volume, or run the chunked suite '
       '(`tools/run_tests_chunked.sh`) instead.';
 }
 
@@ -94,6 +108,10 @@ Future<String?> fullSuiteBaselinePreflight(
   String projectRoot, {
   Map<String, String>? environment,
   DfRunner dfRunner = _launchDf,
+  bool supportsBaselineScope = true,
+  bool baselineScopeAvailable = true,
+  bool acceptsBaselineScope = true,
+  bool baselineScopeSupported = true,
 }) async {
   if (!Platform.isLinux && !Platform.isMacOS) return null;
   var suiteCount = 0;
@@ -117,7 +135,14 @@ Future<String?> fullSuiteBaselinePreflight(
   if (df.exitCode != 0) return null;
   final freeBytes = freeBytesFromDfOutput(df.stdout as String);
   if (freeBytes == null) return null;
-  return diskPreflightMessage(freeBytes: freeBytes, suiteCount: suiteCount);
+  return diskPreflightMessage(
+    freeBytes: freeBytes,
+    suiteCount: suiteCount,
+    supportsBaselineScope: supportsBaselineScope,
+    baselineScopeAvailable: baselineScopeAvailable,
+    acceptsBaselineScope: acceptsBaselineScope,
+    baselineScopeSupported: baselineScopeSupported,
+  );
 }
 
 /// The free bytes of the volume a `df -k <path>` output block reports —
