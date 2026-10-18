@@ -117,10 +117,35 @@ class ContractDeclaration {
     // a bare cell colliding with a positional fallback falls back to
     // the positional form for its position (suffix _p<N> on the rare
     // double collision).
+    // SPEC 1774: expand braced named-parameter groups into individual
+    // named parameters (the outer group survives the brace-aware split as
+    // one token, then expands here). `required` is stripped per entry by
+    // [ContractParam.parse].
+    final topLevelTokens = _splitTopLevel(paramsText);
+    final expanded = <({String token, bool named})>[];
+    for (final token in topLevelTokens) {
+      final t = token.trim();
+      if (t.isEmpty) continue;
+      if (t.startsWith('{') && t.endsWith('}')) {
+        final inner = t.substring(1, t.length - 1).trim();
+        if (inner.isEmpty) continue;
+        for (final groupToken in _splitTopLevel(inner)) {
+          final g = groupToken.trim();
+          if (g.isEmpty) continue;
+          expanded.add((token: g, named: true));
+        }
+      } else {
+        expanded.add((token: t, named: false));
+      }
+    }
     final params = <ContractParam>[];
     final seen = <String>{};
-    for (final entry in _splitTopLevel(paramsText).asMap().entries) {
-      final parsed = ContractParam.parse(entry.value, index: entry.key);
+    for (final entry in expanded.asMap().entries) {
+      final parsed = ContractParam.parse(
+        entry.value.token,
+        index: entry.key,
+        named: entry.value.named,
+      );
       if (parsed == null) continue;
       var name = parsed.name;
       if (seen.contains(name)) {
@@ -129,7 +154,14 @@ class ContractDeclaration {
             : 'arg${entry.key}';
       }
       seen.add(name);
-      params.add(ContractParam(type: parsed.type, name: name));
+      params.add(
+        ContractParam(
+          type: parsed.type,
+          name: name,
+          named: parsed.named,
+          required: parsed.required,
+        ),
+      );
     }
     return ContractDeclaration(
       interface: interface,
@@ -166,8 +198,8 @@ class ContractDeclaration {
     var start = 0;
     for (var i = 0; i < text.length; i++) {
       final c = text[i];
-      if (c == '<' || c == '(') depth++;
-      if (c == '>' || c == ')') depth--;
+      if (c == '<' || c == '(' || c == '{' || c == '[') depth++;
+      if (c == '>' || c == ')' || c == '}' || c == ']') depth--;
       if (c == ',' && depth == 0) {
         cells.add(text.substring(start, i));
         start = i + 1;
@@ -181,13 +213,27 @@ class ContractDeclaration {
 /// One declared parameter: an optional name plus a (possibly generic)
 /// type, either shape — `String email` or `LoginParams`.
 class ContractParam {
-  const ContractParam({required this.type, required this.name});
+  const ContractParam({
+    required this.type,
+    required this.name,
+    this.named = false,
+    this.required = false,
+  });
 
   /// The declared type, verbatim (`String`, `Result<bool, String>`).
   final String type;
 
   /// The declared name; `arg0`-style when the declaration carried none.
   final String name;
+
+  /// SPEC 1774: whether the parameter was declared inside a Dart
+  /// named-parameter group (`{...}`). Named params render `{...}` in
+  /// subject signatures and pass named arguments at the capture site.
+  final bool named;
+
+  /// SPEC 1774: whether a named parameter carries the `required`
+  /// modifier (`{required bool x}`).
+  final bool required;
 
   /// Parse one parameter cell. Null when the cell is not a plausible
   /// parameter (empty or malformed).
@@ -197,15 +243,27 @@ class ContractParam {
   /// `arg0`, so a multi-param contract of bare-name cells emitted
   /// `arg0, arg0` — a duplicate-definition stub that could not compile
   /// and smeared load-errors across the verify-red batch.
-  static ContractParam? parse(String cell, {int index = 0}) {
+  static ContractParam? parse(
+    String cell, {
+    int index = 0,
+    bool named = false,
+  }) {
     final trimmed = cell.trim();
     if (trimmed.isEmpty) return null;
+    // SPEC 1774: strip a leading `required` modifier (named params).
+    var working = trimmed;
+    var isRequired = false;
+    if (working.startsWith('required ')) {
+      isRequired = true;
+      working = working.substring('required '.length).trim();
+    }
+    if (working.isEmpty) return null;
     // The LAST top-level space separates type from name when the cell
     // carries both (`String email`, `Result<bool, String> session`).
     var depth = 0;
     int? split;
-    for (var i = trimmed.length - 1; i >= 0; i--) {
-      final c = trimmed[i];
+    for (var i = working.length - 1; i >= 0; i--) {
+      final c = working[i];
       if (c == '>' || c == ')') depth++;
       if (c == '<' || c == '(') depth--;
       if (c == ' ' && depth == 0) {
@@ -218,17 +276,37 @@ class ContractParam {
       // grammar: `validate(email, password)`) — the type falls back to
       // dynamic. A bare non-identifier cell is an unnamed TYPE: it keeps
       // a positional name.
-      if (RegExp(r'^[A-Za-z_]\w*$').hasMatch(trimmed)) {
-        return ContractParam(type: 'dynamic', name: trimmed);
+      if (RegExp(r'^[A-Za-z_]\w*$').hasMatch(working)) {
+        return ContractParam(
+          type: 'dynamic',
+          name: working,
+          named: named,
+          required: named ? isRequired : false,
+        );
       }
-      return ContractParam(type: trimmed, name: 'arg$index');
+      return ContractParam(
+        type: working,
+        name: 'arg$index',
+        named: named,
+        required: named ? isRequired : false,
+      );
     }
-    final type = trimmed.substring(0, split).trim();
-    final name = trimmed.substring(split + 1).trim();
+    final type = working.substring(0, split).trim();
+    final name = working.substring(split + 1).trim();
     if (type.isEmpty || !RegExp(r'^[A-Za-z_]\w*$').hasMatch(name)) {
-      return ContractParam(type: trimmed, name: 'arg$index');
+      return ContractParam(
+        type: trimmed,
+        name: 'arg$index',
+        named: named,
+        required: named ? isRequired : false,
+      );
     }
-    return ContractParam(type: type, name: name);
+    return ContractParam(
+      type: type,
+      name: name,
+      named: named,
+      required: named ? isRequired : false,
+    );
   }
 }
 
@@ -427,7 +505,9 @@ class ContractTestWriter {
     }
     final args = [
       for (var i = 0; i < c.params.length; i++)
-        _representativeArg(c.params[i].type, i),
+        c.params[i].named
+            ? '${c.params[i].name}: ${_representativeArg(c.params[i].type, i)}'
+            : _representativeArg(c.params[i].type, i),
     ].join(', ');
     final paramSummary = c.params.isEmpty
         ? 'no parameters'
@@ -665,18 +745,22 @@ class ContractSubjectWriter {
         _isRenderableType(c.returnType) && c.returnType.trim() != 'void'
         ? c.returnType
         : 'Object?';
+    String renderType(ContractParam param) =>
+        _isRenderableType(param.type) ? param.type : 'Object?';
+    final positional = c.params
+        .where((param) => !param.named)
+        .map((param) => '${renderType(param)} ${param.name}')
+        .toList();
+    final named = c.params.where((param) => param.named).map((param) {
+      final req = param.required ? 'required ' : '';
+      return '$req${renderType(param)} ${param.name}';
+    }).toList();
     final params = c.params.isEmpty
         ? ''
-        : c.params
-              .asMap()
-              .entries
-              .map((entry) {
-                final type = _isRenderableType(entry.value.type)
-                    ? entry.value.type
-                    : 'Object?';
-                return '$type ${entry.value.name}';
-              })
-              .join(', ');
+        : [
+            ...positional,
+            if (named.isNotEmpty) '{${named.join(', ')}}',
+          ].join(', ');
     final signature = '${c.method}($params)';
     return '''
 // GENERATED STUB — `zfa tdd gen ${b.id}` (issue #1007).
@@ -688,7 +772,7 @@ class ContractSubjectWriter {
 // description: ${b.description}
 //
 // CONTRACT SEAM (issue #1007): this file is where the declared contract
-// `${c.qualifiedMethod}(${c.params.map((param) => '${param.type} ${param.name}').join(', ')}) -> ${c.returnType}`
+// `${c.qualifiedMethod}($params) -> ${c.returnType}`
 // (${c.category} contract) gets its implementation. Implement the seam
 // below — or wire it to the production method. The paired contract test
 // enumerates the contract's cases and stays BLOCKED (never RED) until
