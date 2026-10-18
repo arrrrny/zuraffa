@@ -23,6 +23,7 @@ import '../models/routing.dart';
 import '../services/declared_routing.dart';
 import '../services/finder_taxonomy.dart';
 import '../services/feature_path_resolver.dart';
+import '../services/artifact_registry.dart';
 import '../services/i18n_key_contract.dart';
 import '../services/explain_emitter.dart';
 import '../services/lane_split.dart';
@@ -697,6 +698,48 @@ class PlanCommand extends Command<void> {
       }
     }
     final reconciled = [for (final entry in reconciledEntries) entry.behavior];
+
+    // Issue #1805: refuse when a planned behavior's id already has a recorded
+    // artifacts.json entry whose source_criterion disagrees with the plan's.
+    try {
+      final reg = ArtifactRegistry(featureDir: featureDir);
+      final recs = await reg.loadAll();
+      final byId = <String, ArtifactRecord>{
+        for (final rec in recs) rec.behaviorId: rec,
+      };
+      for (final beh in reconciled) {
+        final prior = byId[beh.id];
+        if (prior != null && prior.sourceCriterion != beh.sourceCriterion) {
+          stderr.writeln(
+            'zfa tdd plan: behavior ${beh.id} criterion changed from '
+            'recorded artifacts.json entry',
+          );
+          stderr.writeln('  id: ${beh.id}');
+          stderr.writeln(
+            '  recorded criterion: ${prior.sourceCriterion} '
+            '(artifacts.json)',
+          );
+          stderr.writeln('  plan criterion: ${beh.sourceCriterion}');
+          stderr.writeln(
+            '  recorded criterion (source_criterion): '
+            '${prior.sourceCriterion}',
+          );
+          stderr.writeln(
+            '  plan criterion (source_criterion): ${beh.sourceCriterion}',
+          );
+          stderr.writeln(
+            '   --> fix: reconcile the positional U-id mapping — '
+            'rotate the affected artifacts.json records and their '
+            'test/subject pairs to the new ids, then re-run '
+            '`zfa tdd plan $feature`.',
+          );
+          exitCode = 2;
+          return;
+        }
+      }
+    } on Exception {
+      // Fail open on an unreadable registry.
+    }
 
     // Bug #835: hand-written ffi (native-boundary) rows survive
     // re-planning. Plan derives only acceptance/unit behaviors from
