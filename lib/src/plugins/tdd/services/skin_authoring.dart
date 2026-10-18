@@ -67,6 +67,14 @@ abstract final class SkinAuthoring {
         'expect(...) / expectLater(...) statement is required.',
       );
     }
+    // Guard against the deadlock shape (issue #1855): flutter_test runs in a
+    // FakeAsync zone, so an `await` of a subject/controller read that
+    // happens BEFORE any pump never resolves — the Timer-backed mock read
+    // (e.g. the generated ZikZakMockDataSource `Future.delayed(_delay)`)
+    // only fires when a pump advances the fake clock. Pump first, then
+    // await: kick the read off without awaiting, pump, then await the
+    // already-completed future.
+    _checkNoAwaitBeforePump(finders);
   }
 
   /// Returns [testContent] with the scaffolded scenario block — the
@@ -116,6 +124,38 @@ abstract final class SkinAuthoring {
   }
 
   static final RegExp _assertionCall = RegExp(r'\b(expect|expectLater)\s*\(');
+
+  static final RegExp _awaitKeyword = RegExp(r'\bawait\b');
+
+  static final RegExp _pumpToken = RegExp(r'\bpump\w*\s*\(');
+
+  static final RegExp _pumpAwait = RegExp(
+    r'\bawait\s+(?:[A-Za-z_]\w*\.)?pump\w*\s*\(',
+  );
+
+  /// Refuses author finders that `await` a subject/controller read before
+  /// any pump (issue #1855): under flutter_test's FakeAsync zone a
+  /// Timer-backed mock read never resolves without a pump, so the await
+  /// deadlocks the widget test. The sanctioned shape pumps first, then
+  /// awaits the already-completed future.
+  static void _checkNoAwaitBeforePump(String finders) {
+    final pumpMatch = _pumpToken.firstMatch(finders);
+    final firstPumpIndex = pumpMatch?.start ?? finders.length;
+    for (final match in _awaitKeyword.allMatches(finders)) {
+      if (match.start >= firstPumpIndex) continue;
+      final tail = finders.substring(match.start);
+      if (_pumpAwait.matchAsPrefix(tail) != null) continue;
+      throw const SkinAuthoringException(
+        'the author finders await a subject/controller read before a pump — '
+        'under flutter_test\'s FakeAsync zone this deadlocks the widget '
+        'test (a Timer-backed mock read never fires without a pump). '
+        'Pump first, then await: kick the read off without awaiting '
+        '(`final Future<void> flip = state!.load();`), then '
+        '`await tester.pumpAndSettle();`, then `await flip;` '
+        '(pump-before-await / pump-then-await ordering).',
+      );
+    }
+  }
 
   static final RegExp _leadingWhitespacePattern = RegExp(r'^[ \t]*');
 
