@@ -34,10 +34,12 @@ class CreateProviderCapability implements ZuraffaCapability {
       'name': {
         'type': 'string',
         'description':
-            'Name of the provider. Passing it positionally '
-            '(zfa provider create <Name>) binds to the existing service '
-            'interface <Name>Service; the flag form (zfa provider create '
-            '--name <Name> [--domain ...]) generates a standalone provider.',
+            'Name of the provider. Both the positional form '
+            '(zfa provider create <Name>) and the flag form '
+            '(zfa provider create --name <Name> [--domain ...]) bind to the '
+            'existing service interface <Name>Service (StateError when '
+            'domain/services/<name>_service.dart is missing). The difference '
+            'is output placement: effectiveDomain = domain ?? snake-cased name.',
       },
 
       'domain': {
