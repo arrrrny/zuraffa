@@ -403,8 +403,11 @@ class ZfaExecutable {
   static String _shortDigest(String text) {
     // FNV-1a over 64 bits, but computed with BigInt so the literals stay
     // representable under dart2js (JavaScript numbers are only exact up to
-    // 2^53). BigInt keeps the digest byte-for-byte identical to the native
-    // VM build while remaining web-compilable (#1729).
+    // 2^53). The BigInt path renders the digest as unsigned hex, which is
+    // the intended/correct FNV-1a form and improves web/native consistency.
+    // Cache slot names change for inputs whose final hash has the high bit
+    // set (old signed `zfa_-...` slots are orphaned — harmless recompile).
+    // (#1729)
     var hash = BigInt.parse('cbf29ce484222325', radix: 16);
     final prime = BigInt.parse('100000001b3', radix: 16);
     final mask = BigInt.parse('ffffffffffffffff', radix: 16);
