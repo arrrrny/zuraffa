@@ -12,40 +12,40 @@ Issue #687 — "[v6] Migrate html_to_markdown_ffi to be built on zuraffa", a sub
 
 ## Summary
 
-This is a brownfield migration of the federated `html_to_markdown_ffi` plugin (app-facing + platform + platform-adapter packages) onto the zuraffa v6 architecture. It is tracked in the zuraffa repo via spec `specs/064-migrate-html-to-markdown-ffi/` (Draft) and follows `docs/package_migration_guide.md`. The actual source rewrite lives in the `html_to_markdown_ffi` repository; in zuraffa the deliverable is the spec/assessment and any zuraffa-side capability gaps it surfaces.
+This is a brownfield migration of the `html_to_markdown_ffi` plugin (currently published as a federated plugin: app-facing + platform + platform-adapter packages) onto the zuraffa v6 architecture as a **pure Dart package**. Per `docs/package_migration_guide.md` §1, FFI is not a platform channel, so an FFI-only package stays a pure package (`zfa package create`); a federated monorepo (`zfa package create-plugin`) is reserved for packages that talk to platform APIs/channels, which this one does not. Platform adapters are sourced from `zikzak_inappwebview` as a separate dependent rather than scaffolded here. It is tracked in the zuraffa repo via spec `specs/064-migrate-html-to-markdown-ffi/` (Draft) and follows `docs/package_migration_guide.md`. The actual source rewrite lives in the `html_to_markdown_ffi` repository; in zuraffa the deliverable is the spec/assessment and any zuraffa-side capability gaps it surfaces.
 
 ## Constitution Check
 
-- `.specify/constitution.md` (if present) governs; migration must preserve the public API surface (FR-006 of spec 064) or document breaking changes. No new runtime dependencies should be added to zuraffa core for this package.
+- `.specify/memory/constitution.md` (if present) governs; migration must preserve the public API surface (FR-006 of spec 064) or document breaking changes. No new runtime dependencies should be added to zuraffa core for this package.
 - Layer discipline: domain must not import `dart:ffi`/`dart:io`/channel code; the FFI bridge stays behind a port in the data layer.
-- FFI is not a platform channel: the core stays a pure Dart package, not a federated monorepo, unless channel wrappers are required (per guide §1). Platform adapters are sourced from `zikzak_inappwebview`.
+- **Shape decision (guide §1)**: no channel wrappers are required — `html_to_markdown_ffi` is FFI-only, so the target shape is a pure Dart package (`zfa package create`), NOT a federated plugin (`zfa package create-plugin`). The FFI bridge is a datasource behind a port, not a platform adapter. Platform adapters are sourced from `zikzak_inappwebview`.
 
 ## Affected Paths
 
-- `specs/064-migrate-html-to-markdown-ffi/spec.md` — migration spec (Draft); needs tasks.md + tdd artifacts to match siblings like spec 058.
+- `specs/064-migrate-html-to-markdown-ffi/spec.md` — migration spec (Draft). (No sibling migration spec in 053–065 ships a `tasks.md`, and only 058/065 carry a `tdd/` dir, so any `tasks.md`/`tdd/` artifacts added here would be new, not parity with siblings.)
 - `docs/package_migration_guide.md` — canonical brownfield playbook (shape decision, mapping table, parity gates).
-- External repo `arrrrny/html_to_markdown_ffi` — actual rewrite target (federated: app-facing + platform + adapters).
-- `lib/src/commands/package_command.dart` / `zfa package create-plugin` — scaffold entrypoint used for federated shape.
+- External repo `arrrrny/html_to_markdown_ffi` — actual rewrite target (currently federated on pub.dev; target shape per §1 is a pure package).
+- `lib/src/commands/package_command.dart` / `zfa package create` — scaffold entrypoint used for the pure-package shape. Federated `zfa package create-plugin` is NOT used (see §1 shape decision).
 
 ## Proposed Approach
 
 **Preferred**: Follow the brownfield playbook end to end in the package repo:
 1. Phase 0 inventory (public API, behavior, native, dependency, consumer census) -> `migration-contract.md`.
-2. Phase 1 scaffold via `zfa package create-plugin html_to_markdown_ffi --platforms ios,android,macos,linux,windows` (or in-place rewrite if keeping the same repo).
+2. Phase 1 scaffold via `zfa package create html_to_markdown_ffi` (pure package; in-place rewrite if keeping the same repo). `zfa package create-plugin` is not used — FFI is not a platform channel (guide §1).
 3. Phase 2 map old API to zuraffa shapes (Port + Service + UseCases; entities; AppFailure).
 4. Phase 3 port tests first; wire `zfa tdd` engine for new behavior; keep test count >= baseline.
 5. Phase 4 compatibility facade preserving public API.
 6. Phase 5 parity gates (API, behavior, layer discipline, DI, statics, lifecycle, publish, journal).
 7. Phase 6 publish as minor.
 
-In zuraffa, advance spec 064 to match the artifact set of comparable migration specs (tasks.md, tdd/cycle-log.md) so the migration is trackable and auditable.
+In zuraffa, optionally add `tasks.md` and `tdd/cycle-log.md` to spec 064 so the migration is trackable and auditable (these are new artifacts, not parity with siblings).
 
 **Alternatives**:
 - Treat as a "nothing to ship" tracking issue if the spec is considered the deliverable (rejected: issue is open and migration not executed).
 
 **Paths likely to change**:
-- `specs/064-migrate-html-to-markdown-ffi/tasks.md` (new)
-- `specs/064-migrate-html-to-markdown-ffi/tdd/cycle-log.md` (new)
+- `specs/064-migrate-html-to-markdown-ffi/tasks.md` (new, optional)
+- `specs/064-migrate-html-to-markdown-ffi/tdd/cycle-log.md` (new, optional)
 - External package repo (full rewrite)
 
 **Verification to run**:
@@ -64,5 +64,3 @@ In zuraffa, advance spec 064 to match the artifact set of comparable migration s
 
 - [NEEDS CLARIFICATION: whether the rewrite lands in the existing `html_to_markdown_ffi` repo or a fresh zuraffa-namespaced repo per EPIC #214 rollout order]
 - [NEEDS CLARIFICATION: whether `zikzak_inappwebview` already exposes the platform FFI for all five platforms as assumed (spec 064 Assumptions)]
-path">
-/Users/arrrrny/Developer/zuraffa/.specify/chores/html-markdown-ffi-migration/assessment.md

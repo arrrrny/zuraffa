@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-01
 
-**Status**: Assessed
+**Status**: Draft
 
 **Input**: Issue [#687](https://github.com/arrrrny/zuraffa/issues/687) — "Migrate html_to_markdown_ffi to be built on zuraffa", a sub-issue of EPIC #214 ([v6] Migrate all ZikZak pub.dev packages to be built on zuraffa).
 
