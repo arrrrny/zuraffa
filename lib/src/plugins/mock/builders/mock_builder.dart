@@ -131,25 +131,46 @@ class MockBuilder {
     );
 
     if (!isPolymorphic) {
-      final requiresConcreteEntity =
-          config.generateMockDataOnly ||
-          (config.name == targetEntity &&
-              !config.isCustomUseCase &&
-              !config.hasService);
       final dataConfig = config.name == targetEntity
           ? config
           : config.copyWith(name: targetEntity);
 
+      final hasCustomVerbs =
+          config.paramsType != null ||
+          config.returnsType != null ||
+          config.methods.any(
+            (m) => !const {
+              'get',
+              'getList',
+              'list',
+              'create',
+              'update',
+              'toggle',
+              'delete',
+              'watch',
+              'watchList',
+            }.contains(m),
+          );
+      final needsConcreteEntity =
+          config.generateMockDataOnly ||
+          (config.name == targetEntity &&
+              !config.isCustomUseCase &&
+              !config.hasService &&
+              !hasCustomVerbs);
+
       if (!entityExists) {
-        if (requiresConcreteEntity) {
+        if (needsConcreteEntity) {
           throw StateError(
             'Entity file not found for $targetEntity. '
             'Expected to find a Dart entity declaration under '
             '$outputDir/domain/entities.',
           );
         }
-
-        files.add(await dataBuilder.generateMockDataFile(dataConfig));
+        // Issue #1845: only generate mock data for custom-usecase runs
+        // when there is no entity file on disk.
+        if (config.isCustomUseCase) {
+          files.add(await dataBuilder.generateMockDataFile(dataConfig));
+        }
       } else if (EntityAnalyzer.isSealedEntity(
         targetEntity,
         outputDir,
@@ -164,14 +185,16 @@ class MockBuilder {
       }
     }
 
-    files.addAll(
-      await entityGraphBuilder.generateNestedEntityMockFiles(
-        config: config.name == targetEntity
-            ? config
-            : config.copyWith(name: targetEntity),
-        generateMockDataFile: dataBuilder.generateMockDataFile,
-      ),
-    );
+    if (entityExists) {
+      files.addAll(
+        await entityGraphBuilder.generateNestedEntityMockFiles(
+          config: config.name == targetEntity
+              ? config
+              : config.copyWith(name: targetEntity),
+          generateMockDataFile: dataBuilder.generateMockDataFile,
+        ),
+      );
+    }
 
     if (!config.generateMockDataOnly) {
       // Issue #1037: an enum entity is a value type — no id, no Patch, no

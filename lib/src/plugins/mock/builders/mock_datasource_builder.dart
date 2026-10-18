@@ -113,9 +113,16 @@ class MockDataSourceBuilder {
     // (an unverified hide is an undefined_hidden_name warning, and zfa
     // build's analyze gate fails on warnings).
     final barrelHide = <String>{
-      if (config.isEntityBased) ...EntityUtils.mockBarrelHideNames(entityName),
-      if (config.isCustomUseCase && config.returnsType != null)
+      if (config.isEntityBased &&
+          fileSystem.existsSync(
+            '$outputDir/domain/entities/$entitySnake/$entitySnake.dart',
+          ))
+        ...EntityUtils.mockBarrelHideNames(entityName),
+      if (config.returnsType != null && config.returnsType!.isNotEmpty)
         for (final type in EntityUtils.extractEntityTypes(config.returnsType!))
+          ...EntityUtils.mockBarrelHideNames(type),
+      if (config.paramsType != null && config.paramsType!.isNotEmpty)
+        for (final type in EntityUtils.extractEntityTypes(config.paramsType!))
           ...EntityUtils.mockBarrelHideNames(type),
     }.toList();
 
@@ -124,18 +131,43 @@ class MockDataSourceBuilder {
       // Canonical zuraffa-native mock marker: detects native mocking for static
       // tooling (e.g. speckit-tdd-setup) without a third-party double library.
       Directive.import('package:zuraffa/mock.dart', hide: barrelHide),
-      if (config.isEntityBased)
+      if (config.isEntityBased &&
+          fileSystem.existsSync(
+            '$outputDir/domain/entities/$entitySnake/$entitySnake.dart',
+          ))
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),
-      if (config.isCustomUseCase && config.returnsType != null)
-        ...EntityUtils.extractEntityTypes(config.returnsType!).map((type) {
-          final snake = StringUtils.camelToSnake(type);
-          return Directive.import(
-            '../../../domain/entities/$snake/$snake.dart',
-          );
-        }),
-      Directive.import('../../mock/${entitySnake}_mock_data.dart'),
+      if (config.returnsType != null && config.returnsType!.isNotEmpty)
+        ...EntityUtils.extractEntityTypes(config.returnsType!)
+            .where(
+              (type) => fileSystem.existsSync(
+                '$outputDir/domain/entities/${StringUtils.camelToSnake(type)}/${StringUtils.camelToSnake(type)}.dart',
+              ),
+            )
+            .map((type) {
+              final snake = StringUtils.camelToSnake(type);
+              return Directive.import(
+                '../../../domain/entities/$snake/$snake.dart',
+              );
+            }),
+      if (config.paramsType != null && config.paramsType!.isNotEmpty)
+        ...EntityUtils.extractEntityTypes(config.paramsType!)
+            .where(
+              (type) => fileSystem.existsSync(
+                '$outputDir/domain/entities/${StringUtils.camelToSnake(type)}/${StringUtils.camelToSnake(type)}.dart',
+              ),
+            )
+            .map((type) {
+              final snake = StringUtils.camelToSnake(type);
+              return Directive.import(
+                '../../../domain/entities/$snake/$snake.dart',
+              );
+            }),
+      if (fileSystem.existsSync(
+        '$outputDir/data/mock/${entitySnake}_mock_data.dart',
+      ))
+        Directive.import('../../mock/${entitySnake}_mock_data.dart'),
       Directive.import('${entitySnake}_datasource.dart'),
     ];
 
