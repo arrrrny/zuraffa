@@ -7,9 +7,30 @@ import 'dart:io';
 import '../../../plugins/tdd/models/tdd_profile.dart';
 
 class TddProfileWriter {
-  const TddProfileWriter({this.profile = TddProfile.flutter});
+  const TddProfileWriter({this.profile = TddProfile.flutter, this.concurrency});
 
   final TddProfile profile;
+
+  /// Concurrency cap injected into every runner command the writer
+  /// renders (issue #1780). When null, resolved from the
+  /// `ZFA_TEST_CONCURRENCY` environment variable, falling back to 2.
+  final int? concurrency;
+
+  int get _concurrency {
+    if (concurrency != null && concurrency! > 0) return concurrency!;
+    final env = Platform.environment['ZFA_TEST_CONCURRENCY'];
+    final parsed = env != null ? int.tryParse(env) : null;
+    if (parsed != null && parsed > 0) return parsed;
+    return 2;
+  }
+
+  String _cap(String command) {
+    if (command.contains('--concurrency')) return command;
+    final match = RegExp(r'^(flutter|dart) test').firstMatch(command);
+    if (match == null) return command;
+    final runner = match.group(1)!;
+    return '$runner test --concurrency=$_concurrency${command.substring(match.end)}';
+  }
 
   /// Write the profile to `.specify/memory/tdd-profile.md`.
   ///
@@ -145,6 +166,13 @@ class TddProfileWriter {
   }
 
   String _render(TddProfile p) {
+    final capped = TddProfile(
+      runner: p.runner,
+      single: _cap(p.single),
+      file: _cap(p.file),
+      suite: _cap(p.suite),
+      coverage: _cap(p.coverage),
+    );
     final platform = isFlutterProfile ? 'Flutter' : 'Dart';
     final runnerHint = isFlutterProfile
         ? '`flutter_test`. Invoked as `flutter test`.'
@@ -160,24 +188,24 @@ This profile is read by the `tdd` spec-kit extension.
 - **Test runner**: $runnerHint
 - **Static analysis**: `dart analyze`. Configured via `analysis_options.yaml`.
 - **Mutation tool**: opt-in via the `mutation_test` dev_dependency.
-- **Coverage**: `${p.resolveCoverage()}` then
+- **Coverage**: `${capped.resolveCoverage()}` then
   `dart run coverage:format_coverage`.
 
 ## Commands
 
-- Single test: `${p.resolveSingle(file: '{file}', name: '{name}')}`
-- Whole file: `${p.resolveFile('{file}')}`
-- Full suite: `${p.resolveSuite()}`
-- Coverage: `${p.resolveCoverage()}`
+- Single test: `${capped.resolveSingle(file: '{file}', name: '{name}')}`
+- Whole file: `${capped.resolveFile('{file}')}`
+- Full suite: `${capped.resolveSuite()}`
+- Coverage: `${capped.resolveCoverage()}`
 
 ## Keys (machine-readable)
 
 ```yaml
-runner: ${p.runner}
-single: '${p.single}'
-file: '${p.file}'
-suite: '${p.suite}'
-coverage: '${p.coverage}'
+runner: ${capped.runner}
+single: '${capped.single}'
+file: '${capped.file}'
+suite: '${capped.suite}'
+coverage: '${capped.coverage}'
 analyze-gate: errors-only  # set 'warnings-blocking' to keep the legacy warnings-blocking gate
 ```
 ''';

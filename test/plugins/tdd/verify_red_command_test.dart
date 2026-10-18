@@ -99,15 +99,18 @@ void main() {
     test(
       'U25: a mutating assertion failure is rejected without red evidence',
       () async {
-        await File(fx.testPathOf('B-001'))
-            .writeAsString(TddFixture.mutatingRedTest(description));
+        await File(fx.testPathOf('B-001')).writeAsString(
+          TddFixture.mutatingRedTest(
+            description,
+            mutatePath: 'lib/b_001_subject.dart',
+          ),
+        );
         final runner = CliRunner(exitOnCompletion: false);
 
         final out = await runner.runCapturing(verifyRedArgs(fx, 'B-001'));
 
         expect(out, contains('read-only integrity violation'));
-        expect(out, contains('lib/verify_red_mutation.txt'));
-        expect(out, contains('test/verify_red_mutation.txt'));
+        expect(out, contains('lib/b_001_subject.dart'));
         expect(
           out,
           contains(
