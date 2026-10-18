@@ -329,7 +329,7 @@ export 'src/domain/os_background_task.dart';
 export 'src/domain/os_background_task_usecase.dart';
 
 /// Observer for callback-based stream listening (optional)
-export 'src/domain/observer.dart';
+export 'src/core/observer.dart';
 
 // ============================================================
 // Presentation - UI Layer

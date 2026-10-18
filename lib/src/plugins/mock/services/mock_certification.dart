@@ -219,14 +219,9 @@ abstract final class MockCertificationService {
                   'domain',
                   'services',
                   config.effectiveDomain,
-                  '${serviceSnake}_service.dart',
+                  '$serviceSnake.dart',
                 )
-              : p.join(
-                  outputDir,
-                  'domain',
-                  'services',
-                  '${serviceSnake}_service.dart',
-                );
+              : p.join(outputDir, 'domain', 'services', '$serviceSnake.dart');
           final mockProviderName = providerName.replaceAll(
             'Provider',
             'MockProvider',

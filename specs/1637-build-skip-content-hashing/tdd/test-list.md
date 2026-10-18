@@ -42,7 +42,7 @@ that owns them (`build_relevance.dart`).
 | U3 | a baseline seeded with a wrong digest for exactly one config file forces the run — per-file comparison, not per-tier | FR-001, FR-005 | example | DONE | `test/plugins/tdd/services/build_relevance_test.dart::refactorBuildSkipNote (issue #1637 config content hashing) > a baseline with one wrong config digest still runs the build` |
 | U4 | the recorded baseline is a version-1 JSON at `.dart_tool/zfa/build_config_baseline.json` carrying markerMtimeMillis and a digests map covering every existing config file | FR-004, FR-006 | example | DONE | `test/plugins/tdd/services/build_relevance_test.dart::refactorBuildSkipNote (issue #1637 config content hashing) > the recorded baseline is version-1 JSON with markerMtimeMillis and full config digests` |
 | U5 | the skip path never rewrites the baseline — after a skip decision the baseline bytes on disk are unchanged, so a follow-up call still skips | FR-006 | example | DONE | `test/plugins/tdd/services/build_relevance_test.dart::refactorBuildSkipNote (issue #1637 config content hashing) > the skip path never rewrites or invalidates the baseline` |
-| U6 | the #1624 verdict table is unchanged for non-config shapes: missing marker → run, no newer file → skip, newer annotated .dart → run, newer non-Dart → run | FR-005 | example | DONE | existing group `refactorBuildSkipNote (issue #1624)` — 6 tests, unchanged and green |
+| U6 | the #1624 verdict table is unchanged for non-config shapes: missing marker → run, no newer file → skip, newer annotated .dart → run, newer non-Dart → run | FR-005 | example | DONE | |
 
 ## Invariants and edge cases still to place
 

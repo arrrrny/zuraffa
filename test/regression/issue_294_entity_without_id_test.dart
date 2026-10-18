@@ -104,6 +104,7 @@ void main() {
           idFieldType: 'String',
           queryField: 'depotId',
           generateData: true,
+          generateMock: true,
           generateLocal: true,
           generateUseCase: true,
           generateVpcs: true,
@@ -349,9 +350,13 @@ Future<void> writeEntityStubWithoutId(
   for (final f in fields) {
     buffer.writeln('  ${f.type} get ${f.name};');
   }
+  buffer.writeln('  $name copyWithField(Object field, Object? value);');
   buffer
     ..writeln('}')
     ..writeln();
+
+  buffer.writeln('class ${name}Patch {}');
+  buffer.writeln();
 
   // Stub `<Name>Fields` class with Field constants for each declared field.
   // The mock datasource / presenter / test generators reference these.

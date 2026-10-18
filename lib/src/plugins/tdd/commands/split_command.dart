@@ -264,6 +264,11 @@ class SplitCommand extends Command<void> {
     final sources = <String, String>{};
     for (final row in rows) {
       classification[row.id] = classify(row);
+      // Derived contract rows (id `contract:<id>`) are never named in
+      // `## Lanes` — they are derived from `## Layer Contracts` and
+      // ride the engine lane by construction (spec 1007), so their
+      // source is `heuristic` rather than `declared`. This is
+      // expected, not a drift signal (issue #1815 review, minor).
       sources[row.id] = declared.containsKey(row.id) ? 'declared' : 'heuristic';
     }
 
