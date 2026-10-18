@@ -702,10 +702,9 @@ class MockDataSourceBuilder {
                           .call([refer('_delay')])
                           .awaited
                           .statement,
-                      refer('${entityName}MockData')
-                          .property('${entityCamel}s')
-                          .returned
-                          .statement,
+                      refer(
+                        '${entityName}MockData',
+                      ).property('${entityCamel}s').returned.statement,
                     ]),
                 ),
             ),
