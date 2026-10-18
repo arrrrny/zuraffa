@@ -97,6 +97,17 @@ RedClassification classify(RunRecord record) {
   if (_hasChannelTimeoutSignature(output)) {
     return RedClassification.channelTimeout;
   }
+  // Issue #1813: a generated subject stub throws UnimplementedError and
+  // the paired test awaits it outside an `expect`, so the transcript is a
+  // bare throw dump with no Expected/Actual block. When that throw
+  // demonstrably originates from the subject's own file (`*_subject.dart`)
+  // and exactly one test ran, it is the honest red the stub was born to
+  // produce — not a runner-tier crash. Narrowly scoped to the subject file
+  // so the #830 widget-crash taxonomy (UnimplementedError escaping a
+  // pump) is untouched.
+  if (_isSubjectUnimplementedThrow(output)) {
+    return RedClassification.assertion;
+  }
   if (_hasWidgetPumpException(output)) {
     return RedClassification.runnerError;
   }
@@ -155,6 +166,16 @@ bool _hasAssertionSignature(String output) =>
 /// `dart test` transcripts never carry these signatures (the phrasing
 /// is flutter-framework-specific), so existing classifications are
 /// unchanged.
+
+/// Issue #1813: a throw dump naming the subject's own `UnimplementedError`,
+/// raised from the generated subject file (`*_subject.dart`). Scoped to that
+/// file path so a widget-lane `UnimplementedError` escaping a pump (which
+/// carries no subject-file stack frame) stays runner-error.
+bool _isSubjectUnimplementedThrow(String output) {
+  if (!output.contains('UnimplementedError')) return false;
+  return RegExp(r'_subject\.dart').hasMatch(output);
+}
+
 final RegExp _widgetPumpException = RegExp(
   r'EXCEPTION CAUGHT BY (WIDGETS|RENDERING|FLUTTER TEST FRAMEWORK) LIBRARY|'
   r'The following (?!TestFailure)\S+ was thrown|'
