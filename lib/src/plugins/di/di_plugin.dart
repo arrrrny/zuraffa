@@ -930,9 +930,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                                           'MockProvider',
                                         ),
                                       ).call([])
-                                    : refer(
-                                        'getIt',
-                                      ).call([], {}, [refer(providerImplName!)]))
+                                    : refer('getIt').call([], {}, [
+                                        refer(providerImplName!),
+                                      ]))
                                 .code,
                     ).closure,
                   ],
