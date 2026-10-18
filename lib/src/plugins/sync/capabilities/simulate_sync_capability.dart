@@ -321,7 +321,6 @@ class SimulateSyncCapability implements ZuraffaCapability {
     );
   }
 
-
   Future<ExecutionResult> _runMultiDevice({
     required int devices,
     required int days,
@@ -337,10 +336,7 @@ class SimulateSyncCapability implements ZuraffaCapability {
     );
     for (var d = 0; d < devices; d++) {
       for (final e in entities) {
-        replicas[d][e] = {
-          'title': ('todo $e', 0),
-          'done': (false, 0),
-        };
+        replicas[d][e] = {'title': ('todo $e', 0), 'done': (false, 0)};
       }
     }
 
