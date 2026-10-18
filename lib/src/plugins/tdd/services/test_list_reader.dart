@@ -708,6 +708,16 @@ class TestListReader {
         final (description, persistence) = PersistenceMarker.extract(cells[2]);
         final (laneUntagged, lane) = LaneMarker.extract(description);
         final (untagged, golden) = GoldenMarker.extract(laneUntagged);
+        // Issue #1743: the cell becomes the subject FUNCTION NAME
+        // verbatim; a cell that cannot name a function is a format error
+        // named here, never a compile error after gen wrote the files.
+        final target = resolveDefaultTarget(id, cell: cells[6]);
+        if (!isLegalTarget(target)) {
+          malformed(
+            'test-reference cell "${cells[6]}" is not a legal subject '
+            'name ("$target") — leave it empty or give a Dart identifier',
+          );
+        }
         return (
           row: BehaviorRow(
             id: id,
@@ -715,7 +725,7 @@ class TestListReader {
             traces: cells[3],
             state: state,
             kind: kindFromCell,
-            target: resolveDefaultTarget(id, cell: cells[6]),
+            target: target,
             persistence: persistence,
             lane: lane,
             golden: golden,
@@ -741,6 +751,16 @@ class TestListReader {
         final (description, persistence) = PersistenceMarker.extract(cells[2]);
         final (laneUntagged, lane) = LaneMarker.extract(description);
         final (untagged, golden) = GoldenMarker.extract(laneUntagged);
+        // Issue #1743: the cell becomes the subject FUNCTION NAME
+        // verbatim; a cell that cannot name a function is a format error
+        // named here, never a compile error after gen wrote the files.
+        final target = resolveDefaultTarget(id, cell: cells[6]);
+        if (!isLegalTarget(target)) {
+          malformed(
+            'test-reference cell "${cells[6]}" is not a legal subject '
+            'name ("$target") — leave it empty or give a Dart identifier',
+          );
+        }
         return (
           row: BehaviorRow(
             id: id,
@@ -748,7 +768,7 @@ class TestListReader {
             traces: cells[3],
             state: state,
             kind: kind,
-            target: resolveDefaultTarget(id, cell: cells[6]),
+            target: target,
             persistence: persistence,
             lane: lane,
             golden: golden,
@@ -775,18 +795,114 @@ class TestListReader {
   /// into the generated subject's function name before, and the pair died
   /// at compile). Existing id shapes (`A1`, `B-001`) fold identically to
   /// the previous `replaceAll('-', '_')` behavior.
+  ///
+  /// Issue #1743: a markdown PLACEHOLDER cell (`-`, `--`, en/em dash,
+  /// `n/a` — with or without the surrounding backticks a code-span cell
+  /// carries) is the universal markdown "no value recorded" spelling, so
+  /// it means "no explicit target" and falls back to the snake-id
+  /// default. It used to be used verbatim, which emitted
+  /// ``void `-`() => throw UnimplementedError('`-` not implemented');`` —
+  /// a non-compiling subject that `zfa tdd status` had already reported
+  /// as a valid list.
   static String resolveDefaultTarget(String id, {String cell = ''}) {
+    final trimmed = cell.trim();
+    final content = _unquoteCell(trimmed);
     final isPathLike =
-        cell.isEmpty ||
-        cell.contains('/') ||
-        cell.contains('::') ||
-        cell.contains(r'$');
+        content.isEmpty ||
+        _placeholderCell.hasMatch(content) ||
+        trimmed.contains('/') ||
+        trimmed.contains('::') ||
+        trimmed.contains(r'$');
     if (isPathLike) {
       final snakeId = id.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
       return 'subject_$snakeId';
     }
-    return cell;
+    return trimmed;
   }
+
+  /// Whether [target] can name a Dart function (issue #1743): the
+  /// generator writes a row's target VERBATIM as the subject function
+  /// name, so anything that is not a legal identifier — or that is a
+  /// reserved word / built-in identifier — renders a stub that cannot
+  /// compile.
+  static bool isLegalTarget(String target) =>
+      _dartIdentifier.hasMatch(target) && !_reservedWords.contains(target);
+
+  /// Markdown placeholder cells that mean "no value recorded" (issue
+  /// #1743): a run of dashes or `n/a`, case-insensitive.
+  static final RegExp _placeholderCell = RegExp(
+    r'^(?:[-–—]+|n/?a)$',
+    caseSensitive: false,
+  );
+
+  /// A legal Dart identifier.
+  static final RegExp _dartIdentifier = RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$');
+
+  /// Dart's reserved words plus the built-in identifiers that cannot name
+  /// a function declaration.
+  static const Set<String> _reservedWords = {
+    'assert',
+    'break',
+    'case',
+    'catch',
+    'class',
+    'const',
+    'continue',
+    'default',
+    'do',
+    'else',
+    'enum',
+    'extends',
+    'false',
+    'final',
+    'finally',
+    'for',
+    'if',
+    'in',
+    'is',
+    'new',
+    'null',
+    'rethrow',
+    'return',
+    'super',
+    'switch',
+    'this',
+    'throw',
+    'true',
+    'try',
+    'var',
+    'void',
+    'while',
+    'with',
+    'abstract',
+    'as',
+    'covariant',
+    'deferred',
+    'dynamic',
+    'export',
+    'extension',
+    'external',
+    'factory',
+    'function',
+    'get',
+    'implements',
+    'import',
+    'interface',
+    'library',
+    'mixin',
+    'operator',
+    'part',
+    'set',
+    'static',
+    'typedef',
+  };
+
+  /// Strip one pair of surrounding backticks from a markdown code-span
+  /// cell, leaving every other cell untouched.
+  static String _unquoteCell(String cell) =>
+      cell.length >= 2 && cell.startsWith('`') && cell.endsWith('`')
+      ? cell.substring(1, cell.length - 1).trim()
+      : cell;
 
   static BehaviorKind? _kindFromCell(String cell) {
     final kindStr = cell.toLowerCase();
