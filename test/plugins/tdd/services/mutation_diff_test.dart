@@ -52,7 +52,7 @@ void main() {
       expect(report.newKilled, 12);
       expect(report.newSurvivedMutants.length, 1);
       expect(report.newSurvivedMutants.first.toString(), 'c.dart:30');
-      expect(report.newMutants, 13);
+      expect(report.newMutants, 1);
       expect(report.thresholdMet, isTrue);
       expect(report.gate, MutationDiffGate.pass);
     });
@@ -102,6 +102,64 @@ void main() {
       );
       final json = report.toJson();
       expect(json, contains('"new_killed": 2'));
+    });
+
+    test('deduplicates survived mutants in the head run', () {
+      final base = _result(killed: 0, survived: 0, timedOut: 0);
+      final head = _result(
+        killed: 0,
+        survived: 2,
+        timedOut: 0,
+        survivors: const [
+          MutationSurvivor(file: 'a.dart', line: 1),
+          MutationSurvivor(file: 'a.dart', line: 1),
+        ],
+      );
+      final report = const MutationDiff().compute(base: base, head: head);
+      expect(report.newSurvivedMutants.length, 1);
+      expect(report.newMutants, 1);
+    });
+
+    test('counts timed-out mutants in newMutants and fails gate', () {
+      final base = _result(killed: 0, survived: 0, timedOut: 0);
+      final head = _result(killed: 0, survived: 0, timedOut: 2);
+      final report = const MutationDiff().compute(
+        base: base,
+        head: head,
+        threshold: 0.8,
+      );
+      expect(report.newTimedOut, 2);
+      expect(report.newMutants, 2);
+      expect(report.thresholdMet, isFalse);
+    });
+
+    test('threshold exactly met passes', () {
+      final base = _result(killed: 0, survived: 0, timedOut: 0);
+      final head = _result(killed: 4, survived: 5, timedOut: 0);
+      final report = const MutationDiff().compute(
+        base: base,
+        head: head,
+        threshold: 0.8,
+      );
+      // newMutants = 5 (missed), newKilled = 4 -> 4/5 == 0.8
+      expect(report.thresholdMet, isTrue);
+    });
+
+    test('rejects out-of-range threshold', () {
+      expect(
+        () => MutationDiffReport(
+          baseKilled: 0,
+          baseSurvived: 0,
+          baseTotal: 0,
+          headKilled: 0,
+          headSurvived: 0,
+          headTotal: 0,
+          newKilled: 0,
+          newSurvivedMutants: const [],
+          threshold: 2.0,
+        ),
+        throwsA(isA<AssertionError>()),
+      );
     });
   });
 }

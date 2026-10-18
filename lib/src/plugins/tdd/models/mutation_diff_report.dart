@@ -9,7 +9,7 @@ library;
 
 import 'dart:convert';
 
-import '../services/mutation_verifier.dart';
+import 'mutation_survivor.dart';
 
 /// Gate decision for a per-PR mutation diff.
 enum MutationDiffGate { pass, failSurvived }
@@ -26,7 +26,7 @@ class MutationDiffReport {
     required this.newKilled,
     required this.newSurvivedMutants,
     required this.threshold,
-  });
+  }) : assert(threshold >= 0 && threshold <= 1, 'threshold must be in [0, 1]');
 
   final int baseKilled;
   final int baseSurvived;
@@ -44,8 +44,19 @@ class MutationDiffReport {
   /// Required kill ratio among the new mutants (0..1).
   final double threshold;
 
-  /// Mutants newly introduced by this PR (killed + missed).
-  int get newMutants => newKilled + newSurvivedMutants.length;
+  /// Mutants newly introduced by this PR that are not cleanly killed:
+  /// missed (survived) mutants plus timed-out mutants. `newKilled` is a
+  /// kill-count delta (see `MutationDiff.compute`) and is deliberately NOT
+  /// mixed into this count, because it conflates newly-introduced kills
+  /// with pre-existing survivors that became killed.
+  int get newTimedOut {
+    final baseTimeout = baseTotal - baseKilled - baseSurvived;
+    final headTimeout = headTotal - headKilled - headSurvived;
+    final delta = headTimeout - baseTimeout;
+    return delta < 0 ? 0 : delta;
+  }
+
+  int get newMutants => newSurvivedMutants.length + newTimedOut;
 
   /// Whether the kill ratio among new mutants meets the threshold.
   /// Vacuously true when there are no new mutants.
