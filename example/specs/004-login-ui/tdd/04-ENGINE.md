@@ -33,4 +33,30 @@ One per declared entity method, controller method and usecase in `spec.md` Layer
 | -- | -------- | ------ | ----- |
 | contract:A1 | LoginValidation.isSubmittable(String email, String password) -> bool (interface method contract) | LoginValidation.isSubmittable | PENDING |
 
+## Layer contracts
+
+### Presentation
+
+- `LoginView`: `key: auth.signIn -> 'Sign in'`, `key: auth.error -> 'Sign in failed'`, `key: auth.working -> 'Signing in…'`
+- `LoginForm`: `ShadInput`, `key: auth.signIn -> 'Sign in'`, `key: auth.email -> 'Email'`, `key: auth.password -> 'Password'`, `key: auth.sessionStarted -> 'Session started'`
+- `adaptive_layouts`: `mobile`, `macos`
+### Function
+
+- `LoginValidation`: `isSubmittable(String email, String password) -> bool`
+
+## Routing provenance
+
+Per-behavior routing decisions (issue #951): what each decision consulted — a declared marker/contract row, or the labeled legacy fallback to migrate.
+
+route: A1 -> acceptance lane [declared: type marker, spec line 20]
+route: A2 -> acceptance lane [declared: type marker, spec line 23]
+route: U1 -> unit lane (view generation) [declared: contract row: adaptive_layouts, spec line 103]
+route: U2 -> unit lane (func surface) [declared: contract row: LoginValidation, spec line 69]
+route: A3 -> acceptance lane [declared: type marker, spec line 26]
+route: A4 -> acceptance lane [declared: type marker, spec line 29]
+route: A5 -> acceptance lane [declared: type marker, spec line 32]
+route: A6 -> acceptance lane [declared: type marker, spec line 35]
+route: A7 -> acceptance lane [declared: type marker, spec line 38]
+route: contract:A1 -> contract lane [declared: LoginValidation]
+
 

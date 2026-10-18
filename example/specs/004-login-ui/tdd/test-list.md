@@ -6,10 +6,9 @@ This feature's plan is split by lane (issue #1000): this file is the meta-index 
 
 | lane | behaviors | flutter allowed | golden | plan |
 | ---- | --------- | --------------- | ------ | ---- |
-| CORE | A1, A2, A3, A4, A5, A6, A7, U1, U2, contract:A1 | false | - | `04-ENGINE.md` |
+| CORE | A1, A2, U1, U2, A3, A4, A5, A6, A7 | false | - | `04-ENGINE.md` |
 | SKIN | W1 | true | - | `04-SKIN.md` |
 
 - engine plan: `04-ENGINE.md`
 - skin plan: `04-SKIN.md`
 - engine/skin contract: `04-CONTRACT.md`
-
