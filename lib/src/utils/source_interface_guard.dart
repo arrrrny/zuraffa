@@ -205,7 +205,7 @@ class SourceInterfaceGuard {
       final serviceName = config.effectiveService;
       final serviceSnake = config.serviceSnake;
       if (serviceName == null || serviceSnake == null) return null;
-      final fileName = '${serviceSnake}_service.dart';
+      final fileName = '${serviceSnake}.dart';
       final filePath = config.isEntityBased
           ? path.join(
               config.outputDir,

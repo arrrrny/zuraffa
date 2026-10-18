@@ -198,14 +198,20 @@ class RegisterCapability implements ZuraffaCapability {
       }
     }
 
-    // Check in domain/services
+    // Check in domain/services. A service interface may be written under
+    // its full name (e.g. `onboarding_provider.dart` for a `Provider`-
+    // suffixed interface), so probe the bare name too.
     final servicesDir = Directory(path.join(outputDir, 'domain', 'services'));
     if (servicesDir.existsSync()) {
       for (final dir in servicesDir.listSync().whereType<Directory>()) {
-        if (File(
-          path.join(dir.path, '${baseSnake}_service.dart'),
-        ).existsSync()) {
-          return path.basename(dir.path);
+        for (final candidate in [
+          '${baseSnake}_service.dart',
+          '${baseSnake}.dart',
+          '${baseSnake}_provider.dart',
+        ]) {
+          if (File(path.join(dir.path, candidate)).existsSync()) {
+            return path.basename(dir.path);
+          }
         }
       }
     }

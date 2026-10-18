@@ -82,14 +82,21 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
       }
       final svcSnake = config.serviceSnake;
       if (svcSnake != null) {
-        usecaseImports.add('../../services/${svcSnake}_service.dart');
+        usecaseImports.add('../../services/${svcSnake}.dart');
       }
 
       final serviceBaseName = serviceName.endsWith('Service')
           ? serviceName.substring(0, serviceName.length - 7)
+          : serviceName.endsWith('Provider')
+          ? serviceName.substring(0, serviceName.length - 8)
           : serviceName;
+      final serviceSuffix = serviceName.endsWith('Service')
+          ? 'Service'
+          : serviceName.endsWith('Provider')
+          ? 'Provider'
+          : 'Service';
       final serviceFieldName =
-          '_${StringUtils.pascalToCamel(serviceBaseName)}Service';
+          '_${StringUtils.pascalToCamel(serviceBaseName)}$serviceSuffix';
 
       usecaseFields.add(
         Field(
