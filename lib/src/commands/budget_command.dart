@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -22,10 +23,13 @@ class BudgetCommand extends Command<void> {
       'check them (issue #819).';
 
   @override
-  String get invocation => 'zfa budget check [options]';
+  String get invocation => 'zfa budget';
 }
 
 class BudgetCheckCommand extends Command<void> {
+  String? _configError;
+  bool _testRunFailed = false;
+
   BudgetCheckCommand() {
     argParser.addOption(
       'format',
@@ -57,12 +61,24 @@ class BudgetCheckCommand extends Command<void> {
   @override
   Future<void> run() async {
     final format = (argResults?['format'] as String?) ?? 'text';
+    if (format != 'text' && format != 'json') {
+      print('❌ Unknown format: $format');
+      print(
+        ExitProtocol.fixLine(
+          'pass --format text or --format json (got "$format")',
+        ),
+      );
+      exitCode = ExitProtocol.usage;
+      return;
+    }
     final skipTests = argResults?['skip-tests'] as bool? ?? false;
     final rootArg = argResults?['root'] as String?;
     final projectRoot = rootArg != null && rootArg.isNotEmpty
         ? p.normalize(p.absolute(rootArg))
         : ProjectRoot.find();
 
+    _configError = null;
+    _testRunFailed = false;
     final budgets = _readBudgets(projectRoot);
 
     final metrics = <String, num>{};
@@ -88,8 +104,30 @@ class BudgetCheckCommand extends Command<void> {
           'actual': entry.value,
           'budget': budget,
           'message': '${entry.key}: ${entry.value} exceeds budget $budget',
+          'fix':
+              'reduce ${entry.key} to at most $budget or raise the budget in '
+              'zfa.yaml',
         });
       }
+    }
+
+    if (_configError != null) {
+      violations.add({
+        'metric': 'config',
+        'actual': 0,
+        'budget': 0,
+        'message': 'zfa.yaml budgets could not be parsed: $_configError',
+        'fix': 'fix the budgets: section of zfa.yaml (see error above)',
+      });
+    }
+    if (_testRunFailed) {
+      violations.add({
+        'metric': 'test_run',
+        'actual': 0,
+        'budget': 0,
+        'message': 'dart test did not complete successfully',
+        'fix': 'fix the test suite (compile/runtime errors) before budgeting',
+      });
     }
 
     final passed = violations.isEmpty;
@@ -120,7 +158,11 @@ class BudgetCheckCommand extends Command<void> {
         print('Violations:');
         for (final v in violations) {
           print('  ${v['message']}');
+          print('  ${ExitProtocol.fixLine(v['fix'] as String)}');
         }
+      }
+      if (_configError != null) {
+        print('  ${ExitProtocol.fixLine('fix the budgets: section of zfa.yaml')}');
       }
     }
 
@@ -134,9 +176,16 @@ class BudgetCheckCommand extends Command<void> {
       final doc = loadYaml(configFile.readAsStringSync());
       if (doc is! Map) return {};
       final budgets = doc['budgets'];
-      if (budgets is! Map) return {};
+      if (budgets == null) return {};
+      if (budgets is! Map) {
+        _configError = 'budgets: must be a map, got ${budgets.runtimeType}';
+        stderr.writeln('Warning: $_configError');
+        return {};
+      }
       return Map<String, dynamic>.from(budgets);
-    } catch (_) {
+    } catch (e) {
+      _configError = e.toString();
+      stderr.writeln('Warning: failed to parse zfa.yaml: $e');
       return {};
     }
   }
@@ -178,6 +227,10 @@ class BudgetCheckCommand extends Command<void> {
     return null;
   }
 
+  /// Sum of file sizes under `lib/`. Named `generated_output_size_bytes`
+  /// in the report because generated artifacts live under `lib/`; the metric
+  /// intentionally measures the whole `lib/` tree (generated + hand-written)
+  /// so a growing codebase is visible regardless of origin.
   int _generatedOutputSize(String projectRoot) {
     final libDir = Directory(p.join(projectRoot, 'lib'));
     if (!libDir.existsSync()) return 0;
@@ -193,18 +246,32 @@ class BudgetCheckCommand extends Command<void> {
   }
 
   Future<int?> _measureTestWallClock(String projectRoot) async {
+    // Budget check must never block indefinitely on a hanging suite, and a
+    // non-compiling/misconfigured suite must not be reported as "passed".
+    const timeout = Duration(seconds: 300);
     final stopwatch = Stopwatch()..start();
     try {
       final result = await Process.run('dart', [
         'test',
-      ], workingDirectory: projectRoot);
+      ], workingDirectory: projectRoot).timeout(timeout);
       stopwatch.stop();
-      if (result.exitCode == 0 || result.exitCode == 1) {
-        return stopwatch.elapsedMilliseconds;
+      if (result.exitCode != 0 && result.exitCode != 1) {
+        _testRunFailed = true;
+        stderr.writeln(
+          'Warning: dart test exited with code ${result.exitCode}: '
+          '${result.stderr}',
+        );
       }
-      return null;
-    } catch (_) {
+      return stopwatch.elapsedMilliseconds;
+    } on TimeoutException {
       stopwatch.stop();
+      _testRunFailed = true;
+      stderr.writeln('Warning: dart test timed out after ${timeout.inSeconds}s');
+      return stopwatch.elapsedMilliseconds;
+    } catch (e) {
+      stopwatch.stop();
+      _testRunFailed = true;
+      stderr.writeln('Warning: failed to run dart test: $e');
       return null;
     }
   }
