@@ -49,7 +49,7 @@ class ThemeImportResult {
       '"typography":${typography.length},'
       '"spacing":${spacing.length},'
       '"violations":${violations.length},'
-      '"output":"$outputPath"}';
+      '"output":${jsonEncode(outputPath)}}';
 }
 
 class ThemeImporter {
@@ -77,7 +77,7 @@ class ThemeImporter {
 
     _walk(decoded, '', colors, typography, spacing);
 
-    final pairs = _contrastPairs(colors);
+    final pairs = contrastPairs(colors);
     final contrastLines = <String>[];
     final violations = <String>[];
     for (final pair in pairs) {
@@ -104,10 +104,8 @@ class ThemeImporter {
       await outFile.parent.create(recursive: true);
       if (force || !outFile.existsSync()) {
         await outFile.writeAsString(_render(colors, typography, spacing));
-      } else {
-        // Overwrite by default for import semantics.
-        await outFile.writeAsString(_render(colors, typography, spacing));
       }
+      // Otherwise: file exists and --force not given; leave it untouched.
     }
 
     return ThemeImportResult(
@@ -134,9 +132,16 @@ class ThemeImporter {
       if (node.containsKey('\$value')) {
         final type = (node['\$type'] ?? '').toString().toLowerCase();
         final val = node['\$value'];
-        final name = _ident(path.isEmpty ? 'token' : path);
-        if (type == 'color' || (val is String && _isColor(val.toString()))) {
-          colors[name] = _normalizeHex(val.toString());
+        final name = ident(path.isEmpty ? 'token' : path);
+        if (type == 'color') {
+          // Only hex colour tokens are supported; skip (rather than crash
+          // on) non-hex values such as `red` or `rgb(...)`.
+          if (!_isColor(val.toString())) return;
+          colors[name] = normalizeHex(val.toString());
+          return;
+        }
+        if (val is String && _isColor(val.toString())) {
+          colors[name] = normalizeHex(val.toString());
           return;
         }
         if (type == 'typography' ||
@@ -144,11 +149,25 @@ class ThemeImporter {
           typography[name] = val;
           return;
         }
-        if (type.contains('dimension') ||
-            type == 'number' ||
-            type == 'spacing' ||
+        // Spacing bucket: explicit spacing/dimension types, or untyped
+        // numerics whose name is not a known non-spacing property
+        // (font weight, opacity, radius, font size, ...).
+        final nameLower = name.toLowerCase();
+        final isNonSpacingName =
+            nameLower.contains('weight') ||
+            nameLower.contains('opacity') ||
+            nameLower.contains('radius') ||
+            nameLower.contains('fontsize') ||
+            nameLower.contains('lineheight') ||
+            nameLower.contains('duration') ||
+            nameLower.contains('zindex');
+        final isNumeric =
             val is num ||
-            (val is String && RegExp(r'^-?\d').hasMatch(val.trim()))) {
+            (val is String && RegExp(r'^-?\d').hasMatch(val.trim()));
+        final explicitSpacing = type == 'spacing' || type.contains('dimension');
+        final numberOk =
+            (type == 'number' || type.isEmpty) && !isNonSpacingName;
+        if (explicitSpacing || (isNumeric && numberOk)) {
           spacing[name] = val;
           return;
         }
@@ -175,7 +194,7 @@ class ThemeImporter {
     }
   }
 
-  List<(String, String)> _contrastPairs(Map<String, String> colors) {
+  List<(String, String)> contrastPairs(Map<String, String> colors) {
     final pairs = <(String, String)>[];
     final lowerIndex = <String, String>{
       for (final k in colors.keys) _norm(k): k,
@@ -187,7 +206,10 @@ class ThemeImporter {
       if (onMatch != null) {
         baseName = '${onMatch.group(1)}${onMatch.group(2)}';
       } else if (RegExp(r'^[Oo]n[A-Z]').hasMatch(name)) {
-        baseName = name.substring(2);
+        // Top-level on-color naming, e.g. onPrimary -> primary. The base
+        // color is stored lower-cased, so lower-case the first char.
+        final raw = name.substring(2);
+        baseName = raw.isEmpty ? raw : raw[0].toLowerCase() + raw.substring(1);
       } else {
         final low = _norm(name);
         if (low == 'foreground' || low == 'text' || low == 'label') {
@@ -199,10 +221,18 @@ class ThemeImporter {
           }
         }
       }
-      if (baseName != null &&
-          colors.containsKey(baseName) &&
-          baseName != name) {
-        pairs.add((name, baseName));
+      // Resolve baseName to an actual color key, with a case-insensitive
+      // fallback via lowerIndex for the camelCase branch.
+      String? resolved;
+      if (baseName != null) {
+        if (colors.containsKey(baseName)) {
+          resolved = baseName;
+        } else {
+          resolved = lowerIndex[_norm(baseName)];
+        }
+      }
+      if (resolved != null && resolved != name) {
+        pairs.add((name, resolved));
       }
     }
     // De-duplicate.
@@ -218,7 +248,7 @@ class ThemeImporter {
   String _norm(String s) =>
       s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
-  String _ident(String path) {
+  String ident(String path) {
     final parts = path.split(RegExp(r'[.\[\]/\-_ ]+'));
     final buf = StringBuffer();
     for (final raw in parts) {
@@ -244,7 +274,7 @@ class ThemeImporter {
     ).hasMatch(t);
   }
 
-  String _normalizeHex(String v) {
+  String normalizeHex(String v) {
     var t = v.trim();
     if (t.startsWith('#')) t = t.substring(1);
     if (t.length == 3) {
