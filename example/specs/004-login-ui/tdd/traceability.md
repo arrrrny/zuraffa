@@ -7,6 +7,7 @@ spec-hash: sha256:033cc6f7e68e79fb50ea58e490a1a5da85efca3e0c1e46bac677419f6e4c46
 statements: 9
 automated: 9
 manual: 0
+fr-manual: 0
 open-gaps: 0
 -->
 
