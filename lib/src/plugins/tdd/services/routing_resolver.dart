@@ -375,6 +375,7 @@ class RoutingResolver {
           }
           return v;
         }
+
         final declared = declaredEntities
             .where((r) => norm(r.name) == norm(mined))
             .firstOrNull;
