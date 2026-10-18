@@ -380,7 +380,9 @@ class ZfaConfig {
         : 'package:zuraffa/mock.dart';
 
     const encoder = JsonEncoder.withIndent('  ');
-    final content = encoder.convert(config.toJson(mockingImport: mockingImport));
+    final content = encoder.convert(
+      config.toJson(mockingImport: mockingImport),
+    );
     await FileUtils.writeFile(configFile.path, content, 'config', force: true);
   }
 
