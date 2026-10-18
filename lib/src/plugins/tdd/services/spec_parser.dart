@@ -1061,14 +1061,36 @@ class SpecParser {
         // Bug #919: the zuraffa-1.0 template declares entities as a
         // 3-column TABLE (`| Entity | Fields | Purpose |`) — parse the
         // table rows (header/separator skipped), like parseDependencies.
+        // Issue #1771: the cell may be backticked (`` `DealListPage` ``)
+        // or carry a generic suffix (`Foo<T>`); normalize to the bare
+        // identifier so the stored row name matches the entity mined from
+        // a declared return type (Future<DealListPage>) and the entity
+        // extracted by parseKeyEntities. Empty/misaligned cells must not
+        // produce a phantom row name.
         if (!trimmed.startsWith('|')) continue;
-        final cells = _splitCells(trimmed);
+        // Issue #1771: preserve empty cells' positions (unlike
+        // _splitCells, which drops them) so a row with an empty cell
+        // cannot shift the captured entity name into the wrong column.
+        final cells = _splitPositionalCells(trimmed);
         if (cells.isEmpty) continue;
-        if (cells[0].toLowerCase() == 'entity') continue; // header
+        // Header row: first non-empty cell is 'entity'.
+        if (cells
+                .firstWhere((c) => c.isNotEmpty, orElse: () => '')
+                .toLowerCase() ==
+            'entity') {
+          continue;
+        }
+        if (cells[0].isEmpty) continue; // no entity name in this row
         if (RegExp(r'^-+$').hasMatch(cells[0])) continue; // separator
+        var entityName = cells[0].replaceAll('`', '').trim();
+        final genericStart = entityName.indexOf('<');
+        if (genericStart > 0) {
+          entityName = entityName.substring(0, genericStart).trim();
+        }
+        if (!_dartIdentifier.hasMatch(entityName)) continue;
         rows.add(
           ContractRowDecl(
-            name: cells[0],
+            name: entityName,
             kind: ContractRowKind.entity,
             specLine: lineNo,
           ),
@@ -1511,7 +1533,7 @@ class SpecParser {
           // mixed section still extracts its bullet-declared entities.
           tableMode = false;
         } else {
-          var name = m.group(1)!.trim();
+          var name = m.group(1)!.trim().replaceAll('`', '').trim();
           final genericStart = name.indexOf('<');
           if (genericStart > 0) {
             name = name.substring(0, genericStart).trim();
@@ -1545,7 +1567,7 @@ class SpecParser {
         inSection = false;
         continue;
       }
-      var name = m.group(1)!.trim();
+      var name = m.group(1)!.trim().replaceAll('`', '').trim();
       final genericStart = name.indexOf('<');
       if (genericStart > 0) name = name.substring(0, genericStart).trim();
       if (!_dartIdentifier.hasMatch(name)) continue;

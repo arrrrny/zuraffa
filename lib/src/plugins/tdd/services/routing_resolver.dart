@@ -358,8 +358,15 @@ class RoutingResolver {
         final declaredEntities = declarations.contractRows.values
             .where((r) => r.kind == ContractRowKind.entity)
             .toList();
+        // Issue #1771: the entity row's stored name and the name mined
+        // from the declared return type may differ in surface form
+        // (backticks, surrounding whitespace, generic suffix) even when
+        // they name the same entity. Normalize both sides before the
+        // membership test so a declared entity is recognised.
+        String norm(String n) =>
+            n.replaceAll('`', '').trim().split('<').first.trim();
         final declared = declaredEntities
-            .where((r) => r.name == mined)
+            .where((r) => norm(r.name) == norm(mined))
             .firstOrNull;
         if (declaredEntities.isNotEmpty && declared == null) {
           return RoutingFailure(
