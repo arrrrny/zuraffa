@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import '../core/failure.dart';
-import '../core/result.dart';
+import 'failure.dart';
+import 'result.dart';
 
 /// Observer for [StreamUseCase] callback-based listening.
 ///
