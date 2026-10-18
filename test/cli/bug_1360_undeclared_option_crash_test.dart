@@ -5,7 +5,7 @@ library;
 // subcommand (bug #856's grammar) crashes package:args' error path with
 // a null-check TypeError instead of the clean usage error:
 //
-//   zfa simulate run --world=v3
+//   zfa simulate run --definitely-undeclared
 //   ❌ Error: Null check operator used on a null value   (exit 1)
 //
 // Root cause: args 2.7.0 CommandRunner.parse's ArgParserException path
@@ -68,7 +68,11 @@ void main() {
   });
 
   test('B4: the usage error carries the SPEC 917 fix line', () async {
-    final (code, output) = await runZfa(['simulate', 'run', '--world=v3']);
+    final (code, output) = await runZfa([
+      'simulate',
+      'run',
+      '--definitely-undeclared',
+    ]);
     expect(code, 2, reason: output);
     expect(output, contains('-->'));
   });
