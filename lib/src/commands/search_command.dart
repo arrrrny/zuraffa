@@ -14,7 +14,7 @@ class SearchCommand extends Command<void> {
   @override
   Future<void> run() async {
     print('❌ Usage: zfa search <subcommand> [arguments]');
-    print('   Run `zfa search --help` to list subcommands.');
+    print('   No subcommands are registered yet (scaffold only).');
     exitCode = ExitProtocol.usage;
   }
 }
