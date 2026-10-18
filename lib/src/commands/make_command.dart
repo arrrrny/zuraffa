@@ -652,6 +652,19 @@ class MakeCommand extends Command<void> {
         ? rest.skip(2).toList()
         : rest.skip(1).toList();
     final normalizedOptions = _normalizedOptions(jsonConfig);
+    // Issue #1020: the `module` preset emits only the FeaturePlugin
+    // orchestrator and has no backing entity, so treat it as
+    // --no-entity to avoid the missing-entity guard.
+    String? requestedPreset;
+    if (argResults?.wasParsed('preset') == true) {
+      requestedPreset = argResults?['preset'] as String?;
+    } else {
+      requestedPreset = normalizedOptions['preset'] as String?;
+    }
+    if (requestedPreset == 'module') {
+      normalizedOptions['no-entity'] = true;
+      normalizedOptions['no_entity'] = true;
+    }
     if (engineMode) {
       // The engine preset is implied by the mode token; the plan resolves
       // through the same PresetRegistry entry `--preset=engine` uses.
