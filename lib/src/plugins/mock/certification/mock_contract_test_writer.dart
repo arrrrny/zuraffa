@@ -139,7 +139,9 @@ class MockContractTestWriter {
               m.returnsType ?? 'void',
               m.useCaseType ?? 'usecase',
             ),
-            paramsType: m.paramsType ?? 'NoParams',
+            paramsType: m.parameterCount == 0
+                ? ''
+                : (m.paramsType ?? 'NoParams'),
           ),
         )
         .toList();
@@ -344,6 +346,7 @@ class MockContractTestWriter {
     required String outputDir,
   }) {
     final t = paramsType.trim();
+    if (t.isEmpty) return '';
     if (t == 'NoParams') return 'const NoParams()';
     if (t.startsWith('QueryParams<')) return '$t()';
     if (t.startsWith('ListQueryParams<')) return '$t()';
