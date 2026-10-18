@@ -1,9 +1,13 @@
+import 'dart:io';
 import 'package:path/path.dart' as p;
+import '../../../utils/string_utils.dart';
 
 import '../../../core/plugin_system/capability.dart';
 import '../service_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
+import '../../../utils/entity_utils.dart';
+import '../../../utils/framework_export_surface.dart';
 import '../service_receipt.dart';
 
 class CreateServiceCapability implements ZuraffaCapability {
@@ -45,6 +49,12 @@ class CreateServiceCapability implements ZuraffaCapability {
         'type': 'string',
         'description': 'Return type for the service method',
         'default': 'void',
+      },
+      'allowForwardRefs': {
+        'type': 'boolean',
+        'description':
+            'Accept params/returns types not yet present on the entity tree',
+        'default': false,
       },
       'type': {
         'type': 'string',
@@ -106,6 +116,16 @@ class CreateServiceCapability implements ZuraffaCapability {
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
     final dryRun = args['dryRun'] == true;
     final target = args['name']?.toString() ?? '';
+
+    // Issue #1794: resolve --params/--returns types before generating.
+    final validationError = _validateServiceTypes(args);
+    if (validationError != null) {
+      return ExecutionResult(
+        success: false,
+        message: validationError,
+        data: {'generatedFiles': const <GeneratedFile>[]},
+      );
+    }
 
     List<GeneratedFile> files;
     try {
@@ -290,6 +310,45 @@ class CreateServiceCapability implements ZuraffaCapability {
   }
 
   String _normalize(String path) => path.replaceAll('\\', '/');
+
+  String? _validateServiceTypes(Map<String, dynamic> args) {
+    final name = args['name']?.toString() ?? '';
+    final paramsType = args['params']?.toString() ?? 'NoParams';
+    final returnsType = args['returns']?.toString() ?? 'void';
+    final allowForwardRefs = args['allowForwardRefs'] == true;
+    final outputDir = plugin.outputDir;
+    final root = projectRoot ?? Directory.current.path;
+
+    final types = <String>{};
+    for (final t in [paramsType, returnsType]) {
+      types.addAll(EntityUtils.extractEntityTypes(t));
+    }
+    if (types.isEmpty) return null;
+
+    final surface = FrameworkExportSurface.tryResolve(projectRoot: root);
+    for (final type in types) {
+      final collisionSource = surface?.lookup(type);
+      if (collisionSource != null) {
+        return 'Cannot create service "$name": type "$type" collides with '
+            'the zuraffa framework export "$type" ($collisionSource).';
+      }
+    }
+    if (allowForwardRefs) return null;
+    for (final type in types) {
+      final snake = StringUtils.camelToSnake(type);
+      final candidates = <String>[
+        p.join(outputDir, 'domain', 'entities', snake, '$snake.dart'),
+        p.join(outputDir, 'domain', 'entities', '$snake.dart'),
+        p.join(outputDir, 'domain', 'entities', 'enums', '$snake.dart'),
+      ];
+      final exists = candidates.any((c) => File(c).existsSync());
+      if (!exists) {
+        return 'Cannot create service "$name": type "$type" could not be '
+            'resolved — no matching entity or enum found under $outputDir.';
+      }
+    }
+    return null;
+  }
 
   Future<List<GeneratedFile>> _generateFiles(
     Map<String, dynamic> args, {
