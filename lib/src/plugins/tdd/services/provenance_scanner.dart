@@ -64,7 +64,7 @@ class ProvenanceReport {
          unattributed: unattributed.length,
        );
 
-  /// Every attributed `lib/` file (relative path) -> its attribution.
+  /// Every attributed scoped file (relative path) -> its attribution.
   final Map<String, Attribution> files;
 
   /// Unattributed files, by name (the audit failures).
@@ -151,21 +151,25 @@ class ProvenanceScanner {
         if (records is! List) continue;
         for (final record in records) {
           if (record is! Map) continue;
-          final subject = record['subject_path'];
-          if (subject is! String || subject.isEmpty) continue;
           final behavior = record['behavior_id'];
           final feature = record['feature'];
-          final rel = normalize(subject);
-          if (!rel.startsWith('lib/')) continue;
-          files.putIfAbsent(
-            rel,
-            () => Attribution(
-              source: AttributionSource.registry,
-              command:
-                  'zfa tdd gen ${behavior is String ? behavior : '?'}/loop'
-                  ' (feature ${feature is String ? feature : p.basename(featureDir.path)}, artifacts.json)',
-            ),
-          );
+          // Both subject_path (lib/...) and test_path (test/tdd/...) are
+          // scoped generated paths (issue #812); attribute each when present.
+          for (final key in const ['subject_path', 'test_path']) {
+            final raw = record[key];
+            if (raw is! String || raw.isEmpty) continue;
+            final rel = normalize(raw);
+            if (!_isScoped(rel)) continue;
+            files.putIfAbsent(
+              rel,
+              () => Attribution(
+                source: AttributionSource.registry,
+                command:
+                    'zfa tdd gen ${behavior is String ? behavior : '?'}/loop'
+                    ' (feature ${feature is String ? feature : p.basename(featureDir.path)}, artifacts.json)',
+              ),
+            );
+          }
         }
       } on FormatException {
         // A broken registry is reported evidence, not a crash (the file
@@ -217,7 +221,7 @@ class ProvenanceScanner {
               final candidate = raw.trim();
               if (candidate.isEmpty || candidate == '(none)') continue;
               final rel = normalize(candidate);
-              if (!rel.startsWith('lib/')) continue;
+              if (!_isScoped(rel)) continue;
               files.putIfAbsent(
                 rel,
                 () => Attribution(
@@ -253,7 +257,7 @@ class ProvenanceScanner {
           for (final raw in fileList) {
             if (raw is! String || raw.isEmpty) continue;
             final rel = normalize(raw);
-            if (!rel.startsWith('lib/')) continue;
+            if (!_isScoped(rel)) continue;
             files.putIfAbsent(
               rel,
               () => Attribution(
@@ -288,7 +292,7 @@ class ProvenanceScanner {
         final reason = entry['reason'];
         if (path is! String || path.isEmpty || reason is! String) continue;
         final rel = normalize(path);
-        if (!rel.startsWith('lib/')) continue;
+        if (!_isScoped(rel)) continue;
         files.putIfAbsent(
           rel,
           () => Attribution(
@@ -301,6 +305,10 @@ class ProvenanceScanner {
       return;
     }
   }
+
+  /// Whether [rel] is in a scoped generated path (`lib/` or `test/tdd/`).
+  bool _isScoped(String rel) =>
+      rel.startsWith('lib/') || rel.startsWith('test/tdd/');
 
   /// Normalize a recorded path to a POSIX project-relative form.
   String normalize(String recorded) {
