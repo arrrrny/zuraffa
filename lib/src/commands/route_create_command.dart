@@ -199,6 +199,33 @@ class RouteCreateCommand extends Command<void> {
     final entityRaw = rest.isNotEmpty ? rest.first : flaggedName!;
     final entity = _canonicalEntity(entityRaw);
 
+    // #1718 Gap 1: refuse upfront when the entity architecture that the
+    // generated routes reference does not exist yet (no view/repository).
+    // Mirrors the #1692 id-gate: run `zfa make` first.
+    final entitySnake = StringUtils.camelToSnake(entity);
+    final mainViewPath = p.join(
+      projectRoot,
+      'lib',
+      'src',
+      'presentation',
+      'pages',
+      entitySnake,
+      '${entitySnake}_view.dart',
+    );
+    if (!File(mainViewPath).existsSync()) {
+      _fail(
+        'route create requires the entity architecture to exist first: '
+        'missing $mainViewPath',
+        fix:
+            'run `zfa make $entity --preset=crud --with=vpc` first, then '
+            're-run `zfa route create $entity`',
+        asJson: asJson,
+        entity: entity,
+        code: 1,
+      );
+      return;
+    }
+
     // Pure-Dart guard (order 5): the skip is a structured verdict in the
     // JSON envelope, not a bare warning. The generator's own guard (in
     // RouteBuilder) still prints its note in text mode — this pre-flight
