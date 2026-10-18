@@ -399,12 +399,12 @@ See [`website/docs/features/mock-data.md`](website/docs/features/mock-data.md) f
 - `website/docs/intro.md`
 - `doc/MIGRATION_GUIDE.md`
 
-Made with 🦒 and ⚡ by the Zuraffa project.
-
 ## Self-hosting loop (v0)
 
 Zuraffa builds zuraffa: every new generator plugin in this repo is born through
 `zfa tdd plan → run → verify` on its own dogfooding fixture, and CI proves it.
 The repo's own specs are the corpus; gaps found while self-hosting become
-generator issues immediately. See `VISION.md` (Pillar F) and issue #821 for the
-roadmap and the first loop-built exhibit.
+generator issues immediately. See `VISION.md`, issue #804 (Pillar F), and issue
+#821 for the roadmap and the first loop-built exhibit.
+
+Made with 🦒 and ⚡ by the Zuraffa project.
