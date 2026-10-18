@@ -103,6 +103,7 @@ environment:
     await runner.run(['create', 'Product']);
 
     expect(exitCode, 1);
+    exitCode = 0; // hermetic: never leak a failure code into the suite
     expect(
       Directory(p.join(workspace.path, '.zfa', 'receipts')).existsSync(),
       isFalse,

@@ -53,6 +53,8 @@ class StopPolicy {
   final String id;
   final int maxTurns;
   const StopPolicy({required this.id, required this.maxTurns});
+
+  StopPolicy copyWithField(Object field, Object? value) => this;
 }
 
 class StopPolicyPatch {

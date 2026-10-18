@@ -77,7 +77,11 @@ class Product {
   final String id;
 
   const Product({required this.id});
+
+  Product copyWithField(Object field, Object? value) => this;
 }
+
+class ProductPatch {}
 ''');
   });
 
