@@ -1,13 +1,14 @@
-/// `RedClassification` + `RunRecord` — the eight-way outcome of a
+/// `RedClassification` + `RunRecord` — the nine-way outcome of a
 /// `zfa tdd verify-red` run (spec 046-tdd-verify-red, FR-004, T003;
-/// seventh class added by issue #831, eighth by issue #964).
+/// seventh class added by issue #831, eighth by issue #964, ninth by
+/// issue #1778).
 ///
 /// Exactly one class per run. `assertion` is the only class that
 /// certifies honest red; every other class is a rejection with a
 /// remediation hint (FR-007).
 library;
 
-/// The six-way outcome classification of a verification run.
+/// The nine-way outcome classification of a verification run.
 enum RedClassification {
   /// Honest red: the target test failed through an assertion.
   assertion('assertion', 'the failure is the expected honest red'),

@@ -980,14 +980,37 @@ class VerifyRedCommand extends Command<void> {
     final titles = _extractTestTitles(content);
     if (titles.isEmpty) return record;
     final recorded = record.plainTestName;
-    final present = titles.any((t) => t.contains(recorded));
+    // Issue #1778 (review): use a whole-name containment check rather
+    // than a bare substring, so a renamed title that merely contains the
+    // old name as a substring is not treated as present (false negative).
+    final present = recorded.isNotEmpty &&
+        titles.any((t) =>
+            RegExp('\\b${RegExp.escape(recorded)}\\b').hasMatch(t));
     if (present) return record;
     String? candidate;
+    // 1. A title that carries the behavior id (the original rule).
     for (final t in titles) {
       if (t.contains(record.behaviorId)) {
         candidate = t;
         break;
       }
+    }
+    // 2. Fallback for titles that dropped the id prefix (common after the
+    //    #871 pure-description change): match by description similarity
+    //    (bidirectional substring containment, case-insensitive).
+    if (candidate == null && recorded.isNotEmpty) {
+      final rl = recorded.toLowerCase();
+      for (final t in titles) {
+        final tl = t.toLowerCase();
+        if (tl.contains(rl) || rl.contains(tl)) {
+          candidate = t;
+          break;
+        }
+      }
+    }
+    // 3. Last resort: a file with exactly one test — bind to that title.
+    if (candidate == null && titles.length == 1) {
+      candidate = titles.first;
     }
     if (candidate == null) return record;
     final newRunnable = '${record.testPath}::${record.behaviorId}::$candidate';
@@ -1011,12 +1034,21 @@ class VerifyRedCommand extends Command<void> {
   /// `testWidgets(...)` / `test ( ... )`) from a test file's source.
   List<String> _extractTestTitles(String content) {
     final titles = <String>[];
-    final re = RegExp(r'''\btest(?:Widgets)?\s*\(\s*['"]([^'"]+)['"]''');
+    // Tolerant of titles containing apostrophes/quotes: accept either
+    // quote kind and allow escaped quotes inside the matching string.
+    final re = RegExp(
+      r'''\btest(?:Widgets)?\s*\(\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")''',
+    );
     for (final m in re.allMatches(content)) {
-      final t = m.group(1);
-      if (t != null && t.isNotEmpty && !titles.contains(t)) {
-        titles.add(t);
-      }
+      var t = m.group(1) ?? m.group(2);
+      if (t == null || t.isEmpty) continue;
+      // Unescape common escape sequences so the captured title matches
+      // the runtime test name.
+      t = t
+          .replaceAll(r"\'", "'")
+          .replaceAll(r'\"', '"')
+          .replaceAll(r'\\', r'\');
+      if (!titles.contains(t)) titles.add(t);
     }
     return titles;
   }
