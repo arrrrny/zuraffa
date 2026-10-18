@@ -111,7 +111,11 @@ class UiNode {
     if (actionTier != null) buf.write(' tier=$actionTier');
     if (role != null) buf.write(' role=$role');
     if (label != null) buf.write(' label=$label');
-    if (bindings.isNotEmpty) buf.write(' bindings=${bindings.length}');
+    if (bindings.isNotEmpty) {
+      buf.write(' bindings=[');
+      buf.write(bindings.map((b) => '${b.source}->${b.target}${b.transform == null ? '' : ' via ${b.transform}'}').join(','));
+      buf.write(']');
+    }
     if (props.isNotEmpty) buf.write(' props=$props');
     if (children.isNotEmpty) buf.write(' children=${children.length}');
     buf.write(')');
@@ -262,6 +266,7 @@ class UiVocabularySchema {
       'card',
       'row',
       'column',
+      'screen',
     },
     nodeCap: 256,
     schemaVersion: '1.0.0',

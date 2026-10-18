@@ -85,7 +85,9 @@ class ScreenDoc {
     styleToken: json['styleToken']?.toString(),
     actionId: json['actionId']?.toString(),
     props:
-        (json['props'] as Map?)?.cast<String, Object?>() ??
+        (json['props'] is Map
+            ? (json['props'] as Map).cast<String, Object?>()
+            : null) ??
         const <String, Object?>{},
     bindings:
         (json['bindings'] as List?)

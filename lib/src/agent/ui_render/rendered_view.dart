@@ -70,7 +70,17 @@ String _canonicalize(UiNode node) {
   if (node.styleToken != null) buf.write(',style:${node.styleToken}');
   if (node.role != null) buf.write(',role:${node.role}');
   if (node.label != null) buf.write(',label:${node.label}');
-  if (node.bindings.isNotEmpty) buf.write(',bindings:${node.bindings.length}');
+  if (node.bindings.isNotEmpty) {
+    buf.write(',bindings:[');
+    for (var i = 0; i < node.bindings.length; i++) {
+      if (i > 0) buf.write(',');
+      final b = node.bindings[i];
+      buf.write('{source:${b.source},target:${b.target}');
+      if (b.transform != null) buf.write(',transform:${b.transform}');
+      buf.write('}');
+    }
+    buf.write(']');
+  }
   if (node.actionId != null) {
     buf.write(',action:${node.actionId}');
     buf.write(',tier:${node.actionTier ?? ActionTier.safe}');
