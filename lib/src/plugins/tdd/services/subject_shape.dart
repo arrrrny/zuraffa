@@ -31,7 +31,7 @@
 /// placeholder (the predicate never guesses).
 library;
 
-import 'widget_scaffold.dart' show scaffoldedMarker;
+import 'widget_scaffold.dart' show isScaffoldedMarkerLine;
 
 /// An actual `throw UnimplementedError(...)` statement in executable code.
 final RegExp _unimplementedThrow = RegExp(
@@ -51,7 +51,7 @@ final RegExp _functionDecl = RegExp(
 /// born-green placeholder shapes. See the library doc for the class list.
 bool subjectIsBornGreenPlaceholder(String raw) {
   // 1. The widget-test scaffold's placeholder marker.
-  if (raw.contains(scaffoldedMarker)) return true;
+  if (raw.split('\n').any(isScaffoldedMarkerLine)) return true;
 
   // 2. A subject that still throws: a stub whose paired test passes is
   //    the born-green class proper.

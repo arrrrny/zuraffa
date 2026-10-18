@@ -1890,6 +1890,7 @@ class GenCommand extends Command<void> {
     bool flutterTest = false,
     String? projectRoot,
     String? featureDir,
+    bool omitVacuousMarker = false,
   }) {
     if (behavior.kind == BehaviorKind.theme) {
       return (
@@ -1939,6 +1940,7 @@ class GenCommand extends Command<void> {
         // wording).
         projectRoot: projectRoot,
         featureDir: featureDir,
+        omitVacuousMarker: omitVacuousMarker,
       ).write,
       writeSubject: SubjectWriter(contractShape: contractShape).write,
     );
@@ -2312,6 +2314,7 @@ class GenCommand extends Command<void> {
         // remedy as the real write (one wording per gen output).
         projectRoot: projectRoot,
         featureDir: featureDir,
+        omitVacuousMarker: true,
       );
       final mirroredTest = p.join(
         mirror.path,
