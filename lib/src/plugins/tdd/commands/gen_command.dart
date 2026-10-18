@@ -1090,9 +1090,8 @@ class GenCommand extends Command<void> {
     // a positional U-id remap would otherwise regenerate the old behavior
     // under the id silently.
     try {
-      final prior = await ArtifactRegistry(
-        featureDir: featureDir,
-      ).findRecord(behavior.id);
+      final prior = await ArtifactRegistry(featureDir: featureDir)
+          .findRecord(behavior.id);
       if (prior != null && prior.sourceCriterion != behavior.sourceCriterion) {
         stderr.writeln(
           'zfa tdd gen: behavior ${behavior.id} criterion mismatch — '
@@ -1107,9 +1106,7 @@ class GenCommand extends Command<void> {
           'the affected artifacts.json records and their test/subject '
           'pairs to the new ids, then re-run `zfa tdd plan $featureName`.',
         );
-        throw StateError(
-          'zfa tdd gen: criterion mismatch for ${behavior.id}',
-        );
+        throw StateError('zfa tdd gen: criterion mismatch for ${behavior.id}');
       }
     } on Exception {
       // fail open on unreadable registry
