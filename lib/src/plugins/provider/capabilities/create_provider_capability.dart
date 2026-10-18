@@ -31,7 +31,14 @@ class CreateProviderCapability implements ZuraffaCapability {
   JsonSchema get inputSchema => {
     'type': 'object',
     'properties': {
-      'name': {'type': 'string', 'description': 'Name of the provider'},
+      'name': {
+        'type': 'string',
+        'description':
+            'Name of the provider. Passing it positionally '
+            '(zfa provider create <Name>) binds to the existing service '
+            'interface <Name>Service; the flag form (zfa provider create '
+            '--name <Name> [--domain ...]) generates a standalone provider.',
+      },
 
       'domain': {
         'type': 'string',
