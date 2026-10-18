@@ -285,9 +285,7 @@ class SimulationBindingEmitter {
     final coreImport = flavor == ProjectFlavor.flutter
         ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
         : 'package:zuraffa/zuraffa.dart';
-    final simulationImport = flavor == ProjectFlavor.flutter
-        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
-        : 'package:zuraffa/simulation.dart';
+    final simulationImport = 'package:zuraffa/simulation.dart';
 
     return FileUtils.writeFile(
       bindingPath,
@@ -325,9 +323,7 @@ class SimulationBindingEmitter {
     final coreImport = flavor == ProjectFlavor.flutter
         ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
         : 'package:zuraffa/zuraffa.dart';
-    final simulationImport = flavor == ProjectFlavor.flutter
-        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
-        : 'package:zuraffa/simulation.dart';
+    final simulationImport = 'package:zuraffa/simulation.dart';
 
     return FileUtils.writeFile(
       bindingPath,
@@ -371,9 +367,7 @@ class SimulationBindingEmitter {
     final coreImport = flavor == ProjectFlavor.flutter
         ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
         : 'package:zuraffa/zuraffa.dart';
-    final simulationImport = flavor == ProjectFlavor.flutter
-        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
-        : 'package:zuraffa/simulation.dart';
+    final simulationImport = 'package:zuraffa/simulation.dart';
 
     final indexPath = path.join(simulationDir, 'index.dart');
     return FileUtils.writeFile(
