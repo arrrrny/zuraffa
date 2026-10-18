@@ -88,9 +88,24 @@ const String widgetScaffoldComment =
       // scenario-derived finders (find.text / find.byType ...) and remove
       // this marker before certifying green.''';
 
+/// Whether [line] is an instructional scaffold-marker comment line — the
+/// marker appearing as the leading token of a `//` comment (issue #1753).
+/// A bare substring match anywhere in the file (including prose that
+/// merely names the marker while documenting its removal) is NOT enough:
+/// the marker must be the instruction the template emits, not a word in
+/// a sentence.
+bool isScaffoldedMarkerLine(String line) => RegExp(
+  r'^\s*//\s*' + RegExp.escape(scaffoldedMarker) + r'\b',
+).hasMatch(line);
+
 /// Whether [content] carries the scaffold marker (a scaffolded test is
 /// excluded from contract-green accounting, issue #912 defect 3).
-bool contentIsScaffolded(String content) => content.contains(scaffoldedMarker);
+///
+/// Only instructional marker lines count (issue #1753): a comment that
+/// merely names the marker (e.g. documenting its removal) no longer
+/// permanently scaffolds the file.
+bool contentIsScaffolded(String content) =>
+    content.split('\n').any(isScaffoldedMarkerLine);
 
 /// Issue #938 preflight — the widget lane boots generated widget tests in
 /// a ZuraffaApp shell, whose import must resolve in the TARGET project.

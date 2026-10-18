@@ -21,13 +21,17 @@ import '../../../lib/tdd/033-golden/a1_subject.dart' as subject;
 void main() {
   group('A1 (AC-1)', () {
     test('A1 \u2014 contract:A1 — Calculator.add(int a, int b) -> int (usecase contract)', () {
-      // Case 1 of 3 — signature: the declared method
-      // `contract:A1 — Calculator.add(int a, int b) -> int` is
-      // exposed by the implementation subject.
+      // Case 1 of 3 — exposure: the declared method
+      // `contract:A1 — Calculator.add(int a, int b) -> int` must
+      // resolve on the implementation subject. This case proves EXPOSURE
+      // only — a tearoff of the declared function type is never null; the
+      // invocation and the declared outcome are Case 2 and Case 3 (issue
+      // #1751).
       final impl = subject.add;
       expect(impl, isNotNull,
-          reason: 'contract:A1 — Calculator.add must be exposed with the declared '
-              'signature `(int a, int b) -> int`');
+          reason: 'contract:A1 — Calculator.add must be exposed on the '
+              'implementation subject (exposure only — the declared '
+              'outcome is asserted by the return case)');
 
       // Case 2 of 3 — implementation: invoking the declared
       // method does not throw UnimplementedError. A captured rejection

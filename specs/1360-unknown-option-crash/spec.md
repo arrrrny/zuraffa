@@ -7,7 +7,7 @@ Epic: #1136 Phase B exit criterion 1
 
 ## Summary
 
-`zfa simulate run --world=v3` crashed with `❌ Error: Null check operator
+`zfa simulate run --definitely-undeclared` crashed with `❌ Error: Null check operator
 used on a null value` (exit 1) instead of a clean usage error. Root cause:
 args 2.7.0's `CommandRunner.parse` error path resolves the exception's
 command chain via `commands[...]!` / `subcommands[...]!` — but `run` is
@@ -32,16 +32,18 @@ crash; the epic contract note is recorded in the PR and issue.
    resolvable command), then throw the standard `usageException`.
 2. Any TypeError that survives a clean re-parse is rethrown untouched
    (the override must never swallow unrelated crashes).
-3. No flag is declared for `--world`; no scenario/world versioning is
-   invented. Exit codes: 2 (usage) for unknown options, unchanged
-   elsewhere.
+3. The crash guard is exercised with a genuinely undeclared flag
+   (`--definitely-undeclared`); `--world` is now a declared option of
+   `SimulateRunCommand` (spec 1136 lane 1), so it is no longer an
+   undeclared-option probe. No scenario/world versioning is invented.
+   Exit codes: 2 (usage) for unknown options, unchanged elsewhere.
 4. SPEC 917 fix-line protocol holds on the usage error path.
 
 ## Functional requirements
 
 - **FR-1 (clean refusal)**: an undeclared subcommand-level option
-  (`zfa simulate run --world=v3`) exits 2 with
-  `Could not find an option named "--world"` + the command usage — never
+  (`zfa simulate run --definitely-undeclared`) exits 2 with
+  `Could not find an option named "--definitely-undeclared"` + the command usage — never
   the null-check crash.
 - **FR-2 (parent-level unchanged)**: an undeclared parent-level option
   keeps its (already clean) usage refusal.
@@ -50,7 +52,7 @@ crash; the epic contract note is recorded in the PR and issue.
 
 ## Acceptance scenarios (measurable)
 
-1. `zfa simulate run --world=v3` → exit 2, clean message, usage, the
+1. `zfa simulate run --definitely-undeclared` → exit 2, clean message, usage, the
    `--> fix:` line, and NO "Null check operator" text.
 2. `zfa simulate --world=v3` → exit 2 clean (guard).
 3. `zfa simulate --help` → exit 0 (guard).
