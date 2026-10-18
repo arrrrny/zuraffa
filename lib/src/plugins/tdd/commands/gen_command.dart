@@ -1090,8 +1090,9 @@ class GenCommand extends Command<void> {
     // a positional U-id remap would otherwise regenerate the old behavior
     // under the id silently.
     try {
-      final prior = await ArtifactRegistry(featureDir: featureDir)
-          .findRecord(behavior.id);
+      final prior = await ArtifactRegistry(
+        featureDir: featureDir,
+      ).findRecord(behavior.id);
       if (prior != null && prior.sourceCriterion != behavior.sourceCriterion) {
         stderr.writeln(
           'zfa tdd gen: behavior ${behavior.id} criterion mismatch — '
@@ -1928,8 +1929,9 @@ class GenCommand extends Command<void> {
     if (behavior.kind == BehaviorKind.platform && platformContext != null) {
       return (
         writeTest: PlatformHarnessTestWriter(context: platformContext).write,
-        writeSubject: PlatformHarnessSubjectWriter(context: platformContext)
-            .write,
+        writeSubject: PlatformHarnessSubjectWriter(
+          context: platformContext,
+        ).write,
       );
     }
     if (behavior.kind == BehaviorKind.contract) {

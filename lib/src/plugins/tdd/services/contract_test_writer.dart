@@ -98,8 +98,9 @@ class ContractDeclaration {
   static ContractDeclaration? parse(String description) {
     var text = description.trim();
     // Strip the trailing ` (<category> contract)` marker.
-    final categoryMatch = RegExp(r'\s*\(([^()]*)\s+contract\)\s*$')
-        .firstMatch(text);
+    final categoryMatch = RegExp(
+      r'\s*\(([^()]*)\s+contract\)\s*$',
+    ).firstMatch(text);
     var category = 'interface method';
     if (categoryMatch != null) {
       category = categoryMatch.group(1)!.trim();
@@ -341,8 +342,9 @@ bool _isRenderableType(String type) {
   var base = trimmed;
   if (base.endsWith('?')) base = base.substring(0, base.length - 1);
   if (_scalarTypes.contains(base)) return true;
-  final generic = RegExp(r'^(Future|Stream|List|Set|Iterable)<(.+)>$')
-      .firstMatch(base);
+  final generic = RegExp(
+    r'^(Future|Stream|List|Set|Iterable)<(.+)>$',
+  ).firstMatch(base);
   if (generic != null) {
     return _isRenderableType(generic.group(2)!.trim());
   }
@@ -531,8 +533,9 @@ String _representativeArg(String type, int index) {
 /// assignable, and a literal naming an unimported inner type would not
 /// compile (issue #1541 review).
 String? _renderableLiteralArg(String base, int index) {
-  final generic = RegExp(r'^(Future|Stream|List|Set|Iterable)<(.+)>$')
-      .firstMatch(base);
+  final generic = RegExp(
+    r'^(Future|Stream|List|Set|Iterable)<(.+)>$',
+  ).firstMatch(base);
   if (generic != null) {
     final inner = generic.group(2)!.trim();
     if (!_isRenderableType(inner)) return null;
