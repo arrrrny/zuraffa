@@ -296,7 +296,14 @@ class VerifyRedCommand extends Command<void> {
       exitCode = 1;
       return;
     }
-    final record = target.record;
+    var record = target.record;
+    // Issue #1778: a hand-implemented test's title may have changed (e.g.
+    // a corrected spec description) so the recorded `runnable_test_name`
+    // no longer matches anything in the file. Detect that drift here and
+    // re-bind the recorded name to the corrected title found in the test
+    // file, so `--re-certify` (and the normal run) can recover instead
+    // of dying with an opaque runner-error (exit 79).
+    record = await _rebindRunnableTestNameIfNeeded(cwd, target, record);
     print('zfa tdd verify-red: behavior ${record.behaviorId}');
     print('   feature: ${target.featureName}');
     print('   test: ${record.testPath}');
@@ -408,6 +415,21 @@ class VerifyRedCommand extends Command<void> {
     // ---------------------------------------------------------------
     final classification = classify(run);
     print('   classification: ${classification.label}');
+    if (classification == RedClassification.testNameMismatch) {
+      print('   recorded runnable_test_name: ${record.runnableTestName}');
+      final mismatchTestPath = p.isAbsolute(record.testPath)
+          ? record.testPath
+          : p.join(cwd, record.testPath);
+      String mismatchContent = '';
+      try {
+        mismatchContent = File(mismatchTestPath).readAsStringSync();
+      } catch (_) {}
+      final presentNames = _extractTestTitles(mismatchContent);
+      print(
+        '   tests present in ${record.testPath}: '
+        '${presentNames.isEmpty ? '(none)' : presentNames.join(', ')}',
+      );
+    }
 
     // ---------------------------------------------------------------
     // 4b. Issue #1007 — the CONTRACT lane: a failing contract test is
@@ -932,6 +954,71 @@ class VerifyRedCommand extends Command<void> {
       }
     }
     return null;
+  }
+
+  /// Issue #1778: re-bind the recorded `runnable_test_name` to a
+  /// corrected test title found in the target file, when the recorded
+  /// name matches nothing. Returns [record] unchanged when no rebind is
+  /// needed or possible (the zero-match then surfaces as
+  /// `test-name-mismatch`).
+  Future<ArtifactRecord> _rebindRunnableTestNameIfNeeded(
+    String cwd,
+    _ResolvedTarget target,
+    ArtifactRecord record,
+  ) async {
+    final testPath = p.isAbsolute(record.testPath)
+        ? record.testPath
+        : p.join(cwd, record.testPath);
+    final file = File(testPath);
+    if (!file.existsSync()) return record;
+    String content;
+    try {
+      content = await file.readAsString();
+    } catch (_) {
+      return record;
+    }
+    final titles = _extractTestTitles(content);
+    if (titles.isEmpty) return record;
+    final recorded = record.plainTestName;
+    final present = titles.any((t) => t.contains(recorded));
+    if (present) return record;
+    String? candidate;
+    for (final t in titles) {
+      if (t.contains(record.behaviorId)) {
+        candidate = t;
+        break;
+      }
+    }
+    if (candidate == null) return record;
+    final newRunnable = '${record.testPath}::${record.behaviorId}::$candidate';
+    if (newRunnable == record.runnableTestName) return record;
+    try {
+      final registry = ArtifactRegistry(featureDir: target.featureDir);
+      await registry.updateRunnableTestName(record.behaviorId, newRunnable);
+    } catch (_) {
+      // Best-effort: a failed write keeps the old record; the
+      // zero-match surfaces as test-name-mismatch below.
+      return record;
+    }
+    print(
+      '   rebind: runnable_test_name updated from '
+      '"${record.runnableTestName}" to "$newRunnable" (issue #1778)',
+    );
+    return record.copyWithRunnableTestName(newRunnable);
+  }
+
+  /// Extract the outer test titles (the strings passed to `test(...)` /
+  /// `testWidgets(...)` / `test ( ... )`) from a test file's source.
+  List<String> _extractTestTitles(String content) {
+    final titles = <String>[];
+    final re = RegExp(r'''\btest(?:Widgets)?\s*\(\s*['"]([^'"]+)['"]''');
+    for (final m in re.allMatches(content)) {
+      final t = m.group(1);
+      if (t != null && t.isNotEmpty && !titles.contains(t)) {
+        titles.add(t);
+      }
+    }
+    return titles;
   }
 
   /// The runnable test name for `--plain-name` matching — the record's

@@ -1043,12 +1043,32 @@ class DoctorCommand extends Command<void> {
           continue;
         }
         if (diskDigest == recordedDigest) continue; // no drift
-        lines.add(
-          '${record.behaviorId}: hand-delta drift — $relative matches no '
-          'receipt digest (receipt ${_shortDigest(recordedDigest)}, disk '
-          '${_shortDigest(diskDigest)}) — the certified hand-delta is not '
-          'receipted (issue #1423)',
-        );
+        var driftLine =
+            '${record.behaviorId}: hand-delta drift — $relative matches no '
+            'receipt digest (receipt ${_shortDigest(recordedDigest)}, disk '
+            '${_shortDigest(diskDigest)}) — the certified hand-delta is not '
+            'receipted (issue #1423)';
+        // Issue #1778: when the recorded runnable_test_name is absent from
+        // the test file, the drift is (also) a test-title mismatch that
+        // `--re-certify` can now rebind — name it so the operator sees
+        // the real cause instead of only the digest mismatch.
+        if (recorded == record.testPath) {
+          final testFile = File(p.join(cwd, relative));
+          if (testFile.existsSync()) {
+            String testContent = '';
+            try {
+              testContent = testFile.readAsStringSync();
+            } catch (_) {}
+            final recordedName = record.plainTestName;
+            if (recordedName.isNotEmpty &&
+                !testContent.contains(recordedName)) {
+              driftLine +=
+                  ' (test-name mismatch: recorded runnable_test_name '
+                  '"${record.runnableTestName}" is absent from $relative)';
+            }
+          }
+        }
+        lines.add(driftLine);
         firstDrifted ??= record.behaviorId;
       }
     }

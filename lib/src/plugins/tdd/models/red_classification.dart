@@ -78,6 +78,20 @@ enum RedClassification {
         'the emitted assertions carry the scenario\'s kinds (route '
         'outcome / absence / enabled-state), then re-run `zfa tdd '
         'verify-red <behavior-id>`',
+  ),
+
+  /// The recorded `runnable_test_name` matches no test in the target file
+  /// (issue #1778): the test title changed (e.g. a corrected spec
+  /// description) so `--plain-name` filters to zero tests. Distinct from
+  /// `runner-error` so the operator can see the real cause instead of
+  /// being told to check the toolchain.
+  testNameMismatch(
+    'test-name-mismatch',
+    'the recorded runnable_test_name matches no test in the target file '
+        '(issue #1778) — the test title changed; re-run '
+        '`zfa tdd verify-red <behavior-id> --re-certify` to rebind it to '
+        'the corrected title, then re-run `zfa tdd verify-red '
+        '<behavior-id>`',
   );
 
   const RedClassification(this.label, this.remediationHint);

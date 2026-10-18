@@ -241,7 +241,7 @@ Failing tests:
           testCount: 0,
         ),
       );
-      expect(result, RedClassification.runnerError);
+      expect(result, RedClassification.testNameMismatch);
     });
 
     test('unparseable count is not honest evidence of a single run', () {
@@ -459,7 +459,7 @@ Failing tests:
   });
 
   group('RedClassification model (T003)', () {
-    test('exposes exactly the eight spec classes with kebab labels', () {
+    test('exposes exactly the nine spec classes with kebab labels', () {
       // The eighth class (kind-mismatch, issue #964): the observed red
       // came from a finder whose kind does not match the scenario verb.
       expect(RedClassification.values.map((c) => c.label), [
@@ -471,6 +471,7 @@ Failing tests:
         'runner-error',
         'channel-timeout',
         'kind-mismatch',
+        'test-name-mismatch',
       ]);
     });
 
