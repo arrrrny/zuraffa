@@ -68,6 +68,9 @@ String _canonicalize(UiNode node) {
   final buf = StringBuffer();
   buf.write('{type:${node.type}');
   if (node.styleToken != null) buf.write(',style:${node.styleToken}');
+  if (node.role != null) buf.write(',role:${node.role}');
+  if (node.label != null) buf.write(',label:${node.label}');
+  if (node.bindings.isNotEmpty) buf.write(',bindings:${node.bindings.length}');
   if (node.actionId != null) {
     buf.write(',action:${node.actionId}');
     buf.write(',tier:${node.actionTier ?? ActionTier.safe}');

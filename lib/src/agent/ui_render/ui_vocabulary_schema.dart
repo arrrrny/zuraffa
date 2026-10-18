@@ -6,6 +6,39 @@ library;
 /// The risk tier of a semantic action (spec US5 — `confirm`-tier gating).
 enum ActionTier { safe, confirm }
 
+/// A data binding attached to a vocabulary node (v2 — agent-renderable UI).
+///
+/// Binds a node property to a data source path so the renderer can hydrate
+/// the node without the agent hand-writing widget trees.
+class UiBinding {
+  /// Source data path (e.g. `note.title`, `note.isPinned`).
+  final String source;
+
+  /// Target property on the node (e.g. `text`, `value`, `visible`).
+  final String target;
+
+  /// Optional transform name applied to the bound value.
+  final String? transform;
+
+  const UiBinding({required this.source, required this.target, this.transform});
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'source': source,
+    'target': target,
+    if (transform != null) 'transform': transform,
+  };
+
+  factory UiBinding.fromJson(Map<String, Object?> json) => UiBinding(
+    source: (json['source'] ?? '').toString(),
+    target: (json['target'] ?? '').toString(),
+    transform: json['transform']?.toString(),
+  );
+
+  @override
+  String toString() =>
+      'UiBinding($source -> $target${transform == null ? '' : ' via $transform'})';
+}
+
 /// A node in an agent-authored component tree.
 ///
 /// The shape is intentionally minimal and pure-Dart: every field is observable
@@ -37,6 +70,18 @@ class UiNode {
   /// risky actions that must pass through the [PolicyGate] (spec FR-006).
   final ActionTier? actionTier;
 
+  /// Semantic role of this node in the v2 vocabulary (e.g. `container`,
+  /// `list`, `detail`, `form`, `field`, `action`). Drives layout rendering
+  /// and verification (issue #818).
+  final String? role;
+
+  /// Semantic (a11y) label for this node. Verification fails when a role that
+  /// requires a label has none, naming the role (issue #818 "Done when").
+  final String? label;
+
+  /// Data bindings attached to this node (v2).
+  final List<UiBinding> bindings;
+
   const UiNode({
     required this.type,
     this.props = const <String, Object?>{},
@@ -44,6 +89,9 @@ class UiNode {
     this.styleToken,
     this.actionId,
     this.actionTier,
+    this.role,
+    this.label,
+    this.bindings = const <UiBinding>[],
   });
 
   /// Count of all nodes in this subtree (self + descendants).
@@ -61,6 +109,9 @@ class UiNode {
     if (styleToken != null) buf.write(' style=$styleToken');
     if (actionId != null) buf.write(' action=$actionId');
     if (actionTier != null) buf.write(' tier=$actionTier');
+    if (role != null) buf.write(' role=$role');
+    if (label != null) buf.write(' label=$label');
+    if (bindings.isNotEmpty) buf.write(' bindings=${bindings.length}');
     if (props.isNotEmpty) buf.write(' props=$props');
     if (children.isNotEmpty) buf.write(' children=${children.length}');
     buf.write(')');
@@ -150,6 +201,9 @@ class UiVocabularySchema {
   /// Allowed style token values (e.g. `primary`, `secondary`, `danger`).
   final Set<String> allowedStyleTokens;
 
+  /// Allowed semantic roles (v2). Empty set means "any role string allowed".
+  final Set<String> allowedRoles;
+
   /// Maximum node count per rendered tree (FR-002 cap overflow).
   final int nodeCap;
 
@@ -164,6 +218,7 @@ class UiVocabularySchema {
     required this.allowedNodeTypes,
     required this.allowedStyleTokens,
     required this.nodeCap,
+    this.allowedRoles = const <String>{},
     this.schemaVersion = '1.0.0',
     this.missionType,
   });
@@ -191,6 +246,22 @@ class UiVocabularySchema {
       'warning',
       'danger',
       'neutral',
+    },
+    allowedRoles: {
+      'container',
+      'list',
+      'detail',
+      'form',
+      'field',
+      'action',
+      'label',
+      'image',
+      'text',
+      'header',
+      'footer',
+      'card',
+      'row',
+      'column',
     },
     nodeCap: 256,
     schemaVersion: '1.0.0',
@@ -232,6 +303,19 @@ class UiVocabularySchema {
         ValidationError(
           ValidationErrorKind.unknownNodeType,
           'Node type "${node.type}" is not in the allowed vocabulary.',
+          nodeName: node.type,
+        ),
+      );
+    }
+
+    // Invalid semantic role (v2).
+    if (node.role != null &&
+        allowedRoles.isNotEmpty &&
+        !allowedRoles.contains(node.role)) {
+      errors.add(
+        ValidationError(
+          ValidationErrorKind.unknownNodeType,
+          'Semantic role "${node.role}" is not in the allowed role set.',
           nodeName: node.type,
         ),
       );
