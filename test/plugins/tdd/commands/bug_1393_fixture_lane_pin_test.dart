@@ -21,7 +21,7 @@ void main() {
     'example/specs/004-login-ui/tdd/split-receipt.json',
   );
 
-  test('B1: U1 (FR-001, adaptive view presentation) is declared SKIN', () {
+  test('B1: U1 (FR-001, adaptive view presentation) is declared CORE', () {
     expect(
       spec.existsSync(),
       isTrue,
@@ -36,12 +36,10 @@ void main() {
     expect(lanes, isNotNull, reason: 'the fixture declares a `## Lanes` block');
     final block = lanes!.group(1)!;
 
-    final coreList = RegExp(
-      r'- lane:\s*CORE\s*\n\s*behaviors:\s*\[([^\]]*)\]',
-    ).firstMatch(block);
-    final skinList = RegExp(
-      r'- lane:\s*SKIN\s*\n\s*behaviors:\s*\[([^\]]*)\]',
-    ).firstMatch(block);
+    final coreList = RegExp(r'- lane:\s*CORE\s*\n\s*behaviors:\s*\[([^\]]*)\]')
+        .firstMatch(block);
+    final skinList = RegExp(r'- lane:\s*SKIN\s*\n\s*behaviors:\s*\[([^\]]*)\]')
+        .firstMatch(block);
     expect(coreList, isNotNull, reason: 'a CORE lane row is declared');
     expect(skinList, isNotNull, reason: 'a SKIN lane row is declared');
 
@@ -60,15 +58,14 @@ void main() {
 
     expect(
       core.contains('U1'),
-      isFalse,
+      isTrue,
       reason:
-          'the #1393 re-split: U1 is a view-presentation behavior — the '
-          'CORE lane is engine-only (noFlutter contract, issue #1000)',
+          'U1 moved to CORE per issue #1811 (seam proof, single SKIN subject)',
     );
     expect(
       skin.contains('U1'),
-      isTrue,
-      reason: 'U1 belongs in the SKIN lane where the view work lives',
+      isFalse,
+      reason: 'U1 is no longer in the SKIN lane',
     );
   });
 
@@ -93,9 +90,8 @@ void main() {
       reason: 'FR-002 carries the traces: grammar (issue #1313)',
     );
 
-    final traceMatch = RegExp(
-      r'traces:\s*(\S+)',
-    ).firstMatch(fr002.group(0) ?? '')!;
+    final traceMatch = RegExp(r'traces:\s*(\S+)')
+        .firstMatch(fr002.group(0) ?? '')!;
     final trace = traceMatch.group(1)!;
     expect(
       trace,
@@ -159,8 +155,8 @@ void main() {
 
     expect(
       classification['U1'],
-      equals('SKIN'),
-      reason: 'the committed re-split state: U1 routed SKIN',
+      equals('CORE'),
+      reason: 'the committed re-split state: U1 routed CORE (issue #1811)',
     );
     expect(classification['A1'], equals('CORE'));
     expect(classification['A2'], equals('CORE'));
@@ -171,7 +167,7 @@ void main() {
     );
     expect(classification['W1'], equals('SKIN'));
     for (var i = 3; i <= 7; i++) {
-      expect(classification['A$i'], equals('SKIN'));
+      expect(classification['A$i'], equals('CORE'));
     }
   });
 }

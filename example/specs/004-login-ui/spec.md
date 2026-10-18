@@ -23,19 +23,19 @@ literal as the anchor, never a pinned EN literal.
    **Type**: acceptance
 
 3. **Given** the login view **When** it renders **Then** the app shows 'Sign in'
-   **Type**: widget
+   **Type**: acceptance
 
 4. **Given** a completed sign-in **When** the user signs in **Then** the app navigates to the route 'deal_list'
-   **Type**: widget
+   **Type**: acceptance
 
 5. **Given** a fresh login view **When** no sign-in attempt has failed **Then** the 'Sign in failed' banner is not shown
-   **Type**: widget
+   **Type**: acceptance
 
 6. **Given** an empty form **When** validation runs **Then** the 'Sign in' button is disabled
-   **Type**: widget
+   **Type**: acceptance
 
 7. **Given** a submitted form **Then** while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'
-   **Type**: widget
+   **Type**: acceptance
 
 ## Functional Requirements
 
@@ -50,10 +50,10 @@ literal as the anchor, never a pinned EN literal.
 ```yaml
 Lanes:
   - lane: CORE
-    behaviors: [A1, A2, U2]
+    behaviors: [A1, A2, U1, U2, A3, A4, A5, A6, A7]
     flutter_allowed: false
   - lane: SKIN
-    behaviors: [W1, U1, A3, A4, A5, A6, A7]
+    behaviors: [W1]
     flutter_allowed: true
     adaptive_slots: [mobile, ios, android, macos]
 ```
