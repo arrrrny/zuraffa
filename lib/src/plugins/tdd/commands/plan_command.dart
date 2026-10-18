@@ -721,13 +721,6 @@ class PlanCommand extends Command<void> {
           );
           stderr.writeln('  plan criterion: ${beh.sourceCriterion}');
           stderr.writeln(
-            '  recorded criterion (source_criterion): '
-            '${prior.sourceCriterion}',
-          );
-          stderr.writeln(
-            '  plan criterion (source_criterion): ${beh.sourceCriterion}',
-          );
-          stderr.writeln(
             '   --> fix: reconcile the positional U-id mapping — '
             'rotate the affected artifacts.json records and their '
             'test/subject pairs to the new ids, then re-run '

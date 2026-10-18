@@ -1085,23 +1085,6 @@ class GenCommand extends Command<void> {
     final runnableTestName =
         '$recordTestPath::${behavior.id}::${behavior.description}';
 
-    // Issue #831: platform behaviors drive a platform channel through
-    // the certified fake + committed scenario written by
-    // `zfa tdd fake <channel> --behavior <id>`. Both must exist BEFORE
-    // any gen artifact is written — a refusal happens at this boundary,
-    // with the exact remedy, never a half-written pair.
-    PlatformHarnessContext? platformContext;
-    if (effectiveBehavior.kind == BehaviorKind.platform) {
-      platformContext = _resolvePlatformContext(
-        cwd: cwd,
-        featureDir: featureDir,
-        featureName: featureName,
-        featureRef: featureRef,
-        snakeId: snakeId,
-        behaviorId: behavior.id,
-      );
-    }
-
     // Issue #1805: refuse when the recorded artifacts.json entry for this
     // behavior id carries a different source_criterion than the plan's —
     // a positional U-id remap would otherwise regenerate the old behavior
@@ -1130,6 +1113,23 @@ class GenCommand extends Command<void> {
       }
     } on Exception {
       // fail open on unreadable registry
+    }
+
+    // Issue #831: platform behaviors drive a platform channel through
+    // the certified fake + committed scenario written by
+    // `zfa tdd fake <channel> --behavior <id>`. Both must exist BEFORE
+    // any gen artifact is written — a refusal happens at this boundary,
+    // with the exact remedy, never a half-written pair.
+    PlatformHarnessContext? platformContext;
+    if (effectiveBehavior.kind == BehaviorKind.platform) {
+      platformContext = _resolvePlatformContext(
+        cwd: cwd,
+        featureDir: featureDir,
+        featureName: featureName,
+        featureRef: featureRef,
+        snakeId: snakeId,
+        behaviorId: behavior.id,
+      );
     }
 
     final registry = ArtifactRegistry(featureDir: featureDir);
