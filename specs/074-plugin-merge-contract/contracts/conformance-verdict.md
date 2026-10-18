@@ -6,7 +6,10 @@
 2. **di** — the generated graph-construction test resolves every token
    per flavor in the merged host.
 3. **views** — every merged view composes the host shell convention.
-4. **featureSuite** — the feature's suite runs green in-host, compared
+4. **cache** — every entity's adapter is registered in the Hive registrar.
+5. **i18n** — every `t.<key>` in merged views has a translation entry,
+   and there are no hardcoded user-facing strings.
+6. **featureSuite** — the feature's suite runs green in-host, compared
    against the pre-merge baseline (new failures only).
 
 ## JSON shape (stdout, `--json`)
