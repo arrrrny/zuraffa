@@ -64,6 +64,26 @@ authority surfaces and name the skin plugin in their diagnostics.
 
 ## TDD skin lane integration
 
+### Visual / pixel arm (issue #1826)
+
+The SKIN lane carries an opt-in visual/pixel arm: declare
+`golden: true` or `golden: [W1, W3]` on the SKIN row of `## Lanes`.
+Plan marks those rows with the `[golden]` tag and renders a
+`## Visual contract` section; gen emits a `matchesGoldenFile`
+baseline hook, so a screen's pixel fidelity can be certified the
+same way its behaviour is, instead of being pinned to
+design-system internals.
+
+### Guidance: do not bind to design-system property state (issue #1826)
+
+SKIN behaviors must NOT bind to design-system property state — do
+not assert `tester.widget<X>(...).prop`. Prefer interaction-shaped
+finders (e.g. `onPressed == null`) or text/shape-shaped finders over
+`widget<X>(...).prop` assertions: a property assertion and the
+reference pixels can be mutually exclusive, and correcting the test
+changes its hand-delta digest. The golden arm above is the honest
+pixel contract.
+
 - Widget-lane behaviors boot generated widget tests in a `ZuraffaApp`
   shell (`WidgetAppShell.zuraffaapp`, config value `zuraffaapp` under
   `.zfa.json` `tdd.widgetShell`), importing
