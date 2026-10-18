@@ -36,12 +36,10 @@ void main() {
     expect(lanes, isNotNull, reason: 'the fixture declares a `## Lanes` block');
     final block = lanes!.group(1)!;
 
-    final coreList = RegExp(
-      r'- lane:\s*CORE\s*\n\s*behaviors:\s*\[([^\]]*)\]',
-    ).firstMatch(block);
-    final skinList = RegExp(
-      r'- lane:\s*SKIN\s*\n\s*behaviors:\s*\[([^\]]*)\]',
-    ).firstMatch(block);
+    final coreList = RegExp(r'- lane:\s*CORE\s*\n\s*behaviors:\s*\[([^\]]*)\]')
+        .firstMatch(block);
+    final skinList = RegExp(r'- lane:\s*SKIN\s*\n\s*behaviors:\s*\[([^\]]*)\]')
+        .firstMatch(block);
     expect(coreList, isNotNull, reason: 'a CORE lane row is declared');
     expect(skinList, isNotNull, reason: 'a SKIN lane row is declared');
 
@@ -61,7 +59,8 @@ void main() {
     expect(
       core.contains('U1'),
       isTrue,
-      reason: 'U1 moved to CORE per issue #1811 (seam proof, single SKIN subject)',
+      reason:
+          'U1 moved to CORE per issue #1811 (seam proof, single SKIN subject)',
     );
     expect(
       skin.contains('U1'),
@@ -91,9 +90,8 @@ void main() {
       reason: 'FR-002 carries the traces: grammar (issue #1313)',
     );
 
-    final traceMatch = RegExp(
-      r'traces:\s*(\S+)',
-    ).firstMatch(fr002.group(0) ?? '')!;
+    final traceMatch = RegExp(r'traces:\s*(\S+)')
+        .firstMatch(fr002.group(0) ?? '')!;
     final trace = traceMatch.group(1)!;
     expect(
       trace,
