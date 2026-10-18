@@ -447,7 +447,7 @@ class EntityAnalyzer {
     final dir = p.dirname(entityPath);
     final buffer = StringBuffer(content);
     final partPattern = RegExp(
-      r"""^\s*part\s+'([^']+)'\s*;""",
+      r"""^\s*part\s+['\"]([^'\"]+)['\"]\s*;""",
       multiLine: true,
     );
     for (final match in partPattern.allMatches(content)) {

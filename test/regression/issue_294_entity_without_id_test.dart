@@ -104,6 +104,7 @@ void main() {
           idFieldType: 'String',
           queryField: 'depotId',
           generateData: true,
+          generateMock: true,
           generateLocal: true,
           generateUseCase: true,
           generateVpcs: true,

@@ -263,7 +263,11 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                   fileSystem: fs,
                 ));
         if (fixtureOnlyEntity) {
-          final purged = await _purgeCrudDatasourceArtifacts(targetEntity, fs);
+          final purged = await _purgeCrudDatasourceArtifacts(
+            targetEntity,
+            fs,
+            dryRun: options.dryRun,
+          );
           // The index must never outlive its bindings: a pre-#1037 run can
           // leave it importing this entity's binding even when the binding
           // file is already gone (a previous heal removed it), so the
@@ -452,8 +456,9 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   /// removed relative paths (for the honest log the caller prints).
   Future<List<String>> _purgeCrudDatasourceArtifacts(
     String entityName,
-    FileSystem fs,
-  ) async {
+    FileSystem fs, {
+    bool dryRun = false,
+  }) async {
     const marker = '// GENERATED - DO NOT EDIT';
     final entitySnake = StringUtils.camelToSnake(entityName);
     final candidates = <String>[
@@ -477,6 +482,13 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'simulation',
         '${entitySnake}_simulation_datasource_di.dart',
       ),
+      path.join(
+        outputDir,
+        'data',
+        'datasources',
+        entitySnake,
+        '${entitySnake}_failing_mock_provider.dart',
+      ),
     ];
     final purged = <String>[];
     for (final candidate in candidates) {
@@ -487,6 +499,10 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       } catch (_) {
         // Unreadable file in a generated path — leave it; the build gate
         // will name it if it is actually broken.
+        continue;
+      }
+      if (dryRun) {
+        // Dry-run: do not delete or trigger index rebuilds.
         continue;
       }
       await fs.delete(candidate);
