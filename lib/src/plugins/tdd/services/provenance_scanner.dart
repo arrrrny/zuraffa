@@ -72,6 +72,13 @@ class ProvenanceReport {
 
   final ProvenanceCounts counts;
 
+  /// Ownership conflicts: generated files in scoped paths with no origin
+  /// record (issue #812, FR-008 generalized). Alias of [unattributed].
+  List<String> get conflicts => unattributed;
+
+  /// Machine-readable verdict for the SBOM gate (issue #812).
+  String get result => unattributed.isEmpty ? 'pass' : 'fail';
+
   Attribution? attributed(String relPath) => files[relPath];
 }
 
@@ -91,17 +98,20 @@ class ProvenanceScanner {
   Future<ProvenanceReport> scan() async {
     final files = <String, Attribution>{};
 
-    // --- The lib/ walk (the audit's scope). ---
-    final libDir = Directory(p.join(projectRoot, 'lib'));
-    final libFiles = <String>[];
-    if (await libDir.exists()) {
-      await for (final entity in libDir.list(recursive: true)) {
+    // --- The scoped walk (the audit's scope): generated paths are `lib/`
+    //     plus `test/tdd/` (issue #812 — repo-wide provenance SBOM v0).
+    final scopedFiles = <String>[];
+    for (final tree in const ['lib', 'test/tdd']) {
+      final dir = Directory(p.join(projectRoot, tree));
+      if (!await dir.exists()) continue;
+      await for (final entity in dir.list(recursive: true)) {
         if (entity is File) {
-          libFiles.add(normalize(entity.path));
+          scopedFiles.add(normalize(entity.path));
         }
       }
     }
-    libFiles.sort();
+    scopedFiles.sort();
+    final libFiles = scopedFiles;
 
     // --- Source 1: artifact registries (subject_path). ---
     await _collectRegistryAttributions(files);

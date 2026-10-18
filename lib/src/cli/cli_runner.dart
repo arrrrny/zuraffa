@@ -22,6 +22,7 @@ import '../commands/plugin_command.dart' as plugincmd;
 import '../commands/make_command.dart';
 import '../commands/doctor_command.dart';
 import '../commands/proof_command.dart';
+import '../commands/provenance_command.dart';
 import '../commands/migrate_command.dart';
 import '../commands/update_command.dart';
 import '../commands/build_command.dart';
@@ -237,6 +238,7 @@ class CliRunner {
     _runner.addCommand(EngineCommand());
     _runner.addCommand(DoctorCommand());
     _runner.addCommand(ProofCommand());
+    _runner.addCommand(ProvenanceCommand());
     _runner.addCommand(MigrateCommand());
     _runner.addCommand(BuildCommand());
     _runner.addCommand(ManifestCommand(registry));
