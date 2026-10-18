@@ -32,6 +32,32 @@ class DataSourceInterfaceBuilder {
        appendExecutor = appendExecutor ?? AppendExecutor(),
        fileSystem = fileSystem ?? FileSystem.create();
 
+  static (String, String?, String?) _parseMethodShape(String token) {
+    final colon = token.indexOf(':');
+    if (colon == -1) return (token.trim(), null, null);
+    var name = token.substring(0, colon).trim();
+    var shape = token.substring(colon + 1).trim();
+    if (shape.startsWith("'") && shape.endsWith("'") && shape.length >= 2) {
+      shape = shape.substring(1, shape.length - 1);
+    } else if (shape.startsWith('"') &&
+        shape.endsWith('"') &&
+        shape.length >= 2) {
+      shape = shape.substring(1, shape.length - 1);
+    }
+    String? params;
+    String? returns;
+    final arrow = shape.indexOf('->');
+    if (arrow == -1) {
+      params = shape.trim().isEmpty ? null : shape.trim();
+    } else {
+      final left = shape.substring(0, arrow).trim();
+      final right = shape.substring(arrow + 2).trim();
+      params = left.isEmpty ? null : left;
+      returns = right.isEmpty ? null : right;
+    }
+    return (name, params, returns);
+  }
+
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
@@ -275,25 +301,30 @@ class DataSourceInterfaceBuilder {
           );
           break;
         default:
-          // Issue #1823: allow arbitrary (non-CRUD) verbs as declared
-          // data source members. Default to a void future with no params
-          // unless --params/--returns narrow the shape. Note: a single
-          // --params/--returns shape applies to every verb in one call.
+          // Issue #1823 / #1850: allow arbitrary (non-CRUD) verbs as
+          // declared data source members. A method token may carry its own
+          // shape as `name:params->returns` (issue #1850 "named members"),
+          // so a single call can declare a seam whose members take
+          // different params and return different types. Tokens without a
+          // shape fall back to the call-wide --params/--returns.
           {
+            final parsed = _parseMethodShape(method);
+            final methodName = parsed.$1;
+            final methodParams = parsed.$2 ?? config.paramsType;
+            final methodReturns = parsed.$3 ?? config.returnsType;
             final returnType =
-                (config.returnsType != null && config.returnsType!.isNotEmpty)
-                ? (config.returnsType!.startsWith('Future<') ||
-                          config.returnsType!.startsWith('Stream<')
-                      ? config.returnsType!
-                      : 'Future<${config.returnsType!}>')
+                (methodReturns != null && methodReturns.isNotEmpty)
+                ? (methodReturns.startsWith('Future<') ||
+                          methodReturns.startsWith('Stream<')
+                      ? methodReturns
+                      : 'Future<$methodReturns>')
                 : 'Future<void>';
-            final paramsType =
-                (config.paramsType != null && config.paramsType!.isNotEmpty)
-                ? config.paramsType!
+            final paramsType = (methodParams != null && methodParams.isNotEmpty)
+                ? methodParams
                 : 'NoParams';
             final m = Method(
               (mm) => mm
-                ..name = method
+                ..name = methodName
                 ..returns = refer(returnType)
                 ..requiredParameters.addAll(
                   paramsType == 'NoParams'
@@ -321,6 +352,14 @@ class DataSourceInterfaceBuilder {
     // symbols and the entity's own definitions win resolution. With no
     // locally-imported entity types the hide list stays empty and the
     // import is emitted unchanged.
+    final allReturnsTypes = <String>{
+      if (config.returnsType != null && config.returnsType!.isNotEmpty)
+        config.returnsType!,
+      for (final m in config.methods)
+        if (_parseMethodShape(m).$3 != null &&
+            _parseMethodShape(m).$3!.isNotEmpty)
+          _parseMethodShape(m).$3!,
+    };
     final barrelHide = <String>{
       if (config.repo == null &&
           fileSystem.existsSync(
@@ -333,8 +372,8 @@ class DataSourceInterfaceBuilder {
             ),
           ))
         ...EntityUtils.barrelHideNames(entityName),
-      if (config.isCustomUseCase && config.returnsType != null)
-        for (final type in EntityUtils.extractEntityTypes(config.returnsType!))
+      for (final rt in allReturnsTypes)
+        for (final type in EntityUtils.extractEntityTypes(rt))
           ...EntityUtils.barrelHideNames(type),
     }.toList();
 
@@ -353,8 +392,8 @@ class DataSourceInterfaceBuilder {
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),
-      if (config.isCustomUseCase && config.returnsType != null)
-        ...EntityUtils.extractEntityTypes(config.returnsType!).map((type) {
+      for (final rt in allReturnsTypes)
+        ...EntityUtils.extractEntityTypes(rt).map((type) {
           final snake = StringUtils.camelToSnake(type);
           return Directive.import(
             '../../../domain/entities/$snake/$snake.dart',

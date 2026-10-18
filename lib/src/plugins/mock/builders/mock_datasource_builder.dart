@@ -112,10 +112,18 @@ class MockDataSourceBuilder {
     // surface — the import's actual library — not against zuraffa.dart
     // (an unverified hide is an undefined_hidden_name warning, and zfa
     // build's analyze gate fails on warnings).
+    final allReturnsTypes = <String>{
+      if (config.returnsType != null && config.returnsType!.isNotEmpty)
+        config.returnsType!,
+      for (final m in config.methods)
+        if (_parseMethodShape(m).$3 != null &&
+            _parseMethodShape(m).$3!.isNotEmpty)
+          _parseMethodShape(m).$3!,
+    };
     final barrelHide = <String>{
       if (config.isEntityBased) ...EntityUtils.mockBarrelHideNames(entityName),
-      if (config.isCustomUseCase && config.returnsType != null)
-        for (final type in EntityUtils.extractEntityTypes(config.returnsType!))
+      for (final rt in allReturnsTypes)
+        for (final type in EntityUtils.extractEntityTypes(rt))
           ...EntityUtils.mockBarrelHideNames(type),
     }.toList();
 
@@ -128,8 +136,8 @@ class MockDataSourceBuilder {
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),
-      if (config.isCustomUseCase && config.returnsType != null)
-        ...EntityUtils.extractEntityTypes(config.returnsType!).map((type) {
+      for (final rt in allReturnsTypes)
+        ...EntityUtils.extractEntityTypes(rt).map((type) {
           final snake = StringUtils.camelToSnake(type);
           return Directive.import(
             '../../../domain/entities/$snake/$snake.dart',
@@ -523,6 +531,32 @@ class MockDataSourceBuilder {
         )
         ..body = isStream ? streamBody : futureBody,
     );
+  }
+
+  static (String, String?, String?) _parseMethodShape(String token) {
+    final colon = token.indexOf(':');
+    if (colon == -1) return (token.trim(), null, null);
+    var name = token.substring(0, colon).trim();
+    var shape = token.substring(colon + 1).trim();
+    if (shape.startsWith("'") && shape.endsWith("'") && shape.length >= 2) {
+      shape = shape.substring(1, shape.length - 1);
+    } else if (shape.startsWith('"') &&
+        shape.endsWith('"') &&
+        shape.length >= 2) {
+      shape = shape.substring(1, shape.length - 1);
+    }
+    String? params;
+    String? returns;
+    final arrow = shape.indexOf('->');
+    if (arrow == -1) {
+      params = shape.trim().isEmpty ? null : shape.trim();
+    } else {
+      final left = shape.substring(0, arrow).trim();
+      final right = shape.substring(arrow + 2).trim();
+      params = left.isEmpty ? null : left;
+      returns = right.isEmpty ? null : right;
+    }
+    return (name, params, returns);
   }
 
   List<Method> _generateMockDataSourceMethods(GeneratorConfig config) {
@@ -1245,15 +1279,17 @@ class MockDataSourceBuilder {
           );
           break;
         default:
-          // Issue #1823: arbitrary (non-CRUD) verbs declared via
-          // --methods. Emit a certified mock member whose body is the
-          // fixture/echo default, matching the interface generator's
-          // shape so conformance holds.
+          // Issue #1823 / #1850: arbitrary (non-CRUD) verbs declared via
+          // --methods. A method token may carry its own shape as
+          // `name:params->returns` (issue #1850 "named members"); tokens
+          // without a shape fall back to the call-wide --params/--returns.
           {
-            final methodName = method;
-            final returns =
-                (config.returnsType != null && config.returnsType!.isNotEmpty)
-                ? config.returnsType!
+            final parsed = _parseMethodShape(method);
+            final methodName = parsed.$1;
+            final methodParams = parsed.$2 ?? config.paramsType;
+            final methodReturns = parsed.$3 ?? config.returnsType;
+            final returns = (methodReturns != null && methodReturns.isNotEmpty)
+                ? methodReturns
                 : 'void';
             final baseReturns = returns.replaceAll('?', '');
             final isVoid = baseReturns == 'void' || baseReturns == 'dynamic';
@@ -1267,9 +1303,8 @@ class MockDataSourceBuilder {
                 : '';
             final isEntityList = isList && listInner == entityName;
             final isEntityReturn = baseReturns == entityName;
-            final paramsType =
-                (config.paramsType != null && config.paramsType!.isNotEmpty)
-                ? config.paramsType!
+            final paramsType = (methodParams != null && methodParams.isNotEmpty)
+                ? methodParams
                 : 'NoParams';
             final hasParams = paramsType != 'NoParams';
             final returnType =
@@ -1277,6 +1312,15 @@ class MockDataSourceBuilder {
                 ? returns
                 : 'Future<$returns>';
             final futureReturnType = returnType; // returnType already wrapped
+            // Issue #1850 (honest bodies): a non-void arbitrary verb whose
+            // return type resolves to no known fixture must refuse rather
+            // than emit `throw UnimplementedError()` under a conformance:
+            // true verdict.
+            if (!isVoid && !isEntityList && !isEntityReturn) {
+              throw ArgumentError(
+                'unknown return type $baseReturns for member $methodName',
+              );
+            }
             methods.add(
               Method(
                 (m) => m
