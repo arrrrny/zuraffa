@@ -43,7 +43,9 @@ class ProofCommand extends Command<void> {
     print('Subcommands:');
     print(
       '  check    Verify every receipt in .zfa/receipts/ against the '
-      'current tree',
+      'current tree. Positional paths are coverage roots (e.g. '
+      '`zfa proof check lib`); bare invocation audits conventional '
+      'roots when no receipts exist (issue #1390).',
     );
     print(
       '  chain    Walk .zfa/receipts/ + the project tree and validate '
@@ -163,7 +165,10 @@ class ProofCheckCommand extends Command<void> {
   @override
   final String description =
       'Verify generation receipts: digest drift, deletions, stale specs '
-      'and — with coverage roots — unprovenanced generated-code paths.';
+      'and — with coverage roots (positional paths, e.g. '
+      '`zfa proof check lib`) — unprovenanced generated-code paths. '
+      'With no roots and no receipts, conventional roots (lib/) are '
+      'audited automatically (issue #1390).';
 
   ProofCheckCommand() {
     argParser.addOption(
@@ -198,19 +203,27 @@ class ProofCheckCommand extends Command<void> {
   void _printText(ProofReport report, List<String> coverageRoots) {
     print('Proof Check (.zfa/receipts/)');
     print('============================');
-    if (coverageRoots.isNotEmpty) {
-      print('Audited coverage roots: ${coverageRoots.join(', ')}');
+    final printedRoots =
+        coverageRoots.isNotEmpty ? coverageRoots : report.auditedRoots;
+    if (printedRoots.isNotEmpty) {
+      print('Audited coverage roots: ${printedRoots.join(', ')}');
     }
 
     if (report.receipts == 0) {
       print('No generation receipts found.');
-      if (coverageRoots.isEmpty) {
+      if (coverageRoots.isEmpty && report.findings.isEmpty) {
         print('proof: 0 receipt(s), 0 artifact(s) verified, 0 finding(s) — OK');
         print(
           'Nothing to prove yet: receipts appear after `zfa entity '
           'create` / `zfa make` runs.',
         );
         return;
+      }
+      if (coverageRoots.isEmpty && report.findings.isNotEmpty) {
+        print(
+          'Honesty sweep: conventional roots contain generated-looking '
+          'artifacts but no receipts prove them (issue #1390).',
+        );
       }
     } else {
       print(

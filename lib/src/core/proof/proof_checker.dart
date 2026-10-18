@@ -87,12 +87,20 @@ class ProofReport {
   /// broken down. Null when no receipts were found.
   final Map<String, int>? receiptKinds;
 
+  /// The coverage roots actually audited for unprovenanced files
+  /// (issue #1390): user-supplied roots, or, when none were supplied
+  /// and the project carries zero receipts, the conventional roots
+  /// (`lib/`) that the honesty sweep audited automatically so a
+  /// no-receipt project is never reported as "OK".
+  final List<String> auditedRoots;
+
   const ProofReport({
     required this.ok,
     required this.receipts,
     required this.filesChecked,
     required this.findings,
     this.receiptKinds,
+    this.auditedRoots = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -104,6 +112,7 @@ class ProofReport {
     'receipts': receipts,
     'filesChecked': filesChecked,
     if (receiptKinds != null) 'kinds': receiptKinds,
+    if (auditedRoots.isNotEmpty) 'auditedRoots': auditedRoots,
     'findings': findings.map((f) => f.toJson()).toList(),
   };
 }
@@ -138,6 +147,13 @@ class ProofChecker {
     final effectiveStore = store ?? ReceiptStore(projectRoot: projectRoot);
     final records = await effectiveStore.loadAll();
 
+    // Test-plugin receipts (schema test.v1, spec 980): loaded here so the
+    // honesty sweep below can tell "zero receipts of any kind" apart from
+    // "some receipts present" without re-querying the store later.
+    final testReceipts = await (TestReceiptStore(
+      projectRoot: projectRoot,
+    )).loadAll();
+
     // Latest receipt wins per artifact path: regeneration supersedes the
     // older proof for the same file.
     final latest =
@@ -149,6 +165,19 @@ class ProofChecker {
     }
 
     final findings = <ProofFinding>[];
+
+    // Issue #1390 honesty sweep: when the caller passes no coverage roots
+    // and the project carries zero receipts of any kind, audit the
+    // conventional roots (`lib/`) automatically. A bare `zfa proof check`
+    // on a project whose `lib/` is full of generated-looking code must
+    // never print "OK — Nothing to prove yet"; "nothing audited" is not
+    // green. When receipts exist, leave the audit opt-in (coverage roots
+    // are a CI gate, not a default).
+    final hasReceipts = records.isNotEmpty || testReceipts.isNotEmpty;
+    final effectiveRoots = coverageRoots.isNotEmpty
+        ? List<String>.from(coverageRoots)
+        : (hasReceipts ? <String>[] : _conventionalRoots());
+    final auditedRoots = effectiveRoots;
 
     // 1. Digest verification of every receipted artifact.
     for (final covered in latest.entries) {
@@ -337,15 +366,12 @@ class ProofChecker {
     }
 
     // 3. Unprovenanced artifacts under audited coverage roots.
-    for (final root in coverageRoots) {
+    for (final root in effectiveRoots) {
       findings.addAll(_unprovenancedUnder(root, latest.keys.toSet()));
     }
 
     // 4. Test plugin receipts (schema test.v1, spec 980): usecase/test
     //    drift + integrity of the receipted test files themselves.
-    final testReceipts = await (TestReceiptStore(
-      projectRoot: projectRoot,
-    )).loadAll();
     var testReceiptFiles = 0;
     for (final receipt in testReceipts) {
       final receiptName = TestReceiptStore.fileNameFor(receipt.entity);
@@ -440,6 +466,7 @@ class ProofChecker {
       receiptKinds: records.isEmpty && testReceipts.isEmpty
           ? null
           : _receiptKinds(records),
+      auditedRoots: auditedRoots,
     );
   }
 
@@ -541,6 +568,27 @@ class ProofChecker {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Conventional roots audited by the honesty sweep (issue #1390): a
+  /// project's `lib/` is the default generation-path root. Returned only
+  /// when it exists and actually contains files, so an empty project
+  /// stays a legitimate vacuous green.
+  List<String> _conventionalRoots() {
+    final libDir = Directory(p.join(projectRoot, 'lib'));
+    if (!libDir.existsSync()) return const <String>[];
+    var hasFile = false;
+    try {
+      for (final e in libDir.listSync(recursive: true, followLinks: false)) {
+        if (e is File) {
+          hasFile = true;
+          break;
+        }
+      }
+    } catch (_) {
+      return const <String>[];
+    }
+    return hasFile ? const <String>['lib'] : const <String>[];
   }
 
   String _relativePosix(String filePath) {
