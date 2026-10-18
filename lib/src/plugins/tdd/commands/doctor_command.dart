@@ -1086,7 +1086,7 @@ class DoctorCommand extends Command<void> {
     }
     return (
       lines: lines,
-      fix: 'zfa tdd run $feature',
+      fix: 'zfa tdd run $feature (then `zfa tdd verify-red $behaviorId --re-certify`)',
       prescription: 'resume',
       note:
           "the behavior's last certification is not green, so the "

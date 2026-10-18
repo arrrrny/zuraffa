@@ -105,6 +105,7 @@ import '../services/pass_batch_ledger.dart';
 import '../services/pass_registry_tracker.dart';
 import '../services/refactor_passes.dart';
 import '../services/refactor_receipt_refresh.dart';
+import '../services/hand_delta_receipt.dart';
 import '../services/reproof_failure_classifier.dart';
 import '../services/run_baseline_cache.dart';
 import '../services/run_state_store.dart';
@@ -1444,6 +1445,27 @@ class RefactorCommand extends Command<void> {
           '   receipts refreshed: ${refresh.refreshedPaths.length} '
           'receipted artifact(s) re-hashed after the refactor passes '
           '(sanctioned refactor provenance, issue #1311)',
+        );
+      }
+
+      // Issue #1817: the refactor passes (dart format lib/) rewrite
+      // receipted subjects AFTER any earlier re-receipt (e.g. make's
+      // skip transition re-receipts pre-format bytes), stranding the
+      // hand-delta digest on the pre-format bytes. Re-receipt the
+      // hand-delta pairs HERE, from the post-format on-disk bytes, so
+      // the receipt digest binds the bytes the format step actually
+      // leaves behind (the #1423 invariant).
+      final hdArtifacts = await ArtifactRegistry(
+        featureDir: featureDir,
+      ).loadAll();
+      for (final rec in hdArtifacts) {
+        await HandDeltaReceipts.refreshBestEffort(
+          projectRoot: cwd,
+          feature: featureName,
+          behaviorId: rec.behaviorId,
+          command: 'tdd refactor',
+          transition: 'refactor',
+          artifactPaths: [rec.testPath, rec.subjectPath],
         );
       }
 
