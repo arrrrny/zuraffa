@@ -988,17 +988,13 @@ class VerifyRedCommand extends Command<void> {
             RegExp('\\b${RegExp.escape(recorded)}\\b').hasMatch(t));
     if (present) return record;
     String? candidate;
-    // 1. A title that carries the behavior id (the original rule).
-    for (final t in titles) {
-      if (t.contains(record.behaviorId)) {
-        candidate = t;
-        break;
-      }
-    }
-    // 2. Fallback for titles that dropped the id prefix (common after the
-    //    #871 pure-description change): match by description similarity
-    //    (bidirectional substring containment, case-insensitive).
-    if (candidate == null && recorded.isNotEmpty) {
+    // Rebind only on genuine description drift: the new title must
+    // contain the recorded description (or vice versa) as a substring.
+    // Broader heuristics (id containment, single-test fallback) caused
+    // false rebinds that destroyed the scenario description the kind
+    // gate (issue #964) relies on, certifying old-style tests as honest
+    // red. See issue #1778 regression.
+    if (recorded.isNotEmpty) {
       final rl = recorded.toLowerCase();
       for (final t in titles) {
         final tl = t.toLowerCase();
@@ -1007,10 +1003,6 @@ class VerifyRedCommand extends Command<void> {
           break;
         }
       }
-    }
-    // 3. Last resort: a file with exactly one test — bind to that title.
-    if (candidate == null && titles.length == 1) {
-      candidate = titles.first;
     }
     if (candidate == null) return record;
     final newRunnable = '${record.testPath}::${record.behaviorId}::$candidate';
