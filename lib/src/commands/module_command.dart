@@ -194,7 +194,9 @@ class ModuleCommand extends Command<void> {
     );
     for (final file in files) {
       if (verbose || dryRun) {
-        print('  ${dryRun ? "Would create" : "Created"} plugin orchestrator: ${file.path} (${file.action})');
+        print(
+          '  ${dryRun ? "Would create" : "Created"} plugin orchestrator: ${file.path} (${file.action})',
+        );
       }
     }
   }
