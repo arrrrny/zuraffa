@@ -827,13 +827,13 @@ class SpecParser {
         // Backtick code span: protect the whole span (commas inside do
         // not split). Match a closing run of the same length.
         var run = 0;
-        while (i + run < n && stripped[i + run] == '`') run++;
+        while (i + run < n && stripped[i + run] == '`') { run++; }
         var j = i + run;
         var closed = -1;
         while (j < n) {
           if (stripped[j] == '`') {
             var r2 = 0;
-            while (j + r2 < n && stripped[j + r2] == '`') r2++;
+            while (j + r2 < n && stripped[j + r2] == '`') { r2++; }
             if (r2 == run) {
               closed = j + r2;
               break;
@@ -865,13 +865,13 @@ class SpecParser {
           if (ch == '`') {
             // skip a backtick span inside the parens
             var r = 0;
-            while (j + r < n && stripped[j + r] == '`') r++;
+            while (j + r < n && stripped[j + r] == '`') { r++; }
             var k = j + r;
             var cl = -1;
             while (k < n) {
               if (stripped[k] == '`') {
                 var r2 = 0;
-                while (k + r2 < n && stripped[k + r2] == '`') r2++;
+                while (k + r2 < n && stripped[k + r2] == '`') { r2++; }
                 if (r2 == r) {
                   cl = k + r2;
                   break;
@@ -938,10 +938,31 @@ class SpecParser {
     final annotations = <String, String>{};
     for (final token in tokens) {
       var t = token.trim();
-      final annotation = RegExp(r'\(([^)]*)\)\s*$').firstMatch(t);
-      if (annotation != null) {
-        final note = annotation.group(1)!.trim();
-        t = t.substring(0, annotation.start).trim();
+      // Paren-aware annotation extraction: the trailing parenthetical group
+      // may itself contain nested parens (e.g. `W1 (a (b, c), d)`), so
+      // match the outermost balanced group rather than stopping at the
+      // first `)`.
+      int? openIdx;
+      var end = t.length;
+      while (end > 0 && t[end - 1].trim().isEmpty) end--;
+      if (end > 0 && t[end - 1] == ')') {
+        var depth = 0;
+        for (var k = end - 1; k >= 0; k--) {
+          final ch = t[k];
+          if (ch == ')') {
+            depth++;
+          } else if (ch == '(') {
+            depth--;
+            if (depth == 0) {
+              openIdx = k;
+              break;
+            }
+          }
+        }
+      }
+      if (openIdx != null) {
+        final note = t.substring(openIdx + 1, end - 1).trim();
+        t = t.substring(0, openIdx).trim();
         if (note.isNotEmpty && t.isNotEmpty) annotations[t] = note;
       }
       if (t.isEmpty) continue;
