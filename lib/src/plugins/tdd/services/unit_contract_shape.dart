@@ -115,19 +115,25 @@ bool isRenderableScalarType(String type) => isRenderableDartType(type);
 /// identifier bases left after stripping nullability and recursing
 /// through generics (`List<Task>` → `Task`, `Map<String, Task>` →
 /// `Task`). Scalars and type-shaped non-identifiers emit nothing.
-void _collectEntityNames(String type, void Function(String name) emit) {
+///
+/// Public (issue #1751): the CONTRACT lane's registry resolution shares
+/// this grammar — its own collector descends through the
+/// `Future`/`Stream` wrappers this one does not know (the contract
+/// lane's renderability vocabulary) and delegates every other shape
+/// here, so the grammar lives in ONE place (#1323 lesson).
+void collectEntityNames(String type, void Function(String name) emit) {
   var base = type.trim();
   if (base.endsWith('?')) base = base.substring(0, base.length - 1).trim();
   if (_renderableScalars.contains(base)) return;
   final generic = RegExp(r'^(List|Set|Iterable)<(.+)>$').firstMatch(base);
   if (generic != null) {
-    _collectEntityNames(generic.group(2)!, emit);
+    collectEntityNames(generic.group(2)!, emit);
     return;
   }
   final map = RegExp(r'^Map<\s*([^,>]+)\s*,\s*(.+)>$').firstMatch(base);
   if (map != null) {
-    _collectEntityNames(map.group(1)!, emit);
-    _collectEntityNames(map.group(2)!, emit);
+    collectEntityNames(map.group(1)!, emit);
+    collectEntityNames(map.group(2)!, emit);
     return;
   }
   if (_isDartIdentifier(base)) emit(base);
@@ -165,6 +171,8 @@ class UnitContractParam {
     required this.type,
     required this.name,
     this.named = false,
+    this.required = false,
+    this.defaultValue,
   });
 
   /// The declared token verbatim (`AuthRequest`).
@@ -183,6 +191,18 @@ class UnitContractParam {
   /// capture site. False for every positional parameter — the legacy
   /// shapes are byte-for-byte unchanged.
   final bool named;
+
+  /// Whether the named parameter carried the `required` modifier in the
+  /// declared contract. Only meaningful for named params; positional
+  /// params are required by position. Renders the `required` keyword
+  /// in subject signatures so the stub stays faithful to the contract.
+  final bool required;
+
+  /// An explicit default value parsed from the declared contract
+  /// (`{int threshold = 3}` → `3`), when present. Null when the
+  /// contract declared none; the renderer supplies a type-based default
+  /// for non-nullable named params so the stub still compiles (FR-011).
+  final String? defaultValue;
 }
 
 /// The contract-derived shape of a unit subject.
@@ -289,6 +309,8 @@ class UnitContractShape {
           type: renderable ? part.declaredType : 'Object?',
           name: name,
           named: part.named,
+          required: part.required,
+          defaultValue: part.defaultValue,
         ),
       );
     }
@@ -297,14 +319,14 @@ class UnitContractShape {
     // deduplicated. Missing entities contribute nothing.
     final importUris = <String>{};
     for (final param in params) {
-      _collectEntityNames(param.declaredType, (name) {
+      collectEntityNames(param.declaredType, (name) {
         final rel = entityFiles[name];
         if (rel == null) return;
         importUris.add(entityImportUri(rel, packageName));
       });
     }
     final returnEntityUris = <String>{};
-    _collectEntityNames(declaredReturn, (name) {
+    collectEntityNames(declaredReturn, (name) {
       final rel = entityFiles[name];
       if (rel == null) return;
       final uri = entityImportUri(rel, packageName);
@@ -341,7 +363,7 @@ class UnitContractShape {
     // same type/name split `of` applies), then the return.
     final candidates = <String>[];
     void addCandidates(String declaredType) {
-      _collectEntityNames(declaredType, (name) {
+      collectEntityNames(declaredType, (name) {
         if (!candidates.contains(name)) candidates.add(name);
       });
     }
@@ -362,14 +384,19 @@ class UnitContractShape {
       signature,
       entityExists: entityFiles.containsKey,
       entityFiles: entityFiles,
-      packageName: _packageName(cwd),
+      packageName: packageNameFor(cwd),
     );
   }
 
   /// The consumer's package name — the `name:` line of the pubspec at
   /// [cwd]. Null when absent or unreadable (fixture contexts): the import
   /// URIs fall back to the lib-relative shape.
-  static String? _packageName(String cwd) {
+  ///
+  /// Public (issue #1751): the CONTRACT lane resolves the same fact when
+  /// it lifts a declared entity return into the verbatim render — the
+  /// emitted imports must be the same lint-clean `package:` URIs the unit
+  /// lane emits.
+  static String? packageNameFor(String cwd) {
     final file = File(p.join(cwd, 'pubspec.yaml'));
     if (!file.existsSync()) return null;
     try {
@@ -480,14 +507,44 @@ class UnitContractShape {
         .where((param) => !param.named)
         .map((param) => '${param.type} ${param.name}')
         .toList();
-    final named = params
-        .where((param) => param.named)
-        .map((param) => '${param.type} ${param.name}')
-        .toList();
+    final named = params.where((param) => param.named).map((param) {
+      final requiredKw = param.required ? 'required ' : '';
+      final defaultSuffix = _defaultSuffixForNamed(param);
+      return '$requiredKw${param.type} ${param.name}$defaultSuffix';
+    }).toList();
     return [
       ...positional,
       if (named.isNotEmpty) '{${named.join(', ')}}',
     ].join(', ');
+  }
+
+  /// The default suffix a named parameter needs to compile when it is
+  /// not `required` and carries no explicit default: a type-based zero
+  /// value for the non-nullable scalars (FR-011 — "MINIMAL COMPILABLE
+  /// STUB"). Nullable types need no default (null is implicit).
+  ///
+  /// Accepted limitation: only scalar types (`int`, `num`, `double`,
+  /// `bool`, `String`, `Object`) receive a synthesized default. Named
+  /// params of generic/complex types (`List<int>`, `Map<...>`, entities)
+  /// get no synthesized default and their stubs may still fail to compile;
+  /// callers must supply an explicit default in the contract.
+  static String _defaultSuffixForNamed(UnitContractParam param) {
+    if (param.required) return '';
+    if (param.defaultValue != null) return ' = ${param.defaultValue}';
+    final type = param.type.trim();
+    if (type.endsWith('?')) return '';
+    if (type == 'Object?' || type == 'dynamic') return '';
+    const defaults = <String, String>{
+      'int': '0',
+      'num': '0',
+      'double': '0.0',
+      'bool': 'false',
+      'String': "''",
+      'Object': 'Object()',
+    };
+    final literal = defaults[type];
+    if (literal == null) return '';
+    return ' = $literal';
   }
 
   /// The parameter name for a type-only declaration token. Scalar types
@@ -550,7 +607,13 @@ class UnitContractShape {
 /// One declared parameter token split into its parts: the declared type
 /// verbatim, the declared name (null when derived), and whether the
 /// token came from a Dart named-parameter group (SPEC 1536).
-typedef _ParamParts = ({String declaredType, String? declaredName, bool named});
+typedef _ParamParts = ({
+  String declaredType,
+  String? declaredName,
+  bool named,
+  bool required,
+  String? defaultValue,
+});
 
 /// The ONE token-expansion grammar every shape derivation shares (the
 /// #1323 lesson: the grammar lives in ONE place, never scattered across
@@ -588,11 +651,34 @@ List<_ParamParts> _expandParamTokens(Iterable<String> tokens) {
 /// The `Type name` split for one parameter token, positional or inside
 /// a named group (SPEC 1536: a single identifier inside a group is a
 /// declared NAME with the `Object?` renderable degradation).
+///
+/// Issue #1775: a leading `required` modifier is stripped from the type
+/// and recorded on the part, and an optional `= value` default is
+/// parsed out and recorded. Both are needed so the rendered subject
+/// preserves the declared contract (`required bool x`, `int y = 3`)
+/// instead of degrading `required bool` into an unknown entity type.
 _ParamParts _paramPartsOf(String trimmed, {required bool named}) {
-  final parts = trimmed
-      .split(RegExp(r'\s+'))
-      .where((w) => w.isNotEmpty)
-      .toList();
+  var work = trimmed.trim();
+  var isRequired = false;
+  if (work.startsWith('required ') || work.startsWith('required\t')) {
+    isRequired = true;
+    work = work.substring('required'.length).trim();
+  } else if (work == 'required') {
+    isRequired = true;
+    work = '';
+  }
+
+  // Parse an optional default value (`= 3`, `= true`, `= 'x'`) at
+  // depth 0. The default may contain spaces/quotes, so split on the
+  // first top-level '=' only.
+  String? defaultValue;
+  final eqIndex = _topLevelEquals(work);
+  if (eqIndex >= 0) {
+    defaultValue = work.substring(eqIndex + 1).trim();
+    work = work.substring(0, eqIndex).trim();
+  }
+
+  final parts = work.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
   // A declared token may carry its own name (`AuthRequest request`)
   // — the last identifier-shaped word is the name, the rest the type.
   if (parts.length >= 2 && _isDartIdentifier(parts.last)) {
@@ -600,13 +686,88 @@ _ParamParts _paramPartsOf(String trimmed, {required bool named}) {
       declaredType: parts.sublist(0, parts.length - 1).join(' '),
       declaredName: parts.last,
       named: named,
+      required: isRequired,
+      defaultValue: defaultValue,
     );
   }
   // SPEC 1536: a single identifier inside a named group is the
   // parameter NAME — the type degrades to `Object?` like every
   // non-renderable declared type.
   if (named && parts.length == 1 && _isDartIdentifier(parts.single)) {
-    return (declaredType: 'Object?', declaredName: parts.single, named: true);
+    return (
+      declaredType: 'Object?',
+      declaredName: parts.single,
+      named: true,
+      required: isRequired,
+      defaultValue: defaultValue,
+    );
   }
-  return (declaredType: trimmed, declaredName: null, named: named);
+  return (
+    declaredType: work.isEmpty ? trimmed : work,
+    declaredName: null,
+    named: named,
+    required: isRequired,
+    defaultValue: defaultValue,
+  );
+}
+
+int _topLevelEquals(String text) {
+  final openers = <String>{'{', '[', '(', '<'};
+  final closers = {'}': '{', ']': '[', ')': '(', '>': '<'};
+  final stack = <String>[];
+  var inSingle = false;
+  var inDouble = false;
+  for (var i = 0; i < text.length; i++) {
+    final ch = text[i];
+    if (inSingle) {
+      if (ch == "\\") {
+        i++;
+        continue;
+      }
+      if (ch == "'") inSingle = false;
+      continue;
+    }
+    if (inDouble) {
+      if (ch == "\\") {
+        i++;
+        continue;
+      }
+      if (ch == '"') inDouble = false;
+      continue;
+    }
+    if (ch == "'") {
+      inSingle = true;
+      continue;
+    }
+    if (ch == '"') {
+      inDouble = true;
+      continue;
+    }
+    if (openers.contains(ch)) {
+      stack.add(ch);
+      continue;
+    }
+    if (closers.containsKey(ch)) {
+      if (stack.isNotEmpty && stack.last == closers[ch]) {
+        stack.removeLast();
+      }
+      continue;
+    }
+    if (ch == '=' && stack.isEmpty) {
+      // avoid ==, =>, !=, >=, <=, ??= and other compound operators
+      if (i + 1 < text.length && (text[i + 1] == '=' || text[i + 1] == '>')) {
+        continue;
+      }
+      if (i > 0 &&
+          (text[i - 1] == '=' ||
+              text[i - 1] == '!' ||
+              text[i - 1] == '<' ||
+              text[i - 1] == '>' ||
+              text[i - 1] == '?')) {
+        continue;
+      }
+      return i;
+    }
+  }
+  return -1;
 }

@@ -30,7 +30,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         outputDir,
         'domain',
         'services',
-        '${serviceSnake}_service.dart',
+        '${serviceSnake}.dart',
       );
       final serviceExists = await fileSystem.exists(servicePath);
 
@@ -73,7 +73,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
             ),
           );
         } else {
-          warnings.add('Failed to append to ${serviceSnake}_service.dart');
+          warnings.add('Failed to append to ${serviceSnake}.dart');
         }
       }
     }

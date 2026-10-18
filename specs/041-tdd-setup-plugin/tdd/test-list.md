@@ -18,7 +18,7 @@ One per acceptance criterion in `spec.md`. Each stays red until the feature work
 |-----|----------|--------|------|-------|------|
 | A1  | After `zfa setup myapp`, the project contains `test/bootstrap_smoke_test.dart`, `dart_test.yaml`, `.specify/memory/tdd-profile.md`, and `pubspec.yaml` with testing `dev_dependencies` | US1.AC1, FR-1..4 | example | PENDING | `test/plugins/tdd/tdd_command_smoke_test.dart::emits baseline` |
 | A2  | After `zfa setup myapp`, `flutter test` exits 0 with ≥1 test | US1.AC2, FR-6 | example | PENDING | `test/plugins/tdd/scenarios/sc_001_setup_emits_tdd_baseline_test.dart::flutter test exits 0 ≥1 test` |
-| A3  | `flutter test test/bootstrap_smoke_test.dart` runs exactly that file | US1.AC3, FR-7 | example | PENDING | (same as A2) |
+| A3  | `flutter test test/bootstrap_smoke_test.dart` runs exactly that file | US1.AC3, FR-7 | example | PENDING | |
 | A4  | `.specify/memory/tdd-profile.md` has the five resolvable keys | US1.AC4, FR-4 | example | PENDING | `test/cli/writers/tdd/tdd_profile_writer_test.dart::resolves all five keys` |
 | A5  | `zfa setup myapp --tdd-example` emits an assertion-failing example test | US1.AC5, FR-5 | example | PENDING | `test/cli/writers/tdd/tdd_example_writer_test.dart::failure is assertion` |
 | A6  | `zfa tdd init` on a missing-baseline project creates all four artifacts | US2.AC1, FR-8 | example | PENDING | `test/plugins/tdd/tdd_command_smoke_test.dart::init creates missing` |
@@ -27,24 +27,24 @@ One per acceptance criterion in `spec.md`. Each stays red until the feature work
 | A9  | `zfa tdd plan <feature>` emits one acceptance + one unit per criterion | US3.AC1, FR-10 | example | PENDING | `test/plugins/tdd/services/spec_parser_test.dart::extracts behaviors` |
 | A10 | Re-running `zfa tdd plan` preserves ids for unchanged behaviors | US3.AC2, FR-11 | example | PENDING | `test/plugins/tdd/commands/plan_command_test.dart::preserves ids` (deferred) |
 | A11 | `zfa tdd plan` on spec with no acceptance scenarios exits non-zero | US3.AC3, FR-12 | example | PENDING | `test/plugins/tdd/services/spec_parser_test.dart::no scenarios exits non-zero` |
-| A12 | `zfa tdd gen B-003` writes test + compiling stub | US4.AC1, FR-13 | example | PENDING | (deferred to Phase 6) |
-| A13 | Generated test fails with assertion failure | US4.AC2, FR-13 | example | PENDING | (deferred to Phase 6) |
-| A14 | `zfa tdd gen <unknown-id>` exits non-zero | US4.AC3, FR-14 | example | PENDING | (deferred to Phase 6) |
-| A15 | `zfa tdd verify-red` on honest red writes red entry, exit 0 | US5.AC1, FR-15..17 | example | PENDING | (deferred to Phase 7) |
-| A16 | `zfa tdd verify-red` on compile error exits non-zero, no entry | US5.AC2, FR-17 | example | PENDING | (deferred to Phase 7) |
-| A17 | `zfa tdd verify-red` on unexpected green exits non-zero, no entry | US5.AC3, FR-17 | example | PENDING | (deferred to Phase 7) |
-| A18 | `zfa tdd make B-003` generates impl, test passes, green entry | US6.AC1, FR-18..19 | example | PENDING | (deferred to Phase 8) |
-| A19 | `zfa tdd make` cannot generate — exits non-zero, no test mod | US6.AC2, FR-25 | example | PENDING | (deferred to Phase 8) |
-| A20 | `zfa tdd make` detects sibling regression | US6.AC3, FR-20 | example | PENDING | (deferred to Phase 8) |
-| A21 | `zfa tdd refactor` on green suite, no test modification | US7.AC1, FR-22 | example | PENDING | (deferred to Phase 9) |
-| A22 | `zfa tdd refactor` on red suite refuses to start | US7.AC2, FR-21 | example | PENDING | (deferred to Phase 9) |
-| A23 | `zfa tdd refactor` regressed exits non-zero, no green entry | US7.AC3, FR-22 | example | PENDING | (deferred to Phase 9) |
-| A24 | `zfa tdd run <feature>` advances all behaviors through DONE | US8.AC1, FR-23 | example | PENDING | (deferred to Phase 10) |
-| A25 | Interrupted `zfa tdd run` resumes from last incomplete behavior | US8.AC2, FR-24 | example | PENDING | (deferred to Phase 10) |
-| A26 | `zfa tdd run` misfire stops the run, no fake pass | US8.AC3, FR-25 | example | PENDING | (deferred to Phase 10) |
-| A27 | `zfa tdd verify` writes 3-section verification.md with mutation tool | US9.AC1, FR-26..28 | example | PENDING | (deferred to Phase 11) |
-| A28 | `zfa tdd verify` falls back to spot-check when no mutation tool | US9.AC2, FR-27 | example | PENDING | (deferred to Phase 11) |
-| A29 | `zfa tdd verify` on non-green exits non-zero before coverage | US9.AC3, FR-29 | example | PENDING | (deferred to Phase 11) |
+| A12 | `zfa tdd gen B-003` writes test + compiling stub | US4.AC1, FR-13 | example | PENDING | |
+| A13 | Generated test fails with assertion failure | US4.AC2, FR-13 | example | PENDING | |
+| A14 | `zfa tdd gen <unknown-id>` exits non-zero | US4.AC3, FR-14 | example | PENDING | |
+| A15 | `zfa tdd verify-red` on honest red writes red entry, exit 0 | US5.AC1, FR-15..17 | example | PENDING | |
+| A16 | `zfa tdd verify-red` on compile error exits non-zero, no entry | US5.AC2, FR-17 | example | PENDING | |
+| A17 | `zfa tdd verify-red` on unexpected green exits non-zero, no entry | US5.AC3, FR-17 | example | PENDING | |
+| A18 | `zfa tdd make B-003` generates impl, test passes, green entry | US6.AC1, FR-18..19 | example | PENDING | |
+| A19 | `zfa tdd make` cannot generate — exits non-zero, no test mod | US6.AC2, FR-25 | example | PENDING | |
+| A20 | `zfa tdd make` detects sibling regression | US6.AC3, FR-20 | example | PENDING | |
+| A21 | `zfa tdd refactor` on green suite, no test modification | US7.AC1, FR-22 | example | PENDING | |
+| A22 | `zfa tdd refactor` on red suite refuses to start | US7.AC2, FR-21 | example | PENDING | |
+| A23 | `zfa tdd refactor` regressed exits non-zero, no green entry | US7.AC3, FR-22 | example | PENDING | |
+| A24 | `zfa tdd run <feature>` advances all behaviors through DONE | US8.AC1, FR-23 | example | PENDING | |
+| A25 | Interrupted `zfa tdd run` resumes from last incomplete behavior | US8.AC2, FR-24 | example | PENDING | |
+| A26 | `zfa tdd run` misfire stops the run, no fake pass | US8.AC3, FR-25 | example | PENDING | |
+| A27 | `zfa tdd verify` writes 3-section verification.md with mutation tool | US9.AC1, FR-26..28 | example | PENDING | |
+| A28 | `zfa tdd verify` falls back to spot-check when no mutation tool | US9.AC2, FR-27 | example | PENDING | |
+| A29 | `zfa tdd verify` on non-green exits non-zero before coverage | US9.AC3, FR-29 | example | PENDING | |
 
 ## Inner loop: unit behaviors
 
@@ -116,16 +116,16 @@ One per acceptance criterion in `spec.md`. Each stays red until the feature work
 
 | id  | behavior | traces | kind | state | test |
 |-----|----------|--------|------|-------|------|
-| U20 | `SetupCommand.run` calls the four writers after the scaffold | FR-1..4 | example | PENDING | (verified via `tdd_command_smoke_test.dart` end-to-end) |
-| U21 | `SetupCommand.run` honors `--dry-run` | FR-1 | example | PENDING | (deferred) |
-| U22 | `SetupCommand.run` with `--tdd-example` calls `TddExampleWriter` | FR-5 | example | PENDING | (deferred) |
+| U20 | `SetupCommand.run` calls the four writers after the scaffold | FR-1..4 | example | PENDING | |
+| U21 | `SetupCommand.run` honors `--dry-run` | FR-1 | example | PENDING | |
+| U22 | `SetupCommand.run` with `--tdd-example` calls `TddExampleWriter` | FR-5 | example | PENDING | |
 
 ### `lib/src/plugins/tdd/commands/init_command.dart`
 
 | id  | behavior | traces | kind | state | test |
 |-----|----------|--------|------|-------|------|
 | U23 | `zfa tdd init` invokes the four writers in order | FR-8 | example | PENDING | `tdd_command_smoke_test.dart::init creates missing` |
-| U24 | `zfa tdd init` misfire-stop on writer failure | FR-31 | example | PENDING | (deferred) |
+| U24 | `zfa tdd init` misfire-stop on writer failure | FR-31 | example | PENDING | |
 
 ### `lib/src/plugins/tdd/services/spec_parser.dart`
 
@@ -139,13 +139,13 @@ One per acceptance criterion in `spec.md`. Each stays red until the feature work
 | id  | behavior | traces | kind | state | test |
 |-----|----------|--------|------|-------|------|
 | U27 | Writes `tdd/test-list.md` with the parsed behaviors | FR-10 | example | PENDING | (verified via `tdd_command_smoke_test.dart::plan on missing spec`) |
-| U28 | Preserves existing ids for unchanged behaviors on re-plan | FR-11 | example | PENDING | (deferred) |
+| U28 | Preserves existing ids for unchanged behaviors on re-plan | FR-11 | example | PENDING | |
 
 ### `lib/src/plugins/tdd/commands/{gen,verify_red,make,refactor,run,verify}_command.dart`
 
 | id  | behavior | traces | kind | state | test |
 |-----|----------|--------|------|-------|------|
-| U29–U58 | Each unimplemented subcommand exits non-zero with an honest "not yet implemented" message | FR-031 | example | PENDING | (deferred to Phases 6–11) |
+| U29–U58 | Each unimplemented subcommand exits non-zero with an honest "not yet implemented" message | FR-031 | example | PENDING | |
 
 ### `lib/src/plugins/tdd/services/cycle_log.dart`
 
