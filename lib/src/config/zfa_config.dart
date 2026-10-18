@@ -522,7 +522,11 @@ class ZfaConfig {
     for (final entry in json.entries) {
       final pluginId = pluginIdForConfigKey(entry.key);
       if (pluginId != null && entry.value is bool) {
-        defaults[pluginId] = entry.value as bool;
+        if (pluginId == 'graphql') {
+          defaults[pluginId] = (defaults[pluginId] ?? false) || (entry.value as bool);
+        } else {
+          defaults[pluginId] = entry.value as bool;
+        }
       }
     }
     return defaults;
