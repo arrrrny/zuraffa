@@ -20,10 +20,15 @@
 //          assertion; any other captured error is a
 //          satisfied-with-rejection (the seam is implemented and
 //          validating) — never an uncaught escape.
-//   FR-4 — the return-type case (Case 3, non-nullable scalar returns) is
-//          guarded: the `isA<...>` assertion runs only when the captured
-//          outcome is not a rejection. Case 1/Case 2 text and the
-//          `isNot(isA<UnimplementedError>())` pin stay unchanged.
+//   FR-4 — the return-type case (Case 3) is guarded: the `isA<...>`
+//          assertion runs only when the captured outcome is not a
+//          rejection. The `isNot(isA<UnimplementedError>())` pin stays
+//          unchanged.
+//
+// Issue #1751 widened Case 3 to every return except void/Never/dynamic
+// (an unresolved declared type keeps a DOCUMENTED `Object?` case) and
+// rewrote Case 1's reason as an exposure claim — the U-1541-3 and
+// U-1541-6 pins below track both.
 //
 // Fast tier only: pure render pins against `ContractTestWriter` (no
 // `dart test` spawn). The real-runner e2e lives in
@@ -239,16 +244,23 @@ void main() {
       expect(RegExp(r'\btest\(').allMatches(test), hasLength(1));
     });
 
-    test('a non-scalar return carries no Case 3 and no rejection signal '
-        '(the #1007 two-case shape)', () async {
+    test('a non-scalar return keeps its return-type case as the DOCUMENTED '
+        '`Object?` degradation (issue #1751)', () async {
       final test = await _render(dynamicParamContract);
-      expect(test, contains('Case 1 of 2'));
-      expect(test, contains('Case 2 of 2'));
-      expect(test, isNot(contains('Case 3')));
+      // Issue #1751: `Logger` is outside the lane's renderability
+      // vocabulary and no registry was consulted (no cwd), so the declared
+      // return degrades — but the case is ENUMERATED and documented, never
+      // silently dropped (the pre-#1751 pair asserted nothing about the
+      // declared outcome).
+      expect(test, contains('Case 1 of 3'));
+      expect(test, contains('Case 2 of 3'));
+      expect(test, contains('Case 3 of 3'));
+      expect(test, contains('isA<Object?>()'));
+      expect(test, contains('issue #1751'));
       // The rejection signal is emitted WITH its Case 3 reader — an
       // unread declaration would leak an `unused_element` analyzer
-      // warning into every two-case scaffold (review finding follow-up).
-      expect(test, isNot(contains('_rejection')));
+      // warning into the scaffold (review finding follow-up).
+      expect(test, contains('_rejection'));
     });
   });
 
