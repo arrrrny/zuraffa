@@ -462,13 +462,12 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     const marker = '// GENERATED - DO NOT EDIT';
     final entitySnake = StringUtils.camelToSnake(entityName);
     final candidates = <String>[
-      path.join(
-        outputDir,
-        'data',
-        'datasources',
-        entitySnake,
-        '${entitySnake}_datasource.dart',
-      ),
+      // The shared datasource interface (`<entity>_datasource.dart`) is
+      // NOT purged here: it is owned by the datasource plugin and is
+      // still referenced by the repository + DI layers even for an
+      // entity with no CRUD surface, so deleting it breaks the build
+      // (#1747 downstream-compile gate). Only mock-specific artifacts
+      // that the mock lane owns are eligible for purge.
       path.join(
         outputDir,
         'data',
