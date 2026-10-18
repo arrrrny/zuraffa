@@ -366,6 +366,13 @@ class UseCaseResultBinding<T, P> extends Binding<T> {
     await refresh();
   }
 
+  /// Starts the one-shot refresh. Mount-equivalent for result bindings whose
+  /// callers (e.g. generated screens) invoke a synchronous `start()` in
+  /// `initState` — mirrors [StreamUseCaseBinding.start].
+  void start() {
+    refresh();
+  }
+
   /// Re-invokes the [UseCase] and propagates the result.
   ///
   /// Marked in-flight first (last value retained). On success emits the
