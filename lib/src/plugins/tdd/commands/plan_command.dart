@@ -2953,6 +2953,27 @@ class PlanCommand extends Command<void> {
                     'scenario.',
         );
       }
+      // Issue #1864: an acceptance behavior declared in the CORE lane
+      // whose prose names a presentation verb (draws / renders /
+      // displays / shows / paints) or a widget-surface noun (field /
+      // placeholder / prompt / layout / screen / view / widget) is a
+      // mislane — the engine lane is pure Dart by construction. The
+      // noFlutter guard previously covered only the unit lane (widget /
+      // theme kind + Flutter identifiers); an explicit `**Type**:
+      // acceptance` marker bypassed the classifier and slipped through.
+      if (lane == Lane.core &&
+          b.kind == BehaviorKind.acceptance &&
+          SpecParser.isPresentationMislane(b.description)) {
+        refusals.add(
+          'noFlutter guard: behavior "${b.id}" '
+          '(${b.sourceCriterion}) is a mislane: an acceptance '
+          'behavior declared in the CORE lane whose assertion text '
+          'names a presentation verb or widget-surface noun '
+          '(${b.description}) — the engine lane is pure Dart. '
+          '--> fix: move the behavior to the SKIN lane, or reword '
+          'the scenario to a controller/provider outcome.',
+        );
+      }
     }
 
     // Ffi rows default engine-side (the native boundary is engine
