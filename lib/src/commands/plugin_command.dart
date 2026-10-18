@@ -602,8 +602,10 @@ class PluginCommand {
 
     // Resolve manifest: path first, then registry.
     PluginManifest? manifest;
+    String? manifestSourcePath;
     if (FileSystemEntity.typeSync(target) != FileSystemEntityType.notFound) {
       manifest = loadManifest(target);
+      manifestSourcePath = target;
     }
     if (manifest == null) {
       registryPath ??= _defaultRegistryPath(root);
@@ -622,6 +624,7 @@ class PluginCommand {
           mp = p.join(p.dirname(registryPath), mp);
         }
         manifest = loadManifest(mp);
+        manifestSourcePath = mp;
       }
     }
     if (manifest == null) {
@@ -654,23 +657,32 @@ class PluginCommand {
       print('    + $t');
     }
 
-    if (dry) {
-      print('');
-      print('(dry run — no changes applied)');
-      return;
-    }
-
-    // Undeclared write paths check: enumerate files in plugin dir if target is a dir.
+    // Undeclared write paths check: enumerate files in the plugin's source dir.
+    // Runs in dry-run too (read-only) so previews surface undeclared files.
+    String? sourceDir;
     if (FileSystemEntity.typeSync(target) == FileSystemEntityType.directory) {
+      sourceDir = target;
+    } else if (manifestSourcePath != null) {
+      final msPath = manifestSourcePath;
+      final t = FileSystemEntity.typeSync(msPath);
+      if (t == FileSystemEntityType.directory) {
+        sourceDir = msPath;
+      } else if (t == FileSystemEntityType.file) {
+        sourceDir = p.dirname(msPath);
+      }
+    }
+    if (sourceDir != null &&
+        FileSystemEntity.typeSync(sourceDir) ==
+            FileSystemEntityType.directory) {
       final undeclared = <String>[];
-      final dir = Directory(target);
+      final dir = Directory(sourceDir);
       for (final entity in dir.listSync(recursive: true)) {
         if (entity is! File) continue;
-        final rel = p.relative(entity.path, from: target);
+        final rel = p.relative(entity.path, from: sourceDir);
         if (rel == 'manifest.json') continue;
         final declared = manifest.writePaths.any((wp) {
           final prefix = wp.endsWith('/') ? wp : '$wp/';
-          return rel == wp || rel.startsWith(prefix) || rel.startsWith(wp);
+          return rel == wp || rel.startsWith(prefix);
         });
         if (!declared) undeclared.add(rel);
       }
@@ -678,11 +690,17 @@ class PluginCommand {
         print('');
         print('❌ Installing plugin with undeclared write paths fails:');
         for (final u in undeclared) {
-        print('   - $u');
-      }
+          print('   - $u');
+        }
         exitCode = ExitProtocol.failure;
         return;
       }
+    }
+
+    if (dry) {
+      print('');
+      print('(dry run — no changes applied)');
+      return;
     }
 
     // Conflict check: overlapping commands with installed plugins.
@@ -803,7 +821,6 @@ class PluginCommand {
     final candidates = [
       p.join(base, 'registry.json'),
       p.join(base, 'plugins', 'registry.json'),
-      p.join(Directory.current.path, 'registry.json'),
     ];
     for (final c in candidates) {
       if (File(c).existsSync()) return c;

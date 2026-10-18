@@ -138,4 +138,55 @@ void main() {
     final out = await drive(['plugin', 'verify', pluginDir.path]);
     expect(out, contains('Verification passed'));
   });
+
+  test(
+    'undeclared sibling-prefix file is not masked by loose prefix',
+    () async {
+      final pluginDir = Directory(p.join(tmp.path, 'sibplugin'))..createSync();
+      final sub = Directory(p.join(pluginDir.path, 'lib', 'src', 'foobar'))
+        ..createSync(recursive: true);
+      File(p.join(sub.path, 'x.txt')).writeAsStringSync('x');
+      final manifest = {
+        'id': 'sib-plugin',
+        'name': 'Sib Plugin',
+        'version': '1.0.0',
+        'description': 'demo',
+        'capabilities': {
+          'write_paths': ['lib/src/foo'],
+          'commands': [],
+          'tools': [],
+        },
+      };
+      File(
+        p.join(pluginDir.path, 'manifest.json'),
+      ).writeAsStringSync(signManifest(manifest));
+
+      final out = await drive(['plugin', 'install', pluginDir.path]);
+      expect(out.toLowerCase(), contains('undeclared'));
+      expect(exitCode, isNot(0));
+    },
+  );
+
+  test('dry-run surfaces undeclared write paths', () async {
+    final pluginDir = Directory(p.join(tmp.path, 'drybad'))..createSync();
+    File(p.join(pluginDir.path, 'sneaky.txt')).writeAsStringSync('x');
+    final manifest = {
+      'id': 'dry-bad',
+      'name': 'Dry Bad',
+      'version': '1.0.0',
+      'description': 'demo',
+      'capabilities': {
+        'write_paths': ['lib/src/foo/'],
+        'commands': [],
+        'tools': [],
+      },
+    };
+    File(
+      p.join(pluginDir.path, 'manifest.json'),
+    ).writeAsStringSync(signManifest(manifest));
+
+    final out = await drive(['plugin', 'install', pluginDir.path, '--dry-run']);
+    expect(out.toLowerCase(), contains('undeclared'));
+    expect(exitCode, isNot(0));
+  });
 }

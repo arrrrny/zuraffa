@@ -87,9 +87,17 @@ class PluginManifest {
 
   bool verify({String key = defaultSigningKey}) {
     if (signature.isEmpty) return false;
-    return signature == sign(canonical(), key: key);
+    final expected = sign(canonical(), key: key);
+    if (expected.length != signature.length) return false;
+    var result = 0;
+    for (var i = 0; i < expected.length; i++) {
+      result |= expected.codeUnitAt(i) ^ signature.codeUnitAt(i);
+    }
+    return result == 0;
   }
 
+  /// v0 dev-only symmetric signing key. Baked into source for the v0 slice;
+  /// production needs an asymmetric keypair + trust store (see review).
   static const String defaultSigningKey = 'zuraffa-plugin-dev-signing-key';
 }
 
