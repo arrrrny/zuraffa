@@ -203,9 +203,7 @@ class MockVerifyCommand extends Command<void> {
     // consumed: the gate's fix lines are ordered (missing → invented →
     // analyze), so the analyze tail is what remains after the structural
     // prefix.
-    final structuralCount =
-        (certification.missingMethods.isNotEmpty ? 1 : 0) +
-        (certification.inventedMethods.isNotEmpty ? 1 : 0);
+    final structuralCount = (certification.missingMethods.isNotEmpty ? 1 : 0);
     final analyzeLines = report.fixLines.length > structuralCount
         ? report.fixLines.sublist(structuralCount)
         : const <String>[];
@@ -226,8 +224,8 @@ class MockVerifyCommand extends Command<void> {
           member: m,
           file: certification.mockFile,
           fix:
-              'correct the member(s) '
-              '${certification.mockClass ?? 'the mock'} does not declare in '
+              'remove the extra member(s) '
+              '${certification.mockClass ?? 'the mock'} declares beyond '
               '${certification.interfaceClass ?? 'the declared interface'}: '
               '${certification.inventedMethods.join(', ')}',
         ),
