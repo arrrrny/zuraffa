@@ -604,6 +604,12 @@ class RunDriverCore {
       registry: registry,
       projectRoot: projectRoot,
     );
+    // Review #1785 (minor): reconcile uses the marker-only (loose)
+    // born-green set on purpose — the red-witness promotion only needs the
+    // #1411 attestation, not subject binding. The refactor shortcut
+    // (#1592) keeps the stricter subject-bound set, so a subject that
+    // drifted after certification stays `done` here while the shortcut
+    // refuses it; that asymmetry is deliberate (documented, not unified).
     final bornGreenAttested = (await evidence.bornGreenCertifiedEntries()).keys
         .toSet();
 

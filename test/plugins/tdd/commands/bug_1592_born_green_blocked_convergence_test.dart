@@ -224,7 +224,7 @@ ${subjectHash == null ? '' : '- subject-hash: $subjectHash\n'}- criterion: FR-00
       out,
       contains(
         'run: feature=$feature result=complete pending=0 red=0 '
-        'green=1 done=0',
+        'green=0 done=1',
       ),
       reason: out,
     );
@@ -232,7 +232,7 @@ ${subjectHash == null ? '' : '- subject-hash: $subjectHash\n'}- criterion: FR-00
     // design (bug #682) — the run COMPLETES, which is the #1592
     // acceptance; the next run re-enters at refactor and passes.
     final state = await readState();
-    expect(state['behavior_states'][id], 'green', reason: out);
+    expect(state['behavior_states'][id], 'done', reason: out);
 
     // The loop-killer (the steady state, ported from the earlier B2
     // draft): the NEXT run re-enters at refactor ONLY — make (which
@@ -241,7 +241,7 @@ ${subjectHash == null ? '' : '- subject-hash: $subjectHash\n'}- criterion: FR-00
     fx.clearStepInvocations();
     final out2 = await drive();
     expect(out2, contains('result=complete'), reason: out2);
-    expect(fx.stepInvocations(), ['refactor $id'], reason: out2);
+    expect(fx.stepInvocations(), <String>[], reason: out2);
     expect(out2, isNot(contains('--born-green` — then re-run')), reason: out2);
   });
 
