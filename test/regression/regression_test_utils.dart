@@ -65,6 +65,8 @@ class $name {
   final $idType id;
 
   const $name({required this.id});
+
+  $name copyWithField(Object field, Object? value) => this;
 }
 
 class ${name}Patch {
