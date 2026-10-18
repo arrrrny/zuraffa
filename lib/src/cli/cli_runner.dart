@@ -25,6 +25,7 @@ import '../commands/proof_command.dart';
 import '../commands/migrate_command.dart';
 import '../commands/update_command.dart';
 import '../commands/build_command.dart';
+import '../commands/budget_command.dart';
 import '../commands/manifest_command.dart';
 import '../commands/generate_commands_command.dart';
 import '../commands/apply_command.dart';
@@ -235,6 +236,7 @@ class CliRunner {
       MakeCommand(registry, processRunner: _makeProcessRunner),
     );
     _runner.addCommand(EngineCommand());
+    _runner.addCommand(BudgetCommand());
     _runner.addCommand(DoctorCommand());
     _runner.addCommand(ProofCommand());
     _runner.addCommand(MigrateCommand());
