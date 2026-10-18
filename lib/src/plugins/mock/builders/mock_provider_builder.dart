@@ -109,8 +109,8 @@ class MockProviderBuilder {
             ));
 
     final serviceImport = config.isEntityBased
-        ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
-        : '../../../domain/services/${serviceSnake}_service.dart';
+        ? '../../../domain/services/${config.effectiveDomain}/$serviceSnake.dart'
+        : '../../../domain/services/$serviceSnake.dart';
 
     final directives = <Directive>[];
     final importedUris = <String>{};
@@ -425,14 +425,9 @@ class MockProviderBuilder {
             'domain',
             'services',
             config.effectiveDomain,
-            '${serviceSnake}_service.dart',
+            '$serviceSnake.dart',
           )
-        : path.join(
-            outputDir,
-            'domain',
-            'services',
-            '${serviceSnake}_service.dart',
-          );
+        : path.join(outputDir, 'domain', 'services', '$serviceSnake.dart');
 
     return MethodExtractor.extractMethodsFromInterface(
       servicePath,

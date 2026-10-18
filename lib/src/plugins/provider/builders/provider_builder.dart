@@ -55,6 +55,7 @@ class ProviderBuilder {
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final serviceName = config.effectiveService;
     final providerName = config.effectiveProvider;
+    final providerImplName = config.effectiveProviderImpl ?? providerName;
     final providerSnake = config.providerSnake;
     final serviceSnake = config.serviceSnake;
     if (serviceName == null ||
@@ -110,8 +111,8 @@ class ProviderBuilder {
     final returnType = _returnType(config.useCaseType, returnsType);
 
     final serviceImport = config.isEntityBased
-        ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
-        : '../../../domain/services/${serviceSnake}_service.dart';
+        ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}.dart'
+        : '../../../domain/services/${serviceSnake}.dart';
 
     final entityTypes = <String>{};
     if (config.isEntityBased) {
@@ -139,14 +140,9 @@ class ProviderBuilder {
             'domain',
             'services',
             config.effectiveDomain,
-            '${serviceSnake}_service.dart',
+            '${serviceSnake}.dart',
           )
-        : path.join(
-            outputDir,
-            'domain',
-            'services',
-            '${serviceSnake}_service.dart',
-          );
+        : path.join(outputDir, 'domain', 'services', '${serviceSnake}.dart');
 
     final existingMethods = await MethodExtractor.extractMethodsFromInterface(
       servicePath,
@@ -246,7 +242,7 @@ class ProviderBuilder {
 
     final providerClass = Class(
       (c) => c
-        ..name = providerName
+        ..name = providerImplName
         ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
         ..implements.add(refer(serviceName))
         ..methods.addAll(methods),
@@ -276,7 +272,7 @@ class ProviderBuilder {
         if (config.revert) {
           content = helper.removeMethodFromClass(
             source: content,
-            className: providerName,
+            className: providerImplName!,
             methodName: method.name!,
           );
         } else if (config.force) {
@@ -284,14 +280,14 @@ class ProviderBuilder {
           if (content.contains(' ${method.name}(')) {
             content = helper.replaceMethodInClass(
               source: content,
-              className: providerName,
+              className: providerImplName!,
               methodName: method.name!,
               methodSource: methodSource,
             );
           } else {
             content = helper.addMethodToClass(
               source: content,
-              className: providerName,
+              className: providerImplName!,
               methodSource: methodSource,
             );
           }
@@ -300,7 +296,7 @@ class ProviderBuilder {
           if (!content.contains(' ${method.name}(')) {
             content = helper.addMethodToClass(
               source: content,
-              className: providerName,
+              className: providerImplName!,
               methodSource: methodSource,
             );
           }

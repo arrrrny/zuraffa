@@ -13,6 +13,10 @@
 library;
 
 export 'ui_vocabulary_schema.dart';
+export 'screen_doc.dart';
+export 'screen_renderer.dart';
+export 'screen_verifier.dart';
+export 'notes_screen.dart';
 export 'semantic_action.dart';
 export 'rendered_view.dart';
 export 'ui_render_event.dart';
