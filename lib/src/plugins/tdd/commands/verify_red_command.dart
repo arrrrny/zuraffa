@@ -1322,13 +1322,24 @@ class VerifyRedCommand extends Command<void> {
     final lines = output.split('\n');
     String? currentName;
     final current = StringBuffer();
+    // Lines accumulated while no failing test is open: these are the
+    // framework-banner / assertion block that `flutter test` prints
+    // BEFORE the failing progress line for a widget (SKIN) test, i.e.
+    // the body that must land in that test's segment (issue #1820).
+    final pending = StringBuffer();
+    bool isBannerStart(String line) {
+      final trimmed = line.trimLeft();
+      if (trimmed.isEmpty) return false;
+      if (line.contains('EXCEPTION CAUGHT')) return true;
+      if (RegExp(r'[═]{3,}').hasMatch(line)) return true;
+      if (trimmed.startsWith('The following') &&
+          trimmed.contains('was thrown')) {
+        return true;
+      }
+      return false;
+    }
+
     for (final line in lines) {
-      // The `~N` skipped counter may sit before OR after the `-\d+` fail
-      // counter: the real `dart test` expanded reporter prints
-      // `+P ~S -F`, while the SuiteGuard precedent parses `-F ~S`.
-      // Without it, a transcript containing a skipped test parses no
-      // failing segment at all and the whole batch degrades to
-      // runner-error.
       final failing = RegExp(
         r'^\d\d:\d\d \+\d+(?: ~\d+)?(?: -\d+(?: ~\d+)?)?: (.+) \[E\]\s*$',
       ).firstMatch(line);
@@ -1336,9 +1347,13 @@ class VerifyRedCommand extends Command<void> {
       if (failing != null) {
         if (currentName != null) {
           segments[currentName] = current.toString();
+          current.clear();
         }
         currentName = failing.group(1)!.trim();
-        current.clear();
+        if (pending.isNotEmpty) {
+          current.write(pending.toString());
+          pending.clear();
+        }
         continue;
       }
       if (progress) {
@@ -1347,9 +1362,19 @@ class VerifyRedCommand extends Command<void> {
           currentName = null;
           current.clear();
         }
+        pending.clear();
         continue;
       }
-      if (currentName != null) current.writeln(line);
+      if (currentName == null) {
+        pending.writeln(line);
+      } else if (isBannerStart(line)) {
+        segments[currentName] = current.toString();
+        current.clear();
+        currentName = null;
+        pending.writeln(line);
+      } else {
+        current.writeln(line);
+      }
     }
     if (currentName != null) {
       segments[currentName] = current.toString();
