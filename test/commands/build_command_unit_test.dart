@@ -252,6 +252,35 @@ void main() {
           expect(f.readAsStringSync(), isNot(contains('zorphy:zorphy')));
         },
       );
+
+      test(
+        'returns true + a note when the project does not use zorphy (#1709)',
+        () async {
+          // A non-zuraffa package: its own build.yaml, a real pubspec with no
+          // zorphy dependency, and no @Zorphy sources.
+          final f = File(p.join(sandbox.path, 'build.yaml'));
+          await f.writeAsString(
+            'targets:\n  \$default:\n    builders:\n      slang_build_runner:\n        enabled: true\n',
+          );
+          await File(p.join(sandbox.path, 'pubspec.yaml')).writeAsString(
+            'name: shadapp\ndependencies:\n  flutter:\n    sdk: flutter\n',
+          );
+          await Directory(
+            p.join(sandbox.path, 'lib/src'),
+          ).create(recursive: true);
+          await File(
+            p.join(sandbox.path, 'lib/src/app.dart'),
+          ).writeAsString('class App {}');
+          bool? result;
+          final out = await capturePrint(() async {
+            result = await command.ensureBuildYaml(projectRoot: sandbox.path);
+          });
+          expect(result, isTrue);
+          expect(out, contains('no @Zorphy sources and no zorphy dependency'));
+          // The user's build.yaml must be left untouched.
+          expect(f.readAsStringSync(), isNot(contains('zorphy:zorphy')));
+        },
+      );
     });
 
     group('reportBuildYamlDryRun', () {
@@ -287,6 +316,30 @@ void main() {
         );
         expect(out, '');
       });
+
+      test(
+        'notes the not-applicable pass when the project does not use zorphy (#1709)',
+        () async {
+          await File(p.join(sandbox.path, 'build.yaml')).writeAsString(
+            'targets:\n  \$default:\n    builders:\n      slang_build_runner:\n        enabled: true\n',
+          );
+          await File(p.join(sandbox.path, 'pubspec.yaml')).writeAsString(
+            'name: shadapp\ndependencies:\n  flutter:\n    sdk: flutter\n',
+          );
+          await Directory(
+            p.join(sandbox.path, 'lib/src'),
+          ).create(recursive: true);
+          await File(
+            p.join(sandbox.path, 'lib/src/app.dart'),
+          ).writeAsString('class App {}');
+          final out = capturePrintSync(
+            () => command.reportBuildYamlDryRun(projectRoot: sandbox.path),
+          );
+          expect(out, contains('no @Zorphy sources and no zorphy dependency'));
+          expect(out, contains('issue #1709'));
+          expect(out, isNot(contains('build would write 0 outputs')));
+        },
+      );
     });
 
     group('verifyOutputsOrFail (safety net — #276)', () {
