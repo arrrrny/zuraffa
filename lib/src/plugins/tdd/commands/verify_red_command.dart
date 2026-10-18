@@ -351,7 +351,7 @@ class VerifyRedCommand extends Command<void> {
         ownedPaths: ownedPaths,
       );
     } on FileSystemException catch (e) {
-      print('zfa tdd verify-red: cannot snapshot test/ and lib/: ${e.message}');
+      print('zfa tdd verify-red: cannot snapshot owned paths: ${e.message}');
       _printSummary(
         behavior: record.behaviorId,
         classification: 'unresolved',
@@ -396,7 +396,7 @@ class VerifyRedCommand extends Command<void> {
       const classification = RedClassification.runnerError;
       print('   classification: ${classification.label}');
       print(
-        'zfa tdd verify-red: read-only integrity violation under test/ or lib/: '
+        'zfa tdd verify-red: read-only integrity violation under owned paths: '
         '${changedPaths.join(', ')}',
       );
       print('   no evidence written');
@@ -1146,7 +1146,7 @@ class VerifyRedCommand extends Command<void> {
         ownedPaths: ownedPaths,
       );
     } on FileSystemException catch (e) {
-      print('zfa tdd verify-red: cannot snapshot test/ and lib/: ${e.message}');
+      print('zfa tdd verify-red: cannot snapshot owned paths: ${e.message}');
       print(
         'verify-red: batch=true behaviors=${targets.length} certified=0 '
         'classification=unresolved feature=$featureLabel',
@@ -1205,8 +1205,8 @@ class VerifyRedCommand extends Command<void> {
     }
     if (changedPaths.isNotEmpty) {
       print(
-        'zfa tdd verify-red: read-only integrity violation under test/ or '
-        'lib/: ${changedPaths.join(', ')}',
+        'zfa tdd verify-red: read-only integrity violation under owned paths: '
+        '${changedPaths.join(', ')}',
       );
       print('   no evidence written');
       print(
@@ -1531,6 +1531,15 @@ Set<String> _ownedRelativePaths(ArtifactRecord record, String cwd) {
     final relative = p
         .normalize(p.relative(abs, from: cwd))
         .replaceAll(p.separator, '/');
+    // Reject paths that escape the project root (issue #1754 finding 4).
+    if (relative.isEmpty ||
+        relative == '.' ||
+        relative == '..' ||
+        relative.startsWith('../') ||
+        relative.startsWith('..\\') ||
+        p.isAbsolute(relative)) {
+      continue;
+    }
     result.add(relative);
   }
   return result;
@@ -1551,6 +1560,13 @@ class _ReadOnlyTreeSnapshot {
     // lane. Each owned path is recorded as `file:<sha256>` when present,
     // `directory`/`link:<target>` for other entity kinds, or `missing`
     // when absent — so additions and deletions are still detected.
+    // Fail closed: an empty owned-paths set would silently disable the
+    // integrity check (issue #1754 finding 3).
+    if (ownedPaths.isEmpty) {
+      throw FileSystemException(
+        'no owned paths registered for read-only snapshot',
+      );
+    }
     final entries = <String, String>{};
     for (final relative in ownedPaths) {
       final normalized = relative.replaceAll(p.separator, '/');
