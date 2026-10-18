@@ -9,6 +9,8 @@ import 'package:path/path.dart' as p;
 import '../cli/plugin_loader.dart';
 import '../plugins/plugin_gate/plugin_catalog.dart';
 import '../plugins/plugin_gate/plugin_gate.dart';
+import '../plugins/registry/plugin_manifest.dart';
+import '../plugins/registry/plugin_registry_index.dart';
 import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../models/generated_file.dart';
@@ -174,6 +176,18 @@ class PluginCommand {
         // `zfa plugin mcp` is an alias for `zfa mcp scaffold` (issue #369).
         // Delegates to the McpPlugin's ScaffoldMcpServerCapability.
         await _scaffoldMcp(args.sublist(1));
+        return;
+      case 'search':
+        await _search(rest, root: root);
+        return;
+      case 'install':
+        await _install(rest, root: root, dryRun: args.contains('--dry-run'));
+        return;
+      case 'verify':
+        await _verify(rest, root: root);
+        return;
+      case 'publish':
+        await _publish(rest, root: root);
         return;
       default:
         // Unknown subcommand = usage error (SPEC 917): exit class 2
@@ -525,12 +539,288 @@ class PluginCommand {
     return s[0].toLowerCase() + s.substring(1);
   }
 
+  Future<void> _search(List<String> rest, {String? root}) async {
+    String? registryPath;
+    String query = '';
+    for (var i = 0; i < rest.length; i++) {
+      if (rest[i] == '--registry' && i + 1 < rest.length) {
+        registryPath = rest[i + 1];
+        i++;
+      } else if (!rest[i].startsWith('--')) {
+        query = rest[i];
+      }
+    }
+    registryPath ??= _defaultRegistryPath(root);
+    final index = PluginRegistryIndex.load(registryPath);
+    final q = query.toLowerCase();
+    final matches = index.plugins.where((e) {
+      if (q.isEmpty) return true;
+      return e.id.toLowerCase().contains(q) ||
+          e.name.toLowerCase().contains(q) ||
+          e.description.toLowerCase().contains(q);
+    }).toList();
+    print('Plugin registry ($registryPath):');
+    if (matches.isEmpty) {
+      print('  (no plugins found)');
+      return;
+    }
+    for (final e in matches) {
+      print('  ${e.id} ${e.version} - ${e.name}');
+      if (e.description.isNotEmpty) print('      ${e.description}');
+    }
+  }
+
+  Future<void> _install(
+    List<String> rest, {
+    String? root,
+    bool dryRun = false,
+  }) async {
+    // Parse flags.
+    String? registryPath;
+    String? target;
+    var dry = dryRun;
+    final positional = <String>[];
+    for (var i = 0; i < rest.length; i++) {
+      final a = rest[i];
+      if (a == '--registry' && i + 1 < rest.length) {
+        registryPath = rest[i + 1];
+        i++;
+      } else if (a == '--dry-run') {
+        dry = true;
+      } else if (!a.startsWith('--')) {
+        positional.add(a);
+      }
+    }
+    if (positional.isEmpty) {
+      print('Missing plugin name or path');
+      _printHelp();
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    target = positional.first;
+    final projectRoot = root ?? Directory.current.path;
+
+    // Resolve manifest: path first, then registry.
+    PluginManifest? manifest;
+    if (FileSystemEntity.typeSync(target) != FileSystemEntityType.notFound) {
+      manifest = loadManifest(target);
+    }
+    if (manifest == null) {
+      registryPath ??= _defaultRegistryPath(root);
+      final index = PluginRegistryIndex.load(registryPath);
+      PluginRegistryEntry? entry;
+      for (final e in index.plugins) {
+        if (e.id == target || e.name == target) {
+          entry = e;
+          break;
+        }
+      }
+      if (entry != null && entry.manifestPath.isNotEmpty) {
+        // Resolve relative to registry file dir.
+        var mp = entry.manifestPath;
+        if (!p.isAbsolute(mp)) {
+          mp = p.join(p.dirname(registryPath), mp);
+        }
+        manifest = loadManifest(mp);
+      }
+    }
+    if (manifest == null) {
+      print('❌ Plugin not found: $target');
+      exitCode = ExitProtocol.failure;
+      return;
+    }
+
+    // Verify signature.
+    if (!manifest.verify()) {
+      print('❌ Signature verification failed for ${manifest.id}');
+      exitCode = ExitProtocol.failure;
+      return;
+    }
+    print('✅ Signature verified: ${manifest.id}');
+
+    // Capability diff.
+    print('');
+    print('Capability diff for ${manifest.id} (${manifest.version}):');
+    print('  Write paths:');
+    for (final w in manifest.writePaths) {
+      print('    + $w');
+    }
+    print('  Commands:');
+    for (final c in manifest.commands) {
+      print('    + $c');
+    }
+    print('  Tools:');
+    for (final t in manifest.tools) {
+      print('    + $t');
+    }
+
+    if (dry) {
+      print('');
+      print('(dry run — no changes applied)');
+      return;
+    }
+
+    // Undeclared write paths check: enumerate files in plugin dir if target is a dir.
+    if (FileSystemEntity.typeSync(target) == FileSystemEntityType.directory) {
+      final undeclared = <String>[];
+      final dir = Directory(target);
+      for (final entity in dir.listSync(recursive: true)) {
+        if (entity is! File) continue;
+        final rel = p.relative(entity.path, from: target);
+        if (rel == 'manifest.json') continue;
+        final declared = manifest.writePaths.any((wp) {
+          final prefix = wp.endsWith('/') ? wp : '$wp/';
+          return rel == wp || rel.startsWith(prefix) || rel.startsWith(wp);
+        });
+        if (!declared) undeclared.add(rel);
+      }
+      if (undeclared.isNotEmpty) {
+        print('');
+        print('❌ Installing plugin with undeclared write paths fails:');
+        for (final u in undeclared) {
+        print('   - $u');
+      }
+        exitCode = ExitProtocol.failure;
+        return;
+      }
+    }
+
+    // Conflict check: overlapping commands with installed plugins.
+    final conflicts = _detectCommandConflicts(manifest, projectRoot);
+    if (conflicts.isNotEmpty) {
+      print('');
+      print('❌ Command conflict detected:');
+      for (final c in conflicts) {
+        print('   - $c');
+      }
+      print('');
+      print('Resolution report:');
+      print('  Overlapping commands must be resolved by disabling one plugin');
+      print('  or renaming the conflicting command before install.');
+      exitCode = ExitProtocol.failure;
+      return;
+    }
+
+    // Record provenance in .zfa.json.
+    final configFile = File(p.join(projectRoot, '.zfa.json'));
+    var doc = <String, dynamic>{};
+    if (configFile.existsSync()) {
+      try {
+        final decoded = jsonDecode(configFile.readAsStringSync());
+        if (decoded is Map<String, dynamic>) doc = decoded;
+      } catch (_) {}
+    }
+    final installed = Map<String, dynamic>.from(
+      doc['installed_plugins'] is Map ? doc['installed_plugins'] as Map : {},
+    );
+    installed[manifest.id] = {
+      'version': manifest.version,
+      'manifest': manifest.toJson(),
+    };
+    doc['installed_plugins'] = installed;
+    configFile.writeAsStringSync(
+      const JsonEncoder.withIndent('  ').convert(doc),
+    );
+    print('');
+    print('✅ Installed plugin: ${manifest.id}');
+  }
+
+  Future<void> _verify(List<String> rest, {String? root}) async {
+    String? target;
+    for (final a in rest) {
+      if (!a.startsWith('--')) target = a;
+    }
+    if (target == null) {
+      print('Missing plugin path or name');
+      _printHelp();
+      exitCode = ExitProtocol.usage;
+      return;
+    }
+    PluginManifest? manifest;
+    if (FileSystemEntity.typeSync(target) != FileSystemEntityType.notFound) {
+      manifest = loadManifest(target);
+    } else {
+      // try registry
+      final registryPath = _defaultRegistryPath(root);
+      final index = PluginRegistryIndex.load(registryPath);
+      for (final e in index.plugins) {
+        if (e.id == target || e.name == target) {
+          var mp = e.manifestPath;
+          if (!p.isAbsolute(mp)) mp = p.join(p.dirname(registryPath), mp);
+          manifest = loadManifest(mp);
+          break;
+        }
+      }
+    }
+    if (manifest == null) {
+      print('❌ Plugin not found: $target');
+      exitCode = ExitProtocol.failure;
+      return;
+    }
+    if (manifest.verify()) {
+      print('✅ Verification passed: ${manifest.id} (${manifest.version})');
+    } else {
+      print('❌ Verification failed: ${manifest.id}');
+      exitCode = ExitProtocol.failure;
+    }
+  }
+
+  Future<void> _publish(List<String> rest, {String? root}) async {
+    print('Publish: not yet implemented in v0');
+  }
+
+  List<String> _detectCommandConflicts(
+    PluginManifest manifest,
+    String projectRoot,
+  ) {
+    final conflicts = <String>[];
+    final configFile = File(p.join(projectRoot, '.zfa.json'));
+    if (!configFile.existsSync()) return conflicts;
+    try {
+      final decoded = jsonDecode(configFile.readAsStringSync());
+      if (decoded is! Map<String, dynamic>) return conflicts;
+      final installed = decoded['installed_plugins'];
+      if (installed is! Map) return conflicts;
+      for (final entry in installed.entries) {
+        final m = (entry.value as Map?)?['manifest'];
+        if (m is! Map<String, dynamic>) continue;
+        final other = PluginManifest.fromJson(m);
+        for (final cmd in manifest.commands) {
+          if (other.commands.contains(cmd)) {
+            conflicts.add(
+              '$cmd provided by both ${manifest.id} and ${other.id}',
+            );
+          }
+        }
+      }
+    } catch (_) {}
+    return conflicts;
+  }
+
+  String _defaultRegistryPath(String? root) {
+    final base = root ?? Directory.current.path;
+    // Look for registry.json in a few common locations.
+    final candidates = [
+      p.join(base, 'registry.json'),
+      p.join(base, 'plugins', 'registry.json'),
+      p.join(Directory.current.path, 'registry.json'),
+    ];
+    for (final c in candidates) {
+      if (File(c).existsSync()) return c;
+    }
+    return p.join(base, 'registry.json');
+  }
+
   void _printHelp() {
     print('zfa plugin - Manage ZFA plugins\n');
     print('USAGE:');
     print('  zfa plugin <command> [options]\n');
     print('COMMANDS:');
     print('  list               List available plugins');
+    print('  search [query]     Search the plugin registry');
+    print('  install <name>     Install a plugin (--dry-run prints diff)');
+    print('  verify <path>      Verify a plugin manifest signature');
+    print('  publish            Publish a plugin (v0: stub)');
     print('  enable <id>        Enable a plugin');
     print('  disable <id>       Disable a plugin');
     print('  add <package>      Wire a plugin package into main.dart');
