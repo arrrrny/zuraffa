@@ -1455,18 +1455,38 @@ class RefactorCommand extends Command<void> {
       // hand-delta pairs HERE, from the post-format on-disk bytes, so
       // the receipt digest binds the bytes the format step actually
       // leaves behind (the #1423 invariant).
-      final hdArtifacts = await ArtifactRegistry(
-        featureDir: featureDir,
-      ).loadAll();
-      for (final rec in hdArtifacts) {
-        await HandDeltaReceipts.refreshBestEffort(
-          projectRoot: cwd,
-          feature: featureName,
-          behaviorId: rec.behaviorId,
-          command: 'tdd refactor',
-          transition: 'refactor',
-          artifactPaths: [rec.testPath, rec.subjectPath],
-        );
+      // Issue #1818 (review): gate on an actual lib mutation so a
+      // no-op refactor run never blesses pre-existing drift, and read the
+      // registry tolerantly so a corrupt `artifacts.json` cannot abort
+      // the sanctioned run after the suite already passed (parity with
+      // the decision reads above, which use `loadAllTolerant`).
+      if (libChanged.isNotEmpty) {
+        final hdArtifacts = await ArtifactRegistry(
+          featureDir: featureDir,
+        ).loadAllTolerant();
+        var hdFired = 0;
+        final hdPaths = <String>[];
+        for (final rec in hdArtifacts) {
+          final report = await HandDeltaReceipts.refreshBestEffort(
+            projectRoot: cwd,
+            feature: featureName,
+            behaviorId: rec.behaviorId,
+            command: 'tdd refactor',
+            transition: 'refactor',
+            artifactPaths: [rec.testPath, rec.subjectPath],
+          );
+          if (report.fired) {
+            hdFired++;
+            hdPaths.addAll(report.receiptedPaths);
+          }
+        }
+        if (hdFired > 0) {
+          print(
+            '   hand-delta receipts refreshed: $hdFired behavior(s) '
+            '(${hdPaths.length} receipted artifact(s) re-hashed after the '
+            'refactor format pass; issue #1817)',
+          );
+        }
       }
 
       final reproofNote = reproofInherited
