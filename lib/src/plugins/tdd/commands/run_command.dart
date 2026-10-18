@@ -75,6 +75,7 @@ import '../services/kernel_cache.dart';
 import '../services/lane_receipts.dart';
 import '../services/profile_preflight.dart';
 import '../services/routing_provenance_preflight.dart';
+import '../services/spec_parser.dart';
 import '../services/scratch_tmpdir.dart';
 import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
@@ -797,21 +798,44 @@ class RunCommand extends Command<void> {
     // the run; its steps print with the same [run] prefix). Both lanes
     // share tdd/run-state.json and tdd/cycle-log.md: BOTH behaviors the
     // engine certified DONE are skipped here, never re-driven.
+    //
+    // Issue #1828: when the spec's SKIN lane declares adaptive_slots, the
+    // feature is in conformance mode — the skin cycle is certified by
+    // `zfa tdd run-skin` (the `skin.v1` receipt). Driving the skin lane
+    // here in lane mode would overwrite that conformance receipt with a
+    // lossy lane-schema receipt and re-drive the hand-written seams, so
+    // leave the skin lane (and its receipt) untouched; the run is green
+    // on the engine lane's verdict alone.
     // -----------------------------------------------------------------
-    final skin = await core.drive(
-      featureRef: featureRef,
-      projectRoot: projectRoot,
-      zfaBin: zfaBin,
-      timeout: timeoutOverride,
-      lane: 'skin',
-      label: label,
-      announce: false,
-      skipWidget: skipWidget,
-      baselineScope: baselineScope,
-      childEnvironment: scratchEnv,
-      verbose: verbose,
-      heartbeat: heartbeatOverride,
-    );
+    final specFileForConformance = File(p.join(featureDir, 'spec.md'));
+    var conformanceMode = false;
+    if (await specFileForConformance.exists()) {
+      final declaredLanes = SpecParser().parseLanes(
+        await specFileForConformance.readAsString(),
+      );
+      conformanceMode = declaredLanes
+          .where((l) => l.lane.trim().toUpperCase() == 'SKIN')
+          .any((l) => l.adaptiveSlots.isNotEmpty);
+    }
+    final RunDriverOutcome skin;
+    if (conformanceMode) {
+      skin = engine;
+    } else {
+      skin = await core.drive(
+        featureRef: featureRef,
+        projectRoot: projectRoot,
+        zfaBin: zfaBin,
+        timeout: timeoutOverride,
+        lane: 'skin',
+        label: label,
+        announce: false,
+        skipWidget: skipWidget,
+        baselineScope: baselineScope,
+        childEnvironment: scratchEnv,
+        verbose: verbose,
+        heartbeat: heartbeatOverride,
+      );
+    }
 
     if (skin.result != 'complete') {
       if (skin.message != null) print('zfa tdd $label: ${skin.message}');

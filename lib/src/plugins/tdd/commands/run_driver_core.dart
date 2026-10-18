@@ -1546,25 +1546,43 @@ class RunDriverCore {
   }) async {
     final counts = laneCounts(laneRows, state?.behaviorStates ?? const {});
     if (lane != null && drove) {
-      // The lane receipt: written on every driving run (complete ->
-      // green, stopped -> red, runner-error -> error); a pre-driving
-      // misfire wrote nothing (this outcome is always post-driving).
-      try {
-        await receipts.write(
-          lane: lane,
-          verdict: verdictForDriverResult(result),
-          result: result,
-          behaviors: laneRows.map((r) => r.id).toList(),
-          counts: counts,
-          stoppedAt: stoppedAt,
-        );
-      } on FileSystemException {
-        // The receipt is a record, never a gate for the driving that
-        // already happened: a failed write is reported, not fatal.
-        stderr.writeln(
-          'zfa tdd: failed to write the $lane receipt at '
-          '${receipts.receiptPath(lane)}',
-        );
+      // Issue #1828: a conformance-mode skin receipt (`schema: skin.v1`)
+      // must never be overwritten by a lane-mode run — the lane schema
+      // is lossy (no platform_slot_fills / hand_edits / digest). When
+      // such a receipt is already on disk, leave it untouched.
+      var writeLaneReceipt = true;
+      if (lane == 'skin') {
+        try {
+          final existing = await receipts.read('skin');
+          if (existing != null && existing['schema'] == 'skin.v1') {
+            writeLaneReceipt = false;
+          }
+        } on LaneReceiptException {
+          // Unreadable/corrupt receipt: fall through to the normal write.
+          writeLaneReceipt = true;
+        }
+      }
+      if (writeLaneReceipt) {
+        // The lane receipt: written on every driving run (complete ->
+        // green, stopped -> red, runner-error -> error); a pre-driving
+        // misfire wrote nothing (this outcome is always post-driving).
+        try {
+          await receipts.write(
+            lane: lane,
+            verdict: verdictForDriverResult(result),
+            result: result,
+            behaviors: laneRows.map((r) => r.id).toList(),
+            counts: counts,
+            stoppedAt: stoppedAt,
+          );
+        } on FileSystemException {
+          // The receipt is a record, never a gate for the driving that
+          // already happened: a failed write is reported, not fatal.
+          stderr.writeln(
+            'zfa tdd: failed to write the $lane receipt at '
+            '${receipts.receiptPath(lane)}',
+          );
+        }
       }
 
       // Spec 1113 (issue #1113): every lane cycle ALSO appends its
