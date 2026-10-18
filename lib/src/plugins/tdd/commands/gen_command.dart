@@ -2272,6 +2272,17 @@ class GenCommand extends Command<void> {
     if (!onDiskSubject.contains('UnimplementedError')) {
       return (regenerated: false, contractDrift: false);
     }
+    // Read the on-disk test early so the mirror can preserve the
+    // existing vacuous-guard marker state (issue #1463): a regenerated
+    // pair that omitted the marker stays marker-less on every subsequent
+    // gen instead of being re-normalized.
+    final onDiskTestFileEarly = File(testPath);
+    final onDiskTestEarly = await onDiskTestFileEarly.exists()
+        ? await bounded(
+            onDiskTestFileEarly.readAsString(),
+            'staleness: read on-disk test (early)',
+          )
+        : '';
 
     // Render the expected pair into a temp mirror (no real paths touched).
     // Bug #827: the mirror must reproduce the REAL relative test→subject
@@ -2314,7 +2325,11 @@ class GenCommand extends Command<void> {
         // remedy as the real write (one wording per gen output).
         projectRoot: projectRoot,
         featureDir: featureDir,
-        omitVacuousMarker: true,
+        // Issue #1463: forced regen drops the marker; otherwise preserve
+        // the on-disk marker state so a marker-less regenerated pair stays
+        // marker-less (idempotent) instead of being re-normalized.
+        omitVacuousMarker: forceRebuild ||
+            !onDiskTestEarly.contains('zfa:tdd: vacuous-guard'),
       );
       final mirroredTest = p.join(
         mirror.path,

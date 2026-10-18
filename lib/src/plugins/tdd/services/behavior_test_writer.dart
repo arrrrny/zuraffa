@@ -501,9 +501,12 @@ void main() {
           '$marker'
           '      expect(result, isA<${shape.declaredReturn}>());';
     }
-    final guardComment = omitVacuousMarker
-        ? ''
-        : '      $vacuousGuardComment\n';
+    // Issue #1463 review nit: the vacuous-guard marker is only omitted
+    // for type-only scalar assertions (see the scalar branch above).
+    // Void/entity guards keep the marker so a regenerated guard pair
+    // stays classified `:hand` (traced hand-delta) instead of being
+    // reclassified `:make`.
+    final guardComment = '      $vacuousGuardComment\n';
     return '${_captureInvocation(b, target, shape, null)}\n'
         '$guardComment'
         '      expect(result, isNot(isA<UnimplementedError>()));';
