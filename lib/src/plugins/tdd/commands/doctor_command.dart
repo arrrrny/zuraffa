@@ -216,6 +216,7 @@ class DoctorCommand extends Command<void> {
     final evidence = CycleEvidence.cached(featureDir);
     final red = await evidence.redEvidence();
     final green = await evidence.greenEvidence();
+    final bornGreen = (await evidence.bornGreenCertifiedEntries()).keys.toSet();
 
     // ---- 1. Legacy-layout scan ---------------------------------------
     // Scan the gen default layout; classify every generated-shape file
@@ -841,7 +842,7 @@ class DoctorCommand extends Command<void> {
         var backed = true;
         switch (claim) {
           case BehaviorState.done:
-            backed = hasRed && hasGreen;
+            backed = (hasRed || bornGreen.contains(entry.key)) && hasGreen;
           case BehaviorState.mocked:
           case BehaviorState.green:
             backed = hasGreen;

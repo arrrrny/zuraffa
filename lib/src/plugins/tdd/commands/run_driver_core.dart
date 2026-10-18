@@ -604,12 +604,15 @@ class RunDriverCore {
       registry: registry,
       projectRoot: projectRoot,
     );
+    final bornGreenAttested = (await evidence.bornGreenCertifiedEntries()).keys
+        .toSet();
 
     var current = _reconcile(
       loaded ?? RunState.empty(feature),
       allRows,
       redEvidence,
       greenEvidence,
+      bornGreenCertified: bornGreenAttested,
     );
 
     // Persist the reconciled state only when something actually changed.
@@ -1780,8 +1783,9 @@ class RunDriverCore {
     RunState state,
     List<BehaviorRow> rows,
     Set<String> red,
-    Set<String> green,
-  ) {
+    Set<String> green, {
+    Set<String> bornGreenCertified = const <String>{},
+  }) {
     final states = Map<String, BehaviorState>.from(state.behaviorStates);
     final bootstrappable = state.inFlightBehaviorId == null;
     for (final row in rows) {
@@ -1789,8 +1793,9 @@ class RunDriverCore {
       var effective = claimed;
       final hasRed = red.contains(row.id);
       final hasGreen = green.contains(row.id);
+      final hasRedOrBornGreen = hasRed || bornGreenCertified.contains(row.id);
       if (claimed == BehaviorState.done) {
-        effective = hasRed && hasGreen
+        effective = hasRedOrBornGreen && hasGreen
             ? BehaviorState.done
             : hasGreen
             ? BehaviorState.green
@@ -1805,7 +1810,7 @@ class RunDriverCore {
             ? BehaviorState.red
             : BehaviorState.pending;
       } else if (bootstrappable && claimed == BehaviorState.pending) {
-        effective = hasRed && hasGreen
+        effective = hasRedOrBornGreen && hasGreen
             ? BehaviorState.done
             : hasGreen
             ? BehaviorState.green
