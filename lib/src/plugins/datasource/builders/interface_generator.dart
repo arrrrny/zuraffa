@@ -277,7 +277,8 @@ class DataSourceInterfaceBuilder {
         default:
           // Issue #1823: allow arbitrary (non-CRUD) verbs as declared
           // data source members. Default to a void future with no params
-          // unless --params/--returns narrow the shape.
+          // unless --params/--returns narrow the shape. Note: a single
+          // --params/--returns shape applies to every verb in one call.
           {
             final returnType = (config.returnsType != null &&
                     config.returnsType!.isNotEmpty)

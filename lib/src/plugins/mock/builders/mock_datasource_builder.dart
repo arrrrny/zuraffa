@@ -1281,6 +1281,16 @@ class MockDataSourceBuilder {
                 : 'void';
             final baseReturns = returns.replaceAll('?', '');
             final isVoid = baseReturns == 'void' || baseReturns == 'dynamic';
+            // Issue #1824 review: branch on list-ness and entity-ness so a
+            // non-void arbitrary verb does not always return a single entity
+            // (which fails `return_of_invalid_type` for List<T>/primitives).
+            final isList = baseReturns.startsWith('List<') &&
+                baseReturns.endsWith('>');
+            final listInner = isList
+                ? baseReturns.substring(5, baseReturns.length - 1).trim()
+                : '';
+            final isEntityList = isList && listInner == entityName;
+            final isEntityReturn = baseReturns == entityName;
             final paramsType =
                 (config.paramsType != null && config.paramsType!.isNotEmpty)
                 ? config.paramsType!
@@ -1290,9 +1300,7 @@ class MockDataSourceBuilder {
                 returns.startsWith('Future<') || returns.startsWith('Stream<')
                 ? returns
                 : 'Future<$returns>';
-            final futureReturnType = returnType.startsWith('Future<')
-                ? returnType
-                : 'Future<$returns>';
+            final futureReturnType = returnType; // returnType already wrapped
             methods.add(
               Method(
                 (m) => m
@@ -1329,11 +1337,18 @@ class MockDataSourceBuilder {
                               .call([])
                               .returned
                               .statement
-                        else
+                        else if (isEntityList)
+                          refer('${entityName}MockData')
+                              .property('sampleList')
+                              .returned
+                              .statement
+                        else if (isEntityReturn)
                           refer('${entityName}MockData')
                               .property('sample$entityName')
                               .returned
-                              .statement,
+                              .statement
+                        else
+                          Code('throw UnimplementedError();'),
                       ]),
                   ),
               ),
