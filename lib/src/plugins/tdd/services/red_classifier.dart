@@ -123,8 +123,8 @@ final RegExp _cfeDiagnostic = RegExp(
 );
 
 final RegExp _assertionSignature = RegExp(
-  r'^\s*Expected:[\s\S]{0,4000}?^\s*Actual:|'
-  r'^\s*Actual:[\s\S]{0,4000}?^\s*Expected:|'
+  r'Expected:[\s\S]{0,4000}?^\s*Actual:|'
+  r'Actual:[\s\S]{0,4000}?^\s*Expected:|'
   r'TestFailure',
   multiLine: true,
 );
