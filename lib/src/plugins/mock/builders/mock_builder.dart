@@ -130,7 +130,14 @@ class MockBuilder {
       fileSystem: fileSystem,
     );
 
-    if (!isPolymorphic) {
+    // Issue #1851: in service mode the "entity" is the service interface
+    // (an abstract type). Never emit a mock-data file instantiating it;
+    // only concrete fixture entities (params/returns) get fixtures, and
+    // those are handled by the fixture loop below.
+    // Issue #1851: skip the top-level mock-data file only when the target
+    // is the service interface itself (an abstract type) — never instantiate
+    // it. Concrete return/param entities still get their fixtures here.
+    if (!isPolymorphic && !(config.hasService && targetEntity == config.effectiveService)) {
       final requiresConcreteEntity =
           config.generateMockDataOnly ||
           (config.name == targetEntity &&
@@ -164,14 +171,16 @@ class MockBuilder {
       }
     }
 
-    files.addAll(
-      await entityGraphBuilder.generateNestedEntityMockFiles(
-        config: config.name == targetEntity
-            ? config
-            : config.copyWith(name: targetEntity),
-        generateMockDataFile: dataBuilder.generateMockDataFile,
-      ),
-    );
+    if (!config.hasService) {
+      files.addAll(
+        await entityGraphBuilder.generateNestedEntityMockFiles(
+          config: config.name == targetEntity
+              ? config
+              : config.copyWith(name: targetEntity),
+          generateMockDataFile: dataBuilder.generateMockDataFile,
+        ),
+      );
+    }
 
     if (!config.generateMockDataOnly) {
       // Issue #1037: an enum entity is a value type — no id, no Patch, no
