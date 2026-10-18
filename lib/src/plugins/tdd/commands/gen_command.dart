@@ -1901,9 +1901,8 @@ class GenCommand extends Command<void> {
     if (behavior.kind == BehaviorKind.platform && platformContext != null) {
       return (
         writeTest: PlatformHarnessTestWriter(context: platformContext).write,
-        writeSubject: PlatformHarnessSubjectWriter(
-          context: platformContext,
-        ).write,
+        writeSubject: PlatformHarnessSubjectWriter(context: platformContext)
+            .write,
       );
     }
     if (behavior.kind == BehaviorKind.contract) {
@@ -1913,9 +1912,19 @@ class GenCommand extends Command<void> {
       // hosts (`Couldn't resolve the package 'test'`). The stale-stub
       // re-render path inherits the fix: it threads the same flag into
       // this dispatch.
+      //
+      // Issue #1751: both contract writers resolve the declared entity
+      // return against the registry at `projectRoot` — the SAME lift the
+      // unit lane's `UnitContractShape.ofResolved` applies — so a
+      // declared entity/collection return renders verbatim (import
+      // included) and the paired test asserts it, instead of the pair
+      // asserting nothing about the declared outcome.
       return (
-        writeTest: ContractTestWriter(flutterTest: flutterTest).write,
-        writeSubject: const ContractSubjectWriter().write,
+        writeTest: ContractTestWriter(
+          flutterTest: flutterTest,
+          cwd: projectRoot,
+        ).write,
+        writeSubject: ContractSubjectWriter(cwd: projectRoot).write,
       );
     }
     return (

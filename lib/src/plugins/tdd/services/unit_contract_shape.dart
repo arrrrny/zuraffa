@@ -115,19 +115,25 @@ bool isRenderableScalarType(String type) => isRenderableDartType(type);
 /// identifier bases left after stripping nullability and recursing
 /// through generics (`List<Task>` → `Task`, `Map<String, Task>` →
 /// `Task`). Scalars and type-shaped non-identifiers emit nothing.
-void _collectEntityNames(String type, void Function(String name) emit) {
+///
+/// Public (issue #1751): the CONTRACT lane's registry resolution shares
+/// this grammar — its own collector descends through the
+/// `Future`/`Stream` wrappers this one does not know (the contract
+/// lane's renderability vocabulary) and delegates every other shape
+/// here, so the grammar lives in ONE place (#1323 lesson).
+void collectEntityNames(String type, void Function(String name) emit) {
   var base = type.trim();
   if (base.endsWith('?')) base = base.substring(0, base.length - 1).trim();
   if (_renderableScalars.contains(base)) return;
   final generic = RegExp(r'^(List|Set|Iterable)<(.+)>$').firstMatch(base);
   if (generic != null) {
-    _collectEntityNames(generic.group(2)!, emit);
+    collectEntityNames(generic.group(2)!, emit);
     return;
   }
   final map = RegExp(r'^Map<\s*([^,>]+)\s*,\s*(.+)>$').firstMatch(base);
   if (map != null) {
-    _collectEntityNames(map.group(1)!, emit);
-    _collectEntityNames(map.group(2)!, emit);
+    collectEntityNames(map.group(1)!, emit);
+    collectEntityNames(map.group(2)!, emit);
     return;
   }
   if (_isDartIdentifier(base)) emit(base);
@@ -313,14 +319,14 @@ class UnitContractShape {
     // deduplicated. Missing entities contribute nothing.
     final importUris = <String>{};
     for (final param in params) {
-      _collectEntityNames(param.declaredType, (name) {
+      collectEntityNames(param.declaredType, (name) {
         final rel = entityFiles[name];
         if (rel == null) return;
         importUris.add(entityImportUri(rel, packageName));
       });
     }
     final returnEntityUris = <String>{};
-    _collectEntityNames(declaredReturn, (name) {
+    collectEntityNames(declaredReturn, (name) {
       final rel = entityFiles[name];
       if (rel == null) return;
       final uri = entityImportUri(rel, packageName);
@@ -357,7 +363,7 @@ class UnitContractShape {
     // same type/name split `of` applies), then the return.
     final candidates = <String>[];
     void addCandidates(String declaredType) {
-      _collectEntityNames(declaredType, (name) {
+      collectEntityNames(declaredType, (name) {
         if (!candidates.contains(name)) candidates.add(name);
       });
     }
@@ -378,14 +384,19 @@ class UnitContractShape {
       signature,
       entityExists: entityFiles.containsKey,
       entityFiles: entityFiles,
-      packageName: _packageName(cwd),
+      packageName: packageNameFor(cwd),
     );
   }
 
   /// The consumer's package name — the `name:` line of the pubspec at
   /// [cwd]. Null when absent or unreadable (fixture contexts): the import
   /// URIs fall back to the lib-relative shape.
-  static String? _packageName(String cwd) {
+  ///
+  /// Public (issue #1751): the CONTRACT lane resolves the same fact when
+  /// it lifts a declared entity return into the verbatim render — the
+  /// emitted imports must be the same lint-clean `package:` URIs the unit
+  /// lane emits.
+  static String? packageNameFor(String cwd) {
     final file = File(p.join(cwd, 'pubspec.yaml'));
     if (!file.existsSync()) return null;
     try {
