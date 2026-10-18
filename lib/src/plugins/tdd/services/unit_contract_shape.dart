@@ -511,6 +511,12 @@ class UnitContractShape {
   /// not `required` and carries no explicit default: a type-based zero
   /// value for the non-nullable scalars (FR-011 — "MINIMAL COMPILABLE
   /// STUB"). Nullable types need no default (null is implicit).
+  ///
+  /// Accepted limitation: only scalar types (`int`, `num`, `double`,
+  /// `bool`, `String`, `Object`) receive a synthesized default. Named
+  /// params of generic/complex types (`List<int>`, `Map<...>`, entities)
+  /// get no synthesized default and their stubs may still fail to compile;
+  /// callers must supply an explicit default in the contract.
   static String _defaultSuffixForNamed(UnitContractParam param) {
     if (param.required) return '';
     if (param.defaultValue != null) return ' = ${param.defaultValue}';
@@ -737,12 +743,14 @@ int _topLevelEquals(String text) {
       continue;
     }
     if (ch == '=' && stack.isEmpty) {
-      // avoid == or =>
+      // avoid ==, =>, !=, >=, <=, ??= and other compound operators
       if (i + 1 < text.length && (text[i + 1] == '=' || text[i + 1] == '>')) {
         continue;
       }
-      if (i > 0 && text[i - 1] == '=') continue;
-      if (i > 0 && text[i - 1] == '!') continue;
+      if (i > 0 && (text[i - 1] == '=' || text[i - 1] == '!' ||
+          text[i - 1] == '<' || text[i - 1] == '>' || text[i - 1] == '?')) {
+        continue;
+      }
       return i;
     }
   }
