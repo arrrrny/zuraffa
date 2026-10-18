@@ -676,6 +676,41 @@ class MockDataSourceBuilder {
           );
           break;
 
+        case 'list':
+          methods.add(
+            Method(
+              (m) => m
+                ..name = 'list'
+                ..annotations.add(refer('override'))
+                ..returns = refer('Future<List<$entityName>>')
+                ..modifier = MethodModifier.async
+                ..requiredParameters.add(
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer('NoParams'),
+                  ),
+                )
+                ..body = Block(
+                  (b) => b
+                    ..statements.addAll([
+                      refer('logger').property('info').call([
+                        literalString('Listing ${entityName}s'),
+                      ]).statement,
+                      refer('Future<void>')
+                          .property('delayed')
+                          .call([refer('_delay')])
+                          .awaited
+                          .statement,
+                      refer(
+                        '${entityName}MockData',
+                      ).property('${entityCamel}s').returned.statement,
+                    ]),
+                ),
+            ),
+          );
+          break;
+
         case 'getList':
           methods.add(
             Method(
