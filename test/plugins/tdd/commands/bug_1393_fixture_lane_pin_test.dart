@@ -21,7 +21,7 @@ void main() {
     'example/specs/004-login-ui/tdd/split-receipt.json',
   );
 
-  test('B1: U1 (FR-001, adaptive view presentation) is declared SKIN', () {
+  test('B1: U1 (FR-001, adaptive view presentation) is declared CORE', () {
     expect(
       spec.existsSync(),
       isTrue,
