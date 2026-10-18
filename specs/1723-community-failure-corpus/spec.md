@@ -91,7 +91,7 @@ A submitter whose pack merged runs `zfa corpus scorecard <pack-id>` and sees whi
 
 ### Functional Requirements
 
-- **FR-001**: System MUST provide `zfa corpus export` with an `--anonymize` flag that walks TDD loop artifacts and emits a corpus pack file.
+- **FR-001**: System MUST provide `zfa corpus export` with an `--anonymize` flag and a `--project`/`--project-root` flag (consistent with the other corpus subcommands) that walks TDD loop artifacts and emits a corpus pack file. Export without `--anonymize` MUST NOT produce a shareable pack: it is limited to local/private inspection of the raw loop artifacts, and any pack intended to leave the repository MUST be produced with `--anonymize` (the only mode that yields a publicly shareable pack).
 - **FR-002**: The anonymizer MUST strip identifiers (entity names, file paths, author/repo names, secrets) while preserving structural shape and outcome vectors.
 - **FR-003**: The anonymizer MUST be deterministic: identical input produces byte-identical output.
 - **FR-004**: System MUST define a corpus pack format (versioned, machine-readable) containing anonymized spec→behavior→outcome triples and an outcome vector.
@@ -110,7 +110,7 @@ A submitter whose pack merged runs `zfa corpus scorecard <pack-id>` and sees whi
 
 **Function**:
 - `Anonymizer`: `anonymize(LoopArtifacts) -> AnonymizedPack`
-- `CorpusExporter`: `export(FeatureOrProject, anonymize: bool, seed: bool) -> List<CorpusPack>`
+- `CorpusExporter`: `export(FeatureOrProject, anonymize: bool, seed: bool, project: Path?) -> List<CorpusPack>`
 - `CorpusMerger`: `merge(List<CorpusPack>, store) -> MergeReport`
 - `Scorecard`: `scorecard(packId, store) -> SurfaceDeltas`
 
