@@ -1093,7 +1093,13 @@ class GenCommand extends Command<void> {
       final prior = await ArtifactRegistry(
         featureDir: featureDir,
       ).findRecord(behavior.id);
-      if (prior != null && prior.sourceCriterion != behavior.sourceCriterion) {
+      // Issue #1388: only refuse on a true positional U-id remap — i.e. when
+      // the base FR token changes. A traces drift that keeps the same base
+      // token (e.g. `FR-007` -> `FR-007, adaptive_layouts`) is a legitimate
+      // regeneration trigger, not a remap.
+      final priorBaseToken = prior?.sourceCriterion.split(',').first.trim();
+      final planBaseToken = behavior.sourceCriterion.split(',').first.trim();
+      if (prior != null && priorBaseToken != planBaseToken) {
         stderr.writeln(
           'zfa tdd gen: behavior ${behavior.id} criterion mismatch — '
           'recorded criterion "${prior.sourceCriterion}" '
