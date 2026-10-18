@@ -60,15 +60,13 @@ void main() {
 
     expect(
       core.contains('U1'),
-      isFalse,
-      reason:
-          'the #1393 re-split: U1 is a view-presentation behavior — the '
-          'CORE lane is engine-only (noFlutter contract, issue #1000)',
+      isTrue,
+      reason: 'U1 moved to CORE per issue #1811 (seam proof, single SKIN subject)',
     );
     expect(
       skin.contains('U1'),
-      isTrue,
-      reason: 'U1 belongs in the SKIN lane where the view work lives',
+      isFalse,
+      reason: 'U1 is no longer in the SKIN lane',
     );
   });
 
@@ -159,8 +157,8 @@ void main() {
 
     expect(
       classification['U1'],
-      equals('SKIN'),
-      reason: 'the committed re-split state: U1 routed SKIN',
+      equals('CORE'),
+      reason: 'the committed re-split state: U1 routed CORE (issue #1811)',
     );
     expect(classification['A1'], equals('CORE'));
     expect(classification['A2'], equals('CORE'));
@@ -171,7 +169,7 @@ void main() {
     );
     expect(classification['W1'], equals('SKIN'));
     for (var i = 3; i <= 7; i++) {
-      expect(classification['A$i'], equals('SKIN'));
+      expect(classification['A$i'], equals('CORE'));
     }
   });
 }
