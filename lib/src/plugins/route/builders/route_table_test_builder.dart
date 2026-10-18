@@ -469,12 +469,24 @@ void main() {
       }
     });
 
-    test('every declared route resolves to a builder (no 404)', () async {
+    testWidgets('every declared route resolves to a builder (no 404)',
+        (tester) async {
       expect(kDeclaredRoutes, isNotEmpty);
+      var exceptional = false;
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: _tableWithSyntheticRoot(),
+        onException: (context, state, router) => exceptional = true,
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       for (final declared in kDeclaredRoutes.keys) {
+        exceptional = false;
+        router.go(declared);
+        await tester.pump();
         expect(
-          await _resolvesWithoutException(declared),
-          isTrue,
+          exceptional,
+          isFalse,
           reason: 'declared route \$declared does not resolve to a route',
         );
       }
@@ -512,7 +524,7 @@ void main() {
       expect(find.byType(RouteTableTestNotFound), findsOneWidget);
     });
 
-    test('deep-link patterns parse into typed params', () async {
+    testWidgets('deep-link patterns parse into typed params', (tester) async {
 $fixtureGroups
     });
   });
@@ -549,21 +561,6 @@ List<GoRoute> _flattenRoutes(List<RouteBase> routes) {
   return flat;
 }
 
-/// Builds an in-memory router over the REAL route table (plus a synthetic
-/// root) and reports whether [location] resolves without hitting the 404
-/// path (onException).
-Future<bool> _resolvesWithoutException(String location) async {
-  var exceptional = false;
-  final router = GoRouter(
-    initialLocation: '/',
-    routes: _tableWithSyntheticRoot(),
-    onException: (context, state, router) => exceptional = true,
-  );
-  addTearDown(router.dispose);
-  router.go(location);
-  await Future<void>.delayed(Duration.zero);
-  return !exceptional;
-}
 ''');
   }
 
@@ -584,10 +581,14 @@ Future<bool> _resolvesWithoutException(String location) async {
         onException: (context, state, router) => exceptional = true,
       );
       addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       router.go('${_dartEscape(plainFixture)}');
-      await Future<void>.delayed(Duration.zero);
-      expect(exceptional, isFalse,
-          reason: 'deep link fixture must resolve: ${_dartEscape(plainFixture)}');
+      await tester.pump();
+      expect(
+        exceptional,
+        isFalse,
+        reason: 'deep link fixture must resolve: ${_dartEscape(plainFixture)}',
+      );
       // routeInformationProvider round-trips the delivered URI.
       expect(
         router.routeInformationProvider.value.uri.path,
@@ -604,11 +605,15 @@ Future<bool> _resolvesWithoutException(String location) async {
         onException: (context, state, router) => exceptional = true,
       );
       addTearDown(encodedRouter.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: encodedRouter));
       encodedRouter.go('${_dartEscape(encodedFixture)}?source=qr');
-      await Future<void>.delayed(Duration.zero);
-      expect(exceptional, isFalse,
-          reason:
-              'URL-encoded deep link must resolve: ${_dartEscape(encodedFixture)}');
+      await tester.pump();
+      expect(
+        exceptional,
+        isFalse,
+        reason:
+            'URL-encoded deep link must resolve: ${_dartEscape(encodedFixture)}',
+      );
       expect(
         encodedRouter.routeInformationProvider.value.uri.path,
         '${_dartEscape(encodedFixture)}',
@@ -651,6 +656,7 @@ Future<bool> _resolvesWithoutException(String location) async {
 // path, URL-encoded query) asserting destination + typed params.
 // Deterministic: no platform channel — the fixture URI is what the engine
 // delivers after platform dispatch strips the scheme.
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 
@@ -664,7 +670,8 @@ const String k${namePascal}Unknown = '$unknownPathLiteral';
 
 void main() {
   group('deep link $nameSnake (#842)', () {
-    test('declared pattern resolves (destination found, no 404)', () async {
+    testWidgets('declared pattern resolves (destination found, no 404)',
+        (tester) async {
       var exceptional = false;
       final router = GoRouter(
         initialLocation: '/',
@@ -672,18 +679,23 @@ void main() {
         onException: (context, state, router) => exceptional = true,
       );
       addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       router.go(k${namePascal}Pattern.replaceFirst(RegExp(r':[A-Za-z_][A-Za-z0-9_]*'), '123456'));
-      await Future<void>.delayed(Duration.zero);
-      expect(exceptional, isFalse,
-          reason: 'the declared deep link must resolve to its route');
+      await tester.pump();
+      expect(
+        exceptional,
+        isFalse,
+        reason: 'the declared deep link must resolve to its route',
+      );
     });
 
-    test('routeInformationProvider + typed params from URI fixtures',
-        () async {
+    testWidgets('routeInformationProvider + typed params from URI fixtures',
+        (tester) async {
 $fixtureGroup
     });
 
-    test('unmatched deep link falls through to the 404 handler', () async {
+    testWidgets('unmatched deep link falls through to the 404 handler',
+        (tester) async {
       var exceptional = false;
       final router = GoRouter(
         initialLocation: '/',
@@ -691,10 +703,14 @@ $fixtureGroup
         onException: (context, state, router) => exceptional = true,
       );
       addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       router.go(k${namePascal}Unknown + '/deep');
-      await Future<void>.delayed(Duration.zero);
-      expect(exceptional, isTrue,
-          reason: 'an unknown deep link must hit the 404 handler');
+      await tester.pump();
+      expect(
+        exceptional,
+        isTrue,
+        reason: 'an unknown deep link must hit the 404 handler',
+      );
     });
   });
 }
