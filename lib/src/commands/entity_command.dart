@@ -593,22 +593,6 @@ ${missing.map((d) => '   • $d').join('\n')}
       _bail(ExitProtocol.usage);
     }
 
-    // Issue #810: human checkpoint gate on `entity remove`.
-    final assumeYes = args.contains('--yes') || args.contains('-y');
-    final missionId =
-        Platform.environment['ZFA_MISSION_ID'] ??
-        'local-${DateTime.now().millisecondsSinceEpoch}';
-    final gate = ApprovalGate(
-      projectRoot: Directory.current.path,
-      gateId: 'entity.remove',
-      missionId: missionId,
-      requestPayload: <String, dynamic>{'entity': name},
-    );
-    final approved = await gate.check(assumeYes: assumeYes);
-    if (!approved) {
-      _bail(ExitProtocol.failure);
-    }
-
     // The same lookup the run driver's phase-0 entity loop uses, so the
     // removal target is exactly what phase-0 would re-create.
     //
@@ -642,6 +626,24 @@ ${missing.map((d) => '   • $d').join('\n')}
           '`zfa entity remove -n <Name>`',
         ),
       );
+      _bail(ExitProtocol.failure);
+    }
+
+    // Issue #810: human checkpoint gate on `entity remove` — runs after
+    // the existence guard so a removal attempt on a non-existent entity
+    // never prompts or writes a ledger entry before failing.
+    final assumeYes = args.contains('--yes') || args.contains('-y');
+    final missionId =
+        Platform.environment['ZFA_MISSION_ID'] ??
+        'local-${DateTime.now().millisecondsSinceEpoch}';
+    final gate = ApprovalGate(
+      projectRoot: Directory.current.path,
+      gateId: 'entity.remove',
+      missionId: missionId,
+      requestPayload: <String, dynamic>{'entity': name},
+    );
+    final approved = await gate.check(assumeYes: assumeYes);
+    if (!approved) {
       _bail(ExitProtocol.failure);
     }
 

@@ -106,9 +106,24 @@ class SignOffLedger {
   }
 
   Future<String> lastHash() async {
-    final entries = await readAll();
-    if (entries.isEmpty) return _genesis;
-    return entries.last.hash;
+    if (!_file.existsSync()) return _genesis;
+    final bytes = await _file.readAsBytes();
+    if (bytes.isEmpty) return _genesis;
+    final text = utf8.decode(bytes, allowMalformed: true);
+    final lines = text.split('\n');
+    for (var i = lines.length - 1; i >= 0; i--) {
+      final trimmed = lines[i].trim();
+      if (trimmed.isEmpty) continue;
+      try {
+        final json = jsonDecode(trimmed) as Map<String, dynamic>;
+        final hash = json['hash'];
+        if (hash is String && hash.isNotEmpty) return hash;
+      } catch (_) {
+        // Malformed trailing line: treat as broken chain tail.
+      }
+      break;
+    }
+    return _genesis;
   }
 
   Future<SignOffEntry> append({
@@ -153,7 +168,12 @@ class SignOffLedger {
   }
 
   Future<bool> verify() async {
-    final entries = await readAll();
+    List<SignOffEntry> entries;
+    try {
+      entries = await readAll();
+    } catch (_) {
+      return false;
+    }
     String prev = _genesis;
     for (final e in entries) {
       if (e.prevHash != prev) return false;

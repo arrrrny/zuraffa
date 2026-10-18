@@ -10,7 +10,7 @@
 
 ## First slice (v0)
 
-- Gate on `entity remove` and pubspec mutations.
+- Gate on `entity remove` (pubspec mutations deferred to a later slice).
 - Ledger record: mission id, gate, request payload, decision, identity, timestamp.
 - `zfa policy gates --format json` (machine contract per #778).
 
@@ -18,7 +18,7 @@
 
 ### Functional Requirements
 
-- **FR-001**: System MUST provide a registry of approval gates for operation classes (entity.remove, pubspec.mutate).
+- **FR-001**: System MUST provide a registry of approval gates for operation classes (entity.remove). The `pubspec.mutate` gate is reserved for a future slice once pubspec mutation entry points consult `ApprovalGate`; it is intentionally not registered in v0 so the registry never advertises an unenforced checkpoint.
 - **FR-002**: A gated operation MUST block until approved, record a ledger entry, and resume after approval.
 - **FR-003**: The sign-off ledger MUST be append-only and hash-chained (tamper-evident).
 - **FR-004**: `zfa policy gates --format json` MUST emit the gate list as JSON.

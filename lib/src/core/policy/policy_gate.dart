@@ -31,12 +31,6 @@ class PolicyGateRegistry {
           'Removing an entity scaffold + writing its tombstone receipt. '
           'Destructive: deletes generated files and provenance.',
     ),
-    PolicyGate(
-      id: 'pubspec.mutate',
-      description:
-          'Mutating pubspec.yaml dependencies (auto-add or manual). '
-          'Affects the dependency graph of the whole project.',
-    ),
   ];
 
   static PolicyGate? byId(String id) {
