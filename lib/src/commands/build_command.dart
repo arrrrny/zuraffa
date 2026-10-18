@@ -229,7 +229,6 @@ class BuildCommand extends Command {
 
     if (exitCode == 0) {
       print('');
-      print('✅ Build completed successfully');
       // Safety net (zuraffa#276): if build_runner wrote 0 outputs while
       // @Zorphy sources exist, FAIL LOUDLY with an actionable error instead
       // of silently reporting success. The pre-flight check catches a missing
@@ -245,6 +244,10 @@ class BuildCommand extends Command {
           exit(1);
         }
       }
+      // Issue #1796: only celebrate once the analyze gate (and the output
+      // checks above) have actually passed — never print "Build completed
+      // successfully" for a run that then fails the gate.
+      print('✅ Build completed successfully');
     } else if (!clean) {
       // Issue #1303: a pub RESOLUTION failure is not a cache problem —
       // cache state cannot fix resolution, so the clean-cache retry only
@@ -281,7 +284,6 @@ class BuildCommand extends Command {
         exit(1);
       }
       if (retryCode == 0) {
-        print('\n✅ Build completed successfully after cache clean');
         if (!verifyOutputsOrFail(buildOutput: retry.output) ||
             !verifyDeclaredPartsOrFail()) {
           exit(1);
@@ -289,6 +291,7 @@ class BuildCommand extends Command {
         if (analyze && !await verifyAnalyzeOrFail()) {
           exit(1);
         }
+        print('\n✅ Build completed successfully after cache clean');
       } else {
         print('\n❌ Build failed with exit code $retryCode');
         // Fail loudly: a failed build must never exit 0 — the spec-025
@@ -952,22 +955,34 @@ class BuildCommand extends Command {
     String path, {
     String outputDir = GeneratorConfig.fixedOutputDir,
   }) {
+    // `dart analyze lib` (the gate's actual invocation) reports paths
+    // relative to the `lib` directory (`src/...`), while the unit tests and
+    // the project-relative convention carry the `lib/` prefix. Normalise
+    // both shapes so the classifier recognises generator output regardless
+    // of which form the analyzer emits (issue #1796).
     final normalized = path.replaceAll(r'\', '/');
-    if (normalized.endsWith('.zorphy.dart') || normalized.endsWith('.g.dart')) {
+    final candidates = <String>{normalized};
+    if (!normalized.startsWith('lib/') && !normalized.startsWith('./lib/')) {
+      candidates.add('lib/$normalized');
+    }
+    if (normalized.startsWith('./')) {
+      candidates.add(normalized.substring(2));
+    }
+    final isGeneratedSuffix = candidates.any(
+      (c) => c.endsWith('.zorphy.dart') || c.endsWith('.g.dart'),
+    );
+    if (isGeneratedSuffix) {
       return true;
     }
-    // The make plugins own these segments under the output dir, so the
-    // segment test is anchored to that prefix. `dart analyze` prints
-    // project-relative paths (`lib/src/data/…`), so the prefix may sit at
-    // the string start or under a leading `./`/project dir — match both.
-    // The trailing separator keeps the segment boundary, so `lib/src/data.x/`
-    // never classifies as `data`.
-    final anchor = _outputDirPrefix(outputDir);
-    final prefix = anchor.isEmpty ? '' : '$anchor/';
-    for (final segment in _makeOwnedSegments) {
-      if (normalized.startsWith('$prefix$segment/') ||
-          normalized.contains('/$prefix$segment/')) {
-        return true;
+    // Evaluate the segment check against every candidate path.
+    for (final cand in candidates) {
+      final anchor = _outputDirPrefix(outputDir);
+      final prefix = anchor.isEmpty ? '' : '$anchor/';
+      for (final segment in _makeOwnedSegments) {
+        if (cand.startsWith('$prefix$segment/') ||
+            cand.contains('/$prefix$segment/')) {
+          return true;
+        }
       }
     }
     return false;

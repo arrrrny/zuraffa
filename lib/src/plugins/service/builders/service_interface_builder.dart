@@ -2,6 +2,7 @@ import 'package:code_builder/code_builder.dart';
 
 import '../../../core/context/file_system.dart';
 import '../../../core/builder/patterns/common_patterns.dart';
+import '../../../core/constants/known_types.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/string_utils.dart';
@@ -88,7 +89,21 @@ class ServiceInterfaceBuilder {
         ..methods.addAll(methods),
     );
 
-    final imports = <String>['package:zuraffa/zuraffa.dart'];
+    final isEntity = config.isEntityBased;
+    var needsZuraffaImport = isEntity || config.generateInit;
+    if (!isEntity) {
+      final paramsType = config.paramsType ?? 'NoParams';
+      final returnsType = config.returnsType ?? 'void';
+      if (KnownTypes.isZuraffaParam(paramsType) ||
+          KnownTypes.isZuraffaParam(returnsType)) {
+        needsZuraffaImport = true;
+      }
+    }
+
+    final imports = <String>[];
+    if (needsZuraffaImport) {
+      imports.add('package:zuraffa/zuraffa.dart');
+    }
     if (config.isEntityBased) {
       // For entity methods, we definitely need the entity import
       final entityName = config.name;
