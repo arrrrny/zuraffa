@@ -363,8 +363,18 @@ class RoutingResolver {
         // (backticks, surrounding whitespace, generic suffix) even when
         // they name the same entity. Normalize both sides before the
         // membership test so a declared entity is recognised.
-        String norm(String n) =>
-            n.replaceAll('`', '').trim().split('<').first.trim();
+        // Match spec_parser's normalization: strip backticks, trim,
+        // strip a generic suffix only when it follows a real identifier
+        // (genericStart > 0), so a name that merely contains '<' is not
+        // mangled. Issue #1771 nitpick: keep both sides consistent.
+        String norm(String n) {
+          var v = n.replaceAll('`', '').trim();
+          final genericStart = v.indexOf('<');
+          if (genericStart > 0) {
+            v = v.substring(0, genericStart).trim();
+          }
+          return v;
+        }
         final declared = declaredEntities
             .where((r) => norm(r.name) == norm(mined))
             .firstOrNull;

@@ -652,7 +652,13 @@ class SpecParser {
   /// Split a pipe row while preserving empty cells' column positions.
   static List<String> _splitPositionalCells(String line) {
     final raw = line.split('|').map((c) => c.trim()).toList();
-    return raw.length > 2 ? raw.sublist(1, raw.length - 1) : raw;
+    if (raw.length <= 2) return raw;
+    // Drop the leading/trailing empty cells produced by the outer pipes;
+    // a malformed row without outer pipes keeps its raw cells.
+    final start = raw.first.isEmpty ? 1 : 0;
+    final end = raw.last.isEmpty ? raw.length - 1 : raw.length;
+    if (end - start < 1) return raw;
+    return raw.sublist(start, end);
   }
 
   /// Extract the declared external dependencies (bug #919): each row of
@@ -1067,7 +1073,28 @@ class SpecParser {
         // a declared return type (Future<DealListPage>) and the entity
         // extracted by parseKeyEntities. Empty/misaligned cells must not
         // produce a phantom row name.
-        if (!trimmed.startsWith('|')) continue;
+        // Issue #1771 (refusal persists): a Key Entities section may also
+        // declare entities as bullets (`- **Name**: prose`), the same
+        // form parseKeyEntities accepts. Parse those too, otherwise an
+        // entity declared only as a bullet has no contract row and the
+        // declared-entity membership test in routing_resolver fails
+        // (danglingReference) even though parseKeyEntities extracted it.
+        if (!trimmed.startsWith('|')) {
+          final bulletM = _entityBullet.firstMatch(trimmed);
+          if (bulletM == null) continue;
+          var name = bulletM.group(1)!.trim().replaceAll('`', '').trim();
+          final genericStart = name.indexOf('<');
+          if (genericStart > 0) name = name.substring(0, genericStart).trim();
+          if (!_dartIdentifier.hasMatch(name)) continue;
+          rows.add(
+            ContractRowDecl(
+              name: name,
+              kind: ContractRowKind.entity,
+              specLine: lineNo,
+            ),
+          );
+          continue;
+        }
         // Issue #1771: preserve empty cells' positions (unlike
         // _splitCells, which drops them) so a row with an empty cell
         // cannot shift the captured entity name into the wrong column.
