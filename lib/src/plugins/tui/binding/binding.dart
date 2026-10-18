@@ -355,6 +355,8 @@ class UseCaseResultBinding<T, P> extends Binding<T> {
   final void Function(T value)? _onValue;
   final void Function(AppFailure failure)? _onFailure;
 
+  bool _started = false;
+
   @override
   void onValue(T value) => _onValue?.call(value);
 
@@ -369,8 +371,16 @@ class UseCaseResultBinding<T, P> extends Binding<T> {
   /// Starts the one-shot refresh. Mount-equivalent for result bindings whose
   /// callers (e.g. generated screens) invoke a synchronous `start()` in
   /// `initState` — mirrors [StreamUseCaseBinding.start].
+  ///
+  /// Idempotent: a second call is a no-op so concurrent refreshes cannot be
+  /// triggered by repeated `initState`/rebuild invocations. The initial
+  /// [refresh] is fired via [unawaited] so a throwing `onValue`/`onFailure`
+  /// callback surfaces as a normal async error rather than an unhandled
+  /// future (the discarded `Future<void>` case).
   void start() {
-    refresh();
+    if (_started) return;
+    _started = true;
+    unawaited(refresh());
   }
 
   /// Re-invokes the [UseCase] and propagates the result.
