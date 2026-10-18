@@ -199,6 +199,8 @@ dev_dependencies:
     required String contractTestSource,
     required List<ContractMethod> methods,
     bool verbose = false,
+    String? service,
+    String? domain,
   }) async {
     final sandbox = await Directory.systemTemp.createTemp('zfa_mock_cert_');
     final logs = <String>[];
@@ -242,6 +244,8 @@ dev_dependencies:
         projectRoot: projectRoot,
         outputDir: outputDir,
         logs: logs,
+        service: service,
+        domain: domain,
       );
       if (!copied) {
         return _unresolvedRun(
@@ -380,35 +384,80 @@ dev_dependencies:
     required String projectRoot,
     required String outputDir,
     required List<String> logs,
+    String? service,
+    String? domain,
   }) async {
     final snake = StringUtils.camelToSnake(entityName);
     final anchor = p.absolute(projectRoot);
-    final roots = <String>[
-      p.join(outputDir, 'domain', 'entities', snake, '$snake.dart'),
-      p.join(
+    final roots = <String>[];
+    if (service == null) {
+      roots.addAll([
+        p.join(outputDir, 'domain', 'entities', snake, '$snake.dart'),
+        p.join(
+          outputDir,
+          'data',
+          'datasources',
+          snake,
+          '${snake}_datasource.dart',
+        ),
+        p.join(
+          outputDir,
+          'data',
+          'datasources',
+          snake,
+          '${snake}_mock_datasource.dart',
+        ),
+        p.join(outputDir, 'data', 'mock', '${snake}_mock_data.dart'),
+      ]);
+    } else {
+      // Service mode: the conforming double is a provider implementing
+      // the declared service interface. Seed those two files; the import
+      // closure traversal pulls in any mock-data fixtures they reference.
+      final effectiveDomain = domain ?? snake;
+      final base = service.endsWith('Service') || service.endsWith('Provider')
+          ? service.substring(
+              0,
+              service.length -
+                  (service.endsWith('Service')
+                      ? 'Service'.length
+                      : 'Provider'.length),
+            )
+          : service;
+      final baseSnake = StringUtils.camelToSnake(base);
+      final mockProviderName = '${baseSnake}_mock_provider.dart';
+      final svcSnake = StringUtils.camelToSnake(
+        service.endsWith('Service') || service.endsWith('Provider')
+            ? service
+            : '${service}Service',
+      );
+      roots.add(p.join(outputDir, 'domain', 'services', '$svcSnake.dart'));
+      roots.add(
+        p.join(
+          outputDir,
+          'data',
+          'providers',
+          effectiveDomain,
+          mockProviderName,
+        ),
+      );
+      // Optional mock data for the service entity itself, if present.
+      final mockDataPath = p.join(
         outputDir,
         'data',
-        'datasources',
-        snake,
-        '${snake}_datasource.dart',
-      ),
-      p.join(
-        outputDir,
-        'data',
-        'datasources',
-        snake,
-        '${snake}_mock_datasource.dart',
-      ),
-      p.join(outputDir, 'data', 'mock', '${snake}_mock_data.dart'),
-    ];
+        'mock',
+        '${snake}_mock_data.dart',
+      );
+      if (File(mockDataPath).existsSync()) roots.add(mockDataPath);
+    }
     final existingRoots = roots
         .map((r) => p.absolute(r))
         .where((r) => File(r).existsSync())
         .toList();
-    if (existingRoots.length < 3) {
+    final threshold = service == null ? 3 : 2;
+    if (existingRoots.length < threshold) {
       logs.add(
         'mock subjects missing under $outputDir (found '
-        '${existingRoots.length}/4): ${roots.join(', ')}',
+        '${existingRoots.length}/${roots.length}): ${roots.join(', ')}',
       );
       return false;
     }
