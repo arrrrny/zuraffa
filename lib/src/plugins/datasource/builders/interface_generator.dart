@@ -280,15 +280,15 @@ class DataSourceInterfaceBuilder {
           // unless --params/--returns narrow the shape. Note: a single
           // --params/--returns shape applies to every verb in one call.
           {
-            final returnType = (config.returnsType != null &&
-                    config.returnsType!.isNotEmpty)
+            final returnType =
+                (config.returnsType != null && config.returnsType!.isNotEmpty)
                 ? (config.returnsType!.startsWith('Future<') ||
-                        config.returnsType!.startsWith('Stream<')
-                    ? config.returnsType!
-                    : 'Future<${config.returnsType!}>')
+                          config.returnsType!.startsWith('Stream<')
+                      ? config.returnsType!
+                      : 'Future<${config.returnsType!}>')
                 : 'Future<void>';
-            final paramsType = (config.paramsType != null &&
-                    config.paramsType!.isNotEmpty)
+            final paramsType =
+                (config.paramsType != null && config.paramsType!.isNotEmpty)
                 ? config.paramsType!
                 : 'NoParams';
             final m = Method(
