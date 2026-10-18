@@ -356,6 +356,15 @@ class CliRunner {
           return;
         }
 
+        // Issue #998 (FLEET-ROT): `gql` was deleted in favor of `graphql`.
+        // Keep a deprecation shim so old invocations surface a clear
+        // migration message instead of a bare "command not found".
+        if (_isDeprecatedGqlCommand(commandArgs)) {
+          print('WARNING: `zfa gql` is deprecated: use `zfa graphql` instead.');
+          _exit(64);
+          return;
+        }
+
         await _runDispatched(args);
       });
     } finally {
@@ -900,6 +909,14 @@ class CliRunner {
             return;
           }
 
+          if (_isDeprecatedGqlCommand(commandArgs)) {
+            output.add(
+              'WARNING: `zfa gql` is deprecated: use `zfa graphql` instead.',
+            );
+            dispatchedExitCode = 64;
+            return;
+          }
+
           await runZoned(
             () async {
               try {
@@ -963,6 +980,10 @@ class CliRunner {
 
   bool _isRemovedGenerateCommand(List<String> args) {
     return args.isNotEmpty && args.first == 'generate';
+  }
+
+  bool _isDeprecatedGqlCommand(List<String> args) {
+    return args.isNotEmpty && args.first == 'gql';
   }
 
   void _addSuggestions(String error) {
