@@ -1901,8 +1901,9 @@ class GenCommand extends Command<void> {
     if (behavior.kind == BehaviorKind.platform && platformContext != null) {
       return (
         writeTest: PlatformHarnessTestWriter(context: platformContext).write,
-        writeSubject: PlatformHarnessSubjectWriter(context: platformContext)
-            .write,
+        writeSubject: PlatformHarnessSubjectWriter(
+          context: platformContext,
+        ).write,
       );
     }
     if (behavior.kind == BehaviorKind.contract) {
