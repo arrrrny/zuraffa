@@ -543,7 +543,9 @@ class VerifyRedCommand extends Command<void> {
               'transcript',
           subjectHash: currentHash,
           sourceCriterion: record.sourceCriterion,
-          testPath: record.testPath,
+          testPath: p.isAbsolute(record.testPath)
+              ? record.testPath
+              : p.join(cwd, record.testPath),
           timestamp: DateTime.now().toUtc().toIso8601String(),
         ),
       );
@@ -661,7 +663,7 @@ class VerifyRedCommand extends Command<void> {
           redEvidence: evidence,
           subjectHash: await _subjectHashAt(cwd, record),
           sourceCriterion: record.sourceCriterion,
-          testPath: record.testPath,
+          testPath: testPath,
           timestamp: DateTime.now().toUtc().toIso8601String(),
         ),
       );
@@ -1256,7 +1258,9 @@ class VerifyRedCommand extends Command<void> {
             classification: FailureClass.assertionFailure,
             subjectHash: await _subjectHashAt(cwd, record),
             sourceCriterion: record.sourceCriterion,
-            testPath: record.testPath,
+            testPath: p.isAbsolute(record.testPath)
+                ? record.testPath
+                : p.join(cwd, record.testPath),
             timestamp: DateTime.now().toUtc().toIso8601String(),
           ),
         );
