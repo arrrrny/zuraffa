@@ -860,10 +860,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final serviceName = config.effectiveService;
     final serviceSnake = config.serviceSnake;
     final providerName = config.effectiveProvider;
+    final providerImplName = config.effectiveProviderImpl ?? providerName;
     if (serviceName == null || serviceSnake == null || providerName == null) {
       return null;
     }
-    final fileName = '${serviceSnake}_service_di.dart';
+    final fileName = '${serviceSnake}_di.dart';
     final diPath = path.join(outputDir, 'di', 'services', fileName);
 
     if (config.revert) {
@@ -887,11 +888,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             'domain',
             'services',
             config.effectiveDomain,
-            '${serviceSnake}_service.dart',
+            '${serviceSnake}.dart',
           ),
         )
-        ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
-        : '../../domain/services/${serviceSnake}_service.dart';
+        ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}.dart'
+        : '../../domain/services/${serviceSnake}.dart';
 
     final imports = [_coreImport, serviceImport];
 
@@ -929,9 +930,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                                           'MockProvider',
                                         ),
                                       ).call([])
-                                    : refer(
-                                        'getIt',
-                                      ).call([], {}, [refer(providerName)]))
+                                    : refer('getIt').call([], {}, [
+                                        refer(providerImplName!),
+                                      ]))
                                 .code,
                     ).closure,
                   ],
@@ -1021,6 +1022,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     FileSystem fs,
   ) async {
     final providerName = config.effectiveProvider;
+    final providerImplName = config.effectiveProviderImpl ?? providerName;
     final providerSnake = config.providerSnake;
     if (providerName == null || providerSnake == null) {
       return null;
@@ -1053,7 +1055,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
               Method(
                 (m) => m
                   ..lambda = true
-                  ..body = refer(providerName).call([]).code,
+                  ..body = refer(providerImplName!).call([]).code,
               ).closure,
             ]).statement,
           ),
@@ -1245,11 +1247,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                 'domain',
                 'services',
                 domainSnake,
-                '${serviceSnake}_service.dart',
+                '${serviceSnake}.dart',
               ),
             )
-            ? '../../domain/services/$domainSnake/${serviceSnake}_service.dart'
-            : '../../domain/services/${serviceSnake}_service.dart';
+            ? '../../domain/services/$domainSnake/${serviceSnake}.dart'
+            : '../../domain/services/${serviceSnake}.dart';
         imports.add(serviceImport);
       } else {
         imports.add('../../domain/repositories/${repoSnake}_repository.dart');
@@ -1342,11 +1344,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                 'domain',
                 'services',
                 domainSnake,
-                '${serviceSnake}_service.dart',
+                '${serviceSnake}.dart',
               ),
             )
-            ? '../../domain/services/$domainSnake/${serviceSnake}_service.dart'
-            : '../../domain/services/${serviceSnake}_service.dart';
+            ? '../../domain/services/$domainSnake/${serviceSnake}.dart'
+            : '../../domain/services/${serviceSnake}.dart';
 
         imports.add(serviceImport);
         constructorParams.add(

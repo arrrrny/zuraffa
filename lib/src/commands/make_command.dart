@@ -652,6 +652,18 @@ class MakeCommand extends Command<void> {
         ? rest.skip(2).toList()
         : rest.skip(1).toList();
     final normalizedOptions = _normalizedOptions(jsonConfig);
+    // Issue #1020: the `module` preset emits only the FeaturePlugin
+    // orchestrator and has no backing entity, so treat it as
+    // --no-entity to avoid the missing-entity guard.
+    String? requestedPreset;
+    if (argResults?.wasParsed('preset') == true) {
+      requestedPreset = argResults?['preset'] as String?;
+    } else {
+      requestedPreset = normalizedOptions['preset'] as String?;
+    }
+    if (requestedPreset == 'module') {
+      normalizedOptions['no-entity'] = true;
+    }
     if (engineMode) {
       // The engine preset is implied by the mode token; the plan resolves
       // through the same PresetRegistry entry `--preset=engine` uses.
@@ -716,7 +728,7 @@ class MakeCommand extends Command<void> {
     // missing entity is generated (with a minimal `id: String` identity)
     // instead of rejected, so `zfa make engine Login` is a true one-shot. In
     // plan-only mode nothing is written, so the guard is simply skipped.
-    if (argResults?['no-entity'] != true &&
+    if (!noEntityRequested &&
         !EntityFieldResolver.entityFileExists(
           entityName: entityName,
           projectRoot: manager.projectRoot,

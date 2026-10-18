@@ -1246,7 +1246,10 @@ class MakeCommand extends Command<void> {
               await placeholderProbe.readAsString(),
             );
       }
-      if (!placeholderClassOnDisk && contentIsVacuousGreen(testContent)) {
+      if (!placeholderClassOnDisk &&
+          contentIsVacuousGreen(testContent) &&
+          !(contentIsTypeOnlyAssertion(testContent) &&
+              !contentCarriesVacuousGuardMarker(testContent))) {
         final description = _descriptionFor(record);
         // Issue #1488 (review): the remedy is LANE-BRANCHED. The unit-lane
         // remedy is an assertion on the capture's observable outcome; the

@@ -2,7 +2,7 @@ import 'dart:async';
 
 import '../core/failure.dart';
 import '../core/result.dart';
-import '../domain/observer.dart';
+import '../core/observer.dart';
 
 /// Test utilities for zuraffa.
 ///
