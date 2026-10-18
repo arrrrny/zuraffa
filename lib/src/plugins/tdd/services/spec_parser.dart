@@ -827,13 +827,17 @@ class SpecParser {
         // Backtick code span: protect the whole span (commas inside do
         // not split). Match a closing run of the same length.
         var run = 0;
-        while (i + run < n && stripped[i + run] == '`') { run++; }
+        while (i + run < n && stripped[i + run] == '`') {
+          run++;
+        }
         var j = i + run;
         var closed = -1;
         while (j < n) {
           if (stripped[j] == '`') {
             var r2 = 0;
-            while (j + r2 < n && stripped[j + r2] == '`') { r2++; }
+            while (j + r2 < n && stripped[j + r2] == '`') {
+              r2++;
+            }
             if (r2 == run) {
               closed = j + r2;
               break;
@@ -865,13 +869,17 @@ class SpecParser {
           if (ch == '`') {
             // skip a backtick span inside the parens
             var r = 0;
-            while (j + r < n && stripped[j + r] == '`') { r++; }
+            while (j + r < n && stripped[j + r] == '`') {
+              r++;
+            }
             var k = j + r;
             var cl = -1;
             while (k < n) {
               if (stripped[k] == '`') {
                 var r2 = 0;
-                while (k + r2 < n && stripped[k + r2] == '`') { r2++; }
+                while (k + r2 < n && stripped[k + r2] == '`') {
+                  r2++;
+                }
                 if (r2 == r) {
                   cl = k + r2;
                   break;
@@ -966,9 +974,8 @@ class SpecParser {
         if (note.isNotEmpty && t.isNotEmpty) annotations[t] = note;
       }
       if (t.isEmpty) continue;
-      final range = RegExp(
-        r'^([A-Za-z]+)(\d+)\s*-\s*[A-Za-z]*(\d+)$',
-      ).firstMatch(t);
+      final range = RegExp(r'^([A-Za-z]+)(\d+)\s*-\s*[A-Za-z]*(\d+)$')
+          .firstMatch(t);
       if (range != null) {
         final prefix = range.group(1)!;
         final start = int.parse(range.group(2)!);
@@ -1155,9 +1162,10 @@ class SpecParser {
             ? ContractRowKind.values.firstWhere((k) => k.name == label)
             : null;
         if (kind == null) continue; // no routing kind — not a routing row
-        final methods = RegExp(
-          r'`([^`]+)`',
-        ).allMatches(bullet.group(2)!).map((m) => m.group(1)!.trim()).toList();
+        final methods = RegExp(r'`([^`]+)`')
+            .allMatches(bullet.group(2)!)
+            .map((m) => m.group(1)!.trim())
+            .toList();
         final signatures = <Signature>[];
         for (final method in methods) {
           try {
@@ -1463,9 +1471,9 @@ class SpecParser {
         } else if (text.contains('(') && text.contains('->')) {
           // Signature-shaped but unparseable: carry raw so the resolver's
           // malformed-declaration refusal names it when consulted.
-          final name = RegExp(
-            r'^[A-Za-z_][A-Za-z0-9_]*',
-          ).firstMatch(text)?.group(0);
+          final name = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*')
+              .firstMatch(text)
+              ?.group(0);
           rows.add(
             ContractRowDecl(
               name: name ?? text,
@@ -1819,13 +1827,11 @@ class SpecParser {
   /// through this helper so the document-wide U-id numbering stays
   /// aligned across all three.
   static (String, String)? _frLine(String line) {
-    final bullet = RegExp(
-      r'^\s*-\s*\*\*(FR-\d{3})\*\*:\s*(.+)$',
-    ).firstMatch(line);
+    final bullet = RegExp(r'^\s*-\s*\*\*(FR-\d{3})\*\*:\s*(.+)$')
+        .firstMatch(line);
     if (bullet != null) return (bullet.group(1)!, bullet.group(2)!);
-    final table = RegExp(
-      r'^\s*\|\s*(FR-\d{3})\s*\|\s*([^|]+?)\s*\|',
-    ).firstMatch(line);
+    final table = RegExp(r'^\s*\|\s*(FR-\d{3})\s*\|\s*([^|]+?)\s*\|')
+        .firstMatch(line);
     if (table != null) return (table.group(1)!, table.group(2)!);
     return null;
   }
@@ -2234,14 +2240,15 @@ class SpecParser {
   /// contract-row reference — such tokens are dropped so they neither
   /// resolve nor dangle. Every `traces:` consumer (parser, make, func)
   /// routes through this helper so they all see the same tokens.
-  static List<String> traceTokens(String raw) => RegExp(r'`[^`]*`|[^,]+')
-      .allMatches(raw)
-      .map((m) => m.group(0)!.trim())
-      .where((t) => t.isNotEmpty)
-      .map((t) => t.replaceAll('`', '').trim())
-      .where((t) => t.isNotEmpty)
-      .where((t) => !t.contains('('))
-      .toList();
+  static List<String> traceTokens(String raw) =>
+      RegExp(r'`[^`]*`|[^,]+')
+          .allMatches(raw)
+          .map((m) => m.group(0)!.trim())
+          .where((t) => t.isNotEmpty)
+          .map((t) => t.replaceAll('`', '').trim())
+          .where((t) => t.isNotEmpty)
+          .where((t) => !t.contains('('))
+          .toList();
 
   /// The FR contract-trace continuation scan (feature 071): a `traces:`
   /// line within an FR's block names the contract rows the requirement
