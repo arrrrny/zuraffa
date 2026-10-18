@@ -2,6 +2,89 @@ part of 'custom_usecase_generator.dart';
 
 extension CustomUseCaseGeneratorGenerate on CustomUseCaseGenerator {
   Future<GeneratedFile> generate(GeneratorConfig config) async {
+    // Resolve the service method name from the on-disk service interface
+    // instead of inventing it from the use-case name (#1799). When the
+    // service declares a single method, that method is used; when it
+    // declares several, the one whose params/returns match this request is
+    // used. If the surface cannot be resolved, refuse with a named fix
+    // rather than writing a use case that cannot compile.
+    var resolvedConfig = config;
+    if (config.hasService && config.serviceMethod == null) {
+      final serviceName = config.effectiveService;
+      final serviceSnake = config.serviceSnake;
+      if (serviceName != null && serviceSnake != null) {
+        final filePath = config.isEntityBased
+            ? path.join(
+                config.outputDir,
+                'domain',
+                'services',
+                config.effectiveDomain,
+                '$serviceSnake.dart',
+              )
+            : path.join(
+                config.outputDir,
+                'domain',
+                'services',
+                '$serviceSnake.dart',
+              );
+        final declared = await MethodExtractor.extractMethodsFromInterface(
+          filePath,
+          serviceName,
+          fileSystem: fileSystem,
+        );
+
+        String? resolved;
+        if (declared.isEmpty) {
+          throw ArgumentError(
+            'service interface not found or declares no methods: '
+            '$serviceName ($filePath). Create it first with: '
+            'zfa service create ${config.name} --service=$serviceName '
+            '--methods=<method>  (see zuraffa issue #1799)',
+          );
+        }
+
+        final paramsType = config.paramsType ?? 'NoParams';
+        final returnsType = config.returnsType ?? 'void';
+
+        final matches = declared.where((m) {
+          final pOk = m.paramsType == paramsType;
+          final rOk = m.returnsType == returnsType;
+          return pOk && rOk;
+        }).toList();
+
+        if (matches.length == 1) {
+          resolved = matches.first.fieldName;
+        } else if (matches.isEmpty &&
+            declared.length == 1 &&
+            (config.paramsType == null || config.hasMultipleParams)) {
+          // Single declared method: trust it when params/returns were not
+          // supplied (or use multiple params) — the interface is the
+          // authority on the method name (issue #1799).
+          resolved = declared.first.fieldName;
+        } else if (matches.length > 1) {
+          throw ArgumentError(
+            'ambiguous service method: $serviceName declares '
+            '${matches.map((m) => m.fieldName).join(', ')} matching '
+            '$paramsType -> $returnsType. Refine --params/--returns. '
+            '(zuraffa issue #1799)',
+          );
+        } else {
+          throw ArgumentError(
+            'no service method on $serviceName matches '
+            '$paramsType -> $returnsType. Declared: '
+            '${declared.map((m) => '${m.fieldName}(${m.paramsType}) -> ${m.returnsType}').join(', ')}. '
+            'Adjust --params/--returns or create the method with: '
+            'zfa service create ${config.name} --service=$serviceName '
+            '--methods=<method>  (zuraffa issue #1799)',
+          );
+        }
+
+        resolvedConfig = config.copyWith(serviceMethod: resolved);
+      }
+    }
+
+    config = resolvedConfig;
+
     // 1. Check for required Domain for non-entity usecases
     if (config.useCaseType != 'entity' && config.domain == null) {
       throw ArgumentError(

@@ -254,7 +254,30 @@ class UseCaseCreateCommand extends Command<void> {
       revert: revert,
     );
 
-    final report = await plugin.generateWithReport(config, quiet: jsonMode);
+    UsecaseGenerationReport report;
+    try {
+      report = await plugin.generateWithReport(config, quiet: jsonMode);
+    } catch (e) {
+      final msg = e.toString();
+      if (jsonMode) {
+        VerdictEnvelope.emit(
+          VerdictEnvelope(
+            command: 'zfa usecase create $entityName',
+            verdict: VerdictKind.fail,
+            exitClass: ExitProtocol.failure,
+            subject: VerdictSubject(kind: 'usecase', id: entityName),
+            findings: [
+              VerdictFinding(kind: 'service-method-unresolved', fix: msg),
+            ],
+            details: {'methods': const <Map<String, dynamic>>[]},
+          ),
+        );
+      } else {
+        print('❌ $msg');
+      }
+      exitCode = ExitProtocol.failure;
+      return;
+    }
 
     if (report.files.isEmpty && !revert) {
       // Issue #769 semantics: zero files means the request produced
