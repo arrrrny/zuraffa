@@ -401,16 +401,21 @@ class ZfaExecutable {
   /// each explicit `--zfa-bin` source its own cache slot without pulling a
   /// crypto package into a pure service.
   static String _shortDigest(String text) {
-    var hash = 0xcbf29ce484222325;
+    // FNV-1a over 64 bits, but computed with BigInt so the literals stay
+    // representable under dart2js (JavaScript numbers are only exact up to
+    // 2^53). The BigInt path renders the digest as unsigned hex, which is
+    // the intended/correct FNV-1a form and improves web/native consistency.
+    // Cache slot names change for inputs whose final hash has the high bit
+    // set (old signed `zfa_-...` slots are orphaned — harmless recompile).
+    // (#1729)
+    var hash = BigInt.parse('cbf29ce484222325', radix: 16);
+    final prime = BigInt.parse('100000001b3', radix: 16);
+    final mask = BigInt.parse('ffffffffffffffff', radix: 16);
     for (final unit in text.codeUnits) {
-      hash ^= unit;
-      hash = (hash * 0x100000001b3) & 0xFFFFFFFFFFFFFFFF;
+      hash ^= BigInt.from(unit);
+      hash = (hash * prime) & mask;
     }
-    return hash
-        .toUnsigned(64)
-        .toRadixString(16)
-        .padLeft(16, '0')
-        .substring(0, 8);
+    return hash.toRadixString(16).padLeft(16, '0').substring(0, 8);
   }
 
   /// Compile [candidate] into the shared cache, reusing a fresh artifact.
