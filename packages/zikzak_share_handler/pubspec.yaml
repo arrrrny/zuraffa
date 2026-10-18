@@ -1,0 +1,15 @@
+name: zikzak_share_handler
+description: Zuraffa-native share handler — share text, URLs, and files via the platform share sheet.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  zuraffa:
+    path: ../..
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^5.0.0
