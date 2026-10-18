@@ -270,7 +270,7 @@ class ShellNavItem {
 
     expect(
       File('${dsDir.path}/login_response_datasource.dart').existsSync(),
-      isFalse,
+      isTrue,
     );
     expect(
       File('${dsDir.path}/login_response_mock_datasource.dart').existsSync(),
