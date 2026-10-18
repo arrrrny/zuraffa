@@ -42,17 +42,10 @@ String? diskPreflightMessage({
   int perSuiteBytes = defaultPerSuiteKernelSnapshotBytes,
   int marginBytes = defaultPreflightMarginBytes,
   // Issue #1777: name `--baseline-scope` only when the calling command
-  // actually declares it. Aliases cover the spelling a caller may use.
+  // actually declares it.
   bool supportsBaselineScope = true,
-  bool baselineScopeAvailable = true,
-  bool acceptsBaselineScope = true,
-  bool baselineScopeSupported = true,
 }) {
-  final acceptsScope =
-      supportsBaselineScope &&
-      baselineScopeAvailable &&
-      acceptsBaselineScope &&
-      baselineScopeSupported;
+  final acceptsScope = supportsBaselineScope;
   final estimate = suiteCount * perSuiteBytes + marginBytes;
   if (freeBytes >= estimate) return null;
   final freeGb = (freeBytes / (1024 * 1024 * 1024)).toStringAsFixed(1);
@@ -109,9 +102,6 @@ Future<String?> fullSuiteBaselinePreflight(
   Map<String, String>? environment,
   DfRunner dfRunner = _launchDf,
   bool supportsBaselineScope = true,
-  bool baselineScopeAvailable = true,
-  bool acceptsBaselineScope = true,
-  bool baselineScopeSupported = true,
 }) async {
   if (!Platform.isLinux && !Platform.isMacOS) return null;
   var suiteCount = 0;
@@ -139,9 +129,6 @@ Future<String?> fullSuiteBaselinePreflight(
     freeBytes: freeBytes,
     suiteCount: suiteCount,
     supportsBaselineScope: supportsBaselineScope,
-    baselineScopeAvailable: baselineScopeAvailable,
-    acceptsBaselineScope: acceptsBaselineScope,
-    baselineScopeSupported: baselineScopeSupported,
   );
 }
 
