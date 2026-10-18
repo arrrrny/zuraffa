@@ -1,4 +1,4 @@
-/// `classify` — pure seven-way classification of a runner transcript
+/// `classify` — pure eleven-way classification of a runner transcript
 /// (spec 046-tdd-verify-red, FR-004, FR-005, T004; decision order per
 /// research.md Decision 3).
 ///
@@ -16,7 +16,13 @@
 ///      TimeoutException / PlatformException(channel-error) WITHOUT an
 ///      assertion signature — the certified fake is missing or the
 ///      scenario never answered; a named rejection, never a red)
-///   9. anything else                               -> runner-error
+///   9. exit != 0 bare subject-stub UnimplementedError throw
+///      originating from `*_subject.dart` (no framework banner) ->
+///      assertion (issue #1813: gen's stub red for the await-outside-
+///      expect test shape)
+///  10. exit != 0 with widget/pump exception        -> runner-error
+///      (issue #830: exception in pump/build = runner tier)
+///  11. anything else                               -> runner-error
 ///
 /// All parsing lives here (pure, unit-testable) — the same lesson
 /// `MutationVerifier` paid for: never scatter output-grammar regexes
@@ -173,7 +179,17 @@ bool _hasAssertionSignature(String output) =>
 /// carries no subject-file stack frame) stays runner-error.
 bool _isSubjectUnimplementedThrow(String output) {
   if (!output.contains('UnimplementedError')) return false;
-  return RegExp(r'_subject\.dart').hasMatch(output);
+  // Exclude framework-caught crashes (issue #830 widget taxonomy): a
+  // transcript carrying an "EXCEPTION CAUGHT BY … LIBRARY" banner is a
+  // framework-wrapped pump/build crash, never the bare subject-stub
+  // throw — even if the subject file shows up in its stack trace.
+  if (RegExp(r'EXCEPTION CAUGHT BY').hasMatch(output)) {
+    return false;
+  }
+  // Anchor the subject match to a stack-frame shape so a stray mention
+  // of the subject file (e.g. inside an error message) cannot flip a
+  // crash into an honest red.
+  return RegExp(r'_subject\.dart \d+:\d+').hasMatch(output);
 }
 
 final RegExp _widgetPumpException = RegExp(
