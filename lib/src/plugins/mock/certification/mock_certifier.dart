@@ -308,11 +308,22 @@ class MockCertifier {
       files.add(testFile);
     }
     final receipt = outcome.receipt;
-    if (receipt != null) {
-      final receiptFile = File(p.join(projectRoot, _receiptPath(entityName)));
+    final receiptFile = File(p.join(projectRoot, _receiptPath(entityName)));
+    // A failed certification must not leave (or overwrite a stale green)
+    // receipt behind: a consumer that keys on receipt presence would
+    // otherwise treat an uncertified mock as certified (#1856). The in-memory
+    // receipt stays available to the caller for diagnostics; only the on-disk
+    // artifact is gated on a green run.
+    if (receipt != null && outcome.certified) {
       await receiptFile.parent.create(recursive: true);
       await receipt.writeTo(receiptFile);
       files.add(receiptFile);
+    } else if (receiptFile.existsSync()) {
+      try {
+        await receiptFile.delete();
+      } catch (_) {
+        // Best-effort: a locked file must not abort the contract-test write.
+      }
     }
     return files;
   }

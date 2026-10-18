@@ -193,6 +193,25 @@ class MockContractTestWriter {
 
     String rel(String target) => p.relative(target, from: testDir);
 
+    // Imports: the subject entity plus every OTHER entity named by a pinned
+    // signature's return/parameter type. Deriving only the subject's import
+    // leaves foreign-entity type names (e.g. a member returning `ZikZakPage`)
+    // unimported, so the contract test cannot compile (#1856).
+    final importedEntities = <String>{};
+    if (entityPath != null) importedEntities.add(entityName);
+    for (final method in methods) {
+      for (final typeString in [method.returnType, method.paramsType]) {
+        for (final match in RegExp(
+          r'\b[A-Z][A-Za-z0-9_]*\b',
+        ).allMatches(typeString)) {
+          final candidate = match.group(0)!;
+          if (EntityAnalyzer.entityFileExists(candidate, outputDir)) {
+            importedEntities.add(candidate);
+          }
+        }
+      }
+    }
+
     final buffer = StringBuffer()
       ..writeln('// GENERATED - DO NOT EDIT')
       ..writeln('// Mock certification contract (spec 1001, issue #1001).')
@@ -221,6 +240,11 @@ class MockContractTestWriter {
       ..writeln("import 'package:zuraffa/mock.dart';");
 
     if (entityPath != null) buffer.writeln("import '${rel(entityPath)}';");
+    for (final name
+        in importedEntities.where((n) => n != entityName).toList()..sort()) {
+      final path = _entityFile(name, outputDir);
+      if (path != null) buffer.writeln("import '${rel(path)}';");
+    }
     buffer
       ..writeln("import '${rel(interfacePath)}';")
       ..writeln("import '${rel(mockPath)}';")
