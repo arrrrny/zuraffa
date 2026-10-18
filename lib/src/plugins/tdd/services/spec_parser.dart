@@ -1220,6 +1220,13 @@ class SpecParser {
           final genericStart = name.indexOf('<');
           if (genericStart > 0) name = name.substring(0, genericStart).trim();
           if (!_dartIdentifier.hasMatch(name)) continue;
+          // Dedup: an entity declared both as a table row and a bullet
+          // must not survive as two ContractRowDecls (counts/provenance).
+          final alreadyEntity = rows.any(
+            (r) => r.kind == ContractRowKind.entity &&
+                r.name.replaceAll('`', '').trim() == name,
+          );
+          if (alreadyEntity) continue;
           rows.add(
             ContractRowDecl(
               name: name,
@@ -1249,6 +1256,11 @@ class SpecParser {
           entityName = entityName.substring(0, genericStart).trim();
         }
         if (!_dartIdentifier.hasMatch(entityName)) continue;
+        final alreadyEntity = rows.any(
+          (r) => r.kind == ContractRowKind.entity &&
+              r.name.replaceAll('`', '').trim() == entityName,
+        );
+        if (alreadyEntity) continue;
         rows.add(
           ContractRowDecl(
             name: entityName,
@@ -1299,12 +1311,19 @@ class SpecParser {
     // membership test (which keys off contract rows) recognises an entity
     // declared in the Key Entities table even when the table/bullet forms
     // above did not capture it. Never duplicates an existing name.
+    String norm(String n) {
+      var v = n.replaceAll('`', '').trim();
+      final g = v.indexOf('<');
+      if (g > 0) v = v.substring(0, g).trim();
+      return v;
+    }
+
     final existingNames = rows
         .where((r) => r.kind == ContractRowKind.entity)
-        .map((r) => r.name)
+        .map((r) => norm(r.name))
         .toSet();
     for (final ent in parseKeyEntities(specMd)) {
-      if (existingNames.contains(ent.name)) continue;
+      if (existingNames.contains(norm(ent.name))) continue;
       rows.add(
         ContractRowDecl(
           name: ent.name,
@@ -1312,7 +1331,7 @@ class SpecParser {
           specLine: null,
         ),
       );
-      existingNames.add(ent.name);
+      existingNames.add(norm(ent.name));
     }
     return rows;
   }
@@ -1714,7 +1733,7 @@ class SpecParser {
           // mixed section still extracts its bullet-declared entities.
           tableMode = false;
         } else {
-          var name = m.group(1)!.trim();
+          var name = m.group(1)!.trim().replaceAll('`', '').trim();
           final genericStart = name.indexOf('<');
           if (genericStart > 0) {
             name = name.substring(0, genericStart).trim();
@@ -1748,7 +1767,7 @@ class SpecParser {
         inSection = false;
         continue;
       }
-      var name = m.group(1)!.trim();
+      var name = m.group(1)!.trim().replaceAll('`', '').trim();
       final genericStart = name.indexOf('<');
       if (genericStart > 0) name = name.substring(0, genericStart).trim();
       if (!_dartIdentifier.hasMatch(name)) continue;
