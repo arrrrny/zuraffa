@@ -117,7 +117,6 @@ class RetroScanCommand extends Command<void> {
     );
     argParser.addFlag(
       'dry-run',
-      negatable: false,
       help: 'List proposed PRs without opening them.',
       defaultsTo: true,
     );
@@ -186,16 +185,27 @@ class RetroScanCommand extends Command<void> {
 
     final proposals = <Map<String, dynamic>>[];
     for (final issue in issues) {
-      final number = issue['number'] as int;
-      final title = (issue['title'] as String?) ?? '';
-      final body = (issue['body'] as String?) ?? '';
+      int? number;
+      String title = '';
+      String body = '';
+      try {
+        number = issue['number'] as int?;
+        title = (issue['title'] as String?) ?? '';
+        body = (issue['body'] as String?) ?? '';
+      } catch (_) {
+        print('Skipping malformed issue payload: $issue');
+        continue;
+      }
+      if (number == null) {
+        print('Skipping issue without number: $issue');
+        continue;
+      }
       final taxonomy = RetroTaxonomyX.classify('$title\n$body');
       proposals.add({
         'issue': number,
         'title': title,
         'taxonomy': taxonomy.label,
-        'testName': 'issue_$number',
-        'prTitle': 'test: regression for $repo#$number ($taxonomy)',
+        'prTitle': 'test: regression for $repo#$number (${taxonomy.label})',
       });
     }
 
