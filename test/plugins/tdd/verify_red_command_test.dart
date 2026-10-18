@@ -99,9 +99,8 @@ void main() {
     test(
       'U25: a mutating assertion failure is rejected without red evidence',
       () async {
-        await File(
-          fx.testPathOf('B-001'),
-        ).writeAsString(TddFixture.mutatingRedTest(description));
+        await File(fx.testPathOf('B-001'))
+            .writeAsString(TddFixture.mutatingRedTest(description));
         final runner = CliRunner(exitOnCompletion: false);
 
         final out = await runner.runCapturing(verifyRedArgs(fx, 'B-001'));
@@ -433,15 +432,14 @@ void main() {
       () async {
         // Seed a test list row for B-777 in the fixture feature, with no
         // artifacts.json record for it.
-        await File(p.join(fx.featureDir, 'tdd', 'test-list.md')).writeAsString(
-          '''
+        await File(p.join(fx.featureDir, 'tdd', 'test-list.md'))
+            .writeAsString('''
 # Test List
 
 | id | behavior | traces | kind | state | target |
 |----|----------|--------|------|-------|--------|
 | B-777 | planned but not generated | FR-007 | unit | PENDING | x |
-''',
-        );
+''');
         final runner = CliRunner(exitOnCompletion: false);
         final out = await runner.runCapturing(verifyRedArgs(fx, 'B-777'));
         expect(out, contains('B-777'));
@@ -450,33 +448,30 @@ void main() {
       },
     );
 
-    test(
-      'SC-004: ambiguous id across features fails with the candidate list',
-      () async {
-        // A SECOND feature directory inside the SAME project, so the
-        // command's registry scan sees two records for B-001.
-        const otherFeature = '091-other-fixture';
-        final otherDir = p.join(fx.root.path, 'specs', otherFeature);
-        await Directory(p.join(otherDir, 'tdd')).create(recursive: true);
-        await File(p.join(otherDir, 'tdd', 'artifacts.json')).writeAsString(
-          '{"feature":"$otherFeature","records":[{"behavior_id":"B-001",'
-          '"feature":"$otherFeature","source_criterion":"FR-007",'
-          '"test_path":"${fx.testPathOf('B-001')}",'
-          '"subject_path":"lib/b_001_subject.dart",'
-          '"runnable_test_name":"${fx.testPathOf('B-001')}::B-001::$description",'
-          '"test_ownership":"created","subject_ownership":"created",'
-          '"created_at":"2026-08-30T00:00:00.000Z"}]}',
-        );
-        final runner = CliRunner(exitOnCompletion: false);
-        final out = await runner.runCapturing(verifyRedArgs(fx, 'B-001'));
-        expect(out, contains('ambiguous'));
-        expect(out, contains(fx.featureName));
-        expect(out, contains(otherFeature));
-        expect(exitCode, isNot(0));
-        // No evidence written for either candidate.
-        expect(File(fx.cycleLogPath).existsSync(), isFalse);
-      },
-    );
+    test('SC-004: ambiguous id across features fails with the candidate list', () async {
+      // A SECOND feature directory inside the SAME project, so the
+      // command's registry scan sees two records for B-001.
+      const otherFeature = '091-other-fixture';
+      final otherDir = p.join(fx.root.path, 'specs', otherFeature);
+      await Directory(p.join(otherDir, 'tdd')).create(recursive: true);
+      await File(p.join(otherDir, 'tdd', 'artifacts.json')).writeAsString(
+        '{"feature":"$otherFeature","records":[{"behavior_id":"B-001",'
+        '"feature":"$otherFeature","source_criterion":"FR-007",'
+        '"test_path":"${fx.testPathOf('B-001')}",'
+        '"subject_path":"lib/b_001_subject.dart",'
+        '"runnable_test_name":"${fx.testPathOf('B-001')}::B-001::$description",'
+        '"test_ownership":"created","subject_ownership":"created",'
+        '"created_at":"2026-08-30T00:00:00.000Z"}]}',
+      );
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(verifyRedArgs(fx, 'B-001'));
+      expect(out, contains('ambiguous'));
+      expect(out, contains(fx.featureName));
+      expect(out, contains(otherFeature));
+      expect(exitCode, isNot(0));
+      // No evidence written for either candidate.
+      expect(File(fx.cycleLogPath).existsSync(), isFalse);
+    });
   });
 
   group('U26 — summary-line contract (US4 / FR-009, T016)', () {

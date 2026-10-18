@@ -113,7 +113,14 @@ class UiNode {
     if (label != null) buf.write(' label=$label');
     if (bindings.isNotEmpty) {
       buf.write(' bindings=[');
-      buf.write(bindings.map((b) => '${b.source}->${b.target}${b.transform == null ? '' : ' via ${b.transform}'}').join(','));
+      buf.write(
+        bindings
+            .map(
+              (b) =>
+                  '${b.source}->${b.target}${b.transform == null ? '' : ' via ${b.transform}'}',
+            )
+            .join(','),
+      );
       buf.write(']');
     }
     if (props.isNotEmpty) buf.write(' props=$props');
