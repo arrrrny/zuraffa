@@ -34,9 +34,16 @@ void main() {
   }
 
   test('B1: an undeclared subcommand option is a clean usage error', () async {
-    final (code, output) = await runZfa(['simulate', 'run', '--world=v3']);
+    final (code, output) = await runZfa([
+      'simulate',
+      'run',
+      '--definitely-undeclared',
+    ]);
     expect(code, 2, reason: output);
-    expect(output, contains('Could not find an option named "--world"'));
+    expect(
+      output,
+      contains('Could not find an option named "--definitely-undeclared"'),
+    );
     expect(
       output,
       isNot(contains('Null check operator')),
