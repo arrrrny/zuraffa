@@ -1085,6 +1085,40 @@ class GenCommand extends Command<void> {
     final runnableTestName =
         '$recordTestPath::${behavior.id}::${behavior.description}';
 
+    // Issue #1805: refuse when the recorded artifacts.json entry for this
+    // behavior id carries a different source_criterion than the plan's —
+    // a positional U-id remap would otherwise regenerate the old behavior
+    // under the id silently.
+    try {
+      final prior = await ArtifactRegistry(
+        featureDir: featureDir,
+      ).findRecord(behavior.id);
+      // Issue #1388: only refuse on a true positional U-id remap — i.e. when
+      // the base FR token changes. A traces drift that keeps the same base
+      // token (e.g. `FR-007` -> `FR-007, adaptive_layouts`) is a legitimate
+      // regeneration trigger, not a remap.
+      final priorBaseToken = prior?.sourceCriterion.split(',').first.trim();
+      final planBaseToken = behavior.sourceCriterion.split(',').first.trim();
+      if (prior != null && priorBaseToken != planBaseToken) {
+        stderr.writeln(
+          'zfa tdd gen: behavior ${behavior.id} criterion mismatch — '
+          'recorded criterion "${prior.sourceCriterion}" '
+          '(artifacts.json) != plan criterion "${behavior.sourceCriterion}"',
+        );
+        stderr.writeln('  id: ${behavior.id}');
+        stderr.writeln('  recorded criterion: ${prior.sourceCriterion}');
+        stderr.writeln('  plan criterion: ${behavior.sourceCriterion}');
+        stderr.writeln(
+          '   --> fix: reconcile the positional U-id mapping — rotate '
+          'the affected artifacts.json records and their test/subject '
+          'pairs to the new ids, then re-run `zfa tdd plan $featureName`.',
+        );
+        throw StateError('zfa tdd gen: criterion mismatch for ${behavior.id}');
+      }
+    } on Exception {
+      // fail open on unreadable registry
+    }
+
     // Issue #831: platform behaviors drive a platform channel through
     // the certified fake + committed scenario written by
     // `zfa tdd fake <channel> --behavior <id>`. Both must exist BEFORE

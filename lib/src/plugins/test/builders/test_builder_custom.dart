@@ -115,14 +115,12 @@ extension TestBuilderCustom on TestBuilder {
     final serviceSnake = config.serviceSnake;
     if (serviceName != null && serviceSnake != null) {
       final serviceImport = config.useService
-          ? 'package:$packageName/src/domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
-          : 'package:$packageName/src/domain/services/${serviceSnake}_service.dart';
+          ? 'package:$packageName/src/domain/services/${config.effectiveDomain}/${serviceSnake}.dart'
+          : 'package:$packageName/src/domain/services/${serviceSnake}.dart';
       directives.add(Directive.import(serviceImport));
 
       // Generate a Fake{service} using AST-parsed method signatures.
-      final serviceFile = discovery.findFileSync(
-        '${serviceSnake}_service.dart',
-      );
+      final serviceFile = discovery.findFileSync('${serviceSnake}.dart');
       fakeSpecs.add(
         await _requireFakeClassForDependency(
           className: 'Fake$serviceName',
