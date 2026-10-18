@@ -136,8 +136,8 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
 
     final serviceSnake = config.serviceSnake;
     final serviceImport = config.isEntityBased
-        ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
-        : '../../../domain/services/${serviceSnake}_service.dart';
+        ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}.dart'
+        : '../../../domain/services/${serviceSnake}.dart';
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),

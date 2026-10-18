@@ -88,6 +88,8 @@ class PresetRegistry {
       'test',
       'route',
     ],
+    // Issue #1020: module preset emits the FeaturePlugin orchestrator.
+    'module': ['module'],
   };
 
   const PresetRegistry._();

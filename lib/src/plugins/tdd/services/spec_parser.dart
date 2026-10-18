@@ -810,9 +810,134 @@ class SpecParser {
   }
 
   /// Split a yaml list value into trimmed tokens, dropping empties.
-  static List<String> _listTokens(String value) => _stripBrackets(
-    value,
-  ).split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
+  ///
+  /// Issue #1807: a bare `split(',')` splits a parenthetical annotation
+  /// (or a backtick code span) at an inner comma, producing orphan
+  /// fragments that either fail the plan-time lane gate (no leading
+  /// `W<digits>`) or silently truncate a behavior's annotation. Split
+  /// only at commas that sit outside balanced parenthetical groups and
+  /// outside backtick code spans, so `W2 (a, b)` (balanced parens) and
+  /// `W2 (x `a, b` y)` (backticks) stay one token — while a comma
+  /// inside an UNbalanced/truncated paren (issue #1405's mid-sentence
+  /// split fragments, e.g. `W1 (renders ..., W2`) still splits, because
+  /// that paren never closes and the comma is a real list separator.
+  static List<String> _listTokens(String value) {
+    final stripped = _stripBrackets(value);
+    final tokens = <String>[];
+    final buf = StringBuffer();
+    final n = stripped.length;
+    var i = 0;
+    while (i < n) {
+      final c = stripped[i];
+      if (c == '`') {
+        // Backtick code span: protect the whole span (commas inside do
+        // not split). Match a closing run of the same length.
+        var run = 0;
+        while (i + run < n && stripped[i + run] == '`') {
+          run++;
+        }
+        var j = i + run;
+        var closed = -1;
+        while (j < n) {
+          if (stripped[j] == '`') {
+            var r2 = 0;
+            while (j + r2 < n && stripped[j + r2] == '`') {
+              r2++;
+            }
+            if (r2 == run) {
+              closed = j + r2;
+              break;
+            }
+            j += r2 == 0 ? 1 : r2;
+          } else {
+            j++;
+          }
+        }
+        if (closed != -1) {
+          buf.write(stripped.substring(i, closed));
+          i = closed;
+        } else {
+          buf.write(stripped.substring(i));
+          i = n;
+        }
+        continue;
+      }
+      if (c == '(') {
+        // Balanced paren group: protect the whole span (commas inside
+        // do not split). An unbalanced open paren (no matching close)
+        // is left unprotected, so its inner commas still split — this is
+        // what keeps issue #1405's truncated fragments recoverable.
+        var depth = 1;
+        var j = i + 1;
+        var matched = -1;
+        while (j < n) {
+          final ch = stripped[j];
+          if (ch == '`') {
+            // skip a backtick span inside the parens
+            var r = 0;
+            while (j + r < n && stripped[j + r] == '`') {
+              r++;
+            }
+            var k = j + r;
+            var cl = -1;
+            while (k < n) {
+              if (stripped[k] == '`') {
+                var r2 = 0;
+                while (k + r2 < n && stripped[k + r2] == '`') {
+                  r2++;
+                }
+                if (r2 == r) {
+                  cl = k + r2;
+                  break;
+                }
+                k += r2 == 0 ? 1 : r2;
+              } else {
+                k++;
+              }
+            }
+            if (cl != -1) {
+              j = cl;
+            } else {
+              j = n;
+            }
+          } else if (ch == '(') {
+            depth++;
+            j++;
+          } else if (ch == ')') {
+            depth--;
+            if (depth == 0) {
+              matched = j;
+              break;
+            }
+            j++;
+          } else {
+            j++;
+          }
+        }
+        if (matched != -1) {
+          buf.write(stripped.substring(i, matched + 1));
+          i = matched + 1;
+          continue;
+        }
+        // unmatched: write '(' unprotected
+        buf.write(c);
+        i++;
+        continue;
+      }
+      if (c == ',') {
+        final t = buf.toString().trim();
+        if (t.isNotEmpty) tokens.add(t);
+        buf.clear();
+        i++;
+        continue;
+      }
+      buf.write(c);
+      i++;
+    }
+    final last = buf.toString().trim();
+    if (last.isNotEmpty) tokens.add(last);
+    return tokens;
+  }
 
   /// Expand a behavior-list token (issue #1000): `U1-U6` ranges expand
   /// to `U1 .. U6` (same alphabetic prefix, ascending integers); a
@@ -827,10 +952,31 @@ class SpecParser {
     final annotations = <String, String>{};
     for (final token in tokens) {
       var t = token.trim();
-      final annotation = RegExp(r'\(([^)]*)\)\s*$').firstMatch(t);
-      if (annotation != null) {
-        final note = annotation.group(1)!.trim();
-        t = t.substring(0, annotation.start).trim();
+      // Paren-aware annotation extraction: the trailing parenthetical group
+      // may itself contain nested parens (e.g. `W1 (a (b, c), d)`), so
+      // match the outermost balanced group rather than stopping at the
+      // first `)`.
+      int? openIdx;
+      var end = t.length;
+      while (end > 0 && t[end - 1].trim().isEmpty) end--;
+      if (end > 0 && t[end - 1] == ')') {
+        var depth = 0;
+        for (var k = end - 1; k >= 0; k--) {
+          final ch = t[k];
+          if (ch == ')') {
+            depth++;
+          } else if (ch == '(') {
+            depth--;
+            if (depth == 0) {
+              openIdx = k;
+              break;
+            }
+          }
+        }
+      }
+      if (openIdx != null) {
+        final note = t.substring(openIdx + 1, end - 1).trim();
+        t = t.substring(0, openIdx).trim();
         if (note.isNotEmpty && t.isNotEmpty) annotations[t] = note;
       }
       if (t.isEmpty) continue;
