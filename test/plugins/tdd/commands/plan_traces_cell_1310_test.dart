@@ -163,7 +163,11 @@ void main() {
     test('U1: the legacy single-file plan unit cell carries the criterion '
         'id plus the contract reference', () async {
       final (:out, testList: list, engine: _) = await planSpec(reproSpec);
-      expect(exitCode, 0, reason: 'plan must succeed: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'plan must succeed: $out',
+      );
       final row = unitRowOf(list, 'U1');
       expect(row, isNotNull, reason: 'the plan must derive U1:\n$list');
       expect(
@@ -178,7 +182,11 @@ void main() {
     test('U2: the lane plan (04-ENGINE.md) unit cell carries the same '
         'full trace set', () async {
       final (:out, testList: _, engine: engine) = await planSpec(lanedSpec);
-      expect(exitCode, 0, reason: 'the laned plan must succeed: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'the laned plan must succeed: $out',
+      );
       final row = unitRowOf(engine, 'U1');
       expect(row, isNotNull, reason: 'the engine lane must carry U1:\n$engine');
       expect(
@@ -193,7 +201,11 @@ void main() {
     test('U3 (1484): an FR with no traces continuation routes manual — '
         'no unit row, no invented contract names', () async {
       final (:out, testList: list, engine: _) = await planSpec(untracedSpec);
-      expect(exitCode, 0, reason: 'plan must succeed: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'plan must succeed: $out',
+      );
       // Feature 1484: the fallback lane is gone — an unbound FR is a
       // manual declaration in the traceability matrix, never a unit row
       // (the dead-end class the fallback used to manufacture).
@@ -398,7 +410,11 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'gen', 'U1', '--project', fx.root.path]);
-      expect(exitCode, 0, reason: 'gen must succeed: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'gen must succeed: $out',
+      );
       final subject = await genSubjectOf(fx, 'U1');
       expect(
         subject,
@@ -451,7 +467,11 @@ void main() {
         '--project',
         fx.root.path,
       ]);
-      expect(exitCode, 0, reason: 'the gen pair must certify red: $red');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'the gen pair must certify red: $red',
+      );
       // The implementation step: the subject returns a dummy bool — the
       // generated test still asserts only the DECLARED TYPE, which the
       // dummy satisfies. Issue #1651: exactly that certification is the
@@ -478,7 +498,11 @@ void main() {
         '--project',
         fx.root.path,
       ]);
-      expect(exitCode, 1, reason: 'a dummy-body green must not certify: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'a dummy-body green must not certify: $out',
+      );
       expect(
         out,
         contains('outcome=vacuous-green'),

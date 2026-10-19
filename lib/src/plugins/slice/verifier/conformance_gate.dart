@@ -10,6 +10,8 @@ library;
 
 import 'dart:convert';
 
+import 'package:zuraffa/src/tdd/services/ui_ledger_builder.dart';
+
 import '../merger/host_baseline.dart';
 import 'di_graph_check.dart';
 import 'route_barrel.dart';
@@ -39,23 +41,67 @@ class MergeVerdict {
   final MergeCheck routes;
   final MergeCheck di;
   final MergeCheck views;
+  final MergeCheck cache;
+  final MergeCheck i18n;
+  final MergeCheck localization;
+  final MergeCheck localizationKeys;
+  final MergeCheck hardcodedStrings;
   final MergeCheck featureSuite;
   final bool rolledBack;
 
-  const MergeVerdict({
+  MergeVerdict({
     required this.feature,
     required this.routes,
     required this.di,
-    required this.views,
-    required this.featureSuite,
+    MergeCheck? views,
+    MergeCheck? cache,
+    MergeCheck? i18n,
+    MergeCheck? localization,
+    MergeCheck? localizationKeys,
+    MergeCheck? hardcodedStrings,
+    MergeCheck? featureSuite,
     this.rolledBack = false,
-  });
+  }) : views = views ?? const MergeCheck(name: 'views', pass: true),
+       cache = cache ?? const MergeCheck(name: 'cache', pass: true),
+       i18n = i18n ?? const MergeCheck(name: 'i18n', pass: true),
+       localization =
+           localization ??
+           i18n ??
+           const MergeCheck(name: 'localization', pass: true),
+       localizationKeys =
+           localizationKeys ??
+           i18n ??
+           const MergeCheck(name: 'localizationKeys', pass: true),
+       hardcodedStrings =
+           hardcodedStrings ??
+           i18n ??
+           const MergeCheck(name: 'hardcodedStrings', pass: true),
+       featureSuite =
+           featureSuite ?? const MergeCheck(name: 'featureSuite', pass: true);
 
-  bool get passed => routes.pass && di.pass && views.pass && featureSuite.pass;
+  bool get passed =>
+      routes.pass &&
+      di.pass &&
+      views.pass &&
+      cache.pass &&
+      i18n.pass &&
+      localization.pass &&
+      localizationKeys.pass &&
+      hardcodedStrings.pass &&
+      featureSuite.pass;
 
   /// The failing checks, in gate order.
-  List<MergeCheck> get failures =>
-      [routes, di, views, featureSuite].where((c) => !c.pass).toList();
+  List<MergeCheck> get failures => [
+    routes,
+    di,
+    views,
+    cache,
+    i18n,
+    localization,
+    localizationKeys,
+    hardcodedStrings,
+    featureSuite,
+  ].where((c) => !c.pass).toList();
 
   /// The outcome word of the summary line.
   String outcome({required bool gateRan}) {
@@ -80,6 +126,11 @@ class MergeVerdict {
         'offenders': di.offenders,
       },
       'views': check(views),
+      'cache': check(cache),
+      'i18n': check(i18n),
+      'localization': check(localization),
+      'localizationKeys': check(localizationKeys),
+      'hardcodedStrings': check(hardcodedStrings),
       'featureSuite': {
         'pass': featureSuite.pass,
         'newFailures': featureSuite.offenders,
@@ -132,6 +183,11 @@ class MergeVerdict {
         evidence: List.generate(diTokens, (i) => 'token#$i'),
       ),
       views: check('views'),
+      cache: check('cache', evidenceKey: 'resolved'),
+      i18n: check('i18n', evidenceKey: 'resolved'),
+      localization: check('localization', evidenceKey: 'resolved'),
+      localizationKeys: check('localizationKeys', evidenceKey: 'resolved'),
+      hardcodedStrings: check('hardcodedStrings', evidenceKey: 'resolved'),
       featureSuite: check('featureSuite', evidenceKey: 'newFailures'),
       rolledBack: doc['rolled-back'] == true,
     );
@@ -143,6 +199,8 @@ class MergeVerdict {
       'routes=${routes.pass ? 'pass' : 'fail'} '
       'di=${di.pass ? 'pass' : 'fail'} '
       'views=${views.pass ? 'pass' : 'fail'} '
+      'cache=${cache.pass ? 'pass' : 'fail'} '
+      'i18n=${i18n.pass ? 'pass' : 'fail'} '
       'feature-suite=${featureSuite.pass ? 'pass' : 'fail'} '
       'rolled-back=$rolledBack '
       'outcome=${outcome(gateRan: gateRan)}';
@@ -238,6 +296,207 @@ abstract final class ConformanceGate {
               '(pre-existing reds are tolerated, new ones are not).',
       ],
       evidence: currentFailures.where((f) => !newFailures.contains(f)).toList(),
+    );
+  }
+
+  /// Check — cache: every expected entity adapter is registered in the
+  /// Hive registrar. Offenders name the missing entity with a fix hint.
+  static MergeCheck cache({
+    List<String>? expectedEntities,
+    List<String>? registeredEntities,
+    List<String>? expected,
+    List<String>? registered,
+  }) {
+    final exp = expectedEntities ?? expected ?? const <String>[];
+    final reg = registeredEntities ?? registered ?? const <String>[];
+    final regSet = reg.toSet();
+    final offenders = [
+      for (final entity in exp)
+        if (!regSet.contains(entity))
+          "cache adapter for '$entity' is missing from the Hive registrar "
+              '--> fix: run `zfa cache adapter $entity`, then re-run '
+              '`zfa slice merge --into <host>`.',
+    ];
+    final resolved = [
+      for (final entity in exp)
+        if (regSet.contains(entity)) entity,
+    ];
+    return MergeCheck(
+      name: 'cache',
+      pass: offenders.isEmpty,
+      offenders: offenders,
+      evidence: resolved,
+    );
+  }
+
+  /// Alias for [cache].
+  static MergeCheck cacheAdapter({
+    List<String>? expectedEntities,
+    List<String>? registeredEntities,
+    List<String>? expected,
+    List<String>? registered,
+  }) => cache(
+    expectedEntities: expectedEntities,
+    registeredEntities: registeredEntities,
+    expected: expected,
+    registered: registered,
+  );
+
+  /// Check — i18n: every `t.<key>` accessor in the merged views has a
+  /// corresponding translation entry, and there are no hardcoded
+  /// user-facing strings. Offenders name the key/file with a fix hint.
+  static MergeCheck i18n({
+    String name = 'i18n',
+    Map<String, String>? viewSources,
+    Map<String, String>? views,
+    Iterable<String>? translationKeys,
+    Iterable<String>? definedKeys,
+    Iterable<String>? keys,
+    Map<String, String>? translations,
+    Iterable<String>? allowedLiterals,
+  }) {
+    return _i18n(
+      name: name,
+      viewSources: viewSources ?? views ?? const <String, String>{},
+      translationKeys: <String>{
+        ...?translationKeys,
+        ...?definedKeys,
+        ...?keys,
+        ...?translations?.keys,
+      },
+      allowedLiterals: allowedLiterals ?? const <String>[],
+      keysOnly: false,
+      hardcodedOnly: false,
+    );
+  }
+
+  static MergeCheck localization({
+    Map<String, String>? viewSources,
+    Map<String, String>? views,
+    Iterable<String>? translationKeys,
+    Iterable<String>? definedKeys,
+    Iterable<String>? keys,
+    Map<String, String>? translations,
+    Iterable<String>? allowedLiterals,
+  }) => i18n(
+    name: 'localization',
+    viewSources: viewSources,
+    views: views,
+    translationKeys: translationKeys,
+    definedKeys: definedKeys,
+    keys: keys,
+    translations: translations,
+    allowedLiterals: allowedLiterals,
+  );
+
+  static MergeCheck l10n({
+    Map<String, String>? viewSources,
+    Map<String, String>? views,
+    Iterable<String>? translationKeys,
+    Iterable<String>? definedKeys,
+    Iterable<String>? keys,
+    Map<String, String>? translations,
+    Iterable<String>? allowedLiterals,
+  }) => i18n(
+    name: 'l10n',
+    viewSources: viewSources,
+    views: views,
+    translationKeys: translationKeys,
+    definedKeys: definedKeys,
+    keys: keys,
+    translations: translations,
+    allowedLiterals: allowedLiterals,
+  );
+
+  /// Check — localization keys only: every `t.<key>` in the merged views
+  /// has a corresponding translation entry.
+  static MergeCheck localizationKeys({
+    Map<String, String>? viewSources,
+    Map<String, String>? views,
+    Iterable<String>? translationKeys,
+    Iterable<String>? definedKeys,
+    Iterable<String>? keys,
+    Map<String, String>? translations,
+  }) {
+    return _i18n(
+      name: 'localizationKeys',
+      viewSources: viewSources ?? views ?? const <String, String>{},
+      translationKeys: <String>{
+        ...?translationKeys,
+        ...?definedKeys,
+        ...?keys,
+        ...?translations?.keys,
+      },
+      allowedLiterals: const <String>[],
+      keysOnly: true,
+      hardcodedOnly: false,
+    );
+  }
+
+  /// Check — hardcoded user-facing strings only: no quoted user-facing
+  /// string in the merged views.
+  static MergeCheck hardcodedStrings({
+    Map<String, String>? viewSources,
+    Map<String, String>? views,
+    Iterable<String>? allowedLiterals,
+  }) {
+    return _i18n(
+      name: 'hardcodedStrings',
+      viewSources: viewSources ?? views ?? const <String, String>{},
+      translationKeys: const <String>{},
+      allowedLiterals: allowedLiterals ?? const <String>[],
+      keysOnly: false,
+      hardcodedOnly: true,
+    );
+  }
+
+  static MergeCheck _i18n({
+    String name = 'i18n',
+    required Map<String, String> viewSources,
+    required Set<String> translationKeys,
+    required Iterable<String> allowedLiterals,
+    required bool keysOnly,
+    required bool hardcodedOnly,
+  }) {
+    final offenders = <String>[];
+    final usedKeys = <String>{};
+    for (final src in viewSources.values) {
+      for (final m in RegExp(r't\.([a-zA-Z_][\w.]*)').allMatches(src)) {
+        usedKeys.add(m.group(1)!);
+      }
+    }
+    final resolvedKeys = <String>[];
+    if (!hardcodedOnly) {
+      for (final k in usedKeys) {
+        if (!translationKeys.contains(k)) {
+          offenders.add(
+            "localization key 't.$k' has no translation entry "
+            '--> fix: add \'$k\' to lib/i18n/strings.i18n.json, then '
+            're-run `zfa slice merge --into <host>`.',
+          );
+        } else {
+          resolvedKeys.add(k);
+        }
+      }
+    }
+    if (!keysOnly) {
+      for (final path in viewSources.keys) {
+        final src = viewSources[path]!;
+        for (final literal in UiLedgerBuilder.quotedUserFacingStrings(src)) {
+          if (allowedLiterals.contains(literal)) continue;
+          offenders.add(
+            "hardcoded user-facing string '$literal' in '$path' "
+            '--> fix: replace with a t.<key> accessor, then re-run '
+            '`zfa slice merge --into <host>`.',
+          );
+        }
+      }
+    }
+    return MergeCheck(
+      name: name,
+      pass: offenders.isEmpty,
+      offenders: offenders,
+      evidence: resolvedKeys..sort(),
     );
   }
 }

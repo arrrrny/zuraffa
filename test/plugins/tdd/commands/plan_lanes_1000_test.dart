@@ -101,7 +101,7 @@ void main() {
         '04-CONTRACT.md (no 04-test-list.md)', () async {
       await seedSpec(lanesSpec);
       await CliRunner(exitOnCompletion: false).runCapturing(planArgs());
-      expect(exitCode, 0, reason: 'plan succeeded');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'plan succeeded');
       expect(
         laneFile('04-ENGINE.md').existsSync(),
         isTrue,
@@ -132,7 +132,7 @@ void main() {
     test('04-ENGINE.md contains zero package:flutter references', () async {
       await seedSpec(lanesSpec);
       await CliRunner(exitOnCompletion: false).runCapturing(planArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       final engine = await laneFile('04-ENGINE.md').readAsString();
       // Built from pieces so this test's own source is not a false
       // positive for the greps that scan the repo (see the TUI
@@ -150,7 +150,7 @@ void main() {
       () async {
         await seedSpec(lanesSpec);
         await CliRunner(exitOnCompletion: false).runCapturing(planArgs());
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
         final skin = await laneFile('04-SKIN.md').readAsString();
         for (final slot in ['mobile', 'ios', 'android', 'macos']) {
           expect(
@@ -171,7 +171,7 @@ void main() {
         'hand-declared W1-W4', () async {
       await seedSpec(lanesSpec);
       await CliRunner(exitOnCompletion: false).runCapturing(planArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       final engine = await laneFile('04-ENGINE.md').readAsString();
       final skin = await laneFile('04-SKIN.md').readAsString();
 
@@ -192,7 +192,7 @@ void main() {
         'every row (BOTH ids once)', () async {
       await seedSpec(lanesSpec);
       await CliRunner(exitOnCompletion: false).runCapturing(planArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
 
       final meta = await laneFile('test-list.md').readAsString();
       expect(
@@ -251,7 +251,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(
         out.toLowerCase().contains('flutter'),
         isTrue,
@@ -292,7 +292,7 @@ void main() {
         final out = await CliRunner(
           exitOnCompletion: false,
         ).runCapturing(planArgs());
-        expect(exitCode, 2, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
         expect(
           out.contains('A1'),
           isTrue,
@@ -316,7 +316,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(
         out.contains('U6'),
         isTrue,
@@ -336,7 +336,7 @@ void main() {
       final legacySpec = lanesSpec.substring(0, lanesSpec.indexOf('## Lanes'));
       await seedSpec(legacySpec);
       await CliRunner(exitOnCompletion: false).runCapturing(planArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       expect(
         laneFile('test-list.md').existsSync(),
         isTrue,

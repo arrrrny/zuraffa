@@ -77,7 +77,7 @@ void main() {
       final before = fx.checksumTestAndLib();
       final out = await runRefactor(extraArgs: ['--exempt-behaviors', 'C1']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains(RegExp(r'outcome=(clean|refactored)')), reason: out);
       // The exclusion is named honestly (issue #1588), never a silent
       // absolute-green claim.
@@ -92,7 +92,7 @@ void main() {
       final before = fx.checksumTestAndLib();
       final out = await runRefactor();
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=not-green'));
       expect(fx.checksumTestAndLib(), equals(before));
     });
@@ -105,7 +105,7 @@ void main() {
       );
       final out = await runRefactor(extraArgs: ['--exempt-behaviors', 'C1']);
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=not-green'));
       // The non-exempt failure is named.
       expect(out.toLowerCase(), contains('unrelated red behavior'));
@@ -117,7 +117,7 @@ void main() {
         extraArgs: ['--exempt-behaviors', 'GHOST-ID'],
       );
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=not-green'));
     });
 
@@ -127,7 +127,7 @@ void main() {
       await fx.seedRunState(states: {'C1': 'pending'});
       final out = await runRefactor(extraArgs: ['--exempt-behaviors', 'C1']);
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=not-green'));
       // The ignored id is named instead of silently weakening the gate.
       expect(out, contains('ignored'));
@@ -209,7 +209,7 @@ coverage: 'dart test --coverage'
     test('bug 1588: the second --pass-batch invocation of an unchanged tree '
         'inherits the gate — zero suite runs, exit 0', () async {
       final first = await runRefactor(extraArgs: ['--pass-batch']);
-      expect(exitCode, 0, reason: first);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: first);
       final spawnsAfterFirst = await suiteSpawnCount();
       // The first invocation pays the preflight; the re-proof is
       // INHERITED because the pass registry changed no file (issue
@@ -217,7 +217,7 @@ coverage: 'dart test --coverage'
       expect(spawnsAfterFirst, greaterThanOrEqualTo(1), reason: first);
 
       final second = await runRefactor(extraArgs: ['--pass-batch']);
-      expect(exitCode, 0, reason: second);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: second);
       expect(
         second,
         contains(RegExp(r'outcome=(clean|refactored)')),
@@ -238,7 +238,7 @@ coverage: 'dart test --coverage'
     test('bug 1588: tree drift invalidates the ledger — the next --pass-batch '
         'invocation re-runs the full pipeline', () async {
       final first = await runRefactor(extraArgs: ['--pass-batch']);
-      expect(exitCode, 0, reason: first);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: first);
       final spawnsAfterFirst = await suiteSpawnCount();
 
       // Drift the lib/ tree (still formatted, still green).
@@ -247,18 +247,18 @@ coverage: 'dart test --coverage'
       ).writeAsString('int answer() {\n  return 42;\n}\n// drift\n');
 
       final second = await runRefactor(extraArgs: ['--pass-batch']);
-      expect(exitCode, 0, reason: second);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: second);
       expect(await suiteSpawnCount(), greaterThan(spawnsAfterFirst));
     });
 
     test('bug 1588: a flag-less invocation never reads the ledger — the '
         'standalone contract keeps the full pipeline', () async {
       final first = await runRefactor(extraArgs: ['--pass-batch']);
-      expect(exitCode, 0, reason: first);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: first);
       final spawnsAfterFirst = await suiteSpawnCount();
 
       final second = await runRefactor();
-      expect(exitCode, 0, reason: second);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: second);
       // No ledger inheritance: the pipeline ran again.
       expect(
         await suiteSpawnCount(),
@@ -276,7 +276,7 @@ coverage: 'dart test --coverage'
       final first = await runRefactor(
         extraArgs: ['--pass-batch', '--suite-baseline', baselinePath],
       );
-      expect(exitCode, 0, reason: first);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: first);
 
       // (a) A baseline rewrite — a fresh capture's new bytes — is a
       // different gate key (baseline_key): the suite spawns again.
@@ -287,7 +287,7 @@ coverage: 'dart test --coverage'
       final second = await runRefactor(
         extraArgs: ['--pass-batch', '--suite-baseline', baselinePath],
       );
-      expect(exitCode, 0, reason: second);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: second);
       expect(await suiteSpawnCount(), greaterThan(spawns), reason: second);
 
       // (b) A suite-configuration rewrite (dart_test.yaml) is a different
@@ -299,14 +299,14 @@ coverage: 'dart test --coverage'
       final third = await runRefactor(
         extraArgs: ['--pass-batch', '--suite-baseline', baselinePath],
       );
-      expect(exitCode, 0, reason: third);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: third);
       expect(await suiteSpawnCount(), greaterThan(spawns), reason: third);
     });
 
     test('bug 1588: a corrupt or mistyped ledger falls back to the full '
         'pipeline (safe failure)', () async {
       final first = await runRefactor(extraArgs: ['--pass-batch']);
-      expect(exitCode, 0, reason: first);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: first);
       final ledgerPath = p.join(fx.featureDir, 'tdd', 'pass-batch.json');
       expect(File(ledgerPath).existsSync(), isTrue, reason: first);
 
@@ -314,7 +314,7 @@ coverage: 'dart test --coverage'
         final spawnsBefore = await suiteSpawnCount();
         await File(ledgerPath).writeAsString(payload);
         final out = await runRefactor(extraArgs: ['--pass-batch']);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         // No inherited gate: preflight + re-proof ran again.
         expect(await suiteSpawnCount(), greaterThan(spawnsBefore), reason: out);
       }
@@ -323,13 +323,13 @@ coverage: 'dart test --coverage'
     test('bug 1588: --pass-batch --full-reproof never inherits the ledger — '
         'the explicit request always runs the full pipeline', () async {
       final first = await runRefactor(extraArgs: ['--pass-batch']);
-      expect(exitCode, 0, reason: first);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: first);
       final spawnsAfterFirst = await suiteSpawnCount();
 
       final second = await runRefactor(
         extraArgs: ['--pass-batch', '--full-reproof'],
       );
-      expect(exitCode, 0, reason: second);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: second);
       expect(second, contains('--full-reproof'), reason: second);
       expect(
         await suiteSpawnCount(),
@@ -346,7 +346,7 @@ coverage: 'dart test --coverage'
       final before = fx.checksumTestAndLib();
       final out = await runRefactor();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('outcome=clean'), reason: out);
       // THE economics assertion: one suite spawn (the preflight) only.
       expect(await suiteSpawnCount(), 1, reason: out);
@@ -367,7 +367,7 @@ coverage: 'dart test --coverage'
         'pass changed a file', () async {
       final out = await runRefactor(extraArgs: ['--full-reproof']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // An explicit request for the strongest proof is always answered by
       // running it: preflight + re-proof.
       expect(await suiteSpawnCount(), 2, reason: out);
@@ -515,7 +515,7 @@ coverage: 'dart test --coverage'
 
       // The blocked behavior parks the run honestly (#1544 semantics):
       // exit 1, result=blocked — while A1 still reaches done.
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       final argv = await argvLog();
       final refactorSpawns = argv
           .where(
@@ -586,7 +586,7 @@ coverage: 'dart test --coverage'
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final argv = await argvLog();
       final refactorSpawns = argv
           .where(
@@ -635,7 +635,7 @@ coverage: 'dart test --coverage'
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final refactorSpawns = (await argvLog())
           .where((l) => l.startsWith('tdd refactor A1'))
           .toList();
@@ -664,7 +664,7 @@ coverage: 'dart test --coverage'
 /// `--suite-baseline` file, issue #922).
 String _baselineJson({required String capturedAt}) => jsonEncode({
   'command': 'dart test',
-  'exitCode': 0,
+  'CliRunner.lastDispatchedExitCode': 0,
   'failedTests': <String>[],
   'capturedAt': capturedAt,
   'parseable': true,

@@ -140,7 +140,7 @@ class ZfaConfig {
   bool get mockJsonByDefault => isPluginEnabledByDefault('mock');
   bool get testByDefault => isPluginEnabledByDefault('test');
   bool get gymByDefault => isPluginEnabledByDefault('gym');
-  bool get gqlByDefault => isPluginEnabledByDefault('gql');
+  bool get gqlByDefault => isPluginEnabledByDefault('graphql');
   bool get graphqlByDefault => isPluginEnabledByDefault('graphql');
   bool get appendByDefault => isPluginEnabledByDefault('method_append');
   bool get xrayByDefault => isPluginEnabledByDefault('xray');
@@ -265,7 +265,6 @@ class ZfaConfig {
   static String configKeyForPlugin(String pluginId) {
     const overrides = {
       'method_append': 'appendByDefault',
-      'gql': 'gqlByDefault',
       'graphql': 'graphqlByDefault',
     };
     return overrides[pluginId] ?? '${pluginId}ByDefault';
@@ -274,7 +273,7 @@ class ZfaConfig {
   static String? pluginIdForConfigKey(String key) {
     const explicit = {
       'appendByDefault': 'method_append',
-      'gqlByDefault': 'gql',
+      'gqlByDefault': 'graphql',
       'graphqlByDefault': 'graphql',
     };
     final explicitMatch = explicit[key];
@@ -514,8 +513,12 @@ class ZfaConfig {
     if (routeByDefault case final value?) overrides['route'] = value;
     if (mockByDefault case final value?) overrides['mock'] = value;
     if (testByDefault case final value?) overrides['test'] = value;
-    if (gqlByDefault case final value?) overrides['gql'] = value;
-    if (graphqlByDefault case final value?) overrides['graphql'] = value;
+    if (gqlByDefault case final value?) {
+      overrides['graphql'] = (overrides['graphql'] ?? false) || value;
+    }
+    if (graphqlByDefault case final value?) {
+      overrides['graphql'] = (overrides['graphql'] ?? false) || value;
+    }
     if (appendByDefault case final value?) {
       overrides['method_append'] = value;
     }
@@ -528,7 +531,12 @@ class ZfaConfig {
     for (final entry in json.entries) {
       final pluginId = pluginIdForConfigKey(entry.key);
       if (pluginId != null && entry.value is bool) {
-        defaults[pluginId] = entry.value as bool;
+        if (pluginId == 'graphql') {
+          defaults[pluginId] =
+              (defaults[pluginId] ?? false) || (entry.value as bool);
+        } else {
+          defaults[pluginId] = entry.value as bool;
+        }
       }
     }
     return defaults;

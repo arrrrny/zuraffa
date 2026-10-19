@@ -177,7 +177,7 @@ coverage: 'dart test --coverage'
 
         final out = await runRefactor(extraArgs: ['--pass-batch']);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(
           out,
           contains(RegExp(r'outcome=(clean|refactored)')),
@@ -223,7 +223,7 @@ coverage: 'dart test --coverage'
 
       final out = await runRefactor(extraArgs: ['--pass-batch']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // THE economics assertion: the pipeline is inherited — zero suite
       // spawns (no preflight, no re-proof).
       expect(await suiteSpawnCount(), 0, reason: out);
@@ -282,7 +282,7 @@ coverage: 'dart test --coverage'
           '--zfa-bin',
           fx.fakeZfaBin,
         ]);
-        expect(exitCode, 0, reason: runOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: runOut);
 
         // The driver actually wrote the record, under B-002's skip
         // certification — no hand-editing anywhere in this chain.
@@ -315,7 +315,7 @@ coverage: 'dart test --coverage'
           extraArgs: ['--pass-batch', '--suite-baseline', fx.runBaselinePath],
         );
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         // THE economics assertion: the driver-written record inherits —
         // the refactor adds ZERO suite spawns (no preflight, no re-proof).
         expect(await suiteSpawnCount(), spawnsAfterDrive, reason: out);
@@ -339,7 +339,7 @@ coverage: 'dart test --coverage'
 
       final out = await runRefactor(extraArgs: ['--pass-batch']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // The pipeline ran: the preflight spawn happened.
       expect(await suiteSpawnCount(), greaterThanOrEqualTo(1), reason: out);
       expect(out, isNot(contains('make-post-state')));
@@ -360,7 +360,7 @@ coverage: 'dart test --coverage'
         extraArgs: ['--pass-batch', '--suite-baseline', baselinePath],
       );
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(await suiteSpawnCount(), greaterThanOrEqualTo(1), reason: out);
       expect(out, isNot(contains('make-post-state')));
     });
@@ -374,7 +374,7 @@ coverage: 'dart test --coverage'
 
       final out = await runRefactor(extraArgs: ['--pass-batch']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(await suiteSpawnCount(), greaterThanOrEqualTo(1), reason: out);
       expect(out, isNot(contains('make-post-state')));
     });
@@ -385,7 +385,7 @@ coverage: 'dart test --coverage'
 
       final out = await runRefactor(extraArgs: ['--pass-batch']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(await suiteSpawnCount(), greaterThanOrEqualTo(1), reason: out);
       expect(out, isNot(contains('make-post-state')));
     });
@@ -406,7 +406,7 @@ coverage: 'dart test --coverage'
 
         final out = await runRefactor(extraArgs: ['--pass-batch']);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         // No inherited gate: the preflight ran.
         expect(await suiteSpawnCount(), greaterThan(spawnsBefore), reason: out);
         expect(out, isNot(contains('make-post-state')));
@@ -430,7 +430,7 @@ coverage: 'dart test --coverage'
 
       final out = await runRefactor(extraArgs: ['--pass-batch']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(await suiteSpawnCount(), greaterThan(spawnsBefore), reason: out);
       expect(out, isNot(contains('make-post-state')));
     });
@@ -441,7 +441,7 @@ coverage: 'dart test --coverage'
       final spawnsAfterRecord = await suiteSpawnCount();
 
       final standalone = await runRefactor();
-      expect(exitCode, 0, reason: standalone);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: standalone);
       expect(
         await suiteSpawnCount(),
         greaterThan(spawnsAfterRecord),
@@ -452,7 +452,7 @@ coverage: 'dart test --coverage'
       final fullReproof = await runRefactor(
         extraArgs: ['--pass-batch', '--full-reproof'],
       );
-      expect(exitCode, 0, reason: fullReproof);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: fullReproof);
       expect(
         await suiteSpawnCount(),
         greaterThan(spawnsAfterRecord),
@@ -471,7 +471,7 @@ coverage: 'dart test --coverage'
 
       final out = await runRefactor(extraArgs: ['--pass-batch']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(await suiteSpawnCount(), greaterThanOrEqualTo(1), reason: out);
       expect(out, isNot(contains('make-post-state')));
     });
@@ -493,7 +493,7 @@ coverage: 'dart test --coverage'
 
         final out = await runRefactor(extraArgs: ['--pass-batch']);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(await suiteSpawnCount(), greaterThanOrEqualTo(1), reason: out);
         expect(out, isNot(contains('make-post-state')));
       },
@@ -528,7 +528,7 @@ coverage: 'dart test --coverage'
 
       final out = await runRefactor(extraArgs: ['--pass-batch']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // Zero suite spawns either way — but the evidence names the
       // LEDGER's full-pipeline proof, not the make record.
       expect(await suiteSpawnCount(), 0, reason: out);

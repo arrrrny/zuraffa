@@ -58,7 +58,7 @@ environment:
       '--certify',
     ]);
 
-    expect(exitCode, 0, reason: output);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: output);
     expect(output, contains('certified'));
   });
 
@@ -85,7 +85,11 @@ environment:
       '--certify',
     ]);
 
-    expect(exitCode, 1, reason: 'certify must fail the run on drift');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      1,
+      reason: 'certify must fail the run on drift',
+    );
     expect(output, contains('[signature_mismatch]'));
     expect(output, contains('--> fix:'));
   });
@@ -121,7 +125,7 @@ environment:
     final findings = (envelope['findings'] as List)
         .cast<Map<String, dynamic>>();
     expect(findings.map((f) => f['kind']), contains('signature_mismatch'));
-    expect(exitCode, 1);
+    expect(CliRunner.lastDispatchedExitCode, 1);
   });
 
   test('B-023: the certified create receipt records the certification '
@@ -152,7 +156,7 @@ environment:
       '--explain',
     ]);
 
-    expect(exitCode, 0, reason: output);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: output);
     expect(output, contains('Explain'));
     // The future variant.
     expect(output, contains('GetProductUseCase'));
@@ -226,7 +230,7 @@ environment:
       );
       expect(method['action'], 'created');
     }
-    expect(exitCode, 0);
+    expect(CliRunner.lastDispatchedExitCode, 0);
   });
 }
 

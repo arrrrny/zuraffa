@@ -499,7 +499,7 @@ void main() {
           '--timeout',
           '0.05',
         ]);
-        expect(exitCode, 1);
+        expect(CliRunner.lastDispatchedExitCode, 1);
         expect(
           out,
           contains(
@@ -528,7 +528,7 @@ void main() {
         '--timeout',
         'abc',
       ]);
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
       expect(out, contains('--timeout'));
       expect(out, contains('positive'));
     });
@@ -568,7 +568,7 @@ void main() {
           '--timeout',
           '0.05',
         ]);
-        expect(exitCode, 1);
+        expect(CliRunner.lastDispatchedExitCode, 1);
         expect(
           out,
           contains(
