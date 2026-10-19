@@ -466,6 +466,14 @@ class CertifyMockCommand extends Command<void> {
       negatable: false,
       help: 'Enable detailed logging',
     );
+    argParser.addOption(
+      'service',
+      help: 'Service name for mock provider (service mode)',
+    );
+    argParser.addOption(
+      'domain',
+      help: 'Domain folder for the mock provider (service mode)',
+    );
   }
 
   @override
@@ -502,6 +510,8 @@ class CertifyMockCommand extends Command<void> {
       ],
       if (results['force'] == true) '--force',
       if (results['verbose'] == true) '--verbose',
+      if (results['service'] != null) ...['--service', results['service']!],
+      if (results['domain'] != null) ...['--domain', results['domain']!],
     ];
     final capability = CertifyMockCapability(plugin);
     exitCode = await capability.run(argv);
@@ -817,6 +827,10 @@ Future<void> _runMockGeneration({
     }
   }
 
+  final conformanceFailed = certification != null && !certification.conformance;
+  if (conformanceFailed) {
+    exitCode = 1;
+  }
   if (jsonMode) {
     VerdictEnvelope.emit(
       _buildEnvelope(
@@ -827,6 +841,7 @@ Future<void> _runMockGeneration({
         certification: certification?.withReceipt(receiptPath),
         receiptPath: receiptPath,
         analyzeUnverified: analyzeUnverified,
+        conformanceFailed: conformanceFailed,
       ),
     );
     return;
@@ -888,6 +903,7 @@ VerdictEnvelope _buildEnvelope({
   required MockCertification? certification,
   required String? receiptPath,
   required String? analyzeUnverified,
+  bool conformanceFailed = false,
 }) {
   final actions = <String, int>{
     'created': 0,
@@ -902,8 +918,8 @@ VerdictEnvelope _buildEnvelope({
   }
   return VerdictEnvelope(
     command: commandLine,
-    verdict: VerdictKind.pass,
-    exitClass: ExitProtocol.success,
+    verdict: conformanceFailed ? VerdictKind.fail : VerdictKind.pass,
+    exitClass: conformanceFailed ? ExitProtocol.failure : ExitProtocol.success,
     subject: VerdictSubject(kind: 'mock', id: entity),
     artifacts: VerdictArtifacts(
       created: [

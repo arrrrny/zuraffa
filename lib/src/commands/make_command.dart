@@ -591,7 +591,8 @@ class MakeCommand extends Command<void> {
     if (rest.isEmpty && jsonConfig == null) {
       print('❌ Usage: zfa make <Name> <plugin1> <plugin2> ... [options]');
       print('Example: zfa make User route di');
-      exit(1);
+      exitCode = 1;
+      return;
     }
 
     // ── Spec 1002: the `engine` mode token ────────────────────────────
@@ -634,7 +635,8 @@ class MakeCommand extends Command<void> {
               : (jsonConfig?['name']?.toString() ?? ''));
     if (entityName.isEmpty) {
       print('❌ Missing required feature/entity name.');
-      exit(1);
+      exitCode = 1;
+      return;
     }
 
     // ── Spec 030 (FR-004, US2.AC2): a feature disabled via the `features:`
@@ -652,6 +654,18 @@ class MakeCommand extends Command<void> {
         ? rest.skip(2).toList()
         : rest.skip(1).toList();
     final normalizedOptions = _normalizedOptions(jsonConfig);
+    // Issue #1020: the `module` preset emits only the FeaturePlugin
+    // orchestrator and has no backing entity, so treat it as
+    // --no-entity to avoid the missing-entity guard.
+    String? requestedPreset;
+    if (argResults?.wasParsed('preset') == true) {
+      requestedPreset = argResults?['preset'] as String?;
+    } else {
+      requestedPreset = normalizedOptions['preset'] as String?;
+    }
+    if (requestedPreset == 'module') {
+      normalizedOptions['no-entity'] = true;
+    }
     if (engineMode) {
       // The engine preset is implied by the mode token; the plan resolves
       // through the same PresetRegistry entry `--preset=engine` uses.
@@ -716,7 +730,7 @@ class MakeCommand extends Command<void> {
     // missing entity is generated (with a minimal `id: String` identity)
     // instead of rejected, so `zfa make engine Login` is a true one-shot. In
     // plan-only mode nothing is written, so the guard is simply skipped.
-    if (argResults?['no-entity'] != true &&
+    if (!noEntityRequested &&
         !EntityFieldResolver.entityFileExists(
           entityName: entityName,
           projectRoot: manager.projectRoot,
@@ -1194,7 +1208,8 @@ class MakeCommand extends Command<void> {
       if (context.core.verbose) {
         rethrow;
       }
-      exit(1);
+      exitCode = 1;
+      return;
     }
 
     // 5b. Apply Zuraffa branding (spec 053): icons, assets, README.
@@ -1488,7 +1503,8 @@ class MakeCommand extends Command<void> {
       return jsonDecode(await file.readAsString()) as Map<String, dynamic>;
     } catch (e) {
       print('❌ Error parsing JSON input: $e');
-      exit(1);
+      exitCode = 1;
+      return null;
     }
   }
 

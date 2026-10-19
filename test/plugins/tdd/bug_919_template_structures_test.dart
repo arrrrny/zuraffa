@@ -21,9 +21,9 @@ import 'helpers/spec_fixture.dart';
 /// Reads the exit code the LAST [CliRunner.runCapturing] on THIS isolate
 /// dispatched, from the per-isolate static snapshot
 /// (`CliRunner.lastDispatchedExitCode`), NOT from the process-global
-/// `dart:io exitCode`.
+/// `dart:io CliRunner.lastDispatchedExitCode`.
 ///
-/// `exitCode` is process-global across `dart test` suite isolates — a
+/// `CliRunner.lastDispatchedExitCode` is process-global across `dart test` suite isolates — a
 /// sibling suite finishing between this suite's runCapturing teardown and
 /// the assertion read clobbers the value this suite produced (the
 /// cross-suite shared-state family of issue #1096; observed live as the

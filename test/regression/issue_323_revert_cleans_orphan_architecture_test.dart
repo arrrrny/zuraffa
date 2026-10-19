@@ -115,6 +115,15 @@ class $name {
   final String label;
 
   const $name({required this.id, required this.label});
+
+  $name copyWithField(Object field, Object? value) => this;
+}
+
+class ${name}Patch {
+  final String? id;
+  final String? label;
+
+  const ${name}Patch({this.id, this.label});
 }
 
 class ${name}Fields {

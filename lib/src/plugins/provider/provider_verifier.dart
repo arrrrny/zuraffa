@@ -392,19 +392,17 @@ class ProviderVerifier {
     String outputDir,
     String interface,
   ) async {
-    final base = interface.endsWith('Service')
-        ? interface.substring(0, interface.length - 7)
-        : interface;
+    final base = interface; // file stem is the full snake (issue #1822)
     final snake = _camelToSnake(base);
     final candidates = <String>[
-      p.join(outputDir, 'domain', 'services', '${snake}_service.dart'),
+      p.join(outputDir, 'domain', 'services', '${snake}.dart'),
     ];
     // Entity-based services live one domain folder deeper.
     final servicesDir = Directory(p.join(outputDir, 'domain', 'services'));
     if (servicesDir.existsSync()) {
       for (final entity in servicesDir.listSync()) {
         if (entity is Directory) {
-          candidates.add(p.join(entity.path, '${snake}_service.dart'));
+          candidates.add(p.join(entity.path, '${snake}.dart'));
         }
       }
     }

@@ -22,7 +22,7 @@
 /// inside the pipeline, with a receipt — never by hand.
 library;
 
-import 'widget_scaffold.dart' show scaffoldedMarker;
+import 'widget_scaffold.dart' show isScaffoldedMarkerLine, scaffoldedMarker;
 
 /// Raised when the authoring transition cannot proceed: the target
 /// content is not scaffolded, the author finders are not concrete
@@ -55,7 +55,7 @@ abstract final class SkinAuthoring {
         'finder statements (find.text / find.byType ... assertions).',
       );
     }
-    if (finders.contains(scaffoldedMarker)) {
+    if (finders.split('\n').any(isScaffoldedMarkerLine)) {
       throw SkinAuthoringException(
         'the author finders carry the scaffold marker ($scaffoldedMarker) '
         '— authoring must replace the scaffold, never re-emit it.',
@@ -84,7 +84,7 @@ abstract final class SkinAuthoring {
   }) {
     validateAuthorFinders(authorFinders);
     final lines = testContent.split('\n');
-    final markerIndex = lines.indexWhere((l) => l.contains(scaffoldedMarker));
+    final markerIndex = lines.indexWhere(isScaffoldedMarkerLine);
     if (markerIndex < 0) {
       throw SkinAuthoringException(
         'the test content carries no scaffold marker ($scaffoldedMarker) '

@@ -31,7 +31,7 @@ import 'helpers/spec_fixture.dart';
 
 /// Same cross-suite safety as bug_919_template_structures_test.dart: read
 /// the exit code from the per-isolate dispatch snapshot, never from the
-/// process-global `dart:io exitCode` (issue #1096 family).
+/// process-global `dart:io CliRunner.lastDispatchedExitCode` (issue #1096 family).
 int takeDispatchedExitCode() => CliRunner.lastDispatchedExitCode;
 
 void main() {

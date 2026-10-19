@@ -7,7 +7,7 @@ import '../core/context/file_system.dart';
 import '../core/generator_options.dart';
 import '../core/project/project_root.dart';
 import '../models/generator_config.dart';
-import '../plugins/module/builders/module_orchestrator_builder.dart';
+import '../plugins/module/module_plugin.dart';
 import '../core/module/post_scaffold_gate.dart';
 import '../utils/project_flavor.dart';
 
@@ -120,6 +120,7 @@ class ModuleCommand extends Command<void> {
       // exit 0.
       print('Error: Package directory already exists: $packageDir');
       print('Use --force to overwrite existing files.');
+      print('--> fix: use --force');
       exitCode = 1;
       return;
     }
@@ -142,12 +143,18 @@ class ModuleCommand extends Command<void> {
       _writePubspec(packageDir, packageName, verbose);
       _writeAnalysisOptions(packageDir);
       _writeBarrel(packageDir, featureName);
-      // Issue #1149 (kill list — module merge): the FeaturePlugin class
-      // is emitted by the ONE surviving generator
-      // (ModuleOrchestratorBuilder, shared with `zfa make --with=module`)
-      // instead of a second drifting string-template copy.
-      await _writePluginOrchestrator(packageDir, featureName, verbose);
     }
+
+    // Issue #1020: single source of truth for the FeaturePlugin artifact is
+    // ModuleGeneratorPlugin (which wraps ModuleOrchestratorBuilder). Delegate
+    // to it in both dry-run and real runs so the command's dry-run matches
+    // the plugin's dry-run (fidelity assertion).
+    await _writePluginOrchestrator(
+      packageDir,
+      featureName,
+      verbose,
+      dryRun: dryRun,
+    );
 
     print('  Feature package $packageName scaffolded successfully.');
 
@@ -162,27 +169,35 @@ class ModuleCommand extends Command<void> {
   }
 
   /// Emits the FeaturePlugin orchestrator through
-  /// [ModuleOrchestratorBuilder] — the single generator shared with the
-  /// `zfa make --with=module` pipeline (issue #1149). The builder persists
-  /// through FileUtils.writeFile with force so re-scaffolding works.
+  /// [ModuleGeneratorPlugin] — the single generator shared with the
+  /// `zfa make --with=module` pipeline. The plugin delegates to
+  /// [ModuleOrchestratorBuilder] internally, so there is one source of
+  /// truth for the artifact. Honours [dryRun] for fidelity with the plugin.
   Future<void> _writePluginOrchestrator(
     String dir,
     String featureName,
-    bool verbose,
-  ) async {
-    final builder = ModuleOrchestratorBuilder(
+    bool verbose, {
+    bool dryRun = false,
+  }) async {
+    final plugin = ModuleGeneratorPlugin(
       outputDir: '$dir/lib/src',
-      options: const GeneratorOptions(force: true),
+      options: GeneratorOptions(force: true, dryRun: dryRun, verbose: verbose),
     );
-    final files = await builder.generate(
+    final files = await plugin.generate(
       GeneratorConfig(
         name: featureName,
         outputDir: '$dir/lib/src',
         force: true,
+        dryRun: dryRun,
+        verbose: verbose,
       ),
     );
     for (final file in files) {
-      if (verbose) print('  Created plugin orchestrator: ${file.path}');
+      if (verbose || dryRun) {
+        print(
+          '  ${dryRun ? "Would create" : "Created"} plugin orchestrator: ${file.path} (${file.action})',
+        );
+      }
     }
   }
 

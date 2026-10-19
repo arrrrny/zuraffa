@@ -418,6 +418,40 @@ Failing tests:
     });
   });
 
+  group('issue #1813 - subject-stub UnimplementedError throw', () {
+    const subjectStubThrowOutput = '''
+00:00 +0: loading test/tdd/a1_test.dart
+00:00 +0 -1: A1 - returns 42 when invoked with no args [E]
+  UnimplementedError: not implemented
+  package:foo/src/a1_subject.dart 5:24  foo
+  test/tdd/a1_test.dart 4:19  main.<fn>
+
+00:00 +0 -1: Some tests failed.
+''';
+
+    test('bare subject-stub throw with subject stack frame -> assertion', () {
+      final result = classify(
+        record(subjectStubThrowOutput, exitCode: 1, testCount: 1),
+      );
+      expect(result, RedClassification.assertion);
+    });
+
+    test('a pump-escape naming the subject file stays runner-error', () {
+      const pumpEscape = '''
+00:01 +0: loading test/tdd/a1_test.dart
+00:01 +0 -1: A1 - renders the brand theme [E]
+\u2550\u2550\u2550\u255e EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK \u255e\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+The following UnimplementedError was thrown running a test:
+  UnimplementedError: subject_a1 not implemented
+  package:foo/src/a1_subject.dart 5:24  foo
+
+00:01 +0 -1: Some tests failed.
+''';
+      final result = classify(record(pumpEscape, exitCode: 1, testCount: 1));
+      expect(result, RedClassification.runnerError);
+    });
+  });
+
   group('parseExecutedTestCount — runner grammar (helper for U7)', () {
     test('single failing test counts one', () {
       expect(parseExecutedTestCount(assertionOutput), 1);
@@ -550,6 +584,43 @@ The following StateError was thrown building Dashboard(dirty):
       expect(
         failingAssertionOf(named),
         "B-001 \u2014 renders the 'Home' label",
+      );
+    });
+  });
+
+  group('issue #1760 review — multi-line + printed-label boundary', () {
+    test('multi-line Expected block classifies as assertion', () {
+      const multiLine = '''
+00:00 +0: loading b_001_test.dart
+00:00 +0 -1: returns 42 when invoked with no args [E]
+  Expected:
+    [1, 2, 3,
+     4, 5]
+    Actual: [1, 2, 4]
+
+00:00 +0 -1: Some tests failed.
+''';
+      expect(
+        classify(record(multiLine, exitCode: 1, testCount: 1)),
+        RedClassification.assertion,
+      );
+    });
+
+    test('printed Expected:/Actual: labels are not an assertion report', () {
+      const printed = '''
+00:00 +0: loading b_001_test.dart
+00:00 +0: my test
+Expected: foo
+Actual: bar
+00:00 +0 -1: my test [E]
+  Bad state: boom
+  b_001_test.dart 6:5  main.<fn>
+
+00:00 +0 -1: Some tests failed.
+''';
+      expect(
+        classify(record(printed, exitCode: 1, testCount: 1)),
+        isNot(RedClassification.assertion),
       );
     });
   });

@@ -338,7 +338,7 @@ Lanes:
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         File(p.join(tddDir, '04-ENGINE.md')).existsSync(),
         isTrue,
@@ -363,7 +363,7 @@ Lanes:
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(
         out.contains(
           '--> fix: add **Type**: acceptance to the scenario '
@@ -394,7 +394,7 @@ Lanes:
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(
         out.contains('declare it SKIN (or BOTH)'),
         isTrue,

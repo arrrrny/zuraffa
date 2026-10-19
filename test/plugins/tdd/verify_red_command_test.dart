@@ -42,7 +42,7 @@ void main() {
 
   tearDown(() {
     fx.dispose();
-    // The command signals rejection through dart:io `exitCode` (the
+    // The command signals rejection through dart:io `CliRunner.lastDispatchedExitCode` (the
     // CliRunner honors it); reset between tests so each starts clean.
     exitCode = 0;
   });
@@ -62,7 +62,11 @@ void main() {
             'certified=true feature=${fx.featureName}',
           ),
         );
-        expect(exitCode, 0, reason: 'certified red must exit 0');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'certified red must exit 0',
+        );
 
         // Nine serialized fields: 8 evidence fields plus structural `kind`.
         final log = await File(fx.cycleLogPath).readAsString();
@@ -99,16 +103,18 @@ void main() {
     test(
       'U25: a mutating assertion failure is rejected without red evidence',
       () async {
-        await File(
-          fx.testPathOf('B-001'),
-        ).writeAsString(TddFixture.mutatingRedTest(description));
+        await File(fx.testPathOf('B-001')).writeAsString(
+          TddFixture.mutatingRedTest(
+            description,
+            mutatePath: 'lib/b_001_subject.dart',
+          ),
+        );
         final runner = CliRunner(exitOnCompletion: false);
 
         final out = await runner.runCapturing(verifyRedArgs(fx, 'B-001'));
 
         expect(out, contains('read-only integrity violation'));
-        expect(out, contains('lib/verify_red_mutation.txt'));
-        expect(out, contains('test/verify_red_mutation.txt'));
+        expect(out, contains('lib/b_001_subject.dart'));
         expect(
           out,
           contains(
@@ -116,7 +122,7 @@ void main() {
             'certified=false feature=${fx.featureName}',
           ),
         );
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
         expect(File(fx.cycleLogPath).existsSync(), isFalse);
       },
     );
@@ -133,7 +139,7 @@ void main() {
       expect('## Cycle: B-001 (red)'.allMatches(second), hasLength(2));
       // The first entry is preserved verbatim (append-only).
       expect(second.startsWith(first), isTrue);
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
     });
 
     test('U27 (#1528): missing profile is a setup condition — fail closed as '
@@ -151,7 +157,7 @@ void main() {
         ),
       );
       expect(out, isNot(contains('classification=unresolved')));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       // No evidence written; no auto-init write either (the read-only
       // FR-008 contract holds — the baseline self-heal is the run/gen
       // entries' preflight, not verify-red's).
@@ -183,7 +189,11 @@ void main() {
       ),
       reason: 'summary line must name the class: got:\n$out',
     );
-    expect(exitCode, isNot(0), reason: '$classification must exit non-zero');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      isNot(0),
+      reason: '$classification must exit non-zero',
+    );
     // The named class is also printed as a diagnostic line.
     expect(out, contains('classification: $classification'));
 
@@ -335,7 +345,7 @@ void main() {
 
           final runner = CliRunner(exitOnCompletion: false);
           await runner.runCapturing(verifyRedArgs(fx2, 'B-002'));
-          expect(exitCode, isNot(0));
+          expect(CliRunner.lastDispatchedExitCode, isNot(0));
           expect(await File(fx2.cycleLogPath).readAsString(), before);
         } finally {
           fx2.dispose();
@@ -365,7 +375,7 @@ void main() {
             'certified=false',
           ),
         );
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
       } finally {
         fx2.dispose();
         exitCode = 0;
@@ -384,7 +394,7 @@ void main() {
             'certified=true feature=${fx.featureName}',
           ),
         );
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
         final log = await File(fx.cycleLogPath).readAsString();
         expect(log, contains('## Cycle: B-001 (red)'));
       },
@@ -406,7 +416,7 @@ void main() {
             'certified=false feature=unknown',
           ),
         );
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
         // No evidence for either candidate.
         expect(File(fx.cycleLogPath).existsSync(), isFalse);
       },
@@ -421,7 +431,7 @@ void main() {
         final runner = CliRunner(exitOnCompletion: false);
         final out = await runner.runCapturing(verifyRedArgs(fx2));
         expect(out, contains('no behavior with gen artifacts'));
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
       } finally {
         fx2.dispose();
         exitCode = 0;
@@ -446,7 +456,7 @@ void main() {
         final out = await runner.runCapturing(verifyRedArgs(fx, 'B-777'));
         expect(out, contains('B-777'));
         expect(out, contains('zfa tdd gen B-777'));
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
       },
     );
 
@@ -472,7 +482,7 @@ void main() {
         expect(out, contains('ambiguous'));
         expect(out, contains(fx.featureName));
         expect(out, contains(otherFeature));
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
         // No evidence written for either candidate.
         expect(File(fx.cycleLogPath).existsSync(), isFalse);
       },

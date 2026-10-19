@@ -82,7 +82,7 @@ dependencies:
       'summary line', () async {
     final out = await runView();
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     expect(
       File(primaryViewPath).existsSync(),
       isTrue,
@@ -106,7 +106,7 @@ dependencies:
 
     final out = await runView();
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     expect(
       out,
       contains('is already implemented — nothing to scaffold'),
@@ -142,7 +142,7 @@ Widget subject_a_001() => A001View();
 
     final out = await runView();
 
-    expect(exitCode, 1, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: 'out: $out');
     expect(
       out,
       contains('zfa tdd view'),
@@ -185,7 +185,7 @@ class _LoginViewState extends State<LoginView> {
 
     final out = await runView();
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     expect(
       out,
       contains('is already implemented — nothing to scaffold'),
@@ -213,7 +213,7 @@ Widget subject_a_001() => A001View();
 
     final out = await runView(extra: ['--force']);
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     expect(
       out,
       contains('overwriting the `zfa tdd view` subject'),
@@ -242,7 +242,7 @@ Widget subject_a_001() => A001View();
 
     final out = await runView(extra: ['--v6-state']);
 
-    expect(exitCode, 1, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: 'out: $out');
     expect(
       out,
       contains('zfa tdd view'),

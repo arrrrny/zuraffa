@@ -13,6 +13,7 @@ import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../skew/skew_contract.dart';
 import '../../utils/entity_analyzer.dart';
+import '../../utils/entity_utils.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import '../method_append/builders/inject_builder.dart';
@@ -233,19 +234,40 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         final entityName = config.repo != null
             ? config.repo!.replaceAll('Repository', '')
             : config.name;
+        // Issue #1747 (review #3): resolve the same target the builder
+        // uses (custom-use-case returns type) so the two sites cannot
+        // disagree for custom-use-case configs.
+        final targetEntity =
+            config.isCustomUseCase && config.returnsType != null
+            ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
+                  entityName
+            : entityName;
         // Issue #1037: an enum entity has no CRUD datasource surface, so
         // it gets no simulation binding either — and the binding emitter
-        // must not run for it. A pre-#1037 run may have left the
-        // class-shaped artifacts on disk; purge them (generated-marker
-        // files only) and rebuild the simulation index so one re-run
-        // heals the tree.
-        final isEnumEntity = EntityAnalyzer.isEnum(
-          entityName,
-          outputDir,
-          fileSystem: fs,
-        );
-        if (isEnumEntity) {
-          final purged = await _purgeEnumDatasourceArtifacts(entityName, fs);
+        // must not run for it. Issue #1747 extends exactly that treatment
+        // to any OTHER type whose source carries no CRUD surface (a plain
+        // DTO or value class): MockBuilder declines to write the datasource
+        // pair for it, so a binding here would import two files that were
+        // never emitted and break the build a second way. A pre-#1037 /
+        // pre-#1747 run may have left the class-shaped artifacts on disk;
+        // purge them (generated-marker files only) and rebuild the
+        // simulation index so one re-run heals the tree. The predicate is
+        // shared with the builder ([EntityAnalyzer.lacksCrudSurface]) so
+        // the two can never disagree.
+        final fixtureOnlyEntity =
+            EntityAnalyzer.isEnum(targetEntity, outputDir, fileSystem: fs) ||
+            (!config.hasService &&
+                EntityAnalyzer.lacksCrudSurface(
+                  targetEntity,
+                  outputDir,
+                  fileSystem: fs,
+                ));
+        if (fixtureOnlyEntity) {
+          final purged = await _purgeCrudDatasourceArtifacts(
+            targetEntity,
+            fs,
+            dryRun: options.dryRun,
+          );
           // The index must never outlive its bindings: a pre-#1037 run can
           // leave it importing this entity's binding even when the binding
           // file is already gone (a previous heal removed it), so the
@@ -261,7 +283,7 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           if (await fs.exists(indexPath)) {
             try {
               indexReferencesEntity = (await fs.read(indexPath)).contains(
-                '${StringUtils.camelToSnake(entityName)}'
+                '${StringUtils.camelToSnake(targetEntity)}'
                 '_simulation_datasource_di.dart',
               );
             } catch (_) {
@@ -333,11 +355,11 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
               'domain',
               'services',
               config.effectiveDomain,
-              '${serviceSnake}_service.dart',
+              '$serviceSnake.dart',
             );
             final serviceImport = await fs.exists(domainServicePath)
-                ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
-                : '../../domain/services/${serviceSnake}_service.dart';
+                ? '../../domain/services/${config.effectiveDomain}/$serviceSnake.dart'
+                : '../../domain/services/$serviceSnake.dart';
             // MockProviderBuilder always writes the mock provider under
             // data/providers/<domain>/ in service mode (`hasService`).
             final mockProviderName = providerName.replaceAll(
@@ -426,25 +448,26 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     return [];
   }
 
-  /// Issue #1037 self-heal: removes the class-shaped datasource artifacts a
-  /// pre-#1037 run left on disk for an enum entity. Only files carrying the
-  /// generated marker are deleted — a hand-written file in those paths is
-  /// never touched. Returns the removed relative paths (for the honest log
-  /// the caller prints).
-  Future<List<String>> _purgeEnumDatasourceArtifacts(
+  /// Issue #1037/#1747 self-heal: removes the class-shaped datasource
+  /// artifacts an older run left on disk for a type the mock lane now
+  /// treats as fixture-only (an enum entity, or any source that declares no
+  /// CRUD surface). Only files carrying the generated marker are deleted —
+  /// a hand-written file in those paths is never touched. Returns the
+  /// removed relative paths (for the honest log the caller prints).
+  Future<List<String>> _purgeCrudDatasourceArtifacts(
     String entityName,
-    FileSystem fs,
-  ) async {
+    FileSystem fs, {
+    bool dryRun = false,
+  }) async {
     const marker = '// GENERATED - DO NOT EDIT';
     final entitySnake = StringUtils.camelToSnake(entityName);
     final candidates = <String>[
-      path.join(
-        outputDir,
-        'data',
-        'datasources',
-        entitySnake,
-        '${entitySnake}_datasource.dart',
-      ),
+      // The shared datasource interface (`<entity>_datasource.dart`) is
+      // NOT purged here: it is owned by the datasource plugin and is
+      // still referenced by the repository + DI layers even for an
+      // entity with no CRUD surface, so deleting it breaks the build
+      // (#1747 downstream-compile gate). Only mock-specific artifacts
+      // that the mock lane owns are eligible for purge.
       path.join(
         outputDir,
         'data',
@@ -458,6 +481,13 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'simulation',
         '${entitySnake}_simulation_datasource_di.dart',
       ),
+      path.join(
+        outputDir,
+        'data',
+        'datasources',
+        entitySnake,
+        '${entitySnake}_failing_mock_provider.dart',
+      ),
     ];
     final purged = <String>[];
     for (final candidate in candidates) {
@@ -468,6 +498,10 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       } catch (_) {
         // Unreadable file in a generated path — leave it; the build gate
         // will name it if it is actually broken.
+        continue;
+      }
+      if (dryRun) {
+        // Dry-run: do not delete or trigger index rebuilds.
         continue;
       }
       await fs.delete(candidate);

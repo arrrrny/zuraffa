@@ -541,6 +541,8 @@ class PluginManager {
         '${snake}_repository.dart',
       ),
       path.join('lib', 'src', 'domain', 'services', '${snake}_service.dart'),
+      path.join('lib', 'src', 'domain', 'services', '${snake}.dart'),
+      path.join('lib', 'src', 'domain', 'services', '${snake}_provider.dart'),
       // di layer
       path.join(
         'lib',

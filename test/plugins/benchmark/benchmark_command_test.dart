@@ -40,6 +40,7 @@ void main() {
   });
 
   tearDown(() async {
+    exitCode = 0;
     if (await tempDir.exists()) {
       await tempDir.delete(recursive: true);
     }
@@ -227,8 +228,11 @@ void main() {
       final scenarios =
           (decoded['details'] as Map<String, dynamic>)['scenarios']
               as List<dynamic>;
-      expect(scenarios, hasLength(1));
-      expect(scenarios.first['id'], 'json-benchmark');
+      // #1714: BenchmarkPlugin self-registers FirstPartyBenchmarkProvider
+      // (issue #1149), so the registry also contains its two scenarios.
+      // Scope the assertion to the recording scenario this fixture adds
+      // rather than pinning a (first-party-dependent) total count.
+      expect(scenarios.map((s) => s['id']), contains('json-benchmark'));
     });
 
     test('unknown subcommand usage', () async {

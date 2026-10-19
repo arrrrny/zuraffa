@@ -219,14 +219,9 @@ abstract final class MockCertificationService {
                   'domain',
                   'services',
                   config.effectiveDomain,
-                  '${serviceSnake}_service.dart',
+                  '$serviceSnake.dart',
                 )
-              : p.join(
-                  outputDir,
-                  'domain',
-                  'services',
-                  '${serviceSnake}_service.dart',
-                );
+              : p.join(outputDir, 'domain', 'services', '$serviceSnake.dart');
           final mockProviderName = providerName.replaceAll(
             'Provider',
             'MockProvider',
@@ -302,6 +297,7 @@ abstract final class MockCertificationService {
     // 4. Fixture digests from the FINAL on-disk bytes.
     final fixtures = <MockFixtureHash>[];
     for (final file in files) {
+      if (file.path.isEmpty) continue;
       final isFixture = file.type == 'mock_data' || file.type == 'mock_json';
       if (!isFixture) continue;
       final abs = _absolute(root, file.path);
@@ -380,6 +376,7 @@ abstract final class MockCertificationService {
     final fs = fileSystem ?? const DefaultFileSystem();
     final receiptFiles = <GenerationReceiptFile>[];
     for (final file in files) {
+      if (file.path.isEmpty) continue;
       final abs = _absolute(projectRoot, file.path);
       if (!await fs.exists(abs)) continue;
       final content = await fs.read(abs);

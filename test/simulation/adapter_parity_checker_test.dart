@@ -401,7 +401,7 @@ void main() {
     Future<(int, String)> runZfa(List<String> args) async {
       final runner = CliRunner(exitOnCompletion: false);
       final output = await runner.runCapturing(args);
-      return (exitCode, output);
+      return (CliRunner.lastDispatchedExitCode, output);
     }
 
     test('registers under the tdd command', () async {
