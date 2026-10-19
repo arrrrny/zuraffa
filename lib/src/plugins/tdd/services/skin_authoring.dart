@@ -61,7 +61,7 @@ abstract final class SkinAuthoring {
         '— authoring must replace the scaffold, never re-emit it.',
       );
     }
-    if (!_assertionCall.hasMatch(finders)) {
+    if (!_assertionCall.hasMatch(_stripComments(finders))) {
       throw const SkinAuthoringException(
         'the author finders contain no concrete assertion — at least one '
         'expect(...) / expectLater(...) statement is required.',
@@ -69,60 +69,84 @@ abstract final class SkinAuthoring {
     }
   }
 
-  /// Returns [testContent] with the scaffolded scenario block — the
-  /// marker comment block plus the mounted-view placeholder statement
-  /// when present — replaced by [authorFinders] at the scaffold block's
-  /// indentation. The marker is cleared by construction: the replaced
-  /// block is the only place it appears.
-  ///
-  /// Throws [SkinAuthoringException] when [testContent] is not scaffolded
-  /// (nothing to author) or [authorFinders] fails validation. Pure: no
-  /// filesystem access, byte-identical output for identical inputs.
   /// Extracts import URIs spelled in [finders] through an
   /// `// import:`-marked header block (issue #1878). Returns the URIs
   /// and the finder body with those marker lines removed, so imports are
   /// never spliced into the enclosing test body.
+  ///
+  /// Two marker forms are recognized: an inline payload
+  /// (`// import: package:a package:b` or quoted URIs), and a header
+  /// block (`// import:` followed by contiguous `// <uri>` lines, bare
+  /// or quoted). A `// package:...` comment outside a header block stays
+  /// in the body: a stray doc comment must never be hoisted.
   static ({List<String> imports, String body}) _splitImports(String finders) {
     final imports = <String>[];
     final bodyLines = <String>[];
+    var inHeader = false;
     for (final raw in finders.split('\n')) {
       final trimmed = raw.trim();
       final m = RegExp(r'^//\s*imports?:\s*(.*)$').firstMatch(trimmed);
       if (m != null) {
         final rest = (m.group(1) ?? '').trim();
         if (rest.isEmpty) {
-          // Header form: `// import:` followed by indented `// <uri>`
-          // lines is handled below by collecting bare URIs on subsequent
-          // marker lines; here there is nothing to collect.
+          // Header form: subsequent `// <uri>` lines (bare or quoted)
+          // continue this block until a non-URI line ends it.
+          inHeader = true;
           continue;
         }
-        final quoted = RegExp(r"""['"]([^'"]+)['"]""").allMatches(rest);
-        if (quoted.isNotEmpty) {
-          for (final q in quoted) {
-            final uri = q.group(1);
-            if (uri != null && uri.isNotEmpty) imports.add(uri);
-          }
-        } else {
-          for (final tok in rest.split(RegExp(r'[\s,]+'))) {
-            if (tok.isNotEmpty) imports.add(tok);
-          }
-        }
+        imports.addAll(_urisIn(rest));
+        inHeader = false;
         continue;
       }
-      // Header-block continuation: `// <uri>` lines that appear while we
-      // are still in an import header are treated as URIs only when the
-      // previous meaningful line was an import marker. To keep the rule
-      // simple and predictable, a comment line whose content is a bare
-      // `package:`/`dart:` URI is also hoisted.
-      final bare = RegExp(r'^//\s*(package:[^\s]+|dart:[^\s]+)\s*$')
-          .firstMatch(trimmed);
-      if (bare != null) {
-        imports.add(bare.group(1)!);
-        continue;
+      if (inHeader) {
+        final continuation = _continuationUris(trimmed);
+        if (continuation != null) {
+          imports.addAll(continuation);
+          continue;
+        }
+        // Any other line ends the header block. Requiring the block to
+        // stay contiguous keeps a stray `// package:...` doc comment
+        // elsewhere in the finders out of the import section.
+        inHeader = false;
       }
       bodyLines.add(raw);
     }
     return (imports: imports, body: bodyLines.join('\n'));
+  }
+
+  /// Parses the URI payload of an inline `// import:` marker: quoted
+  /// URIs when any are present, otherwise whitespace/comma-separated
+  /// bare tokens.
+  static List<String> _urisIn(String payload) {
+    final quoted = RegExp(r"""['"]([^'"]+)['"]""").allMatches(payload);
+    if (quoted.isNotEmpty) {
+      return [
+        for (final q in quoted)
+          if ((q.group(1) ?? '').isNotEmpty) q.group(1)!,
+      ];
+    }
+    return [
+      for (final tok in payload.split(RegExp(r'[\s,]+')))
+        if (tok.isNotEmpty) tok,
+    ];
+  }
+
+  /// Parses a header-block continuation line (`// <uri>`). Accepts a
+  /// bare `package:`/`dart:` URI or one/more quoted URIs whose text
+  /// consumes the whole line; anything else is finder body, not an
+  /// import. Returns null when the line is not a continuation.
+  static List<String>? _continuationUris(String trimmed) {
+    final content = trimmed.replaceFirst(RegExp(r'^//\s*'), '').trim();
+    if (content.isEmpty) return null;
+    final bare = RegExp(r'^(package:[^\s]+|dart:[^\s]+)$').firstMatch(content);
+    if (bare != null) return [bare.group(1)!];
+    if (!RegExp(r"""^(['"][^'"]+['"]\s*,?\s*)+$""").hasMatch(content)) {
+      return null;
+    }
+    return [
+      for (final q in RegExp(r"""['"]([^'"]+)['"]""").allMatches(content))
+        q.group(1)!,
+    ];
   }
 
   /// Hoists [imports] into [testContent]'s import section, de-duplicating
@@ -155,20 +179,49 @@ abstract final class SkinAuthoring {
       if (vm >= 0) {
         lines.insertAll(vm, toAdd);
       } else {
-        lines.addAll(toAdd);
+        // No import and no `void main() {` anchor: place the imports
+        // after any leading file comment / `library` directive. An
+        // import appended at EOF does not compile.
+        var at = 0;
+        while (at < lines.length) {
+          final t = lines[at].trim();
+          if (t.isEmpty ||
+              t.startsWith('//') ||
+              t.startsWith('library ') ||
+              t == 'library;') {
+            at++;
+          } else {
+            break;
+          }
+        }
+        lines.insertAll(at, toAdd);
       }
     }
     return lines.join('\n');
   }
 
+  /// Returns [testContent] with the scaffolded scenario block — the
+  /// marker comment block plus the mounted-view placeholder statement
+  /// when present — replaced by [authorFinders] at the scaffold block's
+  /// indentation. The marker is cleared by construction: the replaced
+  /// block is the only place it appears. Import-marker lines are hoisted
+  /// into the test's import section and never spliced into the body.
+  ///
+  /// Throws [SkinAuthoringException] when [testContent] is not scaffolded
+  /// (nothing to author) or the spliced finder body fails validation.
+  /// Pure: no filesystem access, byte-identical output for identical
+  /// inputs.
   static String patchedContent({
     required String testContent,
     required String authorFinders,
   }) {
-    validateAuthorFinders(authorFinders);
     final split = _splitImports(authorFinders);
     final imports = split.imports;
     final bodyFinders = split.body;
+    // Validate the SPLICED body, not the raw finders: import markers are
+    // removed before splicing, so an assertion that lived only in one of
+    // them never reaches the test.
+    validateAuthorFinders(bodyFinders);
     final hoistedContent = _hoistImports(testContent, imports);
     final lines = hoistedContent.split('\n');
     final markerIndex = lines.indexWhere(isScaffoldedMarkerLine);
@@ -200,6 +253,58 @@ abstract final class SkinAuthoring {
       ...replacement.split('\n'),
       ...lines.sublist(end),
     ].join('\n');
+  }
+
+  /// Strips `//` and `/* */` comments while leaving string literals
+  /// intact, so an `expect(...)` spelled inside a comment cannot satisfy
+  /// validation (it never reaches the spliced test as code).
+  static String _stripComments(String source) {
+    final out = StringBuffer();
+    var inSingle = false;
+    var inDouble = false;
+    var inBlock = false;
+    var i = 0;
+    while (i < source.length) {
+      final ch = source[i];
+      final next = i + 1 < source.length ? source[i + 1] : '';
+      if (inBlock) {
+        if (ch == '*' && next == '/') {
+          inBlock = false;
+          i += 2;
+        } else {
+          i++;
+        }
+        continue;
+      }
+      if (inSingle || inDouble) {
+        out.write(ch);
+        if (ch == '\\' && i + 1 < source.length) {
+          out.write(next);
+          i += 2;
+          continue;
+        }
+        if (inSingle && ch == "'") inSingle = false;
+        if (inDouble && ch == '"') inDouble = false;
+        i++;
+        continue;
+      }
+      if (ch == '/' && next == '/') {
+        while (i < source.length && source[i] != '\n') {
+          i++;
+        }
+        continue;
+      }
+      if (ch == '/' && next == '*') {
+        inBlock = true;
+        i += 2;
+        continue;
+      }
+      if (ch == "'") inSingle = true;
+      if (ch == '"') inDouble = true;
+      out.write(ch);
+      i++;
+    }
+    return out.toString();
   }
 
   static final RegExp _assertionCall = RegExp(r'\b(expect|expectLater)\s*\(');
