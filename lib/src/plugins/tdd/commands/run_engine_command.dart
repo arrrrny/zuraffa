@@ -139,6 +139,15 @@ class RunEngineCommand extends Command<void> {
       valueHelp: 'seconds',
       help: kHeartbeatFlagHelp,
     );
+    argParser.addOption(
+      'baseline-scope',
+      valueHelp: 'dir',
+      help:
+          'Issue #1374: scope the suite baseline to a directory (canonically '
+          'the feature test dir, e.g. test/tdd/<feature>) so the FIRST '
+          'baseline can be produced on constrained agents where the '
+          'whole-tree run cannot. Bypasses the corpus-wide cache.',
+    );
   }
 
   final TddPlugin plugin;
@@ -344,6 +353,23 @@ class RunEngineCommand extends Command<void> {
     }
     final verbose = argResults?['verbose'] as bool? ?? false;
 
+    // Issue #1374/#1777: the constrained-agent escape hatch — scope the
+    // suite baseline to a directory (forwarded to the driver).
+    final baselineScope = argResults?['baseline-scope'] as String?;
+    if (baselineScope != null) {
+      final scopeNorm = p.normalize(baselineScope);
+      if (p.isAbsolute(scopeNorm) ||
+          scopeNorm == '..' ||
+          scopeNorm.startsWith('../')) {
+        print(
+          'zfa tdd run-engine: --baseline-scope must be a directory '
+          'relative to the project root (got "$baselineScope")',
+        );
+        exitCode = _exitRunnerError;
+        return;
+      }
+    }
+
     final driver = RunDriverCore();
     // SPEC 917 (--stream): one NDJSON step-verdict.v1 event per completed
     // step while the lane drives.
@@ -358,6 +384,7 @@ class RunEngineCommand extends Command<void> {
       lane: 'engine',
       label: label,
       skipWidget: argResults?['skip-widget'] as bool? ?? false,
+      baselineScope: baselineScope,
       // Spec 1113: the gate's mock accounting rides the engine entry
       // (the status verdict's `mocks c/t` segment).
       mockCounts: {
