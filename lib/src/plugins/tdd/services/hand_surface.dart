@@ -175,6 +175,75 @@ class HandSurface {
   /// hint carries the hand-implement instruction (the [seamPath] — the
   /// subject seam, per [seamPathFor]'s subject-first preference) plus the
   /// `zfa entity create` prerequisite instead.
+  /// Whether the trace head names a non-entity production type (an
+  /// interface, repository, usecase, controller, provider, service, …)
+  /// rather than a generated domain entity. Such types never have (and
+  /// never should have) an entity file under `lib/src/domain/entities`,
+  /// so `zfa tdd wire --entity <Name>` can never succeed for them and the
+  /// hint must NOT prescribe `zfa entity create -n <Name>`.
+  ///
+  /// Detection (issue #1889): a known non-entity name suffix, or a source
+  /// file defining the type anywhere under `lib/` outside the entities
+  /// directory. A name that is neither (e.g. `Calculator`) is treated as
+  /// an entity that may still need creating.
+  static bool isNonEntityProductionType({
+    required String entityName,
+    required String projectRoot,
+  }) {
+    final name = entityName.trim();
+    if (name.isEmpty) return false;
+    const nonEntitySuffixes = <String>[
+      'DataSource',
+      'Repository',
+      'UseCase',
+      'Controller',
+      'Provider',
+      'Service',
+      'Gateway',
+      'Client',
+      'Store',
+      'Handler',
+      'Adapter',
+      'Manager',
+      'Facade',
+      'Interactor',
+      'Presenter',
+      'ViewModel',
+      'Bloc',
+      'Cubit',
+      'Notifier',
+      'Api',
+      'Endpoint',
+    ];
+    for (final suffix in nonEntitySuffixes) {
+      if (name.endsWith(suffix) && name.length > suffix.length) {
+        return true;
+      }
+    }
+    final snake = toSnakeCase(name);
+    final target = '$snake.dart';
+    final libRoot = Directory(p.join(projectRoot, 'lib'));
+    if (!libRoot.existsSync()) return false;
+    final entitiesRoot = p.join(
+      projectRoot,
+      'lib',
+      'src',
+      'domain',
+      'entities',
+    );
+    try {
+      for (final entity in libRoot.listSync(recursive: true)) {
+        if (entity is! File) continue;
+        if (p.basename(entity.path) != target) continue;
+        if (p.isWithin(entitiesRoot, entity.path)) continue;
+        return true;
+      }
+    } catch (_) {
+      return false;
+    }
+    return false;
+  }
+
   static String hintLine({
     required String behaviorId,
     required String seamPath,
@@ -185,19 +254,32 @@ class HandSurface {
         ? ''
         : ' ${contract.trim()}';
     final entity = entityFromContract(contract);
+    final nonEntity =
+        entity != null &&
+        isNonEntityProductionType(entityName: entity, projectRoot: projectRoot);
     // Bug #1752: prescribe the wire command only when the seam on disk is
     // a shape `zfa tdd wire` can actually parse (and the traced entity
     // exists). A seam wire refuses (the FFI harness's wrapped shape, or a
     // hand-written wrapped seam) degrades to the hand-implement
     // instruction instead — never a dead-end command.
+    // Issue #1889: a non-entity production type (interface, repository,
+    // usecase, controller, …) is never wireable, even when a same-named
+    // file happens to exist — never suggest `zfa entity create` for it.
     final wireable = entity == null
         ? true
-        : entityExists(projectRoot: projectRoot, entityName: entity) &&
+        : !nonEntity &&
+              entityExists(projectRoot: projectRoot, entityName: entity) &&
               seamIsWireable(projectRoot: projectRoot, seamPath: seamPath);
     if (entity == null || wireable) {
       return 'hand surface: seam $seamPath — implement the declared '
           'contract$contractPart there (e.g. '
           '`${wireCommandFor(behaviorId, contract: contract)}`)';
+    }
+    if (nonEntity) {
+      return 'hand surface: seam $seamPath — implement the declared '
+          'contract$contractPart there by hand (removing the '
+          'UnimplementedError and delegating to the existing production '
+          'method)';
     }
     if (!entityExists(projectRoot: projectRoot, entityName: entity)) {
       return 'hand surface: seam $seamPath — implement the declared '
