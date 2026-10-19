@@ -1032,6 +1032,7 @@ MODULAR COMMANDS:
   di <Name>           Generate dependency injection
   test <Name>         Generate unit tests
   app shell           Generate app shell (main.dart + shell widget + app_router.dart)
+  theme import <file> Import W3C design tokens with a11y contrast gates
 
 OPTIONS:
   -v, --version       Print version
