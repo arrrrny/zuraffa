@@ -17,6 +17,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../../../core/dependencies/dependency_wirer.dart';
+import '../../../utils/entity_analyzer.dart';
 import '../../../utils/string_utils.dart';
 import 'cert_registry.dart';
 import 'format_canonical_digest.dart';
@@ -127,6 +128,41 @@ class MockCertifier {
     String? domain,
   }) async {
     final logs = <String>[];
+
+    // Issue #1887: an enum entity (or any fixture-only type with no CRUD
+    // surface, #1037/#1747) deliberately has no mock datasource/provider
+    // to certify — the generator skips that surface by design. Certifying
+    // against the absent artifact is unsatisfiable (the remedy would be
+    // the very command that just ran). Treat it as certified-with-nothing:
+    // mock data was generated, there is no CRUD surface to prove.
+    //
+    // The predicate is the mock lane's SHARED one (#1887 review): the
+    // builder and the DI binding skip the CRUD surface for
+    // `isEnum(...) || lacksCrudSurface(...)`, so the certifier must make
+    // the same call — otherwise a non-enum CRUD-less type (a plain DTO /
+    // value class, issue #1747) keeps failing here with the same absent-
+    // datasource error. A service-mode run is exempt: its provider
+    // implements the service interface, not the entity's CRUD surface,
+    // so it remains certifiable.
+    final fixtureOnly =
+        EntityAnalyzer.isEnum(entityName, outputDir) ||
+        (service == null &&
+            EntityAnalyzer.lacksCrudSurface(entityName, outputDir));
+    if (fixtureOnly) {
+      logs.add(
+        '$entityName is an enum/fixture-only entity — mock data '
+        'generated; no CRUD datasource surface to certify '
+        '(issues #1037/#1747).',
+      );
+      return MockCertificationOutcome(
+        certified: true,
+        entity: entityName,
+        contractTestSource: null,
+        receipt: null,
+        methodNames: const [],
+        logs: logs,
+      );
+    }
 
     // 1. The mock subject must exist.
     final mockPath = MockContractTestWriter.mockDatasourcePath(
@@ -329,11 +365,27 @@ class MockCertifier {
       files.add(testFile);
     }
     final receipt = outcome.receipt;
-    if (receipt != null) {
-      final receiptFile = File(p.join(projectRoot, _receiptPath(entityName)));
+    final receiptFile = File(p.join(projectRoot, _receiptPath(entityName)));
+    // A failed certification must not leave (or overwrite a stale green)
+    // receipt behind: a consumer that keys on receipt presence would
+    // otherwise treat an uncertified mock as certified (#1856). The in-memory
+    // receipt stays available to the caller for diagnostics; only the on-disk
+    // artifact is gated on a green run.
+    if (receipt != null && outcome.certified) {
       await receiptFile.parent.create(recursive: true);
       await receipt.writeTo(receiptFile);
       files.add(receiptFile);
+    } else if (receiptFile.existsSync()) {
+      try {
+        await receiptFile.delete();
+      } catch (e) {
+        // Best-effort: a locked file must not abort the contract-test write.
+        // Surface the failure so a stale green receipt is not silently kept.
+        stderr.writeln(
+          'warning: could not delete stale mock-cert receipt '
+          '${receiptFile.path}: $e',
+        );
+      }
     }
     return files;
   }
