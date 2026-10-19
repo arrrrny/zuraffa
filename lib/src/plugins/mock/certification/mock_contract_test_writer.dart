@@ -38,11 +38,27 @@ class ContractMethod {
     required this.name,
     required this.returnType,
     required this.paramsType,
+    this.parameterCount = 1,
+    this.isGetter = false,
   });
 
   final String name;
   final String returnType;
   final String paramsType;
+
+  /// Number of parameters the member declares (0 for parameter-less
+  /// members). Threaded through from [MethodExtractor] so the zero-arg
+  /// distinction is not encoded solely by an empty [paramsType] sentinel.
+  final int parameterCount;
+
+  /// True when the member is declared as a getter.
+  final bool isGetter;
+
+  /// True when this member is a genuine zero-argument method (not a
+  /// getter and not a real `NoParams` parameter) and must be pinned as
+  /// `Function()` / called with no arguments.
+  bool get isZeroArg =>
+      !isGetter && (parameterCount == 0 || paramsType.trim().isEmpty);
 
   bool get returnsStream => returnType.startsWith('Stream<');
 }
@@ -217,7 +233,11 @@ class MockContractTestWriter {
               m.returnsType ?? 'void',
               m.useCaseType ?? 'usecase',
             ),
-            paramsType: m.paramsType ?? 'NoParams',
+            paramsType: (!m.isGetter && m.parameterCount == 0)
+                ? ''
+                : (m.paramsType ?? 'NoParams'),
+            parameterCount: m.parameterCount,
+            isGetter: m.isGetter,
           ),
         )
         .toList();
@@ -399,7 +419,7 @@ class MockContractTestWriter {
         )
         ..writeln(
           '      final ${method.returnType} Function('
-          '${method.paramsType}) ${_safeLocal(method.name)}\$ =\n'
+          '${method.isZeroArg ? '' : method.paramsType}) ${_safeLocal(method.name)}\$ =\n'
           '          dataSource.${method.name};',
         )
         ..writeln('      expect(${_safeLocal(method.name)}\$, isNotNull);');
@@ -443,6 +463,7 @@ class MockContractTestWriter {
       entityName: entityName,
       paramsType: method.paramsType,
       outputDir: outputDir,
+      isZeroArg: method.isZeroArg,
     );
     if (params == null) return null;
 
@@ -475,8 +496,10 @@ class MockContractTestWriter {
     required String entityName,
     required String paramsType,
     required String outputDir,
+    bool isZeroArg = false,
   }) {
     final t = paramsType.trim();
+    if (isZeroArg || t.isEmpty) return '';
     if (t == 'NoParams') return 'const NoParams()';
     if (t.startsWith('QueryParams<')) return '$t()';
     if (t.startsWith('ListQueryParams<')) return '$t()';
