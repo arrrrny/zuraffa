@@ -23,6 +23,9 @@ import 'package:path/path.dart' as p;
 
 import 'tdd_timeout.dart';
 
+import '../models/mutation_survivor.dart';
+export '../models/mutation_survivor.dart';
+
 /// The outcome of a single `zfa tdd verify` run.
 class MutationResult {
   MutationResult({
@@ -303,31 +306,6 @@ class _Counts {
   final int killed;
   final int survived;
   final int timeout;
-}
-
-/// One survived mutant, cited by file + line (bug #837).
-///
-/// The mutation_test v1.8+ markdown report lists every undetected mutant
-/// under a `## Undetected mutations in file : <path>` heading with one
-/// `Line N:` block per mutant. [file] is the path exactly as the report
-/// writes it (project-relative for the scoped configs this pipeline
-/// generates).
-class MutationSurvivor {
-  const MutationSurvivor({required this.file, required this.line});
-
-  final String file;
-  final int line;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is MutationSurvivor && other.file == file && other.line == line);
-
-  @override
-  int get hashCode => Object.hash(file, line);
-
-  @override
-  String toString() => '$file:$line';
 }
 
 /// Extract the survived mutants (file + line) from a mutation_test v1.8+

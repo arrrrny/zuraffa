@@ -65,7 +65,7 @@ void main() {
         makeArgs(fx, id: 'U-1587-1', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       expect(
         out,
         contains(
@@ -127,7 +127,7 @@ void main() {
         makeArgs(fx, id: 'U-1587-2', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       final log = await fx.readFakeZfaLog();
       expect(
         log.where((l) => l.contains('build')),
@@ -165,7 +165,7 @@ void main() {
         makeArgs(fx, id: 'U-1587-3', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       final log = await fx.readFakeZfaLog();
       expect(
         log.where((l) => l.contains('build')),

@@ -164,7 +164,7 @@ void main() {
     // THE RESET: drops the registry + run-state + artifacts and tombstones
     // U1 (the issue's step 4).
     final resetOut = await runCli(['reset', feature]);
-    expect(exitCode, 0, reason: resetOut);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: resetOut);
     expect(
       await File('${fx.featureDir}/tdd/journal.json').readAsString(),
       contains('"phase": "reset"'),
@@ -179,7 +179,7 @@ void main() {
 
     final runOut = await drive();
 
-    expect(exitCode, 0, reason: runOut);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: runOut);
     // Pre-fix the tombstone subtraction hides the post-reset green
     // evidence: U1 reconciles to pending and the run re-drives it from
     // gen — the reported "each skip-transition bind re-opens the
@@ -229,7 +229,7 @@ void main() {
     await fx.seedRunState(states: {'U1': 'done', 'U2': 'done'});
 
     final resetOut = await runCli(['reset', feature]);
-    expect(exitCode, 0, reason: resetOut);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: resetOut);
 
     // Both behaviors are re-bound after the reset (the issue's repeated
     // fix-line protocol): each post-reset bind must accumulate.
@@ -240,7 +240,7 @@ void main() {
 
     final runOut = await drive();
 
-    expect(exitCode, 0, reason: runOut);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: runOut);
     expect(
       fx.stepInvocations(),
       ['refactor U1', 'refactor U2'],
@@ -267,7 +267,7 @@ void main() {
     await fx.seedRunState(states: {'U1': 'done'});
 
     final resetOut = await runCli(['reset', feature]);
-    expect(exitCode, 0, reason: resetOut);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: resetOut);
 
     // The post-reset RED re-certification — an honest re-drive that
     // stopped after verify-red, before `make`. Pre-fix the tombstone
@@ -279,7 +279,7 @@ void main() {
 
     final runOut = await drive();
 
-    expect(exitCode, 0, reason: runOut);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: runOut);
     expect(
       fx.stepInvocations(),
       isNot(contains('gen U1')),
@@ -311,7 +311,7 @@ void main() {
     await fx.seedRunState(states: {'U1': 'done'});
 
     final resetOut = await runCli(['reset', feature]);
-    expect(exitCode, 0, reason: resetOut);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: resetOut);
 
     // A green entry whose timestamp cannot be read cannot prove it
     // postdates the reset — the pre-#1696 invalidation stands, so the
@@ -322,7 +322,7 @@ void main() {
 
     final runOut = await drive();
 
-    expect(exitCode, 0, reason: runOut);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: runOut);
     expect(
       fx.stepInvocations(),
       contains('gen U1'),
@@ -349,7 +349,7 @@ void main() {
     await fx.seedRunState(states: {'U1': 'done'});
 
     final resetOut = await runCli(['reset', feature]);
-    expect(exitCode, 0, reason: resetOut);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: resetOut);
     // The tombstone's ids parse but its reset time does not.
     await corruptResetTombstoneStartedAt();
     expect(
@@ -365,7 +365,7 @@ void main() {
 
     final runOut = await drive();
 
-    expect(exitCode, 0, reason: runOut);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: runOut);
     expect(
       fx.stepInvocations(),
       contains('gen U1'),

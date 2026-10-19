@@ -91,7 +91,7 @@ void main() {
 
     final out = await runView();
 
-    expect(exitCode, 1, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: 'out: $out');
     expect(out, contains('ShadGrid'));
     expect(out, contains('grid'));
     expect(out, contains('--> fix:'));
@@ -120,7 +120,7 @@ void main() {
 
       final out = await runView();
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(out, contains('view: behavior=A-001 outcome=scaffolded'));
       final subject = await File(fx.subjectPathOf('A-001')).readAsString();
       expect(subject, isNot(contains('UnimplementedError')));
@@ -151,7 +151,7 @@ void main() {
     final out = await runView();
 
     expect(
-      exitCode,
+      CliRunner.lastDispatchedExitCode,
       0,
       reason:
           'a registered project composite is part of the vocabulary '

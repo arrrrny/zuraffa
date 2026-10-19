@@ -158,7 +158,7 @@ void main() {
         fx.root.path,
       ]);
       expect(gen, contains('verdict='), reason: gen);
-      expect(exitCode, 0, reason: gen);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: gen);
 
       final record = await fx.registryRecordOf('U1');
       final testContent = await File(
@@ -270,7 +270,11 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', id, '--project', fx.root.path]);
 
-      expect(exitCode, 1, reason: 'a placeholder green must not certify: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'a placeholder green must not certify: $out',
+      );
       expect(out, contains('outcome=vacuous-green'), reason: out);
       expect(
         out,
@@ -334,7 +338,7 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', id, '--project', fx.root.path]);
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(out, contains('outcome=skipped'), reason: out);
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, contains('## Cycle: $id (green)'), reason: out);

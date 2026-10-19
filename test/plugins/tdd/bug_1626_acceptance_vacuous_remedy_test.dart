@@ -145,7 +145,11 @@ void main() {
       ).runCapturing(['tdd', 'make', 'A1', '--project', fx.root.path]);
 
       // The refusal stands (the #1488 gate is untouched).
-      expect(exitCode, 1, reason: 'a vacuous green must not certify: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'a vacuous green must not certify: $out',
+      );
       expect(out, contains('outcome=vacuous-green'));
       expect(out, contains('issue #1488'));
       // THE FIX: the hand step is named, with both paths (criteria 2+4).
@@ -214,7 +218,7 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', 'A1', '--project', fx.root.path]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       // The looping remedy is GONE from the acceptance refusal: the
       // acceptance lane ignores the contract shape (#1512), so
       // traces/re-plan/re-gen provably cannot satisfy the #1488 gate.
@@ -270,7 +274,11 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', 'U1', '--project', fx.root.path]);
 
-      expect(exitCode, 1, reason: 'a vacuous green must not certify: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'a vacuous green must not certify: $out',
+      );
       expect(out, contains('outcome=vacuous-green'));
       // The unit remedy is the outcome-assertion wording (where it WORKS:
       // the unit capture returns the subject's value) — untouched.

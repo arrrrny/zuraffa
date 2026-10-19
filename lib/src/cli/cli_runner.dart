@@ -22,9 +22,11 @@ import '../commands/plugin_command.dart' as plugincmd;
 import '../commands/make_command.dart';
 import '../commands/doctor_command.dart';
 import '../commands/proof_command.dart';
+import '../commands/provenance_command.dart';
 import '../commands/migrate_command.dart';
 import '../commands/update_command.dart';
 import '../commands/build_command.dart';
+import '../commands/budget_command.dart';
 import '../commands/manifest_command.dart';
 import '../commands/generate_commands_command.dart';
 import '../commands/apply_command.dart';
@@ -49,6 +51,7 @@ import 'binary_staleness.dart';
 import 'plugin_loader.dart';
 import '../commands/agent_command.dart';
 import '../commands/zap_command.dart';
+import '../commands/search_command.dart';
 
 /// CLI runner for Zuraffa.
 class CliRunner {
@@ -235,8 +238,10 @@ class CliRunner {
       MakeCommand(registry, processRunner: _makeProcessRunner),
     );
     _runner.addCommand(EngineCommand());
+    _runner.addCommand(BudgetCommand());
     _runner.addCommand(DoctorCommand());
     _runner.addCommand(ProofCommand());
+    _runner.addCommand(ProvenanceCommand());
     _runner.addCommand(MigrateCommand());
     _runner.addCommand(BuildCommand());
     _runner.addCommand(ManifestCommand(registry));
@@ -266,6 +271,7 @@ class CliRunner {
     // (mounted with the runtime auditor subcommands kit/verify/drive).
     _runner.addCommand(AgentCommand());
     _runner.addCommand(ZapCommand());
+    _runner.addCommand(SearchCommand());
   }
 
   void _loadAndRegisterPlugins() {
@@ -353,6 +359,15 @@ class CliRunner {
         if (_isRemovedGenerateCommand(commandArgs)) {
           _printRemovedGenerateMessage();
           _exit(ExitProtocol.usage);
+          return;
+        }
+
+        // Issue #998 (FLEET-ROT): `gql` was deleted in favor of `graphql`.
+        // Keep a deprecation shim so old invocations surface a clear
+        // migration message instead of a bare "command not found".
+        if (_isDeprecatedGqlCommand(commandArgs)) {
+          print('WARNING: `zfa gql` is deprecated: use `zfa graphql` instead.');
+          _exit(64);
           return;
         }
 
@@ -847,6 +862,7 @@ class CliRunner {
     // later test that reads `exitCode`). The runner's own exit status
     // is preserved through the `_runDispatched` path, which uses its
     // own `_exit(exitCode)` to honor whatever the command set.
+    final priorExitCode = exitCode;
     exitCode = 0;
     // Spec 1008: dart:io's exitCode is PROCESS-GLOBAL, not per-isolate —
     // `dart test` runs test files as concurrent isolates of one process.
@@ -900,6 +916,14 @@ class CliRunner {
             return;
           }
 
+          if (_isDeprecatedGqlCommand(commandArgs)) {
+            output.add(
+              'WARNING: `zfa gql` is deprecated: use `zfa graphql` instead.',
+            );
+            dispatchedExitCode = 64;
+            return;
+          }
+
           await runZoned(
             () async {
               try {
@@ -946,7 +970,7 @@ class CliRunner {
       // CWD restore, the zone unwind) — still inside the body-wide hold,
       // so no sibling write can land between the snapshot and this
       // publish (issue #1096 family).
-      exitCode = dispatchedExitCode;
+      exitCode = priorExitCode;
       // The hermetic snapshot: per-isolate static, immune to the sibling
       // clobber the global re-apply above stays exposed to (bug #1107).
       lastDispatchedExitCode = dispatchedExitCode;
@@ -963,6 +987,10 @@ class CliRunner {
 
   bool _isRemovedGenerateCommand(List<String> args) {
     return args.isNotEmpty && args.first == 'generate';
+  }
+
+  bool _isDeprecatedGqlCommand(List<String> args) {
+    return args.isNotEmpty && args.first == 'gql';
   }
 
   void _addSuggestions(String error) {

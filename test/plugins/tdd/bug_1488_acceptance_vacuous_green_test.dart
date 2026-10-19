@@ -183,7 +183,11 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', 'A-1488', '--project', fx.root.path]);
 
-      expect(exitCode, 1, reason: 'a vacuous green must not certify: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'a vacuous green must not certify: $out',
+      );
       expect(out, contains('outcome=vacuous-green'));
       expect(out, contains('UnimplementedError guard'));
       expect(out, contains('issue #1488'));
@@ -267,7 +271,7 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', 'A-1488', '--project', fx.root.path]);
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(out, contains('outcome=skipped'));
     });
 
@@ -292,7 +296,7 @@ void main() {
       final genOut = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'gen', 'A-1488', '--project', fx.root.path]);
-      expect(exitCode, 0, reason: 'gen out: $genOut');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'gen out: $genOut');
       // The registry record is the single path contract: gen owns the
       // layout (project-relative, `test/tdd/<feature>/...`), so both
       // generated files are addressed through it.
@@ -327,7 +331,11 @@ void main() {
       final refused = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', 'A-1488', '--project', fx.root.path]);
-      expect(exitCode, 1, reason: 'refusal out: $refused');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'refusal out: $refused',
+      );
       expect(refused, contains('outcome=vacuous-green'));
       expect(refused, contains('OUTSIDE the capture'), reason: refused);
       expect(
@@ -385,7 +393,7 @@ void $symbol() {
       final green = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', 'A-1488', '--project', fx.root.path]);
-      expect(exitCode, 0, reason: 'green out: $green');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'green out: $green');
       expect(green, contains('outcome=skipped'));
     });
 
@@ -408,7 +416,7 @@ void $symbol() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', 'A-9000', '--project', fx.root.path]);
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(out, contains('outcome=skipped'));
     });
 
@@ -436,7 +444,11 @@ void $symbol() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', 'U-1488', '--project', fx.root.path]);
 
-      expect(exitCode, 1, reason: 'a vacuous green must not certify: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'a vacuous green must not certify: $out',
+      );
       expect(out, contains('outcome=vacuous-green'));
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, isNot(contains('## Cycle: U-1488 (green)')));
