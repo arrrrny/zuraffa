@@ -10,6 +10,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/method_extractor.dart';
 import '../../../utils/project_flavor.dart';
 import '../builders/usecase_class_builder.dart';
 
