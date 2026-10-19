@@ -134,7 +134,11 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(planArgs());
 
-      expect(exitCode, 0, reason: 'plan succeeded — out:\n$out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'plan succeeded — out:\n$out',
+      );
       expect(out, contains('route: A1 -> platform lane'));
       final skin = laneFile('04-SKIN.md').readAsStringSync();
       final acceptanceSection = skin
@@ -198,7 +202,11 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(planArgs());
 
-      expect(exitCode, 0, reason: 'plan succeeded — out:\n$out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'plan succeeded — out:\n$out',
+      );
       final meta = laneFile('test-list.md').readAsStringSync();
       final skinMetaRow = meta
           .split('\n')
@@ -238,7 +246,7 @@ void main() {
       ).runCapturing(planArgs());
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         2,
         reason:
             'errors-are-an-API: a kind no lane section renders must '

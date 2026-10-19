@@ -550,7 +550,7 @@ void main() {
       // writes the corpus-wide cache.
       await seedBehavior(featureA, 'B-001');
       final out = await drive(featureA);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(fx.spyLog('suite'), hasLength(1), reason: out);
       // The corpus cache exists.
       final cachePath = CorpusBaselineCache.pathFor(projectRoot: fx.root.path);
@@ -562,7 +562,7 @@ void main() {
       // the corpus cache.
       await seedBehavior(featureB, 'B-002');
       final out2 = await drive(featureB);
-      expect(exitCode, 0, reason: out2);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
       expect(out2, contains('corpus-wide reuse'), reason: out2);
 
       // THE assertion: no additional suite invocation for feature B.
@@ -598,7 +598,7 @@ void main() {
         'live suite re-runs and the cache is rewritten', () async {
       await seedBehavior(featureA, 'B-001');
       final out = await drive(featureA);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(fx.spyLog('suite'), hasLength(1), reason: out);
 
       // The dependency graph changed between the two feature runs.
@@ -608,7 +608,7 @@ void main() {
 
       await seedBehavior(featureB, 'B-002');
       final out2 = await drive(featureB);
-      expect(exitCode, 0, reason: out2);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
       // The live suite re-ran (fresh baseline) ...
       expect(fx.spyLog('suite'), hasLength(2), reason: out2);
       // ... and the cache was rewritten with the NEW fingerprint.
@@ -646,7 +646,7 @@ void main() {
         await writeLegacyProfile(suiteSpy);
         await seedBehavior(featureA, 'B-001');
         final out = await drive(featureA);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(fx.spyLog('suite'), hasLength(1), reason: out);
         final cachePath = CorpusBaselineCache.pathFor(
           projectRoot: fx.root.path,
@@ -664,7 +664,7 @@ void main() {
 
         await seedBehavior(featureB, 'B-002');
         final out2 = await drive(featureB);
-        expect(exitCode, 0, reason: out2);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
         // NOT reused: the live suite re-ran through the NEW command.
         expect(out2, isNot(contains('corpus-wide reuse')), reason: out2);
         expect(fx.spyLog('suite-b'), hasLength(1), reason: out2);
@@ -685,7 +685,7 @@ void main() {
 
       await seedBehavior(featureB, 'B-002');
       final out2 = await drive(featureB);
-      expect(exitCode, 0, reason: out2);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
       expect(fx.spyLog('suite'), hasLength(2), reason: out2);
     });
 
@@ -694,7 +694,7 @@ void main() {
         'reused', () async {
       await seedBehavior(featureA, 'B-001');
       final out = await drive(featureA);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(fx.spyLog('suite'), hasLength(1), reason: out);
 
       // The test files that produced the baseline failures get FIXED.
@@ -705,7 +705,7 @@ void main() {
 
       await seedBehavior(featureB, 'B-002');
       final out2 = await drive(featureB);
-      expect(exitCode, 0, reason: out2);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
       // NOT reused: the live suite re-ran (a fresh baseline).
       expect(out2, isNot(contains('corpus-wide reuse')), reason: out2);
       expect(fx.spyLog('suite'), hasLength(2), reason: out2);
@@ -730,7 +730,7 @@ void main() {
 
       await seedBehavior(featureA, 'B-001');
       final out = await drive(featureA);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(fx.spyLog('suite'), hasLength(1), reason: out);
 
       // Everything a normal run mutates, plus mtime churn on the file.
@@ -755,7 +755,7 @@ void main() {
 
       await seedBehavior(featureB, 'B-002');
       final out2 = await drive(featureB);
-      expect(exitCode, 0, reason: out2);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
       expect(out2, contains('corpus-wide reuse'), reason: out2);
       expect(
         fx.spyLog('suite'),

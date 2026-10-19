@@ -19,9 +19,22 @@ void main() {
     outputDir = Directory('${tempDir.path}/lib/src').path;
     final entityDir = Directory('$outputDir/domain/entities/product');
     entityDir.createSync(recursive: true);
-    File('${entityDir.path}/product.dart').writeAsStringSync(
-      'class Product { final String id; final String name; const Product(this.id, this.name); }',
-    );
+    // Issue #1747: `zfa mock create` only emits the CRUD datasource/provider
+    // pair for a type carrying the surface that pair's body calls — an
+    // identity, a `copyWithField`, and a `<Type>Patch` companion. A Zorphy
+    // entity gets all three from its `.zorphy.dart` part; this fixture is
+    // the same surface declared inline.
+    File('${entityDir.path}/product.dart').writeAsStringSync('''
+class Product {
+  final String id;
+  final String name;
+  const Product(this.id, this.name);
+
+  Product copyWithField(Object field, Object? value) => this;
+}
+
+class ProductPatch {}
+''');
     plugin = MockPlugin(
       outputDir: outputDir,
       options: const GeneratorOptions(dryRun: false, force: true),

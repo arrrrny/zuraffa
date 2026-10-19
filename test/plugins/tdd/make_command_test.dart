@@ -93,7 +93,11 @@ void main() {
           'make: behavior=B-001 outcome=green feature=${fx.featureName}',
         ),
       );
-      expect(exitCode, 0, reason: 'green certified must exit 0');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'green certified must exit 0',
+      );
       expect(fx.checksumTestTree(), equals(testTreeBefore));
 
       // Green entry contains all contract fields including the
@@ -128,7 +132,7 @@ void main() {
 
       final runner = CliRunner(exitOnCompletion: false);
       await runner.runCapturing(makeArgs(fx, id: 'B-001', zfaBin: zfaBin));
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
 
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, contains('- generation:'));
@@ -158,7 +162,7 @@ void main() {
           'feature=${fx.featureName}',
         ),
       );
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       // Pipeline NEVER invoked.
       final log = await fx.readFakeZfaLog();
       expect(
@@ -192,7 +196,7 @@ void main() {
             'feature=unknown',
           ),
         );
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
         final log = await fx.readFakeZfaLog();
         expect(log, isEmpty);
       },
@@ -216,7 +220,7 @@ void main() {
       expect(out, contains('missing test file'));
       expect(out, contains('zfa tdd gen B-002'));
       expect(out, contains('outcome=runner-error'));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(await fx.readFakeZfaLog(), isEmpty);
     });
 
@@ -240,7 +244,7 @@ void main() {
         );
         // The skip transition succeeds: the run loop must proceed past
         // already-green behaviors instead of stopping on drift.
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('skipped'));
         expect(
           out,
@@ -294,7 +298,7 @@ void main() {
         makeArgs(fx, id: 'U-6', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('outcome=green'), reason: out);
       // The make invocation carried --no-entity: the slugified
       // behavior id never reached the real CLI as a bare entity name.
@@ -335,7 +339,7 @@ void main() {
           makeArgs(fx, id: 'U-5', zfaBin: zfaBin),
         );
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final log = await fx.readFakeZfaLog();
         final makeCalls = log.where((l) => l.startsWith('make ')).toList();
         expect(makeCalls, isNotEmpty, reason: log.join('\n'));
@@ -388,7 +392,7 @@ void main() {
 
       // Pre-fix this was exit 1 with outcome=generation-error ("target
       // test still fails after generation").
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       expect(
         out,
         contains('make: behavior=U5 outcome=green feature=${fx.featureName}'),
@@ -471,7 +475,7 @@ void main() {
       );
 
       // Pre-fix: exit 1 with outcome=generation-error.
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       expect(
         out,
         contains(
@@ -554,7 +558,7 @@ void main() {
         makeArgs(fx, id: 'U3', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       expect(
         out,
         contains(
@@ -608,7 +612,7 @@ void main() {
         makeArgs(fx, id: 'U3', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       expect(
         out,
         contains(
@@ -667,7 +671,7 @@ void main() {
 
       // Pre-#942: exit 0 with outcome=skipped and a green entry — the
       // green-wash this test forbids.
-      expect(exitCode, isNot(0), reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out:\n$out');
       expect(
         out,
         contains('make: behavior=U3 outcome=generation-error'),
@@ -707,7 +711,7 @@ void main() {
         makeArgs(fx, id: 'U3', zfaBin: zfaBin),
       );
 
-      expect(exitCode, isNot(0), reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out:\n$out');
       expect(
         out,
         contains('make: behavior=U3 outcome=generation-error'),
@@ -738,7 +742,7 @@ void main() {
         makeArgs(fx, id: 'U3', zfaBin: zfaBin),
       );
 
-      expect(exitCode, isNot(0), reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out:\n$out');
       expect(
         out,
         contains('make: behavior=U3 outcome=generation-error'),
@@ -770,7 +774,7 @@ void main() {
       final out = await runner.runCapturing(
         makeArgs(fx, id: 'B-001', zfaBin: zfaBin),
       );
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, contains('- suite: baseline='));
       expect(log, contains('guard='));
@@ -814,7 +818,7 @@ void main() {
       final out = await runner.runCapturing(
         makeArgs(fx, id: 'B-001', zfaBin: zfaBin),
       );
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('regression'));
       expect(out, contains('sibling green test passes'));
       expect(
@@ -872,7 +876,11 @@ void main() {
       final out = await runner.runCapturing(
         makeArgs(fx, id: 'B-001', zfaBin: zfaBin),
       );
-      expect(exitCode, 0, reason: 'pre-existing failure tolerated; out: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'pre-existing failure tolerated; out: $out',
+      );
       expect(out, contains('outcome=green'));
       final log = await File(fx.cycleLogPath).readAsString();
       // Suite line records the pre-existing failure.
@@ -914,7 +922,7 @@ void main() {
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(makeArgs(fx, id: 'B-001'));
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         0,
         reason:
             'pre-existing red behaviors must not block an '
@@ -969,7 +977,7 @@ void main() {
         makeArgs(fx, id: 'B-001', zfaBin: zfaBin),
       );
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         0,
         reason:
             'failures confined to already-red files are pre-existing '
@@ -997,7 +1005,7 @@ void main() {
       final out = await runner.runCapturing(
         makeArgs(fx, id: 'B-042', zfaBin: zfaBin),
       );
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('unexpressible'));
       expect(
         out,
@@ -1027,7 +1035,7 @@ void main() {
       final out = await runner.runCapturing(
         makeArgs(fx, id: 'B-001', zfaBin: zfaBin),
       );
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('generation-error'));
       expect(out, contains('entity create'));
       expect(
@@ -1053,7 +1061,7 @@ void main() {
 
       final runner = CliRunner(exitOnCompletion: false);
       await runner.runCapturing(makeArgs(fx, id: 'B-042', zfaBin: zfaBin));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       // Test files and lib/ byte-identical (no pipeline ran).
       expect(fx.checksumTestAndLib(), equals(beforeChecksums));
     });
@@ -1071,7 +1079,7 @@ void main() {
       final out = await runner.runCapturing(
         makeArgs(fx, id: 'B-042', zfaBin: zfaBin),
       );
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       // The behavior-phrased refusal (SC-005): the planner names the
       // behavior, quotes the exact description it cannot map to a
       // generator surface, and cites the STOP-ON-ROADBLOCK policy —
@@ -1124,7 +1132,7 @@ void main() {
       final out = await runner.runCapturing(
         makeArgs(fx, id: 'B-043', zfaBin: zfaBin),
       );
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // The plan carried the new generator surface.
       final log = await fx.readFakeZfaLog();
       expect(
@@ -1200,13 +1208,13 @@ void main() {
 
       // Green → exit 0.
       await runner.runCapturing(makeArgs(fx, id: 'B-001', zfaBin: zfaBin));
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       exitCode = 0;
 
       // Each rejection → non-zero.
       // 1. unknown id
       await runner.runCapturing(makeArgs(fx, id: 'B-999', zfaBin: zfaBin));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       exitCode = 0;
 
       // 2. unexpressible
@@ -1215,7 +1223,7 @@ void main() {
         description: 'provision bespoke DSL with no generator',
       );
       await runner.runCapturing(makeArgs(fx, id: 'B-042', zfaBin: zfaBin));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       exitCode = 0;
     });
   });
@@ -1233,7 +1241,7 @@ void main() {
       final out = await runner.runCapturing(
         makeArgs(fx, id: 'B-001', zfaBin: zfaBin),
       );
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('runner-error'));
       // Pipeline NEVER invoked.
       final log = await fx.readFakeZfaLog();
@@ -1303,7 +1311,7 @@ void main() {
         makeArgs(fx, id: 'A-100', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains(
@@ -1390,7 +1398,7 @@ int subject_u_100() {
 
       // THE FIX: the make composes and certifies green instead of
       // reporting unexpressible.
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains(
@@ -1454,7 +1462,7 @@ int subject_u_100() {
         makeArgs(fx, id: 'A-101', zfaBin: zfaBin),
       );
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(
         out,
         contains(
@@ -1521,7 +1529,7 @@ int subject_u_100() {
           makeArgs(fx, id: 'B-200', zfaBin: zfaBin),
         );
 
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(out, contains('outcome=unexpressible'));
         // No fallback attempt: compose never spawned.
         final log = await fx.readFakeZfaLog();
@@ -1545,7 +1553,7 @@ int subject_u_100() {
         makeArgs(fx, id: 'A-102', zfaBin: zfaBin),
       );
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=unexpressible'));
       expect(out, contains('test-list.md'));
       final log = await fx.readFakeZfaLog();
@@ -1565,7 +1573,7 @@ int subject_u_100() {
         makeArgs(fx, id: 'A-100', zfaBin: zfaBin),
       );
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('generation-error'));
       expect(out, contains('compose'));
       expect(
@@ -1603,7 +1611,7 @@ int subject_u_100() {
         makeArgs(fx, id: 'A-100', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       expect(
         out,
         contains(
@@ -1673,7 +1681,7 @@ stacks:
           makeArgs(fx2, id: 'B-001', zfaBin: zfaBin),
         );
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('suite baseline: dart test'));
         expect(out, contains('outcome=green'));
         final log = await File(fx2.cycleLogPath).readAsString();
@@ -1738,7 +1746,7 @@ stacks:
         makeArgs(fx, id: 'U1', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       expect(
         out,
         contains('make: behavior=U1 outcome=green feature=${fx.featureName}'),
@@ -1797,7 +1805,7 @@ stacks:
           makeArgs(fx, id: 'U1', zfaBin: zfaBin),
         );
 
-        expect(exitCode, 0, reason: 'out:\n$out');
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
         expect(out, contains('already exists — reuse'));
         final log = await fx.readFakeZfaLog();
         expect(
@@ -1864,7 +1872,7 @@ stacks:
         makeArgs(fx, id: 'U2', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       final log = await fx.readFakeZfaLog();
       expect(log.where((l) => l.contains('tdd func')), isNotEmpty);
       expect(log.where((l) => l.contains('entity create')), isEmpty);
@@ -1922,7 +1930,7 @@ stacks:
       // feature, and the make honest-stops unexpressible — the SAME
       // deferral A1 ("all data sources ...") and A2 ("all repositories
       // ...") already got in the issue's run log.
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(
         out,
         contains(

@@ -216,7 +216,7 @@ exit 0
 
       final out = await runRefactor();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         counter.readAsStringSync().trim(),
         '1',
@@ -276,7 +276,7 @@ exit 0
 
       final out = await runRefactor();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         staleDir.existsSync(),
         isFalse,
@@ -332,7 +332,7 @@ exit 0
         fx.fakeZfaBin,
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         staleDir.existsSync(),
         isFalse,
@@ -389,7 +389,7 @@ exit 0
         final out = await runRefactor();
         firstRunRan = true;
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(
           heldDir.existsSync(),
           isTrue,
@@ -412,7 +412,7 @@ exit 0
       // Once the holder exited, the dir is plain stale garbage — the
       // NEXT cycle's start-of-cycle sweep reclaims it.
       final out2 = await runRefactor();
-      expect(exitCode, 0, reason: out2);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
       expect(
         heldDir.existsSync(),
         isFalse,
@@ -446,7 +446,7 @@ exit 0
         final out = await runRefactor();
         firstRunRan = true;
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(
           probe.existsSync(),
           isTrue,
@@ -471,7 +471,7 @@ exit 0
       // Once the owner exited its marker is stale — the next cycle takes
       // the project cache back and reclaims it.
       final out2 = await runRefactor();
-      expect(exitCode, 0, reason: out2);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
       expect(
         probe.existsSync(),
         isFalse,
@@ -505,7 +505,7 @@ exit 0
 
         final out = await runRefactor();
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(
           probe.existsSync(),
           isFalse,

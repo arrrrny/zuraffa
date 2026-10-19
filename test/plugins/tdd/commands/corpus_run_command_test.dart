@@ -68,7 +68,7 @@ void main() {
     test('exit: a fully-complete corpus run exits 0', () async {
       await setupTwoGoodFeatures();
       final out = await drive();
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     });
 
     test('persistence: both features land done in progress', () async {
@@ -107,7 +107,7 @@ void main() {
       () async {
         await fx.writeManifest([(name: 'f1-good', ready: true, reason: '')]);
         final out = await drive();
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final pr = await progress();
         expect(pr!['features']['f1-good']['gate'], 'pass');
       },
@@ -135,7 +135,7 @@ void main() {
           (name: 'f3-later', ready: true, reason: ''),
         ]);
         final out = await drive();
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         final calls = await fx.readCalls();
         // f3 was never started (STOP-ON-ROADBLOCK).
         expect(calls.where((c) => c.contains('f3-later')), isEmpty);
@@ -180,7 +180,7 @@ void main() {
       expect(calls.where((c) => c.contains('f3-later')), isEmpty);
       expect(out, contains('no acceptance scenarios'));
       // Not-ready blocks completion (exit 1, result=incomplete).
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       final lastLine = out.trim().split('\n').last;
       expect(lastLine, contains('not_ready=1'));
       expect(lastLine, contains('result=incomplete'));
@@ -196,7 +196,7 @@ void main() {
   group('U21 — no manifest', () {
     test('result=no-manifest, exit 2, message names the path', () async {
       final out = await drive();
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(out, contains('no corpus manifest'));
       expect(out, contains('corpus-manifest.json'));
       final lastLine = out.trim().split('\n').last;
@@ -215,7 +215,7 @@ void main() {
       expect(ownership, isNotNull);
       try {
         final out = await drive();
-        expect(exitCode, 4, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 4, reason: out);
         expect(out.trim().split('\n').last, contains('result=concurrent-run'));
         expect(await fx.readCalls(), isEmpty);
       } finally {
@@ -237,7 +237,7 @@ void main() {
           '"owner_pid": ${owner.pid}}}',
         );
         final out = await drive();
-        expect(exitCode, 4, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 4, reason: out);
         expect(out, contains('refusing'));
         final lastLine = out.trim().split('\n').last;
         expect(lastLine, contains('result=concurrent-run'));
@@ -270,7 +270,7 @@ void main() {
           (name: 'f3-added', ready: true, reason: ''),
         ]);
         final out = await drive();
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final calls = await fx.readCalls();
         // f1 not re-driven (resume), f3 driven, f2 never spawned again.
         final f1Calls = calls.where((c) => c.contains('f1-good')).toList();
@@ -296,7 +296,7 @@ void main() {
       await progressFile.parent.create(recursive: true);
       await progressFile.writeAsString('{corrupt');
       final out = await drive();
-      expect(exitCode, 3, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 3, reason: out);
       expect(out, contains('corrupted'));
       expect(out, contains('Recovery'));
       final lastLine = out.trim().split('\n').last;
@@ -309,7 +309,7 @@ void main() {
       await ledgerFile.parent.create(recursive: true);
       await ledgerFile.writeAsString('[{"kind":"gap"}]');
       final out = await drive();
-      expect(exitCode, 3, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 3, reason: out);
       expect(out, contains('gap-ledger.json'));
       expect(out.trim().split('\n').last, contains('result=corrupt-state'));
       expect(await fx.readCalls(), isEmpty);
@@ -346,7 +346,7 @@ void main() {
 
         // First drive: completes f1, stops at f2 (f3 never started).
         final first = await drive();
-        expect(exitCode, 1, reason: first);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: first);
         final callsAfterFirst = await fx.readCalls();
         expect(callsAfterFirst.where((c) => c.contains('f3-later')), isEmpty);
         final ledgerAfterFirst = await File(fx.ledgerPath).readAsString();
@@ -360,7 +360,7 @@ void main() {
 
         // Re-run: resumes at f2, never re-drives f1.
         final second = await drive();
-        expect(exitCode, 0, reason: second);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: second);
         final calls = await fx.readCalls();
         final f1Calls = calls.where((c) => c.contains('f1-good')).toList();
         expect(
@@ -424,7 +424,7 @@ void main() {
           (name: 'f2', ready: true, reason: ''),
         ]);
         final out = await drive();
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         // f2 never started.
         expect(
           (await fx.readCalls()).where((c) => c.contains(' f2 ')),
@@ -477,7 +477,7 @@ void main() {
           (name: 'f2', ready: true, reason: ''),
         ]);
         final out = await drive();
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final progress = await fx.readProgress();
         final f1 = progress!['features']['f1'] as Map<String, dynamic>;
         expect(f1['state'], 'waived');
@@ -514,7 +514,7 @@ void main() {
         await writeWaiver('f1', 'not_assessed'); // different gate
         await fx.writeManifest([(name: 'f1', ready: true, reason: '')]);
         final out = await drive();
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         final progress = await fx.readProgress();
         expect(progress!['features']['f1']['state'], 'stopped');
         final ledger = await fx.readLedger();
@@ -564,7 +564,7 @@ void main() {
         (name: 'f2-gap', ready: true, reason: ''),
       ]);
       final out = await drive();
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       // The totals line (FR-008).
       expect(out, contains('ledger: found=1 filed=0 merged=0 blocking=1'));
       // The unresolved blocking gap is NAMED.

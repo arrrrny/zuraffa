@@ -163,7 +163,7 @@ environment:
           'A1',
         ]);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final content = File(testArtifact('A1')).readAsStringSync();
         expect(
           content,
@@ -196,7 +196,7 @@ environment:
         'A1',
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final content = File(testArtifact('A1')).readAsStringSync();
       expect(
         content,
@@ -226,7 +226,7 @@ environment:
         'A1',
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final content = File(testArtifact('A1')).readAsStringSync();
       expect(content, contains('pumpWidget(ZuraffaApp('), reason: out);
     });
@@ -251,7 +251,7 @@ environment:
       ]);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         isNot(0),
         reason:
             'issue #1260 (the #938 discipline): a gen that would emit an '
@@ -289,7 +289,7 @@ environment:
       ]);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         isNot(0),
         reason:
             'the hard cut removed the legacy shell: the only way a '
@@ -319,7 +319,7 @@ environment:
           'A1',
         ]);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final content = File(testArtifact('A1')).readAsStringSync();
         expect(content, contains('pumpWidget(MaterialApp('));
       },

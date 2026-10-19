@@ -556,9 +556,7 @@ class ServiceCreateCommand extends Command<void> {
       'signatures': checker.expectedSignatures,
       'provider': provider,
       'providerHint': provider == null
-          ? 'no provider bound yet — `zfa provider create '
-                '${_baseName(config)} --service ${config.effectiveService}` '
-                'binds one'
+          ? '`zfa provider create ${_baseName(config)}` binds one'
           : null,
       'receipt': '.zfa/receipts/service-${_receiptEntityName(config)}.json',
     };
