@@ -101,7 +101,7 @@ void main() {
 
       expect(out, contains('outcome=clean'), reason: out);
       expect(out, contains('parked contract'), reason: out);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(fx.checksumTestAndLib(), equals(checksumsBefore));
     });
 
@@ -125,7 +125,7 @@ void main() {
       final out = await runner.runCapturing(refactorArgs());
 
       expect(out, contains('outcome=not-green'), reason: out);
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
     });
 
     test('a NEW failure beyond the handed parked seam still refuses — the '
@@ -156,7 +156,7 @@ void main() {
 
       expect(out, contains('outcome=not-green'), reason: out);
       expect(out, contains('fresh genuine failure'), reason: out);
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(fx.checksumTestAndLib(), equals(checksumsBefore));
     });
 
@@ -168,7 +168,7 @@ void main() {
       await baseline.writeAsString(
         jsonEncode({
           'command': 'dart test',
-          'exitCode': 1,
+          'CliRunner.lastDispatchedExitCode': 1,
           'failedTests': ['test/other/legacy_test.dart: legacy failure'],
           'capturedAt': '2026-09-13T00:00:00.000Z',
           'parseable': true,
@@ -201,7 +201,7 @@ void main() {
       );
 
       expect(out, contains('outcome=clean'), reason: out);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     });
 
     test('a re-proof red confined to the handed parked seam is NOT a '
@@ -233,7 +233,7 @@ void main() {
       );
 
       expect(out, contains('outcome=refactored'), reason: out);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final log = await File(fx.cycleLogPath).readAsString();
       // Stale expectation repaired while applying review fixes: the #1588
       // conflict resolution (HEAD 0672ae04) reworded the parked-exempt
@@ -265,7 +265,7 @@ void main() {
       );
 
       expect(out, contains('outcome=not-green'), reason: out);
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
     });
 
     test('a handed --parked-failure tolerates exactly the failure the '
@@ -299,7 +299,7 @@ void main() {
 
       expect(out, contains('outcome=clean'), reason: out);
       expect(out, contains('parked contract'), reason: out);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     });
 
     test(
@@ -338,7 +338,7 @@ void main() {
 
         expect(out, contains('outcome=not-green'), reason: out);
         expect(out, contains('a brand-new assertion'), reason: out);
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(fx.checksumTestAndLib(), equals(checksumsBefore));
       },
     );

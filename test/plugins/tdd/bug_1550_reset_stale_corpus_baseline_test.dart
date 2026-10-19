@@ -99,7 +99,7 @@ void main() {
         await featureBaseline.writeAsString(
           jsonEncode({
             'command': 'dart test',
-            'exitCode': 0,
+            'CliRunner.lastDispatchedExitCode': 0,
             'failedTests': <String>[],
             'capturedAt': '2026-09-11T13:24:43.000Z',
             'parseable': true,
@@ -116,7 +116,7 @@ void main() {
           '--project',
           fx.root.path,
         ]);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('verdict=reset'), reason: out);
 
         // THE contract: no pre-reset baseline snapshot survives the reset.
@@ -150,7 +150,7 @@ void main() {
           '--project',
           fx.root.path,
         ]);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('verdict=reset'), reason: out);
       });
     },
@@ -204,7 +204,7 @@ void main() {
         ]);
 
         final out1 = await drive();
-        expect(exitCode, 0, reason: out1);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out1);
         expect(fx.spyLog('suite'), hasLength(1), reason: out1);
         expect(File(corpusCachePath()).existsSync(), isTrue, reason: out1);
 
@@ -217,11 +217,11 @@ void main() {
           '--project',
           fx.root.path,
         ]);
-        expect(exitCode, 0, reason: resetOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: resetOut);
 
         // Run 2: the driver must NOT resume from the pre-reset snapshot.
         final out2 = await drive();
-        expect(exitCode, 0, reason: out2);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
         expect(
           out2,
           isNot(contains('corpus-wide reuse')),
@@ -302,7 +302,7 @@ int subject_a_001() => throw UnimplementedError();
         '--project',
         fx.root.path,
       ]);
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       // THE contract: the stale premise is named, not a runner error.
       expect(
         out,

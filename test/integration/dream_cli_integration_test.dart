@@ -55,7 +55,7 @@ void main() {
       contains('dream:'),
       reason: 'the top-level command must exist and run',
     );
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(out, contains('engine=green'), reason: out);
     expect(out, contains('skin=green'), reason: out);
     expect(out, contains('drafter=deterministic'), reason: out);

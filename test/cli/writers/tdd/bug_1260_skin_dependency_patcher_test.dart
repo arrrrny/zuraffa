@@ -88,7 +88,7 @@ dependencies:
         await seedPubspec(flutter: true);
         final out = await runInit(extra: ['--skin']);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final pubspec = readPubspec();
         expect(
           pubspec,
@@ -121,7 +121,7 @@ dependencies:
       expect(first, contains(kCertifiedConstraint));
 
       final out = await runInit(extra: ['--skin']);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final second = readPubspec();
       expect(
         'zuraffa_ui'.allMatches(second).length,
@@ -197,7 +197,7 @@ dependencies: {flutter: any}
 
         final out = await runInit(extra: ['--skin']);
 
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(out, contains('pubspec_skin_dependency_patcher'));
         expect(out, contains('Inline `dependencies: {...}` mappings'));
         final pubspec = readPubspec();
@@ -214,7 +214,7 @@ dependencies: {flutter: any}
       await seedPubspec(flutter: true);
       final out = await runInit();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         readPubspec(),
         isNot(contains('zuraffa_ui')),
@@ -231,7 +231,7 @@ dependencies: {flutter: any}
         final out = await runInit(extra: ['--skin']);
 
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           isNot(0),
           reason:
               'zuraffa_ui is a Flutter SDK package; a pure-Dart target '

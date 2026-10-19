@@ -204,7 +204,7 @@ Lanes:
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       out,
       contains(
@@ -274,7 +274,7 @@ Lanes:
 
       final out = await drive();
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(
         out,
         contains('run-skin: feature=$feature result=stopped'),
@@ -303,7 +303,7 @@ Lanes:
 
     final out = await drive();
 
-    expect(exitCode, 1, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
     final receipt =
         jsonDecode(
               await File(
@@ -344,7 +344,7 @@ Lanes:
     // other mode uses instead of running with it silently ignored.
     final out = await drive(const ['--heartbeat', 'abc']);
 
-    expect(exitCode, 2, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
     expect(out, contains('invalid --heartbeat "abc"'), reason: out);
     expect(
       out,
@@ -381,7 +381,7 @@ Lanes:
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       out,
       contains('run-skin: feature=$feature lane=skin result=complete'),

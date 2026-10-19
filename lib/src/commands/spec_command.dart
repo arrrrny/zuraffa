@@ -13,6 +13,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../plugins/tdd/commands/spec_fuzz_command.dart';
+import './spec_diff_command.dart';
 import '../plugins/tdd/services/mutation_auditor.dart';
 
 class SpecCommand extends Command<void> {
@@ -32,6 +33,7 @@ class SpecCommand extends Command<void> {
     addSubcommand(
       SpecFuzzCommand(runPreflight: runPreflight, spawnTest: spawnTest),
     );
+    addSubcommand(SpecDiffCommand());
   }
 
   @override

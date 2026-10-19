@@ -24,7 +24,7 @@ void main() {
         exitCode = 0;
         final output = await runner.runCapturing(['observer', 'create', 'X']);
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           ExitProtocol.usage,
           reason:
               'a removed verdict must fail honestly (SPEC 917 usage code — '
