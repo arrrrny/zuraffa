@@ -32,6 +32,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
+import '../../../cli/exit_protocol.dart';
 import '../../../engine/engine_gate_receipt.dart';
 import '../../mock/certification/cert_registry.dart';
 import '../../mock/certification/mock_cert_receipt.dart';
@@ -365,7 +366,7 @@ class RunEngineCommand extends Command<void> {
           'zfa tdd run-engine: --baseline-scope must be a directory '
           'relative to the project root (got "$baselineScope")',
         );
-        exitCode = _exitRunnerError;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }
@@ -385,6 +386,7 @@ class RunEngineCommand extends Command<void> {
       label: label,
       skipWidget: argResults?['skip-widget'] as bool? ?? false,
       baselineScope: baselineScope,
+      supportsBaselineScope: true,
       // Spec 1113: the gate's mock accounting rides the engine entry
       // (the status verdict's `mocks c/t` segment).
       mockCounts: {

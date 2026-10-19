@@ -55,6 +55,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
+import '../../../cli/exit_protocol.dart';
 import '../models/red_classification.dart';
 import '../models/verdict_envelope.dart';
 import '../services/artifact_registry.dart';
@@ -258,7 +259,7 @@ class RunSkinCommand extends Command<void> {
           'zfa tdd run-skin: --baseline-scope must be a directory '
           'relative to the project root (got "$baselineScope")',
         );
-        exitCode = _exitRunnerError;
+        exitCode = ExitProtocol.usage;
         return;
       }
     }
@@ -350,6 +351,7 @@ class RunSkinCommand extends Command<void> {
       label: label,
       skipWidget: argResults?['skip-widget'] as bool? ?? false,
       baselineScope: baselineScope,
+      supportsBaselineScope: true,
       verbose: verbose,
       heartbeat: heartbeatOverride,
     );
