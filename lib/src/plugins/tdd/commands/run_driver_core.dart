@@ -371,7 +371,7 @@ class RunDriverCore {
 
     /// Issue #1777: whether the calling command actually declares
     /// `--baseline-scope`. Controls the preflight remedy wording.
-    bool supportsBaselineScope = true,
+    bool supportsBaselineScope = false,
 
     /// Spec 1520: the caller's per-run scratch environment
     /// (`ScratchTmpDir.childEnvironment`) — handed to the spawned step
@@ -2265,6 +2265,7 @@ class RunDriverCore {
           projectRoot: projectRoot,
           featureDir: featureDir,
           suiteBaselinePath: suiteBaselinePath,
+          baselineScope: baselineScope,
         );
       }
 
@@ -3306,11 +3307,15 @@ class RunDriverCore {
     required String projectRoot,
     required String featureDir,
     required String? suiteBaselinePath,
+    required String? baselineScope,
   }) async {
     try {
-      final suiteTemplate = await const SingleTestRunner().loadSuiteTemplate(
+      var suiteTemplate = await const SingleTestRunner().loadSuiteTemplate(
         workingDirectory: projectRoot,
       );
+      if (baselineScope != null && baselineScope.isNotEmpty) {
+        suiteTemplate = '$suiteTemplate $baselineScope';
+      }
       final libNow = await TreeSnapshot.capture(
         projectRoot,
         trees: const ['lib'],

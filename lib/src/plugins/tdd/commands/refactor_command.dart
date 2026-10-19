@@ -352,9 +352,12 @@ class RefactorCommand extends Command<void> {
     final baselineScope = argResults?['baseline-scope'] as String?;
     if (baselineScope != null && baselineScope.trim().isNotEmpty) {
       final scopeNorm = p.normalize(baselineScope.trim());
+      final scopeDir = Directory(p.join(cwd, scopeNorm));
       if (p.isAbsolute(scopeNorm) ||
           scopeNorm == '..' ||
-          scopeNorm.startsWith('../')) {
+          scopeNorm.startsWith('../') ||
+          scopeNorm.startsWith('-') ||
+          !scopeDir.existsSync()) {
         print(
           'zfa tdd refactor: --baseline-scope must be a directory relative '
           'to the project root (got "$baselineScope")',
