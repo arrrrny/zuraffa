@@ -23,7 +23,7 @@
 // detection, and split has no --force flag.
 //
 // Exit-code reads go through `CliRunner.lastDispatchedExitCode`, never the
-// process-global `exitCode` getter: `dart test` runs suites as concurrent
+// process-global `CliRunner.lastDispatchedExitCode` getter: `dart test` runs suites as concurrent
 // isolates of one VM, and a sibling suite's dispatch (its `exitCode = 0`
 // reset / re-apply, issue #1096 family) can land between this suite's
 // teardown and the read — the #1632 `-j4` lane made that window real.

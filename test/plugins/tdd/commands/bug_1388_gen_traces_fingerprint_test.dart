@@ -170,7 +170,11 @@ void main() {
           );
 
           final second = await migrateAndGen(runner, fx);
-          expect(exitCode, 0, reason: 'the re-gen must succeed: $second');
+          expect(
+            CliRunner.lastDispatchedExitCode,
+            0,
+            reason: 'the re-gen must succeed: $second',
+          );
           expect(
             second,
             contains('verdict=regenerated'),
@@ -217,7 +221,11 @@ void main() {
           '--project',
           fx.root.path,
         ]);
-        expect(exitCode, 0, reason: 'the second gen must succeed: $second');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'the second gen must succeed: $second',
+        );
         expect(
           second,
           contains('verdict=reused'),

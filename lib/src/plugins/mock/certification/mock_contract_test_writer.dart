@@ -23,6 +23,8 @@
 /// in both places.
 library;
 
+import 'dart:io';
+
 import 'package:path/path.dart' as p;
 
 import '../../../core/context/file_system.dart';
@@ -36,11 +38,27 @@ class ContractMethod {
     required this.name,
     required this.returnType,
     required this.paramsType,
+    this.parameterCount = 1,
+    this.isGetter = false,
   });
 
   final String name;
   final String returnType;
   final String paramsType;
+
+  /// Number of parameters the member declares (0 for parameter-less
+  /// members). Threaded through from [MethodExtractor] so the zero-arg
+  /// distinction is not encoded solely by an empty [paramsType] sentinel.
+  final int parameterCount;
+
+  /// True when the member is declared as a getter.
+  final bool isGetter;
+
+  /// True when this member is a genuine zero-argument method (not a
+  /// getter and not a real `NoParams` parameter) and must be pinned as
+  /// `Function()` / called with no arguments.
+  bool get isZeroArg =>
+      !isGetter && (parameterCount == 0 || paramsType.trim().isEmpty);
 
   bool get returnsStream => returnType.startsWith('Stream<');
 }
@@ -65,11 +83,45 @@ class MockContractTestWriter {
       : 'package:test/test.dart';
 
   /// The interface (abstract class) name for [entityName].
-  static String interfaceName(String entityName) => '${entityName}DataSource';
+  ///
+  /// In entity mode (no [service]) this is `${entityName}DataSource`; in
+  /// service mode it is the declared service interface (e.g.
+  /// `DealShareService`).
+  static String interfaceName(String entityName, {String? service}) {
+    if (service == null) return '${entityName}DataSource';
+    return _effectiveServiceName(service, entityName);
+  }
 
-  /// The mock datasource class name for [entityName].
-  static String mockClassName(String entityName) =>
-      '${entityName}MockDataSource';
+  /// The mock subject class name for [entityName].
+  ///
+  /// In entity mode (no [service]) this is `${entityName}MockDataSource`;
+  /// in service mode it is the generated mock provider
+  /// (`${base}MockProvider`).
+  static String mockClassName(String entityName, {String? service}) {
+    if (service == null) return '${entityName}MockDataSource';
+    final base = _stripServiceSuffix(
+      _effectiveServiceName(service, entityName),
+    );
+    return '${base}MockProvider';
+  }
+
+  /// The declared service interface name for a (possibly raw) service
+  /// argument, mirroring `GeneratorConfig.effectiveService`.
+  static String _effectiveServiceName(String service, String entityName) {
+    final s = service;
+    if (s.endsWith('Service') || s.endsWith('Provider')) return s;
+    return '${s}Service';
+  }
+
+  static String _stripServiceSuffix(String name) {
+    if (name.endsWith('Service')) {
+      return name.substring(0, name.length - 'Service'.length);
+    }
+    if (name.endsWith('Provider')) {
+      return name.substring(0, name.length - 'Provider'.length);
+    }
+    return name;
+  }
 
   /// The canonical contract test path inside a project:
   /// `test/mock/<snake>/<snake>_mock_contract_test.dart`.
@@ -89,16 +141,33 @@ class MockContractTestWriter {
     'mock-cert.$entityName.json',
   );
 
-  /// The mock datasource subject path under [outputDir].
-  static String mockDatasourcePath(String entityName, String outputDir) {
-    final snake = StringUtils.camelToSnake(entityName);
-    return p.join(
-      outputDir,
-      'data',
-      'datasources',
-      snake,
-      '${snake}_mock_datasource.dart',
+  /// The mock subject path under [outputDir].
+  ///
+  /// In entity mode (no [service]) this is the mock datasource path; in
+  /// service mode it is the generated mock provider path.
+  static String mockDatasourcePath(
+    String entityName,
+    String outputDir, {
+    String? service,
+    String? domain,
+  }) {
+    if (service == null) {
+      final snake = StringUtils.camelToSnake(entityName);
+      return p.join(
+        outputDir,
+        'data',
+        'datasources',
+        snake,
+        '${snake}_mock_datasource.dart',
+      );
+    }
+    final base = _stripServiceSuffix(
+      _effectiveServiceName(service, entityName),
     );
+    final baseSnake = StringUtils.camelToSnake(base);
+    final fileName = '${baseSnake}_mock_provider.dart';
+    final effectiveDomain = domain ?? StringUtils.camelToSnake(entityName);
+    return p.join(outputDir, 'data', 'providers', effectiveDomain, fileName);
   }
 
   /// Extracts the method contract from the datasource interface on disk
@@ -109,21 +178,46 @@ class MockContractTestWriter {
     String entityName,
     String outputDir, {
     FileSystem? fileSystem,
+    String? service,
+    String? domain,
   }) async {
-    final snake = StringUtils.camelToSnake(entityName);
-    final interfacePath = p.join(
-      outputDir,
-      'data',
-      'datasources',
-      snake,
-      '${snake}_datasource.dart',
-    );
     final fs = fileSystem ?? const DefaultFileSystem();
+    String interfacePath;
+    if (service == null) {
+      final snake = StringUtils.camelToSnake(entityName);
+      interfacePath = p.join(
+        outputDir,
+        'data',
+        'datasources',
+        snake,
+        '${snake}_datasource.dart',
+      );
+    } else {
+      final svc = _effectiveServiceName(service, entityName);
+      final svcSnake = StringUtils.camelToSnake(svc);
+      final effectiveDomain = (domain != null && domain.isNotEmpty)
+          ? domain
+          : StringUtils.camelToSnake(entityName);
+      final candidates = <String>[
+        p.join(
+          outputDir,
+          'domain',
+          'services',
+          effectiveDomain,
+          '$svcSnake.dart',
+        ),
+        p.join(outputDir, 'domain', 'services', '$svcSnake.dart'),
+      ];
+      interfacePath = candidates.firstWhere(
+        (c) => fs.existsSync(c),
+        orElse: () => candidates.first,
+      );
+    }
     if (!fs.existsSync(interfacePath)) return null;
 
     final parsed = await MethodExtractor.extractMethodsFromInterface(
       interfacePath,
-      interfaceName(entityName),
+      interfaceName(entityName, service: service),
       fileSystem: fs,
     );
     if (parsed.isEmpty) return null;
@@ -139,7 +233,11 @@ class MockContractTestWriter {
               m.returnsType ?? 'void',
               m.useCaseType ?? 'usecase',
             ),
-            paramsType: m.paramsType ?? 'NoParams',
+            paramsType: (!m.isGetter && m.parameterCount == 0)
+                ? ''
+                : (m.paramsType ?? 'NoParams'),
+            parameterCount: m.parameterCount,
+            isGetter: m.isGetter,
           ),
         )
         .toList();
@@ -171,19 +269,44 @@ class MockContractTestWriter {
     required List<ContractMethod> methods,
     required String projectRoot,
     required String outputDir,
+    String? service,
+    String? domain,
   }) {
     final snake = StringUtils.camelToSnake(entityName);
     final testPath = p.join(projectRoot, contractTestPath(entityName));
     final testDir = p.dirname(testPath);
     final entityPath = _entityFile(entityName, outputDir);
-    final interfacePath = p.join(
+    String interfacePath;
+    if (service == null) {
+      interfacePath = p.join(
+        outputDir,
+        'data',
+        'datasources',
+        snake,
+        '${snake}_datasource.dart',
+      );
+    } else {
+      final svc = _effectiveServiceName(service, entityName);
+      final svcSnake = StringUtils.camelToSnake(svc);
+      final effectiveDomain = (domain != null && domain.isNotEmpty)
+          ? domain
+          : StringUtils.camelToSnake(entityName);
+      final scoped = p.join(
+        outputDir,
+        'domain',
+        'services',
+        effectiveDomain,
+        '$svcSnake.dart',
+      );
+      final flat = p.join(outputDir, 'domain', 'services', '$svcSnake.dart');
+      interfacePath = File(scoped).existsSync() ? scoped : flat;
+    }
+    final mockPath = mockDatasourcePath(
+      entityName,
       outputDir,
-      'data',
-      'datasources',
-      snake,
-      '${snake}_datasource.dart',
+      service: service,
+      domain: domain,
     );
-    final mockPath = mockDatasourcePath(entityName, outputDir);
     final mockDataPath = p.join(
       outputDir,
       'data',
@@ -192,6 +315,25 @@ class MockContractTestWriter {
     );
 
     String rel(String target) => p.relative(target, from: testDir);
+
+    // Imports: the subject entity plus every OTHER entity named by a pinned
+    // signature's return/parameter type. Deriving only the subject's import
+    // leaves foreign-entity type names (e.g. a member returning `ZikZakPage`)
+    // unimported, so the contract test cannot compile (#1856).
+    final importedEntities = <String>{};
+    if (entityPath != null) importedEntities.add(entityName);
+    for (final method in methods) {
+      for (final typeString in [method.returnType, method.paramsType]) {
+        for (final match in RegExp(
+          r'\b[A-Z][A-Za-z0-9_]*\b',
+        ).allMatches(typeString)) {
+          final candidate = match.group(0)!;
+          if (EntityAnalyzer.entityFileExists(candidate, outputDir)) {
+            importedEntities.add(candidate);
+          }
+        }
+      }
+    }
 
     final buffer = StringBuffer()
       ..writeln('// GENERATED - DO NOT EDIT')
@@ -220,34 +362,45 @@ class MockContractTestWriter {
       ..writeln("import '$testImport';")
       ..writeln("import 'package:zuraffa/mock.dart';");
 
-    if (entityPath != null) buffer.writeln("import '${rel(entityPath)}';");
+    if (entityPath != null && File(entityPath).existsSync()) {
+      buffer.writeln("import '${rel(entityPath)}';");
+    }
+    for (final name
+        in importedEntities.where((n) => n != entityName).toList()..sort()) {
+      final path = _entityFile(name, outputDir);
+      if (path != null) buffer.writeln("import '${rel(path)}';");
+    }
+    buffer.writeln("import '${rel(interfacePath)}';");
+    buffer.writeln("import '${rel(mockPath)}';");
+    if (File(mockDataPath).existsSync()) {
+      buffer.writeln("import '${rel(mockDataPath)}';");
+    }
     buffer
-      ..writeln("import '${rel(interfacePath)}';")
-      ..writeln("import '${rel(mockPath)}';")
-      ..writeln("import '${rel(mockDataPath)}';")
       ..writeln()
       ..writeln('void main() {')
       ..writeln(
-        '  final ${interfaceName(entityName)} dataSource =\n'
-        '      ${mockClassName(entityName)}();',
+        '  final ${interfaceName(entityName, service: service)} dataSource =\n'
+        '      ${mockClassName(entityName, service: service)}();',
       )
       ..writeln()
       ..writeln("  group('$entityName mock contract (spec 1001)', () {")
       ..writeln(
-        '    test(\'mock satisfies the ${interfaceName(entityName)} '
+        '    test(\'mock satisfies the ${interfaceName(entityName, service: service)} '
         'interface\', () {',
       )
       ..writeln(
-        '      expect(dataSource, isA<${interfaceName(entityName)}>());',
+        '      expect(dataSource, isA<${interfaceName(entityName, service: service)}>());',
       )
       ..writeln('    });');
 
     for (final method in methods) {
-      final invocation = _behavioralInvocation(
-        entityName: entityName,
-        method: method,
-        outputDir: outputDir,
-      );
+      final invocation = service == null
+          ? _behavioralInvocation(
+              entityName: entityName,
+              method: method,
+              outputDir: outputDir,
+            )
+          : null;
       // Behavioral invocations may await — the test closure must be
       // async for them.
       final asyncMarker = invocation == null ? '' : ' async';
@@ -266,7 +419,7 @@ class MockContractTestWriter {
         )
         ..writeln(
           '      final ${method.returnType} Function('
-          '${method.paramsType}) ${_safeLocal(method.name)}\$ =\n'
+          '${method.isZeroArg ? '' : method.paramsType}) ${_safeLocal(method.name)}\$ =\n'
           '          dataSource.${method.name};',
         )
         ..writeln('      expect(${_safeLocal(method.name)}\$, isNotNull);');
@@ -310,6 +463,7 @@ class MockContractTestWriter {
       entityName: entityName,
       paramsType: method.paramsType,
       outputDir: outputDir,
+      isZeroArg: method.isZeroArg,
     );
     if (params == null) return null;
 
@@ -342,8 +496,10 @@ class MockContractTestWriter {
     required String entityName,
     required String paramsType,
     required String outputDir,
+    bool isZeroArg = false,
   }) {
     final t = paramsType.trim();
+    if (isZeroArg || t.isEmpty) return '';
     if (t == 'NoParams') return 'const NoParams()';
     if (t.startsWith('QueryParams<')) return '$t()';
     if (t.startsWith('ListQueryParams<')) return '$t()';
@@ -438,8 +594,6 @@ class MockContractTestWriter {
       name.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
 
   String? _entityFile(String entityName, String outputDir) {
-    if (!EntityAnalyzer.entityFileExists(entityName, outputDir)) return null;
-    final snake = StringUtils.camelToSnake(entityName);
-    return p.join(outputDir, 'domain', 'entities', snake, '$snake.dart');
+    return EntityAnalyzer.findEntitySourcePath(entityName, outputDir);
   }
 }

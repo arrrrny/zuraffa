@@ -86,7 +86,7 @@ void main() {
 
       final out = await runFunc('B-001');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(
         out,
         contains(
@@ -120,7 +120,7 @@ void main() {
 
     final out = await runFunc('B-002');
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     expect(out, contains('outcome=contract-derived-noop'));
     expect(await File(fx.subjectPathOf('B-002')).readAsString(), stub);
   });
@@ -140,7 +140,7 @@ User login(AuthRequest request) => throw UnimplementedError('odd');
 
     final out = await runFunc('B-003');
 
-    expect(exitCode, isNot(0), reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out: $out');
     expect(out, contains('unrecognized'));
     expect(
       out.trim().split('\n').last,
@@ -168,7 +168,7 @@ ScanSession subject_b_004() {
 
     final out = await runFunc('B-004');
 
-    expect(exitCode, isNot(0), reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out: $out');
     expect(out, contains('unrecognized'));
   });
 
@@ -190,7 +190,7 @@ ScanSession subject_b_005() => ScanSession();
 
     final out = await runFunc('B-005');
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     expect(out, contains('outcome=already-implemented'));
   });
 
@@ -210,7 +210,7 @@ ScanSession subject_b_005() => ScanSession();
 
       final out = await runFunc('B-006');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(out, contains('outcome=contract-derived-noop'));
       expect(await File(fx.subjectPathOf('B-006')).readAsString(), stub);
     },
@@ -233,7 +233,7 @@ int subject_b_007() => throw UnimplementedError('subject_b_007 not implemented')
 
     final out = await runFunc('B-007');
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     expect(out, contains('outcome=scaffolded'));
     final subject = await File(fx.subjectPathOf('B-007')).readAsString();
     expect(subject, contains('String subject_b_007()'));

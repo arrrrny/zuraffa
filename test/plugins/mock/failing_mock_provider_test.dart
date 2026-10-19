@@ -29,9 +29,19 @@ void main() {
   void writeEntity(String name) {
     final dir = Directory('$outputDir/domain/entities/${name.toLowerCase()}');
     dir.createSync(recursive: true);
-    File('${dir.path}/${name.toLowerCase()}.dart').writeAsStringSync(
-      'class $name { final String id; const $name(this.id); }\n',
-    );
+    // Issue #1747: the CRUD surface `zfa mock create` requires before it
+    // emits the datasource/provider pair (a Zorphy entity's `id`,
+    // `copyWithField`, and `<Type>Patch` companion) — declared inline.
+    File('${dir.path}/${name.toLowerCase()}.dart').writeAsStringSync('''
+class $name {
+  final String id;
+  const $name(this.id);
+
+  $name copyWithField(Object field, Object? value) => this;
+}
+
+class ${name}Patch {}
+''');
   }
 
   test('builder emits <Entity>FailingMockProvider implementing the '

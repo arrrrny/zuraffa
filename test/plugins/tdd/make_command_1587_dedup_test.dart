@@ -101,7 +101,7 @@ void main() {
         makeArgs(fx, id: 'U-1587-4', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       // The dedup decision is printed...
       expect(
         out,
@@ -145,7 +145,7 @@ void main() {
         makeArgs(fx, id: 'U-1587-5', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       expect(out, isNot(contains('drift check satisfied')));
       expect(out, contains('target test exit: 0'));
     });
@@ -176,7 +176,7 @@ void main() {
           makeArgs(fx, id: 'U-1587-6', zfaBin: zfaBin),
         );
 
-        expect(exitCode, 0, reason: 'out:\n$out');
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
         expect(out, isNot(contains('drift check satisfied')));
       },
     );
@@ -212,7 +212,7 @@ void main() {
         makeArgs(fx, id: 'U-1587-8', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       expect(out, isNot(contains('drift check satisfied')));
       expect(out, contains('target test exit: 0'));
     });
@@ -236,7 +236,7 @@ void main() {
         makeArgs(fx, id: 'U-1587-7', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       expect(out, contains('outcome=skipped'));
       expect(out, isNot(contains('drift check satisfied')));
       // No generation ran at all (the #694 skip transition).

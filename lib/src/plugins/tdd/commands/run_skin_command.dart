@@ -150,6 +150,15 @@ class RunSkinCommand extends Command<void> {
           '$kHeartbeatFlagHelp Lane-mode runs only: the conformance cycle '
           'does not emit heartbeats.',
     );
+    argParser.addOption(
+      'baseline-scope',
+      valueHelp: 'dir',
+      help:
+          'Issue #1374: scope the suite baseline to a directory (canonically '
+          'the feature test dir, e.g. test/tdd/<feature>) so the FIRST '
+          'baseline can be produced on constrained agents where the '
+          'whole-tree run cannot. Bypasses the corpus-wide cache.',
+    );
   }
 
   final TddPlugin plugin;
@@ -237,6 +246,23 @@ class RunSkinCommand extends Command<void> {
     }
     final verbose = argResults?['verbose'] as bool? ?? false;
 
+    // Issue #1374/#1777: the constrained-agent escape hatch — scope the
+    // suite baseline to a directory (forwarded to the lane-mode driver).
+    final baselineScope = argResults?['baseline-scope'] as String?;
+    if (baselineScope != null) {
+      final scopeNorm = p.normalize(baselineScope);
+      if (p.isAbsolute(scopeNorm) ||
+          scopeNorm == '..' ||
+          scopeNorm.startsWith('../')) {
+        print(
+          'zfa tdd run-skin: --baseline-scope must be a directory '
+          'relative to the project root (got "$baselineScope")',
+        );
+        exitCode = _exitRunnerError;
+        return;
+      }
+    }
+
     // -----------------------------------------------------------------
     // The engine gate (issue #1008): the skin lane requires a green
     // engine receipt BEFORE any step is spawned. Missing, not-green, or
@@ -323,6 +349,8 @@ class RunSkinCommand extends Command<void> {
       lane: 'skin',
       label: label,
       skipWidget: argResults?['skip-widget'] as bool? ?? false,
+      baselineScope: baselineScope,
+      supportsBaselineScope: true,
       verbose: verbose,
       heartbeat: heartbeatOverride,
     );

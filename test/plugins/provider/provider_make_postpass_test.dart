@@ -103,7 +103,7 @@ $members
       '--service',
       'Product',
     ]);
-    final code = exitCode;
+    final code = CliRunner.lastDispatchedExitCode;
     exitCode = 0; // hermetic
     return (code: code, output: output);
   }

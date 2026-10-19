@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:hive_ce/hive_ce.dart';
 
 import '../../../core/plugin_system/capability.dart';
@@ -140,6 +142,22 @@ class SimulateSyncCapability implements ZuraffaCapability {
         'description': 'Number of seeded pending entities (default 5)',
         'default': 5,
       },
+      'devices': {
+        'type': 'integer',
+        'description': 'Number of simulated devices.',
+      },
+      'days': {
+        'type': 'integer',
+        'description': 'Number of simulated days (default 30).',
+      },
+      'partition': {
+        'type': 'boolean',
+        'description': 'Inject network partitions (default false).',
+      },
+      'seed': {
+        'type': 'integer',
+        'description': 'Deterministic seed (default 42).',
+      },
     },
   };
 
@@ -167,6 +185,41 @@ class SimulateSyncCapability implements ZuraffaCapability {
 
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
+    final devices = args['devices'] as int?;
+    if (devices != null) {
+      if (devices <= 0) {
+        print('❌ Invalid --devices value ($devices) — must be > 0');
+        return ExecutionResult(
+          success: false,
+          files: const [],
+          data: {'verdict': 'usage-error', 'devices': devices},
+        );
+      }
+      final days = (args['days'] as int?) ?? 30;
+      final entityCount = (args['entityCount'] as int?) ?? 5;
+      if (days <= 0 || entityCount <= 0) {
+        print(
+          '❌ Invalid --days/--entity-count ($days/$entityCount) — '
+          'must be > 0',
+        );
+        return ExecutionResult(
+          success: false,
+          files: const [],
+          data: {
+            'verdict': 'usage-error',
+            'days': days,
+            'entityCount': entityCount,
+          },
+        );
+      }
+      return _runMultiDevice(
+        devices: devices,
+        days: days,
+        partition: (args['partition'] as bool?) ?? false,
+        seed: (args['seed'] as int?) ?? 42,
+        entityCount: entityCount,
+      );
+    }
     final scenario = (args['scenario'] ?? 'offline-flap') as String;
     if (!scenarios.contains(scenario)) {
       print(
@@ -289,6 +342,159 @@ class SimulateSyncCapability implements ZuraffaCapability {
         'totalRetries': retried,
         'recoveryRounds': recoveryRounds,
         'chaos': {for (final c in script.classes) c: chaosFired[c] ?? 0},
+      },
+    );
+  }
+
+  Future<ExecutionResult> _runMultiDevice({
+    required int devices,
+    required int days,
+    required bool partition,
+    required int seed,
+    required int entityCount,
+  }) async {
+    final rng = Random(seed);
+    final entities = List.generate(entityCount, (i) => 'todo-$i');
+    final replicas = List.generate(
+      devices,
+      (_) => <String, Map<String, (dynamic, int)>>{},
+    );
+    for (var d = 0; d < devices; d++) {
+      for (final e in entities) {
+        replicas[d][e] = {'title': ('todo $e', 0), 'done': (false, 0)};
+      }
+    }
+
+    var partitions = 0;
+    // `merges` counts directional (ordered-pair) transfers, not
+    // unique merge events: each (a,b) pair that propagates a
+    // newer field value increments it.
+    var merges = 0;
+    var anomalies = 0;
+    for (var day = 1; day <= days; day++) {
+      final isPartitionDay = partition && (day % 7 == 0 || day % 13 == 0);
+      if (isPartitionDay) partitions++;
+      for (var d = 0; d < devices; d++) {
+        final offline = isPartitionDay && d >= devices ~/ 2;
+        if (offline) continue;
+        final e = entities[rng.nextInt(entities.length)];
+        final field = rng.nextBool() ? 'title' : 'done';
+        final ts = day * 1000 + d;
+        final cur = replicas[d][e]![field]!;
+        if (ts > (cur.$2)) {
+          final newVal = field == 'done' ? rng.nextBool() : 'todo $e v$day';
+          replicas[d][e]![field] = (newVal, ts);
+        }
+      }
+      if (!isPartitionDay) {
+        for (var a = 0; a < devices; a++) {
+          for (var b = 0; b < devices; b++) {
+            if (a == b) continue;
+            for (final e in entities) {
+              for (final field in ['title', 'done']) {
+                final va = replicas[a][e]![field]!;
+                final vb = replicas[b][e]![field]!;
+                if (vb.$2 > va.$2) {
+                  replicas[a][e]![field] = vb;
+                  merges++;
+                }
+              }
+            }
+          }
+        }
+      } else {
+        for (final group in [0, 1]) {
+          final start = group == 0 ? 0 : devices ~/ 2;
+          final end = group == 0 ? devices ~/ 2 : devices;
+          for (var a = start; a < end; a++) {
+            for (var b = start; b < end; b++) {
+              if (a == b) continue;
+              for (final e in entities) {
+                for (final field in ['title', 'done']) {
+                  final va = replicas[a][e]![field]!;
+                  final vb = replicas[b][e]![field]!;
+                  if (vb.$2 > va.$2) {
+                    replicas[a][e]![field] = vb;
+                    merges++;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    var recoveryRounds = 0;
+    var converged = false;
+    while (recoveryRounds < 10 && !converged) {
+      recoveryRounds++;
+      for (var a = 0; a < devices; a++) {
+        for (var b = 0; b < devices; b++) {
+          if (a == b) continue;
+          for (final e in entities) {
+            for (final field in ['title', 'done']) {
+              final va = replicas[a][e]![field]!;
+              final vb = replicas[b][e]![field]!;
+              if (vb.$2 > va.$2) {
+                replicas[a][e]![field] = vb;
+                merges++;
+              }
+            }
+          }
+        }
+      }
+      converged = true;
+      outer:
+      for (var a = 1; a < devices; a++) {
+        for (final e in entities) {
+          for (final field in ['title', 'done']) {
+            final va = replicas[a][e]![field]!;
+            final v0 = replicas[0][e]![field]!;
+            if (va.$1 != v0.$1 || va.$2 != v0.$2) {
+              converged = false;
+              break outer;
+            }
+          }
+        }
+      }
+    }
+
+    final expected = replicas[0];
+    for (var d = 0; d < devices; d++) {
+      for (final e in entities) {
+        if (!replicas[d].containsKey(e)) {
+          anomalies++;
+          continue;
+        }
+        for (final field in ['title', 'done']) {
+          final vd = replicas[d][e]![field]!;
+          final ve = expected[e]![field]!;
+          if (vd.$1 != ve.$1 || vd.$2 != ve.$2) anomalies++;
+        }
+      }
+    }
+
+    final verdict = (converged && anomalies == 0) ? 'GREEN' : 'RED';
+    print(
+      'sync-simulate: devices=$devices days=$days partition=$partition '
+      'seed=$seed entities=$entityCount converged=$converged '
+      'partitions=$partitions merges=$merges anomalies=$anomalies '
+      'recovery-rounds=$recoveryRounds verdict=$verdict',
+    );
+    print('verdict=$verdict');
+
+    return ExecutionResult(
+      success: verdict == 'GREEN',
+      files: const [],
+      data: {
+        'verdict': verdict,
+        'devices': devices,
+        'days': days,
+        'partition': partition,
+        'seed': seed,
+        'entities': entityCount,
+        'converged': converged,
+        'anomalies': anomalies,
       },
     );
   }

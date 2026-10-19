@@ -113,7 +113,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(splitArgs());
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       expect(
         laneFile('04-ENGINE.md').existsSync(),
@@ -138,7 +138,7 @@ void main() {
         'every classification', () async {
       await seedLegacy();
       await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
 
       final engine = await laneFile('04-ENGINE.md').readAsString();
       final skin = await laneFile('04-SKIN.md').readAsString();
@@ -169,7 +169,7 @@ void main() {
         'resolve through TestListReader', () async {
       await seedLegacy();
       await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
 
       final meta = await laneFile('test-list.md').readAsString();
       expect(
@@ -196,12 +196,16 @@ void main() {
       () async {
         await seedLegacy();
         await CliRunner(exitOnCompletion: false).runCapturing(splitArgs());
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
 
         final out = await CliRunner(
           exitOnCompletion: false,
         ).runCapturing(splitArgs());
-        expect(exitCode, 1, reason: 'second run refuses');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          1,
+          reason: 'second run refuses',
+        );
         expect(
           out.contains('split-receipt.json'),
           isTrue,
@@ -240,7 +244,7 @@ Lanes:
         final out = await CliRunner(
           exitOnCompletion: false,
         ).runCapturing(splitArgs());
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
         final engine = await laneFile('04-ENGINE.md').readAsString();
         final skin = await laneFile('04-SKIN.md').readAsString();
@@ -273,7 +277,7 @@ Lanes:
         final out = await CliRunner(
           exitOnCompletion: false,
         ).runCapturing(splitArgs());
-        expect(exitCode, 1, reason: 'nothing to split');
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: 'nothing to split');
         expect(
           out.contains('test-list.md'),
           isTrue,

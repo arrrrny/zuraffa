@@ -19,6 +19,7 @@ import '../version.dart';
 import '../core/dependencies/builder_dependency_preflight.dart';
 import '../core/dependencies/pubspec_auto_add.dart' show PubspecProcessRunner;
 import '../core/format/format_runner.dart';
+import '../core/policy/approval_gate.dart';
 import '../plugins/cli/cli_plugin.dart';
 import '../plugins/tdd/services/entity_lookup.dart';
 import '../cli/exit_protocol.dart';
@@ -129,6 +130,13 @@ class EntityCommand {
           break;
         case 'add-field':
           await _handleAddField(subArgs);
+          break;
+        case 'rename-field':
+        case 'rename':
+          await _handleRenameField(subArgs);
+          break;
+        case 'evolve':
+          await _handleEvolve(subArgs);
           break;
         case 'list':
           await _handleList(subArgs);
@@ -625,6 +633,24 @@ ${missing.map((d) => '   • $d').join('\n')}
           '`zfa entity remove -n <Name>`',
         ),
       );
+      _bail(ExitProtocol.failure);
+    }
+
+    // Issue #810: human checkpoint gate on `entity remove` — runs after
+    // the existence guard so a removal attempt on a non-existent entity
+    // never prompts or writes a ledger entry before failing.
+    final assumeYes = args.contains('--yes') || args.contains('-y');
+    final missionId =
+        Platform.environment['ZFA_MISSION_ID'] ??
+        'local-${DateTime.now().millisecondsSinceEpoch}';
+    final gate = ApprovalGate(
+      projectRoot: Directory.current.path,
+      gateId: 'entity.remove',
+      missionId: missionId,
+      requestPayload: <String, dynamic>{'entity': name},
+    );
+    final approved = await gate.check(assumeYes: assumeYes);
+    if (!approved) {
       _bail(ExitProtocol.failure);
     }
 
@@ -1241,6 +1267,69 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
   }
 
+  Future<void> _handleRenameField(List<String> args) async {
+    final parsed = _parseArgs(args);
+    final name = parsed['name'] as String?;
+
+    if (name == null || name.isEmpty) {
+      print('Error: Entity name is required. Use -n or --name to specify.');
+      print(
+        ExitProtocol.fixLine(
+          'pass the entity name: `zfa entity rename-field -n <Name> '
+          '--from=<old> --to=<new>`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
+    }
+
+    final from = parsed['from'] as String?;
+    final to = parsed['to'] as String?;
+    if (from == null || from.isEmpty || to == null || to.isEmpty) {
+      print('Error: Both --from and --to are required for rename-field.');
+      print(
+        ExitProtocol.fixLine(
+          'pass both names: `zfa entity rename-field -n <Name> '
+          '--from=oldField --to=newField`',
+        ),
+      );
+      _bail(ExitProtocol.usage);
+    }
+
+    final dryRun = parsed['dry_run'] as bool? ?? false;
+
+    print(
+      'Schema evolution guard (issue #815): rename-field is scaffolded only.',
+    );
+    print('  entity: $name');
+    print('  rename: $from -> $to');
+    print('  dry-run: $dryRun');
+    print(
+      '  Status: migration stub + affected-artifact list + compatibility '
+      'score are pending (VISION Pillar D).',
+    );
+    if (dryRun) {
+      print('  --dry-run: no files were modified.');
+    }
+  }
+
+  Future<void> _handleEvolve(List<String> args) async {
+    final parsed = _parseArgs(args);
+    final dryRun = parsed['dry_run'] as bool? ?? false;
+
+    print(
+      'Schema evolution guard (issue #815): `entity evolve` is '
+      'scaffolded only.',
+    );
+    print('  dry-run: $dryRun');
+    print(
+      '  Status: transactional apply (migration plan + receipts) is '
+      'pending (VISION Pillar D).',
+    );
+    if (dryRun) {
+      print('  --dry-run: no files were modified.');
+    }
+  }
+
   Future<void> _handleList(List<String> args) async {
     final outputDir = fixedEntityOutput;
     final dir = Directory(outputDir);
@@ -1760,6 +1849,8 @@ SUBCOMMANDS:
   new         Quick-create a simple entity (basic defaults)
   enum        Create a new Zorphy enum
   add-field   Add field(s) to an existing entity
+  rename-field Rename a field (schema evolution, issue #815)
+  evolve      Apply a schema evolution plan (issue #815)
   remove      Remove an entity and write a tombstone receipt (issue #1429)
   delete      Alias of remove
   from-json   Create entity from JSON file

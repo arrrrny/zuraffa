@@ -216,6 +216,12 @@ class DoctorCommand extends Command<void> {
     final evidence = CycleEvidence.cached(featureDir);
     final red = await evidence.redEvidence();
     final green = await evidence.greenEvidence();
+    // Review #1785 (minor): marker-only (loose) born-green set, matching
+    // the run driver's reconcile path (intentionally looser than the
+    // subject-bound set the #1592 refactor shortcut uses) — see
+    // run_driver_core.dart.
+    final bornGreenIds = (await evidence.bornGreenCertifiedEntries()).keys
+        .toSet();
 
     // ---- 1. Legacy-layout scan ---------------------------------------
     // Scan the gen default layout; classify every generated-shape file
@@ -841,7 +847,7 @@ class DoctorCommand extends Command<void> {
         var backed = true;
         switch (claim) {
           case BehaviorState.done:
-            backed = hasRed && hasGreen;
+            backed = (hasRed || bornGreenIds.contains(entry.key)) && hasGreen;
           case BehaviorState.mocked:
           case BehaviorState.green:
             backed = hasGreen;

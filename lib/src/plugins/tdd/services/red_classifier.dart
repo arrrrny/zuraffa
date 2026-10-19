@@ -148,8 +148,16 @@ final RegExp _cfeDiagnostic = RegExp(
   r'\S+:\d+:\d+:?\s*Error:|Compilation failed|CompilationError',
 );
 
+// A real assertion report is indented under the failing `[E]` test line, so
+// both labels must sit at the start of an indented line. A bare `Expected:`/
+// `Actual:` printed to stdout (column 0) is not an assertion report, even
+// when an unrelated failure follows. The 4000-char bound keeps the two
+// labels within one failure block; larger dumps are missed by design.
 final RegExp _assertionSignature = RegExp(
-  r'Expected:.*\n\s*Actual:|TestFailure',
+  r'^\s+Expected:[\s\S]{0,4000}?^\s+Actual:|'
+  r'^\s+Actual:[\s\S]{0,4000}?^\s+Expected:|'
+  r'TestFailure',
+  multiLine: true,
 );
 
 bool _hasLoadSignature(String output) {

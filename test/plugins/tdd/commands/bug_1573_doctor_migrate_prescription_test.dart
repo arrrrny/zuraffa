@@ -336,7 +336,7 @@ void main() {
       ]);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         ExitProtocol.usage,
         reason:
             'an unrecognized positional argument is a usage error — '

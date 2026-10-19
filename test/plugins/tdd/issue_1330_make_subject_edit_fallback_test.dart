@@ -151,7 +151,7 @@ void main() {
           final runner = CliRunner(exitOnCompletion: false);
           final out = await runner.runCapturing(makeArgs(fx, id: 'B-001'));
 
-          expect(exitCode, 1, reason: 'out:\n$out');
+          expect(CliRunner.lastDispatchedExitCode, 1, reason: 'out:\n$out');
           expect(out, contains('verdict: no-op'), reason: 'out:\n$out');
           expect(out, contains('no active plugins'), reason: 'out:\n$out');
           expect(

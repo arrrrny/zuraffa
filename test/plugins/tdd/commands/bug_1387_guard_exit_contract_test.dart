@@ -44,7 +44,7 @@ void main() {
       '-C',
       fx.root.path,
     ]);
-    expect(exitCode, 0, reason: output);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: output);
     expect(output, contains('Done'), reason: output);
   });
 
@@ -58,7 +58,7 @@ void main() {
       '-C',
       fx.root.path,
     ]);
-    expect(exitCode, 1, reason: output);
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: output);
     expect(
       output,
       anyOf(
