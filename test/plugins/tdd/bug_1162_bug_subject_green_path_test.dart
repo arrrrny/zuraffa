@@ -161,7 +161,7 @@ void main() {
 
         // Certify red against the THROWING stub (records its hash).
         final redOut = await runner.runCapturing(verifyRedArgs1162(fx, 'A1'));
-        expect(exitCode, 0, reason: redOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
 
         // Hand-implement the subject — exactly what the gen'd test header
         // instructs. The test now genuinely passes.
@@ -173,7 +173,7 @@ void main() {
         // certified red shape — issue #1162's dead end. The guard must FAIL
         // OPEN: the skip transition re-binds the green evidence.
         final out = await runner.runCapturing(makeArgs1162(fx, id: 'A1'));
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('outcome=skipped'));
         expect(out, contains('issue #1162'));
 
@@ -199,7 +199,7 @@ void main() {
         );
         final runner = CliRunner(exitOnCompletion: false);
         final redOut = await runner.runCapturing(verifyRedArgs1162(fx, 'A2'));
-        expect(exitCode, 0, reason: redOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
 
         // The failed-make rewrite class: the vacuous pipeline scaffold
         // (`return 0;` — the declared-stub body shape).
@@ -211,7 +211,7 @@ int a2_value() => 0;
 
         final out = await runner.runCapturing(makeArgs1162(fx, id: 'A2'));
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           isNot(0),
           reason: 'the born-green placeholder class must still refuse: $out',
         );
@@ -236,7 +236,7 @@ int a2_value() => 0;
       );
       final runner = CliRunner(exitOnCompletion: false);
       final redOut = await runner.runCapturing(verifyRedArgs1162(fx, 'A3'));
-      expect(exitCode, 0, reason: redOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
 
       await File(
         fx.subjectPathOf('A3'),
@@ -245,7 +245,7 @@ int a2_value() => 0;
       final out = await runner.runCapturing(
         verifyRedArgs1162(fx, 'A3', reCertify: true),
       );
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('classification=re-certified'));
       expect(out, contains('certified=true'));
 
@@ -260,7 +260,7 @@ int a2_value() => 0;
       // The follow-up make: the drift guard now matches the certified
       // green hash — the skip transition proceeds.
       final makeOut = await runner.runCapturing(makeArgs1162(fx, id: 'A3'));
-      expect(exitCode, 0, reason: makeOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: makeOut);
       expect(makeOut, contains('outcome=skipped'));
     });
 
@@ -280,7 +280,7 @@ int a2_value() => 0;
       final out = await runner.runCapturing(
         verifyRedArgs1162(fx, 'U9', reCertify: true),
       );
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('unexpected-green'));
       expect(out, contains('no certified red evidence'));
       final cycleLogFile = File(fx.cycleLogPath);
@@ -388,7 +388,7 @@ void a1_value() {
         makeArgs1162(fx2, id: 'A1', zfaBin: zfaBin),
       );
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         isNot(0),
         reason: 'a guard-only acceptance green must not certify: $out',
       );

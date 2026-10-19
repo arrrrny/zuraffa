@@ -173,7 +173,11 @@ environment:
         reason: 'skip verdicts carry a reason code: $verdict',
       );
     }
-    expect(exitCode, 0, reason: 'an idempotent re-run is a success');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'an idempotent re-run is a success',
+    );
   });
 
   test('FR-2/FR-3: guard-dropped methods are reported as skipped with a '
@@ -237,7 +241,7 @@ environment:
     ]);
     expect(output, contains('Usage'));
     expect(
-      exitCode,
+      CliRunner.lastDispatchedExitCode,
       2,
       reason:
           'usage-error family: $output (SPEC 917: canonical usage 2 — the '

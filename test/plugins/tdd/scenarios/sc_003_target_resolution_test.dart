@@ -45,7 +45,7 @@ void main() {
           'certified=true feature=046-tdd-verify-red',
         ),
       );
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
     },
   );
 
@@ -60,7 +60,7 @@ void main() {
         '--project',
         fx.root.path,
       ]);
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('B-001'));
       expect(out, contains('B-002'));
       expect(File(fx.cycleLogPath).existsSync(), isFalse);
@@ -76,7 +76,7 @@ void main() {
       fx.root.path,
       'B-999',
     ]);
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('B-999'));
     expect(File(fx.cycleLogPath).existsSync(), isFalse);
   });
@@ -99,7 +99,7 @@ void main() {
         fx.root.path,
         'B-777',
       ]);
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('zfa tdd gen B-777'));
     },
   );

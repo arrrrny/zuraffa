@@ -326,7 +326,11 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(planArgs());
 
-      expect(exitCode, 0, reason: 'plan succeeded — out:\n$out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'plan succeeded — out:\n$out',
+      );
       expect(
         out,
         contains('route: contract:A1 -> contract lane'),
@@ -403,7 +407,11 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(planArgs());
 
-      expect(exitCode, 0, reason: 'plan succeeded — out:\n$out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'plan succeeded — out:\n$out',
+      );
       final meta = laneFile('test-list.md').readAsStringSync();
       final coreMetaRow = meta
           .split('\n')
@@ -447,7 +455,11 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(planArgs());
 
-      expect(exitCode, 0, reason: 'plan succeeded — out:\n$out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'plan succeeded — out:\n$out',
+      );
       final engine = laneFile('04-ENGINE.md').readAsStringSync();
       expect(
         engine,
@@ -490,7 +502,7 @@ void main() {
       ).runCapturing(planArgs());
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         2,
         reason:
             'errors-are-an-API: the SKIN plan renders no contract '
@@ -514,7 +526,7 @@ void main() {
       ).runCapturing(planArgs());
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         2,
         reason:
             'the contract rows land in 04-ENGINE.md, which is pure Dart '
@@ -536,7 +548,11 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(planArgs());
 
-      expect(exitCode, 0, reason: 'plan succeeded — out:\n$out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'plan succeeded — out:\n$out',
+      );
       final engine = laneFile('04-ENGINE.md').readAsStringSync();
       expect(
         engine,
@@ -570,7 +586,11 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(planArgs());
 
-      expect(exitCode, 0, reason: 'plan succeeded — out:\n$out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'plan succeeded — out:\n$out',
+      );
       final engine = laneFile('04-ENGINE.md').readAsStringSync();
       expect(
         engine,
@@ -611,7 +631,11 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'split', '--project', tmpDir.path, feature]);
 
-      expect(exitCode, 0, reason: 'split succeeded — out:\n$out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'split succeeded — out:\n$out',
+      );
       final engine = laneFile('04-ENGINE.md').readAsStringSync();
       expect(
         engine,
