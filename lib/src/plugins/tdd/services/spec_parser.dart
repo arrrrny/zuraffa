@@ -323,6 +323,16 @@ class SpecParser {
   /// Such prose is exempt from the presentation-verb mislane guard even
   /// when it names a verb from the presentation set (e.g. "the event
   /// shows the outcome").
+  ///
+  /// Contract note (public API, currently unused outside this class):
+  /// this applies a *whole-string* `hasMatch` over [description] — it
+  /// returns `true` when an event-noun subject appears *anywhere* in
+  /// the text, and does NOT split on [_predicateClauseBoundary] the way
+  /// [isPresentationMislane] does. A multi-clause description that mixes
+  /// event prose with a presentation assertion ("the event shows the
+  /// outcome as the screen renders the error") therefore needs per-clause
+  /// handling by the caller (see [isPresentationMislane]); this method is
+  /// a convenience for the simple single-clause case.
   static bool isEventNounSubject(String description) {
     return _eventNounSubject.hasMatch(description);
   }
