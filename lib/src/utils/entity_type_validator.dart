@@ -118,6 +118,22 @@ class EntityTypeValidator {
         final enumExists = enumFile.existsSync();
 
         if (!entityExists && !enumExists) {
+          // Issue #1929: when the offending type is lowercase it is almost
+          // certainly a value (a member of an enum the user meant to
+          // scaffold) rather than an enum/type name. Naming it as the enum
+          // to create (`zfa entity enum -n free`) produces a wrong artifact
+          // that "succeeds" and misleads the user. Use a placeholder enum
+          // name and present the offending token as a `--value` instead.
+          final isLowercaseValue = cleanType.isNotEmpty &&
+              cleanType[0] == cleanType[0].toLowerCase() &&
+              cleanType[0] != cleanType[0].toUpperCase();
+          final fixHint = isLowercaseValue
+              ? '   Create the enum first:\n'
+                  '     zfa entity enum -n <EnumName> --value $cleanType\n'
+                  '   or check the spelling.'
+              : '   Create the enum/entity first, for example:\n'
+                  '     zfa entity enum -n $cleanType --value <values>\n'
+                  '   or check the spelling.';
           errors.add(
             UnresolvedTypeError(
               fieldName: field.name,
@@ -126,9 +142,7 @@ class EntityTypeValidator {
                   'Unknown type "$cleanType" for field "${field.name}" — no '
                   'matching entity directory or enum file found under '
                   '$outputDir.\n'
-                  '   Create the enum/entity first, for example:\n'
-                  '     zfa entity enum -n $cleanType --value <values>\n'
-                  '   or check the spelling.',
+                  '$fixHint',
             ),
           );
         }
