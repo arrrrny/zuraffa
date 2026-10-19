@@ -179,14 +179,13 @@ class MockContractTestWriter {
     } else {
       final svc = _effectiveServiceName(service, entityName);
       final svcSnake = StringUtils.camelToSnake(svc);
+      final effectiveDomain = (domain != null && domain.isNotEmpty)
+          ? domain
+          : StringUtils.camelToSnake(entityName);
       final candidates = <String>[
+        p.join(outputDir, 'domain', 'services', effectiveDomain, '$svcSnake.dart'),
         p.join(outputDir, 'domain', 'services', '$svcSnake.dart'),
       ];
-      if (domain != null && domain.isNotEmpty) {
-        candidates.add(
-          p.join(outputDir, 'domain', 'services', domain, '$svcSnake.dart'),
-        );
-      }
       interfacePath = candidates.firstWhere(
         (c) => fs.existsSync(c),
         orElse: () => candidates.first,
@@ -263,7 +262,18 @@ class MockContractTestWriter {
     } else {
       final svc = _effectiveServiceName(service, entityName);
       final svcSnake = StringUtils.camelToSnake(svc);
-      interfacePath = p.join(outputDir, 'domain', 'services', '$svcSnake.dart');
+      final effectiveDomain = (domain != null && domain.isNotEmpty)
+          ? domain
+          : StringUtils.camelToSnake(entityName);
+      final scoped = p.join(
+        outputDir,
+        'domain',
+        'services',
+        effectiveDomain,
+        '$svcSnake.dart',
+      );
+      final flat = p.join(outputDir, 'domain', 'services', '$svcSnake.dart');
+      interfacePath = File(scoped).existsSync() ? scoped : flat;
     }
     final mockPath = mockDatasourcePath(
       entityName,

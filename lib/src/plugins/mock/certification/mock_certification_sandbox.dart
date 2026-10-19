@@ -430,7 +430,20 @@ dev_dependencies:
             ? service
             : '${service}Service',
       );
-      roots.add(p.join(outputDir, 'domain', 'services', '$svcSnake.dart'));
+      final scopedInterface = p.join(
+        outputDir,
+        'domain',
+        'services',
+        effectiveDomain,
+        '$svcSnake.dart',
+      );
+      final flatInterface = p.join(
+        outputDir,
+        'domain',
+        'services',
+        '$svcSnake.dart',
+      );
+      roots.add(File(scopedInterface).existsSync() ? scopedInterface : flatInterface);
       roots.add(
         p.join(
           outputDir,
