@@ -371,7 +371,7 @@ class RunDriverCore {
 
     /// Issue #1777: whether the calling command actually declares
     /// `--baseline-scope`. Controls the preflight remedy wording.
-    bool supportsBaselineScope = true,
+    bool supportsBaselineScope = false,
 
     /// Spec 1520: the caller's per-run scratch environment
     /// (`ScratchTmpDir.childEnvironment`) — handed to the spawned step
@@ -1560,25 +1560,51 @@ class RunDriverCore {
   }) async {
     final counts = laneCounts(laneRows, state?.behaviorStates ?? const {});
     if (lane != null && drove) {
-      // The lane receipt: written on every driving run (complete ->
-      // green, stopped -> red, runner-error -> error); a pre-driving
-      // misfire wrote nothing (this outcome is always post-driving).
-      try {
-        await receipts.write(
-          lane: lane,
-          verdict: verdictForDriverResult(result),
-          result: result,
-          behaviors: laneRows.map((r) => r.id).toList(),
-          counts: counts,
-          stoppedAt: stoppedAt,
-        );
-      } on FileSystemException {
-        // The receipt is a record, never a gate for the driving that
-        // already happened: a failed write is reported, not fatal.
-        stderr.writeln(
-          'zfa tdd: failed to write the $lane receipt at '
-          '${receipts.receiptPath(lane)}',
-        );
+      // Issue #1828: a conformance-mode skin receipt (`schema: skin.v1`)
+      // must never be overwritten by a lane-mode run — the lane schema
+      // is lossy (no platform_slot_fills / hand_edits / digest). When
+      // such a receipt is already on disk, leave it untouched.
+      //
+      // Note: the skip is unconditional with respect to `result` — even
+      // a failing direct `RunDriverCore.drive(lane: 'skin')` on a
+      // conformance feature leaves `04-skin-receipt.json` untouched (it
+      // stays green). The journal (`tdd/cycle-log.md` / run-state) is
+      // the source of truth for failures on conformance features; only
+      // successful runs would otherwise justify clobbering the
+      // conformance evidence, and a failed run must never destroy it.
+      var writeLaneReceipt = true;
+      if (lane == 'skin') {
+        try {
+          final existing = await receipts.read('skin');
+          if (existing != null && existing['schema'] == 'skin.v1') {
+            writeLaneReceipt = false;
+          }
+        } on LaneReceiptException {
+          // Unreadable/corrupt receipt: fall through to the normal write.
+          writeLaneReceipt = true;
+        }
+      }
+      if (writeLaneReceipt) {
+        // The lane receipt: written on every driving run (complete ->
+        // green, stopped -> red, runner-error -> error); a pre-driving
+        // misfire wrote nothing (this outcome is always post-driving).
+        try {
+          await receipts.write(
+            lane: lane,
+            verdict: verdictForDriverResult(result),
+            result: result,
+            behaviors: laneRows.map((r) => r.id).toList(),
+            counts: counts,
+            stoppedAt: stoppedAt,
+          );
+        } on FileSystemException {
+          // The receipt is a record, never a gate for the driving that
+          // already happened: a failed write is reported, not fatal.
+          stderr.writeln(
+            'zfa tdd: failed to write the $lane receipt at '
+            '${receipts.receiptPath(lane)}',
+          );
+        }
       }
 
       // Spec 1113 (issue #1113): every lane cycle ALSO appends its

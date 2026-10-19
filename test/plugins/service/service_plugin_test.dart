@@ -203,6 +203,27 @@ void main() {
   );
 
   test('correctly generates relative entity imports in usecase', () async {
+    // The usecase generator resolves its service method from the service
+    // interface (#1799), so the interface must exist first.
+    final servicePlugin = ServicePlugin(
+      outputDir: outputDir,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: false,
+        verbose: false,
+      ),
+    );
+    await servicePlugin.generate(
+      GeneratorConfig(
+        name: 'GetListingByBarcode',
+        service: 'Listing',
+        domain: 'listing',
+        paramsType: 'Barcode',
+        returnsType: 'BarcodeListing?',
+        outputDir: outputDir,
+      ),
+    );
+
     final plugin = UseCasePlugin(
       outputDir: outputDir,
       options: const GeneratorOptions(

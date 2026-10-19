@@ -15,6 +15,7 @@ class KnownTypes {
     'String',
     'void',
     'dynamic',
+    'num',
   ];
 
   /// Dart collection types
@@ -72,6 +73,16 @@ class KnownTypes {
   /// Check if a type name is a Zuraffa parameter type
   static bool isZuraffaParam(String typeName) {
     return zuraffaParams.contains(typeName);
+  }
+
+  /// Check if a type name is a Zuraffa result/failure type
+  static bool isZuraffaResult(String typeName) {
+    return zuraffaResults.contains(typeName);
+  }
+
+  /// Check if a type name is a Zorphy framework type
+  static bool isZorphyType(String typeName) {
+    return zorphyTypes.contains(typeName);
   }
 
   /// Check if a type name is a Dart primitive type
