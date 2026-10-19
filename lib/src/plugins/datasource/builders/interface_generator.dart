@@ -52,7 +52,7 @@ class DataSourceInterfaceBuilder {
 
     final methods = <Method>[];
 
-    if (config.isCustomUseCase && config.appendToExisting) {
+    if (config.isCustomUseCase) {
       final methodName = config.getRepoMethodName();
       var returnType = config.returnsType ?? 'void';
       final paramsType = config.paramsType ?? 'NoParams';
@@ -334,8 +334,11 @@ class DataSourceInterfaceBuilder {
             ),
           ))
         ...EntityUtils.barrelHideNames(entityName),
-      if (config.isCustomUseCase && config.returnsType != null)
+      if (config.returnsType != null && config.returnsType!.isNotEmpty)
         for (final type in EntityUtils.extractEntityTypes(config.returnsType!))
+          ...EntityUtils.barrelHideNames(type),
+      if (config.paramsType != null && config.paramsType!.isNotEmpty)
+        for (final type in EntityUtils.extractEntityTypes(config.paramsType!))
           ...EntityUtils.barrelHideNames(type),
     }.toList();
 
@@ -359,13 +362,44 @@ class DataSourceInterfaceBuilder {
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),
-      if (config.isCustomUseCase && config.returnsType != null)
-        ...EntityUtils.extractEntityTypes(config.returnsType!).map((type) {
-          final snake = StringUtils.camelToSnake(type);
-          return Directive.import(
-            '../../../domain/entities/$snake/$snake.dart',
-          );
-        }),
+      if (config.returnsType != null && config.returnsType!.isNotEmpty)
+        ...EntityUtils.extractEntityTypes(config.returnsType!)
+            .where(
+              (type) => fileSystem.existsSync(
+                path.join(
+                  outputDir,
+                  'domain',
+                  'entities',
+                  StringUtils.camelToSnake(type),
+                  '${StringUtils.camelToSnake(type)}.dart',
+                ),
+              ),
+            )
+            .map((type) {
+              final snake = StringUtils.camelToSnake(type);
+              return Directive.import(
+                '../../../domain/entities/$snake/$snake.dart',
+              );
+            }),
+      if (config.paramsType != null && config.paramsType!.isNotEmpty)
+        ...EntityUtils.extractEntityTypes(config.paramsType!)
+            .where(
+              (type) => fileSystem.existsSync(
+                path.join(
+                  outputDir,
+                  'domain',
+                  'entities',
+                  StringUtils.camelToSnake(type),
+                  '${StringUtils.camelToSnake(type)}.dart',
+                ),
+              ),
+            )
+            .map((type) {
+              final snake = StringUtils.camelToSnake(type);
+              return Directive.import(
+                '../../../domain/entities/$snake/$snake.dart',
+              );
+            }),
     ];
     final clazz = Class(
       (c) => c
