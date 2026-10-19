@@ -99,6 +99,19 @@ class CreateServiceCapability implements ZuraffaCapability {
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {
+    final validationError = _validateServiceTypes(args);
+    if (validationError != null) {
+      return EffectReport(
+        planId: 'plan_${DateTime.now().millisecondsSinceEpoch}',
+        pluginId: plugin.id,
+        capabilityName: name,
+        args: args,
+        changes: const <Effect>[],
+        isValid: false,
+        message: validationError,
+      );
+    }
+
     final files = await _generateFiles(args, dryRun: true);
 
     return EffectReport(
@@ -315,7 +328,8 @@ class CreateServiceCapability implements ZuraffaCapability {
     final name = args['name']?.toString() ?? '';
     final paramsType = args['params']?.toString() ?? 'NoParams';
     final returnsType = args['returns']?.toString() ?? 'void';
-    final allowForwardRefs = args['allowForwardRefs'] == true;
+    final allowForwardRefs = args['allowForwardRefs'] == true ||
+        args['allow-forward-refs'] == true;
     final outputDir = plugin.outputDir;
     final root = projectRoot ?? Directory.current.path;
 
@@ -325,12 +339,31 @@ class CreateServiceCapability implements ZuraffaCapability {
     }
     if (types.isEmpty) return null;
 
+    // Issue #1794 review (robustness): refuse non-identifier types before
+    // they reach the filesystem probe.
+    for (final type in types) {
+      if (!_isValidServiceTypeIdentifier(type)) {
+        return 'Cannot create service "$name": type "$type" is not a valid '
+            'Dart identifier.\n'
+            '--> fix: use a plain PascalCase type name (e.g. `MyParams`), '
+            'or pass --allow-forward-refs to accept a forward reference.';
+      }
+    }
+
     final surface = FrameworkExportSurface.tryResolve(projectRoot: root);
+    if (surface == null) {
+      stderr.writeln(
+        'note: framework export surface unresolved; collision check '
+        'skipped (fail-open).',
+      );
+    }
     for (final type in types) {
       final collisionSource = surface?.lookup(type);
       if (collisionSource != null) {
         return 'Cannot create service "$name": type "$type" collides with '
-            'the zuraffa framework export "$type" ($collisionSource).';
+            'the zuraffa framework export "$type" ($collisionSource).\n'
+            '--> fix: rename the type, e.g. `${type}Entity` — and the '
+            'service params/returns that reference it.';
       }
     }
     if (allowForwardRefs) return null;
@@ -344,11 +377,16 @@ class CreateServiceCapability implements ZuraffaCapability {
       final exists = candidates.any((c) => File(c).existsSync());
       if (!exists) {
         return 'Cannot create service "$name": type "$type" could not be '
-            'resolved — no matching entity or enum found under $outputDir.';
+            'resolved — no matching entity or enum found under $outputDir.\n'
+            '--> fix: create the entity/enum first, or pass '
+            '--allow-forward-refs to accept a forward reference.';
       }
     }
     return null;
   }
+
+  static bool _isValidServiceTypeIdentifier(String type) =>
+      RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(type);
 
   Future<List<GeneratedFile>> _generateFiles(
     Map<String, dynamic> args, {

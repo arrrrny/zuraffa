@@ -682,7 +682,26 @@ class ServiceCreateCommand extends Command<void> {
     }
     if (types.isEmpty) return null;
 
+    // Issue #1794 review (robustness): refuse types that are not valid
+    // Dart identifiers before they reach the filesystem probe —
+    // `StringUtils.camelToSnake` preserves path separators, so a crafted
+    // value could otherwise traverse outside `domain/entities`.
+    for (final type in types) {
+      if (!_isValidServiceTypeIdentifier(type)) {
+        return 'Cannot create service "$entityName": type "$type" is not a '
+            'valid Dart identifier.\n'
+            '--> fix: use a plain PascalCase type name (e.g. `MyParams`), '
+            'or pass --allow-forward-refs for a forward reference.';
+      }
+    }
+
     final surface = FrameworkExportSurface.tryResolve(projectRoot: root);
+    if (surface == null) {
+      stderr.writeln(
+        'note: framework export surface unresolved; collision check '
+        'skipped (fail-open).',
+      );
+    }
 
     // 1. Framework-export collision — always refused (no forward-ref
     //    opt-out), mirroring the entity-name collision guard (#942).
@@ -713,7 +732,11 @@ class ServiceCreateCommand extends Command<void> {
     return null;
   }
 
+  static bool _isValidServiceTypeIdentifier(String type) =>
+      RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(type);
+
   static bool _serviceTypeExists(String type, String outputDir) {
+    if (!_isValidServiceTypeIdentifier(type)) return false;
     final snake = StringUtils.camelToSnake(type);
     final candidates = <String>[
       p.join(outputDir, 'domain', 'entities', snake, '$snake.dart'),
@@ -736,6 +759,7 @@ class ServiceCreateCommand extends Command<void> {
       types.addAll(EntityUtils.extractEntityTypes(t));
     }
     for (final type in types) {
+      if (!_isValidServiceTypeIdentifier(type)) return false;
       if (!_serviceTypeExists(type, outputDir)) return false;
     }
     return true;
