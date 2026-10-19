@@ -86,6 +86,15 @@
 /// named in the output and the evidence entry instead of silently
 /// claiming green.
 ///
+/// Issue #1918 — the scope reaches the refactor. `--baseline-scope <dir>`
+/// appends the same project-relative path the driving `zfa tdd run`
+/// captured its baseline with to the profile's `suite:` template, so the
+/// preflight AND the re-proof grade the scoped suite instead of sweeping
+/// the whole tree. The scoped command is what the pass-batch /
+/// make-post-state ledger keys record, so a scoped proof is never
+/// inherited by an unscoped run (or vice versa). Without the flag the
+/// full-suite template applies unchanged.
+///
 /// Rejections and misfires are signaled through dart:io `exitCode` (which
 /// [CliRunner] honors) rather than by throwing, so the summary line stays
 /// the final stdout line.
@@ -119,6 +128,7 @@ import '../services/tree_snapshot.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
 import '../tdd_plugin.dart';
+import '../../../cli/exit_protocol.dart';
 import '../../../core/project/project_root.dart';
 
 class RefactorCommand extends Command<void> {
@@ -169,6 +179,18 @@ class RefactorCommand extends Command<void> {
           'files cannot block the run\'s done transition. Without it the '
           'absolute-green contract applies (spec 048 FR-001). A missing or '
           'corrupt cache falls back to the absolute-green contract safely.',
+    );
+    argParser.addOption(
+      'baseline-scope',
+      valueHelp: 'dir',
+      help:
+          'Project-relative directory the preflight and re-proof suites are '
+          'scoped to (issue #1918). The driving `zfa tdd run '
+          '--baseline-scope <dir>` hands the same scope here, so the '
+          'refactor grades the tree with the command its baseline was '
+          'captured with instead of the profile\'s full-suite template — '
+          'the flag exists to cut that sweep, not only the capture. '
+          'Without it the full-suite template applies.',
     );
     argParser.addMultiOption(
       'parked-seam',
@@ -324,6 +346,29 @@ class RefactorCommand extends Command<void> {
       return;
     }
 
+    // Issue #1918: the driving `zfa tdd run --baseline-scope <dir>` hands
+    // its scope down. Validate it the same way `run` does — a directory
+    // RELATIVE to the project root — before any suite is spawned.
+    final baselineScope = argResults?['baseline-scope'] as String?;
+    if (baselineScope != null && baselineScope.trim().isNotEmpty) {
+      final scopeNorm = p.normalize(baselineScope.trim());
+      if (p.isAbsolute(scopeNorm) ||
+          scopeNorm == '..' ||
+          scopeNorm.startsWith('../')) {
+        print(
+          'zfa tdd refactor: --baseline-scope must be a directory relative '
+          'to the project root (got "$baselineScope")',
+        );
+        _printSummary(
+          feature: featureFlag ?? 'unknown',
+          outcome: RefactorOutcome.runnerError,
+          applied: 0,
+        );
+        exitCode = ExitProtocol.usage;
+        return;
+      }
+    }
+
     // Spec 1520: ONE scratch dir per invocation. Every child of a refactor
     // cycle — the preflight/re-proof suite runs AND the pass registry's
     // spawns (build/format/fix) — inherits the scratch as its TMPDIR, so
@@ -346,6 +391,7 @@ class RefactorCommand extends Command<void> {
         timeout: timeoutOverride,
         fullReproof: argResults?['full-reproof'] as bool? ?? false,
         suiteBaselinePath: argResults?['suite-baseline'] as String?,
+        baselineScope: baselineScope?.trim(),
         parkedSeams: (argResults?['parked-seam'] as List<String>? ?? const [])
             .where((s) => s.trim().isNotEmpty)
             .map((s) => p.normalize(s.trim()).replaceAll(r'\', '/'))
@@ -403,6 +449,7 @@ class RefactorCommand extends Command<void> {
     Duration? timeout,
     bool fullReproof = false,
     String? suiteBaselinePath,
+    String? baselineScope,
     Set<String> parkedSeams = const {},
     Set<String> parkedFailures = const {},
     Map<String, String>? scratchEnv,
@@ -482,6 +529,20 @@ class RefactorCommand extends Command<void> {
         _printSummary(feature: featureName, outcome: outcome, applied: 0);
         exitCode = 1;
         return;
+      }
+
+      // Issue #1918: the scope rides the suite template for the WHOLE
+      // cycle — preflight, re-proof, the pass-batch / make-post-state
+      // gate keys and the cycle-log command all name the command the
+      // driving run captured its baseline with. A scoped proof is
+      // therefore never inherited by an unscoped run (or vice versa):
+      // the ledger compares the same scoped string it recorded.
+      if (baselineScope != null && baselineScope.isNotEmpty) {
+        suiteTemplate = '$suiteTemplate $baselineScope';
+        print(
+          'zfa tdd refactor: suite scoped by --baseline-scope '
+          '(issue #1918): $suiteTemplate',
+        );
       }
 
       // Issue #1588: resolve the exempt behaviors' registered test paths

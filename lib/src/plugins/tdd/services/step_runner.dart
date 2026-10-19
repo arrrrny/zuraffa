@@ -352,6 +352,7 @@ class StepRunner {
     required String feature,
     required String projectRoot,
     String? suiteBaselinePath,
+    String? baselineScope,
     Set<String> parkedSeamPaths = const {},
     Set<String> parkedFailureIdentifiers = const {},
     List<String> extraArgs = const [],
@@ -384,6 +385,18 @@ class StepRunner {
         suiteBaselinePath != null &&
         suiteBaselinePath.isNotEmpty) {
       argv.addAll(['--suite-baseline', suiteBaselinePath]);
+    }
+    // Issue #1918: the driving run's `--baseline-scope <dir>` must reach
+    // the refactor child too. Without it the child resolved the profile's
+    // full-suite template for its preflight/re-proof, so scoping the
+    // baseline saved the capture but not the phase-2 sweep that dominates
+    // the run's wall time. Refactor-only: make grades through the cached
+    // `--suite-baseline` snapshot, and the flag exists to scope the suite
+    // the refactor itself re-runs.
+    if (step == 'refactor' &&
+        baselineScope != null &&
+        baselineScope.isNotEmpty) {
+      argv.addAll(['--baseline-scope', baselineScope]);
     }
     // Issue #1589: hand the parked contracts' seam files to refactor
     // spawns — the gate tolerates suite failures inside those files (the
