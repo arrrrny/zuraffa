@@ -65,7 +65,7 @@ void main() {
     test('catalog without --target is a usage error', () async {
       final out = await catalog([]);
       expect(out, contains('target'));
-      expect(exitCode, 2);
+      expect(CliRunner.lastDispatchedExitCode, 2);
     });
   });
 
@@ -81,7 +81,7 @@ void main() {
       final out = await catalog(['--target', CorpusWalkFixture.target]);
       expect(out, contains('[corpus] auth-engine -> CORE'));
       expect(out, contains('[corpus] login-screen -> SKIN'));
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     });
 
     test('the machine summary line counts core/skin and reports ok', () async {
@@ -192,7 +192,7 @@ void main() {
       final out = await catalog(['--target', CorpusWalkFixture.target]);
       expect(out, contains('corpus catalog'));
       expect(out, contains('import'));
-      expect(exitCode, 2);
+      expect(CliRunner.lastDispatchedExitCode, 2);
     });
 
     test(
@@ -218,7 +218,7 @@ void main() {
         ]);
         expect(out, contains('[corpus] auth-engine -> CORE'));
         expect(out, contains('[corpus] login-screen -> SKIN'));
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final json = fx.readJsonMap(fx.catalogPath);
         expect(json['source'], 'source');
       },
@@ -272,7 +272,7 @@ void main() {
       final out = await catalog(['--target', CorpusWalkFixture.target]);
       expect(out, contains('ghost-feature'));
       expect(out, contains('--> fix'));
-      expect(exitCode, 2);
+      expect(CliRunner.lastDispatchedExitCode, 2);
     });
   });
 }

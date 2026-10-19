@@ -13,6 +13,7 @@ import '../../../utils/string_utils.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/entity_utils.dart';
 import '../../../utils/method_extractor.dart';
+import '../../../utils/project_flavor.dart';
 import '../../../models/parsed_usecase_info.dart';
 import 'mock_type_helper.dart';
 
@@ -123,9 +124,13 @@ class MockProviderBuilder {
     }
 
     addImport('dart:async');
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final mockImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/mock.dart';
     // Canonical zuraffa-native mock marker: detects native mocking for static
     // tooling (e.g. speckit-tdd-setup) without a third-party double library.
-    addImport('package:zuraffa/mock.dart');
+    addImport(mockImport);
     addImport(serviceImport);
 
     final isStandardEntityMock = config.methods.isNotEmpty;
@@ -491,6 +496,11 @@ class MockProviderBuilder {
         final methodName = info.fieldName;
         final returns = info.returnsType ?? 'void';
         final params = info.paramsType ?? 'NoParams';
+        // Issue #1851: a declared method with no parameters must stay
+        // parameter-less. `NoParams params` is a mock-datasource
+        // convention, not something to graft onto a declared service
+        // method. Gate on the interface's actual parameter count.
+        final hasParams = info.parameterCount > 0;
         final type = info.useCaseType ?? 'usecase';
 
         final baseReturns = returns.replaceAll('?', '');
@@ -545,19 +555,30 @@ class MockProviderBuilder {
               ..annotations.add(refer('override'))
               ..returns = refer(returnType)
               ..modifier = isStream ? null : MethodModifier.async
-              ..requiredParameters.add(
-                Parameter(
-                  (p) => p
-                    ..name = 'params'
-                    ..type = refer(params),
-                ),
+              ..requiredParameters.addAll(
+                hasParams
+                    ? [
+                        Parameter(
+                          (p) => p
+                            ..name = 'params'
+                            ..type = refer(params),
+                        ),
+                      ]
+                    : const <Parameter>[],
               )
               ..body = Block(
                 (b) => b
                   ..statements.addAll([
-                    refer('logger').property('info').call([
-                      literalString('$methodName called with params: \$params'),
-                    ]).statement,
+                    if (hasParams)
+                      refer('logger').property('info').call([
+                        literalString(
+                          '$methodName called with params: \$params',
+                        ),
+                      ]).statement
+                    else
+                      refer('logger').property('info').call([
+                        literalString('$methodName called'),
+                      ]).statement,
                     if (isStream) ...[
                       refer('Stream')
                           .property('fromFuture')

@@ -93,7 +93,7 @@ abstract class \$User {}
 
     final out = await runWire();
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     expect(
       out,
       contains('wire: behavior=B-001 outcome=wired feature=${fx.featureName}'),
@@ -122,7 +122,7 @@ int subject_b_001() => 42;
 
     final out = await runWire();
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     expect(
       out,
       contains(
@@ -149,7 +149,7 @@ int subject_b_001() => 42;
 
     final out = await runWire();
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('missing subject file'));
     expect(out, contains('zfa tdd gen B-001'));
     expect(
@@ -187,7 +187,7 @@ int subject_b_001() => 42;
         'User',
       ]);
 
-      expect(exitCode, isNot(0), reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out: $out');
       expect(out, contains('runner-error'));
       expect(out, contains('missing subject file'));
       expect(out, contains('zfa tdd gen B-001'));
@@ -216,7 +216,7 @@ int subject_b_001() => 42;
 
     final out = await runWire();
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('no generated entity "User" found'));
     expect(out, contains('zfa entity create -n User'));
     expect(
@@ -246,7 +246,7 @@ class Weird {
 
     final out = await runWire();
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('unrecognized shape'));
     // The unrecognized file is untouched.
     final subject = await File(fx.subjectPathOf('B-001')).readAsString();
@@ -263,7 +263,7 @@ class Weird {
 
     final out = await runWire(entity: null);
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('--entity <Name> is required'));
     expect(
       out,
@@ -291,7 +291,7 @@ class Weird {
 
       final out = await runWire();
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('points outside the project root'));
       expect(
         out,
@@ -338,7 +338,7 @@ String subject_b_001() {
 
       final out = await runWire();
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(
         out,
         contains(
@@ -370,7 +370,7 @@ class Weird {
 
       final out = await runWire();
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('unrecognized shape'));
       final subject = await File(fx.subjectPathOf('B-001')).readAsString();
       expect(subject, contains('class Weird'));
@@ -387,7 +387,7 @@ class Weird {
 
       final out = await runWire(id: 'B-002');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('B-002')).readAsString();
       expect(subject, contains('String subject_b_002() {'));
       expect(subject, contains('final Type wiredEntityAnchor = User;'));
@@ -407,7 +407,7 @@ class Weird {
 
       final out = await runWire(id: 'B-003');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('B-003')).readAsString();
       expect(subject, contains('int subject_b_003() {'));
       expect(subject, contains('return -1;'));
@@ -426,7 +426,7 @@ class Weird {
 
       final out = await runWire(id: 'B-004');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('B-004')).readAsString();
       expect(subject, contains('double subject_b_004() {'));
       expect(subject, contains('return 1.5;'));
@@ -446,7 +446,7 @@ class Weird {
 
         final out = await runWire(id: 'B-005');
 
-        expect(exitCode, 0, reason: 'out: $out');
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
         final subject = await File(fx.subjectPathOf('B-005')).readAsString();
         expect(subject, contains('String subject_b_005() {'));
       },
@@ -466,7 +466,7 @@ class Weird {
 
         final out = await runWire(id: 'B-006');
 
-        expect(exitCode, 0, reason: 'out: $out');
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
         final subject = await File(fx.subjectPathOf('B-006')).readAsString();
         // forWire: true with no recognized type hint → stays int with `return 0;`
         expect(subject, contains('int subject_b_006() {'));

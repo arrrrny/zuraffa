@@ -234,7 +234,7 @@ void main() {
       );
       final runner = CliRunner(exitOnCompletion: false);
       final redOut = await runner.runCapturing(verifyRedArgs(fx, id));
-      expect(exitCode, 0, reason: redOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
       final stubHash = await subjectHashOf(fx, id);
       await seedGreenEvidenceWithHash(fx, id, stubHash);
 
@@ -243,7 +243,7 @@ void main() {
       // reset's own contract (spec 1331 SC-1); the re-drive re-creates
       // them either way.
       final resetOut = await runner.runCapturing(resetArgs(fx, feature));
-      expect(exitCode, 0, reason: resetOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: resetOut);
       expect(
         await File(p.join(fx.featureDir, 'tdd', 'journal.json')).readAsString(),
         contains('"phase": "reset"'),
@@ -262,7 +262,7 @@ void main() {
       // green hash never matches the re-driven subject); post-fix the
       // tombstoned re-drive class ADOPTS.
       final out = await runner.runCapturing(makeArgs(fx, id: id));
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('outcome=adopted'), reason: out);
       expect(out, contains('issue #1331'), reason: out);
 
@@ -312,7 +312,7 @@ void main() {
         fx.fakeZfaBin,
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('result=complete'), reason: out);
       expect(fx.stepInvocations(), [
         'gen U-001',
@@ -359,7 +359,7 @@ void main() {
         fx.fakeZfaBin,
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('result=complete'), reason: out);
       expect(out, contains('make -> green (adopted)'), reason: out);
       // The driver recorded the green evidence the child skipped.
@@ -389,13 +389,13 @@ void main() {
       );
       final runner = CliRunner(exitOnCompletion: false);
       final redOut = await runner.runCapturing(verifyRedArgs(fx, id));
-      expect(exitCode, 0, reason: redOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
 
       // Reset (tombstones A1), then a POST-reset certification on a
       // DIFFERENT subject shape — the surviving green evidence now
       // POSTDATES the tombstone and is authoritative again.
       final resetOut = await runner.runCapturing(resetArgs(fx, feature));
-      expect(exitCode, 0, reason: resetOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: resetOut);
       final postResetHash =
           'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
       await seedGreenEvidenceWithHash(
@@ -415,7 +415,7 @@ void main() {
 
       final out = await runner.runCapturing(makeArgs(fx, id: id));
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         isNot(0),
         reason:
             'the post-reset green evidence '
@@ -439,7 +439,7 @@ void main() {
       );
       final runner = CliRunner(exitOnCompletion: false);
       final redOut = await runner.runCapturing(verifyRedArgs(fx, id));
-      expect(exitCode, 0, reason: redOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
       final stubHash = await subjectHashOf(fx, id);
       await seedGreenEvidenceWithHash(fx, id, stubHash);
       // NO reset: the stale-green hash is authoritative.
@@ -448,7 +448,7 @@ void main() {
       await seedRegistry(fx, feature, [recordOf(fx, feature, id, desc)]);
 
       final out = await runner.runCapturing(makeArgs(fx, id: id));
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=subject-drift'), reason: out);
     });
 
@@ -467,7 +467,7 @@ void main() {
       );
       final runner = CliRunner(exitOnCompletion: false);
       final redOut = await runner.runCapturing(verifyRedArgs(fx, id));
-      expect(exitCode, 0, reason: redOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
 
       // The failed-make rewrite class: a non-throwing placeholder body
       // (born-green) — no tombstone, no re-drive: the refusal stands.
@@ -478,7 +478,7 @@ int a2_value() => 0;
 ''');
 
       final out = await runner.runCapturing(makeArgs(fx, id: id));
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('--> fix:'), reason: out);
       expect(out, contains('--re-certify'), reason: out);
       final cycleLog = await File(fx.cycleLogPath).readAsString();
@@ -503,11 +503,11 @@ int a2_value() => 0;
       await fx.seedRunState(states: {'U-001': 'done', 'U-002': 'done'});
       final runner = CliRunner(exitOnCompletion: false);
       final resetOut = await runner.runCapturing(resetArgs(fx, feature));
-      expect(exitCode, 0, reason: resetOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: resetOut);
 
       final out = await runner.runCapturing(doctorArgs(fx, feature));
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('evidence-without-artifact'), reason: out);
       expect(out, contains('zfa tdd run $feature'), reason: out);
       // The prescription names the re-drive adoption mechanics — the
@@ -551,10 +551,10 @@ int a2_value() => 0;
       final runner = CliRunner(exitOnCompletion: false);
 
       await runner.runCapturing(resetArgs(fx, feature));
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
 
       final doctor1 = await runner.runCapturing(doctorArgs(fx, feature));
-      expect(exitCode, 1, reason: doctor1);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: doctor1);
       expect(doctor1, contains('evidence-without-artifact'), reason: doctor1);
 
       final runOut = await runner.runCapturing([
@@ -566,11 +566,11 @@ int a2_value() => 0;
         '--zfa-bin',
         fx.fakeZfaBin,
       ]);
-      expect(exitCode, 0, reason: runOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: runOut);
       expect(runOut, contains('result=complete'), reason: runOut);
 
       final doctor2 = await runner.runCapturing(doctorArgs(fx, feature));
-      expect(exitCode, 0, reason: doctor2);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: doctor2);
       final v = envelope(doctor2);
       expect(v['verdict'], 'healthy', reason: doctor2);
     });

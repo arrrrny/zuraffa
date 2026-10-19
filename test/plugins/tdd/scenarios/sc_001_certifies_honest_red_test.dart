@@ -52,7 +52,7 @@ void main() {
           'certified=true feature=046-tdd-verify-red',
         ),
       );
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, contains('## Cycle: B-001 (red)'));
       expect(log, contains('- classification: assertionFailure'));

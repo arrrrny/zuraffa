@@ -77,7 +77,7 @@ void main() {
       expect(out, isNot(contains('classification=unresolved')));
       expect(out.toLowerCase(), contains('tdd-profile.md'));
       expect(out, contains('zfa tdd init'));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       // No evidence appended; no test/ or lib/ writes (FR-008 preserved —
       // verify-red must NOT auto-init).
       expect(File(fx.cycleLogPath).existsSync(), isFalse);
@@ -150,7 +150,7 @@ void main() {
             'the batch refusal names the probed profile path, like the '
             'single lane does',
       );
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(File(fx.cycleLogPath).existsSync(), isFalse);
     });
 
@@ -168,7 +168,7 @@ void main() {
           '--all',
         ]);
         expect(out, contains('classification=batch'));
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
       } finally {
         empty.dispose();
       }
@@ -196,7 +196,7 @@ void main() {
             'certified=false',
           ),
         );
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
       } finally {
         fx2.dispose();
       }
@@ -317,7 +317,7 @@ void main() {
           contains('run: feature=090-fresh-run result=setup-error'),
           reason: 'out:\n$out',
         );
-        expect(exitCode, 1);
+        expect(CliRunner.lastDispatchedExitCode, 1);
         expect(
           File(
             p.join(fx.root.path, '.specify', 'memory', 'tdd-profile.md'),
@@ -357,7 +357,7 @@ void main() {
           (envelope['details'] as Map<String, dynamic>)['classification'],
           'setup-error',
         );
-        expect(exitCode, 1);
+        expect(CliRunner.lastDispatchedExitCode, 1);
       },
       timeout: const Timeout(Duration(minutes: 4)),
     );
@@ -400,7 +400,7 @@ void main() {
           reason: 'the gen entry recreated the profile\n$out',
         );
         expect(out, contains('zfa tdd gen: preflight'));
-        expect(exitCode, 0, reason: 'out:\n$out');
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       },
       timeout: const Timeout(Duration(minutes: 4)),
     );
@@ -424,7 +424,7 @@ void main() {
           'B-001',
         ]);
 
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
         final last = out.trim().split('\n').last;
         final envelope = jsonDecode(last) as Map<String, dynamic>;
         expect(envelope['command'], 'gen');
@@ -451,7 +451,11 @@ void main() {
           'B-001',
         ]);
 
-        expect(exitCode, isNot(0), reason: 'out:\n$out');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          isNot(0),
+          reason: 'out:\n$out',
+        );
         expect(out, contains('setup-error'));
         expect(out, contains('zfa tdd init'));
         expect(
@@ -488,7 +492,7 @@ void main() {
         ]);
 
         expect(out, contains('unknown behavior id'));
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
         expect(
           File(
             p.join(fx.root.path, '.specify', 'memory', 'tdd-profile.md'),
@@ -528,7 +532,11 @@ void main() {
           p.join(fx.root.path, '.specify', 'memory', 'tdd-profile.md'),
         ).readAsStringSync();
         expect(after, before, reason: 'the profile was not touched');
-        expect(exitCode, 0, reason: 'the honest red certifies as before');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'the honest red certifies as before',
+        );
       } finally {
         fx.dispose();
       }

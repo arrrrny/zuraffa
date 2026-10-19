@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/core/verdict_envelope.dart';
 import 'package:zuraffa/src/zfa_cli.dart' as cli;
 
@@ -27,6 +28,20 @@ void main() {
     workspace = await Directory.systemTemp.createTemp('zfa_service_json_');
     outputDir = p.join(workspace.path, 'lib', 'src');
     await Directory(outputDir).create(recursive: true);
+    // Issue #1794: --params/--returns types must resolve on disk for
+    // conformance to be certified. Provide minimal entity stubs so the
+    // success path exercises the conformance proof.
+    for (final entity in ['EmailParams', 'SendResult']) {
+      final snake = entity
+          .replaceAllMapped(RegExp(r'[A-Z]'), (m) => '_${m.group(0)}')
+          .toLowerCase()
+          .substring(1);
+      final dir = Directory(p.join(outputDir, 'domain', 'entities', snake));
+      await dir.create(recursive: true);
+      await File(
+        p.join(dir.path, '$snake.dart'),
+      ).writeAsString('class $entity {}\n');
+    }
     await File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
 name: zuraffa_service_json_test
 environment:
@@ -142,7 +157,11 @@ environment:
         contains('Future<SendResult> sendEmail(EmailParams params);'),
       );
 
-      expect(exitCode, equals(0), reason: 'verdict pass must exit 0');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        equals(0),
+        reason: 'verdict pass must exit 0',
+      );
     });
 
     test(
@@ -157,6 +176,7 @@ environment:
           'NoParams',
           '--returns',
           'Barcode',
+          '--allow-forward-refs',
           '--json',
         ]);
 
@@ -196,7 +216,7 @@ environment:
         expect(output, contains('--> fix:'));
         expect(output, isNot(contains('✅ Success!')));
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           equals(2),
           reason: 'usage error family (missing name) — SPEC 917 canonical 2',
         );
@@ -214,6 +234,7 @@ environment:
         'NoParams',
         '--returns',
         'Invoice',
+        '--allow-forward-refs',
       ]);
 
       // Second run without --force: every file is skipped.
@@ -225,6 +246,7 @@ environment:
         'NoParams',
         '--returns',
         'Invoice',
+        '--allow-forward-refs',
         '--json',
       ]);
 
@@ -240,7 +262,7 @@ environment:
             'canonical top-level fix slot',
       );
       expect(output, contains('--> fix:'));
-      expect(exitCode, equals(1));
+      expect(CliRunner.lastDispatchedExitCode, equals(1));
     });
 
     test('prose mode (no --json) is unchanged: ✅ Success framing', () async {
@@ -251,6 +273,7 @@ environment:
         'Sync',
         '--params',
         'SyncParams',
+        '--allow-forward-refs',
       ]);
 
       expect(output, contains('✅ Success! Created/Modified:'));
@@ -258,7 +281,7 @@ environment:
         output,
         contains(p.join('domain', 'services', 'sync_service.dart')),
       );
-      expect(exitCode, equals(0));
+      expect(CliRunner.lastDispatchedExitCode, equals(0));
     });
 
     test('--json with JSON-input payload still accepted for compatibility '
@@ -277,6 +300,7 @@ environment:
         'NoParams',
         '--returns',
         'Legacy',
+        '--allow-forward-refs',
         '--json',
       ]);
 

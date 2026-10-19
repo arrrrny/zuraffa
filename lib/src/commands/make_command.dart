@@ -591,7 +591,8 @@ class MakeCommand extends Command<void> {
     if (rest.isEmpty && jsonConfig == null) {
       print('❌ Usage: zfa make <Name> <plugin1> <plugin2> ... [options]');
       print('Example: zfa make User route di');
-      exit(1);
+      exitCode = 1;
+      return;
     }
 
     // ── Spec 1002: the `engine` mode token ────────────────────────────
@@ -634,7 +635,8 @@ class MakeCommand extends Command<void> {
               : (jsonConfig?['name']?.toString() ?? ''));
     if (entityName.isEmpty) {
       print('❌ Missing required feature/entity name.');
-      exit(1);
+      exitCode = 1;
+      return;
     }
 
     // ── Spec 030 (FR-004, US2.AC2): a feature disabled via the `features:`
@@ -1206,7 +1208,8 @@ class MakeCommand extends Command<void> {
       if (context.core.verbose) {
         rethrow;
       }
-      exit(1);
+      exitCode = 1;
+      return;
     }
 
     // 5b. Apply Zuraffa branding (spec 053): icons, assets, README.
@@ -1500,7 +1503,8 @@ class MakeCommand extends Command<void> {
       return jsonDecode(await file.readAsString()) as Map<String, dynamic>;
     } catch (e) {
       print('❌ Error parsing JSON input: $e');
-      exit(1);
+      exitCode = 1;
+      return null;
     }
   }
 

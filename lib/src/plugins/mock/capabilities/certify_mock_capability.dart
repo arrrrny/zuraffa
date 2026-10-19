@@ -78,6 +78,14 @@ class CertifyMockCapability implements ZuraffaCapability {
         'description': 'Overwrite existing artifacts',
         'default': false,
       },
+      'service': {
+        'type': 'string',
+        'description': 'Service name for mock provider (service mode)',
+      },
+      'domain': {
+        'type': 'string',
+        'description': 'Domain folder for the mock provider (service mode)',
+      },
     },
     'required': ['name'],
   };
@@ -158,6 +166,8 @@ class CertifyMockCapability implements ZuraffaCapability {
       projectRoot: projectRoot,
       outputDir: p.join(projectRoot, 'lib', 'src'),
       verbose: parsed.verbose,
+      service: parsed.service,
+      domain: parsed.domain,
     );
 
     // Refusal BEFORE the sandbox ran: no mock artifacts / no interface
@@ -172,10 +182,11 @@ class CertifyMockCapability implements ZuraffaCapability {
       return exitNoMock;
     }
 
-    // 2. Commit the contract test + receipt into the project — on BOTH
-    //    outcomes. A red run MUST overwrite any stale green receipt: the
-    //    run-engine gate reads this receipt, and leaving a pre-drift
-    //    green receipt on disk would let an uncertified mock through.
+    // 2. Commit the contract test into the project on BOTH outcomes. A
+    //    red run removes any stale green receipt (see writeContractArtifacts)
+    //    so the run-engine gate cannot keep reading an uncertified mock as
+    //    certified; the contract test itself is always (re)written so the
+    //    drift stays legible.
     final written = await certifier.writeContractArtifacts(
       entityName: name,
       projectRoot: projectRoot,
@@ -292,12 +303,16 @@ class _ParsedArgs {
   final String? fixturesDir;
   final bool force;
   final bool verbose;
+  final String? service;
+  final String? domain;
   const _ParsedArgs({
     this.feature,
     this.project,
     this.fixturesDir,
     this.force = false,
     this.verbose = false,
+    this.service,
+    this.domain,
   });
 }
 
@@ -305,6 +320,8 @@ _ParsedArgs _parseArgs(List<String> rest) {
   String? feature;
   String? project;
   String? fixturesDir;
+  String? service;
+  String? domain;
   var force = false;
   var verbose = false;
   for (var i = 0; i < rest.length; i++) {
@@ -319,6 +336,10 @@ _ParsedArgs _parseArgs(List<String> rest) {
       project = rest[++i];
     } else if (a == '--fixtures-dir' && i + 1 < rest.length) {
       fixturesDir = rest[++i];
+    } else if (a == '--service' && i + 1 < rest.length) {
+      service = rest[++i];
+    } else if (a == '--domain' && i + 1 < rest.length) {
+      domain = rest[++i];
     }
   }
   return _ParsedArgs(
@@ -327,5 +348,7 @@ _ParsedArgs _parseArgs(List<String> rest) {
     fixturesDir: fixturesDir,
     force: force,
     verbose: verbose,
+    service: service,
+    domain: domain,
   );
 }
