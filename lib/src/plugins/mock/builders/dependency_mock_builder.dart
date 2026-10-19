@@ -157,13 +157,58 @@ abstract final class DependencyMockBuilder {
   }
 
   /// Declared parameters → typed parameter list. A bare name is typed
-  /// `String`; `int attempts` keeps its declared type.
+  /// `String`; `int attempts` keeps its declared type. A bare
+  /// non-primitive PascalCase token is treated as a TYPE (agreeing with
+  /// `_entityImports`, which already collects it as one) and rendered as
+  /// `Type type` with a derived lowerCamel parameter name, so the
+  /// emitted entity import is actually used instead of a silent
+  /// `String` parameter (issue #1893).
+  static const Set<String> _primitives = {
+    'String',
+    'int',
+    'double',
+    'num',
+    'bool',
+    'void',
+    'DateTime',
+    'dynamic',
+    'Object',
+    'Map',
+    'List',
+    'Set',
+    'Iterable',
+    'Future',
+    'Stream',
+    'Function',
+  };
+
+  /// Derived parameter name for a declared parameter token — matches
+  /// the name rendered by [_paramList], so the fake's call recorder
+  /// keys arguments consistently (issue #1893).
+  static String _paramName(String raw) {
+    final t = raw.trim();
+    if (t.contains(' ')) return t.split(' ').last;
+    if (RegExp(r'^[A-Z][A-Za-z0-9_]*$').hasMatch(t) &&
+        !_primitives.contains(t)) {
+      return '${t[0].toLowerCase()}${t.substring(1)}';
+    }
+    return t;
+  }
+
   static String _paramList(List<String> parameters) {
     if (parameters.isEmpty) return '';
     return parameters
         .map((p) {
           final t = p.trim();
-          return t.contains(' ') ? t : 'String $t';
+          if (t.contains(' ')) return t;
+          // Bare PascalCase token that resolves as a non-primitive type:
+          // render it as the type with a derived lowerCamel name.
+          if (RegExp(r'^[A-Z][A-Za-z0-9_]*$').hasMatch(t) &&
+              !_primitives.contains(t)) {
+            final name = _paramName(t);
+            return '$t $name';
+          }
+          return 'String $t';
         })
         .join(', ');
   }
@@ -233,9 +278,7 @@ $members
     final impls = c.signatures
         .map((s) {
           final args = _paramList(s.parameters);
-          final argNames = s.parameters
-              .map((p) => p.trim().split(' ').last)
-              .toList();
+          final argNames = s.parameters.map(_paramName).toList();
           final recordArgs = argNames.isEmpty
               ? ''
               : ', arguments: {${argNames.map((a) => "'$a': $a").join(', ')}}';
