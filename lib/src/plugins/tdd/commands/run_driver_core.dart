@@ -1550,6 +1550,14 @@ class RunDriverCore {
       // must never be overwritten by a lane-mode run — the lane schema
       // is lossy (no platform_slot_fills / hand_edits / digest). When
       // such a receipt is already on disk, leave it untouched.
+      //
+      // Note: the skip is unconditional with respect to `result` — even
+      // a failing direct `RunDriverCore.drive(lane: 'skin')` on a
+      // conformance feature leaves `04-skin-receipt.json` untouched (it
+      // stays green). The journal (`tdd/cycle-log.md` / run-state) is
+      // the source of truth for failures on conformance features; only
+      // successful runs would otherwise justify clobbering the
+      // conformance evidence, and a failed run must never destroy it.
       var writeLaneReceipt = true;
       if (lane == 'skin') {
         try {

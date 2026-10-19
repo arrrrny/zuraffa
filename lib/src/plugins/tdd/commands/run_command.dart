@@ -75,8 +75,8 @@ import '../services/kernel_cache.dart';
 import '../services/lane_receipts.dart';
 import '../services/profile_preflight.dart';
 import '../services/routing_provenance_preflight.dart';
-import '../services/spec_parser.dart';
 import '../services/scratch_tmpdir.dart';
+import '../services/spec_parser.dart';
 import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
@@ -810,12 +810,19 @@ class RunCommand extends Command<void> {
     final specFileForConformance = File(p.join(featureDir, 'spec.md'));
     var conformanceMode = false;
     if (await specFileForConformance.exists()) {
-      final declaredLanes = SpecParser().parseLanes(
-        await specFileForConformance.readAsString(),
-      );
-      conformanceMode = declaredLanes
-          .where((l) => l.lane.trim().toUpperCase() == 'SKIN')
-          .any((l) => l.adaptiveSlots.isNotEmpty);
+      // Conformance detection is best-effort: a malformed/unusual spec
+      // must not abort the whole run. Default to legacy lane-mode drive
+      // (conformanceMode = false) on any parse failure.
+      try {
+        final declaredLanes = SpecParser().parseLanes(
+          await specFileForConformance.readAsString(),
+        );
+        conformanceMode = declaredLanes
+            .where((l) => l.lane.trim().toUpperCase() == 'SKIN')
+            .any((l) => l.adaptiveSlots.isNotEmpty);
+      } catch (_) {
+        conformanceMode = false;
+      }
     }
     final RunDriverOutcome skin;
     if (conformanceMode) {
