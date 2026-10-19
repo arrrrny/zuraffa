@@ -288,9 +288,7 @@ class UseCaseCreateCommand extends Command<void> {
             verdict: VerdictKind.fail,
             exitClass: ExitProtocol.failure,
             subject: VerdictSubject(kind: 'usecase', id: entityName),
-            findings: [
-              VerdictFinding(kind: 'generation-failed', fix: msg),
-            ],
+            findings: [VerdictFinding(kind: 'generation-failed', fix: msg)],
             details: {'methods': const <Map<String, dynamic>>[]},
           ),
         );
