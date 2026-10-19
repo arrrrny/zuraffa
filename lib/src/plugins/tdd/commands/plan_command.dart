@@ -3132,10 +3132,32 @@ class PlanCommand extends Command<void> {
       // writes the same engine-side contract rows the Lanes path does.
       for (final b in contractBehaviors) b.id: Lane.core,
     };
+    // Issue #1864 (receipt path): the same presentation-mislane guard
+    // that _resolveLanes applies must also fire when a split receipt
+    // routes an explicitly acceptance-kind scenario to CORE via the
+    // kind heuristic — otherwise the guard is bypassed and the
+    // assertion slips into 04-ENGINE.md.
+    final refusals = <String>[];
+    for (final b in expressible) {
+      final lane = classification[b.id];
+      if (lane == Lane.core &&
+          b.kind == BehaviorKind.acceptance &&
+          SpecParser.isPresentationMislane(b.description)) {
+        refusals.add(
+          'noFlutter guard: behavior "${b.id}" '
+          '(${b.sourceCriterion}) is a mislane: an acceptance '
+          'behavior routed to the CORE lane (via the split-receipt '
+          'heuristic) whose assertion text names a presentation verb '
+          'or widget-surface noun (${b.description}) — the engine lane '
+          'is pure Dart. --> fix: move the behavior to the SKIN lane, '
+          'or reword the scenario to a controller/provider outcome.',
+        );
+      }
+    }
     return _LaneResult(
       classification: classification,
       handRows: const [],
-      refusals: const [],
+      refusals: refusals,
     );
   }
 

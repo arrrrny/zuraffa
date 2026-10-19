@@ -303,8 +303,8 @@ class SpecParser {
   /// lists inside one predicate. This keeps an event-content exclusion local
   /// to its clause while allowing a sibling UI assertion to classify.
   static final RegExp _predicateClauseBoundary = RegExp(
-    r'(?:[.!?;]\s+|,\s*(?:and|but|while)\s+|'
-    r'\s+(?:and|but|while)\s+(?=(?:the|a|an|i|we|they|you)\b))',
+    r'(?:[.!?;]\s+|,\s*(?:and|but|while|as)\s+|'
+    r'\s+(?:and|but|while|as)\s+(?=(?:the|a|an|i|we|they|you)\b))',
     caseSensitive: false,
   );
 
@@ -327,6 +327,28 @@ class SpecParser {
     return _eventNounSubject.hasMatch(description);
   }
 
+  // Hoisted for consistency with the rest of SpecParser (the regexes
+  // below were previously rebuilt on every call).
+  static final RegExp _presentationVerb = RegExp(
+    r'\b(draws?|drawn|drawing|renders?|rendered|rendering|'
+    r'displays?|displayed|displaying|shows?|shown|showing|'
+    r'paints?|painted|painting)\b',
+    caseSensitive: false,
+  );
+  // `prompts?`/`screens?`/`views?` double as verbs ("the user views the
+  // report"), so they only count as a surface noun when a determiner
+  // sits immediately in front — i.e. the word is used as a noun, not
+  // a verb. The remaining nouns have no verb form and stay unanchored.
+  // Conservative intent: false positives are preferred over letting
+  // presentation prose slip into the engine lane; `**Type**: acceptance`
+  // is the escape hatch.
+  static final RegExp _surfaceNoun = RegExp(
+    r'\b(fields?|placeholders?|layouts?|widgets?)\b|'
+    r'\b(?:the|a|an|this|that|these|those|my|your|its|our|their)\s+'
+    r'(?:prompts?|screens?|views?)\b',
+    caseSensitive: false,
+  );
+
   /// Issue #1864: whether an acceptance scenario's prose names a
   /// presentation verb (draws / renders / displays / shows / paints) or
   /// a widget-surface noun (field / placeholder / prompt / layout /
@@ -334,20 +356,9 @@ class SpecParser {
   /// Event-noun subjects ("the event shows ...") are exempt per
   /// issue #1318 — the verb describes the payload, not a rendered UI.
   static bool isPresentationMislane(String description) {
-    final presentationVerb = RegExp(
-      r'\b(draws?|drawn|drawing|renders?|rendered|rendering|'
-      r'displays?|displayed|displaying|shows?|shown|showing|'
-      r'paints?|painted|painting)\b',
-      caseSensitive: false,
-    );
-    final surfaceNoun = RegExp(
-      r'\b(fields?|placeholders?|prompts?|layouts?|screens?|'
-      r'views?|widgets?)\b',
-      caseSensitive: false,
-    );
     for (final clause in description.split(_predicateClauseBoundary)) {
       if (_eventNounSubject.hasMatch(clause)) continue;
-      if (presentationVerb.hasMatch(clause) || surfaceNoun.hasMatch(clause)) {
+      if (_presentationVerb.hasMatch(clause) || _surfaceNoun.hasMatch(clause)) {
         return true;
       }
     }
