@@ -203,9 +203,8 @@ abstract final class SkinAuthoring {
       // String literals.
       if (c == "'" || c == '"') {
         final quote = c;
-        final triple = i + 2 < n &&
-            source[i + 1] == quote &&
-            source[i + 2] == quote;
+        final triple =
+            i + 2 < n && source[i + 1] == quote && source[i + 2] == quote;
         final qCount = triple ? 3 : 1;
         for (var k = 0; k < qCount; k++) {
           buf.write(source[i]);

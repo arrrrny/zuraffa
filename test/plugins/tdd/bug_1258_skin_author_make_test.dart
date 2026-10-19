@@ -265,16 +265,19 @@ int ${_subjectSymbol}_value() => 0;
       );
     });
 
-    test('accepts await tester.binding.pump(...) before a later await read', () {
-      expect(
-        () => SkinAuthoring.validateAuthorFinders(
-          'await tester.binding.pump();\n'
-          'await state!.load();\n'
-          "expect(find.text('x'), findsOneWidget);",
-        ),
-        returnsNormally,
-      );
-    });
+    test(
+      'accepts await tester.binding.pump(...) before a later await read',
+      () {
+        expect(
+          () => SkinAuthoring.validateAuthorFinders(
+            'await tester.binding.pump();\n'
+            'await state!.load();\n'
+            "expect(find.text('x'), findsOneWidget);",
+          ),
+          returnsNormally,
+        );
+      },
+    );
   });
 
   group('SuiteGuard.parse — compact-reporter padding tolerance (#1258 '
