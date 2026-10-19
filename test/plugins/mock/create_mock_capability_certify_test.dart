@@ -31,8 +31,10 @@ void main() {
     );
     entityDir.createSync(recursive: true);
     File(p.join(entityDir.path, 'login.dart')).writeAsStringSync(
+      'class LoginPatch { const LoginPatch(); } '
       'class Login { final String id; final String username; '
-      'const Login({required this.id, required this.username}); }',
+      'const Login({required this.id, required this.username}); '
+      'Login copyWithField(String field, Object? value) => this; }',
     );
     plugin = MockPlugin(
       outputDir: outputDir,

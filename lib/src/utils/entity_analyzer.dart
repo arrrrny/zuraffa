@@ -350,6 +350,21 @@ class EntityAnalyzer {
         null;
   }
 
+  /// Public accessor for the discovered on-disk source path of [entityName]
+  /// (issue #1856 review). Resolves enums and non-canonical entities via
+  /// DiscoveryEngine instead of assuming `domain/entities/<snake>/<snake>.dart`.
+  static String? findEntitySourcePath(
+    String entityName,
+    String outputDir, {
+    FileSystem? fileSystem,
+  }) {
+    return _findEntitySourcePathSync(
+      entityName,
+      outputDir,
+      fileSystem: fileSystem,
+    );
+  }
+
   static bool isSealedEntity(
     String entityName,
     String outputDir, {

@@ -67,6 +67,15 @@ RedClassification classify(RunRecord record) {
   //    unparseable transcript cannot prove a single-test run either.
   final count = record.testCount;
   if (count == null || count != 1) {
+    // Issue #1778: a `--plain-name` filter that matches ZERO tests is a
+    // test-title drift, not a toolchain failure. The runner exits 79 with
+    // a "No tests ran." transcript; classify it distinctly so the
+    // operator sees the real cause instead of an opaque runner-error.
+    if (count == 0 &&
+        record.command.contains('--plain-name') &&
+        record.output.contains('No tests ran')) {
+      return RedClassification.testNameMismatch;
+    }
     return RedClassification.runnerError;
   }
 

@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import '../../../core/plugin_system/capability.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
+import '../../../utils/entity_analyzer.dart';
 import '../builders/simulation_fixture_writer.dart';
 import '../certification/mock_certification_sandbox.dart';
 import '../certification/mock_certifier.dart';
@@ -176,10 +177,46 @@ class CreateMockCapability implements ZuraffaCapability {
     // project-relative (lib/src); the project root is the cwd (the CLI
     // resolves it before dispatch).
     final projectRoot = Directory.current.path;
+    final service = args['service'] as String?;
+    final domain = args['domain'] as String?;
+
+    // Issue #1887: an enum/fixture-only entity has no CRUD surface to
+    // certify — the generator skipped it by design (#1037/#1747). Not a
+    // refusal: the mock data was generated and there is nothing else to
+    // prove. The check sits ABOVE the sandbox gates below (#1887
+    // review): a fixture-only entity has nothing to prove in ANY
+    // environment, so a host without an SDK — or a project whose zuraffa
+    // root cannot be resolved — must report the intended success, not an
+    // unresolved proof. The predicate is shared with the mock lane's
+    // guards: an enum, or (outside service mode, whose providers
+    // implement the service interface) any type whose source declares no
+    // CRUD surface.
+    final fixtureOnly =
+        EntityAnalyzer.isEnum(name, plugin.outputDir) ||
+        (service == null &&
+            EntityAnalyzer.lacksCrudSurface(name, plugin.outputDir));
+    if (fixtureOnly) {
+      stdout.writeln(
+        'ℹ️  $name: mock data generated; no datasource surface to '
+        'certify (issues #1037/#1747).',
+      );
+      return ExecutionResult(
+        success: true,
+        files: files.map((f) => f.path).toList(),
+        data: {'generatedFiles': files, 'certified': true},
+      );
+    }
+
     // Issue #1600: the certifier is shaped by the HOST — a Flutter
     // project's contract test imports the Flutter test framework and is
     // proven with the Flutter toolchain.
     final certifier = MockCertifier.forProject(projectRoot);
+
+    // Issue #1872 follow-up (environment-independence): an enum certifies on
+    // its fixture surface alone and needs neither the zuraffa package root
+    // nor the Flutter toolchain, so hoist the enum case ahead of those
+    // environment gates.
+    final isEnumEntity = EntityAnalyzer.isEnum(name, plugin.outputDir);
 
     // Spec 1110 composition: the spec 1001 sandbox certification is an
     // ENVIRONMENT-DEPENDENT proof — it needs a resolvable zuraffa
@@ -192,51 +229,53 @@ class CreateMockCapability implements ZuraffaCapability {
     // un-certified state stays loud — no mock-cert receipt is written,
     // so the spec 1110 engine cert-gate refuses the entity downstream
     // until it is certified in a resolvable environment.
-    final frameworkRoot = MockCertificationSandbox.resolveFrameworkRoot(
-      projectRoot,
-    );
-    if (frameworkRoot == null) {
-      stdout.writeln(
-        '⚠️  mock-cert: the certification sandbox cannot resolve the '
-        'zuraffa package root — no mock-cert.$name.json receipt written. '
-        'The engine cert-gate (spec 1110) will refuse "$name" as '
-        'uncertified until `zfa mock create $name --certify` runs in an '
-        'environment that resolves the framework (a real CLI invocation '
-        'or a project with the zuraffa dependency).',
+    if (!isEnumEntity) {
+      final frameworkRoot = MockCertificationSandbox.resolveFrameworkRoot(
+        projectRoot,
       );
-      return ExecutionResult(
-        success: true,
-        files: files.map((f) => f.path).toList(),
-        data: {
-          'generatedFiles': files,
-          'certified': false,
-          'certSandboxUnresolved': true,
-        },
-      );
-    }
+      if (frameworkRoot == null) {
+        stdout.writeln(
+          '⚠️  mock-cert: the certification sandbox cannot resolve the '
+          'zuraffa package root — no mock-cert.$name.json receipt written. '
+          'The engine cert-gate (spec 1110) will refuse "$name" as '
+          'uncertified until `zfa mock create $name --certify` runs in an '
+          'environment that resolves the framework (a real CLI invocation '
+          'or a project with the zuraffa dependency).',
+        );
+        return ExecutionResult(
+          success: true,
+          files: files.map((f) => f.path).toList(),
+          data: {
+            'generatedFiles': files,
+            'certified': false,
+            'certSandboxUnresolved': true,
+          },
+        );
+      }
 
-    // Issue #1600: a Flutter-shaped proof without the Flutter toolchain is
-    // the same environment-dependent class — not a red contract. The
-    // un-certified state stays loud (no receipt → the spec 1110 cert-gate
-    // refuses downstream), and the exit stays generation-governed.
-    if (certifier.sandbox.flutterTest &&
-        !MockCertificationSandbox.flutterOnPath()) {
-      stdout.writeln(
-        '⚠️  mock-cert: the Flutter-shaped contract test cannot be '
-        'certified — no flutter executable on PATH. No mock-cert.$name.json '
-        'receipt written. The engine cert-gate (spec 1110) will refuse '
-        '"$name" as uncertified until `zfa mock create $name --certify` '
-        'runs with the Flutter SDK installed.',
-      );
-      return ExecutionResult(
-        success: true,
-        files: files.map((f) => f.path).toList(),
-        data: {
-          'generatedFiles': files,
-          'certified': false,
-          'certSandboxUnresolved': true,
-        },
-      );
+      // Issue #1600: a Flutter-shaped proof without the Flutter toolchain is
+      // the same environment-dependent class — not a red contract. The
+      // un-certified state stays loud (no receipt → the spec 1110 cert-gate
+      // refuses downstream), and the exit stays generation-governed.
+      if (certifier.sandbox.flutterTest &&
+          !MockCertificationSandbox.flutterOnPath()) {
+        stdout.writeln(
+          '⚠️  mock-cert: the Flutter-shaped contract test cannot be '
+          'certified — no flutter executable on PATH. No mock-cert.$name.json '
+          'receipt written. The engine cert-gate (spec 1110) will refuse '
+          '"$name" as uncertified until `zfa mock create $name --certify` '
+          'runs with the Flutter SDK installed.',
+        );
+        return ExecutionResult(
+          success: true,
+          files: files.map((f) => f.path).toList(),
+          data: {
+            'generatedFiles': files,
+            'certified': false,
+            'certSandboxUnresolved': true,
+          },
+        );
+      }
     }
 
     final outcome = await certifier.certify(
@@ -248,8 +287,8 @@ class CreateMockCapability implements ZuraffaCapability {
       // the current interface, so the contract is re-rendered to match.
       rePin: true,
       verbose: verbose,
-      service: args['service'] as String?,
-      domain: args['domain'] as String?,
+      service: service,
+      domain: domain,
     );
     final written = await certifier.writeContractArtifacts(
       entityName: name,
@@ -295,13 +334,31 @@ class CreateMockCapability implements ZuraffaCapability {
         data: {
           'generatedFiles': files,
           'certified': false,
-          if (receipt != null) 'mockCertReceipt': receipt.toJson(),
+          if (receipt != null && outcome.certified)
+            'mockCertReceipt': receipt.toJson(),
         },
       );
     }
 
+    if (receipt == null) {
+      // Issue #1887: certified-with-nothing. The fixture-only
+      // short-circuit above already returns for the shared predicate, so
+      // this is the outcome-level guard for the same shape: a certified
+      // outcome carrying no receipt must report the no-surface reason
+      // instead of dereferencing the absent receipt below.
+      stdout.writeln(
+        'ℹ️  $name: mock data generated; no datasource surface to '
+        'certify (issues #1037/#1747).',
+      );
+      return ExecutionResult(
+        success: true,
+        files: files.map((f) => f.path).toList(),
+        data: {'generatedFiles': files, 'certified': true},
+      );
+    }
+
     stdout.writeln(
-      '⚙ mock-cert: entity=$name methods=${receipt!.methods.length} '
+      '⚙ mock-cert: entity=$name methods=${receipt.methods.length} '
       'satisfied=${receipt.methods.where((m) => m.value).length} '
       'digest=${receipt.contractDigest.substring(0, 12)}…',
     );

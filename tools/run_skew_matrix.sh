@@ -68,6 +68,10 @@ dev_dependencies:
   build_runner: ^2.15.2
   zorphy: ^2.3.0
   json_serializable: ^6.13.2
+dependency_overrides:
+  # source_helper 1.4.0 duplicates extensions json_serializable 6.15.0 also
+  # defines, so the consumer's build script fails to compile (#1937).
+  source_helper: ">=1.3.10 <1.4.0"
 YAML
 }
 

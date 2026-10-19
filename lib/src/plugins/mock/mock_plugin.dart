@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 
@@ -13,6 +14,7 @@ import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../skew/skew_contract.dart';
 import '../../utils/entity_analyzer.dart';
+import '../../utils/entity_field_resolver.dart';
 import '../../utils/entity_utils.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
@@ -210,6 +212,57 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (config.noEntity) {
       return [];
     }
+
+    // Issue #1886: derive the identity member from the entity instead of
+    // hardcoding `id`. Standalone `zfa mock create` (and any other caller
+    // that did not pre-resolve via MakeCommand) used to leave
+    // `config.idField` at its `id` default, so an entity whose identity is
+    // e.g. `userId` produced a mock whose `item.id` / `params.id` access
+    // did not compile. Resolve here, mirroring MakeCommand, so every entry
+    // point shares one resolution. Service-mode mocks conform to the
+    // declared service interface and keep the default.
+    //
+    // PR #1904 review: resolve only while `idField` is still the `id`
+    // sentinel, so an explicit `--id-field` from the make pipeline wins
+    // (MakeCommand guards its own resolution the same way). Prefer the
+    // caller's project root over assuming `outputDir` is `<root>/lib/src`.
+    var resolvedConfig = config;
+    if (config.service == null && config.idField == 'id') {
+      final contextRoot = context?.core.projectRoot;
+      final projectRoot = contextRoot != null && contextRoot.isNotEmpty
+          ? contextRoot
+          : Directory(config.outputDir).parent.parent.path;
+      final resolution = EntityFieldResolver.resolveIdField(
+        entityName: config.repo != null
+            ? config.repo!.replaceAll('Repository', '')
+            : config.name,
+        projectRoot: projectRoot,
+      );
+      if (resolution != null && !resolution.isValueObject) {
+        if (resolution.hasId && resolution.idField != null) {
+          resolvedConfig = config.copyWith(
+            idField: resolution.idField!.name,
+            idFieldType: resolution.idField!.nonNullableType,
+          );
+        } else {
+          final representative = EntityFieldResolver.resolveRepresentativeField(
+            entityName: config.repo != null
+                ? config.repo!.replaceAll('Repository', '')
+                : config.name,
+            projectRoot: projectRoot,
+          );
+          if (representative != null) {
+            resolvedConfig = config.copyWith(
+              idField: representative.name,
+              idFieldType: representative.nonNullableType,
+            );
+          } else {
+            resolvedConfig = config.copyWith(idFieldType: 'NoParams');
+          }
+        }
+      }
+    }
+    config = resolvedConfig;
 
     final fs = context?.fileSystem ?? fileSystem;
     final builder = context != null
