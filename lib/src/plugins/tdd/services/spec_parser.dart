@@ -1223,7 +1223,8 @@ class SpecParser {
           // Dedup: an entity declared both as a table row and a bullet
           // must not survive as two ContractRowDecls (counts/provenance).
           final alreadyEntity = rows.any(
-            (r) => r.kind == ContractRowKind.entity &&
+            (r) =>
+                r.kind == ContractRowKind.entity &&
                 r.name.replaceAll('`', '').trim() == name,
           );
           if (alreadyEntity) continue;
@@ -1257,7 +1258,8 @@ class SpecParser {
         }
         if (!_dartIdentifier.hasMatch(entityName)) continue;
         final alreadyEntity = rows.any(
-          (r) => r.kind == ContractRowKind.entity &&
+          (r) =>
+              r.kind == ContractRowKind.entity &&
               r.name.replaceAll('`', '').trim() == entityName,
         );
         if (alreadyEntity) continue;
