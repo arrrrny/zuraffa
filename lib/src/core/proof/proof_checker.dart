@@ -176,7 +176,7 @@ class ProofChecker {
     final hasReceipts = records.isNotEmpty || testReceipts.isNotEmpty;
     final effectiveRoots = coverageRoots.isNotEmpty
         ? List<String>.from(coverageRoots)
-        : (hasReceipts ? <String>[] : _conventionalRoots());
+        : (hasReceipts ? <String>[] : await _conventionalRoots());
     final auditedRoots = effectiveRoots;
 
     // 1. Digest verification of every receipted artifact.
@@ -463,9 +463,13 @@ class ProofChecker {
       receipts: records.length + testReceipts.length,
       filesChecked: latest.length + testReceiptFiles,
       findings: findings,
-      receiptKinds: records.isEmpty && testReceipts.isEmpty
-          ? null
-          : _receiptKinds(records),
+      // `_receiptKinds` only categorises main (proof.v1) receipts, so
+      // computing it from an empty `records` list would emit an empty
+      // `kinds` map (`{}`) in the JSON envelope. Only produce a
+      // breakdown when there are main receipts to classify; test-plugin
+      // receipts (test.v1) are a separate family and do not map onto
+      // these kind labels (issue #1860 review nitpick).
+      receiptKinds: records.isEmpty ? null : _receiptKinds(records),
       auditedRoots: auditedRoots,
     );
   }
@@ -574,12 +578,19 @@ class ProofChecker {
   /// project's `lib/` is the default generation-path root. Returned only
   /// when it exists and actually contains files, so an empty project
   /// stays a legitimate vacuous green.
-  List<String> _conventionalRoots() {
+  ///
+  /// Uses an async `list()` stream so detection short-circuits on the
+  /// first file instead of materialising the whole `lib/` tree (issue
+  /// #1860 review nitpick).
+  Future<List<String>> _conventionalRoots() async {
     final libDir = Directory(p.join(projectRoot, 'lib'));
     if (!libDir.existsSync()) return const <String>[];
     var hasFile = false;
     try {
-      for (final e in libDir.listSync(recursive: true, followLinks: false)) {
+      await for (final e in libDir.list(
+        recursive: true,
+        followLinks: false,
+      )) {
         if (e is File) {
           hasFile = true;
           break;

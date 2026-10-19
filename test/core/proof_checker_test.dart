@@ -370,6 +370,42 @@ void main() {
       expect(report.ok, isTrue, reason: report.findings.toString());
     });
 
+    test('a project with no receipts and a populated lib/ is not a vacuous '
+        'green (honesty sweep)', () async {
+      await seedFile(
+        workspace,
+        'lib/src/orphan.dart',
+        'class Orphan {}\n',
+        withSnapshot: false,
+      );
+
+      final report = await checker.check();
+
+      expect(report.ok, isFalse, reason: report.findings.toString());
+      expect(report.receipts, 0);
+      final uncovered = report.findings
+          .where((f) => f.kind == 'unprovenanced')
+          .toList(growable: false);
+      expect(uncovered, isNotEmpty);
+      expect(
+        uncovered.any((f) => f.path == 'lib/src/orphan.dart'),
+        isTrue,
+      );
+      expect(report.auditedRoots, contains('lib'));
+    });
+
+    test('a project with no receipts and an empty lib/ stays a vacuous '
+        'green', () async {
+      await Directory(p.join(workspace.path, 'lib', 'src'))
+          .create(recursive: true);
+
+      final report = await checker.check();
+
+      expect(report.ok, isTrue, reason: report.findings.toString());
+      expect(report.receipts, 0);
+      expect(report.auditedRoots, isEmpty);
+    });
+
     test('report JSON carries the proof.v1 machine envelope', () async {
       final entry = await seedFile(
         workspace,

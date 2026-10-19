@@ -208,5 +208,35 @@ void main() {
       expect(decoded['ok'], isTrue);
       expect(decoded['receipts'], 0);
     });
+
+    test('a project with no receipts but a populated lib/ fails the '
+        'honesty sweep', () async {
+      // Seed a generated-looking file under lib/ with no receipt behind it.
+      File(p.join(workspace.path, 'lib', 'orphan.dart'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('class Orphan {}\n');
+
+      final result = await runZfaSource([
+        'proof',
+        'check',
+        '--format=json',
+      ], workingDirectory: workspace.path);
+
+      expect(result.exitCode, 1, reason: 'stdout=${result.stdout}');
+      final decoded = jsonDecode(result.stdout) as Map<String, dynamic>;
+      expect(decoded['ok'], isFalse);
+      expect(decoded['receipts'], 0);
+      final findings = (decoded['findings'] as List)
+          .cast<Map<String, dynamic>>();
+      expect(
+        findings.any(
+          (f) =>
+              f['kind'] == 'unprovenanced' &&
+              f['path'] == 'lib/orphan.dart',
+        ),
+        isTrue,
+        reason: 'stdout=${result.stdout}',
+      );
+    });
   });
 }
