@@ -137,14 +137,8 @@ void main() {
   });
 
   test('M3: invalid --devices fails with usage error', () async {
-    final (code, output) = await runZfa([
-      'sync',
-      'simulate',
-      '--devices',
-      '0',
-    ]);
+    final (code, output) = await runZfa(['sync', 'simulate', '--devices', '0']);
     expect(code, 1, reason: output);
     expect(output, contains('Invalid --devices'));
   });
-
 }

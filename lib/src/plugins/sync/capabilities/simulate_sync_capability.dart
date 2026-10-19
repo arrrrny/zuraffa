@@ -346,7 +346,6 @@ class SimulateSyncCapability implements ZuraffaCapability {
     );
   }
 
-
   Future<ExecutionResult> _runMultiDevice({
     required int devices,
     required int days,
