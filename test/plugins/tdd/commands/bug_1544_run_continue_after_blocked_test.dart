@@ -34,10 +34,10 @@ import 'package:zuraffa/src/plugins/tdd/services/contract_blocked_receipt.dart';
 
 import '../helpers/tdd_fixture.dart';
 
-/// Reads the process-global `dart:io exitCode` and immediately resets it
+/// Reads the process-global `dart:io CliRunner.lastDispatchedExitCode` and immediately resets it
 /// (the same suite-wide flake guard contract_kind_1007_test.dart uses).
 int takeExitCode() {
-  final code = exitCode;
+  final code = CliRunner.lastDispatchedExitCode;
   exitCode = 0;
   return code;
 }

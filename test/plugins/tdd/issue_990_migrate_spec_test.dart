@@ -83,7 +83,7 @@ $kMinimalAcceptance
 ''');
 
       final out = await runPlan();
-      expect(exitCode, 3, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 3, reason: out);
       expect(out, contains('missing `**Template Version**` marker'));
       expect(await readTestList(), isNull);
       expect(
@@ -103,7 +103,7 @@ $kMinimalAcceptance
 ''', versionMarker: '**Template Version**: `zuraffa-2.0`');
 
         final out = await runPlan();
-        expect(exitCode, 3, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 3, reason: out);
         expect(out, contains('zuraffa-2.0'));
         expect(await readTestList(), isNull);
       },
@@ -117,7 +117,7 @@ $kMinimalAcceptance
 ''');
 
       final out = await runPlan();
-      expect(exitCode, 3, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 3, reason: out);
       expect(out, contains('--migrate-spec'));
     });
   });
@@ -135,7 +135,7 @@ $kMinimalAcceptance
 
       final out = await runPlan(migrate: true, noEmitMarkers: true);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('migrated'), reason: out);
       final spec = await readSpec();
       // The marker lands at the top of the file (frontmatter position),
@@ -168,7 +168,7 @@ $kMinimalAcceptance
 
       final out = await runPlan(migrate: true);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final spec = await readSpec();
       expect(
         spec,
@@ -190,7 +190,7 @@ $kMinimalAcceptance
 
       final out = await runPlan(migrate: true, noEmitMarkers: true);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(await readSpec(), before, reason: 'no rewrite, no churn');
       expect(
         out,
@@ -219,7 +219,7 @@ $kMinimalAcceptance
 
       final out = await runPlan(migrate: true);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final spec = await readSpec();
       expect(
         spec.split('\n').first,
@@ -252,7 +252,7 @@ $kMinimalAcceptance
 
       final out = await runPlan(migrate: true, noEmitMarkers: true);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final after = await readSpec();
       expect(
         after.trim(),

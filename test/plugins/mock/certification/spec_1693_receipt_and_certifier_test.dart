@@ -49,6 +49,8 @@ class _GreenSandbox extends MockCertificationSandbox {
     required String contractTestSource,
     required List<ContractMethod> methods,
     bool verbose = false,
+    String? service,
+    String? domain,
   }) async {
     return MockCertificationRun(
       analyzeIssues: 0,

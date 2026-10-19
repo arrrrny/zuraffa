@@ -10,6 +10,7 @@ import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/project_flavor.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../datasource_provenance.dart';
@@ -338,8 +339,13 @@ class DataSourceInterfaceBuilder {
           ...EntityUtils.barrelHideNames(type),
     }.toList();
 
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
+
     final directives = <Directive>[
-      Directive.import('package:zuraffa/zuraffa.dart', hide: barrelHide),
+      Directive.import(coreImport, hide: barrelHide),
       if (config.repo == null &&
           fileSystem.existsSync(
             path.join(
