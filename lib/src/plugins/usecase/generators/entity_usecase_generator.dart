@@ -7,6 +7,7 @@ import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/context/file_system.dart';
+import '../../../core/dependencies/dependency_wirer.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -588,7 +589,25 @@ class EntityUseCaseGenerator {
     );
     final filePath = path.join(usecaseDirPath, fileName);
 
-    final imports = <String>['package:zuraffa/zuraffa.dart'];
+    // Sync flavor detection (this method is sync and feeds the conformance gate).
+    String coreImport = 'package:zuraffa/zuraffa.dart';
+    var dir = path.canonicalize(outputDir);
+    while (true) {
+      final pubspecPath = path.join(dir, 'pubspec.yaml');
+      if (fileSystem.existsSync(pubspecPath)) {
+        try {
+          final content = fileSystem.readSync(pubspecPath);
+          if (DependencyWirer.isFlutterProject(content)) {
+            coreImport = 'package:zuraffa_flutter/zuraffa_flutter.dart';
+          }
+        } catch (_) {}
+        break;
+      }
+      final parent = path.dirname(dir);
+      if (parent == dir) break;
+      dir = parent;
+    }
+    final imports = <String>[coreImport];
     // #321: always run the import resolver with at least the id/query
     // field types so an enum-typed id (e.g. DeleteParams<SomeEnum>,
     // ToggleParams<SomeEnum, Field>, UpdateParams<SomeEnum, Patch>) gets
@@ -708,7 +727,7 @@ class EntityUseCaseGenerator {
     final library = const SpecLibrary().library(
       specs: [useCaseClass],
       directives: imports.map(
-        (uri) => uri == 'package:zuraffa/zuraffa.dart' && barrelHide.isNotEmpty
+        (uri) => uri == coreImport && barrelHide.isNotEmpty
             ? Directive.import(uri, hide: barrelHide)
             : Directive.import(uri),
       ),

@@ -303,7 +303,11 @@ void main() {
       // ignore: avoid_print
       print('E-1689-e1 make wall time: ${clock.elapsed}');
 
-      expect(exitCode, 1, reason: 'the honest stop exits non-zero: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'the honest stop exits non-zero: $out',
+      );
       expect(
         out,
         contains('outcome=would-never-pass'),
@@ -382,7 +386,7 @@ void main() {
         zfaBin,
       ]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(
         out,
         contains('outcome=vacuous-green'),
@@ -419,7 +423,7 @@ void main() {
         zfaBin,
       ]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(
         out,
         contains('outcome=vacuous-green'),
@@ -494,7 +498,7 @@ void main() {
         zfaBin,
       ]);
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(out, contains('outcome=skipped'), reason: out);
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, contains('## Cycle: $behaviorId (green)'), reason: out);
@@ -541,7 +545,7 @@ void main() {
             'the drift re-run is deduped (#1587) — the measurement '
             'isolates the attempt: $out',
       );
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('outcome=would-never-pass'), reason: out);
       final spawns = await fx.readFakeZfaLog();
       expect(

@@ -803,7 +803,6 @@ class RouteBuilder {
             (hasDetailView && viewAcceptsRepository(detailViewParams)));
     final imports = [
       'package:zuraffa_flutter/zuraffa_flutter.dart',
-      'package:zuraffa/zuraffa.dart',
       '../presentation/pages/$domainSnake/${entitySnake}_view.dart',
       if (hasDetailView) detailViewImport,
       if (passesRepository) repositoryImport,
@@ -1293,7 +1292,6 @@ class RouteBuilder {
     final exports = <Directive>[Directive.export('app_routes.dart')];
     final imports = <Directive>[
       Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
-      Directive.import('package:zuraffa/zuraffa.dart'),
     ];
     final routeElements = <Expression>[];
 
@@ -1668,9 +1666,6 @@ class RouteBuilder {
     }
     if (!content.contains("import 'package:flutter/material.dart';")) {
       content = "import 'package:flutter/material.dart';\n$content";
-    }
-    if (!content.contains("import 'package:zuraffa/zuraffa.dart';")) {
-      content = "import 'package:zuraffa/zuraffa.dart';\n$content";
     }
     return content;
   }

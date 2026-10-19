@@ -213,7 +213,7 @@ void main() {
             ),
             reason: 'refactor output:\n$refactorOut',
           );
-          expect(exitCode, 0, reason: refactorOut);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: refactorOut);
           final rewrittenHash = await sha256Of(fx.subjectPathOf('A1'));
           expect(
             rewrittenHash,
@@ -225,7 +225,11 @@ void main() {
           // Pre-fix this refuses `subject-drift` (the dead end); post-fix the
           // refresh consult accepts with the provenance note.
           final makeOut = await runner.runCapturing(makeArgs(fx, 'A1'));
-          expect(exitCode, 0, reason: 'make output:\n$makeOut');
+          expect(
+            CliRunner.lastDispatchedExitCode,
+            0,
+            reason: 'make output:\n$makeOut',
+          );
           expect(makeOut, contains('outcome=skipped'), reason: makeOut);
           expect(makeOut, contains('issue #1430'), reason: makeOut);
           expect(
@@ -247,7 +251,7 @@ void main() {
         );
 
         final out = await runner.runCapturing(refactorArgs(fx));
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
         final diskHash = await sha256Of(fx.subjectPathOf('A1'));
         final entries = await CycleEvidence(fx.featureDir).entries();
@@ -274,7 +278,7 @@ void main() {
         );
 
         final out = await runner.runCapturing(refactorArgs(fx));
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         // The witness: the scoped re-proof names A1's own test (the
         // covering-test mapping the honesty gate rides).
         expect(out, contains('re-proof: scoped'), reason: out);
@@ -315,7 +319,7 @@ void main() {
 
       final out = await runner.runCapturing(makeArgs(fx, 'A1'));
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('issue #1036'), reason: out);
       expect(
         out,
@@ -353,7 +357,7 @@ void main() {
 
         final out = await runner.runCapturing(makeArgs(fx, 'A1'));
 
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         expect(out, contains('issue #1036'), reason: out);
       },
     );
@@ -382,7 +386,7 @@ void main() {
 
       final out = await runner.runCapturing(makeArgs(fx, 'A1'));
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('issue #1036'), reason: out);
     });
 
@@ -408,7 +412,7 @@ void main() {
 
       final out = await runner.runCapturing(makeArgs(fx, 'A1'));
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('outcome=skipped'), reason: out);
       expect(out, contains('issue #1162'), reason: out);
     });
@@ -437,7 +441,7 @@ void main() {
 
       final out = await runner.runCapturing(makeArgs(fx, 'A1'));
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('issue #1036'), reason: out);
     });
 
@@ -465,7 +469,7 @@ void main() {
 
       final out = await runner.runCapturing(makeArgs(fx, 'A1'));
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('subject drift accepted'), reason: out);
     });
 
@@ -494,7 +498,7 @@ void main() {
 
       final out = await runner.runCapturing(makeArgs(fx, 'A1'));
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('issue #1036'), reason: out);
     });
   });
@@ -512,7 +516,7 @@ void main() {
 
       final out = await runner.runCapturing(refactorArgs(fx));
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       final entries = await CycleEvidence(fx.featureDir).entries();
       expect(
         entries.where((e) => e.kind == 'refresh'),
@@ -533,7 +537,7 @@ void main() {
       final out = await runner.runCapturing(refactorArgs(fx));
 
       expect(out, contains('outcome=clean'), reason: out);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final entries = await CycleEvidence(fx.featureDir).entries();
       expect(entries.where((e) => e.kind == 'refresh'), isEmpty, reason: out);
       // The only appended section is the refactor no-op entry.
@@ -579,7 +583,7 @@ void main() {
 
       final out = await runner.runCapturing(refactorArgs(fx));
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // The witness: the scoped re-proof covers both behaviors' own tests.
       expect(
         out,

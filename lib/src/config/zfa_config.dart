@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../utils/file_utils.dart';
+import '../utils/project_flavor.dart';
+import '../core/context/file_system.dart';
 
 /// Unified v5 configuration for Zuraffa.
 class ZfaConfig {
@@ -138,7 +140,7 @@ class ZfaConfig {
   bool get mockJsonByDefault => isPluginEnabledByDefault('mock');
   bool get testByDefault => isPluginEnabledByDefault('test');
   bool get gymByDefault => isPluginEnabledByDefault('gym');
-  bool get gqlByDefault => isPluginEnabledByDefault('gql');
+  bool get gqlByDefault => isPluginEnabledByDefault('graphql');
   bool get graphqlByDefault => isPluginEnabledByDefault('graphql');
   bool get appendByDefault => isPluginEnabledByDefault('method_append');
   bool get xrayByDefault => isPluginEnabledByDefault('xray');
@@ -263,7 +265,6 @@ class ZfaConfig {
   static String configKeyForPlugin(String pluginId) {
     const overrides = {
       'method_append': 'appendByDefault',
-      'gql': 'gqlByDefault',
       'graphql': 'graphqlByDefault',
     };
     return overrides[pluginId] ?? '${pluginId}ByDefault';
@@ -272,7 +273,7 @@ class ZfaConfig {
   static String? pluginIdForConfigKey(String key) {
     const explicit = {
       'appendByDefault': 'method_append',
-      'gqlByDefault': 'gql',
+      'gqlByDefault': 'graphql',
       'graphqlByDefault': 'graphql',
     };
     final explicitMatch = explicit[key];
@@ -372,20 +373,27 @@ class ZfaConfig {
     final root = projectRoot ?? Directory.current.path;
     final configFile = File(p.join(root, '.zfa.json'));
 
+    final flavor = await detectProjectFlavor(root, FileSystem.create());
+    final mockingImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/mock.dart';
+
     const encoder = JsonEncoder.withIndent('  ');
-    final content = encoder.convert(config.toJson());
+    final content = encoder.convert(
+      config.toJson(mockingImport: mockingImport),
+    );
     await FileUtils.writeFile(configFile.path, content, 'config', force: true);
   }
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson({String? mockingImport}) => {
     // Canonical zuraffa-native mocking signature. Propagated by `zfa init` so
     // static tooling (e.g. speckit-tdd-setup) can detect that a zuraffa app uses
     // built-in mocks (MockDataSource, MockData, mock providers, throwing doubles)
     // with no third-party double library, by grepping `.zfa.json` for this block
     // or generated code for `package:zuraffa/mock.dart` / `zuraffaMockLibrary`.
-    'mocking': const <String, dynamic>{
+    'mocking': <String, dynamic>{
       'library': 'zuraffa-native',
-      'import': 'package:zuraffa/mock.dart',
+      'import': mockingImport ?? 'package:zuraffa_flutter/zuraffa_flutter.dart',
       'marker': 'zuraffaMockLibrary',
       'mockSources': <String>[
         'mockDataSource',
@@ -505,8 +513,12 @@ class ZfaConfig {
     if (routeByDefault case final value?) overrides['route'] = value;
     if (mockByDefault case final value?) overrides['mock'] = value;
     if (testByDefault case final value?) overrides['test'] = value;
-    if (gqlByDefault case final value?) overrides['gql'] = value;
-    if (graphqlByDefault case final value?) overrides['graphql'] = value;
+    if (gqlByDefault case final value?) {
+      overrides['graphql'] = (overrides['graphql'] ?? false) || value;
+    }
+    if (graphqlByDefault case final value?) {
+      overrides['graphql'] = (overrides['graphql'] ?? false) || value;
+    }
     if (appendByDefault case final value?) {
       overrides['method_append'] = value;
     }
@@ -519,7 +531,12 @@ class ZfaConfig {
     for (final entry in json.entries) {
       final pluginId = pluginIdForConfigKey(entry.key);
       if (pluginId != null && entry.value is bool) {
-        defaults[pluginId] = entry.value as bool;
+        if (pluginId == 'graphql') {
+          defaults[pluginId] =
+              (defaults[pluginId] ?? false) || (entry.value as bool);
+        } else {
+          defaults[pluginId] = entry.value as bool;
+        }
       }
     }
     return defaults;

@@ -284,7 +284,11 @@ void main() {
         );
 
         final second = await migrateAndGen(runner, fx, signatureTracedSpec);
-        expect(exitCode, 0, reason: 'the re-gen must succeed: $second');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'the re-gen must succeed: $second',
+        );
         expect(
           second,
           contains('verdict=regenerated'),
@@ -325,7 +329,11 @@ void main() {
         );
 
         final second = await migrateAndGen(runner, fx, noSignatureTracedSpec);
-        expect(exitCode, 0, reason: 'the re-gen must succeed: $second');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'the re-gen must succeed: $second',
+        );
         expect(
           second,
           contains('verdict=regenerated'),
@@ -394,7 +402,7 @@ void main() {
 
         final second = await migrateAndGen(runner, fx, signatureTracedSpec);
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           1,
           reason:
               'the drifted pair cannot be regenerated (progressed subject) '
@@ -495,7 +503,11 @@ void main() {
           '--project',
           fx.root.path,
         ]);
-        expect(exitCode, 0, reason: 'the third gen must succeed: $third');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'the third gen must succeed: $third',
+        );
         expect(
           third,
           contains('verdict=reused'),
@@ -517,7 +529,11 @@ void main() {
           '--project',
           fx.root.path,
         ]);
-        expect(exitCode, 0, reason: 'the second gen must succeed: $second');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'the second gen must succeed: $second',
+        );
         expect(
           second,
           contains('verdict=reused'),
@@ -547,7 +563,7 @@ void main() {
           fx.root.path,
         ]);
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           0,
           reason: 'the legacy-record gen must succeed: $third',
         );
@@ -579,7 +595,11 @@ void main() {
           '--project',
           fx.root.path,
         ]);
-        expect(exitCode, 0, reason: 'a prose edit is not a failure: $second');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'a prose edit is not a failure: $second',
+        );
         expect(
           second,
           contains('verdict=reused'),
@@ -644,7 +664,7 @@ void main() {
           fx.root.path,
         ]);
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           0,
           reason:
               'a prose edit must never fail a gen run, however the pair is '
@@ -690,7 +710,11 @@ void main() {
           '--project',
           fx.root.path,
         ]);
-        expect(exitCode, 0, reason: 'the re-render must succeed: $second');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'the re-render must succeed: $second',
+        );
         expect(
           second,
           contains('verdict=regenerated'),

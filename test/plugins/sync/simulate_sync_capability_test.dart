@@ -14,8 +14,6 @@ library;
 //   B3 — the summary line carries the chaos evidence (retries, verdict).
 //   B4 — `zfa sync simulate --help` documents --scenario.
 
-import 'dart:io';
-
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
@@ -23,7 +21,7 @@ void main() {
   Future<(int, String)> runZfa(List<String> args) async {
     final runner = CliRunner(exitOnCompletion: false);
     final output = await runner.runCapturing(args);
-    return (exitCode, output);
+    return (CliRunner.lastDispatchedExitCode, output);
   }
 
   test('B1: the offline-flap scenario drives the strategy to GREEN', () async {
@@ -114,5 +112,33 @@ void main() {
     expect(code, 0, reason: output);
     expect(output, contains('offline-flap'));
     expect(output, contains('payment-decline'));
+  });
+  test('M1: multi-device mode runs GREEN', () async {
+    final (code, output) = await runZfa([
+      'sync',
+      'simulate',
+      '--devices',
+      '2',
+      '--days',
+      '3',
+      '--seed',
+      '1',
+    ]);
+    expect(code, 0, reason: output);
+    expect(output, contains('verdict=GREEN'));
+    expect(output, contains('converged=true'));
+    expect(output, contains('anomalies=0'));
+  });
+
+  test('M2: --help documents --devices', () async {
+    final (code, output) = await runZfa(['sync', 'simulate', '--help']);
+    expect(code, 0, reason: output);
+    expect(output, contains('devices'));
+  });
+
+  test('M3: invalid --devices fails with usage error', () async {
+    final (code, output) = await runZfa(['sync', 'simulate', '--devices', '0']);
+    expect(code, 1, reason: output);
+    expect(output, contains('Invalid --devices'));
   });
 }

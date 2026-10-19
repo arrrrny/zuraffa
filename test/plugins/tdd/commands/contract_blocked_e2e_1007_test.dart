@@ -174,7 +174,7 @@ file: 'dart test {file}'
       reason: out,
     );
     expect(out, isNot(contains('classification=assertion certified=true')));
-    final code = exitCode;
+    final code = CliRunner.lastDispatchedExitCode;
     exitCode = 0;
     expect(code, 1, reason: out);
     final receiptPath = p.join(
@@ -215,7 +215,7 @@ bool validateEmail(String email) => email.contains('@');
     // red. The run driver's skip transition moves the behavior on.
     expect(out, contains('classification=unexpected-green'), reason: out);
     expect(out, isNot(contains('classification=blocked')));
-    final code = exitCode;
+    final code = CliRunner.lastDispatchedExitCode;
     exitCode = 0;
     expect(code, 1, reason: out);
   });

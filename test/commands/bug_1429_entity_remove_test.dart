@@ -82,6 +82,7 @@ dev_dependencies:
         'remove',
         '-n',
         'Product',
+        '--yes',
       ], workingDirectory: workspace.path);
 
       expect(remove.exitCode, 0, reason: 'stdout=${remove.stdout}');
@@ -134,6 +135,7 @@ dev_dependencies:
           'remove',
           '-n',
           'Product',
+          '--yes',
         ], workingDirectory: workspace.path);
 
         expect(remove.exitCode, 0, reason: 'stdout=${remove.stdout}');

@@ -182,7 +182,7 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             fileName,
           )
         : path.join(outputDir, 'domain', 'services', fileName);
-    final content = interfaceBuilder.build(
+    final content = await interfaceBuilder.build(
       config,
       fileSystem: context?.fileSystem,
     );

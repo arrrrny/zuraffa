@@ -82,11 +82,12 @@ void main() {
           'the interface method must match the usecase delegation '
           'target — Future<AuthSession> login(LoginParams)',
     );
-    // Imports: the framework surface + the referenced entities.
+    // Imports: only the referenced entities — no unused framework import
+    // when params/returns resolve to local entities (issue #1796).
     expect(
       content,
-      contains("import 'package:zuraffa/zuraffa.dart';"),
-      reason: 'the framework import must be present',
+      isNot(contains("import 'package:zuraffa/zuraffa.dart';")),
+      reason: 'the framework import must be absent when unused',
     );
     expect(
       content,
