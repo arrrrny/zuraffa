@@ -11,6 +11,7 @@ import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/entity_analyzer.dart';
 import '../../../utils/method_shape_parser.dart';
 import '../../../utils/project_flavor.dart';
 import '../services/mock_staleness_detector.dart';
@@ -1382,6 +1383,18 @@ class MockDataSourceBuilder {
                 : '';
             final isEntityList = isList && listInner == entityName;
             final isEntityReturn = baseReturns == entityName;
+            // Issue #1928: a return type that names a real on-disk entity
+            // (including one whose public class lives in a Zorphy `part`
+            // file, e.g. ZikZakPage) is a known type even when it is not
+            // the datasource's own entity. Resolve by file existence rather
+            // than by class declaration in the main file.
+            final isKnownEntityReturn =
+                baseReturns == entityName ||
+                EntityAnalyzer.entityFileExists(baseReturns, outputDir);
+            final isKnownEntityList =
+                isList &&
+                (listInner == entityName ||
+                    EntityAnalyzer.entityFileExists(listInner, outputDir));
             final paramsType = (methodParams != null && methodParams.isNotEmpty)
                 ? methodParams
                 : 'NoParams';
@@ -1395,7 +1408,11 @@ class MockDataSourceBuilder {
             // return type resolves to no known fixture must refuse rather
             // than emit `throw UnimplementedError()` under a conformance:
             // true verdict.
-            if (!isVoid && !isEntityList && !isEntityReturn) {
+            if (!isVoid &&
+                !isEntityList &&
+                !isEntityReturn &&
+                !isKnownEntityReturn &&
+                !isKnownEntityList) {
               throw ArgumentError(
                 'unknown return type $baseReturns for member $methodName',
               );
