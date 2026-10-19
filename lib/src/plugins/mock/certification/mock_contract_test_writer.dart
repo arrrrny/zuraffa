@@ -296,6 +296,25 @@ class MockContractTestWriter {
 
     String rel(String target) => p.relative(target, from: testDir);
 
+    // Imports: the subject entity plus every OTHER entity named by a pinned
+    // signature's return/parameter type. Deriving only the subject's import
+    // leaves foreign-entity type names (e.g. a member returning `ZikZakPage`)
+    // unimported, so the contract test cannot compile (#1856).
+    final importedEntities = <String>{};
+    if (entityPath != null) importedEntities.add(entityName);
+    for (final method in methods) {
+      for (final typeString in [method.returnType, method.paramsType]) {
+        for (final match in RegExp(
+          r'\b[A-Z][A-Za-z0-9_]*\b',
+        ).allMatches(typeString)) {
+          final candidate = match.group(0)!;
+          if (EntityAnalyzer.entityFileExists(candidate, outputDir)) {
+            importedEntities.add(candidate);
+          }
+        }
+      }
+    }
+
     final buffer = StringBuffer()
       ..writeln('// GENERATED - DO NOT EDIT')
       ..writeln('// Mock certification contract (spec 1001, issue #1001).')
@@ -325,6 +344,11 @@ class MockContractTestWriter {
 
     if (entityPath != null && File(entityPath).existsSync()) {
       buffer.writeln("import '${rel(entityPath)}';");
+    }
+    for (final name
+        in importedEntities.where((n) => n != entityName).toList()..sort()) {
+      final path = _entityFile(name, outputDir);
+      if (path != null) buffer.writeln("import '${rel(path)}';");
     }
     buffer.writeln("import '${rel(interfacePath)}';");
     buffer.writeln("import '${rel(mockPath)}';");
@@ -547,8 +571,6 @@ class MockContractTestWriter {
       name.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
 
   String? _entityFile(String entityName, String outputDir) {
-    if (!EntityAnalyzer.entityFileExists(entityName, outputDir)) return null;
-    final snake = StringUtils.camelToSnake(entityName);
-    return p.join(outputDir, 'domain', 'entities', snake, '$snake.dart');
+    return EntityAnalyzer.findEntitySourcePath(entityName, outputDir);
   }
 }

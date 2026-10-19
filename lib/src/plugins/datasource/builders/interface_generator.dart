@@ -360,7 +360,8 @@ class DataSourceInterfaceBuilder {
     }.toList();
 
     final foreignEntitySnakes = <String>{};
-    final baseEntityImported = config.repo == null &&
+    final baseEntityImported =
+        config.repo == null &&
         fileSystem.existsSync(
           path.join(
             outputDir,
@@ -407,13 +408,7 @@ class DataSourceInterfaceBuilder {
         ),
       for (final snake in foreignEntitySnakes)
         if (fileSystem.existsSync(
-          path.join(
-            outputDir,
-            'domain',
-            'entities',
-            snake,
-            '$snake.dart',
-          ),
+          path.join(outputDir, 'domain', 'entities', snake, '$snake.dart'),
         ))
           Directive.import('../../../domain/entities/$snake/$snake.dart'),
     ];

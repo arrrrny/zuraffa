@@ -39,6 +39,7 @@ import '../commands/replay_command.dart';
 import '../commands/spec_command.dart';
 import '../commands/tdd_command.dart';
 import '../commands/app_shell_command.dart';
+import '../commands/theme_command.dart';
 import '../commands/package_command.dart';
 import '../commands/policy_command.dart';
 import '../commands/engine_command.dart';
@@ -269,6 +270,7 @@ class CliRunner {
     _runner.addCommand(AppCommand());
     _runner.addCommand(UiCommand());
     _runner.addCommand(PackageCommand());
+    _runner.addCommand(ThemeCommand());
     _runner.addCommand(SimulateCommand());
     _runner.addCommand(PolicyCommand());
     // Spec 1276: the `zfa skin` group is owned by the skin plugin
@@ -1061,6 +1063,7 @@ MODULAR COMMANDS:
   di <Name>           Generate dependency injection
   test <Name>         Generate unit tests
   app shell           Generate app shell (main.dart + shell widget + app_router.dart)
+  theme import <file> Import W3C design tokens with a11y contrast gates
 
 OPTIONS:
   -v, --version       Print version

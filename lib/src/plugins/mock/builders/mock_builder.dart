@@ -130,7 +130,15 @@ class MockBuilder {
       fileSystem: fileSystem,
     );
 
-    if (!isPolymorphic) {
+    // Issue #1851: in service mode the "entity" is the service interface
+    // (an abstract type). Never emit a mock-data file instantiating it;
+    // only concrete fixture entities (params/returns) get fixtures, and
+    // those are handled by the fixture loop below.
+    // Issue #1851: skip the top-level mock-data file only when the target
+    // is the service interface itself (an abstract type) — never instantiate
+    // it. Concrete return/param entities still get their fixtures here.
+    if (!isPolymorphic &&
+        !(config.hasService && targetEntity == config.effectiveService)) {
       final dataConfig = config.name == targetEntity
           ? config
           : config.copyWith(name: targetEntity);
@@ -198,7 +206,7 @@ class MockBuilder {
       }
     }
 
-    if (entityExists) {
+    if (!config.hasService && entityExists) {
       files.addAll(
         await entityGraphBuilder.generateNestedEntityMockFiles(
           config: config.name == targetEntity
