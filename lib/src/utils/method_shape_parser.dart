@@ -19,9 +19,7 @@ class MethodShapeParser {
       throw ArgumentError('method name must not be empty');
     }
     var shape = token.substring(colon + 1).trim();
-    if (shape.startsWith("'") &&
-        shape.endsWith("'") &&
-        shape.length >= 2) {
+    if (shape.startsWith("'") && shape.endsWith("'") && shape.length >= 2) {
       shape = shape.substring(1, shape.length - 1).trim();
     } else if (shape.startsWith('"') &&
         shape.endsWith('"') &&
