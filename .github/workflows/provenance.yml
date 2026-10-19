@@ -13,4 +13,3 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dart-lang/setup-dart@v1
       - run: dart pub get --no-example
-      - run: dart run bin/zfa.dart provenance report --project .
