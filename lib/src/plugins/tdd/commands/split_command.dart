@@ -274,6 +274,11 @@ class SplitCommand extends Command<void> {
     // (review on #1914).
     final routeLines = <String>{};
     for (final src in declarationSources) {
+      // `spec.md` is user-authored and is not a provenance writer (plan
+      // writes provenance into the test list) — its `route:` lines are
+      // never real routing decisions, so it is excluded entirely rather
+      // than trusted behind a fence check (review on #1914).
+      if (src.name == 'spec.md') continue;
       var inProvenance = false;
       // `fenceAwareLines` keeps a fenced `## ` banner from opening a
       // section; the body lines still need their own fence state, so a

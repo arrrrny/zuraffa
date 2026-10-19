@@ -771,8 +771,14 @@ class SpecParser {
     final contracts = <LayerContract>[];
     var inSection = false;
     var layer = '';
+    var inFence = false;
     for (final line in normalizeSpecText(content).split('\n')) {
       final trimmed = line.trim();
+      if (RegExp(r'^[ \t]*```').hasMatch(trimmed)) {
+        inFence = !inFence;
+        continue;
+      }
+      if (inFence) continue;
       if (trimmed.startsWith('#')) {
         if (_matchesSectionHeading(trimmed, _layerContractsHeading)) {
           inSection = true;
