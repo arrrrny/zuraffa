@@ -214,7 +214,7 @@ void main() {
           tmp.path,
           '--strict-routing',
         ]);
-        expect(exitCode, 1);
+        expect(CliRunner.lastDispatchedExitCode, 1);
         // Feature 1484: the untraced FR routes manual (no row), so the
         // undeclared behavior strict refuses is the unmarked acceptance
         // scenario A1 — the strict gate contract is unchanged.
@@ -270,7 +270,7 @@ void main() {
           tmp.path,
           '--strict-routing',
         ]);
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
         expect(out, contains('[declared:'));
         expect(out, isNot(contains('[fallback:')));
       } finally {
@@ -311,7 +311,7 @@ void main() {
           '--project',
           tmp.path,
         ]);
-        expect(exitCode, 2, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
         expect(out, contains('declaration refused'));
         expect(out, contains('--> fix:'));
         expect(out, contains('no artifacts were written'));

@@ -78,6 +78,14 @@ class CertifyMockCapability implements ZuraffaCapability {
         'description': 'Overwrite existing artifacts',
         'default': false,
       },
+      'service': {
+        'type': 'string',
+        'description': 'Service name for mock provider (service mode)',
+      },
+      'domain': {
+        'type': 'string',
+        'description': 'Domain folder for the mock provider (service mode)',
+      },
     },
     'required': ['name'],
   };
@@ -158,6 +166,8 @@ class CertifyMockCapability implements ZuraffaCapability {
       projectRoot: projectRoot,
       outputDir: p.join(projectRoot, 'lib', 'src'),
       verbose: parsed.verbose,
+      service: parsed.service,
+      domain: parsed.domain,
     );
 
     // Refusal BEFORE the sandbox ran: no mock artifacts / no interface
@@ -292,12 +302,16 @@ class _ParsedArgs {
   final String? fixturesDir;
   final bool force;
   final bool verbose;
+  final String? service;
+  final String? domain;
   const _ParsedArgs({
     this.feature,
     this.project,
     this.fixturesDir,
     this.force = false,
     this.verbose = false,
+    this.service,
+    this.domain,
   });
 }
 
@@ -305,6 +319,8 @@ _ParsedArgs _parseArgs(List<String> rest) {
   String? feature;
   String? project;
   String? fixturesDir;
+  String? service;
+  String? domain;
   var force = false;
   var verbose = false;
   for (var i = 0; i < rest.length; i++) {
@@ -319,6 +335,10 @@ _ParsedArgs _parseArgs(List<String> rest) {
       project = rest[++i];
     } else if (a == '--fixtures-dir' && i + 1 < rest.length) {
       fixturesDir = rest[++i];
+    } else if (a == '--service' && i + 1 < rest.length) {
+      service = rest[++i];
+    } else if (a == '--domain' && i + 1 < rest.length) {
+      domain = rest[++i];
     }
   }
   return _ParsedArgs(
@@ -327,5 +347,7 @@ _ParsedArgs _parseArgs(List<String> rest) {
     fixturesDir: fixturesDir,
     force: force,
     verbose: verbose,
+    service: service,
+    domain: domain,
   );
 }

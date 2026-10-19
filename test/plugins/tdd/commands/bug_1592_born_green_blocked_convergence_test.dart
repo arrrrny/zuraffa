@@ -216,7 +216,7 @@ ${subjectHash == null ? '' : '- subject-hash: $subjectHash\n'}- criterion: FR-00
       isNot(contains('is incomplete in tdd/cycle-log.md')),
       reason: out,
     );
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // The convergent window: refactor ONLY — verify-red and make never
     // spawn for a born-green-certified blocked behavior.
     expect(fx.stepInvocations(), ['refactor $id'], reason: out);
@@ -268,7 +268,7 @@ ${subjectHash == null ? '' : '- subject-hash: $subjectHash\n'}- criterion: FR-00
 
     final out = await drive();
 
-    expect(exitCode, 1, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
     expect(fx.stepInvocations(), ['verify-red $id'], reason: out);
     expect(
       out,
@@ -312,7 +312,7 @@ ${subjectHash == null ? '' : '- subject-hash: $subjectHash\n'}- criterion: FR-00
 
     // The exact pre-#1592 stop: the #1411 arm, the re-drive window
     // (verify-red -> make) unchanged.
-    expect(exitCode, 1, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
     expect(fx.stepInvocations(), ['verify-red $id', 'make $id'], reason: out);
     expect(out, contains('stopped_at=$id:hand'), reason: out);
     final state = await readState();
@@ -430,7 +430,7 @@ ${subjectHash == null ? '' : '- subject-hash: $subjectHash\n'}- criterion: FR-00
       // The pre-#1592 window: verify-red re-drives, the flagless make
       // refuses, and the #1411 arm re-prescribes the --born-green command —
       // whose re-run re-certifies honestly with the binding stamped.
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(fx.stepInvocations(), ['verify-red $id', 'make $id'], reason: out);
       expect(out, contains('stopped_at=$id:hand'), reason: out);
       expect(out, contains('--born-green` — then re-run'), reason: out);
@@ -475,7 +475,7 @@ ${subjectHash == null ? '' : '- subject-hash: $subjectHash\n'}- criterion: FR-00
 
       final out = await drive();
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(fx.stepInvocations(), ['verify-red $id', 'make $id'], reason: out);
       expect(out, contains('stopped_at=$id:hand'), reason: out);
       expect(out, contains('--born-green` — then re-run'), reason: out);

@@ -274,7 +274,7 @@ void main() {
 
         final runner = CliRunner(exitOnCompletion: false);
         final out = await runner.runCapturing(makeArgs(fx, id: id));
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(out, contains('outcome=not-certified-red'), reason: out);
         // THE FIX: the crash record survives the non-adopting exit.
         expect(
@@ -319,7 +319,7 @@ void main() {
 
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(makeArgs(fx, id: id));
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=not-certified-red'), reason: out);
       expect(
         readMarker(fx),
@@ -352,7 +352,7 @@ void main() {
         );
         final runner = CliRunner(exitOnCompletion: false);
         final redOut = await runner.runCapturing(verifyRedArgs(fx, id));
-        expect(exitCode, 0, reason: redOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
         final stubHash = await subjectHashOf(fx, id);
         await seedGreenEvidenceWithHash(fx, id, stubHash);
 
@@ -362,7 +362,7 @@ void main() {
         expect(readMarker(fx), isNull, reason: 'no make ever started');
 
         final out = await runner.runCapturing(makeArgs(fx, id: id));
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(out, contains('outcome=subject-drift'), reason: out);
         // This run's own marker is consumed: the #1036 dead-end for the
         // dishonest class stands, with no forged crash record.
@@ -397,7 +397,7 @@ void main() {
       // Step 1: the unrelated refusal — the wedge entry — must KEEP the
       // marker (the A1 contract).
       final refusedOut = await runner.runCapturing(makeArgs(fx, id: id));
-      expect(exitCode, isNot(0), reason: refusedOut);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: refusedOut);
       expect(readMarker(fx), isNotNull, reason: refusedOut);
 
       // Step 2: the recovery — the certified red is restored (the
@@ -407,7 +407,7 @@ void main() {
       // Step 3: the resume — the marker proves the crash, the passing
       // target test re-certifies green against the subject it mutated.
       final out = await runner.runCapturing(makeArgs(fx, id: id));
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('outcome=adopted-interrupted'), reason: out);
       expect(out, contains('issue #1398'), reason: out);
       final cycleLog = await File(fx.cycleLogPath).readAsString();
@@ -446,7 +446,7 @@ void main() {
         );
         final runner = CliRunner(exitOnCompletion: false);
         final redOut = await runner.runCapturing(verifyRedArgs(fx, id));
-        expect(exitCode, 0, reason: redOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
 
         // The crash residue: the marker AND a mutation the killed make
         // left mid-flight — a WRONG implementation: it still fails the
@@ -466,7 +466,7 @@ void main() {
         final out = await runner.runCapturing(
           makeArgs(fx, id: id, zfaBin: zfaBin),
         );
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(out, contains('outcome=generation-error'), reason: out);
         // THE FIX on the second flavor: the crash record survives the
         // non-adopting exit — the keep is refusal-flavor-agnostic.

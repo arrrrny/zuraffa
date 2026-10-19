@@ -197,7 +197,7 @@ void main() {
       // Pre-fix: the refusal reaches the #737 tolerance (0 errors passes
       // its #942 gate) and the make records green-with-failed-build — a
       // failed-build label a mere warning must never produce.
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       expect(
         out,
         contains('make: behavior=W3 outcome=green feature=${fx.featureName}'),
@@ -257,7 +257,7 @@ void main() {
         makeArgs(fx, id: 'U3', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       expect(
         out,
         contains('make: behavior=U3 outcome=green feature=${fx.featureName}'),
@@ -302,7 +302,7 @@ void main() {
         makeArgs(fx, id: 'U3', zfaBin: zfaBin),
       );
 
-      expect(exitCode, isNot(0), reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out:\n$out');
       expect(
         out,
         contains('make: behavior=U3 outcome=generation-error'),
@@ -340,7 +340,7 @@ void main() {
         makeArgs(fx, id: 'U3', zfaBin: zfaBin),
       );
 
-      expect(exitCode, isNot(0), reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out:\n$out');
       expect(
         out,
         contains('make: behavior=U3 outcome=generation-error'),
@@ -384,7 +384,7 @@ void main() {
       // The opted-in project gets exactly the legacy behavior: the
       // warnings-only refusal reaches the #737/#942 tolerance, whose
       // passing target test yields green-with-failed-build.
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       expect(
         out,
         contains(
@@ -423,7 +423,11 @@ void main() {
           makeArgs(fx, id: 'U3', zfaBin: zfaBin),
         );
 
-        expect(exitCode, 0, reason: 'gate=$value out:\n$out');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'gate=$value out:\n$out',
+        );
         expect(
           out,
           contains('make: behavior=U3 outcome=green feature=${fx.featureName}'),
@@ -451,7 +455,7 @@ void main() {
         makeArgs(fx, id: 'U3', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: 'out:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
       expect(
         out,
         contains('make: behavior=U3 outcome=skipped feature=${fx.featureName}'),
@@ -490,7 +494,7 @@ void main() {
           makeArgs(fx, id: 'U3', zfaBin: zfaBin),
         );
 
-        expect(exitCode, 0, reason: 'out:\n$out');
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
         expect(
           out,
           contains('outcome=green-with-failed-build'),
@@ -529,7 +533,11 @@ void main() {
           makeArgs(fx, id: 'U3', zfaBin: zfaBin),
         );
 
-        expect(exitCode, isNot(0), reason: 'out:\n$out');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          isNot(0),
+          reason: 'out:\n$out',
+        );
         expect(out, contains('outcome=generation-error'), reason: 'out:\n$out');
         expect(out, isNot(contains('warnings are non-blocking')));
       }
@@ -570,7 +578,7 @@ void main() {
           makeArgs(fx, id: 'U3', zfaBin: zfaBin),
         );
 
-        expect(exitCode, 0, reason: 'out:\n$out');
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
         expect(out, contains('0 error(s), 12 warning(s)'));
         expect(out, contains('warnings are non-blocking (issue #1407'));
         // Capped sample: 10 of the 12 lines logged, remainder named.

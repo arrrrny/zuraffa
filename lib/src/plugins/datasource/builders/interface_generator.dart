@@ -275,6 +275,41 @@ class DataSourceInterfaceBuilder {
           );
           break;
         default:
+          // Issue #1823: allow arbitrary (non-CRUD) verbs as declared
+          // data source members. Default to a void future with no params
+          // unless --params/--returns narrow the shape. Note: a single
+          // --params/--returns shape applies to every verb in one call.
+          {
+            final returnType =
+                (config.returnsType != null && config.returnsType!.isNotEmpty)
+                ? (config.returnsType!.startsWith('Future<') ||
+                          config.returnsType!.startsWith('Stream<')
+                      ? config.returnsType!
+                      : 'Future<${config.returnsType!}>')
+                : 'Future<void>';
+            final paramsType =
+                (config.paramsType != null && config.paramsType!.isNotEmpty)
+                ? config.paramsType!
+                : 'NoParams';
+            final m = Method(
+              (mm) => mm
+                ..name = method
+                ..returns = refer(returnType)
+                ..requiredParameters.addAll(
+                  paramsType == 'NoParams'
+                      ? const <Parameter>[]
+                      : [
+                          Parameter(
+                            (pp) => pp
+                              ..name = 'params'
+                              ..type = refer(paramsType),
+                          ),
+                        ],
+                ),
+            );
+            methods.add(m);
+          }
+          break;
       }
     }
 

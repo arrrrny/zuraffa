@@ -162,7 +162,7 @@ dev_dependencies:
       final output = await captureOutput(
         () => commandRunner().run([
           'make',
-          'car',
+          'Car',
           '--preset=crud',
           '--state',
           '--test',
@@ -213,7 +213,7 @@ dev_dependencies:
             );
           await failingRunner.run([
             'make',
-            'car',
+            'Car',
             '--preset=crud',
             '--state',
             '--test',
@@ -242,7 +242,7 @@ dev_dependencies:
         await captureOutput(
           () => commandRunner().run([
             'make',
-            'car',
+            'Car',
             '--preset=crud',
             '--state',
             '--test',
