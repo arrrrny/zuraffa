@@ -387,17 +387,15 @@ void main() {
           .where((f) => f.kind == 'unprovenanced')
           .toList(growable: false);
       expect(uncovered, isNotEmpty);
-      expect(
-        uncovered.any((f) => f.path == 'lib/src/orphan.dart'),
-        isTrue,
-      );
+      expect(uncovered.any((f) => f.path == 'lib/src/orphan.dart'), isTrue);
       expect(report.auditedRoots, contains('lib'));
     });
 
     test('a project with no receipts and an empty lib/ stays a vacuous '
         'green', () async {
-      await Directory(p.join(workspace.path, 'lib', 'src'))
-          .create(recursive: true);
+      await Directory(
+        p.join(workspace.path, 'lib', 'src'),
+      ).create(recursive: true);
 
       final report = await checker.check();
 

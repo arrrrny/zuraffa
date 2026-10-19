@@ -203,8 +203,9 @@ class ProofCheckCommand extends Command<void> {
   void _printText(ProofReport report, List<String> coverageRoots) {
     print('Proof Check (.zfa/receipts/)');
     print('============================');
-    final printedRoots =
-        coverageRoots.isNotEmpty ? coverageRoots : report.auditedRoots;
+    final printedRoots = coverageRoots.isNotEmpty
+        ? coverageRoots
+        : report.auditedRoots;
     if (printedRoots.isNotEmpty) {
       print('Audited coverage roots: ${printedRoots.join(', ')}');
     }

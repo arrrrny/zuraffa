@@ -230,9 +230,7 @@ void main() {
           .cast<Map<String, dynamic>>();
       expect(
         findings.any(
-          (f) =>
-              f['kind'] == 'unprovenanced' &&
-              f['path'] == 'lib/orphan.dart',
+          (f) => f['kind'] == 'unprovenanced' && f['path'] == 'lib/orphan.dart',
         ),
         isTrue,
         reason: 'stdout=${result.stdout}',

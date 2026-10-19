@@ -173,7 +173,22 @@ class ProofChecker {
     // never print "OK — Nothing to prove yet"; "nothing audited" is not
     // green. When receipts exist, leave the audit opt-in (coverage roots
     // are a CI gate, not a default).
-    final hasReceipts = records.isNotEmpty || testReceipts.isNotEmpty;
+    // Contract manifests (spec 0973) are a receipt family of their own:
+    // a project that carries repository contract manifests has provenance
+    // for its generated repository files, so the honesty sweep must not
+    // flag them as unprovenanced (issue #1390).
+    bool hasContractManifests = false;
+    try {
+      final contractManifests = await RepositoryContractManifestStore(
+        projectRoot: projectRoot,
+      ).loadAll();
+      hasContractManifests = contractManifests.isNotEmpty;
+    } catch (_) {
+      // Fail open: an unreadable receipts tree never turns the sweep on
+      // by itself.
+    }
+    final hasReceipts =
+        records.isNotEmpty || testReceipts.isNotEmpty || hasContractManifests;
     final effectiveRoots = coverageRoots.isNotEmpty
         ? List<String>.from(coverageRoots)
         : (hasReceipts ? <String>[] : await _conventionalRoots());
@@ -587,10 +602,7 @@ class ProofChecker {
     if (!libDir.existsSync()) return const <String>[];
     var hasFile = false;
     try {
-      await for (final e in libDir.list(
-        recursive: true,
-        followLinks: false,
-      )) {
+      await for (final e in libDir.list(recursive: true, followLinks: false)) {
         if (e is File) {
           hasFile = true;
           break;
