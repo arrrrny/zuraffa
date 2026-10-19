@@ -217,7 +217,14 @@ environment:
     });
 
     test('knob overrides: --returns changes the audited surface', () async {
-      await zfa(['service', 'create', 'Ticker', '--params', 'NoParams', '--allow-forward-refs']);
+      await zfa([
+        'service',
+        'create',
+        'Ticker',
+        '--params',
+        'NoParams',
+        '--allow-forward-refs',
+      ]);
 
       // The file was generated with returns == 'void' (default). Verifying
       // with --returns int must FAIL (the file says void).

@@ -38,8 +38,9 @@ void main() {
           .substring(1);
       final dir = Directory(p.join(outputDir, 'domain', 'entities', snake));
       await dir.create(recursive: true);
-      await File(p.join(dir.path, '$snake.dart'))
-          .writeAsString('class $entity {}\n');
+      await File(
+        p.join(dir.path, '$snake.dart'),
+      ).writeAsString('class $entity {}\n');
     }
     await File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
 name: zuraffa_service_json_test
