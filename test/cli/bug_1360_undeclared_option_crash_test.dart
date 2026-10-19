@@ -21,8 +21,6 @@ library;
 //   B3 — valid invocations unaffected (regression guard).
 //   B4 — the SPEC 917 `--> fix:` line accompanies the usage error.
 
-import 'dart:io';
-
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
@@ -30,7 +28,7 @@ void main() {
   Future<(int, String)> runZfa(List<String> args) async {
     final runner = CliRunner(exitOnCompletion: false);
     final output = await runner.runCapturing(args);
-    return (exitCode, output);
+    return (CliRunner.lastDispatchedExitCode, output);
   }
 
   test('B1: an undeclared subcommand option is a clean usage error', () async {

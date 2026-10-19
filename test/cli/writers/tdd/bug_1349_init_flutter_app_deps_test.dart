@@ -132,7 +132,7 @@ dependencies:
         await seedPubspec(flutter: true);
         final out = await runInit();
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         // The generated app module imports the barrel ...
         final appDart = File(p.join(tmpDir.path, 'lib', 'app.dart'));
         expect(appDart.existsSync(), isTrue, reason: out);
@@ -151,11 +151,11 @@ dependencies:
     test('self-heal is idempotent: a second run adds nothing twice', () async {
       await seedPubspec(flutter: true);
       final first = await runInit();
-      expect(exitCode, 0, reason: first);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: first);
       expect(readPubspec(), contains(kFlutterBarrelConstraint));
 
       final second = await runInit();
-      expect(exitCode, 0, reason: second);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: second);
       final pubspec = readPubspec();
       expect(
         'zuraffa_flutter'.allMatches(pubspec).length,
@@ -200,7 +200,7 @@ dev_dependencies:
 
       final out = await runInit();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         pubspecFile.readAsStringSync(),
         before,
@@ -214,7 +214,7 @@ dev_dependencies:
         await seedPubspec(flutter: false);
         final out = await runInit();
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(
           readPubspec(),
           isNot(contains('zuraffa_flutter')),

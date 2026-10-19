@@ -40,11 +40,11 @@ import 'package:zuraffa/src/plugins/tdd/services/hand_surface.dart';
 
 import '../helpers/tdd_fixture.dart';
 
-/// Reads the process-global `dart:io exitCode` and immediately resets it
+/// Reads the process-global `dart:io CliRunner.lastDispatchedExitCode` and immediately resets it
 /// (the same suite-wide flake guard bug_1589_contract_blocked_resume_test.dart
 /// uses).
 int takeExitCode() {
-  final code = exitCode;
+  final code = CliRunner.lastDispatchedExitCode;
   exitCode = 0;
   return code;
 }

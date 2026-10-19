@@ -13,6 +13,7 @@ import '../../../utils/string_utils.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/entity_utils.dart';
 import '../../../utils/method_extractor.dart';
+import '../../../utils/project_flavor.dart';
 import '../../../models/parsed_usecase_info.dart';
 import 'mock_type_helper.dart';
 
@@ -123,9 +124,13 @@ class MockProviderBuilder {
     }
 
     addImport('dart:async');
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final mockImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/mock.dart';
     // Canonical zuraffa-native mock marker: detects native mocking for static
     // tooling (e.g. speckit-tdd-setup) without a third-party double library.
-    addImport('package:zuraffa/mock.dart');
+    addImport(mockImport);
     addImport(serviceImport);
 
     final isStandardEntityMock = config.methods.isNotEmpty;

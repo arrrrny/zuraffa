@@ -39,9 +39,9 @@ import 'package:zuraffa/src/plugins/tdd/services/test_list_reader.dart';
 import '../helpers/corpus_fixture.dart';
 import '../helpers/tdd_fixture.dart';
 
-/// Reads the process-global `dart:io exitCode` and immediately resets it,
+/// Reads the process-global `dart:io CliRunner.lastDispatchedExitCode` and immediately resets it,
 /// so this suite never LEAKS a nonzero code into a concurrently-running
-/// suite's exitCode assertion (`exitCode` is process-global across test
+/// suite's CliRunner.lastDispatchedExitCode assertion (`CliRunner.lastDispatchedExitCode` is process-global across test
 /// isolates — the suite-wide flake hazard the eager reset shrinks).
 int takeExitCode() {
   final code = exitCode;

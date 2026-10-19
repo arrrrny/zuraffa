@@ -6,13 +6,14 @@ import '../../../core/constants/known_types.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/project_flavor.dart';
 
 class ServiceInterfaceBuilder {
   final SpecLibrary specLibrary;
 
   const ServiceInterfaceBuilder({this.specLibrary = const SpecLibrary()});
 
-  String build(GeneratorConfig config, {FileSystem? fileSystem}) {
+  Future<String> build(GeneratorConfig config, {FileSystem? fileSystem}) async {
     final serviceName = config.effectiveService;
     if (serviceName == null) {
       throw ArgumentError(
@@ -90,19 +91,30 @@ class ServiceInterfaceBuilder {
     );
 
     final isEntity = config.isEntityBased;
-    var needsZuraffaImport = isEntity || config.generateInit;
-    if (!isEntity) {
+    var needsCoreImport = isEntity || config.generateInit;
+    if (!isEntity && !needsCoreImport) {
       final paramsType = config.paramsType ?? 'NoParams';
       final returnsType = config.returnsType ?? 'void';
-      if (KnownTypes.isZuraffaParam(paramsType) ||
-          KnownTypes.isZuraffaParam(returnsType)) {
-        needsZuraffaImport = true;
+      final baseTypes = <String>{
+        ...CommonPatterns.extractBaseTypes(paramsType),
+        ...CommonPatterns.extractBaseTypes(returnsType),
+      };
+      if (baseTypes.any((t) =>
+          KnownTypes.isZuraffaParam(t) ||
+          KnownTypes.isZuraffaResult(t) ||
+          KnownTypes.isZorphyType(t))) {
+        needsCoreImport = true;
       }
     }
 
     final imports = <String>[];
-    if (needsZuraffaImport) {
-      imports.add('package:zuraffa/zuraffa.dart');
+    if (needsCoreImport) {
+      final fs = fileSystem ?? FileSystem.create();
+      final flavor = await detectProjectFlavor(config.outputDir, fs);
+      final coreImport = flavor == ProjectFlavor.flutter
+          ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+          : 'package:zuraffa/zuraffa.dart';
+      imports.add(coreImport);
     }
     if (config.isEntityBased) {
       // For entity methods, we definitely need the entity import

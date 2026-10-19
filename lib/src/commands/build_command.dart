@@ -961,12 +961,14 @@ class BuildCommand extends Command {
     // both shapes so the classifier recognises generator output regardless
     // of which form the analyzer emits (issue #1796).
     final normalized = path.replaceAll(r'\', '/');
-    final candidates = <String>{normalized};
-    if (!normalized.startsWith('lib/') && !normalized.startsWith('./lib/')) {
-      candidates.add('lib/$normalized');
-    }
-    if (normalized.startsWith('./')) {
-      candidates.add(normalized.substring(2));
+    // Strip a leading './' first so the segment/suffix checks run on a
+    // clean path (issue #1868 review: './'-prefixed analyzer paths).
+    final stripped = normalized.startsWith('./')
+        ? normalized.substring(2)
+        : normalized;
+    final candidates = <String>{normalized, stripped};
+    if (!stripped.startsWith('lib/')) {
+      candidates.add('lib/$stripped');
     }
     final isGeneratedSuffix = candidates.any(
       (c) => c.endsWith('.zorphy.dart') || c.endsWith('.g.dart'),

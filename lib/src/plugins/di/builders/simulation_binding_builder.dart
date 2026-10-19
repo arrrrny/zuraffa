@@ -27,6 +27,7 @@ import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/project_flavor.dart';
 import '../detectors/registration_detector.dart';
 
 const String simulationDiFolder = 'simulation';
@@ -60,6 +61,8 @@ class SimulationBindingBuilder {
   String buildBindingFile({
     required String entityName,
     required String entitySnake,
+    String coreImport = 'package:zuraffa/zuraffa.dart',
+    String simulationImport = 'package:zuraffa/simulation.dart',
   }) {
     final method = _registrationFunction(
       functionName: 'register${entityName}SimulationDataSource',
@@ -67,10 +70,14 @@ class SimulationBindingBuilder {
       mockName: '${entityName}MockDataSource',
     );
 
-    final directives = _simulationDirectives([
-      '../../data/datasources/$entitySnake/${entitySnake}_datasource.dart',
-      '../../data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart',
-    ]);
+    final directives = _simulationDirectives(
+      [
+        '../../data/datasources/$entitySnake/${entitySnake}_datasource.dart',
+        '../../data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart',
+      ],
+      coreImport: coreImport,
+      simulationImport: simulationImport,
+    );
 
     return _wrapBinding(
       const SpecLibrary().emitLibrary(
@@ -91,6 +98,8 @@ class SimulationBindingBuilder {
     required String serviceName,
     required String mockProviderName,
     required List<String> relativeImports,
+    String coreImport = 'package:zuraffa/zuraffa.dart',
+    String simulationImport = 'package:zuraffa/simulation.dart',
   }) {
     final baseName = stripServiceSuffix(serviceName);
     final method = _registrationFunction(
@@ -99,7 +108,11 @@ class SimulationBindingBuilder {
       mockName: mockProviderName,
     );
 
-    final directives = _simulationDirectives(relativeImports);
+    final directives = _simulationDirectives(
+      relativeImports,
+      coreImport: coreImport,
+      simulationImport: simulationImport,
+    );
 
     return _wrapBinding(
       const SpecLibrary().emitLibrary(
@@ -158,12 +171,19 @@ class SimulationBindingBuilder {
     );
   }
 
-  static List<Directive> _simulationDirectives(List<String> relativeImports) =>
-      [
-        Directive.import('package:zuraffa/zuraffa.dart'),
-        Directive.import('package:zuraffa/simulation.dart'),
-        ...relativeImports.map(Directive.import),
-      ];
+  static List<Directive> _simulationDirectives(
+    List<String> relativeImports, {
+    String coreImport = 'package:zuraffa/zuraffa.dart',
+    String simulationImport = 'package:zuraffa/simulation.dart',
+  }) {
+    final directives = <Directive>[];
+    directives.add(Directive.import(coreImport));
+    if (simulationImport != coreImport) {
+      directives.add(Directive.import(simulationImport));
+    }
+    directives.addAll(relativeImports.map(Directive.import));
+    return directives;
+  }
 
   static String _wrapBinding(String body) =>
       '// GENERATED - DO NOT EDIT\n'
@@ -186,6 +206,8 @@ class SimulationBindingBuilder {
   /// discovered under `di/simulation/`.
   String buildIndexFile({
     required List<SimulationBindingRegistration> registrations,
+    String coreImport = 'package:zuraffa/zuraffa.dart',
+    String simulationImport = 'package:zuraffa/simulation.dart',
   }) {
     final specLibrary = const SpecLibrary();
 
@@ -216,9 +238,9 @@ class SimulationBindingBuilder {
         ),
     );
 
-    final directives = [
-      Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import('package:zuraffa/simulation.dart'),
+    final directives = <Directive>[
+      Directive.import(coreImport),
+      if (simulationImport != coreImport) Directive.import(simulationImport),
       ...registrations.map((r) => Directive.import(r.fileName)),
     ];
 
@@ -261,11 +283,19 @@ class SimulationBindingEmitter {
     final fileName = '${entitySnake}_simulation_datasource_di.dart';
     final bindingPath = path.join(simulationDir, fileName);
 
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
+    final simulationImport = 'package:zuraffa/simulation.dart';
+
     return FileUtils.writeFile(
       bindingPath,
       builder.buildBindingFile(
         entityName: entityName,
         entitySnake: entitySnake,
+        coreImport: coreImport,
+        simulationImport: simulationImport,
       ),
       'di_simulation_binding',
       force: true,
@@ -291,12 +321,20 @@ class SimulationBindingEmitter {
     final fileName = '${baseSnake}_simulation_service_di.dart';
     final bindingPath = path.join(simulationDir, fileName);
 
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
+    final simulationImport = 'package:zuraffa/simulation.dart';
+
     return FileUtils.writeFile(
       bindingPath,
       builder.buildServiceBindingFile(
         serviceName: serviceName,
         mockProviderName: mockProviderName,
         relativeImports: [serviceImport, mockProviderImport],
+        coreImport: coreImport,
+        simulationImport: simulationImport,
       ),
       'di_simulation_binding',
       force: true,
@@ -327,10 +365,20 @@ class SimulationBindingEmitter {
         )
         .toList();
 
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
+    final simulationImport = 'package:zuraffa/simulation.dart';
+
     final indexPath = path.join(simulationDir, 'index.dart');
     return FileUtils.writeFile(
       indexPath,
-      builder.buildIndexFile(registrations: registrations),
+      builder.buildIndexFile(
+        registrations: registrations,
+        coreImport: coreImport,
+        simulationImport: simulationImport,
+      ),
       'di_simulation_index',
       force: true,
       dryRun: options.dryRun,

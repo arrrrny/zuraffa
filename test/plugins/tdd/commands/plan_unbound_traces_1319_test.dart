@@ -173,7 +173,7 @@ void main() {
             '--no-emit-markers',
           ]);
           expect(
-            exitCode,
+            CliRunner.lastDispatchedExitCode,
             1,
             reason:
                 'the strict gate refuses the undeclared '

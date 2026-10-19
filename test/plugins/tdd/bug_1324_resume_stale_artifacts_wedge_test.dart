@@ -212,7 +212,7 @@ void main() {
 
       final out = await drive(feature);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('result=stale-artifacts'), reason: out);
       expect(out, contains('stopped_at=A1:make'), reason: out);
       expect(
@@ -293,7 +293,7 @@ void main() {
 
       final out = await runCli(['doctor', feature]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('"verdict":"stale-artifacts"'), reason: out);
       expect(out, contains('"prescription":"reset"'), reason: out);
       expect(
@@ -320,7 +320,7 @@ void main() {
 
       final out = await runCli(['doctor', feature]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('"verdict":"healthy"'), reason: out);
     },
   );
@@ -352,7 +352,7 @@ void main() {
 
       final out = await runCli(['doctor', feature]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('"verdict":"healthy"'), reason: out);
     },
   );
@@ -372,7 +372,7 @@ void main() {
 
       final out = await runCli(['doctor', feature]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('evidence-without-artifact'), reason: out);
       expect(out, contains('"prescription":"resume"'), reason: out);
       expect(

@@ -11,6 +11,7 @@ import '../../../models/generator_config.dart';
 import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/method_extractor.dart';
+import '../../../utils/project_flavor.dart';
 
 /// Generates provider implementation classes.
 ///
@@ -226,11 +227,16 @@ class ProviderBuilder {
     // the hide list stays empty and the import is emitted unchanged.
     final barrelHide = CommonPatterns.barrelHideNamesForTypes(entityTypes);
 
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
+
     final directives = <Directive>[
       if (barrelHide.isEmpty)
-        Directive.import('package:zuraffa/zuraffa.dart')
+        Directive.import(coreImport)
       else
-        Directive.import('package:zuraffa/zuraffa.dart', hide: barrelHide),
+        Directive.import(coreImport, hide: barrelHide),
       Directive.import(serviceImport),
       ...entityImports.map(Directive.import),
     ];
