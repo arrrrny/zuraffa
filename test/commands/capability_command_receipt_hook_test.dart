@@ -101,14 +101,11 @@ environment:
     final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
     exitCode = 0;
-    late int code;
-    await runner.run(['create', 'Product']).then((_) {
-      // Capture inside the completion callback — exitCode is process-global
-      // and a sibling isolate (or the runner's own teardown) can reset it
-      // before a synchronous read after `await` returns (issue #1882).
-      code = exitCode;
-    });
-    exitCode = 0; // hermetic: never leak a failure code into the suite
+    await runner.run(['create', 'Product']);
+    final code = exitCode;
+    // `exitCode` is process-global: reset it before asserting so the restore
+    // runs even when this expectation fails (the tearDown is the backstop).
+    exitCode = 0;
     expect(
       code,
       equals(1),
