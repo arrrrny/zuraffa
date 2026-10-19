@@ -114,7 +114,6 @@ class DeepLinkRoutesBuilder {
     final directives = <Directive>[
       Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
       Directive.import('package:flutter/material.dart'),
-      Directive.import('package:zuraffa/zuraffa.dart'),
     ];
 
     final library = specLibrary.library(

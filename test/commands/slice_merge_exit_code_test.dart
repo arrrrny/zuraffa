@@ -9,7 +9,7 @@ import 'package:zuraffa/src/cli/exit_protocol.dart';
 /// `SliceCommand` records its outcome in an instance field
 /// (`command.exitCode`, asserted by the INV-1 suite) and its failure paths
 /// (`_printMergeResult`, `verify`, `export`) all assign it on capability
-/// failure — but the field SHADOWS dart:io's global `exitCode` inside the
+/// failure — but the field SHADOWS dart:io's global `CliRunner.lastDispatchedExitCode` inside the
 /// class, so nothing publishes the failure to the process. `CliRunner.
 /// _runDispatched` exits with the GLOBAL, and the real binary was
 /// empirically exiting 0 for every failed slice capability:
@@ -21,7 +21,7 @@ import 'package:zuraffa/src/cli/exit_protocol.dart';
 ///
 ///   FR-1: a failed slice capability (merge/verify/export) must exit 1 at
 ///         the process boundary — the instance outcome must be published
-///         to dart:io's `exitCode` when `run()` completes.
+///         to dart:io's `CliRunner.lastDispatchedExitCode` when `run()` completes.
 ///   FR-2: usage errors keep exiting 64 and successes keep exiting 0
 ///         (regression pins, driven through the same boundary).
 void main() {
@@ -32,7 +32,7 @@ void main() {
     final output = await CliRunner(
       exitOnCompletion: false,
     ).runCapturing(['slice', ...args]);
-    final code = exitCode;
+    final code = CliRunner.lastDispatchedExitCode;
     exitCode = 0; // hermetic: never leak a failure code into the suite
     return (output, code);
   }
@@ -46,7 +46,7 @@ void main() {
       reason:
           'the merge failed but the process reported success — the '
           'instance-field outcome is never published to dart:io '
-          'exitCode (#767)',
+          'CliRunner.lastDispatchedExitCode (#767)',
     );
   });
 

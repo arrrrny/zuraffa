@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-01
 
-**Status**: Draft
+**Status**: In Progress (migration scaffold landed)
 
 **Input**: GitHub issue #686 (https://github.com/arrrrny/zuraffa/issues/686) — "[v6] Migrate zikzak_share_handler to be built on zuraffa"
 

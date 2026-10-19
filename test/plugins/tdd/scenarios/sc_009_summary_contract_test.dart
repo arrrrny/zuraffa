@@ -75,7 +75,7 @@ void main() {
     expect(m1!.group(1), 'B-001');
     expect(m1.group(2), 'green');
     expect(m1.group(3), fx.featureName);
-    expect(exitCode, 0);
+    expect(CliRunner.lastDispatchedExitCode, 0);
     exitCode = 0;
 
     // Unknown id.
@@ -92,7 +92,7 @@ void main() {
     final m2 = shape.firstMatch(unknownLine);
     expect(m2, isNotNull, reason: 'line: "$unknownLine"');
     expect(m2!.group(2), 'runner-error');
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     exitCode = 0;
 
     // Unexpressible.
@@ -113,7 +113,7 @@ void main() {
     final m3 = shape.firstMatch(unexprLine);
     expect(m3, isNotNull, reason: 'line: "$unexprLine"');
     expect(m3!.group(2), 'unexpressible');
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     exitCode = 0;
 
     // Generation-error.
@@ -135,7 +135,7 @@ void main() {
     final m4 = shape.firstMatch(genErrLine);
     expect(m4, isNotNull, reason: 'line: "$genErrLine"');
     expect(m4!.group(2), 'generation-error');
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     exitCode = 0;
   }, timeout: const Timeout(Duration(minutes: 5)));
 
@@ -165,7 +165,7 @@ void main() {
       zfaBin,
       'B-001',
     ]);
-    expect(exitCode, 0);
+    expect(CliRunner.lastDispatchedExitCode, 0);
     exitCode = 0;
 
     // Unknown → non-zero.
@@ -178,7 +178,7 @@ void main() {
       zfaBin,
       'B-404',
     ]);
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     exitCode = 0;
 
     // Unexpressible → non-zero.
@@ -195,7 +195,7 @@ void main() {
       zfaBin,
       'B-042',
     ]);
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     exitCode = 0;
   }, timeout: const Timeout(Duration(minutes: 5)));
 }

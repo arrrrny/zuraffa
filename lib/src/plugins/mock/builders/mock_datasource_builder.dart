@@ -11,6 +11,7 @@ import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/project_flavor.dart';
 import '../services/mock_staleness_detector.dart';
 import 'mock_type_helper.dart';
 
@@ -119,11 +120,16 @@ class MockDataSourceBuilder {
           ...EntityUtils.mockBarrelHideNames(type),
     }.toList();
 
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final mockImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/mock.dart';
+
     final directives = [
       Directive.import('dart:async'),
       // Canonical zuraffa-native mock marker: detects native mocking for static
       // tooling (e.g. speckit-tdd-setup) without a third-party double library.
-      Directive.import('package:zuraffa/mock.dart', hide: barrelHide),
+      Directive.import(mockImport, hide: barrelHide),
       if (config.isEntityBased)
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',

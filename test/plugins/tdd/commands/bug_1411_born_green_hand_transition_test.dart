@@ -151,7 +151,7 @@ void main() {
 
       final out = await drive(bornGreenArgs());
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('outcome=born-green'), reason: out);
       expect(out, contains('born-green hand transition'), reason: out);
       // The evidence is real and in the existing format: a green
@@ -213,7 +213,7 @@ void main() {
 
       final out = await drive(bornGreenArgs());
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('outcome=born-green'), reason: out);
 
       // The drift is resolved: the latest receipts over the
@@ -243,7 +243,7 @@ void main() {
 
       final out = await drive(['tdd', 'make', '--project', fx.root.path, 'U1']);
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('no certified-red evidence'), reason: out);
       expect(out, contains('outcome=not-certified-red'), reason: out);
       expect(out, contains('--born-green'), reason: out);
@@ -261,7 +261,7 @@ void main() {
 
       final out = await drive(bornGreenArgs());
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=vacuous-green'), reason: out);
       expect(out, contains('zfa:tdd: vacuous-guard'), reason: out);
       expect(out, contains('--born-green'), reason: out);
@@ -284,7 +284,7 @@ void main() {
 
       final out = await drive(bornGreenArgs());
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=not-certified-red'), reason: out);
       expect(out, contains(handHeader('U1')), reason: out);
     });
@@ -313,7 +313,7 @@ void main() {
 
       final out = await drive(bornGreenArgs());
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=not-certified-red'), reason: out);
       expect(out, contains('zfa tdd verify-red U1'), reason: out);
     });
@@ -331,7 +331,7 @@ void main() {
 
         final out = await drive(bornGreenArgs());
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('outcome=skipped'), reason: out);
         expect(out, isNot(contains('outcome=born-green')), reason: out);
       },
@@ -350,7 +350,7 @@ void main() {
 
       final out = await drive(bornGreenArgs());
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=vacuous-green'), reason: out);
       expect(out, contains('PLACEHOLDER'), reason: out);
     });
@@ -374,7 +374,7 @@ void main() {
 
         final out = await drive(bornGreenArgs());
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('outcome=born-green'), reason: out);
         // The advancement is observed (FR-006) and persisted (FR-004).
         expect(out, contains('U1 blocked -> done'), reason: out);
@@ -406,7 +406,7 @@ void main() {
 
       final out = await drive(bornGreenArgs());
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('outcome=born-green'), reason: out);
       expect(File(fx.runStatePath).existsSync(), isFalse, reason: out);
     });
@@ -425,7 +425,7 @@ void main() {
 
         final out = await drive(bornGreenArgs());
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('outcome=born-green'), reason: out);
         expect(out, isNot(contains('blocked -> done')), reason: out);
         final state =

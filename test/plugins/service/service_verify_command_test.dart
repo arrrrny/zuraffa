@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/zfa_cli.dart' as cli;
 
 /// SPEC 1127, order 2 — `zfa service verify <Entity>`.
@@ -71,7 +72,7 @@ environment:
         contains('✅'),
         reason: 'conform gate must affirm: $output',
       );
-      expect(exitCode, equals(0));
+      expect(CliRunner.lastDispatchedExitCode, equals(0));
     });
 
     test('hand-edited file (method body signature drift) fails: exit 1 '
@@ -98,7 +99,7 @@ environment:
 
       expect(output, contains('missing_method'));
       expect(output, contains('--> fix:'));
-      expect(exitCode, equals(1));
+      expect(CliRunner.lastDispatchedExitCode, equals(1));
     });
 
     test('return-type drift fails the gate (grammar ≡ schema)', () async {
@@ -124,14 +125,14 @@ environment:
       final output = await zfa(['service', 'verify', 'SendEmail']);
 
       expect(output, contains('signature_mismatch'));
-      expect(exitCode, equals(1));
+      expect(CliRunner.lastDispatchedExitCode, equals(1));
     });
 
     test('missing service file → exit 1, missing_file finding', () async {
       final output = await zfa(['service', 'verify', 'Ghost']);
 
       expect(output, contains('missing_file'));
-      expect(exitCode, equals(1));
+      expect(CliRunner.lastDispatchedExitCode, equals(1));
     });
 
     test('--json emits one canonical envelope (pass)', () async {
@@ -212,7 +213,7 @@ environment:
       final output = await zfa(['service', 'verify']);
 
       expect(output, contains('--> fix:'));
-      expect(exitCode, equals(2));
+      expect(CliRunner.lastDispatchedExitCode, equals(2));
     });
 
     test('knob overrides: --returns changes the audited surface', () async {
@@ -228,7 +229,7 @@ environment:
         'int',
       ]);
 
-      expect(exitCode, equals(1));
+      expect(CliRunner.lastDispatchedExitCode, equals(1));
       expect(output, contains('signature_mismatch'));
     });
 
@@ -237,7 +238,7 @@ environment:
       final output = await zfa(['service', 'verify', 'not a valid entity!!']);
 
       expect(output, isNot(contains('Unhandled exception')));
-      expect(exitCode, isNot(equals(0)));
+      expect(CliRunner.lastDispatchedExitCode, isNot(equals(0)));
     });
   });
 }

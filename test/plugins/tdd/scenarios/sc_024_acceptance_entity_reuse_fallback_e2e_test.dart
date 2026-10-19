@@ -300,7 +300,11 @@ dev_dependencies:
       ),
       reason: out,
     );
-    expect(exitCode, 0, reason: 'run must exit 0 when complete; out:\n$out');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'run must exit 0 when complete; out:\n$out',
+    );
 
     // Both subjects were wired (the subject-edit path ran for both).
     for (final id in const ['a1', 'a2']) {

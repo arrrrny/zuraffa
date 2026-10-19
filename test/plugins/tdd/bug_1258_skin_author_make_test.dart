@@ -291,7 +291,7 @@ int ${_subjectSymbol}_value() => 0;
       );
 
       // (d) the driver resumes: the make certifies green, exit 0.
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains(
@@ -360,7 +360,7 @@ int ${_subjectSymbol}_value() => 0;
         makeArgs(fx, id: _behaviorId, zfaBin: zfaBin),
       );
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('SCAFFOLDED'));
       expect(out, contains('outcome=scaffolded'));
       // No generation ran, nothing changed.
@@ -397,7 +397,7 @@ int ${_subjectSymbol}_value() => 0;
           ),
         );
 
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
         expect(out, contains('born-green'), reason: out);
         // The scaffolded bytes were restored byte-identical.
         expect(
@@ -440,7 +440,7 @@ int ${_subjectSymbol}_value() => 0;
         ),
       );
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('--author'), reason: out);
       expect(out, contains('outcome=runner-error'));
       expect(await fx.readFakeZfaLog(), isEmpty);
@@ -455,7 +455,7 @@ int ${_subjectSymbol}_value() => 0;
         makeArgs(fx, id: _behaviorId, zfaBin: zfaBin, author: true),
       );
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('--finders-file'), reason: out);
       expect(await fx.readFakeZfaLog(), isEmpty);
     });
@@ -480,7 +480,7 @@ int ${_subjectSymbol}_value() => 0;
         ),
       );
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('classification: compile-error'), reason: out);
       expect(
         await File(fx.testPathOf(_behaviorId)).readAsString(),

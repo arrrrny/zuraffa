@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/core/verdict_envelope.dart';
 import 'package:zuraffa/src/zfa_cli.dart' as cli;
 
@@ -155,7 +156,11 @@ environment:
         contains('Future<SendResult> sendEmail(EmailParams params);'),
       );
 
-      expect(exitCode, equals(0), reason: 'verdict pass must exit 0');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        equals(0),
+        reason: 'verdict pass must exit 0',
+      );
     });
 
     test(
@@ -210,7 +215,7 @@ environment:
         expect(output, contains('--> fix:'));
         expect(output, isNot(contains('✅ Success!')));
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           equals(2),
           reason: 'usage error family (missing name) — SPEC 917 canonical 2',
         );
@@ -256,7 +261,7 @@ environment:
             'canonical top-level fix slot',
       );
       expect(output, contains('--> fix:'));
-      expect(exitCode, equals(1));
+      expect(CliRunner.lastDispatchedExitCode, equals(1));
     });
 
     test('prose mode (no --json) is unchanged: ✅ Success framing', () async {
@@ -275,7 +280,7 @@ environment:
         output,
         contains(p.join('domain', 'services', 'sync_service.dart')),
       );
-      expect(exitCode, equals(0));
+      expect(CliRunner.lastDispatchedExitCode, equals(0));
     });
 
     test('--json with JSON-input payload still accepted for compatibility '

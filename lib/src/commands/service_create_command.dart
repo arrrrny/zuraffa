@@ -203,7 +203,7 @@ class ServiceCreateCommand extends Command<void> {
 
     // ── Explain: describe, never generate. ──
     if (explainMode) {
-      final explanation = _explain(config, root);
+      final explanation = await _explain(config, root);
       if (jsonMode) {
         print(
           VerdictEnvelope(
@@ -340,7 +340,7 @@ class ServiceCreateCommand extends Command<void> {
     if (changed.isNotEmpty && typesResolveOnDisk) {
       final artifact = File(changed.first.path);
       if (artifact.existsSync()) {
-        conformance = const ServiceConformanceChecker().check(
+        conformance = await const ServiceConformanceChecker().check(
           config: config,
           source: artifact.readAsStringSync(),
           path: artifact.path,
@@ -580,10 +580,13 @@ class ServiceCreateCommand extends Command<void> {
   }
 
   /// The explain payload: service shape, provider binding, methods.
-  Map<String, dynamic> _explain(GeneratorConfig config, String root) {
-    final checker = const ServiceConformanceChecker().check(
+  Future<Map<String, dynamic>> _explain(
+    GeneratorConfig config,
+    String root,
+  ) async {
+    final checker = await const ServiceConformanceChecker().check(
       config: config,
-      source: const ServiceInterfaceBuilder().build(config),
+      source: await const ServiceInterfaceBuilder().build(config),
       path: 'explain_preview.dart',
     );
     final provider = _boundProvider(config, root);
@@ -600,9 +603,7 @@ class ServiceCreateCommand extends Command<void> {
       'signatures': checker.expectedSignatures,
       'provider': provider,
       'providerHint': provider == null
-          ? 'no provider bound yet — `zfa provider create '
-                '${_baseName(config)} --service ${config.effectiveService}` '
-                'binds one'
+          ? '`zfa provider create ${_baseName(config)}` binds one'
           : null,
       'receipt': '.zfa/receipts/service-${_receiptEntityName(config)}.json',
     };

@@ -77,7 +77,7 @@ void main() {
     final runner = CliRunner(exitOnCompletion: false);
     final out = await runner.runCapturing(refactorArgs());
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
     // The pass line itself names the skip — the issue's marker.
     expect(
@@ -130,7 +130,7 @@ void main() {
     final runner = CliRunner(exitOnCompletion: false);
     final out = await runner.runCapturing(refactorArgs());
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
     // The executed pass prints the plain header (the issue's exact shape)
     // with its command and exit code — never the skip evidence.
@@ -156,7 +156,7 @@ void main() {
     final runner = CliRunner(exitOnCompletion: false);
     final out = await runner.runCapturing(refactorArgs());
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
     final raw = await File(fx.cycleLogPath).readAsString();
     final entry = raw

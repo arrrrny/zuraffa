@@ -93,7 +93,7 @@ void main() {
         fx.root.path,
       ]);
       expect(out, contains('target'));
-      expect(exitCode, 2);
+      expect(CliRunner.lastDispatchedExitCode, 2);
     });
 
     test(
@@ -102,7 +102,7 @@ void main() {
         final out = await ledger();
         expect(out, contains('catalog'));
         expect(out, contains('--> fix'));
-        expect(exitCode, 2);
+        expect(CliRunner.lastDispatchedExitCode, 2);
       },
     );
   });
@@ -120,7 +120,7 @@ void main() {
             ),
           },
         );
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('result=baseline'));
 
         final json = fx.readJsonMap(fx.ledgerPath);
@@ -142,7 +142,7 @@ void main() {
       await setupCatalog(['f1-good']);
       await ledger(); // baseline
       final out = await ledger(); // same state again
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('result=clean'));
       final lastLine = out.trim().split('\n').last;
       expect(
@@ -161,7 +161,7 @@ void main() {
       // The spec evolves; the feature stays green.
       await fx.writeSpec('f1-good', CorpusWalkFixture.coreSpec('f1-v2'));
       final out = await ledger();
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('renewed'), reason: 'renewal is reported');
       final json = fx.readJsonMap(fx.ledgerPath);
       final feature = json['features']['f1-good'] as Map<String, dynamic>;
@@ -182,7 +182,7 @@ void main() {
           ),
         },
       );
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('result=contract-break'));
       expect(
         out,
@@ -203,7 +203,7 @@ void main() {
           ),
         },
       );
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('result=contract-break'));
     });
 
@@ -221,7 +221,7 @@ void main() {
       );
 
       final out = await ledger();
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('removed'));
       expect(out, contains('f2-good'));
       expect(out, contains('result=contract-break'));
@@ -242,7 +242,7 @@ void main() {
           ),
         },
       );
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('[ledger] f1-good: green -> partial (REGRESSION)'));
       expect(out, contains('added'), reason: 'the new feature is reported');
     });
@@ -255,7 +255,7 @@ void main() {
 
       await setupCatalog(['f1-good', 'f2-new']);
       final out = await ledger();
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('[ledger] added: f2-new (green)'));
       final json = fx.readJsonMap(fx.ledgerPath);
       expect((json['features'] as Map).containsKey('f2-new'), isTrue);
@@ -274,7 +274,11 @@ void main() {
           ),
         },
       );
-      expect(exitCode, 0, reason: 'additions are not regressions');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'additions are not regressions',
+      );
       expect(out, contains('[ledger] added: f2-gap (partial)'));
     });
   });
@@ -287,7 +291,7 @@ void main() {
         await ledger();
         File(fx.ledgerPath).writeAsStringSync('{ not json');
         final out = await ledger();
-        expect(exitCode, 2, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
         expect(out, contains('--> fix'));
       },
     );

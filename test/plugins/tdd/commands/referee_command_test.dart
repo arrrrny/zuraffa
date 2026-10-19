@@ -138,7 +138,11 @@ void main() {
 
     final ok = await run(['gate']);
     expect(ok, contains('result=production'));
-    expect(exitCode, 0, reason: 'all-real passes the production gate');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'all-real passes the production gate',
+    );
 
     // Now a mocked feature joins the corpus: simulation offered,
     // exit 1.
@@ -150,7 +154,11 @@ void main() {
     final blocked = await run(['gate']);
     expect(blocked, contains('result=simulation'));
     expect(blocked, contains('simulation'));
-    expect(exitCode, 1, reason: 'production blocked, simulation labeled');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      1,
+      reason: 'production blocked, simulation labeled',
+    );
   });
 
   test('U16: `referee rollup` writes the rollup document and archives the '

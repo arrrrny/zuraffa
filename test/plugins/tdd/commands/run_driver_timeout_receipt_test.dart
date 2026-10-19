@@ -91,7 +91,7 @@ void main() {
       '0.02',
     ]);
 
-    expect(exitCode, 2, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
     expect(out, contains('result=runner-error'));
     expect(out, contains('stopped_at=B-001:make'));
     // The failure report names the receipt (FR-1).
@@ -151,7 +151,7 @@ void main() {
       '0.02',
     ]);
 
-    expect(exitCode, 2, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
     expect(out, contains('WARNING: the explicit --timeout looks unsafe'));
     expect(out, contains('measured baseline suite:'));
     expect(out, contains('4 x baseline = '));
@@ -183,7 +183,7 @@ void main() {
 
     // The fake make green-paths when the argv carries the floor
     // budget; the run completes.
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     final log = File(
       p.join(fx.root.path, 'fake_bin_1529', 'zfa_calls.log'),
     ).readAsStringSync().split('\n').where((l) => l.trim().isNotEmpty);
@@ -219,7 +219,7 @@ Future<void> _seedCorpusBaseline(
   await file.writeAsString(
     jsonEncode({
       'command': _suiteSpyOf(fx),
-      'exitCode': 0,
+      'CliRunner.lastDispatchedExitCode': 0,
       'failedTests': <String>[],
       'capturedAt': '2026-09-01T00:00:00.000Z',
       'parseable': true,
