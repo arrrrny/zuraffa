@@ -206,10 +206,21 @@ class RouteCreateCommand extends Command<void> {
     // malformed deep-link args surface as ArgumentError (not "missing view").
     final schemeArg = argResults?['scheme'] as String?;
     final hostArg = argResults?['host'] as String?;
-    if (schemeArg != null && schemeArg.isNotEmpty) {
-      ManifestWriter.validateScheme(schemeArg);
+    try {
+      if (schemeArg != null && schemeArg.isNotEmpty) {
+        ManifestWriter.validateScheme(schemeArg);
+      }
+      ManifestWriter.validateHost(hostArg);
+    } on ArgumentError catch (e) {
+      _fail(
+        e.message?.toString() ?? 'invalid argument',
+        fix: 'provide a valid value (see usage)',
+        asJson: asJson,
+        entity: entity,
+        code: 1,
+      );
+      return;
     }
-    ManifestWriter.validateHost(hostArg);
 
     // #1718 Gap 1: refuse upfront when the entity architecture that the
     // generated routes reference does not exist yet (no view). Probe the
@@ -234,7 +245,7 @@ class RouteCreateCommand extends Command<void> {
         }
       }
     }
-    if (!viewExists) {
+    if (pagesDir.existsSync() && !viewExists) {
       final mainViewPath = p.join(
         _absoluteOutputDir,
         'presentation',
