@@ -309,9 +309,7 @@ extension TestBuilderEntity on TestBuilder {
               s.statements.add(
                 refer('repository')
                     .assign(
-                      refer(
-                        'Data${entityName}Repository',
-                      ).call([
+                      refer('Data${entityName}Repository').call([
                         refer('mockDataSource'),
                         refer('throwingDataSource'),
                         refer('_NoOpCachePolicy()'),
@@ -322,9 +320,7 @@ extension TestBuilderEntity on TestBuilder {
               s.statements.add(
                 refer('throwingRepository')
                     .assign(
-                      refer(
-                        'Data${entityName}Repository',
-                      ).call([
+                      refer('Data${entityName}Repository').call([
                         refer('throwingDataSource'),
                         refer('throwingDataSource'),
                         refer('_NoOpCachePolicy()'),
@@ -402,15 +398,29 @@ extension TestBuilderEntity on TestBuilder {
               ..name = 'isValid'
               ..returns = refer('Future<bool>')
               ..modifier = MethodModifier.async
-              ..requiredParameters.add(Parameter((p) => p..name = 'key'..type = refer('String')))
-              ..body = Block((b) => b..statements.add(refer('false').returned.statement)),
+              ..requiredParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'key'
+                    ..type = refer('String'),
+                ),
+              )
+              ..body = Block(
+                (b) => b..statements.add(refer('false').returned.statement),
+              ),
           ),
           Method(
             (m) => m
               ..name = 'markFresh'
               ..returns = refer('Future<void>')
               ..modifier = MethodModifier.async
-              ..requiredParameters.add(Parameter((p) => p..name = 'key'..type = refer('String')))
+              ..requiredParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'key'
+                    ..type = refer('String'),
+                ),
+              )
               ..body = Block((b) {}),
           ),
           Method(
@@ -418,7 +428,13 @@ extension TestBuilderEntity on TestBuilder {
               ..name = 'invalidate'
               ..returns = refer('Future<void>')
               ..modifier = MethodModifier.async
-              ..requiredParameters.add(Parameter((p) => p..name = 'key'..type = refer('String')))
+              ..requiredParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'key'
+                    ..type = refer('String'),
+                ),
+              )
               ..body = Block((b) {}),
           ),
           Method(
