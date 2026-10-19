@@ -309,13 +309,6 @@ class VerifyRedCommand extends Command<void> {
       );
       return;
     }
-    // Issue #1778: a hand-implemented test's title may have changed (e.g.
-    // a corrected spec description) so the recorded `runnable_test_name`
-    // no longer matches anything in the file. Detect that drift here and
-    // re-bind the recorded name to the corrected title found in the test
-    // file, so `--re-certify` (and the normal run) can recover instead
-    // of dying with an opaque runner-error (exit 79).
-    record = await _rebindRunnableTestNameIfNeeded(cwd, target, record);
     print('zfa tdd verify-red: behavior ${record.behaviorId}');
     print('   feature: ${target.featureName}');
     print('   test: ${record.testPath}');
@@ -338,6 +331,10 @@ class VerifyRedCommand extends Command<void> {
       exitCode = 1;
       return;
     }
+    // Issue #1778: re-bind the recorded runnable_test_name to a corrected
+    // title found in the test file. Moved here (after profile + template
+    // checks) so setup-error returns without writing artifacts.json.
+    record = await _rebindRunnableTestNameIfNeeded(cwd, target, record);
 
     // ---------------------------------------------------------------
     // 3. Execute exactly the target test (FR-003).
@@ -986,14 +983,13 @@ class VerifyRedCommand extends Command<void> {
     final titles = _extractTestTitles(content);
     if (titles.isEmpty) return record;
     final recorded = record.plainTestName;
-    // Issue #1778 (review): use a whole-name containment check rather
-    // than a bare substring, so a renamed title that merely contains the
-    // old name as a substring is not treated as present (false negative).
+    // Issue #1778 (review): mirror `--plain-name`'s substring
+    // matching — a title that contains the recorded name still matches
+    // at runtime, so treat it as present. Equality is checked first so a
+    // name with non-word boundary characters is not mishandled.
     final present =
         recorded.isNotEmpty &&
-        titles.any(
-          (t) => RegExp('\\b${RegExp.escape(recorded)}\\b').hasMatch(t),
-        );
+        titles.any((t) => t == recorded || t.contains(recorded));
     if (present) return record;
     String? candidate;
     if (recorded.isNotEmpty) {
@@ -1012,20 +1008,13 @@ class VerifyRedCommand extends Command<void> {
             .toList();
         if (idMatches.length == 1) {
           candidate = idMatches.first;
-        } else {
-          // Containment-based binding, but only when it is unambiguous:
-          // binding by description containment alone can attach a
-          // behavior to an unrelated test whose title happens to be a
-          // substring (issue #1778 review). Require exactly one match.
-          final rl = recorded.toLowerCase();
-          final containMatches = titles.where((t) {
-            final tl = t.toLowerCase();
-            return tl.contains(rl) || rl.contains(tl);
-          }).toList();
-          if (containMatches.length == 1) {
-            candidate = containMatches.first;
-          }
         }
+        // Note: binding by description containment alone is deliberately
+        // NOT attempted — an unrelated test whose title happens to be a
+        // substring of the recorded name could otherwise be bound to this
+        // behavior and certified as its red evidence (issue #1778 review).
+        // Such cases retain `test-name-mismatch` and need an explicit
+        // rebind.
       }
     }
     if (candidate == null) return record;
