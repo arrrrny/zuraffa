@@ -124,17 +124,17 @@ class ServiceConformanceChecker {
   /// The expected source is BUILT with the same [ServiceInterfaceBuilder]
   /// generation drives — grammar and gate share one derivation, so a
   /// grammar change can never pass the gate with stale expectations.
-  ServiceConformanceResult check({
+  Future<ServiceConformanceResult> check({
     required GeneratorConfig config,
     required String source,
     String path = 'service_under_audit.dart',
-  }) {
+  }) async {
     final findings = <ServiceConformanceFinding>[];
 
     // ── Prescribe: build the grammar surface with the real builder. ──
     final String expectedSource;
     try {
-      expectedSource = const ServiceInterfaceBuilder().build(config);
+      expectedSource = await const ServiceInterfaceBuilder().build(config);
     } catch (e) {
       return ServiceConformanceResult(
         ok: false,

@@ -16,15 +16,18 @@ import '../commands/create_command.dart' as create;
 import '../commands/config_command.dart' as config;
 import '../commands/corpus_command.dart';
 import '../commands/dream_command.dart';
+import '../commands/retro_command.dart';
 import '../commands/initialize_command.dart' as init;
 import '../commands/entity_command.dart';
 import '../commands/plugin_command.dart' as plugincmd;
 import '../commands/make_command.dart';
 import '../commands/doctor_command.dart';
 import '../commands/proof_command.dart';
+import '../commands/provenance_command.dart';
 import '../commands/migrate_command.dart';
 import '../commands/update_command.dart';
 import '../commands/build_command.dart';
+import '../commands/budget_command.dart';
 import '../commands/manifest_command.dart';
 import '../commands/generate_commands_command.dart';
 import '../commands/apply_command.dart';
@@ -38,6 +41,7 @@ import '../commands/tdd_command.dart';
 import '../commands/app_shell_command.dart';
 import '../commands/theme_command.dart';
 import '../commands/package_command.dart';
+import '../commands/policy_command.dart';
 import '../commands/engine_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
@@ -50,6 +54,7 @@ import 'binary_staleness.dart';
 import 'plugin_loader.dart';
 import '../commands/agent_command.dart';
 import '../commands/zap_command.dart';
+import '../commands/search_command.dart';
 
 /// CLI runner for Zuraffa.
 class CliRunner {
@@ -236,8 +241,10 @@ class CliRunner {
       MakeCommand(registry, processRunner: _makeProcessRunner),
     );
     _runner.addCommand(EngineCommand());
+    _runner.addCommand(BudgetCommand());
     _runner.addCommand(DoctorCommand());
     _runner.addCommand(ProofCommand());
+    _runner.addCommand(ProvenanceCommand());
     _runner.addCommand(MigrateCommand());
     _runner.addCommand(BuildCommand());
     _runner.addCommand(ManifestCommand(registry));
@@ -259,15 +266,18 @@ class CliRunner {
     _runner.addCommand(SpecCommand());
     _runner.addCommand(ReplayCommand());
     _runner.addCommand(DreamCommand());
+    _runner.addCommand(RetroCommand());
     _runner.addCommand(AppCommand());
     _runner.addCommand(UiCommand());
     _runner.addCommand(PackageCommand());
     _runner.addCommand(ThemeCommand());
     _runner.addCommand(SimulateCommand());
+    _runner.addCommand(PolicyCommand());
     // Spec 1276: the `zfa skin` group is owned by the skin plugin
     // (mounted with the runtime auditor subcommands kit/verify/drive).
     _runner.addCommand(AgentCommand());
     _runner.addCommand(ZapCommand());
+    _runner.addCommand(SearchCommand());
   }
 
   void _loadAndRegisterPlugins() {
@@ -355,6 +365,15 @@ class CliRunner {
         if (_isRemovedGenerateCommand(commandArgs)) {
           _printRemovedGenerateMessage();
           _exit(ExitProtocol.usage);
+          return;
+        }
+
+        // Issue #998 (FLEET-ROT): `gql` was deleted in favor of `graphql`.
+        // Keep a deprecation shim so old invocations surface a clear
+        // migration message instead of a bare "command not found".
+        if (_isDeprecatedGqlCommand(commandArgs)) {
+          print('WARNING: `zfa gql` is deprecated: use `zfa graphql` instead.');
+          _exit(64);
           return;
         }
 
@@ -903,6 +922,14 @@ class CliRunner {
             return;
           }
 
+          if (_isDeprecatedGqlCommand(commandArgs)) {
+            output.add(
+              'WARNING: `zfa gql` is deprecated: use `zfa graphql` instead.',
+            );
+            dispatchedExitCode = 64;
+            return;
+          }
+
           await runZoned(
             () async {
               try {
@@ -966,6 +993,10 @@ class CliRunner {
 
   bool _isRemovedGenerateCommand(List<String> args) {
     return args.isNotEmpty && args.first == 'generate';
+  }
+
+  bool _isDeprecatedGqlCommand(List<String> args) {
+    return args.isNotEmpty && args.first == 'gql';
   }
 
   void _addSuggestions(String error) {

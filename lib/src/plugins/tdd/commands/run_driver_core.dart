@@ -609,12 +609,21 @@ class RunDriverCore {
       registry: registry,
       projectRoot: projectRoot,
     );
+    // Review #1785 (minor): reconcile uses the marker-only (loose)
+    // born-green set on purpose — the red-witness promotion only needs the
+    // #1411 attestation, not subject binding. The refactor shortcut
+    // (#1592) keeps the stricter subject-bound set, so a subject that
+    // drifted after certification stays `done` here while the shortcut
+    // refuses it; that asymmetry is deliberate (documented, not unified).
+    final bornGreenAttested = (await evidence.bornGreenCertifiedEntries()).keys
+        .toSet();
 
     var current = _reconcile(
       loaded ?? RunState.empty(feature),
       allRows,
       redEvidence,
       greenEvidence,
+      bornGreenCertified: bornGreenAttested,
     );
 
     // Persist the reconciled state only when something actually changed.
@@ -1551,25 +1560,51 @@ class RunDriverCore {
   }) async {
     final counts = laneCounts(laneRows, state?.behaviorStates ?? const {});
     if (lane != null && drove) {
-      // The lane receipt: written on every driving run (complete ->
-      // green, stopped -> red, runner-error -> error); a pre-driving
-      // misfire wrote nothing (this outcome is always post-driving).
-      try {
-        await receipts.write(
-          lane: lane,
-          verdict: verdictForDriverResult(result),
-          result: result,
-          behaviors: laneRows.map((r) => r.id).toList(),
-          counts: counts,
-          stoppedAt: stoppedAt,
-        );
-      } on FileSystemException {
-        // The receipt is a record, never a gate for the driving that
-        // already happened: a failed write is reported, not fatal.
-        stderr.writeln(
-          'zfa tdd: failed to write the $lane receipt at '
-          '${receipts.receiptPath(lane)}',
-        );
+      // Issue #1828: a conformance-mode skin receipt (`schema: skin.v1`)
+      // must never be overwritten by a lane-mode run — the lane schema
+      // is lossy (no platform_slot_fills / hand_edits / digest). When
+      // such a receipt is already on disk, leave it untouched.
+      //
+      // Note: the skip is unconditional with respect to `result` — even
+      // a failing direct `RunDriverCore.drive(lane: 'skin')` on a
+      // conformance feature leaves `04-skin-receipt.json` untouched (it
+      // stays green). The journal (`tdd/cycle-log.md` / run-state) is
+      // the source of truth for failures on conformance features; only
+      // successful runs would otherwise justify clobbering the
+      // conformance evidence, and a failed run must never destroy it.
+      var writeLaneReceipt = true;
+      if (lane == 'skin') {
+        try {
+          final existing = await receipts.read('skin');
+          if (existing != null && existing['schema'] == 'skin.v1') {
+            writeLaneReceipt = false;
+          }
+        } on LaneReceiptException {
+          // Unreadable/corrupt receipt: fall through to the normal write.
+          writeLaneReceipt = true;
+        }
+      }
+      if (writeLaneReceipt) {
+        // The lane receipt: written on every driving run (complete ->
+        // green, stopped -> red, runner-error -> error); a pre-driving
+        // misfire wrote nothing (this outcome is always post-driving).
+        try {
+          await receipts.write(
+            lane: lane,
+            verdict: verdictForDriverResult(result),
+            result: result,
+            behaviors: laneRows.map((r) => r.id).toList(),
+            counts: counts,
+            stoppedAt: stoppedAt,
+          );
+        } on FileSystemException {
+          // The receipt is a record, never a gate for the driving that
+          // already happened: a failed write is reported, not fatal.
+          stderr.writeln(
+            'zfa tdd: failed to write the $lane receipt at '
+            '${receipts.receiptPath(lane)}',
+          );
+        }
       }
 
       // Spec 1113 (issue #1113): every lane cycle ALSO appends its
@@ -1786,8 +1821,9 @@ class RunDriverCore {
     RunState state,
     List<BehaviorRow> rows,
     Set<String> red,
-    Set<String> green,
-  ) {
+    Set<String> green, {
+    Set<String> bornGreenCertified = const <String>{},
+  }) {
     final states = Map<String, BehaviorState>.from(state.behaviorStates);
     final bootstrappable = state.inFlightBehaviorId == null;
     for (final row in rows) {
@@ -1795,8 +1831,9 @@ class RunDriverCore {
       var effective = claimed;
       final hasRed = red.contains(row.id);
       final hasGreen = green.contains(row.id);
+      final hasRedOrBornGreen = hasRed || bornGreenCertified.contains(row.id);
       if (claimed == BehaviorState.done) {
-        effective = hasRed && hasGreen
+        effective = hasRedOrBornGreen && hasGreen
             ? BehaviorState.done
             : hasGreen
             ? BehaviorState.green
@@ -1811,7 +1848,7 @@ class RunDriverCore {
             ? BehaviorState.red
             : BehaviorState.pending;
       } else if (bootstrappable && claimed == BehaviorState.pending) {
-        effective = hasRed && hasGreen
+        effective = hasRedOrBornGreen && hasGreen
             ? BehaviorState.done
             : hasGreen
             ? BehaviorState.green

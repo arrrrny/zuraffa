@@ -79,15 +79,8 @@ class ShareContent {
           mimeType == other.mimeType;
 
   @override
-  int get hashCode => Object.hash(
-    type,
-    text,
-    url,
-    filePath,
-    title,
-    subject,
-    mimeType,
-  );
+  int get hashCode =>
+      Object.hash(type, text, url, filePath, title, subject, mimeType);
 
   @override
   String toString() => 'ShareContent($type)';

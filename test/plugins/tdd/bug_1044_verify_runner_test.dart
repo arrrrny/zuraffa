@@ -263,7 +263,11 @@ suite: 'flutter test'
           'flutter_test',
         ]);
 
-        expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage, reason: out);
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          ExitProtocol.usage,
+          reason: out,
+        );
         // The audit never started: no scope derivation, no preflight, no
         // report (the audit-start banner is the first observable step).
         expect(out, isNot(contains('running mutation audit')), reason: out);
