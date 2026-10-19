@@ -102,7 +102,14 @@ environment:
     test(
       'regeneration with --force refreshes the receipt (latest wins)',
       () async {
-        await zfa(['service', 'create', 'Ledger', '--returns', 'Entry', '--allow-forward-refs']);
+        await zfa([
+          'service',
+          'create',
+          'Ledger',
+          '--returns',
+          'Entry',
+          '--allow-forward-refs',
+        ]);
         await zfa([
           'service',
           'create',
@@ -146,7 +153,14 @@ environment:
 
     test('declined generation (skipped file) rewrites no ledger lie: the '
         'receipt stays from the run that wrote the bytes', () async {
-      await zfa(['service', 'create', 'Keep', '--returns', 'Keep', '--allow-forward-refs']);
+      await zfa([
+        'service',
+        'create',
+        'Keep',
+        '--returns',
+        'Keep',
+        '--allow-forward-refs',
+      ]);
       final receipt = File(
         p.join(workspace.path, '.zfa', 'receipts', 'service-Keep.json'),
       );
@@ -154,14 +168,28 @@ environment:
           (jsonDecode(receipt.readAsStringSync()) as Map)['files'][0]['sha256'];
 
       // Second run without --force skips everything.
-      await zfa(['service', 'create', 'Keep', '--returns', 'Keep', '--allow-forward-refs']);
+      await zfa([
+        'service',
+        'create',
+        'Keep',
+        '--returns',
+        'Keep',
+        '--allow-forward-refs',
+      ]);
       final secondDigest =
           (jsonDecode(receipt.readAsStringSync()) as Map)['files'][0]['sha256'];
       expect(secondDigest, equals(firstDigest));
     });
 
     test('ServiceReceiptWriter.load reads the document back', () async {
-      await zfa(['service', 'create', 'Loader', '--returns', 'Snapshot', '--allow-forward-refs']);
+      await zfa([
+        'service',
+        'create',
+        'Loader',
+        '--returns',
+        'Snapshot',
+        '--allow-forward-refs',
+      ]);
 
       final doc = ServiceReceiptWriter.load(workspace.path, 'Loader');
       expect(doc, isNotNull);
