@@ -391,7 +391,20 @@ class MockDataSourceBuilder {
           entityName: entityName,
           member: member,
         );
-        if (method == null) continue;
+        // Issue #1911 review (shape-drift repair path): a null result means
+        // the interface member has a shape the synthesizer cannot honestly
+        // reproduce. Silently skipping leaves the mock still missing that
+        // member, so the build then fails with
+        // `non_abstract_class_inherits_abstract_member` with no diagnostic.
+        // Refuse loudly, consistent with the configured-method paths above.
+        if (method == null) {
+          throw ArgumentError(
+            'cannot repair ${entityName}MockDataSource.${member.fieldName}: '
+            'the ${entityName}DataSource declaration '
+            '(${member.parameterCount} parameter(s), returns '
+            '${member.returnsType}) cannot be synthesized',
+          );
+        }
         final request = AppendRequest.method(
           source: updated,
           className: '${entityName}MockDataSource',
