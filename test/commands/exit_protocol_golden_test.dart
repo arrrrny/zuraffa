@@ -1,4 +1,3 @@
-
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/cli/exit_protocol.dart';
