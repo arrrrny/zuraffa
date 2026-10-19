@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import '../../../core/plugin_system/capability.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
+import '../../../utils/entity_analyzer.dart';
 import '../builders/simulation_fixture_writer.dart';
 import '../certification/mock_certification_sandbox.dart';
 import '../certification/mock_certifier.dart';
@@ -176,6 +177,36 @@ class CreateMockCapability implements ZuraffaCapability {
     // project-relative (lib/src); the project root is the cwd (the CLI
     // resolves it before dispatch).
     final projectRoot = Directory.current.path;
+    final service = args['service'] as String?;
+    final domain = args['domain'] as String?;
+
+    // Issue #1887: an enum/fixture-only entity has no CRUD surface to
+    // certify — the generator skipped it by design (#1037/#1747). Not a
+    // refusal: the mock data was generated and there is nothing else to
+    // prove. The check sits ABOVE the sandbox gates below (#1887
+    // review): a fixture-only entity has nothing to prove in ANY
+    // environment, so a host without an SDK — or a project whose zuraffa
+    // root cannot be resolved — must report the intended success, not an
+    // unresolved proof. The predicate is shared with the mock lane's
+    // guards: an enum, or (outside service mode, whose providers
+    // implement the service interface) any type whose source declares no
+    // CRUD surface.
+    final fixtureOnly =
+        EntityAnalyzer.isEnum(name, plugin.outputDir) ||
+        (service == null &&
+            EntityAnalyzer.lacksCrudSurface(name, plugin.outputDir));
+    if (fixtureOnly) {
+      stdout.writeln(
+        'ℹ️  $name: mock data generated; no datasource surface to '
+        'certify (issues #1037/#1747).',
+      );
+      return ExecutionResult(
+        success: true,
+        files: files.map((f) => f.path).toList(),
+        data: {'generatedFiles': files, 'certified': true},
+      );
+    }
+
     // Issue #1600: the certifier is shaped by the HOST — a Flutter
     // project's contract test imports the Flutter test framework and is
     // proven with the Flutter toolchain.
@@ -248,8 +279,8 @@ class CreateMockCapability implements ZuraffaCapability {
       // the current interface, so the contract is re-rendered to match.
       rePin: true,
       verbose: verbose,
-      service: args['service'] as String?,
-      domain: args['domain'] as String?,
+      service: service,
+      domain: domain,
     );
     final written = await certifier.writeContractArtifacts(
       entityName: name,
@@ -294,13 +325,14 @@ class CreateMockCapability implements ZuraffaCapability {
     }
 
     if (receipt == null) {
-      // Issue #1887: enum/fixture-only entity — no CRUD surface to
-      // certify; the mock data was generated and there is nothing else
-      // to prove. Report success instead of failing on the absent
-      // datasource.
+      // Issue #1887: certified-with-nothing. The fixture-only
+      // short-circuit above already returns for the shared predicate, so
+      // this is the outcome-level guard for the same shape: a certified
+      // outcome carrying no receipt must report the no-surface reason
+      // instead of dereferencing the absent receipt below.
       stdout.writeln(
         'ℹ️  $name: mock data generated; no datasource surface to '
-        'certify (issue #1037).',
+        'certify (issues #1037/#1747).',
       );
       return ExecutionResult(
         success: true,

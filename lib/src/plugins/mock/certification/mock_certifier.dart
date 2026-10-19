@@ -135,11 +135,24 @@ class MockCertifier {
     // against the absent artifact is unsatisfiable (the remedy would be
     // the very command that just ran). Treat it as certified-with-nothing:
     // mock data was generated, there is no CRUD surface to prove.
-    final fixtureOnly = EntityAnalyzer.isEnum(entityName, outputDir);
+    //
+    // The predicate is the mock lane's SHARED one (#1887 review): the
+    // builder and the DI binding skip the CRUD surface for
+    // `isEnum(...) || lacksCrudSurface(...)`, so the certifier must make
+    // the same call — otherwise a non-enum CRUD-less type (a plain DTO /
+    // value class, issue #1747) keeps failing here with the same absent-
+    // datasource error. A service-mode run is exempt: its provider
+    // implements the service interface, not the entity's CRUD surface,
+    // so it remains certifiable.
+    final fixtureOnly =
+        EntityAnalyzer.isEnum(entityName, outputDir) ||
+        (service == null &&
+            EntityAnalyzer.lacksCrudSurface(entityName, outputDir));
     if (fixtureOnly) {
       logs.add(
         '$entityName is an enum/fixture-only entity — mock data '
-        'generated; no CRUD datasource surface to certify (issue #1037).',
+        'generated; no CRUD datasource surface to certify '
+        '(issues #1037/#1747).',
       );
       return MockCertificationOutcome(
         certified: true,
