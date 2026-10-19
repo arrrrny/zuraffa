@@ -106,13 +106,13 @@ void main() {
         '--project',
         tmp.path,
       ]);
-      expect(exitCode, ExitProtocol.usage);
+      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
       expect(out, contains('nuke'));
     });
 
     test('a feature name that is a path segment is refused', () async {
       final out = await drive(['fuzz', '../../etc', '--project', tmp.path]);
-      expect(exitCode, ExitProtocol.usage);
+      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
       expect(out, contains('single directory name without path separators'));
     });
 
@@ -125,7 +125,7 @@ void main() {
         '--project',
         tmp.path,
       ]);
-      expect(exitCode, ExitProtocol.usage);
+      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
       expect(out, contains('--budget'));
     });
 
@@ -138,7 +138,7 @@ void main() {
         '--project',
         tmp.path,
       ]);
-      expect(exitCode, ExitProtocol.usage);
+      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
       expect(out, contains('--seed'));
     });
 
@@ -151,7 +151,7 @@ void main() {
         '--project',
         tmp.path,
       ]);
-      expect(exitCode, ExitProtocol.usage);
+      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
       expect(out, contains('--budget'));
     });
 
@@ -164,7 +164,7 @@ void main() {
         '--project',
         tmp.path,
       ]);
-      expect(exitCode, ExitProtocol.usage);
+      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
       expect(out, contains("--runner accepts 'dart' or 'flutter'"));
     });
 
@@ -178,7 +178,7 @@ void main() {
         '--project',
         tmp.path,
       ]);
-      expect(exitCode, ExitProtocol.usage);
+      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
       expect(out, contains('either'));
     });
   });
@@ -207,7 +207,7 @@ open-gaps: 0
         tmp.path,
         '--no-ledger',
       ]);
-      expect(exitCode, 3);
+      expect(CliRunner.lastDispatchedExitCode, 3);
       expect(out, contains('DRIFT'));
       expect(out, contains('re-plan'));
     });
@@ -226,7 +226,7 @@ open-gaps: 0
           tmp.path,
           '--no-ledger',
         ]);
-        expect(exitCode, ExitProtocol.usage);
+        expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
         expect(out, contains('not_assessed'));
       },
     );
@@ -241,7 +241,7 @@ open-gaps: 0
         '--project',
         tmp.path,
       ]);
-      expect(exitCode, 2);
+      expect(CliRunner.lastDispatchedExitCode, 2);
       expect(out, contains('zfa corpus catalog --target ghost-target'));
     });
   });

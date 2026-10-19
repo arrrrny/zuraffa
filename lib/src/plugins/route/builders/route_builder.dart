@@ -1674,7 +1674,6 @@ class RouteBuilder {
     if (!content.contains("import 'package:flutter/material.dart';")) {
       content = "import 'package:flutter/material.dart';\n$content";
     }
-
     return content;
   }
 }

@@ -134,7 +134,7 @@ Widget subject_a_100() => throw UnimplementedError('subject_a_100 not implemente
 
     // Green certified, exit 0 — the func-verb prose no longer dead-ends
     // the widget lane.
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       out,
       contains('make: behavior=A-100 outcome=green feature=${fx.featureName}'),

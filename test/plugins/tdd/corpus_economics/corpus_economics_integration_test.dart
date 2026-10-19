@@ -76,7 +76,7 @@ void main() {
 
     final out = await runCorpus();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(out, contains('result=complete'), reason: out);
 
     // The budget telemetry verdict: schema, per-step wall clock, suite
@@ -130,7 +130,7 @@ void main() {
 
     // Shard 1/2: round-robin positions 0, 2, 4 -> f1, f3, f5.
     final out = await runCorpus(extra: ['--shard', '1/2']);
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       out,
       contains('[corpus] shard: 1/2 — 3 of 6 feature(s)'),
@@ -184,7 +184,7 @@ void main() {
     await fx.writeFakeZfa();
 
     final out = await runCorpus(extra: ['--shard', '3/2']);
-    expect(exitCode, 2, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
     expect(out, contains('invalid --shard spec'), reason: out);
     expect(out, contains('result=runner-error'), reason: out);
     // Nothing was driven.
@@ -200,7 +200,7 @@ void main() {
     await fx.writeFakeZfa();
 
     final out = await runCorpus(extra: ['--shard', '1/2']);
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // features= counts the LANE (2: f1, f3), not the manifest (3) —
     // and the lane is complete.
     expect(out, contains('corpus: features=2 '), reason: out);
@@ -216,7 +216,7 @@ void main() {
     await fx.writeFakeZfa();
 
     final out = await runCorpus();
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     final telemetry = await readTelemetry();
     final wallClock = telemetry['wall_clock_ms'] as int;
     // A real measurement: > 0, and at least the sum of the step

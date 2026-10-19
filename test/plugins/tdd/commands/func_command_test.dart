@@ -77,7 +77,7 @@ void main() {
 
     final out = await runFunc();
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     expect(
       out,
       contains(
@@ -103,7 +103,7 @@ void main() {
 
     final out = await runFunc(id: 'B-002');
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     final subject = await File(fx.subjectPathOf('B-002')).readAsString();
     expect(subject, contains('int subject_b_002()'));
     expect(subject, contains('return 42;'));
@@ -119,7 +119,7 @@ void main() {
 
     final out = await runFunc(id: 'B-003');
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     final subject = await File(fx.subjectPathOf('B-003')).readAsString();
     expect(subject, contains('bool subject_b_003()'));
     expect(subject, contains('return true;'));
@@ -141,7 +141,7 @@ void main() {
 
       final out = await runFunc();
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(
         out,
         contains(
@@ -164,7 +164,7 @@ void main() {
 
     final out = await runFunc();
 
-    expect(exitCode, isNot(0), reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out: $out');
     expect(
       out,
       contains(
@@ -177,7 +177,7 @@ void main() {
   test('U-F6: an unknown behavior id is a hard runner-error', () async {
     final out = await runFunc(id: 'B-999');
 
-    expect(exitCode, isNot(0), reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out: $out');
     expect(out, contains('unknown behavior id'));
     // Same convention as `zfa tdd wire` U-W6: an unresolvable id has no
     // feature context.
@@ -201,7 +201,7 @@ int subject_b_001() {
 
     final out = await runFunc();
 
-    expect(exitCode, isNot(0), reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out: $out');
     expect(out, contains('unrecognized'));
     expect(out, contains('UnimplementedError'));
     expect(
@@ -244,7 +244,7 @@ $helper
 
     final out = await runFunc();
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     final subject = await File(fx.subjectPathOf('B-001')).readAsString();
     expect(subject, contains(import));
     expect(subject, contains("const marker = 'keep me';"));
@@ -306,7 +306,7 @@ $helper
         aliasPath,
       ]);
 
-      expect(exitCode, isNot(0), reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out: $out');
       expect(out, contains('runner-error'));
       expect(out, contains('missing subject file'));
       expect(out, contains('zfa tdd gen B-001'));

@@ -87,7 +87,7 @@ void main() {
     final out = await drive();
 
     // The stop contract is unchanged (FR-007).
-    expect(exitCode, isNot(0), reason: out);
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
     expect(out, contains('stopped_at=B-001:refactor'), reason: out);
 
     // The DIAGNOSTIC TAIL is visible: the failing pass is named with
@@ -122,7 +122,7 @@ void main() {
       await fx.setStepOutcome('refactor', 'B-001', 'flood');
 
       final out = await drive();
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
 
       // The marker wording is _outputTail's own (issue #1329) — proof the
       // console path reuses the helper instead of a second implementation.
@@ -136,7 +136,7 @@ void main() {
     await fx.setStepOutcome('refactor', 'B-001', 'boom');
 
     final out = await drive();
-    expect(exitCode, isNot(0), reason: out);
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
 
     // The failing transcript IS the summary line — it must survive the
     // excerpt verbatim.
@@ -153,7 +153,7 @@ void main() {
       await fx.setStepOutcome('refactor', 'B-001', 'flood');
 
       final out = await drive();
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
 
       final section = await errorSection('B-001');
       // The #1329 truncation contract, unchanged: last 200 of 251.

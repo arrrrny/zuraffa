@@ -58,7 +58,7 @@ void main() {
         'theater: feature=${fx.featureName} behaviors=3 cycles=3 '
         'receipts=2 result=non-tty',
       );
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
 
       // A `specs/`-prefixed feature id resolves to the same feature
       // (the replay-surface resolution rule).
@@ -142,7 +142,7 @@ void main() {
       // contract.
       expect(unknownOut, contains('ls specs/'));
       expect(unknownOut, contains('zfa tdd init 999-no-such-feature'));
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
 
       // No cycle-log: still loads — every behavior renders pending, the
       // absence of evidence is not an error.
@@ -179,7 +179,7 @@ void main() {
         ),
       );
       expect(noRegistryOut, contains('zfa tdd gen <behavior-id> --feature'));
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
 
       // An EXISTING but EMPTY registry: exit 1 naming the emptiness
       // (the theater never invents behaviors).
@@ -208,7 +208,7 @@ void main() {
         ),
       );
       expect(emptyOut, contains('zfa tdd gen <behavior-id> --feature'));
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
     });
   });
 }

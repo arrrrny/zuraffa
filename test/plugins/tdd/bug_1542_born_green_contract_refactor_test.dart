@@ -141,7 +141,7 @@ void main() {
       isNot(contains('is incomplete in tdd/cycle-log.md')),
       reason: out,
     );
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(fx.stepInvocations(), [
       'verify-red contract:A7',
       'make contract:A7',
@@ -190,19 +190,19 @@ void main() {
       isNot(contains('is incomplete in tdd/cycle-log.md')),
       reason: out,
     );
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // The green claim re-enters at refactor ONLY (never at make).
     expect(fx.stepInvocations(), ['refactor U1'], reason: out);
     expect(
       out,
       contains(
         'run: feature=$feature result=complete pending=0 red=0 '
-        'green=1 done=0',
+        'green=0 done=1',
       ),
       reason: out,
     );
     final state = await readState();
-    expect(state['behavior_states']['U1'], 'green', reason: out);
+    expect(state['behavior_states']['U1'], 'done', reason: out);
   });
 
   test('U-1542-3 (issue #1542): the marker-less twin — plain green-only, '
@@ -231,7 +231,7 @@ void main() {
       ),
       reason: out,
     );
-    expect(exitCode, 2, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
     expect(
       out,
       contains(
@@ -270,20 +270,20 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
-    expect(fx.stepInvocations(), ['refactor contract:A7'], reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
+    expect(fx.stepInvocations(), <String>[], reason: out);
     expect(
       out,
       contains(
         'run: feature=$feature result=complete pending=0 red=0 '
-        'green=1 done=0',
+        'green=0 done=1',
       ),
       reason: out,
     );
-    // The green-only class ends GREEN by the pre-existing reconcile
-    // design (bug #682) — the run COMPLETES, which is the #1542
-    // acceptance; the next run re-enters at refactor and passes.
+    // Born-green promotion (#1779): the `done` claim stays `done`
+    // (born-green substitutes for red), so the run is already complete
+    // and skips refactor.
     final state = await readState();
-    expect(state['behavior_states']['contract:A7'], 'green', reason: out);
+    expect(state['behavior_states']['contract:A7'], 'done', reason: out);
   });
 }

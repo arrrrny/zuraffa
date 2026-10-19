@@ -14,6 +14,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/entity_analyzer.dart';
+import '../../../utils/project_flavor.dart';
 
 part 'implementation_generator_append.dart';
 part 'implementation_generator_cached.dart';
@@ -357,7 +358,7 @@ class RepositoryImplementationGenerator {
       );
     }
 
-    final importPaths = _buildImportPaths(config, entitySnake);
+    final importPaths = await _buildImportPaths(config, entitySnake);
 
     // If file exists, handle append/remove/add
     if (await fileSystem.exists(filePath) &&

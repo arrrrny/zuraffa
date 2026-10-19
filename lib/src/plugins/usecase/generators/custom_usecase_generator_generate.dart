@@ -46,7 +46,7 @@ extension CustomUseCaseGeneratorGenerate on CustomUseCaseGenerator {
     final innerReturnsType = _stripFutureReturns(returnsType);
 
     final baseClass = _baseClass(config, paramsType, innerReturnsType);
-    final imports = _buildImports(config, paramsType, innerReturnsType);
+    final imports = await _buildImports(config, paramsType, innerReturnsType);
     final fields = _buildDependencyFields(config);
     final constructorParams = _buildDependencyParams(fields);
     final methods = _buildMethods(config, paramsType, innerReturnsType, fields);

@@ -85,7 +85,7 @@ void main() {
       '--project',
       fx.root.path,
     ]);
-    expect(exitCode, 0, reason: output);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: output);
 
     expect(
       File(
@@ -143,7 +143,7 @@ void main() {
       '--project',
       fx.root.path,
     ]);
-    expect(exitCode, 0, reason: output);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: output);
     expect(output, contains('path drift'), reason: output);
     expect(
       poisoned.existsSync(),
@@ -182,7 +182,7 @@ void main() {
       '--project',
       fx.root.path,
     ]);
-    expect(exitCode, 0, reason: output);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: output);
     expect(
       drifted.existsSync(),
       isFalse,
