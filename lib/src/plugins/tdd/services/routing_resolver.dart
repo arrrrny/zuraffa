@@ -355,13 +355,28 @@ class RoutingResolver {
         // spec declares no Key Entities rows, the domain row's own
         // return type is the only entity declaration there is and it is
         // served ("not from Key Entities only").
-        final declaredEntities = declarations.contractRows.values
-            .where((r) => r.kind == ContractRowKind.entity)
-            .toList();
-        final declared = declaredEntities
-            .where((r) => r.name == mined)
+        // Issue #1793: the membership test must consult the Key Entities
+        // table (parseKeyEntities) in addition to the entity-kind contract
+        // rows, so an entity declared as a Key Entity is recognised even
+        // when no contract row names it. Normalize both sides (#1771) so
+        // backticks / generic suffixes do not cause a false refusal.
+        String norm(String n) {
+          var v = n.replaceAll('`', '').trim();
+          final genericStart = v.indexOf('<');
+          if (genericStart > 0) v = v.substring(0, genericStart).trim();
+          return v;
+        }
+
+        final declaredEntityNames = <String>{
+          ...declarations.contractRows.values
+              .where((r) => r.kind == ContractRowKind.entity)
+              .map((r) => r.name),
+          ...declarations.keyEntities,
+        };
+        final declared = declaredEntityNames
+            .where((n) => norm(n) == norm(mined))
             .firstOrNull;
-        if (declaredEntities.isNotEmpty && declared == null) {
+        if (declaredEntityNames.isNotEmpty && declared == null) {
           return RoutingFailure(
             code: RoutingFailureCode.danglingReference,
             message:
