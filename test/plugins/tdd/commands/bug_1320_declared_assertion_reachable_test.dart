@@ -219,7 +219,11 @@ void main() {
         final (:out, testList: list, engine: _, err: _) = await planSpec(
           singleMethodSpec,
         );
-        expect(exitCode, 0, reason: 'plan must succeed: $out');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'plan must succeed: $out',
+        );
         final row = unitRowOf(list, 'U1');
         expect(row, isNotNull, reason: 'the plan must derive U1:\n$list');
         expect(
@@ -237,7 +241,11 @@ void main() {
         final (:out, testList: _, engine: engine, err: _) = await planSpec(
           lanedSpec,
         );
-        expect(exitCode, 0, reason: 'the laned plan must succeed: $out');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'the laned plan must succeed: $out',
+        );
         final row = unitRowOf(engine, 'U1');
         expect(
           row,
@@ -257,7 +265,11 @@ void main() {
         final (:out, testList: list, engine: _, err: _) = await planSpec(
           multiMethodVerbMatchSpec,
         );
-        expect(exitCode, 0, reason: 'plan must succeed: $out');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'plan must succeed: $out',
+        );
         final row = unitRowOf(list, 'U1');
         expect(row, isNotNull, reason: 'the plan must derive U1:\n$list');
         expect(
@@ -286,7 +298,11 @@ void main() {
             '--project',
             tmp.path,
           ]);
-          expect(exitCode, 2, reason: 'the ambiguous trace must refuse: $out');
+          expect(
+            CliRunner.lastDispatchedExitCode,
+            2,
+            reason: 'the ambiguous trace must refuse: $out',
+          );
           expect(out, contains('--> fix:'));
           expect(
             out,
@@ -398,7 +414,11 @@ void main() {
         '--project',
         fx.root.path,
       ]);
-      expect(exitCode, 0, reason: 'the first gen must succeed: $first');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'the first gen must succeed: $first',
+      );
       final recordBefore = await fx.registryRecordOf('U1');
       final testBefore = await File(
         fixturePath(fx, recordBefore['test_path'] as String),
@@ -430,7 +450,11 @@ void main() {
         '--project',
         fx.root.path,
       ]);
-      expect(exitCode, 0, reason: 'the re-gen must succeed: $second');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'the re-gen must succeed: $second',
+      );
       expect(
         second,
         contains('verdict=regenerated'),
@@ -507,7 +531,7 @@ void main() {
         fx.root.path,
       ]);
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         0,
         reason:
             'the regenerated pair must certify red: '
@@ -534,7 +558,11 @@ void main() {
         '--project',
         fx.root.path,
       ]);
-      expect(exitCode, 0, reason: 'make must certify green: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'make must certify green: $out',
+      );
       expect(
         out,
         isNot(contains('outcome=vacuous-green')),

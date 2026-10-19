@@ -141,7 +141,7 @@ void main() {
       isNot(contains('is incomplete in tdd/cycle-log.md')),
       reason: out,
     );
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(fx.stepInvocations(), [
       'verify-red contract:A7',
       'make contract:A7',
@@ -190,7 +190,7 @@ void main() {
       isNot(contains('is incomplete in tdd/cycle-log.md')),
       reason: out,
     );
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // The green claim re-enters at refactor ONLY (never at make).
     expect(fx.stepInvocations(), ['refactor U1'], reason: out);
     expect(
@@ -231,7 +231,7 @@ void main() {
       ),
       reason: out,
     );
-    expect(exitCode, 2, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
     expect(
       out,
       contains(
@@ -270,7 +270,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(fx.stepInvocations(), ['refactor contract:A7'], reason: out);
     expect(
       out,

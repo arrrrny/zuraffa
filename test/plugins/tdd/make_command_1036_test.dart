@@ -161,7 +161,7 @@ void main() {
       final out = await runner.runCapturing(
         makeArgs1036(fx, id: 'A1', zfaBin: zfaBin),
       );
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('generation-error'));
 
       // THE FIX: the subject on disk is byte-identical to the certified-
@@ -211,7 +211,7 @@ void main() {
       final out = await runner.runCapturing(
         makeArgs1036(fx, id: 'A2', zfaBin: zfaBin),
       );
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('generation-error'));
 
       final after = await File(subjectPath).readAsString();
@@ -233,7 +233,7 @@ void main() {
 
         final runner = CliRunner(exitOnCompletion: false);
         final out = await runner.runCapturing(verifyRedArgs1036(fx, id: 'A3'));
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
         final cycleLog = await File(fx.cycleLogPath).readAsString();
         expect(cycleLog, contains('## Cycle: A3 (red)'));
@@ -254,7 +254,7 @@ void main() {
       // Certify red against the THROWING subject (records its hash).
       final runner = CliRunner(exitOnCompletion: false);
       final redOut = await runner.runCapturing(verifyRedArgs1036(fx, id: 'A4'));
-      expect(exitCode, 0, reason: redOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
 
       // The failed-make rewrite class: the subject on disk is now the
       // non-throwing placeholder the red evidence never exercised.
@@ -266,7 +266,7 @@ void main() {
       // on the placeholder) — the skip transition MUST refuse.
       final out = await runner.runCapturing(makeArgs1036(fx, id: 'A4'));
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         isNot(0),
         reason:
             'a skip on a subject whose shape no longer matches the '
@@ -314,7 +314,7 @@ void main() {
       final out = await runner.runCapturing(
         makeArgs1036(fx, id: 'U1', zfaBin: zfaBin),
       );
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('make: behavior=U1 outcome=green'));
 
       // The green entry records the subject hash of the scaffolded
@@ -328,7 +328,7 @@ void main() {
       final out2 = await runner.runCapturing(
         makeArgs1036(fx, id: 'U1', zfaBin: zfaBin),
       );
-      expect(exitCode, 0, reason: out2);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
       expect(out2, contains('outcome=skipped'));
       cycleLog = await File(fx.cycleLogPath).readAsString();
       expect(cycleLog, contains('## Cycle: U1 (green)'));

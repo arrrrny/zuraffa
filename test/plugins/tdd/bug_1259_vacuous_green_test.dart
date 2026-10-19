@@ -217,7 +217,11 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', 'B-1259', '--project', fx.root.path]);
 
-      expect(exitCode, 1, reason: 'a vacuous green must not certify: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'a vacuous green must not certify: $out',
+      );
       expect(out, contains('outcome=vacuous-green'));
       expect(out, contains('UnimplementedError guard'));
       final log = await File(fx.cycleLogPath).readAsString();
@@ -252,7 +256,7 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', 'B-1259', '--project', fx.root.path]);
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(out, contains('outcome=skipped'));
     });
 
@@ -286,7 +290,11 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', 'A-1259', '--project', fx.root.path]);
 
-      expect(exitCode, 1, reason: 'a vacuous green must not certify: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'a vacuous green must not certify: $out',
+      );
       expect(out, contains('outcome=vacuous-green'));
       final log = await File(fx.cycleLogPath).readAsString();
       expect(
@@ -320,7 +328,7 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'gen', 'U-100', '--project', fx.root.path]);
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await genSubjectOf(fx, 'U-100');
       expect(
         subject,
@@ -373,7 +381,7 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'gen', 'U-110', '--project', fx.root.path]);
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await genSubjectOf(fx, 'U-110');
       expect(
         subject,
@@ -424,7 +432,7 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'func', 'U-100', '--project', fx.root.path]);
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await genSubjectOf(fx, 'U-100');
       expect(
         subject,

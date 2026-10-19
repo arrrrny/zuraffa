@@ -99,7 +99,7 @@ void main() {
         fx.root.path,
       ]);
       expect(out, contains('target'));
-      expect(exitCode, 2);
+      expect(CliRunner.lastDispatchedExitCode, 2);
     });
 
     test(
@@ -109,7 +109,7 @@ void main() {
         final out = await walk();
         expect(out, contains('catalog'));
         expect(out, contains('--> fix'));
-        expect(exitCode, 2);
+        expect(CliRunner.lastDispatchedExitCode, 2);
       },
     );
 
@@ -119,7 +119,7 @@ void main() {
         await setupCatalog(['f1-good']);
         final out = await walk(budget: 'lots');
         expect(out, contains('budget'));
-        expect(exitCode, 2);
+        expect(CliRunner.lastDispatchedExitCode, 2);
       },
     );
   });
@@ -249,7 +249,7 @@ void main() {
           ),
         },
       );
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final lastLine = out.trim().split('\n').last;
       expect(
         lastLine,
@@ -278,7 +278,7 @@ void main() {
             ),
           },
         );
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         expect(out, contains('result=over-budget'));
         expect(out, contains('over budget'), reason: 'names the breach');
       },
@@ -294,7 +294,11 @@ void main() {
           ),
         },
       );
-      expect(exitCode, 0, reason: '1 partial <= default budget 5');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: '1 partial <= default budget 5',
+      );
       expect(out, contains('budget=5'), reason: out);
     });
   });
@@ -326,7 +330,7 @@ void main() {
     test('an empty catalog stops with exit 2', () async {
       await setupCatalog([]);
       final out = await walk();
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(out, contains('no features'));
     });
   });

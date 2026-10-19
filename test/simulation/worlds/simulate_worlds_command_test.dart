@@ -20,7 +20,7 @@ import 'package:zuraffa/src/simulation/worlds/world_manifest.dart';
 Future<(int, String)> runZfa(List<String> args) async {
   final runner = CliRunner(exitOnCompletion: false);
   final output = await runner.runCapturing(args);
-  return (exitCode, output);
+  return (CliRunner.lastDispatchedExitCode, output);
 }
 
 const _feature = '058-demo-world-feature';

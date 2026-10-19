@@ -93,7 +93,7 @@ void main() {
   group('SC-020 phase 1 — drive and stop', () {
     test('drive: f1 run+verified, f2 stops at its run step, exit 1', () async {
       firstDrive = await drive();
-      expect(exitCode, 1, reason: firstDrive);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: firstDrive);
       final calls1 = await fx.readCalls();
       expect(
         calls1.where((c) => c.contains('f1-good')).toList(),
@@ -153,7 +153,7 @@ void main() {
         await fx.rewriteFakeZfa(const {});
         secondDrive = await drive();
         // f3 is still not-ready: reported, blocking completion honestly.
-        expect(exitCode, 1, reason: secondDrive);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: secondDrive);
         final calls2 = await fx.readCalls();
         final f1Total = calls2.where((c) => c.contains('f1-good')).toList();
         expect(

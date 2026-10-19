@@ -280,7 +280,7 @@ void main() {
     var exitCodeAtEntry = 0;
 
     setUp(() async {
-      exitCodeAtEntry = exitCode;
+      exitCodeAtEntry = CliRunner.lastDispatchedExitCode;
       tempDir = await Directory.systemTemp.createTemp('mock_certify_1539_');
       await _scaffoldProduct(tempDir.path);
     });
@@ -310,7 +310,7 @@ void main() {
       final out = await runCli(['mock', 'create', 'Product', '--certify']);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         0,
         reason:
             'the structural certification stands; a tool crash is '
@@ -347,7 +347,7 @@ void main() {
       final out = await runCli(['mock', 'verify', 'Product']);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         0,
         reason:
             'same machinery as mock certify (spec 1121 AC): a tool '
@@ -372,7 +372,7 @@ void main() {
       ]);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         0,
         reason: 'the structural certification stands, output:\n$out',
       );
@@ -437,11 +437,20 @@ Future<void> _scaffoldProduct(String root) async {
     p.join(root, 'lib', 'src', 'domain', 'entities', 'product'),
   );
   await dir.create(recursive: true);
+  // Issue #1747: `zfa mock create` only emits the CRUD datasource/provider
+  // pair for a type carrying the surface that pair's body calls — an
+  // identity, a `copyWithField`, and a `<Type>Patch` companion. A Zorphy
+  // entity gets all three from its `.zorphy.dart` part; this fixture is the
+  // same surface declared inline.
   await File(p.join(dir.path, 'product.dart')).writeAsString('''
 class Product {
   final String id;
   final String name;
   const Product({required this.id, required this.name});
+
+  Product copyWithField(Object field, Object? value) => this;
 }
+
+class ProductPatch {}
 ''');
 }

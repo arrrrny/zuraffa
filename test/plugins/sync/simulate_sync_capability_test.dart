@@ -14,7 +14,6 @@ library;
 //   B3 — the summary line carries the chaos evidence (retries, verdict).
 //   B4 — `zfa sync simulate --help` documents --scenario.
 
-import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
@@ -23,7 +22,7 @@ void main() {
   Future<(int, String)> runZfa(List<String> args) async {
     final runner = CliRunner(exitOnCompletion: false);
     final output = await runner.runCapturing(args);
-    return (exitCode, output);
+    return (CliRunner.lastDispatchedExitCode, output);
   }
 
   test('B1: the offline-flap scenario drives the strategy to GREEN', () async {
