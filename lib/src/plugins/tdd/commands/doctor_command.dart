@@ -220,7 +220,8 @@ class DoctorCommand extends Command<void> {
     // the run driver's reconcile path (intentionally looser than the
     // subject-bound set the #1592 refactor shortcut uses) — see
     // run_driver_core.dart.
-    final bornGreenIds = (await evidence.bornGreenCertifiedEntries()).keys.toSet();
+    final bornGreenIds = (await evidence.bornGreenCertifiedEntries()).keys
+        .toSet();
 
     // ---- 1. Legacy-layout scan ---------------------------------------
     // Scan the gen default layout; classify every generated-shape file
