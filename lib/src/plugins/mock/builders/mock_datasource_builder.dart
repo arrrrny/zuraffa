@@ -1097,7 +1097,9 @@ class MockDataSourceBuilder {
             refer('logger').property('info').call([
               isNoParamsCreate
                   ? literalString('Creating $entityName')
-                  : literalString('Creating $entityName: \${item.id}'),
+                  : literalString(
+                      'Creating $entityName: \${item.${config.idField}}',
+                    ),
             ]).statement,
             refer(
               'Future<void>',
@@ -1111,7 +1113,7 @@ class MockDataSourceBuilder {
               isNoParamsCreate
                   ? literalString('Successfully created $entityName')
                   : literalString(
-                      'Successfully created $entityName: \${item.id}',
+                      'Successfully created $entityName: \${item.${config.idField}}',
                     ),
             ]).statement,
           ];

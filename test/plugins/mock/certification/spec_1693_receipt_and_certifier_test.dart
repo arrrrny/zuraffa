@@ -71,29 +71,43 @@ void main() {
 
   /// The certified shape of the entity source — format-clean.
   const certifiedSource = '''
+class LoginPatch {
+  const LoginPatch();
+}
+
 class Login {
   final String id;
   final String username;
   const Login({required this.id, required this.username});
+  Login copyWithField(String field, Object? value) => this;
 }
 ''';
 
   /// Format-only drift (the phase-2 `dart format lib/` shape): same AST,
   /// different bytes.
   const formatDriftedSource =
+      'class LoginPatch {\n'
+      ' const LoginPatch();\n'
+      '}\n'
       'class Login {\n'
       '   final String id;\n'
       '      final String username;\n'
       '  const Login({required this.id,   required this.username});\n'
+      '  Login copyWithField(String field, Object? value) => this;\n'
       '}';
 
   /// A real semantic edit after certification: a new field.
   const semanticDriftSource = '''
+class LoginPatch {
+  const LoginPatch();
+}
+
 class Login {
   final String id;
   final String username;
   final String email;
   const Login({required this.id, required this.username});
+  Login copyWithField(String field, Object? value) => this;
 }
 ''';
 
