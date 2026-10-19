@@ -578,6 +578,80 @@ class MockDataSourceBuilder {
   static (String, String?, String?) _parseMethodShape(String token) =>
       MethodShapeParser.parseMethodShape(token);
 
+  /// The verbs the switch in [_generateMockDataSourceMethods] handles
+  /// explicitly; every other token is an arbitrary member and carries the
+  /// #1850 shape contract ([validateMemberShapes]).
+  static const _crudMethodNames = <String>{
+    'get',
+    'list',
+    'getList',
+    'create',
+    'update',
+    'toggle',
+    'delete',
+    'watch',
+    'watchList',
+  };
+
+  /// Unwraps `?` and `Future<...>` / `Stream<...>` so wrapped shapes
+  /// (e.g. `Future<void>`, `Future<Entity>`) classify identically to their
+  /// raw forms (issue #1824).
+  static String _baseReturnType(String returns) {
+    var baseReturns = returns.replaceAll('?', '');
+    var changed = true;
+    while (changed) {
+      changed = false;
+      if (baseReturns.startsWith('Future<') && baseReturns.endsWith('>')) {
+        baseReturns = baseReturns.substring(7, baseReturns.length - 1).trim();
+        changed = true;
+      } else if (baseReturns.startsWith('Stream<') &&
+          baseReturns.endsWith('>')) {
+        baseReturns = baseReturns.substring(7, baseReturns.length - 1).trim();
+        changed = true;
+      }
+    }
+    return baseReturns;
+  }
+
+  /// Issue #1850 (honest bodies): the return shapes an arbitrary verb can be
+  /// given a real body for. Shared by validation and emission so the
+  /// pre-flight and the generated method can never disagree.
+  static bool _isHonestArbitraryReturn(String baseReturns, String entityName) {
+    if (baseReturns == 'void' || baseReturns == 'dynamic') return true;
+    if (baseReturns == entityName) return true;
+    if (baseReturns.startsWith('List<') && baseReturns.endsWith('>')) {
+      return baseReturns.substring(5, baseReturns.length - 1).trim() ==
+          entityName;
+    }
+    return false;
+  }
+
+  /// Issue #1922: validates every arbitrary (non-CRUD) member shape of
+  /// [config] WITHOUT emitting or writing anything, so a refused member
+  /// (the #1850 `ArgumentError`) leaves the working tree untouched instead
+  /// of clobbering the datasource interface that was written before the
+  /// shape check used to run.
+  static void validateMemberShapes(GeneratorConfig config) {
+    final entityName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    for (final method in config.methods) {
+      if (_crudMethodNames.contains(method)) continue;
+      final parsed = _parseMethodShape(method);
+      final methodName = parsed.$1;
+      final methodReturns = parsed.$3 ?? config.returnsType;
+      final returns = (methodReturns != null && methodReturns.isNotEmpty)
+          ? methodReturns
+          : 'void';
+      final baseReturns = _baseReturnType(returns);
+      if (!_isHonestArbitraryReturn(baseReturns, entityName)) {
+        throw ArgumentError(
+          'unknown return type $baseReturns for member $methodName',
+        );
+      }
+    }
+  }
+
   List<Method> _generateMockDataSourceMethods(GeneratorConfig config) {
     final entityName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
@@ -1350,27 +1424,7 @@ class MockDataSourceBuilder {
             final returns = (methodReturns != null && methodReturns.isNotEmpty)
                 ? methodReturns
                 : 'void';
-            var baseReturns = returns.replaceAll('?', '');
-            // Unwrap Future<...>/Stream<...> so wrapped shapes (e.g.
-            // `Future<void>`, `Future<Entity>`) classify identically to
-            // their raw forms.
-            var changed = true;
-            while (changed) {
-              changed = false;
-              if (baseReturns.startsWith('Future<') &&
-                  baseReturns.endsWith('>')) {
-                baseReturns = baseReturns
-                    .substring(7, baseReturns.length - 1)
-                    .trim();
-                changed = true;
-              } else if (baseReturns.startsWith('Stream<') &&
-                  baseReturns.endsWith('>')) {
-                baseReturns = baseReturns
-                    .substring(7, baseReturns.length - 1)
-                    .trim();
-                changed = true;
-              }
-            }
+            final baseReturns = _baseReturnType(returns);
             final isVoid = baseReturns == 'void' || baseReturns == 'dynamic';
             // Issue #1824 review: branch on list-ness and entity-ness so a
             // non-void arbitrary verb does not always return a single entity
@@ -1395,7 +1449,7 @@ class MockDataSourceBuilder {
             // return type resolves to no known fixture must refuse rather
             // than emit `throw UnimplementedError()` under a conformance:
             // true verdict.
-            if (!isVoid && !isEntityList && !isEntityReturn) {
+            if (!_isHonestArbitraryReturn(baseReturns, entityName)) {
               throw ArgumentError(
                 'unknown return type $baseReturns for member $methodName',
               );
