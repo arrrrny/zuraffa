@@ -99,10 +99,12 @@ class ServiceInterfaceBuilder {
         ...CommonPatterns.extractBaseTypes(paramsType),
         ...CommonPatterns.extractBaseTypes(returnsType),
       };
-      if (baseTypes.any((t) =>
-          KnownTypes.isZuraffaParam(t) ||
-          KnownTypes.isZuraffaResult(t) ||
-          KnownTypes.isZorphyType(t))) {
+      if (baseTypes.any(
+        (t) =>
+            KnownTypes.isZuraffaParam(t) ||
+            KnownTypes.isZuraffaResult(t) ||
+            KnownTypes.isZorphyType(t),
+      )) {
         needsCoreImport = true;
       }
     }
