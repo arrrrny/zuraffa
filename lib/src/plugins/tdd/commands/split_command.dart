@@ -179,19 +179,81 @@ class SplitCommand extends Command<void> {
       return;
     }
 
+    final specFile = File('$featureDir/spec.md');
+    final specMd = await specFile.exists() ? await specFile.readAsString() : '';
+
     final rows = await TestListReader(featureDir).read();
 
     // The legacy list's declaration sections (Key entities / External
     // dependencies / Layer contracts) migrate into the engine plan —
     // the reader's section fallback resolves them there. Read the
-    // sections from the list itself (it is NOT yet a meta-index at
-    // split time).
+    // sections from every available source (issue #1884): the list itself
+    // when it is still a legacy plan, the spec (plan's own source), and
+    // the engine plan we are about to overwrite (so a re-split of an
+    // already-split feature does not drop declarations that only live in
+    // the prior engine file). A meta-index list carries none of them.
     final legacyDeclarations = listContent;
+    final engineFile = File(p.join(tddDir, LaneSplitFiles.engine));
+    final existingEngineContent = await engineFile.exists()
+        ? await engineFile.readAsString()
+        : '';
+    final declarationSources = <String>[
+      legacyDeclarations,
+      specMd,
+      existingEngineContent,
+    ];
+
+    List<SpecEntity> mergedEntities() {
+      final seen = <String>{};
+      final out = <SpecEntity>[];
+      for (final src in declarationSources) {
+        for (final e in const SpecParser().parseKeyEntities(src)) {
+          if (seen.add(e.name)) out.add(e);
+        }
+      }
+      return out;
+    }
+
+    List<SpecDependency> mergedDependencies() {
+      final seen = <String>{};
+      final out = <SpecDependency>[];
+      for (final src in declarationSources) {
+        for (final d in const SpecParser().parseDependencies(src)) {
+          if (seen.add(d.dependency)) out.add(d);
+        }
+      }
+      return out;
+    }
+
+    List<LayerContract> mergedLayerContracts() {
+      final seen = <String>{};
+      final out = <LayerContract>[];
+      for (final src in declarationSources) {
+        for (final c in const SpecParser().parseLayerContracts(src)) {
+          final key = '${c.layer}::${c.interfaceName}';
+          if (seen.add(key)) out.add(c);
+        }
+      }
+      return out;
+    }
+
+    // Routing provenance: migrate `route:` lines from any source that
+    // carries them (legacy list, prior engine plan, or the spec's plan
+    // output) so a re-split does not drop the provenance section
+    // (issue #1884).
+    final routeLines = <String>{};
+    for (final src in declarationSources) {
+      for (final line in src.split('\n')) {
+        final trimmed = line.trim();
+        if (trimmed.startsWith('route:')) routeLines.add(trimmed);
+      }
+    }
+    final provenance = routeLines.isEmpty
+        ? const <String, List<String>>{}
+        : <String, List<String>>{'_': routeLines.toList()..sort()};
 
     // Declarations win: a spec `## Lanes` section assigns the rows it
     // names; undeclared rows fall through to the kind heuristic.
-    final specFile = File('$featureDir/spec.md');
-    final specMd = await specFile.exists() ? await specFile.readAsString() : '';
     final lanes = specMd.isEmpty
         ? const <LaneDeclaration>[]
         : const SpecParser().parseLanes(specMd);
@@ -300,11 +362,10 @@ class SplitCommand extends Command<void> {
     final engineMd = renderEnginePlan(
       feature: feature,
       rows: engineRows,
-      entities: const SpecParser().parseKeyEntities(legacyDeclarations),
-      dependencies: const SpecParser().parseDependencies(legacyDeclarations),
-      layerContracts: const SpecParser().parseLayerContracts(
-        legacyDeclarations,
-      ),
+      entities: mergedEntities(),
+      dependencies: mergedDependencies(),
+      layerContracts: mergedLayerContracts(),
+      provenance: provenance,
     );
     final skinMd = renderSkinPlan(
       feature: feature,

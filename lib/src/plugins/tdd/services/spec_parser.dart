@@ -616,7 +616,7 @@ class SpecParser {
   /// `&` or `and`, case-insensitive). Issue #1196: trailing qualifier
   /// tolerated; entities decoded ([_matchesSectionHeading]).
   static final RegExp _dependenciesHeading = RegExp(
-    r'^#{1,6}\s+external\s+dependencies\s+(?:&|and)\s+contracts\b[^#]*$',
+    r'^#{1,6}\s+external\s+dependencies(?:\s+(?:&|and)\s+contracts)?\b[^#]*$',
     caseSensitive: false,
   );
 
