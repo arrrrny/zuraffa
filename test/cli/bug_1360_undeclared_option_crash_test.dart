@@ -21,7 +21,6 @@ library;
 //   B3 — valid invocations unaffected (regression guard).
 //   B4 — the SPEC 917 `--> fix:` line accompanies the usage error.
 
-
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
