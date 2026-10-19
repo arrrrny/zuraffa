@@ -998,11 +998,18 @@ class VerifyRedCommand extends Command<void> {
       // stale — rebind to that sole title even when the description
       // changed enough to break containment (e.g. a title that drops
       // the id prefix after the #871 pure-description change).
-      if (titles.length == 1) {
+      // Sole-test fallback only applies when the recorded name was
+      // plausibly a (now-stale) test title — i.e. it carried the
+      // behavior id. A recorded name that is a scenario description
+      // (no id) must not be silently rebound to an unrelated sole
+      // title, or the kind gate (issue #964) loses its evidence.
+      if (titles.length == 1 && recorded.contains(record.behaviorId)) {
         candidate = titles.first;
-      } else {
+      } else if (titles.length > 1) {
         // Id-based binding: a title carrying the behavior id is the
-        // intended target (unambiguous).
+        // intended target (unambiguous). Only when there is more than
+        // one title to choose among — a lone title must not be rebound
+        // from a scenario-derived recorded name (issue #964 kind gate).
         final idMatches = titles
             .where((t) => t.contains(record.behaviorId))
             .toList();
