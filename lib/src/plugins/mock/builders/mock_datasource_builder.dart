@@ -11,6 +11,7 @@ import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/method_extractor.dart';
 import '../../../utils/project_flavor.dart';
 import '../services/mock_staleness_detector.dart';
 import 'mock_type_helper.dart';
@@ -247,8 +248,21 @@ class MockDataSourceBuilder {
       );
     }
 
-    methods.addAll(_generateMockDataSourceMethods(config));
-
+    // Issue #1880: resolve arbitrary (non-CRUD) verbs against the declared
+    // interface so the emitted mock's signatures match what the interface
+    // (and the contract test) pin. Without this, non-CRUD verbs fall back to
+    // the generic template (Future<void> + QueryParams<T>) and contradict
+    // the contract test in the same run.
+    final interfaceMembers = await _loadInterfaceMembers(
+      entityName,
+      entitySnake,
+    );
+    methods.addAll(
+      _generateMockDataSourceMethods(
+        config,
+        interfaceMembers: interfaceMembers,
+      ),
+    );
     if ((config.appendToExisting || shapeDrift) && fileExists) {
       final existing = await fileSystem.read(filePath);
       var updated = existing;
@@ -531,7 +545,111 @@ class MockDataSourceBuilder {
     );
   }
 
-  List<Method> _generateMockDataSourceMethods(GeneratorConfig config) {
+  Future<List<ParsedUseCaseInfo>> _loadInterfaceMembers(
+    String entityName,
+    String entitySnake,
+  ) async {
+    final interfacePath =
+        '$outputDir/data/datasources/$entitySnake/${entitySnake}_datasource.dart';
+    if (!await fileSystem.exists(interfacePath)) return const [];
+    try {
+      return await MethodExtractor.extractMethodsFromInterface(
+        interfacePath,
+        '${entityName}DataSource',
+        fileSystem: fileSystem,
+      );
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  bool _crudTemplateMatches(
+    String method,
+    String entityName,
+    GeneratorConfig config,
+    ParsedUseCaseInfo member,
+  ) {
+    const crudVerbs = {
+      'get',
+      'getList',
+      'list',
+      'create',
+      'update',
+      'toggle',
+      'delete',
+      'watch',
+      'watchList',
+    };
+    if (!crudVerbs.contains(method)) return false;
+    // The CRUD templates all declare exactly one parameter.
+    if (member.parameterCount != 1) return false;
+
+    String expectedReturns;
+    String expectedUseCase;
+    String? expectedParamsPrefix;
+    switch (method) {
+      case 'get':
+        expectedReturns = entityName;
+        expectedUseCase = 'usecase';
+        expectedParamsPrefix = 'QueryParams<$entityName>';
+        break;
+      case 'getList':
+        expectedReturns = 'List<$entityName>';
+        expectedUseCase = 'usecase';
+        expectedParamsPrefix = 'ListQueryParams<$entityName>';
+        break;
+      case 'list':
+        expectedReturns = 'List<$entityName>';
+        expectedUseCase = 'usecase';
+        expectedParamsPrefix = 'NoParams';
+        break;
+      case 'create':
+        expectedReturns = entityName;
+        expectedUseCase = 'usecase';
+        expectedParamsPrefix = entityName;
+        break;
+      case 'update':
+        expectedReturns = entityName;
+        expectedUseCase = 'usecase';
+        expectedParamsPrefix = 'UpdateParams<';
+        break;
+      case 'toggle':
+        expectedReturns = entityName;
+        expectedUseCase = 'usecase';
+        expectedParamsPrefix = 'ToggleParams<';
+        break;
+      case 'delete':
+        expectedReturns = 'void';
+        expectedUseCase = 'completable';
+        expectedParamsPrefix = 'DeleteParams<';
+        break;
+      case 'watch':
+        expectedReturns = entityName;
+        expectedUseCase = 'stream';
+        expectedParamsPrefix = 'QueryParams<$entityName>';
+        break;
+      case 'watchList':
+        expectedReturns = 'List<$entityName>';
+        expectedUseCase = 'stream';
+        expectedParamsPrefix = 'ListQueryParams<$entityName>';
+        break;
+      default:
+        return false;
+    }
+
+    if (member.returnsType != expectedReturns) return false;
+    if (member.useCaseType != expectedUseCase) return false;
+    final paramsType = member.paramsType ?? 'NoParams';
+    if (!paramsType.startsWith(expectedParamsPrefix!)) {
+      return false;
+    }
+    return true;
+  }
+
+  List<Method> _generateMockDataSourceMethods(
+    GeneratorConfig config, {
+    List<ParsedUseCaseInfo>? interfaceMembers,
+  }) {
     final entityName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
         : config.name;
@@ -624,6 +742,33 @@ class MockDataSourceBuilder {
     }
 
     for (final method in config.methods) {
+      // Issue #1880: when the declared interface carries this method with a
+      // shape the CRUD template does not assume (e.g. a zero-arg `watch()`
+      // or `load()`), emit from the interface declaration instead of the
+      // fixed template, so the mock agrees with the contract test.
+      final interfaceMember = interfaceMembers?.firstWhere(
+        (m) => m.fieldName == method,
+        orElse: () => const ParsedUseCaseInfo(
+          className: '',
+          fieldName: '',
+          paramsType: 'NoParams',
+          returnsType: 'void',
+          useCaseType: 'usecase',
+        ),
+      );
+      if (interfaceMember != null &&
+          interfaceMember.fieldName == method &&
+          !_crudTemplateMatches(method, entityName, config, interfaceMember)) {
+        final synth = _mockMethodImplForMissingMember(
+          entityName: entityName,
+          member: interfaceMember,
+        );
+        if (synth != null) {
+          methods.add(synth);
+          continue;
+        }
+      }
+
       switch (method) {
         case 'get':
           final isNoParams = config.idFieldType == 'NoParams';
@@ -1251,12 +1396,37 @@ class MockDataSourceBuilder {
           );
           break;
         default:
-          // Issue #1823: arbitrary (non-CRUD) verbs declared via
-          // --methods. Emit a certified mock member whose body is the
-          // fixture/echo default, matching the interface generator's
-          // shape so conformance holds.
+          // Issue #1880: arbitrary (non-CRUD) verbs must be emitted from
+          // the declared interface's signature, not from the (global)
+          // config params/returns template. When the interface carries
+          // this member, mirror `_mockMethodImplForMissingMember` so the
+          // mock agrees with the contract test in the same run.
           {
             final methodName = method;
+            final interfaceMember = interfaceMembers?.firstWhere(
+              (m) => m.fieldName == methodName,
+              orElse: () => const ParsedUseCaseInfo(
+                className: '',
+                fieldName: '',
+                paramsType: 'NoParams',
+                returnsType: 'void',
+                useCaseType: 'usecase',
+              ),
+            );
+            if (interfaceMember != null &&
+                interfaceMember.fieldName == methodName) {
+              final synth = _mockMethodImplForMissingMember(
+                entityName: entityName,
+                member: interfaceMember,
+              );
+              if (synth != null) {
+                methods.add(synth);
+                break;
+              }
+            }
+
+            // Fallback (no interface member / unsupported shape): keep the
+            // #1823 template behaviour.
             final returns =
                 (config.returnsType != null && config.returnsType!.isNotEmpty)
                 ? config.returnsType!

@@ -38,12 +38,15 @@ class ContractMethod {
     required this.name,
     required this.returnType,
     required this.paramsType,
+    this.parameterCount = 0,
   });
 
   final String name;
   final String returnType;
   final String paramsType;
+  final int parameterCount;
 
+  bool get hasParams => parameterCount > 0;
   bool get returnsStream => returnType.startsWith('Stream<');
 }
 
@@ -218,6 +221,7 @@ class MockContractTestWriter {
               m.useCaseType ?? 'usecase',
             ),
             paramsType: m.paramsType ?? 'NoParams',
+            parameterCount: m.parameterCount,
           ),
         )
         .toList();
@@ -375,7 +379,7 @@ class MockContractTestWriter {
         )
         ..writeln(
           '      final ${method.returnType} Function('
-          '${method.paramsType}) ${_safeLocal(method.name)}\$ =\n'
+          '${(method.parameterCount == 0 && (method.paramsType == 'NoParams' || method.paramsType.trim().isEmpty)) ? '' : method.paramsType}) ${_safeLocal(method.name)}\$ =\n'
           '          dataSource.${method.name};',
         )
         ..writeln('      expect(${_safeLocal(method.name)}\$, isNotNull);');
@@ -415,6 +419,31 @@ class MockContractTestWriter {
     required ContractMethod method,
     required String outputDir,
   }) {
+    final ret = method.returnType;
+
+    // Zero-parameter methods: invoke with no arguments. A method whose
+    // declared params type is not 'NoParams' (e.g. an unsynthesizable
+    // AuthRequest) is never treated as zero-arg even if the count was not
+    // supplied (issue #1880 keeps the legacy pin-only degradation).
+    if (method.parameterCount == 0 &&
+        (method.paramsType == 'NoParams' || method.paramsType.trim().isEmpty)) {
+      if (ret == 'Future<void>' || ret == 'void') {
+        return 'await dataSource.${method.name}();';
+      }
+      if (ret.startsWith('Future<') || ret.startsWith('Stream<')) {
+        final inner = _unwrapAsync(ret);
+        if (method.returnsStream) {
+          return 'final value = await dataSource'
+              '.${method.name}().first;\n'
+              '      expect(value, isA<$inner>());';
+        }
+        return 'final value = await dataSource.${method.name}();\n'
+            '      expect(value, isA<$inner>());';
+      }
+      return 'final value = dataSource.${method.name}();\n'
+          '      expect(value, isA<$ret>());';
+    }
+
     final params = _defaultParamsExpr(
       entityName: entityName,
       paramsType: method.paramsType,
@@ -422,7 +451,6 @@ class MockContractTestWriter {
     );
     if (params == null) return null;
 
-    final ret = method.returnType;
     if (ret == 'Future<void>' || ret == 'void') {
       return 'await dataSource.${method.name}($params);';
     }
