@@ -257,6 +257,8 @@ class CreateMockCapability implements ZuraffaCapability {
       // the current interface, so the contract is re-rendered to match.
       rePin: true,
       verbose: verbose,
+      service: args['service'] as String?,
+      domain: args['domain'] as String?,
     );
     final written = await certifier.writeContractArtifacts(
       entityName: name,
@@ -295,7 +297,8 @@ class CreateMockCapability implements ZuraffaCapability {
         data: {
           'generatedFiles': files,
           'certified': false,
-          if (receipt != null) 'mockCertReceipt': receipt.toJson(),
+          if (receipt != null && outcome.certified)
+            'mockCertReceipt': receipt.toJson(),
         },
       );
     }

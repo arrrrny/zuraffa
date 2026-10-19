@@ -903,6 +903,10 @@ class PlanCommand extends Command<void> {
         scenarios: scenarioMarkers,
         contractRows: declaredRows.rows,
         persistence: persistenceDeclarations,
+        keyEntities: const SpecParser()
+            .parseKeyEntities(specMd)
+            .map((e) => e.name)
+            .toList(),
       );
       // Issue #1480: a criterion trace naming an FR the spec does not
       // declare is a typo in the making — warn loudly (parity with the

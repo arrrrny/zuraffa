@@ -40,6 +40,7 @@ import '../plugins/tdd/commands/verdicts_command.dart';
 import '../plugins/tdd/commands/view_command.dart';
 import '../plugins/tdd/commands/wire_command.dart';
 import '../plugins/tdd/tdd_plugin.dart';
+import '../commands/provenance_command.dart';
 
 class TddCommand extends Command<void> {
   TddCommand(this.plugin) {
@@ -67,6 +68,7 @@ class TddCommand extends Command<void> {
     addSubcommand(VerdictsCommand(plugin));
     addSubcommand(MigratePathsCommand(plugin));
     addSubcommand(CorpusCommand(plugin));
+    addSubcommand(ProvenanceCommand());
     addSubcommand(RefereeCommand(plugin));
     addSubcommand(DiffCheckCommand(plugin));
     addSubcommand(ResetCommand(plugin));

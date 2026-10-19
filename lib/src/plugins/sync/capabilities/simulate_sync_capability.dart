@@ -186,13 +186,38 @@ class SimulateSyncCapability implements ZuraffaCapability {
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
     final devices = args['devices'] as int?;
-    if (devices != null && devices > 0) {
+    if (devices != null) {
+      if (devices <= 0) {
+        print('❌ Invalid --devices value ($devices) — must be > 0');
+        return ExecutionResult(
+          success: false,
+          files: const [],
+          data: {'verdict': 'usage-error', 'devices': devices},
+        );
+      }
+      final days = (args['days'] as int?) ?? 30;
+      final entityCount = (args['entityCount'] as int?) ?? 5;
+      if (days <= 0 || entityCount <= 0) {
+        print(
+          '❌ Invalid --days/--entity-count ($days/$entityCount) — '
+          'must be > 0',
+        );
+        return ExecutionResult(
+          success: false,
+          files: const [],
+          data: {
+            'verdict': 'usage-error',
+            'days': days,
+            'entityCount': entityCount,
+          },
+        );
+      }
       return _runMultiDevice(
         devices: devices,
-        days: (args['days'] as int?) ?? 30,
+        days: days,
         partition: (args['partition'] as bool?) ?? false,
         seed: (args['seed'] as int?) ?? 42,
-        entityCount: (args['entityCount'] as int?) ?? 5,
+        entityCount: entityCount,
       );
     }
     final scenario = (args['scenario'] ?? 'offline-flap') as String;
@@ -341,6 +366,9 @@ class SimulateSyncCapability implements ZuraffaCapability {
     }
 
     var partitions = 0;
+    // `merges` counts directional (ordered-pair) transfers, not
+    // unique merge events: each (a,b) pair that propagates a
+    // newer field value increments it.
     var merges = 0;
     var anomalies = 0;
     for (var day = 1; day <= days; day++) {
@@ -416,17 +444,33 @@ class SimulateSyncCapability implements ZuraffaCapability {
         }
       }
       converged = true;
+      outer:
       for (var a = 1; a < devices; a++) {
-        if (replicas[a].toString() != replicas[0].toString()) {
-          converged = false;
-          break;
+        for (final e in entities) {
+          for (final field in ['title', 'done']) {
+            final va = replicas[a][e]![field]!;
+            final v0 = replicas[0][e]![field]!;
+            if (va.$1 != v0.$1 || va.$2 != v0.$2) {
+              converged = false;
+              break outer;
+            }
+          }
         }
       }
     }
 
+    final expected = replicas[0];
     for (var d = 0; d < devices; d++) {
       for (final e in entities) {
-        if (!replicas[d].containsKey(e)) anomalies++;
+        if (!replicas[d].containsKey(e)) {
+          anomalies++;
+          continue;
+        }
+        for (final field in ['title', 'done']) {
+          final vd = replicas[d][e]![field]!;
+          final ve = expected[e]![field]!;
+          if (vd.$1 != ve.$1 || vd.$2 != ve.$2) anomalies++;
+        }
       }
     }
 

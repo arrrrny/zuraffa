@@ -88,7 +88,7 @@ void main() {
       );
 
       final out = await plan();
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       final loaded = receipt();
       expect(loaded['source'], 'zfa tdd plan');
@@ -99,7 +99,7 @@ void main() {
 
   test('B2: the plan-written receipt satisfies the one-shot guard', () async {
     final planOut = await plan();
-    expect(exitCode, 0, reason: planOut);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: planOut);
 
     // The guard that refused the committed fixture in the issue: a
     // meta-index without a receipt. With the plan-written receipt, a
@@ -124,7 +124,7 @@ void main() {
     );
 
     final out = await plan();
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
     final loaded = receipt();
     expect(

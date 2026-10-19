@@ -79,7 +79,7 @@ void main() {
   /// One real `zfa tdd gen` — writes the pair + the registry record.
   Future<String> firstGen(String id) async {
     final out = await runCli(['gen', id, '--feature', feature]);
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(File(testPathOf(id)).existsSync(), isTrue, reason: out);
     expect(File(subjectPathOf(id)).existsSync(), isTrue, reason: out);
     return out;
@@ -122,7 +122,7 @@ void main() {
 
         final out = await runCli(['gen', behaviorId, '--feature', feature]);
 
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         // The refusal names a command that RESOLVES this direction…
         expect(out, contains('--repair'), reason: out);
         // …and is no longer the circular self-reference (issue #1495).
@@ -180,7 +180,7 @@ void main() {
 
       final out = await runCli(['gen', behaviorId, '--feature', feature]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('--adopt'), reason: out);
       // Nothing was registered or overwritten.
       expect(File(fx.artifactsPath).existsSync(), isFalse, reason: out);
@@ -203,7 +203,7 @@ void main() {
         '--repair',
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // Fresh pair back on disk.
       expect(File(testPathOf(behaviorId)).existsSync(), isTrue, reason: out);
       expect(File(subjectPathOf(behaviorId)).existsSync(), isTrue, reason: out);
@@ -246,7 +246,7 @@ void main() {
         '--repair',
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // The surviving test half was kept, NOT rewritten.
       expect(
         await File(testPathOf(behaviorId)).readAsBytes(),
@@ -298,7 +298,7 @@ void main() {
           '--repair',
         ]);
 
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         expect(out, contains('--adopt'), reason: out);
         expect(File(fx.artifactsPath).existsSync(), isFalse, reason: out);
       },
@@ -318,7 +318,7 @@ void main() {
         '--adopt',
       ]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('nothing unowned to adopt'), reason: out);
       // The stale record was NOT dropped by adopt.
       expect(
@@ -344,7 +344,7 @@ void main() {
         '--repair',
       ]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(
         out,
         contains('does not match the generated test shape'),
@@ -379,7 +379,7 @@ void main() {
 
       final out = await runCli(['doctor', feature, '--repair']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final rs = await records();
       expect(
         rs.where((r) => r['behavior_id'] == behaviorId),
@@ -410,7 +410,7 @@ void main() {
 
       final out = await runCli(['doctor', feature, '--repair', '--json']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final v = verdictMap(out);
       expect(v['verdict'], 'pass', reason: out);
       expect(v['exit_class'], 'repaired', reason: out);
@@ -429,7 +429,7 @@ void main() {
 
       final out = await runCli(['doctor', feature, '--repair']);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('zfa tdd reset $feature'), reason: out);
       // Issue #1495 review: the machine-readable prescription matches the
       // fix line — the flag alone must not flip it to 'repair'.
@@ -451,7 +451,7 @@ void main() {
 
       final out = await runCli(['doctor', feature]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('--> fix:'), reason: out);
       expect(out, contains('--repair'), reason: out);
       // Diagnosis only: nothing was dropped.
@@ -468,7 +468,7 @@ void main() {
 
       final out = await runCli(['doctor', feature, '--repair']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect((await records()), hasLength(1), reason: out);
     });
   });

@@ -13,6 +13,7 @@ library;
 // assertions from #259 remain; the gql assertions now pin the alias and
 // the removal.
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
@@ -45,16 +46,16 @@ void main() {
       );
     });
 
-    test('issue #1149: the standalone gql command is GONE '
-        '(plugin deleted)', () async {
-      final output = await runner.runCapturing(['gql', '--help']);
+    test('issue #998: `zfa gql` is a deprecation shim '
+        '(prints warning, exits 64)', () async {
+      final output = await runner.runCapturing(['gql', 'Foo']);
       expect(
         output.toLowerCase(),
-        contains('could not find'),
+        contains('deprecat'),
         reason:
-            'The gql plugin was deleted (issue #1149). The standalone '
-            '`zfa gql` command must no longer resolve.',
+            'The gql command must print a deprecation warning (issue #998).',
       );
+      expect(exitCode, 64);
     });
 
     test('zfa graphql --help prints usage (command is wired)', () async {

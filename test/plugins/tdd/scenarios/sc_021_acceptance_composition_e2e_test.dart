@@ -175,7 +175,11 @@ dev_dependencies:
       ),
       reason: out,
     );
-    expect(exitCode, 0, reason: 'run must exit 0 when complete; out:\n$out');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'run must exit 0 when complete; out:\n$out',
+    );
 
     // The acceptance subject was COMPOSED: the stub is gone and the
     // green unit subject is the implementation anchor.
@@ -213,7 +217,7 @@ dev_dependencies:
         '--zfa-bin',
         forwarderPath,
       ]);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       final log = await File(fx.cycleLogPath).readAsString();
       // Exactly one green entry for A1, and its captured generation steps

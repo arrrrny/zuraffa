@@ -368,7 +368,7 @@ dev_dependencies:
     }
 
     setUp(() async {
-      exitCodeAtEntry = exitCode;
+      exitCodeAtEntry = CliRunner.lastDispatchedExitCode;
       fx = await TddFixture.create(featureName: '090-bug-924');
     });
 
@@ -400,7 +400,7 @@ dev_dependencies:
       // convention bug_837 C3 uses. The real process exits 64 via exit().
       expect(out, contains('❌ mutation audit gate: not_assessed'));
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         isNot(1),
         reason:
             'a config refusal stays in the 64 usage class, not the '
@@ -431,7 +431,7 @@ dev_dependencies:
       expect(out, contains('mutation_was_run=false'));
       expect(out, contains('❌ mutation audit gate: preflight_red'));
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         isNot(1),
         reason:
             'preflight refusal stays in the 64 usage class (the real '

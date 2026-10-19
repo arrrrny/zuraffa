@@ -239,7 +239,7 @@ Column(
 
       final out = await runView();
 
-      expect(exitCode, isNot(0), reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out: $out');
       expect(out, contains('untraced-surface violation'));
       expect(out, contains('Session started'));
       expect(out, contains('--> fix:'));
@@ -267,7 +267,7 @@ Column(
 
       final out = await runView();
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('A-001')).readAsString();
       expect(subject, contains("Text('Welcome back')"));
       expect(out, contains('outcome=scaffolded'));
@@ -302,7 +302,7 @@ Column(
 
       final out = await runView();
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(out, contains('i18n audit: clean'));
       final subject = await File(fx.subjectPathOf('A-001')).readAsString();
       expect(subject, contains('Text(t.auth.signIn),'));

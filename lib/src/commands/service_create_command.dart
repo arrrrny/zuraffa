@@ -15,6 +15,8 @@ import '../plugins/service/builders/service_interface_builder.dart';
 import '../plugins/service/conformance/service_conformance_checker.dart';
 import '../plugins/service/service_plugin.dart';
 import '../utils/string_utils.dart';
+import '../utils/entity_utils.dart';
+import '../utils/framework_export_surface.dart';
 
 /// SPEC 1127 (issue #1127) — the service plugin's first-party create verb.
 ///
@@ -78,6 +80,14 @@ class ServiceCreateCommand extends Command<void> {
       'dry-run',
       negatable: false,
       help: 'Preview the plan report without executing',
+    );
+    argParser.addFlag(
+      'allow-forward-refs',
+      negatable: false,
+      help:
+          'Accept --params/--returns types that are not yet present on the '
+          'entity tree (forward references). The generated service will '
+          'import entity files that may not exist yet.',
     );
     argParser.addFlag(
       'force',
@@ -151,11 +161,14 @@ class ServiceCreateCommand extends Command<void> {
       return;
     }
 
+    final allowForwardRefs = results['allow-forward-refs'] == true;
+
     final args = <String, dynamic>{
       'name': entityName,
       'params': results['params'] as String?,
       'returns': results['returns'] as String?,
       'type': results['type'] as String? ?? 'usecase',
+      'allowForwardRefs': allowForwardRefs,
       'init': results['init'] == true,
       'force': results['force'] == true,
       'revert': results['revert'] == true,
@@ -166,9 +179,31 @@ class ServiceCreateCommand extends Command<void> {
     final config = _configFor(entityName, args);
     final root = projectRoot ?? Directory.current.path;
 
+    // Issue #1794: resolve --params/--returns types up front. Refuse when a
+    // type collides with a zuraffa framework export (the entity-name
+    // collision guard, run at service-create time because params/returns
+    // name entity types) or, unless --allow-forward-refs is given, when a
+    // type has no matching entity/enum on disk. Never write + certify a
+    // service whose imports cannot resolve.
+    if (!explainMode) {
+      final refusal = _validateServiceTypes(
+        entityName: entityName,
+        paramsType: args['params'] as String? ?? 'NoParams',
+        returnsType: args['returns'] as String? ?? 'void',
+        allowForwardRefs: allowForwardRefs,
+        outputDir: plugin.outputDir,
+        root: root,
+        jsonMode: jsonMode,
+      );
+      if (refusal != null) {
+        _typeRefusal(refusal, jsonMode);
+        return;
+      }
+    }
+
     // ── Explain: describe, never generate. ──
     if (explainMode) {
-      final explanation = _explain(config, root);
+      final explanation = await _explain(config, root);
       if (jsonMode) {
         print(
           VerdictEnvelope(
@@ -292,11 +327,20 @@ class ServiceCreateCommand extends Command<void> {
     }
 
     // ── Conformance proof: the fresh artifact must satisfy the grammar.
+    // Issue #1794: only certify conformance when the params/returns types
+    // actually resolve on disk. A forward-ref run (types not yet present)
+    // generates a file whose imports cannot resolve, so it must not print
+    // `✅ Conformance` or be treated as a proven artifact.
+    final typesResolveOnDisk = _allServiceTypesExist(
+      args['params'] as String? ?? 'NoParams',
+      args['returns'] as String? ?? 'void',
+      plugin.outputDir,
+    );
     ServiceConformanceResult? conformance;
-    if (changed.isNotEmpty) {
+    if (changed.isNotEmpty && typesResolveOnDisk) {
       final artifact = File(changed.first.path);
       if (artifact.existsSync()) {
-        conformance = const ServiceConformanceChecker().check(
+        conformance = await const ServiceConformanceChecker().check(
           config: config,
           source: artifact.readAsStringSync(),
           path: artifact.path,
@@ -536,10 +580,13 @@ class ServiceCreateCommand extends Command<void> {
   }
 
   /// The explain payload: service shape, provider binding, methods.
-  Map<String, dynamic> _explain(GeneratorConfig config, String root) {
-    final checker = const ServiceConformanceChecker().check(
+  Future<Map<String, dynamic>> _explain(
+    GeneratorConfig config,
+    String root,
+  ) async {
+    final checker = await const ServiceConformanceChecker().check(
       config: config,
-      source: const ServiceInterfaceBuilder().build(config),
+      source: await const ServiceInterfaceBuilder().build(config),
       path: 'explain_preview.dart',
     );
     final provider = _boundProvider(config, root);
@@ -556,9 +603,7 @@ class ServiceCreateCommand extends Command<void> {
       'signatures': checker.expectedSignatures,
       'provider': provider,
       'providerHint': provider == null
-          ? 'no provider bound yet — `zfa provider create '
-                '${_baseName(config)} --service ${config.effectiveService}` '
-                'binds one'
+          ? '`zfa provider create ${_baseName(config)}` binds one'
           : null,
       'receipt': '.zfa/receipts/service-${_receiptEntityName(config)}.json',
     };
@@ -618,6 +663,131 @@ class ServiceCreateCommand extends Command<void> {
       buffer.write(part.substring(1));
     }
     return buffer.isEmpty ? name : buffer.toString();
+  }
+
+  /// Issue #1794: validate that the --params/--returns types resolve (or
+  /// are explicitly accepted as forward references). Returns a refusal
+  /// message when the run must not proceed, or null when it is allowed.
+  String? _validateServiceTypes({
+    required String entityName,
+    required String paramsType,
+    required String returnsType,
+    required bool allowForwardRefs,
+    required String outputDir,
+    required String root,
+    required bool jsonMode,
+  }) {
+    final types = <String>{};
+    for (final t in [paramsType, returnsType]) {
+      types.addAll(EntityUtils.extractEntityTypes(t));
+    }
+    if (types.isEmpty) return null;
+
+    // Issue #1794 review (robustness): refuse types that are not valid
+    // Dart identifiers before they reach the filesystem probe —
+    // `StringUtils.camelToSnake` preserves path separators, so a crafted
+    // value could otherwise traverse outside `domain/entities`.
+    for (final type in types) {
+      if (!_isValidServiceTypeIdentifier(type)) {
+        return 'Cannot create service "$entityName": type "$type" is not a '
+            'valid Dart identifier.\n'
+            '--> fix: use a plain PascalCase type name (e.g. `MyParams`), '
+            'or pass --allow-forward-refs for a forward reference.';
+      }
+    }
+
+    final surface = FrameworkExportSurface.tryResolve(projectRoot: root);
+    if (surface == null) {
+      stderr.writeln(
+        'note: framework export surface unresolved; collision check '
+        'skipped (fail-open).',
+      );
+    }
+
+    // 1. Framework-export collision — always refused (no forward-ref
+    //    opt-out), mirroring the entity-name collision guard (#942).
+    for (final type in types) {
+      final collisionSource = surface?.lookup(type);
+      if (collisionSource != null) {
+        return 'Cannot create service "$entityName": type "$type" collides '
+            'with the zuraffa framework export "$type" '
+            '($collisionSource).\n'
+            '--> fix: rename the type, e.g. `${type}Entity` — and the '
+            'service params/returns that reference it.';
+      }
+    }
+
+    if (allowForwardRefs) return null;
+
+    // 2. On-disk resolution — the type must already exist as an entity
+    //    or enum under the project's output dir.
+    for (final type in types) {
+      if (!_serviceTypeExists(type, outputDir)) {
+        return 'Cannot create service "$entityName": type "$type" could not '
+            'be resolved — no matching entity or enum found under '
+            '$outputDir.\n'
+            '--> fix: create the entity/enum first, or pass '
+            '--allow-forward-refs to accept a forward reference.';
+      }
+    }
+    return null;
+  }
+
+  static bool _isValidServiceTypeIdentifier(String type) =>
+      RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(type);
+
+  static bool _serviceTypeExists(String type, String outputDir) {
+    if (!_isValidServiceTypeIdentifier(type)) return false;
+    final snake = StringUtils.camelToSnake(type);
+    final candidates = <String>[
+      p.join(outputDir, 'domain', 'entities', snake, '$snake.dart'),
+      p.join(outputDir, 'domain', 'entities', '$snake.dart'),
+      p.join(outputDir, 'domain', 'entities', 'enums', '$snake.dart'),
+    ];
+    for (final candidate in candidates) {
+      if (File(candidate).existsSync()) return true;
+    }
+    return false;
+  }
+
+  static bool _allServiceTypesExist(
+    String paramsType,
+    String returnsType,
+    String outputDir,
+  ) {
+    final types = <String>{};
+    for (final t in [paramsType, returnsType]) {
+      types.addAll(EntityUtils.extractEntityTypes(t));
+    }
+    for (final type in types) {
+      if (!_isValidServiceTypeIdentifier(type)) return false;
+      if (!_serviceTypeExists(type, outputDir)) return false;
+    }
+    return true;
+  }
+
+  void _typeRefusal(String message, bool jsonMode) {
+    // `message` may carry a `\n--> fix:` tail; split it off.
+    final fixMatch = RegExp(r'\n--> fix: (.*)$').firstMatch(message);
+    final fix = fixMatch?.group(1) ?? 'resolve the type errors above';
+    final cleanMessage = fixMatch == null
+        ? message
+        : message.substring(0, fixMatch.start);
+    if (jsonMode) {
+      print(
+        VerdictEnvelope(
+          command: 'zfa service create',
+          verdict: VerdictKind.fail,
+          exitClass: ExitProtocol.failure,
+          details: {'error': cleanMessage},
+          fix: fix,
+        ).toJsonLine(),
+      );
+    } else {
+      print('❌ $cleanMessage');
+    }
+    print(ExitProtocol.fixLine(fix));
+    exitCode = ExitProtocol.failure;
   }
 
   void _usageRefusal(String message, String fix, bool jsonMode) {

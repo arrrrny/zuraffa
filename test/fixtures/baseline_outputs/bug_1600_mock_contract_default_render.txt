@@ -11,7 +11,6 @@ import 'package:zuraffa/mock.dart';
 import '../../../lib/src/domain/entities/login/login.dart';
 import '../../../lib/src/data/datasources/login/login_datasource.dart';
 import '../../../lib/src/data/datasources/login/login_mock_datasource.dart';
-import '../../../lib/src/data/mock/login_mock_data.dart';
 
 void main() {
   final LoginDataSource dataSource =
