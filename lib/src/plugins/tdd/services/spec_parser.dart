@@ -633,6 +633,10 @@ class SpecParser {
   /// A bold layer name inside the Layer Contracts section: `**Domain**:`.
   static final RegExp _layerName = RegExp(r'^\s*\*\*(.+?)\*\*\s*:\s*$');
 
+  /// A plan-shaped layer label inside the Layer Contracts section:
+  /// `### Domain` — the shape the plan/engine renderers write.
+  static final RegExp _planLayerName = RegExp(r'^###\s+(.+)$');
+
   /// A layer-contract declaration bullet:
   /// `` - `Repo`: `save(x) -> R`, `get() -> R?` ``.
   static final RegExp _layerContractBullet = RegExp(
@@ -736,6 +740,55 @@ class SpecParser {
         layer = layerM.group(1)!.trim();
         continue;
       }
+      final bullet = _layerContractBullet.firstMatch(trimmed);
+      if (bullet == null || layer.isEmpty) continue;
+      contracts.add(
+        LayerContract(
+          layer: layer,
+          interfaceName: bullet.group(1)!.trim(),
+          methods: RegExp(r'`([^`]+)`')
+              .allMatches(bullet.group(2)!)
+              .map((m) => m.group(1)!.trim())
+              .toList(),
+        ),
+      );
+    }
+    return contracts;
+  }
+
+  /// Extract layer contracts from a plan-shaped artifact (issue #1884
+  /// review): `## Layer contracts` followed by `### <layer>` headings and
+  /// the same backticked interface bullets [parseLayerContracts] reads.
+  ///
+  /// The plan and engine renderers write `### <layer>`
+  /// (`lane_split.dart`'s `_declarations`), which the spec grammar's bold
+  /// `**<layer>**:` label cannot match and, worse, treats as a section
+  /// boundary — every contract below the first layer heading was
+  /// silently dropped when a re-split read its own prior engine plan.
+  /// Both shapes are now parsed, each by its own grammar, so a
+  /// spec-shaped and a plan-shaped source round-trip identically.
+  List<LayerContract> parsePlanLayerContracts(String content) {
+    final contracts = <LayerContract>[];
+    var inSection = false;
+    var layer = '';
+    for (final line in normalizeSpecText(content).split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('#')) {
+        if (_matchesSectionHeading(trimmed, _layerContractsHeading)) {
+          inSection = true;
+          layer = '';
+          continue;
+        }
+        final layerM = inSection ? _planLayerName.firstMatch(trimmed) : null;
+        if (layerM != null) {
+          layer = layerM.group(1)!.trim();
+          continue;
+        }
+        inSection = false;
+        layer = '';
+        continue;
+      }
+      if (!inSection || trimmed.isEmpty) continue;
       final bullet = _layerContractBullet.firstMatch(trimmed);
       if (bullet == null || layer.isEmpty) continue;
       contracts.add(

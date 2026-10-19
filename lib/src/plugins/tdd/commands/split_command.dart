@@ -43,6 +43,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/lane.dart';
 import '../models/verdict_envelope.dart';
+import '../services/cycle_log_sections.dart';
 import '../services/lane_split.dart';
 import '../services/spec_parser.dart';
 import '../../../skin/contract/adaptive_skin_contract.dart';
@@ -52,6 +53,11 @@ import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
 import '../../../core/project/project_root.dart';
 import 'run_command.dart';
+
+/// A fenced-code boundary, matching the repo's spec walkers
+/// (`spec_marker_emitter.dart`, `spec_migrator.dart`): every fence line
+/// flips the in-fence state.
+final RegExp _fenceLine = RegExp(r'^[ \t]*```');
 
 class SplitCommand extends Command<void> {
   SplitCommand(this.plugin) {
@@ -197,18 +203,33 @@ class SplitCommand extends Command<void> {
     final existingEngineContent = await engineFile.exists()
         ? await engineFile.readAsString()
         : '';
-    final declarationSources = <String>[
-      legacyDeclarations,
-      specMd,
-      existingEngineContent,
+    final declarationSources = <({String name, String content})>[
+      (name: 'test list', content: legacyDeclarations),
+      (name: 'spec.md', content: specMd),
+      (name: 'the prior engine plan', content: existingEngineContent),
     ];
 
     List<SpecEntity> mergedEntities() {
       final seen = <String>{};
       final out = <SpecEntity>[];
       for (final src in declarationSources) {
-        for (final e in const SpecParser().parseKeyEntities(src)) {
+        // Issue #1486 parity with `zfa tdd plan`: a Key Entities cell
+        // that shows field-pair evidence but parses to zero fields is
+        // reported, not written as a silently field-less entity row.
+        final anomalies = <SpecEntityFieldAnomaly>[];
+        for (final e in const SpecParser().parseKeyEntities(
+          src.content,
+          anomalies: anomalies,
+        )) {
           if (seen.add(e.name)) out.add(e);
+        }
+        for (final anomaly in anomalies) {
+          print(
+            'zfa tdd split: WARNING — Key Entities row `${anomaly.entity}` '
+            '(${src.name} line ${anomaly.line}) declares field pairs that '
+            'parsing dropped (cell: `${anomaly.cell}`) — fix the field '
+            'grammar or the entity is written without them (issue #1486).',
+          );
         }
       }
       return out;
@@ -218,7 +239,7 @@ class SplitCommand extends Command<void> {
       final seen = <String>{};
       final out = <SpecDependency>[];
       for (final src in declarationSources) {
-        for (final d in const SpecParser().parseDependencies(src)) {
+        for (final d in const SpecParser().parseDependencies(src.content)) {
           if (seen.add(d.dependency)) out.add(d);
         }
       }
@@ -229,7 +250,15 @@ class SplitCommand extends Command<void> {
       final seen = <String>{};
       final out = <LayerContract>[];
       for (final src in declarationSources) {
-        for (final c in const SpecParser().parseLayerContracts(src)) {
+        // The spec writes `**Layer**:`; the plan and engine artifacts
+        // write `### Layer` (review on #1914). Parsing both shapes is
+        // what makes a re-split recover contracts that only live in the
+        // prior engine plan.
+        final parsed = [
+          ...const SpecParser().parseLayerContracts(src.content),
+          ...const SpecParser().parsePlanLayerContracts(src.content),
+        ];
+        for (final c in parsed) {
           final key = '${c.layer}::${c.interfaceName}';
           if (seen.add(key)) out.add(c);
         }
@@ -237,14 +266,32 @@ class SplitCommand extends Command<void> {
       return out;
     }
 
-    // Routing provenance: migrate `route:` lines from any source that
-    // carries them (legacy list, prior engine plan, or the spec's plan
-    // output) so a re-split does not drop the provenance section
-    // (issue #1884).
+    // Routing provenance: migrate `route:` lines from the provenance
+    // section of every source that carries one (legacy list, prior
+    // engine plan) so a re-split does not drop it (issue #1884). Scoped
+    // to the section and fence-aware: `spec.md` is user-authored, and a
+    // fenced sample documenting `route:` is not a routing decision
+    // (review on #1914).
     final routeLines = <String>{};
     for (final src in declarationSources) {
-      for (final line in src.split('\n')) {
-        final trimmed = line.trim();
+      var inProvenance = false;
+      // `fenceAwareLines` keeps a fenced `## ` banner from opening a
+      // section; the body lines still need their own fence state, so a
+      // fenced `route:` sample is skipped as documentation.
+      var inFence = false;
+      for (final walk in fenceAwareLines(src.content)) {
+        final raw = walk.raw;
+        if (_fenceLine.hasMatch(raw)) {
+          inFence = !inFence;
+          continue;
+        }
+        final header = walk.header;
+        if (header != null) {
+          inProvenance = header.toLowerCase().startsWith('routing provenance');
+          continue;
+        }
+        if (!inProvenance || inFence) continue;
+        final trimmed = raw.trim();
         if (trimmed.startsWith('route:')) routeLines.add(trimmed);
       }
     }
