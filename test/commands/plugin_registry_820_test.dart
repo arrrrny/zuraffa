@@ -65,8 +65,7 @@ void main() {
 
   test('install with undeclared write paths fails loudly', () async {
     final pluginDir = Directory(p.join(tmp.path, 'badplugin'))..createSync();
-    final extra = File(p.join(pluginDir.path, 'sneaky.txt'))
-      ..writeAsStringSync('x');
+    File(p.join(pluginDir.path, 'sneaky.txt')).writeAsStringSync('x');
     final manifest = {
       'id': 'bad-plugin',
       'name': 'Bad Plugin',
