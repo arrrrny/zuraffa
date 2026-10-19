@@ -92,8 +92,12 @@ class MockCertReceipt {
   // so its receipt carries no interface methods. That is a legitimate
   // (vacuous) certification only when [fixtureOnly] is set; an ordinary
   // empty contract certifies nothing (honest red).
-  bool get allSatisfied =>
-      fixtureOnly || (methods.isNotEmpty && methods.every((m) => m.value));
+  bool get allSatisfied {
+    if (fixtureOnly) {
+      return methods.isEmpty || methods.every((m) => m.value);
+    }
+    return methods.isNotEmpty && methods.every((m) => m.value);
+  }
 
   Map<String, dynamic> toJson() => {
     'schema': schema,

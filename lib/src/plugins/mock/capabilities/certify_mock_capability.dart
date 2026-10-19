@@ -29,6 +29,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../../utils/entity_analyzer.dart';
 import '../../../core/project/project_root.dart';
 import '../certification/mock_certification_sandbox.dart';
 import '../certification/mock_certifier.dart';
@@ -135,11 +136,19 @@ class CertifyMockCapability implements ZuraffaCapability {
     //    Flutter test framework and is proven with the Flutter toolchain).
     final certifier = MockCertifier.forProject(projectRoot);
 
+    // Issue #1872 follow-up (environment-independence): an enum certifies
+    // on its fixture surface alone and needs no Flutter toolchain.
+    final isEnumEntity = EntityAnalyzer.isEnum(
+      name,
+      p.join(projectRoot, 'lib', 'src'),
+    );
+
     // Issue #1600: a Flutter-shaped proof without the Flutter toolchain is
     // an unresolvable environment — not a red contract (the spec-1110
     // precedent). The un-certified state stays loud: no receipt is
     // written, so the engine cert-gate refuses the entity downstream.
-    if (certifier.sandbox.flutterTest &&
+    if (!isEnumEntity &&
+        certifier.sandbox.flutterTest &&
         !MockCertificationSandbox.flutterOnPath()) {
       stderr.writeln(
         'zfa mock certify: the Flutter-shaped contract test cannot be '
