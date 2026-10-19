@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/plugins/service/capabilities/create_service_capability.dart';
 import 'package:zuraffa/src/plugins/service/service_plugin.dart';
 import 'package:zuraffa/src/zfa_cli.dart' as cli;
@@ -104,7 +105,7 @@ environment:
         output.contains('--> fix:') || output.contains('zuraffa.verdict.v1'),
         isTrue,
       );
-      expect(exitCode, isNot(equals(0)));
+      expect(CliRunner.lastDispatchedExitCode, isNot(equals(0)));
     });
   });
 }

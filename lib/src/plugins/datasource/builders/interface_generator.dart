@@ -11,6 +11,7 @@ import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
 import '../../../utils/method_shape_parser.dart';
+import '../../../utils/project_flavor.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../datasource_provenance.dart';
@@ -55,7 +56,7 @@ class DataSourceInterfaceBuilder {
 
     final methods = <Method>[];
 
-    if (config.isCustomUseCase && config.appendToExisting) {
+    if (config.isCustomUseCase) {
       final methodName = config.getRepoMethodName();
       var returnType = config.returnsType ?? 'void';
       final paramsType = config.paramsType ?? 'NoParams';
@@ -353,6 +354,9 @@ class DataSourceInterfaceBuilder {
       for (final rt in allReturnsTypes)
         for (final type in EntityUtils.extractEntityTypes(rt))
           ...EntityUtils.barrelHideNames(type),
+      if (config.paramsType != null && config.paramsType!.isNotEmpty)
+        for (final type in EntityUtils.extractEntityTypes(config.paramsType!))
+          ...EntityUtils.barrelHideNames(type),
     }.toList();
 
     final foreignEntitySnakes = <String>{};
@@ -373,9 +377,21 @@ class DataSourceInterfaceBuilder {
         foreignEntitySnakes.add(snake);
       }
     }
+    if (config.paramsType != null && config.paramsType!.isNotEmpty) {
+      for (final type in EntityUtils.extractEntityTypes(config.paramsType!)) {
+        final snake = StringUtils.camelToSnake(type);
+        if (snake == entitySnake && baseEntityImported) continue;
+        foreignEntitySnakes.add(snake);
+      }
+    }
+
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
 
     final directives = <Directive>[
-      Directive.import('package:zuraffa/zuraffa.dart', hide: barrelHide),
+      Directive.import(coreImport, hide: barrelHide),
       if (config.repo == null &&
           fileSystem.existsSync(
             path.join(
@@ -390,7 +406,16 @@ class DataSourceInterfaceBuilder {
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),
       for (final snake in foreignEntitySnakes)
-        Directive.import('../../../domain/entities/$snake/$snake.dart'),
+        if (fileSystem.existsSync(
+          path.join(
+            outputDir,
+            'domain',
+            'entities',
+            snake,
+            '$snake.dart',
+          ),
+        ))
+          Directive.import('../../../domain/entities/$snake/$snake.dart'),
     ];
     final clazz = Class(
       (c) => c

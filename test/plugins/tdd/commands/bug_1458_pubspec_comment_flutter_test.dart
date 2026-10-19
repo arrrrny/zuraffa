@@ -89,7 +89,11 @@ void main() {
     final out = await CliRunner(
       exitOnCompletion: false,
     ).runCapturing(['tdd', 'gen', 'U1', '--project', fx.root.path]);
-    expect(exitCode, 0, reason: 'gen must succeed: $out');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'gen must succeed: $out',
+    );
 
     final record = await fx.registryRecordOf('U1');
     final testPath = record['test_path'] as String;
@@ -123,7 +127,11 @@ void main() {
     final out = await CliRunner(
       exitOnCompletion: false,
     ).runCapturing(['tdd', 'init', '--project', fx.root.path]);
-    expect(exitCode, 0, reason: 'init must succeed: $out');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'init must succeed: $out',
+    );
 
     final smoke = await File(
       p.join(fx.root.path, 'test', 'bootstrap_smoke_test.dart'),
@@ -161,7 +169,11 @@ void main() {
     final out = await CliRunner(
       exitOnCompletion: false,
     ).runCapturing(['tdd', 'gen', 'U1', '--project', fx.root.path]);
-    expect(exitCode, isNot(0), reason: 'gen must fail loudly: $out');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      isNot(0),
+      reason: 'gen must fail loudly: $out',
+    );
     expect(
       out,
       allOf(contains('pubspec.yaml at'), contains('is not valid YAML')),
@@ -183,7 +195,11 @@ void main() {
     final out = await CliRunner(
       exitOnCompletion: false,
     ).runCapturing(['tdd', 'init', '--project', fx.root.path]);
-    expect(exitCode, isNot(0), reason: 'init must fail loudly: $out');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      isNot(0),
+      reason: 'init must fail loudly: $out',
+    );
     expect(
       out,
       allOf(contains('pubspec.yaml at'), contains('is not valid YAML')),
@@ -216,7 +232,11 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'gen', 'U1', '--project', fx.root.path]);
-      expect(exitCode, isNot(0), reason: 'gen must fail loudly: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        isNot(0),
+        reason: 'gen must fail loudly: $out',
+      );
       expect(
         out,
         contains(
@@ -237,7 +257,11 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'init', '--project', fx.root.path]);
-      expect(exitCode, isNot(0), reason: 'init must fail loudly: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        isNot(0),
+        reason: 'init must fail loudly: $out',
+      );
       expect(
         out,
         contains(
@@ -264,7 +288,11 @@ void main() {
     final out = await CliRunner(
       exitOnCompletion: false,
     ).runCapturing(['tdd', 'gen', 'U1', '--project', fx.root.path]);
-    expect(exitCode, isNot(0), reason: 'gen must fail loudly: $out');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      isNot(0),
+      reason: 'gen must fail loudly: $out',
+    );
     expect(
       out,
       contains(
@@ -282,7 +310,11 @@ void main() {
     final out = await CliRunner(
       exitOnCompletion: false,
     ).runCapturing(['tdd', 'init', '--project', fx.root.path]);
-    expect(exitCode, isNot(0), reason: 'init must fail loudly: $out');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      isNot(0),
+      reason: 'init must fail loudly: $out',
+    );
     expect(
       out,
       contains(

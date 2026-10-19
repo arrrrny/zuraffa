@@ -130,7 +130,7 @@ $entities
         final out = await runPlan();
 
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           2,
           reason:
               'the NoParams/zuraffa-export clash must be caught at plan '
@@ -188,7 +188,7 @@ $entities
 
         final out = await runPlan();
 
-        expect(exitCode, 2, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
         expect(out, contains('NoParams'), reason: out);
         expect(
           File(p.join(featureDir, 'tdd', 'test-list.md')).existsSync(),
@@ -210,7 +210,7 @@ $entities
         final out = await runPlan();
 
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           0,
           reason: 'the gate must not false-refuse clean names:\n$out',
         );
@@ -228,7 +228,7 @@ $entities
 
         final out = await runPlan();
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(
           File(p.join(featureDir, 'tdd', 'test-list.md')).existsSync(),
           isTrue,
@@ -248,7 +248,7 @@ $entities
         final out = await runPlan();
 
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           0,
           reason: 'fail-open: an unresolvable surface must not refuse:\n$out',
         );

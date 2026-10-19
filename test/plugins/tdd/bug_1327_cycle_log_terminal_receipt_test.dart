@@ -177,7 +177,7 @@ void main() {
       // red + green evidence; the meta run appends the unified journal
       // entry. No receipts exist yet, so proof check is trivially ok.
       final out1 = await drive();
-      expect(exitCode, 0, reason: out1);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out1);
 
       // The receipt that stands for the last `tdd make` coverage of
       // the log — written BEFORE the next run's post-make appends.
@@ -193,7 +193,7 @@ void main() {
       fx.clearStepInvocations();
       final logBytesBefore = File(fx.cycleLogPath).lengthSync();
       final out2 = await drive();
-      expect(exitCode, 0, reason: out2);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
       expect(out2, contains('result=complete'), reason: out2);
       expect(fx.stepInvocations(), isEmpty, reason: out2);
       final logBytesAfter = File(fx.cycleLogPath).lengthSync();
@@ -249,22 +249,26 @@ void main() {
       'complete run (pre-fix: one modified finding — the issue repro)',
       () async {
         final out1 = await drive();
-        expect(exitCode, 0, reason: out1);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out1);
         await seedMakeReceipt();
 
         // Sanity: BEFORE the post-receipt appends the receipts prove
         // clean (the seeded digest matches the disk bytes).
         final clean = await proofCheckJson();
-        expect(exitCode, 0, reason: clean);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: clean);
 
         // The sanctioned run appends the unified journal entry AFTER the
         // receipt — pre-fix this leaves the issue's exact drift finding;
         // post-fix the terminal receipt resolves it (FR-2).
         final out2 = await drive();
-        expect(exitCode, 0, reason: out2);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
 
         final out = await proofCheckJson();
-        expect(exitCode, 0, reason: 'post-run proof check: $out');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'post-run proof check: $out',
+        );
         final verdict = lastJson(out);
         expect(verdict['ok'], true, reason: out);
         expect(verdict['valid'], true, reason: out);
@@ -275,11 +279,11 @@ void main() {
     test('B3: ProofChecker reports zero modified findings after the '
         'complete run (latest-wins resolves the terminal receipt)', () async {
       final out1 = await drive();
-      expect(exitCode, 0, reason: out1);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out1);
       await seedMakeReceipt();
 
       final out2 = await drive();
-      expect(exitCode, 0, reason: out2);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
 
       final report = await ProofChecker(projectRoot: fx.root.path).check();
       expect(
@@ -306,7 +310,7 @@ void main() {
       // precondition). Pre-fix the run ends with the finding; post-fix
       // the lane's terminal receipt resolves it.
       final out = await driveEngine();
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('result=complete'), reason: out);
 
       final records = await ReceiptStore(projectRoot: fx.root.path).loadAll();
@@ -334,7 +338,11 @@ void main() {
       expect(entry.sha256, diskDigest);
 
       final proofOut = await proofCheckJson();
-      expect(exitCode, 0, reason: 'post-lane proof check: $proofOut');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'post-lane proof check: $proofOut',
+      );
       final verdict = lastJson(proofOut);
       expect(verdict['ok'], true, reason: proofOut);
       expect((verdict['findings'] as List).isEmpty, isTrue, reason: proofOut);
@@ -345,7 +353,7 @@ void main() {
     test('B5: a run that stops early writes NO terminal receipt and the '
         'modified finding on the log REMAINS', () async {
       final out1 = await drive();
-      expect(exitCode, 0, reason: out1);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out1);
       await seedMakeReceipt();
       final terminalsBefore = await terminalReceiptCount();
 
@@ -379,7 +387,7 @@ void main() {
       await fx.setStepOutcome('make', 'B-003', 'regression');
 
       final out2 = await drive();
-      expect(exitCode, isNot(0), reason: out2);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out2);
       expect(out2, contains('result=stopped'), reason: out2);
 
       // FR-3: no terminal receipt may be appended by the stopped run —

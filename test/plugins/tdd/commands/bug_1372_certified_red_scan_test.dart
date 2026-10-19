@@ -69,7 +69,7 @@ void main() {
       '--project',
       fx.root.path,
     ]);
-    return (exitCode, output);
+    return (CliRunner.lastDispatchedExitCode, output);
   }
 
   test('B1: [error, red] ordering — make proceeds past the certified-red '

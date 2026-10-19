@@ -28,7 +28,7 @@ void main() {
   var exitCodeAtEntry = 0;
 
   setUp(() async {
-    exitCodeAtEntry = exitCode;
+    exitCodeAtEntry = CliRunner.lastDispatchedExitCode;
     tempDir = await Directory.systemTemp.createTemp('mock_receipt_970_');
     await _scaffoldProduct(tempDir.path);
   });
@@ -220,7 +220,11 @@ void main() {
 
       // Fresh generation: green through the CLI as well.
       final cliOut = await runCli(['proof', 'check']);
-      expect(exitCode, 0, reason: 'zfa proof check exits 0:\n$cliOut');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'zfa proof check exits 0:\n$cliOut',
+      );
       exitCode = exitCodeAtEntry;
 
       // Hand-edit a receipted artifact: the digest no longer matches.
@@ -255,7 +259,7 @@ void main() {
       // And through the CLI: exit 1.
       final cliOut2 = await runCli(['proof', 'check']);
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         1,
         reason: 'zfa proof check exits 1 on drift:\n$cliOut2',
       );

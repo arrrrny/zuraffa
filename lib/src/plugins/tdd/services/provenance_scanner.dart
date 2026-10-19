@@ -64,13 +64,20 @@ class ProvenanceReport {
          unattributed: unattributed.length,
        );
 
-  /// Every attributed `lib/` file (relative path) -> its attribution.
+  /// Every attributed scoped file (relative path) -> its attribution.
   final Map<String, Attribution> files;
 
   /// Unattributed files, by name (the audit failures).
   final List<String> unattributed;
 
   final ProvenanceCounts counts;
+
+  /// Ownership conflicts: generated files in scoped paths with no origin
+  /// record (issue #812, FR-008 generalized). Alias of [unattributed].
+  List<String> get conflicts => unattributed;
+
+  /// Machine-readable verdict for the SBOM gate (issue #812).
+  String get result => unattributed.isEmpty ? 'pass' : 'fail';
 
   Attribution? attributed(String relPath) => files[relPath];
 }
@@ -91,17 +98,20 @@ class ProvenanceScanner {
   Future<ProvenanceReport> scan() async {
     final files = <String, Attribution>{};
 
-    // --- The lib/ walk (the audit's scope). ---
-    final libDir = Directory(p.join(projectRoot, 'lib'));
-    final libFiles = <String>[];
-    if (await libDir.exists()) {
-      await for (final entity in libDir.list(recursive: true)) {
+    // --- The scoped walk (the audit's scope): generated paths are `lib/`
+    //     plus `test/tdd/` (issue #812 — repo-wide provenance SBOM v0).
+    final scopedFiles = <String>[];
+    for (final tree in const ['lib', 'test/tdd']) {
+      final dir = Directory(p.join(projectRoot, tree));
+      if (!await dir.exists()) continue;
+      await for (final entity in dir.list(recursive: true)) {
         if (entity is File) {
-          libFiles.add(normalize(entity.path));
+          scopedFiles.add(normalize(entity.path));
         }
       }
     }
-    libFiles.sort();
+    scopedFiles.sort();
+    final libFiles = scopedFiles;
 
     // --- Source 1: artifact registries (subject_path). ---
     await _collectRegistryAttributions(files);
@@ -141,21 +151,25 @@ class ProvenanceScanner {
         if (records is! List) continue;
         for (final record in records) {
           if (record is! Map) continue;
-          final subject = record['subject_path'];
-          if (subject is! String || subject.isEmpty) continue;
           final behavior = record['behavior_id'];
           final feature = record['feature'];
-          final rel = normalize(subject);
-          if (!rel.startsWith('lib/')) continue;
-          files.putIfAbsent(
-            rel,
-            () => Attribution(
-              source: AttributionSource.registry,
-              command:
-                  'zfa tdd gen ${behavior is String ? behavior : '?'}/loop'
-                  ' (feature ${feature is String ? feature : p.basename(featureDir.path)}, artifacts.json)',
-            ),
-          );
+          // Both subject_path (lib/...) and test_path (test/tdd/...) are
+          // scoped generated paths (issue #812); attribute each when present.
+          for (final key in const ['subject_path', 'test_path']) {
+            final raw = record[key];
+            if (raw is! String || raw.isEmpty) continue;
+            final rel = normalize(raw);
+            if (!_isScoped(rel)) continue;
+            files.putIfAbsent(
+              rel,
+              () => Attribution(
+                source: AttributionSource.registry,
+                command:
+                    'zfa tdd gen ${behavior is String ? behavior : '?'}/loop'
+                    ' (feature ${feature is String ? feature : p.basename(featureDir.path)}, artifacts.json)',
+              ),
+            );
+          }
         }
       } on FormatException {
         // A broken registry is reported evidence, not a crash (the file
@@ -207,7 +221,7 @@ class ProvenanceScanner {
               final candidate = raw.trim();
               if (candidate.isEmpty || candidate == '(none)') continue;
               final rel = normalize(candidate);
-              if (!rel.startsWith('lib/')) continue;
+              if (!_isScoped(rel)) continue;
               files.putIfAbsent(
                 rel,
                 () => Attribution(
@@ -243,7 +257,7 @@ class ProvenanceScanner {
           for (final raw in fileList) {
             if (raw is! String || raw.isEmpty) continue;
             final rel = normalize(raw);
-            if (!rel.startsWith('lib/')) continue;
+            if (!_isScoped(rel)) continue;
             files.putIfAbsent(
               rel,
               () => Attribution(
@@ -278,7 +292,7 @@ class ProvenanceScanner {
         final reason = entry['reason'];
         if (path is! String || path.isEmpty || reason is! String) continue;
         final rel = normalize(path);
-        if (!rel.startsWith('lib/')) continue;
+        if (!_isScoped(rel)) continue;
         files.putIfAbsent(
           rel,
           () => Attribution(
@@ -291,6 +305,10 @@ class ProvenanceScanner {
       return;
     }
   }
+
+  /// Whether [rel] is in a scoped generated path (`lib/` or `test/tdd/`).
+  bool _isScoped(String rel) =>
+      rel.startsWith('lib/') || rel.startsWith('test/tdd/');
 
   /// Normalize a recorded path to a POSIX project-relative form.
   String normalize(String recorded) {

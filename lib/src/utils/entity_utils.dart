@@ -105,6 +105,7 @@ class EntityUtils {
           'String',
           'int',
           'double',
+          'num',
           'bool',
           'DateTime',
           // `Duration` is a dart:core type (already listed in
@@ -122,8 +123,7 @@ class EntityUtils {
           'UpdateParams',
           'DeleteParams',
           'InitializationParams',
-        ].contains(baseType) &&
-        baseType[0].toUpperCase() == baseType[0]) {
+        ].contains(baseType)) {
       types.add(baseType);
     }
 
