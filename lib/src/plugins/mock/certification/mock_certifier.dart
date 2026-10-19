@@ -147,7 +147,11 @@ class MockCertifier {
     final fixtureOnly =
         EntityAnalyzer.isEnum(entityName, outputDir) ||
         (service == null &&
-            EntityAnalyzer.lacksCrudSurface(entityName, outputDir));
+            EntityAnalyzer.lacksCrudSurface(entityName, outputDir) &&
+            !EntityAnalyzer.hasDeclaredDataSourceInterface(
+              entityName,
+              outputDir,
+            ));
     if (fixtureOnly) {
       logs.add(
         '$entityName is an enum/fixture-only entity — mock data '
