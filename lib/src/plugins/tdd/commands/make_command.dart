@@ -236,7 +236,11 @@ class MakeCommand extends Command<void> {
           'statements (find.text / find.byType ... assertions) that '
           'replace the scaffolded placeholder block. Required with '
           '--author; the file must not carry the scaffold marker and must '
-          'contain at least one expect/expectLater call.',
+          'contain at least one expect/expectLater call. Authored finders '
+          'that `await` a subject/controller read before a pump are '
+          'refused (issue #1855): pump first, then await '
+          '(`final Future<void> flip = state!.load();` then '
+          '`await tester.pumpAndSettle();` then `await flip;`).',
     );
     argParser.addFlag(
       'born-green',

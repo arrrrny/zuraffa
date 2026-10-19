@@ -10,6 +10,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/method_extractor.dart';
 import '../../../utils/project_flavor.dart';
 import '../builders/usecase_class_builder.dart';
 
@@ -30,6 +31,55 @@ class StreamUseCaseGenerator {
   }) : fileSystem = fileSystem ?? FileSystem.create();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
+    // Resolve service method name from interface (#1799).
+    if (config.hasService && config.serviceMethod == null) {
+      final serviceName = config.effectiveService;
+      final serviceSnake = config.serviceSnake;
+      if (serviceName != null && serviceSnake != null) {
+        final filePath = path.join(
+          config.outputDir,
+          'domain',
+          'services',
+          '$serviceSnake.dart',
+        );
+        final declared = await MethodExtractor.extractMethodsFromInterface(
+          filePath,
+          serviceName,
+          fileSystem: fileSystem,
+        );
+        if (declared.isEmpty) {
+          throw ArgumentError(
+            'service interface not found or declares no methods: '
+            '$serviceName ($filePath). (zuraffa issue #1799)',
+          );
+        }
+        final paramsType = config.paramsType ?? 'NoParams';
+        final returnsType = config.returnsType ?? 'void';
+        final matches = declared.where((m) {
+          return m.paramsType == paramsType && m.returnsType == returnsType;
+        }).toList();
+        String? resolved;
+        if (matches.length == 1) {
+          resolved = matches.first.fieldName;
+        } else if (matches.isEmpty &&
+            declared.length == 1 &&
+            (config.paramsType == null || config.hasMultipleParams)) {
+          resolved = declared.first.fieldName;
+        } else if (matches.length > 1) {
+          throw ArgumentError(
+            'ambiguous service method on $serviceName. (zuraffa issue #1799)',
+          );
+        } else {
+          throw ArgumentError(
+            'no service method on $serviceName matches '
+            '$paramsType -> $returnsType. Declared: '
+            '${declared.map((m) => '${m.fieldName}(${m.paramsType}) -> ${m.returnsType}').join(', ')}. '
+            '(zuraffa issue #1799)',
+          );
+        }
+        config = config.copyWith(serviceMethod: resolved);
+      }
+    }
     final baseName = config.name.endsWith('UseCase')
         ? config.name.substring(0, config.name.length - 7)
         : config.name;
@@ -65,7 +115,7 @@ class StreamUseCaseGenerator {
           'Service name must be specified via --service or config.service',
         );
       }
-      dependencyImports.add('../../services/${serviceSnake}.dart');
+      dependencyImports.add('../../services/$serviceSnake.dart');
       final serviceBaseName = serviceName.endsWith('Service')
           ? serviceName.substring(0, serviceName.length - 7)
           : serviceName.endsWith('Provider')

@@ -51,10 +51,15 @@ void main() {
     final entityDir = Directory(p.join(out, 'domain', 'entities', 'login'));
     entityDir.createSync(recursive: true);
     File(p.join(entityDir.path, 'login.dart')).writeAsStringSync('''
+class LoginPatch {
+  const LoginPatch();
+}
+
 class Login {
   final String id;
   final String username;
   const Login({required this.id, required this.username});
+  Login copyWithField(String field, Object? value) => this;
 }
 ''');
     final dsDir = Directory(p.join(out, 'data', 'datasources', 'login'));

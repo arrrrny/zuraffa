@@ -28,6 +28,11 @@ void main() {
     timeout: Timeout(Duration(minutes: 5)),
     () async {
       // Simulating: zfa usecase create Logout --domain=profile --type=completable --params=NoParams --service=Auth
+      final serviceDir = Directory('$outputDir/domain/services');
+      await serviceDir.create(recursive: true);
+      await File('${serviceDir.path}/auth_service.dart').writeAsString(
+        'abstract class AuthService {\n  Future<void> logout(NoParams params);\n}',
+      );
       final config = GeneratorConfig(
         name: 'Logout',
         methods: const [], // Should be empty for custom
