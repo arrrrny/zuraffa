@@ -74,7 +74,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(
         out,
         contains(
@@ -125,7 +125,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(
         out,
         contains(
@@ -159,7 +159,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains(

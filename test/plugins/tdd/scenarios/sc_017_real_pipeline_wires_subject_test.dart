@@ -169,7 +169,11 @@ feature: ${fx.featureName}
       contains('make: behavior=B-001 outcome=green feature=${fx.featureName}'),
       reason: 'real-pipeline run output:\n$out',
     );
-    expect(exitCode, 0, reason: 'green certified must exit 0; out:\n$out');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'green certified must exit 0; out:\n$out',
+    );
 
     // The gen'd subject is no longer an UnimplementedError stub: it is
     // wired to the generated entity by the pipeline.

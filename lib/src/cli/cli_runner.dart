@@ -847,6 +847,7 @@ class CliRunner {
     // later test that reads `exitCode`). The runner's own exit status
     // is preserved through the `_runDispatched` path, which uses its
     // own `_exit(exitCode)` to honor whatever the command set.
+    final priorExitCode = exitCode;
     exitCode = 0;
     // Spec 1008: dart:io's exitCode is PROCESS-GLOBAL, not per-isolate —
     // `dart test` runs test files as concurrent isolates of one process.
@@ -946,7 +947,7 @@ class CliRunner {
       // CWD restore, the zone unwind) — still inside the body-wide hold,
       // so no sibling write can land between the snapshot and this
       // publish (issue #1096 family).
-      exitCode = dispatchedExitCode;
+      exitCode = priorExitCode;
       // The hermetic snapshot: per-isolate static, immune to the sibling
       // clobber the global re-apply above stays exposed to (bug #1107).
       lastDispatchedExitCode = dispatchedExitCode;

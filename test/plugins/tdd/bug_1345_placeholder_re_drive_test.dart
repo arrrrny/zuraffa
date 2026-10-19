@@ -455,7 +455,7 @@ void main() {
         // tombstones the behaviors (the documented recovery loop).
         final runner = CliRunner(exitOnCompletion: false);
         final resetOut = await runner.runCapturing(resetArgs(fx, feature));
-        expect(exitCode, 0, reason: resetOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: resetOut);
         expect(
           await File(
             p.join(fx.featureDir, 'tdd', 'journal.json'),
@@ -501,7 +501,7 @@ void main() {
             zfaBin: p.join(fx.root.path, 'fake_bin', 'zfa'),
           ),
         );
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('outcome=adopted-placeholder'), reason: out);
         expect(out, contains('issue #1345'), reason: out);
 
@@ -583,7 +583,7 @@ void main() {
         fx.fakeZfaBin,
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('result=complete'), reason: out);
       expect(fx.stepInvocations(), [
         'gen U-001',
@@ -613,11 +613,11 @@ void main() {
       await fx.seedRunState(states: {'U-001': 'done', 'U-002': 'done'});
       final runner = CliRunner(exitOnCompletion: false);
       final resetOut = await runner.runCapturing(resetArgs(fx, feature));
-      expect(exitCode, 0, reason: resetOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: resetOut);
 
       final out = await runner.runCapturing(doctorArgs(fx, feature));
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('evidence-without-artifact'), reason: out);
       expect(out, contains('zfa tdd run $feature'), reason: out);
       // The prescription names BOTH re-drive mechanics: the #1331
@@ -655,12 +655,12 @@ void main() {
       );
       final runner = CliRunner(exitOnCompletion: false);
       final redOut = await runner.runCapturing(verifyRedArgs(fx, id));
-      expect(exitCode, 0, reason: redOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
 
       // THE RESET (tombstones U1), then the re-drive state: the subject
       // is the born-green placeholder and the test passes against it.
       final resetOut = await runner.runCapturing(resetArgs(fx, feature));
-      expect(exitCode, 0, reason: resetOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: resetOut);
       await File(
         fx.testPathOf(id),
       ).writeAsString(placeholderGreenTest(id, desc));
@@ -669,7 +669,7 @@ void main() {
 
       final out = await runner.runCapturing(makeArgs(fx, id: id));
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         isNot(0),
         reason:
             'a unit-kind subject implements its own logic — the compose '
@@ -703,7 +703,7 @@ void main() {
       );
       final runner = CliRunner(exitOnCompletion: false);
       final redOut = await runner.runCapturing(verifyRedArgs(fx, id));
-      expect(exitCode, 0, reason: redOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
       // The drifted test passes against the placeholder too (the drift
       // check will be green — the class the refusal governs).
       await File(
@@ -715,7 +715,7 @@ void main() {
       await File(fx.subjectPathOf(id)).writeAsString(vacuousSubject(id));
 
       final out = await runner.runCapturing(makeArgs(fx, id: id));
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=subject-drift'), reason: out);
       final cycleLog = await File(fx.cycleLogPath).readAsString();
       expect(
@@ -755,7 +755,7 @@ void main() {
 
       // THE RESET (tombstones A2 — the #1345 re-drive class signal).
       final resetOut = await runner.runCapturing(resetArgs(fx, feature));
-      expect(exitCode, 0, reason: resetOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: resetOut);
 
       // THE RE-DRIVE STATE: the born-green placeholder subject is back on
       // disk and the re-registered paired test is the guard-only fallback
@@ -774,7 +774,7 @@ void main() {
       final out = await runner.runCapturing(
         makeArgs(fx, id: id, zfaBin: zfaBin),
       );
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=vacuous-green'), reason: out);
       expect(
         out,

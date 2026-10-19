@@ -43,7 +43,7 @@ void main() {
 
         final out = await drive(['plugin', 'enable', 'graphql']);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final config = readConfig();
         expect(
           (config['capabilities'] as Map<String, dynamic>)['graphql'],
@@ -64,7 +64,7 @@ void main() {
         await drive(['plugin', 'enable', 'graphql']);
         final out = await drive(['plugin', 'enable', 'graphql']);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('already enabled'), reason: out);
         final config = readConfig();
         expect(
@@ -77,7 +77,7 @@ void main() {
     test('an unknown id refuses non-zero naming the catalog', () async {
       final out = await drive(['plugin', 'enable', 'nope']);
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('graphql'), reason: out);
       expect(out, contains('observability'), reason: out);
       expect(
@@ -91,7 +91,7 @@ void main() {
       await drive(['plugin', 'enable', 'storage']);
       final out = await drive(['plugin', 'disable', 'storage']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final config = readConfig();
       expect(
         (config['capabilities'] as Map<String, dynamic>)['storage'],
@@ -105,7 +105,7 @@ void main() {
         'with no .zfa.json', () async {
       final out = await drive(['plugin', 'list']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('graphql'), reason: out);
       expect(out, contains('storage'), reason: out);
       expect(out, contains('observability'), reason: out);
@@ -119,7 +119,7 @@ void main() {
       await drive(['plugin', 'enable', 'observability']);
       final out = await drive(['plugin', 'list']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final observabilityLine = out
           .split('\n')
           .firstWhere((line) => line.contains('observability'));

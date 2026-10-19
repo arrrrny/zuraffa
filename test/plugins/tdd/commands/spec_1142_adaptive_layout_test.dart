@@ -133,7 +133,7 @@ void main() {
 
     final out = await runView();
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     expect(
       out,
       contains(
@@ -181,7 +181,7 @@ void main() {
     await seedAdaptivePresentationContract(fx, ['mobile', 'macos']);
 
     final out = await runView();
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
 
     final subject = await File(fx.subjectPathOf('A-001')).readAsString();
     // Scenario literals + declared components render inside EACH
@@ -232,7 +232,11 @@ void main() {
     final second = await runView();
     final rerendered = await File(fx.subjectPathOf('A-001')).readAsString();
 
-    expect(exitCode, 0, reason: 'first: $first / second: $second');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'first: $first / second: $second',
+    );
     expect(rerendered, rendered);
     // The view-builder function name is preserved (044 ownership).
     expect(rendered, contains('Widget subject_a_001() => A001View();'));
@@ -250,7 +254,7 @@ void main() {
     await seedAdaptivePresentationContract(fx, []);
 
     final out = await runView();
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     final subject = await File(fx.subjectPathOf('A-001')).readAsString();
     expect(subject, contains('class A001View extends StatelessWidget {'));
     expect(subject, isNot(contains('StatefulWidget')));
@@ -269,7 +273,7 @@ void main() {
     await seedAdaptivePresentationContract(fx, ['mobile', 'pocketwatch']);
 
     final out = await runView();
-    expect(exitCode, 1, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: 'out: $out');
     expect(out, contains('unknown platform layout slot "pocketwatch"'));
     expect(out, contains('--> fix:'));
     expect(out, contains('outcome=runner-error'));

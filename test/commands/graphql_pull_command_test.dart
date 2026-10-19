@@ -121,7 +121,7 @@ void main() {
       expect(output, contains('500'));
       expect(File('$dir/vendure.schema.json').existsSync(), false);
       expect(File('$dir/vendure/vendure.schema.json').existsSync(), false);
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
     });
 
     test('graphql errors body -> error names the failing part', () async {
@@ -149,7 +149,7 @@ void main() {
       ]);
       expect(output, contains('Introspection disabled'));
       expect(File('$dir/vendure.schema.json').existsSync(), false);
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
     });
 
     test('unreachable endpoint -> clear error, no files', () async {
@@ -167,7 +167,7 @@ void main() {
       ]);
       expect(output.toLowerCase(), contains('error'));
       expect(File('$dir/vendure.schema.json').existsSync(), false);
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
     });
 
     test('missing --endpoint prints usage guidance', () async {
