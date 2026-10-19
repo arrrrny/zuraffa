@@ -114,9 +114,16 @@ class MockDataSourceBuilder {
     // (an unverified hide is an undefined_hidden_name warning, and zfa
     // build's analyze gate fails on warnings).
     final barrelHide = <String>{
-      if (config.isEntityBased) ...EntityUtils.mockBarrelHideNames(entityName),
-      if (config.isCustomUseCase && config.returnsType != null)
+      if (config.isEntityBased &&
+          fileSystem.existsSync(
+            '$outputDir/domain/entities/$entitySnake/$entitySnake.dart',
+          ))
+        ...EntityUtils.mockBarrelHideNames(entityName),
+      if (config.returnsType != null && config.returnsType!.isNotEmpty)
         for (final type in EntityUtils.extractEntityTypes(config.returnsType!))
+          ...EntityUtils.mockBarrelHideNames(type),
+      if (config.paramsType != null && config.paramsType!.isNotEmpty)
+        for (final type in EntityUtils.extractEntityTypes(config.paramsType!))
           ...EntityUtils.mockBarrelHideNames(type),
     }.toList();
 
@@ -130,18 +137,51 @@ class MockDataSourceBuilder {
       // Canonical zuraffa-native mock marker: detects native mocking for static
       // tooling (e.g. speckit-tdd-setup) without a third-party double library.
       Directive.import(mockImport, hide: barrelHide),
-      if (config.isEntityBased)
+      if (config.isEntityBased &&
+          fileSystem.existsSync(
+            '$outputDir/domain/entities/$entitySnake/$entitySnake.dart',
+          ))
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),
-      if (config.isCustomUseCase && config.returnsType != null)
-        ...EntityUtils.extractEntityTypes(config.returnsType!).map((type) {
-          final snake = StringUtils.camelToSnake(type);
-          return Directive.import(
-            '../../../domain/entities/$snake/$snake.dart',
-          );
-        }),
-      Directive.import('../../mock/${entitySnake}_mock_data.dart'),
+      if (config.returnsType != null && config.returnsType!.isNotEmpty)
+        ...EntityUtils.extractEntityTypes(config.returnsType!)
+            .where(
+              (type) => fileSystem.existsSync(
+                '$outputDir/domain/entities/${StringUtils.camelToSnake(type)}/${StringUtils.camelToSnake(type)}.dart',
+              ),
+            )
+            .map((type) {
+              final snake = StringUtils.camelToSnake(type);
+              return Directive.import(
+                '../../../domain/entities/$snake/$snake.dart',
+              );
+            }),
+      if (config.paramsType != null && config.paramsType!.isNotEmpty)
+        ...EntityUtils.extractEntityTypes(config.paramsType!)
+            .where(
+              (type) => fileSystem.existsSync(
+                '$outputDir/domain/entities/${StringUtils.camelToSnake(type)}/${StringUtils.camelToSnake(type)}.dart',
+              ),
+            )
+            .map((type) {
+              final snake = StringUtils.camelToSnake(type);
+              return Directive.import(
+                '../../../domain/entities/$snake/$snake.dart',
+              );
+            }),
+      if (fileSystem.existsSync(
+        '$outputDir/data/mock/${entitySnake}_mock_data.dart',
+      ))
+        Directive.import('../../mock/${entitySnake}_mock_data.dart'),
+      if (config.returnsType != null && config.returnsType!.isNotEmpty)
+        for (final type in EntityUtils.extractEntityTypes(config.returnsType!))
+          if (fileSystem.existsSync(
+            '$outputDir/data/mock/${StringUtils.camelToSnake(type)}_mock_data.dart',
+          ))
+            Directive.import(
+              '../../mock/${StringUtils.camelToSnake(type)}_mock_data.dart',
+            ),
       Directive.import('${entitySnake}_datasource.dart'),
     ];
 
@@ -548,6 +588,39 @@ class MockDataSourceBuilder {
       final isStream = config.useCaseType == 'stream';
       final returnType = isStream ? 'Stream<$returns>' : 'Future<$returns>';
 
+      // Issue #1865 review: derive the canned-value class from the
+      // RETURNS type (the entity whose mock-data file is actually
+      // generated), not the seam name. Fall back to a primitive value
+      // for primitive returns instead of referencing a phantom mock-data
+      // class.
+      final primitives = <String>{
+        'String',
+        'int',
+        'double',
+        'bool',
+        'void',
+        'DateTime',
+        'dynamic',
+        'Object',
+      };
+      final returnsEntityTypes =
+          (config.returnsType != null && config.returnsType!.isNotEmpty)
+          ? EntityUtils.extractEntityTypes(config.returnsType!)
+          : <String>[];
+      final targetEntity = returnsEntityTypes.isNotEmpty
+          ? returnsEntityTypes.first
+          : entityName;
+      final isPrimitiveReturn =
+          primitives.contains(baseReturns) ||
+          (isList &&
+              primitives.contains(
+                baseReturns
+                    .substring(5, baseReturns.length - 1)
+                    .replaceAll('?', ''),
+              ));
+      final mockDataClass = '${targetEntity}MockData';
+      final sampleProperty = 'sample$targetEntity';
+
       methods.add(
         Method(
           (m) => m
@@ -572,26 +645,28 @@ class MockDataSourceBuilder {
                     refer('Stream')
                         .property('fromFuture')
                         .call([
-                          // Issue #1570 review: the delayed future must be
-                          // typed Future<$returns> — Future<void> yields
-                          // Stream<void> and fails argument_type_not_assignable
-                          // against the declared Stream<$returns>.
                           refer('Future<$returns>').property('delayed').call([
                             refer('_delay'),
                             Method(
                               (mm) => mm
                                 ..lambda = true
                                 ..body = isList
-                                    ? refer(
-                                        '${entityName}MockData',
-                                      ).property('sampleList').code
+                                    ? (isPrimitiveReturn
+                                          ? literalList([]).code
+                                          : refer(
+                                              mockDataClass,
+                                            ).property('sampleList').code)
                                     : (baseReturns == 'void'
                                           ? refer(
                                               'Future',
                                             ).property('value').call([]).code
-                                          : refer('${entityName}MockData')
-                                                .property('sample$entityName')
-                                                .code),
+                                          : (isPrimitiveReturn
+                                                ? _primitiveValue(
+                                                    baseReturns,
+                                                  ).code
+                                                : refer(mockDataClass)
+                                                      .property(sampleProperty)
+                                                      .code)),
                             ).closure,
                           ]),
                         ])
@@ -604,17 +679,22 @@ class MockDataSourceBuilder {
                         .awaited
                         .statement,
                     if (isList) ...[
-                      refer(
-                        '${entityName}MockData',
-                      ).property('sampleList').returned.statement,
+                      if (isPrimitiveReturn)
+                        literalList([]).returned.statement
+                      else
+                        refer(
+                          mockDataClass,
+                        ).property('sampleList').returned.statement,
                     ] else if (baseReturns == 'void') ...[
                       refer(
                         'Future',
                       ).property('value').call([]).returned.statement,
+                    ] else if (isPrimitiveReturn) ...[
+                      _primitiveValue(baseReturns).returned.statement,
                     ] else ...[
                       refer(
-                        '${entityName}MockData',
-                      ).property('sample$entityName').returned.statement,
+                        mockDataClass,
+                      ).property(sampleProperty).returned.statement,
                     ],
                   ],
                 ]),
@@ -1336,5 +1416,22 @@ class MockDataSourceBuilder {
     }
 
     return methods;
+  }
+
+  Expression _primitiveValue(String type) {
+    switch (type) {
+      case 'String':
+        return literalString('mock_value');
+      case 'int':
+        return literalNum(1);
+      case 'double':
+        return literalNum(1.0);
+      case 'bool':
+        return literalBool(true);
+      case 'DateTime':
+        return refer('DateTime').property('now').call([]);
+      default:
+        return literalNull;
+    }
   }
 }
