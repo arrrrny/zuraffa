@@ -32,6 +32,7 @@ abstract class LoginDataSource with Loggable, FailureHandler {
   Future<Login> get(QueryParams<Login> params);
   Future<Login> update(UpdateParams<String, LoginPatch> params);
   Future<Login> toggle(ToggleParams<String, Field<Login, dynamic>> params);
+  Future<int> count();
 }
 ''');
   });
@@ -50,14 +51,17 @@ abstract class LoginDataSource with Loggable, FailureHandler {
         final contract = await writer.extractContract('Login', outputDir);
 
         expect(contract, isNotNull);
-        expect(contract!.length, 3);
+        expect(contract!.length, 4);
         final names = contract.map((m) => m.name).toList();
-        expect(names, containsAll(['get', 'update', 'toggle']));
+        expect(names, containsAll(['get', 'update', 'toggle', 'count']));
         final get = contract.firstWhere((m) => m.name == 'get');
         expect(get.returnType, 'Future<Login>');
         expect(get.paramsType, 'QueryParams<Login>');
         final update = contract.firstWhere((m) => m.name == 'update');
         expect(update.paramsType, 'UpdateParams<String, LoginPatch>');
+        final count = contract.firstWhere((m) => m.name == 'count');
+        expect(count.paramsType, '');
+        expect(count.isZeroArg, isTrue);
       },
     );
 
@@ -122,6 +126,7 @@ abstract class LoginDataSource with Loggable, FailureHandler {
         isTrue,
       );
       expect(source.contains('dataSource.get;'), isTrue);
+      expect(source.contains('final Future<int> Function() count\$ ='), isTrue);
     });
 
     test(
@@ -141,6 +146,8 @@ abstract class LoginDataSource with Loggable, FailureHandler {
           source.contains('await dataSource.get(QueryParams<Login>())'),
           isTrue,
         );
+        // count: zero-arg method — behavioral call with no arguments.
+        expect(source.contains('await dataSource.count()'), isTrue);
         // update: id from the first mock record + parameterless patch.
         expect(
           source.contains(
@@ -186,6 +193,40 @@ abstract class LoginDataSource with Loggable, FailureHandler {
         );
       },
     );
+
+    test('getter members pin as values, not Function()', () {
+      final writer = const MockContractTestWriter();
+      const methods = [
+        ContractMethod(
+          name: 'isInitialized',
+          returnType: 'Stream<bool>',
+          paramsType: 'NoParams',
+          parameterCount: 0,
+          isGetter: true,
+        ),
+      ];
+      final source = writer.render(
+        entityName: 'Login',
+        methods: methods,
+        projectRoot: tempDir.path,
+        outputDir: outputDir,
+      );
+
+      expect(
+        source.contains(
+          'final Stream<bool> isInitialized\$ =\n'
+          '          dataSource.isInitialized;',
+        ),
+        isTrue,
+        reason: 'a getter is a value; Function() would not compile',
+      );
+      expect(source, isNot(contains('dataSource.isInitialized()')));
+      expect(
+        source.contains('await dataSource.isInitialized.first'),
+        isTrue,
+        reason: 'the behavioral call reads the stream, not the getter',
+      );
+    });
 
     test('receipt path follows the canonical layout', () {
       expect(

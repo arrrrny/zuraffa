@@ -41,6 +41,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../../../utils/string_utils.dart';
+import '../../../utils/entity_analyzer.dart';
 import 'format_canonical_digest.dart';
 import 'mock_contract_test_writer.dart';
 import 'mock_cert_receipt.dart';
@@ -280,6 +281,14 @@ class CertRegistry {
   /// silently skipped for every entity outside the canonical layout and
   /// the #1693 re-certification comes back for exactly those.
   static File? locateEntityFile(String projectRoot, String entity) {
+    // Enum entities may be declared in a barrel (enums/index.dart) or any
+    // file not named <snake>.dart (issue #1872 follow-up): resolve their
+    // declaring file through EntityAnalyzer.findEnumSourcePath so the
+    // format-canonical freshness digest (spec 1693) is recorded instead of
+    // null and the gate can detect drift.
+    final outputDir = p.join(projectRoot, 'lib', 'src');
+    final enumSource = EntityAnalyzer.findEnumSourcePath(entity, outputDir);
+    if (enumSource != null) return File(enumSource);
     final snake = StringUtils.camelToSnake(entity);
     final canonical = File(p.join(projectRoot, entityFileRel(entity)));
     if (canonical.existsSync()) return canonical;

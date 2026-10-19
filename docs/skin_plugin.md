@@ -84,6 +84,21 @@ reference pixels can be mutually exclusive, and correcting the test
 changes its hand-delta digest. The golden arm above is the honest
 pixel contract.
 
+### Guidance: pump before await on Timer-backed mock reads (issue #1855)
+
+An authored skin finder that `await`s a subject/controller read before a
+pump deadlocks the widget test: `flutter_test` runs in a `FakeAsync`
+zone, and a `Timer`-backed mock read (e.g. the generated
+`ZikZakMockDataSource`, `await Future.delayed(_delay)`) only fires when a
+pump advances the fake clock. `zfa tdd make --author` refuses such
+finders. The sanctioned shape pumps first, then awaits:
+
+```dart
+final Future<void> flip = state!.load();
+await tester.pumpAndSettle();
+await flip;
+```
+
 - Widget-lane behaviors boot generated widget tests in a `ZuraffaApp`
   shell (`WidgetAppShell.zuraffaapp`, config value `zuraffaapp` under
   `.zfa.json` `tdd.widgetShell`), importing
