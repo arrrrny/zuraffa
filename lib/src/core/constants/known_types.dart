@@ -15,6 +15,7 @@ class KnownTypes {
     'String',
     'void',
     'dynamic',
+    'num',
   ];
 
   /// Dart collection types
