@@ -13,9 +13,9 @@ void main() {
   setUp(() async {
     runner = CliRunner(exitOnCompletion: false);
     tmp = await Directory.systemTemp.createTemp('budget_cmd_review_');
-    await File(p.join(tmp.path, 'pubspec.yaml')).writeAsString(
-      'name: sandbox\nenvironment:\n  sdk: \'>=3.0.0 <4.0.0\'\n',
-    );
+    await File(
+      p.join(tmp.path, 'pubspec.yaml'),
+    ).writeAsString('name: sandbox\nenvironment:\n  sdk: \'>=3.0.0 <4.0.0\'\n');
   });
 
   tearDown(() async {
@@ -37,8 +37,9 @@ void main() {
   test('violation exits 1 when lib output exceeds budget', () async {
     final libDir = Directory(p.join(tmp.path, 'lib'))..createSync();
     await File(p.join(libDir.path, 'a.txt')).writeAsString('hello');
-    await File(p.join(tmp.path, 'zfa.yaml'))
-        .writeAsString('budgets:\n  generated_output_size_bytes: 0\n');
+    await File(
+      p.join(tmp.path, 'zfa.yaml'),
+    ).writeAsString('budgets:\n  generated_output_size_bytes: 0\n');
     final out = await drive(['--format', 'json', '--skip-tests']);
     final json = jsonDecode(out) as Map<String, dynamic>;
     expect(json['passed'], isFalse);
@@ -52,7 +53,9 @@ void main() {
   });
 
   test('malformed zfa.yaml is not masked (non-zero verdict)', () async {
-    await File(p.join(tmp.path, 'zfa.yaml')).writeAsString('budgets: [1,2,3]\n');
+    await File(
+      p.join(tmp.path, 'zfa.yaml'),
+    ).writeAsString('budgets: [1,2,3]\n');
     final out = await drive(['--format', 'json', '--skip-tests']);
     final json = jsonDecode(out) as Map<String, dynamic>;
     expect(json['passed'], isFalse);

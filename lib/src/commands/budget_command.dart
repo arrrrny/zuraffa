@@ -162,7 +162,9 @@ class BudgetCheckCommand extends Command<void> {
         }
       }
       if (_configError != null) {
-        print('  ${ExitProtocol.fixLine('fix the budgets: section of zfa.yaml')}');
+        print(
+          '  ${ExitProtocol.fixLine('fix the budgets: section of zfa.yaml')}',
+        );
       }
     }
 
@@ -266,7 +268,9 @@ class BudgetCheckCommand extends Command<void> {
     } on TimeoutException {
       stopwatch.stop();
       _testRunFailed = true;
-      stderr.writeln('Warning: dart test timed out after ${timeout.inSeconds}s');
+      stderr.writeln(
+        'Warning: dart test timed out after ${timeout.inSeconds}s',
+      );
       return stopwatch.elapsedMilliseconds;
     } catch (e) {
       stopwatch.stop();
