@@ -32,7 +32,6 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
-import '../../../cli/exit_protocol.dart';
 import '../../../engine/engine_gate_receipt.dart';
 import '../../mock/certification/cert_registry.dart';
 import '../../mock/certification/mock_cert_receipt.dart';

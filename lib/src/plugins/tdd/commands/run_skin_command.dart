@@ -55,7 +55,6 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
-import '../../../cli/exit_protocol.dart';
 import '../models/red_classification.dart';
 import '../models/verdict_envelope.dart';
 import '../services/artifact_registry.dart';
