@@ -350,6 +350,7 @@ class RunSkinCommand extends Command<void> {
       label: label,
       skipWidget: argResults?['skip-widget'] as bool? ?? false,
       baselineScope: baselineScope,
+      supportsBaselineScope: true,
       verbose: verbose,
       heartbeat: heartbeatOverride,
     );

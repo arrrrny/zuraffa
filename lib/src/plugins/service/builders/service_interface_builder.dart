@@ -2,6 +2,7 @@ import 'package:code_builder/code_builder.dart';
 
 import '../../../core/context/file_system.dart';
 import '../../../core/builder/patterns/common_patterns.dart';
+import '../../../core/constants/known_types.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/string_utils.dart';
@@ -89,12 +90,34 @@ class ServiceInterfaceBuilder {
         ..methods.addAll(methods),
     );
 
-    final fs = fileSystem ?? FileSystem.create();
-    final flavor = await detectProjectFlavor(config.outputDir, fs);
-    final coreImport = flavor == ProjectFlavor.flutter
-        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
-        : 'package:zuraffa/zuraffa.dart';
-    final imports = <String>[coreImport];
+    final isEntity = config.isEntityBased;
+    var needsCoreImport = isEntity || config.generateInit;
+    if (!isEntity && !needsCoreImport) {
+      final paramsType = config.paramsType ?? 'NoParams';
+      final returnsType = config.returnsType ?? 'void';
+      final baseTypes = <String>{
+        ...CommonPatterns.extractBaseTypes(paramsType),
+        ...CommonPatterns.extractBaseTypes(returnsType),
+      };
+      if (baseTypes.any(
+        (t) =>
+            KnownTypes.isZuraffaParam(t) ||
+            KnownTypes.isZuraffaResult(t) ||
+            KnownTypes.isZorphyType(t),
+      )) {
+        needsCoreImport = true;
+      }
+    }
+
+    final imports = <String>[];
+    if (needsCoreImport) {
+      final fs = fileSystem ?? FileSystem.create();
+      final flavor = await detectProjectFlavor(config.outputDir, fs);
+      final coreImport = flavor == ProjectFlavor.flutter
+          ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+          : 'package:zuraffa/zuraffa.dart';
+      imports.add(coreImport);
+    }
     if (config.isEntityBased) {
       // For entity methods, we definitely need the entity import
       final entityName = config.name;

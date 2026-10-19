@@ -19,6 +19,7 @@ import 'package:path/path.dart' as p;
 import '../../../core/dependencies/dependency_wirer.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/entity_analyzer.dart';
 import 'cert_registry.dart';
 import 'format_canonical_digest.dart';
 import 'mock_cert_receipt.dart';
@@ -365,11 +366,27 @@ class MockCertifier {
       files.add(testFile);
     }
     final receipt = outcome.receipt;
-    if (receipt != null) {
-      final receiptFile = File(p.join(projectRoot, _receiptPath(entityName)));
+    final receiptFile = File(p.join(projectRoot, _receiptPath(entityName)));
+    // A failed certification must not leave (or overwrite a stale green)
+    // receipt behind: a consumer that keys on receipt presence would
+    // otherwise treat an uncertified mock as certified (#1856). The in-memory
+    // receipt stays available to the caller for diagnostics; only the on-disk
+    // artifact is gated on a green run.
+    if (receipt != null && outcome.certified) {
       await receiptFile.parent.create(recursive: true);
       await receipt.writeTo(receiptFile);
       files.add(receiptFile);
+    } else if (receiptFile.existsSync()) {
+      try {
+        await receiptFile.delete();
+      } catch (e) {
+        // Best-effort: a locked file must not abort the contract-test write.
+        // Surface the failure so a stale green receipt is not silently kept.
+        stderr.writeln(
+          'warning: could not delete stale mock-cert receipt '
+          '${receiptFile.path}: $e',
+        );
+      }
     }
     return files;
   }
