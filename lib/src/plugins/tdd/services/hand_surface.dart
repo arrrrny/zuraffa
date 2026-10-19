@@ -164,17 +164,6 @@ class HandSurface {
         .replaceAll(r'\', '/');
   }
 
-  /// The one-line hand-surface hint the blocked stops print:
-  /// `hand surface: seam <path> — implement the declared contract <c>
-  /// there (e.g. `zfa tdd wire <id> --entity <E>`)`.
-  ///
-  /// Issue #1625: the with-entity wire example is printed ONLY when the
-  /// traced entity actually exists under [projectRoot] — `zfa tdd wire`
-  /// refuses a missing entity, so suggesting the command in that shape
-  /// hands the operator a second dead end. When the entity is absent the
-  /// hint carries the hand-implement instruction (the [seamPath] — the
-  /// subject seam, per [seamPathFor]'s subject-first preference) plus the
-  /// `zfa entity create` prerequisite instead.
   /// Whether the trace head names a non-entity production type (an
   /// interface, repository, usecase, controller, provider, service, …)
   /// rather than a generated domain entity. Such types never have (and
@@ -183,9 +172,11 @@ class HandSurface {
   /// hint must NOT prescribe `zfa entity create -n <Name>`.
   ///
   /// Detection (issue #1889): a known non-entity name suffix, or a source
-  /// file defining the type anywhere under `lib/` outside the entities
-  /// directory. A name that is neither (e.g. `Calculator`) is treated as
-  /// an entity that may still need creating.
+  /// file DECLARING the type anywhere under `lib/` outside the entities
+  /// directory. The declaration check keeps a coincidentally named file
+  /// (`foo.dart` for `Foo` that never declares `Foo`) from suppressing the
+  /// entity-create prerequisite. A name that is neither (e.g.
+  /// `Calculator`) is treated as an entity that may still need creating.
   static bool isNonEntityProductionType({
     required String entityName,
     required String projectRoot,
@@ -220,30 +211,77 @@ class HandSurface {
         return true;
       }
     }
-    final snake = toSnakeCase(name);
-    final target = '$snake.dart';
-    final libRoot = Directory(p.join(projectRoot, 'lib'));
-    if (!libRoot.existsSync()) return false;
-    final entitiesRoot = p.join(
-      projectRoot,
-      'lib',
-      'src',
-      'domain',
-      'entities',
-    );
-    try {
-      for (final entity in libRoot.listSync(recursive: true)) {
-        if (entity is! File) continue;
-        if (p.basename(entity.path) != target) continue;
-        if (p.isWithin(entitiesRoot, entity.path)) continue;
-        return true;
-      }
-    } catch (_) {
-      return false;
+    final target = '${toSnakeCase(name)}.dart';
+    final candidates = _libFileIndex(projectRoot)[target];
+    if (candidates == null) return false;
+    for (final candidate in candidates) {
+      if (_declaresType(candidate, name)) return true;
     }
     return false;
   }
 
+  /// Per-[projectRoot] index of `lib/` source files outside the entities
+  /// directory, keyed by basename (issue #1889 review). `hintLine` runs
+  /// once per blocked behavior, so walking the whole `lib/` tree on every
+  /// call is O(tree size) per behavior; the hint builders are messaging
+  /// only and one `tdd run` sees a stable tree, so a per-process cache is
+  /// enough. A probe error reads as an empty index ("absent") — the
+  /// hand-implement instruction is the always-valid guidance there.
+  static final Map<String, Map<String, List<String>>> _libFileIndexByRoot =
+      <String, Map<String, List<String>>>{};
+
+  static Map<String, List<String>> _libFileIndex(String projectRoot) {
+    final root = p.normalize(p.absolute(projectRoot));
+    final cached = _libFileIndexByRoot[root];
+    if (cached != null) return cached;
+    final index = <String, List<String>>{};
+    final libRoot = Directory(p.join(root, 'lib'));
+    if (libRoot.existsSync()) {
+      final entitiesRoot = p.join(root, 'lib', 'src', 'domain', 'entities');
+      try {
+        for (final entry in libRoot.listSync(recursive: true)) {
+          if (entry is! File) continue;
+          if (p.isWithin(entitiesRoot, entry.path)) continue;
+          index
+              .putIfAbsent(p.basename(entry.path), () => <String>[])
+              .add(entry.path);
+        }
+      } catch (_) {
+        // A probe error reads as "absent" (see the method doc above).
+      }
+    }
+    return _libFileIndexByRoot[root] = index;
+  }
+
+  /// Whether the source at [path] DECLARES [typeName] as a class, mixin,
+  /// enum, typedef, or extension — the filesystem signal's guard against
+  /// a coincidentally named file (issue #1889 review).
+  static bool _declaresType(String path, String typeName) {
+    String source;
+    try {
+      source = File(path).readAsStringSync();
+    } catch (_) {
+      return false;
+    }
+    final declaration = RegExp(
+      r'\b(?:class|mixin|enum|typedef|extension)\s+'
+      '${RegExp.escape(typeName)}'
+      r'\b',
+    );
+    return declaration.hasMatch(source);
+  }
+
+  /// The one-line hand-surface hint the blocked stops print:
+  /// `hand surface: seam <path> — implement the declared contract <c>
+  /// there (e.g. `zfa tdd wire <id> --entity <E>`)`.
+  ///
+  /// Issue #1625: the with-entity wire example is printed ONLY when the
+  /// traced entity actually exists under [projectRoot] — `zfa tdd wire`
+  /// refuses a missing entity, so suggesting the command in that shape
+  /// hands the operator a second dead end. When the entity is absent the
+  /// hint carries the hand-implement instruction (the [seamPath] — the
+  /// subject seam, per [seamPathFor]'s subject-first preference) plus the
+  /// `zfa entity create` prerequisite instead.
   static String hintLine({
     required String behaviorId,
     required String seamPath,
@@ -278,8 +316,8 @@ class HandSurface {
     if (nonEntity) {
       return 'hand surface: seam $seamPath — implement the declared '
           'contract$contractPart there by hand (removing the '
-          'UnimplementedError and delegating to the existing production '
-          'method)';
+          'UnimplementedError and implementing the production behavior '
+          'directly)';
     }
     if (!entityExists(projectRoot: projectRoot, entityName: entity)) {
       return 'hand surface: seam $seamPath — implement the declared '
