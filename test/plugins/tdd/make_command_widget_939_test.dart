@@ -135,7 +135,7 @@ Widget subject_a_100() => throw UnimplementedError('subject_a_100 not implemente
     );
 
     // Green certified, exit 0 — the widget lane no longer dead-ends.
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       out,
       contains('make: behavior=A-100 outcome=green feature=${fx.featureName}'),
@@ -189,7 +189,7 @@ Widget subject_a_100() => throw UnimplementedError('subject_a_100 not implemente
       makeArgs(fx, id: 'A-100', zfaBin: zfaBin),
     );
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       out,
       contains('make: behavior=A-100 outcome=green feature=${fx.featureName}'),
@@ -230,7 +230,7 @@ Widget subject_a_100() => throw UnimplementedError('subject_a_100 not implemente
       makeArgs(fx, id: 'A-100', zfaBin: zfaBin),
     );
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, isNot(contains('is unit-kind')));
     expect(out, isNot(contains('outcome=unexpressible')));
     // The widget lane engaged and ran its generation step.
@@ -262,7 +262,7 @@ Widget subject_a_100() => throw UnimplementedError('subject_a_100 not implemente
       makeArgs(fx, id: 'U-100', zfaBin: zfaBin),
     );
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('outcome=unexpressible'));
     // The refusal names the ACTUAL kind now (accurate, still honest).
     expect(out, contains('is unit-kind'));

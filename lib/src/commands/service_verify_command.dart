@@ -181,7 +181,7 @@ class ServiceVerifyCommand extends Command<void> {
       return;
     }
 
-    final conformance = const ServiceConformanceChecker().check(
+    final conformance = await const ServiceConformanceChecker().check(
       config: config,
       source: serviceFile.readAsStringSync(),
       path: serviceFile.path,

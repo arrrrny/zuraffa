@@ -23,12 +23,16 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
     }
   }
 
-  List<String> _buildImports(
+  Future<List<String>> _buildImports(
     GeneratorConfig config,
     String paramsType,
     String returnsType,
-  ) {
-    final imports = <String>['package:zuraffa/zuraffa.dart'];
+  ) async {
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
+    final imports = <String>[coreImport];
     if (config.hasRepo) {
       for (final repo in config.effectiveRepos) {
         final repoSnake = StringUtils.camelToSnake(

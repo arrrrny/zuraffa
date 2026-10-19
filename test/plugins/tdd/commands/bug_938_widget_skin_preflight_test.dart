@@ -165,7 +165,7 @@ environment:
       final out = await runner.runCapturing(genArgs('A1'));
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         isNot(0),
         reason:
             'issue #938: gen must refuse on a zuraffa_ui-less project — '
@@ -209,7 +209,7 @@ environment:
         final runner = CliRunner(exitOnCompletion: false);
         final out = await runner.runCapturing(genArgs('A1'));
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final testFile = File(testArtifact('A1'));
         expect(testFile.existsSync(), isTrue, reason: out);
         final content = testFile.readAsStringSync();
@@ -229,7 +229,7 @@ environment:
         genArgs('A1', ['--widget-shell', 'materialapp']),
       );
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final content = File(testArtifact('A1')).readAsStringSync();
       expect(content, contains('pumpWidget(MaterialApp('));
       expect(
@@ -249,7 +249,7 @@ environment:
 
       // Bug-830 fixture contexts carry no pubspec; the preflight must not
       // change gen's behavior where there is no pubspec to resolve.
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(File(testArtifact('A1')).existsSync(), isTrue, reason: out);
     });
   });

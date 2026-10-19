@@ -136,7 +136,7 @@ void main() {
 
         final out = await runCli(['reset', feature, '--json']);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         // Declared scaffold reverted (files AND directory).
         expect(entityDir(declaredSnake).existsSync(), isFalse, reason: out);
         // Declared entity's receipts pruned.
@@ -193,7 +193,7 @@ void main() {
 
         final out = await runCli(['reset', feature, '--json']);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final healed = await ProofChecker(projectRoot: fx.root.path).check();
         expect(
           healed.ok,
@@ -210,7 +210,7 @@ void main() {
 
       final out = await runCli(['reset', feature, '--json']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final v = verdict(out);
       expect((v['details'] as Map)['verdict'], 'reset');
       expect(

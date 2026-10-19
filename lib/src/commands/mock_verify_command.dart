@@ -203,7 +203,8 @@ class MockVerifyCommand extends Command<void> {
     // consumed: the gate's fix lines are ordered (missing → invented →
     // analyze), so the analyze tail is what remains after the structural
     // prefix.
-    final structuralCount = (certification.missingMethods.isNotEmpty ? 1 : 0) +
+    final structuralCount =
+        (certification.missingMethods.isNotEmpty ? 1 : 0) +
         (certification.inventedMethods.isNotEmpty &&
                 certification.missingMethods.isNotEmpty
             ? 1
@@ -224,16 +225,16 @@ class MockVerifyCommand extends Command<void> {
         ),
       if (certification.missingMethods.isNotEmpty)
         for (final m in certification.inventedMethods)
-        VerdictFinding(
-          kind: 'invented_method',
-          member: m,
-          file: certification.mockFile,
-          fix:
-              'remove the extra member(s) '
-              '${certification.mockClass ?? 'the mock'} declares beyond '
-              '${certification.interfaceClass ?? 'the declared interface'}: '
-              '${certification.inventedMethods.join(', ')}',
-        ),
+          VerdictFinding(
+            kind: 'invented_method',
+            member: m,
+            file: certification.mockFile,
+            fix:
+                'remove the extra member(s) '
+                '${certification.mockClass ?? 'the mock'} declares beyond '
+                '${certification.interfaceClass ?? 'the declared interface'}: '
+                '${certification.inventedMethods.join(', ')}',
+          ),
       for (final line in analyzeLines)
         VerdictFinding(
           kind: 'analyze_error',

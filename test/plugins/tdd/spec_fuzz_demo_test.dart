@@ -123,7 +123,11 @@ dev_dependencies:
     ).firstMatch(weakOut)?.group(1);
     expect(weakSurvived, isNotNull);
     expect(int.parse(weakSurvived!), greaterThan(0));
-    expect(exitCode, 1, reason: 'survived > 0 must exit non-zero');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      1,
+      reason: 'survived > 0 must exit non-zero',
+    );
     expect(
       File(p.join(featureDir(), 'tdd', 'spec-fuzz.json')).existsSync(),
       isTrue,
@@ -163,7 +167,11 @@ dev_dependencies:
     ).firstMatch(strongOut)?.group(1);
     expect(strongSurvived, '0', reason: strongOut);
     expect(strongOut, contains('certified=true'));
-    expect(exitCode, 0, reason: 'all mutants killed must exit zero');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'all mutants killed must exit zero',
+    );
 
     // ---- Determinism: same seed, byte-identical report.
     final first = await File(
@@ -223,7 +231,11 @@ dev_dependencies:
       ]);
       expect(out, contains('spec-fuzz: corpus=demo'), reason: out);
       expect(out, contains('features=2'));
-      expect(exitCode, 1, reason: 'the weak feature survived the fuzz');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'the weak feature survived the fuzz',
+      );
       expect(
         File(
           p.join(root.path, '.zfa', 'corpus', 'spec-fuzz', 'demo.json'),

@@ -112,7 +112,7 @@ void main() {
       fx.root.path,
     ]);
 
-    expect(exitCode, 1, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
     expect(out, contains('declaration refused'));
     expect(out, contains('--> fix:'));
     expect(

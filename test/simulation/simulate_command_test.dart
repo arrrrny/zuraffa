@@ -16,7 +16,7 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 Future<(int, String)> runZfa(List<String> args) async {
   final runner = CliRunner(exitOnCompletion: false);
   final output = await runner.runCapturing(args);
-  return (exitCode, output);
+  return (CliRunner.lastDispatchedExitCode, output);
 }
 
 void main() {
@@ -88,7 +88,7 @@ void main() {
       () async {
         final featureDir = '${workspace.path}/specs/011-usecase-hook-system';
         final (_, first) = await runZfa(['simulate', '--scaffold', featureDir]);
-        expect(exitCode, 0, reason: first);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: first);
 
         final fixturesDir = '$featureDir/tdd/fixtures';
         expect(File('$fixturesDir/auth-world.json').existsSync(), isTrue);

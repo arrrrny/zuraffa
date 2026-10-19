@@ -293,7 +293,7 @@ void main() {
       'every completed step emits one schema_versioned NDJSON verdict',
       () async {
         final out = await drive(extraArgs: const ['--stream']);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
         final lines = out
             .trim()
@@ -343,7 +343,7 @@ void main() {
       'without --stream no step events appear (legacy output intact)',
       () async {
         final out = await drive();
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, isNot(contains('step-verdict.v1')));
       },
     );
@@ -352,7 +352,7 @@ void main() {
       '--stream composes with --json: steps stream, envelope closes',
       () async {
         final out = await drive(extraArgs: const ['--stream', '--json']);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final lines = out
             .trim()
             .split('\n')
