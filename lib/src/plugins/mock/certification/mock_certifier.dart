@@ -123,6 +123,8 @@ class MockCertifier {
     int? seed,
     bool rePin = false,
     bool verbose = false,
+    String? service,
+    String? domain,
   }) async {
     final logs = <String>[];
 
@@ -130,8 +132,13 @@ class MockCertifier {
     final mockPath = MockContractTestWriter.mockDatasourcePath(
       entityName,
       outputDir,
+      service: service,
+      domain: domain,
     );
     if (!File(mockPath).existsSync()) {
+      final fixCmd = service == null
+          ? 'zfa mock create $entityName --certify'
+          : 'zfa mock create $entityName --service $service --certify';
       return MockCertificationOutcome(
         certified: false,
         entity: entityName,
@@ -140,9 +147,9 @@ class MockCertifier {
         methodNames: const [],
         logs: logs
           ..add(
-            'no mock datasource at ${p.relative(mockPath, from: projectRoot)} '
-            '— generate it first with '
-            '`zfa mock create $entityName --certify`',
+            'no mock ${service == null ? "datasource" : "provider"} at '
+            '${p.relative(mockPath, from: projectRoot)} '
+            '— generate it first with `$fixCmd`',
           ),
       );
     }
@@ -151,6 +158,8 @@ class MockCertifier {
     final contract = await contractWriter.extractContract(
       entityName,
       outputDir,
+      service: service,
+      domain: domain,
     );
     if (contract == null || contract.isEmpty) {
       return MockCertificationOutcome(
@@ -229,6 +238,8 @@ class MockCertifier {
         methods: contract,
         projectRoot: projectRoot,
         outputDir: outputDir,
+        service: service,
+        domain: domain,
       );
     }
 
@@ -243,6 +254,8 @@ class MockCertifier {
           ContractMethod(name: name, returnType: '', paramsType: ''),
       ],
       verbose: verbose,
+      service: service,
+      domain: domain,
     );
     logs.addAll(run.logs);
 
@@ -261,9 +274,17 @@ class MockCertifier {
 
     final receipt = MockCertReceipt.fromRun(
       entity: entityName,
-      interfaceName: MockContractTestWriter.interfaceName(entityName),
+      interfaceName: MockContractTestWriter.interfaceName(
+        entityName,
+        service: service,
+      ),
       subjectPath: p.relative(
-        MockContractTestWriter.mockDatasourcePath(entityName, outputDir),
+        MockContractTestWriter.mockDatasourcePath(
+          entityName,
+          outputDir,
+          service: service,
+          domain: domain,
+        ),
         from: projectRoot,
       ),
       contractTestPath: MockContractTestWriter.contractTestPath(entityName),
@@ -321,8 +342,13 @@ class MockCertifier {
     } else if (receiptFile.existsSync()) {
       try {
         await receiptFile.delete();
-      } catch (_) {
+      } catch (e) {
         // Best-effort: a locked file must not abort the contract-test write.
+        // Surface the failure so a stale green receipt is not silently kept.
+        stderr.writeln(
+          'warning: could not delete stale mock-cert receipt '
+          '${receiptFile.path}: $e',
+        );
       }
     }
     return files;

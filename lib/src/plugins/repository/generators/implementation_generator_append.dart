@@ -2,7 +2,10 @@ part of 'implementation_generator.dart';
 
 extension RepositoryImplementationGeneratorAppend
     on RepositoryImplementationGenerator {
-  List<String> _buildImportPaths(GeneratorConfig config, String entitySnake) {
+  Future<List<String>> _buildImportPaths(
+    GeneratorConfig config,
+    String entitySnake,
+  ) async {
     final hasWatchMethods = config.methods.any(
       (m) => m == 'watch' || m == 'watchList',
     );
@@ -14,7 +17,11 @@ extension RepositoryImplementationGeneratorAppend
     if (asyncImport != null) {
       imports.add(asyncImport);
     }
-    imports.add('package:zuraffa/zuraffa.dart');
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
+    imports.add(coreImport);
 
     // Use DiscoveryEngine to find the entity file
     final entityFile = discovery.findFileSync('$entitySnake.dart');

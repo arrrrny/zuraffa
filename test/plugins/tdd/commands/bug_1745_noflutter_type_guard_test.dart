@@ -21,7 +21,7 @@
 //    leaves a half-written plan).
 //
 // The exit code is read from `CliRunner.lastDispatchedExitCode` — the
-// per-isolate snapshot — never the process-global `dart:io exitCode`,
+// per-isolate snapshot — never the process-global `dart:io CliRunner.lastDispatchedExitCode`,
 // which a sibling suite finishing concurrently clobbers (issue #1632).
 //
 // RED phase: recorded against the unfixed tree — every fixture below

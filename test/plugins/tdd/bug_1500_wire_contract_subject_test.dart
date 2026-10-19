@@ -272,7 +272,7 @@ void main() {
 
         final out = await runWire(id: 'U2');
 
-        expect(exitCode, 0, reason: 'out: $out');
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
         expect(
           out,
           contains('wire: behavior=U2 outcome=wired feature=${fx.featureName}'),
@@ -316,7 +316,7 @@ void main() {
 
         final out = await runWire(id: 'U2');
 
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
         expect(out, contains('mock data for entity "Task"'));
         expect(out, contains('zfa mock create --name Task'));
         expect(
@@ -349,7 +349,7 @@ void main() {
 
       final out = await runWire(id: 'U3');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('U3')).readAsString();
       expect(subject, contains('List<Task> subject_u3() {'));
       expect(subject, contains('return TaskMockData.sampleList;'));
@@ -378,7 +378,7 @@ void main() {
 
         final out = await runWire(id: 'U4');
 
-        expect(exitCode, 0, reason: 'out: $out');
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
         final subject = await File(fx.subjectPathOf('U4')).readAsString();
         expect(subject, contains('Task? subject_u4(int id) {'));
         expect(subject, contains('return TaskMockData.sampleTask;'));
@@ -400,7 +400,7 @@ void main() {
 
       final out = await runWire(id: 'U5');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('U5')).readAsString();
       expect(subject, contains('String subject_u5(Object? task) {'));
       expect(subject, contains("return 'subject_u5';"));
@@ -422,7 +422,7 @@ void main() {
 
       final out = await runWire(id: 'U6');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('U6')).readAsString();
       expect(subject, contains('bool subject_u6(Object? task) {'));
       expect(subject, contains('return false;'));
@@ -443,7 +443,7 @@ void main() {
 
       final out = await runWire(id: 'U7');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('U7')).readAsString();
       expect(subject, contains('int subject_u7() {'));
       expect(subject, contains('return 0;'));
@@ -485,14 +485,14 @@ abstract class \$User {}
 ''');
 
       final out1 = await runWire(id: 'B-001', entity: 'User');
-      expect(exitCode, 0, reason: 'out: $out1');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out1');
       final subject1 = await File(fx.subjectPathOf('B-001')).readAsString();
       expect(subject1, contains('int subject_b_001() {'));
       expect(subject1, contains('return 0;'));
       expect(subject1, contains('final Type wiredEntityAnchor = User;'));
 
       final out2 = await runWire(id: 'B-002', entity: 'User');
-      expect(exitCode, 0, reason: 'out: $out2');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out2');
       final subject2 = await File(fx.subjectPathOf('B-002')).readAsString();
       expect(subject2, contains('void subject_b_002() {'));
       expect(subject2, contains('final Type wiredEntityAnchor = User;'));
@@ -521,7 +521,7 @@ int already_done() => 7;
 
       final out = await runWire(id: 'B-003', entity: 'User');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(out, contains('outcome=already-wired'));
       final subject = await File(fx.subjectPathOf('B-003')).readAsString();
       expect(subject, contains('int already_done() => 7;'));
@@ -552,7 +552,7 @@ class Weird {
 
       final out = await runWire(id: 'B-004', entity: 'User');
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('unrecognized shape'));
       final subject = await File(fx.subjectPathOf('B-004')).readAsString();
       expect(subject, contains('class Weird'));
@@ -575,7 +575,7 @@ class Weird {
 
       final out = await runWire(id: 'U2');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('U2')).readAsString();
       expect(subject, contains('Task subject_u2(String title) {'));
       expect(subject, contains('return TaskMockData.sampleTask;'));
@@ -600,7 +600,7 @@ class Weird {
 
         final out = await runWire(id: 'U2');
 
-        expect(exitCode, 0, reason: 'out: $out');
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
         final subject = await File(fx.subjectPathOf('U2')).readAsString();
         expect(subject, contains('Task subject_u2(String title) {'));
         expect(subject, isNot(contains('String subject_u2(')));
@@ -668,7 +668,7 @@ class Weird {
 
       final out = await runWire(id: 'U2');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('U2')).readAsString();
       // The declared shape is kept, and its own class is imported —
       // Dart imports are not transitive (finding 2).
@@ -725,7 +725,7 @@ class Weird {
 
       final out = await runWire(id: 'U2');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('U2')).readAsString();
       // Degraded to the stub's own renderable shape: the declared class
       // is not referenced, so it is not imported (an unused import is
@@ -771,7 +771,7 @@ class Weird {
 
       final out = await runWire(id: 'U2');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('U2')).readAsString();
       expect(subject, contains('Object? subject_u2(String title) {'));
       expect(subject, isNot(contains('Order subject_u2')));
@@ -809,7 +809,7 @@ class Weird {
 
       final out = await runWire(id: 'U2');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('U2')).readAsString();
       expect(subject, contains('Set<Task> subject_u2() {'));
       expect(subject, contains('return TaskMockData.sampleList.toSet();'));
@@ -842,7 +842,7 @@ class Weird {
 
       final out = await runWire(id: 'U2');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('U2')).readAsString();
       expect(subject, contains('Iterable<Task> subject_u2() {'));
       expect(subject, contains('return TaskMockData.sampleList;'));
@@ -875,7 +875,7 @@ class Weird {
 
       final out = await runWire(id: 'U2');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('U2')).readAsString();
       expect(subject, contains('List<Task>? subject_u2() {'));
       expect(subject, contains('return TaskMockData.sampleList;'));
@@ -900,7 +900,7 @@ class Weird {
 
         final out = await runWire(id: 'U2');
 
-        expect(exitCode, 0, reason: 'out: $out');
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
         final subject = await File(fx.subjectPathOf('U2')).readAsString();
         expect(subject, contains('String subject_u2(String title) {'));
         expect(subject, isNot(contains('Whatever works')));
@@ -944,14 +944,14 @@ class Weird {
       await seedTaskEntity(fx);
 
       final out2 = await runWire(id: 'U2');
-      expect(exitCode, 0, reason: 'out: $out2');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out2');
       final subject2 = await File(fx.subjectPathOf('U2')).readAsString();
       expect(subject2, contains('num subject_u2() {'));
       expect(subject2, contains('return 0;'));
       expect(subject2, isNot(contains('return null as')));
 
       final out3 = await runWire(id: 'U3');
-      expect(exitCode, 0, reason: 'out: $out3');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out3');
       final subject3 = await File(fx.subjectPathOf('U3')).readAsString();
       expect(subject3, contains('DateTime subject_u3() {'));
       expect(subject3, contains('return DateTime.now();'));
@@ -982,7 +982,7 @@ class Weird {
 
       final out = await runWire(id: 'U2');
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('declaration refused'));
       expect(out, contains('malformed signature'));
       expect(out, contains('outcome=runner-error'));

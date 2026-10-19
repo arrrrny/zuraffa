@@ -12,7 +12,7 @@ import 'package:zuraffa/src/cli/exit_protocol.dart';
 ///
 /// A hard `exit()` kills the host isolate: in-process (MCP/embedded)
 /// dispatch of `zfa config …` could terminate the embedding process.
-/// Post-fix every arm returns via `exitCode`, so driving them through
+/// Post-fix every arm returns via `CliRunner.lastDispatchedExitCode`, so driving them through
 /// `CliRunner.runCapturing` (in-process) must complete and report the
 /// right exit class. Pre-fix these invocations killed the test isolate —
 /// which is exactly why their RED evidence lives in the subprocess fleet
@@ -44,110 +44,122 @@ void main() {
   Future<String> drive(List<String> args) =>
       runner.runCapturing(['-C', tmp.path, ...args]);
 
-  group('SPEC 1132 L1 — zfa config arms return via exitCode (no exit())', () {
-    test('bare `zfa config` prints usage and exits 2, in-process', () async {
-      final out = await drive(['config']);
+  group(
+    'SPEC 1132 L1 — zfa config arms return via CliRunner.lastDispatchedExitCode (no exit())',
+    () {
+      test('bare `zfa config` prints usage and exits 2, in-process', () async {
+        final out = await drive(['config']);
 
-      expect(out, contains('zfa config - Manage ZFA configuration'));
-      expect(
-        CliRunner.lastDispatchedExitCode,
-        ExitProtocol.usage,
-        reason:
-            'bare config is a usage error (SPEC 917). The dispatch also '
-            'RETURNED — pre-fix this arm hard-called exit(0) and killed '
-            'the embedding isolate.\nstdout:\n$out',
-      );
-    });
-
-    test('`zfa config <unknown>` exits usage 2 (was failure 1)', () async {
-      final out = await drive(['config', 'not-a-subcommand']);
-
-      expect(out, contains('Unknown config command: not-a-subcommand'));
-      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
-    });
-
-    test('`zfa config set` with no key/value exits usage 2 (was 1)', () async {
-      final out = await drive(['config', 'set']);
-
-      expect(out, contains('Usage: zfa config set <key> <value>'));
-      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
-    });
-
-    test('`zfa config init <missing-dir>` exits usage 2 in-process', () async {
-      final out = await drive(['config', 'init', 'no-such-dir-anywhere']);
-
-      expect(out, contains('Directory not found'));
-      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
-    });
-  });
-
-  group('SPEC 1132 L1 — zfa plugin arms return via exitCode (no exit())', () {
-    test('`zfa plugin <unknown>` exits usage 2 (was failure 1)', () async {
-      final out = await drive(['plugin', 'not-an-action']);
-
-      expect(out, contains('Unknown plugin command: not-an-action'));
-      expect(
-        CliRunner.lastDispatchedExitCode,
-        ExitProtocol.usage,
-        reason:
-            'unknown subcommand is a usage error; the dispatch also '
-            'RETURNED (pre-fix: hard exit(1)).\nstdout:\n$out',
-      );
-    });
-
-    test(
-      '`zfa plugin enable` with no id exits usage 2 (was failure 1)',
-      () async {
-        final out = await drive(['plugin', 'enable']);
-
-        expect(out, contains('Missing plugin id'));
-        expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
-      },
-    );
-
-    test(
-      '`zfa plugin add` with no package exits usage 2, in-process',
-      () async {
-        final out = await drive(['plugin', 'add']);
-
-        expect(out, contains('Missing package name'));
+        expect(out, contains('zfa config - Manage ZFA configuration'));
         expect(
           CliRunner.lastDispatchedExitCode,
           ExitProtocol.usage,
           reason:
-              'missing package name is a usage refusal (SPEC 917) and the '
-              'dispatch RETURNED (pre-fix: hard exit(1)).\nstdout:\n$out',
+              'bare config is a usage error (SPEC 917). The dispatch also '
+              'RETURNED — pre-fix this arm hard-called exit(0) and killed '
+              'the embedding isolate.\nstdout:\n$out',
         );
-      },
-    );
+      });
 
-    test(
-      '`zfa plugin add <pkg>` without lib/main.dart exits 1, in-process',
-      () async {
-        final out = await drive(['plugin', 'add', 'zuraffa_feature_example']);
+      test('`zfa config <unknown>` exits usage 2 (was failure 1)', () async {
+        final out = await drive(['config', 'not-a-subcommand']);
 
-        expect(out, contains('lib/main.dart not found'));
+        expect(out, contains('Unknown config command: not-a-subcommand'));
+        expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
+      });
+
+      test(
+        '`zfa config set` with no key/value exits usage 2 (was 1)',
+        () async {
+          final out = await drive(['config', 'set']);
+
+          expect(out, contains('Usage: zfa config set <key> <value>'));
+          expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
+        },
+      );
+
+      test(
+        '`zfa config init <missing-dir>` exits usage 2 in-process',
+        () async {
+          final out = await drive(['config', 'init', 'no-such-dir-anywhere']);
+
+          expect(out, contains('Directory not found'));
+          expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
+        },
+      );
+    },
+  );
+
+  group(
+    'SPEC 1132 L1 — zfa plugin arms return via CliRunner.lastDispatchedExitCode (no exit())',
+    () {
+      test('`zfa plugin <unknown>` exits usage 2 (was failure 1)', () async {
+        final out = await drive(['plugin', 'not-an-action']);
+
+        expect(out, contains('Unknown plugin command: not-an-action'));
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          ExitProtocol.usage,
+          reason:
+              'unknown subcommand is a usage error; the dispatch also '
+              'RETURNED (pre-fix: hard exit(1)).\nstdout:\n$out',
+        );
+      });
+
+      test(
+        '`zfa plugin enable` with no id exits usage 2 (was failure 1)',
+        () async {
+          final out = await drive(['plugin', 'enable']);
+
+          expect(out, contains('Missing plugin id'));
+          expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
+        },
+      );
+
+      test(
+        '`zfa plugin add` with no package exits usage 2, in-process',
+        () async {
+          final out = await drive(['plugin', 'add']);
+
+          expect(out, contains('Missing package name'));
+          expect(
+            CliRunner.lastDispatchedExitCode,
+            ExitProtocol.usage,
+            reason:
+                'missing package name is a usage refusal (SPEC 917) and the '
+                'dispatch RETURNED (pre-fix: hard exit(1)).\nstdout:\n$out',
+          );
+        },
+      );
+
+      test(
+        '`zfa plugin add <pkg>` without lib/main.dart exits 1, in-process',
+        () async {
+          final out = await drive(['plugin', 'add', 'zuraffa_feature_example']);
+
+          expect(out, contains('lib/main.dart not found'));
+          expect(
+            CliRunner.lastDispatchedExitCode,
+            ExitProtocol.failure,
+            reason:
+                'the missing-main refusal returns via CliRunner.lastDispatchedExitCode (pre-fix: '
+                'hard exit(1)).\nstdout:\n$out',
+          );
+        },
+      );
+
+      test('`zfa plugin mcp` with an invalid flag exits 1, in-process', () async {
+        final out = await drive(['plugin', 'mcp', '--not-a-flag']);
+
+        expect(out, contains('Invalid mcp scaffold arguments'));
         expect(
           CliRunner.lastDispatchedExitCode,
           ExitProtocol.failure,
           reason:
-              'the missing-main refusal returns via exitCode (pre-fix: '
-              'hard exit(1)).\nstdout:\n$out',
+              'the invalid-arguments refusal returns via CliRunner.lastDispatchedExitCode '
+              '(pre-fix: hard exit(1)).\nstdout:\n$out',
         );
-      },
-    );
-
-    test('`zfa plugin mcp` with an invalid flag exits 1, in-process', () async {
-      final out = await drive(['plugin', 'mcp', '--not-a-flag']);
-
-      expect(out, contains('Invalid mcp scaffold arguments'));
-      expect(
-        CliRunner.lastDispatchedExitCode,
-        ExitProtocol.failure,
-        reason:
-            'the invalid-arguments refusal returns via exitCode '
-            '(pre-fix: hard exit(1)).\nstdout:\n$out',
-      );
-    });
-  });
+      });
+    },
+  );
 }

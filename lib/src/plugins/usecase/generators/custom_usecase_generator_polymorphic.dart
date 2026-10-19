@@ -23,6 +23,11 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
       config.effectiveDomain,
     );
 
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
+
     if (config.revert) {
       final abstractFileName = '${classSnake}_usecase.dart';
       final abstractFilePath = path.join(usecaseDirPath, abstractFileName);
@@ -83,7 +88,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
       className: baseClassName,
       baseClass: baseClass,
       isAbstract: true,
-      imports: ['package:zuraffa/zuraffa.dart'],
+      imports: [coreImport],
     );
     final abstractContent = classBuilder.build(abstractSpec);
     final abstractFileName = '${classSnake}_usecase.dart';
@@ -116,10 +121,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
 
       final fields = <Field>[];
       final constructorParams = <Parameter>[];
-      final imports = <String>[
-        'package:zuraffa/zuraffa.dart',
-        abstractFileName,
-      ];
+      final imports = <String>[coreImport, abstractFileName];
 
       if (repoClassName != null) {
         final repoSnake = StringUtils.camelToSnake(

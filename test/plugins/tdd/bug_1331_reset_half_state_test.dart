@@ -253,7 +253,7 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
 
         final out = await runCli(['reset', feature]);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(
           File(
             p.join(fx.root.path, 'test', 'tdd', 'b1331_u1_test.dart'),
@@ -280,7 +280,7 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
 
       final out = await runCli(['reset', feature]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         File(
           p.join(fx.root.path, 'test', 'tdd', feature, 'u2_test.dart'),
@@ -309,7 +309,7 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
 
       final out = await runCli(['reset', feature, '--json']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // The stdout warns by name (record id + recorded path).
       expect(out, contains('path drift'), reason: out);
       expect(out, contains('U-002'), reason: out);
@@ -352,7 +352,7 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
 
         final out = await runCli(['reset', feature, '--json']);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final willDelete = RegExp(
           r'will delete (\d+) owned file\(s\)',
         ).firstMatch(out)?.group(1);
@@ -405,7 +405,7 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
 
       final out = await runCli(['reset', feature]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         File(
           p.join(fx.root.path, 'test', 'tdd', 'b1331_unmarked_stray.dart'),

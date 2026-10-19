@@ -72,7 +72,7 @@ void main() {
 
       final out = await drive(fx);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('[replay] feature=066-replay-fixture'));
       expect(out, contains('[replay] 066-b1 integrity -> verified'));
       expect(out, contains('[replay] 066-b1 gen -> identical (0 paths)'));
@@ -111,7 +111,7 @@ void main() {
 
       final out = await drive(fx);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(
         out,
         contains(
@@ -148,7 +148,7 @@ void main() {
 
       final out = await drive(fx);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(
         out,
         contains(
@@ -178,7 +178,7 @@ void main() {
 
       final out = await drive(fx);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('[replay] 066-b1 gen -> identical (0 paths)'));
       expect(
         out,
@@ -213,7 +213,7 @@ void main() {
 
       final out = await drive(fx);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains(
@@ -243,7 +243,7 @@ void main() {
         'before the implementation\n- green: it passes now\n',
       );
       final outNarrative = await drive(narrative);
-      expect(exitCode, 2, reason: outNarrative);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: outNarrative);
       expect(
         lastLine(outNarrative),
         'replay: feature=066-replay-fixture result=partial '
@@ -255,7 +255,7 @@ void main() {
       addTearDown(() => ghost.root.delete(recursive: true));
       await ghost.writeFakeZfa();
       final outMissing = await drive(ghost);
-      expect(exitCode, 1, reason: outMissing);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: outMissing);
       expect(outMissing, contains('no recorded history'));
     });
 
@@ -272,7 +272,7 @@ void main() {
 
       final out = await drive(fx, extra: ['--events', eventsPath]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final lines = (await File(eventsPath).readAsString())
           .split('\n')
           .where((line) => line.trim().isNotEmpty)
@@ -295,7 +295,7 @@ void main() {
       await divergent.writeSubject('066-b1', 'BROKEN');
       final divergentEvents = p.join(divergent.root.path, 'events.ndjson');
       await drive(divergent, extra: ['--events', divergentEvents]);
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
       final divergentDecoded = (await File(divergentEvents).readAsString())
           .split('\n')
           .where((line) => line.trim().isNotEmpty)
@@ -318,7 +318,7 @@ void main() {
         genSteps: [genStep(quiet.genCommandOf('066-b1'))],
       );
       await drive(quiet);
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       final ndjsonFiles = Directory(quiet.root.path)
           .listSync(recursive: true)
           .whereType<File>()
@@ -339,7 +339,7 @@ void main() {
 
       // Top-level feature form.
       final outTop = await drive(fx, topLevel: true);
-      expect(exitCode, 0, reason: outTop);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: outTop);
       expect(
         lastLine(outTop),
         'replay: feature=066-replay-fixture result=clean '
@@ -352,7 +352,7 @@ void main() {
         topLevel: true,
         positional: fx.cycleLogPath,
       );
-      expect(exitCode, 0, reason: outPath);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: outPath);
       expect(
         lastLine(outPath),
         'replay: feature=066-replay-fixture result=clean '
@@ -361,7 +361,7 @@ void main() {
 
       // Unknown --behavior id: exit 1, named, recorded behaviors listed.
       final outUnknown = await drive(fx, extra: ['--behavior', '066-nope']);
-      expect(exitCode, 1, reason: outUnknown);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: outUnknown);
       expect(outUnknown, contains('unknown behavior 066-nope'));
       expect(outUnknown, contains('066-b1'));
     });

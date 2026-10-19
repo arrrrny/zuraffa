@@ -248,6 +248,8 @@ class CreateMockCapability implements ZuraffaCapability {
       // the current interface, so the contract is re-rendered to match.
       rePin: true,
       verbose: verbose,
+      service: args['service'] as String?,
+      domain: args['domain'] as String?,
     );
     final written = await certifier.writeContractArtifacts(
       entityName: name,
