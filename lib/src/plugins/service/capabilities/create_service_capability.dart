@@ -328,8 +328,8 @@ class CreateServiceCapability implements ZuraffaCapability {
     final name = args['name']?.toString() ?? '';
     final paramsType = args['params']?.toString() ?? 'NoParams';
     final returnsType = args['returns']?.toString() ?? 'void';
-    final allowForwardRefs = args['allowForwardRefs'] == true ||
-        args['allow-forward-refs'] == true;
+    final allowForwardRefs =
+        args['allowForwardRefs'] == true || args['allow-forward-refs'] == true;
     final outputDir = plugin.outputDir;
     final root = projectRoot ?? Directory.current.path;
 
