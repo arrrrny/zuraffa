@@ -144,19 +144,26 @@ class SimulateSyncCapability implements ZuraffaCapability {
       },
       'devices': {
         'type': 'integer',
-        'description': 'Number of simulated devices.',
+        'description':
+            'Number of simulated devices. When > 0, runs the multi-device '
+            'CRDT convergence path (scenario is ignored — multi-device '
+            'takes precedence).',
+        'default': 0,
       },
       'days': {
         'type': 'integer',
         'description': 'Number of simulated days (default 30).',
+        'default': 30,
       },
       'partition': {
         'type': 'boolean',
         'description': 'Inject network partitions (default false).',
+        'default': false,
       },
       'seed': {
         'type': 'integer',
         'description': 'Deterministic seed (default 42).',
+        'default': 42,
       },
     },
   };
@@ -169,6 +176,16 @@ class SimulateSyncCapability implements ZuraffaCapability {
       'landed': {'type': 'integer'},
       'total': {'type': 'integer'},
       'totalRetries': {'type': 'integer'},
+      'devices': {'type': 'integer'},
+      'days': {'type': 'integer'},
+      'partition': {'type': 'boolean'},
+      'seed': {'type': 'integer'},
+      'entities': {'type': 'integer'},
+      'converged': {'type': 'boolean'},
+      'anomalies': {'type': 'integer'},
+      'partitions': {'type': 'integer'},
+      'merges': {'type': 'integer'},
+      'recoveryRounds': {'type': 'integer'},
     },
   };
 
@@ -185,14 +202,16 @@ class SimulateSyncCapability implements ZuraffaCapability {
 
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
-    final devices = args['devices'] as int?;
+    // Accept JSON decimals (double) as well as ints — `as int?` throws a
+    // TypeError on a 5.0 payload. Issue #1867 review (decimal-arg cast).
+    final devices = (args['devices'] as num?)?.toInt();
     if (devices != null && devices > 0) {
       return _runMultiDevice(
         devices: devices,
-        days: (args['days'] as int?) ?? 30,
+        days: (args['days'] as num?)?.toInt() ?? 30,
         partition: (args['partition'] as bool?) ?? false,
-        seed: (args['seed'] as int?) ?? 42,
-        entityCount: (args['entityCount'] as int?) ?? 5,
+        seed: (args['seed'] as num?)?.toInt() ?? 42,
+        entityCount: (args['entityCount'] as num?)?.toInt() ?? 5,
       );
     }
     final scenario = (args['scenario'] ?? 'offline-flap') as String;
@@ -206,7 +225,7 @@ class SimulateSyncCapability implements ZuraffaCapability {
         data: {'verdict': 'unknown-scenario', 'scenario': scenario},
       );
     }
-    final entityCount = (args['entityCount'] as int?) ?? 5;
+    final entityCount = (args['entityCount'] as num?)?.toInt() ?? 5;
     final script = _scriptFor(scenario);
 
     // The scripted chaos remote: each create call resolves through the
@@ -428,9 +447,21 @@ class SimulateSyncCapability implements ZuraffaCapability {
       }
     }
 
-    for (var d = 0; d < devices; d++) {
-      for (final e in entities) {
-        if (!replicas[d].containsKey(e)) anomalies++;
+    // Field-level replica equality: every device must agree on every
+    // entity's `title` and `done` field (value AND timestamp) after
+    // recovery. Key presence alone is a tautology (keys are never
+    // removed), so validate the full replica state instead.
+    // Issue #1867 review (tautological anomalies metric).
+    final canonical = replicas.isEmpty ? null : replicas[0];
+    if (canonical != null) {
+      for (var d = 0; d < devices; d++) {
+        for (final e in entities) {
+          for (final field in const ['title', 'done']) {
+            final a = replicas[d][e]?[field];
+            final b = canonical[e]?[field];
+            if (a != b) anomalies++;
+          }
+        }
       }
     }
 

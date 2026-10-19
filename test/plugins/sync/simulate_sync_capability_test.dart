@@ -115,4 +115,100 @@ void main() {
     expect(output, contains('offline-flap'));
     expect(output, contains('payment-decline'));
   });
+
+  // SPEC 1136 / #814 — multi-device CRDT convergence path.
+  test('M1: devices>0 partition on converges to GREEN', () async {
+    final (code, output) = await runZfa([
+      'sync',
+      'simulate',
+      '--devices',
+      '5',
+      '--days',
+      '10',
+      '--partition',
+    ]);
+    expect(code, 0, reason: output);
+    expect(output, contains('verdict=GREEN'));
+    expect(output, contains('converged=true'));
+    expect(output, contains('anomalies=0'));
+  });
+
+  test('M2: devices>0 partition off converges to GREEN', () async {
+    final (code, output) = await runZfa([
+      'sync',
+      'simulate',
+      '--devices',
+      '5',
+      '--days',
+      '10',
+    ]);
+    expect(code, 0, reason: output);
+    expect(output, contains('verdict=GREEN'));
+    expect(output, contains('converged=true'));
+  });
+
+  test('M3: devices=1 converges to GREEN', () async {
+    final (code, output) = await runZfa([
+      'sync',
+      'simulate',
+      '--devices',
+      '1',
+    ]);
+    expect(code, 0, reason: output);
+    expect(output, contains('verdict=GREEN'));
+    expect(output, contains('converged=true'));
+  });
+
+  test('M4: days=0 converges to GREEN', () async {
+    final (code, output) = await runZfa([
+      'sync',
+      'simulate',
+      '--devices',
+      '4',
+      '--days',
+      '0',
+    ]);
+    expect(code, 0, reason: output);
+    expect(output, contains('verdict=GREEN'));
+    expect(output, contains('converged=true'));
+  });
+
+  test('M5: determinism by seed', () async {
+    final (code1, out1) = await runZfa([
+      'sync',
+      'simulate',
+      '--devices',
+      '5',
+      '--days',
+      '10',
+      '--partition',
+      '--seed',
+      '7',
+    ]);
+    final (code2, out2) = await runZfa([
+      'sync',
+      'simulate',
+      '--devices',
+      '5',
+      '--days',
+      '10',
+      '--partition',
+      '--seed',
+      '7',
+    ]);
+    expect(code1, 0, reason: out1);
+    expect(code2, 0, reason: out2);
+    expect(out1, equals(out2));
+  });
+
+  test('M6: decimal arg cast does not throw', () async {
+    final (code, output) = await runZfa([
+      'sync',
+      'simulate',
+      '--json',
+      '{"devices":5.0,"days":10.0,"seed":7.0}',
+    ]);
+    expect(code, 0, reason: output);
+    expect(output, contains('verdict=GREEN'));
+  });
 }
