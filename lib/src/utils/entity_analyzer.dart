@@ -395,6 +395,36 @@ class EntityAnalyzer {
         !hasCrudSurface(typeName, outputDir, fileSystem: fs);
   }
 
+  /// Issue #1898: the #1747 guard skips the class-shaped CRUD
+  /// datasource/provider surface for types that declare no CRUD surface.
+  /// A request that asks for ONLY non-CRUD verbs (`list`, or any verb
+  /// not in the standard CRUD vocabulary) does not need that surface, so
+  /// the guard must not fire for it — otherwise the `--methods` arm
+  /// (#1787) is unreachable on exactly the input shape it was written
+  /// for.
+  ///
+  /// The standard CRUD vocabulary is the set advertised by
+  /// `zfa mock create --help` minus `list`; everything else (including
+  /// `list` and arbitrary verbs from issue #1823) is treated as a
+  /// non-CRUD request.
+  static const Set<String> _crudMethodVocabulary = <String>{
+    'get',
+    'getList',
+    'create',
+    'update',
+    'delete',
+    'toggle',
+    'watch',
+    'watchList',
+  };
+
+  static bool methodsRequireCrudSurface(Iterable<String> methods) {
+    for (final method in methods) {
+      if (_crudMethodVocabulary.contains(method)) return true;
+    }
+    return false;
+  }
+
   /// True when [typeName] declares the CRUD surface the generated
   /// datasource / mock-datasource body calls (issue #1747): a `<Type>Patch`
   /// companion, a `copyWithField` method, and a resolvable identity field.

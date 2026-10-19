@@ -209,11 +209,17 @@ class MockBuilder {
         // nothing to probe, and that shape is a different report. The same
         // predicate gates MockPlugin's simulation binding, so the two
         // cannot disagree about whether this run emits a CRUD surface.
+        // Issue #1898: only short-circuit when the requested methods
+        // actually need the CRUD surface. A run asking solely for
+        // non-CRUD verbs (`list`, or any verb outside the standard CRUD
+        // vocabulary) keeps the datasource/mock-datasource path open, so
+        // the #1787 arm is reachable on a non-CRUD entity.
         if (EntityAnalyzer.lacksCrudSurface(
-          targetEntity,
-          outputDir,
-          fileSystem: fileSystem,
-        )) {
+              targetEntity,
+              outputDir,
+              fileSystem: fileSystem,
+            ) &&
+            EntityAnalyzer.methodsRequireCrudSurface(config.methods)) {
           print(
             'ℹ️  $targetEntity declares no CRUD surface (no id / '
             'copyWithField / ${targetEntity}Patch) — mock data generated; '

@@ -136,9 +136,13 @@ class MockCertifier {
       domain: domain,
     );
     if (!File(mockPath).existsSync()) {
+      // Issue #1898 (secondary): the previous hint reused the exact
+      // command that had just failed (which, on the buggy tree, could
+      // not generate anything), so following it looped. Adding --force
+      // makes the regeneration explicit and breaks the cycle.
       final fixCmd = service == null
-          ? 'zfa mock create $entityName --certify'
-          : 'zfa mock create $entityName --service $service --certify';
+          ? 'zfa mock create $entityName --force --certify'
+          : 'zfa mock create $entityName --service $service --force --certify';
       return MockCertificationOutcome(
         certified: false,
         entity: entityName,
