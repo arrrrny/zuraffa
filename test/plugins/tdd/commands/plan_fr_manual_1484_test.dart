@@ -72,7 +72,7 @@ void main() {
     'explicit marker routes manual end-to-end (no U row, manual section)',
     () async {
       final (out, list, matrix) = await planSpec(_mixed);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // FR-001 (traced) keeps its unit row:
       expect(list, contains('FR-001'));
       expect(list, contains('| U1 |'));
@@ -103,7 +103,7 @@ void main() {
     'defaulted FR warns naming the FR and both remedies, routes manual',
     () async {
       final (out, list, matrix) = await planSpec(_mixed);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // The warning names the defaulted FR and BOTH remedies:
       expect(out, contains('WARNING'));
       expect(out, contains('FR-021'));
@@ -143,7 +143,7 @@ void main() {
   traces: Formatter
 ''';
       final (out, list, matrix) = await planSpec(traced);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(list, contains('| U1 |'));
       expect(list, contains('| U2 |'));
       expect(list, contains('FR-001'));

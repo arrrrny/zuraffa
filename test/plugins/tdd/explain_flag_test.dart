@@ -143,7 +143,7 @@ void main() {
           tmp.path,
         ]);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         _expectExplainSections(out);
         // The touched feature and the lane truth (plan drives no lane).
         expect(out, contains('features touched: $kFeature'), reason: out);
@@ -181,7 +181,7 @@ void main() {
         tmp.path,
       ]);
 
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       _expectExplainSections(out);
       expect(out, contains('fix hints:'), reason: out);
       expect(out, isNot(contains('fix hints: none')), reason: out);
@@ -229,7 +229,7 @@ void main() {
     test('green meta run names BOTH lanes and both receipts', () async {
       final out = await runMeta();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       _expectExplainSections(out);
       expect(out, contains('features touched: $kFeature'), reason: out);
       // The lane section names BOTH lanes on the green meta run.
@@ -250,7 +250,7 @@ void main() {
 
         final out = await runMeta();
 
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         _expectExplainSections(out);
         // The run stopped in the ENGINE lane — no skin step was spawned.
         expect(out, contains('lane run: engine'), reason: out);
@@ -292,7 +292,7 @@ void main() {
           '--explain',
         ]);
 
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         _expectExplainSections(out);
         expect(
           out,
@@ -346,7 +346,7 @@ void main() {
           '--zfa-bin',
           fx.fakeZfaBin,
         ]);
-        expect(exitCode, 0, reason: engineOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: engineOut);
         exitCode = 0;
         final skinOut = await driver.runCapturing([
           'tdd',
@@ -357,7 +357,7 @@ void main() {
           '--zfa-bin',
           fx.fakeZfaBin,
         ]);
-        expect(exitCode, 0, reason: skinOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: skinOut);
         exitCode = 0;
 
         final out = await driver.runCapturing([
@@ -369,7 +369,7 @@ void main() {
           fx.root.path,
         ]);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         _expectExplainSections(out);
         expect(out, contains('features touched: $kFeature'), reason: out);
         // The lane section carries BOTH lane verdicts.
@@ -408,7 +408,7 @@ void main() {
         tmp.path,
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final envelope = _tryDecodeEnvelope(out);
       expect(envelope, isNotNull, reason: out);
       expect(envelope!['command'], 'plan', reason: out);
@@ -454,7 +454,7 @@ void main() {
           tmp.path,
         ]);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final lastNonEmpty = out.trimRight().split('\n').last;
         final decoded = jsonDecode(lastNonEmpty);
         expect(decoded, isA<Map<String, Object?>>(), reason: out);

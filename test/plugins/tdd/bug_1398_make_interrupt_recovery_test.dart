@@ -188,7 +188,7 @@ void main() {
         );
         final runner = CliRunner(exitOnCompletion: false);
         final redOut = await runner.runCapturing(verifyRedArgs(fx, id));
-        expect(exitCode, 0, reason: redOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
 
         // The kill harness: a fake zfa whose `func` step MUTATES the
         // subject to the green shape and then sleeps — the make process
@@ -273,7 +273,7 @@ esac
 
         // SC-2: the resumed make adopts the interrupted subject.
         final out = await runner.runCapturing(makeArgs(fx, id: id));
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('outcome=adopted-interrupted'), reason: out);
         expect(out, contains('issue #1398'), reason: out);
         final cycleLog = await File(fx.cycleLogPath).readAsString();
@@ -311,7 +311,7 @@ esac
       );
       final runner = CliRunner(exitOnCompletion: false);
       final redOut = await runner.runCapturing(verifyRedArgs(fx, id));
-      expect(exitCode, 0, reason: redOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
       // The certified PAIR: a green evidence entry binding the stub's
       // hash (the #1331 B8b shape) — a GREEN-basis drift. Without it the
       // red-basis drift takes the #1162 hand-implementation fail-open and
@@ -326,7 +326,7 @@ esac
       expect(readMarker(fx), isNull, reason: 'no make ever started');
 
       final out = await runner.runCapturing(makeArgs(fx, id: id));
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=subject-drift'), reason: out);
       // The refusal appended NO green entry: the only green evidence in
       // the log is the seeded stub-hash certification — nothing binds the
@@ -362,7 +362,7 @@ esac
       );
       final runner = CliRunner(exitOnCompletion: false);
       final redOut = await runner.runCapturing(verifyRedArgs(fx, id));
-      expect(exitCode, 0, reason: redOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
 
       // The crash residue: a marker the killed make left AND the
       // born-green placeholder the killed make's rewrite left (the
@@ -384,7 +384,7 @@ int a2_value() => 0;
 ''');
 
       final out = await runner.runCapturing(makeArgs(fx, id: id));
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('--> fix:'), reason: out);
       final cycleLog = await File(fx.cycleLogPath).readAsString();
       expect(
@@ -426,7 +426,7 @@ int a2_value() => 0;
       );
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(makeArgs(fx, id: id));
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('not-certified-red'), reason: out);
       // The refusal is graceful: the marker (pre-seeded crash residue)
       // is cleared by the summary exit.
@@ -474,7 +474,7 @@ int a2_value() => 0;
         fx.fakeZfaBin,
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('result=complete'), reason: out);
       // The exit-0 success path prints the outcome token directly (the
       // `make -> green (...)` reclassification line is the #986
@@ -521,7 +521,7 @@ int a2_value() => 0;
         fx.fakeZfaBin,
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('result=complete'), reason: out);
       expect(out, contains('make -> green (adopted-interrupted)'), reason: out);
       final cycleLog = await File(fx.cycleLogPath).readAsString();

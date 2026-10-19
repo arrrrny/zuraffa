@@ -139,25 +139,59 @@ class MockBuilder {
     // it. Concrete return/param entities still get their fixtures here.
     if (!isPolymorphic &&
         !(config.hasService && targetEntity == config.effectiveService)) {
-      final requiresConcreteEntity =
-          config.generateMockDataOnly ||
-          (config.name == targetEntity &&
-              !config.isCustomUseCase &&
-              !config.hasService);
       final dataConfig = config.name == targetEntity
           ? config
           : config.copyWith(name: targetEntity);
 
+      final hasCustomVerbs =
+          config.paramsType != null ||
+          config.returnsType != null ||
+          config.methods.any(
+            (m) => !const {
+              'get',
+              'getList',
+              'list',
+              'create',
+              'update',
+              'toggle',
+              'delete',
+              'watch',
+              'watchList',
+            }.contains(m),
+          );
+      final needsConcreteEntity =
+          config.generateMockDataOnly ||
+          (config.name == targetEntity &&
+              !config.isCustomUseCase &&
+              !config.hasService &&
+              !hasCustomVerbs);
+
       if (!entityExists) {
-        if (requiresConcreteEntity) {
+        if (needsConcreteEntity) {
           throw StateError(
             'Entity file not found for $targetEntity. '
             'Expected to find a Dart entity declaration under '
             '$outputDir/domain/entities.',
           );
         }
-
-        files.add(await dataBuilder.generateMockDataFile(dataConfig));
+        // Issue #1865: only generate mock data for custom-usecase runs
+        // when there is a returns entity; otherwise skip with an honest
+        // `skipped` action (like the primitive path) instead of writing a
+        // phantom `*_mock_data.dart` for a non-existent entity.
+        if (config.isCustomUseCase) {
+          if (config.returnsType == null || config.returnsType!.isEmpty) {
+            files.add(
+              GeneratedFile(
+                path: '',
+                content: '',
+                action: 'skipped',
+                type: 'mock_data',
+              ),
+            );
+          } else {
+            files.add(await dataBuilder.generateMockDataFile(dataConfig));
+          }
+        }
       } else if (EntityAnalyzer.isSealedEntity(
         targetEntity,
         outputDir,
@@ -172,7 +206,7 @@ class MockBuilder {
       }
     }
 
-    if (!config.hasService) {
+    if (!config.hasService && entityExists) {
       files.addAll(
         await entityGraphBuilder.generateNestedEntityMockFiles(
           config: config.name == targetEntity

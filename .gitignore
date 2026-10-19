@@ -97,3 +97,6 @@ mutation-test-1693-report/
 # per-work-item records live under specs/<feature>/tdd/ and
 # .specify/bugs/<id>/tdd/; the root mirror is regenerated and stays local.
 /tdd/
+
+# Provenance SBOM report (generated, machine-readable; issue #812).
+/provenance.report.json

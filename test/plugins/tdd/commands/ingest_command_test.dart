@@ -92,7 +92,7 @@ void main() {
 
       final out = await drive('1010-demo', draft);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final spec = File(p.join(specsRoot(), '1010-demo', 'spec.md'));
       expect(spec.existsSync(), isTrue, reason: out);
       expect(spec.readAsStringSync(), kValidDraft);
@@ -112,7 +112,7 @@ void main() {
 
     final out = await drive('1010-demo', draft);
 
-    expect(exitCode, 3, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 3, reason: out);
     expect(out, contains('contract drift'));
     expect(
       File(p.join(specsRoot(), '1010-demo', 'spec.md')).existsSync(),
@@ -141,7 +141,7 @@ void main() {
 
       final out = await drive('1010-demo', draft);
 
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(out, contains('declaration refused'));
       expect(out, contains('--> fix:'));
       expect(
@@ -165,7 +165,7 @@ void main() {
 
     final out = await drive('1010-demo', draft);
 
-    expect(exitCode, 2, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
     expect(out, contains('undeclared dependencies'));
     expect(out, contains('Hive'));
     expect(
@@ -187,7 +187,7 @@ void main() {
 
       final out = await drive('1010-demo', draft);
 
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(out, contains('entity name collision'));
       expect(out, contains('FavoriteDeal'));
       expect(out, contains('--> fix:'));
@@ -225,7 +225,7 @@ void main() {
 
       final out = await drive('1010-demo', draft);
 
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(out, contains('entity name collision'));
       expect(out, contains('Z1010Probe'));
       expect(out, contains('framework export'));
@@ -249,7 +249,7 @@ $kValidDraft
 
     final out = await drive('1010-demo', draft);
 
-    expect(exitCode, 2, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
     expect(out, contains('contract ambiguity'));
     expect(out, contains('FavoriteDealRepository'));
     expect(
@@ -268,7 +268,7 @@ $kValidDraft
 
     final out = await drive('1010-demo', draft);
 
-    expect(exitCode, 2, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
     expect(out, contains('contract ambiguity'));
     expect(out, contains('Hive'));
     expect(
@@ -287,7 +287,7 @@ $kValidDraft
 
       final out = await drive('1010-demo', draft);
 
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(out, contains('already exists'));
       expect(out, contains('--force'));
       expect(
@@ -306,7 +306,7 @@ $kValidDraft
 
     final out = await drive('1010-demo', draft, extra: ['--force']);
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       File(p.join(specDir.path, 'spec.md')).readAsStringSync(),
       kValidDraft,

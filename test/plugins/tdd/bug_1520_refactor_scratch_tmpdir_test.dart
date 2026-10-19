@@ -73,7 +73,7 @@ void main() {
         fakeZfa,
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       final lines = tmpdirReceipt
           .readAsLinesSync()

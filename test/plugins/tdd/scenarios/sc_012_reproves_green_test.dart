@@ -47,7 +47,7 @@ void main() {
           ),
         ),
       );
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
     },
   );
 
@@ -63,7 +63,7 @@ void main() {
     ]);
 
     if (out.contains('outcome=refactored')) {
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, contains('## Cycle:'));
       expect(log, contains('- kind: refactor'));
@@ -87,7 +87,7 @@ void main() {
       ]);
 
       expect(out, contains('outcome=clean'));
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       final match = RegExp(r'applied=(\d+)').firstMatch(out);
       expect(match, isNotNull);
       expect(int.parse(match!.group(1)!), 0);

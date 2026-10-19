@@ -162,7 +162,7 @@ exit 255
         reason: 'preflight + re-proof + ONE retry, saw: $out',
       );
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         0,
         reason: 'a transient infra failure must not fail the refactor',
       );
@@ -213,7 +213,11 @@ exit 255
 
       expect(out, contains('outcome=runner-error'), reason: out);
       expect(out, isNot(contains('outcome=regression')), reason: out);
-      expect(exitCode, isNot(0), reason: 'exhausted retries still fail');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        isNot(0),
+        reason: 'exhausted retries still fail',
+      );
       expect(
         counter.readAsStringSync().trim(),
         '4',
@@ -254,7 +258,7 @@ exit 1
       final out = await runRefactor();
 
       expect(out, contains('outcome=regression'), reason: out);
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(
         counter.readAsStringSync().trim(),
         '2',
@@ -289,7 +293,7 @@ exit 1
 
       await runRefactor();
 
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, contains('- no-op: true'));
       // Issue #1624: a clean no-op changed no file, so the re-proof is

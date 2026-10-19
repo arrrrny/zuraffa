@@ -75,7 +75,7 @@ void main() {
 
     final out = await plan();
 
-    expect(exitCode, 2, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
     expect(out, contains('ShadGrid'));
     expect(out, contains('grid'));
     expect(out, contains('--> fix:'));
@@ -95,7 +95,7 @@ void main() {
 
     final out = await plan();
 
-    expect(exitCode, 2, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
     expect(out, contains('table'));
     expect(out, contains(RegExp('not implemented', caseSensitive: false)));
   });
@@ -108,7 +108,7 @@ void main() {
 
     final out = await plan();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       File(p.join(tddDir, 'test-list.md')).existsSync(),
       isTrue,
@@ -146,7 +146,7 @@ void main() {
 
     final out = await plan();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(File(p.join(tddDir, 'test-list.md')).existsSync(), isTrue);
   });
 
@@ -170,7 +170,7 @@ void main() {
     final out = await plan();
 
     expect(
-      exitCode,
+      CliRunner.lastDispatchedExitCode,
       0,
       reason:
           'a registered project composite is part of the vocabulary '

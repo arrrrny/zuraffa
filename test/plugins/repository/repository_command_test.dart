@@ -235,7 +235,7 @@ environment:
         isNot(contains('zuraffa.verdict.v1')),
         reason: 'no envelope leaks into the human channel',
       );
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
     }, timeout: const Timeout(Duration(minutes: 3)));
 
     test('SC-4 negative: missing --name under --json is a machine-actionable '
@@ -262,7 +262,7 @@ environment:
         contains('zfa repository create --name'),
         reason: 'the fix names the invocation',
       );
-      expect(exitCode, ExitProtocol.usage);
+      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
     }, timeout: const Timeout(Duration(minutes: 3)));
 
     test('SC-5 gate-failure: conformance findings ride findings[] and the '
@@ -422,7 +422,7 @@ environment:
         isFalse,
         reason: '--explain plans; it never generates',
       );
-      expect(exitCode, ExitProtocol.success);
+      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.success);
     });
   });
 }

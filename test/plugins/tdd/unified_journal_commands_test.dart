@@ -180,7 +180,7 @@ void main() {
       () async {
         final out = await run('run');
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(
           await File(journalPath()).exists(),
           isTrue,
@@ -198,7 +198,7 @@ void main() {
       () async {
         final out = await run('run');
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final journal = await readJournal();
         final entries = journal['entries'] as List;
         expect(entries, isNotEmpty);
@@ -218,7 +218,7 @@ void main() {
         'green gate_state and the receipt refs', () async {
       final out = await run('run');
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final journal = await readJournal();
       final entries = (journal['entries'] as List).cast<Map<String, dynamic>>();
       final engine = entries.where((e) => e['cycle'] == 'engine').toList();
@@ -245,7 +245,7 @@ void main() {
 
       final out = await run('run');
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       final journal = await readJournal();
       final meta = (journal['entries'] as List)
           .cast<Map<String, dynamic>>()
@@ -300,7 +300,7 @@ void main() {
 
       final out = await run('run');
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(fx.stepInvocations(), isEmpty);
       final journal = await readJournal();
       final meta = (journal['entries'] as List)
@@ -325,10 +325,10 @@ void main() {
       'J-006: run-engine and run-skin append their own cycle entries',
       () async {
         final engineOut = await run('run-engine');
-        expect(exitCode, 0, reason: engineOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: engineOut);
         exitCode = 0;
         final skinOut = await run('run-skin');
-        expect(exitCode, 0, reason: skinOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: skinOut);
         exitCode = 0;
 
         final journal = await readJournal();
@@ -349,7 +349,7 @@ void main() {
         'append and validates the written entries', () async {
       final out = await run('run');
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         await File(schemaPath()).exists(),
         isTrue,
@@ -381,12 +381,12 @@ void main() {
     test('J-008: status prints the journal one-line verdict, exit 0 on '
         'green', () async {
       final runOut = await run('run');
-      expect(exitCode, 0, reason: runOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: runOut);
       exitCode = 0;
 
       final out = await run('status');
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // The merged machine line keeps its shape (spec 1008 contract).
       expect(
         out,
@@ -413,12 +413,12 @@ void main() {
     test('J-009: baseline prove on a green feature is clean (all gated, '
         'exit 0) and journals a prove entry', () async {
       final runOut = await run('run');
-      expect(exitCode, 0, reason: runOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: runOut);
       exitCode = 0;
 
       final out = await run('prove');
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('prove: feature=$feature'), reason: out);
       expect(out, contains('ungated=0'), reason: out);
       final journal = await readJournal();
@@ -434,10 +434,10 @@ void main() {
     test('J-010: after editing ONE skin view, prove reports only that '
         'behavior ungated (incremental, exit 1)', () async {
       final runOut = await run('run');
-      expect(exitCode, 0, reason: runOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: runOut);
       exitCode = 0;
       final baselineOut = await run('prove');
-      expect(exitCode, 0, reason: baselineOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: baselineOut);
       exitCode = 0;
 
       // Edit one skin view: W1's subject changes, everything else is
@@ -448,7 +448,7 @@ void main() {
 
       final out = await run('prove');
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('ungated=1'), reason: out);
       expect(out, contains('W1'), reason: out);
       expect(out, isNot(contains('ungated: U1')), reason: out);
@@ -468,7 +468,7 @@ void main() {
         'behavior ungated (not_assessed)', () async {
       final out = await run('prove');
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('ungated=5'), reason: out);
       final journal = await readJournal();
       final prove = (journal['entries'] as List)
@@ -487,7 +487,7 @@ void main() {
         '--project',
         fx.root.path,
       ]);
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('999-no-such-feature'), reason: out);
     });
   });

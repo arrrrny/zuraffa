@@ -92,7 +92,7 @@ void main() {
   Future<(int, String)> runReplay(String scenarioPath) async {
     final runner = CliRunner(exitOnCompletion: false);
     final output = await runner.runCapturing(['mcp', 'replay', scenarioPath]);
-    return (exitCode, output);
+    return (CliRunner.lastDispatchedExitCode, output);
   }
 
   String writeScenario(

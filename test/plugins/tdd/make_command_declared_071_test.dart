@@ -92,7 +92,7 @@ void main() {
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(makeArgs(fx, zfaBin: zfaBin));
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains('make: behavior=U-1 outcome=green feature=${fx.featureName}'),

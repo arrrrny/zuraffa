@@ -98,7 +98,11 @@ void main() {
       }
 
       final out = await status();
-      expect(exitCode, 1, reason: 'incomplete corpus -> non-zero (A14)');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'incomplete corpus -> non-zero (A14)',
+      );
       // Per-state counts in the summary line.
       final lastLine = out.trim().split('\n').last;
       expect(
@@ -152,7 +156,7 @@ void main() {
         }),
       );
       final out = await status();
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final lastLine = out.trim().split('\n').last;
       expect(lastLine, contains('done=1'));
       expect(lastLine, contains('waived=1'));
@@ -165,7 +169,7 @@ void main() {
 
   test('U34: no manifest -> exit 2 naming the path', () async {
     final out = await status();
-    expect(exitCode, 2, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
     expect(out, contains('no corpus manifest'));
     expect(out.trim().split('\n').last, contains('result=no-manifest'));
   });
@@ -174,7 +178,7 @@ void main() {
     await fx.writeManifest([(name: 'f1', ready: true, reason: '')]);
     await write('.zfa/corpus/progress.json', '{nonsense');
     final out = await status();
-    expect(exitCode, 3, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 3, reason: out);
     expect(out, contains('Recovery'));
     expect(out.trim().split('\n').last, contains('result=corrupt-state'));
   });
@@ -185,7 +189,7 @@ void main() {
       (name: 'f2-ready', ready: true, reason: ''),
     ]);
     final out = await status();
-    expect(exitCode, 1, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
     expect(out.trim().split('\n').last, contains('resume_at=f2-ready'));
   });
 }

@@ -1207,14 +1207,65 @@ class SpecParser {
         // Bug #919: the zuraffa-1.0 template declares entities as a
         // 3-column TABLE (`| Entity | Fields | Purpose |`) — parse the
         // table rows (header/separator skipped), like parseDependencies.
-        if (!trimmed.startsWith('|')) continue;
-        final cells = _splitCells(trimmed);
+        // Issue #1771/#1793: a Key Entities section may also declare
+        // entities as bullets (`- **Name**: prose`), the same form
+        // parseKeyEntities accepts — parse those too, otherwise an
+        // entity declared only as a bullet has no contract row and the
+        // declared-entity membership test in routing_resolver fails
+        // (danglingReference) even though parseKeyEntities extracted it.
+        if (!trimmed.startsWith('|')) {
+          final bulletM = _entityBullet.firstMatch(trimmed);
+          if (bulletM == null) continue;
+          var name = bulletM.group(1)!.trim().replaceAll('`', '').trim();
+          final genericStart = name.indexOf('<');
+          if (genericStart > 0) name = name.substring(0, genericStart).trim();
+          if (!_dartIdentifier.hasMatch(name)) continue;
+          // Dedup: an entity declared both as a table row and a bullet
+          // must not survive as two ContractRowDecls (counts/provenance).
+          final alreadyEntity = rows.any(
+            (r) =>
+                r.kind == ContractRowKind.entity &&
+                r.name.replaceAll('`', '').trim() == name,
+          );
+          if (alreadyEntity) continue;
+          rows.add(
+            ContractRowDecl(
+              name: name,
+              kind: ContractRowKind.entity,
+              specLine: lineNo,
+            ),
+          );
+          continue;
+        }
+        // Issue #1771/#1793: preserve empty cells' positions (unlike
+        // _splitCells, which drops them) so a row with an empty cell
+        // cannot shift the captured entity name into the wrong column.
+        final cells = _splitPositionalCells(trimmed);
         if (cells.isEmpty) continue;
-        if (cells[0].toLowerCase() == 'entity') continue; // header
+        // Header row: first non-empty cell is 'entity'.
+        if (cells
+                .firstWhere((c) => c.isNotEmpty, orElse: () => '')
+                .toLowerCase() ==
+            'entity') {
+          continue;
+        }
+        if (cells[0].isEmpty) continue; // no entity name in this row
         if (RegExp(r'^-+$').hasMatch(cells[0])) continue; // separator
+        var entityName = cells[0].replaceAll('`', '').trim();
+        final genericStart = entityName.indexOf('<');
+        if (genericStart > 0) {
+          entityName = entityName.substring(0, genericStart).trim();
+        }
+        if (!_dartIdentifier.hasMatch(entityName)) continue;
+        final alreadyEntity = rows.any(
+          (r) =>
+              r.kind == ContractRowKind.entity &&
+              r.name.replaceAll('`', '').trim() == entityName,
+        );
+        if (alreadyEntity) continue;
         rows.add(
           ContractRowDecl(
-            name: cells[0],
+            name: entityName,
             kind: ContractRowKind.entity,
             specLine: lineNo,
           ),
@@ -1256,6 +1307,33 @@ class SpecParser {
         );
         continue;
       }
+    }
+    // Issue #1793: guarantee every entity parseKeyEntities extracts is also
+    // present as an entity-kind contract row, so the routing_resolver
+    // membership test (which keys off contract rows) recognises an entity
+    // declared in the Key Entities table even when the table/bullet forms
+    // above did not capture it. Never duplicates an existing name.
+    String norm(String n) {
+      var v = n.replaceAll('`', '').trim();
+      final g = v.indexOf('<');
+      if (g > 0) v = v.substring(0, g).trim();
+      return v;
+    }
+
+    final existingNames = rows
+        .where((r) => r.kind == ContractRowKind.entity)
+        .map((r) => norm(r.name))
+        .toSet();
+    for (final ent in parseKeyEntities(specMd)) {
+      if (existingNames.contains(norm(ent.name))) continue;
+      rows.add(
+        ContractRowDecl(
+          name: ent.name,
+          kind: ContractRowKind.entity,
+          specLine: null,
+        ),
+      );
+      existingNames.add(norm(ent.name));
     }
     return rows;
   }
@@ -1657,7 +1735,7 @@ class SpecParser {
           // mixed section still extracts its bullet-declared entities.
           tableMode = false;
         } else {
-          var name = m.group(1)!.trim();
+          var name = m.group(1)!.trim().replaceAll('`', '').trim();
           final genericStart = name.indexOf('<');
           if (genericStart > 0) {
             name = name.substring(0, genericStart).trim();
@@ -1691,7 +1769,7 @@ class SpecParser {
         inSection = false;
         continue;
       }
-      var name = m.group(1)!.trim();
+      var name = m.group(1)!.trim().replaceAll('`', '').trim();
       final genericStart = name.indexOf('<');
       if (genericStart > 0) name = name.substring(0, genericStart).trim();
       if (!_dartIdentifier.hasMatch(name)) continue;

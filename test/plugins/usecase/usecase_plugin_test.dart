@@ -72,6 +72,11 @@ void main() {
   });
 
   test('generates custom stream usecase with service dependency', () async {
+    final serviceDir = Directory('$outputDir/domain/services');
+    await serviceDir.create(recursive: true);
+    await File('${serviceDir.path}/user_service.dart').writeAsString(
+      'abstract class UserService {\n  Stream<User> streamUser(UserParams params);\n}',
+    );
     final plugin = UseCasePlugin(
       outputDir: outputDir,
       options: const GeneratorOptions(
@@ -102,6 +107,11 @@ void main() {
   });
 
   test('generates custom future usecase with service dependency', () async {
+    final serviceDir = Directory('$outputDir/domain/services');
+    await serviceDir.create(recursive: true);
+    await File('${serviceDir.path}/listing_service.dart').writeAsString(
+      'abstract class ListingService {\n  Future<Listing?> getListingByBarcode(String params);\n}',
+    );
     final plugin = UseCasePlugin(
       outputDir: outputDir,
       options: const GeneratorOptions(
@@ -228,6 +238,12 @@ void main() {
     final paramsStr =
         '[ParserConfig parserConfig, "Map<String, String>" placeholders]';
     final multipleParams = GeneratorConfig.parseParams(paramsStr);
+
+    final serviceDir = Directory('$outputDir/domain/services');
+    await serviceDir.create(recursive: true);
+    await File('${serviceDir.path}/zik_service.dart').writeAsString(
+      'abstract class ZikService {\n  Future<ParserConfig> replaceRefererPlaceholders(ParserConfig parserConfig, Map<String, String> placeholders);\n}',
+    );
 
     final config = GeneratorConfig(
       name: 'ReplaceRefererPlaceholders',
