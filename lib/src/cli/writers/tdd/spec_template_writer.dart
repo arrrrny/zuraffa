@@ -273,6 +273,13 @@ const String kZuraffaSpecTemplate = r'''# Feature Specification: [FEATURE NAME]
   changes its hand-delta digest. The golden arm above is the honest
   pixel contract.
 
+  GUIDANCE (issue #1855): SKIN author finders must NOT `await` a
+  subject/controller read before a pump — under flutter_test's
+  FakeAsync zone a Timer-backed mock read deadlocks. Pump first, then
+  await: `final Future<void> flip = state!.load();` then
+  `await tester.pumpAndSettle();` then `await flip;`. `zfa tdd make
+  --author` refuses the deadlock shape.
+
   A spec WITHOUT this section plans the legacy single-file test list; a spec
   WITH it makes `zfa tdd plan` emit the split plan: `tdd/04-ENGINE.md`
   (CORE + BOTH — pure Dart, the noFlutter guard rejects any Flutter

@@ -371,7 +371,7 @@ class RunDriverCore {
 
     /// Issue #1777: whether the calling command actually declares
     /// `--baseline-scope`. Controls the preflight remedy wording.
-    bool supportsBaselineScope = true,
+    bool supportsBaselineScope = false,
 
     /// Spec 1520: the caller's per-run scratch environment
     /// (`ScratchTmpDir.childEnvironment`) — handed to the spawned step
