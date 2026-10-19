@@ -44,6 +44,7 @@ import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
+import '../services/scratch_tmpdir.dart';
 import 'run_command.dart';
 import 'run_driver_core.dart';
 
@@ -212,6 +213,11 @@ class RunEngineCommand extends Command<void> {
     final featureRef = resolved.ref;
     final zfaBin = argResults?['zfa-bin'] as String?;
 
+    final scratch = await ScratchTmpDir.acquire(
+      label: rest.isNotEmpty ? rest.first : label,
+      projectRoot: projectRoot,
+    );
+    try {
     // Spec 1001 pre-start preflight — hardened by spec 1110 (issue
     // #1110): an uncertified OR STALE CORE mock stops the lane before
     // any step is spawned, and the block is a receipt, not an
@@ -393,6 +399,7 @@ class RunEngineCommand extends Command<void> {
       },
       verbose: verbose,
       heartbeat: heartbeatOverride,
+      childEnvironment: scratch?.childEnvironment(),
     );
     _collectVerdict(outcome);
     if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
@@ -430,6 +437,9 @@ class RunEngineCommand extends Command<void> {
       ),
     );
     exitCode = outcome.exitCode;
+    } finally {
+      await scratch?.dispose();
+    }
   }
 
   /// SPEC 917/#838: mirrors the shipped exit taxonomy into the envelope —

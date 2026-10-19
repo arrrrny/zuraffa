@@ -65,6 +65,7 @@ import '../services/journal.dart';
 import '../services/lane_receipts.dart';
 import '../services/red_classifier.dart';
 import '../services/runner.dart';
+import '../services/scratch_tmpdir.dart';
 import '../services/skin_event_trace.dart';
 import '../services/skin_hand_edit.dart';
 import '../services/skin_receipt.dart';
@@ -263,6 +264,11 @@ class RunSkinCommand extends Command<void> {
       }
     }
 
+    final scratch = await ScratchTmpDir.acquire(
+      label: rest.isNotEmpty ? rest.first : label,
+      projectRoot: projectRoot,
+    );
+    try {
     // -----------------------------------------------------------------
     // The engine gate (issue #1008): the skin lane requires a green
     // engine receipt BEFORE any step is spawned. Missing, not-green, or
@@ -331,6 +337,7 @@ class RunSkinCommand extends Command<void> {
         declaredSlots: declaredSlots,
         timeout: timeoutOverride,
         journalStartedAt: journalStartedAt,
+        scratchEnv: scratch?.childEnvironment(),
       );
       return;
     }
@@ -369,6 +376,9 @@ class RunSkinCommand extends Command<void> {
     }
     _printSummary(feature, outcome.result, outcome);
     exitCode = outcome.exitCode;
+    } finally {
+      await scratch?.dispose();
+    }
   }
 
   // -------------------------------------------------------------------
@@ -382,6 +392,7 @@ class RunSkinCommand extends Command<void> {
     required List<String> declaredSlots,
     required Duration? timeout,
     required String journalStartedAt,
+    Map<String, String>? scratchEnv,
   }) async {
     final lanes = SpecParser().parseLanes(
       await File(p.join(featureDir, 'spec.md')).readAsString(),
@@ -491,6 +502,7 @@ class RunSkinCommand extends Command<void> {
         timeout: timeout,
         traces: traces,
         handEdits: handEdits,
+        scratchEnv: scratchEnv,
         onRedWitnessFailure: () => redWitnessAll = false,
       );
       receipts.add(outcome);
@@ -574,6 +586,7 @@ class RunSkinCommand extends Command<void> {
     required Duration? timeout,
     required List<SkinEventTrace> traces,
     required List<SkinHandEditRecord> handEdits,
+    Map<String, String>? scratchEnv,
     required void Function() onRedWitnessFailure,
   }) async {
     final cycleLog = CycleLog(featureDir);
@@ -680,6 +693,7 @@ class RunSkinCommand extends Command<void> {
             testName: testName,
             workingDirectory: projectRoot,
             timeout: timeout,
+            environment: scratchEnv,
           );
           traces.add(SkinEventTrace.parse(redRun.output, phase: SkinPhase.red));
           if (redRun.exitCode == 0) {
@@ -728,6 +742,7 @@ class RunSkinCommand extends Command<void> {
           testName: testName,
           workingDirectory: projectRoot,
           timeout: timeout,
+          environment: scratchEnv,
         );
         final greenTrace = SkinEventTrace.parse(
           greenRun.output,
