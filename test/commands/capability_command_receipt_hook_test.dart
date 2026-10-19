@@ -102,9 +102,12 @@ environment:
 
     exitCode = 0;
     await runner.run(['create', 'Product']);
+    // `exitCode` is process-global and `package:args` never writes it, so the
+    // read is best-effort (a sibling isolate can still clobber it); capture
+    // immediately after `await` to read as close to the write as possible.
     final code = exitCode;
-    // `exitCode` is process-global: reset it before asserting so the restore
-    // runs even when this expectation fails (the tearDown is the backstop).
+    // Reset before asserting so a failing expectation cannot leak the code;
+    // the file-level tearDown remains the backstop.
     exitCode = 0;
     expect(
       code,
