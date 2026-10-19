@@ -556,8 +556,7 @@ class RunSkinCommand extends Command<void> {
           (r) =>
               r.nonConformanceReason == null ||
               r.nonConformanceReason == 'hand-edit-missing' ||
-              r.nonConformanceReason == 'slots-unfilled' ||
-              r.nonConformanceReason == 'no-hand-edit-diff',
+              r.nonConformanceReason == 'slots-unfilled',
         )
         .length;
     final nonConformed = receipts.length - conformed;
@@ -632,12 +631,22 @@ class RunSkinCommand extends Command<void> {
     final subjectFile = File(subjectAbs);
     if (!await subjectFile.exists()) {
       refuse('implementation file missing');
-      return _refused(record, subjectRel, testRel, reason: 'green-failed');
+      return _refused(
+        record,
+        subjectRel,
+        testRel,
+        nonConformanceReason: 'green-failed',
+      );
     }
     final testFile = File(testAbs);
     if (!await testFile.exists()) {
       refuse('paired test missing (run `zfa tdd gen $id`)');
-      return _refused(record, subjectRel, testRel, reason: 'green-failed');
+      return _refused(
+        record,
+        subjectRel,
+        testRel,
+        nonConformanceReason: 'green-failed',
+      );
     }
 
     final subjectSource = await subjectFile.readAsString();
@@ -744,7 +753,7 @@ class RunSkinCommand extends Command<void> {
             record,
             subjectRel,
             testRel,
-            reason: 'no-hand-edit-diff',
+            nonConformanceReason: 'no-hand-edit-diff',
           );
         }
         print('      restored: byte-exact (sha256 verified)');
@@ -840,14 +849,14 @@ class RunSkinCommand extends Command<void> {
     ArtifactRecord record,
     String subjectRel,
     String testRel, {
-    String? reason,
+    String? nonConformanceReason,
   }) => SkinReceipt(
     behavior: record.behaviorId,
     conformance: false,
     testPath: testRel,
     subjectPath: subjectRel,
     platformSlotFills: const [],
-    nonConformanceReason: reason ?? 'red-not-witnessed',
+    nonConformanceReason: nonConformanceReason ?? 'red-not-witnessed',
   );
 
   Future<void> _writeConformanceReceipt({

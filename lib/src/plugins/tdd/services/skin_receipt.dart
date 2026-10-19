@@ -23,9 +23,8 @@ class SkinReceipt {
     required this.testPath,
     required this.subjectPath,
     required this.platformSlotFills,
-    String? nonConformanceReason,
-    String? reason,
-  }) : nonConformanceReason = nonConformanceReason ?? reason;
+    this.nonConformanceReason,
+  });
 
   /// The behavior id (e.g. `W1`).
   final String behavior;
