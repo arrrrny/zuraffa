@@ -43,7 +43,7 @@ String? diskPreflightMessage({
   int marginBytes = defaultPreflightMarginBytes,
   // Issue #1777: name `--baseline-scope` only when the calling command
   // actually declares it.
-  bool supportsBaselineScope = true,
+  bool supportsBaselineScope = false,
 }) {
   final acceptsScope = supportsBaselineScope;
   final estimate = suiteCount * perSuiteBytes + marginBytes;
@@ -101,7 +101,7 @@ Future<String?> fullSuiteBaselinePreflight(
   String projectRoot, {
   Map<String, String>? environment,
   DfRunner dfRunner = _launchDf,
-  bool supportsBaselineScope = true,
+  bool supportsBaselineScope = false,
 }) async {
   if (!Platform.isLinux && !Platform.isMacOS) return null;
   var suiteCount = 0;
