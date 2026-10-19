@@ -5,13 +5,14 @@ import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/project_flavor.dart';
 
 class ServiceInterfaceBuilder {
   final SpecLibrary specLibrary;
 
   const ServiceInterfaceBuilder({this.specLibrary = const SpecLibrary()});
 
-  String build(GeneratorConfig config, {FileSystem? fileSystem}) {
+  Future<String> build(GeneratorConfig config, {FileSystem? fileSystem}) async {
     final serviceName = config.effectiveService;
     if (serviceName == null) {
       throw ArgumentError(
@@ -88,7 +89,12 @@ class ServiceInterfaceBuilder {
         ..methods.addAll(methods),
     );
 
-    final imports = <String>['package:zuraffa/zuraffa.dart'];
+    final fs = fileSystem ?? FileSystem.create();
+    final flavor = await detectProjectFlavor(config.outputDir, fs);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
+    final imports = <String>[coreImport];
     if (config.isEntityBased) {
       // For entity methods, we definitely need the entity import
       final entityName = config.name;
