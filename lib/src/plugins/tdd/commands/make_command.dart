@@ -773,6 +773,29 @@ class MakeCommand extends Command<void> {
       final authoringClass = classify(authoringRun);
       if (authoringClass != RedClassification.assertion) {
         await authorTestFile.writeAsString(originalContent);
+        if (authoringRun.timedOut) {
+          // Issue #1921: the killed child never observed the scenario, so
+          // the refusal must name the deadline as infrastructure — blaming
+          // the supplied finders sends the author chasing a problem that
+          // is not theirs.
+          final deadline = timeoutOverride ?? TddTimeouts.defaultSingleTest;
+          print(
+            'zfa tdd make: skin authoring could not re-certify behavior '
+            '"${record.behaviorId}" — the authored-test run TIMED OUT '
+            'after ${formatTddTimeout(deadline)} (infrastructure deadline '
+            'exceeded, not a finding about the supplied finders). The '
+            'scaffolded test was restored byte-identical; re-run with a '
+            'larger --timeout <minutes> on a loaded host.',
+          );
+          print('   ${authoringRun.output.split('\n').first}');
+          _printSummary(
+            behavior: record.behaviorId,
+            outcome: MakeOutcome.timeout,
+            feature: target.featureName,
+          );
+          exitCode = 1;
+          return;
+        }
         final why = authoringClass == RedClassification.unexpectedGreen
             ? 'the authored test PASSES against the certified-red subject '
                   'shape — the born-green vacuity (issue #1036 class): the '
