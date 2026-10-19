@@ -51,6 +51,7 @@ import 'binary_staleness.dart';
 import 'plugin_loader.dart';
 import '../commands/agent_command.dart';
 import '../commands/zap_command.dart';
+import '../commands/search_command.dart';
 
 /// CLI runner for Zuraffa.
 class CliRunner {
@@ -270,6 +271,7 @@ class CliRunner {
     // (mounted with the runtime auditor subcommands kit/verify/drive).
     _runner.addCommand(AgentCommand());
     _runner.addCommand(ZapCommand());
+    _runner.addCommand(SearchCommand());
   }
 
   void _loadAndRegisterPlugins() {
