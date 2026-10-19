@@ -83,7 +83,7 @@ void main() {
 
     final out = await drive(['plugin', 'install', pluginDir.path]);
     expect(out.toLowerCase(), contains('undeclared'));
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
   });
 
   test('two plugins with overlapping commands conflict', () async {
@@ -119,7 +119,7 @@ void main() {
     File(p.join(p2.path, 'manifest.json')).writeAsStringSync(signManifest(m2));
     final out = await drive(['plugin', 'install', p2.path]);
     expect(out.toLowerCase(), contains('conflict'));
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
   });
 
   test('verify passes for signed manifest', () async {
@@ -162,7 +162,7 @@ void main() {
 
       final out = await drive(['plugin', 'install', pluginDir.path]);
       expect(out.toLowerCase(), contains('undeclared'));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
     },
   );
 
@@ -186,6 +186,6 @@ void main() {
 
     final out = await drive(['plugin', 'install', pluginDir.path, '--dry-run']);
     expect(out.toLowerCase(), contains('undeclared'));
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
   });
 }
