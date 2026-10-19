@@ -107,7 +107,7 @@ dependencies:
         await withCertifiedDependency();
         final out = await runShell(['--zuraffa-app']);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final src = myAppSrc();
         expect(
           src,
@@ -143,7 +143,7 @@ dependencies:
       final out = await runShell(['--zuraffa-app']);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         isNot(0),
         reason:
             'a certified shell the target cannot resolve must be a '
@@ -172,7 +172,7 @@ dependencies:
 
         final out = await runShell(['--zuraffa-app']);
 
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(out, contains('flutter pub add zuraffa_ui'));
         expect(
           File(p.join(workspace.path, 'lib', 'main.dart')).existsSync(),
@@ -187,7 +187,7 @@ dependencies:
       await withCertifiedDependency();
       final out = await runShell(['--zuraffa-app', '--skin-audit']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final src = myAppSrc();
       expect(src, contains('ZuraffaApp('));
       expect(
@@ -213,7 +213,7 @@ dependencies:
       await withCertifiedDependency();
       final out = await runShell(['--zuraffa-app', '--xray']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final src = myAppSrc();
       expect(src, contains('ZuraffaApp('));
       expect(src, contains('XRayScope'));
@@ -223,7 +223,7 @@ dependencies:
         '(no regression)', () async {
       final out = await runShell();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final src = myAppSrc();
       expect(src, contains('MaterialApp.router('));
       expect(src, isNot(contains('ZuraffaApp(')));

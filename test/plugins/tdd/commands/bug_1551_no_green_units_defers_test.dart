@@ -188,7 +188,7 @@ void main() {
       expect(out, contains('phase 2'));
       // The make still exits non-zero — the same honesty class as every
       // other unexpressible site (exit 1, no green entry).
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       // The composition lane DID engage (the plan spawned the compose
       // step) — the pin is about the grading of its failure.
       final log = await fx.readFakeZfaLog();
@@ -265,7 +265,7 @@ void main() {
         makeArgs(fx, id: 'A1', zfaBin: zfaBin),
       );
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains('make: behavior=A1 outcome=green feature=${fx.featureName}'),
@@ -300,7 +300,7 @@ void main() {
 
         final out = await runner.runCapturing(composeArgs(fx, id: 'A1'));
 
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(
           out,
           contains(

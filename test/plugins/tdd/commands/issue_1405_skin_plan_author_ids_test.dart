@@ -101,7 +101,11 @@ void main() {
       await plan(
         specWithLanes('W1 (renders the login screen pixel-perfect, W2'),
       );
-      expect(exitCode, 0, reason: 'the sanitizable declaration plans green');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'the sanitizable declaration plans green',
+      );
       final skin = await laneFile('04-SKIN.md').readAsString();
       expect(
         skin,
@@ -118,7 +122,7 @@ void main() {
 
     test('a bare-prose token after a leading W-id also sanitizes', () async {
       await plan(specWithLanes('W1 renders the login screen, W2'));
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       final skin = await laneFile('04-SKIN.md').readAsString();
       expect(skin, contains('| W1 | renders the login screen |'));
       expect(skin.contains('| W1 renders the login screen |'), isFalse);
@@ -130,7 +134,11 @@ void main() {
     test('the issue\'s malformed declaration refuses exit 2 naming the '
         'no-pattern token, and writes NO 04-SKIN.md', () async {
       final out = await plan(specWithLanes(malformedSkinBehaviors));
-      expect(exitCode, 2, reason: 'the malformed table is never ingested');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        2,
+        reason: 'the malformed table is never ingested',
+      );
       expect(
         laneFile('04-SKIN.md').existsSync(),
         isFalse,
@@ -150,7 +158,7 @@ void main() {
       final out = await plan(
         specWithLanes('Sign In header and subtitle, an or divider, W2'),
       );
-      expect(exitCode, 2);
+      expect(CliRunner.lastDispatchedExitCode, 2);
       expect(laneFile('04-SKIN.md').existsSync(), isFalse);
       expect(out, contains('Sign In header and subtitle'));
       expect(out, contains('an or divider'));
@@ -159,7 +167,7 @@ void main() {
     test('a prose fragment wedged between clean ids still refuses the '
         'whole plan', () async {
       await plan(specWithLanes('W1, a full-width guest outline button, W2'));
-      expect(exitCode, 2);
+      expect(CliRunner.lastDispatchedExitCode, 2);
       expect(laneFile('04-SKIN.md').existsSync(), isFalse);
     });
   });
@@ -168,7 +176,7 @@ void main() {
     test('clean W1-W9 plans nine strict W rows the reader resolves as nine '
         'skin behaviors', () async {
       await plan(specWithLanes('W1-W9', coreBehaviors: 'A1, A2'));
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       final skin = await laneFile('04-SKIN.md').readAsString();
       final wRows = RegExp(
         r'^\| (W\d+) \|',
@@ -223,7 +231,11 @@ Lanes:
     flutter_allowed: conditionally
 ```
 ''');
-        expect(exitCode, 0, reason: 'clean ids keep planning green');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'clean ids keep planning green',
+        );
         final skin = await laneFile('04-SKIN.md').readAsString();
         expect(skin, contains('| W1 |'));
         expect(skin, contains('| W2 |'));
@@ -261,7 +273,7 @@ Lanes:
     flutter_allowed: true
 ```
 ''');
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
         final engine = await laneFile('04-ENGINE.md').readAsString();
         expect(
           engine,

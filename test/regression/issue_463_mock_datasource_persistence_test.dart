@@ -50,8 +50,17 @@ void main() {
     await entityDir.create(recursive: true);
     final entityFile = File('${entityDir.path}/task.dart');
     await entityFile.writeAsString(
-      'class Task { final String id; final String spec; final String status; '
-      'const Task(this.id, this.spec, this.status); }',
+      'class Task {\n'
+      '  final String id;\n'
+      '  final String spec;\n'
+      '  final String status;\n'
+      '\n'
+      '  const Task(this.id, this.spec, this.status);\n'
+      '\n'
+      '  Task copyWithField(Object field, Object? value) => this;\n'
+      '}\n'
+      '\n'
+      'class TaskPatch {}\n',
     );
 
     final builder = MockBuilder(

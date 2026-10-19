@@ -70,7 +70,7 @@ void main() {
       'B-001',
     ]);
 
-    expect(exitCode, 0, reason: 'out:\n$out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
     final log = await File(fx.cycleLogPath).readAsString();
     // Both target-test and suite captured.
     expect(log, contains('- command: `dart test'));
@@ -120,7 +120,7 @@ void main() {
       'B-001',
     ]);
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('regression'));
     expect(out, contains('sibling green test passes'));
     expect(
@@ -177,7 +177,11 @@ void main() {
       'B-001',
     ]);
 
-    expect(exitCode, 0, reason: 'pre-existing failure tolerated; out:\n$out');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'pre-existing failure tolerated; out:\n$out',
+    );
     expect(out, contains('outcome=green'));
     final log = await File(fx.cycleLogPath).readAsString();
     expect(log, contains('- suite: baseline='));

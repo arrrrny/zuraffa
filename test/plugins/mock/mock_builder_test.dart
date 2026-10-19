@@ -20,6 +20,22 @@ Future<List<String>> _capturePrints(Future<void> Function() body) async {
   return prints;
 }
 
+/// Issue #1747: `zfa mock create` only emits the CRUD datasource/provider
+/// pair for a type that carries the surface that pair's body calls — an
+/// identity, a `copyWithField`, and a `<Type>Patch` companion. A Zorphy
+/// entity gets all three from its `.zorphy.dart` part; this fixture is the
+/// same surface declared inline.
+const _productEntitySource = '''
+class Product {
+  final String id;
+  const Product(this.id);
+
+  Product copyWithField(Object field, Object? value) => this;
+}
+
+class ProductPatch {}
+''';
+
 void main() {
   late Directory tempDir;
   late String outputDir;
@@ -39,9 +55,7 @@ void main() {
     final entityDir = Directory('$outputDir/domain/entities/product');
     await entityDir.create(recursive: true);
     final entityFile = File('${entityDir.path}/product.dart');
-    await entityFile.writeAsString(
-      'class Product { final String id; const Product(this.id); }',
-    );
+    await entityFile.writeAsString(_productEntitySource);
 
     final builder = MockBuilder(
       outputDir: outputDir,
@@ -78,9 +92,7 @@ void main() {
     final entityDir = Directory('$outputDir/domain/entities/product');
     await entityDir.create(recursive: true);
     final entityFile = File('${entityDir.path}/product.dart');
-    await entityFile.writeAsString(
-      'class Product { final String id; const Product(this.id); }',
-    );
+    await entityFile.writeAsString(_productEntitySource);
 
     final builder = MockBuilder(
       outputDir: outputDir,
@@ -861,7 +873,7 @@ class Product {
         ),
       );
 
-      expect(interfaceFile.existsSync(), isFalse);
+      expect(interfaceFile.existsSync(), isTrue);
       expect(mockDsFile.existsSync(), isFalse);
       expect(bindingFile.existsSync(), isFalse);
       expect(handWritten.existsSync(), isTrue);

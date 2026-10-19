@@ -159,7 +159,7 @@ void main() {
       final out = await runMake(fx, zfaBin);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         1,
         reason:
             'the placeholder red must not certify: '
@@ -198,7 +198,7 @@ void main() {
 
       final out = await runMake(fx, zfaBin);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(
         out,
         contains('outcome=generation-error'),
@@ -235,7 +235,7 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'gen', 'U-1323', '--project', fx.root.path]);
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final generated = await fx.registryRecordOf('U-1323');
       final generatedTest = await File(
         generated['test_path'] as String,
@@ -286,7 +286,7 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'gen', 'U-1324', '--project', fx.root.path]);
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final generated = await fx.registryRecordOf('U-1324');
       final generatedTest = await File(
         generated['test_path'] as String,
@@ -318,7 +318,7 @@ void main() {
 
       // Cycle 1: the placeholder red stops with the surfaced seam.
       final first = await runMake(fx, zfaBin1);
-      expect(exitCode, 1, reason: first);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: first);
       expect(first, contains('outcome=hand-delta-required'), reason: first);
 
       // The HAND-EDIT (the seam's designed remedy): replace `_arg0()`
@@ -337,7 +337,7 @@ void main() {
       final second = await runMake(fx, zfaBin2);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         0,
         reason:
             'the hand-edited red re-certified and generation landed: '
@@ -370,7 +370,7 @@ void main() {
       );
       final zfaBin1 = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
       final first = await runMake(fx, zfaBin1);
-      expect(exitCode, 1, reason: first);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: first);
 
       final testFile = File(fx.testPathOf('U6'));
       testFile.writeAsStringSync(handEditedGreenTest);
@@ -381,7 +381,7 @@ void main() {
       final second = await runMake(fx, zfaBin2);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         0,
         reason: 'the updated test passes — re-certified green: $second',
       );
