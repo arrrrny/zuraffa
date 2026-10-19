@@ -126,10 +126,7 @@ abstract class LoginDataSource with Loggable, FailureHandler {
         isTrue,
       );
       expect(source.contains('dataSource.get;'), isTrue);
-      expect(
-        source.contains('final Future<int> Function() count\$ ='),
-        isTrue,
-      );
+      expect(source.contains('final Future<int> Function() count\$ ='), isTrue);
     });
 
     test(
@@ -150,10 +147,7 @@ abstract class LoginDataSource with Loggable, FailureHandler {
           isTrue,
         );
         // count: zero-arg method — behavioral call with no arguments.
-        expect(
-          source.contains('await dataSource.count()'),
-          isTrue,
-        );
+        expect(source.contains('await dataSource.count()'), isTrue);
         // update: id from the first mock record + parameterless patch.
         expect(
           source.contains(
