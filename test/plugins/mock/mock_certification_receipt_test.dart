@@ -28,7 +28,7 @@ void main() {
   var exitCodeAtEntry = 0;
 
   setUp(() async {
-    exitCodeAtEntry = exitCode;
+    exitCodeAtEntry = CliRunner.lastDispatchedExitCode;
     tempDir = await Directory.systemTemp.createTemp('mock_receipt_970_');
     await _scaffoldProduct(tempDir.path);
   });
@@ -220,7 +220,11 @@ void main() {
 
       // Fresh generation: green through the CLI as well.
       final cliOut = await runCli(['proof', 'check']);
-      expect(exitCode, 0, reason: 'zfa proof check exits 0:\n$cliOut');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'zfa proof check exits 0:\n$cliOut',
+      );
       exitCode = exitCodeAtEntry;
 
       // Hand-edit a receipted artifact: the digest no longer matches.
@@ -255,7 +259,7 @@ void main() {
       // And through the CLI: exit 1.
       final cliOut2 = await runCli(['proof', 'check']);
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         1,
         reason: 'zfa proof check exits 1 on drift:\n$cliOut2',
       );
@@ -287,11 +291,20 @@ Future<void> _scaffoldProduct(String root) async {
     p.join(root, 'lib', 'src', 'domain', 'entities', 'product'),
   );
   await dir.create(recursive: true);
+  // Issue #1747: `zfa mock create` only emits the CRUD datasource/provider
+  // pair for a type carrying the surface that pair's body calls — an
+  // identity, a `copyWithField`, and a `<Type>Patch` companion. A Zorphy
+  // entity gets all three from its `.zorphy.dart` part; this fixture is the
+  // same surface declared inline.
   await File(p.join(dir.path, 'product.dart')).writeAsString('''
 class Product {
   final String id;
   final String name;
   const Product({required this.id, required this.name});
+
+  Product copyWithField(Object field, Object? value) => this;
 }
+
+class ProductPatch {}
 ''');
 }

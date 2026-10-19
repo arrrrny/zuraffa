@@ -46,7 +46,7 @@ void main() {
     await file.writeAsString(
       jsonEncode({
         'command': 'dart test',
-        'exitCode': 1,
+        'CliRunner.lastDispatchedExitCode': 1,
         'failedTests': failed,
         'capturedAt': '2026-09-02T00:00:00.000Z',
         'parseable': true,
@@ -117,7 +117,7 @@ void main() {
         contains('every failure is pre-existing at baseline'),
         reason: out,
       );
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // Zero files modified: the tolerated red never justifies a mutation.
       expect(fx.checksumTestAndLib(), equals(checksumsBefore));
     });
@@ -141,7 +141,7 @@ void main() {
 
       expect(out, contains('outcome=not-green'), reason: out);
       expect(out, contains('fresh genuine failure'), reason: out);
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(fx.checksumTestAndLib(), equals(checksumsBefore));
     });
 
@@ -157,7 +157,7 @@ void main() {
       );
 
       expect(out, contains('outcome=refactored'), reason: out);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // The evidence records the tolerated pre-existing red honestly.
       final log = await File(fx.cycleLogPath).readAsString();
       expect(log, contains('preflight: tolerated'));
@@ -189,7 +189,7 @@ void main() {
       );
 
       expect(out, contains('outcome=not-green'), reason: out);
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(fx.checksumTestAndLib(), equals(checksumsBefore));
     });
 
@@ -208,7 +208,7 @@ void main() {
 
       expect(out, contains('outcome=not-green'), reason: out);
       expect(out, contains('unreadable'), reason: out);
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(fx.checksumTestAndLib(), equals(checksumsBefore));
     });
 
@@ -255,7 +255,7 @@ fi
       );
 
       expect(out, contains('outcome=regression'), reason: out);
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       // test/ stays byte-identical (FR-004) even though the format pass
       // may have normalized lib/ before the unparseable re-proof fired.
       expect(fx.checksumTestTree(), equals(testTreeBefore));
@@ -270,7 +270,7 @@ fi
       final out = await runner.runCapturing(refactorArgs());
 
       expect(out, contains('outcome=not-green'), reason: out);
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(fx.checksumTestAndLib(), equals(checksumsBefore));
     });
   });
@@ -323,7 +323,7 @@ fi
         fx.fakeZfaBin,
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // The baseline was cached from the suite spy (1 pre-existing failure).
       expect(File(fx.runBaselinePath).existsSync(), isTrue, reason: out);
       final refactorArgv = fx
@@ -426,7 +426,7 @@ dev_dependencies:
         ),
         reason: out,
       );
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final state =
           jsonDecode(await File(fx.runStatePath).readAsString())
               as Map<String, dynamic>;

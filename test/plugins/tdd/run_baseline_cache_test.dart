@@ -78,7 +78,7 @@ void main() {
         contains('make: behavior=B-001 outcome=skipped feature=$feature'),
         reason: out,
       );
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       // Issue #741: the skip transition must not run the full suite —
       // the drift re-run (scoped single) is the only evidence run.
@@ -125,7 +125,7 @@ void main() {
       await cache.writeAsString(
         jsonEncode({
           'command': suiteSpy,
-          'exitCode': 1,
+          'CliRunner.lastDispatchedExitCode': 1,
           'failedTests': ['test/other_test.dart: other behavior red'],
           'capturedAt': '2026-09-01T00:00:00.000Z',
           'parseable': true,
@@ -163,7 +163,7 @@ void main() {
         contains('make: behavior=B-001 outcome=green feature=$feature'),
         reason: out,
       );
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       // Issue #741: baseline from the cache, guard from the scoped
       // single-test result — the suite itself never runs.
@@ -206,7 +206,7 @@ void main() {
         contains('make: behavior=B-001 outcome=green feature=$feature'),
         reason: out,
       );
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       // No flag → no cache involvement: the live suite runs for the
       // baseline AND the guard (2 invocations), unchanged.
@@ -243,7 +243,7 @@ void main() {
         contains('make: behavior=B-001 outcome=green feature=$feature'),
         reason: out,
       );
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // Fallback: live baseline + live guard.
       expect(fx.spyLog('suite').length, 2);
     });
@@ -304,7 +304,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       // The suite ran exactly ONCE for the whole run (the cached
       // baseline) — not once per behavior.
@@ -355,7 +355,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(File(fx.runBaselinePath).existsSync(), isFalse);
       for (final line in fx.stepArgvLog().where((l) => l.contains(' make '))) {
         expect(line, isNot(contains('--suite-baseline')));
@@ -403,7 +403,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('result=complete'), reason: out);
 
       // The resume ran the suite exactly once (its own fresh baseline).

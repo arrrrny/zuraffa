@@ -38,7 +38,7 @@ void main() {
         exitCode = 0;
         final output = await runner.runCapturing(['skin', 'grid', 'Product']);
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           ExitProtocol.usage,
           reason:
               'an unimplemented-but-formerly-advertised layout must fail '

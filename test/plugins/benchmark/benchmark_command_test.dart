@@ -40,6 +40,7 @@ void main() {
   });
 
   tearDown(() async {
+    exitCode = 0;
     if (await tempDir.exists()) {
       await tempDir.delete(recursive: true);
     }

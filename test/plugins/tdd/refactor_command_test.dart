@@ -70,7 +70,7 @@ void main() {
           ),
         ),
       );
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
     });
 
     test('U14/A2: red suite refuses — outcome=not-green, failing test named, '
@@ -85,7 +85,7 @@ void main() {
       expect(out, contains('zfa tdd make'));
       // The failing test must be named in the output.
       expect(out.toLowerCase(), contains('red baseline'));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       // Zero files modified.
       expect(fx.checksumTestAndLib(), equals(checksumsBefore));
     });
@@ -109,7 +109,7 @@ void main() {
         );
 
         expect(out, contains('outcome=runner-error'));
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
         expect(fxBroken.checksumTestAndLib(), equals(checksumsBefore));
       } finally {
         fxBroken.dispose();
@@ -126,7 +126,7 @@ void main() {
 
       expect(out.toLowerCase(), contains('tdd-profile.md'));
       expect(out, contains('outcome=runner-error'));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
     });
 
     test(
@@ -167,7 +167,7 @@ void main() {
           ),
         ),
       );
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
 
       // When actions were applied, each is recorded with its command.
       if (out.contains('outcome=refactored')) {
@@ -250,7 +250,7 @@ void main() {
         final out = await runner.runCapturing(refactorArgs(fx));
 
         if (out.contains('outcome=refactored')) {
-          expect(exitCode, 0);
+          expect(CliRunner.lastDispatchedExitCode, 0);
           final log = await File(fx.cycleLogPath).readAsString();
           expect(log, contains('## Cycle:'));
           expect(log, contains('- kind: refactor'));
@@ -266,7 +266,7 @@ void main() {
           final out = await runner.runCapturing(refactorArgs(fx));
 
           expect(out, contains('outcome=clean'));
-          expect(exitCode, 0);
+          expect(CliRunner.lastDispatchedExitCode, 0);
           // No fabricated actions: applied count is 0.
           final match = RegExp(r'applied=(\d+)').firstMatch(out);
           expect(match, isNotNull);
@@ -305,7 +305,7 @@ void main() {
           contains(RegExp(r'outcome=(clean|refactored)')),
           reason: 'refactor output:\n$out',
         );
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
         // The build pass actually invoked the resolved entrypoint.
         final calls = await fx.readFakeZfaLog();
         expect(calls, contains('build'));
@@ -328,7 +328,7 @@ void main() {
         await fx.seedAlreadyCleanLib();
         var runner = CliRunner(exitOnCompletion: false);
         await runner.runCapturing(refactorArgs(fx));
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
 
         // Red path → non-zero.
         final fxRed = await TddFixture.create();
@@ -340,7 +340,7 @@ void main() {
           exitCode = 0;
           runner = CliRunner(exitOnCompletion: false);
           await runner.runCapturing(refactorArgs(fxRed, zfaBin: fxRedZfa));
-          expect(exitCode, isNot(0));
+          expect(CliRunner.lastDispatchedExitCode, isNot(0));
         } finally {
           fxRed.dispose();
           exitCode = 0;

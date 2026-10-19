@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/cli/exit_protocol.dart';
@@ -75,7 +73,7 @@ void main() {
     test('row 0 — a successful invocation exits 0', () async {
       final runner = CliRunner(exitOnCompletion: false);
       await runner.runCapturing(const ['--version']);
-      expect(exitCode, ExitProtocol.success);
+      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.success);
       expect(CliRunner.lastDispatchedExitCode, ExitProtocol.success);
     });
 

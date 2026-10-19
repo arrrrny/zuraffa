@@ -50,6 +50,7 @@ dev_dependencies:
   });
 
   tearDown(() {
+    exitCode = 0;
     if (workspace.existsSync()) {
       try {
         workspace.deleteSync(recursive: true);

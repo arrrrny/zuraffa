@@ -211,7 +211,7 @@ void main() {
       ]);
 
       expect(out, contains('outcome=refactored'), reason: out);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       // The scoped re-proof names its scope.
       expect(out, contains('re-proof: scoped'), reason: out);
@@ -263,7 +263,7 @@ void main() {
       ]);
 
       expect(out, contains('outcome=refactored'), reason: out);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // The fallback is NAMED, never silent.
       expect(out, contains('re-proof: full'), reason: out);
 
@@ -291,7 +291,7 @@ void main() {
         ]);
 
         expect(out, contains('outcome=refactored'), reason: out);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('re-proof: full'), reason: out);
         final invocations = fx.spyLog('suite');
         expect(invocations, hasLength(2), reason: out);
@@ -370,7 +370,7 @@ void main() {
 
       expect(out, contains('re-proof: scoped'), reason: out);
       expect(out, contains('outcome=refactored'), reason: out);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // Preflight (0 args) then the scoped re-proof: the spaced path
       // arrived as exactly ONE argument.
       final invocations = fx.spyLog('suite-count');
