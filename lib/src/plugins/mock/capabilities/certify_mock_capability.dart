@@ -31,6 +31,7 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/project/project_root.dart';
 import '../certification/mock_certification_sandbox.dart';
+import '../../../utils/entity_analyzer.dart';
 import '../certification/mock_certifier.dart';
 import '../mock_plugin.dart';
 import '../../../core/plugin_system/capability.dart';
@@ -169,6 +170,19 @@ class CertifyMockCapability implements ZuraffaCapability {
       service: parsed.service,
       domain: parsed.domain,
     );
+
+    // Issue #1887: an enum/fixture-only entity has no CRUD surface to
+    // certify — the generator skipped it by design (#1037). Not a
+    // refusal: report success with the reason, no receipt to write.
+    final outputDir = p.join(projectRoot, 'lib', 'src');
+    final fixtureOnly = EntityAnalyzer.isEnum(name, outputDir);
+    if (fixtureOnly) {
+      stdout.writeln(
+        'ℹ️  $name: mock data generated; no datasource surface to '
+        'certify (issue #1037).',
+      );
+      return 0;
+    }
 
     // Refusal BEFORE the sandbox ran: no mock artifacts / no interface
     // to pin — a different failure class than a red contract.

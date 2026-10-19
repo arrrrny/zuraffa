@@ -293,8 +293,24 @@ class CreateMockCapability implements ZuraffaCapability {
       );
     }
 
+    if (receipt == null) {
+      // Issue #1887: enum/fixture-only entity — no CRUD surface to
+      // certify; the mock data was generated and there is nothing else
+      // to prove. Report success instead of failing on the absent
+      // datasource.
+      stdout.writeln(
+        'ℹ️  $name: mock data generated; no datasource surface to '
+        'certify (issue #1037).',
+      );
+      return ExecutionResult(
+        success: true,
+        files: files.map((f) => f.path).toList(),
+        data: {'generatedFiles': files, 'certified': true},
+      );
+    }
+
     stdout.writeln(
-      '⚙ mock-cert: entity=$name methods=${receipt!.methods.length} '
+      '⚙ mock-cert: entity=$name methods=${receipt.methods.length} '
       'satisfied=${receipt.methods.where((m) => m.value).length} '
       'digest=${receipt.contractDigest.substring(0, 12)}…',
     );

@@ -17,6 +17,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../../../core/dependencies/dependency_wirer.dart';
+import '../../../utils/entity_analyzer.dart';
 import '../../../utils/string_utils.dart';
 import 'cert_registry.dart';
 import 'format_canonical_digest.dart';
@@ -127,6 +128,28 @@ class MockCertifier {
     String? domain,
   }) async {
     final logs = <String>[];
+
+    // Issue #1887: an enum entity (or any fixture-only type with no CRUD
+    // surface, #1037/#1747) deliberately has no mock datasource/provider
+    // to certify — the generator skips that surface by design. Certifying
+    // against the absent artifact is unsatisfiable (the remedy would be
+    // the very command that just ran). Treat it as certified-with-nothing:
+    // mock data was generated, there is no CRUD surface to prove.
+    final fixtureOnly = EntityAnalyzer.isEnum(entityName, outputDir);
+    if (fixtureOnly) {
+      logs.add(
+        '$entityName is an enum/fixture-only entity — mock data '
+        'generated; no CRUD datasource surface to certify (issue #1037).',
+      );
+      return MockCertificationOutcome(
+        certified: true,
+        entity: entityName,
+        contractTestSource: null,
+        receipt: null,
+        methodNames: const [],
+        logs: logs,
+      );
+    }
 
     // 1. The mock subject must exist.
     final mockPath = MockContractTestWriter.mockDatasourcePath(
