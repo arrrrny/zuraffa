@@ -506,8 +506,30 @@ class MockContractTestWriter {
     if (t.startsWith('InitializationParams')) {
       return 'const InitializationParams(timeout: Duration.zero)';
     }
-    if (t == entityName) return '${entityName}MockData.sample$entityName';
-    if (_isEntityDartName(t, outputDir)) {
+    if (t == entityName) {
+      // Only synthesize a sample when the mock data fixture exists;
+      // otherwise degrade to the signature pin (issue #1927).
+      if (File(
+        p.join(
+          outputDir,
+          'data',
+          'mock',
+          '${StringUtils.camelToSnake(t)}_mock_data.dart',
+        ),
+      ).existsSync()) {
+        return '${entityName}MockData.sample$entityName';
+      }
+      return null;
+    }
+    if (_isEntityDartName(t, outputDir) &&
+        File(
+          p.join(
+            outputDir,
+            'data',
+            'mock',
+            '${StringUtils.camelToSnake(t)}_mock_data.dart',
+          ),
+        ).existsSync()) {
       return '${t}MockData.sample$t';
     }
 

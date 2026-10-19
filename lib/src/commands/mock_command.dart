@@ -714,13 +714,31 @@ Future<void> _runMockGeneration({
     return;
   }
 
-  if (!result.success) {
+  // Issue #1927: a certification failure (result.success == false but files
+  // were still emitted) must still produce the --json envelope on the
+  // failure path instead of returning with no stdout document. Track the
+  // failure and keep going when artifacts exist; only a zero-file run
+  // refuses without an envelope (issue #769 / A2b).
+  final generationFailed = !result.success;
+  if (generationFailed) {
     _emit(jsonMode, '❌ Error: ${result.message}');
-    exitCode = 1;
-    return;
   }
 
   final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+
+  if (files.isEmpty) {
+    // Issue #769: zero files means the request produced nothing — a
+    // refusal, not a success.
+    _emit(
+      jsonMode,
+      '⚠️ No files were generated (nothing changed). If the generator '
+      'printed a skip note above, re-run inside a project that satisfies '
+      'its guard; otherwise re-run with --verbose to inspect the resolved '
+      'arguments.',
+    );
+    exitCode = 1;
+    return;
+  }
 
   if (files.isEmpty) {
     // Issue #769: zero files means the request produced nothing — a
@@ -827,7 +845,8 @@ Future<void> _runMockGeneration({
     }
   }
 
-  final conformanceFailed = certification != null && !certification.conformance;
+  final conformanceFailed =
+      generationFailed || (certification != null && !certification.conformance);
   if (conformanceFailed) {
     exitCode = 1;
   }
