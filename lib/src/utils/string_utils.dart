@@ -129,4 +129,31 @@ class StringUtils {
     if (input.isEmpty) return '';
     return input.replaceAll('_', '/');
   }
+
+  /// Pluralizes an identifier preserving its casing.
+  ///
+  /// Handles the common English cases used by entity names so generated
+  /// mock data exposes its collection under a conventional plural
+  /// (`SearchQuery` -> `searchQueries`, `Address` -> `addresses`) instead of a
+  /// naive `+ 's'` (`searchQuerys`). Applies the consonant + `y` -> `ies`
+  /// rule and the `s`/`x`/`z`/`ch`/`sh` -> `es` rule. One helper produces the
+  /// name everywhere so the mock data class and every reference to it agree.
+  static String pluralize(String input) {
+    if (input.isEmpty) return input;
+    final lower = input.toLowerCase();
+    if (lower.endsWith('y') && input.length >= 2) {
+      final prev = lower[input.length - 2];
+      if (!'aeiou'.contains(prev)) {
+        return '${input.substring(0, input.length - 1)}ies';
+      }
+    }
+    if (lower.endsWith('s') ||
+        lower.endsWith('x') ||
+        lower.endsWith('z') ||
+        lower.endsWith('ch') ||
+        lower.endsWith('sh')) {
+      return '${input}es';
+    }
+    return '${input}s';
+  }
 }
