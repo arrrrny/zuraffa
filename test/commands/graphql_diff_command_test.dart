@@ -76,7 +76,7 @@ void main() {
       // Breaking/non-breaking classification shown.
       expect(output.toLowerCase(), contains('breaking'));
       // Exit code 1 because breaking changes exist.
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
     });
 
     test('clean diff reports no changes and exits 0', () async {
@@ -96,7 +96,7 @@ void main() {
         '--dir=$cacheDir',
       ]);
       expect(output.toLowerCase(), contains('no breaking'));
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
     });
 
     test('--old/--new explicit files override the cache', () async {
@@ -117,7 +117,7 @@ void main() {
         '--new=${newFile.path}',
       ]);
       expect(output, contains('Product.description'));
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
     });
 
     test('unknown name lists cached schemas and errors', () async {
@@ -134,7 +134,7 @@ void main() {
       ]);
       expect(output.toLowerCase(), contains('error'));
       expect(output, contains('vendure'));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
     });
 
     test('no previous version suggests a first pull', () async {
@@ -150,7 +150,7 @@ void main() {
         '--dir=$cacheDir',
       ]);
       expect(output.toLowerCase(), contains('pull'));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
     });
   });
 }

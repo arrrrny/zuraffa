@@ -67,7 +67,7 @@ void main() {
           '- f3-dep → f2-mid\n',
         );
         final out = await drive(plan: plan);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(await fx.readCalls(), [
           'tdd run f1-base --project ${fx.root.path}',
           'tdd verify --feature f1-base --project ${fx.root.path}',
@@ -88,7 +88,7 @@ void main() {
         ]);
         final plan = await fx.writePlan('# Plan — no dependencies\n');
         final out = await drive(plan: plan);
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final calls = await fx.readCalls();
         expect(
           calls.indexOf(calls.firstWhere((c) => c.contains('a-first'))),
@@ -113,7 +113,7 @@ void main() {
         name: 'inventory.json',
       );
       final out = await drive(plan: plan);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(await fx.readCalls(), [
         'tdd run f1-base --project ${fx.root.path}',
         'tdd verify --feature f1-base --project ${fx.root.path}',
@@ -127,7 +127,7 @@ void main() {
       await fx.writeManifest([(name: 'f1-base', ready: true, reason: '')]);
       final plan = await fx.writePlan('- f1-base -> f9-ghost\n');
       final out = await drive(plan: plan);
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(out, contains('f9-ghost'), reason: out);
       expect(await fx.readCalls(), isEmpty, reason: out);
     });
@@ -141,7 +141,7 @@ void main() {
         ]);
         final plan = await fx.writePlan('- c1 -> c2\n- c2 -> c1\n');
         final out = await drive(plan: plan);
-        expect(exitCode, 2, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
         expect(out, contains('c1'), reason: out);
         expect(await fx.readCalls(), isEmpty, reason: out);
       },
@@ -152,7 +152,7 @@ void main() {
       () async {
         await fx.writeManifest([(name: 'f1-base', ready: true, reason: '')]);
         final out = await drive(plan: '${fx.root.path}/no-such-plan.md');
-        expect(exitCode, 2, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
         expect(await fx.readCalls(), isEmpty, reason: out);
       },
     );
@@ -201,12 +201,16 @@ void main() {
         },
       );
       final first = await drive(plan: plan);
-      expect(exitCode, 1, reason: first); // stopped at f2-gap
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: first,
+      ); // stopped at f2-gap
 
       // "Fix the gap" and re-run with the same plan.
       await fx.rewriteFakeZfa(const {});
       final second = await drive(plan: plan);
-      expect(exitCode, 0, reason: second);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: second);
       final calls = await fx.readCalls();
       // f1-base was driven exactly once across BOTH runs (resume).
       expect(
@@ -230,7 +234,7 @@ void main() {
       await fx.writeManifest([(name: 'f1-base', ready: true, reason: '')]);
       await fx.writeSpec('f1-base', '# intent v1\n');
       final out = await drive();
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final progress = await fx.readProgress();
       final hash = progress!['features']['f1-base']['spec_hash'] as String?;
       expect(hash, isNotNull, reason: out);
@@ -245,13 +249,13 @@ void main() {
       ]);
       await fx.writeSpec('f1-base', '# intent v1\n');
       final first = await drive();
-      expect(exitCode, 0, reason: first);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: first);
       final baseline = await fx.readCalls();
 
       // The intent changed under a completed green run.
       await fx.writeSpec('f1-base', '# intent v2 — CHANGED\n');
       final second = await drive();
-      expect(exitCode, 3, reason: second);
+      expect(CliRunner.lastDispatchedExitCode, 3, reason: second);
       expect(second, contains('f1-base'), reason: second);
       expect(second, contains('drift'), reason: second);
       // Nothing new was driven: the call log is unchanged from run 1.
@@ -274,7 +278,7 @@ void main() {
       );
       await store.save(legacy, manifestFeatureNames: {'f1-base', 'f2-next'});
       final out = await drive();
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final calls = await fx.readCalls();
       expect(
         calls.where((c) => c.contains('f1-base')),
@@ -300,7 +304,11 @@ void main() {
           '- f1-base: FR-1, FR-2\n',
         );
         final out = await drive(plan: plan);
-        expect(exitCode, 1, reason: out); // incomplete: open gaps
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          1,
+          reason: out,
+        ); // incomplete: open gaps
         final ledger = await fx.readLedger();
         final planGaps = ledger
             .whereType<Map<String, dynamic>>()
@@ -323,7 +331,7 @@ void main() {
         '# Plan\n## Criteria\n- f1-base: FR-1, FR-2\n',
       );
       final out = await drive(plan: plan);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final ledger = await fx.readLedger();
       expect(
         ledger.whereType<Map<String, dynamic>>().where(
@@ -342,7 +350,11 @@ void main() {
       );
       await drive(plan: plan);
       final second = await drive(plan: plan);
-      expect(exitCode, 1, reason: second); // incomplete: open gaps persist
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: second,
+      ); // incomplete: open gaps persist
       final ledger = await fx.readLedger();
       final planGaps = ledger
           .whereType<Map<String, dynamic>>()
@@ -365,7 +377,7 @@ void main() {
         (id: 'B-002', traces: 'FR-2'),
       ]);
       final second = await drive(plan: plan);
-      expect(exitCode, 0, reason: second);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: second);
       final ledger = await fx.readLedger();
       final kinds = ledger.whereType<Map<String, dynamic>>().map(
         (e) => e['kind'],
@@ -397,7 +409,7 @@ void main() {
       ]);
       final plan = await fx.writePlan('- acc-composes -> unit-base\n');
       final out = await drive(plan: plan);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final calls = await fx.readCalls();
       final unitRun = calls.indexOf(
         'tdd run unit-base --project ${fx.root.path}',
@@ -416,7 +428,7 @@ void main() {
         (name: 'a-first', ready: true, reason: ''),
       ]);
       final out = await drive();
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(await fx.readCalls(), [
         'tdd run z-second --project ${fx.root.path}',
         'tdd verify --feature z-second --project ${fx.root.path}',

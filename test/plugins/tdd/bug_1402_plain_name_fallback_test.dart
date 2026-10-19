@@ -116,7 +116,7 @@ void main() {
           exitOnCompletion: false,
         ).runCapturing(['tdd', 'make', 'B-1402', '--project', fx.root.path]);
 
-        expect(exitCode, 0, reason: 'out: $out');
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
         expect(out, contains('outcome=skipped'));
         expect(
           out,
@@ -151,7 +151,7 @@ void main() {
           exitOnCompletion: false,
         ).runCapturing(['tdd', 'make', 'B-1402', '--project', fx.root.path]);
 
-        expect(exitCode, 1, reason: 'out: $out');
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: 'out: $out');
         expect(out, contains('outcome=runner-error'));
         expect(out, contains('issue #1402: --plain-name matched ZERO tests'));
         expect(out, contains('falling back to the whole target file'));
@@ -192,7 +192,7 @@ void main() {
         exitOnCompletion: false,
       ).runCapturing(['tdd', 'make', 'B-1402', '--project', fx.root.path]);
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(out, contains('outcome=skipped'));
       expect(out, isNot(contains('issue #1402')));
       expect(out, isNot(contains('falling back to the whole target file')));
@@ -234,7 +234,7 @@ coverage: 'dart test --coverage'
           exitOnCompletion: false,
         ).runCapturing(['tdd', 'make', 'B-1402', '--project', fx.root.path]);
 
-        expect(exitCode, 1, reason: 'out: $out');
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: 'out: $out');
         expect(out, contains('outcome=runner-error'));
         expect(out, contains('issue #1402: --plain-name matched ZERO tests'));
         expect(

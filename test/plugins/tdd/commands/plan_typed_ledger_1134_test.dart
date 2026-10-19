@@ -113,7 +113,7 @@ void main() {
       await File(p.join(featureDir, 'spec.md')).writeAsString(specWithSlots);
       final out = await plan();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final typedMd = File(p.join(tddDir, 'typed-ledger.md'));
       final typedJson = File(p.join(tddDir, 'typed-ledger.json'));
       expect(typedMd.existsSync(), isTrue, reason: 'the typed ledger markdown');
@@ -162,7 +162,7 @@ void main() {
     await File(p.join(featureDir, 'spec.md')).writeAsString(specWithSlots);
     final out = await plan();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     final md = await File(p.join(tddDir, 'typed-ledger.md')).readAsString();
     // The per-layout kind-coverage heatmap: kind rows × slot columns.
     expect(md, contains('## Per-layout kind coverage heatmap'));
@@ -197,7 +197,7 @@ void main() {
     await File(p.join(featureDir, 'spec.md')).writeAsString(specWithSlots);
     final out = await plan();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     final legacyMd = await File(p.join(tddDir, 'ui-ledger.md')).readAsString();
     // The 075 shape: the surface ledger table + the #1142 platform
     // section — unchanged by the typed pair.

@@ -125,7 +125,7 @@ void main() {
           contains(RegExp(r'refactor: feature=\S+ outcome=(clean|refactored)')),
           reason: 'refactor output:\n$out',
         );
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
 
         // The pass really mutated the receipted artifact (format normalized
         // the malformed bytes) — the drift precondition holds.
@@ -198,7 +198,11 @@ void main() {
           '--format',
           'json',
         ]);
-        expect(exitCode, 0, reason: 'no drift before the refactor');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'no drift before the refactor',
+        );
 
         // The sanctioned run's refactor pass CREATES the drift (issue #1311
         // repro): make receipted the bytes, then format rewrote them.
@@ -215,7 +219,11 @@ void main() {
           '--format',
           'json',
         ]);
-        expect(exitCode, 0, reason: 'post-refactor proof check: $out');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'post-refactor proof check: $out',
+        );
         final verdict = _lastJson(out);
         expect(verdict['ok'], true, reason: out);
         expect(verdict['valid'], true, reason: out);
@@ -268,7 +276,7 @@ void main() {
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(refactorArgs(fx));
       expect(out, contains('outcome=clean'));
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
 
       final after = receiptsDir.listSync().map((e) => e.path).toSet();
       expect(after, before, reason: 'no receipt may be appended on a no-op');
@@ -280,7 +288,7 @@ void main() {
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(refactorArgs(fx));
       expect(out, contains(RegExp(r'outcome=(clean|refactored)')));
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
 
       final records = await ReceiptStore(projectRoot: fx.root.path).loadAll();
       expect(
@@ -297,7 +305,7 @@ void main() {
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(refactorArgs(fx));
       expect(out, contains('outcome=not-green'));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
 
       final records = await ReceiptStore(projectRoot: fx.root.path).loadAll();
       expect(

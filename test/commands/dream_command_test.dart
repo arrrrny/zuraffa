@@ -473,7 +473,7 @@ class _ScriptedSpawner {
       // REAL command, in-process, hermetic.
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(argv);
-      final code = exitCode;
+      final code = CliRunner.lastDispatchedExitCode;
       exitCode = 0;
       return ProcessResult(0, code, out, '');
     }

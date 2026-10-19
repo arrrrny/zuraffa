@@ -194,6 +194,33 @@ class MockBuilder {
         return files;
       }
       if (!config.hasService) {
+        // Issue #1747: a non-enum type may still be no CRUD entity at all —
+        // a plain DTO or value class declares no `id`, no `copyWithField`,
+        // and no `<Type>Patch` companion, so the class-shaped datasource
+        // body below cannot compile against it (the #1037 enum lie in a
+        // different shape), while the mock certification still reports
+        // `(conforms)`. Emit the fixtures the mock-data section above
+        // already produced and stop, naming the missing surface instead of
+        // writing a broken pair. Service-mode providers are unaffected —
+        // they implement the service interface, not the entity's CRUD
+        // surface, so the `!hasService` gate above keeps them flowing.
+        // Gated on the source being ON DISK ([lacksCrudSurface]): a target
+        // with no entity file at all keeps its historical path — there is
+        // nothing to probe, and that shape is a different report. The same
+        // predicate gates MockPlugin's simulation binding, so the two
+        // cannot disagree about whether this run emits a CRUD surface.
+        if (EntityAnalyzer.lacksCrudSurface(
+          targetEntity,
+          outputDir,
+          fileSystem: fileSystem,
+        )) {
+          print(
+            'ℹ️  $targetEntity declares no CRUD surface (no id / '
+            'copyWithField / ${targetEntity}Patch) — mock data generated; '
+            'skipping the CRUD datasource/provider surface (issue #1747).',
+          );
+          return files;
+        }
         // #417: ensure the datasource interface file exists before emitting
         // the mock_datasource that imports + implements
         // `${entityName}DataSource`. Without the interface file the

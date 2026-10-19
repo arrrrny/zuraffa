@@ -94,7 +94,11 @@ void main() {
       '--project',
       fx.root.path,
     ]);
-    expect(exitCode, 0, reason: 'gen must succeed: $gen');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'gen must succeed: $gen',
+    );
     final testContent = await genTestOf(fx, 'U1');
     expect(
       testContent,
@@ -117,7 +121,11 @@ void main() {
       '--project',
       fx.root.path,
     ]);
-    expect(exitCode, 0, reason: 'the gen pair must certify red: $red');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'the gen pair must certify red: $red',
+    );
 
     // 3. func — the #1517 scaffold fills the subject with the dummy.
     final func = await runner.runCapturing([
@@ -127,7 +135,11 @@ void main() {
       '--project',
       fx.root.path,
     ]);
-    expect(exitCode, 0, reason: 'func must scaffold: $func');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'func must scaffold: $func',
+    );
     final subject = await genSubjectOf(fx, 'U1');
     expect(
       subject,
@@ -144,7 +156,11 @@ void main() {
       '--project',
       fx.root.path,
     ]);
-    expect(exitCode, 1, reason: 'a dummy-body green must not certify: $make');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      1,
+      reason: 'a dummy-body green must not certify: $make',
+    );
     expect(make, contains('outcome=vacuous-green'), reason: make);
     expect(make, contains(vacuousGuardMarker), reason: make);
 

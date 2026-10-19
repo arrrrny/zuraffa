@@ -29,7 +29,7 @@ void main() {
     test('A2: zfa zap conform passes with the machine summary line', () async {
       final out = await runner.runCapturing(['zap', 'conform']);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // The machine summary line, per the #778 exit vocabulary.
       final lastLine = out.trim().split('\n').last;
       expect(
@@ -50,7 +50,7 @@ void main() {
         '--format',
         'json',
       ]);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       final lines = out.trim().split('\n');
       expect(lines, hasLength(1), reason: 'json mode prints ONE object');
@@ -89,7 +89,11 @@ void main() {
           '--drift-dir',
           dir.path,
         ]);
-        expect(exitCode, 1, reason: 'a drifted contract must fail the gate');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          1,
+          reason: 'a drifted contract must fail the gate',
+        );
 
         final verdict =
             jsonDecode(out.trim().split('\n').single) as Map<String, dynamic>;
@@ -112,7 +116,7 @@ void main() {
         '--type',
         'mission',
       ]);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       // The whole (indented) output IS the schema.
       final schema = jsonDecode(out.trim());
@@ -133,7 +137,7 @@ void main() {
         '--export',
         dir.path,
       ]);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       for (final type in [
         'mission',
@@ -184,7 +188,7 @@ void main() {
         'telepathy',
       ]);
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         2,
         reason:
             'SPEC 917: canonical usage code — the legacy 64 is retired. '
