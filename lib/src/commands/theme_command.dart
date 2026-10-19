@@ -110,10 +110,12 @@ class ThemeImportCommand extends Command<void> {
         for (final v in result.violations) {
           print('FAIL: $v');
         }
-        print(ExitProtocol.fixLine(
-          'resolve the contrast violations listed above, then re-run '
-          'theme import',
-        ));
+        print(
+          ExitProtocol.fixLine(
+            'resolve the contrast violations listed above, then re-run '
+            'theme import',
+          ),
+        );
       }
       print(result.summaryLine);
       if (jsonOut) {
@@ -124,9 +126,11 @@ class ThemeImportCommand extends Command<void> {
       }
     } catch (e) {
       print('❌ Failed to import theme tokens: $e');
-      print(ExitProtocol.fixLine(
-        'fix the import error above, then re-run theme import',
-      ));
+      print(
+        ExitProtocol.fixLine(
+          'fix the import error above, then re-run theme import',
+        ),
+      );
       exitCode = 1;
     }
   }

@@ -44,9 +44,7 @@ class ThemeImportResult {
       'theme import: ${colors.length} colors, ${typography.length} typography, '
       '${spacing.length} spacing — '
       '${violations.isEmpty ? 'contrast OK' : '${violations.length} contrast violation(s)'} '
-      '(${dryRun
-          ? 'dry-run'
-          : (written ? 'written: $outputPath' : 'skipped: $outputPath')})';
+      '(${dryRun ? 'dry-run' : (written ? 'written: $outputPath' : 'skipped: $outputPath')})';
 
   String get jsonSummary =>
       '{"colors":${colors.length},'
@@ -147,10 +145,8 @@ class ThemeImporter {
       final isNumeric =
           resolved is num ||
           (resolved is String && RegExp(r'^-?\d').hasMatch(resolved.trim()));
-      final explicitSpacing =
-          type == 'spacing' || type.contains('dimension');
-      final numberOk =
-          (type == 'number' || type.isEmpty) && !isNonSpacingName;
+      final explicitSpacing = type == 'spacing' || type.contains('dimension');
+      final numberOk = (type == 'number' || type.isEmpty) && !isNonSpacingName;
       if (explicitSpacing || (isNumeric && numberOk && _isSpacingName(name))) {
         _checkCollision(spacingNames, name, leaf.path);
         spacingNames[name] = leaf.path;
@@ -306,7 +302,8 @@ class ThemeImporter {
         final r = toByte(comps[0]);
         final g = toByte(comps[1]);
         final b = toByte(comps[2]);
-        var hex = '${r.toRadixString(16).padLeft(2, '0')}'
+        var hex =
+            '${r.toRadixString(16).padLeft(2, '0')}'
             '${g.toRadixString(16).padLeft(2, '0')}'
             '${b.toRadixString(16).padLeft(2, '0')}';
         if (comps.length >= 4) {
@@ -413,14 +410,69 @@ class ThemeImporter {
       s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
   static const Set<String> _dartKeywords = <String>{
-    'abstract', 'as', 'assert', 'async', 'await', 'break', 'case', 'catch',
-    'class', 'const', 'continue', 'covariant', 'default', 'deferred', 'do',
-    'dynamic', 'else', 'enum', 'export', 'extends', 'extension', 'external',
-    'factory', 'false', 'final', 'finally', 'for', 'Function', 'get', 'hide',
-    'if', 'implements', 'import', 'in', 'interface', 'is', 'late', 'library',
-    'mixin', 'new', 'null', 'on', 'operator', 'part', 'required', 'rethrow',
-    'return', 'set', 'show', 'static', 'super', 'switch', 'sync', 'this',
-    'throw', 'true', 'try', 'typedef', 'var', 'void', 'while', 'with', 'yield',
+    'abstract',
+    'as',
+    'assert',
+    'async',
+    'await',
+    'break',
+    'case',
+    'catch',
+    'class',
+    'const',
+    'continue',
+    'covariant',
+    'default',
+    'deferred',
+    'do',
+    'dynamic',
+    'else',
+    'enum',
+    'export',
+    'extends',
+    'extension',
+    'external',
+    'factory',
+    'false',
+    'final',
+    'finally',
+    'for',
+    'Function',
+    'get',
+    'hide',
+    'if',
+    'implements',
+    'import',
+    'in',
+    'interface',
+    'is',
+    'late',
+    'library',
+    'mixin',
+    'new',
+    'null',
+    'on',
+    'operator',
+    'part',
+    'required',
+    'rethrow',
+    'return',
+    'set',
+    'show',
+    'static',
+    'super',
+    'switch',
+    'sync',
+    'this',
+    'throw',
+    'true',
+    'try',
+    'typedef',
+    'var',
+    'void',
+    'while',
+    'with',
+    'yield',
   };
 
   String ident(String path) {
@@ -552,7 +604,9 @@ class ThemeImporter {
     buf.writeln('    return ThemeData(');
     buf.writeln('      useMaterial3: true,');
     buf.writeln('      colorScheme: ColorScheme.fromSeed(');
-    final seed = colors.isNotEmpty ? _colorInt(colors.values.first) : '0xFF6750A4';
+    final seed = colors.isNotEmpty
+        ? _colorInt(colors.values.first)
+        : '0xFF6750A4';
     buf.writeln('        seedColor: Color($seed),');
     buf.writeln('        brightness: Brightness.light,');
     buf.writeln('      ),');
