@@ -12,13 +12,13 @@ Issue #687 — "[v6] Migrate html_to_markdown_ffi to be built on zuraffa", a sub
 
 ## Summary
 
-This is a brownfield migration of the `html_to_markdown_ffi` plugin (currently published as a federated plugin: app-facing + platform + platform-adapter packages) onto the zuraffa v6 architecture as a **pure Dart package**. Per `docs/package_migration_guide.md` §1, FFI is not a platform channel, so an FFI-only package stays a pure package (`zfa package create`); a federated monorepo (`zfa package create-plugin`) is reserved for packages that talk to platform APIs/channels, which this one does not. Platform adapters are sourced from `zikzak_inappwebview` as a separate dependent rather than scaffolded here. It is tracked in the zuraffa repo via spec `specs/064-migrate-html-to-markdown-ffi/` (Draft) and follows `docs/package_migration_guide.md`. The actual source rewrite lives in the `html_to_markdown_ffi` repository; in zuraffa the deliverable is the spec/assessment and any zuraffa-side capability gaps it surfaces.
+This is a brownfield migration of the `html_to_markdown_ffi` plugin (currently published as a federated plugin: app-facing + platform + platform-adapter packages) onto the zuraffa v6 architecture as a **pure Dart package**. Per `docs/package_migration_guide.md` §1, FFI is not a platform channel, so an FFI-only package stays a pure package (`zfa package create`); a federated monorepo (`zfa package create-plugin`) is reserved for packages that talk to platform APIs/channels, which this one does not. Platform adapters are provisionally sourced from `zikzak_inappwebview` (FFI coverage on iOS/Android/Windows/Linux/macOS not yet confirmed); if any platform lacks the bridge, the migration plan — and Spec 064 — must include the missing native implementation so all five platforms stay covered. The adapter source stays provisional until coverage is verified. It is tracked in the zuraffa repo via spec `specs/064-migrate-html-to-markdown-ffi/` (Draft) and follows `docs/package_migration_guide.md`. The actual source rewrite lives in the `html_to_markdown_ffi` repository; in zuraffa the deliverable is the spec/assessment and any zuraffa-side capability gaps it surfaces.
 
 ## Constitution Check
 
 - `.specify/memory/constitution.md` (if present) governs; migration must preserve the public API surface (FR-006 of spec 064) or document breaking changes. No new runtime dependencies should be added to zuraffa core for this package.
 - Layer discipline: domain must not import `dart:ffi`/`dart:io`/channel code; the FFI bridge stays behind a port in the data layer.
-- **Shape decision (guide §1)**: no channel wrappers are required — `html_to_markdown_ffi` is FFI-only, so the target shape is a pure Dart package (`zfa package create`), NOT a federated plugin (`zfa package create-plugin`). The FFI bridge is a datasource behind a port, not a platform adapter. Platform adapters are sourced from `zikzak_inappwebview`.
+- **Shape decision (guide §1)**: no channel wrappers are required — `html_to_markdown_ffi` is FFI-only, so the target shape is a pure Dart package (`zfa package create`), NOT a federated plugin (`zfa package create-plugin`). The FFI bridge is a datasource behind a port, not a platform adapter. Platform adapters are provisionally sourced from `zikzak_inappwebview` (coverage unconfirmed; see Open Questions) — not scaffolded here.
 
 ## Affected Paths
 
@@ -63,4 +63,4 @@ In zuraffa, optionally add `tasks.md` and `tdd/cycle-log.md` to spec 064 so the 
 ## Open Questions
 
 - [NEEDS CLARIFICATION: whether the rewrite lands in the existing `html_to_markdown_ffi` repo or a fresh zuraffa-namespaced repo per EPIC #214 rollout order]
-- [NEEDS CLARIFICATION: whether `zikzak_inappwebview` already exposes the platform FFI for all five platforms as assumed (spec 064 Assumptions)]
+- [NEEDS CLARIFICATION: whether `zikzak_inappwebview` already exposes the platform FFI for all five platforms; until confirmed the adapter source stays provisional and any missing platform must be added to the migration plan so Spec 064 covers all five platforms]
