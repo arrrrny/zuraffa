@@ -32,7 +32,6 @@ import 'package:path/path.dart' as p;
 import '../../../utils/entity_analyzer.dart';
 import '../../../core/project/project_root.dart';
 import '../certification/mock_certification_sandbox.dart';
-import '../../../utils/entity_analyzer.dart';
 import '../certification/mock_certifier.dart';
 import '../mock_plugin.dart';
 import '../../../core/plugin_system/capability.dart';

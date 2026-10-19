@@ -19,7 +19,6 @@ import 'package:path/path.dart' as p;
 import '../../../core/dependencies/dependency_wirer.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/string_utils.dart';
-import '../../../utils/entity_analyzer.dart';
 import 'cert_registry.dart';
 import 'format_canonical_digest.dart';
 import 'mock_cert_receipt.dart';
