@@ -183,7 +183,13 @@ class MockContractTestWriter {
           ? domain
           : StringUtils.camelToSnake(entityName);
       final candidates = <String>[
-        p.join(outputDir, 'domain', 'services', effectiveDomain, '$svcSnake.dart'),
+        p.join(
+          outputDir,
+          'domain',
+          'services',
+          effectiveDomain,
+          '$svcSnake.dart',
+        ),
         p.join(outputDir, 'domain', 'services', '$svcSnake.dart'),
       ];
       interfacePath = candidates.firstWhere(

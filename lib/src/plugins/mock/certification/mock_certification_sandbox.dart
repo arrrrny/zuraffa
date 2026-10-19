@@ -443,7 +443,9 @@ dev_dependencies:
         'services',
         '$svcSnake.dart',
       );
-      roots.add(File(scopedInterface).existsSync() ? scopedInterface : flatInterface);
+      roots.add(
+        File(scopedInterface).existsSync() ? scopedInterface : flatInterface,
+      );
       roots.add(
         p.join(
           outputDir,
