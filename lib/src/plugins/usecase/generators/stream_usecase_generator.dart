@@ -62,7 +62,7 @@ class StreamUseCaseGenerator {
           resolved = matches.first.fieldName;
         } else if (matches.isEmpty &&
             declared.length == 1 &&
-            (config.paramsType == null)) {
+            (config.paramsType == null || config.hasMultipleParams)) {
           resolved = declared.first.fieldName;
         } else if (matches.length > 1) {
           throw ArgumentError(

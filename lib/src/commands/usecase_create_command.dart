@@ -257,7 +257,7 @@ class UseCaseCreateCommand extends Command<void> {
     UsecaseGenerationReport report;
     try {
       report = await plugin.generateWithReport(config, quiet: jsonMode);
-    } catch (e) {
+    } on ArgumentError catch (e) {
       final msg = e.toString();
       if (jsonMode) {
         VerdictEnvelope.emit(
@@ -268,6 +268,28 @@ class UseCaseCreateCommand extends Command<void> {
             subject: VerdictSubject(kind: 'usecase', id: entityName),
             findings: [
               VerdictFinding(kind: 'service-method-unresolved', fix: msg),
+            ],
+            details: {'methods': const <Map<String, dynamic>>[]},
+          ),
+        );
+      } else {
+        print('❌ $msg');
+      }
+      exitCode = ExitProtocol.failure;
+      return;
+    } catch (e) {
+      // Surface any other failure (I/O, parse, ...) verbatim instead of
+      // mislabeling it as a service-method resolution refusal (#1863 review).
+      final msg = e.toString();
+      if (jsonMode) {
+        VerdictEnvelope.emit(
+          VerdictEnvelope(
+            command: 'zfa usecase create $entityName',
+            verdict: VerdictKind.fail,
+            exitClass: ExitProtocol.failure,
+            subject: VerdictSubject(kind: 'usecase', id: entityName),
+            findings: [
+              VerdictFinding(kind: 'generation-failed', fix: msg),
             ],
             details: {'methods': const <Map<String, dynamic>>[]},
           ),
