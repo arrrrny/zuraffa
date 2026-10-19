@@ -62,7 +62,7 @@ void main() {
     ]);
 
     // US1.AC1: exit 0, target test green, machine-readable summary.
-    expect(exitCode, 0, reason: 'out:\n$out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
     expect(
       out,
       contains('make: behavior=B-001 outcome=green feature=${fx.featureName}'),

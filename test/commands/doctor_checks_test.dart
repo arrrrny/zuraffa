@@ -248,7 +248,7 @@ void main() {
           'feat-b',
           body: jsonEncode({
             'command': 'dart test',
-            'exitCode': 'zero',
+            'CliRunner.lastDispatchedExitCode': 'zero',
             'failedTests': <String>[],
             'capturedAt': '2020-01-01T00:00:00.000Z',
             'parseable': true,
@@ -262,7 +262,7 @@ void main() {
         final cache = _pick(results, 'baseline-cache');
         expect(cache.status, DoctorCheckStatus.fail);
         expect(cache.detail, contains('invalid JSON'));
-        expect(cache.detail, contains('exitCode'));
+        expect(cache.detail, contains('CliRunner.lastDispatchedExitCode'));
 
         final fixed = await DoctorChecksRunner(
           projectDir: dir.path,
@@ -294,7 +294,7 @@ void main() {
           'feat',
           body: jsonEncode({
             'command': 'dart test',
-            'exitCode': 0,
+            'CliRunner.lastDispatchedExitCode': 0,
             'failedTests': <String>[],
             'capturedAt': '2020-01-01T00:00:00.000Z',
             'parseable': true,
@@ -330,7 +330,7 @@ void main() {
         'feat',
         body: jsonEncode({
           'command': 'dart test',
-          'exitCode': 0,
+          'CliRunner.lastDispatchedExitCode': 0,
           'failedTests': <String>[],
           'capturedAt': DateTime.now()
               .add(const Duration(hours: 1))

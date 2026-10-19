@@ -178,7 +178,7 @@ void main() {
       'lib/graphql_generated',
     ]);
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(out, contains('✅ Generated'), reason: out);
     expect(
       Directory(p.join(fixture.path, 'lib', 'graphql_generated')).existsSync(),

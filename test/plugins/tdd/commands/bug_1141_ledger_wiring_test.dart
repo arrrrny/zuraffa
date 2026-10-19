@@ -97,7 +97,11 @@ void main() {
       await seedSpec(keyedSpec);
       final out = await runPlan();
 
-      expect(exitCode, 0, reason: 'plan succeeded: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'plan succeeded: $out',
+      );
       expect(ledgerMd().existsSync(), isTrue, reason: 'the ledger artifact');
       final md = await ledgerMd().readAsString();
       // A1 quotes 'Sign in' — the anchor of auth.signIn — so the key row
@@ -225,7 +229,11 @@ void main() {
 ''');
         final out = await runPlan();
 
-        expect(exitCode, 0, reason: 'plan succeeded: $out');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'plan succeeded: $out',
+        );
         expect(ledgerMd().existsSync(), isTrue);
         final md = await ledgerMd().readAsString();
         expect(md, contains('| surface | kind | proven by | state |'));

@@ -65,7 +65,7 @@ void main() {
     () async {
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // FR-009: one progress line per completed step, in order.
       final positions = [
         out.indexOf('[run] B-001 gen -> ok'),
@@ -163,7 +163,7 @@ void main() {
   test('A12: exit 0 occurs exactly on all-DONE-with-evidence', () async {
     // Complete run: exit 0.
     await drive();
-    expect(exitCode, 0);
+    expect(CliRunner.lastDispatchedExitCode, 0);
 
     // Stopped run: non-zero.
     exitCode = 0;
@@ -171,13 +171,13 @@ void main() {
     await File(fx.cycleLogPath).delete();
     await fx.setStepOutcome('gen', 'B-002', 'ownership-conflict');
     await drive();
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
 
     // Corrupt state: non-zero.
     exitCode = 0;
     await File(fx.runStatePath).writeAsString('[');
     await drive();
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
 
     // Concurrent run: non-zero.
     exitCode = 0;
@@ -190,7 +190,7 @@ void main() {
       inFlightOwnerPid: liveOwner!.pid,
     );
     await drive();
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
   });
 
   test(
@@ -210,7 +210,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out.toLowerCase(), contains('in flight'));
       // Refused before any work: no steps invoked, state file untouched.
       expect(fx.stepInvocations(), isEmpty);

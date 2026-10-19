@@ -49,7 +49,7 @@ void main() {
       'B-042',
     ]);
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('unexpressible'));
     // SC-005: the report names the unmet capability in behavior terms.
     expect(out, contains('B-042'));
@@ -93,7 +93,7 @@ void main() {
       'B-001',
     ]);
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('generation-error'));
     // The failing step is named.
     expect(out, contains('entity create'));
@@ -131,7 +131,7 @@ void main() {
       'B-042',
     ]);
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     // SC-004: test file byte-identical (no pipeline ran).
     expect(fx.checksumTestAndLib(), equals(beforeChecksums));
     // No green evidence written.
