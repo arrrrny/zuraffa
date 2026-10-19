@@ -86,7 +86,7 @@ void main() {
       'match the on-disk trees, the verdict names the behavior', () async {
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     final record = await readRecord();
     expect(record['behavior_id'], isA<String>());
     expect(record['suite'], isA<String>());
@@ -129,7 +129,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     final record = await readRecord();
     // The recorder is B-002's SKIP make — the last live target-test
     // evidence on this tree (the skip transition's own certification).
@@ -167,7 +167,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     final record = await readRecord();
     expect(record['behavior_id'], 'B-002', reason: out);
     final verdict = record['green_verdict'] as String;
@@ -185,7 +185,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // The failure is named, with the cost stated honestly — never a
       // silent drop, never a run failure.
       expect(out, contains('make-post-state'));

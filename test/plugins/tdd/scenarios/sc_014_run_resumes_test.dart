@@ -79,7 +79,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains(
@@ -125,7 +125,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       out,
       contains(
@@ -153,7 +153,7 @@ void main() {
 
     final out2 = await drive();
 
-    expect(exitCode, 0, reason: out2);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
     expect(fx.stepInvocations().first, 'verify-red B-002');
     expect(fx.stepInvocations().where((l) => l == 'gen B-002'), isEmpty);
     expect(fx.stepInvocations(), hasLength(7));
@@ -201,7 +201,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // The unit completes FIRST (U1 re-enters at its state-implied step);
     // only then does phase 2 flip the deferred acceptance behavior
     // green. A1 sits RED between the phases — resumable mid-corpus.
@@ -267,7 +267,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // Strictly less work: U1 (DONE) untouched; A1 re-enters at the
     // in-flight make — its make is expressible now (units exist), so
     // the uniform pass completes it; phase 2 finds nothing left.
@@ -296,7 +296,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(
         out,
         contains(

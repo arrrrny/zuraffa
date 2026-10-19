@@ -199,7 +199,7 @@ void main() {
 
     final out = await runFunc('U2');
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     expect(
       out,
       contains(
@@ -255,7 +255,7 @@ void main() {
 
       final out = await runFunc('B-1517');
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf('B-1517')).readAsString();
       expect(subject, contains('bool subject_b_1517()'));
       expect(subject, contains('return true;'));
@@ -298,7 +298,7 @@ void main() {
 
     final out = await runFunc('U3');
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     final subject = await File(fx.subjectPathOf('U3')).readAsString();
     // The scaffold stays red — implement per declared signature.
     expect(
@@ -356,7 +356,7 @@ void main() {
 
       final out = await runFunc(id);
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final subject = await File(fx.subjectPathOf(id)).readAsString();
       expect(subject, isNot(contains('honest red')), reason: subject);
       expect(subject, isNot(contains('UnimplementedError')), reason: subject);
@@ -389,7 +389,7 @@ int subject_h1() => throw UnimplementedError('subject_h1 not implemented');
 
     final out = await runFunc(id);
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     final subject = await File(fx.subjectPathOf(id)).readAsString();
     expect(subject, contains('return true;'), reason: subject);
     // The hand-authored line is NOT a generated claim — it must survive.

@@ -109,7 +109,7 @@ environment:
 
     final regen = _Regeneration(root);
     await regen._run(['tdd', 'plan', '--project', root.path, feature]);
-    expect(exitCode, 0, reason: 'plan failed');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'plan failed');
     await regen._run([
       'tdd',
       'gen',
@@ -119,9 +119,9 @@ environment:
       '--widget-shell',
       'materialapp',
     ]);
-    expect(exitCode, 0, reason: 'gen failed');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'gen failed');
     await regen._run(['tdd', 'view', 'W1', '--project', root.path]);
-    expect(exitCode, 0, reason: 'view failed');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'view failed');
     return regen;
   }
 

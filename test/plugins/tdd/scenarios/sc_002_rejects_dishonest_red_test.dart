@@ -36,7 +36,7 @@ void main() {
         'B-001',
       ]);
       expect(out, contains('classification=compile-error certified=false'));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(File(fx.cycleLogPath).existsSync(), isFalse);
     } finally {
       fx.dispose();
@@ -60,7 +60,7 @@ void main() {
         'B-001',
       ]);
       expect(out, contains('classification=load-error certified=false'));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(File(fx.cycleLogPath).existsSync(), isFalse);
     } finally {
       fx.dispose();
@@ -84,7 +84,7 @@ void main() {
         'B-001',
       ]);
       expect(out, contains('classification=unexpected-green certified=false'));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(File(fx.cycleLogPath).existsSync(), isFalse);
     } finally {
       fx.dispose();
@@ -108,7 +108,7 @@ void main() {
         'B-001',
       ]);
       expect(out, contains('classification=skipped certified=false'));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(File(fx.cycleLogPath).existsSync(), isFalse);
     } finally {
       fx.dispose();
@@ -138,7 +138,7 @@ void main() {
           'B-001',
         ]);
         expect(out, contains('classification=runner-error certified=false'));
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
         expect(File(fx.cycleLogPath).existsSync(), isFalse);
       } finally {
         fx.dispose();

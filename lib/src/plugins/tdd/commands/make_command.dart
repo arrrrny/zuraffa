@@ -2894,6 +2894,10 @@ class MakeCommand extends Command<void> {
         contractFiles: DeclaredRouting.contractFiles(featureDir),
       ).rows,
       persistence: SpecParser.parsePersistenceDeclarations(specMd),
+      keyEntities: const SpecParser()
+          .parseKeyEntities(specMd)
+          .map((e) => e.name)
+          .toList(),
     );
   }
 

@@ -279,7 +279,7 @@ $widgetRows
       );
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(genArgs('A2'));
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final content = await File(testFileOf('a2')).readAsString();
       expect(
         content,
@@ -299,7 +299,7 @@ $widgetRows
       );
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(genArgs('A3'));
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final content = await File(testFileOf('a3')).readAsString();
       expect(
         content,
@@ -313,7 +313,7 @@ $widgetRows
       );
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(genArgs('A5'));
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       final content = await File(testFileOf('a5')).readAsString();
       expect(content, contains(scaffoldedMarker));
     });
@@ -326,7 +326,7 @@ $widgetRows
       );
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(genArgs('A2'));
-      expect(exitCode, isNot(0), reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out: $out');
       expect(out, contains('finder kind'));
       expect(out, contains('route-outcome'));
       expect(out, contains('presence'));
@@ -350,7 +350,7 @@ $widgetRows
       );
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(genArgs('A2'));
-      expect(exitCode, isNot(0), reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out: $out');
       expect(out, contains('route-outcome'));
       expect(out, contains('presence'));
       expect(File(testFileOf('a2')).existsSync(), isFalse);
@@ -365,7 +365,7 @@ $widgetRows
         );
         final runner = CliRunner(exitOnCompletion: false);
         final out = await runner.runCapturing(genArgs('A2'));
-        expect(exitCode, isNot(0), reason: 'out: $out');
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out: $out');
         expect(out, contains('bogus'));
       },
     );
@@ -385,7 +385,7 @@ $widgetRows
 ''');
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(genArgs('U1'));
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(
         File(
           p.join(tmpDir.path, 'test', 'tdd', featureName, 'u1_test.dart'),
@@ -449,7 +449,7 @@ Some tests failed.
         '--widget-shell',
         'materialapp',
       ]);
-      expect(exitCode, 0, reason: 'gen out: $genOut');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'gen out: $genOut');
       final testFile = File(
         p.join(fx.root.path, 'test', 'tdd', featureName, 'a2_test.dart'),
       );
@@ -469,7 +469,7 @@ Some tests failed.
         contains('classification=assertion certified=true'),
         reason: 'out: $out',
       );
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
     });
   });
 }

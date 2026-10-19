@@ -141,6 +141,18 @@ void main() {
     },
   );
 
+  test('C3c: a command that does not declare --baseline-scope omits it from '
+      'the remedy (issue #1777 / PR #1782 review)', () async {
+    final message = diskPreflightMessage(
+      freeBytes: 1 << 30,
+      suiteCount: 765,
+      supportsBaselineScope: false,
+    );
+    expect(message, isNotNull);
+    expect(message, contains('--> fix:'));
+    expect(message, isNot(contains('--baseline-scope')));
+  });
+
   test(
     'C3b: a scoped-sufficed volume passes the preflight (null message)',
     () async {

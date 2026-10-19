@@ -75,6 +75,16 @@ class KnownTypes {
     return zuraffaParams.contains(typeName);
   }
 
+  /// Check if a type name is a Zuraffa result/failure type
+  static bool isZuraffaResult(String typeName) {
+    return zuraffaResults.contains(typeName);
+  }
+
+  /// Check if a type name is a Zorphy framework type
+  static bool isZorphyType(String typeName) {
+    return zorphyTypes.contains(typeName);
+  }
+
   /// Check if a type name is a Dart primitive type
   static bool isDartPrimitive(String typeName) {
     return dartPrimitives.contains(typeName);

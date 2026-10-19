@@ -430,7 +430,7 @@ void main() {
   //
   // Two hermeticity caveats the pins inherit (review of #1537): the exit
   // reads use `CliRunner.lastDispatchedExitCode` — the per-isolate
-  // snapshot — because `dart:io`'s `exitCode` is process-global and a
+  // snapshot — because `dart:io`'s `CliRunner.lastDispatchedExitCode` is process-global and a
   // sibling suite can clobber it (cli_runner.dart:90-103); and
   // `runCapturing` returns ONE captured buffer (cli_runner.dart:654 —
   // zone-intercepted `print`, no per-stream API), so a `contains` proves

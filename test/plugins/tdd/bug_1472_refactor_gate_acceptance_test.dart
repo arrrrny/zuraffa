@@ -106,7 +106,7 @@ void main() {
       ),
       reason: 'the dart fix pass must have applied a change:\n$out',
     );
-    expect(exitCode, 0, reason: 'out:\n$out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out:\n$out');
   });
 
   test('A-1472-2: a build-gate refusal carrying ERRORS still misfire-stops '
@@ -130,7 +130,7 @@ void main() {
 
     expect(out, contains('pass "build" failed — misfire-stop.'));
     expect(out, contains('outcome=runner-error'));
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
   });
 
   test('A-1472-3: `analyze-gate: warnings-blocking` in the TDD profile '
@@ -162,6 +162,6 @@ void main() {
 
     expect(out, contains('pass "build" failed — misfire-stop.'));
     expect(out, contains('outcome=runner-error'));
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
   });
 }
