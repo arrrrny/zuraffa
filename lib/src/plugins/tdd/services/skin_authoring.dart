@@ -78,12 +78,99 @@ abstract final class SkinAuthoring {
   /// Throws [SkinAuthoringException] when [testContent] is not scaffolded
   /// (nothing to author) or [authorFinders] fails validation. Pure: no
   /// filesystem access, byte-identical output for identical inputs.
+  /// Extracts import URIs spelled in [finders] through an
+  /// `// import:`-marked header block (issue #1878). Returns the URIs
+  /// and the finder body with those marker lines removed, so imports are
+  /// never spliced into the enclosing test body.
+  static ({List<String> imports, String body}) _splitImports(String finders) {
+    final imports = <String>[];
+    final bodyLines = <String>[];
+    for (final raw in finders.split('\n')) {
+      final trimmed = raw.trim();
+      final m = RegExp(r'^//\s*imports?:\s*(.*)$').firstMatch(trimmed);
+      if (m != null) {
+        final rest = (m.group(1) ?? '').trim();
+        if (rest.isEmpty) {
+          // Header form: `// import:` followed by indented `// <uri>`
+          // lines is handled below by collecting bare URIs on subsequent
+          // marker lines; here there is nothing to collect.
+          continue;
+        }
+        final quoted = RegExp(r"""['"]([^'"]+)['"]""").allMatches(rest);
+        if (quoted.isNotEmpty) {
+          for (final q in quoted) {
+            final uri = q.group(1);
+            if (uri != null && uri.isNotEmpty) imports.add(uri);
+          }
+        } else {
+          for (final tok in rest.split(RegExp(r'[\s,]+'))) {
+            if (tok.isNotEmpty) imports.add(tok);
+          }
+        }
+        continue;
+      }
+      // Header-block continuation: `// <uri>` lines that appear while we
+      // are still in an import header are treated as URIs only when the
+      // previous meaningful line was an import marker. To keep the rule
+      // simple and predictable, a comment line whose content is a bare
+      // `package:`/`dart:` URI is also hoisted.
+      final bare = RegExp(r'^//\s*(package:[^\s]+|dart:[^\s]+)\s*$')
+          .firstMatch(trimmed);
+      if (bare != null) {
+        imports.add(bare.group(1)!);
+        continue;
+      }
+      bodyLines.add(raw);
+    }
+    return (imports: imports, body: bodyLines.join('\n'));
+  }
+
+  /// Hoists [imports] into [testContent]'s import section, de-duplicating
+  /// against imports already present. Returns the (possibly unchanged)
+  /// content.
+  static String _hoistImports(String testContent, List<String> imports) {
+    if (imports.isEmpty) return testContent;
+    final lines = testContent.split('\n');
+    final existing = <String>{};
+    for (final l in lines) {
+      final m = RegExp(r"""^\s*import\s+['"]([^'"]+)['"]""").firstMatch(l);
+      if (m != null) existing.add(m.group(1)!);
+    }
+    final toAdd = <String>[];
+    for (final uri in imports) {
+      if (!existing.contains(uri)) {
+        toAdd.add("import '$uri';");
+        existing.add(uri);
+      }
+    }
+    if (toAdd.isEmpty) return testContent;
+    var lastImport = -1;
+    for (var i = 0; i < lines.length; i++) {
+      if (RegExp(r'^\s*import\s+').hasMatch(lines[i])) lastImport = i;
+    }
+    if (lastImport >= 0) {
+      lines.insertAll(lastImport + 1, toAdd);
+    } else {
+      final vm = lines.indexWhere((l) => l.trim() == 'void main() {');
+      if (vm >= 0) {
+        lines.insertAll(vm, toAdd);
+      } else {
+        lines.addAll(toAdd);
+      }
+    }
+    return lines.join('\n');
+  }
+
   static String patchedContent({
     required String testContent,
     required String authorFinders,
   }) {
     validateAuthorFinders(authorFinders);
-    final lines = testContent.split('\n');
+    final split = _splitImports(authorFinders);
+    final imports = split.imports;
+    final bodyFinders = split.body;
+    final hoistedContent = _hoistImports(testContent, imports);
+    final lines = hoistedContent.split('\n');
     final markerIndex = lines.indexWhere(isScaffoldedMarkerLine);
     if (markerIndex < 0) {
       throw SkinAuthoringException(
@@ -104,7 +191,7 @@ abstract final class SkinAuthoring {
     if (end < lines.length && lines[end].trim() == skinPlaceholderStatement) {
       end++;
     }
-    final replacement = authorFinders
+    final replacement = bodyFinders
         .split('\n')
         .map((l) => l.trim().isEmpty ? '' : '$indent$l')
         .join('\n');
