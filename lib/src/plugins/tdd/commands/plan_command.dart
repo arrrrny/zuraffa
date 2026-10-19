@@ -1554,7 +1554,19 @@ class PlanCommand extends Command<void> {
                         entry.key: entry.value.label,
                     },
                   }
-                : <String, dynamic>{...splitReceipt})
+                : <String, dynamic>{
+                    ...splitReceipt,
+                    // Issue #1883: a stale receipt (e.g. one left over
+                    // from a declared-contract rename) must not keep its
+                    // old behavior-id set — re-derive the classification
+                    // and row count from the current plan so run-engine
+                    // does not silently drop the re-issued behaviors.
+                    'rows': laneResult.classification.length,
+                    'classification': {
+                      for (final entry in laneResult.classification.entries)
+                        entry.key: entry.value.label,
+                    },
+                  })
           : <String, dynamic>{
               'feature': feature,
               'source': 'zfa tdd plan',
