@@ -288,6 +288,7 @@ abstract class AuthService {
           'params': 'AuthRequest',
           'returns': 'User',
           'init': true,
+          'allowForwardRefs': true,
         });
         expect(first.success, isTrue);
         expect(File(servicePath()).existsSync(), isTrue);
@@ -302,6 +303,7 @@ abstract class AuthService {
           'returns': 'User',
           'init': true,
           'force': true,
+          'allowForwardRefs': true,
         });
 
         expect(result.success, isTrue);
@@ -327,6 +329,7 @@ abstract class AuthService {
         'params': 'AuthRequest',
         'returns': 'User',
         'init': true,
+        'allowForwardRefs': true,
       });
       expect(File(servicePath()).existsSync(), isTrue);
 
@@ -335,6 +338,7 @@ abstract class AuthService {
         'params': 'AuthRequest',
         'returns': 'User',
         'revert': true,
+        'allowForwardRefs': true,
       });
 
       expect(result.success, isTrue);

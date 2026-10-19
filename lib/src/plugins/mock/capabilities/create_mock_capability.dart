@@ -288,7 +288,8 @@ class CreateMockCapability implements ZuraffaCapability {
         data: {
           'generatedFiles': files,
           'certified': false,
-          if (receipt != null) 'mockCertReceipt': receipt.toJson(),
+          if (receipt != null && outcome.certified)
+            'mockCertReceipt': receipt.toJson(),
         },
       );
     }

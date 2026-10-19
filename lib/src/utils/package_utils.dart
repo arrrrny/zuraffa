@@ -8,12 +8,18 @@ class PackageUtils {
     String? pubspecPath;
 
     if (outputDir != null) {
-      // 1. Try to find pubspec.yaml in outputDir or its parents
+      // 1. Try to find pubspec.yaml in outputDir or its parents (including
+      //    the project root itself, so relative output dirs like `lib/src`
+      //    resolve to the consuming project's pubspec instead of falling
+      //    back to the `zuraffa` default — issue #1718 Gap 3).
       var currentPath = outputDir;
-      while (currentPath != '.' && currentPath != '/') {
+      while (true) {
         final p = path.join(currentPath, 'pubspec.yaml');
         if (fs.existsSync(p)) {
           pubspecPath = p;
+          break;
+        }
+        if (currentPath == '.' || currentPath == '/' || currentPath == '') {
           break;
         }
         currentPath = path.dirname(currentPath);

@@ -1215,7 +1215,14 @@ class SpecParser {
         // (danglingReference) even though parseKeyEntities extracted it.
         if (!trimmed.startsWith('|')) {
           final bulletM = _entityBullet.firstMatch(trimmed);
-          if (bulletM == null) continue;
+          if (bulletM == null) {
+            // Prose boundary: parseKeyEntities stops the section here, so
+            // contract rows must stop too — otherwise a later bullet after
+            // intervening prose would be added as a contract row even though
+            // no SpecEntity was extracted for it (coderabbit finding).
+            section = null;
+            continue;
+          }
           var name = bulletM.group(1)!.trim().replaceAll('`', '').trim();
           final genericStart = name.indexOf('<');
           if (genericStart > 0) name = name.substring(0, genericStart).trim();

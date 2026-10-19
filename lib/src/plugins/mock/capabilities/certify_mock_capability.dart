@@ -182,10 +182,11 @@ class CertifyMockCapability implements ZuraffaCapability {
       return exitNoMock;
     }
 
-    // 2. Commit the contract test + receipt into the project — on BOTH
-    //    outcomes. A red run MUST overwrite any stale green receipt: the
-    //    run-engine gate reads this receipt, and leaving a pre-drift
-    //    green receipt on disk would let an uncertified mock through.
+    // 2. Commit the contract test into the project on BOTH outcomes. A
+    //    red run removes any stale green receipt (see writeContractArtifacts)
+    //    so the run-engine gate cannot keep reading an uncertified mock as
+    //    certified; the contract test itself is always (re)written so the
+    //    drift stays legible.
     final written = await certifier.writeContractArtifacts(
       entityName: name,
       projectRoot: projectRoot,
