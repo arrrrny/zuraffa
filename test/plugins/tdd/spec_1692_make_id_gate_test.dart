@@ -153,7 +153,11 @@ void main() {
           'make: behavior=U1 outcome=unexpressible feature=${fx.featureName}',
         ),
       );
-      expect(exitCode, isNot(0), reason: 'refusal must exit non-zero');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        isNot(0),
+        reason: 'refusal must exit non-zero',
+      );
 
       // Refusal BEFORE generation: not a single pipeline step spawned.
       expect(
@@ -207,7 +211,11 @@ void main() {
         out,
         contains('make: behavior=U1 outcome=green feature=${fx.featureName}'),
       );
-      expect(exitCode, 0, reason: 'id-bearing entity generation must certify');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'id-bearing entity generation must certify',
+      );
 
       // The id-dependent surfaces ran (mock create + build at minimum).
       final calls = await fx.readFakeZfaLog();
@@ -259,7 +267,11 @@ void main() {
           'make: behavior=U1 outcome=unexpressible feature=${fx.featureName}',
         ),
       );
-      expect(exitCode, isNot(0), reason: 'refusal must exit non-zero');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        isNot(0),
+        reason: 'refusal must exit non-zero',
+      );
 
       expect(
         await fx.readFakeZfaLog(),
@@ -305,7 +317,11 @@ void main() {
         out,
         contains('make: behavior=U1 outcome=green feature=${fx.featureName}'),
       );
-      expect(exitCode, 0, reason: 'id-bearing entity generation must certify');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'id-bearing entity generation must certify',
+      );
 
       // The stub branch's id-dependent `make <Entity>` step ran.
       final calls = await fx.readFakeZfaLog();

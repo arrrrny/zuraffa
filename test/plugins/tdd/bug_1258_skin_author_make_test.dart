@@ -198,6 +198,88 @@ int ${_subjectSymbol}_value() => 0;
     });
   });
 
+  group('SkinAuthoring.validateAuthorFinders — await-before-pump guard '
+      '(#1855)', () {
+    test('refuses an await of a subject read before any pump', () {
+      expect(
+        () => SkinAuthoring.validateAuthorFinders(
+          'final Future<void> flip = state!.load();\n'
+          'await flip;\n'
+          'await tester.pumpAndSettle();\n'
+          "expect(find.text('x'), findsOneWidget);",
+        ),
+        throwsA(isA<SkinAuthoringException>()),
+      );
+    });
+
+    test('accepts pump-then-await ordering', () {
+      expect(
+        () => SkinAuthoring.validateAuthorFinders(
+          'final Future<void> flip = state!.load();\n'
+          'await tester.pumpAndSettle();\n'
+          'await flip;\n'
+          "expect(find.text('x'), findsOneWidget);",
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('accepts finders with no await at all', () {
+      expect(
+        () => SkinAuthoring.validateAuthorFinders(
+          'expect(find.text("hi"), findsOneWidget);',
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('does not false-positive on a literal await inside a string', () {
+      expect(
+        () => SkinAuthoring.validateAuthorFinders(
+          "expect(find.text('await'), findsOneWidget);",
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('does not let a pump token in a comment mask a deadlock', () {
+      expect(
+        () => SkinAuthoring.validateAuthorFinders(
+          '// pump(\n'
+          'await state!.load();\n'
+          "expect(find.text('x'), findsOneWidget);",
+        ),
+        throwsA(isA<SkinAuthoringException>()),
+      );
+    });
+
+    test('accepts a multi-segment pump receiver as a pump-await', () {
+      expect(
+        () => SkinAuthoring.validateAuthorFinders(
+          'final Future<void> flip = state!.load();\n'
+          'await tester.binding.pump(const Duration(milliseconds: 10));\n'
+          'await flip;\n'
+          "expect(find.text('x'), findsOneWidget);",
+        ),
+        returnsNormally,
+      );
+    });
+
+    test(
+      'accepts await tester.binding.pump(...) before a later await read',
+      () {
+        expect(
+          () => SkinAuthoring.validateAuthorFinders(
+            'await tester.binding.pump();\n'
+            'await state!.load();\n'
+            "expect(find.text('x'), findsOneWidget);",
+          ),
+          returnsNormally,
+        );
+      },
+    );
+  });
+
   group('SuiteGuard.parse — compact-reporter padding tolerance (#1258 '
       'enabling fix)', () {
     const guard = SuiteGuard();
@@ -291,7 +373,7 @@ int ${_subjectSymbol}_value() => 0;
       );
 
       // (d) the driver resumes: the make certifies green, exit 0.
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains(
@@ -360,7 +442,7 @@ int ${_subjectSymbol}_value() => 0;
         makeArgs(fx, id: _behaviorId, zfaBin: zfaBin),
       );
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('SCAFFOLDED'));
       expect(out, contains('outcome=scaffolded'));
       // No generation ran, nothing changed.
@@ -397,7 +479,7 @@ int ${_subjectSymbol}_value() => 0;
           ),
         );
 
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
         expect(out, contains('born-green'), reason: out);
         // The scaffolded bytes were restored byte-identical.
         expect(
@@ -440,7 +522,7 @@ int ${_subjectSymbol}_value() => 0;
         ),
       );
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('--author'), reason: out);
       expect(out, contains('outcome=runner-error'));
       expect(await fx.readFakeZfaLog(), isEmpty);
@@ -455,7 +537,7 @@ int ${_subjectSymbol}_value() => 0;
         makeArgs(fx, id: _behaviorId, zfaBin: zfaBin, author: true),
       );
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('--finders-file'), reason: out);
       expect(await fx.readFakeZfaLog(), isEmpty);
     });
@@ -480,7 +562,7 @@ int ${_subjectSymbol}_value() => 0;
         ),
       );
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('classification: compile-error'), reason: out);
       expect(
         await File(fx.testPathOf(_behaviorId)).readAsString(),

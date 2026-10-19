@@ -466,6 +466,14 @@ class CertifyMockCommand extends Command<void> {
       negatable: false,
       help: 'Enable detailed logging',
     );
+    argParser.addOption(
+      'service',
+      help: 'Service name for mock provider (service mode)',
+    );
+    argParser.addOption(
+      'domain',
+      help: 'Domain folder for the mock provider (service mode)',
+    );
   }
 
   @override
@@ -502,6 +510,8 @@ class CertifyMockCommand extends Command<void> {
       ],
       if (results['force'] == true) '--force',
       if (results['verbose'] == true) '--verbose',
+      if (results['service'] != null) ...['--service', results['service']!],
+      if (results['domain'] != null) ...['--domain', results['domain']!],
     ];
     final capability = CertifyMockCapability(plugin);
     exitCode = await capability.run(argv);

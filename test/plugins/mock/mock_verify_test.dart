@@ -36,7 +36,7 @@ void main() {
   var exitCodeAtEntry = 0;
 
   setUp(() async {
-    exitCodeAtEntry = exitCode;
+    exitCodeAtEntry = CliRunner.lastDispatchedExitCode;
     tempDir = await Directory.systemTemp.createTemp('mock_verify_1121_');
     await _scaffoldProduct(tempDir.path);
   });
@@ -161,7 +161,7 @@ void main() {
         final out = await runCli(['mock', 'verify', 'Product']);
 
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           0,
           reason: 'a conforming mock passes the gate, output:\n$out',
         );
@@ -188,7 +188,7 @@ void main() {
         final out = await runCli(['mock', 'verify', 'Product']);
 
         expect(
-          exitCode,
+          CliRunner.lastDispatchedExitCode,
           1,
           reason: 'drift must fail the gate with exit 1, output:\n$out',
         );
@@ -208,7 +208,11 @@ void main() {
       () async {
         final out = await runCli(['mock', 'verify', 'Ghost']);
 
-        expect(exitCode, 1, reason: 'a missing artifact is an honest refusal');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          1,
+          reason: 'a missing artifact is an honest refusal',
+        );
         expect(out, contains('missing_file'));
         expect(
           out,
@@ -225,7 +229,11 @@ void main() {
 
       final out = await runCli(['mock', 'verify', 'Product', '--json']);
 
-      expect(exitCode, 0, reason: 'conforming: exit 0, output:\n$out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'conforming: exit 0, output:\n$out',
+      );
       final envelope = VerdictEnvelope.tryParse(out);
       expect(
         envelope,
@@ -253,7 +261,7 @@ void main() {
 
       final out = await runCli(['mock', 'verify', 'Product', '--json']);
 
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
       final envelope = VerdictEnvelope.tryParse(out);
       expect(envelope, isNotNull, reason: 'envelope must still emit:\n$out');
       expect(envelope!.verdict, VerdictKind.fail);
@@ -273,7 +281,7 @@ void main() {
 
     test('A4c: usage error (no entity) → exit 2 + fix line', () async {
       final out = await runCli(['mock', 'verify']);
-      expect(exitCode, ExitProtocol.usage);
+      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
       expect(out, contains('--> fix:'));
     });
   });
@@ -321,7 +329,11 @@ void main() {
 
         final out = await runCli(['mock', 'explain', 'Product']);
 
-        expect(exitCode, 0, reason: 'explain is informational, output:\n$out');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'explain is informational, output:\n$out',
+        );
         expect(out, contains('product_mock_datasource.dart'));
         expect(out, contains('ProductDataSource'));
         expect(out, contains('mock-cert:product@'));
@@ -353,7 +365,11 @@ void main() {
 
         final out = await runCli(['mock', 'explain', 'Product']);
 
-        expect(exitCode, 0, reason: 'explain still reports on a drifted mock');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          0,
+          reason: 'explain still reports on a drifted mock',
+        );
         expect(out, contains('update'));
         expect(out, contains('missing'), reason: 'the skipped method is named');
       },
@@ -361,7 +377,7 @@ void main() {
 
     test('A5c: usage error (no entity) → exit 2 + fix line', () async {
       final out = await runCli(['mock', 'explain']);
-      expect(exitCode, ExitProtocol.usage);
+      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.usage);
       expect(out, contains('--> fix:'));
     });
 
@@ -373,7 +389,7 @@ void main() {
 
       final out = await runCli(['mock', 'explain', 'Product', '--json']);
 
-      expect(exitCode, 0, reason: 'output:\n$out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'output:\n$out');
       final envelope = VerdictEnvelope.tryParse(out);
       expect(envelope, isNotNull, reason: 'canonical envelope required:\n$out');
       expect(envelope!.verdict, VerdictKind.pass);

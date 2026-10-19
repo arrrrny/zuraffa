@@ -109,7 +109,7 @@ void main() {
       final out = await drive();
 
       // The stop contract is unchanged (FR-004).
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('[run] B-001 gen -> error'), reason: out);
       expect(out, contains('stopped_at=B-001:gen'), reason: out);
 
@@ -144,7 +144,7 @@ void main() {
     await fx.setStepOutcome('gen', 'B-001', 'boom');
 
     final out = await drive();
-    expect(exitCode, isNot(0), reason: out);
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
 
     final entries = await laneEntries();
     expect(entries, isNotEmpty, reason: out);
@@ -184,10 +184,10 @@ void main() {
     await fx.setStepOutcome('gen', 'B-001', 'boom\nok');
 
     final first = await drive();
-    expect(exitCode, isNot(0), reason: first);
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: first);
 
     final second = await drive();
-    expect(exitCode, 0, reason: second);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: second);
 
     // The retry re-drove gen (gen invoked once per run). Had the error
     // entry polluted the red evidence, reconciliation would have
@@ -212,9 +212,9 @@ void main() {
       await fx.setStepOutcome('gen', 'B-001', 'boom\nok');
 
       final first = await drive();
-      expect(exitCode, isNot(0), reason: first);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: first);
       final second = await drive();
-      expect(exitCode, 0, reason: second);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: second);
 
       // Cycle log: failure entry first, the retry's red/green appended
       // after — the audit trail survives the success.
@@ -246,7 +246,7 @@ void main() {
     await fx.setStepOutcome('gen', 'B-001', 'flood');
 
     final out = await drive();
-    expect(exitCode, isNot(0), reason: out);
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
 
     final log = await File(fx.cycleLogPath).readAsString();
     final errorSection = log
@@ -278,7 +278,7 @@ void main() {
     await fx.setStepOutcome('make', 'B-001', 'crashed');
 
     final out = await drive();
-    expect(exitCode, isNot(0), reason: out);
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
     expect(out, contains('stopped_at=B-001:make'), reason: out);
 
     final log = await File(fx.cycleLogPath).readAsString();
@@ -300,7 +300,7 @@ void main() {
     await seedOne();
     final missing = p.join(fx.root.path, 'missing-zfa');
     final out2 = await drive(zfaBin: missing);
-    expect(exitCode, isNot(0), reason: out2);
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out2);
     final log2 = await File(fx.cycleLogPath).readAsString();
     final error2 = log2
         .split('\n## ')
@@ -318,7 +318,7 @@ void main() {
       'compatibility)', () async {
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     final sections = await cycleSections();
     expect(sections, contains(('B-001', 'red')));
     expect(sections, contains(('B-001', 'green')));

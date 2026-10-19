@@ -30,6 +30,11 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('zfa_uc_struct_');
     outputDir = p.join(tempDir.path, 'lib', 'src');
+    final serviceDir = Directory(p.join(outputDir, 'domain', 'services'));
+    await serviceDir.create(recursive: true);
+    await File(p.join(serviceDir.path, 'auth_service.dart')).writeAsString(
+      'abstract class AuthService {\n  Future<AuthSession> login(LoginParams params);\n}',
+    );
   });
 
   tearDown(() async {
