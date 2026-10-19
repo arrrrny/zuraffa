@@ -394,7 +394,7 @@ class SplitCommand extends Command<void> {
         'tdd/${LaneSplitFiles.contract}',
         'tdd/test-list.md (meta-index)',
       ],
-      'engine_flutter_references': _flutterReferenceCount(engineMd),
+      'engine_flutter_references': flutterReferenceCount(engineMd),
     };
     await receiptFile.writeAsString(
       const JsonEncoder.withIndent('  ').convert(receipt),
@@ -423,18 +423,4 @@ class SplitCommand extends Command<void> {
     BehaviorKind.ffi ||
     BehaviorKind.platform => Lane.core,
   };
-}
-
-/// Count the engine plan's flutter references (audit field of the
-/// receipt; zero by construction). Built from pieces so this file's
-/// source is not a false positive for repo-wide greps.
-int _flutterReferenceCount(String content) {
-  final needle = 'package:${'flutter'}';
-  var count = 0;
-  var idx = content.indexOf(needle);
-  while (idx >= 0) {
-    count++;
-    idx = content.indexOf(needle, idx + needle.length);
-  }
-  return count;
 }
