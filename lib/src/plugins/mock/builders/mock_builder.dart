@@ -137,7 +137,8 @@ class MockBuilder {
     // Issue #1851: skip the top-level mock-data file only when the target
     // is the service interface itself (an abstract type) — never instantiate
     // it. Concrete return/param entities still get their fixtures here.
-    if (!isPolymorphic && !(config.hasService && targetEntity == config.effectiveService)) {
+    if (!isPolymorphic &&
+        !(config.hasService && targetEntity == config.effectiveService)) {
       final requiresConcreteEntity =
           config.generateMockDataOnly ||
           (config.name == targetEntity &&

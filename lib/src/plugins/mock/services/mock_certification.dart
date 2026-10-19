@@ -21,11 +21,11 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../../../core/ast/ast_helper.dart';
-import 'package:analyzer/dart/ast/ast.dart';
 import '../../../core/context/file_system.dart';
 import '../../../core/plugin_system/capability_invocation_wrapper.dart';
 import '../../../core/project/receipt_store.dart';
@@ -159,6 +159,7 @@ class MockCertification {
     'implemented_methods': List<String>.from(implementedMethods),
     'missing_methods': List<String>.from(missingMethods),
     'invented_methods': List<String>.from(inventedMethods),
+    'signature_mismatches': List<String>.from(signatureMismatches),
     'conformance': conformance,
     'fixture_hashes': fixtures.map((f) => f.toJson()).toList(),
   };
@@ -314,57 +315,9 @@ abstract final class MockCertificationService {
     // override. Compare (name, getter, parameter count, params type,
     // returns type, use-case kind) rather than names alone.
     final signatureMismatches = <String>[];
-    if (interfaceParsed.isNotEmpty) {
-      final ifaceSigSet = <String>{};
-      final ifaceSigsByName = <String, Set<String>>{};
-      for (final m in interfaceParsed) {
-        final sig = _interfaceSignature(m);
-        ifaceSigSet.add(sig);
-        ifaceSigsByName.putIfAbsent(m.fieldName, () => <String>{}).add(sig);
-      }
-      final implSigSet = <String>{};
-      final implSigsByName = <String, Set<String>>{};
-      for (final md in implementedDecls) {
-        final sig = _implementedSignature(md);
-        implSigSet.add(sig);
-        implSigsByName.putIfAbsent(md.name.lexeme, () => <String>{}).add(sig);
-      }
-
-      // missing / invented are already computed by name below; refine them
-      // to be signature-aware by re-deriving here.
-      final missing = <String>[];
-      final invented = <String>[];
-      for (final m in interfaceParsed) {
-        final name = m.fieldName;
-        final sigs = ifaceSigsByName[name]!;
-        if (!sigs.any(implSigSet.contains)) {
-          if (implSigsByName.containsKey(name)) {
-            // name present but no matching signature -> invalid override
-            if (!signatureMismatches.contains(name)) {
-              signatureMismatches.add(name);
-            }
-          } else {
-            missing.add(name);
-          }
-        }
-      }
-      for (final md in implementedDecls) {
-        final name = md.name.lexeme;
-        final sig = _implementedSignature(md);
-        if (!ifaceSigSet.contains(sig)) {
-          if (!ifaceSigsByName.containsKey(name)) {
-            invented.add(name);
-          }
-          // name present but signature differs is already captured above
-        }
-      }
-
-      // Replace the name-only drift sets computed later by overwriting the
-      // local variables. We reassign via the same names used below by
-      // shadowing: store into temporary holders read at the drift section.
-      // (Handled below by skipping the name-only block.)
-      // store into outer scope via closure variables captured below
-    }
+    // Consolidated into the drift section below (issue #1851 nitpick): the
+    // signature-aware comparison lives there; this first block only
+    // duplicated it and discarded its missing/invented locals.
 
     // 4. Fixture digests from the FINAL on-disk bytes.
     final fixtures = <MockFixtureHash>[];
@@ -749,6 +702,15 @@ class MockCertifier {
     }
 
     // 3. Scoped dart analyze over the emitted mock files.
+    // Issue #1851: signature-level drift must also fail the gate, not just
+    // be recorded as a mismatch — otherwise a name-matching but
+    // signature-differing member passes with exit 0.
+    if (certification.signatureMismatches.isNotEmpty) {
+      fixes.add(
+        '--> fix: signature mismatch in $interfaceName member(s): '
+        '${certification.signatureMismatches.join(', ')}',
+      );
+    }
     final analyzeFiles = <String>[
       if (certification.mockFile != null) certification.mockFile!,
       if (certification.interface != null) certification.interface!,
