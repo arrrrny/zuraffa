@@ -60,10 +60,23 @@ class DependencySignature {
 
   /// Parse one signature; throws [FormatException] naming the raw text
   /// when the shape does not match (the caller refuses naming the row).
+  ///
+  /// Inline-code backticks (the Layer Contracts convention, see
+  /// `spec_parser.dart`'s `parseContractRows`) are tolerated and stripped
+  /// from each method segment, so a contract cell written as
+  /// `` `read() -> Future<UserLocation?>` `` parses identically to its
+  /// un-backticked form (issue #1892).
   factory DependencySignature.parse(String raw) {
-    final m = _shape.firstMatch(raw);
+    final original = raw.trim();
+    var text = original;
+    if (text.length >= 2 && text.startsWith('`') && text.endsWith('`')) {
+      text = text.substring(1, text.length - 1).trim();
+    }
+    final m = _shape.firstMatch(text);
     if (m == null) {
-      throw FormatException('not a `name(Params) -> Return` signature: $raw');
+      throw FormatException(
+        'not a `name(Params) -> Return` signature: $original',
+      );
     }
     final params = m
         .group(2)!
@@ -74,7 +87,7 @@ class DependencySignature {
     return DependencySignature(
       name: m.group(1)!,
       parameters: params,
-      returnType: m.group(3)!,
+      returnType: m.group(3)!.trim(),
     );
   }
 
@@ -116,16 +129,28 @@ class DependencyContract {
       } else if (c == ')') {
         depth--;
       } else if (c == ',' && depth == 0) {
-        final part = buf.toString().trim();
+        final part = _stripBackticks(buf.toString().trim());
         if (part.isNotEmpty) out.add(part);
         buf.clear();
         continue;
       }
       buf.write(c);
     }
-    final last = buf.toString().trim();
+    final last = _stripBackticks(buf.toString().trim());
     if (last.isNotEmpty) out.add(last);
     return out;
+  }
+
+  /// Strip a single surrounding pair of inline-code backticks from one
+  /// method segment (issue #1892). Backticks are only ever wrapped around
+  /// a whole signature, so a segment that is not wrapped is returned
+  /// unchanged.
+  static String _stripBackticks(String segment) {
+    var s = segment.trim();
+    if (s.length >= 2 && s.startsWith('`') && s.endsWith('`')) {
+      s = s.substring(1, s.length - 1).trim();
+    }
+    return s;
   }
 
   /// Parse the contract cell: methods separated by `,` at the top

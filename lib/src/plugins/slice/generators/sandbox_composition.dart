@@ -161,14 +161,18 @@ class SandboxComposition {
     String contract,
   ) {
     final parts = contract
-        .split(RegExp(r',\s*(?=[A-Za-z_][A-Za-z0-9_]*\s*\()'))
+        .split(RegExp(r',\s*(?=[`]?[A-Za-z_][A-Za-z0-9_]*\s*\()'))
         .where((part) => part.trim().isNotEmpty)
         .toList();
     return [
       for (final part in parts)
         () {
-          final arrow = part.indexOf('->');
-          final head = (arrow >= 0 ? part.substring(0, arrow) : part).trim();
+          var seg = part.trim();
+          if (seg.length >= 2 && seg.startsWith('`') && seg.endsWith('`')) {
+            seg = seg.substring(1, seg.length - 1).trim();
+          }
+          final arrow = seg.indexOf('->');
+          final head = (arrow >= 0 ? seg.substring(0, arrow) : seg).trim();
           final paren = head.indexOf('(');
           if (paren < 0) return (name: head, params: '');
           return (
