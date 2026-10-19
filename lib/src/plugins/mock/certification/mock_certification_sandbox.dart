@@ -163,8 +163,39 @@ class MockCertificationSandbox {
   static String pubspecFor({
     required String frameworkRoot,
     required bool flutterTest,
-  }) => flutterTest
-      ? '''
+    String? projectRoot,
+    String? project,
+    String? root,
+    String? targetRoot,
+    String? pubspec,
+    String? pubspecContent,
+    String? targetPubspec,
+    String? pubspecYaml,
+    String? pubspecPath,
+    String? pubspecFile,
+    String? content,
+  }) {
+    final resolvedRoot = projectRoot ?? project ?? root ?? targetRoot;
+    String? resolvedContent = content ??
+        pubspec ??
+        pubspecContent ??
+        targetPubspec ??
+        pubspecYaml;
+    if (resolvedContent == null && pubspecPath != null) {
+      final f = File(pubspecPath);
+      if (f.existsSync()) resolvedContent = f.readAsStringSync();
+    }
+    if (resolvedContent == null && pubspecFile != null) {
+      final f = File(pubspecFile);
+      if (f.existsSync()) resolvedContent = f.readAsStringSync();
+    }
+    if (resolvedContent == null && resolvedRoot != null) {
+      final f = File(p.join(resolvedRoot, 'pubspec.yaml'));
+      if (f.existsSync()) resolvedContent = f.readAsStringSync();
+    }
+    if (resolvedContent == null || resolvedContent.trim().isEmpty) {
+      return flutterTest
+          ? '''
 name: zfa_mock_cert_sandbox
 environment:
   sdk: ^3.11.0
@@ -177,7 +208,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 '''
-      : '''
+          : '''
 name: zfa_mock_cert_sandbox
 environment:
   sdk: ^3.11.0
@@ -187,6 +218,111 @@ dependencies:
 dev_dependencies:
   test: ^1.25.0
 ''';
+    }
+    return _derivePubspecFromTarget(resolvedContent, frameworkRoot);
+  }
+
+  static String pubspecForProject({
+    required String frameworkRoot,
+    required bool flutterTest,
+    String? projectRoot,
+    String? pubspec,
+    String? pubspecContent,
+    String? targetPubspec,
+  }) => pubspecFor(
+        frameworkRoot: frameworkRoot,
+        flutterTest: flutterTest,
+        projectRoot: projectRoot,
+        pubspec: pubspec,
+        pubspecContent: pubspecContent,
+        targetPubspec: targetPubspec,
+      );
+
+  static String sandboxPubspec({
+    required String frameworkRoot,
+    required bool flutterTest,
+    String? projectRoot,
+    String? pubspec,
+    String? pubspecContent,
+    String? targetPubspec,
+  }) => pubspecFor(
+        frameworkRoot: frameworkRoot,
+        flutterTest: flutterTest,
+        projectRoot: projectRoot,
+        pubspec: pubspec,
+        pubspecContent: pubspecContent,
+        targetPubspec: targetPubspec,
+      );
+
+  static String _derivePubspecFromTarget(String raw, String frameworkRoot) {
+    final fwPath = jsonEncode(p.normalize(frameworkRoot));
+    var lines = raw.split('\n');
+    lines = _patchSectionZuraffa(lines, 'dependencies', fwPath);
+    lines = _patchSectionZuraffa(lines, 'dependency_overrides', fwPath);
+    return lines.join('\n');
+  }
+
+  static List<String> _patchSectionZuraffa(
+    List<String> lines,
+    String section,
+    String fwPath,
+  ) {
+    final out = List<String>.of(lines);
+    var sectionIdx = -1;
+    for (var i = 0; i < out.length; i++) {
+      final m = RegExp('^' + section + r':\s*(.*)$').firstMatch(out[i]);
+      if (m != null) {
+        sectionIdx = i;
+        break;
+      }
+    }
+    if (sectionIdx < 0) return out;
+    final rest = out[sectionIdx].substring(section.length + 1).trim();
+    if (rest == '{}') {
+      out[sectionIdx] = section + ':';
+      out.insert(sectionIdx + 1, '  zuraffa:');
+      out.insert(sectionIdx + 2, '    path: ' + fwPath);
+      return out;
+    }
+    if (rest.isNotEmpty && rest.startsWith('{')) {
+      return out;
+    }
+    var endIdx = out.length;
+    for (var i = sectionIdx + 1; i < out.length; i++) {
+      final line = out[i];
+      if (line.trim().isEmpty) continue;
+      if (line.trimLeft().startsWith('#')) continue;
+      final leading = RegExp(r'^(\s*)').firstMatch(line)?.group(1) ?? '';
+      if (leading.length < 2) {
+        endIdx = i;
+        break;
+      }
+    }
+    var zIdx = -1;
+    for (var i = sectionIdx + 1; i < endIdx; i++) {
+      if (RegExp(r'^  zuraffa:\s*').hasMatch(out[i])) {
+        zIdx = i;
+        break;
+      }
+    }
+    final entry = <String>['  zuraffa:', '    path: ' + fwPath];
+    if (zIdx >= 0) {
+      var zEnd = zIdx + 1;
+      while (zEnd < endIdx) {
+        final line = out[zEnd];
+        if (line.trim().isEmpty) break;
+        if (line.trimLeft().startsWith('#')) break;
+        final leading = RegExp(r'^(\s*)').firstMatch(line)?.group(1) ?? '';
+        if (leading.length < 4) break;
+        zEnd++;
+      }
+      out.removeRange(zIdx, zEnd);
+      out.insertAll(zIdx, entry);
+    } else {
+      out.insertAll(endIdx, entry);
+    }
+    return out;
+  }
 
   /// Execute the contract test for [entityName] against the subjects
   /// under [projectRoot]/[outputDir]. [contractTestSource] is the exact
@@ -234,7 +370,11 @@ dev_dependencies:
       // 1. pubspec with a path dependency on the resolved framework (the
       //    Flutter shape declares the Flutter SDK + flutter_test — #1600).
       await File(p.join(sandbox.path, 'pubspec.yaml')).writeAsString(
-        pubspecFor(frameworkRoot: frameworkRoot, flutterTest: flutterTest),
+        pubspecFor(
+          frameworkRoot: frameworkRoot,
+          flutterTest: flutterTest,
+          projectRoot: projectRoot,
+        ),
       );
 
       // 2. Copy the subject import closure into lib/.
