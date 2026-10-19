@@ -221,9 +221,17 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // did not compile. Resolve here, mirroring MakeCommand, so every entry
     // point shares one resolution. Service-mode mocks conform to the
     // declared service interface and keep the default.
+    //
+    // PR #1904 review: resolve only while `idField` is still the `id`
+    // sentinel, so an explicit `--id-field` from the make pipeline wins
+    // (MakeCommand guards its own resolution the same way). Prefer the
+    // caller's project root over assuming `outputDir` is `<root>/lib/src`.
     var resolvedConfig = config;
-    if (config.service == null) {
-      final projectRoot = Directory(config.outputDir).parent.parent.path;
+    if (config.service == null && config.idField == 'id') {
+      final contextRoot = context?.core.projectRoot;
+      final projectRoot = contextRoot != null && contextRoot.isNotEmpty
+          ? contextRoot
+          : Directory(config.outputDir).parent.parent.path;
       final resolution = EntityFieldResolver.resolveIdField(
         entityName: config.repo != null
             ? config.repo!.replaceAll('Repository', '')
