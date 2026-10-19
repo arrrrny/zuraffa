@@ -76,8 +76,10 @@ bool _isWholeInlineCodeSpan(String text) =>
 /// pair around the whole cell and one pair per method segment.
 List<String> splitDependencyContract(String contract) {
   var text = contract.trim();
+  // One shared primitive (stripInlineCodeSpan) owns the single-pair strip,
+  // so the whole-cell and per-segment rules cannot drift (issue #1892).
   if (_isWholeInlineCodeSpan(text)) {
-    text = text.substring(1, text.length - 1);
+    text = stripInlineCodeSpan(text);
   }
   text = text.replaceAll('`', '');
   return [
