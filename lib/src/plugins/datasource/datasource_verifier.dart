@@ -25,6 +25,7 @@ import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:path/path.dart' as p;
 
+import '../../utils/crud_method_vocabulary.dart';
 import '../../utils/string_utils.dart';
 
 /// One entity-conformance divergence the verifier found.
@@ -124,19 +125,6 @@ class DatasourceVerifyReport {
 /// The datasource verify gate. Stateless; instantiate freely.
 class DatasourceVerifier {
   const DatasourceVerifier();
-
-  /// The standard CRUD method names whose signatures must reference the
-  /// entity type. Custom (non-CRUD) methods are never entity-checked.
-  static const Set<String> _entityTypedMethods = {
-    'get',
-    'getList',
-    'list',
-    'create',
-    'update',
-    'toggle',
-    'watch',
-    'watchList',
-  };
 
   /// The parameter type prefixes whose FIRST type argument is the entity's
   /// id-field type.
@@ -381,7 +369,7 @@ class DatasourceVerifier {
 
         // 2. entity-type conformance: standard CRUD methods must reference
         //    the entity class they serve.
-        if (_entityTypedMethods.contains(method.name)) {
+        if (entityTypedMethodVocabulary.contains(method.name)) {
           final referenced = _referencedTypeNames(method.signature);
           if (!referenced.contains(capEntity)) {
             findings.add(

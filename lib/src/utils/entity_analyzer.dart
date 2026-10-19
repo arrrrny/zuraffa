@@ -1,5 +1,6 @@
 import '../core/plugin_system/discovery_engine.dart';
 import '../core/context/file_system.dart';
+import 'crud_method_vocabulary.dart';
 import 'entity_field_resolver.dart';
 import 'string_utils.dart';
 
@@ -403,24 +404,19 @@ class EntityAnalyzer {
   /// (#1787) is unreachable on exactly the input shape it was written
   /// for.
   ///
-  /// The standard CRUD vocabulary is the set advertised by
-  /// `zfa mock create --help` minus `list`; everything else (including
-  /// `list` and arbitrary verbs from issue #1823) is treated as a
-  /// non-CRUD request.
-  static const Set<String> _crudMethodVocabulary = <String>{
-    'get',
-    'getList',
-    'create',
-    'update',
-    'delete',
-    'toggle',
-    'watch',
-    'watchList',
-  };
-
+  /// The standard CRUD vocabulary is the shared
+  /// [crudSurfaceMethodVocabulary] minus `list`; `list` and arbitrary
+  /// verbs from issue #1823 are treated as non-CRUD requests.
+  ///
+  /// An EMPTY list means "CRUD": `GeneratorConfig.methods` defaults to
+  /// `const []`, and these plugin entry points are public — the omitted
+  /// default must keep the pre-#1898 guard behavior rather than emitting
+  /// the non-compiling pair. The CLI normalizes an omitted `--methods`
+  /// to `get,update,toggle`, so the shipped path is unaffected.
   static bool methodsRequireCrudSurface(Iterable<String> methods) {
+    if (methods.isEmpty) return true;
     for (final method in methods) {
-      if (_crudMethodVocabulary.contains(method)) return true;
+      if (crudSurfaceMethodVocabulary.contains(method)) return true;
     }
     return false;
   }
