@@ -97,7 +97,7 @@ void main() {
     test('U1/US1.AC1: drives ONLY the CORE+BOTH behaviors, exit 0', () async {
       final out = await run('run-engine');
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // A1, U1 and U2 driven in list order (A1's outer-loop section
       // comes first in the file); W1/W2 never spawn.
       // Issue #1652: the same-drive-make refactor no longer spawns in
@@ -127,7 +127,7 @@ void main() {
     test('U2/US1.AC2: writes the engine receipt with verdict green', () async {
       final out = await run('run-engine');
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final receipt = await readReceipt(engineReceiptPath());
       expect(receipt['schema'], 1);
       expect(receipt['feature'], feature);
@@ -148,7 +148,7 @@ void main() {
 
       final out = await run('run-engine');
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // Issue #1652: makes first, then the phase-2b batch refactors.
       expect(fx.stepInvocations(), [
         'gen B-001',
@@ -181,7 +181,7 @@ void main() {
         final out = await run('run-engine');
 
         // Honest stop, driver exit code 1 (stopped).
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         expect(out, contains('stopped_at=U2:make'), reason: out);
         final receipt = await readReceipt(engineReceiptPath());
         expect(receipt['verdict'], 'red');
@@ -210,7 +210,7 @@ void main() {
       () async {
         final out = await run('run-skin');
 
-        expect(exitCode, 2, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
         expect(out, contains('04-engine-receipt.json'), reason: out);
         expect(out, contains('run-engine'), reason: out);
         expect(fx.stepInvocations(), isEmpty);
@@ -228,7 +228,7 @@ void main() {
 
       final out = await run('run-skin');
 
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(out, contains('red'), reason: out);
       expect(fx.stepInvocations(), isEmpty);
       expect(await File(skinReceiptPath()).exists(), isFalse);
@@ -238,13 +238,13 @@ void main() {
       'U7/US2.AC3: green engine receipt — drives ONLY skin+BOTH, skips done BOTH',
       () async {
         final engineOut = await run('run-engine');
-        expect(exitCode, 0, reason: engineOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: engineOut);
         fx.clearStepInvocations();
         exitCode = 0;
 
         final out = await run('run-skin');
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         // W1, W2 driven in list order; A1 is already DONE (engine lane) and
         // is skipped, never re-driven from gen. Issue #1652: W1/W2's
         // refactors defer to the phase-2b batch pass (after all makes).
@@ -276,13 +276,13 @@ void main() {
       () async {
         await seedLegacy();
         final engineOut = await run('run-engine');
-        expect(exitCode, 0, reason: engineOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: engineOut);
         fx.clearStepInvocations();
         exitCode = 0;
 
         final out = await run('run-skin');
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(fx.stepInvocations(), isEmpty);
         final receipt = await readReceipt(skinReceiptPath());
         expect(receipt['verdict'], 'green');
@@ -294,14 +294,14 @@ void main() {
 
     test('skin lane stops honestly — exit 1, red skin receipt', () async {
       final engineOut = await run('run-engine');
-      expect(exitCode, 0, reason: engineOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: engineOut);
       fx.clearStepInvocations();
       exitCode = 0;
       await fx.setStepOutcome('make', 'W1', 'not-certified-red');
 
       final out = await run('run-skin');
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('stopped_at=W1:make'), reason: out);
       final receipt = await readReceipt(skinReceiptPath());
       expect(receipt['verdict'], 'red');
@@ -316,7 +316,7 @@ void main() {
       () async {
         final out = await run('run');
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final invocations = fx.stepInvocations();
         // 3 engine behaviors + 2 skin behaviors (A1 done by engine) = 20.
         expect(invocations.length, 20, reason: invocations.join('\n'));
@@ -338,7 +338,7 @@ void main() {
     test('U9b/US3.AC1: both receipts green after the meta run', () async {
       final out = await run('run');
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final engine = await readReceipt(engineReceiptPath());
       final skin = await readReceipt(skinReceiptPath());
       expect(engine['verdict'], 'green');
@@ -350,7 +350,7 @@ void main() {
 
       final out = await run('run');
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('stopped_at=U2:make'), reason: out);
       // No skin step ever spawned, no skin receipt written.
       expect(
@@ -369,7 +369,7 @@ void main() {
       () async {
         final out = await run('run');
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         // The machine summary line keeps the run driver's shape.
         expect(
           out,
@@ -393,7 +393,7 @@ void main() {
 
         final out = await run('run');
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         // Exactly the pre-split driver's step sequence, with the #1652
         // deferral: makes first, then the phase-2b batch refactors.
         expect(fx.stepInvocations(), [
@@ -432,12 +432,12 @@ void main() {
 
     test('U13/US4.AC1: both lanes green — one line, exit 0', () async {
       final metaOut = await run('run');
-      expect(exitCode, 0, reason: metaOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: metaOut);
       exitCode = 0;
 
       final out = await run('status');
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains('status: feature=$feature engine=green skin=green'),
@@ -450,7 +450,7 @@ void main() {
       () async {
         final out = await run('status');
 
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(
           out,
           contains('status: feature=$feature engine=absent skin=absent'),
@@ -463,12 +463,12 @@ void main() {
       'U14b: engine green, skin missing — mixed verdict, non-zero exit',
       () async {
         final engineOut = await run('run-engine');
-        expect(exitCode, 0, reason: engineOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: engineOut);
         exitCode = 0;
 
         final out = await run('status');
 
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(
           out,
           contains('status: feature=$feature engine=green skin=absent'),
@@ -484,7 +484,7 @@ void main() {
 
       final out = await run('status');
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(
         out,
         contains('status: feature=$feature engine=red skin=absent'),
@@ -501,7 +501,7 @@ void main() {
         '--project',
         fx.root.path,
       ]);
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('999-no-such-feature'), reason: out);
     });
   });
@@ -534,7 +534,7 @@ void main() {
 ''');
 
         final engineOut = await run('run-engine');
-        expect(exitCode, 0, reason: engineOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: engineOut);
         expect(fx.stepInvocations().map((l) => l.split(' ')[1]).toSet(), {
           'U1',
           'U2',
@@ -553,7 +553,7 @@ void main() {
         fx.clearStepInvocations();
         exitCode = 0;
         final skinOut = await run('run-skin');
-        expect(exitCode, 0, reason: skinOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: skinOut);
         expect(fx.stepInvocations().map((l) => l.split(' ')[1]).toSet(), {
           'W1',
         }, reason: fx.stepInvocations().join('\n'));

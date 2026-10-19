@@ -117,7 +117,11 @@ void main() {
       fx.root.path,
       'B-001',
     ]);
-    expect(exitCode, 0, reason: 'certified red must exit 0');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'certified red must exit 0',
+    );
 
     // Rejected (unknown id) -> non-zero.
     await runner.runCapturing([
@@ -127,12 +131,16 @@ void main() {
       fx.root.path,
       'B-999',
     ]);
-    expect(exitCode, isNot(0), reason: 'resolution failure must be non-zero');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      isNot(0),
+      reason: 'resolution failure must be non-zero',
+    );
 
     // Rejected (no candidates after certification) -> non-zero.
     await runner.runCapturing(['tdd', 'verify-red', '--project', fx.root.path]);
     expect(
-      exitCode,
+      CliRunner.lastDispatchedExitCode,
       isNot(0),
       reason:
           'zero-candidate no-arg invocation must be non-zero '

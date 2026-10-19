@@ -200,7 +200,7 @@ void main() {
     Future<(int, String)> runReplay(String arg) async {
       final runner = CliRunner(exitOnCompletion: false);
       final output = await runner.runCapturing(['mcp', 'replay', arg]);
-      return (exitCode, output);
+      return (CliRunner.lastDispatchedExitCode, output);
     }
 
     test('S4: replay resolves the session id from McpSessionStore and '

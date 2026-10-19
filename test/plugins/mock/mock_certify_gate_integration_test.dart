@@ -23,7 +23,7 @@ void main() {
   var exitCodeAtEntry = 0;
 
   setUp(() async {
-    exitCodeAtEntry = exitCode;
+    exitCodeAtEntry = CliRunner.lastDispatchedExitCode;
     tempDir = await Directory.systemTemp.createTemp('mock_certify_int_970_');
     // A pub-resolved fixture: the generated mock imports
     // `package:zuraffa/mock.dart`, which resolves through the path dep.
@@ -111,7 +111,7 @@ abstract class PaymentService {
       ]),
     );
     expect(
-      exitCode,
+      CliRunner.lastDispatchedExitCode,
       0,
       reason: 'conforming mock passes the real analyzer gate:\n$ok',
     );
@@ -155,7 +155,11 @@ abstract class PaymentService {
         '--certify',
       ]),
     );
-    expect(exitCode, 1, reason: 'drifted mock fails the real analyzer gate');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      1,
+      reason: 'drifted mock fails the real analyzer gate',
+    );
     expect(refused, contains('--> fix:'));
     expect(
       refused,

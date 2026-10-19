@@ -103,7 +103,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // THE scheduling assertion: every refactor spawn happens AFTER the
       // last make — nothing spawns between makes in phase 1.
       final steps = fx.stepInvocations();
@@ -154,7 +154,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final steps = fx.stepInvocations();
       final lastMake = steps.lastIndexWhere((l) => l.startsWith('make '));
       final firstRefactor = steps.indexWhere((l) => l.startsWith('refactor '));
@@ -181,7 +181,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final steps = fx.stepInvocations();
       final lastMake = steps.lastIndexWhere((l) => l.startsWith('make '));
       final firstRefactor = steps.indexWhere((l) => l.startsWith('refactor '));
@@ -215,7 +215,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('result=complete'), reason: out);
       expect(out, contains('done=2'), reason: out);
       final argv = await argvLog();
@@ -268,7 +268,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // No make in this drive — the refactor is NOT deferred: this IS the
       // phase-1 spawn (the bug-1624 contract, preserved verbatim).
       final refactorSpawns = (await argvLog())
@@ -323,7 +323,7 @@ void main() {
 
         // The blocked behavior parks the run honestly (#1544 semantics):
         // exit 1, result=blocked — while U1 still reaches done.
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         expect(out, contains('result=blocked'), reason: out);
         expect(out, contains('blocked=1'), reason: out);
         // U1's refactor deferred in phase 1 (no spawn between its make and
@@ -377,7 +377,7 @@ void main() {
         final out = await drive();
 
         // Honest stop at the failing make.
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         expect(out, contains('stopped_at=B-002:make'), reason: out);
         // B-001's refactor never spawned — deferred, and the run stopped
         // before any phase-2b pass.

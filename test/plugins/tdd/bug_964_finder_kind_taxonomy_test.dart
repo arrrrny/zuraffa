@@ -37,7 +37,7 @@ void main() {
   /// (classification=assertion), emitted by the spy runner.
   const failingTranscript = '''
 00:00 +0 -1: test/a4_test.dart: A4 nav [E]
-00:00 -1: Expected: contains 'deal_list'
+  Expected: contains 'deal_list'
   Actual: Which: <[]>
 
 Some tests failed.

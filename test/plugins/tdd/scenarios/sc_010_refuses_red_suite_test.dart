@@ -42,7 +42,7 @@ void main() {
     expect(out, contains('outcome=not-green'));
     expect(out, contains('zfa tdd make'));
     expect(out.toLowerCase(), contains('red baseline'));
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     // Zero files modified across the entire project.
     expect(fx.checksumTestAndLib(), equals(checksumsBefore));
   });
@@ -65,7 +65,7 @@ void main() {
       ]);
 
       expect(out, contains('outcome=runner-error'));
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(fxBroken.checksumTestAndLib(), equals(checksumsBefore));
     } finally {
       fxBroken.dispose();

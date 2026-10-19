@@ -66,8 +66,8 @@ void main() {
       '--zfa-bin',
       fx.fakeZfaBin,
     ]);
-    expect(exitCode, 0, reason: out);
-    return exitCode;
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
+    return CliRunner.lastDispatchedExitCode;
   }
 
   setUp(() async {

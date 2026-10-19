@@ -282,7 +282,7 @@ void main() {
     final out = await CliRunner(
       exitOnCompletion: false,
     ).runCapturing(planArgs());
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     return laneFile('04-SKIN.md').readAsString();
   }
 
@@ -458,7 +458,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final rows = await TestListReader(featureDir).read();
       expect(
         rows.map((r) => r.id).toSet(),
@@ -479,7 +479,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(
         out.contains('Lanes'),
         isTrue,
@@ -499,7 +499,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(
         out.contains('platform_matrix'),
         isTrue,
@@ -519,7 +519,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 2, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
       expect(
         out.toLowerCase().contains('adaptive_slots'),
         isTrue,
@@ -570,7 +570,7 @@ void main() {
       final out = await CliRunner(
         exitOnCompletion: false,
       ).runCapturing(planArgs());
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final skin = await laneFile('04-SKIN.md').readAsString();
       expect(skin.contains('## Platform contract'), isTrue);
       expect(skin.contains('## State machine contract'), isTrue);
