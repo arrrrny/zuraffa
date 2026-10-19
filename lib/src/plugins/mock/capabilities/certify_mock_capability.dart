@@ -161,8 +161,10 @@ class CertifyMockCapability implements ZuraffaCapability {
     );
 
     // Refusal BEFORE the sandbox ran: no mock artifacts / no interface
-    // to pin — a different failure class than a red contract.
-    if (outcome.contractTestSource == null) {
+    // to pin — a different failure class than a red contract. Issue #1872:
+    // an enum certifies on its fixture-only surface and carries no contract
+    // test, so a present receipt is not a refusal.
+    if (outcome.contractTestSource == null && outcome.receipt == null) {
       for (final line in outcome.logs) {
         stderr.writeln('zfa mock certify: $line');
       }

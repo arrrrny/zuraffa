@@ -43,6 +43,7 @@ class MockCertReceipt {
     this.entityDigest,
     this.entityDigestStyle,
     required this.methods,
+    this.fixtureOnly = false,
     required this.sandbox,
     required this.seed,
     DateTime? certifiedAt,
@@ -74,6 +75,11 @@ class MockCertReceipt {
   /// Ordered per-method satisfaction: name -> satisfied.
   final List<MapEntry<String, bool>> methods;
 
+  /// Issue #1872: true when the entity certified on a fixture-only surface
+  /// (an enum) with no interface methods. Such a receipt is a legitimate
+  /// certification despite carrying no methods.
+  final bool fixtureOnly;
+
   /// Sandbox evidence: runner, analyze issue/error counts, test counts.
   final Map<String, dynamic> sandbox;
 
@@ -82,7 +88,12 @@ class MockCertReceipt {
 
   final DateTime certifiedAt;
 
-  bool get allSatisfied => methods.isNotEmpty && methods.every((m) => m.value);
+  // Issue #1872: an enum entity certifies on its mock-data surface alone,
+  // so its receipt carries no interface methods. That is a legitimate
+  // (vacuous) certification only when [fixtureOnly] is set; an ordinary
+  // empty contract certifies nothing (honest red).
+  bool get allSatisfied =>
+      fixtureOnly || (methods.isNotEmpty && methods.every((m) => m.value));
 
   Map<String, dynamic> toJson() => {
     'schema': schema,
@@ -97,6 +108,7 @@ class MockCertReceipt {
     'methods': [
       for (final m in methods) {'name': m.key, 'satisfied': m.value},
     ],
+    if (fixtureOnly) 'fixture_only': true,
     'sandbox': sandbox,
     if (seed != null) 'seed': seed,
     'certified_at': certifiedAt.toUtc().toIso8601String(),
@@ -123,6 +135,7 @@ class MockCertReceipt {
       entityDigest: json['entity_digest'] as String?,
       entityDigestStyle: json['entity_digest_style'] as String?,
       methods: methods,
+      fixtureOnly: json['fixture_only'] == true,
       sandbox: (json['sandbox'] as Map<dynamic, dynamic>? ?? const {})
           .cast<String, dynamic>(),
       seed: json['seed'] is int ? json['seed'] as int : null,
@@ -149,6 +162,7 @@ class MockCertReceipt {
     int? seed,
     String? entityDigest,
     String? entityDigestStyle,
+    bool fixtureOnly = false,
   }) {
     return MockCertReceipt(
       entity: entity,
@@ -162,6 +176,7 @@ class MockCertReceipt {
         for (final name in methodNames)
           MapEntry(name, run.methodOutcomes[name] ?? false),
       ],
+      fixtureOnly: fixtureOnly,
       sandbox: {
         'runner': run.runner,
         'analyze_issues': run.analyzeIssues,
