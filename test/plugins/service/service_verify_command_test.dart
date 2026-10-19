@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/zfa_cli.dart' as cli;
 
 /// SPEC 1127, order 2 — `zfa service verify <Entity>`.
@@ -61,6 +62,7 @@ environment:
         'EmailParams',
         '--returns',
         'SendResult',
+        '--allow-forward-refs',
       ]);
 
       final output = await zfa(['service', 'verify', 'SendEmail']);
@@ -70,7 +72,7 @@ environment:
         contains('✅'),
         reason: 'conform gate must affirm: $output',
       );
-      expect(exitCode, equals(0));
+      expect(CliRunner.lastDispatchedExitCode, equals(0));
     });
 
     test('hand-edited file (method body signature drift) fails: exit 1 '
@@ -83,6 +85,7 @@ environment:
         'EmailParams',
         '--returns',
         'SendResult',
+        '--allow-forward-refs',
       ]);
 
       // Hand-edit: rename the method away from the grammar-prescribed
@@ -96,7 +99,7 @@ environment:
 
       expect(output, contains('missing_method'));
       expect(output, contains('--> fix:'));
-      expect(exitCode, equals(1));
+      expect(CliRunner.lastDispatchedExitCode, equals(1));
     });
 
     test('return-type drift fails the gate (grammar ≡ schema)', () async {
@@ -108,6 +111,7 @@ environment:
         'EmailParams',
         '--returns',
         'SendResult',
+        '--allow-forward-refs',
       ]);
 
       final file = serviceFile('send_email_service.dart');
@@ -121,14 +125,14 @@ environment:
       final output = await zfa(['service', 'verify', 'SendEmail']);
 
       expect(output, contains('signature_mismatch'));
-      expect(exitCode, equals(1));
+      expect(CliRunner.lastDispatchedExitCode, equals(1));
     });
 
     test('missing service file → exit 1, missing_file finding', () async {
       final output = await zfa(['service', 'verify', 'Ghost']);
 
       expect(output, contains('missing_file'));
-      expect(exitCode, equals(1));
+      expect(CliRunner.lastDispatchedExitCode, equals(1));
     });
 
     test('--json emits one canonical envelope (pass)', () async {
@@ -142,6 +146,7 @@ environment:
         'Audit',
         '--type',
         'usecase',
+        '--allow-forward-refs',
       ]);
 
       final output = await zfa(['service', 'verify', 'Audit', '--json']);
@@ -174,6 +179,7 @@ environment:
         'NoParams',
         '--returns',
         'Billing',
+        '--allow-forward-refs',
       ]);
       final file = serviceFile('billing_service.dart');
       file.writeAsStringSync(
@@ -207,11 +213,18 @@ environment:
       final output = await zfa(['service', 'verify']);
 
       expect(output, contains('--> fix:'));
-      expect(exitCode, equals(2));
+      expect(CliRunner.lastDispatchedExitCode, equals(2));
     });
 
     test('knob overrides: --returns changes the audited surface', () async {
-      await zfa(['service', 'create', 'Ticker', '--params', 'NoParams']);
+      await zfa([
+        'service',
+        'create',
+        'Ticker',
+        '--params',
+        'NoParams',
+        '--allow-forward-refs',
+      ]);
 
       // The file was generated with returns == 'void' (default). Verifying
       // with --returns int must FAIL (the file says void).
@@ -223,7 +236,7 @@ environment:
         'int',
       ]);
 
-      expect(exitCode, equals(1));
+      expect(CliRunner.lastDispatchedExitCode, equals(1));
       expect(output, contains('signature_mismatch'));
     });
 
@@ -232,7 +245,7 @@ environment:
       final output = await zfa(['service', 'verify', 'not a valid entity!!']);
 
       expect(output, isNot(contains('Unhandled exception')));
-      expect(exitCode, isNot(equals(0)));
+      expect(CliRunner.lastDispatchedExitCode, isNot(equals(0)));
     });
   });
 }

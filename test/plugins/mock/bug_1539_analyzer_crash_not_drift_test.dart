@@ -280,7 +280,7 @@ void main() {
     var exitCodeAtEntry = 0;
 
     setUp(() async {
-      exitCodeAtEntry = exitCode;
+      exitCodeAtEntry = CliRunner.lastDispatchedExitCode;
       tempDir = await Directory.systemTemp.createTemp('mock_certify_1539_');
       await _scaffoldProduct(tempDir.path);
     });
@@ -310,7 +310,7 @@ void main() {
       final out = await runCli(['mock', 'create', 'Product', '--certify']);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         0,
         reason:
             'the structural certification stands; a tool crash is '
@@ -347,7 +347,7 @@ void main() {
       final out = await runCli(['mock', 'verify', 'Product']);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         0,
         reason:
             'same machinery as mock certify (spec 1121 AC): a tool '
@@ -372,7 +372,7 @@ void main() {
       ]);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         0,
         reason: 'the structural certification stands, output:\n$out',
       );

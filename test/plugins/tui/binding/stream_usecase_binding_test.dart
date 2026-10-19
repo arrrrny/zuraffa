@@ -196,6 +196,52 @@ void main() {
       expect(binding.state.hasFailure, isTrue);
       expect(binding.state.failure, isA<UnknownFailure>());
     });
+
+    test('start() fires the initial refresh fire-and-forget and propagates '
+        'the result', () async {
+      final useCase = _FakeUseCase<int, String>(
+        (params, cancelToken) async => const Success(7),
+      );
+
+      final events = <int>[];
+      final binding = UseCaseResultBinding<int, String>(
+        useCase: useCase,
+        params: 'p',
+        onValue: events.add,
+      );
+
+      expect(binding.state.isInitial, isTrue);
+
+      binding.start();
+      // start() is synchronous; let the fired refresh complete.
+      await Future.delayed(Duration.zero);
+      // Give the microtask queue a chance to drain the refresh Future.
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      expect(events, [7]);
+      expect(binding.value, 7);
+      expect(binding.state.hasFailure, isFalse);
+    });
+
+    test('start() is idempotent: a second call does not trigger a second '
+        'refresh', () async {
+      var calls = 0;
+      final useCase = _FakeUseCase<int, String>((params, cancelToken) async {
+        calls++;
+        return Success(calls);
+      });
+
+      final binding = UseCaseResultBinding<int, String>(
+        useCase: useCase,
+        params: 'p',
+      );
+
+      binding.start();
+      binding.start();
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      expect(calls, 1, reason: 'second start() must be a no-op');
+    });
   });
 
   group('RepositoryBinding (FR-007, U27)', () {

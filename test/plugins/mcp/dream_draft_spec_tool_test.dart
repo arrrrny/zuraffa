@@ -110,7 +110,7 @@ void main() {
         tmp.path,
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // plan prints its success line via stdout.writeln, which
       // runCapturing does not capture (the plan_gen_contract_test note) —
       // the artifact set + exit code are the proof.

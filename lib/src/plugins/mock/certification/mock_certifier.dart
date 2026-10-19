@@ -18,6 +18,7 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/dependencies/dependency_wirer.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/entity_analyzer.dart';
 import 'cert_registry.dart';
 import 'format_canonical_digest.dart';
 import 'mock_cert_receipt.dart';
@@ -127,6 +128,66 @@ class MockCertifier {
     String? domain,
   }) async {
     final logs = <String>[];
+
+    // Issue #1872: an enum entity has no CRUD datasource surface (issue
+    // #1037), so the spec-1001 certifier must never demand the mock
+    // datasource it deliberately never generates. Certify on the
+    // enum-valued surface alone (mock data + declared values).
+    final snake = StringUtils.camelToSnake(entityName);
+    if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+      final mockDataPath = p.join(
+        outputDir,
+        'data',
+        'mock',
+        '${snake}_mock_data.dart',
+      );
+      final mockDataFile = File(mockDataPath);
+      if (!mockDataFile.existsSync()) {
+        return MockCertificationOutcome(
+          certified: false,
+          entity: entityName,
+          contractTestSource: null,
+          receipt: null,
+          methodNames: const [],
+          logs: logs
+            ..add(
+              'no mock data at ${p.relative(mockDataPath, from: projectRoot)} '
+              '— generate it first with '
+              '`zfa mock create $entityName --certify`',
+            ),
+        );
+      }
+      final entityDigest = formatCanonicalDigestOfFile(
+        CertRegistry.locateEntityFile(projectRoot, entityName),
+      );
+      final receipt = MockCertReceipt(
+        entity: entityName,
+        interfaceName: MockContractTestWriter.interfaceName(entityName),
+        subjectPath: p.relative(mockDataPath, from: projectRoot),
+        contractTestPath: MockContractTestWriter.contractTestPath(entityName),
+        contractDigest: MockCertReceipt.digestOf(''),
+        entityDigest: entityDigest,
+        entityDigestStyle: entityDigest == null ? null : canonicalizerId,
+        methods: const [],
+        fixtureOnly: true,
+        sandbox: const {
+          'runner': 'enum',
+          'analyze_issues': 0,
+          'analyze_errors': 0,
+          'tests_passed': 0,
+          'tests_failed': 0,
+        },
+        seed: seed,
+      );
+      return MockCertificationOutcome(
+        certified: true,
+        entity: entityName,
+        contractTestSource: null,
+        receipt: receipt,
+        methodNames: const [],
+        logs: const [],
+      );
+    }
 
     // 1. The mock subject must exist.
     final mockPath = MockContractTestWriter.mockDatasourcePath(
@@ -329,11 +390,27 @@ class MockCertifier {
       files.add(testFile);
     }
     final receipt = outcome.receipt;
-    if (receipt != null) {
-      final receiptFile = File(p.join(projectRoot, _receiptPath(entityName)));
+    final receiptFile = File(p.join(projectRoot, _receiptPath(entityName)));
+    // A failed certification must not leave (or overwrite a stale green)
+    // receipt behind: a consumer that keys on receipt presence would
+    // otherwise treat an uncertified mock as certified (#1856). The in-memory
+    // receipt stays available to the caller for diagnostics; only the on-disk
+    // artifact is gated on a green run.
+    if (receipt != null && outcome.certified) {
       await receiptFile.parent.create(recursive: true);
       await receipt.writeTo(receiptFile);
       files.add(receiptFile);
+    } else if (receiptFile.existsSync()) {
+      try {
+        await receiptFile.delete();
+      } catch (e) {
+        // Best-effort: a locked file must not abort the contract-test write.
+        // Surface the failure so a stale green receipt is not silently kept.
+        stderr.writeln(
+          'warning: could not delete stale mock-cert receipt '
+          '${receiptFile.path}: $e',
+        );
+      }
     }
     return files;
   }
