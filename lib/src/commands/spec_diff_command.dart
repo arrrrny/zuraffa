@@ -13,6 +13,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../core/project/project_root.dart';
+import '../core/verdict_envelope.dart';
 import '../plugins/tdd/services/spec_parser.dart';
 
 class SpecDiffCommand extends Command<void> {
@@ -73,8 +74,7 @@ class SpecDiffCommand extends Command<void> {
       features.add(positional.first);
     } else if (specsDir.existsSync()) {
       for (final e in specsDir.listSync()) {
-        if (e is Directory &&
-            File(p.join(e.path, 'spec.md')).existsSync()) {
+        if (e is Directory && File(p.join(e.path, 'spec.md')).existsSync()) {
           features.add(p.basename(e.path));
         }
       }
@@ -333,7 +333,23 @@ class SpecDiffCommand extends Command<void> {
     }
 
     if (asJson) {
-      stdout.writeln(jsonEncode({'drift': totalDrift, 'features': entries}));
+      final driftPairs = <String>[];
+      for (final e in entries) {
+        for (final pair in (e['pairs'] as List)) {
+          final detail = pair['detail']?.toString();
+          if (detail != null && detail.isNotEmpty) driftPairs.add(detail);
+        }
+      }
+      VerdictEnvelope.emit(
+        VerdictEnvelope(
+          command: 'zfa spec diff',
+          verdict: totalDrift > 0 ? VerdictKind.fail : VerdictKind.pass,
+          exitClass: totalDrift > 0 ? 1 : 0,
+          subject: VerdictSubject(kind: 'spec', id: feature ?? 'all'),
+          drifts: driftPairs,
+          details: <String, Object?>{'drift': totalDrift, 'features': entries},
+        ),
+      );
       exitCode = totalDrift > 0 ? 1 : 0;
       return;
     }
