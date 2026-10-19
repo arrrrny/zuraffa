@@ -38,6 +38,20 @@ class EntityUtils {
     final types = <String>[];
     var baseType = fieldType.replaceAll('?', '');
 
+    // Unwrap Future<...>/Stream<...> so wrapped return types do not collapse
+    // into phantom entity names such as `FutureEntity`.
+    var unwrapChanged = true;
+    while (unwrapChanged) {
+      unwrapChanged = false;
+      if (baseType.startsWith('Future<') && baseType.endsWith('>')) {
+        baseType = baseType.substring(7, baseType.length - 1).trim();
+        unwrapChanged = true;
+      } else if (baseType.startsWith('Stream<') && baseType.endsWith('>')) {
+        baseType = baseType.substring(7, baseType.length - 1).trim();
+        unwrapChanged = true;
+      }
+    }
+
     if (baseType.startsWith('List<') && baseType.endsWith('>')) {
       baseType = baseType.substring(5, baseType.length - 1);
     } else if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
