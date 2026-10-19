@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import '../../../core/plugin_system/capability.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
+import '../../../utils/entity_analyzer.dart';
 import '../builders/simulation_fixture_writer.dart';
 import '../certification/mock_certification_sandbox.dart';
 import '../certification/mock_certifier.dart';
@@ -181,6 +182,12 @@ class CreateMockCapability implements ZuraffaCapability {
     // proven with the Flutter toolchain.
     final certifier = MockCertifier.forProject(projectRoot);
 
+    // Issue #1872 follow-up (environment-independence): an enum certifies on
+    // its fixture surface alone and needs neither the zuraffa package root
+    // nor the Flutter toolchain, so hoist the enum case ahead of those
+    // environment gates.
+    final isEnumEntity = EntityAnalyzer.isEnum(name, plugin.outputDir);
+
     // Spec 1110 composition: the spec 1001 sandbox certification is an
     // ENVIRONMENT-DEPENDENT proof — it needs a resolvable zuraffa
     // package root (the target project's package_config, the running
@@ -192,51 +199,53 @@ class CreateMockCapability implements ZuraffaCapability {
     // un-certified state stays loud — no mock-cert receipt is written,
     // so the spec 1110 engine cert-gate refuses the entity downstream
     // until it is certified in a resolvable environment.
-    final frameworkRoot = MockCertificationSandbox.resolveFrameworkRoot(
-      projectRoot,
-    );
-    if (frameworkRoot == null) {
-      stdout.writeln(
-        '⚠️  mock-cert: the certification sandbox cannot resolve the '
-        'zuraffa package root — no mock-cert.$name.json receipt written. '
-        'The engine cert-gate (spec 1110) will refuse "$name" as '
-        'uncertified until `zfa mock create $name --certify` runs in an '
-        'environment that resolves the framework (a real CLI invocation '
-        'or a project with the zuraffa dependency).',
+    if (!isEnumEntity) {
+      final frameworkRoot = MockCertificationSandbox.resolveFrameworkRoot(
+        projectRoot,
       );
-      return ExecutionResult(
-        success: true,
-        files: files.map((f) => f.path).toList(),
-        data: {
-          'generatedFiles': files,
-          'certified': false,
-          'certSandboxUnresolved': true,
-        },
-      );
-    }
+      if (frameworkRoot == null) {
+        stdout.writeln(
+          '⚠️  mock-cert: the certification sandbox cannot resolve the '
+          'zuraffa package root — no mock-cert.$name.json receipt written. '
+          'The engine cert-gate (spec 1110) will refuse "$name" as '
+          'uncertified until `zfa mock create $name --certify` runs in an '
+          'environment that resolves the framework (a real CLI invocation '
+          'or a project with the zuraffa dependency).',
+        );
+        return ExecutionResult(
+          success: true,
+          files: files.map((f) => f.path).toList(),
+          data: {
+            'generatedFiles': files,
+            'certified': false,
+            'certSandboxUnresolved': true,
+          },
+        );
+      }
 
-    // Issue #1600: a Flutter-shaped proof without the Flutter toolchain is
-    // the same environment-dependent class — not a red contract. The
-    // un-certified state stays loud (no receipt → the spec 1110 cert-gate
-    // refuses downstream), and the exit stays generation-governed.
-    if (certifier.sandbox.flutterTest &&
-        !MockCertificationSandbox.flutterOnPath()) {
-      stdout.writeln(
-        '⚠️  mock-cert: the Flutter-shaped contract test cannot be '
-        'certified — no flutter executable on PATH. No mock-cert.$name.json '
-        'receipt written. The engine cert-gate (spec 1110) will refuse '
-        '"$name" as uncertified until `zfa mock create $name --certify` '
-        'runs with the Flutter SDK installed.',
-      );
-      return ExecutionResult(
-        success: true,
-        files: files.map((f) => f.path).toList(),
-        data: {
-          'generatedFiles': files,
-          'certified': false,
-          'certSandboxUnresolved': true,
-        },
-      );
+      // Issue #1600: a Flutter-shaped proof without the Flutter toolchain is
+      // the same environment-dependent class — not a red contract. The
+      // un-certified state stays loud (no receipt → the spec 1110 cert-gate
+      // refuses downstream), and the exit stays generation-governed.
+      if (certifier.sandbox.flutterTest &&
+          !MockCertificationSandbox.flutterOnPath()) {
+        stdout.writeln(
+          '⚠️  mock-cert: the Flutter-shaped contract test cannot be '
+          'certified — no flutter executable on PATH. No mock-cert.$name.json '
+          'receipt written. The engine cert-gate (spec 1110) will refuse '
+          '"$name" as uncertified until `zfa mock create $name --certify` '
+          'runs with the Flutter SDK installed.',
+        );
+        return ExecutionResult(
+          success: true,
+          files: files.map((f) => f.path).toList(),
+          data: {
+            'generatedFiles': files,
+            'certified': false,
+            'certSandboxUnresolved': true,
+          },
+        );
+      }
     }
 
     final outcome = await certifier.certify(
@@ -288,7 +297,8 @@ class CreateMockCapability implements ZuraffaCapability {
         data: {
           'generatedFiles': files,
           'certified': false,
-          if (receipt != null) 'mockCertReceipt': receipt.toJson(),
+          if (receipt != null && outcome.certified)
+            'mockCertReceipt': receipt.toJson(),
         },
       );
     }

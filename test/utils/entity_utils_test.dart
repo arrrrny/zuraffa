@@ -23,13 +23,25 @@ void main() {
       });
 
       test('other primitives are still excluded', () {
-        for (final type in ['String', 'int', 'double', 'bool', 'DateTime']) {
+        for (final type in [
+          'String',
+          'int',
+          'double',
+          'bool',
+          'DateTime',
+          'num',
+        ]) {
           expect(
             EntityUtils.extractEntityTypes(type),
             isEmpty,
             reason: '$type must not be treated as an entity',
           );
         }
+      });
+
+      test('lowercase unknown types are now collected (#1848)', () {
+        expect(EntityUtils.extractEntityTypes('initial'), ['initial']);
+        expect(EntityUtils.extractEntityTypes('initial?'), ['initial']);
       });
     },
   );

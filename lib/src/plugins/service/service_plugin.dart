@@ -90,6 +90,16 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'description': 'Generate initialization and disposal methods',
         'default': false,
       },
+      // Issue #1794: service-create knob (schema ≡ grammar). Advertised
+      // here so JSON agents / `zfa make` see it; the CLI flag is the
+      // kebab-case `--allow-forward-refs`.
+      'allow-forward-refs': {
+        'type': 'boolean',
+        'description':
+            'Accept --params/--returns types not yet present on the entity '
+            'tree (forward references)',
+        'default': false,
+      },
     },
   };
 
