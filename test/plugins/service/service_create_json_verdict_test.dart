@@ -28,6 +28,19 @@ void main() {
     workspace = await Directory.systemTemp.createTemp('zfa_service_json_');
     outputDir = p.join(workspace.path, 'lib', 'src');
     await Directory(outputDir).create(recursive: true);
+    // Issue #1794: --params/--returns types must resolve on disk for
+    // conformance to be certified. Provide minimal entity stubs so the
+    // success path exercises the conformance proof.
+    for (final entity in ['EmailParams', 'SendResult']) {
+      final snake = entity
+          .replaceAllMapped(RegExp(r'[A-Z]'), (m) => '_${m.group(0)}')
+          .toLowerCase()
+          .substring(1);
+      final dir = Directory(p.join(outputDir, 'domain', 'entities', snake));
+      await dir.create(recursive: true);
+      await File(p.join(dir.path, '$snake.dart'))
+          .writeAsString('class $entity {}\n');
+    }
     await File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
 name: zuraffa_service_json_test
 environment:
@@ -162,6 +175,7 @@ environment:
           'NoParams',
           '--returns',
           'Barcode',
+          '--allow-forward-refs',
           '--json',
         ]);
 
@@ -219,6 +233,7 @@ environment:
         'NoParams',
         '--returns',
         'Invoice',
+        '--allow-forward-refs',
       ]);
 
       // Second run without --force: every file is skipped.
@@ -230,6 +245,7 @@ environment:
         'NoParams',
         '--returns',
         'Invoice',
+        '--allow-forward-refs',
         '--json',
       ]);
 
@@ -256,6 +272,7 @@ environment:
         'Sync',
         '--params',
         'SyncParams',
+        '--allow-forward-refs',
       ]);
 
       expect(output, contains('✅ Success! Created/Modified:'));
@@ -282,6 +299,7 @@ environment:
         'NoParams',
         '--returns',
         'Legacy',
+        '--allow-forward-refs',
         '--json',
       ]);
 

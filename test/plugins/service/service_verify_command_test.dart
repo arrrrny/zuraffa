@@ -62,6 +62,7 @@ environment:
         'EmailParams',
         '--returns',
         'SendResult',
+        '--allow-forward-refs',
       ]);
 
       final output = await zfa(['service', 'verify', 'SendEmail']);
@@ -84,6 +85,7 @@ environment:
         'EmailParams',
         '--returns',
         'SendResult',
+        '--allow-forward-refs',
       ]);
 
       // Hand-edit: rename the method away from the grammar-prescribed
@@ -109,6 +111,7 @@ environment:
         'EmailParams',
         '--returns',
         'SendResult',
+        '--allow-forward-refs',
       ]);
 
       final file = serviceFile('send_email_service.dart');
@@ -143,6 +146,7 @@ environment:
         'Audit',
         '--type',
         'usecase',
+        '--allow-forward-refs',
       ]);
 
       final output = await zfa(['service', 'verify', 'Audit', '--json']);
@@ -175,6 +179,7 @@ environment:
         'NoParams',
         '--returns',
         'Billing',
+        '--allow-forward-refs',
       ]);
       final file = serviceFile('billing_service.dart');
       file.writeAsStringSync(
@@ -212,7 +217,7 @@ environment:
     });
 
     test('knob overrides: --returns changes the audited surface', () async {
-      await zfa(['service', 'create', 'Ticker', '--params', 'NoParams']);
+      await zfa(['service', 'create', 'Ticker', '--params', 'NoParams', '--allow-forward-refs']);
 
       // The file was generated with returns == 'void' (default). Verifying
       // with --returns int must FAIL (the file says void).
