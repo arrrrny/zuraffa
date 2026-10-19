@@ -114,10 +114,7 @@ class MockCertification {
   });
 
   /// True when the mock implements exactly the interface surface.
-  bool get conformance =>
-      missingMethods.isEmpty &&
-      inventedMethods.isEmpty &&
-      signatureMismatches.isEmpty;
+  bool get conformance => missingMethods.isEmpty && signatureMismatches.isEmpty;
 
   /// The envelope-facing view (issue #970 order 2 `certification` object).
   Map<String, dynamic> toEnvelopeJson() => {
@@ -727,11 +724,15 @@ class MockCertifier {
         '${certification.missingMethods.join(', ')}',
       );
     }
-    // 2. Structural drift: invented surface the interface never declared.
-    if (certification.inventedMethods.isNotEmpty) {
+    // 2. Structural drift: an invented surface is real drift only when
+    //    the mock is ALSO missing interface members (renamed member).
+    //    Extra mock-only helpers on a conforming mock are legal and do
+    //    not fail the gate (issue #1857).
+    if (certification.inventedMethods.isNotEmpty &&
+        certification.missingMethods.isNotEmpty) {
       fixes.add(
-        '--> fix: correct the member(s) ${certification.mockClass ?? 'the '
-                'mock'} does not declare in $interfaceName: '
+        '--> fix: remove the extra member(s) ${certification.mockClass ?? 'the '
+                'mock'} declares beyond $interfaceName: '
         '${certification.inventedMethods.join(', ')}',
       );
     }

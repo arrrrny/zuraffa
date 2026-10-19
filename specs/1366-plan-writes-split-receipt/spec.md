@@ -23,6 +23,15 @@ refused forever ("the migration record was lost — issue #1309").
    `refreshed_at/by/rows` updated — the #1309 contract unchanged). A
    plan-first receipt carries `source: 'zfa tdd plan'` (vs the one-shot
    split's `tdd/test-list.md`).
+   **Superseded in part by #1883**: the classification-derived fields
+   (`rows`, `classification`, `classification_source`, `golden_ids`,
+   `adaptive_slots`, `files`, `engine_flutter_references`) are
+   re-derived from the current plan on every refresh. A pre-existing
+   receipt must not keep a stale behavior-id set: `run-engine` treats
+   `classification` as authoritative, so after a declared-contract
+   rename the old ids silently dropped the re-issued behaviors (37 →
+   33) while `doctor` reported healthy. Unknown/custom fields still
+   survive the merge.
 3. No guard semantics change: the staleness check (#1309) runs upstream
    exactly as before; this fix only closes the record-LOSS hole.
 4. The shipped example fixture's missing record is healed by re-running
@@ -37,7 +46,12 @@ refused forever ("the migration record was lost — issue #1309").
   follow-up plain `zfa tdd split` resolves honestly (no lost-record
   refusal).
 - **FR-3**: a pre-existing receipt is refreshed by merge (custom fields
-  survive; `refreshed_by: zfa tdd plan`).
+  survive; `refreshed_by: zfa tdd plan`). The classification-derived
+  fields (`rows`, `classification`, `classification_source`,
+  `golden_ids`, `adaptive_slots`, `files`,
+  `engine_flutter_references`) are re-derived from the current plan —
+  the #1883 supersession of "all prior fields survive" for these
+  fields.
 
 ## Acceptance scenarios
 
@@ -47,6 +61,10 @@ refused forever ("the migration record was lost — issue #1309").
    refusal (B2).
 3. Pre-existing receipt with a custom field → after plan, the field
    survives + refresh fields updated (B3).
+4. Pre-existing receipt with a stale classification (ids from a prior
+   contract set) → after plan, the receipt names the current/re-issued
+   ids, drops the orphans, and the audit fields agree with them
+   (#1883).
 
 ## Success criteria
 

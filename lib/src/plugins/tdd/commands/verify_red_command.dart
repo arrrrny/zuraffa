@@ -296,17 +296,11 @@ class VerifyRedCommand extends Command<void> {
       exitCode = 1;
       return;
     }
-    final record = target.record;
-    print('zfa tdd verify-red: behavior ${record.behaviorId}');
-    print('   feature: ${target.featureName}');
-    print('   test: ${record.testPath}');
-
-    // ---------------------------------------------------------------
-    // 1b. Issue #1528: a missing TDD profile is a SETUP condition —
-    //     fail closed with `classification=setup-error` BEFORE the
-    //     template load / any runner spawn. Never `unresolved` here;
-    //     never an auto-init write (FR-008 read-only preserved).
-    // ---------------------------------------------------------------
+    var record = target.record;
+    // Issue #1528: a missing TDD profile is a SETUP condition — fail
+    // closed with `classification=setup-error` BEFORE any write, including
+    // the #1778 rebind below (which updates artifacts.json). The setup
+    // path promises no writes (issue #1778 review).
     if (await _missingProfile(cwd: cwd)) {
       await _failClosedOnMissingProfile(
         cwd: cwd,
@@ -315,6 +309,9 @@ class VerifyRedCommand extends Command<void> {
       );
       return;
     }
+    print('zfa tdd verify-red: behavior ${record.behaviorId}');
+    print('   feature: ${target.featureName}');
+    print('   test: ${record.testPath}');
 
     // ---------------------------------------------------------------
     // 2. Load the profile single template (FR-003, misfire-stop U27).
@@ -334,6 +331,10 @@ class VerifyRedCommand extends Command<void> {
       exitCode = 1;
       return;
     }
+    // Issue #1778: re-bind the recorded runnable_test_name to a corrected
+    // title found in the test file. Moved here (after profile + template
+    // checks) so setup-error returns without writing artifacts.json.
+    record = await _rebindRunnableTestNameIfNeeded(cwd, target, record);
 
     // ---------------------------------------------------------------
     // 3. Execute exactly the target test (FR-003).
@@ -415,6 +416,21 @@ class VerifyRedCommand extends Command<void> {
     // ---------------------------------------------------------------
     final classification = classify(run);
     print('   classification: ${classification.label}');
+    if (classification == RedClassification.testNameMismatch) {
+      print('   recorded runnable_test_name: ${record.runnableTestName}');
+      final mismatchTestPath = p.isAbsolute(record.testPath)
+          ? record.testPath
+          : p.join(cwd, record.testPath);
+      String mismatchContent = '';
+      try {
+        mismatchContent = File(mismatchTestPath).readAsStringSync();
+      } catch (_) {}
+      final presentNames = _extractTestTitles(mismatchContent);
+      print(
+        '   tests present in ${record.testPath}: '
+        '${presentNames.isEmpty ? '(none)' : presentNames.join(', ')}',
+      );
+    }
 
     // ---------------------------------------------------------------
     // 4b. Issue #1007 — the CONTRACT lane: a failing contract test is
@@ -941,6 +957,112 @@ class VerifyRedCommand extends Command<void> {
       }
     }
     return null;
+  }
+
+  /// Issue #1778: re-bind the recorded `runnable_test_name` to a
+  /// corrected test title found in the target file, when the recorded
+  /// name matches nothing. Returns [record] unchanged when no rebind is
+  /// needed or possible (the zero-match then surfaces as
+  /// `test-name-mismatch`).
+  Future<ArtifactRecord> _rebindRunnableTestNameIfNeeded(
+    String cwd,
+    _ResolvedTarget target,
+    ArtifactRecord record,
+  ) async {
+    final testPath = p.isAbsolute(record.testPath)
+        ? record.testPath
+        : p.join(cwd, record.testPath);
+    final file = File(testPath);
+    if (!file.existsSync()) return record;
+    String content;
+    try {
+      content = await file.readAsString();
+    } catch (_) {
+      return record;
+    }
+    final titles = _extractTestTitles(content);
+    if (titles.isEmpty) return record;
+    final recorded = record.plainTestName;
+    // Issue #1778 (review): mirror `--plain-name`'s substring
+    // matching — a title that contains the recorded name still matches
+    // at runtime, so treat it as present. Equality is checked first so a
+    // name with non-word boundary characters is not mishandled.
+    final present =
+        recorded.isNotEmpty &&
+        titles.any((t) => t == recorded || t.contains(recorded));
+    if (present) return record;
+    String? candidate;
+    if (recorded.isNotEmpty) {
+      // Sole-test fallback (issue #1778 review): when the file holds
+      // exactly one test title, the recorded name is unambiguously
+      // stale — rebind to that sole title even when the description
+      // changed enough to break containment (e.g. a title that drops
+      // the id prefix after the #871 pure-description change).
+      // Sole-test fallback only applies when the recorded name was
+      // plausibly a (now-stale) test title — i.e. it carried the
+      // behavior id. A recorded name that is a scenario description
+      // (no id) must not be silently rebound to an unrelated sole
+      // title, or the kind gate (issue #964) loses its evidence.
+      if (titles.length == 1 && recorded.contains(record.behaviorId)) {
+        candidate = titles.first;
+      } else if (titles.length > 1) {
+        // Id-based binding: a title carrying the behavior id is the
+        // intended target (unambiguous). Only when there is more than
+        // one title to choose among — a lone title must not be rebound
+        // from a scenario-derived recorded name (issue #964 kind gate).
+        final idMatches = titles
+            .where((t) => t.contains(record.behaviorId))
+            .toList();
+        if (idMatches.length == 1) {
+          candidate = idMatches.first;
+        }
+        // Note: binding by description containment alone is deliberately
+        // NOT attempted — an unrelated test whose title happens to be a
+        // substring of the recorded name could otherwise be bound to this
+        // behavior and certified as its red evidence (issue #1778 review).
+        // Such cases retain `test-name-mismatch` and need an explicit
+        // rebind.
+      }
+    }
+    if (candidate == null) return record;
+    final newRunnable = '${record.testPath}::${record.behaviorId}::$candidate';
+    if (newRunnable == record.runnableTestName) return record;
+    try {
+      final registry = ArtifactRegistry(featureDir: target.featureDir);
+      await registry.updateRunnableTestName(record.behaviorId, newRunnable);
+    } catch (_) {
+      // Best-effort: a failed write keeps the old record; the
+      // zero-match surfaces as test-name-mismatch below.
+      return record;
+    }
+    print(
+      '   rebind: runnable_test_name updated from '
+      '"${record.runnableTestName}" to "$newRunnable" (issue #1778)',
+    );
+    return record.copyWithRunnableTestName(newRunnable);
+  }
+
+  /// Extract the outer test titles (the strings passed to `test(...)` /
+  /// `testWidgets(...)` / `test ( ... )`) from a test file's source.
+  List<String> _extractTestTitles(String content) {
+    final titles = <String>[];
+    // Tolerant of titles containing apostrophes/quotes: accept either
+    // quote kind and allow escaped quotes inside the matching string.
+    final re = RegExp(
+      r'''\btest(?:Widgets)?\s*\(\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")''',
+    );
+    for (final m in re.allMatches(content)) {
+      var t = m.group(1) ?? m.group(2);
+      if (t == null || t.isEmpty) continue;
+      // Unescape common escape sequences so the captured title matches
+      // the runtime test name.
+      t = t
+          .replaceAll(r"\'", "'")
+          .replaceAll(r'\"', '"')
+          .replaceAll(r'\\', r'\');
+      if (!titles.contains(t)) titles.add(t);
+    }
+    return titles;
   }
 
   /// The runnable test name for `--plain-name` matching — the record's
