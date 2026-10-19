@@ -768,6 +768,12 @@ Future<void> _runMockGeneration({
         capabilityName: capabilityName,
         methodset: methods,
       );
+    } on StateError catch (e) {
+      // Issue #1894: an absent declared interface (or mock) is a refusal,
+      // not a vacuous green — surface it and stop, no receipt written.
+      _emit(jsonMode, e.message);
+      exitCode = 1;
+      return;
     } catch (e) {
       // Best-effort (issue #807 convention): the artifacts already exist,
       // so a receipt failure degrades to a warning instead of failing the

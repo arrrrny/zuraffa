@@ -264,32 +264,44 @@ abstract final class MockCertificationService {
     var interfaceMethods = const <String>[];
     if (interfacePath != null && interfaceClass != null) {
       final abs = _absolute(root, interfacePath);
-      if (await fs.exists(abs)) {
-        final parsed = await MethodExtractor.extractMethodsFromInterface(
-          abs,
-          interfaceClass,
-          fileSystem: fs,
+      if (!await fs.exists(abs)) {
+        throw StateError(
+          'zfa mock create: cannot certify $entity — the declared interface\n'
+          '  ${_projectRelativePosix(root, interfacePath)} does not exist.\n'
+          '--> fix: emit the interface first, or declare the seam with a '
+          'resolvable path.',
         );
-        interfaceMethods = parsed.map((m) => m.fieldName).toList();
       }
+      final parsed = await MethodExtractor.extractMethodsFromInterface(
+        abs,
+        interfaceClass,
+        fileSystem: fs,
+      );
+      interfaceMethods = parsed.map((m) => m.fieldName).toList();
     }
 
     // 3. Implemented members (AST parse of the emitted mock class).
     var implementedMethods = const <String>[];
     if (mockPath != null && mockClass != null) {
       final abs = _absolute(root, mockPath);
-      if (await fs.exists(abs)) {
-        final helper = const AstHelper();
-        final parseResult = await helper.parseFile(abs, fileSystem: fs);
-        final unit = parseResult.unit;
-        if (unit != null) {
-          final classNode = helper.findClass(unit, mockClass);
-          if (classNode != null) {
-            implementedMethods = helper
-                .findMethods(classNode)
-                .map((m) => m.name.toString())
-                .toList();
-          }
+      if (!await fs.exists(abs)) {
+        throw StateError(
+          'zfa mock create: cannot certify $entity — the declared mock\n'
+          '  ${_projectRelativePosix(root, mockPath)} does not exist.\n'
+          '--> fix: generate the mock first, or declare the seam with a '
+          'resolvable path.',
+        );
+      }
+      final helper = const AstHelper();
+      final parseResult = await helper.parseFile(abs, fileSystem: fs);
+      final unit = parseResult.unit;
+      if (unit != null) {
+        final classNode = helper.findClass(unit, mockClass);
+        if (classNode != null) {
+          implementedMethods = helper
+              .findMethods(classNode)
+              .map((m) => m.name.toString())
+              .toList();
         }
       }
     }
