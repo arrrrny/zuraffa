@@ -301,24 +301,53 @@ extension TestBuilderEntity on TestBuilder {
                   .assign(refer('Throwing${entityName}DataSource').call([]))
                   .statement,
             );
-            s.statements.add(
-              refer('repository')
-                  .assign(
-                    refer(
-                      'Data${entityName}Repository',
-                    ).call([refer('mockDataSource')]),
-                  )
-                  .statement,
-            );
-            s.statements.add(
-              refer('throwingRepository')
-                  .assign(
-                    refer(
-                      'Data${entityName}Repository',
-                    ).call([refer('throwingDataSource')]),
-                  )
-                  .statement,
-            );
+            if (config.enableCache) {
+              // #1718 Gap 4/5: the cached repository constructor takes
+              // (remote, local, cachePolicy). Use a no-op cache policy so
+              // the suite never touches Hive, and a throwing local datasource
+              // (never exercised when the policy reports invalid).
+              s.statements.add(
+                refer('repository')
+                    .assign(
+                      refer('Data${entityName}Repository').call([
+                        refer('mockDataSource'),
+                        refer('throwingDataSource'),
+                        refer('_NoOpCachePolicy()'),
+                      ]),
+                    )
+                    .statement,
+              );
+              s.statements.add(
+                refer('throwingRepository')
+                    .assign(
+                      refer('Data${entityName}Repository').call([
+                        refer('throwingDataSource'),
+                        refer('throwingDataSource'),
+                        refer('_NoOpCachePolicy()'),
+                      ]),
+                    )
+                    .statement,
+              );
+            } else {
+              s.statements.add(
+                refer('repository')
+                    .assign(
+                      refer(
+                        'Data${entityName}Repository',
+                      ).call([refer('mockDataSource')]),
+                    )
+                    .statement,
+              );
+              s.statements.add(
+                refer('throwingRepository')
+                    .assign(
+                      refer(
+                        'Data${entityName}Repository',
+                      ).call([refer('throwingDataSource')]),
+                    )
+                    .statement,
+              );
+            }
             s.statements.add(
               refer(
                 'useCase',
@@ -358,9 +387,73 @@ extension TestBuilderEntity on TestBuilder {
         }),
     );
 
+    // #1718 Gap 5: a test-safe cache policy that never touches Hive.
+    final noOpCachePolicyClass = Class(
+      (c) => c
+        ..name = '_NoOpCachePolicy'
+        ..implements.add(refer('CachePolicy'))
+        ..methods.addAll([
+          Method(
+            (m) => m
+              ..name = 'isValid'
+              ..returns = refer('Future<bool>')
+              ..modifier = MethodModifier.async
+              ..requiredParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'key'
+                    ..type = refer('String'),
+                ),
+              )
+              ..body = Block(
+                (b) => b..statements.add(refer('false').returned.statement),
+              ),
+          ),
+          Method(
+            (m) => m
+              ..name = 'markFresh'
+              ..returns = refer('Future<void>')
+              ..modifier = MethodModifier.async
+              ..requiredParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'key'
+                    ..type = refer('String'),
+                ),
+              )
+              ..body = Block((b) {}),
+          ),
+          Method(
+            (m) => m
+              ..name = 'invalidate'
+              ..returns = refer('Future<void>')
+              ..modifier = MethodModifier.async
+              ..requiredParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'key'
+                    ..type = refer('String'),
+                ),
+              )
+              ..body = Block((b) {}),
+          ),
+          Method(
+            (m) => m
+              ..name = 'clear'
+              ..returns = refer('Future<void>')
+              ..modifier = MethodModifier.async
+              ..body = Block((b) {}),
+          ),
+        ]),
+    );
+
     final content = specLibrary.emitLibrary(
       specLibrary.library(
-        specs: [throwingClass, mainMethod],
+        specs: [
+          throwingClass,
+          if (config.enableCache) noOpCachePolicyClass,
+          mainMethod,
+        ],
         directives: directives,
       ),
     );
