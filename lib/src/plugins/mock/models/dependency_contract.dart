@@ -41,6 +41,55 @@ enum MockPriority {
   String get label => this == none ? 'none' : name;
 }
 
+/// Strip one surrounding pair of inline-code backticks from [text] and
+/// trim either side (issue #1892).
+///
+/// This is the single definition of the backtick rule: every parser that
+/// reads a declared contract cell normalizes through this file, so the
+/// accepted grammar cannot drift between the mock model and
+/// `SandboxComposition.declaredSignatures`.
+String stripInlineCodeSpan(String text) {
+  var s = text.trim();
+  if (s.length >= 2 && s.startsWith('`') && s.endsWith('`')) {
+    s = s.substring(1, s.length - 1).trim();
+  }
+  return s;
+}
+
+/// True when [text] is ONE inline-code span — the backtick opening the
+/// text closes on its final character. A cell whose methods are each
+/// wrapped individually (`` `a() -> X`, `b() -> Y` ``) starts and ends
+/// with a backtick but is not one span, because the first backtick closes
+/// before the end.
+bool _isWholeInlineCodeSpan(String text) =>
+    text.length >= 2 &&
+    text.startsWith('`') &&
+    text.endsWith('`') &&
+    text.indexOf('`', 1) == text.length - 1;
+
+/// Split a declared contract cell into method segments.
+///
+/// A `,` is a boundary only when the next token starts a signature
+/// (`name(`), so commas inside parameter lists and generic return types
+/// (`read() -> Map<String, int>`) stay in their segment. Inline-code
+/// backticks are tolerated in both documented shapes (issue #1892): one
+/// pair around the whole cell and one pair per method segment.
+List<String> splitDependencyContract(String contract) {
+  var text = contract.trim();
+  if (_isWholeInlineCodeSpan(text)) {
+    text = text.substring(1, text.length - 1);
+  }
+  text = text.replaceAll('`', '');
+  return [
+    for (final part in text.split(_signatureBoundary))
+      if (part.trim().isNotEmpty) part.trim(),
+  ];
+}
+
+final RegExp _signatureBoundary = RegExp(
+  r',\s*(?=[A-Za-z_][A-Za-z0-9_]*\s*\()',
+);
+
 /// One declared method of a dependency contract:
 /// `name(paramType param, ...) -> ReturnType`.
 class DependencySignature {
@@ -62,16 +111,23 @@ class DependencySignature {
   /// when the shape does not match (the caller refuses naming the row).
   ///
   /// Inline-code backticks (the Layer Contracts convention, see
-  /// `spec_parser.dart`'s `parseContractRows`) are tolerated and stripped
-  /// from each method segment, so a contract cell written as
+  /// `spec_parser.dart`'s `parseContractRows`) are tolerated around the
+  /// signature, so a contract cell written as
   /// `` `read() -> Future<UserLocation?>` `` parses identically to its
-  /// un-backticked form (issue #1892).
+  /// un-backticked form (issue #1892). A comma-separated LIST is refused
+  /// instead of silently misparsed: callers with a whole contract cell
+  /// must split it first (`DependencyContract.parseRow` does).
   factory DependencySignature.parse(String raw) {
     final original = raw.trim();
-    var text = original;
-    if (text.length >= 2 && text.startsWith('`') && text.endsWith('`')) {
-      text = text.substring(1, text.length - 1).trim();
+    final segments = splitDependencyContract(original);
+    if (segments.length != 1) {
+      throw FormatException(
+        'expected one `name(Params) -> Return` signature, got '
+        '${segments.length}; split the contract at top-level commas '
+        'first: $original',
+      );
     }
+    final text = segments.single;
     final m = _shape.firstMatch(text);
     if (m == null) {
       throw FormatException(
@@ -115,47 +171,10 @@ class DependencyContract {
     this.specLine,
   });
 
-  /// Split the contract cell into method strings at TOP-LEVEL commas
-  /// only — parameter lists carry their own commas
-  /// (`signIn(email, password) -> User, signOut() -> void`).
-  static List<String> _splitMethods(String contract) {
-    final out = <String>[];
-    final buf = StringBuffer();
-    var depth = 0;
-    for (final ch in contract.runes) {
-      final c = String.fromCharCode(ch);
-      if (c == '(') {
-        depth++;
-      } else if (c == ')') {
-        depth--;
-      } else if (c == ',' && depth == 0) {
-        final part = _stripBackticks(buf.toString().trim());
-        if (part.isNotEmpty) out.add(part);
-        buf.clear();
-        continue;
-      }
-      buf.write(c);
-    }
-    final last = _stripBackticks(buf.toString().trim());
-    if (last.isNotEmpty) out.add(last);
-    return out;
-  }
-
-  /// Strip a single surrounding pair of inline-code backticks from one
-  /// method segment (issue #1892). Backticks are only ever wrapped around
-  /// a whole signature, so a segment that is not wrapped is returned
-  /// unchanged.
-  static String _stripBackticks(String segment) {
-    var s = segment.trim();
-    if (s.length >= 2 && s.startsWith('`') && s.endsWith('`')) {
-      s = s.substring(1, s.length - 1).trim();
-    }
-    return s;
-  }
-
-  /// Parse the contract cell: methods separated by `,` at the top
-  /// level; each must match the signature shape. Throws
-  /// [FormatException] naming the offending segment.
+  /// Parse the contract cell: methods separated by signature-boundary
+  /// commas; each must match the signature shape. Throws
+  /// [FormatException] naming the offending segment. Inline-code
+  /// backticks are normalized by [splitDependencyContract] (issue #1892).
   static DependencyContract parseRow({
     required String name,
     required String type,
@@ -169,7 +188,7 @@ class DependencyContract {
         'unknown mock priority "$priority" (expected P1, P2, or P3)',
       );
     }
-    final signatures = _splitMethods(
+    final signatures = splitDependencyContract(
       contract,
     ).map(DependencySignature.parse).toList();
     return DependencyContract(
