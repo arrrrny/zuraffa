@@ -16,6 +16,7 @@ import '../commands/create_command.dart' as create;
 import '../commands/config_command.dart' as config;
 import '../commands/corpus_command.dart';
 import '../commands/dream_command.dart';
+import '../commands/retro_command.dart';
 import '../commands/initialize_command.dart' as init;
 import '../commands/entity_command.dart';
 import '../commands/plugin_command.dart' as plugincmd;
@@ -39,6 +40,7 @@ import '../commands/spec_command.dart';
 import '../commands/tdd_command.dart';
 import '../commands/app_shell_command.dart';
 import '../commands/package_command.dart';
+import '../commands/policy_command.dart';
 import '../commands/engine_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
@@ -263,10 +265,12 @@ class CliRunner {
     _runner.addCommand(SpecCommand());
     _runner.addCommand(ReplayCommand());
     _runner.addCommand(DreamCommand());
+    _runner.addCommand(RetroCommand());
     _runner.addCommand(AppCommand());
     _runner.addCommand(UiCommand());
     _runner.addCommand(PackageCommand());
     _runner.addCommand(SimulateCommand());
+    _runner.addCommand(PolicyCommand());
     // Spec 1276: the `zfa skin` group is owned by the skin plugin
     // (mounted with the runtime auditor subcommands kit/verify/drive).
     _runner.addCommand(AgentCommand());

@@ -168,7 +168,7 @@ class ServiceCreateCommand extends Command<void> {
 
     // ── Explain: describe, never generate. ──
     if (explainMode) {
-      final explanation = _explain(config, root);
+      final explanation = await _explain(config, root);
       if (jsonMode) {
         print(
           VerdictEnvelope(
@@ -296,7 +296,7 @@ class ServiceCreateCommand extends Command<void> {
     if (changed.isNotEmpty) {
       final artifact = File(changed.first.path);
       if (artifact.existsSync()) {
-        conformance = const ServiceConformanceChecker().check(
+        conformance = await const ServiceConformanceChecker().check(
           config: config,
           source: artifact.readAsStringSync(),
           path: artifact.path,
@@ -536,10 +536,13 @@ class ServiceCreateCommand extends Command<void> {
   }
 
   /// The explain payload: service shape, provider binding, methods.
-  Map<String, dynamic> _explain(GeneratorConfig config, String root) {
-    final checker = const ServiceConformanceChecker().check(
+  Future<Map<String, dynamic>> _explain(
+    GeneratorConfig config,
+    String root,
+  ) async {
+    final checker = await const ServiceConformanceChecker().check(
       config: config,
-      source: const ServiceInterfaceBuilder().build(config),
+      source: await const ServiceInterfaceBuilder().build(config),
       path: 'explain_preview.dart',
     );
     final provider = _boundProvider(config, root);

@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../utils/file_utils.dart';
+import '../utils/project_flavor.dart';
+import '../core/context/file_system.dart';
 
 /// Unified v5 configuration for Zuraffa.
 class ZfaConfig {
@@ -371,20 +373,27 @@ class ZfaConfig {
     final root = projectRoot ?? Directory.current.path;
     final configFile = File(p.join(root, '.zfa.json'));
 
+    final flavor = await detectProjectFlavor(root, FileSystem.create());
+    final mockingImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/mock.dart';
+
     const encoder = JsonEncoder.withIndent('  ');
-    final content = encoder.convert(config.toJson());
+    final content = encoder.convert(
+      config.toJson(mockingImport: mockingImport),
+    );
     await FileUtils.writeFile(configFile.path, content, 'config', force: true);
   }
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson({String? mockingImport}) => {
     // Canonical zuraffa-native mocking signature. Propagated by `zfa init` so
     // static tooling (e.g. speckit-tdd-setup) can detect that a zuraffa app uses
     // built-in mocks (MockDataSource, MockData, mock providers, throwing doubles)
     // with no third-party double library, by grepping `.zfa.json` for this block
     // or generated code for `package:zuraffa/mock.dart` / `zuraffaMockLibrary`.
-    'mocking': const <String, dynamic>{
+    'mocking': <String, dynamic>{
       'library': 'zuraffa-native',
-      'import': 'package:zuraffa/mock.dart',
+      'import': mockingImport ?? 'package:zuraffa_flutter/zuraffa_flutter.dart',
       'marker': 'zuraffaMockLibrary',
       'mockSources': <String>[
         'mockDataSource',
