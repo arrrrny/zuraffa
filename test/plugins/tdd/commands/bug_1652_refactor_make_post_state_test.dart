@@ -21,6 +21,14 @@
 // record, missing opt-in, --full-reproof) must keep running the full
 // pipeline — the guards are green-by-design pre-fix.
 
+// The tests in this file drive `zfa tdd run` end-to-end against a
+// fixture project; the subprocesses (dart pub get, build, suite runs)
+// exceed the package default (2x = 60s) on a normal host. 5 minutes
+// keeps the helper's 75s child-guard comfortably shorter than this
+// ceiling.
+@Timeout(Duration(minutes: 5))
+library;
+
 import 'dart:convert';
 import 'dart:io';
 

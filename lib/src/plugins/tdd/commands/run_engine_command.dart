@@ -385,6 +385,7 @@ class RunEngineCommand extends Command<void> {
       label: label,
       skipWidget: argResults?['skip-widget'] as bool? ?? false,
       baselineScope: baselineScope,
+      supportsBaselineScope: true,
       // Spec 1113: the gate's mock accounting rides the engine entry
       // (the status verdict's `mocks c/t` segment).
       mockCounts: {

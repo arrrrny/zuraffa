@@ -23,6 +23,11 @@ void main() {
   });
 
   test('CreateUseCaseCapability handles Logout example correctly', () async {
+    final serviceDir = Directory('$outputDir/domain/services');
+    await serviceDir.create(recursive: true);
+    await File('${serviceDir.path}/auth_service.dart').writeAsString(
+      'abstract class AuthService {\n  Future<void> logout(NoParams params);\n}',
+    );
     // Simulating args from CLI for:
     // zfa usecase create Logout --domain=profile --type=completable --params=NoParams --service=Auth
     final args = {

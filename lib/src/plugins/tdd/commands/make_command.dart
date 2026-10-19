@@ -236,7 +236,11 @@ class MakeCommand extends Command<void> {
           'statements (find.text / find.byType ... assertions) that '
           'replace the scaffolded placeholder block. Required with '
           '--author; the file must not carry the scaffold marker and must '
-          'contain at least one expect/expectLater call.',
+          'contain at least one expect/expectLater call. Authored finders '
+          'that `await` a subject/controller read before a pump are '
+          'refused (issue #1855): pump first, then await '
+          '(`final Future<void> flip = state!.load();` then '
+          '`await tester.pumpAndSettle();` then `await flip;`).',
     );
     argParser.addFlag(
       'born-green',
@@ -780,7 +784,8 @@ class MakeCommand extends Command<void> {
           'zfa tdd make: skin authoring refused for behavior '
           '"${record.behaviorId}" — $why. The scaffolded test was '
           'restored byte-identical; supply scenario-failing concrete '
-          'finders in --finders-file and re-run.',
+          'finders in --finders-file (hoist any out-of-reach symbol via an '
+          '// import: marker) and re-run.',
         );
         _printSummary(
           behavior: record.behaviorId,
