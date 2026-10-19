@@ -11,6 +11,7 @@ import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/method_shape_parser.dart';
 import '../../../utils/project_flavor.dart';
 import '../services/mock_staleness_detector.dart';
 import 'mock_type_helper.dart';
@@ -113,19 +114,43 @@ class MockDataSourceBuilder {
     // surface — the import's actual library — not against zuraffa.dart
     // (an unverified hide is an undefined_hidden_name warning, and zfa
     // build's analyze gate fails on warnings).
+    final allReturnsTypes = <String>{
+      if (config.returnsType != null && config.returnsType!.isNotEmpty)
+        config.returnsType!,
+      for (final m in config.methods)
+        if (_parseMethodShape(m).$3 != null &&
+            _parseMethodShape(m).$3!.isNotEmpty)
+          _parseMethodShape(m).$3!,
+    };
     final barrelHide = <String>{
       if (config.isEntityBased &&
           fileSystem.existsSync(
             '$outputDir/domain/entities/$entitySnake/$entitySnake.dart',
           ))
         ...EntityUtils.mockBarrelHideNames(entityName),
-      if (config.returnsType != null && config.returnsType!.isNotEmpty)
-        for (final type in EntityUtils.extractEntityTypes(config.returnsType!))
+      for (final rt in allReturnsTypes)
+        for (final type in EntityUtils.extractEntityTypes(rt))
           ...EntityUtils.mockBarrelHideNames(type),
       if (config.paramsType != null && config.paramsType!.isNotEmpty)
         for (final type in EntityUtils.extractEntityTypes(config.paramsType!))
           ...EntityUtils.mockBarrelHideNames(type),
     }.toList();
+
+    final foreignEntitySnakes = <String>{};
+    for (final rt in allReturnsTypes) {
+      for (final type in EntityUtils.extractEntityTypes(rt)) {
+        final snake = StringUtils.camelToSnake(type);
+        if (snake == entitySnake && config.isEntityBased) continue;
+        foreignEntitySnakes.add(snake);
+      }
+    }
+    if (config.paramsType != null && config.paramsType!.isNotEmpty) {
+      for (final type in EntityUtils.extractEntityTypes(config.paramsType!)) {
+        final snake = StringUtils.camelToSnake(type);
+        if (snake == entitySnake && config.isEntityBased) continue;
+        foreignEntitySnakes.add(snake);
+      }
+    }
 
     final flavor = await detectProjectFlavor(outputDir, fileSystem);
     final mockImport = flavor == ProjectFlavor.flutter
@@ -144,38 +169,17 @@ class MockDataSourceBuilder {
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),
-      if (config.returnsType != null && config.returnsType!.isNotEmpty)
-        ...EntityUtils.extractEntityTypes(config.returnsType!)
-            .where(
-              (type) => fileSystem.existsSync(
-                '$outputDir/domain/entities/${StringUtils.camelToSnake(type)}/${StringUtils.camelToSnake(type)}.dart',
-              ),
-            )
-            .map((type) {
-              final snake = StringUtils.camelToSnake(type);
-              return Directive.import(
-                '../../../domain/entities/$snake/$snake.dart',
-              );
-            }),
-      if (config.paramsType != null && config.paramsType!.isNotEmpty)
-        ...EntityUtils.extractEntityTypes(config.paramsType!)
-            .where(
-              (type) => fileSystem.existsSync(
-                '$outputDir/domain/entities/${StringUtils.camelToSnake(type)}/${StringUtils.camelToSnake(type)}.dart',
-              ),
-            )
-            .map((type) {
-              final snake = StringUtils.camelToSnake(type);
-              return Directive.import(
-                '../../../domain/entities/$snake/$snake.dart',
-              );
-            }),
+      for (final snake in foreignEntitySnakes)
+        if (fileSystem.existsSync(
+          '$outputDir/domain/entities/$snake/$snake.dart',
+        ))
+          Directive.import('../../../domain/entities/$snake/$snake.dart'),
       if (fileSystem.existsSync(
         '$outputDir/data/mock/${entitySnake}_mock_data.dart',
       ))
         Directive.import('../../mock/${entitySnake}_mock_data.dart'),
-      if (config.returnsType != null && config.returnsType!.isNotEmpty)
-        for (final type in EntityUtils.extractEntityTypes(config.returnsType!))
+      for (final rt in allReturnsTypes)
+        for (final type in EntityUtils.extractEntityTypes(rt))
           if (fileSystem.existsSync(
             '$outputDir/data/mock/${StringUtils.camelToSnake(type)}_mock_data.dart',
           ))
@@ -570,6 +574,9 @@ class MockDataSourceBuilder {
         ..body = isStream ? streamBody : futureBody,
     );
   }
+
+  static (String, String?, String?) _parseMethodShape(String token) =>
+      MethodShapeParser.parseMethodShape(token);
 
   List<Method> _generateMockDataSourceMethods(GeneratorConfig config) {
     final entityName = config.repo != null
@@ -1331,17 +1338,39 @@ class MockDataSourceBuilder {
           );
           break;
         default:
-          // Issue #1823: arbitrary (non-CRUD) verbs declared via
-          // --methods. Emit a certified mock member whose body is the
-          // fixture/echo default, matching the interface generator's
-          // shape so conformance holds.
+          // Issue #1823 / #1850: arbitrary (non-CRUD) verbs declared via
+          // --methods. A method token may carry its own shape as
+          // `name:params->returns` (issue #1850 "named members"); tokens
+          // without a shape fall back to the call-wide --params/--returns.
           {
-            final methodName = method;
-            final returns =
-                (config.returnsType != null && config.returnsType!.isNotEmpty)
-                ? config.returnsType!
+            final parsed = _parseMethodShape(method);
+            final methodName = parsed.$1;
+            final methodParams = parsed.$2 ?? config.paramsType;
+            final methodReturns = parsed.$3 ?? config.returnsType;
+            final returns = (methodReturns != null && methodReturns.isNotEmpty)
+                ? methodReturns
                 : 'void';
-            final baseReturns = returns.replaceAll('?', '');
+            var baseReturns = returns.replaceAll('?', '');
+            // Unwrap Future<...>/Stream<...> so wrapped shapes (e.g.
+            // `Future<void>`, `Future<Entity>`) classify identically to
+            // their raw forms.
+            var changed = true;
+            while (changed) {
+              changed = false;
+              if (baseReturns.startsWith('Future<') &&
+                  baseReturns.endsWith('>')) {
+                baseReturns = baseReturns
+                    .substring(7, baseReturns.length - 1)
+                    .trim();
+                changed = true;
+              } else if (baseReturns.startsWith('Stream<') &&
+                  baseReturns.endsWith('>')) {
+                baseReturns = baseReturns
+                    .substring(7, baseReturns.length - 1)
+                    .trim();
+                changed = true;
+              }
+            }
             final isVoid = baseReturns == 'void' || baseReturns == 'dynamic';
             // Issue #1824 review: branch on list-ness and entity-ness so a
             // non-void arbitrary verb does not always return a single entity
@@ -1353,9 +1382,8 @@ class MockDataSourceBuilder {
                 : '';
             final isEntityList = isList && listInner == entityName;
             final isEntityReturn = baseReturns == entityName;
-            final paramsType =
-                (config.paramsType != null && config.paramsType!.isNotEmpty)
-                ? config.paramsType!
+            final paramsType = (methodParams != null && methodParams.isNotEmpty)
+                ? methodParams
                 : 'NoParams';
             final hasParams = paramsType != 'NoParams';
             final returnType =
@@ -1363,6 +1391,15 @@ class MockDataSourceBuilder {
                 ? returns
                 : 'Future<$returns>';
             final futureReturnType = returnType; // returnType already wrapped
+            // Issue #1850 (honest bodies): a non-void arbitrary verb whose
+            // return type resolves to no known fixture must refuse rather
+            // than emit `throw UnimplementedError()` under a conformance:
+            // true verdict.
+            if (!isVoid && !isEntityList && !isEntityReturn) {
+              throw ArgumentError(
+                'unknown return type $baseReturns for member $methodName',
+              );
+            }
             methods.add(
               Method(
                 (m) => m
