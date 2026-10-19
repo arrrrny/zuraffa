@@ -10,6 +10,7 @@ import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/method_shape_parser.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../datasource_provenance.dart';
@@ -32,31 +33,8 @@ class DataSourceInterfaceBuilder {
        appendExecutor = appendExecutor ?? AppendExecutor(),
        fileSystem = fileSystem ?? FileSystem.create();
 
-  static (String, String?, String?) _parseMethodShape(String token) {
-    final colon = token.indexOf(':');
-    if (colon == -1) return (token.trim(), null, null);
-    var name = token.substring(0, colon).trim();
-    var shape = token.substring(colon + 1).trim();
-    if (shape.startsWith("'") && shape.endsWith("'") && shape.length >= 2) {
-      shape = shape.substring(1, shape.length - 1);
-    } else if (shape.startsWith('"') &&
-        shape.endsWith('"') &&
-        shape.length >= 2) {
-      shape = shape.substring(1, shape.length - 1);
-    }
-    String? params;
-    String? returns;
-    final arrow = shape.indexOf('->');
-    if (arrow == -1) {
-      params = shape.trim().isEmpty ? null : shape.trim();
-    } else {
-      final left = shape.substring(0, arrow).trim();
-      final right = shape.substring(arrow + 2).trim();
-      params = left.isEmpty ? null : left;
-      returns = right.isEmpty ? null : right;
-    }
-    return (name, params, returns);
-  }
+  static (String, String?, String?) _parseMethodShape(String token) =>
+      MethodShapeParser.parseMethodShape(token);
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.repo != null
@@ -377,6 +355,25 @@ class DataSourceInterfaceBuilder {
           ...EntityUtils.barrelHideNames(type),
     }.toList();
 
+    final foreignEntitySnakes = <String>{};
+    final baseEntityImported = config.repo == null &&
+        fileSystem.existsSync(
+          path.join(
+            outputDir,
+            'domain',
+            'entities',
+            entitySnake,
+            '$entitySnake.dart',
+          ),
+        );
+    for (final rt in allReturnsTypes) {
+      for (final type in EntityUtils.extractEntityTypes(rt)) {
+        final snake = StringUtils.camelToSnake(type);
+        if (snake == entitySnake && baseEntityImported) continue;
+        foreignEntitySnakes.add(snake);
+      }
+    }
+
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart', hide: barrelHide),
       if (config.repo == null &&
@@ -392,13 +389,8 @@ class DataSourceInterfaceBuilder {
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),
-      for (final rt in allReturnsTypes)
-        ...EntityUtils.extractEntityTypes(rt).map((type) {
-          final snake = StringUtils.camelToSnake(type);
-          return Directive.import(
-            '../../../domain/entities/$snake/$snake.dart',
-          );
-        }),
+      for (final snake in foreignEntitySnakes)
+        Directive.import('../../../domain/entities/$snake/$snake.dart'),
     ];
     final clazz = Class(
       (c) => c

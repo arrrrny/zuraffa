@@ -11,6 +11,7 @@ import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/method_shape_parser.dart';
 import '../services/mock_staleness_detector.dart';
 import 'mock_type_helper.dart';
 
@@ -127,6 +128,15 @@ class MockDataSourceBuilder {
           ...EntityUtils.mockBarrelHideNames(type),
     }.toList();
 
+    final foreignEntitySnakes = <String>{};
+    for (final rt in allReturnsTypes) {
+      for (final type in EntityUtils.extractEntityTypes(rt)) {
+        final snake = StringUtils.camelToSnake(type);
+        if (snake == entitySnake && config.isEntityBased) continue;
+        foreignEntitySnakes.add(snake);
+      }
+    }
+
     final directives = [
       Directive.import('dart:async'),
       // Canonical zuraffa-native mock marker: detects native mocking for static
@@ -136,13 +146,8 @@ class MockDataSourceBuilder {
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),
-      for (final rt in allReturnsTypes)
-        ...EntityUtils.extractEntityTypes(rt).map((type) {
-          final snake = StringUtils.camelToSnake(type);
-          return Directive.import(
-            '../../../domain/entities/$snake/$snake.dart',
-          );
-        }),
+      for (final snake in foreignEntitySnakes)
+        Directive.import('../../../domain/entities/$snake/$snake.dart'),
       Directive.import('../../mock/${entitySnake}_mock_data.dart'),
       Directive.import('${entitySnake}_datasource.dart'),
     ];
@@ -533,31 +538,8 @@ class MockDataSourceBuilder {
     );
   }
 
-  static (String, String?, String?) _parseMethodShape(String token) {
-    final colon = token.indexOf(':');
-    if (colon == -1) return (token.trim(), null, null);
-    var name = token.substring(0, colon).trim();
-    var shape = token.substring(colon + 1).trim();
-    if (shape.startsWith("'") && shape.endsWith("'") && shape.length >= 2) {
-      shape = shape.substring(1, shape.length - 1);
-    } else if (shape.startsWith('"') &&
-        shape.endsWith('"') &&
-        shape.length >= 2) {
-      shape = shape.substring(1, shape.length - 1);
-    }
-    String? params;
-    String? returns;
-    final arrow = shape.indexOf('->');
-    if (arrow == -1) {
-      params = shape.trim().isEmpty ? null : shape.trim();
-    } else {
-      final left = shape.substring(0, arrow).trim();
-      final right = shape.substring(arrow + 2).trim();
-      params = left.isEmpty ? null : left;
-      returns = right.isEmpty ? null : right;
-    }
-    return (name, params, returns);
-  }
+  static (String, String?, String?) _parseMethodShape(String token) =>
+      MethodShapeParser.parseMethodShape(token);
 
   List<Method> _generateMockDataSourceMethods(GeneratorConfig config) {
     final entityName = config.repo != null
@@ -1291,7 +1273,27 @@ class MockDataSourceBuilder {
             final returns = (methodReturns != null && methodReturns.isNotEmpty)
                 ? methodReturns
                 : 'void';
-            final baseReturns = returns.replaceAll('?', '');
+            var baseReturns = returns.replaceAll('?', '');
+            // Unwrap Future<...>/Stream<...> so wrapped shapes (e.g.
+            // `Future<void>`, `Future<Entity>`) classify identically to
+            // their raw forms.
+            var changed = true;
+            while (changed) {
+              changed = false;
+              if (baseReturns.startsWith('Future<') &&
+                  baseReturns.endsWith('>')) {
+                baseReturns = baseReturns
+                    .substring(7, baseReturns.length - 1)
+                    .trim();
+                changed = true;
+              } else if (baseReturns.startsWith('Stream<') &&
+                  baseReturns.endsWith('>')) {
+                baseReturns = baseReturns
+                    .substring(7, baseReturns.length - 1)
+                    .trim();
+                changed = true;
+              }
+            }
             final isVoid = baseReturns == 'void' || baseReturns == 'dynamic';
             // Issue #1824 review: branch on list-ness and entity-ness so a
             // non-void arbitrary verb does not always return a single entity
