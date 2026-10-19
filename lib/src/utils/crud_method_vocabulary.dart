@@ -21,8 +21,18 @@ const Set<String> crudSurfaceMethodVocabulary = <String>{
 
 /// Standard CRUD verbs whose datasource signatures reference the entity
 /// type. `list` belongs here — its return type is `List<Entity>` — even
-/// though it needs no entity CRUD surface.
+/// though it needs no entity CRUD surface. `delete` is deliberately
+/// absent: its signature is `Future<void> delete(DeleteParams<id>)` and
+/// references only the id type, never the entity, so requiring an entity
+/// reference there is a false positive (issue #1898 / zuraffa datasource
+/// verify).
 const Set<String> entityTypedMethodVocabulary = <String>{
-  ...crudSurfaceMethodVocabulary,
+  'get',
+  'getList',
   'list',
+  'create',
+  'update',
+  'toggle',
+  'watch',
+  'watchList',
 };
