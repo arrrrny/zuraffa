@@ -1060,8 +1060,16 @@ class DoctorCommand extends Command<void> {
               testContent = testFile.readAsStringSync();
             } catch (_) {}
             final recordedName = record.plainTestName;
-            if (recordedName.isNotEmpty &&
-                !testContent.contains(recordedName)) {
+            // Issue #1778 (review): check the test TITLES, not the whole
+            // file — a changed title with an unchanged `// description:`
+            // header would otherwise still contain the old name and skip
+            // the annotation. Fall back to a whole-file contains only when
+            // no titles could be extracted (tolerant parse failure).
+            final titles = _extractTestTitles(testContent);
+            final present = titles.isEmpty
+                ? testContent.contains(recordedName)
+                : titles.any((t) => t.contains(recordedName));
+            if (recordedName.isNotEmpty && !present) {
               driftLine +=
                   ' (test-name mismatch: recorded runnable_test_name '
                   '"${record.runnableTestName}" is absent from $relative)';
@@ -1118,6 +1126,26 @@ class DoctorCommand extends Command<void> {
           '`zfa tdd verify-red $behaviorId --re-certify` closes it '
           'directly. $tail',
     );
+  }
+
+  /// Extract outer test titles (issue #1778): the strings passed to
+  /// `test(...)` / `testWidgets(...)`, tolerant of escaped quotes.
+  static List<String> _extractTestTitles(String content) {
+    final titles = <String>[];
+    final re = RegExp(
+      r'''\btest(?:Widgets)?\s*\(\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")''',
+    );
+    for (final m in re.allMatches(content)) {
+      var t = m.group(1) ?? m.group(2);
+      if (t == null || t.isEmpty) continue;
+      t = t
+          .replaceAll(r"\'", "'")
+          .replaceAll(r'\"', '"')
+          .replaceAll(r'\\', r'\');
+      // Note: unescape backslash-last ordering matches verify_red_command.
+      if (!titles.contains(t)) titles.add(t);
+    }
+    return titles;
   }
 
   static String _shortDigest(String digest) =>

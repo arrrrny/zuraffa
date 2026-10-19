@@ -297,6 +297,18 @@ class VerifyRedCommand extends Command<void> {
       return;
     }
     var record = target.record;
+    // Issue #1528: a missing TDD profile is a SETUP condition — fail
+    // closed with `classification=setup-error` BEFORE any write, including
+    // the #1778 rebind below (which updates artifacts.json). The setup
+    // path promises no writes (issue #1778 review).
+    if (await _missingProfile(cwd: cwd)) {
+      await _failClosedOnMissingProfile(
+        cwd: cwd,
+        behaviorLabel: record.behaviorId,
+        feature: target.featureName,
+      );
+      return;
+    }
     // Issue #1778: a hand-implemented test's title may have changed (e.g.
     // a corrected spec description) so the recorded `runnable_test_name`
     // no longer matches anything in the file. Detect that drift here and
@@ -307,21 +319,6 @@ class VerifyRedCommand extends Command<void> {
     print('zfa tdd verify-red: behavior ${record.behaviorId}');
     print('   feature: ${target.featureName}');
     print('   test: ${record.testPath}');
-
-    // ---------------------------------------------------------------
-    // 1b. Issue #1528: a missing TDD profile is a SETUP condition —
-    //     fail closed with `classification=setup-error` BEFORE the
-    //     template load / any runner spawn. Never `unresolved` here;
-    //     never an auto-init write (FR-008 read-only preserved).
-    // ---------------------------------------------------------------
-    if (await _missingProfile(cwd: cwd)) {
-      await _failClosedOnMissingProfile(
-        cwd: cwd,
-        behaviorLabel: record.behaviorId,
-        feature: target.featureName,
-      );
-      return;
-    }
 
     // ---------------------------------------------------------------
     // 2. Load the profile single template (FR-003, misfire-stop U27).
@@ -999,19 +996,35 @@ class VerifyRedCommand extends Command<void> {
         );
     if (present) return record;
     String? candidate;
-    // Rebind only on genuine description drift: the new title must
-    // contain the recorded description (or vice versa) as a substring.
-    // Broader heuristics (id containment, single-test fallback) caused
-    // false rebinds that destroyed the scenario description the kind
-    // gate (issue #964) relies on, certifying old-style tests as honest
-    // red. See issue #1778 regression.
     if (recorded.isNotEmpty) {
-      final rl = recorded.toLowerCase();
-      for (final t in titles) {
-        final tl = t.toLowerCase();
-        if (tl.contains(rl) || rl.contains(tl)) {
-          candidate = t;
-          break;
+      // Sole-test fallback (issue #1778 review): when the file holds
+      // exactly one test title, the recorded name is unambiguously
+      // stale — rebind to that sole title even when the description
+      // changed enough to break containment (e.g. a title that drops
+      // the id prefix after the #871 pure-description change).
+      if (titles.length == 1) {
+        candidate = titles.first;
+      } else {
+        // Id-based binding: a title carrying the behavior id is the
+        // intended target (unambiguous).
+        final idMatches = titles
+            .where((t) => t.contains(record.behaviorId))
+            .toList();
+        if (idMatches.length == 1) {
+          candidate = idMatches.first;
+        } else {
+          // Containment-based binding, but only when it is unambiguous:
+          // binding by description containment alone can attach a
+          // behavior to an unrelated test whose title happens to be a
+          // substring (issue #1778 review). Require exactly one match.
+          final rl = recorded.toLowerCase();
+          final containMatches = titles.where((t) {
+            final tl = t.toLowerCase();
+            return tl.contains(rl) || rl.contains(tl);
+          }).toList();
+          if (containMatches.length == 1) {
+            candidate = containMatches.first;
+          }
         }
       }
     }
