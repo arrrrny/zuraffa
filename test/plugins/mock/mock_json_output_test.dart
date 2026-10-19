@@ -28,7 +28,7 @@ void main() {
   var exitCodeAtEntry = 0;
 
   setUp(() async {
-    exitCodeAtEntry = exitCode;
+    exitCodeAtEntry = CliRunner.lastDispatchedExitCode;
     tempDir = await Directory.systemTemp.createTemp('mock_json_out_970_');
   });
 
@@ -259,7 +259,11 @@ void main() {
       // No entity scaffolded: the generation cannot produce anything for a
       // missing entity — the refusal must not dress up as success.
       final out = await runCli(['mock', 'data', 'NoSuchEntity', '--json']);
-      expect(exitCode, 1, reason: 'a failed generation exits 1');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'a failed generation exits 1',
+      );
       expect(
         out,
         isNot(contains('"schema"')),

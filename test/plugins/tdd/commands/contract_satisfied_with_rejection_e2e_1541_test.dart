@@ -256,7 +256,7 @@ bool validateEmail(String email) {
       expect(out, contains('classification=unexpected-green'), reason: out);
       expect(out, isNot(contains('classification=blocked')), reason: out);
       expect(out, isNot(contains('classification=runner-error')), reason: out);
-      final code = exitCode;
+      final code = CliRunner.lastDispatchedExitCode;
       exitCode = 0;
       expect(code, 1, reason: out);
     } finally {
@@ -311,7 +311,7 @@ bool validateEmail(String email) {
         isNot(contains('classification=assertion certified=true')),
         reason: out,
       );
-      final code = exitCode;
+      final code = CliRunner.lastDispatchedExitCode;
       exitCode = 0;
       expect(code, 1, reason: out);
       final receiptPath = p.join(

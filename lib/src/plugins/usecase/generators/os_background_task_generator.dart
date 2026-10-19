@@ -9,6 +9,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/project_flavor.dart';
 import '../builders/usecase_class_builder.dart';
 
 /// Generates OS background task-based use cases for the domain layer.
@@ -45,6 +46,11 @@ class OsBackgroundTaskGenerator {
       config.effectiveDomain,
     );
     final filePath = path.join(usecaseDirPath, fileName);
+
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
 
     final paramsType = config.paramsType ?? 'NoParams';
     final returnsType = config.returnsType ?? 'void';
@@ -294,7 +300,7 @@ class OsBackgroundTaskGenerator {
             ],
       methods: [descriptorGetter, executeMethod, callbackHandler],
       imports: [
-        'package:zuraffa/zuraffa.dart',
+        coreImport,
         ...dependencyImports,
         ...CommonPatterns.entityImports(
           [paramsType, returnsType],
