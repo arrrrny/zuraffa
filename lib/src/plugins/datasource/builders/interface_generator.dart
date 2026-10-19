@@ -51,7 +51,7 @@ class DataSourceInterfaceBuilder {
 
     final methods = <Method>[];
 
-    if (config.isCustomUseCase && config.appendToExisting) {
+    if (config.isCustomUseCase) {
       final methodName = config.getRepoMethodName();
       var returnType = config.returnsType ?? 'void';
       final paramsType = config.paramsType ?? 'NoParams';

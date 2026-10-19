@@ -166,10 +166,23 @@ class MockBuilder {
             '$outputDir/domain/entities.',
           );
         }
-        // Issue #1845: only generate mock data for custom-usecase runs
-        // when there is no entity file on disk.
+        // Issue #1865: only generate mock data for custom-usecase runs
+        // when there is a returns entity; otherwise skip with an honest
+        // `skipped` action (like the primitive path) instead of writing a
+        // phantom `*_mock_data.dart` for a non-existent entity.
         if (config.isCustomUseCase) {
-          files.add(await dataBuilder.generateMockDataFile(dataConfig));
+          if (config.returnsType == null || config.returnsType!.isEmpty) {
+            files.add(
+              GeneratedFile(
+                path: '',
+                content: '',
+                action: 'skipped',
+                type: 'mock_data',
+              ),
+            );
+          } else {
+            files.add(await dataBuilder.generateMockDataFile(dataConfig));
+          }
         }
       } else if (EntityAnalyzer.isSealedEntity(
         targetEntity,
