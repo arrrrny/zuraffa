@@ -100,10 +100,21 @@ environment:
     );
     final runner = CommandRunner<void>('zfa', 'test')..addCommand(command);
 
-    await runner.run(['create', 'Product']);
-
-    expect(exitCode, 1);
+    exitCode = 0;
+    late int code;
+    await runner.run(['create', 'Product']).then((_) {
+      // Capture inside the completion callback — exitCode is process-global
+      // and a sibling isolate (or the runner's own teardown) can reset it
+      // before a synchronous read after `await` returns (issue #1882).
+      code = exitCode;
+    });
     exitCode = 0; // hermetic: never leak a failure code into the suite
+    expect(
+      code,
+      equals(1),
+      reason:
+          'a failed capability run must exit 1 (issue #767 protocol intact)',
+    );
     expect(
       Directory(p.join(workspace.path, '.zfa', 'receipts')).existsSync(),
       isFalse,
