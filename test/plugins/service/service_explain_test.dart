@@ -76,7 +76,7 @@ environment:
 
     test('reports the provider binding when one exists', () async {
       // Generate a service, then a provider bound to it.
-      await zfa(['service', 'create', 'Payment', '--returns', 'Receipt']);
+      await zfa(['service', 'create', 'Payment', '--returns', 'Receipt', '--allow-forward-refs']);
       await zfa([
         'provider',
         'create',
