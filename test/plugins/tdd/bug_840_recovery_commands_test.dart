@@ -103,7 +103,7 @@ void main() {
         '--adopt',
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // Ownership registered.
       expect(File(registryPath()).existsSync(), isTrue, reason: out);
       final registry =
@@ -150,7 +150,7 @@ void main() {
         '--adopt',
       ]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(File(registryPath()).existsSync(), isFalse, reason: out);
       final v = verdict(out);
       expect(v['command'], 'gen');
@@ -182,7 +182,7 @@ void main() {
         '--adopt',
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         File(
           p.join(fx.root.path, 'lib', 'tdd', 'b_001_subject.dart'),
@@ -219,7 +219,7 @@ void main() {
 
         final out = await runCli(['reset', feature]);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         // Owned files dropped.
         expect(
           File(
@@ -256,7 +256,7 @@ void main() {
       () async {
         final out = await runCli(['reset', 'nope-not-here']);
 
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         final v = verdict(out);
         expect(v['command'], 'reset');
         expect(v['verdict'], 'refused');
@@ -272,7 +272,7 @@ void main() {
 
         final out = await runCli(['doctor', feature]);
 
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         expect(out, contains('--> fix:'), reason: out);
         expect(out, contains('--adopt'), reason: out);
         final v = verdict(out);
@@ -294,7 +294,7 @@ void main() {
 
         final out = await runCli(['doctor', feature]);
 
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         expect(out, contains('--> fix:'), reason: out);
         expect(out, contains('zfa tdd run'), reason: out);
         final v = verdict(out);
@@ -316,7 +316,7 @@ void main() {
 
         final out = await runCli(['doctor', feature]);
 
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         expect(out, contains('--> fix:'), reason: out);
         // Issue #1495: a record whose BOTH files are gone owns NOTHING on
         // disk — the prescription is now the surgical garbage-collect
@@ -343,7 +343,7 @@ void main() {
         final out1 = await runCli(['doctor', feature]);
         final out2 = await runCli(['doctor', feature]);
 
-        expect(exitCode, 0, reason: out1);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out1);
         final v1 = verdict(out1);
         final v2 = verdict(out2);
         expect(v1['verdict'], 'healthy');

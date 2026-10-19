@@ -16,8 +16,19 @@ import 'package:zuraffa/src/plugins/mock/builders/mock_builder.dart';
 import 'package:zuraffa/src/plugins/mock/services/mock_staleness_detector.dart';
 import 'package:zuraffa/src/utils/method_extractor.dart';
 
-const _entityFileContent =
-    'class Deal { final String id; const Deal(this.id); }';
+// Issue #1747: the CRUD surface `zfa mock create` requires before it emits
+// the datasource/provider pair (a Zorphy entity's `id`, `copyWithField`,
+// and `<Type>Patch` companion) — declared inline.
+const _entityFileContent = '''
+class Deal {
+  final String id;
+  const Deal(this.id);
+
+  Deal copyWithField(Object field, Object? value) => this;
+}
+
+class DealPatch {}
+''';
 
 // The stale interface the issue reproduces: written by run 1
 // (`--methods list`), never touched by run 2 (`--methods getList --force`).

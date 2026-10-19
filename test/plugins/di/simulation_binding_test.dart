@@ -55,7 +55,12 @@ void main() {
     final entityDir = Directory('$outputDir/domain/entities/$entitySnake');
     await entityDir.create(recursive: true);
     await File('${entityDir.path}/$entitySnake.dart').writeAsString(
-      'class $entity { final String id; const $entity(this.id); }',
+      'class $entity {\n'
+      '  final String id;\n'
+      '  const $entity(this.id);\n'
+      '  $entity copyWithField(Object field, Object? value) => this;\n'
+      '}\n'
+      'class ${entity}Patch {}\n',
     );
     await mockPlugin().generate(
       GeneratorConfig(

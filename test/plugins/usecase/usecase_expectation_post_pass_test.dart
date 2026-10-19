@@ -71,7 +71,7 @@ environment:
           '$output',
     );
     expect(
-      exitCode,
+      CliRunner.lastDispatchedExitCode,
       1,
       reason: 'a misfired make run must not look successful:\n$output',
     );
@@ -105,7 +105,7 @@ environment:
         reason: 'no expectation mismatch:\n$output',
       );
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         0,
         reason: 'declared interface must satisfy the expectation:\n$output',
       );
@@ -166,7 +166,7 @@ environment:
       reason: 'no responsible plugin in plan — nothing to verify:\n$output',
     );
     expect(
-      exitCode,
+      CliRunner.lastDispatchedExitCode,
       0,
       reason: 'usecase-only runs keep the fail-open contract:\n$output',
     );

@@ -93,7 +93,7 @@ void main() {
         feature,
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       // Every pair exists on disk (namespaced layout, bug #827).
       for (final id in ['B-001', 'B-002', 'B-003']) {
@@ -162,7 +162,7 @@ void main() {
           feature,
         ]);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(await registryRecords(), hasLength(3), reason: out);
         final lastLine = out.trim().split('\n').last;
         final verdict = jsonDecode(lastLine) as Map<String, dynamic>;
@@ -224,7 +224,7 @@ void main() {
         feature,
       ]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       // B-001 was generated and registered before the stop; B-002
       // refused (ownership conflict); B-003 never ran.
       expect(await registryRecords(), hasLength(1), reason: out);
@@ -283,7 +283,7 @@ void main() {
         feature,
       ]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       // The batch verdict JSON is the final stdout line, naming the row
       // that stopped the batch.
       final lastLine = out.trim().split('\n').last;
@@ -386,7 +386,7 @@ void main() {
         feature,
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       // The batch summary line (machine contract).
       expect(
@@ -440,7 +440,7 @@ void main() {
         feature,
       ]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       // B-002 named with its honest classification.
       expect(out, contains('B-002'));
       expect(out, contains('unexpected-green'), reason: out);
@@ -519,7 +519,7 @@ void main() {
         feature,
       ]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       // The PASSING substring behavior is honestly unexpected-green —
       // never certified from the longer failing behavior's segment.
       expect(
@@ -584,7 +584,7 @@ void main() {
         feature,
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains(
@@ -635,7 +635,7 @@ suite: 'dart test'
         feature,
       ]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out.toLowerCase(), contains('file'), reason: out);
       // No runner was spawned and no evidence was written.
       expect(fx.spyLog('file'), isEmpty, reason: out);
@@ -661,7 +661,7 @@ suite: 'dart test'
         feature,
       ]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(fx.spyLog('file'), isEmpty, reason: out);
       expect(
         out,

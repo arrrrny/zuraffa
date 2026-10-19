@@ -355,31 +355,28 @@ class RoutingResolver {
         // spec declares no Key Entities rows, the domain row's own
         // return type is the only entity declaration there is and it is
         // served ("not from Key Entities only").
-        final declaredEntities = declarations.contractRows.values
-            .where((r) => r.kind == ContractRowKind.entity)
-            .toList();
-        // Issue #1771: the entity row's stored name and the name mined
-        // from the declared return type may differ in surface form
-        // (backticks, surrounding whitespace, generic suffix) even when
-        // they name the same entity. Normalize both sides before the
-        // membership test so a declared entity is recognised.
-        // Match spec_parser's normalization: strip backticks, trim,
-        // strip a generic suffix only when it follows a real identifier
-        // (genericStart > 0), so a name that merely contains '<' is not
-        // mangled. Issue #1771 nitpick: keep both sides consistent.
+        // Issue #1793: the membership test must consult the Key Entities
+        // table (parseKeyEntities) in addition to the entity-kind contract
+        // rows, so an entity declared as a Key Entity is recognised even
+        // when no contract row names it. Normalize both sides (#1771) so
+        // backticks / generic suffixes do not cause a false refusal.
         String norm(String n) {
           var v = n.replaceAll('`', '').trim();
           final genericStart = v.indexOf('<');
-          if (genericStart > 0) {
-            v = v.substring(0, genericStart).trim();
-          }
+          if (genericStart > 0) v = v.substring(0, genericStart).trim();
           return v;
         }
 
-        final declared = declaredEntities
-            .where((r) => norm(r.name) == norm(mined))
+        final declaredEntityNames = <String>{
+          ...declarations.contractRows.values
+              .where((r) => r.kind == ContractRowKind.entity)
+              .map((r) => r.name),
+          ...declarations.keyEntities,
+        };
+        final declared = declaredEntityNames
+            .where((n) => norm(n) == norm(mined))
             .firstOrNull;
-        if (declaredEntities.isNotEmpty && declared == null) {
+        if (declaredEntityNames.isNotEmpty && declared == null) {
           return RoutingFailure(
             code: RoutingFailureCode.danglingReference,
             message:

@@ -119,7 +119,7 @@ void main() {
 
       final out = await runCli(['reset', feature]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(File(journalPath()).existsSync(), isTrue, reason: out);
       final journal =
           jsonDecode(await File(journalPath()).readAsString())
@@ -143,7 +143,7 @@ void main() {
 
       // Post-reset the files are gone but the green evidence survives:
       // store-to-tree disagreement — never healthy.
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('evidence-without-artifact'), reason: out);
       expect(out, contains('--> fix:'), reason: out);
       expect(out, contains('zfa tdd run $feature'), reason: out);
@@ -159,7 +159,7 @@ void main() {
 
         final out = await runCli(['doctor', feature]);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final v = verdict(out);
         expect(v['verdict'], 'healthy', reason: out);
       },
@@ -175,7 +175,7 @@ void main() {
 
       final out = await runCli(['run', feature, '--zfa-bin', fx.fakeZfaBin]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(fx.stepInvocations(), [
         'gen U-001',
         'verify-red U-001',
@@ -199,7 +199,7 @@ void main() {
 
         final out = await runCli(['status', feature]);
 
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         expect(out, contains('engine=red'), reason: out);
         expect(out, contains('evidence-without-artifact'), reason: out);
       },

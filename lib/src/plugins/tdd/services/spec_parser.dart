@@ -652,13 +652,7 @@ class SpecParser {
   /// Split a pipe row while preserving empty cells' column positions.
   static List<String> _splitPositionalCells(String line) {
     final raw = line.split('|').map((c) => c.trim()).toList();
-    if (raw.length <= 2) return raw;
-    // Drop the leading/trailing empty cells produced by the outer pipes;
-    // a malformed row without outer pipes keeps its raw cells.
-    final start = raw.first.isEmpty ? 1 : 0;
-    final end = raw.last.isEmpty ? raw.length - 1 : raw.length;
-    if (end - start < 1) return raw;
-    return raw.sublist(start, end);
+    return raw.length > 2 ? raw.sublist(1, raw.length - 1) : raw;
   }
 
   /// Extract the declared external dependencies (bug #919): each row of
@@ -1213,15 +1207,9 @@ class SpecParser {
         // Bug #919: the zuraffa-1.0 template declares entities as a
         // 3-column TABLE (`| Entity | Fields | Purpose |`) — parse the
         // table rows (header/separator skipped), like parseDependencies.
-        // Issue #1771: the cell may be backticked (`` `DealListPage` ``)
-        // or carry a generic suffix (`Foo<T>`); normalize to the bare
-        // identifier so the stored row name matches the entity mined from
-        // a declared return type (Future<DealListPage>) and the entity
-        // extracted by parseKeyEntities. Empty/misaligned cells must not
-        // produce a phantom row name.
-        // Issue #1771 (refusal persists): a Key Entities section may also
-        // declare entities as bullets (`- **Name**: prose`), the same
-        // form parseKeyEntities accepts. Parse those too, otherwise an
+        // Issue #1771/#1793: a Key Entities section may also declare
+        // entities as bullets (`- **Name**: prose`), the same form
+        // parseKeyEntities accepts — parse those too, otherwise an
         // entity declared only as a bullet has no contract row and the
         // declared-entity membership test in routing_resolver fails
         // (danglingReference) even though parseKeyEntities extracted it.
@@ -1232,6 +1220,14 @@ class SpecParser {
           final genericStart = name.indexOf('<');
           if (genericStart > 0) name = name.substring(0, genericStart).trim();
           if (!_dartIdentifier.hasMatch(name)) continue;
+          // Dedup: an entity declared both as a table row and a bullet
+          // must not survive as two ContractRowDecls (counts/provenance).
+          final alreadyEntity = rows.any(
+            (r) =>
+                r.kind == ContractRowKind.entity &&
+                r.name.replaceAll('`', '').trim() == name,
+          );
+          if (alreadyEntity) continue;
           rows.add(
             ContractRowDecl(
               name: name,
@@ -1241,7 +1237,7 @@ class SpecParser {
           );
           continue;
         }
-        // Issue #1771: preserve empty cells' positions (unlike
+        // Issue #1771/#1793: preserve empty cells' positions (unlike
         // _splitCells, which drops them) so a row with an empty cell
         // cannot shift the captured entity name into the wrong column.
         final cells = _splitPositionalCells(trimmed);
@@ -1261,6 +1257,12 @@ class SpecParser {
           entityName = entityName.substring(0, genericStart).trim();
         }
         if (!_dartIdentifier.hasMatch(entityName)) continue;
+        final alreadyEntity = rows.any(
+          (r) =>
+              r.kind == ContractRowKind.entity &&
+              r.name.replaceAll('`', '').trim() == entityName,
+        );
+        if (alreadyEntity) continue;
         rows.add(
           ContractRowDecl(
             name: entityName,
@@ -1305,6 +1307,33 @@ class SpecParser {
         );
         continue;
       }
+    }
+    // Issue #1793: guarantee every entity parseKeyEntities extracts is also
+    // present as an entity-kind contract row, so the routing_resolver
+    // membership test (which keys off contract rows) recognises an entity
+    // declared in the Key Entities table even when the table/bullet forms
+    // above did not capture it. Never duplicates an existing name.
+    String norm(String n) {
+      var v = n.replaceAll('`', '').trim();
+      final g = v.indexOf('<');
+      if (g > 0) v = v.substring(0, g).trim();
+      return v;
+    }
+
+    final existingNames = rows
+        .where((r) => r.kind == ContractRowKind.entity)
+        .map((r) => norm(r.name))
+        .toSet();
+    for (final ent in parseKeyEntities(specMd)) {
+      if (existingNames.contains(norm(ent.name))) continue;
+      rows.add(
+        ContractRowDecl(
+          name: ent.name,
+          kind: ContractRowKind.entity,
+          specLine: null,
+        ),
+      );
+      existingNames.add(norm(ent.name));
     }
     return rows;
   }

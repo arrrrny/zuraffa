@@ -93,7 +93,11 @@ environment:
       'usecase',
     ]);
 
-    expect(exitCode, 0, reason: 'the make run itself must succeed:\n$output');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'the make run itself must succeed:\n$output',
+    );
 
     // The repository interface exists (repository plugin defaults keep
     // their own vocabulary — toggle included)...

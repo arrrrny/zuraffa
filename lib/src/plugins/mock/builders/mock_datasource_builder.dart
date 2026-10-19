@@ -11,6 +11,7 @@ import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/project_flavor.dart';
 import '../services/mock_staleness_detector.dart';
 import 'mock_type_helper.dart';
 
@@ -119,11 +120,16 @@ class MockDataSourceBuilder {
           ...EntityUtils.mockBarrelHideNames(type),
     }.toList();
 
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final mockImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/mock.dart';
+
     final directives = [
       Directive.import('dart:async'),
       // Canonical zuraffa-native mock marker: detects native mocking for static
       // tooling (e.g. speckit-tdd-setup) without a third-party double library.
-      Directive.import('package:zuraffa/mock.dart', hide: barrelHide),
+      Directive.import(mockImport, hide: barrelHide),
       if (config.isEntityBased)
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
@@ -1243,6 +1249,88 @@ class MockDataSourceBuilder {
                     .statement,
             ),
           );
+          break;
+        default:
+          // Issue #1823: arbitrary (non-CRUD) verbs declared via
+          // --methods. Emit a certified mock member whose body is the
+          // fixture/echo default, matching the interface generator's
+          // shape so conformance holds.
+          {
+            final methodName = method;
+            final returns =
+                (config.returnsType != null && config.returnsType!.isNotEmpty)
+                ? config.returnsType!
+                : 'void';
+            final baseReturns = returns.replaceAll('?', '');
+            final isVoid = baseReturns == 'void' || baseReturns == 'dynamic';
+            // Issue #1824 review: branch on list-ness and entity-ness so a
+            // non-void arbitrary verb does not always return a single entity
+            // (which fails `return_of_invalid_type` for List<T>/primitives).
+            final isList =
+                baseReturns.startsWith('List<') && baseReturns.endsWith('>');
+            final listInner = isList
+                ? baseReturns.substring(5, baseReturns.length - 1).trim()
+                : '';
+            final isEntityList = isList && listInner == entityName;
+            final isEntityReturn = baseReturns == entityName;
+            final paramsType =
+                (config.paramsType != null && config.paramsType!.isNotEmpty)
+                ? config.paramsType!
+                : 'NoParams';
+            final hasParams = paramsType != 'NoParams';
+            final returnType =
+                returns.startsWith('Future<') || returns.startsWith('Stream<')
+                ? returns
+                : 'Future<$returns>';
+            final futureReturnType = returnType; // returnType already wrapped
+            methods.add(
+              Method(
+                (m) => m
+                  ..name = methodName
+                  ..annotations.add(refer('override'))
+                  ..returns = refer(futureReturnType)
+                  ..modifier = MethodModifier.async
+                  ..requiredParameters.addAll(
+                    hasParams
+                        ? [
+                            Parameter(
+                              (pp) => pp
+                                ..name = 'params'
+                                ..type = refer(paramsType),
+                            ),
+                          ]
+                        : const <Parameter>[],
+                  )
+                  ..body = Block(
+                    (b) => b
+                      ..statements.addAll([
+                        refer('logger').property('info').call([
+                          literalString('$methodName called'),
+                        ]).statement,
+                        refer('Future<void>')
+                            .property('delayed')
+                            .call([refer('_delay')])
+                            .awaited
+                            .statement,
+                        if (isVoid)
+                          refer(
+                            'Future',
+                          ).property('value').call([]).returned.statement
+                        else if (isEntityList)
+                          refer(
+                            '${entityName}MockData',
+                          ).property('sampleList').returned.statement
+                        else if (isEntityReturn)
+                          refer(
+                            '${entityName}MockData',
+                          ).property('sample$entityName').returned.statement
+                        else
+                          Code('throw UnimplementedError();'),
+                      ]),
+                  ),
+              ),
+            );
+          }
           break;
       }
     }

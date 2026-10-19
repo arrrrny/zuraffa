@@ -102,7 +102,7 @@ void main() {
         // FIXED: the engine defers A1 (pending, no engine steps) and
         // completes green over its non-widget bucket. BUGGY: exit 1 with
         // stopped_at=A1:make.
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, isNot(contains('stopped_at=A1:make')), reason: out);
 
         final invocations = fx.stepInvocations();
@@ -147,7 +147,7 @@ void main() {
         // steps come AFTER the last engine step.
         final out = await run('run');
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final invocations = fx.stepInvocations();
         final lastEngineIndex = invocations.lastIndexWhere(
           (l) => l.endsWith(' U1') || l.endsWith(' U2'),
@@ -207,7 +207,7 @@ void main() {
 ''');
 
         final engineOut = await run('run-engine');
-        expect(exitCode, 0, reason: engineOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: engineOut);
         // The engine defers the untagged widget row and completes green.
         expect(
           fx.stepInvocations().where((l) => l.endsWith(' W2')),
@@ -222,7 +222,7 @@ void main() {
         exitCode = 0;
 
         final skinOut = await run('run-skin');
-        expect(exitCode, 0, reason: skinOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: skinOut);
         // run-skin picks the deferred row up behind the green receipt.
         expect(fx.stepInvocations(), [
           'gen W2',

@@ -14,6 +14,7 @@ import '../../../models/generator_config.dart';
 import '../../../utils/entity_utils.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/entity_analyzer.dart';
+import '../../../utils/project_flavor.dart';
 
 /// Generates repository interfaces for the domain layer.
 ///
@@ -48,7 +49,7 @@ class RepositoryInterfaceGenerator {
     final filePath = path.join(outputDir, 'domain', 'repositories', fileName);
 
     final methods = _buildMethods(config);
-    final directives = _buildDirectives(config);
+    final directives = await _buildDirectives(config);
     final clazz = Class(
       (b) => b
         ..name = repoName
@@ -179,7 +180,7 @@ class RepositoryInterfaceGenerator {
     );
   }
 
-  List<Directive> _buildDirectives(GeneratorConfig config) {
+  Future<List<Directive>> _buildDirectives(GeneratorConfig config) async {
     final needsZuraffaImport =
         config.methods.any(
           (method) =>
@@ -196,8 +197,12 @@ class RepositoryInterfaceGenerator {
         config.enableSync;
 
     final imports = <String>[];
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
     if (needsZuraffaImport) {
-      imports.add('package:zuraffa/zuraffa.dart');
+      imports.add(coreImport);
     }
     var entityFileImported = false;
     if (config.isEntityBased) {
@@ -275,7 +280,7 @@ class RepositoryInterfaceGenerator {
     }.toList();
 
     return imports.toSet().map((uri) {
-      if (uri != 'package:zuraffa/zuraffa.dart' || barrelHide.isEmpty) {
+      if (uri != coreImport || barrelHide.isEmpty) {
         return Directive.import(uri);
       }
       return Directive.import(uri, hide: barrelHide);

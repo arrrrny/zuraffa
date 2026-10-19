@@ -90,7 +90,7 @@ void main() {
         'subjects, exit 0, summary line final', () async {
       final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final lines = out
           .split('\n')
           .map((l) => l.trimRight())
@@ -113,7 +113,7 @@ void main() {
       ).readAsString();
 
       final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       final subject = await File(fx.subjectPathOf('A-001')).readAsString();
       // GENERATED stamp naming the compose command + behavior.
@@ -137,12 +137,12 @@ void main() {
     test('A5/U14: re-compose is idempotent (already-composed, exit 0, '
         'file byte-identical)', () async {
       await runner.runCapturing(composeArgs(fx, id: 'A-001'));
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
       final composed = await File(fx.subjectPathOf('A-001')).readAsString();
 
       final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains(
@@ -164,7 +164,7 @@ void main() {
 
       final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(
         out,
         contains(
@@ -201,7 +201,7 @@ int subject_u_001() {
 
       final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains(
@@ -223,7 +223,7 @@ int subject_u_001() {
       await File(fx.subjectPathOf('U-001')).delete();
       final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=runner-error'));
       // The registry records the portable project-relative form
       // (issue #1397), and the error names that recorded artifact.
@@ -236,11 +236,11 @@ int subject_u_001() {
         final before = fx.checksumTestTree();
 
         await runner.runCapturing(composeArgs(fx, id: 'A-001'));
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
         expect(fx.checksumTestTree(), before);
 
         await runner.runCapturing(composeArgs(fx, id: 'A-001'));
-        expect(exitCode, 0);
+        expect(CliRunner.lastDispatchedExitCode, 0);
         expect(fx.checksumTestTree(), before);
 
         // Failure paths never touch the test tree either.
@@ -249,7 +249,7 @@ int subject_u_001() {
           fx.cycleLogPath,
         ).writeAsString(log.replaceAll('kind: green', 'kind: red-x'));
         await runner.runCapturing(composeArgs(fx, id: 'A-001'));
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
         expect(fx.checksumTestTree(), before);
       },
     );
@@ -257,7 +257,7 @@ int subject_u_001() {
     test('U9: unknown id names the gen remediation', () async {
       final out = await runner.runCapturing(composeArgs(fx, id: 'NOPE'));
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('NOPE'));
       expect(out, contains('zfa tdd gen NOPE'));
       expect(out, contains('outcome=runner-error'));
@@ -287,7 +287,7 @@ int subject_u_001() {
 
         final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));
 
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(out, contains('ambiguous'));
         expect(out, contains('052-compose-other'));
         expect(out, contains('--feature'));
@@ -296,7 +296,7 @@ int subject_u_001() {
         final out2 = await runner.runCapturing(
           composeArgs(fx, id: 'A-001', feature: fx.featureName),
         );
-        expect(exitCode, 0, reason: out2);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
       },
     );
 
@@ -314,7 +314,7 @@ int subject_u_001() {
 
         final out = await runner.runCapturing(composeArgs(fx2, id: 'A-001'));
 
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(
           out,
           contains(
@@ -331,7 +331,7 @@ int subject_u_001() {
       await File(fx.subjectPathOf('A-001')).delete();
       final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=runner-error'));
       // The registry records the portable project-relative form
       // (issue #1397), and the error names that recorded artifact.
@@ -357,7 +357,7 @@ int subject_u_001() {
           'A-001',
         ]);
 
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(out, contains('outcome=runner-error'));
         expect(out, contains('missing subject file'));
         expect(out, contains('lib/a_001_subject.dart'));
@@ -391,7 +391,7 @@ int subject_u_001() {
 
         final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));
 
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(out, contains('outcome=runner-error'));
         expect(out, contains('outside the project root'));
         expect(await outsideSubject.readAsString(), original);
@@ -404,7 +404,7 @@ int subject_u_001() {
     test('U13: the composed body is stamped and anchored (int + void '
         'subjects)', () async {
       final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
 
       final subject = await File(fx.subjectPathOf('A-001')).readAsString();
       expect(subject, contains("library;"));
@@ -425,7 +425,7 @@ class Weird {
 
       final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('outcome=runner-error'));
       expect(out.toLowerCase(), contains('unrecognized'));
       expect(await File(fx.subjectPathOf('A-001')).readAsString(), before);
