@@ -130,7 +130,7 @@ abstract final class SkinAuthoring {
   static final RegExp _pumpToken = RegExp(r'\bpump\w*\s*\(');
 
   static final RegExp _pumpAwait = RegExp(
-    r'\bawait\s+(?:[A-Za-z_]\w*\.)?pump\w*\s*\(',
+    r'\bawait\s+(?:[A-Za-z_]\w*\.)*pump\w*\s*\(',
   );
 
   /// Refuses author finders that `await` a subject/controller read before
@@ -139,11 +139,18 @@ abstract final class SkinAuthoring {
   /// deadlocks the widget test. The sanctioned shape pumps first, then
   /// awaits the already-completed future.
   static void _checkNoAwaitBeforePump(String finders) {
-    final pumpMatch = _pumpToken.firstMatch(finders);
-    final firstPumpIndex = pumpMatch?.start ?? finders.length;
-    for (final match in _awaitKeyword.allMatches(finders)) {
+    // Scan a comment/string-stripped view so the guard is honest in both
+    // directions: a literal `await` inside a string (e.g.
+    // `find.text('await')`) is not a real await, and a pump token that
+    // appears only inside a comment cannot mask a real await-before-pump
+    // deadlock. Whitespace/newline positions are preserved so the two
+    // regex passes stay aligned.
+    final code = _stripStringsAndComments(finders);
+    final pumpMatch = _pumpToken.firstMatch(code);
+    final firstPumpIndex = pumpMatch?.start ?? code.length;
+    for (final match in _awaitKeyword.allMatches(code)) {
       if (match.start >= firstPumpIndex) continue;
-      final tail = finders.substring(match.start);
+      final tail = code.substring(match.start);
       if (_pumpAwait.matchAsPrefix(tail) != null) continue;
       throw const SkinAuthoringException(
         'the author finders await a subject/controller read before a pump — '
@@ -155,6 +162,101 @@ abstract final class SkinAuthoring {
         '(pump-before-await / pump-then-await ordering).',
       );
     }
+  }
+
+  /// Replaces the contents of string literals and comments with spaces
+  /// (preserving length and newlines) so heuristic scans over the result
+  /// ignore tokens that appear only inside those regions. Handles line
+  /// comments, block comments, single/double-quoted strings and their
+  /// triple-quoted variants.
+  static String _stripStringsAndComments(String source) {
+    final buf = StringBuffer();
+    var i = 0;
+    final n = source.length;
+    while (i < n) {
+      final c = source[i];
+      // Line comment: // ... until newline.
+      if (c == '/' && i + 1 < n && source[i + 1] == '/') {
+        while (i < n && source[i] != '\n') {
+          buf.write(' ');
+          i++;
+        }
+        continue;
+      }
+      // Block comment: /* ... */.
+      if (c == '/' && i + 1 < n && source[i + 1] == '*') {
+        buf.write(' ');
+        buf.write(' ');
+        i += 2;
+        while (i < n &&
+            !(source[i] == '*' && i + 1 < n && source[i + 1] == '/')) {
+          buf.write(source[i] == '\n' ? '\n' : ' ');
+          i++;
+        }
+        if (i < n) {
+          buf.write(' ');
+          buf.write(' ');
+          i += 2;
+        }
+        continue;
+      }
+      // String literals.
+      if (c == "'" || c == '"') {
+        final quote = c;
+        final triple = i + 2 < n &&
+            source[i + 1] == quote &&
+            source[i + 2] == quote;
+        final qCount = triple ? 3 : 1;
+        for (var k = 0; k < qCount; k++) {
+          buf.write(source[i]);
+          i++;
+        }
+        while (i < n) {
+          if (!triple && source[i] == '\\') {
+            buf.write(' ');
+            i++;
+            if (i < n) {
+              buf.write(' ');
+              i++;
+            }
+            continue;
+          }
+          if (triple) {
+            if (source[i] == quote &&
+                i + 2 < n &&
+                source[i + 1] == quote &&
+                source[i + 2] == quote) {
+              buf.write(' ');
+              buf.write(' ');
+              buf.write(' ');
+              i += 3;
+              break;
+            }
+            buf.write(source[i] == '\n' ? '\n' : ' ');
+            i++;
+            continue;
+          } else {
+            if (source[i] == quote) {
+              buf.write(source[i]);
+              i++;
+              break;
+            }
+            if (source[i] == '\n') {
+              buf.write('\n');
+              i++;
+              break;
+            }
+            buf.write(' ');
+            i++;
+            continue;
+          }
+        }
+        continue;
+      }
+      buf.write(c);
+      i++;
+    }
+    return buf.toString();
   }
 
   static final RegExp _leadingWhitespacePattern = RegExp(r'^[ \t]*');
