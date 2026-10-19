@@ -873,7 +873,7 @@ class Product {
         ),
       );
 
-      expect(interfaceFile.existsSync(), isFalse);
+      expect(interfaceFile.existsSync(), isTrue);
       expect(mockDsFile.existsSync(), isFalse);
       expect(bindingFile.existsSync(), isFalse);
       expect(handWritten.existsSync(), isTrue);
