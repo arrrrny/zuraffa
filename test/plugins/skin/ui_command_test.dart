@@ -94,7 +94,7 @@ void main() {
         '--expect-version=9.9.9',
       ]);
       expect(output, contains('9.9.9'));
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
     });
 
     test(
@@ -108,7 +108,7 @@ void main() {
         ]);
         expect(output.toLowerCase(), contains('skin plugin not found'));
         expect(output.toLowerCase(), contains('install'));
-        expect(exitCode, 1);
+        expect(CliRunner.lastDispatchedExitCode, 1);
       },
     );
   });
@@ -130,7 +130,7 @@ void main() {
         '--project-root=${tempDir.path}',
       ]);
       expect(output.toLowerCase(), contains('valid'));
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
     });
 
     test(
@@ -153,7 +153,7 @@ void main() {
         ]);
         expect(output, contains('ghost_node'));
         expect(output, contains('neon'));
-        expect(exitCode, 1);
+        expect(CliRunner.lastDispatchedExitCode, 1);
       },
     );
 
@@ -165,7 +165,7 @@ void main() {
         '--project-root=${tempDir.path}',
       ]);
       expect(output.toLowerCase(), contains('not found'));
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
     });
 
     test('invalid JSON reports the file (Edge Cases)', () async {
@@ -179,7 +179,7 @@ void main() {
       ]);
       expect(output, contains('broken.json'));
       expect(output.toUpperCase(), contains('JSON'));
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
     });
   });
 
@@ -196,7 +196,7 @@ void main() {
         ]);
         expect(output, contains('ghost_node'));
         expect(output.toLowerCase(), isNot(contains('rendering')));
-        expect(exitCode, 1);
+        expect(CliRunner.lastDispatchedExitCode, 1);
       },
     );
 
@@ -218,7 +218,7 @@ void main() {
       ]);
       expect(output.toLowerCase(), contains('macos'));
       expect(output.toLowerCase(), contains('not supported'));
-      expect(exitCode, 1);
+      expect(CliRunner.lastDispatchedExitCode, 1);
     });
 
     test(

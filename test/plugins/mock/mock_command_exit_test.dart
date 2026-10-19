@@ -8,7 +8,7 @@
 // the test process with exit 64.
 //
 // Contract pinned here (remediation): the usage error publishes
-// `exitCode = 64` (the slice #767 published-exitCode pattern) and RETURNS,
+// `exitCode = 64` (the slice #767 published-CliRunner.lastDispatchedExitCode pattern) and RETURNS,
 // so the host survives and observes the exit code.
 library;
 
@@ -24,7 +24,7 @@ void main() {
   var exitCodeAtEntry = 0;
 
   setUp(() async {
-    exitCodeAtEntry = exitCode;
+    exitCodeAtEntry = CliRunner.lastDispatchedExitCode;
     tempDir = await Directory.systemTemp.createTemp('mock_exit_970_');
   });
 
@@ -47,7 +47,11 @@ void main() {
         () => runner.runCapturing(['-C', tempDir.path, 'mock', 'json']),
       );
 
-      expect(exitCode, 2, reason: 'usage error must publish exit code 2');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        2,
+        reason: 'usage error must publish exit code 2',
+      );
       expect(
         out,
         contains('Usage'),
@@ -68,7 +72,7 @@ void main() {
     await CwdGuard.exclusive(
       () => runner.runCapturing(['-C', tempDir.path, 'mock', 'json']),
     );
-    expect(exitCode, 2);
+    expect(CliRunner.lastDispatchedExitCode, 2);
 
     // Same host, second dispatch: proves the first refusal did not
     // terminate the process.
@@ -77,10 +81,10 @@ void main() {
     );
     expect(out2, contains('zfa'));
     expect(
-      exitCode,
+      CliRunner.lastDispatchedExitCode,
       0,
       reason:
-          'runCapturing resets exitCode per invocation (hermetic) — the '
+          'runCapturing resets CliRunner.lastDispatchedExitCode per invocation (hermetic) — the '
           '2 from the refusal was observed BEFORE this second dispatch',
     );
   }, timeout: const Timeout(Duration(minutes: 2)));

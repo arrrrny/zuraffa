@@ -80,7 +80,7 @@ void main() {
         final tmp = await _featureDir(_speckitShapedSpec);
         try {
           final out = await _plan(tmp);
-          expect(exitCode, 0, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
           // Bug #1481: the routing verdict reflects the spec state as of
           // the END of the invocation — the marker this run wrote is
           // what routes the scenario, so ONE run is truthful (the
@@ -117,7 +117,7 @@ void main() {
         try {
           await _plan(tmp);
           final out = await _plan(tmp);
-          expect(exitCode, 0, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
           expect(out, isNot(contains('[fallback:')));
           expect(out, contains('[declared: type marker'));
           // Exactly one marker per scenario — a duplicate would refuse
@@ -141,7 +141,7 @@ void main() {
         try {
           await _plan(tmp);
           final out = await _plan(tmp, ['--strict-routing']);
-          expect(exitCode, 0, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
           expect(out, isNot(contains('[fallback:')));
         } finally {
           tmp.deleteSync(recursive: true);
@@ -171,7 +171,7 @@ void main() {
 ''');
         try {
           final out = await _plan(tmp);
-          expect(exitCode, 0, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
           final spec = await File(
             p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
           ).readAsString();
@@ -206,7 +206,7 @@ void main() {
 ''');
         try {
           final out = await _plan(tmp);
-          expect(exitCode, 0, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
           final spec = await File(
             p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
           ).readAsString();
@@ -263,7 +263,7 @@ void main() {
 ''');
 
           final out = await _plan(tmp);
-          expect(exitCode, 0, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
           final spec = await File(
             p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
           ).readAsString();
@@ -312,7 +312,7 @@ Skin Contract:
               p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
             ).readAsString();
             final out = await _plan(tmp);
-            expect(exitCode, 2, reason: out);
+            expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
             expect(out, contains('skin contract refused'));
             final after = await File(
               p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
@@ -337,7 +337,7 @@ Skin Contract:
             p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
           ).readAsString();
           final out = await _plan(tmp, ['--strict-routing']);
-          expect(exitCode, 1, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
           expect(out, contains('--> fix:'));
           final after = await File(
             p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
@@ -366,7 +366,7 @@ Skin Contract:
           ).writeAsString('blocks output directory creation');
 
           final out = await _plan(tmp);
-          expect(exitCode, 1, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
           expect(out, contains('FileSystemException'));
           expect(await specFile.readAsString(), before);
         } finally {
@@ -404,7 +404,7 @@ How to write a scenario:
 ''');
           try {
             final out = await _plan(tmp);
-            expect(exitCode, 0, reason: out);
+            expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
             final spec = await File(
               p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
             ).readAsString();
@@ -435,7 +435,7 @@ How to write a scenario:
             p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
           ).readAsString();
           final out = await _plan(tmp, ['--no-emit-markers']);
-          expect(exitCode, 0, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
           expect(out, contains('[fallback:'));
           final after = await File(
             p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
@@ -472,7 +472,7 @@ How to write a scenario:
 ''');
           try {
             final out = await _plan(tmp);
-            expect(exitCode, 0, reason: out);
+            expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
             final spec = await File(
               p.join(tmp.path, 'specs', '1186-prov', 'spec.md'),
             ).readAsString();

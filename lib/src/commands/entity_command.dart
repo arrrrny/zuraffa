@@ -19,6 +19,7 @@ import '../version.dart';
 import '../core/dependencies/builder_dependency_preflight.dart';
 import '../core/dependencies/pubspec_auto_add.dart' show PubspecProcessRunner;
 import '../core/format/format_runner.dart';
+import '../core/policy/approval_gate.dart';
 import '../plugins/cli/cli_plugin.dart';
 import '../plugins/tdd/services/entity_lookup.dart';
 import '../cli/exit_protocol.dart';
@@ -625,6 +626,24 @@ ${missing.map((d) => '   • $d').join('\n')}
           '`zfa entity remove -n <Name>`',
         ),
       );
+      _bail(ExitProtocol.failure);
+    }
+
+    // Issue #810: human checkpoint gate on `entity remove` — runs after
+    // the existence guard so a removal attempt on a non-existent entity
+    // never prompts or writes a ledger entry before failing.
+    final assumeYes = args.contains('--yes') || args.contains('-y');
+    final missionId =
+        Platform.environment['ZFA_MISSION_ID'] ??
+        'local-${DateTime.now().millisecondsSinceEpoch}';
+    final gate = ApprovalGate(
+      projectRoot: Directory.current.path,
+      gateId: 'entity.remove',
+      missionId: missionId,
+      requestPayload: <String, dynamic>{'entity': name},
+    );
+    final approved = await gate.check(assumeYes: assumeYes);
+    if (!approved) {
       _bail(ExitProtocol.failure);
     }
 

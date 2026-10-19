@@ -23,7 +23,7 @@ import 'package:zuraffa/src/cli/exit_protocol.dart';
 /// `test/regression/issue_1132_bare_exit_code_fleet_test.dart`, and their
 /// embedded-dispatch-safety assertions live in
 /// `config_plugin_embedded_dispatch_1132_test.dart` (added with the fix:
-/// the arms return via `exitCode`, never `exit()`).
+/// the arms return via `CliRunner.lastDispatchedExitCode`, never `exit()`).
 void main() {
   late CliRunner runner;
 

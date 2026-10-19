@@ -120,6 +120,6 @@ Per the EPIC #214 plan and the issue notes, platform implementations (Android, W
 ## Assumptions
 
 - The existing `html_to_markdown_ffi` codebase is self-contained and does not depend on other ZikZak internal packages that have not yet been migrated.
-- The `zikzak_inappwebview` package already contains the platform-specific FFI implementations for Android, Windows, Linux, and macOS, and the `html_to_markdown_ffi` package references or re-exports those implementations.
+- The `zikzak_inappwebview` package is *provisionally* assumed to contain the platform-specific FFI implementations for Android, Windows, Linux, and macOS; this is unverified and must be confirmed before scaffolding. If any platform lacks the bridge, the migration plan (and this spec) must include the missing native implementation so all five platforms (iOS, Android, Windows, Linux, macOS) stay covered.
 - The zuraffa version used for this migration is stable and the `zfa` commands (entity create, make, build) work reliably for a package of this type (Dart FFI with platform bindings).
 - The migration does not require changes to the pub.dev publishing workflow — the package can be published as-is after the internal restructuring.

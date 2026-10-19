@@ -259,7 +259,7 @@ class RunSkinCommand extends Command<void> {
           'zfa tdd run-skin: --baseline-scope must be a directory '
           'relative to the project root (got "$baselineScope")',
         );
-        exitCode = ExitProtocol.usage;
+        exitCode = _exitRunnerError;
         return;
       }
     }

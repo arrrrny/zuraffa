@@ -127,7 +127,7 @@ Future<void> main() async {
       out,
       contains(RegExp(r'refactor: feature=\S+ outcome=(clean|refactored)')),
     );
-    expect(exitCode, 0);
+    expect(CliRunner.lastDispatchedExitCode, 0);
   }, skip: gitOk ? false : 'git binary unavailable');
 
   test('A7: build pass deletes a tracked placeholder and the restore is '
@@ -154,7 +154,7 @@ Future<void> main() async {
     );
     expect(out, contains('refused'));
     expect(
-      exitCode,
+      CliRunner.lastDispatchedExitCode,
       isNot(0),
       reason: 'a refusal must never exit 0 — the tree is broken',
     );

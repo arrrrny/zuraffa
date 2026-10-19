@@ -347,7 +347,11 @@ environment:
       expect(out, contains('receipt preflight'));
       expect(out, contains('missing_receipt'));
       expect(out, contains('lib/tdd/b_001_subject.dart'));
-      expect(exitCode, 1, reason: 'gate failure must exit non-zero');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'gate failure must exit non-zero',
+      );
       expect(
         out,
         isNot(contains('running mutation audit')),

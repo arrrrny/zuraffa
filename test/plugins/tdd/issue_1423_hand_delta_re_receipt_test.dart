@@ -218,7 +218,7 @@ void main() {
         '--re-certify',
         id,
       ]);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('classification=re-certified'));
 
       // SC-2: ONE appended hand-delta receipt covering the drifted
@@ -282,7 +282,7 @@ void main() {
         fx.root.path,
         id,
       ]);
-      expect(exitCode, 0, reason: makeOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: makeOut);
       expect(makeOut, contains('outcome=skipped'));
     });
   });
@@ -318,7 +318,7 @@ void main() {
         fx.root.path,
         redId,
       ]);
-      expect(exitCode, 0, reason: redOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: redOut);
       expect(
         await handDeltaReceiptsOf(fx),
         isEmpty,
@@ -338,7 +338,7 @@ void main() {
         fx.root.path,
         id,
       ]);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('outcome=skipped'));
 
       // SC-1: ONE appended hand-delta receipt, transition `skip`.
@@ -404,7 +404,7 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
         fx.root.path,
         id,
       ]);
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(out, contains('outcome=skipped'));
 
       expect(
@@ -459,7 +459,7 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
           '--re-certify',
           id,
         ]);
-        expect(exitCode, 0, reason: recert);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: recert);
 
         final makeOut = await runner.runCapturing([
           'tdd',
@@ -468,7 +468,7 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
           fx.root.path,
           id,
         ]);
-        expect(exitCode, 0, reason: makeOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: makeOut);
         expect(makeOut, contains('outcome=skipped'));
 
         // SC-3: the proof preflight validates the certified hand-delta —
@@ -527,7 +527,7 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
         fx.root.path,
       ]);
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         isNot(0),
         reason: 'a drifted hand-delta must not read healthy:\n$out',
       );
@@ -589,7 +589,7 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
         '--re-certify',
         id,
       ]);
-      expect(exitCode, 0, reason: recert);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: recert);
       final makeOut = await runner.runCapturing([
         'tdd',
         'make',
@@ -597,7 +597,7 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
         fx.root.path,
         id,
       ]);
-      expect(exitCode, 0, reason: makeOut);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: makeOut);
 
       final out = await runner.runCapturing([
         'tdd',
@@ -606,7 +606,11 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
         '--project',
         fx.root.path,
       ]);
-      expect(exitCode, 0, reason: 'the healed state must read healthy:\n$out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'the healed state must read healthy:\n$out',
+      );
       expect(out, contains('stores agree'));
     });
 
@@ -642,7 +646,7 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
           '--project',
           fx.root.path,
         ]);
-        expect(exitCode, isNot(0), reason: out);
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
         expect(out, isNot(contains('stores agree')), reason: out);
         expect(out, contains('hand-delta drift'));
         expect(
@@ -677,7 +681,7 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
           '--re-certify',
           id,
         ]);
-        expect(exitCode, 0, reason: recert);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: recert);
         expect(
           await handDeltaReceiptsOf(fx),
           hasLength(1),
@@ -690,7 +694,7 @@ int ${id.toLowerCase().replaceAll('-', '_')}_value() => 42;
           '--project',
           fx.root.path,
         ]);
-        expect(exitCode, 0, reason: healed);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: healed);
         expect(healed, contains('stores agree'));
       },
     );
