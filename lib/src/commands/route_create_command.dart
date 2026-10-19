@@ -23,6 +23,7 @@ import '../core/verdict_envelope.dart';
 import '../plugins/route/route_plugin.dart';
 import '../plugins/route/builders/route_table_test_builder.dart';
 import '../plugins/route/route_receipt.dart';
+import '../utils/manifest_writer.dart';
 import '../utils/project_flavor.dart';
 import '../utils/string_utils.dart';
 
@@ -199,20 +200,48 @@ class RouteCreateCommand extends Command<void> {
     final entityRaw = rest.isNotEmpty ? rest.first : flaggedName!;
     final entity = _canonicalEntity(entityRaw);
 
-    // #1718 Gap 1: refuse upfront when the entity architecture that the
-    // generated routes reference does not exist yet (no view/repository).
-    // Mirrors the #1692 id-gate: run `zfa make` first.
     final entitySnake = StringUtils.camelToSnake(entity);
-    final mainViewPath = p.join(
-      projectRoot,
-      'lib',
-      'src',
-      'presentation',
-      'pages',
-      entitySnake,
-      '${entitySnake}_view.dart',
+
+    // #1718 Gap 1 (fixed): validate scheme/host BEFORE the view gate so
+    // malformed deep-link args surface as ArgumentError (not "missing view").
+    final schemeArg = argResults?['scheme'] as String?;
+    final hostArg = argResults?['host'] as String?;
+    if (schemeArg != null && schemeArg.isNotEmpty) {
+      ManifestWriter.validateScheme(schemeArg);
+    }
+    ManifestWriter.validateHost(hostArg);
+
+    // #1718 Gap 1: refuse upfront when the entity architecture that the
+    // generated routes reference does not exist yet (no view). Probe the
+    // same on-disk location the route builder uses (domain dir, which
+    // defaults to the entity but is overridable) by globbing
+    // presentation/pages/*/entity_view.dart so a view seeded under any
+    // domain (e.g. `general/`) is found.
+    final pagesDir = Directory(
+      p.join(_absoluteOutputDir, 'presentation', 'pages'),
     );
-    if (!File(mainViewPath).existsSync()) {
+    var viewExists = false;
+    if (pagesDir.existsSync()) {
+      for (final entry in pagesDir.listSync()) {
+        if (entry is Directory) {
+          final candidate = File(
+            p.join(entry.path, '${entitySnake}_view.dart'),
+          );
+          if (candidate.existsSync()) {
+            viewExists = true;
+            break;
+          }
+        }
+      }
+    }
+    if (!viewExists) {
+      final mainViewPath = p.join(
+        _absoluteOutputDir,
+        'presentation',
+        'pages',
+        entitySnake,
+        '${entitySnake}_view.dart',
+      );
       _fail(
         'route create requires the entity architecture to exist first: '
         'missing $mainViewPath',

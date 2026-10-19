@@ -667,7 +667,6 @@ class RouteBuilder {
       hasGetList: hasGetList,
       hasWatchList: hasWatchList,
       allowIdRoutes: allowIdRoutes,
-      hasDetailView: hasDetailView,
     );
 
     final needsIdRoute =
@@ -756,7 +755,7 @@ class RouteBuilder {
       // previous behavior (always emit + flip viewName) produced
       // malformed stubs when re-running with --force over a pre-existing
       // routes file — see issue #333.
-      if (needsIdRoute)
+      if (needsIdRoute && hasDetailView)
         _buildDetailRouteExpr(
           entityName: entityName,
           entityCamel: entityCamel,
@@ -1637,7 +1636,6 @@ class RouteBuilder {
     required bool hasGetList,
     required bool hasWatchList,
     required bool allowIdRoutes,
-    bool hasDetailView = false,
   }) {
     if (isCustom) {
       return {routeNameBase: '/$routeBase'};

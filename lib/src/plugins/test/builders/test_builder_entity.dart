@@ -433,7 +433,11 @@ extension TestBuilderEntity on TestBuilder {
 
     final content = specLibrary.emitLibrary(
       specLibrary.library(
-        specs: [throwingClass, noOpCachePolicyClass, mainMethod],
+        specs: [
+          throwingClass,
+          if (config.enableCache) noOpCachePolicyClass,
+          mainMethod,
+        ],
         directives: directives,
       ),
     );
