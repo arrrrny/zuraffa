@@ -603,14 +603,15 @@ class MockDataSourceBuilder {
         'dynamic',
         'Object',
       };
-      final returnsEntityTypes = (config.returnsType != null &&
-              config.returnsType!.isNotEmpty)
+      final returnsEntityTypes =
+          (config.returnsType != null && config.returnsType!.isNotEmpty)
           ? EntityUtils.extractEntityTypes(config.returnsType!)
           : <String>[];
       final targetEntity = returnsEntityTypes.isNotEmpty
           ? returnsEntityTypes.first
           : entityName;
-      final isPrimitiveReturn = primitives.contains(baseReturns) ||
+      final isPrimitiveReturn =
+          primitives.contains(baseReturns) ||
           (isList &&
               primitives.contains(
                 baseReturns
@@ -664,9 +665,7 @@ class MockDataSourceBuilder {
                                                     baseReturns,
                                                   ).code
                                                 : refer(mockDataClass)
-                                                      .property(
-                                                        sampleProperty,
-                                                      )
+                                                      .property(sampleProperty)
                                                       .code)),
                             ).closure,
                           ]),
