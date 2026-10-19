@@ -647,7 +647,7 @@ int sampleSubject() {
           expect(out, contains('behavior=A1'));
           expect(out, contains('step=resolve test list'));
           expect(out, isNot(contains('Bad state')));
-          expect(exitCode, 1);
+          expect(CliRunner.lastDispatchedExitCode, 1);
           // Bounded: returned at the 30s budget, well inside the watchdog.
           expect(sw.elapsed, lessThan(const Duration(seconds: 45)));
           // No partial artifacts from the aborted attempt: the flow never
@@ -699,7 +699,7 @@ int sampleSubject() {
           expect(out, contains('outcome=timeout'));
           expect(out, contains('behavior=A1'));
           expect(out, contains('timeout after 3s'));
-          expect(exitCode, 1);
+          expect(CliRunner.lastDispatchedExitCode, 1);
           expect(sw.elapsed, lessThan(const Duration(seconds: 25)));
         },
         timeout: const Timeout(Duration(seconds: 30)),
@@ -793,7 +793,7 @@ int sampleSubject() {
           expect(out, contains('outcome=timeout'));
           expect(out, contains('behavior=A1'));
           expect(out, contains('step=staleness'));
-          expect(exitCode, 1);
+          expect(CliRunner.lastDispatchedExitCode, 1);
           expect(sw.elapsed, lessThan(const Duration(seconds: 25)));
           // The stop is transactional: cleanup removes only what the
           // timed-out ATTEMPT created — the pre-existing owned pair and

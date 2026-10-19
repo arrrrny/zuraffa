@@ -89,7 +89,7 @@ $overrideBody
       ]);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         3,
         reason:
             'a stale override is corrupt project state — the SPEC 917 '
@@ -137,7 +137,7 @@ $overrideBody
         reason: 'a valid path override must pass the gate. stdout:\n$out',
       );
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         isNot(3),
         reason:
             'the drift exit belongs to the preflight refusal only — '
@@ -162,7 +162,7 @@ $overrideBody
       ]);
 
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         3,
         reason:
             'run\'s corrupt-state class (issue #1303: exit 3 for the '

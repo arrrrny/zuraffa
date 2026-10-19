@@ -79,7 +79,7 @@ void main() {
     () async {
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(fx.stepInvocations(), [
         'gen B-001',
         'verify-red B-001',
@@ -102,7 +102,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, isNot(0), reason: out);
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
     // Bug #657: a UNIT behavior's unexpressible make now defers like the
     // acceptance deferral (bug #625) instead of stopping the feature —
     // so B-003 runs its full phase-1 cycle (its refactor defers while
@@ -131,7 +131,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(fx.stepInvocations().first, 'make B-001');
 
       // No evidence at all: demoted to pending -> full re-drive.
@@ -143,7 +143,7 @@ void main() {
 
       final out2 = await drive();
 
-      expect(exitCode, 0, reason: out2);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
       expect(fx.stepInvocations().first, 'gen B-001');
     },
   );
@@ -168,7 +168,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // Strictly less work than a fresh run (3 invocations vs 12).
       expect(fx.stepInvocations(), [
         'make B-002',
@@ -193,7 +193,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // The crashed gen for B-002 re-executed, then the sequence continued.
     expect(fx.stepInvocations().first, 'gen B-002');
     expect(fx.stepInvocations(), [
@@ -222,7 +222,7 @@ void main() {
 
     final out2 = await drive();
 
-    expect(exitCode, 0, reason: out2);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out2);
     expect(fx.stepInvocations().first, 'verify-red B-002');
     expect(fx.stepInvocations().where((l) => l == 'gen B-002'), isEmpty);
   });
@@ -269,7 +269,11 @@ void main() {
           fixture.fakeZfaBin,
         ]);
 
-        expect(exitCode, isNot(0), reason: '$step: $out');
+        expect(
+          CliRunner.lastDispatchedExitCode,
+          isNot(0),
+          reason: '$step: $out',
+        );
         expect(out, contains('result=stopped'), reason: '$step: $out');
         expect(out, contains('stopped_at=B-001:$step'), reason: '$step: $out');
         // B-002 was never started.
@@ -295,7 +299,7 @@ void main() {
   test('U24: a stubbed/missing step binary is a runner-error stop', () async {
     final out = await drive(zfaBin: '/nonexistent/zfa-fake');
 
-    expect(exitCode, isNot(0), reason: out);
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
     expect(out, contains('result=runner-error'), reason: out);
     expect(out, contains('stopped_at=B-001:gen'), reason: out);
     expect(out, contains('behavior=B-001'), reason: out);
@@ -315,7 +319,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       expect(out, contains('result=runner-error'), reason: out);
       expect(out, contains('stopped_at=B-001:verify-red'), reason: out);
       expect(out.toLowerCase(), contains('evidence'));
@@ -326,7 +330,7 @@ void main() {
   test('U25: each step completion prints its progress line', () async {
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(out, contains('[run] B-001 gen -> ok'));
     expect(out, contains('[run] B-001 verify-red -> certified'));
     expect(out, contains('[run] B-001 make -> green'));
@@ -365,14 +369,14 @@ void main() {
 
   test('U27: exit 0 exactly on complete-with-evidence', () async {
     await drive();
-    expect(exitCode, 0);
+    expect(CliRunner.lastDispatchedExitCode, 0);
 
     exitCode = 0;
     await File(fx.runStatePath).delete();
     await File(fx.cycleLogPath).delete();
     await fx.setStepOutcome('refactor', 'B-002', 'regression');
     await drive();
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
   });
 
   test('bug #691: verify-red reporting unexpected-green on an already-green '
@@ -398,7 +402,7 @@ void main() {
     final out = await drive();
 
     // The run no longer stops at B-001:verify-red.
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       out,
       isNot(contains('step failed — behavior=B-001 step=verify-red')),
@@ -445,7 +449,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // Nothing under test/ or lib/ changed across the whole run: the only
     // tree the driver writes is specs/<feature>/tdd/run-state.json.
     expect(fx.checksumTestAndLib(), snapshot);
@@ -460,7 +464,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(fx.stepInvocations(), isEmpty);
       expect(
         out,
@@ -503,7 +507,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // Phase 1 runs the uniform cycle: A1's make is attempted and defers
     // on unexpressible; U1 makes green and its refactor defers too (bug
     // #635 — A1 sits RED, the suite is knowingly red). Phase 2 re-attempts
@@ -566,7 +570,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(fx.stepInvocations(), [
       'gen A1',
       'verify-red A1',
@@ -618,7 +622,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // Phase 1 drives units through gen -> verify-red -> make only: U1's
     // refactor is DEFERRED while A1 sits RED — never attempted against a
     // knowingly-red suite. Phase 2a flips A1 green; phase 2b runs
@@ -682,7 +686,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, isNot(0), reason: out);
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
       // The doomed refactor was never attempted: U1 made green and
       // deferred its refactor while A1 sat RED (bug #635); the run
       // stopped at A1's phase-2 make — bounded, resumable progress.
@@ -731,7 +735,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, isNot(0), reason: out);
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
     expect(fx.stepInvocations(), ['gen A1', 'verify-red A1', 'make A1']);
     expect(out, isNot(contains('deferred (phase 2)')), reason: out);
     expect(out, contains('result=stopped pending=1 red=1 green=0 done=0'));
@@ -755,7 +759,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(out, contains('[run] B-002 make -> skipped'), reason: out);
     expect(out, isNot(contains('outcome=drift')), reason: out);
     // The run proceeded: B-002's refactor ran, then B-003's full cycle.
@@ -793,7 +797,7 @@ void main() {
 
     final out = await drive(extraArgs: const ['--skip-widget']);
 
-    expect(exitCode, 1, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
     expect(
       out,
       contains(
@@ -856,7 +860,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(out, contains('[run] B-001 make -> skipped'), reason: out);
     expect(out, contains('[run] B-002 make -> skipped'), reason: out);
     expect(out, isNot(contains('generation-error')), reason: out);
@@ -886,7 +890,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, isNot(0), reason: out);
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
     expect(
       out,
       contains('step failed — behavior=B-001 step=gen outcome=refused'),
@@ -907,7 +911,7 @@ void main() {
 
     final out = await drive(extraArgs: const ['--skip-widget']);
 
-    expect(exitCode, 1, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
     expect(
       out,
       contains('step failed — behavior=B-002 step=make outcome=boom'),
@@ -955,7 +959,7 @@ void main() {
 
     final out = await drive(extraArgs: const ['--skip-widget']);
 
-    expect(exitCode, 1, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
     expect(out, contains('refactor skipped for A1'), reason: out);
     expect(out, contains('widget-lane skipped for U2'), reason: out);
     expect(
@@ -987,7 +991,7 @@ void main() {
     final out = await drive();
 
     // The run no longer stops at B-001:make.
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       out,
       isNot(contains('step failed — behavior=B-001 step=make')),
@@ -1036,7 +1040,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     final cycleLog = await File(fx.cycleLogPath).readAsString();
     expect('## Cycle: B-001 (green)'.allMatches(cycleLog).length, 1);
   });
@@ -1118,7 +1122,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // The green behaviors' refactors DEFER (no spawn) while U3 sits
       // pending with generated stubs; the run drives U3's full cycle
       // first, and only then do the deferred refactors run (phase 2b) —
@@ -1224,7 +1228,7 @@ void main() {
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // A1 re-enters at make (re-certification), its phase-1 refactor
     // defers while U2 sits pending with artifacts (bug #734), and the
     // re-certified refactor completes in the phase-2b pass.
@@ -1300,7 +1304,7 @@ void main() {
 
       final out = await drive();
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(fx.stepInvocations(), [
         'gen B-004',
         'verify-red B-004',
@@ -1367,7 +1371,7 @@ One per functional requirement in `spec.md`.
       ),
       reason: out,
     );
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
   });
 
   // ------------------------------------------------------------------
@@ -1414,7 +1418,7 @@ One per functional requirement in `spec.md`.
       ),
       reason: out,
     );
-    expect(exitCode, isNot(0), reason: out);
+    expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
   });
 
   test('bug 657: a unit make that reports unexpressible then ok completes '
@@ -1437,7 +1441,7 @@ One per functional requirement in `spec.md`.
       ),
       reason: out,
     );
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // B-002's make ran twice: the phase-1 attempt and the phase-2
     // re-attempt.
     expect(fx.stepInvocations().where((l) => l == 'make B-002'), hasLength(2));
@@ -1459,7 +1463,7 @@ One per functional requirement in `spec.md`.
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // B-001 (red+green -> done) is skipped entirely; B-002 (red)
     // re-enters at make; B-003 (no evidence) drives the full cycle.
     expect(fx.stepInvocations(), [
@@ -1495,7 +1499,7 @@ One per functional requirement in `spec.md`.
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(fx.stepInvocations(), isEmpty);
     expect(out, contains('3 already done — skipping'));
     expect(
@@ -1556,7 +1560,7 @@ One per functional requirement in `spec.md`.
       ),
       reason: out,
     );
-    expect(exitCode, 2);
+    expect(CliRunner.lastDispatchedExitCode, 2);
     final state = await readState();
     expect(state['behavior_states'] as Map<String, dynamic>, {
       'B-001': 'green',
@@ -1580,7 +1584,7 @@ One per functional requirement in `spec.md`.
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // B-001 re-drives the FULL cycle from gen (the red claim is not trusted
     // without artifacts); B-002/B-003 are untouched pendings on the same
     // full cycle.
@@ -1635,7 +1639,7 @@ One per functional requirement in `spec.md`.
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(fx.stepInvocations().first, 'make B-001');
     expect(fx.stepInvocations().where((l) => l == 'gen B-001'), isEmpty);
   });
@@ -1651,7 +1655,7 @@ One per functional requirement in `spec.md`.
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(fx.stepInvocations().first, 'make B-001');
     expect(fx.stepInvocations().where((l) => l == 'gen B-001'), isEmpty);
   });
@@ -1707,7 +1711,7 @@ One per functional requirement in `spec.md`.
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     // The pre-spawn deferral must engage on the disk stub: A1's refactor
     // defers BEFORE any spawn, U1 is driven to green first, and only
     // then do the refactors run (U1 inline, A1 in the phase-2b pass).
@@ -1785,7 +1789,7 @@ One per functional requirement in `spec.md`.
 
     final out = await drive();
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(fx.stepInvocations(), [
       'refactor A1', // phase 1: spawned, preflight refused (not-green)
       'gen U1', // the pending row is still driven
@@ -1871,7 +1875,7 @@ One per functional requirement in `spec.md`.
 
     final out = await drive();
 
-    expect(exitCode, 1, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
     // The phase-1 deferrals (A1, U1) are pre-spawn and log no
     // invocations; U2 is driven and refactored inline; in phase 2b the
     // spawned refactor A1 refuses and — post-fix — the pass continues
@@ -1937,7 +1941,7 @@ One per functional requirement in `spec.md`.
 
       final out = await drive();
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('[run] A1 refactor -> regression'));
       expect(
         out,
@@ -1981,7 +1985,7 @@ One per functional requirement in `spec.md`.
 
           final out = await drive();
 
-          expect(exitCode, 0, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
           expect(out, contains('[run] phase-0 entity User -> created'));
           expect(out, contains('[run] phase-0 build -> ok'));
           // The spawn order: phase-0 entity create + build land BEFORE the
@@ -2023,7 +2027,7 @@ One per functional requirement in `spec.md`.
 
         final out = await drive();
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('[run] phase-0 entity User -> reused'));
         expect(out, contains('[run] phase-0 build -> skipped'));
         final argv = fx.stepArgvLog();
@@ -2069,7 +2073,7 @@ One per functional requirement in `spec.md`.
 
         final out = await drive();
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('[run] phase-0 entity User -> reused'));
         expect(
           out,
@@ -2101,7 +2105,7 @@ One per functional requirement in `spec.md`.
 
         final out = await drive();
 
-        expect(exitCode, 2, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
         expect(out, contains('[run] phase-0 entity User -> failed'));
         expect(out, contains('field type rejected'));
         expect(out, contains('result=runner-error'), reason: out);
@@ -2114,7 +2118,7 @@ One per functional requirement in `spec.md`.
           'spawn at all (every pre-829 run is unchanged)', () async {
         final out = await drive();
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, isNot(contains('[run] phase-0')));
         final argv = fx.stepArgvLog();
         expect(argv.where((l) => l.contains('entity create')), isEmpty);
@@ -2141,7 +2145,7 @@ One per functional requirement in `spec.md`.
 
         final out = await drive();
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('[run] phase-0 build -> ok'), reason: out);
         // The build spawn carries --no-analyze (bug 991).
         final argv = fx.stepArgvLog();
@@ -2178,7 +2182,7 @@ One per functional requirement in `spec.md`.
 
           final out = await drive();
 
-          expect(exitCode, 2, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
           expect(out, contains('[run] phase-0 build -> failed'), reason: out);
           expect(out, contains('build_runner exited 1'));
           expect(out, contains('result=runner-error'), reason: out);
@@ -2226,7 +2230,7 @@ One per functional requirement in `spec.md`.
 
           final out = await drive();
 
-          expect(exitCode, 2, reason: out);
+          expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
           expect(
             out,
             contains(
@@ -2295,7 +2299,7 @@ One per functional requirement in `spec.md`.
       () async {
         final out = await drive();
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         for (final step in const ['gen', 'verify-red', 'make', 'refactor']) {
           final start = out.indexOf('[run] B-001 $step — ');
           final done = out.indexOf('[run] B-001 $step -> ');
@@ -2321,7 +2325,7 @@ One per functional requirement in `spec.md`.
 
         final out = await drive();
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         // The banner-shaped line the make CHILD printed was forwarded live.
         expect(out, contains('→ live-banner'));
       },
@@ -2336,7 +2340,7 @@ One per functional requirement in `spec.md`.
 
         final out = await drive();
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(out, contains('→ live-banner'), reason: out);
         // The control line is NOT forwarded without --verbose.
         expect(out, isNot(contains('plain child line')), reason: out);
@@ -2344,7 +2348,7 @@ One per functional requirement in `spec.md`.
         await resetRunState();
         final verboseOut = await drive(extraArgs: const ['--verbose']);
 
-        expect(exitCode, 0, reason: verboseOut);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: verboseOut);
         expect(verboseOut, contains('→ live-banner'));
         // Under --verbose everything the child prints arrives verbatim.
         expect(verboseOut, contains('plain child line'));
@@ -2359,7 +2363,7 @@ One per functional requirement in `spec.md`.
 
         final loud = await drive(extraArgs: const ['--heartbeat', '0.05']);
 
-        expect(exitCode, 0, reason: loud);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: loud);
         final heartbeatRe = RegExp(r'\[run\] B-\d+ make … \S+ elapsed');
         expect(loud.contains('elapsed'), isTrue, reason: loud);
         expect(heartbeatRe.hasMatch(loud), isTrue, reason: loud);
@@ -2367,7 +2371,7 @@ One per functional requirement in `spec.md`.
         await resetRunState();
         final silent = await drive(extraArgs: const ['--heartbeat', '0']);
 
-        expect(exitCode, 0, reason: silent);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: silent);
         expect(silent, isNot(contains(' elapsed')), reason: silent);
         // The tee still works with heartbeats disabled.
         expect(silent, contains('→ live-banner'));
@@ -2391,7 +2395,7 @@ One per functional requirement in `spec.md`.
 
         final out = await drive();
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         expect(
           out,
           contains(

@@ -49,7 +49,7 @@ void main() {
       'B-001',
     ]);
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('not-certified-red'));
     expect(out, contains('verify-red'));
     expect(
@@ -84,7 +84,7 @@ void main() {
       'B-404',
     ]);
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('B-404'));
     expect(out, contains('unknown behavior id'));
     // Without --feature, an unknown id has no resolvable feature
@@ -122,7 +122,7 @@ void main() {
       'B-001',
     ]);
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       out,
       contains(

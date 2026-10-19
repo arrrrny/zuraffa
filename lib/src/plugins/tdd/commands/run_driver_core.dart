@@ -369,6 +369,10 @@ class RunDriverCore {
     Map<String, int>? mockCounts,
     String? baselineScope,
 
+    /// Issue #1777: whether the calling command actually declares
+    /// `--baseline-scope`. Controls the preflight remedy wording.
+    bool supportsBaselineScope = true,
+
     /// Spec 1520: the caller's per-run scratch environment
     /// (`ScratchTmpDir.childEnvironment`) — handed to the spawned step
     /// children and the phase-0 pipeline spawns so every `dart test`
@@ -605,12 +609,21 @@ class RunDriverCore {
       registry: registry,
       projectRoot: projectRoot,
     );
+    // Review #1785 (minor): reconcile uses the marker-only (loose)
+    // born-green set on purpose — the red-witness promotion only needs the
+    // #1411 attestation, not subject binding. The refactor shortcut
+    // (#1592) keeps the stricter subject-bound set, so a subject that
+    // drifted after certification stays `done` here while the shortcut
+    // refuses it; that asymmetry is deliberate (documented, not unified).
+    final bornGreenAttested = (await evidence.bornGreenCertifiedEntries()).keys
+        .toSet();
 
     var current = _reconcile(
       loaded ?? RunState.empty(feature),
       allRows,
       redEvidence,
       greenEvidence,
+      bornGreenCertified: bornGreenAttested,
     );
 
     // Persist the reconciled state only when something actually changed.
@@ -827,6 +840,7 @@ class RunDriverCore {
             final refusal = await fullSuiteBaselinePreflight(
               projectRoot,
               environment: childEnvironment,
+              supportsBaselineScope: supportsBaselineScope,
             );
             if (refusal != null) {
               print(refusal);
@@ -1781,8 +1795,9 @@ class RunDriverCore {
     RunState state,
     List<BehaviorRow> rows,
     Set<String> red,
-    Set<String> green,
-  ) {
+    Set<String> green, {
+    Set<String> bornGreenCertified = const <String>{},
+  }) {
     final states = Map<String, BehaviorState>.from(state.behaviorStates);
     final bootstrappable = state.inFlightBehaviorId == null;
     for (final row in rows) {
@@ -1790,8 +1805,9 @@ class RunDriverCore {
       var effective = claimed;
       final hasRed = red.contains(row.id);
       final hasGreen = green.contains(row.id);
+      final hasRedOrBornGreen = hasRed || bornGreenCertified.contains(row.id);
       if (claimed == BehaviorState.done) {
-        effective = hasRed && hasGreen
+        effective = hasRedOrBornGreen && hasGreen
             ? BehaviorState.done
             : hasGreen
             ? BehaviorState.green
@@ -1806,7 +1822,7 @@ class RunDriverCore {
             ? BehaviorState.red
             : BehaviorState.pending;
       } else if (bootstrappable && claimed == BehaviorState.pending) {
-        effective = hasRed && hasGreen
+        effective = hasRedOrBornGreen && hasGreen
             ? BehaviorState.done
             : hasGreen
             ? BehaviorState.green

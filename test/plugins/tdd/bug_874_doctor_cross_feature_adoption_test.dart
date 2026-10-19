@@ -214,7 +214,7 @@ void main() {
 
       final out = await runCli(['doctor', feature]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('--> fix:'), reason: out);
       expect(out, contains('foreign-owned'), reason: out);
       final fix = fixLine(out);
@@ -267,7 +267,7 @@ void main() {
 
       final out = await runCli(['doctor', feature]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       final v = verdict(out);
       expect(v['verdict'], 'foreign-owned', reason: out);
       expect(v['prescription'], 'migrate', reason: out);
@@ -295,7 +295,7 @@ void main() {
 
       final out = await runCli(['doctor', feature]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       final v = verdict(out);
       expect(v['verdict'], 'foreign-owned', reason: out);
       final fix = fixLine(out);
@@ -318,7 +318,7 @@ void main() {
 
       final out = await runCli(['doctor', feature]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('--adopt'), reason: out);
       final v = verdict(out);
       expect(v['verdict'], 'drift', reason: out);
@@ -345,7 +345,7 @@ void main() {
 
         final out = await runCli(['doctor', feature]);
 
-        expect(exitCode, 1, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
         final v = verdict(out);
         expect(v['verdict'], 'foreign-owned', reason: out);
         expect(v['prescription'], 'migrate', reason: out);
@@ -373,7 +373,7 @@ void main() {
 
       final out = await runCli(['doctor', owner]);
 
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       final v = verdict(out);
       expect(v['verdict'], 'healthy', reason: out);
       expect(v['prescription'], 'none', reason: out);
@@ -414,7 +414,7 @@ void main() {
         '--adopt',
       ]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       final v = verdict(out);
       expect(v['command'], 'gen', reason: out);
       expect(v['verdict'], 'foreign-owned', reason: out);
@@ -446,7 +446,7 @@ void main() {
 
       final out = await runCli(['gen', foreignId, '--feature', feature]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       expect(out, contains('"verdict":"foreign-owned"'), reason: out);
       expect(out, contains(owner), reason: out);
       expect(File(fx.artifactsPath).existsSync(), isFalse, reason: out);
@@ -480,7 +480,7 @@ void main() {
           '--adopt',
         ]);
 
-        expect(exitCode, 0, reason: out);
+        expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
         final v = verdict(out);
         expect(v['verdict'], 'adopted', reason: out);
       },
@@ -513,7 +513,7 @@ void main() {
         '--adopt',
       ]);
 
-      expect(exitCode, 1, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
       // This refusal path throws StateError after the verdict (the runner
       // appends the ❌ Error line), so assert on the payload, not on the
       // last-line parse.

@@ -54,7 +54,7 @@ void main() {
     final runner = CliRunner(exitOnCompletion: false);
     final out = await runner.runCapturing(makeArgs(fx, zfaBin: zfaBin));
 
-    expect(exitCode, 1);
+    expect(CliRunner.lastDispatchedExitCode, 1);
     expect(out, contains('outcome=unexpressible'));
     expect(out, contains('--> fix:'));
     expect(out, contains('**Type**'));

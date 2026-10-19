@@ -168,7 +168,11 @@ environment:
             '$methods',
       );
     }
-    expect(exitCode, 0, reason: 'nothing to delete is not an error:\n$output');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'nothing to delete is not an error:\n$output',
+    );
   });
 }
 
