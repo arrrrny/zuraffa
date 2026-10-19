@@ -17,8 +17,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../../../core/dependencies/dependency_wirer.dart';
-import '../../../utils/string_utils.dart';
 import '../../../utils/entity_analyzer.dart';
+import '../../../utils/string_utils.dart';
 import 'cert_registry.dart';
 import 'format_canonical_digest.dart';
 import 'mock_cert_receipt.dart';
@@ -129,63 +129,38 @@ class MockCertifier {
   }) async {
     final logs = <String>[];
 
-    // Issue #1872: an enum entity has no CRUD datasource surface (issue
-    // #1037), so the spec-1001 certifier must never demand the mock
-    // datasource it deliberately never generates. Certify on the
-    // enum-valued surface alone (mock data + declared values).
-    final snake = StringUtils.camelToSnake(entityName);
-    if (EntityAnalyzer.isEnum(entityName, outputDir)) {
-      final mockDataPath = p.join(
-        outputDir,
-        'data',
-        'mock',
-        '${snake}_mock_data.dart',
-      );
-      final mockDataFile = File(mockDataPath);
-      if (!mockDataFile.existsSync()) {
-        return MockCertificationOutcome(
-          certified: false,
-          entity: entityName,
-          contractTestSource: null,
-          receipt: null,
-          methodNames: const [],
-          logs: logs
-            ..add(
-              'no mock data at ${p.relative(mockDataPath, from: projectRoot)} '
-              '— generate it first with '
-              '`zfa mock create $entityName --certify`',
-            ),
-        );
-      }
-      final entityDigest = formatCanonicalDigestOfFile(
-        CertRegistry.locateEntityFile(projectRoot, entityName),
-      );
-      final receipt = MockCertReceipt(
-        entity: entityName,
-        interfaceName: MockContractTestWriter.interfaceName(entityName),
-        subjectPath: p.relative(mockDataPath, from: projectRoot),
-        contractTestPath: MockContractTestWriter.contractTestPath(entityName),
-        contractDigest: MockCertReceipt.digestOf(''),
-        entityDigest: entityDigest,
-        entityDigestStyle: entityDigest == null ? null : canonicalizerId,
-        methods: const [],
-        fixtureOnly: true,
-        sandbox: const {
-          'runner': 'enum',
-          'analyze_issues': 0,
-          'analyze_errors': 0,
-          'tests_passed': 0,
-          'tests_failed': 0,
-        },
-        seed: seed,
+    // Issue #1887: an enum entity (or any fixture-only type with no CRUD
+    // surface, #1037/#1747) deliberately has no mock datasource/provider
+    // to certify — the generator skips that surface by design. Certifying
+    // against the absent artifact is unsatisfiable (the remedy would be
+    // the very command that just ran). Treat it as certified-with-nothing:
+    // mock data was generated, there is no CRUD surface to prove.
+    //
+    // The predicate is the mock lane's SHARED one (#1887 review): the
+    // builder and the DI binding skip the CRUD surface for
+    // `isEnum(...) || lacksCrudSurface(...)`, so the certifier must make
+    // the same call — otherwise a non-enum CRUD-less type (a plain DTO /
+    // value class, issue #1747) keeps failing here with the same absent-
+    // datasource error. A service-mode run is exempt: its provider
+    // implements the service interface, not the entity's CRUD surface,
+    // so it remains certifiable.
+    final fixtureOnly =
+        EntityAnalyzer.isEnum(entityName, outputDir) ||
+        (service == null &&
+            EntityAnalyzer.lacksCrudSurface(entityName, outputDir));
+    if (fixtureOnly) {
+      logs.add(
+        '$entityName is an enum/fixture-only entity — mock data '
+        'generated; no CRUD datasource surface to certify '
+        '(issues #1037/#1747).',
       );
       return MockCertificationOutcome(
         certified: true,
         entity: entityName,
         contractTestSource: null,
-        receipt: receipt,
+        receipt: null,
         methodNames: const [],
-        logs: const [],
+        logs: logs,
       );
     }
 
