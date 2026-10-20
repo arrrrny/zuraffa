@@ -444,8 +444,16 @@ class EntityAnalyzer {
     ).hasMatch(content)) {
       return false;
     }
-    final normalized = content.replaceAll(RegExp(r'\s+'), ' ');
-    final methodMatches = RegExp(r'\w+\s*\([^)]*\)\s*;').allMatches(normalized);
+    // Strip comments first so a doc comment such as `/// foo(bar);`
+    // cannot masquerade as a method declaration (review finding on #1945).
+    var stripped = content.replaceAll(RegExp(r'/\*[\s\S]*?\*/'), ' ');
+    stripped = stripped.replaceAll(RegExp(r'//[^\n]*'), ' ');
+    final normalized = stripped.replaceAll(RegExp(r'\s+'), ' ');
+    // Allow an optional generic type-parameter list (`<...>`) between the
+    // method name and `(`, e.g. `fetch<T extends Bar>(...)`.
+    final methodMatches = RegExp(
+      r'\w+\s*(?:<[^<>]*(?:<[^<>]*>[^<>]*)*>)?\s*\([^)]*\)\s*;',
+    ).allMatches(normalized);
     return methodMatches.isNotEmpty;
   }
 
