@@ -194,7 +194,11 @@ class CreateMockCapability implements ZuraffaCapability {
     final fixtureOnly =
         EntityAnalyzer.isEnum(name, plugin.outputDir) ||
         (service == null &&
-            EntityAnalyzer.lacksCrudSurface(name, plugin.outputDir));
+            EntityAnalyzer.lacksCrudSurface(name, plugin.outputDir) &&
+            !EntityAnalyzer.hasDeclaredDataSourceInterface(
+              name,
+              plugin.outputDir,
+            ));
     if (fixtureOnly) {
       stdout.writeln(
         'ℹ️  $name: mock data generated; no datasource surface to '
