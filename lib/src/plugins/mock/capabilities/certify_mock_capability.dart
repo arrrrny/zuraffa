@@ -201,6 +201,14 @@ class CertifyMockCapability implements ZuraffaCapability {
       domain: parsed.domain,
     );
 
+    // Issue #1898 (review): a re-generation of an EXISTING mock needs
+    // `--force` — `zfa mock create` is create-if-absent without it, so a
+    // hint that omitted the flag repeated the command that had just
+    // refused. Both refusal hints below share this corrected command.
+    final regenCmd = parsed.service == null
+        ? 'zfa mock create $name --force --certify'
+        : 'zfa mock create $name --service ${parsed.service} --force --certify';
+
     // Refusal BEFORE the sandbox ran: no mock artifacts / no interface
     // to pin — a different failure class than a red contract. Issue #1872:
     // an enum certifies on its fixture-only surface and carries no contract
@@ -209,9 +217,7 @@ class CertifyMockCapability implements ZuraffaCapability {
       for (final line in outcome.logs) {
         stderr.writeln('zfa mock certify: $line');
       }
-      stderr.writeln(
-        '--> fix: `zfa mock create $name --certify` first, then certify.',
-      );
+      stderr.writeln('--> fix: `$regenCmd` first, then certify.');
       return exitNoMock;
     }
 
@@ -238,8 +244,7 @@ class CertifyMockCapability implements ZuraffaCapability {
       }
       stderr.writeln(
         '--> fix: regenerate the mock + contract '
-        '(`zfa mock create $name --certify`), or restore the drifted '
-        'interface, then re-run.',
+        '(`$regenCmd`), or restore the drifted interface, then re-run.',
       );
       return exitRed;
     }
