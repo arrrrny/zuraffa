@@ -30,6 +30,7 @@ import '../../../core/context/file_system.dart';
 import '../../../core/plugin_system/capability_invocation_wrapper.dart';
 import '../../../core/project/receipt_store.dart';
 import '../../../models/generated_file.dart';
+import '../../../utils/entity_analyzer.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/method_extractor.dart';
 import '../../../models/parsed_usecase_info.dart';
@@ -90,6 +91,12 @@ class MockCertification {
   /// also matches its signature.
   final List<String> signatureMismatches;
 
+  /// Issue #1930: true when the entity certified on a fixture-only surface
+  /// (an enum or other CRUD-less type) with no CRUD datasource to analyze.
+  /// The gate uses it to drop the (absent) mock-datasource/interface files
+  /// from the scoped `dart analyze` target list.
+  final bool fixtureOnly;
+
   /// The emitted fixtures and their digests.
   final List<MockFixtureHash> fixtures;
 
@@ -109,6 +116,7 @@ class MockCertification {
     required this.missingMethods,
     required this.inventedMethods,
     this.signatureMismatches = const [],
+    this.fixtureOnly = false,
     required this.fixtures,
     this.receiptPath,
   });
@@ -140,6 +148,7 @@ class MockCertification {
     missingMethods: missingMethods,
     inventedMethods: inventedMethods,
     signatureMismatches: signatureMismatches,
+    fixtureOnly: fixtureOnly,
     fixtures: fixtures,
     receiptPath: receiptPath,
   );
@@ -186,9 +195,23 @@ abstract final class MockCertificationService {
     String? params,
     String? returns,
     FileSystem? fileSystem,
+    // Issue #1894 follow-up: whether an absent declared interface (or mock)
+    // is a hard refusal. Defaults to true for the generation path. `mock
+    // explain` passes false for the mock so the documented interface-only
+    // tree (interface present, mock absent) keeps its coverage report.
+    String commandLabel = 'zfa mock create',
+    bool requireInterface = true,
+    bool requireMock = true,
+    bool? requireArtifacts,
   }) async {
     final root = projectRoot ?? Directory.current.path;
     final fs = fileSystem ?? const DefaultFileSystem();
+    // Resolve the absence-refusal flags (requireArtifacts is an alias for
+    // requireMock, kept for callers that use the review's suggested name).
+    // requireArtifacts only gates the mock absence (the #1894 regression
+    // surface); the interface refusal stays governed by requireInterface.
+    final requireMockFile = requireMock && (requireArtifacts ?? true);
+    final requireInterfaceFile = requireInterface;
 
     // Same config the generation run used, so every path getter below
     // resolves EXACTLY like the builders resolved during generation.
@@ -276,7 +299,16 @@ abstract final class MockCertificationService {
     var interfaceParsed = const <ParsedUseCaseInfo>[];
     if (interfacePath != null && interfaceClass != null) {
       final abs = _absolute(root, interfacePath);
-      if (await fs.exists(abs)) {
+      if (!await fs.exists(abs)) {
+        if (requireInterfaceFile) {
+          throw StateError(
+            '$commandLabel: cannot certify $entity — the declared interface\n'
+            '  ${_projectRelativePosix(root, interfacePath)} does not exist.\n'
+            '--> fix: emit the interface first, or declare the seam with a '
+            'resolvable path.',
+          );
+        }
+      } else {
         final parsed = await MethodExtractor.extractMethodsFromInterface(
           abs,
           interfaceClass,
@@ -292,7 +324,16 @@ abstract final class MockCertificationService {
     var implementedDecls = const <MethodDeclaration>[];
     if (mockPath != null && mockClass != null) {
       final abs = _absolute(root, mockPath);
-      if (await fs.exists(abs)) {
+      if (!await fs.exists(abs)) {
+        if (requireMockFile) {
+          throw StateError(
+            '$commandLabel: cannot certify $entity — the declared mock\n'
+            '  ${_projectRelativePosix(root, mockPath)} does not exist.\n'
+            '--> fix: generate the mock first, or declare the seam with a '
+            'resolvable path.',
+          );
+        }
+      } else {
         final helper = const AstHelper();
         final parseResult = await helper.parseFile(abs, fileSystem: fs);
         final unit = parseResult.unit;
@@ -304,6 +345,7 @@ abstract final class MockCertificationService {
             implementedMethods = decls.map((m) => m.name.lexeme).toList();
           }
         }
+        // skip duplicate below
       }
     }
 
@@ -416,6 +458,14 @@ abstract final class MockCertificationService {
       missingMethods: missing,
       inventedMethods: invented,
       signatureMismatches: sigMismatches,
+      fixtureOnly:
+          EntityAnalyzer.isEnum(entity, outputDir) ||
+          (service == null &&
+              EntityAnalyzer.lacksCrudSurface(entity, outputDir) &&
+              !EntityAnalyzer.hasDeclaredDataSourceInterface(
+                entity,
+                outputDir,
+              )),
       fixtures: fixtures,
     );
   }
@@ -714,9 +764,17 @@ class MockCertifier {
         '${certification.signatureMismatches.join(', ')}',
       );
     }
+    // Issue #1930: a fixture-only entity (enum / CRUD-less type) has no
+    // CRUD datasource or interface file to analyze — the generator never
+    // emits them (#1037/#1747). Analyze the mock-data file (and any other
+    // emitted fixture) only; the (absent) mock-datasource path must never
+    // reach `dart analyze`, or the gate fails on a file that does not
+    // exist while the receipt says pass.
     final analyzeFiles = <String>[
-      if (certification.mockFile != null) certification.mockFile!,
-      if (certification.interface != null) certification.interface!,
+      if (!certification.fixtureOnly && certification.mockFile != null)
+        certification.mockFile!,
+      if (!certification.fixtureOnly && certification.interface != null)
+        certification.interface!,
       for (final fixture in certification.fixtures)
         if (fixture.path.endsWith('.dart')) fixture.path,
     ];

@@ -1462,6 +1462,7 @@ class MakeCommand extends Command<void> {
         domain: context.data['domain'] as String?,
         methods: methods,
         repo: context.data['repo'] as String?,
+        commandLabel: 'zfa make',
       );
       await MockCertificationService.writeReceipt(
         projectRoot: manager.projectRoot,

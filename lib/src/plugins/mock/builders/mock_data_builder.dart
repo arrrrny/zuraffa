@@ -86,7 +86,7 @@ class MockDataBuilder {
     }
 
     final entityCamel = StringUtils.pascalToCamel(entityName);
-    final collectionName = '${entityCamel}s';
+    final collectionName = StringUtils.pluralize(entityCamel);
 
     final entityFields = EntityAnalyzer.analyzeEntity(
       entityName,
