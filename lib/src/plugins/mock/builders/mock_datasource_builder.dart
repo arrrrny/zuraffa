@@ -11,6 +11,7 @@ import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/entity_analyzer.dart';
 import '../../../utils/method_shape_parser.dart';
 import '../../../utils/project_flavor.dart';
 import '../services/mock_staleness_detector.dart';
@@ -616,12 +617,25 @@ class MockDataSourceBuilder {
   /// Issue #1850 (honest bodies): the return shapes an arbitrary verb can be
   /// given a real body for. Shared by validation and emission so the
   /// pre-flight and the generated method can never disagree.
-  static bool _isHonestArbitraryReturn(String baseReturns, String entityName) {
+  static bool _isHonestArbitraryReturn(
+    String baseReturns,
+    String entityName, [
+    String? outputDir,
+  ]) {
     if (baseReturns == 'void' || baseReturns == 'dynamic') return true;
     if (baseReturns == entityName) return true;
+    if (outputDir != null &&
+        EntityAnalyzer.entityFileExists(baseReturns, outputDir)) {
+      return true;
+    }
     if (baseReturns.startsWith('List<') && baseReturns.endsWith('>')) {
-      return baseReturns.substring(5, baseReturns.length - 1).trim() ==
-          entityName;
+      final inner = baseReturns.substring(5, baseReturns.length - 1).trim();
+      if (inner == entityName) return true;
+      if (outputDir != null &&
+          EntityAnalyzer.entityFileExists(inner, outputDir)) {
+        return true;
+      }
+      return false;
     }
     return false;
   }
@@ -644,7 +658,7 @@ class MockDataSourceBuilder {
           ? methodReturns
           : 'void';
       final baseReturns = _baseReturnType(returns);
-      if (!_isHonestArbitraryReturn(baseReturns, entityName)) {
+      if (!_isHonestArbitraryReturn(baseReturns, entityName, config.outputDir)) {
         throw ArgumentError(
           'unknown return type $baseReturns for member $methodName',
         );
@@ -1438,6 +1452,11 @@ class MockDataSourceBuilder {
                 : '';
             final isEntityList = isList && listInner == entityName;
             final isEntityReturn = baseReturns == entityName;
+            // Issue #1928: a return type that names a real on-disk entity
+            // (including one whose public class lives in a Zorphy `part`
+            // file, e.g. ZikZakPage) is a known type even when it is not
+            // the datasource's own entity. Resolve by file existence rather
+            // than by class declaration in the main file.
             final paramsType = (methodParams != null && methodParams.isNotEmpty)
                 ? methodParams
                 : 'NoParams';
@@ -1451,7 +1470,7 @@ class MockDataSourceBuilder {
             // return type resolves to no known fixture must refuse rather
             // than emit `throw UnimplementedError()` under a conformance:
             // true verdict.
-            if (!_isHonestArbitraryReturn(baseReturns, entityName)) {
+            if (!_isHonestArbitraryReturn(baseReturns, entityName, outputDir)) {
               throw ArgumentError(
                 'unknown return type $baseReturns for member $methodName',
               );
