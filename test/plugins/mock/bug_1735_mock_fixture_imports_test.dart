@@ -215,15 +215,16 @@ void main() {
 
       expect(
         provider.content ?? '',
-        contains('auth_request_mock_data.dart'),
-        reason: 'precondition: the provider is the side that emits the import',
+        isNot(contains('auth_request_mock_data.dart')),
+        reason:
+            'issue #1798: the provider must not import the params mock-data '
+            'file it never references',
       );
       expect(
         paths.any((x) => x.endsWith('data/mock/auth_request_mock_data.dart')),
         isTrue,
         reason:
-            'the provider imports the params fixture, so the same run must '
-            'emit it (issue #1735)',
+            'the params fixture is still emitted for other consumers (issue #1735)',
       );
     },
   );
@@ -253,15 +254,16 @@ void main() {
 
       expect(
         provider.content ?? '',
-        contains('auth_request_mock_data.dart'),
-        reason: 'precondition: the provider is the side that emits the import',
+        isNot(contains('auth_request_mock_data.dart')),
+        reason:
+            'issue #1798: the provider must not import the params mock-data '
+            'file it never references, even with a primitive return type',
       );
       expect(
         paths.any((x) => x.endsWith('data/mock/auth_request_mock_data.dart')),
         isTrue,
         reason:
-            'a primitive return type must not suppress the params fixture the '
-            'provider imports (issue #1735)',
+            'a primitive return type must not suppress the params fixture (issue #1735)',
       );
     },
   );
