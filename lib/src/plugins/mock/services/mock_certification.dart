@@ -462,7 +462,10 @@ abstract final class MockCertificationService {
           EntityAnalyzer.isEnum(entity, outputDir) ||
           (service == null &&
               EntityAnalyzer.lacksCrudSurface(entity, outputDir) &&
-              !EntityAnalyzer.hasDeclaredDataSourceInterface(entity, outputDir)),
+              !EntityAnalyzer.hasDeclaredDataSourceInterface(
+                entity,
+                outputDir,
+              )),
       fixtures: fixtures,
     );
   }
