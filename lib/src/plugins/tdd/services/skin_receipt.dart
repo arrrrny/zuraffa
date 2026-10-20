@@ -23,6 +23,7 @@ class SkinReceipt {
     required this.testPath,
     required this.subjectPath,
     required this.platformSlotFills,
+    this.nonConformanceReason,
   });
 
   /// The behavior id (e.g. `W1`).
@@ -44,12 +45,20 @@ class SkinReceipt {
   /// stream, in observation order.
   final List<String> platformSlotFills;
 
+  /// Why the cycle did not accept the hand-written implementation, from
+  /// the closed set `slots-unfilled`, `hand-edit-missing`,
+  /// `red-not-witnessed`, `green-failed`, `no-hand-edit-diff`. Null
+  /// when [conformance] is true.
+  final String? nonConformanceReason;
+
   Map<String, dynamic> toJson() => {
     'behavior': behavior,
     'conformance': conformance,
     'test': testPath,
     'subject': subjectPath,
     'platform_slot_fills': platformSlotFills,
+    if (nonConformanceReason != null)
+      'non_conformance_reason': nonConformanceReason,
   };
 
   factory SkinReceipt.fromJson(Map<String, dynamic> json) => SkinReceipt(
@@ -61,6 +70,7 @@ class SkinReceipt {
       for (final slot in (json['platform_slot_fills'] as List? ?? const []))
         slot as String,
     ],
+    nonConformanceReason: json['non_conformance_reason'] as String?,
   );
 }
 

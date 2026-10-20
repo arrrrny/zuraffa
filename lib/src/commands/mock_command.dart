@@ -762,21 +762,32 @@ Future<void> _runMockGeneration({
         service: service,
         domain: domain,
         methods: methods,
+        commandLabel: 'zfa mock create',
       );
-      receiptPath = await MockCertificationService.writeReceipt(
-        projectRoot: projectRoot,
-        entity: entity,
-        commandLine: commandLine,
-        certification: certification,
-        files: files,
-        capabilityName: capabilityName,
-        methodset: methods,
-      );
-    } catch (e) {
-      // Best-effort (issue #807 convention): the artifacts already exist,
-      // so a receipt failure degrades to a warning instead of failing the
-      // run.
-      _emit(jsonMode, '⚠️  Mock-certification receipt not written: $e');
+    } on StateError catch (e) {
+      // Issue #1894: an absent declared interface (or mock) is a refusal,
+      // not a vacuous green — surface it and stop, no receipt written.
+      _emit(jsonMode, e.message);
+      exitCode = 1;
+      return;
+    }
+    if (!dryRun) {
+      try {
+        receiptPath = await MockCertificationService.writeReceipt(
+          projectRoot: projectRoot,
+          entity: entity,
+          commandLine: commandLine,
+          certification: certification,
+          files: files,
+          capabilityName: capabilityName,
+          methodset: methods,
+        );
+      } catch (e) {
+        // Best-effort (issue #807 convention): the artifacts already exist,
+        // so a receipt failure degrades to a warning instead of failing the
+        // run.
+        _emit(jsonMode, '⚠️  Mock-certification receipt not written: $e');
+      }
     }
   }
 
