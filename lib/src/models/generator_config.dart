@@ -306,9 +306,12 @@ class GeneratorConfig {
       gqlInputType: json['gql_input_type'],
       gqlInputName: json['gql_input_name'],
       gqlName: json['gql_name'],
-      customPresenterName: json['presenter'] ?? json['custom_presenter_name'],
-      customControllerName:
-          json['controller'] ?? json['custom_controller_name'],
+      // Issue #1962: `presenter`/`controller` carry bools on the toJson
+      // side, so they must never feed the String? custom names — read only
+      // the dedicated keys (a bool here was a runtime TypeError on every
+      // full round-trip).
+      customPresenterName: json['custom_presenter_name'],
+      customControllerName: json['custom_controller_name'],
       customStateName: json['state_class'] ?? json['custom_state_name'],
       outputDir: fixedOutputDir,
     );
