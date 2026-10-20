@@ -27,7 +27,7 @@ void main() {
   var exitCodeAtEntry = 0;
 
   setUp(() async {
-    exitCodeAtEntry = exitCode;
+    exitCodeAtEntry = CliRunner.lastDispatchedExitCode;
     tempDir = await Directory.systemTemp.createTemp('mock_certify_970_');
     await _scaffoldProduct(tempDir.path);
   });
@@ -145,7 +145,7 @@ void main() {
       //    matches), the analyze half must refuse.
       final out = await runCli(['mock', 'create', 'Product', '--certify']);
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         1,
         reason: 'drift must fail the gate with exit 1, output:\n$out',
       );
@@ -186,7 +186,11 @@ void main() {
     };
 
     final out = await runCli(['mock', 'create', 'Product', '--certify']);
-    expect(exitCode, 0, reason: 'a conforming mock passes the gate');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'a conforming mock passes the gate',
+    );
     expect(out, contains('mock-cert:product@'));
     expect(out, isNot(contains('--> fix:')));
     exitCode = exitCodeAtEntry;
@@ -204,7 +208,11 @@ void main() {
       );
     };
     final out = await runCli(['mock', 'create', 'Product', '--certify']);
-    expect(exitCode, 1, reason: 'an analyzer error fails the gate');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      1,
+      reason: 'an analyzer error fails the gate',
+    );
     expect(out, contains('--> fix:'));
     expect(
       out,
@@ -228,7 +236,11 @@ void main() {
     // "file exists"), so the certifier observes a conforming mock:
     // the drift is healed BEFORE the gate instead of dead-ending it.
     final out = await runCli(['mock', 'create', 'Product', '--certify']);
-    expect(exitCode, 0, reason: 'the repaired mock conforms — output:\n$out');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      0,
+      reason: 'the repaired mock conforms — output:\n$out',
+    );
     expect(out, isNot(contains('--> fix: implement the missing')));
     final src = await mockDatasource().readAsString();
     expect(

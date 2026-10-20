@@ -286,7 +286,7 @@ void main() {
           'materialapp',
         ]);
 
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
         expect(out, contains('malformed i18n key token'));
         expect(
           File(

@@ -12,6 +12,7 @@ import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/project_flavor.dart';
 import '../datasource_provenance.dart';
 
 part 'local_crud_methods.dart';
@@ -206,8 +207,13 @@ class LocalDataSourceBuilder {
           ...EntityUtils.barrelHideNames(type),
     }.toList();
 
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final coreImport = flavor == ProjectFlavor.flutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart';
+
     final directives = <Directive>[
-      Directive.import('package:zuraffa/zuraffa.dart', hide: barrelHide),
+      Directive.import(coreImport, hide: barrelHide),
       if (config.isEntityBased &&
           fileSystem.existsSync(
             path.join(

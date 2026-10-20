@@ -31,7 +31,16 @@ class CreateProviderCapability implements ZuraffaCapability {
   JsonSchema get inputSchema => {
     'type': 'object',
     'properties': {
-      'name': {'type': 'string', 'description': 'Name of the provider'},
+      'name': {
+        'type': 'string',
+        'description':
+            'Name of the provider. Both the positional form '
+            '(zfa provider create <Name>) and the flag form '
+            '(zfa provider create --name <Name> [--domain ...]) bind to the '
+            'existing service interface <Name>Service (StateError when '
+            'domain/services/<name>_service.dart is missing). The difference '
+            'is output placement: effectiveDomain = domain ?? snake-cased name.',
+      },
 
       'domain': {
         'type': 'string',

@@ -87,7 +87,7 @@ void main() {
 
     final out = await drive(fx);
 
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       out,
       contains('[replay] 0806-scaffold-entity integrity -> verified'),
@@ -135,7 +135,7 @@ void main() {
 
     final out = await drive(fx);
 
-    expect(exitCode, 1, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
     expect(
       out,
       contains(
@@ -170,7 +170,7 @@ void main() {
 
     final out = await drive(fx);
 
-    expect(exitCode, 1, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
     expect(
       out,
       contains(

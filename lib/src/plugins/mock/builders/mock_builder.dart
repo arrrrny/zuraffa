@@ -118,6 +118,29 @@ class MockBuilder {
               config.name
         : config.name;
 
+    // Issue #1922: validate every arbitrary member shape BEFORE the first
+    // write. The datasource-interface writer below used to run first, so a
+    // refused member (the #1850 "honest bodies" ArgumentError) exited 1
+    // with `<Entity>DataSource` — and the fixture files above it — already
+    // clobbered. The pre-flight is gated exactly like the emission path
+    // (data-only and service runs never emit the CRUD datasource surface,
+    // and enum / no-CRUD-surface targets are skipped before the writer
+    // too), so no working path changes.
+    if (!config.generateMockDataOnly &&
+        !config.hasService &&
+        !EntityAnalyzer.isEnum(
+          targetEntity,
+          outputDir,
+          fileSystem: fileSystem,
+        ) &&
+        !EntityAnalyzer.lacksCrudSurface(
+          targetEntity,
+          outputDir,
+          fileSystem: fileSystem,
+        )) {
+      MockDataSourceBuilder.validateMemberShapes(config);
+    }
+
     final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
       targetEntity,
       outputDir,
@@ -130,26 +153,68 @@ class MockBuilder {
       fileSystem: fileSystem,
     );
 
-    if (!isPolymorphic) {
-      final requiresConcreteEntity =
-          config.generateMockDataOnly ||
-          (config.name == targetEntity &&
-              !config.isCustomUseCase &&
-              !config.hasService);
+    // Issue #1851: in service mode the "entity" is the service interface
+    // (an abstract type). Never emit a mock-data file instantiating it;
+    // only concrete fixture entities (params/returns) get fixtures, and
+    // those are handled by the fixture loop below.
+    // Issue #1851: skip the top-level mock-data file only when the target
+    // is the service interface itself (an abstract type) — never instantiate
+    // it. Concrete return/param entities still get their fixtures here.
+    if (!isPolymorphic &&
+        !(config.hasService && targetEntity == config.effectiveService)) {
       final dataConfig = config.name == targetEntity
           ? config
           : config.copyWith(name: targetEntity);
 
+      final hasCustomVerbs =
+          config.paramsType != null ||
+          config.returnsType != null ||
+          config.methods.any(
+            (m) => !const {
+              'get',
+              'getList',
+              'list',
+              'create',
+              'update',
+              'toggle',
+              'delete',
+              'watch',
+              'watchList',
+            }.contains(m),
+          );
+      final needsConcreteEntity =
+          config.generateMockDataOnly ||
+          (config.name == targetEntity &&
+              !config.isCustomUseCase &&
+              !config.hasService &&
+              !hasCustomVerbs);
+
       if (!entityExists) {
-        if (requiresConcreteEntity) {
+        if (needsConcreteEntity) {
           throw StateError(
             'Entity file not found for $targetEntity. '
             'Expected to find a Dart entity declaration under '
             '$outputDir/domain/entities.',
           );
         }
-
-        files.add(await dataBuilder.generateMockDataFile(dataConfig));
+        // Issue #1865: only generate mock data for custom-usecase runs
+        // when there is a returns entity; otherwise skip with an honest
+        // `skipped` action (like the primitive path) instead of writing a
+        // phantom `*_mock_data.dart` for a non-existent entity.
+        if (config.isCustomUseCase) {
+          if (config.returnsType == null || config.returnsType!.isEmpty) {
+            files.add(
+              GeneratedFile(
+                path: '',
+                content: '',
+                action: 'skipped',
+                type: 'mock_data',
+              ),
+            );
+          } else {
+            files.add(await dataBuilder.generateMockDataFile(dataConfig));
+          }
+        }
       } else if (EntityAnalyzer.isSealedEntity(
         targetEntity,
         outputDir,
@@ -164,14 +229,16 @@ class MockBuilder {
       }
     }
 
-    files.addAll(
-      await entityGraphBuilder.generateNestedEntityMockFiles(
-        config: config.name == targetEntity
-            ? config
-            : config.copyWith(name: targetEntity),
-        generateMockDataFile: dataBuilder.generateMockDataFile,
-      ),
-    );
+    if (!config.hasService && entityExists) {
+      files.addAll(
+        await entityGraphBuilder.generateNestedEntityMockFiles(
+          config: config.name == targetEntity
+              ? config
+              : config.copyWith(name: targetEntity),
+          generateMockDataFile: dataBuilder.generateMockDataFile,
+        ),
+      );
+    }
 
     if (!config.generateMockDataOnly) {
       // Issue #1037: an enum entity is a value type — no id, no Patch, no
@@ -209,11 +276,22 @@ class MockBuilder {
         // nothing to probe, and that shape is a different report. The same
         // predicate gates MockPlugin's simulation binding, so the two
         // cannot disagree about whether this run emits a CRUD surface.
+        // Issue #1898: only short-circuit when the requested methods
+        // actually need the CRUD surface. A run asking solely for
+        // non-CRUD verbs (`list`, or any verb outside the standard CRUD
+        // vocabulary) keeps the datasource/mock-datasource path open, so
+        // the #1787 arm is reachable on a non-CRUD entity.
         if (EntityAnalyzer.lacksCrudSurface(
-          targetEntity,
-          outputDir,
-          fileSystem: fileSystem,
-        )) {
+              targetEntity,
+              outputDir,
+              fileSystem: fileSystem,
+            ) &&
+            !EntityAnalyzer.hasDeclaredDataSourceInterface(
+              targetEntity,
+              outputDir,
+              fileSystem: fileSystem,
+            ) &&
+            EntityAnalyzer.methodsRequireCrudSurface(config.methods)) {
           print(
             'ℹ️  $targetEntity declares no CRUD surface (no id / '
             'copyWithField / ${targetEntity}Patch) — mock data generated; '

@@ -134,7 +134,7 @@ void main() {
 
       final out = await runView();
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(
         out,
         contains(
@@ -199,7 +199,7 @@ Widget subject_a_001() => const Placeholder();
 
       final out = await runView();
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(
         out,
         contains(
@@ -220,7 +220,7 @@ Widget subject_a_001() => const Placeholder();
 
     final out = await runView();
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('runner-error'));
     expect(out, contains('missing subject file'));
   });
@@ -246,7 +246,7 @@ Widget subject_a_001() => const Placeholder();
         aliasPath,
       ]);
 
-      expect(exitCode, isNot(0), reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: 'out: $out');
       expect(out, contains('runner-error'));
       expect(out, contains('missing subject file'));
       expect(
@@ -284,7 +284,7 @@ Widget subject_a_001() => const Placeholder();
         aliasPath,
       ]);
 
-      expect(exitCode, 0, reason: 'out: $out');
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
       expect(out, contains('view: behavior=A-001 outcome='));
       expect(out, isNot(contains('outside the project root')));
       final subject = await File(fx.subjectPathOf('A-001')).readAsString();
@@ -296,7 +296,7 @@ Widget subject_a_001() => const Placeholder();
   test('U-V4: an unknown behavior id is a hard runner-error', () async {
     final out = await runView(id: 'A-999');
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('unknown behavior id "A-999"'));
     expect(out, contains('outcome=runner-error'));
   });
@@ -317,7 +317,7 @@ Widget subject_a_001() {
 
     final out = await runView();
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('unrecognized shape'));
     expect(out, contains('outcome=runner-error'));
   });
@@ -349,7 +349,7 @@ Widget subject_a_001() {
     ).writeAsString(genStyleWidgetStub('A-001'));
     final out = await runView();
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     expect(out, contains('no Presentation layer contract declared'));
     final subject = await File(fx.subjectPathOf('A-001')).readAsString();
     expect(subject, contains("Text('Welcome back')"));
@@ -438,7 +438,7 @@ ${genStyleWidgetStub('A-001').split('\n').skip(1).join('\n')}
 
     final out = await runView(project: link.path);
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('missing subject file'));
     expect(out, isNot(contains('points outside the project root')));
   });
@@ -462,7 +462,7 @@ ${genStyleWidgetStub('A-001').split('\n').skip(1).join('\n')}
 
     final out = await runView();
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('points outside the project root'));
   });
 
@@ -495,7 +495,7 @@ ${genStyleWidgetStub('A-001').split('\n').skip(1).join('\n')}
 
     final out = await runView();
 
-    expect(exitCode, isNot(0));
+    expect(CliRunner.lastDispatchedExitCode, isNot(0));
     expect(out, contains('points outside the project root'));
     expect(out, isNot(contains('missing subject file')));
   });

@@ -65,7 +65,6 @@ import '../services/journal.dart';
 import '../services/lane_receipts.dart';
 import '../services/red_classifier.dart';
 import '../services/runner.dart';
-import '../services/scratch_tmpdir.dart';
 import '../services/skin_event_trace.dart';
 import '../services/skin_hand_edit.dart';
 import '../services/skin_receipt.dart';
@@ -264,122 +263,113 @@ class RunSkinCommand extends Command<void> {
       }
     }
 
-    final scratch = await ScratchTmpDir.acquire(
-      label: rest.isNotEmpty ? rest.first : label,
-      projectRoot: projectRoot,
-    );
-    try {
-      // -----------------------------------------------------------------
-      // The engine gate (issue #1008): the skin lane requires a green
-      // engine receipt BEFORE any step is spawned. Missing, not-green, or
-      // corrupt receipt -> exit 2, zero steps, no skin receipt written.
-      // -----------------------------------------------------------------
-      final refusal = await LaneReceipts(featureDir).engineGateRefusal();
-      if (refusal != null) {
-        print('zfa tdd $label: $refusal');
-        // Spec 1113: the engine-gate refusal is journaled preflight_red —
-        // the skin cycle never started, and `zfa tdd status` reads the
-        // same record.
-        try {
-          final writer = JournalWriter(featureDir);
-          final refs = await writer.resolveRefs();
-          await writer.append(
-            JournalEntry(
-              feature: feature,
-              cycle: 'skin',
-              phase: 'gate',
-              startedAt: journalStartedAt,
-              finishedAt: DateTime.now().toUtc().toIso8601String(),
-              gateState: 'preflight_red',
-              receipts: const [],
-              violations: ['engine-gate: $refusal'],
-              engineReceipt: refs.engine,
-              skinReceipt: refs.skin,
-              contractSchema: refs.contract,
-              result: 'engine-required',
-            ),
-          );
-        } on FileSystemException {
-          // A record, never a gate — the refusal stands on its stdout;
-          // a failed journal write is only reported.
-          stderr.writeln(
-            'zfa tdd run-skin: failed to write the engine-gate journal '
-            'entry at ${p.join(featureDir, 'tdd', 'journal.json')}',
-          );
-        }
-        _printSummary(feature, 'engine-required', null);
-        exitCode = _exitEngineRequired;
-        return;
-      }
-
-      // -----------------------------------------------------------------
-      // Mode selection: SKIN lanes declaring adaptive_slots are hand-
-      // written seams (spec 1005) — the conformance cycle referees them.
-      // Legacy SKIN lanes without slots go through the shared two-phase
-      // driver core (spec 1008 lane mode).
-      // -----------------------------------------------------------------
-      final specFile = File(p.join(featureDir, 'spec.md'));
-      var declaredSlots = const <String>[];
-      if (await specFile.exists()) {
-        final lanes = SpecParser().parseLanes(await specFile.readAsString());
-        declaredSlots = <String>[
-          for (final lane in lanes.where(
-            (l) => l.lane.trim().toUpperCase() == 'SKIN',
-          ))
-            ...lane.adaptiveSlots,
-        ];
-      }
-      if (declaredSlots.isNotEmpty) {
-        await _runConformanceMode(
-          feature: feature,
-          featureDir: featureDir,
-          projectRoot: projectRoot,
-          declaredSlots: declaredSlots,
-          timeout: timeoutOverride,
-          journalStartedAt: journalStartedAt,
-          scratchEnv: scratch?.childEnvironment(),
+    // -----------------------------------------------------------------
+    // The engine gate (issue #1008): the skin lane requires a green
+    // engine receipt BEFORE any step is spawned. Missing, not-green, or
+    // corrupt receipt -> exit 2, zero steps, no skin receipt written.
+    // -----------------------------------------------------------------
+    final refusal = await LaneReceipts(featureDir).engineGateRefusal();
+    if (refusal != null) {
+      print('zfa tdd $label: $refusal');
+      // Spec 1113: the engine-gate refusal is journaled preflight_red —
+      // the skin cycle never started, and `zfa tdd status` reads the
+      // same record.
+      try {
+        final writer = JournalWriter(featureDir);
+        final refs = await writer.resolveRefs();
+        await writer.append(
+          JournalEntry(
+            feature: feature,
+            cycle: 'skin',
+            phase: 'gate',
+            startedAt: journalStartedAt,
+            finishedAt: DateTime.now().toUtc().toIso8601String(),
+            gateState: 'preflight_red',
+            receipts: const [],
+            violations: ['engine-gate: $refusal'],
+            engineReceipt: refs.engine,
+            skinReceipt: refs.skin,
+            contractSchema: refs.contract,
+            result: 'engine-required',
+          ),
         );
-        return;
-      }
-
-      final driver = RunDriverCore();
-      // SPEC 917 (--stream): one NDJSON step-verdict.v1 event per completed
-      // step while the lane drives.
-      if (argResults?['stream'] as bool? ?? false) {
-        driver.onStepEvent = (event) => print(event.toNdjsonLine());
-      }
-      final outcome = await driver.drive(
-        featureRef: featureRef,
-        projectRoot: projectRoot,
-        zfaBin: zfaBin,
-        timeout: timeoutOverride,
-        lane: 'skin',
-        label: label,
-        skipWidget: argResults?['skip-widget'] as bool? ?? false,
-        baselineScope: baselineScope,
-        verbose: verbose,
-        heartbeat: heartbeatOverride,
-        childEnvironment: scratch?.childEnvironment(),
-      );
-      if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
-      // Issue #1327: same terminal-receipt close-out as the engine lane —
-      // on a COMPLETE skin lane the log's final bytes must end covered so
-      // result=complete implies `zfa proof check` passes (criterion 4: a
-      // stopped lane writes nothing). Best-effort; the summary line stays
-      // the run's final stdout line (FR-009/FR-010).
-      if (outcome.result == 'complete') {
-        await CycleLogTerminalReceipt.refreshBestEffort(
-          projectRoot: projectRoot,
-          featureDir: featureDir,
-          feature: feature,
-          command: 'tdd $label',
+      } on FileSystemException {
+        // A record, never a gate — the refusal stands on its stdout;
+        // a failed journal write is only reported.
+        stderr.writeln(
+          'zfa tdd run-skin: failed to write the engine-gate journal '
+          'entry at ${p.join(featureDir, 'tdd', 'journal.json')}',
         );
       }
-      _printSummary(feature, outcome.result, outcome);
-      exitCode = outcome.exitCode;
-    } finally {
-      await scratch?.dispose();
+      _printSummary(feature, 'engine-required', null);
+      exitCode = _exitEngineRequired;
+      return;
     }
+
+    // -----------------------------------------------------------------
+    // Mode selection: SKIN lanes declaring adaptive_slots are hand-
+    // written seams (spec 1005) — the conformance cycle referees them.
+    // Legacy SKIN lanes without slots go through the shared two-phase
+    // driver core (spec 1008 lane mode).
+    // -----------------------------------------------------------------
+    final specFile = File(p.join(featureDir, 'spec.md'));
+    var declaredSlots = const <String>[];
+    if (await specFile.exists()) {
+      final lanes = SpecParser().parseLanes(await specFile.readAsString());
+      declaredSlots = <String>[
+        for (final lane in lanes.where(
+          (l) => l.lane.trim().toUpperCase() == 'SKIN',
+        ))
+          ...lane.adaptiveSlots,
+      ];
+    }
+    if (declaredSlots.isNotEmpty) {
+      await _runConformanceMode(
+        feature: feature,
+        featureDir: featureDir,
+        projectRoot: projectRoot,
+        declaredSlots: declaredSlots,
+        timeout: timeoutOverride,
+        journalStartedAt: journalStartedAt,
+      );
+      return;
+    }
+
+    final driver = RunDriverCore();
+    // SPEC 917 (--stream): one NDJSON step-verdict.v1 event per completed
+    // step while the lane drives.
+    if (argResults?['stream'] as bool? ?? false) {
+      driver.onStepEvent = (event) => print(event.toNdjsonLine());
+    }
+    final outcome = await driver.drive(
+      featureRef: featureRef,
+      projectRoot: projectRoot,
+      zfaBin: zfaBin,
+      timeout: timeoutOverride,
+      lane: 'skin',
+      label: label,
+      skipWidget: argResults?['skip-widget'] as bool? ?? false,
+      baselineScope: baselineScope,
+      supportsBaselineScope: true,
+      verbose: verbose,
+      heartbeat: heartbeatOverride,
+    );
+    if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
+    // Issue #1327: same terminal-receipt close-out as the engine lane —
+    // on a COMPLETE skin lane the log's final bytes must end covered so
+    // result=complete implies `zfa proof check` passes (criterion 4: a
+    // stopped lane writes nothing). Best-effort; the summary line stays
+    // the run's final stdout line (FR-009/FR-010).
+    if (outcome.result == 'complete') {
+      await CycleLogTerminalReceipt.refreshBestEffort(
+        projectRoot: projectRoot,
+        featureDir: featureDir,
+        feature: feature,
+        command: 'tdd $label',
+      );
+    }
+    _printSummary(feature, outcome.result, outcome);
+    exitCode = outcome.exitCode;
   }
 
   // -------------------------------------------------------------------
@@ -393,7 +383,6 @@ class RunSkinCommand extends Command<void> {
     required List<String> declaredSlots,
     required Duration? timeout,
     required String journalStartedAt,
-    Map<String, String>? scratchEnv,
   }) async {
     final lanes = SpecParser().parseLanes(
       await File(p.join(featureDir, 'spec.md')).readAsString(),
@@ -503,7 +492,6 @@ class RunSkinCommand extends Command<void> {
         timeout: timeout,
         traces: traces,
         handEdits: handEdits,
-        scratchEnv: scratchEnv,
         onRedWitnessFailure: () => redWitnessAll = false,
       );
       receipts.add(outcome);
@@ -564,6 +552,24 @@ class RunSkinCommand extends Command<void> {
       );
     }
 
+    final completedRedGreen = receipts
+        .where(
+          (r) =>
+              r.nonConformanceReason == null ||
+              r.nonConformanceReason == 'hand-edit-missing' ||
+              r.nonConformanceReason == 'slots-unfilled',
+        )
+        .length;
+    final nonConformed = receipts.length - conformed;
+    final reasons = receipts
+        .where((r) => !r.conformance && r.nonConformanceReason != null)
+        .map((r) => r.nonConformanceReason!)
+        .toSet()
+        .toList();
+    final reasonLabel = reasons.length == 1
+        ? reasons.first
+        : reasons.join(', ');
+
     _printConformanceSummary(
       feature: feature,
       result: allConformed ? RunSkinOutcome.complete : RunSkinOutcome.stopped,
@@ -572,6 +578,9 @@ class RunSkinCommand extends Command<void> {
       slotFills: slotFills,
       slotDeclared: declaredSlots.length * receipts.length,
       handEdits: handEdits.length,
+      completedRedGreen: completedRedGreen,
+      nonConformed: nonConformed,
+      reasonLabel: nonConformed > 0 ? reasonLabel : null,
     );
     exitCode = allConformed ? 0 : 1;
   }
@@ -587,7 +596,6 @@ class RunSkinCommand extends Command<void> {
     required Duration? timeout,
     required List<SkinEventTrace> traces,
     required List<SkinHandEditRecord> handEdits,
-    Map<String, String>? scratchEnv,
     required void Function() onRedWitnessFailure,
   }) async {
     final cycleLog = CycleLog(featureDir);
@@ -603,6 +611,7 @@ class RunSkinCommand extends Command<void> {
         testPath: '',
         subjectPath: '',
         platformSlotFills: const [],
+        nonConformanceReason: 'red-not-witnessed',
       );
     }
     final subjectAbs = p.normalize(
@@ -623,12 +632,22 @@ class RunSkinCommand extends Command<void> {
     final subjectFile = File(subjectAbs);
     if (!await subjectFile.exists()) {
       refuse('implementation file missing');
-      return _refused(record, subjectRel, testRel);
+      return _refused(
+        record,
+        subjectRel,
+        testRel,
+        nonConformanceReason: 'green-failed',
+      );
     }
     final testFile = File(testAbs);
     if (!await testFile.exists()) {
       refuse('paired test missing (run `zfa tdd gen $id`)');
-      return _refused(record, subjectRel, testRel);
+      return _refused(
+        record,
+        subjectRel,
+        testRel,
+        nonConformanceReason: 'green-failed',
+      );
     }
 
     final subjectSource = await subjectFile.readAsString();
@@ -651,7 +670,7 @@ class RunSkinCommand extends Command<void> {
         .toList();
     print(
       '      hand-edit: '
-      '${matchedEdit.isEmpty ? "NONE (issue #1005 refusal)" : "logged_at ${matchedEdit.first.loggedAt}"}',
+      '${matchedEdit.isEmpty ? "NONE — no _XRaySkinHandEdit(behavior: \"$id\", file: \"$subjectRel\", logged_at: \"<ISO-8601>\") in the subject" : "logged_at ${matchedEdit.first.loggedAt}"}',
     );
 
     // -- (c) the red witness: stub-revert -> RED -> restore -> GREEN ---
@@ -694,7 +713,6 @@ class RunSkinCommand extends Command<void> {
             testName: testName,
             workingDirectory: projectRoot,
             timeout: timeout,
-            environment: scratchEnv,
           );
           traces.add(SkinEventTrace.parse(redRun.output, phase: SkinPhase.red));
           if (redRun.exitCode == 0) {
@@ -732,7 +750,12 @@ class RunSkinCommand extends Command<void> {
             'changed during the red witness',
           );
           onRedWitnessFailure();
-          return _refused(record, subjectRel, testRel);
+          return _refused(
+            record,
+            subjectRel,
+            testRel,
+            nonConformanceReason: 'no-hand-edit-diff',
+          );
         }
         print('      restored: byte-exact (sha256 verified)');
 
@@ -743,7 +766,6 @@ class RunSkinCommand extends Command<void> {
           testName: testName,
           workingDirectory: projectRoot,
           timeout: timeout,
-          environment: scratchEnv,
         );
         final greenTrace = SkinEventTrace.parse(
           greenRun.output,
@@ -794,6 +816,22 @@ class RunSkinCommand extends Command<void> {
 
     final conformance =
         slotsConform && matchedEdit.isNotEmpty && redWitnessed && greenPassed;
+
+    String? nonConformanceReason;
+    if (!conformance) {
+      if (!redWitnessed) {
+        nonConformanceReason = 'red-not-witnessed';
+      } else if (!greenPassed) {
+        nonConformanceReason = 'green-failed';
+      } else if (matchedEdit.isEmpty) {
+        nonConformanceReason = 'hand-edit-missing';
+      } else if (!slotsConform) {
+        nonConformanceReason = 'slots-unfilled';
+      } else {
+        nonConformanceReason = 'no-hand-edit-diff';
+      }
+    }
+
     if (conformance) {
       print('      conformance: true');
     }
@@ -804,19 +842,22 @@ class RunSkinCommand extends Command<void> {
       testPath: testRel,
       subjectPath: subjectRel,
       platformSlotFills: slotFills,
+      nonConformanceReason: nonConformanceReason,
     );
   }
 
   SkinReceipt _refused(
     ArtifactRecord record,
     String subjectRel,
-    String testRel,
-  ) => SkinReceipt(
+    String testRel, {
+    String? nonConformanceReason,
+  }) => SkinReceipt(
     behavior: record.behaviorId,
     conformance: false,
     testPath: testRel,
     subjectPath: subjectRel,
     platformSlotFills: const [],
+    nonConformanceReason: nonConformanceReason ?? 'red-not-witnessed',
   );
 
   Future<void> _writeConformanceReceipt({
@@ -896,6 +937,9 @@ class RunSkinCommand extends Command<void> {
     required int slotFills,
     required int slotDeclared,
     required int handEdits,
+    int completedRedGreen = 0,
+    int nonConformed = 0,
+    String? reasonLabel,
   }) {
     final json = argResults?['json'] as bool? ?? false;
     if (json) {
@@ -909,9 +953,12 @@ class RunSkinCommand extends Command<void> {
           'result': result.label,
           'behaviors': behaviors,
           'conformed': conformed,
+          'completed_red_green': completedRedGreen,
+          'non_conformed': nonConformed,
           'slot_fills': slotFills,
           'slot_declared': slotDeclared,
           'hand_edits': handEdits,
+          'non_conformance_reasons': ?reasonLabel,
         },
       );
       return;
@@ -920,6 +967,11 @@ class RunSkinCommand extends Command<void> {
       'run-skin: feature=$feature result=${result.label} '
       'behaviors=$behaviors conformed=$conformed '
       'slots=$slotFills/$slotDeclared hand_edits=$handEdits',
+    );
+    print(
+      'run-skin: $completedRedGreen/$behaviors behaviors completed red→green; '
+      '$nonConformed not conformant'
+      '${nonConformed > 0 && reasonLabel != null ? ' ($reasonLabel)' : ''}',
     );
   }
 

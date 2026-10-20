@@ -60,7 +60,7 @@ String subject_b_001() {
 
     final out = await runFunc();
 
-    expect(exitCode, 0, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: 'out: $out');
     expect(
       out,
       contains(
@@ -92,7 +92,7 @@ String subject_b_001() {
 
     final out = await runFunc();
 
-    expect(exitCode, 1, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: 'out: $out');
     expect(out, contains('func: behavior=B-001 outcome=runner-error'));
   });
 
@@ -117,7 +117,7 @@ String subject_b_001() {
 
     final out = await runFunc();
 
-    expect(exitCode, 1, reason: 'out: $out');
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: 'out: $out');
     expect(out, contains('func: behavior=B-001 outcome=runner-error'));
   });
 }

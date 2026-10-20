@@ -42,7 +42,6 @@ import '../services/feature_path_resolver.dart';
 import '../services/journal.dart';
 import '../services/test_list_reader.dart';
 import '../services/tdd_timeout.dart';
-import '../services/scratch_tmpdir.dart';
 import '../services/verdict_emitter.dart';
 import '../tdd_plugin.dart';
 import 'run_command.dart';
@@ -213,233 +212,225 @@ class RunEngineCommand extends Command<void> {
     final featureRef = resolved.ref;
     final zfaBin = argResults?['zfa-bin'] as String?;
 
-    final scratch = await ScratchTmpDir.acquire(
-      label: rest.isNotEmpty ? rest.first : label,
+    // Spec 1001 pre-start preflight — hardened by spec 1110 (issue
+    // #1110): an uncertified OR STALE CORE mock stops the lane before
+    // any step is spawned, and the block is a receipt, not an
+    // exception: engine.gate.<entity>.refused.json lands in the
+    // feature's tdd dir with the exact fix command.
+    final gate = await checkFeature(
       projectRoot: projectRoot,
+      featureDir: featureDir,
     );
+    if (!gate.ok) {
+      final entity = gate.blockedEntity!;
+      stderr.writeln(
+        'zfa tdd run-engine: CORE entity "$entity" has a mock on disk '
+        'that is NOT certified — the engine refuses to proceed '
+        '(spec 1001: mocks the framework certifies, not the agent).',
+      );
+      if (gate.blockedReason != null) {
+        stderr.writeln('   ${gate.blockedReason}');
+      }
+      stderr.writeln(
+        '--> fix: ${gate.blockedFix ?? 'zfa mock certify $entity'} '
+        '(or zfa mock create $entity --certify), then re-run.',
+      );
+      if (gate.refusedReceiptPath != null) {
+        stderr.writeln('🧾 refusal receipt: ${gate.refusedReceiptPath}');
+      }
+      // Spec 1113: the cert-gate refusal is journaled preflight_red —
+      // the skin lane and `zfa tdd status` read the same record.
+      try {
+        final writer = JournalWriter(featureDir);
+        final refs = await writer.resolveRefs();
+        await writer.append(
+          JournalEntry(
+            feature: feature,
+            cycle: 'engine',
+            phase: 'gate',
+            startedAt: journalStartedAt,
+            finishedAt: DateTime.now().toUtc().toIso8601String(),
+            gateState: 'preflight_red',
+            receipts: const [],
+            violations: [
+              'cert-gate: entity=$entity refused '
+                  '(${gate.blockedReason ?? 'uncertified CORE mock'})',
+            ],
+            engineReceipt: refs.engine,
+            skinReceipt: refs.skin,
+            contractSchema: refs.contract,
+            result: 'preflight-refused',
+            mocks: {
+              'total': gate.mocks.length,
+              'certified': gate.certified.length,
+            },
+          ),
+        );
+      } on FileSystemException {
+        // A record, never a gate — the refusal stands on its stderr +
+        // refusal receipt; a failed journal write is only reported.
+        stderr.writeln(
+          'zfa tdd run-engine: failed to write the preflight journal '
+          'entry at '
+          '${p.join(featureDir, 'tdd', 'journal.json')}',
+        );
+      }
+      _printGateSummary(feature: feature, result: gate);
+      // SPEC 917/#838: the JSON verdict carries the same remediation.
+      _verdict
+        ..outcome = VerdictOutcome.fail
+        ..exitClass = 'blocked'
+        ..fix =
+            'zfa mock certify $entity (or zfa mock create $entity '
+            '--certify), then re-run'
+        ..details['blocked_entity'] = entity;
+      exitCode = 1;
+      return;
+    }
+
+    // Bug #742: the --timeout override for each spawned step command.
+    Duration? timeoutOverride;
     try {
-      // Spec 1001 pre-start preflight — hardened by spec 1110 (issue
-      // #1110): an uncertified OR STALE CORE mock stops the lane before
-      // any step is spawned, and the block is a receipt, not an
-      // exception: engine.gate.<entity>.refused.json lands in the
-      // feature's tdd dir with the exact fix command.
-      final gate = await checkFeature(
-        projectRoot: projectRoot,
-        featureDir: featureDir,
+      timeoutOverride = parseTddTimeoutMinutes(
+        argResults?['timeout'] as String?,
       );
-      if (!gate.ok) {
-        final entity = gate.blockedEntity!;
-        stderr.writeln(
-          'zfa tdd run-engine: CORE entity "$entity" has a mock on disk '
-          'that is NOT certified — the engine refuses to proceed '
-          '(spec 1001: mocks the framework certifies, not the agent).',
-        );
-        if (gate.blockedReason != null) {
-          stderr.writeln('   ${gate.blockedReason}');
-        }
-        stderr.writeln(
-          '--> fix: ${gate.blockedFix ?? 'zfa mock certify $entity'} '
-          '(or zfa mock create $entity --certify), then re-run.',
-        );
-        if (gate.refusedReceiptPath != null) {
-          stderr.writeln('🧾 refusal receipt: ${gate.refusedReceiptPath}');
-        }
-        // Spec 1113: the cert-gate refusal is journaled preflight_red —
-        // the skin lane and `zfa tdd status` read the same record.
-        try {
-          final writer = JournalWriter(featureDir);
-          final refs = await writer.resolveRefs();
-          await writer.append(
-            JournalEntry(
-              feature: feature,
-              cycle: 'engine',
-              phase: 'gate',
-              startedAt: journalStartedAt,
-              finishedAt: DateTime.now().toUtc().toIso8601String(),
-              gateState: 'preflight_red',
-              receipts: const [],
-              violations: [
-                'cert-gate: entity=$entity refused '
-                    '(${gate.blockedReason ?? 'uncertified CORE mock'})',
-              ],
-              engineReceipt: refs.engine,
-              skinReceipt: refs.skin,
-              contractSchema: refs.contract,
-              result: 'preflight-refused',
-              mocks: {
-                'total': gate.mocks.length,
-                'certified': gate.certified.length,
-              },
-            ),
-          );
-        } on FileSystemException {
-          // A record, never a gate — the refusal stands on its stderr +
-          // refusal receipt; a failed journal write is only reported.
-          stderr.writeln(
-            'zfa tdd run-engine: failed to write the preflight journal '
-            'entry at '
-            '${p.join(featureDir, 'tdd', 'journal.json')}',
-          );
-        }
-        _printGateSummary(feature: feature, result: gate);
-        // SPEC 917/#838: the JSON verdict carries the same remediation.
-        _verdict
-          ..outcome = VerdictOutcome.fail
-          ..exitClass = 'blocked'
-          ..fix =
-              'zfa mock certify $entity (or zfa mock create $entity '
-              '--certify), then re-run'
-          ..details['blocked_entity'] = entity;
-        exitCode = 1;
-        return;
-      }
-
-      // Bug #742: the --timeout override for each spawned step command.
-      Duration? timeoutOverride;
-      try {
-        timeoutOverride = parseTddTimeoutMinutes(
-          argResults?['timeout'] as String?,
-        );
-      } on TddTimeoutFormatException catch (e) {
-        print('zfa tdd $label: ${e.message}');
-        print(
-          RunDriverCore.summaryLine(
-            label: label,
-            feature: feature,
-            lane: 'engine',
-            result: 'runner-error',
-            counts: const {
-              'total': 0,
-              'pending': 0,
-              'red': 0,
-              'green': 0,
-              'done': 0,
-            },
-          ),
-        );
-        // SPEC 917/#838: the JSON verdict carries the remediation.
-        _verdict
-          ..exitClass = 'runner-error'
-          ..outcome = VerdictOutcome.error
-          ..fix = 'pass --timeout in minutes (e.g. --timeout 10) and re-run';
-        exitCode = _exitRunnerError;
-        return;
-      }
-
-      // Issue #1590: the --heartbeat override (and the --verbose toggle).
-      Duration? heartbeatOverride;
-      try {
-        heartbeatOverride = parseTddHeartbeatSeconds(
-          argResults?['heartbeat'] as String?,
-        );
-      } on TddTimeoutFormatException catch (e) {
-        print('zfa tdd $label: ${e.message}');
-        print(
-          RunDriverCore.summaryLine(
-            label: label,
-            feature: feature,
-            lane: 'engine',
-            result: 'runner-error',
-            counts: const {
-              'total': 0,
-              'pending': 0,
-              'red': 0,
-              'green': 0,
-              'done': 0,
-            },
-          ),
-        );
-        // SPEC 917/#838: the JSON verdict carries the remediation.
-        _verdict
-          ..exitClass = 'runner-error'
-          ..outcome = VerdictOutcome.error
-          ..fix = 'pass --heartbeat in seconds (0 disables) and re-run';
-        exitCode = _exitRunnerError;
-        return;
-      }
-      final verbose = argResults?['verbose'] as bool? ?? false;
-
-      // Issue #1374/#1777: the constrained-agent escape hatch — scope the
-      // suite baseline to a directory (forwarded to the driver).
-      final baselineScope = argResults?['baseline-scope'] as String?;
-      if (baselineScope != null) {
-        final scopeNorm = p.normalize(baselineScope);
-        if (p.isAbsolute(scopeNorm) ||
-            scopeNorm == '..' ||
-            scopeNorm.startsWith('../')) {
-          print(
-            'zfa tdd run-engine: --baseline-scope must be a directory '
-            'relative to the project root (got "$baselineScope")',
-          );
-          exitCode = _exitRunnerError;
-          return;
-        }
-      }
-
-      final driver = RunDriverCore();
-      // SPEC 917 (--stream): one NDJSON step-verdict.v1 event per completed
-      // step while the lane drives.
-      if (argResults?['stream'] as bool? ?? false) {
-        driver.onStepEvent = (event) => print(event.toNdjsonLine());
-      }
-      final outcome = await driver.drive(
-        featureRef: featureRef,
-        projectRoot: projectRoot,
-        zfaBin: zfaBin,
-        timeout: timeoutOverride,
-        lane: 'engine',
-        label: label,
-        skipWidget: argResults?['skip-widget'] as bool? ?? false,
-        baselineScope: baselineScope,
-        // Spec 1113: the gate's mock accounting rides the engine entry
-        // (the status verdict's `mocks c/t` segment).
-        mockCounts: {
-          'total': gate.mocks.length,
-          'certified': gate.certified.length,
-        },
-        verbose: verbose,
-        heartbeat: heartbeatOverride,
-        childEnvironment: scratch?.childEnvironment(),
-      );
-      _collectVerdict(outcome);
-      if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
-      // Issue #1327: the lane's spawned steps appended evidence to
-      // tdd/cycle-log.md (verify-red's red witness, make's green evidence,
-      // the refactor evidence) after the last `tdd make` receipt covering
-      // the log was written. On a COMPLETE lane, close the run with ONE
-      // terminal receipt re-hashing the log to its final bytes so
-      // result=complete implies `zfa proof check` passes with zero
-      // digest-drift findings. A run that stopped early writes nothing —
-      // its receipt drift stays the honest record (criterion 4).
-      // Best-effort: a record, never a gate; the summary line stays the
-      // run's final stdout line (FR-009/FR-010).
-      if (outcome.result == 'complete') {
-        await CycleLogTerminalReceipt.refreshBestEffort(
-          projectRoot: projectRoot,
-          featureDir: featureDir,
-          feature: feature,
-          command: 'tdd $label',
-        );
-      }
+    } on TddTimeoutFormatException catch (e) {
+      print('zfa tdd $label: ${e.message}');
       print(
         RunDriverCore.summaryLine(
           label: label,
           feature: feature,
           lane: 'engine',
-          result: outcome.result,
-          counts: outcome.counts,
-          stoppedAt: outcome.stoppedAt,
-          skippedWidgetIds: outcome.skippedWidgetIds,
-          // Issue #1568 (review fix): the engine lane is the only lane that
-          // can park a hand-step, so its terminal summary must carry the
-          // same `hand_steps=N` token `zfa tdd run` prints.
-          handStepIds: outcome.handStepIds,
+          result: 'runner-error',
+          counts: const {
+            'total': 0,
+            'pending': 0,
+            'red': 0,
+            'green': 0,
+            'done': 0,
+          },
         ),
       );
-      exitCode = outcome.exitCode;
-    } finally {
-      await scratch?.dispose();
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..exitClass = 'runner-error'
+        ..outcome = VerdictOutcome.error
+        ..fix = 'pass --timeout in minutes (e.g. --timeout 10) and re-run';
+      exitCode = _exitRunnerError;
+      return;
     }
+
+    // Issue #1590: the --heartbeat override (and the --verbose toggle).
+    Duration? heartbeatOverride;
+    try {
+      heartbeatOverride = parseTddHeartbeatSeconds(
+        argResults?['heartbeat'] as String?,
+      );
+    } on TddTimeoutFormatException catch (e) {
+      print('zfa tdd $label: ${e.message}');
+      print(
+        RunDriverCore.summaryLine(
+          label: label,
+          feature: feature,
+          lane: 'engine',
+          result: 'runner-error',
+          counts: const {
+            'total': 0,
+            'pending': 0,
+            'red': 0,
+            'green': 0,
+            'done': 0,
+          },
+        ),
+      );
+      // SPEC 917/#838: the JSON verdict carries the remediation.
+      _verdict
+        ..exitClass = 'runner-error'
+        ..outcome = VerdictOutcome.error
+        ..fix = 'pass --heartbeat in seconds (0 disables) and re-run';
+      exitCode = _exitRunnerError;
+      return;
+    }
+    final verbose = argResults?['verbose'] as bool? ?? false;
+
+    // Issue #1374/#1777: the constrained-agent escape hatch — scope the
+    // suite baseline to a directory (forwarded to the driver).
+    final baselineScope = argResults?['baseline-scope'] as String?;
+    if (baselineScope != null) {
+      final scopeNorm = p.normalize(baselineScope);
+      if (p.isAbsolute(scopeNorm) ||
+          scopeNorm == '..' ||
+          scopeNorm.startsWith('../')) {
+        print(
+          'zfa tdd run-engine: --baseline-scope must be a directory '
+          'relative to the project root (got "$baselineScope")',
+        );
+        exitCode = _exitRunnerError;
+        return;
+      }
+    }
+
+    final driver = RunDriverCore();
+    // SPEC 917 (--stream): one NDJSON step-verdict.v1 event per completed
+    // step while the lane drives.
+    if (argResults?['stream'] as bool? ?? false) {
+      driver.onStepEvent = (event) => print(event.toNdjsonLine());
+    }
+    final outcome = await driver.drive(
+      featureRef: featureRef,
+      projectRoot: projectRoot,
+      zfaBin: zfaBin,
+      timeout: timeoutOverride,
+      lane: 'engine',
+      label: label,
+      skipWidget: argResults?['skip-widget'] as bool? ?? false,
+      baselineScope: baselineScope,
+      supportsBaselineScope: true,
+      // Spec 1113: the gate's mock accounting rides the engine entry
+      // (the status verdict's `mocks c/t` segment).
+      mockCounts: {
+        'total': gate.mocks.length,
+        'certified': gate.certified.length,
+      },
+      verbose: verbose,
+      heartbeat: heartbeatOverride,
+    );
+    _collectVerdict(outcome);
+    if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
+    // Issue #1327: the lane's spawned steps appended evidence to
+    // tdd/cycle-log.md (verify-red's red witness, make's green evidence,
+    // the refactor evidence) after the last `tdd make` receipt covering
+    // the log was written. On a COMPLETE lane, close the run with ONE
+    // terminal receipt re-hashing the log to its final bytes so
+    // result=complete implies `zfa proof check` passes with zero
+    // digest-drift findings. A run that stopped early writes nothing —
+    // its receipt drift stays the honest record (criterion 4).
+    // Best-effort: a record, never a gate; the summary line stays the
+    // run's final stdout line (FR-009/FR-010).
+    if (outcome.result == 'complete') {
+      await CycleLogTerminalReceipt.refreshBestEffort(
+        projectRoot: projectRoot,
+        featureDir: featureDir,
+        feature: feature,
+        command: 'tdd $label',
+      );
+    }
+    print(
+      RunDriverCore.summaryLine(
+        label: label,
+        feature: feature,
+        lane: 'engine',
+        result: outcome.result,
+        counts: outcome.counts,
+        stoppedAt: outcome.stoppedAt,
+        skippedWidgetIds: outcome.skippedWidgetIds,
+        // Issue #1568 (review fix): the engine lane is the only lane that
+        // can park a hand-step, so its terminal summary must carry the
+        // same `hand_steps=N` token `zfa tdd run` prints.
+        handStepIds: outcome.handStepIds,
+      ),
+    );
+    exitCode = outcome.exitCode;
   }
 
   /// SPEC 917/#838: mirrors the shipped exit taxonomy into the envelope —

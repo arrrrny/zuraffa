@@ -80,7 +80,7 @@ environment:
     for (final method in methods) {
       expect(method['ok'], isTrue, reason: 'method verdict: $method');
     }
-    expect(exitCode, 0);
+    expect(CliRunner.lastDispatchedExitCode, 0);
   });
 
   test('B-002: tampered execute signature → verify exits 1 with a '
@@ -105,7 +105,11 @@ environment:
       'Product',
     ]);
 
-    expect(exitCode, 1, reason: 'a drifted signature must fail the gate');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      1,
+      reason: 'a drifted signature must fail the gate',
+    );
     expect(output, contains('[signature_mismatch]'));
     expect(output, contains('--> fix:'));
   });
@@ -137,7 +141,7 @@ environment:
       '--json',
     ]);
 
-    expect(exitCode, 1);
+    expect(CliRunner.lastDispatchedExitCode, 1);
     final envelope = _parseEnvelope(output);
     expect(envelope['verdict'], 'fail');
     final findings = (envelope['findings'] as List)
@@ -188,7 +192,7 @@ environment:
       'Product',
     ]);
 
-    expect(exitCode, 1);
+    expect(CliRunner.lastDispatchedExitCode, 1);
     expect(output, contains('[missing_file]'));
     expect(output, contains('--> fix:'));
   });
@@ -230,7 +234,7 @@ environment:
   test('B-006: verify without an entity is a usage error (exit 2)', () async {
     await runner.runCapturing(['-C', workspace.path, 'usecase', 'verify']);
 
-    expect(exitCode, 2);
+    expect(CliRunner.lastDispatchedExitCode, 2);
   });
 
   test('B-007: no receipt → verify still gates via conventional file '
@@ -260,7 +264,7 @@ environment:
     expect(envelope['verdict'], 'pass', reason: output);
     final details = envelope['details'] as Map<String, dynamic>;
     expect(details['receiptBound'], isFalse);
-    expect(exitCode, 0);
+    expect(CliRunner.lastDispatchedExitCode, 0);
   });
 
   test('B-010: entity edited after create → verify exits 1 with the '
@@ -300,7 +304,11 @@ class Product {
       'Product',
     ]);
 
-    expect(exitCode, 1, reason: 'entity hash divergence must fail the run');
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      1,
+      reason: 'entity hash divergence must fail the run',
+    );
     expect(output, contains('entity_drift'));
     expect(output, contains('--> fix:'));
   });
@@ -336,7 +344,7 @@ class Product {
       '--json',
     ]);
 
-    expect(exitCode, 1);
+    expect(CliRunner.lastDispatchedExitCode, 1);
     final envelope = _parseEnvelope(output);
     expect(envelope['verdict'], 'fail');
     final findings = (envelope['findings'] as List)

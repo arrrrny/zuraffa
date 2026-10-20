@@ -21,6 +21,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
@@ -29,8 +30,10 @@ import '../../../core/context/file_system.dart';
 import '../../../core/plugin_system/capability_invocation_wrapper.dart';
 import '../../../core/project/receipt_store.dart';
 import '../../../models/generated_file.dart';
+import '../../../utils/entity_analyzer.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/method_extractor.dart';
+import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/string_utils.dart';
 import '../../../version.dart';
 
@@ -82,6 +85,18 @@ class MockCertification {
   /// Mock members the interface never declared (invented surface).
   final List<String> inventedMethods;
 
+  /// Members whose NAME matches an interface member but whose full
+  /// signature does not — an invalid override cannot be masked by a
+  /// matching member name (issue #1851). Empty when every matching name
+  /// also matches its signature.
+  final List<String> signatureMismatches;
+
+  /// Issue #1930: true when the entity certified on a fixture-only surface
+  /// (an enum or other CRUD-less type) with no CRUD datasource to analyze.
+  /// The gate uses it to drop the (absent) mock-datasource/interface files
+  /// from the scoped `dart analyze` target list.
+  final bool fixtureOnly;
+
   /// The emitted fixtures and their digests.
   final List<MockFixtureHash> fixtures;
 
@@ -100,12 +115,14 @@ class MockCertification {
     required this.implementedMethods,
     required this.missingMethods,
     required this.inventedMethods,
+    this.signatureMismatches = const [],
+    this.fixtureOnly = false,
     required this.fixtures,
     this.receiptPath,
   });
 
   /// True when the mock implements exactly the interface surface.
-  bool get conformance => missingMethods.isEmpty && inventedMethods.isEmpty;
+  bool get conformance => missingMethods.isEmpty && signatureMismatches.isEmpty;
 
   /// The envelope-facing view (issue #970 order 2 `certification` object).
   Map<String, dynamic> toEnvelopeJson() => {
@@ -130,6 +147,8 @@ class MockCertification {
     implementedMethods: implementedMethods,
     missingMethods: missingMethods,
     inventedMethods: inventedMethods,
+    signatureMismatches: signatureMismatches,
+    fixtureOnly: fixtureOnly,
     fixtures: fixtures,
     receiptPath: receiptPath,
   );
@@ -146,6 +165,7 @@ class MockCertification {
     'implemented_methods': List<String>.from(implementedMethods),
     'missing_methods': List<String>.from(missingMethods),
     'invented_methods': List<String>.from(inventedMethods),
+    'signature_mismatches': List<String>.from(signatureMismatches),
     'conformance': conformance,
     'fixture_hashes': fixtures.map((f) => f.toJson()).toList(),
   };
@@ -175,9 +195,23 @@ abstract final class MockCertificationService {
     String? params,
     String? returns,
     FileSystem? fileSystem,
+    // Issue #1894 follow-up: whether an absent declared interface (or mock)
+    // is a hard refusal. Defaults to true for the generation path. `mock
+    // explain` passes false for the mock so the documented interface-only
+    // tree (interface present, mock absent) keeps its coverage report.
+    String commandLabel = 'zfa mock create',
+    bool requireInterface = true,
+    bool requireMock = true,
+    bool? requireArtifacts,
   }) async {
     final root = projectRoot ?? Directory.current.path;
     final fs = fileSystem ?? const DefaultFileSystem();
+    // Resolve the absence-refusal flags (requireArtifacts is an alias for
+    // requireMock, kept for callers that use the review's suggested name).
+    // requireArtifacts only gates the mock absence (the #1894 regression
+    // surface); the interface refusal stays governed by requireInterface.
+    final requireMockFile = requireMock && (requireArtifacts ?? true);
+    final requireInterfaceFile = requireInterface;
 
     // Same config the generation run used, so every path getter below
     // resolves EXACTLY like the builders resolved during generation.
@@ -262,41 +296,72 @@ abstract final class MockCertificationService {
 
     // 2. Interface members (AST — no package resolution needed).
     var interfaceMethods = const <String>[];
+    var interfaceParsed = const <ParsedUseCaseInfo>[];
     if (interfacePath != null && interfaceClass != null) {
       final abs = _absolute(root, interfacePath);
-      if (await fs.exists(abs)) {
+      if (!await fs.exists(abs)) {
+        if (requireInterfaceFile) {
+          throw StateError(
+            '$commandLabel: cannot certify $entity — the declared interface\n'
+            '  ${_projectRelativePosix(root, interfacePath)} does not exist.\n'
+            '--> fix: emit the interface first, or declare the seam with a '
+            'resolvable path.',
+          );
+        }
+      } else {
         final parsed = await MethodExtractor.extractMethodsFromInterface(
           abs,
           interfaceClass,
           fileSystem: fs,
         );
+        interfaceParsed = parsed;
         interfaceMethods = parsed.map((m) => m.fieldName).toList();
       }
     }
 
     // 3. Implemented members (AST parse of the emitted mock class).
     var implementedMethods = const <String>[];
+    var implementedDecls = const <MethodDeclaration>[];
     if (mockPath != null && mockClass != null) {
       final abs = _absolute(root, mockPath);
-      if (await fs.exists(abs)) {
+      if (!await fs.exists(abs)) {
+        if (requireMockFile) {
+          throw StateError(
+            '$commandLabel: cannot certify $entity — the declared mock\n'
+            '  ${_projectRelativePosix(root, mockPath)} does not exist.\n'
+            '--> fix: generate the mock first, or declare the seam with a '
+            'resolvable path.',
+          );
+        }
+      } else {
         final helper = const AstHelper();
         final parseResult = await helper.parseFile(abs, fileSystem: fs);
         final unit = parseResult.unit;
         if (unit != null) {
           final classNode = helper.findClass(unit, mockClass);
           if (classNode != null) {
-            implementedMethods = helper
-                .findMethods(classNode)
-                .map((m) => m.name.toString())
-                .toList();
+            final decls = helper.findMethods(classNode);
+            implementedDecls = decls;
+            implementedMethods = decls.map((m) => m.name.lexeme).toList();
           }
         }
+        // skip duplicate below
       }
     }
+
+    // Issue #1851: signature-aware drift. A member name that matches but
+    // whose full signature differs is NOT conformance — it is an invalid
+    // override. Compare (name, getter, parameter count, params type,
+    // returns type, use-case kind) rather than names alone.
+    final signatureMismatches = <String>[];
+    // Consolidated into the drift section below (issue #1851 nitpick): the
+    // signature-aware comparison lives there; this first block only
+    // duplicated it and discarded its missing/invented locals.
 
     // 4. Fixture digests from the FINAL on-disk bytes.
     final fixtures = <MockFixtureHash>[];
     for (final file in files) {
+      if (file.path.isEmpty) continue;
       final isFixture = file.type == 'mock_data' || file.type == 'mock_json';
       if (!isFixture) continue;
       final abs = _absolute(root, file.path);
@@ -314,14 +379,56 @@ abstract final class MockCertificationService {
     // 5. Drift sets.
     final interfaceSet = interfaceMethods.toSet();
     final implementedSet = implementedMethods.toSet();
-    final missing = [
-      for (final m in interfaceMethods)
-        if (!implementedSet.contains(m)) m,
-    ];
-    final invented = [
-      for (final m in implementedMethods)
-        if (!interfaceSet.contains(m)) m,
-    ];
+    List<String> missing;
+    List<String> invented;
+    final sigMismatches = List<String>.from(signatureMismatches);
+    if (interfaceParsed.isNotEmpty) {
+      // signature-aware values already computed above; recompute here
+      // from the same data to keep them in scope.
+      missing = <String>[];
+      invented = <String>[];
+      final ifaceSigsByName = <String, Set<String>>{};
+      final ifaceSigSet = <String>{};
+      for (final m in interfaceParsed) {
+        final sig = _interfaceSignature(m);
+        ifaceSigSet.add(sig);
+        ifaceSigsByName.putIfAbsent(m.fieldName, () => <String>{}).add(sig);
+      }
+      final implSigSet = <String>{};
+      final implSigsByName = <String, Set<String>>{};
+      for (final md in implementedDecls) {
+        final sig = _implementedSignature(md);
+        implSigSet.add(sig);
+        implSigsByName.putIfAbsent(md.name.lexeme, () => <String>{}).add(sig);
+      }
+      for (final m in interfaceParsed) {
+        final name = m.fieldName;
+        final sigs = ifaceSigsByName[name]!;
+        if (!sigs.any(implSigSet.contains)) {
+          if (implSigsByName.containsKey(name)) {
+            if (!sigMismatches.contains(name)) sigMismatches.add(name);
+          } else {
+            missing.add(name);
+          }
+        }
+      }
+      for (final md in implementedDecls) {
+        final name = md.name.lexeme;
+        final sig = _implementedSignature(md);
+        if (!ifaceSigSet.contains(sig) && !ifaceSigsByName.containsKey(name)) {
+          invented.add(name);
+        }
+      }
+    } else {
+      missing = [
+        for (final m in interfaceMethods)
+          if (!implementedSet.contains(m)) m,
+      ];
+      invented = [
+        for (final m in implementedMethods)
+          if (!interfaceSet.contains(m)) m,
+      ];
+    }
 
     // 6. The registry id: a digest over the certified surface.
     final surface = jsonEncode({
@@ -350,6 +457,15 @@ abstract final class MockCertificationService {
       implementedMethods: implementedMethods,
       missingMethods: missing,
       inventedMethods: invented,
+      signatureMismatches: sigMismatches,
+      fixtureOnly:
+          EntityAnalyzer.isEnum(entity, outputDir) ||
+          (service == null &&
+              EntityAnalyzer.lacksCrudSurface(entity, outputDir) &&
+              !EntityAnalyzer.hasDeclaredDataSourceInterface(
+                entity,
+                outputDir,
+              )),
       fixtures: fixtures,
     );
   }
@@ -375,6 +491,7 @@ abstract final class MockCertificationService {
     final fs = fileSystem ?? const DefaultFileSystem();
     final receiptFiles = <GenerationReceiptFile>[];
     for (final file in files) {
+      if (file.path.isEmpty) continue;
       final abs = _absolute(projectRoot, file.path);
       if (!await fs.exists(abs)) continue;
       final content = await fs.read(abs);
@@ -444,6 +561,53 @@ abstract final class MockCertificationService {
   static String _projectRelativePosix(String root, String path) {
     final rel = p.isAbsolute(path) ? p.relative(path, from: root) : path;
     return p.normalize(rel).replaceAll('\\', '/');
+  }
+
+  /// Signature key for an interface member extracted via MethodExtractor
+  /// (issue #1851): name + getter flag + parameter count + params type +
+  /// cleaned returns type + use-case kind.
+  static String _interfaceSignature(ParsedUseCaseInfo m) {
+    final returns = m.returnsType ?? 'void';
+    final params = m.parameterCount > 0 ? (m.paramsType ?? 'NoParams') : '';
+    final getter = m.isGetter;
+    final kind = m.useCaseType ?? 'usecase';
+    return '${m.fieldName}|getter=$getter|params=$params|count=${m.parameterCount}|returns=$returns|kind=$kind';
+  }
+
+  /// Signature key for an implemented method parsed from the mock class
+  /// (issue #1851).
+  static String _implementedSignature(MethodDeclaration md) {
+    final name = md.name.lexeme;
+    final isGetter = md.isGetter;
+    final returnType = md.returnType?.toSource() ?? 'void';
+    String cleaned = returnType;
+    if (cleaned.startsWith('Future<') && cleaned.endsWith('>')) {
+      cleaned = cleaned.substring(7, cleaned.length - 1);
+    }
+    if (cleaned.startsWith('Stream<') && cleaned.endsWith('>')) {
+      cleaned = cleaned.substring(7, cleaned.length - 1);
+    }
+    final paramCount = md.parameters?.parameters.length ?? 0;
+    String paramsType = '';
+    if (paramCount > 0) {
+      final first = md.parameters!.parameters.first;
+      dynamic param = first;
+      try {
+        final dyn = first as dynamic;
+        final p = dyn.parameter;
+        if (p != null) param = p;
+      } catch (_) {}
+      paramsType = (param as dynamic).type?.toSource() ?? '';
+    }
+    String kind = 'usecase';
+    if (returnType.startsWith('Stream<')) {
+      kind = 'stream';
+    } else if (returnType == 'Future<void>') {
+      kind = 'completable';
+    } else if (!returnType.startsWith('Future<')) {
+      kind = 'sync';
+    }
+    return '$name|getter=$isGetter|params=$paramsType|count=$paramCount|returns=$cleaned|kind=$kind';
   }
 }
 
@@ -577,19 +741,40 @@ class MockCertifier {
         '${certification.missingMethods.join(', ')}',
       );
     }
-    // 2. Structural drift: invented surface the interface never declared.
-    if (certification.inventedMethods.isNotEmpty) {
+    // 2. Structural drift: an invented surface is real drift only when
+    //    the mock is ALSO missing interface members (renamed member).
+    //    Extra mock-only helpers on a conforming mock are legal and do
+    //    not fail the gate (issue #1857).
+    if (certification.inventedMethods.isNotEmpty &&
+        certification.missingMethods.isNotEmpty) {
       fixes.add(
-        '--> fix: correct the member(s) ${certification.mockClass ?? 'the '
-                'mock'} does not declare in $interfaceName: '
+        '--> fix: remove the extra member(s) ${certification.mockClass ?? 'the '
+                'mock'} declares beyond $interfaceName: '
         '${certification.inventedMethods.join(', ')}',
       );
     }
 
     // 3. Scoped dart analyze over the emitted mock files.
+    // Issue #1851: signature-level drift must also fail the gate, not just
+    // be recorded as a mismatch — otherwise a name-matching but
+    // signature-differing member passes with exit 0.
+    if (certification.signatureMismatches.isNotEmpty) {
+      fixes.add(
+        '--> fix: signature mismatch in $interfaceName member(s): '
+        '${certification.signatureMismatches.join(', ')}',
+      );
+    }
+    // Issue #1930: a fixture-only entity (enum / CRUD-less type) has no
+    // CRUD datasource or interface file to analyze — the generator never
+    // emits them (#1037/#1747). Analyze the mock-data file (and any other
+    // emitted fixture) only; the (absent) mock-datasource path must never
+    // reach `dart analyze`, or the gate fails on a file that does not
+    // exist while the receipt says pass.
     final analyzeFiles = <String>[
-      if (certification.mockFile != null) certification.mockFile!,
-      if (certification.interface != null) certification.interface!,
+      if (!certification.fixtureOnly && certification.mockFile != null)
+        certification.mockFile!,
+      if (!certification.fixtureOnly && certification.interface != null)
+        certification.interface!,
       for (final fixture in certification.fixtures)
         if (fixture.path.endsWith('.dart')) fixture.path,
     ];
