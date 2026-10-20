@@ -495,13 +495,12 @@ dev_dependencies:
     // Issue #1927: an aggregate seam (no entity file on disk) only needs
     // its interface + mock datasource to certify; an entity-mode seam
     // keeps the historical 3-subject floor (entity + interface + mock).
-    final entityExists = service == null &&
+    final entityExists =
+        service == null &&
         File(
           p.join(outputDir, 'domain', 'entities', snake, '$snake.dart'),
         ).existsSync();
-    final threshold = service == null
-        ? (entityExists ? 3 : 2)
-        : 2;
+    final threshold = service == null ? (entityExists ? 3 : 2) : 2;
     if (existingRoots.length < threshold) {
       logs.add(
         'mock subjects missing under $outputDir (found '
