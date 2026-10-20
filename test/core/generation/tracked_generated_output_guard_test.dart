@@ -296,4 +296,127 @@ Future<void> main() async {
       );
     }, skip: gitOk ? false : 'git binary unavailable');
   });
+
+  // Issue #1953: the Hive registrar host file is a generated-name file
+  // whose name carries no generated suffix, and the registrar generator's
+  // clobber is a REWRITE (the file still exists post-build with different
+  // bytes) — invisible to the deletion-only contract above.
+  group('TrackedGeneratedOutputGuard rewrite contract (issue #1953)', () {
+    late Directory sandbox;
+
+    setUp(() async {
+      sandbox = await Directory.systemTemp.createTemp('issue1953_guard_');
+    });
+
+    tearDown(() async {
+      if (sandbox.existsSync()) {
+        await sandbox.delete(recursive: true);
+      }
+    });
+
+    Future<File> seedPlaceholder(String relPath, String content) async {
+      final file = File(p.join(sandbox.path, relPath));
+      await file.create(recursive: true);
+      await file.writeAsString(content, flush: true);
+      return file;
+    }
+
+    Future<TrackedGeneratedSnapshot> captureInRepo() async {
+      await _initRepo(sandbox);
+      final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
+      return guard.capture();
+    }
+
+    test('W1: the suffix-less Hive registrar placeholder is tracked and '
+        'captured with exact bytes', () async {
+      const content =
+          '// placeholder\n'
+          "import 'package:zuraffa/zuraffa.dart' hide DeviceInfo;\n";
+      await seedPlaceholder('lib/src/cache/hive_registrar.dart', content);
+      final snapshot = await captureInRepo();
+      expect(snapshot.enabled, isTrue);
+      expect(
+        snapshot.files,
+        contains('lib/src/cache/hive_registrar.dart'),
+        reason:
+            'hive_registrar.dart is build_runner output in registrar-enabled '
+            'projects (issue #1953) — the suffix list alone misses it',
+      );
+      expect(
+        utf8.decode(snapshot.files['lib/src/cache/hive_registrar.dart']!),
+        content,
+      );
+    }, skip: gitOk ? false : 'git binary unavailable');
+
+    test('W2: detectRewritten() returns only members whose bytes changed '
+        'and the file still exists', () async {
+      const pre = '// placeholder\n';
+      final rewritten = await seedPlaceholder(
+        'lib/src/cache/hive_registrar.dart',
+        pre,
+      );
+      final untouched = await seedPlaceholder('lib/src/a.g.dart', '// a\n');
+      final snapshot = await captureInRepo();
+      // The registrar generator clobbers one file; the other is rewritten
+      // byte-identically (a legitimate regeneration that changed nothing).
+      await rewritten.writeAsString('// clobbered — hide DeviceInfo lost\n');
+      await untouched.writeAsString('// a\n');
+      final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
+      expect(guard.detectRewritten(snapshot), [
+        'lib/src/cache/hive_registrar.dart',
+      ], reason: 'byte-identical rewrites are not rewrites');
+    }, skip: gitOk ? false : 'git binary unavailable');
+
+    test('W3: detectRewritten() never overlaps detectDeleted() — a deleted '
+        'file is not reported as rewritten', () async {
+      final rewritten = await seedPlaceholder(
+        'lib/src/cache/hive_registrar.dart',
+        '// pre\n',
+      );
+      final deleted = await seedPlaceholder('lib/src/b.g.dart', '// b\n');
+      final snapshot = await captureInRepo();
+      await rewritten.writeAsString('// post\n');
+      await deleted.delete();
+      final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
+      expect(guard.detectRewritten(snapshot), [
+        'lib/src/cache/hive_registrar.dart',
+      ]);
+      expect(guard.detectDeleted(snapshot), ['lib/src/b.g.dart']);
+    }, skip: gitOk ? false : 'git binary unavailable');
+
+    test('W4: rewriteRemedyLines names the file, the generate_for.exclude '
+        'config fix, and the doc page', () {
+      final lines = TrackedGeneratedOutputGuard.rewriteRemedyLines(const [
+        'lib/src/cache/hive_registrar.dart',
+      ]);
+      final text = lines.join('\n');
+      expect(text, contains('lib/src/cache/hive_registrar.dart'));
+      expect(text, contains('generate_for'));
+      expect(text, contains('exclude'));
+      expect(
+        text,
+        contains('exclude: [lib/src/cache/hive_registrar.dart]'),
+        reason:
+            'a suffix-less placeholder is its own exclude target (the '
+            'issue-#1953 workaround excludes the file itself)',
+      );
+      expect(text, contains('source_gen:combining_builder'));
+      expect(text, contains(kHandAuthoredPlaceholderDoc));
+    });
+
+    test('W5: rewriteRemedyLines excludes the OWNING library for suffixed '
+        'files', () {
+      final lines = TrackedGeneratedOutputGuard.rewriteRemedyLines(const [
+        'lib/src/engine/events/engine_event.g.dart',
+      ]);
+      final text = lines.join('\n');
+      expect(
+        text,
+        contains('exclude: [lib/src/engine/events/engine_event.dart]'),
+        reason:
+            'builders reserve <lib>.g.dart per library — exclude the '
+            'owning library, as spec 1540 does',
+      );
+    });
+  });
 }
