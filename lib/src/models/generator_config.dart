@@ -285,6 +285,7 @@ class GeneratorConfig {
           : null,
       enableSqlite: json['sqlite'] == true || json['enable_sqlite'] == true,
       generateMock: json['mock'] == true || json['generate_mock'] == true,
+      overwriteInterface: json['overwrite_interface'] == true,
       engineSlice: json['engine'] == true || json['engine_slice'] == true,
       generateMockDataOnly:
           json['mock_data_only'] == true ||
@@ -766,6 +767,7 @@ class GeneratorConfig {
     'sync_backoff_base_ms': syncBackoffBaseMs,
     'sync_backoff_max_ms': syncBackoffMaxMs,
     'mock': generateMock,
+    'overwrite_interface': overwriteInterface,
     'engine_slice': engineSlice,
     'mock_data_only': generateMockDataOnly,
     'mock_json': generateMockJson,

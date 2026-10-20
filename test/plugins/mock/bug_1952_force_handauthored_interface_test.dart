@@ -63,6 +63,7 @@ GeneratorConfig _config({
   bool force = false,
   List<String> methods = const ['get', 'update', 'toggle'],
   bool overwriteInterface = false,
+  bool appendToExisting = false,
 }) {
   return GeneratorConfig(
     name: 'Deal',
@@ -72,6 +73,7 @@ GeneratorConfig _config({
     generateDataSource: false,
     force: force,
     overwriteInterface: overwriteInterface,
+    appendToExisting: appendToExisting,
   );
 }
 
@@ -196,6 +198,39 @@ void main() {
     });
   });
 
+  group('A3 — force + append is a lossless run, never refused', () {
+    test(
+      'the hand members survive and the planned members are appended',
+      () async {
+        final interfacePath = await _seedTree(
+          outputDir,
+          _handAuthoredInterface,
+        );
+
+        final files = await _builder(outputDir, force: true).generate(
+          _config(outputDir: outputDir, force: true, appendToExisting: true),
+        );
+
+        final after = File(interfacePath).readAsStringSync();
+        expect(
+          after,
+          contains('recent()'),
+          reason:
+              'the append branch never removes members — the run is lossless',
+        );
+        expect(
+          after,
+          contains('Future<Deal> get(QueryParams<Deal> params)'),
+          reason: 'the planned CRUD members are appended to the interface',
+        );
+        expect(
+          files.map((f) => f.path),
+          contains(endsWith('deal_mock_datasource.dart')),
+        );
+      },
+    );
+  });
+
   group('B1 — #1418 holds: lost CRUD members still regenerate', () {
     test('a stale generated interface (CRUD member dropped by --methods) is '
         'rewritten from the current methods', () async {
@@ -300,6 +335,35 @@ abstract class DealDataSource with Loggable, FailureHandler {
         before,
         reason: 'without --force the #417 create-if-absent contract holds',
       );
+    });
+  });
+
+  group('D — overwriteInterface round-trips through JSON', () {
+    test('toJson emits the key and fromJson reads it back', () {
+      final on = _config(outputDir: outputDir, overwriteInterface: true);
+      expect(on.toJson()['overwrite_interface'], isTrue);
+      expect(
+        GeneratorConfig.fromJson({
+          'overwrite_interface': true,
+        }, 'Deal').overwriteInterface,
+        isTrue,
+        reason:
+            'a JSON replay of an --overwrite-interface run '
+            'must keep the opt-in',
+      );
+
+      expect(
+        GeneratorConfig.fromJson({
+          'overwrite_interface': false,
+        }, 'Deal').overwriteInterface,
+        isFalse,
+      );
+      // Workaround (arrrrny/zuraffa#1962): the assertions above test the two
+      // directions separately instead of a full `fromJson(toJson())`
+      // round-trip — that round-trip crashes today on the pre-existing
+      // bool-vs-String? overload of the presenter/controller keys, unrelated
+      // to `overwrite_interface`. When #1962 lands, tighten this to the full
+      // round-trip.
     });
   });
 }

@@ -117,6 +117,7 @@ class MockBuilder {
   Future<void> _refuseLostDeclaredMembers(GeneratorConfig config) async {
     if (config.generateMockDataOnly ||
         config.hasService ||
+        config.appendToExisting ||
         !config.force ||
         config.revert ||
         config.overwriteInterface) {
@@ -144,10 +145,21 @@ class MockBuilder {
         false;
     if (interfacePending) return;
     // The interface writer only fires past these gates (#1037/#1747): an
-    // enum target returns before it, and a no-CRUD-surface target without a
-    // declared interface is skipped before it too. Refuse only where the
-    // writer can actually run.
-    if (EntityAnalyzer.isEnum(entityName, outputDir, fileSystem: fileSystem)) {
+    // enum target returns before it — gated on the same returns-type-derived
+    // target the writer arm checks (a custom-usecase run whose returns
+    // entity is an enum returns before the writer, so the guard must not
+    // refuse it either) — and a no-CRUD-surface target without a declared
+    // interface is skipped before it too. Refuse only where the writer can
+    // actually run.
+    final targetEntity = config.isCustomUseCase && config.returnsType != null
+        ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
+              config.name
+        : config.name;
+    if (EntityAnalyzer.isEnum(
+      targetEntity,
+      outputDir,
+      fileSystem: fileSystem,
+    )) {
       return;
     }
     if (EntityAnalyzer.lacksCrudSurface(
@@ -167,7 +179,18 @@ class MockBuilder {
       '${entityName}DataSource',
       fileSystem: fileSystem,
     );
-    if (declared.isEmpty) return;
+    if (declared.isEmpty) {
+      // Never a silent skip: this arm also swallows an interface whose class
+      // no longer matches `${entityName}DataSource` (a renamed class, extra
+      // declarations in the file) — say why the refusal did not arm.
+      if (config.verbose) {
+        print(
+          'ℹ️  No declared members parsed from $interfacePath as '
+          '${entityName}DataSource — the issue #1952 refusal does not arm.',
+        );
+      }
+      return;
+    }
     final planned = DataSourceInterfaceBuilder.plannedMemberNames(config);
     final lost = declared
         .map((member) => member.fieldName)
@@ -205,10 +228,11 @@ class MockBuilder {
     // member names this run's emission would declare; a loss outside the
     // interface vocabulary (a member no generated emission could ever carry)
     // refuses the run. Gated exactly like the interface writer's own force
-    // arm below — data-only/service runs never reach it, enums and
-    // no-CRUD-surface targets return before it (#1037/#1747), a revert run
-    // keeps the revert contract, an interface this run's datasource plugin
-    // already owns stays #1649's, and `--overwrite-interface` is the
+    // arm below — data-only/service runs never reach it, an append run
+    // takes the writer's add-only append branch (nothing is removed), enums
+    // and no-CRUD-surface targets return before it (#1037/#1747), a revert
+    // run keeps the revert contract, an interface this run's datasource
+    // plugin already owns stays #1649's, and `--overwrite-interface` is the
     // explicit opt-in.
     await _refuseLostDeclaredMembers(config);
 
@@ -267,17 +291,8 @@ class MockBuilder {
           config.paramsType != null ||
           config.returnsType != null ||
           config.methods.any(
-            (m) => !const {
-              'get',
-              'getList',
-              'list',
-              'create',
-              'update',
-              'toggle',
-              'delete',
-              'watch',
-              'watchList',
-            }.contains(m),
+            (m) => !DataSourceInterfaceBuilder.interfaceEmissionVocabulary
+                .contains(m),
           );
       final needsConcreteEntity =
           config.generateMockDataOnly ||
