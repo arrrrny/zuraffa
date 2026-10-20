@@ -94,6 +94,35 @@ If your `generate_for` uses include-lists instead of `exclude:` — or nested
 `targets:` keys — add the same `exclude` entry under the builders that
 already select `lib/src/**`.
 
+## Rewrites: a failed build must not keep half-applied rewrites (issue #1953)
+
+A builder can also REWRITE a tracked placeholder instead of deleting it —
+the reported case: `hive_ce_generator`'s registrar flow clobbered a
+hand-curated `lib/src/cache/hive_registrar.dart` (its curated
+`hide DeviceInfo` import lost), and the build then failed at
+`source_gen:combining_builder` — leaving the broken, rewritten file on disk.
+
+`zfa build` covers this too: the snapshot/restore guard tracks
+`hive_registrar.dart` by basename (a generated-name output with no
+generated suffix), and on a FAILED build it restores the exact pre-build
+bytes of every tracked generated-name file the build rewrote — a failed
+build must not keep half-applied rewrites. On a successful build a rewrite
+is a generator legitimately producing its output and is never touched.
+
+The failure output names the exact exclusion that stops the clobber
+recurring — for a suffix-less placeholder, the file itself:
+
+```yaml
+source_gen:combining_builder:
+  generate_for:
+    exclude: [lib/src/cache/hive_registrar.dart]
+```
+
+(and every other builder that emits the output — e.g.
+`hive_ce_generator:hive_registrar_generator` for Hive registrar files).
+For suffixed outputs (`.g.dart`), exclude the owning library, exactly as
+for deletions.
+
 ## Legitimizing a placeholder instead
 
 Exclusions freeze the placeholder as hand-written code. Two alternatives when
@@ -113,6 +142,7 @@ that is not what you want:
 | Symptom | Meaning | Fix |
 | --- | --- | --- |
 | `♻️ Restored … (spec 1540)` on every build | placeholder tracked, not excluded | add both `build.yaml` excludes (above) |
+| `♻️ Restored … REWRITTEN … (issue #1953)` | a builder rewrote a tracked placeholder during a FAILED build (bytes auto-restored) | add the `generate_for.exclude` named in the failure output |
 | `❌ … could not restore … (spec 1540)` | deletion cannot be undone by zfa | `git checkout -- <path>`, inspect what removed the directory |
 | gate message with `git checkout -- <path>` | declared part missing ∧ git-tracked | restore, then add the excludes |
 | `refactor … refused … [1540]` | refactor build pass hit an unrestorable deletion | restore via git, re-run `zfa tdd refactor` |
