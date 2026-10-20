@@ -136,6 +136,13 @@ class GeneratorConfig {
   final bool revert;
   final String outputDir;
 
+  /// Issue #1952: explicit opt-in that lets a `--force` run overwrite an
+  /// EXISTING declared `<Entity>DataSource` interface even when the fresh
+  /// emission would lose members the generator's vocabulary cannot
+  /// reproduce (a hand-authored contract). Default false: such a run is
+  /// refused before the first write, naming the file and the lost members.
+  final bool overwriteInterface;
+
   GeneratorConfig({
     required this.name,
     this.methods = const [],
@@ -216,6 +223,7 @@ class GeneratorConfig {
     this.force = false,
     this.verbose = false,
     this.revert = false,
+    this.overwriteInterface = false,
     required this.outputDir,
   }) : // Whitespace-padded multi-option tokens (`--usecases=login, logout`)
        // are trimmed once here so every downstream derivation (class refs,
@@ -277,6 +285,7 @@ class GeneratorConfig {
           : null,
       enableSqlite: json['sqlite'] == true || json['enable_sqlite'] == true,
       generateMock: json['mock'] == true || json['generate_mock'] == true,
+      overwriteInterface: json['overwrite_interface'] == true,
       engineSlice: json['engine'] == true || json['engine_slice'] == true,
       generateMockDataOnly:
           json['mock_data_only'] == true ||
@@ -418,6 +427,7 @@ class GeneratorConfig {
     bool? force,
     bool? verbose,
     bool? revert,
+    bool? overwriteInterface,
     String? outputDir,
   }) {
     return GeneratorConfig(
@@ -498,6 +508,7 @@ class GeneratorConfig {
       force: force ?? this.force,
       verbose: verbose ?? this.verbose,
       revert: revert ?? this.revert,
+      overwriteInterface: overwriteInterface ?? this.overwriteInterface,
       outputDir: outputDir ?? this.outputDir,
     );
   }
@@ -759,6 +770,7 @@ class GeneratorConfig {
     'sync_backoff_base_ms': syncBackoffBaseMs,
     'sync_backoff_max_ms': syncBackoffMaxMs,
     'mock': generateMock,
+    'overwrite_interface': overwriteInterface,
     'engine_slice': engineSlice,
     'mock_data_only': generateMockDataOnly,
     'mock_json': generateMockJson,
