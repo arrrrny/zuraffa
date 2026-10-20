@@ -673,6 +673,19 @@ class RunSkinCommand extends Command<void> {
       '${matchedEdit.isEmpty ? "NONE — no _XRaySkinHandEdit(behavior: \"$id\", file: \"$subjectRel\", logged_at: \"<ISO-8601>\") in the subject" : "logged_at ${matchedEdit.first.loggedAt}"}',
     );
 
+    // -- (c-pre) issue #1924: refusals that must take NO subject
+    // mutation happen BEFORE any byte is written. The #1005 annotation
+    // check is one of them: a missing/invalid hand-edit annotation
+    // refuses the run without touching the subject.
+    if (matchedEdit.isEmpty) {
+      refuse(
+        'hand-edit missing — the subject carries no valid '
+        '_XRaySkinHandEdit annotation (issue #1005 refusal)',
+      );
+      onRedWitnessFailure();
+      return _refused(record, subjectRel, testRel);
+    }
+
     // -- (c) the red witness: stub-revert -> RED -> restore -> GREEN ---
     final testName = record.plainTestName;
     final runner = const SingleTestRunner();
@@ -704,8 +717,14 @@ class RunSkinCommand extends Command<void> {
           'boots',
         );
       } else {
+        // Issue #1924: keep a copy of the pre-run subject BEFORE any
+        // mutation, so a failed restore can never silently destroy the
+        // hand-written bytes. Left on disk on non-conformant runs.
+        final backupFile = File('$subjectAbs.runskin.bak');
+        await backupFile.writeAsBytes(subjectBytes, flush: true);
+
         // RED: the inert stub must fail the paired test.
-        await subjectFile.writeAsString(stubbed);
+        await subjectFile.writeAsString(stubbed, flush: true);
         try {
           final redRun = await runner.runSingle(
             singleTemplate: singleTemplate,
@@ -739,25 +758,44 @@ class RunSkinCommand extends Command<void> {
           }
         } finally {
           // RESTORE: byte-exact — even when the run misfired or threw.
-          await subjectFile.writeAsBytes(subjectBytes);
+          await subjectFile.writeAsBytes(subjectBytes, flush: true);
         }
         final postSha = crypto.sha256
             .convert(await subjectFile.readAsBytes())
             .toString();
         if (postSha != preSha) {
-          refuse(
-            'restore verification failed — the hand-written bytes '
-            'changed during the red witness',
+          // Issue #1924: the in-memory restore did not land on disk —
+          // retry from the backup copy before giving up, and say so loudly.
+          try {
+            final backupFile = File('$subjectAbs.runskin.bak');
+            if (await backupFile.exists()) {
+              await subjectFile.writeAsBytes(
+                await backupFile.readAsBytes(),
+                flush: true,
+              );
+            }
+          } catch (_) {
+            // best effort; the loud message below covers it
+          }
+          final retrySha = crypto.sha256
+              .convert(await subjectFile.readAsBytes())
+              .toString();
+          if (retrySha != preSha) {
+            refuse(
+              'restore verification failed — the hand-written bytes '
+              'changed during the red witness; a copy of the pre-run '
+              'subject is at $subjectAbs.runskin.bak',
+            );
+            onRedWitnessFailure();
+            return _refused(record, subjectRel, testRel);
+          }
+          print(
+            '      restored: byte-exact (sha256 verified) — recovered '
+            'from backup',
           );
-          onRedWitnessFailure();
-          return _refused(
-            record,
-            subjectRel,
-            testRel,
-            nonConformanceReason: 'no-hand-edit-diff',
-          );
+        } else {
+          print('      restored: byte-exact (sha256 verified)');
         }
-        print('      restored: byte-exact (sha256 verified)');
 
         // GREEN: the restored hand-written view must pass.
         final greenRun = await runner.runSingle(
@@ -834,6 +872,14 @@ class RunSkinCommand extends Command<void> {
 
     if (conformance) {
       print('      conformance: true');
+      // Issue #1924: a conformant run restored byte-exact — the backup
+      // copy is no longer needed; remove it so it does not linger.
+      try {
+        final backupFile = File('$subjectAbs.runskin.bak');
+        if (await backupFile.exists()) await backupFile.delete();
+      } catch (_) {
+        // best effort
+      }
     }
 
     return SkinReceipt(
