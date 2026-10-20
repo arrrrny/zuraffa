@@ -210,8 +210,25 @@ abstract final class MockCertificationService {
     // requireMock, kept for callers that use the review's suggested name).
     // requireArtifacts only gates the mock absence (the #1894 regression
     // surface); the interface refusal stays governed by requireInterface.
-    final requireMockFile = requireMock && (requireArtifacts ?? true);
-    final requireInterfaceFile = requireInterface;
+    //
+    // Issue #1951: the fixture-only classification (an enum or CRUD-less
+    // type, #1887/#1037/#1747) must be known BEFORE the refusals below —
+    // the #1894 interface refusal fired first, and since the generator
+    // deliberately never emits a CRUD datasource surface for such an
+    // entity, every enum `mock create` (certify flag or not — this service
+    // runs for every non-dry-run generation) refused on an artifact that
+    // is absent by design. The probe resolves through the same root the
+    // file checks use, so a caller whose outputDir is project-relative
+    // and whose projectRoot is not the cwd still probes the target tree.
+    final entityTree = _absolute(root, outputDir);
+    final fixtureOnly =
+        EntityAnalyzer.isEnum(entity, entityTree) ||
+        (service == null &&
+            EntityAnalyzer.lacksCrudSurface(entity, entityTree) &&
+            !EntityAnalyzer.hasDeclaredDataSourceInterface(entity, entityTree));
+    final requireMockFile =
+        requireMock && (requireArtifacts ?? true) && !fixtureOnly;
+    final requireInterfaceFile = requireInterface && !fixtureOnly;
 
     // Same config the generation run used, so every path getter below
     // resolves EXACTLY like the builders resolved during generation.
@@ -458,14 +475,10 @@ abstract final class MockCertificationService {
       missingMethods: missing,
       inventedMethods: invented,
       signatureMismatches: sigMismatches,
-      fixtureOnly:
-          EntityAnalyzer.isEnum(entity, outputDir) ||
-          (service == null &&
-              EntityAnalyzer.lacksCrudSurface(entity, outputDir) &&
-              !EntityAnalyzer.hasDeclaredDataSourceInterface(
-                entity,
-                outputDir,
-              )),
+      // Issue #1951: the classification computed before the refusals —
+      // the same predicate, not a recomputation that could drift from the
+      // decision the refusals already acted on.
+      fixtureOnly: fixtureOnly,
       fixtures: fixtures,
     );
   }

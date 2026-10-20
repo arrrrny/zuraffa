@@ -8,6 +8,7 @@ import '../core/verdict_envelope.dart';
 import '../models/generated_file.dart';
 import '../plugins/mock/mock_plugin.dart';
 import '../plugins/mock/services/mock_certification.dart';
+import '../utils/entity_analyzer.dart';
 import '../utils/string_utils.dart';
 
 /// SPEC 1121 (issue #1121, order 1) — `zfa mock verify <Entity>`.
@@ -147,6 +148,63 @@ class MockVerifyCommand extends Command<void> {
       'mock',
       '${entitySnake}_mock_data.dart',
     );
+
+    // ── Fixture-only entities (#1951): an enum / CRUD-less type has no
+    //    datasource interface or mock datasource on disk BY DESIGN — the
+    //    generator skips that surface (#1037/#1747, the #1887 outcome).
+    //    The missing-file refusals below must not fire for it: report the
+    //    same fixture-only green `mock create <Enum> --certify` records.
+    //    The probe resolves through [root], the tree the artifact checks
+    //    below read, so --project keeps working.
+    final entityTree = p.join(root, plugin.outputDir);
+    final fixtureOnly =
+        EntityAnalyzer.isEnum(entity, entityTree) ||
+        (EntityAnalyzer.lacksCrudSurface(entity, entityTree) &&
+            !EntityAnalyzer.hasDeclaredDataSourceInterface(entity, entityTree));
+    if (fixtureOnly) {
+      if (!File(p.join(root, mockDataPath)).existsSync()) {
+        _refuse(
+          jsonMode: jsonMode,
+          entity: entity,
+          kind: 'missing_file',
+          message: 'no mock data found for $entity ($mockDataPath)',
+          fix:
+              'generate it first — `zfa mock create $entity` '
+              '(a fixture-only entity has no datasource surface to verify)',
+          code: ExitProtocol.failure,
+          member: '${entity}MockData',
+          file: mockDataPath,
+        );
+        return;
+      }
+      if (jsonMode) {
+        VerdictEnvelope.emit(
+          VerdictEnvelope(
+            command: 'zfa mock verify $entity',
+            verdict: VerdictKind.pass,
+            exitClass: ExitProtocol.success,
+            subject: VerdictSubject(kind: 'mock', id: entity),
+            findings: const [],
+            drifts: const [],
+            details: {'entity': entity, 'readOnly': true, 'fixtureOnly': true},
+          ),
+        );
+      } else {
+        // ignore: avoid_print
+        print(
+          'ℹ️  $entity: fixture-only entity (enum / CRUD-less) — mock data '
+          'present; no datasource surface to certify '
+          '(issues #1037/#1747).',
+        );
+        // ignore: avoid_print
+        print(
+          '✅ verified: nothing to prove — the fixture surface is the '
+          'contract.',
+        );
+      }
+      exitCode = ExitProtocol.success;
+      return;
+    }
 
     if (!File(p.join(root, mockPath)).existsSync()) {
       _refuse(
