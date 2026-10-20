@@ -316,10 +316,17 @@ class CreateMockCapability implements ZuraffaCapability {
       final reason = outcome.logs.isNotEmpty
           ? outcome.logs.join('\n')
           : 'contract test did not prove every method satisfied';
-      stdout.writeln(
-        '❌ mock certification for $name failed — unsatisfied: '
-        '${unsatisfied.join(', ')}',
-      );
+      // Issue #1898 (secondary): a missing datasource is not an unsatisfied
+      // *method*, so printing an empty `unsatisfied:` line is vacuous and
+      // misleading. Only emit the per-method line when there actually are
+      // unsatisfied methods; otherwise the logs (already surfaced via the
+      // CLI's error message) carry the diagnosis.
+      if (unsatisfied.isNotEmpty) {
+        stdout.writeln(
+          '❌ mock certification for $name failed — unsatisfied: '
+          '${unsatisfied.join(', ')}',
+        );
+      }
       return ExecutionResult(
         success: false,
         message: 'mock certification failed for $name: $reason',
