@@ -68,6 +68,17 @@ class CreateMockCapability implements ZuraffaCapability {
         'description': 'Force overwrite existing files',
         'default': false,
       },
+      // Issue #1952: an existing declared <Entity>DataSource interface is a
+      // contract — a --force run that would remove members the generator
+      // cannot re-emit is refused. This flag is the explicit opt-in that
+      // allows the destructive interface overwrite anyway.
+      'overwriteInterface': {
+        'type': 'boolean',
+        'description':
+            'Allow --force to overwrite a hand-authored <Entity>DataSource '
+            'interface (otherwise refused naming the lost members)',
+        'default': false,
+      },
       'verbose': {
         'type': 'boolean',
         'description': 'Enable verbose logging',
@@ -423,6 +434,9 @@ class CreateMockCapability implements ZuraffaCapability {
       dryRun: dryRun,
       force: force,
       verbose: verbose,
+      // Issue #1952: the explicit opt-in that lets a force run overwrite a
+      // hand-authored datasource interface.
+      overwriteInterface: args['overwriteInterface'] == true,
       // Spec 1110: the --fail preset — the throwing twin of the
       // certified mock.
       failMock: args['fail'] == true,
