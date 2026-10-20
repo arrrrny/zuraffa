@@ -22,19 +22,19 @@ literal as the anchor, never a pinned EN literal.
 2. **Given** invalid credentials **When** the login attempt fails **Then** the error is reported to the caller
    **Type**: acceptance
 
-3. **Given** the login view **When** it renders **Then** the app shows 'Sign in'
+3. **Given** the login view **When** it renders **Then** the login state exposes the auth.signIn surface
    **Type**: acceptance
 
 4. **Given** a completed sign-in **When** the user signs in **Then** the app navigates to the route 'deal_list'
    **Type**: acceptance
 
-5. **Given** a fresh login view **When** no sign-in attempt has failed **Then** the 'Sign in failed' banner is not shown
+5. **Given** a fresh login view **When** no sign-in attempt has failed **Then** the login state exposes no auth.error surface
    **Type**: acceptance
 
 6. **Given** an empty form **When** validation runs **Then** the 'Sign in' button is disabled
    **Type**: acceptance
 
-7. **Given** a submitted form **Then** while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list'
+7. **Given** a submitted form **Then** while the sign-in request is in flight the login state exposes the auth.working surface, and then the app navigates to the route 'deal_list'
    **Type**: acceptance
 
 ## Functional Requirements

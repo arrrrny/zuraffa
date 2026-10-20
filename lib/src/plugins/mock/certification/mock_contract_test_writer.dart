@@ -420,24 +420,29 @@ class MockContractTestWriter {
       // Behavioral invocations may await — the test closure must be
       // async for them.
       final asyncMarker = invocation == null ? '' : ' async';
+      // The signature pin: compiles only while the interface keeps this
+      // member with this exact signature, and only while the mock —
+      // viewed through the interface — still satisfies it. A getter is a
+      // value, not a function, so its pin is the declared type directly
+      // (issue #1911 review: `Function(...)` on a getter does not
+      // compile).
+      final pin = method.isGetter
+          ? '      final ${method.returnType} ${_safeLocal(method.name)}\$ =\n'
+                '          dataSource.${method.name};'
+          : '      final ${method.returnType} Function('
+                '${method.isZeroArg ? '' : method.paramsType}) ${_safeLocal(method.name)}\$ =\n'
+                '          dataSource.${method.name};';
       buffer
         ..writeln()
         ..writeln(
           "    test('${method.name}: exists, returns ${method.returnType}, "
           'fake with typed defaults\', ()$asyncMarker {',
         )
-        // The signature pin: compiles only while the interface keeps this
-        // member with this exact signature, and only while the mock —
-        // viewed through the interface — still satisfies it.
         ..writeln(
           '      // Signature pin — interface drift breaks this '
           'file.',
         )
-        ..writeln(
-          '      final ${method.returnType} Function('
-          '${method.isZeroArg ? '' : method.paramsType}) ${_safeLocal(method.name)}\$ =\n'
-          '          dataSource.${method.name};',
-        )
+        ..writeln(pin)
         ..writeln('      expect(${_safeLocal(method.name)}\$, isNotNull);');
       if (invocation != null) {
         buffer
@@ -475,6 +480,19 @@ class MockContractTestWriter {
     required ContractMethod method,
     required String outputDir,
   }) {
+    // Getters are values, not functions: type-check the value itself
+    // (streams: the first emitted element) instead of invoking the member
+    // with arguments (issue #1911 review).
+    if (method.isGetter) {
+      final ret = method.returnType;
+      if (ret.startsWith('Stream<')) {
+        final inner = _unwrapAsync(ret);
+        return 'final value = await dataSource.${method.name}.first;\n'
+            '      expect(value, isA<$inner>());';
+      }
+      return 'final value = dataSource.${method.name};\n'
+          '      expect(value, isA<$ret>());';
+    }
     final params = _defaultParamsExpr(
       entityName: entityName,
       paramsType: method.paramsType,
@@ -615,7 +633,9 @@ class MockContractTestWriter {
     final fields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
     final idField = _idFieldName(entityName, outputDir);
     if (idField == null || !fields.containsKey(idField)) return null;
-    final collection = '${StringUtils.pascalToCamel(entityName)}s';
+    final collection = StringUtils.pluralize(
+      StringUtils.pascalToCamel(entityName),
+    );
     return '${entityName}MockData.$collection.first.$idField';
   }
 

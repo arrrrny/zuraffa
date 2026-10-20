@@ -10,11 +10,11 @@ One per acceptance criterion in `spec.md`.
 | -- | -------- | ------ | ----- |
 | A1 | the session starts with the authenticated user | AC-1 | PENDING |
 | A2 | the error is reported to the caller | AC-2 | PENDING |
-| A3 | the app shows 'Sign in' | AC-3 | PENDING |
+| A3 | the login state exposes the auth.signIn surface | AC-3 | PENDING |
 | A4 | the app navigates to the route 'deal_list' | AC-4 | PENDING |
-| A5 | the 'Sign in failed' banner is not shown | AC-5 | PENDING |
+| A5 | the login state exposes no auth.error surface | AC-5 | PENDING |
 | A6 | the 'Sign in' button is disabled | AC-6 | PENDING |
-| A7 | while the sign-in request is in flight the app shows 'Signing in…' and then the app navigates to the route 'deal_list' | AC-7 | PENDING |
+| A7 | while the sign-in request is in flight the login state exposes the auth.working surface, and then the app navigates to the route 'deal_list' | AC-7 | PENDING |
 
 ## Inner loop: unit behaviors
 
@@ -50,13 +50,13 @@ Per-behavior routing decisions (issue #951): what each decision consulted — a 
 
 route: A1 -> acceptance lane [declared: type marker, spec line 20]
 route: A2 -> acceptance lane [declared: type marker, spec line 23]
-route: U1 -> unit lane (view generation) [declared: contract row: adaptive_layouts, spec line 103]
-route: U2 -> unit lane (func surface) [declared: contract row: LoginValidation, spec line 69]
 route: A3 -> acceptance lane [declared: type marker, spec line 26]
 route: A4 -> acceptance lane [declared: type marker, spec line 29]
 route: A5 -> acceptance lane [declared: type marker, spec line 32]
 route: A6 -> acceptance lane [declared: type marker, spec line 35]
 route: A7 -> acceptance lane [declared: type marker, spec line 38]
+route: U1 -> unit lane (view generation) [declared: contract row: adaptive_layouts, spec line 103]
+route: U2 -> unit lane (func surface) [declared: contract row: LoginValidation, spec line 69]
 route: contract:A1 -> contract lane [declared: LoginValidation]
 
 

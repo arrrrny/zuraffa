@@ -3,8 +3,8 @@
   "split_at": "2026-10-18T13:10:29.085776Z",
   "source": "tdd/test-list.md",
   "rows": 11,
-  "spec_hash": "f7f14b11a6b00114b8b2fd00f209a997b37a8ef1f7d3b2a6b460038fe3426099",
-  "spec_mtime": "2026-10-18T13:07:54.924729Z",
+  "spec_hash": "d643365ccc12fa092d49005487588b9ef6c8cd1fbec3cb4beca6d731906c3122",
+  "spec_mtime": "2026-10-19T15:10:59.107002Z",
   "classification": {
     "A1": "CORE",
     "A2": "CORE",
@@ -44,5 +44,8 @@
     "tdd/04-CONTRACT.md",
     "tdd/test-list.md (meta-index)"
   ],
-  "engine_flutter_references": 0
+  "engine_flutter_references": 0,
+  "refreshed_at": "2026-10-19T15:14:14.162208Z",
+  "refreshed_by": "zfa tdd plan",
+  "refreshed_rows": 11
 }

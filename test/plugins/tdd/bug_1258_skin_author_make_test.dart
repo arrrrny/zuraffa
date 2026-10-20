@@ -36,12 +36,14 @@ List<String> makeArgs(
   String? feature,
   bool author = false,
   String? findersFile,
+  String? timeout,
 }) {
   final args = <String>['tdd', 'make', '--project', fx.root.path];
   if (feature != null) args.addAll(['--feature', feature]);
   if (zfaBin != null) args.addAll(['--zfa-bin', zfaBin]);
   if (author) args.add('--author');
   if (findersFile != null) args.addAll(['--finders-file', findersFile]);
+  if (timeout != null) args.addAll(['--timeout', timeout]);
   if (id != null) args.add(id);
   return args;
 }
@@ -369,6 +371,11 @@ int ${_subjectSymbol}_value() => 0;
           zfaBin: zfaBin,
           author: true,
           findersFile: findersFile,
+          // Issue #1921: the re-certification spawns a real `dart test`
+          // child; the 2-minute default SIGKILLs it on a loaded host and
+          // turns the honest red into runner-error. Pin a deadline that
+          // covers a cold child under load.
+          timeout: '10',
         ),
       );
 
@@ -431,6 +438,58 @@ int ${_subjectSymbol}_value() => 0;
       );
     });
 
+    test(
+      'U1b: an authored-red re-certification TIMEOUT is reported as an '
+      'infrastructure deadline, never blamed on the supplied finders',
+      () async {
+        await seedScaffoldedDeadEnd();
+        final findersFile = await writeAuthorFinders(
+          'expect(${_subjectSymbol}_value(), equals(42));',
+        );
+        final before = await File(fx.testPathOf(_behaviorId)).readAsString();
+        final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(
+          makeArgs(
+            fx,
+            id: _behaviorId,
+            zfaBin: zfaBin,
+            author: true,
+            findersFile: findersFile,
+            // Issue #1921: 0.005 min = 300 ms — far below any `dart test`
+            // cold start, so the re-certification child is deterministically
+            // killed by the deadline (the loaded-host flake, forced).
+            timeout: '0.005',
+          ),
+        );
+
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
+        // The deadline fired and is named as infrastructure, not a finding
+        // about the author's finders.
+        expect(out, contains('TIMED OUT'), reason: out);
+        expect(out, contains('infrastructure'), reason: out);
+        expect(out, contains('--timeout'), reason: out);
+        expect(
+          out,
+          isNot(contains('supply scenario-failing concrete finders')),
+          reason: out,
+        );
+        expect(out, contains('outcome=timeout'), reason: out);
+        // Nothing changed: the scaffolded bytes are restored.
+        expect(
+          await File(fx.testPathOf(_behaviorId)).readAsString(),
+          equals(before),
+        );
+        expect(
+          File(
+            p.join(fx.featureDir, 'tdd', 'provenance-ledger.json'),
+          ).existsSync(),
+          isFalse,
+        );
+      },
+    );
+
     test('U2: without --author the refusal stands and the test tree is '
         'untouched (backward compatibility)', () async {
       await seedScaffoldedDeadEnd();
@@ -476,6 +535,9 @@ int ${_subjectSymbol}_value() => 0;
             zfaBin: zfaBin,
             author: true,
             findersFile: findersFile,
+            // Same real-child deadline as U1 (issue #1921): a loaded host
+            // must not turn this certification into runner-error.
+            timeout: '10',
           ),
         );
 

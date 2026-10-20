@@ -151,7 +151,8 @@ class CertifyMockCapability implements ZuraffaCapability {
     final fixtureOnly =
         EntityAnalyzer.isEnum(name, outputDir) ||
         (parsed.service == null &&
-            EntityAnalyzer.lacksCrudSurface(name, outputDir));
+            EntityAnalyzer.lacksCrudSurface(name, outputDir) &&
+            !EntityAnalyzer.hasDeclaredDataSourceInterface(name, outputDir));
     if (fixtureOnly) {
       stdout.writeln(
         'ℹ️  $name: mock data generated; no datasource surface to '

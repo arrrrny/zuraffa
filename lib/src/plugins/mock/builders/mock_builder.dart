@@ -138,7 +138,7 @@ class MockBuilder {
           outputDir,
           fileSystem: fileSystem,
         )) {
-      MockDataSourceBuilder.validateMemberShapes(config);
+      MockDataSourceBuilder.validateMemberShapes(config, fileSystem: fileSystem);
     }
 
     final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
@@ -282,6 +282,11 @@ class MockBuilder {
         // vocabulary) keeps the datasource/mock-datasource path open, so
         // the #1787 arm is reachable on a non-CRUD entity.
         if (EntityAnalyzer.lacksCrudSurface(
+              targetEntity,
+              outputDir,
+              fileSystem: fileSystem,
+            ) &&
+            !EntityAnalyzer.hasDeclaredDataSourceInterface(
               targetEntity,
               outputDir,
               fileSystem: fileSystem,

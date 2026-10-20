@@ -11,6 +11,7 @@ import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/method_extractor.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/method_shape_parser.dart';
 import '../../../utils/project_flavor.dart';
@@ -292,8 +293,21 @@ class MockDataSourceBuilder {
       );
     }
 
-    methods.addAll(_generateMockDataSourceMethods(config));
-
+    // Issue #1880: resolve arbitrary (non-CRUD) verbs against the declared
+    // interface so the emitted mock's signatures match what the interface
+    // (and the contract test) pin. Without this, non-CRUD verbs fall back to
+    // the generic template (Future<void> + QueryParams<T>) and contradict
+    // the contract test in the same run.
+    final interfaceMembers = await _loadInterfaceMembers(
+      entityName,
+      entitySnake,
+    );
+    methods.addAll(
+      _generateMockDataSourceMethods(
+        config,
+        interfaceMembers: interfaceMembers,
+      ),
+    );
     if ((config.appendToExisting || shapeDrift) && fileExists) {
       final existing = await fileSystem.read(filePath);
       var updated = existing;
@@ -305,6 +319,18 @@ class MockDataSourceBuilder {
       }
       if (config.returnsType != null && config.returnsType != 'void') {
         entities.addAll(EntityUtils.extractEntityTypes(config.returnsType!));
+      }
+      // Issue #1923: a repaired member may declare types this run's config
+      // does not (the shape-drift case — the member came from the
+      // interface). Import them too, or the synthesized foreign-entity
+      // body references an unresolved type.
+      for (final member in missingInterfaceMembers) {
+        if (member.paramsType != null && member.paramsType != 'NoParams') {
+          entities.addAll(EntityUtils.extractEntityTypes(member.paramsType!));
+        }
+        if (member.returnsType != null && member.returnsType != 'void') {
+          entities.addAll(EntityUtils.extractEntityTypes(member.returnsType!));
+        }
       }
       final targetEntity = config.isCustomUseCase && config.returnsType != null
           ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
@@ -378,7 +404,20 @@ class MockDataSourceBuilder {
           entityName: entityName,
           member: member,
         );
-        if (method == null) continue;
+        // Issue #1911 review (shape-drift repair path): a null result means
+        // the interface member has a shape the synthesizer cannot honestly
+        // reproduce. Silently skipping leaves the mock still missing that
+        // member, so the build then fails with
+        // `non_abstract_class_inherits_abstract_member` with no diagnostic.
+        // Refuse loudly, consistent with the configured-method paths above.
+        if (method == null) {
+          throw ArgumentError(
+            'cannot repair ${entityName}MockDataSource.${member.fieldName}: '
+            'the ${entityName}DataSource declaration '
+            '(${member.parameterCount} parameter(s), returns '
+            '${member.returnsType}) cannot be synthesized',
+          );
+        }
         final request = AppendRequest.method(
           source: updated,
           className: '${entityName}MockDataSource',
@@ -462,28 +501,58 @@ class MockDataSourceBuilder {
   /// Future.value / Stream.fromFuture.
   ///
   /// The signature mirrors the interface declaration: no `params`
-  /// argument when the member declares none, and a getter body when the
+  /// argument when the member declares none, a getter body when the
   /// interface member is a getter (issue #1570 review — an always-required
   /// `params` is `invalid_override` for `dispose()` and
-  /// `conflicting_method_and_field` for `Stream<bool> get isInitialized`).
+  /// `conflicting_method_and_field` for `Stream<bool> get isInitialized`),
+  /// and a non-`Future` body when the member is declared synchronous
+  /// (issue #1911 review).
   /// The stream body's delayed future is typed `Future<$returns>` so
   /// `Stream.fromFuture` yields `Stream<T>` (a `Future<void>` yields
   /// `Stream<void>` and fails `argument_type_not_assignable`).
   ///
-  /// Returns null for shapes this lane cannot honestly implement: the
-  /// only getter shape the interface writer emits is the `--init`
-  /// `Stream<bool> get isInitialized`; any other getter is left to the
-  /// certification gate's report instead of fabricating a body.
+  /// Returns null for shapes this lane cannot honestly implement. Only
+  /// the `--init` getter (`Stream<bool> get isInitialized`) has a getter
+  /// body; a member with more than one parameter cannot be mirrored
+  /// because the extractor carries only the first parameter's type; and a
+  /// return type with no compatible fixture (issue #1911 review: returning
+  /// `sample$entityName` under `Future<bool>` is `return_of_invalid_type`).
   Method? _mockMethodImplForMissingMember({
     required String entityName,
     required ParsedUseCaseInfo member,
   }) {
     final returns = member.returnsType ?? 'void';
     final baseReturns = returns.replaceAll('?', '');
-    final isList = baseReturns.startsWith('List<');
     final isStream = member.useCaseType == 'stream';
+    final isSync = member.useCaseType == 'sync';
     final isVoid = baseReturns == 'void' || baseReturns == 'dynamic';
+    final isList = baseReturns.startsWith('List<');
     final paramsType = member.paramsType ?? 'NoParams';
+    // Issue #1923: a missing foreign-entity member whose entity wraps
+    // `List<$entityName>` is derivable from the subject fixture — repair it
+    // with the same honest paged read the create path emits, instead of the
+    // single-entity sample (a wrong-type body).
+    // Issue #1936 review (nitpick): the foreign-page body references
+    // `params.offset`/`params.limit`, so derivation is only valid when the
+    // member actually declares a params argument. A params-less member (or a
+    // stream member that would capture an undeclared `params`) keeps the
+    // #1850 refusal instead of emitting non-compiling code.
+    final foreignPage = !isList &&
+            !isVoid &&
+            baseReturns != entityName &&
+            member.parameterCount > 0
+        ? _deriveForeignPageShape(
+            entityName: entityName,
+            foreignType: baseReturns,
+            paramsType: paramsType,
+          )
+        : null;
+
+    // Issue #1911 review: `ParsedUseCaseInfo` carries only the FIRST
+    // parameter type, so a multi-parameter declaration cannot be mirrored
+    // faithfully. Emitting one `params` argument would still be
+    // `invalid_override`; refuse the shape instead.
+    if (member.parameterCount > 1) return null;
 
     if (member.isGetter) {
       if (!isStream || baseReturns != 'bool') return null;
@@ -500,6 +569,30 @@ class MockDataSourceBuilder {
       );
     }
 
+    // The value expression must be assignable to the DECLARED return
+    // type — an entity sample under a scalar return does not compile
+    // (issue #1911 review). Null means "no honest fixture".
+    final value = isVoid ? null : _synthesizedValue(entityName, baseReturns);
+    if (!isVoid && foreignPage == null && value == null) return null;
+
+    if (isSync) {
+      // A synchronous member must stay synchronous: wrapping it in
+      // `Future<>` is `invalid_override`.
+      return Method(
+        (m) => m
+          ..name = member.fieldName
+          ..returns = refer(returns)
+          ..annotations.add(refer('override'))
+          ..requiredParameters.addAll(_synthesizedParams(member, paramsType))
+          ..body = Block(
+            (b) => b
+              ..statements.addAll([
+                if (value != null) value.returned.statement,
+              ]),
+          ),
+      );
+    }
+
     final returnType = isStream ? 'Stream<$returns>' : 'Future<$returns>';
 
     final futureBody = Block(
@@ -511,16 +604,16 @@ class MockDataSourceBuilder {
           refer(
             'Future',
           ).property('delayed').call([refer('_delay')]).awaited.statement,
-          if (isList) ...[
-            refer(
-              '${entityName}MockData',
-            ).property('sampleList').returned.statement,
-          ] else if (isVoid) ...[
+          if (isVoid) ...[
             refer('Future').property('value').call([]).returned.statement,
-          ] else ...[
-            refer(
-              '${entityName}MockData',
-            ).property('sample$entityName').returned.statement,
+          ] else if (foreignPage != null)
+            ..._foreignPageStatements(
+              entityName: entityName,
+              foreignType: baseReturns,
+              shape: foreignPage,
+            )
+          else ...[
+            value!.returned.statement,
           ],
         ]),
     );
@@ -535,18 +628,21 @@ class MockDataSourceBuilder {
                   refer('_delay'),
                   Method(
                     (mm) => mm
-                      ..lambda = true
-                      ..body = isList
-                          ? refer(
-                              '${entityName}MockData',
-                            ).property('sampleList').code
+                      ..lambda = foreignPage == null
+                      ..body = foreignPage != null
+                          ? Block(
+                              (bb) => bb
+                                ..statements.addAll(
+                                  _foreignPageStatements(
+                                    entityName: entityName,
+                                    foreignType: baseReturns,
+                                    shape: foreignPage,
+                                  ),
+                                ),
+                            )
                           : (isVoid
-                                ? refer(
-                                    'Future',
-                                  ).property('value').call([]).code
-                                : refer(
-                                    '${entityName}MockData',
-                                  ).property('sample$entityName').code),
+                                ? refer('Future').property('value').call([]).code
+                                : value!.code),
                   ).closure,
                 ]),
               ])
@@ -561,23 +657,165 @@ class MockDataSourceBuilder {
         ..returns = refer(returnType)
         ..annotations.add(refer('override'))
         ..modifier = isStream ? null : MethodModifier.async
-        ..requiredParameters.addAll(
-          member.parameterCount == 0
-              ? const []
-              : [
-                  Parameter(
-                    (p) => p
-                      ..name = 'params'
-                      ..type = refer(paramsType),
-                  ),
-                ],
-        )
+        ..requiredParameters.addAll(_synthesizedParams(member, paramsType))
         ..body = isStream ? streamBody : futureBody,
     );
   }
 
+  /// The parameter list an interface member declares, as far as the
+  /// extractor carries it: zero parameters stay zero-arg, one mirrors the
+  /// declared type.
+  List<Parameter> _synthesizedParams(
+    ParsedUseCaseInfo member,
+    String paramsType,
+  ) {
+    if (member.parameterCount == 0) return const [];
+    return [
+      Parameter(
+        (p) => p
+          ..name = 'params'
+          ..type = refer(paramsType),
+      ),
+    ];
+  }
+
+  /// A fixture expression assignable to [baseReturns], or null when the
+  /// shape has no honest fixture (issue #1911 review).
+  Expression? _synthesizedValue(String entityName, String baseReturns) {
+    if (baseReturns.startsWith('List<') && baseReturns.endsWith('>')) {
+      return baseReturns == 'List<$entityName>'
+          ? refer('${entityName}MockData').property('sampleList')
+          // An empty literal is assignable to any `List<T>`.
+          : literalList([]);
+    }
+    if (baseReturns == entityName) {
+      return refer('${entityName}MockData').property('sample$entityName');
+    }
+    const primitives = {'String', 'int', 'double', 'bool', 'DateTime'};
+    return primitives.contains(baseReturns)
+        ? _primitiveValue(baseReturns)
+        : null;
+  }
+
   static (String, String?, String?) _parseMethodShape(String token) =>
       MethodShapeParser.parseMethodShape(token);
+
+  Future<List<ParsedUseCaseInfo>> _loadInterfaceMembers(
+    String entityName,
+    String entitySnake,
+  ) async {
+    final interfacePath =
+        '$outputDir/data/datasources/$entitySnake/${entitySnake}_datasource.dart';
+    if (!await fileSystem.exists(interfacePath)) return const [];
+    try {
+      return await MethodExtractor.extractMethodsFromInterface(
+        interfacePath,
+        '${entityName}DataSource',
+        fileSystem: fileSystem,
+      );
+    } catch (error) {
+      // Degrading to the template path is exactly the invalid_override
+      // this lane exists to prevent, so the fallback is never silent
+      // (issue #1911 review).
+      if (options.verbose) {
+        print(
+          '⚠️ Could not parse ${entityName}DataSource for mock signature '
+          'resolution: $error',
+        );
+      }
+      return const [];
+    }
+  }
+
+  bool _crudTemplateMatches(
+    String method,
+    String entityName,
+    GeneratorConfig config,
+    ParsedUseCaseInfo member,
+  ) {
+    const crudVerbs = {
+      'get',
+      'getList',
+      'list',
+      'create',
+      'update',
+      'toggle',
+      'delete',
+      'watch',
+      'watchList',
+    };
+    if (!crudVerbs.contains(method)) return false;
+    // The CRUD templates all declare exactly one parameter.
+    if (member.parameterCount != 1) return false;
+
+    String expectedReturns;
+    String expectedUseCase;
+    String expectedParamsType;
+    switch (method) {
+      case 'get':
+        expectedReturns = entityName;
+        expectedUseCase = 'usecase';
+        expectedParamsType = 'QueryParams<$entityName>';
+        break;
+      case 'getList':
+        expectedReturns = 'List<$entityName>';
+        expectedUseCase = 'usecase';
+        expectedParamsType = 'ListQueryParams<$entityName>';
+        break;
+      case 'list':
+        expectedReturns = 'List<$entityName>';
+        expectedUseCase = 'usecase';
+        expectedParamsType = 'NoParams';
+        break;
+      case 'create':
+        expectedReturns = entityName;
+        expectedUseCase = 'usecase';
+        expectedParamsType = entityName;
+        break;
+      case 'update':
+        expectedReturns = entityName;
+        expectedUseCase = 'usecase';
+        // Issue #1911 review: compare the COMPLETE type. A prefix check
+        // accepted `UpdateParams<int, TaskPatch>` against a String-id
+        // config and then emitted the config's type, contradicting the
+        // interface.
+        expectedParamsType =
+            'UpdateParams<${config.idFieldType}, ${entityName}Patch>';
+        break;
+      case 'toggle':
+        expectedReturns = entityName;
+        expectedUseCase = 'usecase';
+        expectedParamsType =
+            'ToggleParams<${config.idFieldType}, '
+            'Field<$entityName, dynamic>>';
+        break;
+      case 'delete':
+        expectedReturns = 'void';
+        expectedUseCase = 'completable';
+        expectedParamsType = 'DeleteParams<${config.idFieldType}>';
+        break;
+      case 'watch':
+        expectedReturns = entityName;
+        expectedUseCase = 'stream';
+        expectedParamsType = 'QueryParams<$entityName>';
+        break;
+      case 'watchList':
+        expectedReturns = 'List<$entityName>';
+        expectedUseCase = 'stream';
+        expectedParamsType = 'ListQueryParams<$entityName>';
+        break;
+      default:
+        return false;
+    }
+
+    if (member.returnsType != expectedReturns) return false;
+    if (member.useCaseType != expectedUseCase) return false;
+    final paramsType = member.paramsType ?? 'NoParams';
+    if (paramsType.trim() != expectedParamsType) {
+      return false;
+    }
+    return true;
+  }
 
   /// The verbs the switch in [_generateMockDataSourceMethods] handles
   /// explicitly; every other token is an arbitrary member and carries the
@@ -614,41 +852,24 @@ class MockDataSourceBuilder {
     return baseReturns;
   }
 
-  /// Issue #1850 (honest bodies): the return shapes an arbitrary verb can be
-  /// given a real body for. Shared by validation and emission so the
-  /// pre-flight and the generated method can never disagree.
-  static bool _isHonestArbitraryReturn(
-    String baseReturns,
-    String entityName, [
-    String? outputDir,
-  ]) {
-    if (baseReturns == 'void' || baseReturns == 'dynamic') return true;
-    if (baseReturns == entityName) return true;
-    if (outputDir != null &&
-        EntityAnalyzer.entityFileExists(baseReturns, outputDir)) {
-      return true;
-    }
-    if (baseReturns.startsWith('List<') && baseReturns.endsWith('>')) {
-      final inner = baseReturns.substring(5, baseReturns.length - 1).trim();
-      if (inner == entityName) return true;
-      if (outputDir != null &&
-          EntityAnalyzer.entityFileExists(inner, outputDir)) {
-        return true;
-      }
-      return false;
-    }
-    return false;
-  }
 
   /// Issue #1922: validates every arbitrary (non-CRUD) member shape of
   /// [config] WITHOUT emitting or writing anything, so a refused member
   /// (the #1850 `ArgumentError`) leaves the working tree untouched instead
   /// of clobbering the datasource interface that was written before the
   /// shape check used to run.
-  static void validateMemberShapes(GeneratorConfig config) {
+  static void validateMemberShapes(
+    GeneratorConfig config, {
+    FileSystem? fileSystem,
+  }) {
     final entityName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
         : config.name;
+    final fs = fileSystem ?? FileSystem.create();
+    final builder = MockDataSourceBuilder(
+      outputDir: config.outputDir,
+      fileSystem: fs,
+    );
     for (final method in config.methods) {
       if (_crudMethodNames.contains(method)) continue;
       final parsed = _parseMethodShape(method);
@@ -658,23 +879,47 @@ class MockDataSourceBuilder {
           ? methodReturns
           : 'void';
       final baseReturns = _baseReturnType(returns);
-      if (!_isHonestArbitraryReturn(
-        baseReturns,
-        entityName,
-        config.outputDir,
-      )) {
-        throw ArgumentError(
-          'unknown return type $baseReturns for member $methodName',
-        );
-      }
+      final isVoid = baseReturns == 'void' || baseReturns == 'dynamic';
+      final isList =
+          baseReturns.startsWith('List<') && baseReturns.endsWith('>');
+      final listInner = isList
+          ? baseReturns.substring(5, baseReturns.length - 1).trim()
+          : '';
+      final isEntityList = isList && listInner == entityName;
+      final isEntityReturn = baseReturns == entityName;
+      // Issue #1923: a foreign entity is derivable only when it wraps a
+      // paged slice of the subject fixture (see _deriveForeignPageShape).
+      // Keep the pre-flight in lockstep with the emission path so a refused
+      // member is caught here, before the interface is written (#1922).
+      final foreignPage = !isVoid && !isEntityList && !isEntityReturn
+          ? builder._deriveForeignPageShape(
+              entityName: entityName,
+              foreignType: baseReturns,
+              paramsType: (parsed.$2 != null && parsed.$2!.isNotEmpty)
+                  ? parsed.$2!
+                  : (config.paramsType ?? 'NoParams'),
+            )
+          : null;
+      if (isVoid || isEntityList || isEntityReturn) continue;
+      if (foreignPage != null) continue;
+      // Issue #1923: any other foreign return (primitive, single entity,
+      // non-paged wrapper, unknown type) is refused rather than emitted
+      // with a throw body under conformance:true (#1850).
+      throw ArgumentError(
+        'unknown return type $baseReturns for member $methodName',
+      );
     }
   }
 
-  List<Method> _generateMockDataSourceMethods(GeneratorConfig config) {
+  List<Method> _generateMockDataSourceMethods(
+    GeneratorConfig config, {
+    List<ParsedUseCaseInfo>? interfaceMembers,
+  }) {
     final entityName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
         : config.name;
     final entityCamel = StringUtils.pascalToCamel(entityName);
+    final collectionName = StringUtils.pluralize(entityCamel);
     final methods = <Method>[];
 
     if (config.isCustomUseCase &&
@@ -803,6 +1048,45 @@ class MockDataSourceBuilder {
     }
 
     for (final method in config.methods) {
+      // Issue #1880: when the declared interface carries this method with a
+      // shape the CRUD template does not assume (e.g. a zero-arg `watch()`
+      // or `load()`), emit from the interface declaration instead of the
+      // fixed template, so the mock agrees with the contract test.
+      final interfaceMember = interfaceMembers?.firstWhere(
+        (m) => m.fieldName == method,
+        orElse: () => const ParsedUseCaseInfo(
+          className: '',
+          fieldName: '',
+          paramsType: 'NoParams',
+          returnsType: 'void',
+          useCaseType: 'usecase',
+        ),
+      );
+      if (interfaceMember != null &&
+          interfaceMember.fieldName == method &&
+          !_crudTemplateMatches(method, entityName, config, interfaceMember)) {
+        final synth = _mockMethodImplForMissingMember(
+          entityName: entityName,
+          member: interfaceMember,
+        );
+        if (synth != null) {
+          methods.add(synth);
+          continue;
+        }
+        // The interface declares this member with a shape neither the
+        // CRUD template nor the synthesizer can reproduce (a
+        // multi-parameter member, or a return type with no honest
+        // fixture). Refuse loudly instead of emitting a mock that fails
+        // `invalid_override` against the very interface it implements
+        // (issue #1911 review).
+        throw ArgumentError(
+          'cannot generate ${entityName}MockDataSource.$method: the '
+          '${entityName}DataSource declaration '
+          '(${interfaceMember.parameterCount} parameter(s), returns '
+          '${interfaceMember.returnsType}) cannot be synthesized',
+        );
+      }
+
       switch (method) {
         case 'get':
           final isNoParams = config.idFieldType == 'NoParams';
@@ -845,7 +1129,7 @@ class MockDataSourceBuilder {
                         declareFinal('item')
                             .assign(
                               refer('${entityName}MockData')
-                                  .property('${entityCamel}s')
+                                  .property(collectionName)
                                   .property('query')
                                   .call([refer('params')]),
                             )
@@ -880,7 +1164,9 @@ class MockDataSourceBuilder {
                   (b) => b
                     ..statements.addAll([
                       refer('logger').property('info').call([
-                        literalString('Listing ${entityName}s'),
+                        literalString(
+                          'Listing ${StringUtils.pluralize(entityName)}',
+                        ),
                       ]).statement,
                       refer('Future<void>')
                           .property('delayed')
@@ -889,7 +1175,7 @@ class MockDataSourceBuilder {
                           .statement,
                       refer(
                         '${entityName}MockData',
-                      ).property('${entityCamel}s').returned.statement,
+                      ).property(collectionName).returned.statement,
                     ]),
                 ),
             ),
@@ -928,7 +1214,7 @@ class MockDataSourceBuilder {
                           .assign(
                             refer(
                               '${entityName}MockData',
-                            ).property('${entityCamel}s'),
+                            ).property(collectionName),
                           )
                           .statement,
                       Code(
@@ -939,7 +1225,7 @@ class MockDataSourceBuilder {
                       ),
                       refer('logger').property('info').call([
                         literalString(
-                          'Successfully retrieved \${items.length} ${entityName}s',
+                          'Successfully retrieved \${items.length} ${StringUtils.pluralize(entityName)}',
                         ),
                       ]).statement,
                       refer('items').returned.statement,
@@ -966,7 +1252,7 @@ class MockDataSourceBuilder {
               'Future<void>',
             ).property('delayed').call([refer('_delay')]).awaited.statement,
             refer('${entityName}MockData')
-                .property('${entityCamel}s')
+                .property(collectionName)
                 .property('add')
                 .call([refer('item')])
                 .statement,
@@ -1038,7 +1324,7 @@ class MockDataSourceBuilder {
                     ]),
                   )
                   .statement,
-              Code('${entityName}MockData.${entityCamel}s[0] = updated;'),
+              Code('${entityName}MockData.$collectionName[0] = updated;'),
               refer('logger').property('info').call([
                 literalString('Successfully updated $entityName'),
               ]).statement,
@@ -1059,7 +1345,7 @@ class MockDataSourceBuilder {
               declareFinal('existing')
                   .assign(
                     refer('${entityName}MockData')
-                        .property('${entityCamel}s')
+                        .property(collectionName)
                         .property('firstWhere')
                         .call(
                           [
@@ -1089,12 +1375,12 @@ class MockDataSourceBuilder {
               declareFinal('index')
                   .assign(
                     refer('${entityName}MockData')
-                        .property('${entityCamel}s')
+                        .property(collectionName)
                         .property('indexOf')
                         .call([refer('existing')]),
                   )
                   .statement,
-              Code('${entityName}MockData.${entityCamel}s[index] = updated;'),
+              Code('${entityName}MockData.$collectionName[index] = updated;'),
               refer('logger').property('info').call([
                 literalString('Successfully updated $entityName'),
               ]).statement,
@@ -1161,7 +1447,7 @@ class MockDataSourceBuilder {
                     ]),
                   )
                   .statement,
-              Code('${entityName}MockData.${entityCamel}s[0] = updated;'),
+              Code('${entityName}MockData.$collectionName[0] = updated;'),
               refer('logger').property('info').call([
                 literalString('Successfully toggled $entityName'),
               ]).statement,
@@ -1182,7 +1468,7 @@ class MockDataSourceBuilder {
               declareFinal('existing')
                   .assign(
                     refer('${entityName}MockData')
-                        .property('${entityCamel}s')
+                        .property(collectionName)
                         .property('firstWhere')
                         .call(
                           [
@@ -1213,12 +1499,12 @@ class MockDataSourceBuilder {
               declareFinal('index')
                   .assign(
                     refer('${entityName}MockData')
-                        .property('${entityCamel}s')
+                        .property(collectionName)
                         .property('indexOf')
                         .call([refer('existing')]),
                   )
                   .statement,
-              Code('${entityName}MockData.${entityCamel}s[index] = updated;'),
+              Code('${entityName}MockData.$collectionName[index] = updated;'),
               refer('logger').property('info').call([
                 literalString('Successfully toggled $entityName'),
               ]).statement,
@@ -1282,7 +1568,7 @@ class MockDataSourceBuilder {
               declareFinal('existing')
                   .assign(
                     refer('${entityName}MockData')
-                        .property('${entityCamel}s')
+                        .property(collectionName)
                         .property('firstWhere')
                         .call(
                           [
@@ -1303,7 +1589,7 @@ class MockDataSourceBuilder {
                   )
                   .statement,
               refer('${entityName}MockData')
-                  .property('${entityCamel}s')
+                  .property(collectionName)
                   .property('remove')
                   .call([refer('existing')])
                   .statement,
@@ -1364,7 +1650,7 @@ class MockDataSourceBuilder {
                                   '${entityName}MockData',
                                 ).property('sample$entityName').code
                               : refer('${entityName}MockData')
-                                    .property('${entityCamel}s')
+                                    .property(collectionName)
                                     .property('query')
                                     .call([refer('params')])
                                     .code,
@@ -1410,7 +1696,7 @@ class MockDataSourceBuilder {
                                     .assign(
                                       refer(
                                         '${entityName}MockData',
-                                      ).property('${entityCamel}s'),
+                                      ).property(collectionName),
                                     )
                                     .statement,
                                 Code(
@@ -1432,6 +1718,12 @@ class MockDataSourceBuilder {
           );
           break;
         default:
+          // Issue #1880: arbitrary (non-CRUD) verbs must be emitted from
+          // the declared interface's signature, not from the (global)
+          // config params/returns template. When the interface carries
+          // this member, mirror `_mockMethodImplForMissingMember` so the
+          // mock agrees with the contract test in the same run.
+          //
           // Issue #1823 / #1850: arbitrary (non-CRUD) verbs declared via
           // --methods. A method token may carry its own shape as
           // `name:params->returns` (issue #1850 "named members"); tokens
@@ -1441,6 +1733,38 @@ class MockDataSourceBuilder {
             final methodName = parsed.$1;
             final methodParams = parsed.$2 ?? config.paramsType;
             final methodReturns = parsed.$3 ?? config.returnsType;
+
+            final interfaceMember = interfaceMembers?.firstWhere(
+              (m) => m.fieldName == methodName,
+              orElse: () => const ParsedUseCaseInfo(
+                className: '',
+                fieldName: '',
+                paramsType: 'NoParams',
+                returnsType: 'void',
+                useCaseType: 'usecase',
+              ),
+            );
+            if (interfaceMember != null &&
+                interfaceMember.fieldName == methodName) {
+              final synth = _mockMethodImplForMissingMember(
+                entityName: entityName,
+                member: interfaceMember,
+              );
+              if (synth != null) {
+                methods.add(synth);
+                break;
+              }
+              // Same honesty rule as the CRUD routing above: never fall
+              // back to a template whose signature contradicts the
+              // declared interface (issue #1911 review).
+              throw ArgumentError(
+                'cannot generate ${entityName}MockDataSource.$methodName: '
+                'the ${entityName}DataSource declaration '
+                '(${interfaceMember.parameterCount} parameter(s), returns '
+                '${interfaceMember.returnsType}) cannot be synthesized',
+              );
+            }
+
             final returns = (methodReturns != null && methodReturns.isNotEmpty)
                 ? methodReturns
                 : 'void';
@@ -1470,11 +1794,27 @@ class MockDataSourceBuilder {
                 ? returns
                 : 'Future<$returns>';
             final futureReturnType = returnType; // returnType already wrapped
+            // Issue #1923: a foreign entity that wraps a list of the
+            // subject (`items: List<$entityName>`) IS derivable from the
+            // subject's fixture set — the paginated-store shape. An honest
+            // paged read is synthesized below; every other foreign return
+            // keeps the #1850 refusal.
+            final foreignPage = !isVoid && !isEntityList && !isEntityReturn
+                ? _deriveForeignPageShape(
+                    entityName: entityName,
+                    foreignType: baseReturns,
+                    paramsType: paramsType,
+                  )
+                : null;
             // Issue #1850 (honest bodies): a non-void arbitrary verb whose
             // return type resolves to no known fixture must refuse rather
             // than emit `throw UnimplementedError()` under a conformance:
-            // true verdict.
-            if (!_isHonestArbitraryReturn(baseReturns, entityName, outputDir)) {
+            // true verdict. Issue #1923 narrows "known fixture" to include
+            // a foreign paged wrapper over the subject fixture.
+            if (!isVoid &&
+                !isEntityList &&
+                !isEntityReturn &&
+                foreignPage == null) {
               throw ArgumentError(
                 'unknown return type $baseReturns for member $methodName',
               );
@@ -1520,6 +1860,12 @@ class MockDataSourceBuilder {
                           refer(
                             '${entityName}MockData',
                           ).property('sample$entityName').returned.statement
+                        else if (foreignPage != null)
+                          ..._foreignPageStatements(
+                            entityName: entityName,
+                            foreignType: baseReturns,
+                            shape: foreignPage,
+                          )
                         else
                           Code('throw UnimplementedError();'),
                       ]),
@@ -1532,6 +1878,125 @@ class MockDataSourceBuilder {
     }
 
     return methods;
+  }
+
+  /// Issue #1923: resolves the honest body shape for a foreign-entity
+  /// return that the fixture set can feed — the paginated-store wrapper.
+  ///
+  /// The shape is derivable only when ALL of the following hold:
+  ///   * the member takes `ListQueryParams<...>` (the paging inputs);
+  ///   * the foreign entity's source exists and parses;
+  ///   * it declares exactly one field typed `List<$entityName>` — the
+  ///     slice source, filled from `<Subject>MockData.<plural>`;
+  ///   * it declares a `hasMore` bool (or exactly one bool field);
+  ///   * every other field is nullable (constructed as `null`).
+  ///
+  /// The synthesized body constructs the foreign entity with named
+  /// arguments (`ForeignType(listField: page, hasMoreField: ..., ...)`),
+  /// so the foreign entity must expose a constructor that accepts those
+  /// field names as named parameters. Foreign entities generated by the
+  /// zuraffa/zorphy codegen satisfy this by convention; a hand-written
+  /// foreign entity with a positional-only constructor will not compile
+  /// and must be refused (or given a named constructor) before generation.
+  ///
+  /// Anything else returns null, and the caller keeps the #1850 refusal
+  /// rather than inventing a body.
+  ({String listField, String hasMoreField, List<String> nullableFields})?
+  _deriveForeignPageShape({
+    required String entityName,
+    required String foreignType,
+    required String paramsType,
+  }) {
+    if (!paramsType.startsWith('ListQueryParams<')) return null;
+    if (!EntityAnalyzer.entityFileExists(
+      foreignType,
+      outputDir,
+      fileSystem: fileSystem,
+    )) {
+      return null;
+    }
+    final fields = EntityAnalyzer.analyzeEntity(
+      foreignType,
+      outputDir,
+      fileSystem: fileSystem,
+    );
+    if (fields.isEmpty) return null;
+
+    String normalize(String type) =>
+        type.replaceAll('?', '').replaceAll(' ', '').trim();
+
+    final listFields = fields.entries
+        .where((entry) => normalize(entry.value) == 'List<$entityName>')
+        .map((entry) => entry.key)
+        .toList();
+    if (listFields.length != 1) return null;
+
+    final boolFields = fields.entries
+        .where((entry) => normalize(entry.value) == 'bool')
+        .map((entry) => entry.key)
+        .toList();
+    if (boolFields.isEmpty) return null;
+    final String hasMoreField;
+    if (boolFields.contains('hasMore')) {
+      hasMoreField = 'hasMore';
+    } else if (boolFields.length == 1) {
+      hasMoreField = boolFields.single;
+    } else {
+      // Several bool fields and no `hasMore` — which one is the page flag is
+      // not derivable, so the seam falls back to the honest refusal.
+      return null;
+    }
+
+    final nullableFields = <String>[];
+    for (final entry in fields.entries) {
+      if (entry.key == listFields.single || entry.key == hasMoreField) {
+        continue;
+      }
+      if (!entry.value.trim().endsWith('?')) return null;
+      nullableFields.add(entry.key);
+    }
+
+    return (
+      listField: listFields.single,
+      hasMoreField: hasMoreField,
+      nullableFields: nullableFields,
+    );
+  }
+
+  /// Issue #1923: the honest paged-read body shared by the arbitrary-verb
+  /// generator and the shape-drift repair — a real slice of the subject
+  /// fixture list, wrapped in the foreign entity with a computed `hasMore`.
+  List<Code> _foreignPageStatements({
+    required String entityName,
+    required String foreignType,
+    required ({
+      String listField,
+      String hasMoreField,
+      List<String> nullableFields,
+    })
+    shape,
+  }) {
+    final entityCamel = StringUtils.pascalToCamel(entityName);
+    return [
+      Code('''
+final items = ${entityName}MockData.${StringUtils.pluralize(entityCamel)};
+var offset = params.offset ?? 0;
+if (offset < 0) offset = 0;
+if (offset > items.length) offset = items.length;
+var limit = params.limit ?? items.length;
+if (limit < 0) limit = 0;
+if (limit > items.length) limit = items.length;
+final page = items.skip(offset).take(limit).toList();
+'''),
+      refer(foreignType)
+          .call([], {
+            shape.listField: refer('page'),
+            shape.hasMoreField: refer('offset + page.length < items.length'),
+            for (final field in shape.nullableFields) field: literalNull,
+          })
+          .returned
+          .statement,
+    ];
   }
 
   Expression _primitiveValue(String type) {
