@@ -740,20 +740,6 @@ Future<void> _runMockGeneration({
     return;
   }
 
-  if (files.isEmpty) {
-    // Issue #769: zero files means the request produced nothing — a
-    // refusal, not a success.
-    _emit(
-      jsonMode,
-      '⚠️ No files were generated (nothing changed). If the generator '
-      'printed a skip note above, re-run inside a project that satisfies '
-      'its guard; otherwise re-run with --verbose to inspect the resolved '
-      'arguments.',
-    );
-    exitCode = 1;
-    return;
-  }
-
   // The mock certification (issue #970 T003): computed from the FINAL
   // on-disk bytes — a dry run certifies nothing.
   MockCertification? certification;

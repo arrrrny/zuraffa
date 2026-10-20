@@ -375,6 +375,22 @@ class MockContractTestWriter {
     if (File(mockDataPath).existsSync()) {
       buffer.writeln("import '${rel(mockDataPath)}';");
     }
+    // Aggregate seams may reference a foreign entity's mock-data fixture in
+    // the behavioral sample (see `_defaultParamsExpr`), so import that
+    // fixture too when it exists on disk — otherwise the generated contract
+    // test fails to compile with an undefined `…MockData` name (#1941).
+    for (final name
+        in importedEntities.where((n) => n != entityName).toList()..sort()) {
+      final foreignMockDataPath = p.join(
+        outputDir,
+        'data',
+        'mock',
+        '${StringUtils.camelToSnake(name)}_mock_data.dart',
+      );
+      if (File(foreignMockDataPath).existsSync()) {
+        buffer.writeln("import '${rel(foreignMockDataPath)}';");
+      }
+    }
     buffer
       ..writeln()
       ..writeln('void main() {')
