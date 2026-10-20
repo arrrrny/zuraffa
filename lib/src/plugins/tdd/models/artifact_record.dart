@@ -128,6 +128,23 @@ class ArtifactRecord {
     genFingerprint: genFingerprint,
   );
 
+  /// Copy with a rebound `runnableTestName` (issue #1778): when a
+  /// hand-implemented test's title changes, the recorded runnable name is
+  /// re-bound to the corrected title without regenerating the artifact.
+  ArtifactRecord copyWithRunnableTestName(String runnableTestName) =>
+      ArtifactRecord(
+        behaviorId: behaviorId,
+        feature: feature,
+        sourceCriterion: sourceCriterion,
+        testPath: testPath,
+        subjectPath: subjectPath,
+        runnableTestName: runnableTestName,
+        testOwnership: testOwnership,
+        subjectOwnership: subjectOwnership,
+        createdAt: createdAt,
+        genFingerprint: genFingerprint,
+      );
+
   /// Copy with the gen reuse fingerprint refreshed (issue #1388): gen
   /// calls this after a fingerprint-driven regeneration so the stored
   /// digest matches the routing state the pair now reflects — the drift

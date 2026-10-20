@@ -72,24 +72,6 @@ abstract final class DependencyMockBuilder {
     String outDir,
     String? packageName,
   ) {
-    const primitives = {
-      'String',
-      'int',
-      'double',
-      'num',
-      'bool',
-      'void',
-      'DateTime',
-      'dynamic',
-      'Object',
-      'Map',
-      'List',
-      'Set',
-      'Iterable',
-      'Future',
-      'Stream',
-      'Function',
-    };
     final typeToken = RegExp(r'\b[A-Z][A-Za-z0-9_]*\b');
     final types = <String>{};
     for (final s in c.signatures) {
@@ -97,7 +79,7 @@ abstract final class DependencyMockBuilder {
       for (final raw in raws) {
         for (final m in typeToken.allMatches(raw)) {
           final t = m.group(0)!;
-          if (!primitives.contains(t)) types.add(t);
+          if (!_primitives.contains(t)) types.add(t);
         }
       }
     }
@@ -156,14 +138,64 @@ abstract final class DependencyMockBuilder {
     return parts.map((p) => '${p[0].toUpperCase()}${p.substring(1)}').join();
   }
 
+  /// The one primitive classifier: import collection and parameter
+  /// rendering must agree on what is a declared entity type — two
+  /// copies drifting apart is exactly what caused #1893.
+  static const Set<String> _primitives = {
+    'String',
+    'int',
+    'double',
+    'num',
+    'bool',
+    'void',
+    'DateTime',
+    'dynamic',
+    'Object',
+    'Map',
+    'List',
+    'Set',
+    'Iterable',
+    'Future',
+    'Stream',
+    'Function',
+  };
+
+  /// Whether [token] is a bare PascalCase identifier naming a declared
+  /// entity type rather than a primitive.
+  static bool _isEntityToken(String token) =>
+      RegExp(r'^[A-Z][A-Za-z0-9_]*$').hasMatch(token) &&
+      !_primitives.contains(token);
+
+  /// Derived parameter name for a declared parameter token — matches
+  /// the name rendered by [_paramList], so the fake's call recorder
+  /// keys arguments consistently (issue #1893).
+  static String _paramName(String raw) {
+    final t = raw.trim();
+    if (t.contains(' ')) return t.split(' ').last;
+    if (_isEntityToken(t)) return '${t[0].toLowerCase()}${t.substring(1)}';
+    return t;
+  }
+
   /// Declared parameters → typed parameter list. A bare name is typed
-  /// `String`; `int attempts` keeps its declared type.
+  /// `String`; `int attempts` keeps its declared type. A bare
+  /// non-primitive PascalCase token is treated as a TYPE (agreeing with
+  /// `_entityImports`, which already collects it as one) and rendered as
+  /// `Type type` with a derived lowerCamel parameter name, so the
+  /// emitted entity import is actually used instead of a silent
+  /// `String` parameter (issue #1893).
   static String _paramList(List<String> parameters) {
     if (parameters.isEmpty) return '';
     return parameters
         .map((p) {
           final t = p.trim();
-          return t.contains(' ') ? t : 'String $t';
+          if (t.contains(' ')) return t;
+          // Bare PascalCase token that resolves as a non-primitive type:
+          // render it as the type with a derived lowerCamel name.
+          if (_isEntityToken(t)) {
+            final name = _paramName(t);
+            return '$t $name';
+          }
+          return 'String $t';
         })
         .join(', ');
   }
@@ -233,9 +265,7 @@ $members
     final impls = c.signatures
         .map((s) {
           final args = _paramList(s.parameters);
-          final argNames = s.parameters
-              .map((p) => p.trim().split(' ').last)
-              .toList();
+          final argNames = s.parameters.map(_paramName).toList();
           final recordArgs = argNames.isEmpty
               ? ''
               : ', arguments: {${argNames.map((a) => "'$a': $a").join(', ')}}';
