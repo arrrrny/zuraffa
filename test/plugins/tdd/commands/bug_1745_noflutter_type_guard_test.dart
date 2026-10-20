@@ -174,7 +174,7 @@ const String declaredPresentationContractSpec = '''
 
 ## Acceptance Scenarios
 
-1. **Given** the wallet **When** a value is committed **Then** the wallet list renders
+1. **Given** the wallet **When** a value is committed **Then** the wallet state is committed and the presenter is invoked
    **Type**: acceptance
 
 ## Functional Requirements

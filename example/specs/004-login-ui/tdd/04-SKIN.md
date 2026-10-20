@@ -100,9 +100,4 @@ Skin behaviors (bug #830 / issue #1000): asserted through a testWidgets pair —
 | -- | -------- | ------ | ----- |
 | W1 | skin behavior declared in `## Lanes` | LANE:SKIN | PENDING |
 
-## Routing provenance
-
-Per-behavior routing decisions (issue #951): what each decision consulted — a declared marker/contract row, or the labeled legacy fallback to migrate.
-
-
 

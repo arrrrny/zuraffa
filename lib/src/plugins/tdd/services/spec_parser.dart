@@ -303,8 +303,8 @@ class SpecParser {
   /// lists inside one predicate. This keeps an event-content exclusion local
   /// to its clause while allowing a sibling UI assertion to classify.
   static final RegExp _predicateClauseBoundary = RegExp(
-    r'(?:[.!?;]\s+|,\s*(?:and|but|while)\s+|'
-    r'\s+(?:and|but|while)\s+(?=(?:the|a|an|i|we|they|you)\b))',
+    r'(?:[.!?;]\s+|,\s*(?:and|but|while|as)\s+|'
+    r'\s+(?:and|but|while|as)\s+(?=(?:the|a|an|i|we|they|you)\b))',
     caseSensitive: false,
   );
 
@@ -318,6 +318,63 @@ class SpecParser {
   /// noun. Ambiguous prose keeps its sanctioned escape hatch: declare the
   /// scenario with a `**Type**` marker (the declaration outranks the
   /// classifier in both directions).
+  /// Issue #1864: whether [description] is event/protocol schema prose
+  /// whose appearance verbs belong to the payload, not a rendered UI.
+  /// Such prose is exempt from the presentation-verb mislane guard even
+  /// when it names a verb from the presentation set (e.g. "the event
+  /// shows the outcome").
+  ///
+  /// Contract note (public API, currently unused outside this class):
+  /// this applies a *whole-string* `hasMatch` over [description] — it
+  /// returns `true` when an event-noun subject appears *anywhere* in
+  /// the text, and does NOT split on [_predicateClauseBoundary] the way
+  /// [isPresentationMislane] does. A multi-clause description that mixes
+  /// event prose with a presentation assertion ("the event shows the
+  /// outcome as the screen renders the error") therefore needs per-clause
+  /// handling by the caller (see [isPresentationMislane]); this method is
+  /// a convenience for the simple single-clause case.
+  static bool isEventNounSubject(String description) {
+    return _eventNounSubject.hasMatch(description);
+  }
+
+  // Hoisted for consistency with the rest of SpecParser (the regexes
+  // below were previously rebuilt on every call).
+  static final RegExp _presentationVerb = RegExp(
+    r'\b(draws?|drawn|drawing|renders?|rendered|rendering|'
+    r'displays?|displayed|displaying|shows?|shown|showing|'
+    r'paints?|painted|painting)\b',
+    caseSensitive: false,
+  );
+  // `prompts?`/`screens?`/`views?` double as verbs ("the user views the
+  // report"), so they only count as a surface noun when a determiner
+  // sits immediately in front — i.e. the word is used as a noun, not
+  // a verb. The remaining nouns have no verb form and stay unanchored.
+  // Conservative intent: false positives are preferred over letting
+  // presentation prose slip into the engine lane; `**Type**: acceptance`
+  // is the escape hatch.
+  static final RegExp _surfaceNoun = RegExp(
+    r'\b(fields?|placeholders?|layouts?|widgets?)\b|'
+    r'\b(?:the|a|an|this|that|these|those|my|your|its|our|their)\s+'
+    r'(?:prompts?|screens?|views?)\b',
+    caseSensitive: false,
+  );
+
+  /// Issue #1864: whether an acceptance scenario's prose names a
+  /// presentation verb (draws / renders / displays / shows / paints) or
+  /// a widget-surface noun (field / placeholder / prompt / layout /
+  /// screen / view / widget) OUTSIDE an event/protocol-schema clause.
+  /// Event-noun subjects ("the event shows ...") are exempt per
+  /// issue #1318 — the verb describes the payload, not a rendered UI.
+  static bool isPresentationMislane(String description) {
+    for (final clause in description.split(_predicateClauseBoundary)) {
+      if (_eventNounSubject.hasMatch(clause)) continue;
+      if (_presentationVerb.hasMatch(clause) || _surfaceNoun.hasMatch(clause)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   static bool isUiAcceptance(String description) {
     for (final clause in description.split(_predicateClauseBoundary)) {
       if (_eventNounSubject.hasMatch(clause)) continue;
