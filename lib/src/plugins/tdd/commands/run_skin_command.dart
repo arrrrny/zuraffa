@@ -269,113 +269,114 @@ class RunSkinCommand extends Command<void> {
       projectRoot: projectRoot,
     );
     try {
-    // -----------------------------------------------------------------
-    // The engine gate (issue #1008): the skin lane requires a green
-    // engine receipt BEFORE any step is spawned. Missing, not-green, or
-    // corrupt receipt -> exit 2, zero steps, no skin receipt written.
-    // -----------------------------------------------------------------
-    final refusal = await LaneReceipts(featureDir).engineGateRefusal();
-    if (refusal != null) {
-      print('zfa tdd $label: $refusal');
-      // Spec 1113: the engine-gate refusal is journaled preflight_red —
-      // the skin cycle never started, and `zfa tdd status` reads the
-      // same record.
-      try {
-        final writer = JournalWriter(featureDir);
-        final refs = await writer.resolveRefs();
-        await writer.append(
-          JournalEntry(
-            feature: feature,
-            cycle: 'skin',
-            phase: 'gate',
-            startedAt: journalStartedAt,
-            finishedAt: DateTime.now().toUtc().toIso8601String(),
-            gateState: 'preflight_red',
-            receipts: const [],
-            violations: ['engine-gate: $refusal'],
-            engineReceipt: refs.engine,
-            skinReceipt: refs.skin,
-            contractSchema: refs.contract,
-            result: 'engine-required',
-          ),
+      // -----------------------------------------------------------------
+      // The engine gate (issue #1008): the skin lane requires a green
+      // engine receipt BEFORE any step is spawned. Missing, not-green, or
+      // corrupt receipt -> exit 2, zero steps, no skin receipt written.
+      // -----------------------------------------------------------------
+      final refusal = await LaneReceipts(featureDir).engineGateRefusal();
+      if (refusal != null) {
+        print('zfa tdd $label: $refusal');
+        // Spec 1113: the engine-gate refusal is journaled preflight_red —
+        // the skin cycle never started, and `zfa tdd status` reads the
+        // same record.
+        try {
+          final writer = JournalWriter(featureDir);
+          final refs = await writer.resolveRefs();
+          await writer.append(
+            JournalEntry(
+              feature: feature,
+              cycle: 'skin',
+              phase: 'gate',
+              startedAt: journalStartedAt,
+              finishedAt: DateTime.now().toUtc().toIso8601String(),
+              gateState: 'preflight_red',
+              receipts: const [],
+              violations: ['engine-gate: $refusal'],
+              engineReceipt: refs.engine,
+              skinReceipt: refs.skin,
+              contractSchema: refs.contract,
+              result: 'engine-required',
+            ),
+          );
+        } on FileSystemException {
+          // A record, never a gate — the refusal stands on its stdout;
+          // a failed journal write is only reported.
+          stderr.writeln(
+            'zfa tdd run-skin: failed to write the engine-gate journal '
+            'entry at ${p.join(featureDir, 'tdd', 'journal.json')}',
+          );
+        }
+        _printSummary(feature, 'engine-required', null);
+        exitCode = _exitEngineRequired;
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Mode selection: SKIN lanes declaring adaptive_slots are hand-
+      // written seams (spec 1005) — the conformance cycle referees them.
+      // Legacy SKIN lanes without slots go through the shared two-phase
+      // driver core (spec 1008 lane mode).
+      // -----------------------------------------------------------------
+      final specFile = File(p.join(featureDir, 'spec.md'));
+      var declaredSlots = const <String>[];
+      if (await specFile.exists()) {
+        final lanes = SpecParser().parseLanes(await specFile.readAsString());
+        declaredSlots = <String>[
+          for (final lane in lanes.where(
+            (l) => l.lane.trim().toUpperCase() == 'SKIN',
+          ))
+            ...lane.adaptiveSlots,
+        ];
+      }
+      if (declaredSlots.isNotEmpty) {
+        await _runConformanceMode(
+          feature: feature,
+          featureDir: featureDir,
+          projectRoot: projectRoot,
+          declaredSlots: declaredSlots,
+          timeout: timeoutOverride,
+          journalStartedAt: journalStartedAt,
+          scratchEnv: scratch?.childEnvironment(),
         );
-      } on FileSystemException {
-        // A record, never a gate — the refusal stands on its stdout;
-        // a failed journal write is only reported.
-        stderr.writeln(
-          'zfa tdd run-skin: failed to write the engine-gate journal '
-          'entry at ${p.join(featureDir, 'tdd', 'journal.json')}',
+        return;
+      }
+
+      final driver = RunDriverCore();
+      // SPEC 917 (--stream): one NDJSON step-verdict.v1 event per completed
+      // step while the lane drives.
+      if (argResults?['stream'] as bool? ?? false) {
+        driver.onStepEvent = (event) => print(event.toNdjsonLine());
+      }
+      final outcome = await driver.drive(
+        featureRef: featureRef,
+        projectRoot: projectRoot,
+        zfaBin: zfaBin,
+        timeout: timeoutOverride,
+        lane: 'skin',
+        label: label,
+        skipWidget: argResults?['skip-widget'] as bool? ?? false,
+        baselineScope: baselineScope,
+        verbose: verbose,
+        heartbeat: heartbeatOverride,
+        childEnvironment: scratch?.childEnvironment(),
+      );
+      if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
+      // Issue #1327: same terminal-receipt close-out as the engine lane —
+      // on a COMPLETE skin lane the log's final bytes must end covered so
+      // result=complete implies `zfa proof check` passes (criterion 4: a
+      // stopped lane writes nothing). Best-effort; the summary line stays
+      // the run's final stdout line (FR-009/FR-010).
+      if (outcome.result == 'complete') {
+        await CycleLogTerminalReceipt.refreshBestEffort(
+          projectRoot: projectRoot,
+          featureDir: featureDir,
+          feature: feature,
+          command: 'tdd $label',
         );
       }
-      _printSummary(feature, 'engine-required', null);
-      exitCode = _exitEngineRequired;
-      return;
-    }
-
-    // -----------------------------------------------------------------
-    // Mode selection: SKIN lanes declaring adaptive_slots are hand-
-    // written seams (spec 1005) — the conformance cycle referees them.
-    // Legacy SKIN lanes without slots go through the shared two-phase
-    // driver core (spec 1008 lane mode).
-    // -----------------------------------------------------------------
-    final specFile = File(p.join(featureDir, 'spec.md'));
-    var declaredSlots = const <String>[];
-    if (await specFile.exists()) {
-      final lanes = SpecParser().parseLanes(await specFile.readAsString());
-      declaredSlots = <String>[
-        for (final lane in lanes.where(
-          (l) => l.lane.trim().toUpperCase() == 'SKIN',
-        ))
-          ...lane.adaptiveSlots,
-      ];
-    }
-    if (declaredSlots.isNotEmpty) {
-      await _runConformanceMode(
-        feature: feature,
-        featureDir: featureDir,
-        projectRoot: projectRoot,
-        declaredSlots: declaredSlots,
-        timeout: timeoutOverride,
-        journalStartedAt: journalStartedAt,
-        scratchEnv: scratch?.childEnvironment(),
-      );
-      return;
-    }
-
-    final driver = RunDriverCore();
-    // SPEC 917 (--stream): one NDJSON step-verdict.v1 event per completed
-    // step while the lane drives.
-    if (argResults?['stream'] as bool? ?? false) {
-      driver.onStepEvent = (event) => print(event.toNdjsonLine());
-    }
-    final outcome = await driver.drive(
-      featureRef: featureRef,
-      projectRoot: projectRoot,
-      zfaBin: zfaBin,
-      timeout: timeoutOverride,
-      lane: 'skin',
-      label: label,
-      skipWidget: argResults?['skip-widget'] as bool? ?? false,
-      baselineScope: baselineScope,
-      verbose: verbose,
-      heartbeat: heartbeatOverride,
-    );
-    if (outcome.message != null) print('zfa tdd $label: ${outcome.message}');
-    // Issue #1327: same terminal-receipt close-out as the engine lane —
-    // on a COMPLETE skin lane the log's final bytes must end covered so
-    // result=complete implies `zfa proof check` passes (criterion 4: a
-    // stopped lane writes nothing). Best-effort; the summary line stays
-    // the run's final stdout line (FR-009/FR-010).
-    if (outcome.result == 'complete') {
-      await CycleLogTerminalReceipt.refreshBestEffort(
-        projectRoot: projectRoot,
-        featureDir: featureDir,
-        feature: feature,
-        command: 'tdd $label',
-      );
-    }
-    _printSummary(feature, outcome.result, outcome);
-    exitCode = outcome.exitCode;
+      _printSummary(feature, outcome.result, outcome);
+      exitCode = outcome.exitCode;
     } finally {
       await scratch?.dispose();
     }
