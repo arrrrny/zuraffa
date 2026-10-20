@@ -18,6 +18,51 @@ import '../datasource_provenance.dart';
 
 /// Generates data source interfaces for domain and data layers.
 class DataSourceInterfaceBuilder {
+  /// The verbs the CRUD switch in [generate] handles explicitly — the
+  /// interface member names this builder can emit for a config. Any declared
+  /// on-disk member whose name is outside this set could never have come
+  /// from a generated interface emission, so a force run that would drop it
+  /// is destroying a hand-authored contract (issue #1952).
+  static const Set<String> interfaceEmissionVocabulary = <String>{
+    'get',
+    'getList',
+    'list',
+    'create',
+    'update',
+    'toggle',
+    'delete',
+    'watch',
+    'watchList',
+  };
+
+  /// The member names [config]'s fresh interface emission would declare —
+  /// the same derivation [generate] performs when building the class
+  /// members (custom use case method, init members, CRUD templates, and
+  /// arbitrary `name:params->returns` tokens). The #1952 refusal guard in
+  /// MockBuilder compares the on-disk declared members against this set to
+  /// compute what a force overwrite would lose.
+  static Set<String> plannedMemberNames(GeneratorConfig config) {
+    final names = <String>{};
+    if (config.isCustomUseCase) names.add(config.getRepoMethodName());
+    if (config.generateInit) {
+      names.addAll(const {'isInitialized', 'initialize', 'dispose'});
+    }
+    for (final method in config.methods) {
+      if (interfaceEmissionVocabulary.contains(method)) {
+        names.add(method);
+      } else {
+        names.add(parseMethodShapeToken(method));
+      }
+    }
+    return names;
+  }
+
+  /// The member name a `--methods` token carries — `name` from
+  /// `name:params->returns`, the whole token otherwise (the same parse the
+  /// emission switch's default branch performs).
+  static String parseMethodShapeToken(String token) =>
+      MethodShapeParser.parseMethodShape(token).$1;
+
   final String outputDir;
   final GeneratorOptions options;
   final SpecLibrary specLibrary;

@@ -8,6 +8,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/method_extractor.dart';
 import '../../../utils/string_utils.dart';
 import '../../datasource/builders/interface_generator.dart';
 import 'failing_mock_provider_builder.dart';
@@ -105,6 +106,109 @@ class MockBuilder {
              fileSystem: fileSystem ?? FileSystem.create(),
            );
 
+  /// Issue #1952: refuses a `--force` run whose interface regeneration
+  /// would drop declared members the generator's vocabulary cannot
+  /// reproduce — a hand-authored contract. Throws [StateError] naming the
+  /// interface file and the lost members, before any file is written, so
+  /// the CLI exits non-zero and the tree stays byte-identical. Members
+  /// inside [DataSourceInterfaceBuilder.interfaceEmissionVocabulary] are
+  /// the #1418 methods-driven drift (a previous generated emission's
+  /// output) and keep regenerating.
+  Future<void> _refuseLostDeclaredMembers(GeneratorConfig config) async {
+    if (config.generateMockDataOnly ||
+        config.hasService ||
+        config.appendToExisting ||
+        !config.force ||
+        config.revert ||
+        config.overwriteInterface) {
+      return;
+    }
+    final entityName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    final entitySnake = StringUtils.camelToSnake(entityName);
+    final interfacePath = path.join(
+      outputDir,
+      'data',
+      'datasources',
+      entitySnake,
+      '${entitySnake}_datasource.dart',
+    );
+    if (!await fileSystem.exists(interfacePath)) return;
+    // PR #1649: a combined make run whose datasource plugin already owns
+    // this path in the shared transaction keeps its contract — the mock
+    // lane does not speak for it.
+    final interfacePending =
+        GenerationTransaction.current?.operations.any(
+          (op) => op.path == interfacePath,
+        ) ??
+        false;
+    if (interfacePending) return;
+    // The interface writer only fires past these gates (#1037/#1747): an
+    // enum target returns before it — gated on the same returns-type-derived
+    // target the writer arm checks (a custom-usecase run whose returns
+    // entity is an enum returns before the writer, so the guard must not
+    // refuse it either) — and a no-CRUD-surface target without a declared
+    // interface is skipped before it too. Refuse only where the writer can
+    // actually run.
+    final targetEntity = config.isCustomUseCase && config.returnsType != null
+        ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
+              config.name
+        : config.name;
+    if (EntityAnalyzer.isEnum(
+      targetEntity,
+      outputDir,
+      fileSystem: fileSystem,
+    )) {
+      return;
+    }
+    if (EntityAnalyzer.lacksCrudSurface(
+          entityName,
+          outputDir,
+          fileSystem: fileSystem,
+        ) &&
+        !EntityAnalyzer.hasDeclaredDataSourceInterface(
+          entityName,
+          outputDir,
+          fileSystem: fileSystem,
+        )) {
+      return;
+    }
+    final declared = await MethodExtractor.extractMethodsFromInterface(
+      interfacePath,
+      '${entityName}DataSource',
+      fileSystem: fileSystem,
+    );
+    if (declared.isEmpty) {
+      // Never a silent skip: this arm also swallows an interface whose class
+      // no longer matches `${entityName}DataSource` (a renamed class, extra
+      // declarations in the file) — say why the refusal did not arm.
+      if (config.verbose) {
+        print(
+          'ℹ️  No declared members parsed from $interfacePath as '
+          '${entityName}DataSource — the issue #1952 refusal does not arm.',
+        );
+      }
+      return;
+    }
+    final planned = DataSourceInterfaceBuilder.plannedMemberNames(config);
+    final lost = declared
+        .map((member) => member.fieldName)
+        .where((name) => !planned.contains(name))
+        .where(
+          (name) => !DataSourceInterfaceBuilder.interfaceEmissionVocabulary
+              .contains(name),
+        )
+        .toList();
+    if (lost.isEmpty) return;
+    throw StateError(
+      'Refusing to overwrite $interfacePath: --force would remove the '
+      'declared member(s) ${lost.join(", ")} that this run\'s --methods do '
+      'not declare (issue #1952). Add the members to --methods, or pass '
+      '--overwrite-interface to discard them explicitly.',
+    );
+  }
+
   /// Generates mock files for the given [config].
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (config.generateMockJson) {
@@ -117,6 +221,20 @@ class MockBuilder {
         ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
               config.name
         : config.name;
+
+    // Issue #1952: a `--force` run must not silently replace a hand-authored
+    // `<Entity>DataSource` interface with the generated CRUD surface. Before
+    // the first write, the on-disk declared members are compared against the
+    // member names this run's emission would declare; a loss outside the
+    // interface vocabulary (a member no generated emission could ever carry)
+    // refuses the run. Gated exactly like the interface writer's own force
+    // arm below — data-only/service runs never reach it, an append run
+    // takes the writer's add-only append branch (nothing is removed), enums
+    // and no-CRUD-surface targets return before it (#1037/#1747), a revert
+    // run keeps the revert contract, an interface this run's datasource
+    // plugin already owns stays #1649's, and `--overwrite-interface` is the
+    // explicit opt-in.
+    await _refuseLostDeclaredMembers(config);
 
     // Issue #1922: validate every arbitrary member shape BEFORE the first
     // write. The datasource-interface writer below used to run first, so a
@@ -173,17 +291,8 @@ class MockBuilder {
           config.paramsType != null ||
           config.returnsType != null ||
           config.methods.any(
-            (m) => !const {
-              'get',
-              'getList',
-              'list',
-              'create',
-              'update',
-              'toggle',
-              'delete',
-              'watch',
-              'watchList',
-            }.contains(m),
+            (m) => !DataSourceInterfaceBuilder.interfaceEmissionVocabulary
+                .contains(m),
           );
       final needsConcreteEntity =
           config.generateMockDataOnly ||
