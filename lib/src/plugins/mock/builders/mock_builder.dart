@@ -286,6 +286,11 @@ class MockBuilder {
               outputDir,
               fileSystem: fileSystem,
             ) &&
+            !EntityAnalyzer.hasDeclaredDataSourceInterface(
+              targetEntity,
+              outputDir,
+              fileSystem: fileSystem,
+            ) &&
             EntityAnalyzer.methodsRequireCrudSurface(config.methods)) {
           print(
             'ℹ️  $targetEntity declares no CRUD surface (no id / '

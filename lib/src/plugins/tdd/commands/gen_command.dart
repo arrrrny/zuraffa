@@ -111,6 +111,7 @@ import '../services/i18n_key_contract.dart';
 import '../services/nuance_receipts.dart';
 import '../services/profile_preflight.dart';
 import '../services/scenario_example.dart';
+import '../services/spec_parser.dart';
 import '../services/vacuous_guard.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/declared_routing.dart';
@@ -1471,6 +1472,12 @@ class GenCommand extends Command<void> {
         // seam context (real write path).
         projectRoot: cwd,
         featureDir: featureDir,
+        // Issue #1920: the SKIN lane's adaptive slots drive the widget
+        // harness (resolved from THIS feature's spec).
+        adaptiveSlots: await _adaptiveSlotsFor(
+          featureDir: featureDir,
+          behaviorId: behavior.id,
+        ),
       );
       try {
         if (!adoptTest) {
@@ -1925,6 +1932,7 @@ class GenCommand extends Command<void> {
     String? projectRoot,
     String? featureDir,
     bool omitVacuousMarker = false,
+    List<String> adaptiveSlots = const <String>[],
   }) {
     if (behavior.kind == BehaviorKind.theme) {
       return (
@@ -1985,9 +1993,45 @@ class GenCommand extends Command<void> {
         projectRoot: projectRoot,
         featureDir: featureDir,
         omitVacuousMarker: omitVacuousMarker,
+        // Issue #1920: a SKIN lane declaring adaptive_slots gives the
+        // widget template its per-slot harness (foundation import,
+        // skin-event print, in-body release).
+        adaptiveSlots: adaptiveSlots,
       ).write,
       writeSubject: SubjectWriter(contractShape: contractShape).write,
     );
+  }
+
+  /// Issue #1920: the SKIN lane's declared `adaptive_slots` for
+  /// [behaviorId], resolved from the feature's `spec.md`.
+  ///
+  /// Only a SKIN lane that lists the behavior contributes — a slot
+  /// declaration on some other lane's row never leaks into this pair.
+  /// Fail-open (empty list) on a missing/unreadable/malformed spec: the
+  /// conformance gate re-surfaces the real declaration problem, and gen
+  /// keeps emitting the legacy template exactly as before (the same
+  /// best-effort posture `run_command.dart` applies to conformance-mode
+  /// detection).
+  static Future<List<String>> _adaptiveSlotsFor({
+    required String featureDir,
+    required String behaviorId,
+  }) async {
+    try {
+      final specFile = File(p.join(featureDir, 'spec.md'));
+      if (!await specFile.exists()) return const <String>[];
+      final lanes = SpecParser().parseLanes(await specFile.readAsString());
+      final slots = <String>[];
+      for (final lane in lanes) {
+        if (lane.lane.trim().toUpperCase() != 'SKIN') continue;
+        if (!lane.behaviorIds.contains(behaviorId)) continue;
+        for (final slot in lane.adaptiveSlots) {
+          if (!slots.contains(slot)) slots.add(slot);
+        }
+      }
+      return slots;
+    } catch (_) {
+      return const <String>[];
+    }
   }
 
   /// The acceptance scenario example the declared unit contract's test
@@ -2344,6 +2388,15 @@ class GenCommand extends Command<void> {
           'staleness: seed mirror pubspec',
         );
       }
+      // Issue #1920: the feature dir the SKIN lane's adaptive slots are
+      // resolved from. Every current caller passes it; a direct library
+      // caller without it falls back to the canonical specs path (and the
+      // resolver fails open when the spec is not there).
+      final slotFeatureDir =
+          featureDir ??
+          (projectRoot == null
+              ? null
+              : p.join(projectRoot, 'specs', featureName));
       final writers = _writersFor(
         behavior,
         platformContext: platformContext,
@@ -2359,6 +2412,15 @@ class GenCommand extends Command<void> {
         projectRoot: projectRoot,
         featureDir: featureDir,
         omitVacuousMarker: true,
+        // Issue #1920: the mirror must render the SAME slot-aware harness
+        // as the real write, or every slot-declaring pair reports false
+        // staleness forever.
+        adaptiveSlots: slotFeatureDir == null
+            ? const <String>[]
+            : await _adaptiveSlotsFor(
+                featureDir: slotFeatureDir,
+                behaviorId: behavior.id,
+              ),
       );
       final mirroredTest = p.join(
         mirror.path,

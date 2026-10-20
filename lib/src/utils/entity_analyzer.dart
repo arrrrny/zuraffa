@@ -411,6 +411,84 @@ class EntityAnalyzer {
         !hasCrudSurface(typeName, outputDir, fileSystem: fs);
   }
 
+  /// Issue #1931: a non-CRUD entity (no `id` / `copyWithField` /
+  /// `<Type>Patch`) is NOT automatically "fixture-only" when it declares
+  /// a `<Type>DataSource` interface carrying at least one method. Such an
+  /// interface is exactly what makes a hand-authored mock datasource
+  /// meaningful, so the mock lane must NOT purge it and certification must
+  /// run against it. Returns true only when the datasource interface file
+  /// exists on disk and declares at least one method.
+  static bool hasDeclaredDataSourceInterface(
+    String typeName,
+    String outputDir, {
+    FileSystem? fileSystem,
+  }) {
+    final fs = fileSystem ?? const DefaultFileSystem();
+    final snake = StringUtils.camelToSnake(typeName);
+    final interfacePath = p.join(
+      outputDir,
+      'data',
+      'datasources',
+      snake,
+      '${snake}_datasource.dart',
+    );
+    if (!fs.existsSync(interfacePath)) return false;
+    String content;
+    try {
+      content = fs.readSync(interfacePath);
+    } catch (_) {
+      return false;
+    }
+    if (!RegExp(
+      r'\b' + RegExp.escape(typeName) + r'DataSource\b',
+    ).hasMatch(content)) {
+      return false;
+    }
+    // Strip comments first so a doc comment such as `/// foo(bar);`
+    // cannot masquerade as a method declaration (review finding on #1945).
+    var stripped = content.replaceAll(RegExp(r'/\*[\s\S]*?\*/'), ' ');
+    stripped = stripped.replaceAll(RegExp(r'//[^\n]*'), ' ');
+    final normalized = stripped.replaceAll(RegExp(r'\s+'), ' ');
+    // Allow an optional generic type-parameter list (`<...>`) between the
+    // method name and `(`, e.g. `fetch<T extends Bar>(...)`.
+    final methodMatches = RegExp(
+      r'\w+\s*(?:<[^<>]*(?:<[^<>]*>[^<>]*)*>)?\s*\([^)]*\)\s*;',
+    ).allMatches(normalized);
+    return methodMatches.isNotEmpty;
+  }
+
+  /// Alias for [hasDeclaredDataSourceInterface] (issue #1931) — kept so
+  /// callers/tests using either spelling resolve to the same predicate.
+  static bool hasDeclaredDataSource(
+    String typeName,
+    String outputDir, {
+    FileSystem? fileSystem,
+  }) => hasDeclaredDataSourceInterface(
+    typeName,
+    outputDir,
+    fileSystem: fileSystem,
+  );
+
+  static bool hasDataSourceInterface(
+    String typeName,
+    String outputDir, {
+    FileSystem? fileSystem,
+  }) => hasDeclaredDataSourceInterface(
+    typeName,
+    outputDir,
+    fileSystem: fileSystem,
+  );
+
+  static bool hasDataSource(
+    String typeName,
+    String outputDir, {
+    FileSystem? fileSystem,
+  }) => hasDeclaredDataSourceInterface(
+    typeName,
+    outputDir,
+    fileSystem: fileSystem,
+  );
+
   /// Issue #1898: the #1747 guard skips the class-shaped CRUD
   /// datasource/provider surface for types that declare no CRUD surface.
   /// A request that asks for ONLY non-CRUD verbs (`list`, or any verb
