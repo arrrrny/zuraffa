@@ -296,6 +296,9 @@ class TrackedGeneratedOutputGuard {
       lines.addAll(<String>[
         '   Prevent the rewrite by excluding the file from the claiming '
             'builders in build.yaml:',
+        '       json_serializable:',
+        '         generate_for:',
+        '           exclude: [$target]',
         '       source_gen:combining_builder:',
         '         generate_for:',
         '           exclude: [$target]',

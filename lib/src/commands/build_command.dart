@@ -276,6 +276,10 @@ class BuildCommand extends Command {
           '--> fix: resolve the pubspec problem reported above (e.g. a '
           'stale dependency_overrides path), then re-run `zfa build`.',
         );
+        // Issue #1953: re-print the captured diagnostic tail — the pub
+        // error survives wrapper/CI truncation of the live stream exactly
+        // like every other terminal failure path.
+        printBuildFailureDiagnostic(build.output);
         exit(1);
       }
       print(
@@ -1338,7 +1342,9 @@ class BuildCommand extends Command {
     for (var i = 1; i < contentful.length - 1; i++) {
       final line = contentful[i];
       if (line.startsWith('//') || line.startsWith('/*')) return true;
-      if (RegExp(r'^import\b.*\s(as|hide|show)\s').hasMatch(line)) return true;
+      if (RegExp(r'^(?:import|export)\b.*\s(as|hide|show)\s').hasMatch(line)) {
+        return true;
+      }
     }
     return false;
   }

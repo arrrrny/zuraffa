@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 // Issue #1953 — `zfa build` must not clobber a hand-authored Hive registrar.
 //
 // The #1732 refresh regenerates `lib/src/cache/hive_registrar.dart` with
@@ -12,6 +13,7 @@
 //
 // In-process unit tests for `BuildCommand.refreshHiveRegistrar` and the two
 // new classifiers — no subprocess, no build_runner.
+library;
 
 import 'dart:async';
 import 'dart:io';
@@ -232,6 +234,34 @@ extension HiveRegistrar on HiveInterface {
     test('flags a missing hive_registrar.g.dart part directive', () {
       expect(
         BuildCommand.registrarIsHandAuthored("$header\nimport 'a.dart';"),
+        isTrue,
+      );
+    });
+
+    test('flags export combinators inside an otherwise generated shape', () {
+      // An `export … show/hide` combinator is content the generator never
+      // emits, so the combinator scan must match `export` too — a curated
+      // re-export inside the marker wrap previously fell through as
+      // "generated" and the #1732 refresh clobbered it (review fix on
+      // PR #1963).
+      final withExportShow =
+          '''
+$header
+import 'package:zuraffa/zuraffa.dart';
+export 'src/domain/entities/product/product.dart' show Product;
+part 'hive_registrar.g.dart';
+$trailer
+''';
+      expect(
+        BuildCommand.registrarIsHandAuthored(withExportShow),
+        isTrue,
+        reason: 'export … show is hand curation the generator never emits',
+      );
+      expect(
+        BuildCommand.registrarIsHandAuthored(
+          "$header\nexport 'a.dart' hide Product;\n"
+          "part 'hive_registrar.g.dart';\n$trailer",
+        ),
         isTrue,
       );
     });
