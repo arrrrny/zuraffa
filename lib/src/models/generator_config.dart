@@ -252,8 +252,11 @@ class GeneratorConfig {
           json['append'] == true || json['append_to_existing'] == true,
       generateUseCase:
           json['usecase'] == true || json['generate_usecase'] == true,
-      generateService:
-          json['service'] == true || json['generate_service'] == true,
+      // Issue #1972: the 'service' key carries the service NAME (a String?),
+      // so it can never decide the bool flag — read the dedicated key only.
+      // (A bool under 'service' is a type error on the name read above.)
+      generateService: json['generate_service'] == true,
+      useService: json['use_service'] == true,
       generateRepository: json['repository'] == true,
       useCaseType: json['type'] ?? 'usecase',
       paramsType: json['params'],
@@ -736,6 +739,8 @@ class GeneratorConfig {
     'repo_method': repoMethod,
     'service_method': serviceMethod,
     'append': appendToExisting,
+    'generate_service': generateService,
+    'use_service': useService,
     'repository': generateRepository,
     'type': useCaseType,
     'params': paramsType,
