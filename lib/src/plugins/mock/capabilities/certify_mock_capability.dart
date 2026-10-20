@@ -138,6 +138,28 @@ class CertifyMockCapability implements ZuraffaCapability {
         ? p.absolute(parsed.project!)
         : ProjectRoot.find(anchorDir: 'specs');
 
+    // Issue #1887: an enum/fixture-only entity has no CRUD surface to
+    // certify — the generator skipped it by design (#1037/#1747). Not a
+    // refusal: report success with the reason, no receipt to write. The
+    // check sits ABOVE the toolchain gate below (#1887 review): a
+    // fixture-only entity has nothing to prove in ANY environment, so a
+    // host without the Flutter SDK must not report it as an unresolved
+    // proof. The predicate is shared with the mock lane's guards: an
+    // enum, or (outside service mode, whose providers implement the
+    // service interface) any type whose source declares no CRUD surface.
+    final outputDir = p.join(projectRoot, 'lib', 'src');
+    final fixtureOnly =
+        EntityAnalyzer.isEnum(name, outputDir) ||
+        (parsed.service == null &&
+            EntityAnalyzer.lacksCrudSurface(name, outputDir));
+    if (fixtureOnly) {
+      stdout.writeln(
+        'ℹ️  $name: mock data generated; no datasource surface to '
+        'certify (issues #1037/#1747).',
+      );
+      return 0;
+    }
+
     // 1. Live re-proof: extract the contract, render the test, run the
     //    sandbox, build the receipt. Issue #1600: the certifier is shaped
     //    by the HOST (a Flutter project's contract test imports the
@@ -173,11 +195,19 @@ class CertifyMockCapability implements ZuraffaCapability {
     final outcome = await certifier.certify(
       entityName: name,
       projectRoot: projectRoot,
-      outputDir: p.join(projectRoot, 'lib', 'src'),
+      outputDir: outputDir,
       verbose: parsed.verbose,
       service: parsed.service,
       domain: parsed.domain,
     );
+
+    // Issue #1898 (review): a re-generation of an EXISTING mock needs
+    // `--force` — `zfa mock create` is create-if-absent without it, so a
+    // hint that omitted the flag repeated the command that had just
+    // refused. Both refusal hints below share this corrected command.
+    final regenCmd = parsed.service == null
+        ? 'zfa mock create $name --force --certify'
+        : 'zfa mock create $name --service ${parsed.service} --force --certify';
 
     // Refusal BEFORE the sandbox ran: no mock artifacts / no interface
     // to pin — a different failure class than a red contract. Issue #1872:
@@ -187,9 +217,7 @@ class CertifyMockCapability implements ZuraffaCapability {
       for (final line in outcome.logs) {
         stderr.writeln('zfa mock certify: $line');
       }
-      stderr.writeln(
-        '--> fix: `zfa mock create $name --certify` first, then certify.',
-      );
+      stderr.writeln('--> fix: `$regenCmd` first, then certify.');
       return exitNoMock;
     }
 
@@ -216,8 +244,7 @@ class CertifyMockCapability implements ZuraffaCapability {
       }
       stderr.writeln(
         '--> fix: regenerate the mock + contract '
-        '(`zfa mock create $name --certify`), or restore the drifted '
-        'interface, then re-run.',
+        '(`$regenCmd`), or restore the drifted interface, then re-run.',
       );
       return exitRed;
     }
