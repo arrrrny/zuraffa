@@ -615,7 +615,9 @@ class MockContractTestWriter {
     final fields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
     final idField = _idFieldName(entityName, outputDir);
     if (idField == null || !fields.containsKey(idField)) return null;
-    final collection = '${StringUtils.pascalToCamel(entityName)}s';
+    final collection = StringUtils.pluralize(
+      StringUtils.pascalToCamel(entityName),
+    );
     return '${entityName}MockData.$collection.first.$idField';
   }
 
