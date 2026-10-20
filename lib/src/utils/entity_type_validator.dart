@@ -132,12 +132,12 @@ class EntityTypeValidator {
               cleanType.isNotEmpty && RegExp(r'^[a-z]').hasMatch(cleanType);
           final fixHint = isLowercaseValue
               ? '   Create the enum first:\n'
-                  '     zfa entity enum -n <EnumName> --value $cleanType\n'
-                  '   (replace <EnumName> with your enum\'s name)\n'
-                  '   or check the spelling.'
+                    '     zfa entity enum -n <EnumName> --value $cleanType\n'
+                    '   (replace <EnumName> with your enum\'s name)\n'
+                    '   or check the spelling.'
               : '   Create the enum/entity first, for example:\n'
-                  '     zfa entity enum -n $cleanType --value <values>\n'
-                  '   or check the spelling.';
+                    '     zfa entity enum -n $cleanType --value <values>\n'
+                    '   or check the spelling.';
           errors.add(
             UnresolvedTypeError(
               fieldName: field.name,
