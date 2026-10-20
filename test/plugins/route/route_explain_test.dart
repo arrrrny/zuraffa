@@ -398,7 +398,18 @@ dependencies:
         () => runner.run(['route', 'create', 'Product', '--explain']),
       );
 
-      expect(exitCode, 0);
+      // Issue #1969 (full-suite flake): the create SUCCESS path never
+      // assigns the dart:io global `exitCode` (only the `_fail`/skip
+      // paths do), so asserting `exitCode == 0` here read whatever a
+      // concurrent suite isolate (`dart test -j 2` runs suites as
+      // isolates of one process) had last written into that shared
+      // global — reproduced as `Expected: <0> / Actual: <1>` on this
+      // exact test under a clobbering sibling suite while the file
+      // passes alone. Success is asserted from the command's own error
+      // contract instead: every error and skip path prints a `--> fix:`
+      // line, so an explain block with no fix line IS the success
+      // verdict.
+      expect(out, isNot(contains('--> fix:')));
       expect(out, contains('explain:'));
       expect(out, contains('routes emitted:'));
       expect(out, contains('/product'), reason: 'the emitted route paths');
@@ -416,6 +427,27 @@ dependencies:
       expect(out, contains('shell binding:'));
       expect(out, contains('guard binding:'));
       expect(out, contains('state machine:'));
+    });
+
+    test('emits the explain block while the process exit code is dirty '
+        '(issue #1969 regression: success is not read from the '
+        'cross-isolate global exitCode)', () async {
+      // `dart test -j 2` runs suites as isolates of one process, and the
+      // dart:io `exitCode` getter/setter are PROCESS-global (an isolate's
+      // write is visible to every other isolate). A sibling suite's
+      // error-path test therefore owns this value while this suite runs.
+      // Simulate one that has just written its failure code: the create
+      // success path must neither read nor need it — the verdict is the
+      // emitted explain block with no `--> fix:` line.
+      exitCode = 1;
+      final out = await capturePrints(
+        () => runner.run(['route', 'create', 'Product', '--explain']),
+      );
+
+      expect(out, contains('explain:'));
+      expect(out, contains('routes emitted:'));
+      expect(out, contains('/product'));
+      expect(out, isNot(contains('--> fix:')));
     });
 
     test('reports no shell/guard/state bindings on a bare project', () async {
