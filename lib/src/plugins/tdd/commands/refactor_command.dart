@@ -351,9 +351,13 @@ class RefactorCommand extends Command<void> {
     // RELATIVE to the project root — before any suite is spawned.
     final baselineScope = argResults?['baseline-scope'] as String?;
     if (baselineScope != null && baselineScope.trim().isNotEmpty) {
-      final scopeNorm = p.normalize(baselineScope.trim());
+      final scopeInput = baselineScope.trim();
+      final hasParentSegment =
+          RegExp(r'(^|[\\/])\.\.([\\/]|$)').hasMatch(scopeInput);
+      final scopeNorm = p.normalize(scopeInput);
       final scopeDir = Directory(p.join(cwd, scopeNorm));
       if (p.isAbsolute(scopeNorm) ||
+          hasParentSegment ||
           scopeNorm == '..' ||
           scopeNorm.startsWith('../') ||
           scopeNorm.startsWith('-') ||

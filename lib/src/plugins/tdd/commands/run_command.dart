@@ -593,12 +593,20 @@ class RunCommand extends Command<void> {
 
     // Issue #1374: the constrained-agent escape hatch — scope the suite
     // baseline command to a directory (the feature test dir).
-    final baselineScope = argResults?['baseline-scope'] as String?;
+    final baselineScopeRaw = argResults?['baseline-scope'] as String?;
+    final baselineScope = (baselineScopeRaw == null ||
+            baselineScopeRaw.trim().isEmpty)
+        ? null
+        : baselineScopeRaw.trim();
     if (baselineScope != null) {
+      final hasParentSegment =
+          RegExp(r'(^|[\\/])\.\.([\\/]|$)').hasMatch(baselineScope);
       final scopeNorm = p.normalize(baselineScope);
       if (p.isAbsolute(scopeNorm) ||
+          hasParentSegment ||
           scopeNorm == '..' ||
-          scopeNorm.startsWith('../')) {
+          scopeNorm.startsWith('../') ||
+          scopeNorm.startsWith('-')) {
         print(
           'zfa tdd run: --baseline-scope must be a directory relative to '
           'the project root (got "$baselineScope")',
