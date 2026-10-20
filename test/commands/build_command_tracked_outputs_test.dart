@@ -297,4 +297,137 @@ sealed class EngineEvent {
       expect(text, contains('engine_event'));
     });
   });
+
+  // Issue #1953: a FAILED build that REWROTE tracked generated-name files
+  // must not keep the half-applied rewrites — restore-or-refuse extends
+  // from deletions (spec 1540) to rewrites, and the terminal failure
+  // verdict re-prints the captured diagnostic tail so wrapper-truncated
+  // output cannot lose the actual error.
+  group('BuildCommand rewrite recovery + failure diagnostic (issue #1953)', () {
+    late Directory sandbox;
+    late BuildCommand command;
+
+    setUp(() async {
+      sandbox = await Directory.systemTemp.createTemp('issue1953_build_');
+      command = BuildCommand();
+    });
+
+    tearDown(() async {
+      if (sandbox.existsSync()) {
+        await sandbox.delete(recursive: true);
+      }
+    });
+
+    Future<TrackedGeneratedSnapshot> snapshotWithPlaceholder(
+      String relPath,
+      String content,
+    ) async {
+      final file = File(p.join(sandbox.path, relPath));
+      await file.create(recursive: true);
+      await file.writeAsString(content, flush: true);
+      await _initRepo(sandbox);
+      final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
+      return guard.capture();
+    }
+
+    test('B1: rewrite recovery restores pre-build bytes and prints the '
+        'config-fix remedy', () async {
+      const placeholder = 'lib/src/cache/hive_registrar.dart';
+      const pre =
+          '// placeholder\n'
+          "import 'package:zuraffa/zuraffa.dart' hide DeviceInfo;\n";
+      final snapshot = await snapshotWithPlaceholder(placeholder, pre);
+      // The registrar generator clobbered the placeholder mid-build, then
+      // the combining builder failed the build.
+      await File(
+        p.join(sandbox.path, placeholder),
+      ).writeAsString('// clobbered\nimport gone wrong;\n');
+      final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
+
+      var verdict = true;
+      final out = await capturePrint(() async {
+        verdict = await command.recoverRewrittenTrackedOutputs(guard, snapshot);
+      });
+
+      expect(verdict, isTrue);
+      expect(
+        File(p.join(sandbox.path, placeholder)).readAsStringSync(),
+        pre,
+        reason: 'the failed build must not keep the clobbered bytes',
+      );
+      expect(out, contains(placeholder));
+      expect(out, contains('source_gen:combining_builder'));
+      expect(
+        out,
+        contains('exclude: [$placeholder]'),
+        reason: 'the remedy points at the exact build.yaml exclusion',
+      );
+      expect(out, contains(kHandAuthoredPlaceholderDoc));
+    }, skip: gitOk ? false : 'git binary unavailable');
+
+    test('B2: rewrite recovery is a silent no-op when nothing was '
+        'rewritten', () async {
+      await snapshotWithPlaceholder('lib/src/a.g.dart', '// a\n');
+      final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
+      final snapshot = await guard.capture();
+
+      final out = await capturePrint(
+        () => command.recoverRewrittenTrackedOutputs(guard, snapshot),
+      );
+      expect(out, isEmpty);
+    }, skip: gitOk ? false : 'git binary unavailable');
+
+    test('B3: rewrite recovery REFUSES when the restore cannot write '
+        '(unwritable file)', () async {
+      const placeholder = 'lib/src/cache/hive_registrar.dart';
+      final snapshot = await snapshotWithPlaceholder(placeholder, '// pre\n');
+      // The generator clobbered the placeholder and left it unwritable, so
+      // the restore cannot write the pre-build bytes back.
+      final file = File(p.join(sandbox.path, placeholder));
+      await file.writeAsString('// clobbered\n');
+      await Process.run('chmod', ['444', file.path]);
+      final guard = TrackedGeneratedOutputGuard(projectRoot: sandbox.path);
+
+      var verdict = true;
+      final out = await capturePrint(() async {
+        verdict = await command.recoverRewrittenTrackedOutputs(guard, snapshot);
+      });
+      expect(verdict, isFalse, reason: 'a failed restore must refuse');
+      expect(out, contains('git checkout -- $placeholder'));
+    }, skip: gitOk ? false : 'git binary unavailable');
+
+    test('B4: printBuildFailureDiagnostic re-prints the captured output '
+        'tail, capped', () async {
+      final lines = List<String>.generate(120, (i) => 'line $i');
+      lines[119] = 'source_gen:combining_builder failed on hive_registrar';
+
+      final out = await capturePrint(() async {
+        command.printBuildFailureDiagnostic(lines.join('\n'));
+      });
+
+      expect(
+        out,
+        contains('source_gen:combining_builder failed on hive_registrar'),
+        reason: 'the final summary line — the actual diagnostic — survives',
+      );
+      expect(out, contains('line 80'));
+      expect(
+        out,
+        isNot(contains('line 0\n')),
+        reason: 'only the tail is re-printed',
+      );
+      final printed = out
+          .split('\n')
+          .where((l) => l.startsWith('line '))
+          .length;
+      expect(printed, lessThan(80), reason: 'the tail is capped');
+    });
+
+    test('B5: printBuildFailureDiagnostic is silent on empty output', () async {
+      final out = await capturePrint(() async {
+        command.printBuildFailureDiagnostic('');
+      });
+      expect(out, isEmpty);
+    });
+  });
 }
