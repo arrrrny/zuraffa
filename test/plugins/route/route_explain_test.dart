@@ -429,25 +429,31 @@ dependencies:
       expect(out, contains('state machine:'));
     });
 
-    test('emits the explain block while the process exit code is dirty '
-        '(issue #1969 regression: success is not read from the '
-        'cross-isolate global exitCode)', () async {
-      // `dart test -j 2` runs suites as isolates of one process, and the
-      // dart:io `exitCode` getter/setter are PROCESS-global (an isolate's
-      // write is visible to every other isolate). A sibling suite's
-      // error-path test therefore owns this value while this suite runs.
-      // Simulate one that has just written its failure code: the create
-      // success path must neither read nor need it — the verdict is the
-      // emitted explain block with no `--> fix:` line.
-      exitCode = 1;
+    test('the create success verdict is the command\'s own, not the global '
+        'exitCode (issue #1969)', () async {
+      // Issue #1969: the dart:io `exitCode` is PROCESS-global (an isolate's
+      // write is visible to every other isolate), and `dart test -j 2` runs
+      // suites as isolates of one process — so the global is owned by a
+      // sibling suite, never by this command. The create success path
+      // therefore publishes its verdict through the canonical
+      // `zuraffa.verdict.v1` envelope (`verdict: pass`, `exit_class: 0`),
+      // which is global-independent by construction. Asserting THAT is what
+      // discriminates: a future change routing the verdict through the
+      // global fails here.
       final out = await capturePrints(
-        () => runner.run(['route', 'create', 'Product', '--explain']),
+        () => runner.run(['route', 'create', 'Product', '--explain', '--json']),
       );
+      final envelope = _envelopeFrom(out);
 
-      expect(out, contains('explain:'));
-      expect(out, contains('routes emitted:'));
-      expect(out, contains('/product'));
-      expect(out, isNot(contains('--> fix:')));
+      expect(envelope['schema'], 'zuraffa.verdict.v1');
+      expect(envelope['verdict'], 'pass');
+      expect(
+        envelope['exit_class'],
+        0,
+        reason: 'the ratified ExitProtocol code for a successful create',
+      );
+      final explain = envelope['explain'] as Map<String, dynamic>;
+      expect(explain['routes'], isA<List>());
     });
 
     test('reports no shell/guard/state bindings on a bare project', () async {
