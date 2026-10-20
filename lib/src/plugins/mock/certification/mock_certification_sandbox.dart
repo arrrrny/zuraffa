@@ -391,8 +391,22 @@ dev_dependencies:
     final anchor = p.absolute(projectRoot);
     final roots = <String>[];
     if (service == null) {
-      roots.addAll([
-        p.join(outputDir, 'domain', 'entities', snake, '$snake.dart'),
+      // Issue #1927: an aggregate/feature-scoped seam has no entity file
+      // named after the seam — the entity is only needed for entity-mode
+      // mock data. Resolve the subject set from the generated
+      // interface/mock pair instead of requiring the (possibly absent)
+      // entity file and its mock data.
+      final entityPath = p.join(
+        outputDir,
+        'domain',
+        'entities',
+        snake,
+        '$snake.dart',
+      );
+      if (File(entityPath).existsSync()) {
+        roots.add(entityPath);
+      }
+      roots.add(
         p.join(
           outputDir,
           'data',
@@ -400,6 +414,8 @@ dev_dependencies:
           snake,
           '${snake}_datasource.dart',
         ),
+      );
+      roots.add(
         p.join(
           outputDir,
           'data',
@@ -407,8 +423,16 @@ dev_dependencies:
           snake,
           '${snake}_mock_datasource.dart',
         ),
-        p.join(outputDir, 'data', 'mock', '${snake}_mock_data.dart'),
-      ]);
+      );
+      final mockDataPath = p.join(
+        outputDir,
+        'data',
+        'mock',
+        '${snake}_mock_data.dart',
+      );
+      if (File(mockDataPath).existsSync()) {
+        roots.add(mockDataPath);
+      }
     } else {
       // Service mode: the conforming double is a provider implementing
       // the declared service interface. Seed those two files; the import
@@ -468,7 +492,15 @@ dev_dependencies:
         .map((r) => p.absolute(r))
         .where((r) => File(r).existsSync())
         .toList();
-    final threshold = service == null ? 3 : 2;
+    // Issue #1927: an aggregate seam (no entity file on disk) only needs
+    // its interface + mock datasource to certify; an entity-mode seam
+    // keeps the historical 3-subject floor (entity + interface + mock).
+    final entityExists =
+        service == null &&
+        File(
+          p.join(outputDir, 'domain', 'entities', snake, '$snake.dart'),
+        ).existsSync();
+    final threshold = service == null ? (entityExists ? 3 : 2) : 2;
     if (existingRoots.length < threshold) {
       logs.add(
         'mock subjects missing under $outputDir (found '
