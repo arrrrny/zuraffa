@@ -182,16 +182,28 @@ class MockCertificationSandbox {
         targetPubspec ??
         pubspecYaml;
     if (resolvedContent == null && pubspecPath != null) {
-      final f = File(pubspecPath);
-      if (f.existsSync()) resolvedContent = f.readAsStringSync();
+      try {
+        final f = File(pubspecPath);
+        if (f.existsSync()) resolvedContent = f.readAsStringSync();
+      } catch (_) {
+        // Unreadable path (directory, permissions): treat as no content.
+      }
     }
     if (resolvedContent == null && pubspecFile != null) {
-      final f = File(pubspecFile);
-      if (f.existsSync()) resolvedContent = f.readAsStringSync();
+      try {
+        final f = File(pubspecFile);
+        if (f.existsSync()) resolvedContent = f.readAsStringSync();
+      } catch (_) {
+        // Unreadable path (directory, permissions): treat as no content.
+      }
     }
     if (resolvedContent == null && resolvedRoot != null) {
-      final f = File(p.join(resolvedRoot, 'pubspec.yaml'));
-      if (f.existsSync()) resolvedContent = f.readAsStringSync();
+      try {
+        final f = File(p.join(resolvedRoot, 'pubspec.yaml'));
+        if (f.existsSync()) resolvedContent = f.readAsStringSync();
+      } catch (_) {
+        // Unreadable path (directory, permissions): treat as no content.
+      }
     }
     if (resolvedContent == null || resolvedContent.trim().isEmpty) {
       return flutterTest
@@ -219,7 +231,11 @@ dev_dependencies:
   test: ^1.25.0
 ''';
     }
-    return _derivePubspecFromTarget(resolvedContent, frameworkRoot);
+    return _derivePubspecFromTarget(
+      resolvedContent,
+      frameworkRoot,
+      flutterTest: flutterTest,
+    );
   }
 
   static String pubspecForProject({
@@ -254,19 +270,45 @@ dev_dependencies:
         targetPubspec: targetPubspec,
       );
 
-  static String _derivePubspecFromTarget(String raw, String frameworkRoot) {
+  static String _derivePubspecFromTarget(
+    String raw,
+    String frameworkRoot, {
+    bool flutterTest = false,
+  }) {
     final fwPath = jsonEncode(p.normalize(frameworkRoot));
     var lines = raw.split('\n');
     lines = _patchSectionZuraffa(lines, 'dependencies', fwPath);
     lines = _patchSectionZuraffa(lines, 'dependency_overrides', fwPath);
+    lines = _patchSectionZuraffa(
+      lines,
+      'dev_dependencies',
+      fwPath,
+      insertIfMissing: false,
+    );
+    if (flutterTest) {
+      lines = _ensureSectionKey(
+        lines,
+        'dependencies',
+        'flutter',
+        const ['  flutter:', '    sdk: flutter'],
+      );
+      lines = _ensureSectionKey(
+        lines,
+        'dev_dependencies',
+        'flutter_test',
+        const ['  flutter_test:', '    sdk: flutter'],
+        createSection: true,
+      );
+    }
     return lines.join('\n');
   }
 
   static List<String> _patchSectionZuraffa(
     List<String> lines,
     String section,
-    String fwPath,
-  ) {
+    String fwPath, {
+    bool insertIfMissing = true,
+  }) {
     final out = List<String>.of(lines);
     var sectionIdx = -1;
     for (var i = 0; i < out.length; i++) {
@@ -279,9 +321,9 @@ dev_dependencies:
     if (sectionIdx < 0) return out;
     final rest = out[sectionIdx].substring(section.length + 1).trim();
     if (rest == '{}') {
-      out[sectionIdx] = section + ':';
+      out[sectionIdx] = '$section:';
       out.insert(sectionIdx + 1, '  zuraffa:');
-      out.insert(sectionIdx + 2, '    path: ' + fwPath);
+      out.insert(sectionIdx + 2, '    path: $fwPath');
       return out;
     }
     if (rest.isNotEmpty && rest.startsWith('{')) {
@@ -298,6 +340,11 @@ dev_dependencies:
         break;
       }
     }
+    // Walk back over trailing blank lines so insertion does not leave a
+    // spurious empty line inside the mapping.
+    while (endIdx > sectionIdx + 1 && out[endIdx - 1].trim().isEmpty) {
+      endIdx--;
+    }
     var zIdx = -1;
     for (var i = sectionIdx + 1; i < endIdx; i++) {
       if (RegExp(r'^  zuraffa:\s*').hasMatch(out[i])) {
@@ -305,7 +352,7 @@ dev_dependencies:
         break;
       }
     }
-    final entry = <String>['  zuraffa:', '    path: ' + fwPath];
+    final entry = <String>['  zuraffa:', '    path: $fwPath'];
     if (zIdx >= 0) {
       var zEnd = zIdx + 1;
       while (zEnd < endIdx) {
@@ -318,9 +365,61 @@ dev_dependencies:
       }
       out.removeRange(zIdx, zEnd);
       out.insertAll(zIdx, entry);
-    } else {
+    } else if (insertIfMissing) {
       out.insertAll(endIdx, entry);
     }
+    return out;
+  }
+
+  static List<String> _ensureSectionKey(
+    List<String> lines,
+    String section,
+    String key,
+    List<String> entry, {
+    bool createSection = false,
+  }) {
+    final out = List<String>.of(lines);
+    var sectionIdx = -1;
+    for (var i = 0; i < out.length; i++) {
+      final m = RegExp('^' + section + r':\s*(.*)$').firstMatch(out[i]);
+      if (m != null) {
+        sectionIdx = i;
+        break;
+      }
+    }
+    if (sectionIdx < 0) {
+      if (!createSection) return out;
+      if (out.isNotEmpty && out.last.trim().isNotEmpty) out.add('');
+      out.add('$section:');
+      out.addAll(entry);
+      return out;
+    }
+    final rest = out[sectionIdx].substring(section.length + 1).trim();
+    if (rest.isNotEmpty && !rest.startsWith('{')) {
+      // inline mapping on same line: leave untouched
+    }
+    // find endIdx
+    var endIdx = out.length;
+    for (var i = sectionIdx + 1; i < out.length; i++) {
+      final line = out[i];
+      if (line.trim().isEmpty) continue;
+      if (line.trimLeft().startsWith('#')) continue;
+      final leading = RegExp(r'^(\s*)').firstMatch(line)?.group(1) ?? '';
+      if (leading.length < 2) {
+        endIdx = i;
+        break;
+      }
+    }
+    while (endIdx > sectionIdx + 1 && out[endIdx - 1].trim().isEmpty) {
+      endIdx--;
+    }
+    // check if key present
+    for (var i = sectionIdx + 1; i < endIdx; i++) {
+      if (RegExp('^  $key:\\s*').hasMatch(out[i])) {
+        return out;
+      }
+    }
+    out.insertAll(endIdx, entry);
     return out;
   }
 
