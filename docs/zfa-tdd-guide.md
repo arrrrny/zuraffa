@@ -296,6 +296,20 @@ zfa tdd run todo-app
   under a `_XRaySkinHandEdit(behavior: "W1", file: ..., logged_at: ...)`
   annotation so the receipt can capture them. Hand-edit **only** inside that
   seam — never generated engine code.
+- **Slot-aware widget tests (issue #1920).** When the SKIN lane declares
+  `adaptive_slots`, `zfa tdd gen` emits the widget test with a per-slot
+  harness: a `for (final slot in ...)` loop pins the slot's environment
+  (`debugDefaultTargetPlatformOverride` for `ios`/`android`/`macos`,
+  surface size for the width-defined `mobile`/`tablet`/`desktop` slots),
+  pumps the view, prints `skin-event: behavior=<id> slot=<slot>` after
+  `pumpAndSettle()`, and releases the pin in a `finally` inside the body.
+  The template also adds the `package:flutter/foundation.dart` import the
+  pin needs — `material.dart` does not re-export it.
+  **Release the pin as the test body's LAST statement — never through
+  `addTearDown`:** `debugAssertAllFoundationVarsUnset` runs at the end of
+  `_runTestBody`, *before* tear-down callbacks fire, so a teardown release
+  fails the test with "The value of a foundation debug variable was
+  changed by the test" — a message that names nothing about slots.
 
 ## 5a. Expected hand steps (designed stops, not misfires)
 
