@@ -58,7 +58,14 @@ void main() {
       outputDir: GeneratorConfig.fixedOutputDir,
     );
 
-    final replayed = GeneratorConfig.fromJson(config.toJson(), 'Product');
+    final json = config.toJson();
+    expect(
+      json['remote'],
+      isTrue,
+      reason:
+          "toJson emits 'remote' unconditionally, like every sibling bool flag",
+    );
+    final replayed = GeneratorConfig.fromJson(json, 'Product');
     expect(replayed.generateRemote, isTrue);
   });
 
