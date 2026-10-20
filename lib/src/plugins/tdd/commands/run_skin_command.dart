@@ -249,13 +249,13 @@ class RunSkinCommand extends Command<void> {
     // Issue #1374/#1777: the constrained-agent escape hatch — scope the
     // suite baseline to a directory (forwarded to the lane-mode driver).
     final baselineScopeRaw = argResults?['baseline-scope'] as String?;
-    final baselineScope = (baselineScopeRaw == null ||
-            baselineScopeRaw.trim().isEmpty)
+    final baselineScope =
+        (baselineScopeRaw == null || baselineScopeRaw.trim().isEmpty)
         ? null
         : baselineScopeRaw.trim();
     if (baselineScope != null) {
-      final hasParentSegment =
-          RegExp(r'(^|[\\/])\.\.([\\/]|$)').hasMatch(baselineScope);
+      final hasParentSegment = RegExp(r'(^|[\\/])\.\.([\\/]|$)')
+          .hasMatch(baselineScope);
       final scopeNorm = p.normalize(baselineScope);
       if (p.isAbsolute(scopeNorm) ||
           hasParentSegment ||
@@ -689,9 +689,8 @@ class RunSkinCommand extends Command<void> {
 
     // The view-builder target comes from the IMMUTABLE test source —
     // `subject.<name>(` — never from the author's implementation.
-    final targetMatch = RegExp(
-      r'subject\.([A-Za-z_][A-Za-z0-9_]*)\s*\(',
-    ).firstMatch(testSource);
+    final targetMatch = RegExp(r'subject\.([A-Za-z_][A-Za-z0-9_]*)\s*\(')
+        .firstMatch(testSource);
     final target = targetMatch?.group(1);
 
     var redWitnessed = false;

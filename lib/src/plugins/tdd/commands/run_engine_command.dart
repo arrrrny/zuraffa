@@ -356,13 +356,13 @@ class RunEngineCommand extends Command<void> {
     // Issue #1374/#1777: the constrained-agent escape hatch — scope the
     // suite baseline to a directory (forwarded to the driver).
     final baselineScopeRaw = argResults?['baseline-scope'] as String?;
-    final baselineScope = (baselineScopeRaw == null ||
-            baselineScopeRaw.trim().isEmpty)
+    final baselineScope =
+        (baselineScopeRaw == null || baselineScopeRaw.trim().isEmpty)
         ? null
         : baselineScopeRaw.trim();
     if (baselineScope != null) {
-      final hasParentSegment =
-          RegExp(r'(^|[\\/])\.\.([\\/]|$)').hasMatch(baselineScope);
+      final hasParentSegment = RegExp(r'(^|[\\/])\.\.([\\/]|$)')
+          .hasMatch(baselineScope);
       final scopeNorm = p.normalize(baselineScope);
       if (p.isAbsolute(scopeNorm) ||
           hasParentSegment ||

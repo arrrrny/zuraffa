@@ -63,6 +63,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+
 import '../../../cli/exit_protocol.dart';
 
 import '../models/verdict_envelope.dart';
@@ -594,13 +595,13 @@ class RunCommand extends Command<void> {
     // Issue #1374: the constrained-agent escape hatch — scope the suite
     // baseline command to a directory (the feature test dir).
     final baselineScopeRaw = argResults?['baseline-scope'] as String?;
-    final baselineScope = (baselineScopeRaw == null ||
-            baselineScopeRaw.trim().isEmpty)
+    final baselineScope =
+        (baselineScopeRaw == null || baselineScopeRaw.trim().isEmpty)
         ? null
         : baselineScopeRaw.trim();
     if (baselineScope != null) {
-      final hasParentSegment =
-          RegExp(r'(^|[\\/])\.\.([\\/]|$)').hasMatch(baselineScope);
+      final hasParentSegment = RegExp(r'(^|[\\/])\.\.([\\/]|$)')
+          .hasMatch(baselineScope);
       final scopeNorm = p.normalize(baselineScope);
       if (p.isAbsolute(scopeNorm) ||
           hasParentSegment ||
