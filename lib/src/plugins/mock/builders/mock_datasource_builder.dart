@@ -658,7 +658,11 @@ class MockDataSourceBuilder {
           ? methodReturns
           : 'void';
       final baseReturns = _baseReturnType(returns);
-      if (!_isHonestArbitraryReturn(baseReturns, entityName, config.outputDir)) {
+      if (!_isHonestArbitraryReturn(
+        baseReturns,
+        entityName,
+        config.outputDir,
+      )) {
         throw ArgumentError(
           'unknown return type $baseReturns for member $methodName',
         );
