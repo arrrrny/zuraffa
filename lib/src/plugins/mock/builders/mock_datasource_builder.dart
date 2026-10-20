@@ -654,41 +654,24 @@ class MockDataSourceBuilder {
     return baseReturns;
   }
 
-  /// Issue #1850 (honest bodies): the return shapes an arbitrary verb can be
-  /// given a real body for. Shared by validation and emission so the
-  /// pre-flight and the generated method can never disagree.
-  static bool _isHonestArbitraryReturn(
-    String baseReturns,
-    String entityName, [
-    String? outputDir,
-  ]) {
-    if (baseReturns == 'void' || baseReturns == 'dynamic') return true;
-    if (baseReturns == entityName) return true;
-    if (outputDir != null &&
-        EntityAnalyzer.entityFileExists(baseReturns, outputDir)) {
-      return true;
-    }
-    if (baseReturns.startsWith('List<') && baseReturns.endsWith('>')) {
-      final inner = baseReturns.substring(5, baseReturns.length - 1).trim();
-      if (inner == entityName) return true;
-      if (outputDir != null &&
-          EntityAnalyzer.entityFileExists(inner, outputDir)) {
-        return true;
-      }
-      return false;
-    }
-    return false;
-  }
 
   /// Issue #1922: validates every arbitrary (non-CRUD) member shape of
   /// [config] WITHOUT emitting or writing anything, so a refused member
   /// (the #1850 `ArgumentError`) leaves the working tree untouched instead
   /// of clobbering the datasource interface that was written before the
   /// shape check used to run.
-  static void validateMemberShapes(GeneratorConfig config) {
+  static void validateMemberShapes(
+    GeneratorConfig config, {
+    FileSystem? fileSystem,
+  }) {
     final entityName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
         : config.name;
+    final fs = fileSystem ?? FileSystem.create();
+    final builder = MockDataSourceBuilder(
+      outputDir: config.outputDir,
+      fileSystem: fs,
+    );
     for (final method in config.methods) {
       if (_crudMethodNames.contains(method)) continue;
       final parsed = _parseMethodShape(method);
@@ -698,15 +681,35 @@ class MockDataSourceBuilder {
           ? methodReturns
           : 'void';
       final baseReturns = _baseReturnType(returns);
-      if (!_isHonestArbitraryReturn(
-        baseReturns,
-        entityName,
-        config.outputDir,
-      )) {
-        throw ArgumentError(
-          'unknown return type $baseReturns for member $methodName',
-        );
-      }
+      final isVoid = baseReturns == 'void' || baseReturns == 'dynamic';
+      final isList =
+          baseReturns.startsWith('List<') && baseReturns.endsWith('>');
+      final listInner = isList
+          ? baseReturns.substring(5, baseReturns.length - 1).trim()
+          : '';
+      final isEntityList = isList && listInner == entityName;
+      final isEntityReturn = baseReturns == entityName;
+      // Issue #1923: a foreign entity is derivable only when it wraps a
+      // paged slice of the subject fixture (see _deriveForeignPageShape).
+      // Keep the pre-flight in lockstep with the emission path so a refused
+      // member is caught here, before the interface is written (#1922).
+      final foreignPage = !isVoid && !isEntityList && !isEntityReturn
+          ? builder._deriveForeignPageShape(
+              entityName: entityName,
+              foreignType: baseReturns,
+              paramsType: (parsed.$2 != null && parsed.$2!.isNotEmpty)
+                  ? parsed.$2!
+                  : (config.paramsType ?? 'NoParams'),
+            )
+          : null;
+      if (isVoid || isEntityList || isEntityReturn) continue;
+      if (foreignPage != null) continue;
+      // Issue #1923: any other foreign return (primitive, single entity,
+      // non-paged wrapper, unknown type) is refused rather than emitted
+      // with a throw body under conformance:true (#1850).
+      throw ArgumentError(
+        'unknown return type $baseReturns for member $methodName',
+      );
     }
   }
 
