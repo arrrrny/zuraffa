@@ -1,3 +1,10 @@
+## [7.2.0] - 2026-10-20
+
+### Changed
+- Repository cleanup: removed obsolete v4/v5/v6 migration docs and stale references; updated README/AGENTS/CLI docs to v7.
+- Restored `mutation-test.xml` default config; removed orphaned 1417 mutation runner.
+- Documentation version references bumped to 7.2.0 across README and website docs.
+
 ## [7.1.0] - 2026-10-12
 
 ### Added
