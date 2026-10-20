@@ -552,6 +552,24 @@ class RunSkinCommand extends Command<void> {
       );
     }
 
+    final completedRedGreen = receipts
+        .where(
+          (r) =>
+              r.nonConformanceReason == null ||
+              r.nonConformanceReason == 'hand-edit-missing' ||
+              r.nonConformanceReason == 'slots-unfilled',
+        )
+        .length;
+    final nonConformed = receipts.length - conformed;
+    final reasons = receipts
+        .where((r) => !r.conformance && r.nonConformanceReason != null)
+        .map((r) => r.nonConformanceReason!)
+        .toSet()
+        .toList();
+    final reasonLabel = reasons.length == 1
+        ? reasons.first
+        : reasons.join(', ');
+
     _printConformanceSummary(
       feature: feature,
       result: allConformed ? RunSkinOutcome.complete : RunSkinOutcome.stopped,
@@ -560,6 +578,9 @@ class RunSkinCommand extends Command<void> {
       slotFills: slotFills,
       slotDeclared: declaredSlots.length * receipts.length,
       handEdits: handEdits.length,
+      completedRedGreen: completedRedGreen,
+      nonConformed: nonConformed,
+      reasonLabel: nonConformed > 0 ? reasonLabel : null,
     );
     exitCode = allConformed ? 0 : 1;
   }
@@ -590,6 +611,7 @@ class RunSkinCommand extends Command<void> {
         testPath: '',
         subjectPath: '',
         platformSlotFills: const [],
+        nonConformanceReason: 'red-not-witnessed',
       );
     }
     final subjectAbs = p.normalize(
@@ -610,12 +632,22 @@ class RunSkinCommand extends Command<void> {
     final subjectFile = File(subjectAbs);
     if (!await subjectFile.exists()) {
       refuse('implementation file missing');
-      return _refused(record, subjectRel, testRel);
+      return _refused(
+        record,
+        subjectRel,
+        testRel,
+        nonConformanceReason: 'green-failed',
+      );
     }
     final testFile = File(testAbs);
     if (!await testFile.exists()) {
       refuse('paired test missing (run `zfa tdd gen $id`)');
-      return _refused(record, subjectRel, testRel);
+      return _refused(
+        record,
+        subjectRel,
+        testRel,
+        nonConformanceReason: 'green-failed',
+      );
     }
 
     final subjectSource = await subjectFile.readAsString();
@@ -638,7 +670,7 @@ class RunSkinCommand extends Command<void> {
         .toList();
     print(
       '      hand-edit: '
-      '${matchedEdit.isEmpty ? "NONE (issue #1005 refusal)" : "logged_at ${matchedEdit.first.loggedAt}"}',
+      '${matchedEdit.isEmpty ? "NONE — no _XRaySkinHandEdit(behavior: \"$id\", file: \"$subjectRel\", logged_at: \"<ISO-8601>\") in the subject" : "logged_at ${matchedEdit.first.loggedAt}"}',
     );
 
     // -- (c) the red witness: stub-revert -> RED -> restore -> GREEN ---
@@ -718,7 +750,12 @@ class RunSkinCommand extends Command<void> {
             'changed during the red witness',
           );
           onRedWitnessFailure();
-          return _refused(record, subjectRel, testRel);
+          return _refused(
+            record,
+            subjectRel,
+            testRel,
+            nonConformanceReason: 'no-hand-edit-diff',
+          );
         }
         print('      restored: byte-exact (sha256 verified)');
 
@@ -779,6 +816,22 @@ class RunSkinCommand extends Command<void> {
 
     final conformance =
         slotsConform && matchedEdit.isNotEmpty && redWitnessed && greenPassed;
+
+    String? nonConformanceReason;
+    if (!conformance) {
+      if (!redWitnessed) {
+        nonConformanceReason = 'red-not-witnessed';
+      } else if (!greenPassed) {
+        nonConformanceReason = 'green-failed';
+      } else if (matchedEdit.isEmpty) {
+        nonConformanceReason = 'hand-edit-missing';
+      } else if (!slotsConform) {
+        nonConformanceReason = 'slots-unfilled';
+      } else {
+        nonConformanceReason = 'no-hand-edit-diff';
+      }
+    }
+
     if (conformance) {
       print('      conformance: true');
     }
@@ -789,19 +842,22 @@ class RunSkinCommand extends Command<void> {
       testPath: testRel,
       subjectPath: subjectRel,
       platformSlotFills: slotFills,
+      nonConformanceReason: nonConformanceReason,
     );
   }
 
   SkinReceipt _refused(
     ArtifactRecord record,
     String subjectRel,
-    String testRel,
-  ) => SkinReceipt(
+    String testRel, {
+    String? nonConformanceReason,
+  }) => SkinReceipt(
     behavior: record.behaviorId,
     conformance: false,
     testPath: testRel,
     subjectPath: subjectRel,
     platformSlotFills: const [],
+    nonConformanceReason: nonConformanceReason ?? 'red-not-witnessed',
   );
 
   Future<void> _writeConformanceReceipt({
@@ -881,6 +937,9 @@ class RunSkinCommand extends Command<void> {
     required int slotFills,
     required int slotDeclared,
     required int handEdits,
+    int completedRedGreen = 0,
+    int nonConformed = 0,
+    String? reasonLabel,
   }) {
     final json = argResults?['json'] as bool? ?? false;
     if (json) {
@@ -894,9 +953,12 @@ class RunSkinCommand extends Command<void> {
           'result': result.label,
           'behaviors': behaviors,
           'conformed': conformed,
+          'completed_red_green': completedRedGreen,
+          'non_conformed': nonConformed,
           'slot_fills': slotFills,
           'slot_declared': slotDeclared,
           'hand_edits': handEdits,
+          'non_conformance_reasons': ?reasonLabel,
         },
       );
       return;
@@ -905,6 +967,11 @@ class RunSkinCommand extends Command<void> {
       'run-skin: feature=$feature result=${result.label} '
       'behaviors=$behaviors conformed=$conformed '
       'slots=$slotFills/$slotDeclared hand_edits=$handEdits',
+    );
+    print(
+      'run-skin: $completedRedGreen/$behaviors behaviors completed red→green; '
+      '$nonConformed not conformant'
+      '${nonConformed > 0 && reasonLabel != null ? ' ($reasonLabel)' : ''}',
     );
   }
 
