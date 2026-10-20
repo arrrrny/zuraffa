@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/zfa_cli.dart' as cli;
 
 /// SPEC 1127, order 5 — `zfa service create --explain`.
@@ -70,13 +71,20 @@ environment:
           isFalse,
           reason: '--explain must not generate',
         );
-        expect(exitCode, equals(0));
+        expect(CliRunner.lastDispatchedExitCode, equals(0));
       },
     );
 
     test('reports the provider binding when one exists', () async {
       // Generate a service, then a provider bound to it.
-      await zfa(['service', 'create', 'Payment', '--returns', 'Receipt']);
+      await zfa([
+        'service',
+        'create',
+        'Payment',
+        '--returns',
+        'Receipt',
+        '--allow-forward-refs',
+      ]);
       await zfa([
         'provider',
         'create',

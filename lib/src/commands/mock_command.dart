@@ -466,6 +466,14 @@ class CertifyMockCommand extends Command<void> {
       negatable: false,
       help: 'Enable detailed logging',
     );
+    argParser.addOption(
+      'service',
+      help: 'Service name for mock provider (service mode)',
+    );
+    argParser.addOption(
+      'domain',
+      help: 'Domain folder for the mock provider (service mode)',
+    );
   }
 
   @override
@@ -502,6 +510,8 @@ class CertifyMockCommand extends Command<void> {
       ],
       if (results['force'] == true) '--force',
       if (results['verbose'] == true) '--verbose',
+      if (results['service'] != null) ...['--service', results['service']!],
+      if (results['domain'] != null) ...['--domain', results['domain']!],
     ];
     final capability = CertifyMockCapability(plugin);
     exitCode = await capability.run(argv);
@@ -704,10 +714,14 @@ Future<void> _runMockGeneration({
     return;
   }
 
-  if (!result.success) {
+  // Issue #1927: a certification failure (result.success == false but files
+  // were still emitted) must still produce the --json envelope on the
+  // failure path instead of returning with no stdout document. Track the
+  // failure and keep going when artifacts exist; only a zero-file run
+  // refuses without an envelope (issue #769 / A2b).
+  final generationFailed = !result.success;
+  if (generationFailed) {
     _emit(jsonMode, '❌ Error: ${result.message}');
-    exitCode = 1;
-    return;
   }
 
   final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
@@ -748,21 +762,32 @@ Future<void> _runMockGeneration({
         service: service,
         domain: domain,
         methods: methods,
+        commandLabel: 'zfa mock create',
       );
-      receiptPath = await MockCertificationService.writeReceipt(
-        projectRoot: projectRoot,
-        entity: entity,
-        commandLine: commandLine,
-        certification: certification,
-        files: files,
-        capabilityName: capabilityName,
-        methodset: methods,
-      );
-    } catch (e) {
-      // Best-effort (issue #807 convention): the artifacts already exist,
-      // so a receipt failure degrades to a warning instead of failing the
-      // run.
-      _emit(jsonMode, '⚠️  Mock-certification receipt not written: $e');
+    } on StateError catch (e) {
+      // Issue #1894: an absent declared interface (or mock) is a refusal,
+      // not a vacuous green — surface it and stop, no receipt written.
+      _emit(jsonMode, e.message);
+      exitCode = 1;
+      return;
+    }
+    if (!dryRun) {
+      try {
+        receiptPath = await MockCertificationService.writeReceipt(
+          projectRoot: projectRoot,
+          entity: entity,
+          commandLine: commandLine,
+          certification: certification,
+          files: files,
+          capabilityName: capabilityName,
+          methodset: methods,
+        );
+      } catch (e) {
+        // Best-effort (issue #807 convention): the artifacts already exist,
+        // so a receipt failure degrades to a warning instead of failing the
+        // run.
+        _emit(jsonMode, '⚠️  Mock-certification receipt not written: $e');
+      }
     }
   }
 
@@ -817,7 +842,8 @@ Future<void> _runMockGeneration({
     }
   }
 
-  final conformanceFailed = certification != null && !certification.conformance;
+  final conformanceFailed =
+      generationFailed || (certification != null && !certification.conformance);
   if (conformanceFailed) {
     exitCode = 1;
   }

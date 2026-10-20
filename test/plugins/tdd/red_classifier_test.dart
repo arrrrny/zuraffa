@@ -241,7 +241,7 @@ Failing tests:
           testCount: 0,
         ),
       );
-      expect(result, RedClassification.runnerError);
+      expect(result, RedClassification.testNameMismatch);
     });
 
     test('unparseable count is not honest evidence of a single run', () {
@@ -493,7 +493,7 @@ The following UnimplementedError was thrown running a test:
   });
 
   group('RedClassification model (T003)', () {
-    test('exposes exactly the eight spec classes with kebab labels', () {
+    test('exposes exactly the nine spec classes with kebab labels', () {
       // The eighth class (kind-mismatch, issue #964): the observed red
       // came from a finder whose kind does not match the scenario verb.
       expect(RedClassification.values.map((c) => c.label), [
@@ -505,6 +505,7 @@ The following UnimplementedError was thrown running a test:
         'runner-error',
         'channel-timeout',
         'kind-mismatch',
+        'test-name-mismatch',
       ]);
     });
 
@@ -584,6 +585,43 @@ The following StateError was thrown building Dashboard(dirty):
       expect(
         failingAssertionOf(named),
         "B-001 \u2014 renders the 'Home' label",
+      );
+    });
+  });
+
+  group('issue #1760 review — multi-line + printed-label boundary', () {
+    test('multi-line Expected block classifies as assertion', () {
+      const multiLine = '''
+00:00 +0: loading b_001_test.dart
+00:00 +0 -1: returns 42 when invoked with no args [E]
+  Expected:
+    [1, 2, 3,
+     4, 5]
+    Actual: [1, 2, 4]
+
+00:00 +0 -1: Some tests failed.
+''';
+      expect(
+        classify(record(multiLine, exitCode: 1, testCount: 1)),
+        RedClassification.assertion,
+      );
+    });
+
+    test('printed Expected:/Actual: labels are not an assertion report', () {
+      const printed = '''
+00:00 +0: loading b_001_test.dart
+00:00 +0: my test
+Expected: foo
+Actual: bar
+00:00 +0 -1: my test [E]
+  Bad state: boom
+  b_001_test.dart 6:5  main.<fn>
+
+00:00 +0 -1: Some tests failed.
+''';
+      expect(
+        classify(record(printed, exitCode: 1, testCount: 1)),
+        isNot(RedClassification.assertion),
       );
     });
   });

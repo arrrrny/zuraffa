@@ -36,12 +36,14 @@ List<String> makeArgs(
   String? feature,
   bool author = false,
   String? findersFile,
+  String? timeout,
 }) {
   final args = <String>['tdd', 'make', '--project', fx.root.path];
   if (feature != null) args.addAll(['--feature', feature]);
   if (zfaBin != null) args.addAll(['--zfa-bin', zfaBin]);
   if (author) args.add('--author');
   if (findersFile != null) args.addAll(['--finders-file', findersFile]);
+  if (timeout != null) args.addAll(['--timeout', timeout]);
   if (id != null) args.add(id);
   return args;
 }
@@ -198,6 +200,88 @@ int ${_subjectSymbol}_value() => 0;
     });
   });
 
+  group('SkinAuthoring.validateAuthorFinders — await-before-pump guard '
+      '(#1855)', () {
+    test('refuses an await of a subject read before any pump', () {
+      expect(
+        () => SkinAuthoring.validateAuthorFinders(
+          'final Future<void> flip = state!.load();\n'
+          'await flip;\n'
+          'await tester.pumpAndSettle();\n'
+          "expect(find.text('x'), findsOneWidget);",
+        ),
+        throwsA(isA<SkinAuthoringException>()),
+      );
+    });
+
+    test('accepts pump-then-await ordering', () {
+      expect(
+        () => SkinAuthoring.validateAuthorFinders(
+          'final Future<void> flip = state!.load();\n'
+          'await tester.pumpAndSettle();\n'
+          'await flip;\n'
+          "expect(find.text('x'), findsOneWidget);",
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('accepts finders with no await at all', () {
+      expect(
+        () => SkinAuthoring.validateAuthorFinders(
+          'expect(find.text("hi"), findsOneWidget);',
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('does not false-positive on a literal await inside a string', () {
+      expect(
+        () => SkinAuthoring.validateAuthorFinders(
+          "expect(find.text('await'), findsOneWidget);",
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('does not let a pump token in a comment mask a deadlock', () {
+      expect(
+        () => SkinAuthoring.validateAuthorFinders(
+          '// pump(\n'
+          'await state!.load();\n'
+          "expect(find.text('x'), findsOneWidget);",
+        ),
+        throwsA(isA<SkinAuthoringException>()),
+      );
+    });
+
+    test('accepts a multi-segment pump receiver as a pump-await', () {
+      expect(
+        () => SkinAuthoring.validateAuthorFinders(
+          'final Future<void> flip = state!.load();\n'
+          'await tester.binding.pump(const Duration(milliseconds: 10));\n'
+          'await flip;\n'
+          "expect(find.text('x'), findsOneWidget);",
+        ),
+        returnsNormally,
+      );
+    });
+
+    test(
+      'accepts await tester.binding.pump(...) before a later await read',
+      () {
+        expect(
+          () => SkinAuthoring.validateAuthorFinders(
+            'await tester.binding.pump();\n'
+            'await state!.load();\n'
+            "expect(find.text('x'), findsOneWidget);",
+          ),
+          returnsNormally,
+        );
+      },
+    );
+  });
+
   group('SuiteGuard.parse — compact-reporter padding tolerance (#1258 '
       'enabling fix)', () {
     const guard = SuiteGuard();
@@ -287,11 +371,16 @@ int ${_subjectSymbol}_value() => 0;
           zfaBin: zfaBin,
           author: true,
           findersFile: findersFile,
+          // Issue #1921: the re-certification spawns a real `dart test`
+          // child; the 2-minute default SIGKILLs it on a loaded host and
+          // turns the honest red into runner-error. Pin a deadline that
+          // covers a cold child under load.
+          timeout: '10',
         ),
       );
 
       // (d) the driver resumes: the make certifies green, exit 0.
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains(
@@ -349,6 +438,58 @@ int ${_subjectSymbol}_value() => 0;
       );
     });
 
+    test(
+      'U1b: an authored-red re-certification TIMEOUT is reported as an '
+      'infrastructure deadline, never blamed on the supplied finders',
+      () async {
+        await seedScaffoldedDeadEnd();
+        final findersFile = await writeAuthorFinders(
+          'expect(${_subjectSymbol}_value(), equals(42));',
+        );
+        final before = await File(fx.testPathOf(_behaviorId)).readAsString();
+        final zfaBin = await fx.writeFakeZfaBin(logPath: fx.fakeZfaLogPath);
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(
+          makeArgs(
+            fx,
+            id: _behaviorId,
+            zfaBin: zfaBin,
+            author: true,
+            findersFile: findersFile,
+            // Issue #1921: 0.005 min = 300 ms — far below any `dart test`
+            // cold start, so the re-certification child is deterministically
+            // killed by the deadline (the loaded-host flake, forced).
+            timeout: '0.005',
+          ),
+        );
+
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
+        // The deadline fired and is named as infrastructure, not a finding
+        // about the author's finders.
+        expect(out, contains('TIMED OUT'), reason: out);
+        expect(out, contains('infrastructure'), reason: out);
+        expect(out, contains('--timeout'), reason: out);
+        expect(
+          out,
+          isNot(contains('supply scenario-failing concrete finders')),
+          reason: out,
+        );
+        expect(out, contains('outcome=timeout'), reason: out);
+        // Nothing changed: the scaffolded bytes are restored.
+        expect(
+          await File(fx.testPathOf(_behaviorId)).readAsString(),
+          equals(before),
+        );
+        expect(
+          File(
+            p.join(fx.featureDir, 'tdd', 'provenance-ledger.json'),
+          ).existsSync(),
+          isFalse,
+        );
+      },
+    );
+
     test('U2: without --author the refusal stands and the test tree is '
         'untouched (backward compatibility)', () async {
       await seedScaffoldedDeadEnd();
@@ -360,7 +501,7 @@ int ${_subjectSymbol}_value() => 0;
         makeArgs(fx, id: _behaviorId, zfaBin: zfaBin),
       );
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('SCAFFOLDED'));
       expect(out, contains('outcome=scaffolded'));
       // No generation ran, nothing changed.
@@ -394,10 +535,13 @@ int ${_subjectSymbol}_value() => 0;
             zfaBin: zfaBin,
             author: true,
             findersFile: findersFile,
+            // Same real-child deadline as U1 (issue #1921): a loaded host
+            // must not turn this certification into runner-error.
+            timeout: '10',
           ),
         );
 
-        expect(exitCode, isNot(0));
+        expect(CliRunner.lastDispatchedExitCode, isNot(0));
         expect(out, contains('born-green'), reason: out);
         // The scaffolded bytes were restored byte-identical.
         expect(
@@ -440,7 +584,7 @@ int ${_subjectSymbol}_value() => 0;
         ),
       );
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('--author'), reason: out);
       expect(out, contains('outcome=runner-error'));
       expect(await fx.readFakeZfaLog(), isEmpty);
@@ -455,7 +599,7 @@ int ${_subjectSymbol}_value() => 0;
         makeArgs(fx, id: _behaviorId, zfaBin: zfaBin, author: true),
       );
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('--finders-file'), reason: out);
       expect(await fx.readFakeZfaLog(), isEmpty);
     });
@@ -480,7 +624,7 @@ int ${_subjectSymbol}_value() => 0;
         ),
       );
 
-      expect(exitCode, isNot(0));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
       expect(out, contains('classification: compile-error'), reason: out);
       expect(
         await File(fx.testPathOf(_behaviorId)).readAsString(),

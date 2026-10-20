@@ -60,7 +60,7 @@ void main() {
     await cache.writeAsString(
       jsonEncode({
         'command': suiteSpy,
-        'exitCode': 1,
+        'CliRunner.lastDispatchedExitCode': 1,
         'failedTests': ['test/other_test.dart: other behavior red'],
         'capturedAt': '2026-09-01T00:00:00.000Z',
         'parseable': true,
@@ -165,7 +165,7 @@ void main() {
         contains('make: behavior=B-001 outcome=green feature=$feature'),
         reason: out,
       );
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       expect(
         out,
         contains('trimmed re-certification set'),
@@ -219,7 +219,7 @@ void main() {
       contains('make: behavior=B-001 outcome=green feature=$feature'),
       reason: out,
     );
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       out,
       isNot(contains('trimmed re-certification set')),
@@ -276,7 +276,7 @@ void main() {
       contains('make: behavior=B-001 outcome=green feature=$feature'),
       reason: out,
     );
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       out,
       isNot(contains('trimmed re-certification set')),
@@ -318,7 +318,7 @@ void main() {
         contains('make: behavior=B-001 outcome=green feature=$feature'),
         reason: out,
       );
-      expect(exitCode, 0, reason: out);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
       // The #741 contract: the suite never runs; the scoped single-test
       // transcript is the guard.
       expect(fx.spyLog('suite'), isEmpty, reason: out);

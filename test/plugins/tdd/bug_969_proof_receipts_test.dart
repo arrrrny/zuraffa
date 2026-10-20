@@ -59,7 +59,7 @@ coverage: 'dart test --coverage'
   });
 
   Future<String> run(List<String> args) {
-    // Direct CliRunner use keeps the global exitCode for assertions.
+    // Direct CliRunner use keeps the global CliRunner.lastDispatchedExitCode for assertions.
     return CliRunner(exitOnCompletion: false).runCapturing(args);
   }
 
@@ -160,7 +160,11 @@ coverage: 'dart test --coverage'
 
       // Fresh cycle: the receipted bytes are the on-disk bytes.
       final out = await run(['-C', tmp.path, 'proof', 'check']);
-      expect(exitCode, 0, reason: 'fresh cycle must prove clean: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'fresh cycle must prove clean: $out',
+      );
 
       // Hand-edit a receipted artifact: digest drift = exit 1.
       final testList = File(
@@ -171,7 +175,7 @@ coverage: 'dart test --coverage'
       );
       final out2 = await run(['-C', tmp.path, 'proof', 'check']);
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         1,
         reason: 'a hand-edited artifact must fail proof check: $out2',
       );
@@ -202,7 +206,11 @@ coverage: 'dart test --coverage'
         tmp.path,
       ]);
 
-      expect(exitCode, 3, reason: 'digest drift is non-zero: $out');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        3,
+        reason: 'digest drift is non-zero: $out',
+      );
       expect(out, contains('NOT_ASSESSED'));
       expect(out, contains('--> fix:'));
       expect(

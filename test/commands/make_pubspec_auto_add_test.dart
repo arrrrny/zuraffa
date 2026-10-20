@@ -122,6 +122,8 @@ dependencies:
   zorphy_annotation: ^2.3.0
 dev_dependencies:
   build_runner: ^2.4.0
+  flutter_test:
+    sdk: flutter
 ''');
     runner = _RecordingRunner(simulate: true, sandbox: dir);
   });
@@ -162,7 +164,7 @@ dev_dependencies:
       final output = await captureOutput(
         () => commandRunner().run([
           'make',
-          'car',
+          'Car',
           '--preset=crud',
           '--state',
           '--test',
@@ -213,7 +215,7 @@ dev_dependencies:
             );
           await failingRunner.run([
             'make',
-            'car',
+            'Car',
             '--preset=crud',
             '--state',
             '--test',
@@ -242,7 +244,7 @@ dev_dependencies:
         await captureOutput(
           () => commandRunner().run([
             'make',
-            'car',
+            'Car',
             '--preset=crud',
             '--state',
             '--test',

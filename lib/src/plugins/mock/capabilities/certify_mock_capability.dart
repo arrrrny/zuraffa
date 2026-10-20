@@ -29,6 +29,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../../utils/entity_analyzer.dart';
 import '../../../core/project/project_root.dart';
 import '../certification/mock_certification_sandbox.dart';
 import '../certification/mock_certifier.dart';
@@ -77,6 +78,14 @@ class CertifyMockCapability implements ZuraffaCapability {
         'type': 'boolean',
         'description': 'Overwrite existing artifacts',
         'default': false,
+      },
+      'service': {
+        'type': 'string',
+        'description': 'Service name for mock provider (service mode)',
+      },
+      'domain': {
+        'type': 'string',
+        'description': 'Domain folder for the mock provider (service mode)',
       },
     },
     'required': ['name'],
@@ -129,17 +138,48 @@ class CertifyMockCapability implements ZuraffaCapability {
         ? p.absolute(parsed.project!)
         : ProjectRoot.find(anchorDir: 'specs');
 
+    // Issue #1887: an enum/fixture-only entity has no CRUD surface to
+    // certify — the generator skipped it by design (#1037/#1747). Not a
+    // refusal: report success with the reason, no receipt to write. The
+    // check sits ABOVE the toolchain gate below (#1887 review): a
+    // fixture-only entity has nothing to prove in ANY environment, so a
+    // host without the Flutter SDK must not report it as an unresolved
+    // proof. The predicate is shared with the mock lane's guards: an
+    // enum, or (outside service mode, whose providers implement the
+    // service interface) any type whose source declares no CRUD surface.
+    final outputDir = p.join(projectRoot, 'lib', 'src');
+    final fixtureOnly =
+        EntityAnalyzer.isEnum(name, outputDir) ||
+        (parsed.service == null &&
+            EntityAnalyzer.lacksCrudSurface(name, outputDir) &&
+            !EntityAnalyzer.hasDeclaredDataSourceInterface(name, outputDir));
+    if (fixtureOnly) {
+      stdout.writeln(
+        'ℹ️  $name: mock data generated; no datasource surface to '
+        'certify (issues #1037/#1747).',
+      );
+      return 0;
+    }
+
     // 1. Live re-proof: extract the contract, render the test, run the
     //    sandbox, build the receipt. Issue #1600: the certifier is shaped
     //    by the HOST (a Flutter project's contract test imports the
     //    Flutter test framework and is proven with the Flutter toolchain).
     final certifier = MockCertifier.forProject(projectRoot);
 
+    // Issue #1872 follow-up (environment-independence): an enum certifies
+    // on its fixture surface alone and needs no Flutter toolchain.
+    final isEnumEntity = EntityAnalyzer.isEnum(
+      name,
+      p.join(projectRoot, 'lib', 'src'),
+    );
+
     // Issue #1600: a Flutter-shaped proof without the Flutter toolchain is
     // an unresolvable environment — not a red contract (the spec-1110
     // precedent). The un-certified state stays loud: no receipt is
     // written, so the engine cert-gate refuses the entity downstream.
-    if (certifier.sandbox.flutterTest &&
+    if (!isEnumEntity &&
+        certifier.sandbox.flutterTest &&
         !MockCertificationSandbox.flutterOnPath()) {
       stderr.writeln(
         'zfa mock certify: the Flutter-shaped contract test cannot be '
@@ -156,26 +196,37 @@ class CertifyMockCapability implements ZuraffaCapability {
     final outcome = await certifier.certify(
       entityName: name,
       projectRoot: projectRoot,
-      outputDir: p.join(projectRoot, 'lib', 'src'),
+      outputDir: outputDir,
       verbose: parsed.verbose,
+      service: parsed.service,
+      domain: parsed.domain,
     );
 
+    // Issue #1898 (review): a re-generation of an EXISTING mock needs
+    // `--force` — `zfa mock create` is create-if-absent without it, so a
+    // hint that omitted the flag repeated the command that had just
+    // refused. Both refusal hints below share this corrected command.
+    final regenCmd = parsed.service == null
+        ? 'zfa mock create $name --force --certify'
+        : 'zfa mock create $name --service ${parsed.service} --force --certify';
+
     // Refusal BEFORE the sandbox ran: no mock artifacts / no interface
-    // to pin — a different failure class than a red contract.
-    if (outcome.contractTestSource == null) {
+    // to pin — a different failure class than a red contract. Issue #1872:
+    // an enum certifies on its fixture-only surface and carries no contract
+    // test, so a present receipt is not a refusal.
+    if (outcome.contractTestSource == null && outcome.receipt == null) {
       for (final line in outcome.logs) {
         stderr.writeln('zfa mock certify: $line');
       }
-      stderr.writeln(
-        '--> fix: `zfa mock create $name --certify` first, then certify.',
-      );
+      stderr.writeln('--> fix: `$regenCmd` first, then certify.');
       return exitNoMock;
     }
 
-    // 2. Commit the contract test + receipt into the project — on BOTH
-    //    outcomes. A red run MUST overwrite any stale green receipt: the
-    //    run-engine gate reads this receipt, and leaving a pre-drift
-    //    green receipt on disk would let an uncertified mock through.
+    // 2. Commit the contract test into the project on BOTH outcomes. A
+    //    red run removes any stale green receipt (see writeContractArtifacts)
+    //    so the run-engine gate cannot keep reading an uncertified mock as
+    //    certified; the contract test itself is always (re)written so the
+    //    drift stays legible.
     final written = await certifier.writeContractArtifacts(
       entityName: name,
       projectRoot: projectRoot,
@@ -194,8 +245,7 @@ class CertifyMockCapability implements ZuraffaCapability {
       }
       stderr.writeln(
         '--> fix: regenerate the mock + contract '
-        '(`zfa mock create $name --certify`), or restore the drifted '
-        'interface, then re-run.',
+        '(`$regenCmd`), or restore the drifted interface, then re-run.',
       );
       return exitRed;
     }
@@ -292,12 +342,16 @@ class _ParsedArgs {
   final String? fixturesDir;
   final bool force;
   final bool verbose;
+  final String? service;
+  final String? domain;
   const _ParsedArgs({
     this.feature,
     this.project,
     this.fixturesDir,
     this.force = false,
     this.verbose = false,
+    this.service,
+    this.domain,
   });
 }
 
@@ -305,6 +359,8 @@ _ParsedArgs _parseArgs(List<String> rest) {
   String? feature;
   String? project;
   String? fixturesDir;
+  String? service;
+  String? domain;
   var force = false;
   var verbose = false;
   for (var i = 0; i < rest.length; i++) {
@@ -319,6 +375,10 @@ _ParsedArgs _parseArgs(List<String> rest) {
       project = rest[++i];
     } else if (a == '--fixtures-dir' && i + 1 < rest.length) {
       fixturesDir = rest[++i];
+    } else if (a == '--service' && i + 1 < rest.length) {
+      service = rest[++i];
+    } else if (a == '--domain' && i + 1 < rest.length) {
+      domain = rest[++i];
     }
   }
   return _ParsedArgs(
@@ -327,5 +387,7 @@ _ParsedArgs _parseArgs(List<String> rest) {
     fixturesDir: fixturesDir,
     force: force,
     verbose: verbose,
+    service: service,
+    domain: domain,
   );
 }

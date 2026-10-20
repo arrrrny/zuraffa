@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 
@@ -13,9 +14,11 @@ import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../skew/skew_contract.dart';
 import '../../utils/entity_analyzer.dart';
+import '../../utils/entity_field_resolver.dart';
 import '../../utils/entity_utils.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
+import '../../utils/project_flavor.dart';
 import '../method_append/builders/inject_builder.dart';
 import '../method_append/builders/method_append_builder.dart';
 import '../method_append/capabilities/inject_capability.dart';
@@ -210,6 +213,57 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return [];
     }
 
+    // Issue #1886: derive the identity member from the entity instead of
+    // hardcoding `id`. Standalone `zfa mock create` (and any other caller
+    // that did not pre-resolve via MakeCommand) used to leave
+    // `config.idField` at its `id` default, so an entity whose identity is
+    // e.g. `userId` produced a mock whose `item.id` / `params.id` access
+    // did not compile. Resolve here, mirroring MakeCommand, so every entry
+    // point shares one resolution. Service-mode mocks conform to the
+    // declared service interface and keep the default.
+    //
+    // PR #1904 review: resolve only while `idField` is still the `id`
+    // sentinel, so an explicit `--id-field` from the make pipeline wins
+    // (MakeCommand guards its own resolution the same way). Prefer the
+    // caller's project root over assuming `outputDir` is `<root>/lib/src`.
+    var resolvedConfig = config;
+    if (config.service == null && config.idField == 'id') {
+      final contextRoot = context?.core.projectRoot;
+      final projectRoot = contextRoot != null && contextRoot.isNotEmpty
+          ? contextRoot
+          : Directory(config.outputDir).parent.parent.path;
+      final resolution = EntityFieldResolver.resolveIdField(
+        entityName: config.repo != null
+            ? config.repo!.replaceAll('Repository', '')
+            : config.name,
+        projectRoot: projectRoot,
+      );
+      if (resolution != null && !resolution.isValueObject) {
+        if (resolution.hasId && resolution.idField != null) {
+          resolvedConfig = config.copyWith(
+            idField: resolution.idField!.name,
+            idFieldType: resolution.idField!.nonNullableType,
+          );
+        } else {
+          final representative = EntityFieldResolver.resolveRepresentativeField(
+            entityName: config.repo != null
+                ? config.repo!.replaceAll('Repository', '')
+                : config.name,
+            projectRoot: projectRoot,
+          );
+          if (representative != null) {
+            resolvedConfig = config.copyWith(
+              idField: representative.name,
+              idFieldType: representative.nonNullableType,
+            );
+          } else {
+            resolvedConfig = config.copyWith(idFieldType: 'NoParams');
+          }
+        }
+      }
+    }
+    config = resolvedConfig;
+
     final fs = context?.fileSystem ?? fileSystem;
     final builder = context != null
         ? MockBuilder(outputDir: outputDir, options: options, fileSystem: fs)
@@ -261,7 +315,13 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                   targetEntity,
                   outputDir,
                   fileSystem: fs,
-                ));
+                ) &&
+                !EntityAnalyzer.hasDeclaredDataSourceInterface(
+                  targetEntity,
+                  outputDir,
+                  fileSystem: fs,
+                ) &&
+                EntityAnalyzer.methodsRequireCrudSurface(config.methods));
         if (fixtureOnlyEntity) {
           final purged = await _purgeCrudDatasourceArtifacts(
             targetEntity,
@@ -299,11 +359,18 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
               // and returns null, so the stale index is rewritten as the
               // empty skeleton instead of being left behind (#1037).
               if (await fs.exists(indexPath)) {
+                final flavor = await detectProjectFlavor(outputDir, fileSystem);
+                final coreImport = flavor == ProjectFlavor.flutter
+                    ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+                    : 'package:zuraffa/zuraffa.dart';
+                final simulationImport = 'package:zuraffa/simulation.dart';
                 files.add(
                   await FileUtils.writeFile(
                     indexPath,
                     SimulationBindingEmitter.builder.buildIndexFile(
                       registrations: const [],
+                      coreImport: coreImport,
+                      simulationImport: simulationImport,
                     ),
                     'di_simulation_index',
                     force: true,
@@ -459,6 +526,16 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     FileSystem fs, {
     bool dryRun = false,
   }) async {
+    // Issue #1931: never purge a mock datasource for an entity that
+    // declares a `<Entity>DataSource` interface with methods — that
+    // interface is exactly what makes the mock datasource meaningful.
+    if (EntityAnalyzer.hasDeclaredDataSourceInterface(
+      entityName,
+      outputDir,
+      fileSystem: fs,
+    )) {
+      return const [];
+    }
     const marker = '// GENERATED - DO NOT EDIT';
     final entitySnake = StringUtils.camelToSnake(entityName);
     final candidates = <String>[

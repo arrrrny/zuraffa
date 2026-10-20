@@ -67,6 +67,15 @@ RedClassification classify(RunRecord record) {
   //    unparseable transcript cannot prove a single-test run either.
   final count = record.testCount;
   if (count == null || count != 1) {
+    // Issue #1778: a `--plain-name` filter that matches ZERO tests is a
+    // test-title drift, not a toolchain failure. The runner exits 79 with
+    // a "No tests ran." transcript; classify it distinctly so the
+    // operator sees the real cause instead of an opaque runner-error.
+    if (count == 0 &&
+        record.command.contains('--plain-name') &&
+        record.output.contains('No tests ran')) {
+      return RedClassification.testNameMismatch;
+    }
     return RedClassification.runnerError;
   }
 
@@ -139,8 +148,16 @@ final RegExp _cfeDiagnostic = RegExp(
   r'\S+:\d+:\d+:?\s*Error:|Compilation failed|CompilationError',
 );
 
+// A real assertion report is indented under the failing `[E]` test line, so
+// both labels must sit at the start of an indented line. A bare `Expected:`/
+// `Actual:` printed to stdout (column 0) is not an assertion report, even
+// when an unrelated failure follows. The 4000-char bound keeps the two
+// labels within one failure block; larger dumps are missed by design.
 final RegExp _assertionSignature = RegExp(
-  r'Expected:.*\n\s*Actual:|TestFailure',
+  r'^\s+Expected:[\s\S]{0,4000}?^\s+Actual:|'
+  r'^\s+Actual:[\s\S]{0,4000}?^\s+Expected:|'
+  r'TestFailure',
+  multiLine: true,
 );
 
 bool _hasLoadSignature(String output) {

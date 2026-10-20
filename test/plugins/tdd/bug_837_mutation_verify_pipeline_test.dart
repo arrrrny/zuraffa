@@ -390,7 +390,11 @@ void main() {
       expect(out, contains('mutation: gate=pass'));
       expect(out, contains('mutation_was_run=true'));
       expect(out, isNot(contains('gate=preflight_red')));
-      expect(exitCode, 0, reason: 'a green suite must pass the gate');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        0,
+        reason: 'a green suite must pass the gate',
+      );
       final md = File(
         p.join(fx.featureDir, 'tdd', 'verification.md'),
       ).readAsStringSync();
@@ -429,7 +433,11 @@ void main() {
       // Per-mutant lines cite file:line.
       expect(out, contains('b_001_subject.dart:'));
       // Exit 1 (quality failure), NOT the 64 usage class.
-      expect(exitCode, 1, reason: 'survivors must exit 1');
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        1,
+        reason: 'survivors must exit 1',
+      );
       expect(out, isNot(contains('❌ mutation audit gate')));
       final md = File(
         p.join(fx.featureDir, 'tdd', 'verification.md'),
@@ -461,7 +469,7 @@ void main() {
       expect(out, contains('❌ mutation audit gate: preflight_red'));
       expect(out, contains('mutation_was_run=false'));
       expect(
-        exitCode,
+        CliRunner.lastDispatchedExitCode,
         isNot(1),
         reason: 'preflight refusal stays in the 64 usage class',
       );
@@ -503,7 +511,7 @@ void main() {
 
       expect(out, contains('mutation: gate=pass'));
       expect(out, contains('mutation_was_run=true'));
-      expect(exitCode, 0);
+      expect(CliRunner.lastDispatchedExitCode, 0);
     }, timeout: const Timeout(Duration(minutes: 4)));
   }, tags: ['slow', 'integration']);
 }

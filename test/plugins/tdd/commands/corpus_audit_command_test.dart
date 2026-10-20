@@ -87,7 +87,7 @@ void main() {
     );
 
     final out = await audit();
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     final lastLine = out.trim().split('\n').last;
     expect(
       lastLine,
@@ -130,7 +130,7 @@ void main() {
       }),
     );
     final out = await audit();
-    expect(exitCode, 1, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 1, reason: out);
     expect(out, contains('lib/mystery.dart'));
     final lastLine = out.trim().split('\n').last;
     expect(
@@ -156,7 +156,7 @@ void main() {
         }),
       );
       final passing = await audit();
-      expect(exitCode, 0, reason: passing);
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: passing);
       expect(
         passing.trim().split('\n').last,
         'audit: files=1 attributed=0 carveout=1 unattributed=0 result=pass',
@@ -168,7 +168,7 @@ void main() {
         jsonEncode({'carveouts': []}),
       );
       final failing = await audit();
-      expect(exitCode, 1, reason: failing);
+      expect(CliRunner.lastDispatchedExitCode, 1, reason: failing);
       expect(failing, contains('lib/manual_ui.dart'));
       expect(
         failing.trim().split('\n').last,
@@ -179,7 +179,7 @@ void main() {
 
   test('U32: no lib/ directory audits trivially green with files=0', () async {
     final out = await audit();
-    expect(exitCode, 0, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
     expect(
       out.trim().split('\n').last,
       'audit: files=0 attributed=0 carveout=0 unattributed=0 result=pass',
@@ -190,7 +190,7 @@ void main() {
     await libFile('mystery.dart');
     await write('.zfa/corpus', 'blocks the report directory');
     final out = await audit();
-    expect(exitCode, 2, reason: out);
+    expect(CliRunner.lastDispatchedExitCode, 2, reason: out);
     expect(out, contains('runner error'));
     expect(
       out.trim().split('\n').last,

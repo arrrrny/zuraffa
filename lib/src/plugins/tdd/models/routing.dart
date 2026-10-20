@@ -308,11 +308,18 @@ class SpecDeclarations {
   final Map<String, ScenarioDeclaration> scenarios;
   final Map<String, ContractRowDecl> contractRows;
   final Map<String, PersistenceDeclaration> persistence;
+  // Key Entity names declared under `Key Entities` (bug #1793): the
+  // membership test in routing_resolver consults these in addition to
+  // the entity-kind contract rows, so an entity declared only as a Key
+  // Entity (e.g. a bullet form the contract-row parser missed) is still
+  // recognised when a Data/Domain row's declared return type names it.
+  final List<String> keyEntities;
 
   const SpecDeclarations({
     this.scenarios = const {},
     this.contractRows = const {},
     this.persistence = const {},
+    this.keyEntities = const [],
   });
 }
 

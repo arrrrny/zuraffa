@@ -291,6 +291,11 @@ class MergeSliceCapability implements ZuraffaCapability {
     required List<String> baselineFailures,
     required List<String> currentFailures,
     bool rolledBack = false,
+    List<String>? expectedCacheEntities,
+    List<String>? registeredCacheEntities,
+    Map<String, String>? i18nViewSources,
+    Iterable<String>? i18nTranslationKeys,
+    Iterable<String>? i18nAllowedLiterals,
   }) {
     return MergeVerdict(
       feature: feature,
@@ -299,6 +304,15 @@ class MergeSliceCapability implements ZuraffaCapability {
       views: ConformanceGate.views(
         viewSources: viewSources,
         shellConvention: shellConvention,
+      ),
+      cache: ConformanceGate.cache(
+        expectedEntities: expectedCacheEntities,
+        registeredEntities: registeredCacheEntities,
+      ),
+      i18n: ConformanceGate.i18n(
+        viewSources: i18nViewSources ?? viewSources,
+        translationKeys: i18nTranslationKeys,
+        allowedLiterals: i18nAllowedLiterals,
       ),
       featureSuite: ConformanceGate.featureSuite(
         baselineFailures: baselineFailures,

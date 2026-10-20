@@ -111,6 +111,10 @@ class DeclaredRouting {
         specMd,
         contractFiles: contractFiles(resolvedDir),
       ).rows,
+      keyEntities: const SpecParser()
+          .parseKeyEntities(specMd)
+          .map((e) => e.name)
+          .toList(),
     );
     final result = const RoutingResolver().resolve(
       row: RoutingRow(behaviorId: behaviorId, traces: traces),

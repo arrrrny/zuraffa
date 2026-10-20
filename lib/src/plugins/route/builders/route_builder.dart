@@ -641,6 +641,19 @@ class RouteBuilder {
         allowIdRoutes &&
         (hasCreate || hasUpdate || hasDelete || hasGet || hasWatch);
 
+    // #1718 Gap 2: compute detail-view availability BEFORE emitting the
+    // route constants so the detail const is only declared when its route is
+    // actually emitted (otherwise the manifest/deep-link test references a
+    // route that does not exist).
+    final detailViewPath = path.join(
+      outputDir,
+      'presentation',
+      'pages',
+      domainSnake,
+      '${entitySnake}_detail_view.dart',
+    );
+    final hasDetailView = !isCustom && await fileSystem.exists(detailViewPath);
+
     final routeConstants = _buildEntityRouteConstants(
       routeNameBase: routeNameBase,
       routeBase: routeBase,
@@ -675,14 +688,6 @@ class RouteBuilder {
     // file does not exist, and the route must not reference it. Reading the
     // filesystem aligns the route generator with the view generator's actual
     // output and eliminates the `uri_does_not_exist` analyze errors.
-    final detailViewPath = path.join(
-      outputDir,
-      'presentation',
-      'pages',
-      domainSnake,
-      '${entitySnake}_detail_view.dart',
-    );
-    final hasDetailView = !isCustom && await fileSystem.exists(detailViewPath);
     final detailViewImport =
         '../presentation/pages/$domainSnake/${entitySnake}_detail_view.dart';
 
@@ -758,8 +763,10 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
-          viewName: '${entityName}DetailView',
-          viewParams: detailViewParams,
+          viewName: hasDetailView
+              ? '${entityName}DetailView'
+              : '${entityName}View',
+          viewParams: hasDetailView ? detailViewParams : mainViewParams,
         ),
       if (hasCreate)
         _buildCreateRouteExpr(
@@ -803,7 +810,6 @@ class RouteBuilder {
             (hasDetailView && viewAcceptsRepository(detailViewParams)));
     final imports = [
       'package:zuraffa_flutter/zuraffa_flutter.dart',
-      'package:zuraffa/zuraffa.dart',
       '../presentation/pages/$domainSnake/${entitySnake}_view.dart',
       if (hasDetailView) detailViewImport,
       if (passesRepository) repositoryImport,
@@ -1293,7 +1299,6 @@ class RouteBuilder {
     final exports = <Directive>[Directive.export('app_routes.dart')];
     final imports = <Directive>[
       Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
-      Directive.import('package:zuraffa/zuraffa.dart'),
     ];
     final routeElements = <Expression>[];
 
@@ -1668,9 +1673,6 @@ class RouteBuilder {
     }
     if (!content.contains("import 'package:flutter/material.dart';")) {
       content = "import 'package:flutter/material.dart';\n$content";
-    }
-    if (!content.contains("import 'package:zuraffa/zuraffa.dart';")) {
-      content = "import 'package:zuraffa/zuraffa.dart';\n$content";
     }
     return content;
   }

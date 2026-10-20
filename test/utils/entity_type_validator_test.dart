@@ -153,6 +153,25 @@ void main() {
       expect(errors.first.message, contains('zfa entity enum -n FeedbackType'));
     });
 
+    test(
+      'lowercase unresolvable type uses placeholder enum name hint (#1929)',
+      () {
+        final fields = [FieldDefinition(name: 'values', type: 'free')];
+        final errors = EntityTypeValidator.validate(
+          fields: fields,
+          outputDir: outputDir,
+        );
+        expect(errors, hasLength(1));
+        expect(errors.first.fieldName, 'values');
+        expect(errors.first.typeName, 'free');
+        expect(errors.first.message, contains('Unknown type "free"'));
+        expect(
+          errors.first.message,
+          contains('zfa entity enum -n <EnumName> --value free'),
+        );
+      },
+    );
+
     test('rejects the EXACT issue #296 field set (FeedbackType missing)', () {
       // Mirror the issue report: Feedback created BEFORE FeedbackType enum.
       final fields = [
