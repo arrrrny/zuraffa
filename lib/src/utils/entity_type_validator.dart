@@ -124,12 +124,16 @@ class EntityTypeValidator {
           // to create (`zfa entity enum -n free`) produces a wrong artifact
           // that "succeeds" and misleads the user. Use a placeholder enum
           // name and present the offending token as a `--value` instead.
-          final isLowercaseValue = cleanType.isNotEmpty &&
-              cleanType[0] == cleanType[0].toLowerCase() &&
-              cleanType[0] != cleanType[0].toUpperCase();
+          // Issue #1929: a leading lowercase letter means the token is a
+          // value/member, not a type name. Use a rune-safe check so
+          // non-ASCII identifiers cannot be misclassified by a single
+          // UTF-16 code unit.
+          final isLowercaseValue =
+              cleanType.isNotEmpty && RegExp(r'^[a-z]').hasMatch(cleanType);
           final fixHint = isLowercaseValue
               ? '   Create the enum first:\n'
                   '     zfa entity enum -n <EnumName> --value $cleanType\n'
+                  '   (replace <EnumName> with your enum\'s name)\n'
                   '   or check the spelling.'
               : '   Create the enum/entity first, for example:\n'
                   '     zfa entity enum -n $cleanType --value <values>\n'
