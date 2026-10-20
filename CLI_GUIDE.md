@@ -1,6 +1,6 @@
 # ZFA CLI Guide
 
-Zuraffa v5 has one canonical generation workflow:
+Zuraffa v7 has one canonical generation workflow:
 
 1. `zfa entity create`
 2. `zfa make`
@@ -79,7 +79,7 @@ zfa build
 
 ---
 
-## The v5 command model
+## The v7 command model
 
 | Command                | Purpose                                        |
 | ---------------------- | ---------------------------------------------- |
@@ -96,7 +96,7 @@ zfa build
 
 ## `zfa entity create`
 
-Use `entity create` for domain entities. In v5, entity output is fixed to:
+Use `entity create` for domain entities. In v7, entity output is fixed to:
 
 ```text
 lib/src/domain/entities/{entity_snake}/{entity_snake}.dart
@@ -119,11 +119,11 @@ zfa entity enum -n OrderStatus --value pending,paid,shipped
 zfa entity add-field -n Product --field stock:int
 ```
 
-### Important v5 rules
+### Important v7 rules
 
 - Entities are **Zorphy-first** on public docs/config surfaces.
 - The domain root is fixed to `lib/src/domain`.
-- Legacy `--output` values are accepted by some commands for compatibility but are not the public v5 contract.
+- Legacy `--output` values are accepted by some commands for compatibility but are not the public v7 contract.
 
 ### Forward references & cyclic entity graphs (`--allow-forward-refs`)
 
@@ -283,7 +283,7 @@ zfa make SearchProducts usecase \
 
 ## Planning and machine-readable output
 
-One of the most useful v5 capabilities is plan inspection.
+One of the most useful v7 capabilities is plan inspection.
 
 ### Show the normalized plan
 
@@ -328,7 +328,7 @@ cat make_config.json | zfa make --from-stdin --plan --format=json
 
 ## `zfa feature scaffold` is a wrapper
 
-`feature scaffold` still exists for convenience, but the public v5 docs treat it as a preset wrapper rather than the primary workflow.
+`feature scaffold` still exists for convenience, but the public v7 docs treat it as a preset wrapper rather than the primary workflow.
 
 These are equivalent in intent:
 
@@ -384,7 +384,7 @@ spec-fuzz: feature=<f> mutations=<n> killed=<k> survived=<s> not_assessed=<x> bu
 
 ## `zfa build`
 
-Use `zfa build` instead of calling `build_runner` directly in v5 docs.
+Use `zfa build` instead of calling `build_runner` directly in v7 docs.
 
 ```bash
 zfa build
@@ -411,7 +411,7 @@ zfa config set entityFirst true
 
 ### `.zfa/`
 
-The canonical v5 documentation model treats `.zfa/` as project memory for:
+The canonical v7 documentation model treats `.zfa/` as project memory for:
 
 ```text
 .zfa/
@@ -428,7 +428,7 @@ Use it as the mental model for how future agents resume work:
 - `.zfa.json` tells them the defaults.
 - `.zfa/` tells them what has already been planned, generated, or decided.
 
-During the migration to full v5 persistence, some internals may still reference older storage paths. Public docs should still point forward to `.zfa/`.
+During the migration to full v7 persistence, some internals may still reference older storage paths. Public docs should still point forward to `.zfa/`.
 
 ---
 
@@ -445,9 +445,9 @@ Also assume:
 
 - fixed domain root: `lib/src/domain`
 - fixed entity root: `lib/src/domain/entities`
-- Zorphy-first entities on public v5 surfaces
+- Zorphy-first entities on public v7 surfaces
 
-See `doc/MIGRATION_GUIDE.md` for the v4 → v5 migration details.
+See `doc/MIGRATION_GUIDE.md` for the legacy → v7 migration details.
 
 ---
 

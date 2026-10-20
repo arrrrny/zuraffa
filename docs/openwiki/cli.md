@@ -27,7 +27,7 @@ Generate API bridge for a Zuraffa entity
 
 Usage: zfa api <EntityName> [options]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -139,7 +139,7 @@ Generate Cache logic
 
 Usage: zfa cache <subcommand> [arguments]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -202,8 +202,8 @@ EXAMPLES:
   zfa config set filterByDefault true
 
 NOTES:
-  - Zuraffa v5 is Zorphy-only on public config surfaces.
-  - The domain root is fixed to lib/src/domain in v5.
+  - Zuraffa v7 is Zorphy-only on public config surfaces.
+  - The domain root is fixed to lib/src/domain in v7.
   - Entity output is fixed to lib/src/domain/entities.
   - Plugin defaults are stored under plugins.defaults in .zfa.json.
 ```
@@ -215,7 +215,7 @@ Generate controller class for an entity
 
 Usage: zfa controller <subcommand> [arguments]
 -h, --help          Print this usage information.
--o, --output        Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output        Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                     (defaults to "lib/src")
     --dry-run       Preview generated files without writing to disk
 -f, --force         Overwrite existing files
@@ -266,7 +266,7 @@ Generate DataSources
 
 Usage: zfa datasource <subcommand> [arguments]
 -h, --help           Print this usage information.
--o, --output         Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output         Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                      (defaults to "lib/src")
     --dry-run        Preview generated files without writing to disk
 -f, --force          Overwrite existing files
@@ -299,7 +299,7 @@ Generate DI registration for a UseCase or Entity via subcommands: zfa di create 
 
 Usage: zfa di <subcommand> [arguments]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -317,15 +317,15 @@ Run "zfa help" to see global options.
 ## `zfa doctor`
 
 ```
-Show information about the installed tooling and v5 migration readiness.
+Show information about the installed tooling and v7 migration readiness.
 
 Usage: zfa doctor [arguments]
 -h, --help              Print this usage information.
-    --fix               Automatically fix detected v5 patterns and heal environment checks where possible (deps, generated-imports, artifacts, baseline cache, profile)
+    --fix               Automatically fix detected v7 patterns and heal environment checks where possible (deps, generated-imports, artifacts, baseline cache, profile)
     --format            Output format. json emits a single doctor.v1 verdict object for the named environment checks and sets the exit code (CI-able).
                         [text (default), json]
     --dry-run           Show what would change without writing files (implies --fix)
-    --migration-only    Only run v5 migration checks, skip tooling checks
+    --migration-only    Only run v7 migration checks, skip tooling checks
 
 Run "zfa help" to see global options.
 ```
@@ -388,7 +388,7 @@ CREATE COMMAND:
   zfa entity create -n <Name> [options]
   Options:
     -n, --name              Entity name (required)
-        --output            Ignored in v5 (entities always generate under lib/src/domain/entities)
+        --output            Ignored in v7 (entities always generate under lib/src/domain/entities)
     --json                  Enable JSON serialization (default: true)
     --filter                Enable type-safe filters
     --copywith-fn           Function-based copyWith
@@ -486,7 +486,7 @@ EXAMPLES:
   zfa entity list
 
 NOTES:
-  - Entities always live under lib/src/domain/entities in Zuraffa v5.
+  - Entities always live under lib/src/domain/entities in Zuraffa v7.
   - Legacy --output values are accepted for compatibility but ignored.
   - Raw Dart-keyword field names (e.g. `--field in:String`) are rejected;
     remap with `:json=<wire>` so the generated source compiles.
@@ -504,7 +504,7 @@ Usage: zfa feature [scaffold|route|di|mock|test|view|presenter|controller|state]
     --name                Feature name (alternative to the positional argument)
     --feature             Feature contract id for feature-scoped capabilities (e.g. 004-login-ui) — validated against the registered contracts
     --project-root        Project root directory
--o, --output              Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output              Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                           (defaults to "lib/src")
     --dry-run             Preview generated files without writing to disk
 -f, --force               Overwrite existing files
@@ -562,7 +562,7 @@ Generate GraphQL files
 
 Usage: zfa graphql <subcommand> [arguments]
 -h, --help          Print this usage information.
--o, --output        Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output        Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                     (defaults to "lib/src")
     --dry-run       Preview generated files without writing to disk
 -f, --force         Overwrite existing files
@@ -592,7 +592,7 @@ Generate Gym artifacts
 
 Usage: zfa gym <subcommand> [arguments]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -619,7 +619,7 @@ USAGE:
 OPTIONS:
 -e, --entity       Entity name to generate (default: Product)
                    (defaults to "Product")
--o, --output       Entity output directory (fixed to lib/src/domain/entities in v5; custom values are ignored)
+-o, --output       Entity output directory (fixed to lib/src/domain/entities in v7; custom values are ignored)
                    (defaults to "lib/src/domain/entities")
 -f, --force        Overwrite existing files
     --dry-run      Preview what would be generated without writing files
@@ -664,7 +664,7 @@ Run multiple generator plugins explicitly.
 Usage: zfa make <Name> <plugin1> <plugin2> ... [options]
 -h, --help                     Print this usage information.
     --ui                       Scaffold a composite UI component (spec 024): node entity + renderer extension + schema registration
--o, --output                   Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output                   Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                                (defaults to "lib/src")
     --dry-run                  Preview generated files without writing to disk
 -f, --force                    Overwrite existing files
@@ -738,7 +738,7 @@ Usage: zfa make <Name> <plugin1> <plugin2> ... [options]
     --[no-]adaptive-layouts    Scaffold platform/device-specific layout files
     --[no-]platform-shells     Enable shell-oriented adaptive layout scaffolding
     --layout-targets           Adaptive layout targets, e.g. mobile,tablet,desktop,macos
-    --[no-]v6-state            Generate v6 dual-layer state (DomainState + ViewState + DualLayerPresenter) and ControlledWidget/FragmentBuilder-based views instead of the legacy v5 monolithic state
+    --[no-]v6-state            Generate v6 dual-layer state (DomainState + ViewState + DualLayerPresenter) and ControlledWidget/FragmentBuilder-based views instead of the legacy v7 monolithic state
     --[no-]feature             Enable or disable Feature Plugin
                                (defaults to on)
     --[no-]gym                 Enable or disable Gym Plugin
@@ -830,7 +830,7 @@ Scaffold / serve / inspect an MCP server that exposes this app's features as AI-
 
 Usage: zfa mcp <subcommand> [arguments]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -849,7 +849,7 @@ Run "zfa help" to see global options.
 ## `zfa migrate`
 
 ```
-Migrate v5 artifacts to v6 equivalents (state, gql, di).
+Migrate v7 artifacts to v6 equivalents (state, gql, di).
 
 Usage: zfa migrate [arguments]
 -h, --help       Print this usage information.
@@ -866,7 +866,7 @@ Generate Mocks
 
 Usage: zfa mock <subcommand> [arguments]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -954,7 +954,7 @@ Generate presenter class for an entity
 
 Usage: zfa presenter <subcommand> [arguments]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -994,7 +994,7 @@ Generate Providers
 
 Usage: zfa provider <subcommand> [arguments]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -1035,7 +1035,7 @@ Generate Repositories
 
 Usage: zfa repository <subcommand> [arguments]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -1056,7 +1056,7 @@ Generate route definitions for an entity
 
 Usage: zfa route <subcommand> [arguments]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -1091,7 +1091,7 @@ Generate Services
 
 Usage: zfa service <subcommand> [arguments]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -1238,7 +1238,7 @@ Generate a SQLite-backed DataSource for an entity (adapter)
 
 Usage: zfa sqlite <subcommand> [arguments]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -1258,7 +1258,7 @@ Generate State classes
 
 Usage: zfa state <subcommand> [arguments]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -1279,7 +1279,7 @@ Generate FetchStrategy abstract base, concrete variants, and StrategySelector
 
 Usage: zfa strategy <subcommand> [arguments]
 -h, --help                      Print this usage information.
--o, --output                    Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output                    Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                                 (defaults to "lib/src")
     --dry-run                   Preview generated files without writing to disk
 -f, --force                     Overwrite existing files
@@ -1303,7 +1303,7 @@ Generate offline-first sync logic
 
 Usage: zfa sync <subcommand> [arguments]
 -h, --help           Print this usage information.
--o, --output         Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output         Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                      (defaults to "lib/src")
     --dry-run        Preview generated files without writing to disk
 -f, --force          Overwrite existing files
@@ -1453,7 +1453,7 @@ Generate Tests
 
 Usage: zfa test <subcommand> [arguments]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -1507,7 +1507,7 @@ Generate UseCases
 
 Usage: zfa usecase <subcommand> [arguments]
 -h, --help       Print this usage information.
--o, --output     Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output     Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                  (defaults to "lib/src")
     --dry-run    Preview generated files without writing to disk
 -f, --force      Overwrite existing files
@@ -1539,7 +1539,7 @@ Run the View Plugin generator
 
 Usage: zfa view <subcommand> [arguments]
 -h, --help             Print this usage information.
--o, --output           Output directory for generated files (fixed to lib/src in v5; custom values are ignored)
+-o, --output           Output directory for generated files (fixed to lib/src in v7; custom values are ignored)
                        (defaults to "lib/src")
     --dry-run          Preview generated files without writing to disk
 -f, --force            Overwrite existing files

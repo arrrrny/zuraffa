@@ -1,9 +1,9 @@
 ---
 name: zuraffa-cli
-description: Use when generating or evolving architecture code in Zuraffa v5 projects. The canonical workflow is `zfa entity create` -> `zfa make` -> `zfa build`. Treat `zfa feature` as a wrapper over the feature preset and never use the removed legacy one-shot generator.
+description: Use when generating or evolving architecture code in Zuraffa v7 projects. The canonical workflow is `zfa entity create` -> `zfa make` -> `zfa build`. Treat `zfa feature` as a wrapper over the feature preset and never use the removed legacy one-shot generator.
 ---
 
-# Zuraffa CLI (v5) Skill
+# Zuraffa CLI (v7) Skill
 
 ## Use this skill when
 
@@ -11,7 +11,7 @@ description: Use when generating or evolving architecture code in Zuraffa v5 pro
 - generating CRUD architecture around an entity
 - adding data, VPC, DI, test, cache, mock, route, gql, or graphql layers
 - generating a custom use case or orchestrator
-- guiding another agent or user through the current v5 workflow
+- guiding another agent or user through the current v7 workflow
 
 ## The canonical workflow
 
@@ -41,7 +41,7 @@ zfa build
 3. **Use `zfa build` after generation.** Do not teach `build_runner` directly as the normal workflow.
 4. **Treat `zfa feature scaffold` as a wrapper**, not the canonical command.
 5. **Assume the domain root is fixed to `lib/src/domain`.**
-6. **Assume entities are Zorphy-first on public v5 surfaces.**
+6. **Assume entities are Zorphy-first on public v7 surfaces.**
 
 ## Fixed paths and assumptions
 
@@ -137,7 +137,7 @@ Handcraft only the manual UI and composition areas that are intentionally outsid
 Use these mental models when reasoning about project state:
 
 - **`.zfa.json`** = active defaults for this project
-- **`.zfa/`** = canonical v5 project memory for plans, runs, decisions, blueprints, manifests, and context
+- **`.zfa/`** = canonical v7 project memory for plans, runs, decisions, blueprints, manifests, and context
 
 Canonical memory layout:
 
@@ -155,4 +155,4 @@ During migration, some internals may still reference older paths. Public-facing 
 
 ## Short migration message to give users
 
-> In Zuraffa v5, create the entity first, generate architecture with `zfa make`, and finish with `zfa build`. `zfa feature` is only a wrapper over the feature preset.
+> In Zuraffa v7, create the entity first, generate architecture with `zfa make`, and finish with `zfa build`. `zfa feature` is only a wrapper over the feature preset.

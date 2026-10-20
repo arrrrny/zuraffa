@@ -20,9 +20,9 @@ This rule takes precedence over all other rules. Never skip a misfire or rationa
 
 ---
 
-This file defines the current v5 contract for AI agents working in Zuraffa projects.
+This file defines the current v7 contract for AI agents working in Zuraffa projects.
 
-## Generation contract: use the canonical v5 workflow
+## Generation contract: use the canonical v7 workflow
 
 When you need to create or evolve architecture code, use this sequence:
 
@@ -58,7 +58,7 @@ zfa build
 - **Prefer `zfa make` over `zfa feature`.** `zfa feature scaffold` is only a wrapper over the feature preset.
 - **Do not hand-create entities.** Use `zfa entity create`.
 - **Do not call `build_runner` directly in normal agent flows.** Use `zfa build`.
-- **Do not invent alternate folder structures.** Zuraffa v5 assumes a fixed domain root.
+- **Do not invent alternate folder structures.** Zuraffa v7 assumes a fixed domain root.
 - **Always run `dart pub get --no-example` before formatting, then `dart format lib test` before every commit and push.** Formatting without package resolution (a fresh clone has none) makes `dart format` fail to resolve `analysis_options.yaml`'s `package:lints/recommended.yaml` include — it spams a `Package resolution error` warning per file and rewrites hundreds of unrelated files (#1506). CI enforces `dart format --set-exit-if-changed lib test` — any unformatted file blocks the build. Run pub get, format, stage the results, then commit. Never push without formatting first.
 
 ## No-JIT rule: every zfa child is a COMPILED binary
@@ -122,7 +122,7 @@ stops the whole workflow until zuraffa itself is repaired.
 
 ## Fixed layout assumptions
 
-Zuraffa v5 public docs assume:
+Zuraffa v7 public docs assume:
 
 ```text
 lib/src/domain/entities/{entity_snake}/{entity_snake}.dart
@@ -137,7 +137,7 @@ lib/src/domain/entities/product/product.dart
 Also assume:
 
 - fixed domain root: `lib/src/domain`
-- entities are Zorphy-first on public v5 surfaces
+- entities are Zorphy-first on public v7 surfaces
 - output examples should target `lib/src`, not custom architecture roots
 
 ## Spec Kit: Branch Naming
@@ -214,7 +214,7 @@ Handcraft only the parts that are intentionally manual, such as:
 Agents should treat these as the project memory surfaces:
 
 - **`.zfa.json`**: project defaults, plugin defaults, entity-first settings
-- **`.zfa/`**: canonical v5 memory for plans, runs, decisions, blueprints, manifests, and context
+- **`.zfa/`**: canonical v7 memory for plans, runs, decisions, blueprints, manifests, and context
 
 Canonical memory layout:
 
@@ -291,7 +291,7 @@ If you encounter older guidance, normalize it to:
 
 For a user coming from older Zuraffa docs, the shortest correct explanation is:
 
-> In v5, create the entity first, generate architecture with `zfa make`, and finish with `zfa build`. Treat `zfa feature` as a wrapper, not the primary workflow.
+> In v7, create the entity first, generate architecture with `zfa make`, and finish with `zfa build`. Treat `zfa feature` as a wrapper, not the primary workflow.
 
 
 # Shared terminal (`herdr`)

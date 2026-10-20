@@ -21,7 +21,7 @@ This scaffolds the standard layout:
 
 ```text
 notes_package/
-├── pubspec.yaml                  # zuraffa ^6.x + zorphy deps, v6 constraints
+├── pubspec.yaml                  # zuraffa ^7.x + zorphy deps, v7 constraints
 ├── zfa.yaml                      # package-mode marker (see §3)
 ├── build.yaml                    # zorphy + json_serializable builders
 ├── analysis_options.yaml

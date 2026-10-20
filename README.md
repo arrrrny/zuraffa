@@ -7,7 +7,7 @@
 
 **The AI-first Clean Architecture framework for Flutter.**
 
-Zuraffa v5 standardizes code generation around one canonical workflow:
+Zuraffa v7 standardizes code generation around one canonical workflow:
 
 1. `zfa entity create`
 2. `zfa make`
@@ -35,7 +35,7 @@ ZikZak AI is an AI-Powered Price Comparison app that you scan barcodes, and disc
 - **Zorphy-first entities**: immutable, typed entities generated under a fixed domain root.
 - **Deterministic generation**: presets, aliases, `--with`, and `--without` resolve through the same plan system.
 - **Result-based failures**: generated code uses `Result<T, AppFailure>` patterns throughout.
-- **Hermetic-friendly workflows**: docs and tests are aligned around the current v5 surface.
+- **Hermetic-friendly workflows**: docs and tests are aligned around the current v7 surface.
 
 ---
 
@@ -58,10 +58,10 @@ Add Zuraffa to your project:
 
 ```yaml
 dependencies:
-  zuraffa: ^5.0.0
+  zuraffa: ^7.1.0
 
 dev_dependencies:
-  zuraffa: ^5.0.0
+  zuraffa: ^7.1.0
   zorphy_annotation: ^1.7.0
   build_runner: ^2.4.0
 ```
@@ -74,11 +74,11 @@ dart pub global activate zuraffa
 
 ---
 
-## Quick Start: the canonical v5 flow
+## Quick Start: the canonical v7 flow
 
 ### 1. Create an entity
 
-Entities are always generated under `lib/src/domain/entities` in v5.
+Entities are always generated under `lib/src/domain/entities` in v7.
 
 ```bash
 zfa entity create -n Product \
@@ -114,9 +114,9 @@ Use `zfa build` instead of calling `build_runner` directly in docs and agent wor
 
 ---
 
-## Core v5 commands
+## Core v7 commands
 
-| Command                | Role in v5                                 |
+| Command                | Role in v7                                 |
 | ---------------------- | ------------------------------------------ |
 | `zfa entity create`    | Define or update Zorphy entities           |
 | `zfa make`             | Canonical architecture generator           |
@@ -132,7 +132,7 @@ Use `zfa build` instead of calling `build_runner` directly in docs and agent wor
 
 ## Fixed project layout
 
-Zuraffa v5 assumes a fixed architecture root:
+Zuraffa v7 assumes a fixed architecture root:
 
 ```text
 lib/src/
@@ -161,10 +161,10 @@ lib/src/domain/entities/product/product.dart
 
 ## `.zfa.json` defaults and `.zfa/` project memory
 
-Zuraffa v5 separates **project defaults** from **project memory**:
+Zuraffa v7 separates **project defaults** from **project memory**:
 
 - **`.zfa.json`**: active project configuration such as plugin defaults and entity-first rules.
-- **`.zfa/`**: the canonical v5 project-memory model for plans, runs, decisions, blueprints, manifests, and future agent context.
+- **`.zfa/`**: the canonical v7 project-memory model for plans, runs, decisions, blueprints, manifests, and future agent context.
 
 A useful mental model for humans and AI agents is:
 
@@ -186,7 +186,7 @@ A useful mental model for humans and AI agents is:
 └── context.json
 ```
 
-During the v5 migration, some internal surfaces may still reference older storage paths. Treat the structure above as the public documentation contract going forward.
+During the v7 migration, some internal surfaces may still reference older storage paths. Treat the structure above as the public documentation contract going forward.
 
 ---
 
@@ -274,7 +274,7 @@ zfa feature scaffold Product --plan
 
 ## AI-agent contract
 
-For Zuraffa v5 projects:
+For Zuraffa v7 projects:
 
 - Generate **architecture code** with `zfa`, not by hand.
 - Create entities with `zfa entity create`.
@@ -316,19 +316,19 @@ Every non-zero exit ends with a machine-actionable `--> fix:` line: errors are a
 
 ## Migration notes
 
-If you are coming from pre-v5 guidance:
+If you are coming from pre-v7 guidance:
 
 - the old one-shot generator command is gone,
 - `zfa make` is now the canonical generator,
 - `zfa feature` is a wrapper, not the primary public workflow,
 - the domain root is fixed to `lib/src/domain`, and
-- v5 public docs assume Zorphy-based entities.
+- v7 public docs assume Zorphy-based entities.
 
 See `doc/MIGRATION_GUIDE.md` for a focused migration walkthrough.
 
 ---
 
-## Mock data & prototyping (v5.1.0)
+## Mock data & prototyping (v7.1.0)
 
 ```bash
 # Generate Dart mock data
@@ -386,8 +386,6 @@ JSON mocks produce standalone JSON files under `data/mock_json/{domain}/` and Da
 final products = await ProductMockJson.loadProducts();
 final sample = await ProductMockJson.loadSampleProduct();
 ```
-
-See [`website/docs/features/mock-data.md`](website/docs/features/mock-data.md) for details.
 
 ---
 

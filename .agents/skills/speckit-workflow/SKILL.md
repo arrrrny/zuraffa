@@ -46,15 +46,15 @@ When you encounter any ambiguity or missing information during any step:
 2. **Read the docs**: Check `docs/` for architecture documentation — these contain high-level system understanding.
 3. **Check existing specs**: Look at `specs/` directory for similar features to understand conventions.
 4. **Check existing implementations**: Look at the actual code in `lib/src/` for established patterns.
-5. **Scan `AGENTS.md`**: Contains project-specific rules and conventions for v5.
+5. **Scan `AGENTS.md`**: Contains project-specific rules and conventions for v7.
 6. **Use prior features**: Check `specs/` for closely related features — their specs, plans, and tasks.md files document existing patterns.
 8. **Check `.zfa/` memory**: The `.zfa/` directory contains project memory — plans, runs, decisions, blueprints, manifests, and context.
 
 Only if absolutely no information exists in the entire codebase should you make a reasonable default decision and document it. Never formulate a question to the user.
 
-## Core Rule: Zuraffa v5 Generation Contract
+## Core Rule: Zuraffa v7 Generation Contract
 
-When the feature involves creating or evolving generated architecture code (entities, usecases, repositories, datasources, etc.), follow the canonical v5 workflow:
+When the feature involves creating or evolving generated architecture code (entities, usecases, repositories, datasources, etc.), follow the canonical v7 workflow:
 
 ```bash
 zfa entity create -n EntityName --field ...
@@ -68,7 +68,7 @@ zfa build
 - **Prefer `zfa make` over `zfa feature`.** `zfa feature scaffold` is only a wrapper over the feature preset.
 - **Do not hand-create entities.** Use `zfa entity create`.
 - **Do not call `build_runner` directly.** Use `zfa build`.
-- **Do not invent alternate folder structures.** Zuraffa v5 assumes fixed domain root `lib/src/domain`.
+- **Do not invent alternate folder structures.** Zuraffa v7 assumes fixed domain root `lib/src/domain`.
 - **Do not modify generated files by hand** — they are owned by `zfa`. Modify the source templates/generators instead.
 
 ## Core Rule: Context Awareness — Framework vs Generated Output
@@ -125,11 +125,11 @@ Output the result so downstream steps can adjust:
   - Proceed quickly to implementation.
 
 - **If Complex or Ambiguous**:
-  - **Read `AGENTS.md`** for v5 contract, hard rules, and conventions.
+  - **Read `AGENTS.md`** for v7 contract, hard rules, and conventions.
   - **Read `CLI_GUIDE.md`** for the complete CLI reference.
   - **Check existing specs** in `specs/` for similar features — their design decisions, gotchas, and patterns inform your approach.
   - **Read `CACHING.md`** if the feature touches caching or offline sync.
-  - **Read `docs/v4_vs_v5_comparison.md`** if the feature involves migration.
+  - **Read `docs/v4_vs_v7_comparison.md`** if the feature involves migration.
   - **Read `doc/PLUGIN_API_REFERENCE.md`** if the feature involves plugin development.
   - **Read `doc/MCP_SERVER.md`** if the feature touches the MCP server.
 

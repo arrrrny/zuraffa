@@ -103,6 +103,18 @@ else
     echo "ℹ️  CHANGELOG entry for $VERSION already exists, skipping auto-write."
 fi
 
+# ============================================================
+# Step 1b: Update version references in documentation
+# ============================================================
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' -E 's/(zuraffa: \^)[0-9]+\.[0-9]+\.[0-9]+/\1'"$VERSION"'/' README.md website/static/docs/2-quick-start.md 2>/dev/null || true
+    sed -i '' -E 's/(currently `)[0-9]+\.[0-9]+\.[0-9]+(`)/\1'"$VERSION"'\2/' PUBLISH.md
+else
+    sed -i -E 's/(zuraffa: \^)[0-9]+\.[0-9]+\.[0-9]+/\1'"$VERSION"'/' README.md website/static/docs/2-quick-start.md 2>/dev/null || true
+    sed -i -E 's/(currently `)[0-9]+\.[0-9]+\.[0-9]+(`)/\1'"$VERSION"'\2/' PUBLISH.md
+fi
+echo "✅ Documentation version references updated to $VERSION (review diff before commit)"
+
 # Bump-drift guard: the publishable version lives in TWO files (pubspec.yaml
 # and lib/src/version.dart) — the 6.2.x releases shipped drift between them
 # and the CHANGELOG. Refuse to publish when the two sources disagree.
@@ -182,7 +194,7 @@ echo "   zuraffa-zed pinned to: $ZED_NEW_SHA"
 # Step 3: Commit and push main repo (now includes correct submodule pointer)
 # ============================================================
 echo "🔨 Committing and tagging main repo..."
-git add pubspec.yaml CHANGELOG.md lib/src/version.dart
+git add pubspec.yaml CHANGELOG.md lib/src/version.dart README.md PUBLISH.md
 # example/ is optional — only stage it if present (otherwise `git add` aborts under set -e).
 if [ -f example/pubspec.yaml ]; then
     git add example/pubspec.yaml

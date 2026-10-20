@@ -42,7 +42,7 @@
 
 ## Ordered publish + await (adapted from `zikzak_inappwebview`)
 
-Both packages are released at the same version (currently `7.0.0`). pub.dev lists a version
+Both packages are released at the same version (currently `7.1.0`). pub.dev lists a version
 in its API **before** the archive is actually resolvable, so the gate is **twofold**:
 
 1. `pubdev_has_version <pkg> <ver>` — version present in the pub.dev API.
@@ -56,7 +56,8 @@ the freshly published `zuraffa`, never a stale hosted copy.
 ## Workflow
 
 1. Update changelogs (changelog-manager skill) in **both** repos.
-2. Ensure dev-mode path overrides are reverted: `git checkout -- pubspec.yaml` (this repo).
+2. Bump version references in documentation (README.md, website/static/docs/, AGENTS.md, CLI_GUIDE.md) — `scripts/publish.sh` does this automatically for the hosted constraint lines; review the diff before committing.
+3. Ensure dev-mode path overrides are reverted: `git checkout -- pubspec.yaml` (this repo).
 3. `./scripts/publish.sh <version>`:
    - **Step 0**: abort if root pubspec still carries `../zorphy` path overrides.
    - Updates `zuraffa` version + CHANGELOG; updates the Zed extension.
