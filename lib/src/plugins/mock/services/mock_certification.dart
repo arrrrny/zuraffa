@@ -428,7 +428,8 @@ abstract final class MockCertificationService {
       fixtureOnly:
           EntityAnalyzer.isEnum(entity, outputDir) ||
           (service == null &&
-              EntityAnalyzer.lacksCrudSurface(entity, outputDir)),
+              EntityAnalyzer.lacksCrudSurface(entity, outputDir) &&
+              !EntityAnalyzer.hasDeclaredDataSourceInterface(entity, outputDir)),
       fixtures: fixtures,
     );
   }
