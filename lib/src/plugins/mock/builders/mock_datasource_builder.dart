@@ -537,7 +537,8 @@ class MockDataSourceBuilder {
     // member actually declares a params argument. A params-less member (or a
     // stream member that would capture an undeclared `params`) keeps the
     // #1850 refusal instead of emitting non-compiling code.
-    final foreignPage = !isList &&
+    final foreignPage =
+        !isList &&
             !isVoid &&
             baseReturns != entityName &&
             member.parameterCount > 0
@@ -641,7 +642,9 @@ class MockDataSourceBuilder {
                                 ),
                             )
                           : (isVoid
-                                ? refer('Future').property('value').call([]).code
+                                ? refer(
+                                    'Future',
+                                  ).property('value').call([]).code
                                 : value!.code),
                   ).closure,
                 ]),
@@ -851,7 +854,6 @@ class MockDataSourceBuilder {
     }
     return baseReturns;
   }
-
 
   /// Issue #1922: validates every arbitrary (non-CRUD) member shape of
   /// [config] WITHOUT emitting or writing anything, so a refused member

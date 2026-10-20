@@ -1078,6 +1078,7 @@ class RunDriverCore {
         runner: runner,
         registry: registry,
         suiteBaselinePath: suiteBaselinePath,
+        baselineScope: baselineScope,
         skipWidget: skipWidget,
         skippedWidgets: skippedWidgets,
         label: label,
@@ -1176,6 +1177,7 @@ class RunDriverCore {
         runner: runner,
         registry: registry,
         suiteBaselinePath: suiteBaselinePath,
+        baselineScope: baselineScope,
         skipWidget: skipWidget,
         skippedWidgets: skippedWidgets,
         label: label,
@@ -1253,6 +1255,7 @@ class RunDriverCore {
         runner: runner,
         registry: registry,
         suiteBaselinePath: suiteBaselinePath,
+        baselineScope: baselineScope,
         skipWidget: skipWidget,
         skippedWidgets: skippedWidgets,
         label: label,
@@ -2017,6 +2020,11 @@ class RunDriverCore {
     required StepRunner runner,
     required ArtifactRegistry registry,
     String? suiteBaselinePath,
+    // Issue #1918: the driving run's `--baseline-scope` — handed to the
+    // refactor spawn so its preflight/re-proof grade the same scoped
+    // suite the run's baseline was captured with, instead of the
+    // profile's full-suite template.
+    String? baselineScope,
     required bool skipWidget,
     required Map<String, String> skippedWidgets,
     required String label,
@@ -2151,6 +2159,10 @@ class RunDriverCore {
           feature: featureRef,
           projectRoot: projectRoot,
           suiteBaselinePath: suiteBaselinePath,
+          // Issue #1918: the run's scope reaches the refactor child so
+          // its preflight/re-proof grade the same suite the baseline was
+          // captured with. Ignored by every other step.
+          baselineScope: baselineScope,
           // Issue #1589: the parked seams the refactor gate must tolerate
           // (pre-existing-failure economics for a BLOCKED verdict), plus
           // the verdict-attested failing identifiers that pin that
@@ -2253,6 +2265,7 @@ class RunDriverCore {
           projectRoot: projectRoot,
           featureDir: featureDir,
           suiteBaselinePath: suiteBaselinePath,
+          baselineScope: baselineScope,
         );
       }
 
@@ -3294,11 +3307,15 @@ class RunDriverCore {
     required String projectRoot,
     required String featureDir,
     required String? suiteBaselinePath,
+    required String? baselineScope,
   }) async {
     try {
-      final suiteTemplate = await const SingleTestRunner().loadSuiteTemplate(
+      var suiteTemplate = await const SingleTestRunner().loadSuiteTemplate(
         workingDirectory: projectRoot,
       );
+      if (baselineScope != null && baselineScope.isNotEmpty) {
+        suiteTemplate = '$suiteTemplate $baselineScope';
+      }
       final libNow = await TreeSnapshot.capture(
         projectRoot,
         trees: const ['lib'],

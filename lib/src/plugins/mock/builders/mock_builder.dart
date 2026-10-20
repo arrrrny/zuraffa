@@ -138,7 +138,10 @@ class MockBuilder {
           outputDir,
           fileSystem: fileSystem,
         )) {
-      MockDataSourceBuilder.validateMemberShapes(config, fileSystem: fileSystem);
+      MockDataSourceBuilder.validateMemberShapes(
+        config,
+        fileSystem: fileSystem,
+      );
     }
 
     final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
