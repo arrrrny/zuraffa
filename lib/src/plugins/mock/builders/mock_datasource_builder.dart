@@ -268,9 +268,10 @@ class MockDataSourceBuilder {
             ..annotations.add(refer('override'))
             ..returns = refer('Stream<bool>')
             ..lambda = true
-            ..body = refer(
-              'Stream',
-            ).property('value').call([literalBool(true)]).code,
+            ..body = refer('Stream')
+                .property('value')
+                .call([literalBool(true)])
+                .code,
         ),
       );
 
@@ -531,9 +532,10 @@ class MockDataSourceBuilder {
           ..returns = refer('Stream<bool>')
           ..annotations.add(refer('override'))
           ..lambda = true
-          ..body = refer(
-            'Stream',
-          ).property('value').call([literalBool(true)]).code,
+          ..body = refer('Stream')
+              .property('value')
+              .call([literalBool(true)])
+              .code,
       );
     }
 
@@ -566,12 +568,15 @@ class MockDataSourceBuilder {
     final futureBody = Block(
       (b) => b
         ..statements.addAll([
-          refer('logger').property('info').call([
-            literalString('${member.fieldName} called'),
-          ]).statement,
-          refer(
-            'Future',
-          ).property('delayed').call([refer('_delay')]).awaited.statement,
+          refer('logger')
+              .property('info')
+              .call([literalString('${member.fieldName} called')])
+              .statement,
+          refer('Future')
+              .property('delayed')
+              .call([refer('_delay')])
+              .awaited
+              .statement,
           if (isVoid) ...[
             refer('Future').property('value').call([]).returned.statement,
           ] else ...[
@@ -847,7 +852,11 @@ class MockDataSourceBuilder {
           ? methodReturns
           : 'void';
       final baseReturns = _baseReturnType(returns);
-      if (!_isHonestArbitraryReturn(baseReturns, entityName, config.outputDir)) {
+      if (!_isHonestArbitraryReturn(
+        baseReturns,
+        entityName,
+        config.outputDir,
+      )) {
         throw ArgumentError(
           'unknown return type $baseReturns for member $methodName',
         );
@@ -859,7 +868,6 @@ class MockDataSourceBuilder {
     GeneratorConfig config, {
     List<ParsedUseCaseInfo>? interfaceMembers,
   }) {
-
     final entityName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
         : config.name;
@@ -941,17 +949,17 @@ class MockDataSourceBuilder {
                                 ..body = isList
                                     ? (isPrimitiveReturn
                                           ? literalList([]).code
-                                          : refer(
-                                              mockDataClass,
-                                            ).property('sampleList').code)
+                                          : refer(mockDataClass)
+                                                .property('sampleList')
+                                                .code)
                                     : (baseReturns == 'void'
-                                          ? refer(
-                                              'Future',
-                                            ).property('value').call([]).code
+                                          ? refer('Future')
+                                                .property('value')
+                                                .call([])
+                                                .code
                                           : (isPrimitiveReturn
-                                                ? _primitiveValue(
-                                                    baseReturns,
-                                                  ).code
+                                                ? _primitiveValue(baseReturns)
+                                                      .code
                                                 : refer(mockDataClass)
                                                       .property(sampleProperty)
                                                       .code)),
@@ -970,19 +978,23 @@ class MockDataSourceBuilder {
                       if (isPrimitiveReturn)
                         literalList([]).returned.statement
                       else
-                        refer(
-                          mockDataClass,
-                        ).property('sampleList').returned.statement,
+                        refer(mockDataClass)
+                            .property('sampleList')
+                            .returned
+                            .statement,
                     ] else if (baseReturns == 'void') ...[
-                      refer(
-                        'Future',
-                      ).property('value').call([]).returned.statement,
+                      refer('Future')
+                          .property('value')
+                          .call([])
+                          .returned
+                          .statement,
                     ] else if (isPrimitiveReturn) ...[
                       _primitiveValue(baseReturns).returned.statement,
                     ] else ...[
-                      refer(
-                        mockDataClass,
-                      ).property(sampleProperty).returned.statement,
+                      refer(mockDataClass)
+                          .property(sampleProperty)
+                          .returned
+                          .statement,
                     ],
                   ],
                 ]),
@@ -1064,9 +1076,8 @@ class MockDataSourceBuilder {
                       if (isNoParams) ...[
                         declareFinal('item')
                             .assign(
-                              refer(
-                                '${entityName}MockData',
-                              ).property('sample$entityName'),
+                              refer('${entityName}MockData')
+                                  .property('sample$entityName'),
                             )
                             .statement,
                       ] else ...[
@@ -1107,17 +1118,19 @@ class MockDataSourceBuilder {
                 ..body = Block(
                   (b) => b
                     ..statements.addAll([
-                      refer('logger').property('info').call([
-                        literalString('Listing ${entityName}s'),
-                      ]).statement,
+                      refer('logger')
+                          .property('info')
+                          .call([literalString('Listing ${entityName}s')])
+                          .statement,
                       refer('Future<void>')
                           .property('delayed')
                           .call([refer('_delay')])
                           .awaited
                           .statement,
-                      refer(
-                        '${entityName}MockData',
-                      ).property('${entityCamel}s').returned.statement,
+                      refer('${entityName}MockData')
+                          .property('${entityCamel}s')
+                          .returned
+                          .statement,
                     ]),
                 ),
             ),
@@ -1154,9 +1167,8 @@ class MockDataSourceBuilder {
                           .statement,
                       declareVar('items')
                           .assign(
-                            refer(
-                              '${entityName}MockData',
-                            ).property('${entityCamel}s'),
+                            refer('${entityName}MockData')
+                                .property('${entityCamel}s'),
                           )
                           .statement,
                       Code(
@@ -1190,9 +1202,11 @@ class MockDataSourceBuilder {
                       'Creating $entityName: \${item.${config.idField}}',
                     ),
             ]).statement,
-            refer(
-              'Future<void>',
-            ).property('delayed').call([refer('_delay')]).awaited.statement,
+            refer('Future<void>')
+                .property('delayed')
+                .call([refer('_delay')])
+                .awaited
+                .statement,
             refer('${entityName}MockData')
                 .property('${entityCamel}s')
                 .property('add')
@@ -1242,9 +1256,11 @@ class MockDataSourceBuilder {
                   ? literalString('Updating $entityName')
                   : literalString('Updating $entityName: \${params.id}'),
             ]).statement,
-            refer(
-              'Future<void>',
-            ).property('delayed').call([refer('_delay')]).awaited.statement,
+            refer('Future<void>')
+                .property('delayed')
+                .call([refer('_delay')])
+                .awaited
+                .statement,
           ];
 
           if (isNoParams) {
@@ -1254,22 +1270,23 @@ class MockDataSourceBuilder {
             bodyStatements.addAll([
               declareFinal('existing')
                   .assign(
-                    refer(
-                      '${entityName}MockData',
-                    ).property('sample$entityName'),
+                    refer('${entityName}MockData')
+                        .property('sample$entityName'),
                   )
                   .statement,
               declareFinal('updated')
                   .assign(
-                    refer('params').property('data').property('applyTo').call([
-                      refer('existing'),
-                    ]),
+                    refer('params')
+                        .property('data')
+                        .property('applyTo')
+                        .call([refer('existing')]),
                   )
                   .statement,
               Code('${entityName}MockData.${entityCamel}s[0] = updated;'),
-              refer('logger').property('info').call([
-                literalString('Successfully updated $entityName'),
-              ]).statement,
+              refer('logger')
+                  .property('info')
+                  .call([literalString('Successfully updated $entityName')])
+                  .statement,
               refer('updated').returned.statement,
             ]);
           } else {
@@ -1309,9 +1326,10 @@ class MockDataSourceBuilder {
                   .statement,
               declareFinal('updated')
                   .assign(
-                    refer('params').property('data').property('applyTo').call([
-                      refer('existing'),
-                    ]),
+                    refer('params')
+                        .property('data')
+                        .property('applyTo')
+                        .call([refer('existing')]),
                   )
                   .statement,
               declareFinal('index')
@@ -1323,9 +1341,10 @@ class MockDataSourceBuilder {
                   )
                   .statement,
               Code('${entityName}MockData.${entityCamel}s[index] = updated;'),
-              refer('logger').property('info').call([
-                literalString('Successfully updated $entityName'),
-              ]).statement,
+              refer('logger')
+                  .property('info')
+                  .call([literalString('Successfully updated $entityName')])
+                  .statement,
               refer('updated').returned.statement,
             ]);
           }
@@ -1367,18 +1386,19 @@ class MockDataSourceBuilder {
                       'Toggling $entityName: \${params.id} on field \${params.field}',
                     ),
             ]).statement,
-            refer(
-              'Future<void>',
-            ).property('delayed').call([refer('_delay')]).awaited.statement,
+            refer('Future<void>')
+                .property('delayed')
+                .call([refer('_delay')])
+                .awaited
+                .statement,
           ];
 
           if (isNoParamsToggle) {
             toggleBodyStatements.addAll([
               declareFinal('existing')
                   .assign(
-                    refer(
-                      '${entityName}MockData',
-                    ).property('sample$entityName'),
+                    refer('${entityName}MockData')
+                        .property('sample$entityName'),
                   )
                   .statement,
               declareFinal('updated')
@@ -1390,9 +1410,10 @@ class MockDataSourceBuilder {
                   )
                   .statement,
               Code('${entityName}MockData.${entityCamel}s[0] = updated;'),
-              refer('logger').property('info').call([
-                literalString('Successfully toggled $entityName'),
-              ]).statement,
+              refer('logger')
+                  .property('info')
+                  .call([literalString('Successfully toggled $entityName')])
+                  .statement,
               refer('updated').returned.statement,
             ]);
           } else {
@@ -1447,9 +1468,10 @@ class MockDataSourceBuilder {
                   )
                   .statement,
               Code('${entityName}MockData.${entityCamel}s[index] = updated;'),
-              refer('logger').property('info').call([
-                literalString('Successfully toggled $entityName'),
-              ]).statement,
+              refer('logger')
+                  .property('info')
+                  .call([literalString('Successfully toggled $entityName')])
+                  .statement,
               refer('updated').returned.statement,
             ]);
           }
@@ -1484,16 +1506,19 @@ class MockDataSourceBuilder {
                   ? literalString('Deleting $entityName')
                   : literalString('Deleting $entityName: \${params.id}'),
             ]).statement,
-            refer(
-              'Future<void>',
-            ).property('delayed').call([refer('_delay')]).awaited.statement,
+            refer('Future<void>')
+                .property('delayed')
+                .call([refer('_delay')])
+                .awaited
+                .statement,
           ];
 
           if (isNoParams) {
             bodyStatements.addAll([
-              refer('logger').property('info').call([
-                literalString('Successfully deleted $entityName'),
-              ]).statement,
+              refer('logger')
+                  .property('info')
+                  .call([literalString('Successfully deleted $entityName')])
+                  .statement,
             ]);
           } else {
             // #463: persist deletes — locate by id (throws notFoundFailure
@@ -1535,9 +1560,10 @@ class MockDataSourceBuilder {
                   .property('remove')
                   .call([refer('existing')])
                   .statement,
-              refer('logger').property('info').call([
-                literalString('Successfully deleted $entityName'),
-              ]).statement,
+              refer('logger')
+                  .property('info')
+                  .call([literalString('Successfully deleted $entityName')])
+                  .statement,
             ]);
           }
 
@@ -1578,9 +1604,8 @@ class MockDataSourceBuilder {
                 ..body = refer('Stream')
                     .property('periodic')
                     .call([
-                      refer(
-                        'Duration',
-                      ).constInstance(const [], {'seconds': literalNum(2)}),
+                      refer('Duration')
+                          .constInstance(const [], {'seconds': literalNum(2)}),
                       Method(
                         (m) => m
                           ..requiredParameters.add(
@@ -1588,9 +1613,9 @@ class MockDataSourceBuilder {
                           )
                           ..lambda = true
                           ..body = isNoParamsWatch
-                              ? refer(
-                                  '${entityName}MockData',
-                                ).property('sample$entityName').code
+                              ? refer('${entityName}MockData')
+                                    .property('sample$entityName')
+                                    .code
                               : refer('${entityName}MockData')
                                     .property('${entityCamel}s')
                                     .property('query')
@@ -1623,9 +1648,8 @@ class MockDataSourceBuilder {
                 ..body = refer('Stream')
                     .property('periodic')
                     .call([
-                      refer(
-                        'Duration',
-                      ).constInstance(const [], {'seconds': literalNum(2)}),
+                      refer('Duration')
+                          .constInstance(const [], {'seconds': literalNum(2)}),
                       Method(
                         (m) => m
                           ..requiredParameters.add(
@@ -1636,9 +1660,8 @@ class MockDataSourceBuilder {
                               ..statements.addAll([
                                 declareVar('items')
                                     .assign(
-                                      refer(
-                                        '${entityName}MockData',
-                                      ).property('${entityCamel}s'),
+                                      refer('${entityName}MockData')
+                                          .property('${entityCamel}s'),
                                     )
                                     .statement,
                                 Code(
@@ -1766,26 +1789,31 @@ class MockDataSourceBuilder {
                   ..body = Block(
                     (b) => b
                       ..statements.addAll([
-                        refer('logger').property('info').call([
-                          literalString('$methodName called'),
-                        ]).statement,
+                        refer('logger')
+                            .property('info')
+                            .call([literalString('$methodName called')])
+                            .statement,
                         refer('Future<void>')
                             .property('delayed')
                             .call([refer('_delay')])
                             .awaited
                             .statement,
                         if (isVoid)
-                          refer(
-                            'Future',
-                          ).property('value').call([]).returned.statement
+                          refer('Future')
+                              .property('value')
+                              .call([])
+                              .returned
+                              .statement
                         else if (isEntityList)
-                          refer(
-                            '${entityName}MockData',
-                          ).property('sampleList').returned.statement
+                          refer('${entityName}MockData')
+                              .property('sampleList')
+                              .returned
+                              .statement
                         else if (isEntityReturn)
-                          refer(
-                            '${entityName}MockData',
-                          ).property('sample$entityName').returned.statement
+                          refer('${entityName}MockData')
+                              .property('sample$entityName')
+                              .returned
+                              .statement
                         else
                           Code('throw UnimplementedError();'),
                       ]),
