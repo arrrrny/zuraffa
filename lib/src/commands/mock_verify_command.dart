@@ -152,9 +152,11 @@ class MockVerifyCommand extends Command<void> {
     // ── Fixture-only entities (#1951): an enum / CRUD-less type has no
     //    datasource interface or mock datasource on disk BY DESIGN — the
     //    generator skips that surface (#1037/#1747, the #1887 outcome).
-    //    The missing-file refusals below must not fire for it: report the
-    //    same fixture-only green `mock create <Enum> --certify` records.
-    //    The probe resolves through [root], the tree the artifact checks
+    //    The missing-file refusals below must not fire for it: the
+    //    missing mock-data refusal fires instead, and a present fixture
+    //    rides the SAME certify + gate the normal path runs (PR #1954
+    //    review — a compile-error fixture is drift, not a pass). The
+    //    probe resolves through [root], the tree the artifact checks
     //    below read, so --project keeps working.
     final entityTree = p.join(root, plugin.outputDir);
     final fixtureOnly =
@@ -177,32 +179,92 @@ class MockVerifyCommand extends Command<void> {
         );
         return;
       }
+      // PR #1954 review: the fixture itself must still pass the gate — a
+      // compile error in the mock-data file is drift even with no
+      // datasource surface. Certify the fixture-only surface and run the
+      // SAME [MockCertifier.gate] the normal path runs (the scoped
+      // analyze covers the emitted fixture files); the missing-file
+      // refusal above stays intact.
+      final certification = await MockCertificationService.certify(
+        entity: entity,
+        outputDir: plugin.outputDir,
+        files: [
+          GeneratedFile(
+            path: mockDataPath,
+            type: 'mock_data',
+            action: 'created',
+          ),
+        ],
+        projectRoot: root,
+      );
+      final report = await MockCertifier().gate(
+        certification: certification,
+        projectRoot: root,
+      );
+      final findings = <VerdictFinding>[
+        for (final line in report.fixLines)
+          VerdictFinding(
+            kind: 'analyze_error',
+            file: mockDataPath,
+            fix: line.replaceFirst(RegExp(r'^--> fix:\s*'), ''),
+          ),
+      ];
       if (jsonMode) {
         VerdictEnvelope.emit(
           VerdictEnvelope(
             command: 'zfa mock verify $entity',
-            verdict: VerdictKind.pass,
-            exitClass: ExitProtocol.success,
+            verdict: report.passed ? VerdictKind.pass : VerdictKind.fail,
+            exitClass: report.passed
+                ? ExitProtocol.success
+                : ExitProtocol.failure,
             subject: VerdictSubject(kind: 'mock', id: entity),
-            findings: const [],
-            drifts: const [],
-            details: {'entity': entity, 'readOnly': true, 'fixtureOnly': true},
+            findings: findings,
+            drifts: report.fixLines,
+            details: {
+              'entity': entity,
+              'readOnly': true,
+              'fixtureOnly': true,
+              // Issue #1539: a crashed analyze on BOTH passes leaves the
+              // structural certification standing — disclosed, never a
+              // silent pass (same contract as the normal path below).
+              if (report.analyzeUnverified != null)
+                'analyzeUnverified': report.analyzeUnverified,
+            },
           ),
         );
       } else {
         // ignore: avoid_print
         print(
           'ℹ️  $entity: fixture-only entity (enum / CRUD-less) — mock data '
-          'present; no datasource surface to certify '
+          'present; the gate runs on the fixture '
           '(issues #1037/#1747).',
         );
-        // ignore: avoid_print
-        print(
-          '✅ verified: nothing to prove — the fixture surface is the '
-          'contract.',
-        );
+        if (report.passed) {
+          if (report.analyzeUnverified != null) {
+            for (final line in analyzeUnverifiedNotice(
+              entity: entity,
+              registryId: certification.registryId,
+              crashOutput: report.analyzeUnverified!,
+            )) {
+              // ignore: avoid_print
+              print(line);
+            }
+          }
+          // ignore: avoid_print
+          print(
+            '✅ verified: the fixture compiles clean — the fixture surface '
+            'is the contract.',
+          );
+        } else {
+          for (final finding in findings) {
+            // ignore: avoid_print
+            print('❌ [${finding.kind}] ${finding.member ?? finding.file}');
+            // ignore: avoid_print
+            print('   --> fix: ${finding.fix}');
+          }
+        }
       }
-      exitCode = ExitProtocol.success;
+      exitCode = report.passed ? ExitProtocol.success : ExitProtocol.failure;
       return;
     }
 

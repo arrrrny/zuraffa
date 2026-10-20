@@ -19,7 +19,13 @@
 //   on disk being the whole deliverable;
 // - `zfa mock verify <Enum>` reports the same fixture-only green instead
 //   of the missing-file refusal, while a real entity's missing artifacts
-//   still refuse.
+//   still refuse;
+// - PR #1954 review follow-ups: fixture-only certification REFUSES when
+//   no fixture exists on disk (a vacuous green — `mock verify` refuses
+//   the same state), and verify runs the fixture through the REAL gate
+//   (`MockCertifier.gate`), so a compile-error fixture fails instead of
+//   passing unanalyzed; the `--json` pass envelope pins
+//   `details['fixtureOnly']`.
 library;
 
 import 'dart:io';
@@ -156,6 +162,47 @@ void main() {
         reason: 'reordering the fixture-only check must not weaken #1894',
       );
     });
+
+    test('certify() refuses a fixture-only entity when no fixture exists '
+        'on disk (the vacuous-green refusal)', () async {
+      // PR #1954 review: the fixture collection skips an absent file and
+      // the gate would run with nothing to analyze — while `mock verify`
+      // refuses that same state. Certification must refuse it too.
+      final fixturePath = p.join(
+        tempDir.path,
+        'lib',
+        'src',
+        'data',
+        'mock',
+        'subscription_tier_mock_data.dart',
+      );
+      File(fixturePath).deleteSync();
+
+      await expectLater(
+        MockCertificationService.certify(
+          entity: 'SubscriptionTier',
+          outputDir: entityTreeOf(tempDir.path),
+          files: [
+            GeneratedFile(
+              path: fixturePath,
+              type: 'mock_data',
+              action: 'created',
+            ),
+          ],
+          projectRoot: tempDir.path,
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('mock-data fixture exists on disk'),
+          ),
+        ),
+        reason:
+            'a fixture-only certification with nothing to analyze must '
+            'not pass — generate the fixture first',
+      );
+    });
   });
 
   group('#1951 — zfa mock create <Enum> (the reported repro)', () {
@@ -212,9 +259,22 @@ void main() {
   });
 
   group('#1951 — zfa mock verify <Enum>', () {
+    /// Deterministic red analyze stub: the gate reports a compile error in
+    /// the fixture (the PR #1954 review shape — a broken fixture is drift,
+    /// not a pass).
+    void redAnalyze() {
+      MockCertifier.analyzeRunnerOverride = (files, cwd) async => (
+        exitCode: 1,
+        output:
+            "Analyzing...\nerror - Undefined name 'SubscriptionTier' · "
+            'subscription_tier_mock_data.dart:2:30 · undefined_identifier\n',
+      );
+    }
+
     test('reports the fixture-only green instead of the missing-file '
         'refusal', () async {
       await runCli(['mock', 'create', 'SubscriptionTier']);
+      greenAnalyze();
       final out = await runCli(['mock', 'verify', 'SubscriptionTier']);
 
       expect(
@@ -230,6 +290,7 @@ void main() {
 
     test('--json emits a canonical pass envelope with fixtureOnly', () async {
       await runCli(['mock', 'create', 'SubscriptionTier']);
+      greenAnalyze();
       final out = await runCli([
         'mock',
         'verify',
@@ -247,6 +308,46 @@ void main() {
       expect(envelope!.verdict, VerdictKind.pass);
       expect(envelope.subject!.id, 'SubscriptionTier');
       expect(envelope.findings, isEmpty);
+      expect(envelope.details['fixtureOnly'], isTrue);
+    });
+
+    test('a compile-error fixture FAILS the gate (PR #1954 review: the '
+        'fixture is verified, not accepted unconditionally)', () async {
+      await runCli(['mock', 'create', 'SubscriptionTier']);
+      redAnalyze();
+      final out = await runCli(['mock', 'verify', 'SubscriptionTier']);
+
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        ExitProtocol.failure,
+        reason:
+            'a broken fixture is drift even with no datasource '
+            'surface — output:\n$out',
+      );
+      expect(out, contains('analyze_error'));
+    });
+
+    test('--json reports the broken fixture as a fail envelope that keeps '
+        'fixtureOnly', () async {
+      await runCli(['mock', 'create', 'SubscriptionTier']);
+      redAnalyze();
+      final out = await runCli([
+        'mock',
+        'verify',
+        'SubscriptionTier',
+        '--json',
+      ]);
+
+      expect(CliRunner.lastDispatchedExitCode, ExitProtocol.failure);
+      final envelope = VerdictEnvelope.tryParse(out);
+      expect(envelope, isNotNull);
+      expect(envelope!.verdict, VerdictKind.fail);
+      expect(
+        envelope.findings.any((f) => f.kind == 'analyze_error'),
+        isTrue,
+        reason: 'the gate diagnostics ride the findings:\n$out',
+      );
+      expect(envelope.details['fixtureOnly'], isTrue);
     });
 
     test('a real CRUD entity with no artifacts on disk still refuses '

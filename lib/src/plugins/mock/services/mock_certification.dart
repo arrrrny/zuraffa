@@ -393,6 +393,24 @@ abstract final class MockCertificationService {
       );
     }
 
+    // PR #1954 review: a fixture-only certification with NO fixture on
+    // disk is a vacuous green — the loop above skips an absent file and
+    // the gate would run with nothing to analyze, while `mock verify`
+    // refuses that same state. Refuse when the caller requires the mock
+    // artifacts (the generation/verify shape); `mock explain` passes
+    // `requireMock: false` and keeps its documented interface-only
+    // honesty for a tree that has nothing yet.
+    if (fixtureOnly &&
+        requireMock &&
+        (requireArtifacts ?? true) &&
+        fixtures.isEmpty) {
+      throw StateError(
+        '$commandLabel: cannot certify $entity — fixture-only entity but no\n'
+        '  mock-data fixture exists on disk.\n'
+        '--> fix: generate it first — `zfa mock create $entity`.',
+      );
+    }
+
     // 5. Drift sets.
     final interfaceSet = interfaceMethods.toSet();
     final implementedSet = implementedMethods.toSet();
