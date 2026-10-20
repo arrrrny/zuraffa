@@ -1543,6 +1543,18 @@ class PlanCommand extends Command<void> {
       final String? specMtime = specFile.existsSync()
           ? (await specFile.lastModified()).toUtc().toIso8601String()
           : null;
+      // The ids the `## Lanes` section actually names (SKIN declarations
+      // sanitized to their strict W-id, the same normalization
+      // `_resolveLanes` applies), so the refreshed source map can never
+      // carry a key the classification does not.
+      final declaredLaneIds = <String>{
+        for (final lane in lanes)
+          for (final token in lane.behaviorIds)
+            if (Lane.parse(lane.lane) == Lane.skin)
+              SkinPlanAuthor.sanitizeDeclaredSkinToken(token)?.id ?? token
+            else
+              token,
+      };
       final refreshed = splitReceiptExists
           ? (splitReceipt == null
                 ? <String, dynamic>{
@@ -1554,7 +1566,43 @@ class PlanCommand extends Command<void> {
                         entry.key: entry.value.label,
                     },
                   }
-                : <String, dynamic>{...splitReceipt})
+                : <String, dynamic>{
+                    ...splitReceipt,
+                    // Issue #1883: a stale receipt (e.g. one left over
+                    // from a declared-contract rename) must not keep its
+                    // old behavior-id set — re-derive the classification
+                    // and row count from the current plan so run-engine
+                    // does not silently drop the re-issued behaviors.
+                    'rows': laneResult.classification.length,
+                    'classification': {
+                      for (final entry in laneResult.classification.entries)
+                        entry.key: entry.value.label,
+                    },
+                    // Issue #1883 (review): the split-time audit fields
+                    // are re-derived with the classification. Preserved
+                    // verbatim they would name the REMOVED ids beside a
+                    // fresh map (`classification_source` keyed by the old
+                    // set, `golden_ids` naming undeclared behaviors) —
+                    // the receipt is the audit record, so it must agree
+                    // with the lane plans this refresh just wrote.
+                    'classification_source': {
+                      for (final id in laneResult.classification.keys)
+                        id: declaredLaneIds.contains(id)
+                            ? 'declared'
+                            : 'heuristic',
+                    },
+                    'golden_ids': goldenIds.toList()..sort(),
+                    'adaptive_slots': adaptiveSlots,
+                    'files': [
+                      'tdd/${LaneSplitFiles.engine}',
+                      'tdd/${LaneSplitFiles.skin}',
+                      'tdd/${LaneSplitFiles.contract}',
+                      'tdd/test-list.md (meta-index)',
+                    ],
+                    'engine_flutter_references': flutterReferenceCount(
+                      engineMd,
+                    ),
+                  })
           : <String, dynamic>{
               'feature': feature,
               'source': 'zfa tdd plan',

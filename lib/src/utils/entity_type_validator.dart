@@ -118,6 +118,26 @@ class EntityTypeValidator {
         final enumExists = enumFile.existsSync();
 
         if (!entityExists && !enumExists) {
+          // Issue #1929: when the offending type is lowercase it is almost
+          // certainly a value (a member of an enum the user meant to
+          // scaffold) rather than an enum/type name. Naming it as the enum
+          // to create (`zfa entity enum -n free`) produces a wrong artifact
+          // that "succeeds" and misleads the user. Use a placeholder enum
+          // name and present the offending token as a `--value` instead.
+          // Issue #1929: a leading lowercase letter means the token is a
+          // value/member, not a type name. Use a rune-safe check so
+          // non-ASCII identifiers cannot be misclassified by a single
+          // UTF-16 code unit.
+          final isLowercaseValue =
+              cleanType.isNotEmpty && RegExp(r'^[a-z]').hasMatch(cleanType);
+          final fixHint = isLowercaseValue
+              ? '   Create the enum first:\n'
+                    '     zfa entity enum -n <EnumName> --value $cleanType\n'
+                    '   (replace <EnumName> with your enum\'s name)\n'
+                    '   or check the spelling.'
+              : '   Create the enum/entity first, for example:\n'
+                    '     zfa entity enum -n $cleanType --value <values>\n'
+                    '   or check the spelling.';
           errors.add(
             UnresolvedTypeError(
               fieldName: field.name,
@@ -126,9 +146,7 @@ class EntityTypeValidator {
                   'Unknown type "$cleanType" for field "${field.name}" — no '
                   'matching entity directory or enum file found under '
                   '$outputDir.\n'
-                  '   Create the enum/entity first, for example:\n'
-                  '     zfa entity enum -n $cleanType --value <values>\n'
-                  '   or check the spelling.',
+                  '$fixHint',
             ),
           );
         }

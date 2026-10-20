@@ -1,5 +1,6 @@
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../utils/entity_analyzer.dart';
+import '../../../utils/string_utils.dart';
 import 'mock_type_helper.dart';
 
 class MockJsonHelperBuilder {
@@ -55,7 +56,7 @@ class MockJsonHelperBuilder {
 
     final loadMethod =
         '''
-  static Future<List<$entityName>> load${entityName}s() async {
+  static Future<List<$entityName>> load${StringUtils.pluralize(entityName)}() async {
     final file = File('$jsonFilePath');
     if (!await file.exists()) {
       throw StateError('Mock JSON file not found: $jsonFilePath');
@@ -72,7 +73,7 @@ class MockJsonHelperBuilder {
     final sampleMethod =
         '''
   static Future<$entityName> loadSample$entityName() async {
-    final list = await load${entityName}s();
+    final list = await load${StringUtils.pluralize(entityName)}();
     if (list.isEmpty) {
       throw StateError('Mock JSON file is empty: $jsonFilePath');
     }
@@ -98,7 +99,7 @@ class $helperClassName {
   $sampleMethod
 
   static Future<List<$entityName>> loadSampleList() async {
-    return load${entityName}s();
+    return load${StringUtils.pluralize(entityName)}();
   }
 
   static Future<List<$entityName>> loadEmptyList() async {
