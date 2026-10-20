@@ -176,11 +176,8 @@ class MockCertificationSandbox {
     String? content,
   }) {
     final resolvedRoot = projectRoot ?? project ?? root ?? targetRoot;
-    String? resolvedContent = content ??
-        pubspec ??
-        pubspecContent ??
-        targetPubspec ??
-        pubspecYaml;
+    String? resolvedContent =
+        content ?? pubspec ?? pubspecContent ?? targetPubspec ?? pubspecYaml;
     if (resolvedContent == null && pubspecPath != null) {
       try {
         final f = File(pubspecPath);
@@ -246,13 +243,13 @@ dev_dependencies:
     String? pubspecContent,
     String? targetPubspec,
   }) => pubspecFor(
-        frameworkRoot: frameworkRoot,
-        flutterTest: flutterTest,
-        projectRoot: projectRoot,
-        pubspec: pubspec,
-        pubspecContent: pubspecContent,
-        targetPubspec: targetPubspec,
-      );
+    frameworkRoot: frameworkRoot,
+    flutterTest: flutterTest,
+    projectRoot: projectRoot,
+    pubspec: pubspec,
+    pubspecContent: pubspecContent,
+    targetPubspec: targetPubspec,
+  );
 
   static String sandboxPubspec({
     required String frameworkRoot,
@@ -262,13 +259,13 @@ dev_dependencies:
     String? pubspecContent,
     String? targetPubspec,
   }) => pubspecFor(
-        frameworkRoot: frameworkRoot,
-        flutterTest: flutterTest,
-        projectRoot: projectRoot,
-        pubspec: pubspec,
-        pubspecContent: pubspecContent,
-        targetPubspec: targetPubspec,
-      );
+    frameworkRoot: frameworkRoot,
+    flutterTest: flutterTest,
+    projectRoot: projectRoot,
+    pubspec: pubspec,
+    pubspecContent: pubspecContent,
+    targetPubspec: targetPubspec,
+  );
 
   static String _derivePubspecFromTarget(
     String raw,
@@ -286,12 +283,10 @@ dev_dependencies:
       insertIfMissing: false,
     );
     if (flutterTest) {
-      lines = _ensureSectionKey(
-        lines,
-        'dependencies',
-        'flutter',
-        const ['  flutter:', '    sdk: flutter'],
-      );
+      lines = _ensureSectionKey(lines, 'dependencies', 'flutter', const [
+        '  flutter:',
+        '    sdk: flutter',
+      ]);
       lines = _ensureSectionKey(
         lines,
         'dev_dependencies',
