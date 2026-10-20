@@ -109,5 +109,15 @@ void main() {
         [(name: 'read', params: ''), (name: 'write', params: 'Y')],
       );
     });
+    test('a comma followed by a malformed entry is rejected', () {
+      expect(
+        () => DependencyContract.parseRow(
+          name: 'UserLocationDataSource',
+          type: 'service',
+          contract: 'read() -> X, write -> Y',
+        ),
+        throwsA(isA<FormatException>()),
+      );
+    });
   });
 }
