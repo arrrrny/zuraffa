@@ -43,13 +43,12 @@ void main() {
   final corpusMissing = !Directory(
     p.join(packageRoot().path, 'corpus'),
   ).existsSync();
-  // Local runs stay forgiving; on CI a missing corpus is a failure, not a
-  // skip — the suite must go loud when the regen tool path drifts or the
-  // directory disappears unexpectedly.
-  final String? corpusSkip = Platform.environment.containsKey('CI')
-      ? null
-      : 'corpus/ is not shipped in-repo (removed from git) — '
-            'restore the directory to re-enable the shipped-corpus pins';
+  // The corpus was deliberately removed from the repo, so the skip applies
+  // on CI too — a missing corpus is the shipped state, not a regression;
+  // restoring corpus/ re-enables the shipped-corpus pins (#1958).
+  final String? corpusSkip = corpusMissing
+      ? 'corpus/ is not shipped in-repo (removed from git)'
+      : null;
 
   group('shipped regression corpus', () {
     test('exposes the three incident entries and nothing else', () async {

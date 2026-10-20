@@ -77,14 +77,13 @@ Future<void> main() async {
   final corpusMissing = !Directory(
     p.join(root, 'corpus', 'zik_zak'),
   ).existsSync();
-  // Local runs stay forgiving; on CI a missing corpus is a failure, not a
-  // skip — the suite must go loud when the regen tool path drifts or the
-  // directory disappears unexpectedly.
-  final String? corpusSkip = Platform.environment.containsKey('CI')
-      ? null
-      : 'corpus/zik_zak is not shipped in-repo (removed from git) — '
-            'regenerate it with `dart run tool/generate_zikzak_corpus.dart` '
-            'to re-enable';
+  // The corpus (and its regen tools) was deliberately removed from the
+  // repo, so the skip applies on CI too — a missing corpus is the shipped
+  // state, not a regression; restoring corpus/zik_zak re-enables the sweep
+  // (#1958).
+  final String? corpusSkip = corpusMissing
+      ? 'corpus/zik_zak is not shipped in-repo (removed from git)'
+      : null;
 
   setUpAll(() async {
     final root = await pr.findProjectRoot();
