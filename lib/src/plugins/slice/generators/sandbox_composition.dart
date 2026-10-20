@@ -15,6 +15,7 @@ import 'package:path/path.dart' as p;
 import '_pascal_case.dart';
 import 'sandbox_scaffold.dart';
 import '../../../domain/entities/feature_contract/feature_contract_decorators.dart';
+import '../../mock/models/dependency_contract.dart';
 import '../models/slice_manifest.dart';
 
 /// Composes the runnable sandbox over a cut tree.
@@ -154,21 +155,18 @@ class SandboxComposition {
     return buffer.toString();
   }
 
-  /// Splits a declared contract into `(name, params)` signatures,
-  /// splitting on signature boundaries (a `,` before `name(`), never
-  /// inside parameter lists.
+  /// Splits a declared contract into `(name, params)` signatures through
+  /// the same grammar the mock model uses (`splitDependencyContract`, issue
+  /// #1892): commas before a signature start are boundaries, and inline-code
+  /// backticks are tolerated per method or around the whole cell.
   static List<({String name, String params})> declaredSignatures(
     String contract,
   ) {
-    final parts = contract
-        .split(RegExp(r',\s*(?=[A-Za-z_][A-Za-z0-9_]*\s*\()'))
-        .where((part) => part.trim().isNotEmpty)
-        .toList();
     return [
-      for (final part in parts)
+      for (final seg in splitDependencyContract(contract))
         () {
-          final arrow = part.indexOf('->');
-          final head = (arrow >= 0 ? part.substring(0, arrow) : part).trim();
+          final arrow = seg.indexOf('->');
+          final head = (arrow >= 0 ? seg.substring(0, arrow) : seg).trim();
           final paren = head.indexOf('(');
           if (paren < 0) return (name: head, params: '');
           return (

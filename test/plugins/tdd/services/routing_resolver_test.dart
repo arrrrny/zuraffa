@@ -45,6 +45,17 @@ ContractRowDecl functionRow(
   specLine: line,
 );
 
+ContractRowDecl domainRow(
+  String name,
+  List<String> signatures, {
+  int line = 25,
+}) => ContractRowDecl(
+  name: name,
+  kind: ContractRowKind.domain,
+  signatures: signatures.map(Signature.parse).toList(),
+  specLine: line,
+);
+
 ContractRowDecl presentationRow(String name, {int line = 40}) =>
     ContractRowDecl(
       name: name,
@@ -369,6 +380,72 @@ void main() {
         reason: 'the signature token is dropped: no dangle, no refusal',
       );
       expect((result as RoutingDecision).signature, isNotNull);
+    });
+  });
+
+  group('issue #1750: an annotated traces cell is provenance, not part of '
+      'the member reference', () {
+    // The reconciler's `component_of()` annotation shape
+    // (`Class.method (path/to/component.dart)`, scripts/tdd_reconcile.py):
+    // the trailing parenthesised annotation must not defeat the declared
+    // layer-contract lookup, and it must not be dropped either — the
+    // drop left `traces` empty, `declaredRoutingFor` null, and gen
+    // degraded to a legacy stub (`int subject_u2()`) that can never
+    // express the declared behaviour (`int? subject_u2(int index)`).
+    final declarations = decls(
+      contractRows: {
+        'ShellNavItem': domainRow('ShellNavItem', [
+          'branchIndex(int index) -> int?',
+        ]),
+      },
+    );
+
+    test('the annotated cell resolves the declared signature', () {
+      final tokens = SpecParser.traceTokens(
+        'FR-002, ShellNavItem.branchIndex '
+        '(lib/src/domain/entities/shell_nav_item/shell_nav_item.dart)',
+      );
+      expect(tokens, [
+        'FR-002',
+        'ShellNavItem.branchIndex',
+      ], reason: 'the annotation is provenance, not part of the reference');
+      final result = resolver.resolve(
+        row: row('U2', traces: tokens),
+        declarations: declarations,
+        strict: false,
+      );
+      expect(
+        result,
+        isA<RoutingDecision>(),
+        reason: 'the annotated cell must not degrade to undeclared',
+      );
+      final d = result as RoutingDecision;
+      expect(d.kind, BehaviorKind.unit);
+      expect(
+        d.surface,
+        GenerationSurface.entityPipeline,
+        reason:
+            'a traced DOMAIN row is the entity-pipeline surface (issue '
+            '#1498) — the #1259 signature rides it',
+      );
+      expect(d.signature?.name, 'branchIndex');
+      expect(d.signature?.parameters, ['int index']);
+      expect(d.signature?.returnType, 'int?');
+    });
+
+    test('a bare inline signature span is still dropped: it neither '
+        'resolves nor dangles', () {
+      expect(SpecParser.traceTokens('`format(Template) -> String`'), isEmpty);
+      expect(
+        SpecParser.traceTokens(
+          '`branchIndex(int index) -> int?` '
+          '(lib/src/domain/entities/shell_nav_item/shell_nav_item.dart)',
+        ),
+        isEmpty,
+        reason:
+            'stripping the annotation exposes the signature span, which is '
+            'still not a contract-row reference',
+      );
     });
   });
 
