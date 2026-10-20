@@ -350,6 +350,10 @@ class MockExplainCapability implements ZuraffaCapability {
       outputDir: paths.outputDir,
       files: fixtures,
       projectRoot: root,
+      commandLabel: 'zfa mock explain',
+      // Interface-only tree: a missing mock is the documented, honest case.
+      requireMock: false,
+      requireArtifacts: false,
     );
 
     // ── The #1034 fixture selector: declared on the mock-data class, bound
