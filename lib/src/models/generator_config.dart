@@ -284,6 +284,35 @@ class GeneratorConfig {
           ? int.tryParse(json['ttl'].toString())
           : null,
       enableSqlite: json['sqlite'] == true || json['enable_sqlite'] == true,
+      // Issue #1966: `toJson` emits the 8 dedicated sync/strategy keys
+      // (`sync`, `strategy`, `strategy_names`, `sync_direction`,
+      // `sync_batch_size`, `sync_max_retries`, `sync_backoff_base_ms`,
+      // `sync_backoff_max_ms`) but `fromJson` never read them back — a
+      // saved-and-replayed config silently reset every sync/strategy setting
+      // to its default. Dedicated keys on both sides, `== true` for bool
+      // reads (the #1965 / #1962 pattern).
+      enableStrategy: json['strategy'] == true,
+      strategyNames:
+          (json['strategy_names'] as List<dynamic>?)?.cast<String>().toList(
+            growable: false,
+          ) ??
+          const [],
+      enableSync: json['sync'] == true,
+      // Coerced like `ttl` above: `zfa validate` feeds hand-authored JSON
+      // straight into this factory, so a string "120" must not throw.
+      syncDirection: json['sync_direction']?.toString() ?? 'push',
+      syncBatchSize: json['sync_batch_size'] == null
+          ? 50
+          : int.tryParse(json['sync_batch_size'].toString()) ?? 50,
+      syncMaxRetries: json['sync_max_retries'] == null
+          ? 5
+          : int.tryParse(json['sync_max_retries'].toString()) ?? 5,
+      syncBackoffBaseMs: json['sync_backoff_base_ms'] == null
+          ? 1000
+          : int.tryParse(json['sync_backoff_base_ms'].toString()) ?? 1000,
+      syncBackoffMaxMs: json['sync_backoff_max_ms'] == null
+          ? 60000
+          : int.tryParse(json['sync_backoff_max_ms'].toString()) ?? 60000,
       generateMock: json['mock'] == true || json['generate_mock'] == true,
       overwriteInterface: json['overwrite_interface'] == true,
       engineSlice: json['engine'] == true || json['engine_slice'] == true,
