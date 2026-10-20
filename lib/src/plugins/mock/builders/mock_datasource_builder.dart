@@ -320,6 +320,18 @@ class MockDataSourceBuilder {
       if (config.returnsType != null && config.returnsType != 'void') {
         entities.addAll(EntityUtils.extractEntityTypes(config.returnsType!));
       }
+      // Issue #1923: a repaired member may declare types this run's config
+      // does not (the shape-drift case — the member came from the
+      // interface). Import them too, or the synthesized foreign-entity
+      // body references an unresolved type.
+      for (final member in missingInterfaceMembers) {
+        if (member.paramsType != null && member.paramsType != 'NoParams') {
+          entities.addAll(EntityUtils.extractEntityTypes(member.paramsType!));
+        }
+        if (member.returnsType != null && member.returnsType != 'void') {
+          entities.addAll(EntityUtils.extractEntityTypes(member.returnsType!));
+        }
+      }
       final targetEntity = config.isCustomUseCase && config.returnsType != null
           ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
                 config.name
@@ -514,7 +526,27 @@ class MockDataSourceBuilder {
     final isStream = member.useCaseType == 'stream';
     final isSync = member.useCaseType == 'sync';
     final isVoid = baseReturns == 'void' || baseReturns == 'dynamic';
+    final isList = baseReturns.startsWith('List<');
     final paramsType = member.paramsType ?? 'NoParams';
+    // Issue #1923: a missing foreign-entity member whose entity wraps
+    // `List<$entityName>` is derivable from the subject fixture — repair it
+    // with the same honest paged read the create path emits, instead of the
+    // single-entity sample (a wrong-type body).
+    // Issue #1936 review (nitpick): the foreign-page body references
+    // `params.offset`/`params.limit`, so derivation is only valid when the
+    // member actually declares a params argument. A params-less member (or a
+    // stream member that would capture an undeclared `params`) keeps the
+    // #1850 refusal instead of emitting non-compiling code.
+    final foreignPage = !isList &&
+            !isVoid &&
+            baseReturns != entityName &&
+            member.parameterCount > 0
+        ? _deriveForeignPageShape(
+            entityName: entityName,
+            foreignType: baseReturns,
+            paramsType: paramsType,
+          )
+        : null;
 
     // Issue #1911 review: `ParsedUseCaseInfo` carries only the FIRST
     // parameter type, so a multi-parameter declaration cannot be mirrored
@@ -541,7 +573,7 @@ class MockDataSourceBuilder {
     // type — an entity sample under a scalar return does not compile
     // (issue #1911 review). Null means "no honest fixture".
     final value = isVoid ? null : _synthesizedValue(entityName, baseReturns);
-    if (!isVoid && value == null) return null;
+    if (!isVoid && foreignPage == null && value == null) return null;
 
     if (isSync) {
       // A synchronous member must stay synchronous: wrapping it in
@@ -574,7 +606,13 @@ class MockDataSourceBuilder {
           ).property('delayed').call([refer('_delay')]).awaited.statement,
           if (isVoid) ...[
             refer('Future').property('value').call([]).returned.statement,
-          ] else ...[
+          ] else if (foreignPage != null)
+            ..._foreignPageStatements(
+              entityName: entityName,
+              foreignType: baseReturns,
+              shape: foreignPage,
+            )
+          else ...[
             value!.returned.statement,
           ],
         ]),
@@ -590,10 +628,21 @@ class MockDataSourceBuilder {
                   refer('_delay'),
                   Method(
                     (mm) => mm
-                      ..lambda = true
-                      ..body = isVoid
-                          ? refer('Future').property('value').call([]).code
-                          : value!.code,
+                      ..lambda = foreignPage == null
+                      ..body = foreignPage != null
+                          ? Block(
+                              (bb) => bb
+                                ..statements.addAll(
+                                  _foreignPageStatements(
+                                    entityName: entityName,
+                                    foreignType: baseReturns,
+                                    shape: foreignPage,
+                                  ),
+                                ),
+                            )
+                          : (isVoid
+                                ? refer('Future').property('value').call([]).code
+                                : value!.code),
                   ).closure,
                 ]),
               ])
@@ -803,41 +852,24 @@ class MockDataSourceBuilder {
     return baseReturns;
   }
 
-  /// Issue #1850 (honest bodies): the return shapes an arbitrary verb can be
-  /// given a real body for. Shared by validation and emission so the
-  /// pre-flight and the generated method can never disagree.
-  static bool _isHonestArbitraryReturn(
-    String baseReturns,
-    String entityName, [
-    String? outputDir,
-  ]) {
-    if (baseReturns == 'void' || baseReturns == 'dynamic') return true;
-    if (baseReturns == entityName) return true;
-    if (outputDir != null &&
-        EntityAnalyzer.entityFileExists(baseReturns, outputDir)) {
-      return true;
-    }
-    if (baseReturns.startsWith('List<') && baseReturns.endsWith('>')) {
-      final inner = baseReturns.substring(5, baseReturns.length - 1).trim();
-      if (inner == entityName) return true;
-      if (outputDir != null &&
-          EntityAnalyzer.entityFileExists(inner, outputDir)) {
-        return true;
-      }
-      return false;
-    }
-    return false;
-  }
 
   /// Issue #1922: validates every arbitrary (non-CRUD) member shape of
   /// [config] WITHOUT emitting or writing anything, so a refused member
   /// (the #1850 `ArgumentError`) leaves the working tree untouched instead
   /// of clobbering the datasource interface that was written before the
   /// shape check used to run.
-  static void validateMemberShapes(GeneratorConfig config) {
+  static void validateMemberShapes(
+    GeneratorConfig config, {
+    FileSystem? fileSystem,
+  }) {
     final entityName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
         : config.name;
+    final fs = fileSystem ?? FileSystem.create();
+    final builder = MockDataSourceBuilder(
+      outputDir: config.outputDir,
+      fileSystem: fs,
+    );
     for (final method in config.methods) {
       if (_crudMethodNames.contains(method)) continue;
       final parsed = _parseMethodShape(method);
@@ -847,15 +879,35 @@ class MockDataSourceBuilder {
           ? methodReturns
           : 'void';
       final baseReturns = _baseReturnType(returns);
-      if (!_isHonestArbitraryReturn(
-        baseReturns,
-        entityName,
-        config.outputDir,
-      )) {
-        throw ArgumentError(
-          'unknown return type $baseReturns for member $methodName',
-        );
-      }
+      final isVoid = baseReturns == 'void' || baseReturns == 'dynamic';
+      final isList =
+          baseReturns.startsWith('List<') && baseReturns.endsWith('>');
+      final listInner = isList
+          ? baseReturns.substring(5, baseReturns.length - 1).trim()
+          : '';
+      final isEntityList = isList && listInner == entityName;
+      final isEntityReturn = baseReturns == entityName;
+      // Issue #1923: a foreign entity is derivable only when it wraps a
+      // paged slice of the subject fixture (see _deriveForeignPageShape).
+      // Keep the pre-flight in lockstep with the emission path so a refused
+      // member is caught here, before the interface is written (#1922).
+      final foreignPage = !isVoid && !isEntityList && !isEntityReturn
+          ? builder._deriveForeignPageShape(
+              entityName: entityName,
+              foreignType: baseReturns,
+              paramsType: (parsed.$2 != null && parsed.$2!.isNotEmpty)
+                  ? parsed.$2!
+                  : (config.paramsType ?? 'NoParams'),
+            )
+          : null;
+      if (isVoid || isEntityList || isEntityReturn) continue;
+      if (foreignPage != null) continue;
+      // Issue #1923: any other foreign return (primitive, single entity,
+      // non-paged wrapper, unknown type) is refused rather than emitted
+      // with a throw body under conformance:true (#1850).
+      throw ArgumentError(
+        'unknown return type $baseReturns for member $methodName',
+      );
     }
   }
 
@@ -1742,11 +1794,27 @@ class MockDataSourceBuilder {
                 ? returns
                 : 'Future<$returns>';
             final futureReturnType = returnType; // returnType already wrapped
+            // Issue #1923: a foreign entity that wraps a list of the
+            // subject (`items: List<$entityName>`) IS derivable from the
+            // subject's fixture set — the paginated-store shape. An honest
+            // paged read is synthesized below; every other foreign return
+            // keeps the #1850 refusal.
+            final foreignPage = !isVoid && !isEntityList && !isEntityReturn
+                ? _deriveForeignPageShape(
+                    entityName: entityName,
+                    foreignType: baseReturns,
+                    paramsType: paramsType,
+                  )
+                : null;
             // Issue #1850 (honest bodies): a non-void arbitrary verb whose
             // return type resolves to no known fixture must refuse rather
             // than emit `throw UnimplementedError()` under a conformance:
-            // true verdict.
-            if (!_isHonestArbitraryReturn(baseReturns, entityName, outputDir)) {
+            // true verdict. Issue #1923 narrows "known fixture" to include
+            // a foreign paged wrapper over the subject fixture.
+            if (!isVoid &&
+                !isEntityList &&
+                !isEntityReturn &&
+                foreignPage == null) {
               throw ArgumentError(
                 'unknown return type $baseReturns for member $methodName',
               );
@@ -1792,6 +1860,12 @@ class MockDataSourceBuilder {
                           refer(
                             '${entityName}MockData',
                           ).property('sample$entityName').returned.statement
+                        else if (foreignPage != null)
+                          ..._foreignPageStatements(
+                            entityName: entityName,
+                            foreignType: baseReturns,
+                            shape: foreignPage,
+                          )
                         else
                           Code('throw UnimplementedError();'),
                       ]),
@@ -1804,6 +1878,125 @@ class MockDataSourceBuilder {
     }
 
     return methods;
+  }
+
+  /// Issue #1923: resolves the honest body shape for a foreign-entity
+  /// return that the fixture set can feed — the paginated-store wrapper.
+  ///
+  /// The shape is derivable only when ALL of the following hold:
+  ///   * the member takes `ListQueryParams<...>` (the paging inputs);
+  ///   * the foreign entity's source exists and parses;
+  ///   * it declares exactly one field typed `List<$entityName>` — the
+  ///     slice source, filled from `<Subject>MockData.<plural>`;
+  ///   * it declares a `hasMore` bool (or exactly one bool field);
+  ///   * every other field is nullable (constructed as `null`).
+  ///
+  /// The synthesized body constructs the foreign entity with named
+  /// arguments (`ForeignType(listField: page, hasMoreField: ..., ...)`),
+  /// so the foreign entity must expose a constructor that accepts those
+  /// field names as named parameters. Foreign entities generated by the
+  /// zuraffa/zorphy codegen satisfy this by convention; a hand-written
+  /// foreign entity with a positional-only constructor will not compile
+  /// and must be refused (or given a named constructor) before generation.
+  ///
+  /// Anything else returns null, and the caller keeps the #1850 refusal
+  /// rather than inventing a body.
+  ({String listField, String hasMoreField, List<String> nullableFields})?
+  _deriveForeignPageShape({
+    required String entityName,
+    required String foreignType,
+    required String paramsType,
+  }) {
+    if (!paramsType.startsWith('ListQueryParams<')) return null;
+    if (!EntityAnalyzer.entityFileExists(
+      foreignType,
+      outputDir,
+      fileSystem: fileSystem,
+    )) {
+      return null;
+    }
+    final fields = EntityAnalyzer.analyzeEntity(
+      foreignType,
+      outputDir,
+      fileSystem: fileSystem,
+    );
+    if (fields.isEmpty) return null;
+
+    String normalize(String type) =>
+        type.replaceAll('?', '').replaceAll(' ', '').trim();
+
+    final listFields = fields.entries
+        .where((entry) => normalize(entry.value) == 'List<$entityName>')
+        .map((entry) => entry.key)
+        .toList();
+    if (listFields.length != 1) return null;
+
+    final boolFields = fields.entries
+        .where((entry) => normalize(entry.value) == 'bool')
+        .map((entry) => entry.key)
+        .toList();
+    if (boolFields.isEmpty) return null;
+    final String hasMoreField;
+    if (boolFields.contains('hasMore')) {
+      hasMoreField = 'hasMore';
+    } else if (boolFields.length == 1) {
+      hasMoreField = boolFields.single;
+    } else {
+      // Several bool fields and no `hasMore` — which one is the page flag is
+      // not derivable, so the seam falls back to the honest refusal.
+      return null;
+    }
+
+    final nullableFields = <String>[];
+    for (final entry in fields.entries) {
+      if (entry.key == listFields.single || entry.key == hasMoreField) {
+        continue;
+      }
+      if (!entry.value.trim().endsWith('?')) return null;
+      nullableFields.add(entry.key);
+    }
+
+    return (
+      listField: listFields.single,
+      hasMoreField: hasMoreField,
+      nullableFields: nullableFields,
+    );
+  }
+
+  /// Issue #1923: the honest paged-read body shared by the arbitrary-verb
+  /// generator and the shape-drift repair — a real slice of the subject
+  /// fixture list, wrapped in the foreign entity with a computed `hasMore`.
+  List<Code> _foreignPageStatements({
+    required String entityName,
+    required String foreignType,
+    required ({
+      String listField,
+      String hasMoreField,
+      List<String> nullableFields,
+    })
+    shape,
+  }) {
+    final entityCamel = StringUtils.pascalToCamel(entityName);
+    return [
+      Code('''
+final items = ${entityName}MockData.${StringUtils.pluralize(entityCamel)};
+var offset = params.offset ?? 0;
+if (offset < 0) offset = 0;
+if (offset > items.length) offset = items.length;
+var limit = params.limit ?? items.length;
+if (limit < 0) limit = 0;
+if (limit > items.length) limit = items.length;
+final page = items.skip(offset).take(limit).toList();
+'''),
+      refer(foreignType)
+          .call([], {
+            shape.listField: refer('page'),
+            shape.hasMoreField: refer('offset + page.length < items.length'),
+            for (final field in shape.nullableFields) field: literalNull,
+          })
+          .returned
+          .statement,
+    ];
   }
 
   Expression _primitiveValue(String type) {
