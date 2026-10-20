@@ -354,7 +354,9 @@ class MockValueBuilder {
           final subtype = subtypes[(seed + i) % subtypes.length];
           items.add(
             refer('${subtype}MockData')
-                .property('${StringUtils.pascalToCamel(subtype)}s')
+                .property(
+                  StringUtils.pluralize(StringUtils.pascalToCamel(subtype)),
+                )
                 .index(literalNum((seed + i - 1) % 3)),
           );
         }
@@ -371,7 +373,11 @@ class MockValueBuilder {
         for (int i = 1; i <= itemCount; i++) {
           items.add(
             refer('${cleanListType}MockData')
-                .property('${StringUtils.pascalToCamel(cleanListType)}s')
+                .property(
+                  StringUtils.pluralize(
+                    StringUtils.pascalToCamel(cleanListType),
+                  ),
+                )
                 .index(literalNum((seed + i - 1) % 3)),
           );
         }
@@ -733,7 +739,9 @@ class MockValueBuilder {
         final subtype = subtypes[i % subtypes.length];
         items.add(
           refer('${subtype}MockData')
-              .property('${StringUtils.pascalToCamel(subtype)}s')
+              .property(
+                StringUtils.pluralize(StringUtils.pascalToCamel(subtype)),
+              )
               .index(refer('seed').operatorEuclideanModulo(literalNum(3))),
         );
       }
@@ -745,17 +753,23 @@ class MockValueBuilder {
         !entityHelper.isDefaultFields(entityFields)) {
       return literalList([
         refer('${cleanListType}MockData')
-            .property('${StringUtils.pascalToCamel(cleanListType)}s')
+            .property(
+              StringUtils.pluralize(StringUtils.pascalToCamel(cleanListType)),
+            )
             .index(refer('seed').operatorEuclideanModulo(literalNum(3))),
         refer('${cleanListType}MockData')
-            .property('${StringUtils.pascalToCamel(cleanListType)}s')
+            .property(
+              StringUtils.pluralize(StringUtils.pascalToCamel(cleanListType)),
+            )
             .index(
               refer('seed')
                   .operatorAdd(literalNum(1))
                   .operatorEuclideanModulo(literalNum(3)),
             ),
         refer('${cleanListType}MockData')
-            .property('${StringUtils.pascalToCamel(cleanListType)}s')
+            .property(
+              StringUtils.pluralize(StringUtils.pascalToCamel(cleanListType)),
+            )
             .index(
               refer('seed')
                   .operatorAdd(literalNum(2))

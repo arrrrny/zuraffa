@@ -316,6 +316,11 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                   outputDir,
                   fileSystem: fs,
                 ) &&
+                !EntityAnalyzer.hasDeclaredDataSourceInterface(
+                  targetEntity,
+                  outputDir,
+                  fileSystem: fs,
+                ) &&
                 EntityAnalyzer.methodsRequireCrudSurface(config.methods));
         if (fixtureOnlyEntity) {
           final purged = await _purgeCrudDatasourceArtifacts(
@@ -521,6 +526,16 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     FileSystem fs, {
     bool dryRun = false,
   }) async {
+    // Issue #1931: never purge a mock datasource for an entity that
+    // declares a `<Entity>DataSource` interface with methods — that
+    // interface is exactly what makes the mock datasource meaningful.
+    if (EntityAnalyzer.hasDeclaredDataSourceInterface(
+      entityName,
+      outputDir,
+      fileSystem: fs,
+    )) {
+      return const [];
+    }
     const marker = '// GENERATED - DO NOT EDIT';
     final entitySnake = StringUtils.camelToSnake(entityName);
     final candidates = <String>[

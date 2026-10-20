@@ -872,6 +872,7 @@ class MockDataSourceBuilder {
         ? config.repo!.replaceAll('Repository', '')
         : config.name;
     final entityCamel = StringUtils.pascalToCamel(entityName);
+    final collectionName = StringUtils.pluralize(entityCamel);
     final methods = <Method>[];
 
     if (config.isCustomUseCase &&
@@ -1084,7 +1085,7 @@ class MockDataSourceBuilder {
                         declareFinal('item')
                             .assign(
                               refer('${entityName}MockData')
-                                  .property('${entityCamel}s')
+                                  .property(collectionName)
                                   .property('query')
                                   .call([refer('params')]),
                             )
@@ -1118,17 +1119,18 @@ class MockDataSourceBuilder {
                 ..body = Block(
                   (b) => b
                     ..statements.addAll([
-                      refer('logger')
-                          .property('info')
-                          .call([literalString('Listing ${entityName}s')])
-                          .statement,
+                      refer('logger').property('info').call([
+                        literalString(
+                          'Listing ${StringUtils.pluralize(entityName)}',
+                        ),
+                      ]).statement,
                       refer('Future<void>')
                           .property('delayed')
                           .call([refer('_delay')])
                           .awaited
                           .statement,
                       refer('${entityName}MockData')
-                          .property('${entityCamel}s')
+                          .property(collectionName)
                           .returned
                           .statement,
                     ]),
@@ -1168,7 +1170,7 @@ class MockDataSourceBuilder {
                       declareVar('items')
                           .assign(
                             refer('${entityName}MockData')
-                                .property('${entityCamel}s'),
+                                .property(collectionName),
                           )
                           .statement,
                       Code(
@@ -1179,7 +1181,7 @@ class MockDataSourceBuilder {
                       ),
                       refer('logger').property('info').call([
                         literalString(
-                          'Successfully retrieved \${items.length} ${entityName}s',
+                          'Successfully retrieved \${items.length} ${StringUtils.pluralize(entityName)}',
                         ),
                       ]).statement,
                       refer('items').returned.statement,
@@ -1208,7 +1210,7 @@ class MockDataSourceBuilder {
                 .awaited
                 .statement,
             refer('${entityName}MockData')
-                .property('${entityCamel}s')
+                .property(collectionName)
                 .property('add')
                 .call([refer('item')])
                 .statement,
@@ -1282,7 +1284,7 @@ class MockDataSourceBuilder {
                         .call([refer('existing')]),
                   )
                   .statement,
-              Code('${entityName}MockData.${entityCamel}s[0] = updated;'),
+              Code('${entityName}MockData.$collectionName[0] = updated;'),
               refer('logger')
                   .property('info')
                   .call([literalString('Successfully updated $entityName')])
@@ -1304,7 +1306,7 @@ class MockDataSourceBuilder {
               declareFinal('existing')
                   .assign(
                     refer('${entityName}MockData')
-                        .property('${entityCamel}s')
+                        .property(collectionName)
                         .property('firstWhere')
                         .call(
                           [
@@ -1335,12 +1337,12 @@ class MockDataSourceBuilder {
               declareFinal('index')
                   .assign(
                     refer('${entityName}MockData')
-                        .property('${entityCamel}s')
+                        .property(collectionName)
                         .property('indexOf')
                         .call([refer('existing')]),
                   )
                   .statement,
-              Code('${entityName}MockData.${entityCamel}s[index] = updated;'),
+              Code('${entityName}MockData.$collectionName[index] = updated;'),
               refer('logger')
                   .property('info')
                   .call([literalString('Successfully updated $entityName')])
@@ -1409,7 +1411,7 @@ class MockDataSourceBuilder {
                     ]),
                   )
                   .statement,
-              Code('${entityName}MockData.${entityCamel}s[0] = updated;'),
+              Code('${entityName}MockData.$collectionName[0] = updated;'),
               refer('logger')
                   .property('info')
                   .call([literalString('Successfully toggled $entityName')])
@@ -1431,7 +1433,7 @@ class MockDataSourceBuilder {
               declareFinal('existing')
                   .assign(
                     refer('${entityName}MockData')
-                        .property('${entityCamel}s')
+                        .property(collectionName)
                         .property('firstWhere')
                         .call(
                           [
@@ -1462,12 +1464,12 @@ class MockDataSourceBuilder {
               declareFinal('index')
                   .assign(
                     refer('${entityName}MockData')
-                        .property('${entityCamel}s')
+                        .property(collectionName)
                         .property('indexOf')
                         .call([refer('existing')]),
                   )
                   .statement,
-              Code('${entityName}MockData.${entityCamel}s[index] = updated;'),
+              Code('${entityName}MockData.$collectionName[index] = updated;'),
               refer('logger')
                   .property('info')
                   .call([literalString('Successfully toggled $entityName')])
@@ -1535,7 +1537,7 @@ class MockDataSourceBuilder {
               declareFinal('existing')
                   .assign(
                     refer('${entityName}MockData')
-                        .property('${entityCamel}s')
+                        .property(collectionName)
                         .property('firstWhere')
                         .call(
                           [
@@ -1556,7 +1558,7 @@ class MockDataSourceBuilder {
                   )
                   .statement,
               refer('${entityName}MockData')
-                  .property('${entityCamel}s')
+                  .property(collectionName)
                   .property('remove')
                   .call([refer('existing')])
                   .statement,
@@ -1617,7 +1619,7 @@ class MockDataSourceBuilder {
                                     .property('sample$entityName')
                                     .code
                               : refer('${entityName}MockData')
-                                    .property('${entityCamel}s')
+                                    .property(collectionName)
                                     .property('query')
                                     .call([refer('params')])
                                     .code,
@@ -1661,7 +1663,7 @@ class MockDataSourceBuilder {
                                 declareVar('items')
                                     .assign(
                                       refer('${entityName}MockData')
-                                          .property('${entityCamel}s'),
+                                          .property(collectionName),
                                     )
                                     .statement,
                                 Code(

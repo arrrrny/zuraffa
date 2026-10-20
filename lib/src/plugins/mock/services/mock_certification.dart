@@ -30,6 +30,7 @@ import '../../../core/context/file_system.dart';
 import '../../../core/plugin_system/capability_invocation_wrapper.dart';
 import '../../../core/project/receipt_store.dart';
 import '../../../models/generated_file.dart';
+import '../../../utils/entity_analyzer.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/method_extractor.dart';
 import '../../../models/parsed_usecase_info.dart';
@@ -90,6 +91,12 @@ class MockCertification {
   /// also matches its signature.
   final List<String> signatureMismatches;
 
+  /// Issue #1930: true when the entity certified on a fixture-only surface
+  /// (an enum or other CRUD-less type) with no CRUD datasource to analyze.
+  /// The gate uses it to drop the (absent) mock-datasource/interface files
+  /// from the scoped `dart analyze` target list.
+  final bool fixtureOnly;
+
   /// The emitted fixtures and their digests.
   final List<MockFixtureHash> fixtures;
 
@@ -109,6 +116,7 @@ class MockCertification {
     required this.missingMethods,
     required this.inventedMethods,
     this.signatureMismatches = const [],
+    this.fixtureOnly = false,
     required this.fixtures,
     this.receiptPath,
   });
@@ -140,6 +148,7 @@ class MockCertification {
     missingMethods: missingMethods,
     inventedMethods: inventedMethods,
     signatureMismatches: signatureMismatches,
+    fixtureOnly: fixtureOnly,
     fixtures: fixtures,
     receiptPath: receiptPath,
   );
@@ -449,6 +458,14 @@ abstract final class MockCertificationService {
       missingMethods: missing,
       inventedMethods: invented,
       signatureMismatches: sigMismatches,
+      fixtureOnly:
+          EntityAnalyzer.isEnum(entity, outputDir) ||
+          (service == null &&
+              EntityAnalyzer.lacksCrudSurface(entity, outputDir) &&
+              !EntityAnalyzer.hasDeclaredDataSourceInterface(
+                entity,
+                outputDir,
+              )),
       fixtures: fixtures,
     );
   }
@@ -747,9 +764,17 @@ class MockCertifier {
         '${certification.signatureMismatches.join(', ')}',
       );
     }
+    // Issue #1930: a fixture-only entity (enum / CRUD-less type) has no
+    // CRUD datasource or interface file to analyze — the generator never
+    // emits them (#1037/#1747). Analyze the mock-data file (and any other
+    // emitted fixture) only; the (absent) mock-datasource path must never
+    // reach `dart analyze`, or the gate fails on a file that does not
+    // exist while the receipt says pass.
     final analyzeFiles = <String>[
-      if (certification.mockFile != null) certification.mockFile!,
-      if (certification.interface != null) certification.interface!,
+      if (!certification.fixtureOnly && certification.mockFile != null)
+        certification.mockFile!,
+      if (!certification.fixtureOnly && certification.interface != null)
+        certification.interface!,
       for (final fixture in certification.fixtures)
         if (fixture.path.endsWith('.dart')) fixture.path,
     ];
