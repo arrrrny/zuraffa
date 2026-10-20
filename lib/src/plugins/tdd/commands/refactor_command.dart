@@ -352,8 +352,9 @@ class RefactorCommand extends Command<void> {
     final baselineScope = argResults?['baseline-scope'] as String?;
     if (baselineScope != null && baselineScope.trim().isNotEmpty) {
       final scopeInput = baselineScope.trim();
-      final hasParentSegment = RegExp(r'(^|[\\/])\.\.([\\/]|$)')
-          .hasMatch(scopeInput);
+      final hasParentSegment = RegExp(
+        r'(^|[\\/])\.\.([\\/]|$)',
+      ).hasMatch(scopeInput);
       final scopeNorm = p.normalize(scopeInput);
       final scopeDir = Directory(p.join(cwd, scopeNorm));
       if (p.isAbsolute(scopeNorm) ||
@@ -589,8 +590,9 @@ class RefactorCommand extends Command<void> {
       }
       final exemptTestsByPath = <String, String>{};
       if (effectiveExemptIds.isNotEmpty) {
-        final records = await ArtifactRegistry(featureDir: featureDir)
-            .loadAll();
+        final records = await ArtifactRegistry(
+          featureDir: featureDir,
+        ).loadAll();
         for (final record in records) {
           if (!effectiveExemptIds.contains(record.behaviorId)) continue;
           exemptTestsByPath[_normalizeGatePath(record.testPath, cwd)] =
@@ -1141,8 +1143,9 @@ class RefactorCommand extends Command<void> {
           command: formatPass?.command,
         );
       }
-      final artifacts = await ArtifactRegistry(featureDir: featureDir)
-          .loadAll();
+      final artifacts = await ArtifactRegistry(
+        featureDir: featureDir,
+      ).loadAll();
       // Issue #1430: a sanctioned rewrite of a CERTIFIED subject strands
       // its green evidence — the next make's #1036 guard would refuse the
       // drift the loop itself produced (subject-drift stale-artifacts, the
@@ -1527,8 +1530,9 @@ class RefactorCommand extends Command<void> {
       // the sanctioned run after the suite already passed (parity with
       // the decision reads above, which use `loadAllTolerant`).
       if (libChanged.isNotEmpty) {
-        final hdArtifacts = await ArtifactRegistry(featureDir: featureDir)
-            .loadAllTolerant();
+        final hdArtifacts = await ArtifactRegistry(
+          featureDir: featureDir,
+        ).loadAllTolerant();
         var hdFired = 0;
         final hdPaths = <String>[];
         for (final rec in hdArtifacts) {

@@ -254,8 +254,9 @@ class RunSkinCommand extends Command<void> {
         ? null
         : baselineScopeRaw.trim();
     if (baselineScope != null) {
-      final hasParentSegment = RegExp(r'(^|[\\/])\.\.([\\/]|$)')
-          .hasMatch(baselineScope);
+      final hasParentSegment = RegExp(
+        r'(^|[\\/])\.\.([\\/]|$)',
+      ).hasMatch(baselineScope);
       final scopeNorm = p.normalize(baselineScope);
       if (p.isAbsolute(scopeNorm) ||
           hasParentSegment ||
@@ -702,8 +703,9 @@ class RunSkinCommand extends Command<void> {
 
     // The view-builder target comes from the IMMUTABLE test source —
     // `subject.<name>(` — never from the author's implementation.
-    final targetMatch = RegExp(r'subject\.([A-Za-z_][A-Za-z0-9_]*)\s*\(')
-        .firstMatch(testSource);
+    final targetMatch = RegExp(
+      r'subject\.([A-Za-z_][A-Za-z0-9_]*)\s*\(',
+    ).firstMatch(testSource);
     final target = targetMatch?.group(1);
 
     var redWitnessed = false;

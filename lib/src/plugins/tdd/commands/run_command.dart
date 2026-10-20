@@ -600,8 +600,9 @@ class RunCommand extends Command<void> {
         ? null
         : baselineScopeRaw.trim();
     if (baselineScope != null) {
-      final hasParentSegment = RegExp(r'(^|[\\/])\.\.([\\/]|$)')
-          .hasMatch(baselineScope);
+      final hasParentSegment = RegExp(
+        r'(^|[\\/])\.\.([\\/]|$)',
+      ).hasMatch(baselineScope);
       final scopeNorm = p.normalize(baselineScope);
       if (p.isAbsolute(scopeNorm) ||
           hasParentSegment ||
