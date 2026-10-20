@@ -881,7 +881,9 @@ class MockDataSourceBuilder {
                   (b) => b
                     ..statements.addAll([
                       refer('logger').property('info').call([
-                        literalString('Listing ${StringUtils.pluralize(entityName)}'),
+                        literalString(
+                          'Listing ${StringUtils.pluralize(entityName)}',
+                        ),
                       ]).statement,
                       refer('Future<void>')
                           .property('delayed')
