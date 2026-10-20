@@ -10,7 +10,6 @@ import '../../../models/generator_config.dart';
 import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
-import '../../../utils/entity_analyzer.dart';
 import '../../../utils/entity_utils.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/method_shape_parser.dart';
