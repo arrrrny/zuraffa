@@ -252,8 +252,23 @@ class GeneratorConfig {
           json['append'] == true || json['append_to_existing'] == true,
       generateUseCase:
           json['usecase'] == true || json['generate_usecase'] == true,
+      // Issue #1972: the 'service' key carries the service NAME (a String?),
+      // so it can never decide the bool flag — read the dedicated key only.
+      // (A bool under 'service' is a type error on the name read above.)
+      //
+      // The alias spellings are read too, so the model and the plugin
+      // pipeline can never disagree about the same flag: the plugins carry
+      // 'generateService' (di_plugin) and 'use-service' / 'useService'
+      // (datasource / di / test / provider / repository plugins), and the
+      // kebab spelling is what CodeGenerator's options map mirrors.
       generateService:
-          json['service'] == true || json['generate_service'] == true,
+          json['generate_service'] == true ||
+          json['generate-service'] == true ||
+          json['generateService'] == true,
+      useService:
+          json['use_service'] == true ||
+          json['use-service'] == true ||
+          json['useService'] == true,
       generateRepository: json['repository'] == true,
       useCaseType: json['type'] ?? 'usecase',
       paramsType: json['params'],
@@ -765,6 +780,16 @@ class GeneratorConfig {
     'repo_method': repoMethod,
     'service_method': serviceMethod,
     'append': appendToExisting,
+    // Issue #1972: the service flags get a dedicated key each — the
+    // 'service' key above carries the service NAME (a String?), never a
+    // bool. The camel aliases ride along because the plugin pipeline
+    // reads 'generateService' / 'useService' (and the kebab mirror in
+    // CodeGenerator produces 'generate-service' / 'use-service'); without
+    // them the flags would be live in the model but inert downstream.
+    'generate_service': generateService,
+    'generateService': generateService,
+    'use_service': useService,
+    'useService': useService,
     'repository': generateRepository,
     'type': useCaseType,
     'params': paramsType,
