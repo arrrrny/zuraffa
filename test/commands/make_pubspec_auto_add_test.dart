@@ -122,6 +122,8 @@ dependencies:
   zorphy_annotation: ^2.3.0
 dev_dependencies:
   build_runner: ^2.4.0
+  flutter_test:
+    sdk: flutter
 ''');
     runner = _RecordingRunner(simulate: true, sandbox: dir);
   });

@@ -194,6 +194,40 @@ abstract class LoginDataSource with Loggable, FailureHandler {
       },
     );
 
+    test('getter members pin as values, not Function()', () {
+      final writer = const MockContractTestWriter();
+      const methods = [
+        ContractMethod(
+          name: 'isInitialized',
+          returnType: 'Stream<bool>',
+          paramsType: 'NoParams',
+          parameterCount: 0,
+          isGetter: true,
+        ),
+      ];
+      final source = writer.render(
+        entityName: 'Login',
+        methods: methods,
+        projectRoot: tempDir.path,
+        outputDir: outputDir,
+      );
+
+      expect(
+        source.contains(
+          'final Stream<bool> isInitialized\$ =\n'
+          '          dataSource.isInitialized;',
+        ),
+        isTrue,
+        reason: 'a getter is a value; Function() would not compile',
+      );
+      expect(source, isNot(contains('dataSource.isInitialized()')));
+      expect(
+        source.contains('await dataSource.isInitialized.first'),
+        isTrue,
+        reason: 'the behavioral call reads the stream, not the getter',
+      );
+    });
+
     test('receipt path follows the canonical layout', () {
       expect(
         MockContractTestWriter.receiptPath('Login'),
