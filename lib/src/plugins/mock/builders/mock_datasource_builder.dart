@@ -1690,7 +1690,7 @@ class MockDataSourceBuilder {
     final entityCamel = StringUtils.pascalToCamel(entityName);
     return [
       Code('''
-final items = ${entityName}MockData.${entityCamel}s;
+final items = ${entityName}MockData.${StringUtils.pluralize(entityCamel)};
 var offset = params.offset ?? 0;
 if (offset < 0) offset = 0;
 if (offset > items.length) offset = items.length;
