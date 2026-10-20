@@ -249,6 +249,15 @@ class BuildCommand extends Command {
       // successfully" for a run that then fails the gate.
       print('✅ Build completed successfully');
     } else if (!clean) {
+      // Issue #1953: the failed build must not keep half-applied rewrites —
+      // restore-or-refuse before the classification and the clean-cache
+      // retry, so the retry starts from the exact pre-build tree.
+      if (!await recoverRewrittenTrackedOutputs(
+        trackedGuard,
+        trackedSnapshot,
+      )) {
+        exit(1);
+      }
       // Issue #1303: a pub RESOLUTION failure is not a cache problem —
       // cache state cannot fix resolution, so the clean-cache retry only
       // burns a full rebuild before dying the same way. Refuse the retry
@@ -267,6 +276,10 @@ class BuildCommand extends Command {
           '--> fix: resolve the pubspec problem reported above (e.g. a '
           'stale dependency_overrides path), then re-run `zfa build`.',
         );
+        // Issue #1953: re-print the captured diagnostic tail — the pub
+        // error survives wrapper/CI truncation of the live stream exactly
+        // like every other terminal failure path.
+        printBuildFailureDiagnostic(build.output);
         exit(1);
       }
       print(
@@ -293,14 +306,34 @@ class BuildCommand extends Command {
         }
         print('\n✅ Build completed successfully after cache clean');
       } else {
+        // Issue #1953: the retry can rewrite tracked outputs exactly like
+        // the initial build — restore-or-refuse before the retry verdict.
+        if (!await recoverRewrittenTrackedOutputs(
+          trackedGuard,
+          trackedSnapshot,
+        )) {
+          exit(1);
+        }
         print('\n❌ Build failed with exit code $retryCode');
+        // Issue #1953: re-print the captured diagnostic tail — the
+        // combining-builder/registrar error surfaces only in build_runner's
+        // final summary lines, which wrapper/CI truncation of the live
+        // stream otherwise loses entirely.
+        printBuildFailureDiagnostic(retry.output);
         // Fail loudly: a failed build must never exit 0 — the spec-025
         // package pipeline (and every CI format/test gate) trusts this
         // exit code as the build verdict.
         exit(1);
       }
     } else {
+      if (!await recoverRewrittenTrackedOutputs(
+        trackedGuard,
+        trackedSnapshot,
+      )) {
+        exit(1);
+      }
       print('\n❌ Build failed with exit code $exitCode');
+      printBuildFailureDiagnostic(build.output);
       exit(1);
     }
   }
@@ -352,7 +385,46 @@ class BuildCommand extends Command {
         });
     if (!hasCacheFiles) return false;
 
-    final before = registrar.readAsStringSync();
+    // Issue #1953: a registrar carrying bytes this generator never emits is
+    // a hand-authored placeholder (the
+    // docs/hand-authored-g-dart-placeholders.md pattern). Refreshing it
+    // wholesale re-imports `package:zuraffa/zuraffa.dart` un-hided and drops
+    // curated imports — the exact clobber that leaves the tree broken when
+    // the combining builder then fails on the rewritten file. Refuse as a
+    // loud no-op pointing at the documented build.yaml fix instead.
+    final existing = registrar.readAsStringSync();
+    if (registrarIsHandAuthored(existing)) {
+      print(
+        '\n🛑 Refusing to refresh the Hive registrar: $registrarPath is '
+        'hand-authored — it carries content the registrar generator never '
+        'emits (a comment beyond the GENERATED markers, an import '
+        'combinator such as hide/show/as, a missing '
+        "`part 'hive_registrar.g.dart';`, or a missing GENERATED wrap).",
+      );
+      print(
+        '   Regenerating would clobber that curation; the rewritten imports '
+        '(an un-hided `package:zuraffa/zuraffa.dart`) have broken builds at '
+        'the source_gen:combining_builder step (issue #1953).',
+      );
+      print('--> fix: keep the file as-is — `zfa build` will not touch it.');
+      print(
+        '--> fix: if build_runner claims the file anyway, exclude it from '
+        'BOTH builders in build.yaml:',
+      );
+      print('       json_serializable:');
+      print('         generate_for:');
+      print('           exclude: [lib/src/cache/hive_registrar.dart]');
+      print('       source_gen:combining_builder:');
+      print('         generate_for:');
+      print('           exclude: [lib/src/cache/hive_registrar.dart]');
+      print(
+        '   See $kHandAuthoredPlaceholderDoc for the '
+        'hand-authored-placeholder pattern.',
+      );
+      return false;
+    }
+
+    final before = existing;
     final outputPath = p.join(root, outputDir);
     await CacheBuilder(
       outputDir: outputPath,
@@ -443,6 +515,76 @@ class BuildCommand extends Command {
       return false;
     }
     return true;
+  }
+
+  /// Issue #1953 (restore-or-refuse extended to REWRITES): on a FAILED
+  /// build, detects git-tracked generated-name files whose bytes the build
+  /// changed, restores their exact pre-build bytes, and points at the
+  /// `build.yaml` `generate_for.exclude` that prevents the clobber from
+  /// recurring. Returns false — the caller must exit non-zero — when a
+  /// restore could not be written back.
+  ///
+  /// Only ever called on a failed build: on success a rewrite is a
+  /// generator legitimately producing its output (the spec-1540 A4
+  /// contract — a regenerated tracked file is never flagged), and the
+  /// happy path must stay byte-identical.
+  @visibleForTesting
+  Future<bool> recoverRewrittenTrackedOutputs(
+    TrackedGeneratedOutputGuard guard,
+    TrackedGeneratedSnapshot snapshot,
+  ) async {
+    final rewritten = guard.detectRewritten(snapshot);
+    if (rewritten.isEmpty) return true;
+    final result = await guard.restore(snapshot, rewritten);
+    if (result.restored.isNotEmpty) {
+      print(
+        '\n♻️  Restored ${result.restored.length} git-tracked generated-name '
+        'file(s) REWRITTEN by the failed build — a failed build must not '
+        'keep half-applied rewrites (issue #1953):',
+      );
+      for (final path in result.restored) {
+        print('     - $path');
+      }
+      print(
+        TrackedGeneratedOutputGuard.rewriteRemedyLines(
+          result.restored,
+        ).join('\n'),
+      );
+    }
+    if (result.failed.isNotEmpty) {
+      print(
+        '\n❌ zfa build REWROTE ${result.failed.length} git-tracked '
+        'generated-name file(s) and could not restore them — refusing to '
+        'leave the tree mutated by a failed build (issue #1953):',
+      );
+      print(
+        TrackedGeneratedOutputGuard.restoreRemedyLines(
+          result.failed,
+        ).join('\n'),
+      );
+      return false;
+    }
+    return true;
+  }
+
+  /// Issue #1953: re-prints the tail of the captured build output after the
+  /// terminal failure verdict. The combining-builder/registrar error
+  /// surfaces only in build_runner's final summary lines; when a timeout
+  /// wrapper or CI cap truncates the live stream, the actual diagnostic is
+  /// otherwise lost entirely. Silent on empty output.
+  @visibleForTesting
+  void printBuildFailureDiagnostic(String output, {int tailLines = 40}) {
+    final trimmed = output.trim();
+    if (trimmed.isEmpty) return;
+    final lines = const LineSplitter().convert(trimmed);
+    final tail = lines.length <= tailLines
+        ? lines
+        : lines.sublist(lines.length - tailLines);
+    print('');
+    print('── build failure diagnostic (last ${tail.length} line(s)) ──');
+    for (final line in tail) {
+      print(line);
+    }
   }
 
   /// Runs the DDA @Route stage (spec 033) against the current project root
@@ -1159,6 +1301,53 @@ class BuildCommand extends Command {
   static bool reportsPubResolutionError(String buildOutput) =>
       buildOutput.contains('version solving failed') ||
       buildOutput.contains('No pubspec.yaml found for package');
+
+  /// The two markers `SpecLibrary.emitLibrary` wraps EVERY emission in —
+  /// the only comment lines a registrar written by this generator can
+  /// carry (issue #1953).
+  static const String _generatedHeaderMarker = '// GENERATED - DO NOT EDIT';
+  static const String _generatedTrailerMarker = '// END GENERATED';
+
+  /// Issue #1953: whether [content] is a HAND-AUTHORED Hive registrar —
+  /// a curated placeholder the refresh must refuse to rewrite instead of
+  /// clobbering it and failing the build at the combining builder.
+  ///
+  /// The generator's emission shape is exact: wrapped in
+  /// `_generatedHeaderMarker` … `_generatedTrailerMarker`, import
+  /// directives without combinators, and always the
+  /// `part 'hive_registrar.g.dart';` directive its merge logic and the
+  /// `.g.dart` flow are built around. Anything the generator never emits —
+  /// any other comment, a `hide`/`show`/`as` import combinator, a missing
+  /// part or marker wrap — means the file is hand-owned (the same ownership
+  /// principle as the `# zfa:generated` build.yaml header: edit anything
+  /// and you own the file).
+  static bool registrarIsHandAuthored(String content) {
+    final hasPart = RegExp(
+      r"""^\s*part\s+['"]hive_registrar\.g\.dart['"]\s*;""",
+      multiLine: true,
+    ).hasMatch(content);
+    if (!hasPart) return true;
+
+    final contentful = <String>[];
+    for (final rawLine in content.split('\n')) {
+      if (rawLine.trim().isNotEmpty) contentful.add(rawLine.trim());
+    }
+    final hasHeader =
+        contentful.isNotEmpty && contentful.first == _generatedHeaderMarker;
+    final hasTrailer =
+        contentful.isNotEmpty && contentful.last == _generatedTrailerMarker;
+    // Every emission carries BOTH markers; a half-wrapped or unwrapped file
+    // was not written by this generator.
+    if (!hasHeader || !hasTrailer) return true;
+    for (var i = 1; i < contentful.length - 1; i++) {
+      final line = contentful[i];
+      if (line.startsWith('//') || line.startsWith('/*')) return true;
+      if (RegExp(r'^(?:import|export)\b.*\s(as|hide|show)\s').hasMatch(line)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   /// One build invocation result: the exit code plus the streamed
   /// stdout+stderr (echoed live AND captured, so the retry decision can

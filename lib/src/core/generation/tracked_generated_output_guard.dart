@@ -36,6 +36,15 @@
 ///      tree or the `git` binary is unavailable, every method degrades to a
 ///      no-op (empty tracking set / empty snapshot / empty detections), so
 ///      non-git projects keep byte-identical build behavior.
+///   5. **Rewrites (issue #1953)** — [detectRewritten] reports snapshot
+///      members that still exist with DIFFERENT bytes. Meaningful only on a
+///      FAILED build (the caller decides): there the half-applied rewrite of
+///      a tracked placeholder must not survive the failure, so the caller
+///      restores the pre-build bytes and points at the `build.yaml`
+///      `generate_for.exclude` fix. On a successful build a rewrite is a
+///      generator legitimately producing its output and is never flagged.
+///      The Hive registrar host file (`hive_registrar.dart`) is watched by
+///      basename — a generated-name output with no generated suffix.
 ///
 /// Hard constraint (issue #1540): this guard NEVER touches build_runner
 /// internals or json_serializable behavior. It observes the working tree
@@ -54,6 +63,12 @@ const String kHandAuthoredPlaceholderDoc =
 /// The generated-name suffixes the build step already special-cases
 /// (`verifyDeclaredPartsOrFail`, `hasGeneratedOutputs`).
 const List<String> kGeneratedSuffixes = <String>['.g.dart', '.zorphy.dart'];
+
+/// The Hive registrar host file (`lib/src/cache/hive_registrar.dart` in the
+/// canonical layout): build_runner output in projects that enable
+/// hive_ce_generator's registrar flow, yet its name carries no generated
+/// suffix — so it is tracked by basename, not suffix (issue #1953).
+const String kHiveRegistrarFileName = 'hive_registrar.dart';
 
 /// One pre-build snapshot of git-tracked generated-name files.
 ///
@@ -115,6 +130,12 @@ class TrackedGeneratedOutputGuard {
   static bool _isGeneratedName(String path, List<String> suffixes) =>
       suffixes.any(path.endsWith);
 
+  /// Tracking membership: a generated suffix, or the suffix-less Hive
+  /// registrar host file (issue #1953).
+  static bool _isWatchedName(String path, List<String> suffixes) =>
+      _isGeneratedName(path, suffixes) ||
+      p.basename(path) == kHiveRegistrarFileName;
+
   /// Every generated-name path tracked in git's index under [projectRoot],
   /// relative to [projectRoot] with forward slashes.
   ///
@@ -134,7 +155,7 @@ class TrackedGeneratedOutputGuard {
       for (final raw in utf8.decode(result.stdout as List<int>).split('\x00')) {
         final path = raw.replaceAll(p.separator, '/');
         if (path.isEmpty) continue;
-        if (_isGeneratedName(path, generatedSuffixes)) tracked.add(path);
+        if (_isWatchedName(path, generatedSuffixes)) tracked.add(path);
       }
       return tracked;
     } on ProcessException {
@@ -171,6 +192,38 @@ class TrackedGeneratedOutputGuard {
             .toList()
           ..sort();
     return deleted;
+  }
+
+  /// Snapshot members that still exist but whose bytes differ from the
+  /// captured pre-build bytes — rewritten by the build (issue #1953).
+  ///
+  /// Deletions are NOT rewrites (they belong to [detectDeleted]); a
+  /// byte-identical rewrite is not a rewrite. Meaningful only for a FAILED
+  /// build: on success a rewrite is a generator legitimately producing its
+  /// output and is never flagged (the spec-1540 A4 contract).
+  List<String> detectRewritten(TrackedGeneratedSnapshot snapshot) {
+    final rewritten = <String>[];
+    for (final entry in snapshot.files.entries) {
+      final file = File(p.join(projectRoot, entry.key));
+      if (!file.existsSync()) continue;
+      try {
+        if (!_sameBytes(file.readAsBytesSync(), entry.value)) {
+          rewritten.add(entry.key);
+        }
+      } catch (_) {
+        // An unreadable file cannot be byte-compared — the deletion and
+        // restore gates own that anomaly, not the rewrite detector.
+      }
+    }
+    return rewritten..sort();
+  }
+
+  static bool _sameBytes(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   /// Restore the exact pre-build bytes of [paths] from [snapshot].
@@ -210,6 +263,57 @@ class TrackedGeneratedOutputGuard {
       }
     }
     return null;
+  }
+
+  /// The `generate_for.exclude` entry that stops a builder from claiming
+  /// [path]: the convention-derived owning library for suffixed outputs,
+  /// the file itself for suffix-less placeholders (`hive_registrar.dart` —
+  /// the issue-#1953 workaround excludes the file itself).
+  static String rewriteExcludeTargetFor(String path) =>
+      owningLibraryFor(path) ?? path;
+
+  /// The issue-#1953 remedy lines for generated-name files a FAILED build
+  /// REWROTE (whose pre-build bytes the caller restored or could not): the
+  /// exact `generate_for.exclude` that stops the clobber recurring, and the
+  /// documentation reference. Pure function — no I/O.
+  static List<String> rewriteRemedyLines(List<String> paths) {
+    if (paths.isEmpty) return const <String>[];
+    final lines = <String>[
+      '--> fix (issue #1953): a builder claimed git-tracked generated-name '
+          'file(s) as its output and clobbered them; the build then failed '
+          'on the rewritten file:',
+    ];
+    final targets = <String>{};
+    for (final path in paths) {
+      lines.add('       - $path');
+      targets.add(rewriteExcludeTargetFor(path));
+    }
+    lines.add(
+      '   A failed build must not keep half-applied rewrites — the exact '
+      'pre-build bytes were restored.',
+    );
+    for (final target in targets) {
+      lines.addAll(<String>[
+        '   Prevent the rewrite by excluding the file from the claiming '
+            'builders in build.yaml:',
+        '       json_serializable:',
+        '         generate_for:',
+        '           exclude: [$target]',
+        '       source_gen:combining_builder:',
+        '         generate_for:',
+        '           exclude: [$target]',
+      ]);
+    }
+    lines.add(
+      '   (and from every other builder that emits this output — e.g. '
+      'hive_ce_generator:hive_registrar_generator for Hive registrar '
+      'files.)',
+    );
+    lines.add(
+      '   See $kHandAuthoredPlaceholderDoc for the hand-authored-placeholder '
+      'pattern.',
+    );
+    return lines;
   }
 
   /// The spec-1540 remedy lines for [paths]: the exact manual restore
@@ -268,7 +372,7 @@ class TrackedGeneratedOutputGuard {
       for (final raw in utf8.decode(result.stdout as List<int>).split('\x00')) {
         final path = raw.replaceAll(p.separator, '/');
         if (path.isEmpty) continue;
-        if (_isGeneratedName(path, kGeneratedSuffixes)) tracked.add(path);
+        if (_isWatchedName(path, kGeneratedSuffixes)) tracked.add(path);
       }
       return tracked;
     } on ProcessException {
