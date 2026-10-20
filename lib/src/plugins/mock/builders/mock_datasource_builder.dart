@@ -1924,8 +1924,18 @@ class MockDataSourceBuilder {
     );
     if (fields.isEmpty) return null;
 
-    String normalize(String type) =>
-        type.replaceAll('?', '').replaceAll(' ', '').trim();
+    // Issue #1955: a real Zorphy part-file entity declares its fields
+    // against the `$`-prefixed abstract supertype, so `analyzeEntity` sees
+    // `List<$ZikZak>` where the member declares `List<ZikZak>`. Strip the
+    // Zorphy supertype prefix alongside `?`/spaces or the derivation
+    // returns null and the honest paged read regresses to the #1850
+    // refusal (the #1928 escape this rewrite inherited was removed by the
+    // #1923 merge).
+    String normalize(String type) => type
+        .replaceAll('?', '')
+        .replaceAll(' ', '')
+        .replaceAll('\$', '')
+        .trim();
 
     final listFields = fields.entries
         .where((entry) => normalize(entry.value) == 'List<$entityName>')
