@@ -197,13 +197,26 @@ class PubspecGapReporter {
     String? pubAddOneLiner,
     List<String> sdkMissingPackages = const [],
   }) {
-    if (missing.isEmpty && sdkMissingPackages.isEmpty) return const [];
-    final lines = <String>[
-      '⚠️  pubspec.yaml doesn\'t declare ${missing.length} '
-          'package(s) the generated code imports: ${missing.join(", ")}',
-    ];
-    if (pubAddOneLiner != null) {
-      lines.add('    --> fix: `$pubAddOneLiner`');
+    final sdkSet = sdkMissingPackages.toSet();
+    // SDK-provided packages come from the Flutter/Dart SDK, not pub.dev, so
+    // they never form a `pub add`-healable gap: only the hosted packages
+    // drive the "doesn't declare" header (and its `--> fix:` line). When
+    // only SDK packages are missing, the header is omitted entirely so a
+    // Flutter project that merely imports flutter_test does not trip the
+    // "doesn't declare" diagnostic (issue #1530 / make_pubspec flakiness).
+    final hostedMissing = missing
+        .where((name) => !sdkSet.contains(name))
+        .toList();
+    if (hostedMissing.isEmpty && sdkMissingPackages.isEmpty) return const [];
+    final lines = <String>[];
+    if (hostedMissing.isNotEmpty) {
+      lines.add(
+        '⚠️  pubspec.yaml doesn\'t declare ${hostedMissing.length} '
+        'package(s) the generated code imports: ${hostedMissing.join(", ")}',
+      );
+      if (pubAddOneLiner != null) {
+        lines.add('    --> fix: `$pubAddOneLiner`');
+      }
     }
     if (sdkMissingPackages.isNotEmpty) {
       lines.add(
