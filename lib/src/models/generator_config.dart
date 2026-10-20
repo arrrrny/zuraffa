@@ -298,11 +298,21 @@ class GeneratorConfig {
           ) ??
           const [],
       enableSync: json['sync'] == true,
-      syncDirection: json['sync_direction'] ?? 'push',
-      syncBatchSize: json['sync_batch_size'] ?? 50,
-      syncMaxRetries: json['sync_max_retries'] ?? 5,
-      syncBackoffBaseMs: json['sync_backoff_base_ms'] ?? 1000,
-      syncBackoffMaxMs: json['sync_backoff_max_ms'] ?? 60000,
+      // Coerced like `ttl` above: `zfa validate` feeds hand-authored JSON
+      // straight into this factory, so a string "120" must not throw.
+      syncDirection: json['sync_direction']?.toString() ?? 'push',
+      syncBatchSize: json['sync_batch_size'] == null
+          ? 50
+          : int.tryParse(json['sync_batch_size'].toString()) ?? 50,
+      syncMaxRetries: json['sync_max_retries'] == null
+          ? 5
+          : int.tryParse(json['sync_max_retries'].toString()) ?? 5,
+      syncBackoffBaseMs: json['sync_backoff_base_ms'] == null
+          ? 1000
+          : int.tryParse(json['sync_backoff_base_ms'].toString()) ?? 1000,
+      syncBackoffMaxMs: json['sync_backoff_max_ms'] == null
+          ? 60000
+          : int.tryParse(json['sync_backoff_max_ms'].toString()) ?? 60000,
       generateMock: json['mock'] == true || json['generate_mock'] == true,
       overwriteInterface: json['overwrite_interface'] == true,
       engineSlice: json['engine'] == true || json['engine_slice'] == true,
@@ -337,10 +347,7 @@ class GeneratorConfig {
       // Issue #1962: `presenter`/`controller` carry bools on the toJson
       // side, so they must never feed the String? custom names — read only
       // the dedicated keys (a bool here was a runtime TypeError on every
-      // full round-trip). Applied here from the open fix branch
-      // `fix/issue-1962` (commit 25f72318, PR #1965) as the workaround that
-      // makes this issue's round-trip observable on master at all; identical
-      // hunks auto-merge when PR #1965 lands.
+      // full round-trip).
       customPresenterName: json['custom_presenter_name'],
       customControllerName: json['custom_controller_name'],
       customStateName: json['state_class'] ?? json['custom_state_name'],

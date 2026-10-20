@@ -89,6 +89,33 @@ void main() {
       );
     });
 
+    test('presenter flag and custom name coexist through the round-trip', () {
+      // Pins the #1962 hunk this suite carries while #1965 is open:
+      // `generatePresenter: true` AND `customPresenterName` set is the exact
+      // shape the old `json['presenter'] ?? json['custom_presenter_name']`
+      // read crashed on (a bool fed to a String? param).
+      final config = GeneratorConfig(
+        name: 'Deal',
+        outputDir: 'lib/src',
+        methods: ['get'],
+        generatePresenter: true,
+        customPresenterName: 'CustomDealPresenter',
+      );
+
+      final restored = GeneratorConfig.fromJson(config.toJson(), config.name);
+
+      expect(
+        restored.generatePresenter,
+        isTrue,
+        reason: 'toJson emits bool "presenter"; fromJson must read the flag',
+      );
+      expect(
+        restored.customPresenterName,
+        'CustomDealPresenter',
+        reason: 'custom_presenter_name must survive alongside the flag',
+      );
+    });
+
     test('defaults stay intact when the keys are absent', () {
       final config = GeneratorConfig(
         name: 'Deal',
