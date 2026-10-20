@@ -1,7 +1,5 @@
 library;
 
-import 'dart:io';
-
 import 'package:test/test.dart';
 import 'package:zuraffa/src/docs/openwiki_cli_docs.dart';
 
@@ -16,7 +14,10 @@ import 'package:zuraffa/src/docs/openwiki_cli_docs.dart';
 /// The docs cannot be refreshed after any command-surface change.
 ///
 /// This suite pins the parser (pure function, shared by the tool and the
-/// drift guard) and the committed doc's self-consistency.
+/// drift guard). The committed-doc self-consistency pins died with the
+/// doc itself in the 2026-10-20 cleanup (#1957) — its generator
+/// (`tool/generate_openwiki_cli_docs.dart`) is gone too, so they had no
+/// restore path.
 void main() {
   group('SPEC 1132 L4 — the command-list parser handles wrapped help', () {
     test('parses all commands when descriptions wrap (the corpus case)', () {
@@ -102,50 +103,6 @@ Available commands:
       expect(names, hasLength(40));
       expect(names.first, 'cmd0');
       expect(names.last, 'cmd39');
-    });
-  });
-
-  group('SPEC 1132 L4 — the committed openwiki doc is self-consistent', () {
-    final doc = File('docs/openwiki/cli.md');
-    final content = doc.existsSync() ? doc.readAsStringSync() : '';
-
-    test('docs/openwiki/cli.md exists and documents the fleet floor', () {
-      expect(doc.existsSync(), isTrue, reason: 'the openwiki CLI doc');
-      final entries = RegExp(
-        r'^## `zfa ([a-z0-9-]+)`$',
-        multiLine: true,
-      ).allMatches(content).map((m) => m.group(1)!).toList();
-      expect(
-        entries.length,
-        greaterThanOrEqualTo(50),
-        reason:
-            'the fleet floor: the doc must keep documenting the whole '
-            'command fleet (found ${entries.length})',
-      );
-      expect(
-        entries.toSet().length,
-        entries.length,
-        reason: 'no duplicate command entries',
-      );
-    });
-
-    test('the header registry count matches the entry count', () {
-      final match = RegExp(
-        r'Registry: \*\*(\d+) commands\*\*',
-      ).firstMatch(content);
-      expect(match, isNotNull, reason: 'the header carries the count');
-      final declared = int.parse(match!.group(1)!);
-      final entries = RegExp(
-        r'^## `zfa ([a-z0-9-]+)`$',
-        multiLine: true,
-      ).allMatches(content).length;
-      expect(
-        entries,
-        declared,
-        reason:
-            'the header says $declared commands; the body documents '
-            '$entries — the count must never drift from the entries',
-      );
     });
   });
 }
