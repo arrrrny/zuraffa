@@ -398,7 +398,18 @@ dependencies:
         () => runner.run(['route', 'create', 'Product', '--explain']),
       );
 
-      expect(exitCode, 0);
+      // Issue #1969 (full-suite flake): the create SUCCESS path never
+      // assigns the dart:io global `exitCode` (only the `_fail`/skip
+      // paths do), so asserting `exitCode == 0` here read whatever a
+      // concurrent suite isolate (`dart test -j 2` runs suites as
+      // isolates of one process) had last written into that shared
+      // global — reproduced as `Expected: <0> / Actual: <1>` on this
+      // exact test under a clobbering sibling suite while the file
+      // passes alone. Success is asserted from the command's own error
+      // contract instead: every error and skip path prints a `--> fix:`
+      // line, so an explain block with no fix line IS the success
+      // verdict.
+      expect(out, isNot(contains('--> fix:')));
       expect(out, contains('explain:'));
       expect(out, contains('routes emitted:'));
       expect(out, contains('/product'), reason: 'the emitted route paths');
@@ -416,6 +427,33 @@ dependencies:
       expect(out, contains('shell binding:'));
       expect(out, contains('guard binding:'));
       expect(out, contains('state machine:'));
+    });
+
+    test('the create success verdict is the command\'s own, not the global '
+        'exitCode (issue #1969)', () async {
+      // Issue #1969: the dart:io `exitCode` is PROCESS-global (an isolate's
+      // write is visible to every other isolate), and `dart test -j 2` runs
+      // suites as isolates of one process — so the global is owned by a
+      // sibling suite, never by this command. The create success path
+      // therefore publishes its verdict through the canonical
+      // `zuraffa.verdict.v1` envelope (`verdict: pass`, `exit_class: 0`),
+      // which is global-independent by construction. Asserting THAT is what
+      // discriminates: a future change routing the verdict through the
+      // global fails here.
+      final out = await capturePrints(
+        () => runner.run(['route', 'create', 'Product', '--explain', '--json']),
+      );
+      final envelope = _envelopeFrom(out);
+
+      expect(envelope['schema'], 'zuraffa.verdict.v1');
+      expect(envelope['verdict'], 'pass');
+      expect(
+        envelope['exit_class'],
+        0,
+        reason: 'the ratified ExitProtocol code for a successful create',
+      );
+      final explain = envelope['explain'] as Map<String, dynamic>;
+      expect(explain['routes'], isA<List>());
     });
 
     test('reports no shell/guard/state bindings on a bare project', () async {
