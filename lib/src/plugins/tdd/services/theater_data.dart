@@ -272,6 +272,7 @@ class TheaterData {
     'runnerError': RedClassification.runnerError,
     'channelTimeout': RedClassification.channelTimeout,
     'kindMismatch': RedClassification.kindMismatch,
+    'testNameMismatch': RedClassification.testNameMismatch,
     // Kebab-case spellings already in the vocabulary (defensive).
     'assertion': RedClassification.assertion,
     'compile-error': RedClassification.compileError,
@@ -280,6 +281,7 @@ class TheaterData {
     'runner-error': RedClassification.runnerError,
     'channel-timeout': RedClassification.channelTimeout,
     'kind-mismatch': RedClassification.kindMismatch,
+    'test-name-mismatch': RedClassification.testNameMismatch,
   };
 
   /// Load the feature's journal. Throws [TheaterException] for an

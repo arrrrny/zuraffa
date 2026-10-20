@@ -690,3 +690,20 @@ void _declarations(
     buf.writeln();
   }
 }
+
+/// Count the engine plan's `package:flutter` references — the receipt's
+/// `engine_flutter_references` audit field. Both writers (`zfa tdd split`
+/// and the lane-plan refresh in `zfa tdd plan`) derive it from the same
+/// rendered engine plan, so the receipt and the artifact cannot disagree.
+/// Built from pieces so this source is not a false positive for
+/// repo-wide greps.
+int flutterReferenceCount(String content) {
+  final needle = 'package:${'flutter'}';
+  var count = 0;
+  var idx = content.indexOf(needle);
+  while (idx >= 0) {
+    count++;
+    idx = content.indexOf(needle, idx + needle.length);
+  }
+  return count;
+}

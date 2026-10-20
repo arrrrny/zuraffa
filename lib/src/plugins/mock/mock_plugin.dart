@@ -320,7 +320,8 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                   targetEntity,
                   outputDir,
                   fileSystem: fs,
-                ));
+                ) &&
+                EntityAnalyzer.methodsRequireCrudSurface(config.methods));
         if (fixtureOnlyEntity) {
           final purged = await _purgeCrudDatasourceArtifacts(
             targetEntity,
