@@ -195,9 +195,23 @@ abstract final class MockCertificationService {
     String? params,
     String? returns,
     FileSystem? fileSystem,
+    // Issue #1894 follow-up: whether an absent declared interface (or mock)
+    // is a hard refusal. Defaults to true for the generation path. `mock
+    // explain` passes false for the mock so the documented interface-only
+    // tree (interface present, mock absent) keeps its coverage report.
+    String commandLabel = 'zfa mock create',
+    bool requireInterface = true,
+    bool requireMock = true,
+    bool? requireArtifacts,
   }) async {
     final root = projectRoot ?? Directory.current.path;
     final fs = fileSystem ?? const DefaultFileSystem();
+    // Resolve the absence-refusal flags (requireArtifacts is an alias for
+    // requireMock, kept for callers that use the review's suggested name).
+    // requireArtifacts only gates the mock absence (the #1894 regression
+    // surface); the interface refusal stays governed by requireInterface.
+    final requireMockFile = requireMock && (requireArtifacts ?? true);
+    final requireInterfaceFile = requireInterface;
 
     // Same config the generation run used, so every path getter below
     // resolves EXACTLY like the builders resolved during generation.
@@ -285,7 +299,16 @@ abstract final class MockCertificationService {
     var interfaceParsed = const <ParsedUseCaseInfo>[];
     if (interfacePath != null && interfaceClass != null) {
       final abs = _absolute(root, interfacePath);
-      if (await fs.exists(abs)) {
+      if (!await fs.exists(abs)) {
+        if (requireInterfaceFile) {
+          throw StateError(
+            '$commandLabel: cannot certify $entity — the declared interface\n'
+            '  ${_projectRelativePosix(root, interfacePath)} does not exist.\n'
+            '--> fix: emit the interface first, or declare the seam with a '
+            'resolvable path.',
+          );
+        }
+      } else {
         final parsed = await MethodExtractor.extractMethodsFromInterface(
           abs,
           interfaceClass,
@@ -301,7 +324,16 @@ abstract final class MockCertificationService {
     var implementedDecls = const <MethodDeclaration>[];
     if (mockPath != null && mockClass != null) {
       final abs = _absolute(root, mockPath);
-      if (await fs.exists(abs)) {
+      if (!await fs.exists(abs)) {
+        if (requireMockFile) {
+          throw StateError(
+            '$commandLabel: cannot certify $entity — the declared mock\n'
+            '  ${_projectRelativePosix(root, mockPath)} does not exist.\n'
+            '--> fix: generate the mock first, or declare the seam with a '
+            'resolvable path.',
+          );
+        }
+      } else {
         final helper = const AstHelper();
         final parseResult = await helper.parseFile(abs, fileSystem: fs);
         final unit = parseResult.unit;
@@ -313,6 +345,7 @@ abstract final class MockCertificationService {
             implementedMethods = decls.map((m) => m.name.lexeme).toList();
           }
         }
+        // skip duplicate below
       }
     }
 

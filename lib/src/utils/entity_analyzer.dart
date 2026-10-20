@@ -1,5 +1,6 @@
 import '../core/plugin_system/discovery_engine.dart';
 import '../core/context/file_system.dart';
+import 'crud_method_vocabulary.dart';
 import 'entity_field_resolver.dart';
 import 'string_utils.dart';
 
@@ -479,6 +480,31 @@ class EntityAnalyzer {
     outputDir,
     fileSystem: fileSystem,
   );
+
+  /// Issue #1898: the #1747 guard skips the class-shaped CRUD
+  /// datasource/provider surface for types that declare no CRUD surface.
+  /// A request that asks for ONLY non-CRUD verbs (`list`, or any verb
+  /// not in the standard CRUD vocabulary) does not need that surface, so
+  /// the guard must not fire for it — otherwise the `--methods` arm
+  /// (#1787) is unreachable on exactly the input shape it was written
+  /// for.
+  ///
+  /// The standard CRUD vocabulary is the shared
+  /// [crudSurfaceMethodVocabulary] minus `list`; `list` and arbitrary
+  /// verbs from issue #1823 are treated as non-CRUD requests.
+  ///
+  /// An EMPTY list means "CRUD": `GeneratorConfig.methods` defaults to
+  /// `const []`, and these plugin entry points are public — the omitted
+  /// default must keep the pre-#1898 guard behavior rather than emitting
+  /// the non-compiling pair. The CLI normalizes an omitted `--methods`
+  /// to `get,update,toggle`, so the shipped path is unaffected.
+  static bool methodsRequireCrudSurface(Iterable<String> methods) {
+    if (methods.isEmpty) return true;
+    for (final method in methods) {
+      if (crudSurfaceMethodVocabulary.contains(method)) return true;
+    }
+    return false;
+  }
 
   /// True when [typeName] declares the CRUD surface the generated
   /// datasource / mock-datasource body calls (issue #1747): a `<Type>Patch`
