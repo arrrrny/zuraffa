@@ -1,5 +1,14 @@
+import 'dart:io';
+
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/plugin_loader.dart';
+import 'package:zuraffa/src/config/zfa_config.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
+import 'package:zuraffa/src/core/planning/plan_resolver.dart';
+import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
+import 'package:zuraffa/src/plugins/datasource/datasource_plugin.dart';
+import 'package:zuraffa/src/plugins/repository/repository_plugin.dart';
 
 /// Bug 1972 — `GeneratorConfig.toJson()` never emits a producer for the
 /// `generateService` / `useService` bool flags, and it overloads the
@@ -154,6 +163,188 @@ void main() {
 
       expect(config.generateService, isTrue);
       expect(config.useService, isTrue);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // The model is only half the contract: the plugin pipeline carries the
+  // flags under its own spellings ('generateService' in di_plugin,
+  // 'use-service' / 'useService' in the datasource / di / test / provider /
+  // repository plugins), and CodeGenerator mirrors every snake_case key of
+  // the config's JSON to its kebab-case spelling. Without those aliases the
+  // model and the pipeline would report two different truths for the same
+  // flag inside one run.
+  // ---------------------------------------------------------------------------
+
+  group('bug 1972 — the service flags reach the generation pipeline', () {
+    test('toJson emits the camel aliases the plugins read', () {
+      final config = GeneratorConfig(
+        name: 'Product',
+        generateService: true,
+        useService: true,
+        outputDir: GeneratorConfig.fixedOutputDir,
+      );
+
+      final json = config.toJson();
+
+      expect(
+        json['generateService'],
+        isTrue,
+        reason:
+            "di_plugin reads context.data['generateService'] — without "
+            "the camel alias the model-level flag is inert downstream",
+      );
+      expect(
+        json['useService'],
+        isTrue,
+        reason: "the plugins read context.data['useService']",
+      );
+    });
+
+    test('fromJson reads the alias spellings the pipeline uses', () {
+      expect(
+        GeneratorConfig.fromJson({
+          'generateService': true,
+        }, 'Product').generateService,
+        isTrue,
+      );
+      expect(
+        GeneratorConfig.fromJson({
+          'generate-service': true,
+        }, 'Product').generateService,
+        isTrue,
+        reason:
+            "the kebab spelling is what CodeGenerator's options map "
+            'mirrors from the snake_case key',
+      );
+      expect(
+        GeneratorConfig.fromJson({'useService': true}, 'Product').useService,
+        isTrue,
+      );
+      expect(
+        GeneratorConfig.fromJson({'use-service': true}, 'Product').useService,
+        isTrue,
+        reason:
+            "the kebab spelling is what CodeGenerator's options map "
+            'mirrors from the snake_case key',
+      );
+    });
+
+    test('the CodeGenerator options map carries the flags under every '
+        'spelling the plugins read', () {
+      final config = GeneratorConfig(
+        name: 'Product',
+        generateService: true,
+        useService: true,
+        outputDir: GeneratorConfig.fixedOutputDir,
+      );
+
+      final options = CodeGenerator.buildPluginOptions(config.toJson());
+
+      expect(options['use_service'], isTrue);
+      expect(
+        options['use-service'],
+        isTrue,
+        reason:
+            "the snake->kebab mirror is what puts 'use-service' — the "
+            "key four plugins read — into context.data",
+      );
+      expect(options['useService'], isTrue);
+      expect(options['generate_service'], isTrue);
+      expect(options['generate-service'], isTrue);
+      expect(
+        options['generateService'],
+        isTrue,
+        reason: "di_plugin reads context.data['generateService']",
+      );
+    });
+
+    test('useService: true now declines the datasource and skips the '
+        'repository after the round-trip', () async {
+      final outputDir = Directory.systemTemp.createTempSync('bug_1972');
+      addTearDown(() => outputDir.deleteSync(recursive: true));
+
+      final replayed = GeneratorConfig.fromJson(
+        GeneratorConfig(
+          name: 'Product',
+          useService: true,
+          generateDataSource: true,
+          generateRepository: true,
+          outputDir: outputDir.path,
+        ).toJson(),
+        'Product',
+      );
+
+      expect(
+        replayed.hasService,
+        isTrue,
+        reason:
+            'hasService keys off useService — the datasource declines '
+            'and the repository is skipped on this flag',
+      );
+
+      final datasource = DataSourcePlugin(
+        outputDir: outputDir.path,
+        options: const GeneratorOptions(),
+      );
+      final repository = RepositoryPlugin(
+        outputDir: outputDir.path,
+        options: const GeneratorOptions(),
+      );
+
+      expect(
+        await datasource.generate(replayed),
+        isEmpty,
+        reason: 'a hasService config declines the datasource request',
+      );
+      expect(
+        await repository.generate(replayed),
+        isEmpty,
+        reason: 'a useService config skips the repository',
+      );
+    });
+
+    test('useService: true now selects the service and provider plugins in '
+        'the generation plan', () {
+      final outputDir = Directory.systemTemp.createTempSync('bug_1972_plan');
+      addTearDown(() => outputDir.deleteSync(recursive: true));
+
+      final config = GeneratorConfig(
+        name: 'Product',
+        useService: true,
+        outputDir: outputDir.path,
+      );
+      final generator = CodeGenerator(
+        config: config,
+        outputDir: outputDir.path,
+      );
+      final resolver = PlanResolver(
+        registry: generator.pluginRegistry,
+        config: ZfaConfig.load(projectRoot: generator.projectRoot),
+        pluginConfig: PluginConfig.load(projectRoot: generator.projectRoot),
+      );
+
+      // The options map CodeGenerator hands to the plan resolver — the
+      // mirrored one, which is what `generate()` uses.
+      final plan = resolver.resolve(
+        name: 'Product',
+        options: CodeGenerator.buildPluginOptions(config.toJson()),
+      );
+
+      expect(
+        plan.pluginIds,
+        contains('service'),
+        reason:
+            "the plan resolver selects 'service' when 'use-service' is "
+            'true — the flag reaches the plan, not only the plugins',
+      );
+      expect(
+        plan.pluginIds,
+        contains('provider'),
+        reason:
+            "the plan resolver selects 'provider' when 'use-service' is "
+            'true',
+      );
     });
   });
 }

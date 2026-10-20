@@ -132,28 +132,37 @@ class CodeGenerator {
     return _manager.resolvePlan(name: config.name, options: data);
   }
 
+  /// Builds the plugin options map from the config's JSON.
+  ///
+  /// #294: `GeneratorConfig.toJson()` emits snake_case keys (id_field,
+  /// query_field, ...) but plugins read kebab-case keys (id-field,
+  /// query-field, ...) — exactly what MakeCommand's arg-parser produces.
+  /// Mirror MakeCommand._normalizedOptions() here so the CodeGenerator path
+  /// (used by tests + programmatic callers) honors the caller's
+  /// `GeneratorConfig.idField` / `queryField` instead of silently falling
+  /// through to the plugins' hardcoded `'id'` default.
+  ///
+  /// The camel spellings the config itself emits ('generateService',
+  /// 'useService') pass through untouched — the plugins read those.
+  static Map<String, dynamic> buildPluginOptions(Map<String, dynamic> json) {
+    final data = <String, dynamic>{};
+    json.forEach((key, value) {
+      data[key] = value;
+      final kebab = key.replaceAll('_', '-');
+      if (kebab != key) {
+        data[kebab] = value;
+      }
+    });
+    if (data['methods'] is List) {
+      data['methods'] = List<String>.from(data['methods'] as List);
+    }
+    return data;
+  }
+
   Future<GeneratorResult> generate() async {
     try {
       // Resolve the same normalized plan contract used by the CLI.
-      // #294: GeneratorConfig.toJson() emits snake_case keys (id_field,
-      // query_field, ...) but plugins read kebab-case keys (id-field,
-      // query-field, ...) — exactly what MakeCommand's arg-parser
-      // produces. Mirror MakeCommand._normalizedOptions() here so the
-      // CodeGenerator path (used by tests + programmatic callers) honors
-      // the caller's `GeneratorConfig.idField` / `queryField` instead of
-      // silently falling through to the plugins' hardcoded `'id'`
-      // default.
-      final data = <String, dynamic>{};
-      config.toJson().forEach((key, value) {
-        data[key] = value;
-        final kebab = key.replaceAll('_', '-');
-        if (kebab != key) {
-          data[kebab] = value;
-        }
-      });
-      if (data['methods'] is List) {
-        data['methods'] = List<String>.from(data['methods'] as List);
-      }
+      final data = buildPluginOptions(config.toJson());
 
       final plan = _manager.resolvePlan(name: config.name, options: data);
 
