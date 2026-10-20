@@ -779,6 +779,7 @@ class GeneratorConfig {
     'data': generateData,
     'datasource': generateDataSource,
     'local': generateLocal,
+    'remote': generateRemote,
     'state': generateState,
     'init': generateInit,
     'query_field': queryField,
