@@ -408,6 +408,26 @@ class ArtifactRegistry {
     return null;
   }
 
+  /// Re-bind the recorded `runnable_test_name` of [behaviorId]'s record
+  /// to [newRunnableTestName] (issue #1778): a hand-implemented test's
+  /// title changed, so the recorded runnable name is updated from the
+  /// corrected title without regenerating the artifact. A no-op when no
+  /// record for the id exists. Writes through the same write-and-rename
+  /// discipline as every other registry write.
+  Future<void> updateRunnableTestName(
+    String behaviorId,
+    String newRunnableTestName,
+  ) async {
+    final records = await _loadRecords();
+    final index = records.indexWhere((r) => r.behaviorId == behaviorId);
+    if (index < 0) return;
+    if (records[index].runnableTestName == newRunnableTestName) return;
+    records[index] = records[index].copyWithRunnableTestName(
+      newRunnableTestName,
+    );
+    await _writeRecords(records);
+  }
+
   /// Refresh the gen reuse fingerprint of [behaviorId]'s record (issue
   /// #1388): gen calls this after a fingerprint-driven regeneration so
   /// the stored digest matches the routing state the pair now reflects

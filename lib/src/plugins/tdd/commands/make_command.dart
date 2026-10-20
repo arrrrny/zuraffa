@@ -784,7 +784,8 @@ class MakeCommand extends Command<void> {
           'zfa tdd make: skin authoring refused for behavior '
           '"${record.behaviorId}" — $why. The scaffolded test was '
           'restored byte-identical; supply scenario-failing concrete '
-          'finders in --finders-file and re-run.',
+          'finders in --finders-file (hoist any out-of-reach symbol via an '
+          '// import: marker) and re-run.',
         );
         _printSummary(
           behavior: record.behaviorId,
