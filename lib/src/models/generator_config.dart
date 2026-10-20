@@ -136,6 +136,13 @@ class GeneratorConfig {
   final bool revert;
   final String outputDir;
 
+  /// Issue #1952: explicit opt-in that lets a `--force` run overwrite an
+  /// EXISTING declared `<Entity>DataSource` interface even when the fresh
+  /// emission would lose members the generator's vocabulary cannot
+  /// reproduce (a hand-authored contract). Default false: such a run is
+  /// refused before the first write, naming the file and the lost members.
+  final bool overwriteInterface;
+
   GeneratorConfig({
     required this.name,
     this.methods = const [],
@@ -216,6 +223,7 @@ class GeneratorConfig {
     this.force = false,
     this.verbose = false,
     this.revert = false,
+    this.overwriteInterface = false,
     required this.outputDir,
   }) : // Whitespace-padded multi-option tokens (`--usecases=login, logout`)
        // are trimmed once here so every downstream derivation (class refs,
@@ -415,6 +423,7 @@ class GeneratorConfig {
     bool? force,
     bool? verbose,
     bool? revert,
+    bool? overwriteInterface,
     String? outputDir,
   }) {
     return GeneratorConfig(
@@ -495,6 +504,7 @@ class GeneratorConfig {
       force: force ?? this.force,
       verbose: verbose ?? this.verbose,
       revert: revert ?? this.revert,
+      overwriteInterface: overwriteInterface ?? this.overwriteInterface,
       outputDir: outputDir ?? this.outputDir,
     );
   }
