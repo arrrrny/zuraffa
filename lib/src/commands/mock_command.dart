@@ -125,6 +125,14 @@ class CreateMockCommand extends Command<void> {
       help: 'Overwrite existing files',
     );
     argParser.addFlag(
+      'overwrite-interface',
+      negatable: false,
+      help:
+          'With --force, allow overwriting a hand-authored '
+          '<Entity>DataSource interface (otherwise refused, naming the '
+          'members that would be lost — issue #1952)',
+    );
+    argParser.addFlag(
       'verbose',
       abbr: 'v',
       negatable: false,
@@ -221,6 +229,9 @@ class CreateMockCommand extends Command<void> {
       'fixturesDir': ?results['fixtures-dir'],
       'dryRun': dryRun,
       'force': results['force'] == true,
+      // Issue #1952: forwarded to the capability — the explicit opt-in that
+      // lets a force run overwrite a hand-authored datasource interface.
+      'overwriteInterface': results['overwrite-interface'] == true,
       'verbose': verbose,
       'service': ?service,
       'domain': ?domain,
