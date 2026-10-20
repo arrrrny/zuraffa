@@ -55,9 +55,23 @@ class BehaviorTestWriter {
     this.projectRoot,
     this.featureDir,
     this.omitVacuousMarker = false,
+    this.adaptiveSlots = const [],
   });
 
   final WidgetAppShell widgetShell;
+
+  /// The SKIN lane's declared `adaptive_slots` for this behavior (issue
+  /// #1920). Empty for every behavior outside a slot-declaring SKIN lane:
+  /// the widget template then stays byte-identical to the legacy shape.
+  ///
+  /// When non-empty, the emitted WIDGET test wraps its body in a
+  /// `for (final slot in ...)` loop that pins the slot's environment,
+  /// prints `skin-event: behavior=<id> slot=<slot>` after the pump (the
+  /// line the `run-skin` conformance gate reads, spec 1005), and releases
+  /// the pin in a `finally` INSIDE the body — never through
+  /// `addTearDown`, which fires after the framework's foundation-debug
+  /// invariant check.
+  final List<String> adaptiveSlots;
 
   /// The feature's declared i18n surfaces (issue #965).
   final I18nKeyTable i18nKeys;
@@ -977,6 +991,69 @@ class _RouteRecorder extends NavigatorObserver {
 }
 '''
         : '';
+    // Issue #1920: the slot-aware widget harness. A SKIN lane declaring
+    // `adaptive_slots` makes the conformance gate (spec 1005) require one
+    // `skin-event: behavior=<id> slot=<slot>` line per slot, and the only
+    // sanctioned channel for `debugDefaultTargetPlatformOverride` is the
+    // foundation import the legacy template never carried. Both are
+    // emitted ONLY when slots are declared — every non-slot feature keeps
+    // the byte-identical legacy template.
+    final slotAware = adaptiveSlots.isNotEmpty;
+    final slotLiterals = adaptiveSlots
+        .map((slot) => "'${escapeDartString(slot)}'")
+        .join(', ');
+    final foundationImport = slotAware
+        ? "import 'package:flutter/foundation.dart';\n"
+        : '';
+    final slotLoopOpen = slotAware
+        ? '      // Slot-aware harness (issue #1920): the SKIN lane declares\n'
+              '      // adaptive_slots, so the conformance gate (spec 1005) needs\n'
+              '      // one skin-event per slot. Each slot pins its environment,\n'
+              '      // renders the view, and releases the pin in the finally\n'
+              '      // BELOW — the release must end inside this body (see\n'
+              '      // _releaseSkinSlot), never in addTearDown.\n'
+              '      for (final slot in const <String>[$slotLiterals]) {\n'
+              '        _pinSkinSlot(tester, slot);\n'
+              '        try {\n'
+        : '';
+    final slotLoopClose = slotAware
+        ? '        } finally {\n'
+              "          // Released as the body's last statement (issue #1920):\n"
+              '          // the foundation-debug invariant runs at the end of the\n'
+              '          // test body, BEFORE tear-downs.\n'
+              '          _releaseSkinSlot(tester);\n'
+              '        }\n'
+              '      }\n'
+        : '';
+    final slotEvent = slotAware
+        ? "      print('skin-event: behavior=${b.id} slot=\$slot');\n"
+        : '';
+    final harnessHelpers = slotAware ? '\n\n$_skinSlotHarness' : '';
+    final body =
+        '''
+$observerDecl      final Object? built = (() {
+        try {
+          return subject.$target();
+        } on UnimplementedError catch (error) {
+          return error;
+        }
+      })();
+      expect(built, isNot(isA<UnimplementedError>()));
+      final view = built! as Widget;
+      // Boot the view inside an app shell so Theme.of / ZfaTheme.of /
+      // Navigator / MediaQuery lookups resolve (issue #830 remediation 2;
+      // shell configurable per issue #912 defect 2).
+$localePin      $pumpCall
+      await tester.pumpAndSettle();
+$slotEvent      // PRIMARY red surface (issue #959 + issue #964 taxonomy):
+      // verb-matched authored finders derived from the scenario
+      // description (issue #912 defect 3) execute after the pump and
+      // fail against the inert stub's empty view — red is certified on
+      // these assertions, never a placeholder a bare SizedBox() would
+      // satisfy, never a route outcome flattened into presence-of-text.
+      $scenarioBlock
+$goldenBlock''';
+    final renderedBody = slotAware ? _indentBlock(body, 4) : body;
     return '''
 // GENERATED TEST — `zfa tdd gen ${b.id}` (spec 044-test-tdd-generation).
 //
@@ -1002,7 +1079,7 @@ ${keyed ? "// i18n: slang test shell, base locale '${I18nScaffold.baseLocale}' p
 // slower tier${goldenHookEmitted ? '; golden baselines are committed per platform under\n// test/tdd/goldens/' : ''}.
 library;
 
-import 'package:flutter/material.dart';
+${foundationImport}import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 $shellImport${i18nImportLine}import '$relativeSubjectPath' as subject;
 
@@ -1015,30 +1092,9 @@ void main() {
       // failure) instead of escaping the pump as a runner error (issue
       // #830 widget failure taxonomy). With the inert stub this passes
       // and the authored finders below are the primary red surface.
-$observerDecl      final Object? built = (() {
-        try {
-          return subject.$target();
-        } on UnimplementedError catch (error) {
-          return error;
-        }
-      })();
-      expect(built, isNot(isA<UnimplementedError>()));
-      final view = built! as Widget;
-      // Boot the view inside an app shell so Theme.of / ZfaTheme.of /
-      // Navigator / MediaQuery lookups resolve (issue #830 remediation 2;
-      // shell configurable per issue #912 defect 2).
-$localePin      $pumpCall
-      await tester.pumpAndSettle();
-      // PRIMARY red surface (issue #959 + issue #964 taxonomy):
-      // verb-matched authored finders derived from the scenario
-      // description (issue #912 defect 3) execute after the pump and
-      // fail against the inert stub's empty view — red is certified on
-      // these assertions, never a placeholder a bare SizedBox() would
-      // satisfy, never a route outcome flattened into presence-of-text.
-      $scenarioBlock
-$goldenBlock    });$expansionTests
+$slotLoopOpen$renderedBody$slotLoopClose    });$expansionTests
   });
-}$recorderClass''';
+}$recorderClass$harnessHelpers''';
   }
 
   /// One expansion-locale `testWidgets` (issue #965 optional tier): the
@@ -1218,6 +1274,69 @@ void main() {
 }
 ''';
   }
+
+  /// Indents every non-empty line of [block] by [spaces] (issue #1920):
+  /// the slot-aware wrapper nests the emitted body one level deeper.
+  /// Empty lines stay empty so the generated file carries no trailing
+  /// whitespace.
+  static String _indentBlock(String block, int spaces) {
+    final prefix = ' ' * spaces;
+    return block
+        .split('\n')
+        .map((line) => line.isEmpty ? line : '$prefix$line')
+        .join('\n');
+  }
+
+  /// The per-slot pin/release helpers the slot-aware widget harness
+  /// appends to the generated test (issue #1920).
+  ///
+  /// The adaptive resolver reads WIDTH first (`mobile`/`tablet`/`desktop`)
+  /// and the host platform second (`ios`/`android`/`macos`), so the pin
+  /// covers both: width-defined slots force a surface, platform slots
+  /// force `debugDefaultTargetPlatformOverride` over a wide surface (the
+  /// platform branches sit behind the phone-width guard). An unknown slot
+  /// stays unpinned — the harness never guesses.
+  ///
+  /// The release MUST run as the test body's last statement: the
+  /// framework's `debugAssertAllFoundationVarsUnset` check runs at the end
+  /// of `_runTestBody`, BEFORE `addTearDown` callbacks fire, so a teardown
+  /// release trips "The value of a foundation debug variable was changed
+  /// by the test" (the failure that motivated issue #1920).
+  static const String _skinSlotHarness = '''
+/// Pins the test environment to [slot] (issue #1920).
+void _pinSkinSlot(WidgetTester tester, String slot) {
+  debugDefaultTargetPlatformOverride = switch (slot) {
+    'ios' => TargetPlatform.iOS,
+    'android' => TargetPlatform.android,
+    'macos' => TargetPlatform.macOS,
+    'windows' => TargetPlatform.windows,
+    'linux' => TargetPlatform.linux,
+    'fuchsia' => TargetPlatform.fuchsia,
+    _ => null,
+  };
+  final Size? size = switch (slot) {
+    'mobile' => const Size(390, 844),
+    'tablet' => const Size(834, 1112),
+    'desktop' => const Size(1440, 900),
+    'ios' || 'android' => const Size(834, 1112),
+    'macos' => const Size(1440, 900),
+    _ => null,
+  };
+  if (size != null) {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1.0;
+  }
+}
+
+/// Releases the [_pinSkinSlot] pin as the test body's LAST statement
+/// (issue #1920): the framework checks foundation debug variables before
+/// tear-down callbacks run.
+void _releaseSkinSlot(WidgetTester tester) {
+  debugDefaultTargetPlatformOverride = null;
+  tester.view.resetPhysicalSize();
+  tester.view.resetDevicePixelRatio();
+}
+''';
 
   static String _toSnakeCase(String s) {
     final out = StringBuffer();
