@@ -168,4 +168,54 @@ void main() {
       }
     });
   });
+
+  group('issue #1893 — bare PascalCase parameter is typed as its entity', () {
+    DependencyContract locationWriter() => DependencyContract.parseRow(
+      name: 'LocationWriter',
+      type: 'service',
+      contract: 'write(UserLocation) -> void',
+      priority: 'P2',
+    );
+
+    test('interface renders the token as a type and imports the entity', () {
+      final artifacts = DependencyMockBuilder.emit(
+        contract: locationWriter(),
+        outDir: 'test/mock/dependencies/location_writer',
+      );
+
+      final interface = artifacts
+          .firstWhere((a) => a.path.endsWith('/location_writer.dart'))
+          .content;
+      expect(
+        interface,
+        contains('Future<void> write(UserLocation userLocation);'),
+        reason:
+            'a bare non-primitive PascalCase token is a declared TYPE, '
+            'never a String parameter name (issue #1893)',
+      );
+      expect(
+        interface,
+        contains('entities/user_location/user_location.dart'),
+        reason: 'the rendered type must actually be imported',
+      );
+    });
+
+    test('fake records the argument under the derived parameter name', () {
+      final artifacts = DependencyMockBuilder.emit(
+        contract: locationWriter(),
+        outDir: 'test/mock/dependencies/location_writer',
+      );
+
+      final fake = artifacts
+          .firstWhere((a) => a.path.endsWith('/location_writer_fake.dart'))
+          .content;
+      expect(
+        fake,
+        contains("'userLocation': userLocation"),
+        reason:
+            'the recorder key must match the rendered parameter name, so '
+            'callers can assert on it (issue #1893)',
+      );
+    });
+  });
 }

@@ -1,13 +1,14 @@
-/// `RedClassification` + `RunRecord` — the eight-way outcome of a
+/// `RedClassification` + `RunRecord` — the nine-way outcome of a
 /// `zfa tdd verify-red` run (spec 046-tdd-verify-red, FR-004, T003;
-/// seventh class added by issue #831, eighth by issue #964).
+/// seventh class added by issue #831, eighth by issue #964, ninth by
+/// issue #1778).
 ///
 /// Exactly one class per run. `assertion` is the only class that
 /// certifies honest red; every other class is a rejection with a
 /// remediation hint (FR-007).
 library;
 
-/// The six-way outcome classification of a verification run.
+/// The nine-way outcome classification of a verification run.
 enum RedClassification {
   /// Honest red: the target test failed through an assertion.
   assertion('assertion', 'the failure is the expected honest red'),
@@ -78,6 +79,20 @@ enum RedClassification {
         'the emitted assertions carry the scenario\'s kinds (route '
         'outcome / absence / enabled-state), then re-run `zfa tdd '
         'verify-red <behavior-id>`',
+  ),
+
+  /// The recorded `runnable_test_name` matches no test in the target file
+  /// (issue #1778): the test title changed (e.g. a corrected spec
+  /// description) so `--plain-name` filters to zero tests. Distinct from
+  /// `runner-error` so the operator can see the real cause instead of
+  /// being told to check the toolchain.
+  testNameMismatch(
+    'test-name-mismatch',
+    'the recorded runnable_test_name matches no test in the target file '
+        '(issue #1778) — the test title changed; re-run '
+        '`zfa tdd verify-red <behavior-id> --re-certify` to rebind it to '
+        'the corrected title, then re-run `zfa tdd verify-red '
+        '<behavior-id>`',
   );
 
   const RedClassification(this.label, this.remediationHint);
