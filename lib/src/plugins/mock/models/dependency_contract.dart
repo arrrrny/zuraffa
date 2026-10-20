@@ -82,15 +82,39 @@ List<String> splitDependencyContract(String contract) {
     text = stripInlineCodeSpan(text);
   }
   text = text.replaceAll('`', '');
-  return [
-    for (final part in text.split(_signatureBoundary))
-      if (part.trim().isNotEmpty) part.trim(),
-  ];
+  return _splitTopLevelCommas(text);
 }
 
-final RegExp _signatureBoundary = RegExp(
-  r',\s*(?=[A-Za-z_][A-Za-z0-9_]*\s*\()',
-);
+/// Split [text] on commas that sit at depth 0 (not inside `()`, `[]`,
+/// `{}`, or `<>`). A boundary is detected independently of whether the
+/// following segment is a valid signature, so malformed entries after a
+/// comma (e.g. `write -> Y`) stay separate and are rejected by
+/// [DependencySignature._shape] instead of being silently absorbed into
+/// the previous segment's return type (CodeRabbit #1909).
+List<String> _splitTopLevelCommas(String text) {
+  final result = <String>[];
+  final buffer = StringBuffer();
+  var depth = 0;
+  for (var i = 0; i < text.length; i++) {
+    final c = text[i];
+    if (c == '(' || c == '[' || c == '{' || c == '<') {
+      depth++;
+      buffer.write(c);
+    } else if (c == ')' || c == ']' || c == '}' || c == '>') {
+      if (depth > 0) depth--;
+      buffer.write(c);
+    } else if (c == ',' && depth == 0) {
+      final part = buffer.toString().trim();
+      if (part.isNotEmpty) result.add(part);
+      buffer.clear();
+    } else {
+      buffer.write(c);
+    }
+  }
+  final last = buffer.toString().trim();
+  if (last.isNotEmpty) result.add(last);
+  return result;
+}
 
 /// One declared method of a dependency contract:
 /// `name(paramType param, ...) -> ReturnType`.
