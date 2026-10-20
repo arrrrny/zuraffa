@@ -43,13 +43,12 @@ void main() {
   final corpusMissing = !Directory(
     p.join(packageRoot().path, 'corpus'),
   ).existsSync();
-  // Dormant wherever the directory is absent — local AND CI (#1957): the
-  // 2026-10-20 cleanup removed the shipped corpus deliberately and left
-  // no restore path; the pins return automatically if it is ever
-  // restored.
-  final String corpusSkip =
-      'corpus/ is not shipped in-repo (removed from git) — '
-      'restore the directory to re-enable the shipped-corpus pins';
+  // The corpus was deliberately removed from the repo, so the skip applies
+  // on CI too — a missing corpus is the shipped state, not a regression;
+  // restoring corpus/ re-enables the shipped-corpus pins (#1958).
+  final String? corpusSkip = corpusMissing
+      ? 'corpus/ is not shipped in-repo (removed from git)'
+      : null;
 
   group('shipped regression corpus', () {
     test('exposes the three incident entries and nothing else', () async {

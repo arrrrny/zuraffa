@@ -31,14 +31,13 @@ Future<void> main() async {
   final corpusMissing = !Directory(
     p.join(root, 'corpus', 'zik_zak'),
   ).existsSync();
-  // Dormant wherever the corpus is absent — local AND CI (#1957): the
-  // 2026-10-20 cleanup removed the corpus and its regen tool together,
-  // so the disappearance is deliberate and there is no restore path;
-  // the pins return automatically if the corpus is ever regenerated.
-  final String corpusSkip =
-      'corpus/zik_zak is not shipped in-repo (removed from git) — '
-      'regenerate the evidence with '
-      '`dart run tool/sweep_zikzak_corpus.dart --plan` to re-enable';
+  // The corpus (and its regen tools) was deliberately removed from the
+  // repo, so the skip applies on CI too — a missing corpus is the shipped
+  // state, not a regression; restoring corpus/zik_zak re-enables the audit
+  // (#1958).
+  final String? corpusSkip = corpusMissing
+      ? 'corpus/zik_zak is not shipped in-repo (removed from git)'
+      : null;
 
   late final Directory corpusRoot;
   late final Map<String, dynamic> evidence;
