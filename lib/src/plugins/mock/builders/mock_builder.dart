@@ -118,6 +118,29 @@ class MockBuilder {
               config.name
         : config.name;
 
+    // Issue #1922: validate every arbitrary member shape BEFORE the first
+    // write. The datasource-interface writer below used to run first, so a
+    // refused member (the #1850 "honest bodies" ArgumentError) exited 1
+    // with `<Entity>DataSource` — and the fixture files above it — already
+    // clobbered. The pre-flight is gated exactly like the emission path
+    // (data-only and service runs never emit the CRUD datasource surface,
+    // and enum / no-CRUD-surface targets are skipped before the writer
+    // too), so no working path changes.
+    if (!config.generateMockDataOnly &&
+        !config.hasService &&
+        !EntityAnalyzer.isEnum(
+          targetEntity,
+          outputDir,
+          fileSystem: fileSystem,
+        ) &&
+        !EntityAnalyzer.lacksCrudSurface(
+          targetEntity,
+          outputDir,
+          fileSystem: fileSystem,
+        )) {
+      MockDataSourceBuilder.validateMemberShapes(config);
+    }
+
     final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
       targetEntity,
       outputDir,
