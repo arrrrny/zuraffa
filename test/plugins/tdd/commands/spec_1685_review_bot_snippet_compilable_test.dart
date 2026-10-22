@@ -69,7 +69,7 @@ void main() {
     });
 
     test('U-1685-G2: REAL analyzer compile check rejects the historical '
-        'snippet (undefined_getter, the issue\'s exact error)', () async {
+        'snippet (the analyzer\'s missing-member diagnostic)', () async {
       const buggy =
           "final _tmp = Directory.systemTemp.createTempSync('x_');\n"
           'addTearDown(_tmp.deleteRecursively);';
@@ -79,7 +79,46 @@ void main() {
         isFalse,
         reason: 'the historical snippet must NOT compile',
       );
-      expect(result.issues.map((i) => i.code), contains('undefined_getter'));
+      // Issue #1980: the analyzer RENAMED this diagnostic in 14.6.0 —
+      // `undefined_getter` ("The getter '{0}' isn't defined for the type
+      // '{1}'.") became `undefined_instance_member_read` ("The member '{0}'
+      // isn't defined for the type '{1}'."). Same error class (the member does
+      // not exist on the type), different name — and the analyzer version
+      // moves whenever the committed pubspec.lock is bumped (issue #1986),
+      // so the assertion must not pin either spelling.
+      //
+      // `undefined_getter` was REMOVED (not renamed-and-kept) in analyzer
+      // 14.6.0 — it only fires on analyzer <= 14.5.x, which a consumer's own
+      // dependency graph can still resolve under `analyzer: ^14.4.0`.
+      //
+      // Asserting on the display NAME re-breaks master on the next rename
+      // (issue #1980 → #1981), so assert on the analyzer's error CLASS
+      // instead: the DiagnosticType survived that rename unchanged, and so
+      // does every future rename of the diagnostic.
+      //
+      // Filter by that class FIRST instead of taking `errors.single`: the
+      // analyzer may add a second error-severity diagnostic to this snippet
+      // over time, and `single` would then throw `StateError: Too many
+      // elements` instead of failing with a meaningful assertion.
+      final errors = result.errors
+          .where((e) => e.errorType == 'COMPILE_TIME_ERROR')
+          .toList();
+      expect(
+        errors,
+        isNotEmpty,
+        reason: 'the historical snippet must yield a compile-time error',
+      );
+      final error = errors.first;
+      expect(
+        error.errorType,
+        'COMPILE_TIME_ERROR',
+        reason: 'the analyzer error CLASS — survives every diagnostic rename',
+      );
+      // The unique name stays exposed for diagnostics; its VALUE is not a
+      // contract (the analyzer REPLACED the diagnostic in 14.6.0 and no
+      // analyzer API guarantees a naming convention for it).
+      expect(error.uniqueName, isNotNull);
+      expect(error.uniqueName, isNotEmpty);
     }, timeout: const Timeout(Duration(minutes: 3)));
 
     test('U-1685-G2: the fixed render passes the REAL analyzer compile check '

@@ -212,9 +212,14 @@ class GenCommand extends Command<void> {
           '--feature is omitted — in ONE invocation (one process, one '
           'registry pass per feature). Pairs with `zfa tdd verify-red '
           '--all` to collapse the per-behavior test spawns of the '
-          'batched lineage. A refusing row stops the batch honestly at '
-          'that row (already-written pairs stay registered; a re-run is '
-          'idempotent).',
+          'batched lineage. A refusing row stops ITS FEATURE\'s rows '
+          'honestly at that row (already-written pairs stay registered; a '
+          're-run is idempotent) and the batch keeps driving the other '
+          'features — a refusal in an unrelated feature never starves the '
+          'pending pairs of the feature under repair (issue #1975). In '
+          'an unscoped batch the refusing row names the scoping lever '
+          '(`--feature <feature>`), never a destructive reset of a '
+          'feature the caller may not be repairing (issue #1975).',
     );
     argParser.addOption(
       'feature',
@@ -464,6 +469,13 @@ class GenCommand extends Command<void> {
     // Issue #1471: the batch verdict/messages label the canonical NAME — a
     // bug reference labels as its slug, never the raw `.specify/bugs/...`.
     final scopedFeatureName = scopedFeature?.name ?? featureFlag;
+    // Issue #1975: an UNSCOPED batch scans every feature, so a refusal
+    // inside it may belong to a feature the caller is not repairing. The
+    // refusing row then names the scoping lever (`--feature <feature>`)
+    // instead of a destructive `zfa tdd reset` of that feature. A scoped
+    // batch keeps the reset remedy — there the refusing feature IS the
+    // feature under repair.
+    final unscopedBatch = featureFlag == null || featureFlag.isEmpty;
 
     var readable = true;
     if (scopedFeature != null) {
@@ -528,7 +540,30 @@ class GenCommand extends Command<void> {
     final counts = <String, int>{};
     String? stoppedAt;
     var driven = 0;
+    // Issue #1975: a refusal is scoped to the FEATURE that owns the
+    // refused row. The batch skips that feature's remaining rows and
+    // keeps driving the other features — an unscoped `--all` batch
+    // scans EVERY feature, so one refusal in an unrelated, already-shipped
+    // feature must not starve the pending pairs of the feature the
+    // caller is repairing (the issue's `created=0`).
+    final refusedFeatures = <String>{};
+    final refusedRows = <String>[];
+    // Issue #1975: the rows the skip leaves undriven are a category of
+    // their own — the envelope must account for EVERY target of the
+    // batch (driven + refused + skipped), never silently drop one.
+    final skippedRows = <String>[];
     for (final (_, featureRef, id) in targets) {
+      if (refusedFeatures.contains(featureRef)) {
+        // The refusing feature's remaining rows are skipped: this keeps
+        // the SCOPED batch's semantics (a refusal stops its feature at
+        // that row — the caller asked for that feature) and keeps a
+        // refused feature from being half-generated. It is a SCOPE
+        // choice, not a safety rule: the #1388 refusal is per-ROW (that
+        // row's owned pair drifted), so another row of the same feature
+        // may well generate cleanly (issue #1975).
+        skippedRows.add('$featureRef:$id');
+        continue;
+      }
       final before = exitCode;
       String? verdictToken;
       // The deadline is PER ROW: the budget is one gen flow's budget, so
@@ -546,14 +581,15 @@ class GenCommand extends Command<void> {
           kindOverride: kindOverride,
           golden: golden,
           featureFlag: featureRef,
+          unscopedBatch: unscopedBatch,
           cwd: cwd,
           widgetShell: widgetShell,
           i18nExpansion: i18nExpansion,
           deadline: rowDeadline,
         );
       } on StateError {
-        // A refusal already printed its per-behavior verdict JSON and
-        // set exitCode — stop the batch AT this row, honestly.
+        // A hard failure (a malformed test list, an ownership conflict)
+        // already printed its own verdict — stop the WHOLE batch here.
         stoppedAt = id;
         break;
       } on TestListReadException catch (e) {
@@ -575,15 +611,45 @@ class GenCommand extends Command<void> {
         stoppedAt = id;
         break;
       }
+      if (verdictToken == 'refused') {
+        // Issue #1975: the refusal belongs to ONE feature. Its remaining
+        // rows are skipped; the batch continues with the other features
+        // so the pending pairs of the feature under repair are still
+        // generated. The refusal stays a non-zero exit (the run was not
+        // clean) and the batch verdict stays honest about it.
+        refusedFeatures.add(featureRef);
+        refusedRows.add('$featureRef:$id');
+        counts['refused'] = (counts['refused'] ?? 0) + 1;
+        if (!unscopedBatch) {
+          // A SCOPED batch has nowhere else to go — the refusal ends it
+          // (that is the scoped semantics this PR keeps). An UNSCOPED
+          // batch keeps driving the other features, so the refusal is
+          // NOT a stop point: `stopped_at` must name a row the batch
+          // really halted at, never one it drove past (issue #1975).
+          stoppedAt = id;
+        }
+        print(
+          'zfa tdd gen --all: feature $featureRef refused at $id — its '
+          'remaining rows are skipped'
+          '${unscopedBatch ? '; the batch continues with the other features' : ''}'
+          ' (issue #1975).',
+        );
+        continue;
+      }
+      if (verdictToken == 'foreign-owned' || verdictToken == null) {
+        // A cross-feature ownership conflict (it names another feature's
+        // artifacts) and a bail-out without a verdict (the setup-error
+        // path) are hard stops — they are not one feature's refusal.
+        stoppedAt = id;
+        break;
+      }
       if (exitCode != before) {
-        // A refusing path that returned (not threw): stop at this row.
+        // A failing path that returned (not threw): stop at this row.
         stoppedAt = id;
         break;
       }
       driven++;
-      if (verdictToken != null) {
-        counts[verdictToken] = (counts[verdictToken] ?? 0) + 1;
-      }
+      counts[verdictToken] = (counts[verdictToken] ?? 0) + 1;
       if (rowDeadline.expired) {
         stoppedAt = id;
         print(
@@ -594,8 +660,15 @@ class GenCommand extends Command<void> {
       }
     }
 
+    // Issue #1975: `stopped` means the batch HALTED — a hard failure, a
+    // timeout, or (in a scoped batch) the refusal that ends the batch.
+    // An unscoped batch that refused one row but drove every remaining
+    // row did NOT halt: it reports `refused`, and the refusal stays a
+    // non-zero exit (the run was not clean).
     final batchVerdict = stoppedAt != null
         ? 'stopped'
+        : (counts['refused'] ?? 0) > 0
+        ? 'refused'
         : (counts['created'] ?? 0) > 0
         ? 'created'
         : (counts['adopted'] ?? 0) > 0
@@ -615,6 +688,8 @@ class GenCommand extends Command<void> {
       verdict: batchVerdict,
       stoppedAt: stoppedAt,
       counts: counts,
+      refusedRows: refusedRows,
+      skippedRows: skippedRows,
     );
     if (stoppedAt != null || exitCode != 0) {
       exitCode = 1;
@@ -657,6 +732,8 @@ class GenCommand extends Command<void> {
     required String verdict,
     required String? stoppedAt,
     required Map<String, int> counts,
+    List<String> refusedRows = const [],
+    List<String> skippedRows = const [],
   }) {
     if (!_jsonMode) {
       print(
@@ -665,7 +742,9 @@ class GenCommand extends Command<void> {
         'reused=${counts['reused'] ?? 0} adopted=${counts['adopted'] ?? 0} '
         'repaired=${counts['repaired'] ?? 0} '
         'regenerated=${counts['regenerated'] ?? 0} '
-        'planned=${counts['planned'] ?? 0}'
+        'planned=${counts['planned'] ?? 0} '
+        'refused=${counts['refused'] ?? 0} '
+        'skipped=${skippedRows.length}'
         '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}',
       );
       // Issue #1979: the raw JSON verdict — the LAST stdout line (bug
@@ -689,11 +768,15 @@ class GenCommand extends Command<void> {
     }
     // Issue #969: the batch verdict folds into the wrapper's context —
     // the final envelope is emitted once, after the body returns.
+    // Issue #1975: `refused` is a FAILURE of the run (the exit code is
+    // non-zero) — it must never read as a `pass`.
     _verdict
       ..feature = feature
-      ..outcome = verdict == 'stopped'
-          ? VerdictOutcome.stopped
-          : VerdictOutcome.pass;
+      ..outcome = switch (verdict) {
+        'stopped' => VerdictOutcome.stopped,
+        'refused' => VerdictOutcome.fail,
+        _ => VerdictOutcome.pass,
+      };
     _verdict.details
       ..['verdict'] = verdict
       ..['batch'] = true
@@ -703,7 +786,20 @@ class GenCommand extends Command<void> {
       ..['adopted'] = counts['adopted'] ?? 0
       ..['repaired'] = counts['repaired'] ?? 0
       ..['regenerated'] = counts['regenerated'] ?? 0
-      ..['planned'] = counts['planned'] ?? 0;
+      ..['planned'] = counts['planned'] ?? 0
+      // Issue #1975: the refused rows are named — a refusal stops its
+      // FEATURE's rows, not the whole batch, so the envelope must say
+      // WHICH rows refused.
+      ..['refused'] = counts['refused'] ?? 0
+      // Issue #1975: the rows the skip left undriven are counted and
+      // named too — the envelope accounts for EVERY target of the batch.
+      ..['skipped'] = skippedRows.length;
+    if (refusedRows.isNotEmpty) {
+      _verdict.details['refused_rows'] = refusedRows.join(',');
+    }
+    if (skippedRows.isNotEmpty) {
+      _verdict.details['skipped_rows'] = skippedRows.join(',');
+    }
     if (stoppedAt != null) _verdict.details['stopped_at'] = stoppedAt;
   }
 
@@ -720,6 +816,7 @@ class GenCommand extends Command<void> {
     required BehaviorKind? kindOverride,
     required bool golden,
     required String? featureFlag,
+    bool unscopedBatch = false,
     required String cwd,
     required WidgetAppShell widgetShell,
     required List<String> i18nExpansion,
@@ -1846,12 +1943,32 @@ class GenCommand extends Command<void> {
               'stub stage or the pair is an ffi harness, and regenerating '
               'would clobber real work (issue #1388)';
           print('zfa tdd gen: reuse refused — $reason.');
-          print(
-            '   --> fix: zfa tdd reset $featureName — drop the '
-            "feature's registry-owned artifacts, re-run "
-            '`zfa tdd plan $featureName` + `zfa tdd gen $behaviorId`, '
-            'then re-apply the implementation.',
-          );
+          if (unscopedBatch) {
+            // Issue #1975: an unscoped `--all` batch scans EVERY feature,
+            // so this refused row may belong to a feature the caller is
+            // not repairing. Prescribing `zfa tdd reset <feature>` there
+            // points a destructive remedy at an unrelated feature — the
+            // batch names the SCOPING LEVER instead; a scoped run then
+            // names that feature's own remedy. The refusing feature is
+            // named as CONTEXT only: the caller repairs THEIR feature,
+            // and scoping to the refusing one would re-enter the scoped
+            // path (and its destructive remedy) one command later.
+            print(
+              '   --> fix: the refused row belongs to $featureName — this '
+              'batch scans EVERY feature, so re-run with `--feature <the '
+              'feature you are repairing>` to scope it; `--feature '
+              '$featureName` scopes to the refusing feature itself (its '
+              "own remedy applies then). Do not reset $featureName on its "
+              'behalf (issue #1975).',
+            );
+          } else {
+            print(
+              '   --> fix: zfa tdd reset $featureName — drop the '
+              "feature's registry-owned artifacts, re-run "
+              '`zfa tdd plan $featureName` + `zfa tdd gen $behaviorId`, '
+              'then re-apply the implementation.',
+            );
+          }
           _printVerdict(
             behaviorId: behavior.id,
             verdict: 'refused',

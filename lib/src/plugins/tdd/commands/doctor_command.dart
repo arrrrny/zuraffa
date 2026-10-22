@@ -76,14 +76,13 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/project/receipt_store.dart';
 import '../services/artifact_registry.dart';
-import '../services/cross_feature_ownership.dart';
 import '../services/cycle_evidence.dart';
 import '../services/evidence_chain.dart';
 import '../services/feature_path_resolver.dart';
-import '../services/generated_shape.dart';
 import '../services/journal.dart';
 import '../services/import_resolution.dart';
 import '../services/import_resolution_checker.dart';
+import '../services/registry_drift.dart';
 import '../services/run_state_store.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -191,15 +190,6 @@ class DoctorCommand extends Command<void> {
     // records and mask the stored non-portable forms this command must
     // flag and prescribe `migrate-paths` for.
     final records = await registry.loadAll(reanchor: false);
-    // Bug #874: registries may record absolute (gen's default) or
-    // project-relative paths — ownership comparisons normalize both sides
-    // so a recorded file is never misread as unowned by path form.
-    final ownedTestPaths = records
-        .map((r) => normalizeArtifactPath(cwd, r.testPath))
-        .toSet();
-    final ownedSubjectPaths = records
-        .map((r) => normalizeArtifactPath(cwd, r.subjectPath))
-        .toSet();
 
     RunState? state;
     var stateCorrupt = false;
@@ -223,191 +213,40 @@ class DoctorCommand extends Command<void> {
     final bornGreenIds = (await evidence.bornGreenCertifiedEntries()).keys
         .toSet();
 
-    // ---- 1. Legacy-layout scan ---------------------------------------
-    // Scan the gen default layout; classify every generated-shape file
-    // the queried feature does not own (bug #874): another feature's
-    // registry owning the path makes it FOREIGN-OWNED (migrate the
-    // owning feature, never adopt); nobody owning it makes it unowned
-    // (the #840 adopt state).
-    final ownersByPath = await ownershipByPathAcrossFeatures(cwd);
-    final unowned = <String, List<String>>{};
-    final foreignByBehavior = <String, List<String>>{};
-    final ownedBy = <String, String>{};
-    for (final entry in _scanGeneratedLayout(cwd)) {
-      final normalized = normalizeArtifactPath(cwd, entry.path);
-      final isOwned =
-          ownedTestPaths.contains(normalized) ||
-          ownedSubjectPaths.contains(normalized);
-      if (isOwned) continue;
-      final owner = ownersByPath[normalized];
-      if (owner != null && owner != feature) {
-        foreignByBehavior
-            .putIfAbsent(entry.behaviorId, () => [])
-            .add(entry.path);
-        ownedBy[_displayPath(cwd, entry.path)] = owner;
-        continue;
-      }
-      unowned.putIfAbsent(entry.behaviorId, () => []).add(entry.path);
-    }
-
-    // ---- 1a. Foreign-owned files -> MIGRATE (never adopt, bug #874) --
-    if (foreignByBehavior.isNotEmpty) {
-      final ownersInvolved = ownedBy.values.toSet().toList()..sort();
-      for (final entry in foreignByBehavior.entries) {
-        final ownersForBehavior =
-            entry.value
-                .map((path_) => ownedBy[_displayPath(cwd, path_)] ?? '')
-                .where((owner_) => owner_.isNotEmpty)
-                .toSet()
-                .toList()
-              ..sort();
-        drifts.add(
-          'foreign-owned generated file(s) for "${entry.key}" '
-          '(owned by ${ownersForBehavior.join(', ')}): '
-          '${entry.value.map((path_) => _displayPath(cwd, path_)).join(', ')}',
-        );
-      }
-      // Issue #1573: the prescription must be the form the command
-      // actually parses — migrate-paths takes --feature, not a positional
-      // argument (a positional slug is silently discarded).
-      final fix = ownersInvolved.length == 1
-          ? 'zfa tdd migrate-paths --feature ${ownersInvolved.first}'
-          : 'zfa tdd migrate-paths';
-      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
-      for (final drift in drifts) {
-        print('  drift: $drift');
-      }
-      print(
-        '   --> fix: $fix — move the owning feature\'s legacy flat '
-        'artifacts into its namespaced layout (adopting another '
-        'feature\'s files would corrupt ownership)',
-      );
-      _printVerdict(
-        feature: feature,
-        verdict: 'foreign-owned',
-        prescription: 'migrate',
-        fix: fix,
-        drifts: drifts,
-        ownedBy: ownedBy,
-      );
-      exitCode = 1;
-      return;
-    }
-
-    // ---- 1b. Unowned generated files -> ADOPT ------------------------
-    if (unowned.isNotEmpty) {
-      for (final entry in unowned.entries) {
-        drifts.add(
-          'unowned generated file(s) for "${entry.key}": '
-          '${entry.value.map((path_) => p.relative(path_, from: cwd)).join(', ')}',
-        );
-      }
-      final ids = unowned.keys.toList()..sort();
-      final fix = ids
-          .map((id) => 'zfa tdd gen $id --adopt --feature ${resolved.ref}')
-          .join(' && ');
-      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
-      for (final drift in drifts) {
-        print('  drift: $drift');
-      }
-      print(
-        '   --> fix: $fix — verify the generated shape, register '
-        'ownership, audit-log the adoption',
-      );
-      _printVerdict(
-        feature: feature,
-        verdict: 'drift',
-        prescription: 'adopt',
-        fix: fix,
-        drifts: drifts,
-      );
-      exitCode = 1;
-      return;
-    }
-
-    // ---- 2. Registry records with missing files -> RESET -------------
-    // Issue #1397: a record whose recorded path is machine-absolute may
-    // name a project root that does not exist on this machine (a checkout
-    // relocated between machines) while the artifact sits at the same
-    // project-relative location under the current root. That is path-form
-    // drift the migration repairs — NOT a missing artifact, which `reset`
-    // would answer by dropping certified behaviors. The relocation probe
-    // separates the two: a record whose missing paths all relocate is
-    // routed to migrate-paths below; a record with a genuinely missing
-    // artifact (probe finds nothing) still resets.
+    // ---- 1. Registry drift diagnosis ---------------------------------
+    // The drift states and the ONE recovery each of them prescribes live
+    // in the shared `RegistryDrift` service, in the doctor's own order:
     //
-    // Issue #1495: a record whose BOTH files are gone (no relocation
-    // match) owns NOTHING on disk — `zfa tdd doctor <feature> --repair`
-    // garbage-collects exactly those records (surgical, audit-logged);
-    // a record that still owns a surviving half is never collected (GC
-    // would orphan the survivor — reset remains its remedy).
-    final missingFiles = <String>[];
-    final relocatedRecords = <_RelocatedRecord>[];
-    // Issue #1495: per-record GC classification — a record is collectible
-    // only when BOTH recorded paths are genuinely missing (no relocation
-    // probe match, nothing on disk it owns).
-    final collectibleIds = <String>{};
-    final halfMissingIds = <String>{};
-    for (final record in records) {
-      // Records may be absolute (gen's default) or project-relative —
-      // resolve both against the project root (issue #912: the raw
-      // relative form resolved against the process CWD, flagging
-      // healthy files as missing when doctor ran from elsewhere).
-      final resolvedTest = p.isAbsolute(record.testPath)
-          ? p.normalize(record.testPath)
-          : p.normalize(p.join(cwd, record.testPath));
-      final resolvedSubject = p.isAbsolute(record.subjectPath)
-          ? p.normalize(record.subjectPath)
-          : p.normalize(p.join(cwd, record.subjectPath));
-      final missingTest = !File(resolvedTest).existsSync();
-      final missingSubject = !File(resolvedSubject).existsSync();
-      if (!missingTest && !missingSubject) continue;
-      final relocatedTest = missingTest
-          ? probeRelocatedArtifact(cwd, record.testPath)
-          : resolvedTest;
-      final relocatedSubject = missingSubject
-          ? probeRelocatedArtifact(cwd, record.subjectPath)
-          : resolvedSubject;
-      if (relocatedTest != null && relocatedSubject != null) {
-        relocatedRecords.add(
-          _RelocatedRecord(
-            behaviorId: record.behaviorId,
-            testPath: _displayPath(cwd, relocatedTest),
-            subjectPath: _displayPath(cwd, relocatedSubject),
-          ),
-        );
-        continue;
-      }
-      if (missingTest) {
-        missingFiles.add(
-          '${record.behaviorId}: ${_displayPath(cwd, resolvedTest)} is '
-          'recorded but missing from disk',
-        );
-      }
-      if (missingSubject) {
-        missingFiles.add(
-          '${record.behaviorId}: ${_displayPath(cwd, resolvedSubject)} is '
-          'recorded but missing from disk',
-        );
-      }
-      // Issue #1495 GC classification: both halves genuinely gone -> the
-      // record owns nothing on disk and is collectible; a surviving (or
-      // relocatable) half keeps the record un-collectible.
-      final testCollectible = missingTest && relocatedTest == null;
-      final subjectCollectible = missingSubject && relocatedSubject == null;
-      if (testCollectible && subjectCollectible) {
-        collectibleIds.add(record.behaviorId);
-      } else {
-        halfMissingIds.add(record.behaviorId);
-      }
-    }
-    if (missingFiles.isNotEmpty) {
-      drifts.addAll(missingFiles);
-      final repairMode = argResults?['repair'] as bool? ?? false;
-      if (repairMode && halfMissingIds.isEmpty) {
+    //   1. a generated-shape file ANOTHER feature's registry owns
+    //      (bug #874) — migrate the OWNING feature, never adopt;
+    //   2. a generated-shape file NO registry owns (bug #840) — adopt;
+    //   3. a record whose artifacts are missing from disk (issue #1495)
+    //      — the surgical repair, or the full reset;
+    //   4. a record whose recorded paths name a foreign project root
+    //      (issue #1397) — rewrite the recorded forms, never reset.
+    //
+    // Issue #1974: `zfa tdd compose` diagnoses the SAME registry through
+    // the SAME service, so the two commands print the same `drift:` line
+    // and the same `-->` fix line for the same file — they can never
+    // disagree about it.
+    final repairMode = argResults?['repair'] as bool? ?? false;
+    final diagnosis = await RegistryDrift.diagnose(
+      projectRoot: cwd,
+      featureName: feature,
+      featureRef: resolved.ref,
+      records: records,
+      repairMode: repairMode,
+      prefixDrifts: drifts,
+    );
+    if (diagnosis.hasDrift) {
+      if (diagnosis.kind == RegistryDriftKind.missingArtifact &&
+          repairMode &&
+          diagnosis.report.halfMissingIds.isEmpty) {
         // Issue #1495: the surgical repair — drop EVERY gone-file record,
         // keep every healthy record, touch no file on disk, audit-log.
-        final dropped = await registry.dropRecords(collectibleIds);
+        final dropped = await registry.dropRecords(
+          diagnosis.report.collectibleIds,
+        );
         await _auditRepair(featureDir, feature, dropped);
         final droppedIds = dropped.map((r) => r.behaviorId).toList()..sort();
         print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
@@ -430,87 +269,34 @@ class DoctorCommand extends Command<void> {
           // literal `<id>` placeholder — the run driver re-drives the
           // collected behaviors honestly.
           fix: 'zfa tdd run ${resolved.ref}',
-          drifts: drifts,
+          drifts: diagnosis.drifts,
         );
         exitCode = 0;
         return;
       }
-      final fix = repairMode && halfMissingIds.isNotEmpty
-          ? 'zfa tdd reset $feature'
-          : collectibleIds.isNotEmpty && halfMissingIds.isEmpty
-          ? 'zfa tdd doctor $feature --repair'
-          : 'zfa tdd reset $feature';
-      final why = repairMode
-          ? 'a half-missing record still owns a file on disk — collecting '
-                'it would orphan the survivor (issue #1495); the full reset '
-                'reconciles records AND owned artifacts'
-          : collectibleIds.isNotEmpty && halfMissingIds.isEmpty
-          ? 'drop the stale registry records only — the surgical '
-                'garbage-collect keeps every healthy record and touches no '
-                'file (issue #1495); `zfa tdd reset` remains the heavier '
-                'alternative'
-          : 'drop the stale registry records and owned artifacts, then '
-                're-drive from gen (resume cannot pass the ownership '
-                'preflight while records point at missing files)';
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
-      for (final drift in drifts) {
+      for (final drift in diagnosis.drifts) {
         print('  drift: $drift');
       }
-      print('   --> fix: $fix — $why');
+      print(
+        '   --> fix: ${diagnosis.prescription.fix} — '
+        '${diagnosis.prescription.why}',
+      );
       _printVerdict(
         feature: feature,
-        verdict: 'drift',
+        // The foreign-owned state is its own verdict class; every other
+        // drift state reports the shared 'drift'.
+        verdict: diagnosis.kind == RegistryDriftKind.foreignOwned
+            ? 'foreign-owned'
+            : 'drift',
         // Issue #1495 review: match the prescription to its fix line —
         // on a half-missing record the fix is the reset command, so the
         // flag alone must not flip the machine-readable field (the same
         // state diagnosed without the flag reports 'reset').
-        prescription: fix.contains('--repair') ? 'repair' : 'reset',
-        fix: fix,
-        drifts: drifts,
-      );
-      exitCode = 1;
-      return;
-    }
-    // ---- 2c. Relocated registry -> MIGRATE (issue #1397) -------------
-    // Every missing path of these records was found at its project-relative
-    // location under the current root: the registry was committed with
-    // machine-absolute forms from another checkout. The migration rewrites
-    // the recorded forms in place; `reset` would drop certified behaviors
-    // over a path form.
-    if (relocatedRecords.isNotEmpty) {
-      for (final relocated in relocatedRecords) {
-        drifts.add(
-          '${relocated.behaviorId}: the recorded machine-absolute path '
-          'names a project root that is not on this machine, but the '
-          'artifacts sit at ${relocated.testPath} / '
-          '${relocated.subjectPath} under the current root — a relocated '
-          'registry (the recorded form, not the artifacts, has drifted)',
-        );
-      }
-      // Issue #1573: prescribe the flag form migrate-paths parses, naming
-      // the RESOLVED REFERENCE rather than the bare name. Re-resolving a
-      // bare name through `resolveWithPin` keeps `specs/<name>` whenever
-      // that directory exists, so a plain name would migrate a DIFFERENT
-      // registry than the one just diagnosed (doctor on
-      // `.specify/bugs/<slug>` with a same-named `specs/<slug>` present).
-      // The reference is what issue #1471 hands to child steps for exactly
-      // this reason: resolving it yields this same directory.
-      final fix = 'zfa tdd migrate-paths --feature ${resolved.ref}';
-      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
-      for (final drift in drifts) {
-        print('  drift: $drift');
-      }
-      print(
-        '   --> fix: $fix — rewrite the recorded forms to the portable '
-        'project-relative POSIX form (the files stay where they are; '
-        'reset would drop the certified behaviors)',
-      );
-      _printVerdict(
-        feature: feature,
-        verdict: 'drift',
-        prescription: 'migrate',
-        fix: fix,
-        drifts: drifts,
+        prescription: diagnosis.prescription.prescription,
+        fix: diagnosis.prescription.fix,
+        drifts: diagnosis.drifts,
+        ownedBy: diagnosis.ownedBy,
       );
       exitCode = 1;
       return;
@@ -1157,35 +943,6 @@ class DoctorCommand extends Command<void> {
   static String _shortDigest(String digest) =>
       digest.length <= 12 ? digest : digest.substring(0, 12);
 
-  /// Scan the gen default layout (`test/tdd/*.dart`, `lib/tdd/*.dart`)
-  /// and return the generated-shape files found there with the behavior
-  /// id their provenance header names. Files without the header are
-  /// foreign — never adopted, never prescribed.
-  List<({String path, String behaviorId})> _scanGeneratedLayout(String cwd) {
-    final found = <({String path, String behaviorId})>[];
-    for (final dir in [p.join(cwd, 'test', 'tdd'), p.join(cwd, 'lib', 'tdd')]) {
-      final d = Directory(dir);
-      if (!d.existsSync()) continue;
-      for (final entity in d.listSync().whereType<File>()) {
-        if (!entity.path.endsWith('.dart')) continue;
-        String content;
-        try {
-          content = entity.readAsStringSync();
-        } on FileSystemException {
-          continue;
-        }
-        final id = behaviorIdFromContent(content);
-        if (id == null) continue;
-        final shaped =
-            content.contains(generatedTestMarker) ||
-            content.contains(generatedSubjectMarker);
-        if (!shaped) continue;
-        found.add((path: entity.path, behaviorId: id));
-      }
-    }
-    return found;
-  }
-
   /// The path relative to the project root, POSIX separators (the display
   /// and verdict form for scanned artifacts) — the shared
   /// [TddFeaturePaths.displayDir] idiom, so every command renders one way.
@@ -1256,21 +1013,4 @@ class DoctorCommand extends Command<void> {
       }),
     );
   }
-}
-
-/// One registry record whose every missing recorded path relocated (issue
-/// #1397): the machine-absolute form names a foreign project root, the
-/// artifacts sit at the same project-relative locations under the current
-/// root, so the record is form drift for `migrate-paths` — not a missing
-/// artifact for `reset`.
-class _RelocatedRecord {
-  const _RelocatedRecord({
-    required this.behaviorId,
-    required this.testPath,
-    required this.subjectPath,
-  });
-
-  final String behaviorId;
-  final String testPath;
-  final String subjectPath;
 }
