@@ -1,6 +1,7 @@
 /// `ContractBlockedReceipt` — the BLOCKED verdict's receipt for a failed
-/// contract test (issue #1007): `contract-blocked.<id>.json` under the
-/// project's `.zfa/receipts/` directory, schema `contract-blocked.v1`.
+/// contract test (issue #1007): `contract-blocked.<feature>.<id>.json`
+/// under the project's `.zfa/receipts/` directory, schema
+/// `contract-blocked.v1`.
 ///
 /// Distinct from the RED path on purpose: a unit behavior's honest red
 /// is certified evidence in `tdd/cycle-log.md`; a contract behavior's
@@ -10,10 +11,15 @@
 /// failure into the green phase). The corpus-economics gap ledger picks
 /// the stop up at the highest severity.
 ///
-/// File naming: the behavior id minus the `contract:` row prefix
-/// (`contract:A1` -> `contract-blocked.A1.json`), with any remaining
-/// non-portable character folded to `-` (colons are illegal in Windows
-/// file names — the same portability rule `ReceiptStore` applies).
+/// File naming (issue #1997): the behavior id minus the `contract:` row
+/// prefix (`contract:A1` -> `A1`), with any remaining non-portable
+/// character folded to `-` (colons are illegal in Windows file names —
+/// the same portability rule `ReceiptStore` applies) — AND the FEATURE
+/// the behavior belongs to: `contract-blocked.<feature>.<id>.json`.
+/// The feature is part of the name because the behavior id alone is NOT
+/// unique across features: two features that both declare `contract:A1`
+/// wrote the SAME path, so one feature's receipt overwrote the other's
+/// and the second feature's blocked contract had no receipt at all.
 library;
 
 import 'dart:convert';
@@ -100,28 +106,71 @@ class ContractBlockedReceiptStore {
 
   Directory get directory => Directory(p.join(projectRoot, '.zfa', 'receipts'));
 
-  /// The receipt file name for [behaviorId]: the `contract:` row prefix
-  /// is stripped (`contract:A1` -> `A1`) and every remaining
-  /// non-portable character folds to `-`.
-  static String fileNameFor(String behaviorId) {
-    var id = behaviorId;
-    const prefix = 'contract:';
-    if (id.startsWith(prefix)) id = id.substring(prefix.length);
-    final sanitized = id.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '-');
-    return 'contract-blocked.$sanitized.json';
+  /// The receipt file name for [behaviorId] in [feature]: the
+  /// `contract:` row prefix is stripped (`contract:A1` -> `A1`), every
+  /// remaining non-portable character folds to `-`, and the feature is
+  /// part of the name (`contract-blocked.<feature>.<id>.json`, issue
+  /// #1997) — two features declaring the same behavior id must never
+  /// write the same file.
+  ///
+  /// Without a feature the LEGACY name (`contract-blocked.<id>.json`) is
+  /// produced: that is the name a pre-#1997 run left behind, and [read]
+  /// still adopts it — for its OWN feature only.
+  static String fileNameFor(String behaviorId, {String? feature}) {
+    final id = _sanitize(_stripContractPrefix(behaviorId));
+    if (feature == null || feature.isEmpty) {
+      return 'contract-blocked.$id.json';
+    }
+    return 'contract-blocked.${_sanitize(feature)}.$id.json';
   }
 
-  /// The receipt's path for [behaviorId].
-  String pathFor(String behaviorId) =>
-      p.join(directory.path, fileNameFor(behaviorId));
+  /// The receipt's path for [behaviorId] in [feature].
+  String pathFor(String behaviorId, {String? feature}) =>
+      p.join(directory.path, fileNameFor(behaviorId, feature: feature));
 
-  /// Persist [receipt] for its behavior id; returns the file path.
+  /// The LEGACY (pre-#1997) receipt path for [behaviorId] — the
+  /// feature-less name a pre-fix run left behind.
+  String legacyPathFor(String behaviorId) => pathFor(behaviorId);
+
+  /// Reads the receipt of [behaviorId] for [feature]: the namespaced
+  /// path first, then the LEGACY feature-less path — but only when the
+  /// legacy receipt's own `feature` field names [feature]. A legacy
+  /// receipt another feature wrote is NEVER adopted: that shared path is
+  /// exactly the collision issue #1997 reports.
+  ContractBlockedReceipt? read({
+    required String behaviorId,
+    required String feature,
+  }) {
+    final namespaced = ContractBlockedReceipt.fromFile(
+      pathFor(behaviorId, feature: feature),
+    );
+    if (namespaced != null) return namespaced;
+    final legacy = ContractBlockedReceipt.fromFile(legacyPathFor(behaviorId));
+    if (legacy == null || legacy.feature != feature) return null;
+    return legacy;
+  }
+
+  /// Persist [receipt] for its behavior id; returns the file path. The
+  /// receipt's OWN feature names the file (issue #1997).
   Future<String> write(ContractBlockedReceipt receipt) async {
     await directory.create(recursive: true);
-    final path = pathFor(receipt.behavior);
+    final path = pathFor(receipt.behavior, feature: receipt.feature);
     await File(path).writeAsString(
       const JsonEncoder.withIndent('  ').convert(receipt.toJson()),
     );
     return path;
   }
+
+  /// The behavior id without its `contract:` row prefix.
+  static String _stripContractPrefix(String behaviorId) {
+    const prefix = 'contract:';
+    return behaviorId.startsWith(prefix)
+        ? behaviorId.substring(prefix.length)
+        : behaviorId;
+  }
+
+  /// Folds every non-portable character to `-` (the same portability
+  /// rule `ReceiptStore` applies to its own file names).
+  static String _sanitize(String segment) =>
+      segment.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '-');
 }

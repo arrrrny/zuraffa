@@ -25,7 +25,7 @@
 /// an assertion (`_captured` turns the `UnimplementedError` into the
 /// assertion's actual value, mirroring the ffi lane's pattern), and
 /// `zfa tdd verify-red` grades it **BLOCKED** — never RED — with its own
-/// receipt (`contract-blocked.<id>.json`). A failing contract test blocks
+/// receipt (`contract-blocked.<feature>.<id>.json`). A failing contract test blocks
 /// the cycle from proceeding to GREEN.
 ///
 /// The behavior's description is the STRUCTURED contract carrier plan

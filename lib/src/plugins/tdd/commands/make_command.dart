@@ -546,11 +546,9 @@ class MakeCommand extends Command<void> {
         record.behaviorId,
       );
       if (rowKindQuiet == BehaviorKind.contract) {
-        final receipt = ContractBlockedReceipt.fromFile(
-          ContractBlockedReceiptStore(
-            projectRoot: cwd,
-          ).pathFor(record.behaviorId),
-        );
+        final receipt = ContractBlockedReceiptStore(
+          projectRoot: cwd,
+        ).read(behaviorId: record.behaviorId, feature: target.featureName);
         final blockedAt = receipt == null
             ? null
             : DateTime.tryParse(receipt.blockedAt);
@@ -575,7 +573,7 @@ class MakeCommand extends Command<void> {
               .relative(
                 ContractBlockedReceiptStore(
                   projectRoot: cwd,
-                ).pathFor(record.behaviorId),
+                ).pathFor(record.behaviorId, feature: target.featureName),
                 from: cwd,
               )
               .replaceAll(r'\', '/');
