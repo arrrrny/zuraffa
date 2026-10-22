@@ -61,6 +61,19 @@
 ///    scheme (review #1612; see `evidence_chain.dart`).
 /// 6. **none** — the stores agree; the feature is healthy.
 ///
+/// Issue #1978 adds one more class the store-vs-store comparisons cannot
+/// see: **receipt drift** — a receipted artifact whose recorded digest no
+/// longer matches the bytes on disk. It is the very check `zfa tdd verify`
+/// runs in its receipt preflight (spec 0996) before the mutation audit, so
+/// without it the two commands disagreed about the same state: doctor
+/// reported a healthy feature while the verify gate refused it. The drift
+/// lines name the file, the recorded and the current digest, and the
+/// transition that re-binds the receipt to the current bytes (`zfa tdd
+/// verify-red <id> --re-certify` / `zfa tdd make contract:<id>
+/// --born-green`); the destructive generator re-drive (issue #1375) is
+/// never prescribed, and a generator receipt's transition is picked by the
+/// artifact's kind (a test is re-certified red, a subject is born green).
+///
 /// The same state always produces the same prescription (deterministic:
 /// pure priority order over store contents, no clocks, no randomness).
 /// The machine-readable JSON verdict is the final stdout line; the exit
@@ -74,6 +87,7 @@ import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
+import '../../../core/proof/proof_checker.dart';
 import '../../../core/project/receipt_store.dart';
 import '../services/artifact_registry.dart';
 import '../services/cross_feature_ownership.dart';
@@ -976,6 +990,35 @@ class DoctorCommand extends Command<void> {
       return;
     }
 
+    // ---- 3d. Receipt digest drift -> RE-CERTIFY (issue #1978) --------
+    // The receipt preflight `zfa tdd verify` runs before its mutation
+    // audit (spec 0996): every receipted artifact's recorded digest must
+    // still match the bytes on disk. The store-vs-store comparisons above
+    // cannot see that class — a feature whose receipts drifted reads
+    // "stores agree" while the verify gate refuses it, and the two
+    // commands disagree about the same state (issue #1978). This check
+    // runs the SAME check (the shared `ProofChecker` behind the
+    // preflight), so doctor and verify can no longer disagree.
+    final receiptDrift = await _receiptDigestDrifts(cwd, feature);
+    if (receiptDrift.lines.isNotEmpty) {
+      drifts.addAll(receiptDrift.lines);
+      final fix = receiptDrift.fix;
+      print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
+      for (final drift in drifts) {
+        print('  drift: $drift');
+      }
+      print('   --> fix: $fix — ${receiptDrift.note}');
+      _printVerdict(
+        feature: feature,
+        verdict: 'drift',
+        prescription: receiptDrift.prescription,
+        fix: fix,
+        drifts: drifts,
+      );
+      exitCode = 1;
+      return;
+    }
+
     // ---- 4. Healthy --------------------------------------------------
     print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
     print('  stores agree — no drift detected');
@@ -1133,6 +1176,162 @@ class DoctorCommand extends Command<void> {
           'directly. $tail',
     );
   }
+
+  /// The receipt-digest drift scan (issue #1978): the same check
+  /// `zfa tdd verify`'s receipt preflight runs — every receipted
+  /// artifact's recorded digest against the bytes on disk — reported per
+  /// file with the transition that re-binds the drifted receipt to the
+  /// current bytes.
+  ///
+  /// The receipts are the PROJECT's receipts, exactly the set the preflight
+  /// validates: the two commands must not disagree about one state, and the
+  /// preflight audits the whole project (a drifted artifact of any feature
+  /// refuses the audit of the feature being verified).
+  ///
+  /// Fail-open surfaces: an unreadable receipts tree, a project that ships
+  /// no receipts (the preflight's vacuous gate) and an unreadable artifact
+  /// produce no finding — never a fabricated mismatch.
+  ///
+  /// The destructive generator re-drive (issue #1375) is never prescribed:
+  /// a `gen` receipt's own repro would regenerate the certified work, so
+  /// the sanctioned re-certification transition is named instead.
+  Future<({List<String> lines, String fix, String prescription, String note})>
+  _receiptDigestDrifts(String cwd, String feature) async {
+    const none = (lines: <String>[], fix: '', prescription: 'none', note: '');
+    final List<ReceiptRecord> receipts;
+    try {
+      receipts = await ReceiptStore(projectRoot: cwd).loadAll();
+    } catch (_) {
+      // Unreadable receipts tree — fail open here; the verify receipt
+      // preflight still gates the audit on whatever it can read.
+      return none;
+    }
+    if (receipts.isEmpty) return none;
+    final ProofReport proof;
+    try {
+      proof = await ProofChecker(projectRoot: cwd).check();
+    } catch (_) {
+      return none;
+    }
+    final drifted = proof.findings
+        .where((finding) => finding.kind == ProofFinding.kindModified)
+        .toList();
+    if (drifted.isEmpty) return none;
+
+    final byFileName = <String, ReceiptRecord>{
+      for (final record in receipts) record.fileName: record,
+    };
+    final lines = <String>[];
+    final fixes = <String>[];
+    for (final finding in drifted) {
+      final record = byFileName[finding.receipt];
+      final entry = _receiptEntryFor(record, finding.path);
+      final owner = record?.receipt.input['feature'];
+      final prescription = _receiptDriftPrescription(record, finding.path);
+      lines.add(
+        'receipt digest drift — ${finding.path}: receipt says '
+        '${_shortDigest(entry?.sha256 ?? 'unknown')}, disk has '
+        '${_shortDigest(_diskDigest(cwd, finding.path) ?? 'unknown')} '
+        '(action: ${entry?.action ?? 'unknown'})'
+        '${owner is String && owner.isNotEmpty ? ' (feature $owner)' : ''}'
+        '${prescription.isEmpty ? '' : ' — re-bind with: $prescription'}',
+      );
+      if (prescription.isNotEmpty && !fixes.contains(prescription)) {
+        fixes.add(prescription);
+      }
+    }
+    if (lines.isEmpty) return none;
+    return (
+      lines: lines,
+      fix: fixes.isEmpty ? 'zfa tdd run $feature' : fixes.join(' && '),
+      prescription: 're-certify',
+      note:
+          're-bind the drifted receipts to the current bytes — the same '
+          'gate `zfa tdd verify`\'s receipt preflight runs; a feature '
+          'whose receipts drifted is not healthy (issue #1978). Never '
+          're-drive the generator over certified work (issue #1375)',
+    );
+  }
+
+  /// The receipt entry covering [path], or null when the receipt names no
+  /// such file.
+  static GenerationReceiptFile? _receiptEntryFor(
+    ReceiptRecord? record,
+    String path,
+  ) {
+    if (record == null) return null;
+    for (final entry in record.receipt.files) {
+      if (entry.path == path) return entry;
+    }
+    return null;
+  }
+
+  /// The digest of the bytes on disk for a project-relative [relPath], or
+  /// null when the file is unreadable (the checker reported the finding, so
+  /// the file exists — this is only the reporting side).
+  static String? _diskDigest(String cwd, String relPath) {
+    try {
+      final file = File(p.join(cwd, relPath));
+      if (!file.existsSync()) return null;
+      return crypto.sha256.convert(file.readAsBytesSync()).toString();
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  /// The transition that re-binds a drifted receipt to the current bytes.
+  ///
+  /// The receipt's own reproduction command is the prescription — it is the
+  /// command that produced the drifted artifact (`zfa tdd verify-red U1
+  /// --re-certify`, `zfa tdd make contract:A10 --born-green`), so re-running
+  /// it re-binds the receipt to the bytes that are on disk now.
+  ///
+  /// A GENERATOR receipt is the exception: re-running the generator over a
+  /// certified artifact destroys the certified work (issue #1375), so the
+  /// behavior's own re-certification transition is named instead — the red
+  /// re-certification for a TEST artifact, the born-green hand transition
+  /// for a SUBJECT (a generator receipt owns both sides of a behavior).
+  static String _receiptDriftPrescription(ReceiptRecord? record, String path) {
+    if (record == null) return '';
+    final repro = record.receipt.repro.trim();
+    if (repro.isNotEmpty && !_isGeneratorRepro(repro)) return repro;
+    final behaviorId = _receiptBehaviorId(record);
+    if (behaviorId.isNotEmpty) {
+      return _isTestArtifact(path)
+          ? 'zfa tdd verify-red $behaviorId --re-certify'
+          : 'zfa tdd make $behaviorId --born-green';
+    }
+    final owner = record.receipt.input['feature'];
+    return owner is String && owner.isNotEmpty ? 'zfa tdd run $owner' : '';
+  }
+
+  /// The behavior a receipt belongs to — the receipt's own `behavior` input,
+  /// else its target. A FEATURE-scoped receipt (a plan/run receipt) names
+  /// the feature, not a behavior, and yields no behavior id.
+  static String _receiptBehaviorId(ReceiptRecord record) {
+    final behavior = record.receipt.input['behavior'];
+    if (behavior is String && behavior.trim().isNotEmpty) {
+      return behavior.trim();
+    }
+    final target = record.receipt.target.trim();
+    if (target.isEmpty) return '';
+    // A feature slug (`001-purchase-store`) is never a behavior id.
+    if (RegExp(r'^\d+[-_]').hasMatch(target)) return '';
+    return target;
+  }
+
+  /// True for a TEST artifact — the red side of a behavior. A subject (the
+  /// green side) is anything else, and the two are re-bound by different
+  /// transitions.
+  static bool _isTestArtifact(String path) =>
+      path.endsWith('_test.dart') ||
+      path.contains('/test/') ||
+      path.startsWith('test/');
+
+  /// True for a reproduction command that re-drives the generator — the
+  /// destructive remedy (issue #1375), never a prescription.
+  static bool _isGeneratorRepro(String repro) =>
+      RegExp(r'tdd gen(?![\w-])').hasMatch(repro);
 
   /// Extract outer test titles (issue #1778): the strings passed to
   /// `test(...)` / `testWidgets(...)`, tolerant of escaped quotes.
