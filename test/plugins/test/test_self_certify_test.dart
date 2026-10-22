@@ -1,3 +1,13 @@
+// Issue #1994 — the `spawn` tag gives this file the loaded-host ceiling.
+// The "real scoped dart analyze" group below builds the PRODUCTION
+// `ProcessScopedAnalyzer`, which shells out to a real `dart analyze`
+// child: on a shared host under load the analyzer's cold start alone
+// exceeds the global 2x (60s) ceiling, and the suite failed while passing
+// in isolation. The tag ceiling (8x = 240s, the `ffi` precedent #1678)
+// governs instead of a per-test constant.
+@Tags(['spawn'])
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -261,7 +271,6 @@ void main() {
         expect(cert.verdictLine, contains('--> fix:'));
         expect(cert.toJson()['errors'], isNotEmpty);
       },
-      timeout: const Timeout(Duration(minutes: 2)),
     );
 
     test('clean fixture certifies compile=pass', () async {
@@ -295,7 +304,7 @@ void main() {
       expect(cert!.compile, isTrue, reason: 'fixture compiles');
       expect(cert.errors, isEmpty);
       expect(cert.verdictLine, 'test: entity=Clean tests=0 compile=pass');
-    }, timeout: const Timeout(Duration(minutes: 2)));
+    });
   });
 
   group('TestCommand integration (A1/A2/A3 — behavioral)', () {
@@ -379,7 +388,6 @@ class FetchUserUseCase extends UseCase<User, NoParams> {
         );
         expect(result.files, isNotEmpty);
       },
-      timeout: const Timeout(Duration(minutes: 2)),
     );
 
     test('A2 — injected pass analyzer keeps the command green', () async {
@@ -407,7 +415,7 @@ class FetchUserUseCase extends UseCase<User, NoParams> {
 
       expect(result.success, isTrue);
       expect(result.files, hasLength(1));
-    }, timeout: const Timeout(Duration(minutes: 2)));
+    });
 
     test('A3 — --json prints a parseable schema:1 envelope on stdout', () async {
       await writeCustomUseCase();

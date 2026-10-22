@@ -63,6 +63,10 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
+// The fast tier's entrypoint (issue #1994): its cap logic is imported
+// (not spawned) so the B9 pin asserts the refusal without making this
+// fast-lane suite a process spawner under the B5 census.
+import '../tools/run_fast_suite.dart';
 import 'helpers/project_root.dart';
 
 /// Repo root, resolved once via the CWD-independent [findProjectRoot].
@@ -358,6 +362,176 @@ Future<void> main() async {
       );
     }
   });
+
+  test('B9: the fast tier enforces its serial invariant from the CLI side '
+      '(#1994)', () {
+    // dart_test.yaml pins `concurrency: 1` — and that pin is a CORRECTNESS
+    // requirement, not a performance knob: `dart test` runs the suites as
+    // isolates of ONE process, so `Directory.current` and `dart:io exitCode`
+    // are process-global (the three red master runs of #1632/#1682). A CLI
+    // `-j 2` overrides the pin SILENTLY — package:test resolves
+    // `concurrency => _concurrency ?? defaultConcurrency`, i.e. the CLI
+    // value wins over the config (test_core's Configuration).
+    //
+    // Issue #1994 is what that silent override costs on a loaded shared
+    // host: the fast suite's failures were all load-amplified — spawn
+    // ceilings AND cross-suite CWD redirection (`pubspec.yaml not found`
+    // mid-setup). So the cap must be enforceable from the invocation, not
+    // only from a config a fleet-wide `-j 2` overrules.
+    final doc = loadYaml(configFile.readAsStringSync()) as YamlMap;
+    expect(
+      doc['concurrency'],
+      1,
+      reason:
+          'the fast tier runs SERIAL by design (#1682): a parallel lane '
+          'lets one suite chdir siblings into its temp fixture and '
+          'clobber their exit-code reads',
+    );
+
+    // The sanctioned entrypoint owns the cap. Its logic is a pure
+    // function so this pin can assert the refusal WITHOUT spawning a
+    // process — a fast-lane suite that spawns a child is a heavyweight
+    // suite under the B5 census below.
+    expect(
+      File(p.join(_repoRoot, 'tools', 'run_fast_suite.dart')).existsSync(),
+      isTrue,
+      reason:
+          'the fast tier needs an entrypoint that owns the serial cap '
+          '(issue #1994): `dart test -j 2` overrides dart_test.yaml\'s '
+          '`concurrency: 1` silently, so the cap is only real where it is '
+          'enforced',
+    );
+
+    // A parallel request is REFUSED, with the reason and the issue. The
+    // decision function is the one `main` takes, so this asserts the
+    // shipped path, not a copy of it.
+    final refusal = decideFastSuite(['-j', '2']).refusal;
+    expect(
+      refusal,
+      isNotNull,
+      reason: 'a parallel fast-tier run must be refused (#1994)',
+    );
+    expect(
+      refusal,
+      contains('concurrency'),
+      reason: 'the refusal must name the knob it refuses: $refusal',
+    );
+    expect(
+      refusal,
+      contains('#1994'),
+      reason:
+          'the refusal must point at the issue that made it a cap: '
+          '$refusal',
+    );
+
+    // Every spelling package:test accepts must be recognized — a refusal
+    // that only catches `-j 2` leaves `--concurrency=2` through.
+    for (final args in <List<String>>[
+      ['-j', '2'],
+      ['-j2'],
+      ['--concurrency', '2'],
+      ['--concurrency=2'],
+    ]) {
+      expect(
+        requestedConcurrencyArg(args),
+        '2',
+        reason:
+            'the cap must read every spelling package:test accepts: '
+            '$args',
+      );
+      expect(
+        decideFastSuite(args).refusal,
+        isNotNull,
+        reason:
+            'the cap must refuse every spelling package:test accepts: '
+            '$args',
+      );
+    }
+    expect(requestedConcurrencyArg(['test/core']), isNull);
+    expect(
+      decideFastSuite(['test/core']).refusal,
+      isNull,
+      reason: 'a request without a concurrency knob must not be refused',
+    );
+
+    // The run itself is serial — explicitly, because an implicit default
+    // is exactly what the fleet-wide `-j 2` overrides.
+    final command = fastSuiteCommand(['test']);
+    expect(
+      command,
+      containsAllInOrder(['--exclude-tags', '-j', '1']),
+      reason:
+          'the fast-tier run must pin the serial flag AND the CI lane\'s '
+          'tag selector: $command',
+    );
+    expect(
+      command[command.indexOf('--exclude-tags') + 1],
+      contains('e2e'),
+      reason:
+          'the fast lane must stay off the `e2e` tier: on a loaded host '
+          'those temp-project suites are what pushes the run past a '
+          'two-hour window (#1994) — $command',
+    );
+  });
+
+  test('B10: the loaded-host ceiling covers the fast-tier suites that '
+      'drive a REAL analyzer child (#1994)', () {
+    // Issue #1994: on a shared host under load ~390 the fast suite's
+    // global 2x (60s) ceiling fired on suites that drive a REAL
+    // `dart analyze` child — the analyzer's cold start alone eats that
+    // budget there, while the same suite passes in isolation. The `ffi`
+    // lane already carries 8x for exactly this reason (#1678); the
+    // spawn-heavy fast-tier suites had no such ladder.
+    final doc = loadYaml(configFile.readAsStringSync()) as YamlMap;
+    final tags = doc['tags'] as YamlMap?;
+    expect(tags, isNotNull);
+    final spawn = tags!['spawn'];
+    expect(
+      spawn,
+      isNotNull,
+      reason:
+          'dart_test.yaml declares no `spawn` ceiling: every fast-tier '
+          'suite that drives a real external child sits under the global '
+          '2x (60s) ceiling — the #1994 failure mode',
+    );
+    final timeout = (spawn as YamlMap)['timeout'];
+    expect(timeout, isNotNull);
+    final multiplier = double.parse((timeout as String).replaceAll('x', ''));
+    expect(
+      multiplier * 30,
+      greaterThanOrEqualTo(240),
+      reason:
+          'the `spawn` ceiling must be at least 8x package:test\'s 30s '
+          'base (240s) — the `ffi` precedent (#1678); a lower factor '
+          're-opens the #1994 false timeout',
+    );
+
+    // The census gap that let the flake in: B5 scans the TEST sources
+    // for spawns, but a suite that reaches a real child through the LIB
+    // (the production certifier with no injected analyzer -> a real
+    // `dart analyze` child) is invisible to it. Those suites must carry
+    // `spawn`.
+    final offenders = <String>[];
+    for (final entry in _fastLaneEligibleFiles().entries) {
+      final source = File(entry.key).readAsStringSync();
+      if (!_realAnalyzerRe.hasMatch(source)) continue;
+      if (!entry.value.contains('spawn')) {
+        offenders.add(
+          '${entry.key} — drives a real `dart analyze` child '
+          '(carries: ${entry.value.join(', ')})',
+        );
+      }
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'fast-tier suites that drive a REAL analyzer child must carry '
+          'the `spawn` tag (the 8x loaded-host ceiling) — the B5 census '
+          'only sees test-side spawns, so this class slips through it '
+          '(#1994):\n${offenders.join('\n')}',
+    );
+  });
 }
 
 /// Every `_test.dart` file under `test/` whose suite-level `@Tags`
@@ -414,6 +588,23 @@ final RegExp _trivialProbeRe = RegExp(
 /// Path markers of the analyzer/compile gate family: suites whose
 /// assertions compile or resolve generated code in-process.
 final RegExp _compileGateRe = RegExp(r'_compile_test\.dart$');
+
+/// Source markers of a suite that reaches a REAL analyzer child THROUGH
+/// THE LIB: the production certifier, built WITHOUT an injected analyzer,
+/// resolves the production `dart analyze` shell-out
+/// (lib/src/plugins/test/test_certifier.dart). The B5 census cannot see
+/// this class — it scans the test sources for spawns, and the spawn
+/// happens one layer down — which is how a real-analyzer suite stayed in
+/// the fast tier under the global 60s ceiling (#1994).
+///
+/// The marker is split across adjacent string literals so THIS file's own
+/// source never contains the assembled text — the B10 census scans every
+/// fast-lane-eligible suite, this one included.
+final RegExp _realAnalyzerRe = RegExp(
+  'TestSelfCertif'
+  r'ier\(\s*\)|ProcessScoped'
+  r'Analyzer\(',
+);
 
 /// Every `_test.dart` file under `test/` that the dart_core fast lane
 /// RUNS — its tag set is disjoint from the exclusion vocabulary

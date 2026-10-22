@@ -325,6 +325,21 @@ in every slow tier, each spinning up temp projects that run `dart pub get` +
 small agents. Reserve `--preset=all` for an explicit full-local baseline on a
 developer machine. See `test/README.md`. Use `dart analyze` on the files you touched.
 
+**Run the fast tier through `dart run tools/run_fast_suite.dart` — never with
+`-j 2` (issue #1994).** This repo's fast tier runs SERIAL for a correctness
+reason: `dart test` runs the suites as isolates of ONE process, so
+`Directory.current` and `dart:io exitCode` are process-global, and one suite's
+chdir window redirects every concurrent suite's relative-path I/O into its temp
+fixture. `dart_test.yaml` pins `concurrency: 1`, but a CLI `-j 2` overrides
+that pin SILENTLY (package/test: `concurrency => _concurrency ?? defaultConcurrency`).
+On a loaded shared host that silent override produced a fast suite that flaked
+(spawn ceilings, `pubspec.yaml not found` mid-setup) while every failing suite
+passed in isolation. The entrypoint pins `-j 1`, refuses a parallel request,
+and runs CI's `dart_core` lane (the bounded ~12-minute tier). The
+`spawn` tag (8x ceiling) covers the fast-tier suites that drive a real
+`dart analyze` child. Details: `test/README.md` → "Loaded hosts: the serial
+fast lane".
+
 Disk-safe runs on small/disposable agents: a single `dart test test` compiles
 the entire test tree's kernel into one cache that can reach ~6.5 GB
 (`.dart_tool/test/incremental_kernel.*` plus per-process

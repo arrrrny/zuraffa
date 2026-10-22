@@ -26,6 +26,12 @@ and the tier to use for routine validation):
 dart test
 ```
 
+> **On this repo, run the fast tier through the entrypoint**:
+> `dart run tools/run_fast_suite.dart`. It pins the serial flag and refuses
+> a parallel request. See
+> [Loaded hosts: the serial fast lane](#loaded-hosts-the-serial-fast-lane)
+> below for why a plain `dart test -j 2` is not safe here.
+
 Run a single slow tier (only when the user explicitly asks for one):
 
 ```bash
@@ -63,6 +69,78 @@ dart test test/core/result_test.dart
   machine (see `dart_test.yaml`).
 - Add the `slow` tag (plus the tier tag) to any new E2E / heavy test so it is
   excluded from the default run automatically.
+
+## Loaded hosts: the serial fast lane
+
+Two properties of the fast tier are load-sensitive, and issue #1994 is the
+report that both of them bit on a shared host under load ~390:
+
+1. **The fast tier runs SERIAL — and that is a correctness requirement.**
+   `dart test` runs the suites as isolates of ONE process, so
+   `Directory.current` and `dart:io exitCode` are process-global. In a
+   parallel lane one suite's chdir window silently redirects every
+   concurrent suite's relative-path I/O into its temp fixture — the three
+   consecutive red master runs of #1632/#1682.
+   `dart_test.yaml` pins `concurrency: 1` for that reason, **but the pin
+   alone does not hold**: package:test resolves
+   `concurrency => _concurrency ?? defaultConcurrency`, so a CLI `-j 2`
+   overrides the config SILENTLY. The fleet-wide `dart test -j 2`
+   convention therefore broke the invariant without a word — and the
+   symptom is a fast suite that fails in ways that pass in isolation
+   (`pubspec.yaml not found` mid-setup, a sibling's tree read as yours).
+2. **The per-test ceiling is a fixed factor, and a cold child can outrun
+   it.** The global ceiling is `2x` (60s of package:test's 30s base). A
+   fast-tier suite that drives a REAL external child — a `dart analyze`
+   subprocess — pays the analyzer's cold start inside that budget, and on
+   a loaded host the start alone exceeds it. The `ffi` lane already
+   carries `8x` for exactly this reason (#1678); the `spawn` tag
+   (issue #1994) carries the same ceiling for the fast-tier suites that
+   drive a real child.
+
+### What to run
+
+```bash
+# the fast tier, serial, with the CI lane's tag selector
+dart run tools/run_fast_suite.dart
+
+# a subset, still serial
+dart run tools/run_fast_suite.dart test/core
+```
+
+The entrypoint pins `-j 1` explicitly (an implicit default is exactly what
+a fleet-wide `-j 2` overrides) and **refuses** a parallel request with the
+reason instead of inheriting one:
+
+```console
+$ dart run tools/run_fast_suite.dart -j 2
+run_fast_suite: REFUSING concurrency=2.
+...
+$ echo $?
+2
+```
+
+It also runs CI's `dart_core` lane (`--exclude-tags "flutter || e2e"`), so
+the local fast tier is the BOUNDED lane: CI measures it at ~12 minutes,
+while the whole-tree default run (`dart test`, which also pulls in the
+`e2e` temp-project suites) is what pushed a loaded host past a two-hour
+window in #1994.
+
+### The `spawn` tag
+
+A fast-tier suite that drives a real external child carries the `spawn`
+tag, which raises its ceiling to `8x` (240s — the `ffi` precedent):
+
+```dart
+@Tags(['spawn'])
+library;
+```
+
+The tag is NOT a tier: it rides the default `slow` exclusion, so a
+`spawn`-tagged suite still runs in the fast tier (and in CI's
+`dart_core` lane) — it only gets the relaxed ceiling. The tier-integrity
+pin B10 (`test/tier_integrity_test.dart`) keeps the class honest: every
+fast-lane-eligible suite that reaches a real analyzer child through the
+lib must carry the tag.
 
 ## Slow machines: `ZFA_TEST_TIMEOUT_SCALE`
 

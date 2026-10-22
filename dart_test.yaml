@@ -40,6 +40,21 @@
 #
 # Concurrency cap
 # ---------------
+# SERIAL BY DESIGN, and the cap is a CORRECTNESS requirement, not a
+# performance knob: `dart test` runs the suites as isolates of ONE
+# process, so `Directory.current` and `dart:io exitCode` are
+# process-global. In a parallel lane one suite's chdir window silently
+# redirects every concurrent suite's relative-path I/O into its temp
+# fixture (three consecutive red master runs, #1632/#1682).
+#
+# `concurrency: 1` is NOT enough on its own: package:test resolves
+# `concurrency => _concurrency ?? defaultConcurrency`, so a CLI `-j 2`
+# overrides this pin SILENTLY (issue #1994 — the fleet-wide `-j 2`
+# convention turned the fast tier into a flake generator on a loaded
+# shared host: spawn ceilings fired and suites read each other's trees).
+# Run the fast tier through `tools/run_fast_suite.dart`, which owns the
+# cap and REFUSES a parallel run.
+#
 # Many regression/integration tests spin up a throwaway temp project and run
 # `dart pub get` + `build_runner build` (each accumulates a populated
 # `.dart_tool` + AOT snapshot in /tmp), and a `dart run build_runner build`
@@ -93,6 +108,17 @@ tags:
     timeout: 8x
   e2e:
     timeout: 4x
+  spawn:
+    # Loaded-host ceiling for the FAST-tier suites that drive a REAL
+    # external child (a `dart analyze` subprocess, an AOT compile) — issue
+    # #1994. On a shared host under load ~390 the global 2x (60s) ceiling
+    # fired on exactly those suites while they passed in isolation: the
+    # analyzer child's cold start alone eats the budget there. 8x (240s) is
+    # the `ffi` precedent (#1678) — the honest lane stops flaking instead
+    # of being retried. The tag is NOT a tier: it rides the default
+    # `slow` exclusion, so a `spawn`-tagged suite still runs in the fast
+    # tier (and in CI's dart_core lane) with the relaxed ceiling.
+    timeout: 8x
 
 exclude_tags: slow
 
