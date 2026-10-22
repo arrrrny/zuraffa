@@ -548,11 +548,20 @@ class GenCommand extends Command<void> {
     // caller is repairing (the issue's `created=0`).
     final refusedFeatures = <String>{};
     final refusedRows = <String>[];
+    // Issue #1975: the rows the skip leaves undriven are a category of
+    // their own — the envelope must account for EVERY target of the
+    // batch (driven + refused + skipped), never silently drop one.
+    final skippedRows = <String>[];
     for (final (_, featureRef, id) in targets) {
       if (refusedFeatures.contains(featureRef)) {
-        // The feature's remaining rows are skipped: the refusal is
-        // feature-level (its declared routing drifted), so driving them
-        // would repeat the same refusal row after row.
+        // The refusing feature's remaining rows are skipped: this keeps
+        // the SCOPED batch's semantics (a refusal stops its feature at
+        // that row — the caller asked for that feature) and keeps a
+        // refused feature from being half-generated. It is a SCOPE
+        // choice, not a safety rule: the #1388 refusal is per-ROW (that
+        // row's owned pair drifted), so another row of the same feature
+        // may well generate cleanly (issue #1975).
+        skippedRows.add('$featureRef:$id');
         continue;
       }
       final before = exitCode;
@@ -611,11 +620,19 @@ class GenCommand extends Command<void> {
         refusedFeatures.add(featureRef);
         refusedRows.add('$featureRef:$id');
         counts['refused'] = (counts['refused'] ?? 0) + 1;
-        stoppedAt ??= id;
+        if (!unscopedBatch) {
+          // A SCOPED batch has nowhere else to go — the refusal ends it
+          // (that is the scoped semantics this PR keeps). An UNSCOPED
+          // batch keeps driving the other features, so the refusal is
+          // NOT a stop point: `stopped_at` must name a row the batch
+          // really halted at, never one it drove past (issue #1975).
+          stoppedAt = id;
+        }
         print(
           'zfa tdd gen --all: feature $featureRef refused at $id — its '
-          'remaining rows are skipped; the batch continues with the other '
-          'features (issue #1975).',
+          'remaining rows are skipped'
+          '${unscopedBatch ? '; the batch continues with the other features' : ''}'
+          ' (issue #1975).',
         );
         continue;
       }
@@ -643,8 +660,15 @@ class GenCommand extends Command<void> {
       }
     }
 
+    // Issue #1975: `stopped` means the batch HALTED — a hard failure, a
+    // timeout, or (in a scoped batch) the refusal that ends the batch.
+    // An unscoped batch that refused one row but drove every remaining
+    // row did NOT halt: it reports `refused`, and the refusal stays a
+    // non-zero exit (the run was not clean).
     final batchVerdict = stoppedAt != null
         ? 'stopped'
+        : (counts['refused'] ?? 0) > 0
+        ? 'refused'
         : (counts['created'] ?? 0) > 0
         ? 'created'
         : (counts['adopted'] ?? 0) > 0
@@ -665,6 +689,7 @@ class GenCommand extends Command<void> {
       stoppedAt: stoppedAt,
       counts: counts,
       refusedRows: refusedRows,
+      skippedRows: skippedRows,
     );
     if (stoppedAt != null || exitCode != 0) {
       exitCode = 1;
@@ -706,6 +731,7 @@ class GenCommand extends Command<void> {
     required String? stoppedAt,
     required Map<String, int> counts,
     List<String> refusedRows = const [],
+    List<String> skippedRows = const [],
   }) {
     if (!_jsonMode) {
       print(
@@ -714,18 +740,23 @@ class GenCommand extends Command<void> {
         'reused=${counts['reused'] ?? 0} adopted=${counts['adopted'] ?? 0} '
         'regenerated=${counts['regenerated'] ?? 0} '
         'planned=${counts['planned'] ?? 0} '
-        'refused=${counts['refused'] ?? 0}'
+        'refused=${counts['refused'] ?? 0} '
+        'skipped=${skippedRows.length}'
         '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}',
       );
       return;
     }
     // Issue #969: the batch verdict folds into the wrapper's context —
     // the final envelope is emitted once, after the body returns.
+    // Issue #1975: `refused` is a FAILURE of the run (the exit code is
+    // non-zero) — it must never read as a `pass`.
     _verdict
       ..feature = feature
-      ..outcome = verdict == 'stopped'
-          ? VerdictOutcome.stopped
-          : VerdictOutcome.pass;
+      ..outcome = switch (verdict) {
+        'stopped' => VerdictOutcome.stopped,
+        'refused' => VerdictOutcome.fail,
+        _ => VerdictOutcome.pass,
+      };
     _verdict.details
       ..['verdict'] = verdict
       ..['batch'] = true
@@ -738,9 +769,15 @@ class GenCommand extends Command<void> {
       // Issue #1975: the refused rows are named — a refusal stops its
       // FEATURE's rows, not the whole batch, so the envelope must say
       // WHICH rows refused.
-      ..['refused'] = counts['refused'] ?? 0;
+      ..['refused'] = counts['refused'] ?? 0
+      // Issue #1975: the rows the skip left undriven are counted and
+      // named too — the envelope accounts for EVERY target of the batch.
+      ..['skipped'] = skippedRows.length;
     if (refusedRows.isNotEmpty) {
       _verdict.details['refused_rows'] = refusedRows.join(',');
+    }
+    if (skippedRows.isNotEmpty) {
+      _verdict.details['skipped_rows'] = skippedRows.join(',');
     }
     if (stoppedAt != null) _verdict.details['stopped_at'] = stoppedAt;
   }
@@ -1767,11 +1804,17 @@ class GenCommand extends Command<void> {
             // not repairing. Prescribing `zfa tdd reset <feature>` there
             // points a destructive remedy at an unrelated feature — the
             // batch names the SCOPING LEVER instead; a scoped run then
-            // names that feature's own remedy.
+            // names that feature's own remedy. The refusing feature is
+            // named as CONTEXT only: the caller repairs THEIR feature,
+            // and scoping to the refusing one would re-enter the scoped
+            // path (and its destructive remedy) one command later.
             print(
-              '   --> fix: re-run with `--feature $featureName` to scope '
-              'the batch to the feature under repair — the refused row '
-              'belongs to $featureName (issue #1975).',
+              '   --> fix: the refused row belongs to $featureName — this '
+              'batch scans EVERY feature, so re-run with `--feature <the '
+              'feature you are repairing>` to scope it; `--feature '
+              '$featureName` scopes to the refusing feature itself (its '
+              "own remedy applies then). Do not reset $featureName on its "
+              'behalf (issue #1975).',
             );
           } else {
             print(

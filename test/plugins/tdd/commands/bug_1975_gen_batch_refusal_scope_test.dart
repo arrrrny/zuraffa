@@ -22,6 +22,13 @@
 //   U3 — a SCOPED batch (`--all --feature <shipped>`) still stops at the
 //        refusal and keeps the `zfa tdd reset <feature>` remedy — there the
 //        refusing feature IS the feature under repair.
+//   U4 — the skip is ASSERTED: the refusing feature's remaining row is
+//        not generated, while the identical row of the OTHER feature is.
+//   U5 — the JSON envelope accounts for EVERY target: the refused row,
+//        the skipped rows, and no `stopped_at` (the batch drove past the
+//        refusal).
+//   U6 — a HARD failure (a cross-feature ownership conflict) still stops
+//        the WHOLE batch — the refusal scoping never starves a hard stop.
 //
 // The fixture mirrors the issue's shape: two features in one project —
 // `001-purchase-store` (shipped: its pair exists, its subject progressed,
@@ -29,6 +36,7 @@
 // (in flight: planned, never generated).
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -186,6 +194,18 @@ void main() {
     ]);
   }
 
+  /// The batch verdict envelope — the FINAL stdout line under `--json`.
+  Map<String, dynamic> batchEnvelope(String out) {
+    final last = out.trimRight().split('\n').last;
+    final decoded = jsonDecode(last);
+    expect(
+      decoded,
+      isA<Map<String, dynamic>>(),
+      reason: 'the FINAL stdout line must be the batch envelope:\n$out',
+    );
+    return decoded as Map<String, dynamic>;
+  }
+
   test('U1: a refusal in the shipped feature does not starve the '
       "in-flight feature's pending pair", () async {
     await seedRefusingShippedFeature();
@@ -289,9 +309,201 @@ void main() {
           'repair — the reset remedy stays (issue #1975):\n$out',
     );
     expect(
+      out,
+      isNot(contains('the batch continues with the other features')),
+      reason:
+          'a scoped batch has no other features to continue with — the '
+          'message must be true in both scopes (issue #1975):\n$out',
+    );
+    expect(
       CliRunner.lastDispatchedExitCode,
       isNot(0),
       reason: 'the scoped batch stops at the refusal:\n$out',
+    );
+  });
+
+  test('U4: the refusing feature\'s remaining row is skipped — the skip '
+      'is part of the contract, not an accident', () async {
+    await seedRefusingShippedFeature();
+    await seedInflightFeature();
+
+    final out = await runner.runCapturing([
+      'tdd',
+      'gen',
+      '--all',
+      '--project',
+      fx.root.path,
+    ]);
+
+    expect(
+      File(
+        p.join(
+          fx.root.path,
+          'test',
+          'tdd',
+          shippedFeature,
+          'contract_a1_test.dart',
+        ),
+      ).existsSync(),
+      isFalse,
+      reason:
+          'the refusing feature\'s remaining rows are skipped — the skip '
+          'is part of the contract (issue #1975):\n$out',
+    );
+    expect(
+      File(
+        p.join(
+          fx.root.path,
+          'lib',
+          'tdd',
+          shippedFeature,
+          'contract_a1_subject.dart',
+        ),
+      ).existsSync(),
+      isFalse,
+      reason: 'the skipped row\'s subject is not generated either:\n$out',
+    );
+    expect(
+      File(
+        p.join(
+          fx.root.path,
+          'test',
+          'tdd',
+          inflightFeature,
+          'contract_a1_test.dart',
+        ),
+      ).existsSync(),
+      isTrue,
+      reason:
+          'the IDENTICAL row of the OTHER feature is generated — the skip '
+          'is scoped to the refusing feature, never a blanket refusal '
+          '(issue #1975):\n$out',
+    );
+    expect(
+      out,
+      contains('the batch continues with the other features'),
+      reason: 'the unscoped batch says what it does:\n$out',
+    );
+  });
+
+  test(
+    'U5: the JSON envelope accounts for EVERY target of the batch',
+    () async {
+      await seedRefusingShippedFeature();
+      await seedInflightFeature();
+
+      final out = await runner.runCapturing([
+        'tdd',
+        'gen',
+        '--all',
+        '--json',
+        '--project',
+        fx.root.path,
+      ]);
+
+      final envelope = batchEnvelope(out);
+      final details = envelope['details'] as Map<String, dynamic>;
+
+      expect(
+        envelope['verdict'],
+        'fail',
+        reason: 'a refusal is a failure of the run — never a pass:\n$out',
+      );
+      expect(details['refused'], 1, reason: out);
+      expect(details['refused_rows'], '$shippedFeature:U1', reason: out);
+      expect(details['skipped'], 1, reason: out);
+      expect(
+        details['skipped_rows'],
+        '$shippedFeature:contract:A1',
+        reason: 'the skipped row is NAMED, never dropped silently:\n$out',
+      );
+      expect(
+        details.containsKey('stopped_at'),
+        isFalse,
+        reason:
+            'the batch drove every remaining row — it did not stop at the '
+            'refusal, so no row may be named as the stop point (issue '
+            '#1975):\n$out',
+      );
+      expect(details['behaviors'], 4, reason: out);
+    },
+  );
+
+  test('U6: a HARD failure (a cross-feature ownership conflict) still '
+      'stops the WHOLE batch', () async {
+    // The shipped feature's SECOND row owns a file no registry record
+    // owns — gen refuses it with the FR-008 ownership conflict, a HARD
+    // stop that is never scoped to a feature: the in-flight feature's
+    // pending pair must NOT be generated.
+    await fx.seedTestList([
+      (
+        id: 'B-001',
+        description: 'first behavior red',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+      (
+        id: 'B-002',
+        description: 'second behavior red',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+      (
+        id: 'B-003',
+        description: 'never reached',
+        traces: 'FR-001',
+        state: 'PENDING',
+        kind: 'unit',
+      ),
+    ]);
+    final unowned = p.join(
+      fx.root.path,
+      'test',
+      'tdd',
+      shippedFeature,
+      'b_002_test.dart',
+    );
+    await File(unowned).parent.create(recursive: true);
+    await File(unowned).writeAsString('// unowned file\n');
+    await seedInflightFeature();
+
+    final out = await runner.runCapturing([
+      'tdd',
+      'gen',
+      '--all',
+      '--json',
+      '--project',
+      fx.root.path,
+    ]);
+
+    expect(
+      CliRunner.lastDispatchedExitCode,
+      isNot(0),
+      reason: 'the hard failure stops the batch:\n$out',
+    );
+    expect(
+      File(
+        p.join(fx.root.path, 'test', 'tdd', inflightFeature, 'u1_test.dart'),
+      ).existsSync(),
+      isFalse,
+      reason:
+          'a hard failure stops the WHOLE batch — the other feature is '
+          'never driven (issue #1975):\n$out',
+    );
+    expect(
+      File(
+        p.join(fx.root.path, 'test', 'tdd', shippedFeature, 'b_003_test.dart'),
+      ).existsSync(),
+      isFalse,
+      reason: 'the row after the hard failure never ran:\n$out',
+    );
+    final details = batchEnvelope(out)['details'] as Map<String, dynamic>;
+    expect(
+      details['stopped_at'],
+      'B-002',
+      reason: 'the hard stop names its row — only a refusal is scoped:\n$out',
     );
   });
 }
