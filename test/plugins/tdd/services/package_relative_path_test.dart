@@ -1,6 +1,6 @@
 // Fast-tier unit tests for `packageRelativePath` (issue #1983) — the
-// package-root-relative form of a subject artifact's path, the shape the
-// composed subject's header carries.
+// portable form of a subject artifact's path, the shape the composed
+// subject's header carries.
 //
 // The header is a committed source file: the machine-absolute path the
 // discovery resolved would leak the developer's home directory into the
@@ -32,46 +32,87 @@ void main() {
     return file.path;
   }
 
-  test('a file under the package root is relative to it', () {
+  test('a file under the project root package is relative to it', () async {
     write('pubspec.yaml', 'name: pkg\n');
     final subject = write('lib/tdd/900-feature/u1_subject.dart');
 
     expect(
-      packageRelativePath(subject, projectRoot: root.path),
+      await packageRelativePath(subject, projectRoot: root.path),
       'lib/tdd/900-feature/u1_subject.dart',
     );
   });
 
-  test('a file under a NESTED package is relative to THAT package', () {
-    write('packages/app/pubspec.yaml', 'name: app\n');
-    final subject = write('packages/app/lib/tdd/900-feature/u1_subject.dart');
+  test(
+    'a file under a NESTED package is qualified with that package',
+    () async {
+      write('packages/app/pubspec.yaml', 'name: app\n');
+      final subject = write('packages/app/lib/tdd/900-feature/u1_subject.dart');
 
-    expect(
-      packageRelativePath(subject, projectRoot: root.path),
-      'lib/tdd/900-feature/u1_subject.dart',
-      reason:
-          'the package root is the nearest pubspec.yaml ancestor, not the '
-          'project root',
-    );
-  });
+      expect(
+        await packageRelativePath(subject, projectRoot: root.path),
+        'packages/app:lib/tdd/900-feature/u1_subject.dart',
+        reason:
+            'the package qualifier names the package the path is relative to, '
+            'so the path resolves from the project root',
+      );
+    },
+  );
 
-  test('a file outside every package falls back to the project root', () {
+  test('a file outside every package falls back to the project root', () async {
     final subject = write('elsewhere/u1_subject.dart');
 
     expect(
-      packageRelativePath(subject, projectRoot: root.path),
+      await packageRelativePath(subject, projectRoot: root.path),
       'elsewhere/u1_subject.dart',
     );
   });
 
-  test('a file outside the project root keeps its own path', () {
-    final subject = write('elsewhere/u1_subject.dart');
-    final resolved = Link(subject).resolveSymbolicLinksSync();
+  test('a file outside the project root keeps only its file name', () async {
+    final outside = Directory.systemTemp.createTempSync('pkg_rel_outside_');
+    addTearDown(() {
+      if (outside.existsSync()) outside.deleteSync(recursive: true);
+    });
+    final subject = File(p.join(outside.path, 'u1_subject.dart'))
+      ..writeAsStringSync('');
 
     expect(
-      packageRelativePath(subject, projectRoot: p.join(root.path, 'nope')),
-      resolved.replaceAll(r'\', '/'),
-      reason: 'a path that cannot be made portable is never mangled',
+      await packageRelativePath(subject.path, projectRoot: root.path),
+      '<outside-project>/u1_subject.dart',
+      reason:
+          'a path that cannot be made portable never leaks a machine-absolute '
+          'path into a committed header',
+    );
+  });
+
+  test('the package walk never leaves the project root', () async {
+    // An ancestor pubspec.yaml belongs to another workspace: relativizing
+    // to it would put a machine-specific prefix back into the header.
+    final outer = Directory(p.join(root.path, 'outer'))
+      ..createSync(recursive: true);
+    File(p.join(outer.path, 'pubspec.yaml')).writeAsStringSync('name: outer\n');
+    final projectRoot = Directory(p.join(outer.path, 'inner'))
+      ..createSync(recursive: true);
+    final subject = File(p.join(projectRoot.path, 'lib', 'u1_subject.dart'))
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('');
+
+    expect(
+      await packageRelativePath(subject.path, projectRoot: projectRoot.path),
+      'lib/u1_subject.dart',
+      reason: 'the ancestor package must not become the base',
+    );
+  });
+
+  test('a file that does not exist yet is still portable', () async {
+    write('pubspec.yaml', 'name: pkg\n');
+    final subject = p.join(root.path, 'lib', 'tdd', '900', 'u1_subject.dart');
+
+    expect(
+      await packageRelativePath(subject, projectRoot: root.path),
+      'lib/tdd/900/u1_subject.dart',
+      reason:
+          'a missing file resolves through its nearest existing ancestor, '
+          'never through the absolute fallback',
     );
   });
 }

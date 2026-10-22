@@ -1,6 +1,6 @@
 // Fast-tier regression test for bug #1983 — the composed subject's header
-// must name its anchors by PACKAGE-RELATIVE path, never by the
-// machine-absolute path the discovery resolved.
+// must name its anchors by a PORTABLE path, never by the machine-absolute
+// path the discovery resolved.
 //
 // Before the fix the header read
 //
@@ -9,8 +9,10 @@
 //
 // — the header is a committed source file, so one developer's home
 // directory ends up in the repository and the trace means nothing on
-// another machine. The expected form is the path relative to the PACKAGE
-// root (e.g. `lib/tdd/002-subscription-error-vocabulary/u1_subject.dart`).
+// another machine. The expected form is the anchor's package-qualified
+// path (e.g. `lib/tdd/002-subscription-error-vocabulary/u1_subject.dart`
+// for the flat layout, `packages/app:lib/tdd/.../u1_subject.dart` for a
+// package below the project root).
 //
 // The fixture models the reported layout (arrrrny/zuraffa_purchase PR #4):
 // a project root holding `specs/` with the package under `packages/<name>/`
@@ -166,13 +168,10 @@ int subject_u_001() => 0;
     expect(
       composed,
       contains('// composed against: U-001 (lib/tdd/$feature/u1_subject.dart)'),
-      reason: 'the header must carry the package-relative anchor path',
+      reason: 'the header must carry the portable anchor path',
     );
-    expect(
-      composed,
-      isNot(contains(root.path)),
-      reason: 'the header must not leak the machine-absolute path',
-    );
+    expect(composed, isNot(contains(root.path)));
+    expect(_anchorPathsAreNotAbsolute(composed), isTrue);
   });
 
   test('bug 1983: the composed header names its anchors by package-relative '
@@ -183,20 +182,26 @@ int subject_u_001() => 0;
 
     expect(
       composed,
-      contains('// composed against: U-001 (lib/tdd/$feature/u1_subject.dart)'),
+      contains(
+        '// composed against: U-001 '
+        '(packages/app:lib/tdd/$feature/u1_subject.dart)',
+      ),
       reason:
-          'the anchor path is relative to the PACKAGE root, not the project '
-          'root',
+          'the anchor path is qualified with the package it lives in, so it '
+          'resolves from the project root and names no other package',
     );
-    expect(
-      composed,
-      isNot(contains(root.path)),
-      reason: 'the header must not leak the machine-absolute path',
-    );
-    expect(
-      composed,
-      isNot(contains('packages/app')),
-      reason: 'the package directory is not part of the portable path',
-    );
+    expect(composed, isNot(contains(root.path)));
+    expect(_anchorPathsAreNotAbsolute(composed), isTrue);
   });
+}
+
+/// The invariant the leak guard asserts: every path the
+/// `// composed against:` header names is RELATIVE — a machine-absolute
+/// path is the leak issue #1983 is about, whichever machine it names.
+bool _anchorPathsAreNotAbsolute(String composed) {
+  final line = composed
+      .split('\n')
+      .firstWhere((l) => l.startsWith('// composed against:'));
+  final paths = RegExp(r'\(([^)]*)\)').allMatches(line).map((m) => m.group(1)!);
+  return paths.every((path) => !p.isAbsolute(path));
 }

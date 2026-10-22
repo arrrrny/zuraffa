@@ -124,6 +124,20 @@ The stub signature parsed is wire's (`int|void <name>() => throw
 UnimplementedError(`), so compose and wire stay interchangeable on the same
 subject contract.
 
-The anchor paths in the header are relative to the PACKAGE root — the
-directory carrying the package's `pubspec.yaml` — so the committed file
-carries no machine-absolute path (issue #1983).
+The anchor paths in the header are PORTABLE: they never carry a
+machine-absolute path, so the committed file leaks no local layout and the
+trace means the same thing on every machine (issue #1983).
+
+The path is the anchor's package-qualified form, resolved against the
+PROJECT root — the directory the composition runs in:
+
+- a package that IS the project root (the flat single-package layout):
+  the path inside the package, `lib/tdd/<feature>/u1_subject.dart`;
+- a package below the project root (`packages/<name>/`): the package's
+  directory relative to the project root, a `:`, then the path inside that
+  package — `packages/app:lib/tdd/<feature>/u1_subject.dart`.
+
+Either way the reader resolves the path from the project root, and an
+anchor that lives in a different package than the composed subject is
+unambiguous. A file outside the project root has no portable form and is
+rendered as `<outside-project>/<file name>` — never as an absolute path.
