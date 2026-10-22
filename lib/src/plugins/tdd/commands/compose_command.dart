@@ -60,6 +60,7 @@ import '../services/artifact_registry.dart';
 import '../services/composition_targets.dart';
 import '../services/cycle_log_sections.dart';
 import '../services/feature_path_resolver.dart';
+import '../services/package_relative_path.dart';
 import '../services/registry_drift.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/verdict_emitter.dart';
@@ -422,7 +423,7 @@ class ComposeCommand extends Command<void> {
     // -------------------------------------------------------------
     // 6. Emit the composed implementation (FR-004).
     // -------------------------------------------------------------
-    final composed = _renderComposed(
+    final composed = await _renderComposed(
       record: record,
       returnType: returnType,
       functionName: functionName,
@@ -496,14 +497,14 @@ class ComposeCommand extends Command<void> {
     return null;
   }
 
-  String _renderComposed({
+  Future<String> _renderComposed({
     required ArtifactRecord record,
     required String returnType,
     required String functionName,
     required List<ComposableUnitSubject> anchors,
     required String projectRoot,
     required String subjectDir,
-  }) {
+  }) async {
     final imports = StringBuffer();
     final symbols = StringBuffer();
     for (var i = 0; i < anchors.length; i++) {
@@ -519,17 +520,32 @@ class ComposeCommand extends Command<void> {
     // behaviors are still stubs — name each anchor's status so the audit
     // trail says exactly what the composition rests on. Issue #1162:
     // stub-only anchors (bug features) carry the same honesty.
-    final anchorList = anchors
-        .map(
-          (a) =>
-              '${a.behaviorId} (${a.subjectPath})'
-              '${a.stubOnly
-                  ? ' [stub]'
-                  : a.entityWired
-                  ? ' [entity-wired]'
-                  : ''}',
-        )
-        .join(', ');
+    // Issue #1983: the header names each anchor by its PORTABLE path — the
+    // header is a committed source file, so the machine-absolute path the
+    // discovery resolved would leak the developer's home directory into the
+    // repository and mean nothing on another machine. The path is the
+    // anchor's package-qualified, project-root-relative form
+    // (`packages/app:lib/tdd/<feature>/u1_subject.dart`), so a reader can
+    // resolve it from the project root and a cross-package anchor is
+    // unambiguous. The behavior ids were already portable; only the paths
+    // change.
+    final anchorEntries = <String>[];
+    for (final a in anchors) {
+      final anchorPath = await packageRelativePath(
+        a.subjectPath,
+        projectRoot: projectRoot,
+      );
+      anchorEntries.add(
+        '${a.behaviorId} '
+        '($anchorPath)'
+        '${a.stubOnly
+            ? ' [stub]'
+            : a.entityWired
+            ? ' [entity-wired]'
+            : ''}',
+      );
+    }
+    final anchorList = anchorEntries.join(', ');
     final body = returnType == 'void'
         ? '''
   // Composition anchor: references the feature's green / entity-wired unit
