@@ -39,13 +39,19 @@ import 'package:zuraffa/src/plugins/tdd/services/test_list_reader.dart';
 import '../helpers/corpus_fixture.dart';
 import '../helpers/tdd_fixture.dart';
 
-/// Reads the process-global `dart:io CliRunner.lastDispatchedExitCode` and immediately resets it,
-/// so this suite never LEAKS a nonzero code into a concurrently-running
-/// suite's CliRunner.lastDispatchedExitCode assertion (`CliRunner.lastDispatchedExitCode` is process-global across test
+/// Reads the per-isolate `CliRunner.lastDispatchedExitCode` and immediately
+/// resets it, so this suite never LEAKS a nonzero code into a
+/// concurrently-running suite's exit-code assertion
+/// (`CliRunner.lastDispatchedExitCode` is process-global across test
 /// isolates — the suite-wide flake hazard the eager reset shrinks).
+///
+/// It reads the RUNNER'S snapshot, not `dart:io exitCode`: `runCapturing`
+/// restores the global `exitCode` to its prior value when the dispatch
+/// unwinds, so the dispatched command's status only survives in
+/// `lastDispatchedExitCode` (issue #2000).
 int takeExitCode() {
-  final code = exitCode;
-  exitCode = 0;
+  final code = CliRunner.lastDispatchedExitCode;
+  CliRunner.lastDispatchedExitCode = 0;
   return code;
 }
 
@@ -522,12 +528,17 @@ coverage: 'dart test --coverage'
       // emits an HONEST assertion-failure transcript for the generated
       // contract test (the real `dart test` lane is proven in the slow
       // e2e suite; the classifier consuming the transcript is real here).
+      //
+      // The assertion block is INDENTED, exactly as `dart test` prints it:
+      // the classifier only accepts an assertion report whose `Expected:`
+      // and `Actual:` labels sit on an indented line (a bare column-0
+      // `Expected:` is not an assertion report — issue #2000).
       final fakeRunner = p.join(tmp.path, '.fake-contract-runner');
       await File(fakeRunner).writeAsString('''
 #!/bin/sh
 echo "00:00 +0 -1: contract:A1 (User.validateEmail) contract:A1 - User.validateEmail(String email) -> bool (entity method contract) [E]"
-echo "Expected: not <Instance of 'UnimplementedError'>"
-echo "  Actual: UnimplementedError:<User.validateEmail is not implemented>"
+echo "  Expected: not <Instance of 'UnimplementedError'>"
+echo "    Actual: UnimplementedError:<User.validateEmail is not implemented>"
 exit 1
 ''');
       await Process.run('chmod', ['+x', fakeRunner]);
