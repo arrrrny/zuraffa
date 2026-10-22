@@ -69,7 +69,7 @@ void main() {
     });
 
     test('U-1685-G2: REAL analyzer compile check rejects the historical '
-        'snippet (undefined_getter, the issue\'s exact error)', () async {
+        'snippet (the undefined-member error the issue reported)', () async {
       const buggy =
           "final _tmp = Directory.systemTemp.createTempSync('x_');\n"
           'addTearDown(_tmp.deleteRecursively);';
@@ -79,7 +79,15 @@ void main() {
         isFalse,
         reason: 'the historical snippet must NOT compile',
       );
-      expect(result.issues.map((i) => i.code), contains('undefined_getter'));
+      // The diagnostic NAME moved with the analyzer: 14.5.x reports
+      // `undefined_getter`, 14.6.0 renamed it `undefined_instance_member_read`
+      // — the same "the member isn't defined for the type" failure class.
+      // The repo commits no lockfile, so CI resolves whichever analyzer 14.x
+      // is current — accept both names of that ONE error class.
+      expect(
+        result.issues.map((i) => i.code),
+        contains(anyOf('undefined_getter', 'undefined_instance_member_read')),
+      );
     }, timeout: const Timeout(Duration(minutes: 3)));
 
     test('U-1685-G2: the fixed render passes the REAL analyzer compile check '
