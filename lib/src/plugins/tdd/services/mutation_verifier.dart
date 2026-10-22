@@ -109,6 +109,31 @@ class MutationConfigError implements Exception {
   String toString() => 'MutationConfigError: $reason';
 }
 
+/// The exit code a child killed with SIGKILL reports on POSIX (-9).
+const int _sigkillExitCode = -9;
+
+/// Thrown when the mutation child was KILLED — the deadline kill (bug #742)
+/// or any other signal death.
+///
+/// A killed run never finishes, so it never writes a report: the run has
+/// NO score of its own. Publishing a number parsed from whatever report
+/// happens to be on disk would publish a PREVIOUS run's score (issue
+/// #1985), so a killed run is always reported as not-assessed, carrying
+/// the child's exit code.
+class MutationRunKilled implements Exception {
+  MutationRunKilled(this.reason, {required this.exitCode});
+
+  /// Human-readable reason — the audit report's `not_assessed_reason`.
+  final String reason;
+
+  /// The child's exit code: negative on POSIX (the signal number that
+  /// killed it — e.g. -15 for SIGTERM, -9 for SIGKILL).
+  final int exitCode;
+
+  @override
+  String toString() => reason;
+}
+
 /// Runs `dart run mutation_test <config>` and parses the markdown report.
 class MutationVerifier {
   MutationVerifier({
@@ -117,6 +142,7 @@ class MutationVerifier {
     this.reportFormat = 'md',
     this.workingDirectory,
     Duration? timeout,
+    this.dartBinary,
   }) : timeout = timeout ?? TddTimeouts.defaultMutationRun;
 
   /// Path to the `mutation-test.xml` config relative to [workingDirectory]
@@ -136,6 +162,11 @@ class MutationVerifier {
   /// `Directory.current.path`.
   final String? workingDirectory;
 
+  /// The `dart` executable to invoke. Null (the production path) resolves
+  /// `dart` from PATH; a test can point it at a stub so the child's fate
+  /// (a clean exit, a signal death) is deterministic.
+  final String? dartBinary;
+
   /// Hard deadline for the mutation run (bug #742): the child is killed
   /// (SIGKILL) at the deadline and a [ProcessTimeoutException] is thrown —
   /// the audit hangs never. Generous by design: the mutation run is the
@@ -148,7 +179,7 @@ class MutationVerifier {
   /// runner exits non-zero and produces no report (e.g. config not found,
   /// XML parse error).
   Future<MutationResult> run() async {
-    final dartBin = await _resolveDartBinary();
+    final dartBin = dartBinary ?? await _resolveDartBinary();
     if (dartBin == null) {
       throw MutationToolUnavailable(
         '`dart` binary not found on PATH. The `mutation_test` package is '
@@ -167,6 +198,15 @@ class MutationVerifier {
     }
 
     final outArg = p.join(cwd, outputDir);
+    final reportPath = p.join(outArg, 'mutation-test-report.$reportFormat');
+
+    // Issue #1985: the report path is per WORKING DIRECTORY, not per
+    // feature — the previous feature's verify run left its report here.
+    // A run that is killed never rewrites it, so the stale file would be
+    // parsed as this run's score. Remove it BEFORE the child starts: a
+    // run that produces no report then finds no report at all.
+    final staleRemoved = await _removeStaleReport(reportPath);
+
     final args = <String>[
       'run',
       'mutation_test',
@@ -181,33 +221,38 @@ class MutationVerifier {
     // Bug #742: the mutation run is under a hard deadline — the child is
     // killed at the deadline and a ProcessTimeoutException propagates to
     // the auditor, which maps it to NOT_ASSESSED.
-    final result = await runTimed(
-      dartBin,
-      args,
-      workingDirectory: cwd,
-      timeout: timeout,
-      // Deliberately NOT runInShell: on POSIX that wraps the invocation in
-      // `sh -c` with the arguments joined, so a config path containing a
-      // space or shell metacharacter would be re-split or interpreted.
-      // `dart` is resolved from PATH by the OS without a shell.
-    );
+    final result = await _runChild(dartBin, args, cwd);
     stopwatch.stop();
 
     final stdoutText = result.stdout.toString();
     final stderrText = result.stderr.toString();
     final exitCode = result.exitCode;
 
-    final reportPath = p.join(outArg, 'mutation-test-report.$reportFormat');
+    if (exitCode < 0) {
+      // Issue #1985: the child was killed by a signal (e.g. SIGTERM at the
+      // deadline) — it never finished, so it wrote no report. Publishing
+      // a score here would publish the PREVIOUS run's report as this
+      // feature's.
+      throw MutationRunKilled(
+        'mutation run killed by signal ${-exitCode} (exit code $exitCode) — '
+        'the child never finished, so no mutation score can be published',
+        exitCode: exitCode,
+      );
+    }
+
     final reportFile = File(reportPath);
     final reportExists = await reportFile.exists();
-    if (!reportExists && exitCode != 0) {
+    // Issue #1985: only a report THIS run produced may be parsed. When a
+    // predecessor could not be removed, the file on disk is not ours.
+    final usableReport = reportExists && staleRemoved;
+    if (!usableReport && exitCode != 0) {
       throw MutationConfigError(
         'mutation_test exited with code $exitCode and produced no report. '
         'Stderr: ${stderrText.trim()}',
       );
     }
 
-    final reportText = reportExists ? await reportFile.readAsString() : '';
+    final reportText = usableReport ? await reportFile.readAsString() : '';
     final counts = _parseCounts(reportText, stdoutText);
 
     return MutationResult(
@@ -216,11 +261,59 @@ class MutationVerifier {
       survivedCount: counts.survived,
       timeoutCount: counts.timeout,
       elapsed: stopwatch.elapsed,
-      reportPath: reportExists ? reportPath : null,
+      reportPath: usableReport ? reportPath : null,
       stdoutText: stdoutText,
       stderrText: stderrText,
       survivors: parseMutationSurvivors(reportText),
     );
+  }
+
+  /// Runs the mutation child under the hard deadline.
+  ///
+  /// A child that outlives the deadline is KILLED (SIGKILL), so it never
+  /// writes a report — the run has no score of its own (issue #1985).
+  /// That is reported as [MutationRunKilled], never as a score parsed
+  /// from the report a previous run left behind.
+  Future<ProcessResult> _runChild(
+    String dartBin,
+    List<String> args,
+    String cwd,
+  ) async {
+    try {
+      return await runTimed(
+        dartBin,
+        args,
+        workingDirectory: cwd,
+        timeout: timeout,
+        // Deliberately NOT runInShell: on POSIX that wraps the invocation in
+        // `sh -c` with the arguments joined, so a config path containing a
+        // space or shell metacharacter would be re-split or interpreted.
+        // `dart` is resolved from PATH by the OS without a shell.
+      );
+    } on ProcessTimeoutException catch (e) {
+      throw MutationRunKilled(
+        'mutation run timed out: the ${e.timeout} deadline was reached and '
+        'the child was killed (SIGKILL) — no report was produced, so no '
+        'mutation score can be published',
+        exitCode: _sigkillExitCode,
+      );
+    }
+  }
+
+  /// Removes the report a previous run left at [reportPath] (issue #1985).
+  ///
+  /// Returns true when no untrusted predecessor remains — either there
+  /// was none, or it was removed. A report that could NOT be removed is
+  /// a report this run must not claim, so the caller distrusts it.
+  Future<bool> _removeStaleReport(String reportPath) async {
+    try {
+      final file = File(reportPath);
+      if (!await file.exists()) return true;
+      await file.delete();
+      return !await file.exists();
+    } on IOException {
+      return false;
+    }
   }
 
   Future<String?> _resolveDartBinary() async {

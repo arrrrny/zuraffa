@@ -660,6 +660,7 @@ class MutationAuditor {
     // or to the override).
     MutationResult? mutationResult;
     String? notAssessedReason;
+    int? killedExitCode;
 
     // Register signal handlers to restore source before process exit (FR-021).
     // Without this, SIGINT/SIGTERM would terminate before the finally block
@@ -681,6 +682,13 @@ class MutationAuditor {
       notAssessedReason = 'mutation tool unavailable: $e';
     } on MutationConfigError catch (e) {
       notAssessedReason = 'mutation config error: $e';
+    } on MutationRunKilled catch (e) {
+      // Issue #1985: the mutation child was KILLED — it never finished,
+      // so it wrote no report and this run has NO score of its own. The
+      // report's exit code travels with the verdict; a number parsed
+      // from the report a previous run left behind never does.
+      notAssessedReason = e.reason;
+      killedExitCode = e.exitCode;
     } on ProcessTimeoutException catch (e) {
       // Bug #742: the mutation run outlived its deadline and was killed.
       notAssessedReason = 'mutation run timed out: $e';
@@ -707,6 +715,7 @@ class MutationAuditor {
         restorationScope: restorer.capturedPaths,
         notAssessedReason: notAssessedReason,
         runnerCommand: 'dart run mutation_test',
+        exitCode: killedExitCode,
         scoreThreshold: _scoreThreshold,
         specHash: specHash,
         subjectHashes: subjectHashes,
@@ -729,6 +738,42 @@ class MutationAuditor {
         restorationVerified: restorer.hashMatchesAll(),
         restorationScope: restorer.capturedPaths,
         notAssessedReason: 'mutation report was empty or unparseable',
+        runnerCommand: 'dart run mutation_test',
+        exitCode: mutationResult.exitCode,
+        elapsedSeconds: mutationResult.elapsed.inSeconds,
+        scoreThreshold: _scoreThreshold,
+        specHash: specHash,
+        subjectHashes: subjectHashes,
+        preflightScopeRan: preflight.ranTestPaths,
+      );
+    }
+
+    // Issue #1985: the survivor list must never name a file outside the
+    // recorded scope — that mismatch means the report does not belong to
+    // this run (it is the report a previous feature's verify left in the
+    // working directory's shared report path). Such a run publishes no
+    // score at all.
+    final outOfScope = survivorsOutsideScope(
+      mutationResult.survivors,
+      _relativeToWorkingDirectory(scope.subjectPaths),
+    );
+    if (outOfScope.isNotEmpty) {
+      return MutationAuditReport(
+        feature: p.basename(featureDir),
+        gate: MutationGateDecision.notAssessed,
+        killedCount: 0,
+        survivedCount: 0,
+        timedOutCount: 0,
+        behaviorIds: scope.behaviorIds,
+        sourceCriteriaByBehavior: scope.sourceCriteriaByBehavior,
+        mutationWasRun: true,
+        restorationVerified: restorer.hashMatchesAll(),
+        restorationScope: restorer.capturedPaths,
+        notAssessedReason:
+            'mutation report does not belong to this run: it names '
+            'survivor file(s) outside the recorded scope '
+            '(${outOfScope.join(', ')}) --> fix: re-run the verify for this '
+            "feature; the previous run's report was reused",
         runnerCommand: 'dart run mutation_test',
         exitCode: mutationResult.exitCode,
         elapsedSeconds: mutationResult.elapsed.inSeconds,
@@ -1098,6 +1143,39 @@ String mutantCommandFromTemplate(String template, List<String> testPaths) {
   final first = template.replaceAll('{file}', testPaths.first);
   final rest = testPaths.skip(1).join(' ');
   return rest.isEmpty ? first : '$first $rest';
+}
+
+/// The survivor files that fall OUTSIDE the recorded scope (issue #1985).
+///
+/// The mutation report names the files it mutated. A name outside the
+/// feature's registered subjects means the report does not belong to this
+/// run — it is the report a previous feature's verify left behind in the
+/// working directory's shared report path. Such a run must never publish
+/// a score.
+List<String> survivorsOutsideScope(
+  List<MutationSurvivor> survivors,
+  List<String> scopePaths,
+) {
+  final scope = scopePaths.map(normalizeScopePath).toSet();
+  final outside = <String>[];
+  for (final survivor in survivors) {
+    final file = normalizeScopePath(survivor.file);
+    if (!scope.contains(file) && !outside.contains(survivor.file)) {
+      outside.add(survivor.file);
+    }
+  }
+  return outside;
+}
+
+/// Normalizes a scope/report path for comparison: POSIX separators and no
+/// leading `./` — the report echoes the config's `<file>` entries, the
+/// scope holds the registry's subject paths.
+String normalizeScopePath(String path) {
+  var out = path.replaceAll('\\', '/');
+  while (out.startsWith('./')) {
+    out = out.substring(2);
+  }
+  return out;
 }
 
 /// Extension to make hash-matching ergonomic on [SourceRestorer].
