@@ -663,6 +663,7 @@ class GenCommand extends Command<void> {
         'gen: feature=${feature ?? '-'} behaviors=$behaviors '
         'verdict=$verdict created=${counts['created'] ?? 0} '
         'reused=${counts['reused'] ?? 0} adopted=${counts['adopted'] ?? 0} '
+        'repaired=${counts['repaired'] ?? 0} '
         'regenerated=${counts['regenerated'] ?? 0} '
         'planned=${counts['planned'] ?? 0}'
         '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}',
@@ -678,6 +679,7 @@ class GenCommand extends Command<void> {
           'created': counts['created'] ?? 0,
           'reused': counts['reused'] ?? 0,
           'adopted': counts['adopted'] ?? 0,
+          'repaired': counts['repaired'] ?? 0,
           'regenerated': counts['regenerated'] ?? 0,
           'planned': counts['planned'] ?? 0,
           'stopped_at': ?stoppedAt,
@@ -699,6 +701,7 @@ class GenCommand extends Command<void> {
       ..['created'] = counts['created'] ?? 0
       ..['reused'] = counts['reused'] ?? 0
       ..['adopted'] = counts['adopted'] ?? 0
+      ..['repaired'] = counts['repaired'] ?? 0
       ..['regenerated'] = counts['regenerated'] ?? 0
       ..['planned'] = counts['planned'] ?? 0;
     if (stoppedAt != null) _verdict.details['stopped_at'] = stoppedAt;
@@ -814,6 +817,18 @@ class GenCommand extends Command<void> {
             '(issue #1528)'
         ..details['setup'] = 'missing/broken ${TddProfilePreflight.profilePath}'
         ..details['classification'] = kSetupErrorLabel;
+      // Issue #1979 review: the house pattern (spec 048) — the
+      // machine-readable verdict is the FINAL stdout line on EVERY path,
+      // the setup-error refusal included. Without it the recovery
+      // tooling could not read this refusal (bug #840's contract).
+      _printVerdict(
+        behaviorId: behavior.id,
+        verdict: 'setup-error',
+        reason:
+            'the TDD baseline could not be ensured before the flow: '
+            '${e.message}',
+        kind: behavior.kind.name,
+      );
       exitCode = 1;
       return null;
     }
@@ -1155,24 +1170,74 @@ class GenCommand extends Command<void> {
     // `test/tdd/<id>_test.dart` + `lib/tdd/<id>_subject.dart`) is still
     // what `zfa tdd doctor` scans, and the doctor's prescription for a
     // flat orphan is `--adopt`. Adopt mode therefore also looks at the
-    // flat candidates: when the namespaced pair is absent, no registry
-    // record claims the behavior, and a flat candidate exists, the pair
-    // is adopted IN PLACE — the flat candidate's own directory, so the
-    // adopted half's relative subject import keeps resolving and the
-    // missing half is generated beside it (never in a second directory).
-    // Without this the doctor's prescription was a dead end: gen wrote a
-    // FRESH namespaced pair and left the orphan behind.
-    if (adopt && !dryRun && prior == null) {
-      final flatTestPath = '$cwd/test/tdd/${snakeId}_test.dart';
-      final flatSubjectPath = '$cwd/lib/tdd/${snakeId}_subject.dart';
-      final namespacedAbsent =
-          !File(testPath).existsSync() && !File(subjectPath).existsSync();
-      final flatPresent =
-          File(flatTestPath).existsSync() || File(flatSubjectPath).existsSync();
-      if (namespacedAbsent && flatPresent) {
-        testPath = flatTestPath;
-        subjectPath = flatSubjectPath;
+    // flat candidates: when no registry record claims the behavior and a
+    // flat candidate exists, the pair is adopted IN PLACE — the flat
+    // candidate's own directory, so the adopted half's relative subject
+    // import keeps resolving and the missing half is generated beside it
+    // (never in a second directory). Without this the doctor's
+    // prescription was a dead end: gen wrote a FRESH namespaced pair and
+    // left the orphan behind.
+    //
+    // Review follow-up (PR #1988):
+    //  - The FLAT pair is adopted IN PLACE whenever the behavior is
+    //    unrecorded and a flat candidate exists — even when a namespaced
+    //    pair sits next to it. The doctor's prescription names the FLAT
+    //    files, so adopting the NAMESPACED pair instead left the reported
+    //    drift exactly where it was: every later doctor run reported the
+    //    identical drift, forever.
+    //  - A RECORDED behavior keeps the layout its record names: a
+    //    flat-recorded pair is re-pointed at the flat paths, so the
+    //    ownership preflight compares like with like (without this a
+    //    re-gen of an adopted flat pair refused with a path mismatch —
+    //    the recorded flat paths vs. the computed namespaced ones).
+    final flatTestPath = '$cwd/test/tdd/${snakeId}_test.dart';
+    final flatSubjectPath = '$cwd/lib/tdd/${snakeId}_subject.dart';
+    final flatTestPresent = File(flatTestPath).existsSync();
+    final flatSubjectPresent = File(flatSubjectPath).existsSync();
+    final namespacedPairPresent =
+        File(testPath).existsSync() && File(subjectPath).existsSync();
+    if (prior != null &&
+        _recordsFlatLayout(prior, flatTestPath, flatSubjectPath, cwd)) {
+      // The RECORD names the flat layout — honor it on EVERY later run,
+      // adopted or not. The computed namespaced paths would otherwise
+      // mismatch the recorded flat ones, and the ownership preflight
+      // would refuse the pair as a path disagreement (CodeRabbit's
+      // finding on this head): the recorded flat pair exists on disk, so
+      // that refusal had nothing to resolve.
+      testPath = flatTestPath;
+      subjectPath = flatSubjectPath;
+    } else if (adopt &&
+        !dryRun &&
+        prior == null &&
+        (flatTestPresent || flatSubjectPresent)) {
+      if (namespacedPairPresent && !(flatTestPresent && flatSubjectPresent)) {
+        // A HALF of the flat pair next to a COMPLETE namespaced pair:
+        // adopting the flat half would fork the behavior into two pairs
+        // (the missing flat half would have to be generated beside it).
+        // The orphan is surfaced instead of silently resolved — the
+        // doctor keeps naming it until it is removed.
+        _printVerdict(
+          behaviorId: behavior.id,
+          verdict: 'flat-orphan',
+          reason:
+              'the unowned flat candidate '
+              '${flatTestPresent ? flatTestPath : flatSubjectPath} '
+              'sits next to the complete namespaced pair '
+              '(${p.relative(testPath, from: cwd)}, '
+              '${p.relative(subjectPath, from: cwd)}) — adopting the '
+              'flat half alone would split the pair; remove the flat '
+              'residue (or migrate it) so one pair owns the behavior',
+          featureName: featureName,
+          featureDisplay: featureDisplay,
+          kind: behavior.kind.name,
+        );
+        exitCode = 1;
+        return 'flat-orphan';
       }
+      // The flat pair is adopted IN PLACE — the doctor's prescription
+      // names these files, so they are the ones that become owned.
+      testPath = flatTestPath;
+      subjectPath = flatSubjectPath;
     }
 
     // Issue #1574: the RECORD carries the portable project-relative POSIX
@@ -1410,10 +1475,11 @@ class GenCommand extends Command<void> {
               'zfa tdd gen: foreign-owned — the conflicting file is owned '
               'by feature $foreignOwner',
             );
-            throw StateError(
-              'zfa tdd gen: foreign-owned — the conflicting file is owned '
-              'by feature $foreignOwner',
-            );
+            // House pattern (spec 048): signal through exitCode + return,
+            // so the machine-readable verdict stays the final stdout line
+            // (bug #840). The throw used to escape the command and the
+            // runner appended its own error line AFTER the verdict.
+            return 'foreign-owned';
           }
           // Issue #1495: the refusal names the command that RESOLVES this
           // drift direction — never the command that refused. --adopt is
@@ -1437,9 +1503,9 @@ class GenCommand extends Command<void> {
             'zfa tdd gen: ownership conflict — $e '
             '--> fix: $remedyFix',
           );
-          throw StateError(
-            'zfa tdd gen: ownership conflict — $e --> fix: $remedyFix',
-          );
+          // House pattern (spec 048): signal through exitCode + return, so
+          // the machine-readable verdict stays the final stdout line.
+          return 'refused';
         }
         adoptConflict = true;
       }
@@ -1463,10 +1529,9 @@ class GenCommand extends Command<void> {
               'nothing unowned to adopt',
         );
         exitCode = 1;
-        throw StateError(
-          'zfa tdd gen: --adopt refused — a registry record for '
-          '"${behavior.id}" already exists',
-        );
+        // House pattern (spec 048): signal through exitCode + return, so
+        // the machine-readable verdict stays the final stdout line.
+        return 'refused';
       }
       // Bug #874: the existing file(s) may be another feature's recorded
       // artifact. Consult ALL feature registries before calling anything
@@ -1879,8 +1944,19 @@ class GenCommand extends Command<void> {
       kind: effectiveBehavior.kind.name,
       golden: goldenGate,
       verdict: verdictToken,
-      adopted: adoptedPaths,
-      created: createdPaths,
+      // Issue #1574's discipline: the verdict carries the PORTABLE
+      // project-relative form — the same form the registry record
+      // written moments later carries (recordTestPath /
+      // recordSubjectPath). The machine-absolute form leaked
+      // `/var/folders/…` paths into every terminal, log and pasted
+      // report; with this PR the verdict is the DEFAULT output, so the
+      // leak reached everything the command prints.
+      adopted: adoptedPaths
+          .map((path) => p.relative(path, from: cwd).replaceAll(r'\', '/'))
+          .toList(),
+      created: createdPaths
+          .map((path) => p.relative(path, from: cwd).replaceAll(r'\', '/'))
+          .toList(),
       featureName: featureName,
       featureDisplay: featureDisplay,
       repaired: repairConflict,
@@ -1890,6 +1966,23 @@ class GenCommand extends Command<void> {
     // Spec 069 T002: the token feeds the batch's created/reused counts.
     return verdictToken;
   }
+
+  /// Whether [record] names the LEGACY FLAT layout — both recorded paths
+  /// resolve to the flat candidates. The recorded form may be
+  /// project-relative or machine-absolute; both resolve against the
+  /// project root (issue #1397's discipline), never the process CWD.
+  bool _recordsFlatLayout(
+    ArtifactRecord record,
+    String flatTestPath,
+    String flatSubjectPath,
+    String cwd,
+  ) =>
+      _sameResolvedPath(record.testPath, flatTestPath, cwd) &&
+      _sameResolvedPath(record.subjectPath, flatSubjectPath, cwd);
+
+  /// Whether the recorded path [recorded] resolves to [absolute].
+  bool _sameResolvedPath(String recorded, String absolute, String cwd) =>
+      p.equals(normalizeArtifactPath(cwd, recorded), p.normalize(absolute));
 
   /// Emit the machine-readable JSON verdict (bug #840): the LAST stdout
   /// line, parseable by the recovery tooling, with the adopted/created
