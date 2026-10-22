@@ -680,7 +680,7 @@ class GenCommand extends Command<void> {
           'adopted': counts['adopted'] ?? 0,
           'regenerated': counts['regenerated'] ?? 0,
           'planned': counts['planned'] ?? 0,
-          if (stoppedAt != null) 'stopped_at': stoppedAt,
+          'stopped_at': ?stoppedAt,
         }),
       );
       return;
