@@ -29,6 +29,17 @@
 //   5. the UNOWNED generated file (bug #840) — the doctor prescribes the
 //      adoption FIRST, so a compose that prescribed the reset would send
 //      the operator down the destructive road.
+//
+// KNOWN-RED SIBLINGS (not caused by this change): the `slow` tier as a whole
+// is red at the base commit — `bug_840_recovery_commands_test.dart`,
+// `bug_874_doctor_cross_feature_adoption_test.dart` and one `gen`-ownership
+// case in `bug_1397_path_form_mismatch_test.dart` fail there too (proved by
+// running the identical suites in a clean clone of the base commit: the
+// failing-test name sets are identical). The `zfa tdd gen` / `zfa tdd reset`
+// recovery paths are the ones broken; `zfa tdd doctor` and `zfa tdd compose`
+// are green. Tracked in arrrrny/zuraffa#1979. This suite is the gate for the
+// compose/doctor drift change — a failure HERE is a real regression, a
+// failure in the sibling suites is the known-red above.
 library;
 
 import 'dart:convert';
