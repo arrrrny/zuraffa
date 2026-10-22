@@ -197,6 +197,38 @@ abstract final class MissingArtifactDrift {
     );
   }
 
+  /// The `drift:` lines of the RELOCATED records — the path-FORM drift
+  /// of issue #1397, whose remedy is the path rewrite, never the reset.
+  ///
+  /// Shared with `zfa tdd compose` so the two commands name the SAME
+  /// drift for the SAME file (issue #1974).
+  static List<String> relocatedDrifts(MissingArtifactReport report) => [
+    for (final relocated in report.relocated)
+      '${relocated.behaviorId}: the recorded machine-absolute path '
+          'names a project root that is not on this machine, but the '
+          'artifacts sit at ${relocated.testPath} / '
+          '${relocated.subjectPath} under the current root — a relocated '
+          'registry (the recorded form, not the artifacts, has drifted)',
+  ];
+
+  /// The ONE recovery a RELOCATED registry prescribes.
+  ///
+  /// [featureRef] is the RESOLVED reference (issue #1573): `migrate-paths`
+  /// takes a `--feature` flag, and re-resolving a bare name through
+  /// `resolveWithPin` keeps `specs/<name>` whenever that directory
+  /// exists — so a plain name would migrate a DIFFERENT registry than the
+  /// one just diagnosed.
+  static MissingArtifactPrescription relocatedPrescription({
+    required String featureRef,
+  }) => MissingArtifactPrescription(
+    fix: 'zfa tdd migrate-paths --feature $featureRef',
+    why:
+        'rewrite the recorded forms to the portable project-relative '
+        'POSIX form (the files stay where they are; reset would drop the '
+        'certified behaviors)',
+    prescription: 'migrate',
+  );
+
   /// A recorded path resolved against the project root: a machine-absolute
   /// form is used as-is, a project-relative one is joined with the root.
   static String _resolve(String projectRoot, String recorded) =>

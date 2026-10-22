@@ -59,7 +59,8 @@ import 'package:path/path.dart' as p;
 import '../services/artifact_registry.dart';
 import '../services/composition_targets.dart';
 import '../services/cycle_log_sections.dart';
-import '../services/missing_artifact_drift.dart';
+import '../services/feature_path_resolver.dart';
+import '../services/registry_drift.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -215,9 +216,23 @@ class ComposeCommand extends Command<void> {
 
     // -------------------------------------------------------------
     // 3. The subject artifact must exist (gen wrote it).
+    //
+    // Issue #1974: a recorded-but-missing subject is the doctor-grade
+    // owned-and-missing drift — the shared classifier names it and
+    // prescribes the recovery, exactly as `zfa tdd doctor` does.
+    //
+    // Review: the registry is classified on the SAME stored path forms
+    // the decision reads. The re-anchored view silently heals a
+    // relocated registry (issue #1397), so deciding on it let compose
+    // report success where the doctor reports a drift for the very same
+    // file — and the fallback then prescribed a destructive reset where
+    // the doctor prescribes a path rewrite.
     // -------------------------------------------------------------
-    final recordedSubject = record.subjectPath;
     final normalizedCwd = p.normalize(p.absolute(cwd));
+    final rawRecords = await ArtifactRegistry(
+      featureDir: target.featureDir,
+    ).loadAll(reanchor: false);
+    final recordedSubject = record.subjectPath;
     final subjectPath = p.normalize(
       p.isAbsolute(recordedSubject)
           ? recordedSubject
@@ -229,46 +244,37 @@ class ComposeCommand extends Command<void> {
     try {
       resolvedCwd = await Directory(normalizedCwd).resolveSymbolicLinks();
       if (!await unresolvedSubjectFile.exists()) {
-        // Issue #1974: the missing composed subject is the doctor-grade
-        // owned-and-missing drift. Report its NAME and its recovery — the
-        // `drift:` line and the `-->` fix line `zfa tdd doctor` prints for
-        // the SAME file — instead of a bare runner-error that carries no
-        // reason and no recovery path.
-        final report = MissingArtifactDrift.classify(
-          records: await ArtifactRegistry(
-            featureDir: target.featureDir,
-          ).loadAll(reanchor: false),
+        // The shared, ORDERED diagnosis — the doctor's own recovery order
+        // (issue #1974 review). A compose that prescribed the reset where
+        // the doctor prescribes the adoption would send the operator down
+        // the destructive road; a compose that prescribed the reset where
+        // the doctor prescribes a path rewrite would drop certified
+        // behaviors over a path FORM.
+        final diagnosis = await RegistryDrift.diagnose(
           projectRoot: normalizedCwd,
+          featureName: target.featureName,
+          featureRef: _featureRef(normalizedCwd, target.featureName),
+          records: rawRecords,
         );
-        final prescription = MissingArtifactDrift.prescribe(
-          feature: target.featureName,
-          report: report,
-        );
-        // The classification can only come up empty for a registry whose
-        // raw recorded form points at a file that IS on disk — a state the
-        // doctor would not report either. Name the target's own missing
-        // artifact then, so a drift line is never missing from a drift.
-        final driftLines = report.drifts.isEmpty
-            ? [
-                '${record.behaviorId}: $recordedSubject is recorded but '
-                    'missing from disk',
-              ]
-            : report.drifts;
         print(
           'zfa tdd compose: the registry record for behavior '
           '"${record.behaviorId}" points to a missing subject file at '
           '"$recordedSubject".',
         );
-        for (final drift in driftLines) {
+        for (final drift in diagnosis.drifts) {
           print('  drift: $drift');
         }
-        print('   --> fix: ${prescription.fix} — ${prescription.why}');
+        print(
+          '   --> fix: ${diagnosis.prescription.fix} — '
+          '${diagnosis.prescription.why}',
+        );
         _printSummary(
           behavior: record.behaviorId,
           outcome: ComposeOutcome.drift,
           feature: target.featureName,
-          drifts: driftLines,
-          fix: prescription.fix,
+          drifts: diagnosis.drifts,
+          fix: diagnosis.prescription.fix,
+          prescription: diagnosis.prescription.prescription,
         );
         exitCode = 1;
         return;
@@ -466,6 +472,30 @@ class ComposeCommand extends Command<void> {
   static String _descriptionFor(ArtifactRecord record) =>
       record.descriptionSegment;
 
+  /// The RESOLVED feature reference (issue #1573): the `--feature` flag
+  /// form `migrate-paths` and `gen --adopt` parse. Re-resolving a bare
+  /// name through `resolveWithPin` keeps `specs/<name>` whenever that
+  /// directory exists, so a plain name would point a DIFFERENT registry
+  /// than the one just diagnosed.
+  String _featureRef(String projectRoot, String featureName) =>
+      TddFeaturePaths.resolveWithPin(
+        projectRoot: projectRoot,
+        featureRef: featureName,
+      ).ref;
+
+  /// The registry record for [behaviorId] in its RAW stored form — never
+  /// the re-anchored view (issue #1397: the path FORM is itself drift,
+  /// and the re-anchored view silently heals a relocated registry).
+  Future<ArtifactRecord?> _rawRecordOf(
+    ArtifactRegistry registry,
+    String behaviorId,
+  ) async {
+    for (final record in await registry.loadAll(reanchor: false)) {
+      if (record.behaviorId == behaviorId) return record;
+    }
+    return null;
+  }
+
   String _renderComposed({
     required ArtifactRecord record,
     required String returnType,
@@ -615,7 +645,10 @@ $returnType $functionName() {$body}
     if (behaviorId != null) {
       final matches = <_ResolvedTarget>[];
       for (final entry in registries) {
-        final record = await entry.registry.findRecord(behaviorId);
+        // The RAW stored form (issue #1397): the re-anchored view heals a
+        // relocated registry, and deciding on the healed form let compose
+        // report success where `zfa tdd doctor` reports a drift.
+        final record = await _rawRecordOf(entry.registry, behaviorId);
         if (record != null) {
           matches.add(
             _ResolvedTarget(record, entry.featureDir, entry.featureName),
@@ -651,7 +684,7 @@ $returnType $functionName() {$body}
     final candidates = <_ResolvedTarget>[];
     for (final entry in registries) {
       final certified = await _certifiedRedBehaviors(entry.featureDir);
-      for (final record in await entry.registry.loadAll()) {
+      for (final record in await entry.registry.loadAll(reanchor: false)) {
         if (certified.contains(record.behaviorId)) {
           candidates.add(
             _ResolvedTarget(record, entry.featureDir, entry.featureName),
@@ -738,6 +771,7 @@ $returnType $functionName() {$body}
     required String feature,
     List<String> drifts = const [],
     String? fix,
+    String? prescription,
   }) {
     print(
       'compose: behavior=$behavior outcome=${outcome.label} feature=$feature',
@@ -757,6 +791,12 @@ $returnType $functionName() {$body}
     // that failed and nothing else.
     if (drifts.isNotEmpty) _verdict.drifts.addAll(drifts);
     if (fix != null && fix.isNotEmpty) _verdict.fix = fix;
+    // The machine verdict names the recovery CLASS too (adopt, migrate,
+    // repair, reset) — the doctor's own machine-readable field, so the two
+    // commands classify the same state the same way.
+    if (prescription != null && prescription.isNotEmpty) {
+      _verdict.details['prescription'] = prescription;
+    }
   }
 }
 
