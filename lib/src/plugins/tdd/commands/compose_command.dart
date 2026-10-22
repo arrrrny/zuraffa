@@ -52,6 +52,7 @@ import 'package:path/path.dart' as p;
 import '../services/artifact_registry.dart';
 import '../services/composition_targets.dart';
 import '../services/cycle_log_sections.dart';
+import '../services/package_relative_path.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -445,10 +446,17 @@ class ComposeCommand extends Command<void> {
     // behaviors are still stubs — name each anchor's status so the audit
     // trail says exactly what the composition rests on. Issue #1162:
     // stub-only anchors (bug features) carry the same honesty.
+    // Issue #1983: the header names each anchor by its PACKAGE-relative
+    // path — the header is a committed source file, so the machine-
+    // absolute path the discovery resolved would leak the developer's
+    // home directory into the repository and mean nothing on another
+    // machine. The behavior ids were already portable; only the paths
+    // change.
     final anchorList = anchors
         .map(
           (a) =>
-              '${a.behaviorId} (${a.subjectPath})'
+              '${a.behaviorId} '
+              '(${packageRelativePath(a.subjectPath, projectRoot: projectRoot)})'
               '${a.stubOnly
                   ? ' [stub]'
                   : a.entityWired

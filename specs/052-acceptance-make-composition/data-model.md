@@ -123,3 +123,7 @@ import '<anchor subject package import 2>';
 The stub signature parsed is wire's (`int|void <name>() => throw
 UnimplementedError(`), so compose and wire stay interchangeable on the same
 subject contract.
+
+The anchor paths in the header are relative to the PACKAGE root — the
+directory carrying the package's `pubspec.yaml` — so the committed file
+carries no machine-absolute path (issue #1983).
