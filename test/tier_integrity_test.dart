@@ -454,6 +454,59 @@ Future<void> main() async {
       reason: 'a request without a concurrency knob must not be refused',
     );
 
+    // A flag with NO value must be REFUSED, not read as "no concurrency
+    // requested": the latter let the next token be swallowed as the
+    // option's value, so `--exclude-tags` became the value of `-j` and the
+    // tag selector fell through as a positional path ("Failing tests:
+    // flutter || e2e: loading flutter || e2e").
+    expect(
+      requestedConcurrencyArg(['-j']),
+      '',
+      reason:
+          'a dangling -j must report a BAD VALUE, not "no concurrency '
+          'requested" — the latter swallows the next token as the value',
+    );
+    final dangling = decideFastSuite(['-j']).refusal;
+    expect(
+      dangling,
+      isNotNull,
+      reason: 'a dangling -j must be refused, not run',
+    );
+    expect(
+      dangling,
+      contains('concurrency'),
+      reason: 'the refusal must name the knob it refuses: $dangling',
+    );
+    expect(
+      decideFastSuite(['-j', '--exclude-tags', 'x']).refusal,
+      isNotNull,
+      reason:
+          'a -j followed by another flag has no value either: the flag must '
+          'not be swallowed as the option\'s value',
+    );
+
+    // A preset carries its OWN selector configuration, and that WINS over
+    // the CLI's tag selectors (package/test: `--preset=<p> --tags <t>` runs
+    // <p>'s include_tags, not <t>'s). Every preset in dart_test.yaml lifts
+    // the default `exclude_tags: slow` and most pin an `include_tags`, so a
+    // preset would REPLACE the appended `--exclude-tags 'flutter || e2e'`
+    // and take the run out of the bounded fast lane — the `all` preset
+    // re-admits the whole tree.
+    for (final args in <List<String>>[
+      ['--preset=all'],
+      ['--preset', 'all'],
+      ['-P', 'all'],
+    ]) {
+      expect(
+        decideFastSuite(args).refusal,
+        isNotNull,
+        reason:
+            'a preset must be refused: its selector configuration wins over '
+            'the CLI\'s, so it would take the run out of the bounded fast '
+            'lane: $args',
+      );
+    }
+
     // The run itself is serial — explicitly, because an implicit default
     // is exactly what the fleet-wide `-j 2` overrides.
     final command = fastSuiteCommand(['test']);
@@ -472,16 +525,56 @@ Future<void> main() async {
           'those temp-project suites are what pushes the run past a '
           'two-hour window (#1994) — $command',
     );
+
+    // The SPAWNED argv is pinned, not just the decision. The pin has to
+    // see the exact flags the child process receives: a `--concurrency 8`
+    // spliced into the spawn keeps every other assertion green while the
+    // entrypoint runs the fast tier in parallel — the exact #1994 failure.
+    final argv = fastSuiteArgv(command);
+    expect(
+      argv.first,
+      'test',
+      reason: 'the entrypoint runs `dart test`: $argv',
+    );
+    final spawnedConcurrency = <String>[];
+    for (var i = 0; i < argv.length; i++) {
+      final arg = argv[i];
+      if (arg == '-j' || arg == '--concurrency') {
+        spawnedConcurrency.add(
+          i + 1 < argv.length ? argv[i + 1] : '<no value>',
+        );
+      } else if (arg.startsWith('-j') && arg.length > 2) {
+        spawnedConcurrency.add(arg.substring(2));
+      } else if (arg.startsWith('--concurrency=')) {
+        spawnedConcurrency.add(arg.substring('--concurrency='.length));
+      }
+    }
+    expect(
+      spawnedConcurrency,
+      ['1'],
+      reason:
+          'the spawned argv must carry EXACTLY ONE concurrency flag and it '
+          'must be serial (-j 1) — a second flag (e.g. --concurrency 8) '
+          'would run the fast tier in parallel, the exact #1994 failure: '
+          '$argv',
+    );
   });
 
   test('B10: the loaded-host ceiling covers the fast-tier suites that '
       'drive a REAL analyzer child (#1994)', () {
     // Issue #1994: on a shared host under load ~390 the fast suite's
-    // global 2x (60s) ceiling fired on suites that drive a REAL
-    // `dart analyze` child — the analyzer's cold start alone eats that
-    // budget there, while the same suite passes in isolation. The `ffi`
-    // lane already carries 8x for exactly this reason (#1678); the
-    // spawn-heavy fast-tier suites had no such ladder.
+    // ceiling fired on suites that drive a REAL `dart analyze` child — the
+    // analyzer's cold start alone eats that budget there, while the same
+    // suite passes in isolation. The `ffi` lane already carries 8x for
+    // exactly this reason (#1678); the spawn-heavy fast-tier suites had
+    // no such ladder.
+    //
+    // The ceiling that actually fired on the suite named in #1994 was its
+    // OWN 2-minute per-test override (`timeout: const Timeout(Duration(
+    // minutes: 2))`), not the global 2x (60s): the explicit constant sat
+    // above the global one, so the global never governed it. The `spawn`
+    // tag's 8x (240s) is therefore a 2x raise on THAT suite (120s -> 240s)
+    // and a 4x raise on a suite that had no override at all.
     final doc = loadYaml(configFile.readAsStringSync()) as YamlMap;
     final tags = doc['tags'] as YamlMap?;
     expect(tags, isNotNull);
@@ -491,8 +584,9 @@ Future<void> main() async {
       isNotNull,
       reason:
           'dart_test.yaml declares no `spawn` ceiling: every fast-tier '
-          'suite that drives a real external child sits under the global '
-          '2x (60s) ceiling — the #1994 failure mode',
+          'suite that drives a real external child sits under its own '
+          'narrow per-test override (the real-analyzer suite: 2 minutes) '
+          'or the global 2x (60s) — the #1994 failure mode',
     );
     final timeout = (spawn as YamlMap)['timeout'];
     expect(timeout, isNotNull);
@@ -512,16 +606,32 @@ Future<void> main() async {
     // `dart analyze` child) is invisible to it. Those suites must carry
     // `spawn`.
     final offenders = <String>[];
+    final matched = <String>[];
     for (final entry in _fastLaneEligibleFiles().entries) {
       final source = File(entry.key).readAsStringSync();
       if (!_realAnalyzerRe.hasMatch(source)) continue;
-      if (!entry.value.contains('spawn')) {
+      matched.add(entry.key);
+      // The tag may sit on the GROUP that drives the child (the file's
+      // other groups are in-process), so the census reads the declared
+      // tags of the file AND of its groups.
+      final declared = {...entry.value, ..._groupTags(entry.key)};
+      if (!declared.contains('spawn')) {
         offenders.add(
           '${entry.key} — drives a real `dart analyze` child '
-          '(carries: ${entry.value.join(', ')})',
+          '(carries: ${declared.join(', ')})',
         );
       }
     }
+    expect(
+      matched,
+      isNotEmpty,
+      reason:
+          'the real-analyzer census matched NO fast-lane suite — the marker '
+          'no longer matches the code it watches, so B10 is vacuous '
+          '(#1994). This is the same class as #1678, where the lane\'s only '
+          'content stopped matching, `dart test --tags ffi` selected '
+          'NOTHING and the job exited 0',
+    );
     expect(
       offenders,
       isEmpty,
@@ -560,6 +670,29 @@ Set<String> _suiteTags(String path) {
   ).allMatches(annotation.group(1)!).map((match) => match.group(1)!).toSet();
 }
 
+/// The tags declared on the GROUPS of [path] (empty when it declares
+/// none). A group-level tag is written as the group's closing argument
+/// (`}, tags: ['spawn']);`).
+///
+/// The pattern is anchored on the group's closing brace on purpose: a
+/// `tags:` named argument elsewhere (a plain `test(...)` call, a fixture
+/// constructor) is NOT a group tag, and treating it as one would put
+/// unrelated vocabulary into the tag sets the censuses read.
+final RegExp _groupTagsRe = RegExp(
+  r'\}\s*,\s*tags:\s*\[([^\]]*)\]',
+);
+
+Set<String> _groupTags(String path) {
+  final tags = <String>{};
+  final source = File(path).readAsStringSync();
+  for (final match in _groupTagsRe.allMatches(source)) {
+    for (final quoted in RegExp("'([^']*)'").allMatches(match.group(1)!)) {
+      tags.add(quoted.group(1)!);
+    }
+  }
+  return tags;
+}
+
 /// Source markers proving a suite drives EXTERNAL processes: the spawn
 /// helpers (the run-zfa-source style drivers under `test/helpers/`) or
 /// direct `Process` use. Each alternative is split across adjacent string
@@ -595,7 +728,14 @@ final RegExp _compileGateRe = RegExp(r'_compile_test\.dart$');
 /// (lib/src/plugins/test/test_certifier.dart). The B5 census cannot see
 /// this class — it scans the test sources for spawns, and the spawn
 /// happens one layer down — which is how a real-analyzer suite stayed in
-/// the fast tier under the global 60s ceiling (#1994).
+/// the fast tier under its narrow per-test ceiling (#1994).
+///
+/// The marker is keyed on the BEHAVIOUR, not on a symbol pair: a certifier
+/// constructed WITHOUT an `analyzer:` argument (the production path, which
+/// reaches the real analyzer) and the production analyzer built with its
+/// defaults. A mention of the analyzer symbol with an argument (an
+/// injected fake) does NOT match — those suites drive no real child and
+/// must not be required to carry `spawn`.
 ///
 /// The marker is split across adjacent string literals so THIS file's own
 /// source never contains the assembled text — the B10 census scans every
@@ -603,7 +743,7 @@ final RegExp _compileGateRe = RegExp(r'_compile_test\.dart$');
 final RegExp _realAnalyzerRe = RegExp(
   'TestSelfCertif'
   r'ier\(\s*\)|ProcessScoped'
-  r'Analyzer\(',
+  r'Analyzer\(\s*\)',
 );
 
 /// Every `_test.dart` file under `test/` that the dart_core fast lane

@@ -46,8 +46,15 @@
 // EXIT CODE
 // ---------
 //   0  the fast tier passed
-//   2  a parallel run was refused (see the message)
+//   2  a parallel run was refused (see the message), a bad concurrency
+//      value was given, or a preset was named (a preset's own selector
+//      configuration wins over the CLI's, so it would take the run out of
+//      the bounded fast lane)
 //   *  the fast tier's own exit code
+//
+// The child is the SDK running this script (Platform.resolvedExecutable),
+// not a `dart` resolved through PATH — the entrypoint must work on a
+// host whose PATH has no `dart`.
 //
 // The cap lives here (not in a shell wrapper) so the fast tier's own
 // tier-integrity pin can unit-test the refusal WITHOUT spawning a
@@ -94,17 +101,50 @@ suite directly:
 /// Accepts every spelling package:test accepts: `-j N`, `-jN`,
 /// `--concurrency N` and `--concurrency=N`. The RAW text is returned so
 /// an unparsable value is reported instead of silently ignored.
+///
+/// A flag with NO value (a trailing `-j`) returns the empty string — a
+/// bad value, not "no concurrency requested". Reporting "not requested"
+/// would let the next token be swallowed as the option's value, so
+/// `--exclude-tags` would become the value of `-j` and the tag selector
+/// would fall through as a positional path.
 String? requestedConcurrencyArg(List<String> args) {
   for (var i = 0; i < args.length; i++) {
     final arg = args[i];
     if (arg == '-j' || arg == '--concurrency') {
-      return i + 1 < args.length ? args[i + 1] : null;
+      if (i + 1 >= args.length) return '';
+      // The next token must be the VALUE: a token that is itself a flag
+      // (`--exclude-tags`) means the option has no value at all, and
+      // swallowing the flag would take the tag selector as the value.
+      if (args[i + 1].startsWith('--')) return '';
+      return args[i + 1];
     }
     if (arg.startsWith('-j') && arg.length > 2) {
       return arg.substring(2);
     }
     if (arg.startsWith('--concurrency=')) {
       return arg.substring('--concurrency='.length);
+    }
+  }
+  return null;
+}
+
+/// The preset requested on the command line, or null when the invocation
+/// does not name one.
+///
+/// Accepts every spelling package:test accepts: `--preset=<name>`,
+/// `--preset <name>`, `-P <name>` and `-P<name>`.
+String? requestedPresetArg(List<String> args) {
+  for (var i = 0; i < args.length; i++) {
+    final arg = args[i];
+    if (arg.startsWith('--preset=')) {
+      return arg.substring('--preset='.length);
+    }
+    if (arg == '--preset' || arg == '-P') {
+      if (i + 1 >= args.length) return '';
+      return args[i + 1];
+    }
+    if (arg.startsWith('-P') && arg.length > 2) {
+      return arg.substring(2);
     }
   }
   return null;
@@ -123,6 +163,15 @@ List<String> fastSuiteCommand(List<String> args) => [
   '-j',
   '$fastSuiteConcurrency',
 ];
+
+/// The `dart test` argv the entrypoint executes: the `test` subcommand
+/// plus [command].
+///
+/// Lifted out of `main` so the fast tier's own tier-integrity pin can
+/// assert the SPAWNED argv without spawning a process — the pin has to
+/// see the exact flags the child receives, not just the decision that
+/// produced them.
+List<String> fastSuiteArgv(List<String> command) => ['test', ...command];
 
 /// The entrypoint's decision for [args]: either the `dart test`
 /// invocation to run, or a refusal (the message to print and the exit
@@ -153,8 +202,11 @@ FastSuiteDecision decideFastSuite(List<String> args) {
     final requested = int.tryParse(raw);
     if (requested == null) {
       return FastSuiteDecision.refuse(
-        'run_fast_suite: bad concurrency value "$raw" (expected an '
-        'integer >= 1).\n',
+        raw.isEmpty
+            ? 'run_fast_suite: the concurrency flag has no value (expected '
+                'an integer >= 1).\n'
+            : 'run_fast_suite: bad concurrency value "$raw" (expected an '
+                'integer >= 1).\n',
       );
     }
     if (requested < 1) {
@@ -166,6 +218,31 @@ FastSuiteDecision decideFastSuite(List<String> args) {
       return FastSuiteDecision.refuse(concurrencyRefusal(requested));
     }
   }
+
+  // A preset carries its OWN selector configuration, and that configuration
+  // WINS over the CLI's tag selectors (verified against package/test:
+  // `--preset=<p> --tags <t>` runs <p>'s include_tags, not <t>'s). Every
+  // preset in dart_test.yaml lifts the default `exclude_tags: slow` and
+  // most pin an `include_tags` — so a preset would silently replace the
+  // appended `--exclude-tags 'flutter || e2e'` and take the run OUT of the
+  // bounded fast lane (the `all` preset re-admits the whole tree).
+  final preset = requestedPresetArg(args);
+  if (preset != null) {
+    return FastSuiteDecision.refuse(
+      preset.isEmpty
+          ? 'run_fast_suite: the preset flag has no value.\n'
+          : 'run_fast_suite: REFUSING preset "$preset".\n\n'
+              "A preset's own selector configuration WINS over the CLI's "
+              'tag selectors (package/test), so a preset would replace the '
+              "fast lane's `--exclude-tags '$fastSuiteExcludeTags'` and take "
+              'the run outside the bounded lane.\n\n'
+              'Run the fast tier through this entrypoint (no preset):\n'
+              '  dart run tools/run_fast_suite.dart\n\n'
+              'Run a heavy tier directly, with its own lane:\n'
+              '  dart test --preset=regression\n',
+    );
+  }
+
   return FastSuiteDecision.run(
     fastSuiteCommand(args.isEmpty ? ['test'] : args),
   );
@@ -179,9 +256,14 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  final process = await Process.start('dart', [
-    'test',
-    ...decision.command!,
-  ], mode: ProcessStartMode.inheritStdio);
+  // The child is the SDK that is RUNNING this script, not a `dart` looked
+  // up on PATH: `Process.start('dart', ...)` dies with an unhandled
+  // ProcessException on any host whose PATH has no `dart` (this fleet has
+  // lost its /usr/local/bin/dart symlink before).
+  final process = await Process.start(
+    Platform.resolvedExecutable,
+    fastSuiteArgv(decision.command!),
+    mode: ProcessStartMode.inheritStdio,
+  );
   exitCode = await process.exitCode;
 }

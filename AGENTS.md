@@ -340,6 +340,14 @@ and runs CI's `dart_core` lane (the bounded ~12-minute tier). The
 `dart analyze` child. Details: `test/README.md` → "Loaded hosts: the serial
 fast lane".
 
+Note the scope: the entrypoint makes the SANCTIONED path serial — a direct
+`dart test -j 2` does not go through it and is not intercepted. Run the fast
+tier through the entrypoint; do not pass `-j`.
+
+On a small/disposable agent, use `tools/run_tests_chunked.sh` instead: the
+entrypoint runs `dart test test`, which compiles the entire test tree's kernel
+into one cache that can reach ~6.5 GB (the warning below).
+
 Disk-safe runs on small/disposable agents: a single `dart test test` compiles
 the entire test tree's kernel into one cache that can reach ~6.5 GB
 (`.dart_tool/test/incremental_kernel.*` plus per-process
@@ -450,11 +458,19 @@ lever — and it must be passed every time:
 
 ```sh
 flutter test --concurrency=2
-dart test -j 2
 ```
 
-A repo whose `dart_test.yaml` carries `concurrency: 2` already defaults to it
-for `dart test`; pass the flag anyway when you override it, and never raise
-the number on a host that also runs the forklift pool. CI carries the same
-flags in `.github/workflows`.
+That cap is the **Flutter** test runner's. It says nothing about `dart test`:
+the Dart fast tier runs SERIAL by design (`dart_test.yaml`'s `concurrency: 1`
+is a CORRECTNESS requirement, and a CLI `-j` overrides it silently — issue
+#1994), so the sanctioned way to run it is the entrypoint, which owns the cap
+and refuses a parallel request:
+
+```sh
+dart run tools/run_fast_suite.dart
+```
+
+Never pass `-j` to the Dart fast tier, and never raise the Flutter number on
+a host that also runs the forklift pool. CI carries the same flags in
+`.github/workflows`.
 <!-- test-concurrency:end -->

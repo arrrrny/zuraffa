@@ -29,8 +29,11 @@ The fast tier fails on a loaded shared host in two distinct shapes, and
 neither reproduces in isolation:
 
 1. **False timeouts** on suites that drive a real external child. The
-   global ceiling is `2x` (60s of package:test's 30s base); the analyzer
-   child's cold start alone exceeds it under contention.
+   ceiling that actually governed them was their own per-test override,
+   not the global one: the real-analyzer suite carried `timeout: const
+   Timeout(Duration(minutes: 2))` (120s), so the global `2x` (60s of
+   package:test's 30s base) never applied to it. The analyzer child's
+   cold start alone exceeds that budget under contention.
 2. **Cross-suite contamination** — a suite reads a sibling's tree
    (`pubspec.yaml not found` mid-setup; a visual-contract surface that
    does not match). This is the signature of a PARALLEL lane, not of a
@@ -52,7 +55,9 @@ configuration defect the report identifies:
 2. The fast-tier suite that drives a real `dart analyze` child
    (`test/plugins/test/test_self_certify_test.dart`) carries NO timeout
    tag and overrides its own ceiling with a 2-minute constant, so it sits
-   under the 60s global ceiling for every other test in the file.
+   under THAT ceiling (120s) — not under the 60s global one, which never
+   governed it — while every other test in the file sits under the global
+   2x.
 
 ## Suspected Code Paths
 
@@ -65,7 +70,8 @@ configuration defect the report identifies:
   2-minute per-test timeouts.
 - `test/tier_integrity_test.dart` — the B5 census scans TEST sources for
   spawns, so a suite that reaches a real child THROUGH THE LIB is
-  invisible to it (the gap that let this suite keep the 60s ceiling).
+  invisible to it (the gap that let this suite keep its own 2-minute
+  per-test ceiling, with no tag to raise it).
 - `.github/workflows/ci.yaml` — the `dart_core` lane's `--exclude-tags
   "flutter || e2e"` selector: the local default run (`dart test`) does NOT
   mirror it, which is why the local fast tier pulls in the `e2e`
@@ -88,7 +94,8 @@ repo rather than by the report's environment:
 2. **The ceiling ladder stopped at the tier boundary.** The `ffi` lane
    already carries `8x` for a cold child (#1678); the fast-tier suites
    that drive a real child had no equivalent, so the global `2x` (60s)
-   applied to them.
+   applied to them and the real-analyzer suite fell back on its own
+   2-minute constant.
 
 ## Proposed Remediation
 
@@ -129,10 +136,15 @@ repo rather than by the report's environment:
 
 ## Risks & Considerations
 
-- **The refusal is a hard stop.** An agent that runs `dart test -j 2` out
-  of habit now gets exit 2 instead of a run. That is the intent (the
-  parallel lane is the bug), but the message must say why and point at
-  the entrypoint — it does.
+- **The refusal is a hard stop — for the entrypoint, not for a direct
+  `dart test`.** An agent that runs `dart run tools/run_fast_suite.dart
+  -j 2` out of habit now gets exit 2 instead of a run. That is the
+  intent (the parallel lane is the bug), and the message says why and
+  points at the entrypoint. A direct `dart test -j 2` is NOT intercepted
+  by this change: it does not go through the entrypoint, so it still runs
+  in parallel (and still overrides `concurrency: 1`) — the entrypoint
+  makes the sanctioned path safe, it does not forbid the unsanctioned
+  one.
 - **The `spawn` ceiling is a fixed factor** (like `slow`/`e2e`/`ffi`), so
   it cannot read `ZFA_TEST_TIMEOUT_SCALE`; a host that needs more uses
   the scale variable plus `--timeout xN` (documented in `test/README.md`).

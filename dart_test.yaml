@@ -111,13 +111,20 @@ tags:
   spawn:
     # Loaded-host ceiling for the FAST-tier suites that drive a REAL
     # external child (a `dart analyze` subprocess, an AOT compile) — issue
-    # #1994. On a shared host under load ~390 the global 2x (60s) ceiling
-    # fired on exactly those suites while they passed in isolation: the
-    # analyzer child's cold start alone eats the budget there. 8x (240s) is
-    # the `ffi` precedent (#1678) — the honest lane stops flaking instead
-    # of being retried. The tag is NOT a tier: it rides the default
-    # `slow` exclusion, so a `spawn`-tagged suite still runs in the fast
-    # tier (and in CI's dart_core lane) with the relaxed ceiling.
+    # #1994. On a shared host under load ~390 the ceiling that actually
+    # fired on those suites was their OWN per-test override: the
+    # real-analyzer suite carried `timeout: const Timeout(Duration(minutes:
+    # 2))` (120s), so the global 2x (60s) never governed it — it sat
+    # ABOVE the global one, and the analyzer child's cold start alone
+    # eats that budget on a loaded host while the suite passes in
+    # isolation. The tag makes the ceiling explicit and uniform: 8x
+    # (240s) is the `ffi` precedent (#1678) — the honest lane stops
+    # flaking instead of being retried. On the real-analyzer suite that
+    # is a 2x raise (120s -> 240s); on a suite with no override it is a
+    # 4x raise (60s -> 240s). The tag is NOT a tier: it rides the
+    # default `slow` exclusion, so a `spawn`-tagged suite still runs in
+    # the fast tier (and in CI's dart_core lane) with the relaxed
+    # ceiling.
     timeout: 8x
 
 exclude_tags: slow

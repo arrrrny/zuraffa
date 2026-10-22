@@ -1,13 +1,19 @@
-// Issue #1994 — the `spawn` tag gives this file the loaded-host ceiling.
-// The "real scoped dart analyze" group below builds the PRODUCTION
-// `ProcessScopedAnalyzer`, which shells out to a real `dart analyze`
-// child: on a shared host under load the analyzer's cold start alone
-// exceeds the global 2x (60s) ceiling, and the suite failed while passing
-// in isolation. The tag ceiling (8x = 240s, the `ffi` precedent #1678)
-// governs instead of a per-test constant.
-@Tags(['spawn'])
-library;
-
+// Issue #1994 — the `spawn` tag gives the real-analyzer group below the
+// loaded-host ceiling. The "real scoped dart analyze" group builds the
+// PRODUCTION `ProcessScopedAnalyzer`, which shells out to a real
+// `dart analyze` child: on a shared host under load the analyzer's cold
+// start alone exceeds that suite's own ceiling — it carried an explicit
+// 2-minute per-test timeout, so the global 2x (60s) never governed it —
+// and the suite failed while passing in isolation. The tag ceiling (8x =
+// 240s, the `ffi` precedent #1678) governs instead of the per-test
+// constant.
+//
+// The tag sits on the GROUP, not on the file: only the two tests in that
+// group drive a real child. The rest of this file is in-process (verdict
+// formatting, machine-line parsing, an INJECTED analyzer, the CLI
+// integration group), and a file-wide tag would move every one of them
+// from the 60s ceiling to 240s — a hung in-process test would then burn
+// four minutes before it fails.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -305,7 +311,7 @@ void main() {
       expect(cert.errors, isEmpty);
       expect(cert.verdictLine, 'test: entity=Clean tests=0 compile=pass');
     });
-  });
+  }, tags: ['spawn']);
 
   group('TestCommand integration (A1/A2/A3 — behavioral)', () {
     late Directory workspace;

@@ -92,10 +92,12 @@ report that both of them bit on a shared host under load ~390:
    it.** The global ceiling is `2x` (60s of package:test's 30s base). A
    fast-tier suite that drives a REAL external child — a `dart analyze`
    subprocess — pays the analyzer's cold start inside that budget, and on
-   a loaded host the start alone exceeds it. The `ffi` lane already
-   carries `8x` for exactly this reason (#1678); the `spawn` tag
-   (issue #1994) carries the same ceiling for the fast-tier suites that
-   drive a real child.
+   a loaded host the start alone exceeds it. The real-analyzer suite went
+   further and pinned its own ceiling with a 2-minute per-test constant,
+   so the global 2x never governed it — the effective ceiling there was
+   120s, not 60s. The `ffi` lane already carries `8x` for exactly this
+   reason (#1678); the `spawn` tag (issue #1994) carries the same ceiling
+   for the fast-tier suites that drive a real child.
 
 ### What to run
 
@@ -125,10 +127,35 @@ while the whole-tree default run (`dart test`, which also pulls in the
 `e2e` temp-project suites) is what pushed a loaded host past a two-hour
 window in #1994.
 
+A **preset** is refused here: a preset carries its own selector
+configuration, and that configuration wins over the CLI's tag selectors
+(package/test), so it would replace the lane's `--exclude-tags` and take
+the run outside the bounded lane — the `all` preset re-admits the whole
+tree. Run a heavy tier directly with its own lane instead
+(`dart test --preset=regression`).
+
+> **On a small/disposable agent, use the chunked runner instead.** The
+> entrypoint runs `dart test test`, which compiles the whole test tree's
+> kernel into one cache that can reach ~6.5 GB — the same warning the
+> next section gives for a plain `dart test test`. Use
+> `tools/run_tests_chunked.sh` (kernel cache cleared between per-folder
+> chunks) when disk is tight.
+
 ### The `spawn` tag
 
 A fast-tier suite that drives a real external child carries the `spawn`
-tag, which raises its ceiling to `8x` (240s — the `ffi` precedent):
+tag, which raises its ceiling to `8x` (240s — the `ffi` precedent). Put
+it on the group that drives the child, not on the whole file — a file-wide
+tag would move every in-process test in it from the 60s ceiling to 240s:
+
+```dart
+group('real scoped dart analyze (U3 real)', () {
+  // ...tests that build the PRODUCTION certifier...
+}, tags: ['spawn']);
+```
+
+A file-level annotation works too, and is the right choice when the whole
+file drives real children:
 
 ```dart
 @Tags(['spawn'])
@@ -140,7 +167,7 @@ The tag is NOT a tier: it rides the default `slow` exclusion, so a
 `dart_core` lane) — it only gets the relaxed ceiling. The tier-integrity
 pin B10 (`test/tier_integrity_test.dart`) keeps the class honest: every
 fast-lane-eligible suite that reaches a real analyzer child through the
-lib must carry the tag.
+lib must carry the tag — on the file or on the group.
 
 ## Slow machines: `ZFA_TEST_TIMEOUT_SCALE`
 
