@@ -167,6 +167,20 @@ void main() {
     tmpDir = Directory.systemTemp.createTempSync('bug_1397_path_form_test_');
     absTestPath = p.join(tmpDir.path, relTestPath);
     absSubjectPath = p.join(tmpDir.path, relSubjectPath);
+    // Issue #1979: the project fixture needs a pubspec — the issue-#1528
+    // entry preflight ensures the TDD baseline before the gen flow, and
+    // the idempotent `zfa tdd init` it runs on a profile-less project
+    // patches `pubspec.yaml`'s dev_dependencies. Without a pubspec the
+    // init misfires and the preflight fails the gen closed with
+    // `setup-error` — the documented #1528 behavior for a project that
+    // is not a Dart package. The synthetic project therefore carries the
+    // minimal pubspec a real one has.
+    final pubspec = File(p.join(tmpDir.path, 'pubspec.yaml'));
+    pubspec.writeAsStringSync('''
+name: path_form_fixture
+environment:
+  sdk: ^3.6.0
+''');
   });
 
   tearDown(() {
