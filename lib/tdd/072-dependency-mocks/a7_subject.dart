@@ -5,7 +5,7 @@
 //
 // behavior_id: A7
 // source_criterion: AC-7
-// composed against: U1 (/workspace/zuraffa/.worktrees/072-dependency-mocks/lib/tdd/072-dependency-mocks/u1_subject.dart), U2 (/workspace/zuraffa/.worktrees/072-dependency-mocks/lib/tdd/072-dependency-mocks/u2_subject.dart), U3 (/workspace/zuraffa/.worktrees/072-dependency-mocks/lib/tdd/072-dependency-mocks/u3_subject.dart), U4 (/workspace/zuraffa/.worktrees/072-dependency-mocks/lib/tdd/072-dependency-mocks/u4_subject.dart), U5 (/workspace/zuraffa/.worktrees/072-dependency-mocks/lib/tdd/072-dependency-mocks/u5_subject.dart), U6 (/workspace/zuraffa/.worktrees/072-dependency-mocks/lib/tdd/072-dependency-mocks/u6_subject.dart), U7 (/workspace/zuraffa/.worktrees/072-dependency-mocks/lib/tdd/072-dependency-mocks/u7_subject.dart), U8 (/workspace/zuraffa/.worktrees/072-dependency-mocks/lib/tdd/072-dependency-mocks/u8_subject.dart), U9 (/workspace/zuraffa/.worktrees/072-dependency-mocks/lib/tdd/072-dependency-mocks/u9_subject.dart), U10 (/workspace/zuraffa/.worktrees/072-dependency-mocks/lib/tdd/072-dependency-mocks/u10_subject.dart)
+// composed against: U1 (lib/tdd/072-dependency-mocks/u1_subject.dart), U2 (lib/tdd/072-dependency-mocks/u2_subject.dart), U3 (lib/tdd/072-dependency-mocks/u3_subject.dart), U4 (lib/tdd/072-dependency-mocks/u4_subject.dart), U5 (lib/tdd/072-dependency-mocks/u5_subject.dart), U6 (lib/tdd/072-dependency-mocks/u6_subject.dart), U7 (lib/tdd/072-dependency-mocks/u7_subject.dart), U8 (lib/tdd/072-dependency-mocks/u8_subject.dart), U9 (lib/tdd/072-dependency-mocks/u9_subject.dart), U10 (lib/tdd/072-dependency-mocks/u10_subject.dart)
 // description: it names the dependency row (dependency name + contract) as the consulted declaration.
 //
 // This replaces the `zfa tdd gen` stub with the minimal composed
@@ -15,6 +15,12 @@
 // real green transition lands when those unit subjects are filled with
 // business logic in later cycles. Extend the body with real behavior in
 // later cycles — the paired test file is immutable (044 ownership).
+//
+// The subject name is derived from the behavior id (`subject_a7`) and is
+// deliberately snake_cased — the generator KNOWS the name it emits, so
+// the lint its shape provably trips is suppressed here rather than
+// renaming the contract surface (issue #1035).
+// ignore_for_file: non_constant_identifier_names
 library;
 
 import 'package:zuraffa/tdd/072-dependency-mocks/u1_subject.dart' as anchor0;

@@ -5,7 +5,7 @@
 //
 // behavior_id: A2
 // source_criterion: AC-2
-// composed against: U2 (/home/z/my-project/zuraffa/example/lib/tdd/004-login-ui/u2_subject.dart)
+// composed against: U1 (lib/tdd/004-login-ui/u1_subject.dart), U2 (lib/tdd/004-login-ui/u2_subject.dart)
 // description: the error is reported to the caller
 //
 // This replaces the `zfa tdd gen` stub with the minimal composed
@@ -23,7 +23,8 @@
 // ignore_for_file: non_constant_identifier_names
 library;
 
-import 'package:example/tdd/004-login-ui/u2_subject.dart' as anchor0;
+import 'package:example/tdd/004-login-ui/u1_subject.dart' as anchor0;
+import 'package:example/tdd/004-login-ui/u2_subject.dart' as anchor1;
 
 /// Subject for behavior A2, composed against the
 /// feature's unit subject anchors by the generation pipeline.
@@ -31,5 +32,8 @@ void subject_a2() {
   // Composition anchor: references the feature's green / entity-wired unit
   // subjects this behavior builds on.
   // ignore: unused_local_variable
-  final composedUnitAnchors = <Function>[anchor0.subject_u2];
+  final composedUnitAnchors = <Function>[
+    anchor0.subject_u1,
+    anchor1.subject_u2,
+  ];
 }
