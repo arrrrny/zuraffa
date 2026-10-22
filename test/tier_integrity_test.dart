@@ -789,9 +789,7 @@ Set<String> _suiteTags(String path) {
 /// `tags:` named argument elsewhere (a plain `test(...)` call, a fixture
 /// constructor) is NOT a group tag, and treating it as one would put
 /// unrelated vocabulary into the tag sets the censuses read.
-final RegExp _groupTagsRe = RegExp(
-  r'\}\s*,\s*tags:\s*\[([^\]]*)\]',
-);
+final RegExp _groupTagsRe = RegExp(r'\}\s*,\s*tags:\s*\[([^\]]*)\]');
 
 Set<String> _groupTags(String path) {
   final tags = <String>{};
