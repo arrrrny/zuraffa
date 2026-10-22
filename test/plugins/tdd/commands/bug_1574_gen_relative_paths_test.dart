@@ -1,3 +1,4 @@
+@Tags(['spawn'])
 // Fast lane: this suite is a fast in-process fixture test — CliRunner
 // drives gen in-process; the only subprocess is the fixture's short-lived
 // `Process.runSync('git', …)` probe, which the B5 census (#1632) discounts

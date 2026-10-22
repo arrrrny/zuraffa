@@ -1,3 +1,4 @@
+@Tags(['spawn'])
 // Tests for StepRunner (spec 049-tdd-run, U12-U18 / T007).
 //
 // Fast tier: the spawn hook is injected, so these drive the contract

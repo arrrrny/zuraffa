@@ -571,10 +571,11 @@ Future<void> main() async {
     //
     // The ceiling that actually fired on the suite named in #1994 was its
     // OWN 2-minute per-test override (`timeout: const Timeout(Duration(
-    // minutes: 2))`), not the global 2x (60s): the explicit constant sat
-    // above the global one, so the global never governed it. The `spawn`
-    // tag's 8x (240s) is therefore a 2x raise on THAT suite (120s -> 240s)
-    // and a 4x raise on a suite that had no override at all.
+    // minutes: 2))`), not the root ceiling (then 2x, 60s): the explicit
+    // constant sat above the root one, so the root never governed it. The
+    // `spawn` tag's 8x (240s) is therefore a 2x raise on THAT suite
+    // (120s -> 240s) and a 4x raise on a suite that had no override at
+    // all.
     final doc = loadYaml(configFile.readAsStringSync()) as YamlMap;
     final tags = doc['tags'] as YamlMap?;
     expect(tags, isNotNull);
@@ -586,7 +587,7 @@ Future<void> main() async {
           'dart_test.yaml declares no `spawn` ceiling: every fast-tier '
           'suite that drives a real external child sits under its own '
           'narrow per-test override (the real-analyzer suite: 2 minutes) '
-          'or the global 2x (60s) — the #1994 failure mode',
+          'or the bare root ceiling — the #1994 failure mode',
     );
     final timeout = (spawn as YamlMap)['timeout'];
     expect(timeout, isNotNull);
@@ -614,7 +615,7 @@ Future<void> main() async {
       // The tag may sit on the GROUP that drives the child (the file's
       // other groups are in-process), so the census reads the declared
       // tags of the file AND of its groups.
-      final declared = {...entry.value, ..._groupTags(entry.key)};
+      final declared = _declaredTags(entry.key, entry.value);
       if (!declared.contains('spawn')) {
         offenders.add(
           '${entry.key} — drives a real `dart analyze` child '
@@ -640,6 +641,116 @@ Future<void> main() async {
           'the `spawn` tag (the 8x loaded-host ceiling) — the B5 census '
           'only sees test-side spawns, so this class slips through it '
           '(#1994):\n${offenders.join('\n')}',
+    );
+  });
+
+  // Issue #1994 — the fast suite flaked on a LOADED shared host (load
+  // average ~390) and did not finish inside a 2-hour bound: the root
+  // ceiling was 2x (60s), the CLI's `-j 2` always overrides this file's
+  // `concurrency: 1`, and spawn-heavy suites were killed mid-setup —
+  // leaving temp projects without a `pubspec.yaml` so the NEXT test in
+  // the same file failed on a missing file rather than on its subject.
+  // Every one of those files passed in isolation on the same tree.
+  //
+  //   B13 — the config carries relaxed budgets: root >= 4x, and the
+  //         spawn/e2e/ffi weight tags >= 8x (the #1678 precedent).
+  //   B12 — every spawn-heavy fast-tier suite carries the `spawn` budget
+  //         tag, so it is never left on the bare root ceiling.
+  //   B13 — no fast-tier suite declares an explicit per-test `Timeout`
+  //         tighter than the root budget: an explicit value overrides
+  //         BOTH the tag and the root in package:test, so a 1-minute
+  //         literal silently re-introduces the #1994 ceiling.
+  test('B11: dart_test.yaml carries loaded-host test budgets (#1994)', () {
+    final doc = loadYaml(configFile.readAsStringSync()) as YamlMap;
+    expect(
+      _timeoutFactor(doc['timeout']),
+      greaterThanOrEqualTo(4.0),
+      reason:
+          'the root ceiling must be at least 4x (120s): 2x (60s) is the '
+          'budget #1994 measured flaking on a loaded shared host, where '
+          '`dart test -j 2` runs two suites at once because the CLI '
+          'concurrency always overrides this file',
+    );
+    final tags = doc['tags'] as YamlMap?;
+    expect(tags, isNotNull);
+    for (final tag in const ['spawn', 'e2e', 'ffi']) {
+      final entry = tags![tag] as YamlMap?;
+      expect(
+        entry,
+        isNotNull,
+        reason:
+            '`$tag` must stay declared in dart_test.yaml — a suite using '
+            'it would otherwise warn, and its relaxed budget would be '
+            'missing',
+      );
+      expect(
+        _timeoutFactor(entry!['timeout']),
+        greaterThanOrEqualTo(8.0),
+        reason:
+            '`$tag` suites spawn external processes; their budget must be '
+            'at least 8x (240s) — two sequential 75s child guards plus '
+            'slack, the #1678 precedent (#1994)',
+      );
+    }
+  });
+
+  test('B12: every spawn-heavy fast-tier suite carries the spawn budget '
+      '(#1994)', () {
+    final offenders = <String>[];
+    for (final entry in _fastLaneEligibleFiles().entries) {
+      final source = File(entry.key).readAsStringSync();
+      final scanSource = source.replaceAll(_trivialProbeRe, '');
+      if (!_spawnTouchRe.hasMatch(scanSource)) continue;
+      // The tag may sit on the GROUP that launches the child (a file's
+      // other groups can be in-process), so read the file's tags AND its
+      // groups' — a file-level-only read flags a correctly scoped suite.
+      final declared = _declaredTags(entry.key, entry.value);
+      if (declared.contains('spawn')) continue;
+      offenders.add('${entry.key} — carries: ${declared.join(', ')}');
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'a fast-tier suite that launches external processes needs the '
+          '`spawn` budget tag (8x, 240s); on the bare root ceiling it is '
+          'killed mid-setup under load and leaves a half-created temp '
+          'project behind for the next test (#1994):\n'
+          '${offenders.join('\n')}',
+    );
+  });
+
+  test('B13: no fast-tier suite declares an explicit timeout below the root '
+      'budget (#1994)', () {
+    final rootFactor = _timeoutFactor(
+      (loadYaml(configFile.readAsStringSync()) as YamlMap)['timeout'],
+    );
+    final offenders = <String>[];
+    for (final entry in _fastLaneEligibleFiles().entries) {
+      for (final match in _explicitTimeoutRe.allMatches(
+        File(entry.key).readAsStringSync(),
+      )) {
+        final seconds = _durationSeconds(match.group(1)!);
+        if (seconds == null) continue;
+        // package:test multiplies the factor by the 30s package default.
+        if (seconds >= _packageDefaultTimeoutSeconds * rootFactor) continue;
+        offenders.add(
+          '${entry.key} — ${seconds}s (root allows '
+          '${(_packageDefaultTimeoutSeconds * rootFactor).round()}s)',
+        );
+      }
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'an explicit per-test `Timeout` overrides BOTH the `spawn`/`e2e` '
+          'tag budget and the root ceiling in package:test, so a literal '
+          'below the root silently re-creates the #1994 ceiling for that '
+          'test — raise it, or route it through '
+          '`scaleDuration(...)` from the helpers\' run_'
+          'zfa_source.dart:\n'
+          '${offenders.join('\n')}',
     );
   });
 }
@@ -692,6 +803,18 @@ Set<String> _groupTags(String path) {
   }
   return tags;
 }
+
+/// Every tag [path] declares — its file-level `@Tags([...])` annotation
+/// ([fileTags], as [`_suiteTags`] returns) plus the tags on its groups.
+///
+/// Both are declarations of the same thing, so a census asking "does this
+/// suite carry the tag?" must read both: a suite that scopes `spawn` to
+/// the group that launches the child is correct, and a file-level-only
+/// read would flag it.
+Set<String> _declaredTags(String path, Set<String> fileTags) => {
+  ...fileTags,
+  ..._groupTags(path),
+};
 
 /// Source markers proving a suite drives EXTERNAL processes: the spawn
 /// helpers (the run-zfa-source style drivers under `test/helpers/`) or
@@ -800,3 +923,78 @@ bool _selectorSelects(Object? include, Object? exclude, Set<String> tags) {
   final excluded = exclude != null && _selectorMatches(exclude, tags);
   return included && !excluded;
 }
+
+/// The package:test default per-test timeout the config's factors multiply.
+const int _packageDefaultTimeoutSeconds = 30;
+
+/// An explicit `timeout: Timeout(Duration(...))` literal. Matches only a
+/// LITERAL duration: `Timeout(scaleDuration(...))` is a computed budget and
+/// deliberately not matched.
+final RegExp _explicitTimeoutRe = RegExp(
+  r'timeout:\s*(?:const\s+)?Timeout\(\s*Duration\(([^)]*)\)',
+);
+
+/// The seconds in a `Duration(...)` argument list (`minutes: 4`), or null
+/// when it is not a plain minute/second/millisecond literal.
+int? _durationSeconds(String args) {
+  int? valueFor(String unit, int scale) {
+    final match = RegExp('$unit:\\s*(\\d+)').firstMatch(args);
+    return match == null ? null : int.parse(match.group(1)!) * scale;
+  }
+
+  final minutes = valueFor('minutes', 60);
+  final seconds = valueFor('seconds', 1);
+  final millis = valueFor('milliseconds', 0);
+  final total = (minutes ?? 0) + (seconds ?? 0);
+  if (total > 0) return total;
+  if (millis != null) return (millis / 1000).ceil();
+  return null;
+}
+
+/// The multiplier of a dart_test.yaml timeout value (`4x` -> 4.0). A bare
+/// integer is a duration in seconds and is converted against the package
+/// default; `false`/absent (`null`) means "no timeout" and is reported as
+/// [double.infinity].
+double _timeoutFactor(Object? raw) {
+  if (raw == null || raw == false) return double.infinity;
+  final text = raw.toString().trim();
+  final factor = RegExp(r'^(\d+(?:\.\d+)?)x$').firstMatch(text);
+  if (factor != null) return double.parse(factor.group(1)!);
+  final seconds = int.tryParse(text);
+  if (seconds != null) return seconds / _packageDefaultTimeoutSeconds;
+  return double.infinity;
+}
+
+/// Source markers proving a fast-tier suite TOUCHES an external process
+/// (issue #1994) — deliberately broader than [_spawnMarkerRe], which asks a
+/// different question.
+///
+/// [_spawnMarkerRe] feeds B5's heavyweight census: "does this suite build
+/// temp projects and run `pub get` / `build_runner`?", the #1632 question
+/// about which suites may ride the 30-minute CI lane. B12 asks a narrower
+/// one: "does this suite's subject launch a child at all?", because ANY
+/// child needs a budget above the bare root ceiling on a loaded host.
+///
+/// The gap that made #1994 look like a functional regression is the
+/// INDIRECT spawn: `test/plugins/test/test_self_certify_test.dart` contains
+/// no `Process` call — its subject (the test plugin's self-certifier, built
+/// with its default scoped analyzer) shells out to a real `dart analyze`.
+/// B5's markers cannot see that, so the suite sat on the 60s ceiling and
+/// was killed mid-analysis under load. Hence the production seams that
+/// spawn behind a constructor call (the self-certifier without an injected
+/// analyzer, the process-backed scoped analyzer) and the CLI entrypoint
+/// seam are markers here too.
+///
+/// Alternatives are split across adjacent string literals so THIS file's
+/// own source never contains the assembled marker text (same guard as
+/// [_spawnMarkerRe]).
+final RegExp _spawnTouchRe = RegExp(
+  'Process'
+  r'\.run|Process'
+  r'\.start|run_'
+  r'zfa_source|runZfa'
+  r'Source|ZfaEx'
+  r'ecutable|TestSelf'
+  r'Certifier\(\)|ProcessScoped'
+  r'Analyzer',
+);

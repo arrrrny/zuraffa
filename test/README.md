@@ -70,7 +70,7 @@ dart test test/core/result_test.dart
 - Add the `slow` tag (plus the tier tag) to any new E2E / heavy test so it is
   excluded from the default run automatically.
 
-## Loaded hosts: the serial fast lane
+## Loaded hosts: the serial fast lane and the budget ladder
 
 Two properties of the fast tier are load-sensitive, and issue #1994 is the
 report that both of them bit on a shared host under load ~390:
@@ -89,12 +89,13 @@ report that both of them bit on a shared host under load ~390:
    symptom is a fast suite that fails in ways that pass in isolation
    (`pubspec.yaml not found` mid-setup, a sibling's tree read as yours).
 2. **The per-test ceiling is a fixed factor, and a cold child can outrun
-   it.** The global ceiling is `2x` (60s of package:test's 30s base). A
+   it.** The root ceiling is `4x` (120s of package:test's 30s base) after
+   this change; at the time of #1994 it was `2x` (60s). A
    fast-tier suite that drives a REAL external child — a `dart analyze`
    subprocess — pays the analyzer's cold start inside that budget, and on
    a loaded host the start alone exceeds it. The real-analyzer suite went
    further and pinned its own ceiling with a 2-minute per-test constant,
-   so the global 2x never governed it — the effective ceiling there was
+   so the root ceiling never governed it — the effective ceiling there was
    120s, not 60s. The `ffi` lane already carries `8x` for exactly this
    reason (#1678); the `spawn` tag (issue #1994) carries the same ceiling
    for the fast-tier suites that drive a real child.
@@ -168,6 +169,42 @@ The tag is NOT a tier: it rides the default `slow` exclusion, so a
 pin B10 (`test/tier_integrity_test.dart`) keeps the class honest: every
 fast-lane-eligible suite that reaches a real analyzer child through the
 lib must carry the tag — on the file or on the group.
+
+### The budget ladder
+
+The old 2x (60s) root ceiling killed spawn-heavy suites **mid-setup**: the
+suite left a half-created temp project behind, and the next test in the same
+file failed on the missing `pubspec.yaml` rather than on its own subject — a
+cascade that reads like a functional regression and is not one (every failing
+file passed in isolation on the same tree).
+
+Two budgets and one tag close that gap:
+
+| Knob | Value | Why |
+|------|-------|-----|
+| root `timeout` | `4x` (120s) | what the #1994 report verified on the loaded host (`dart test -j 2 --timeout 4x`) |
+| `spawn` tag | `8x` (240s) | two sequential 75s child guards plus slack — the `ffi` precedent (#1678) |
+| `e2e` tag | `8x` (240s) | same reason: real `dart pub get` / `dart test` / `analyze` children |
+
+`spawn` is orthogonal to the lane tags: `slow`/`e2e` decide *where* a suite
+runs, `spawn` only decides *how much wall-clock* it gets. Add it to any new
+fast-tier suite that launches an external process.
+
+Two traps worth knowing, both pinned by `test/tier_integrity_test.dart`
+(B11–B13):
+
+- **`-j/--concurrency` always wins.** The CLI value overrides this repo's
+  `concurrency: 1` in `dart_test.yaml`; there is no config-side hard cap.
+  That is why the fast tier is run through
+  `dart run tools/run_fast_suite.dart` (which owns the cap and refuses a
+  parallel request) — a direct `dart test -j 2` still overrides the pin and
+  runs two suites at once, and the budgets above are what keep such a run
+  honest under load.
+- **An explicit per-test `Timeout` overrides BOTH the tag and the root.** A
+  literal below the root ceiling silently re-creates the #1994 timeout for
+  that test; `B13` fails on one. Raise it, or route it through
+  `scaleDuration(...)` from `test/helpers/run_zfa_source.dart` so
+  `ZFA_TEST_TIMEOUT_SCALE` still reaches it.
 
 ## Slow machines: `ZFA_TEST_TIMEOUT_SCALE`
 

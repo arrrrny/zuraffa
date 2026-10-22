@@ -337,8 +337,10 @@ On a loaded shared host that silent override produced a fast suite that flaked
 passed in isolation. The entrypoint pins `-j 1`, refuses a parallel request,
 and runs CI's `dart_core` lane (the bounded ~12-minute tier). The
 `spawn` tag (8x ceiling) covers the fast-tier suites that drive a real
-`dart analyze` child. Details: `test/README.md` → "Loaded hosts: the serial
-fast lane".
+`dart analyze` child. The budget ladder behind it — root `4x` (120s),
+`spawn`/`e2e`/`ffi` at `8x` (240s) — is what keeps a spawn-heavy suite from
+being killed mid-setup. Details: `test/README.md` → "Loaded hosts: the serial
+fast lane and the budget ladder".
 
 Note the scope: the entrypoint makes the SANCTIONED path serial — a direct
 `dart test -j 2` does not go through it and is not intercepted. Run the fast

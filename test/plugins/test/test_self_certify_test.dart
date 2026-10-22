@@ -3,10 +3,10 @@
 // PRODUCTION `ProcessScopedAnalyzer`, which shells out to a real
 // `dart analyze` child: on a shared host under load the analyzer's cold
 // start alone exceeds that suite's own ceiling — it carried an explicit
-// 2-minute per-test timeout, so the global 2x (60s) never governed it —
-// and the suite failed while passing in isolation. The tag ceiling (8x =
-// 240s, the `ffi` precedent #1678) governs instead of the per-test
-// constant.
+// 2-minute per-test timeout, so the root ceiling (then 2x, 60s) never
+// governed it — and the suite failed while passing in isolation. The tag
+// ceiling (8x = 240s, the `ffi` precedent #1678) governs instead of the
+// per-test constant.
 //
 // The tag sits on the GROUP, not on the file: only the two tests in that
 // group drive a real child. The rest of this file is in-process (verdict

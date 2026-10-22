@@ -1,4 +1,4 @@
-@Tags(['flutter'])
+@Tags(['flutter', 'spawn'])
 /// Tests for PubspecFilter (U54, U55, U56; issue #1304 adds U1304a/U1304b).
 ///
 /// Behaviors traced to specs/043-slice-plugin/tdd/test-list.md:

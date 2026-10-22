@@ -1,3 +1,4 @@
+@Tags(['spawn'])
 // Issue #1652 — on a forward `zfa tdd run`, every behavior's phase-1
 // refactor spawn follows its make-green with zero external edits in
 // between, yet it re-pays the full pipeline (full-suite preflight + pass
@@ -20,7 +21,6 @@
 // Every mismatch dimension (drift, baseline, config, exempt set, corrupt
 // record, missing opt-in, --full-reproof) must keep running the full
 // pipeline — the guards are green-by-design pre-fix.
-
 // The tests in this file drive `zfa tdd run` end-to-end against a
 // fixture project; the subprocesses (dart pub get, build, suite runs)
 // exceed the package default (2x = 60s) on a normal host. 5 minutes

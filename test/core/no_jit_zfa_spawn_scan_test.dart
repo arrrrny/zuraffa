@@ -16,6 +16,7 @@
 //      `dart test`, `dart analyze`, …).
 //
 // The scan is textual on purpose: it is a drift tripwire, not a compiler.
+@Tags(['spawn'])
 library;
 
 import 'dart:io';
