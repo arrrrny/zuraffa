@@ -5,7 +5,7 @@
 //
 // behavior_id: A3
 // source_criterion: AC-1
-// composed against: U1 (/home/z/my-project/zuraffa/lib/tdd/bug-tdd-run-baseline-timeout/u1_subject.dart) [stub]
+// composed against: U1 (lib/tdd/bug-tdd-run-baseline-timeout/u1_subject.dart)
 // description: it is allowed up to N and produces a usable snapshot.
 //
 // This replaces the `zfa tdd gen` stub with the minimal composed

@@ -2,10 +2,14 @@
 //
 // Issue #1983: the composed subject's header names the unit subjects it
 // composed against. It used to carry the ABSOLUTE path the discovery
-// resolved — e.g.
+// resolved — the anchor's own location on the machine that composed it,
+// e.g. `/Users/<dev>/zuraffa_purchase/packages/zuraffa_purchase/lib/tdd/
+// 002-subscription-error-vocabulary/u1_subject.dart`.
 //
-//   // composed against: U-001 (/Users/<dev>/zuraffa_purchase/packages/
-//   zuraffa_purchase/lib/tdd/002-subscription-error-vocabulary/u1_subject.dart)
+// The old shape is shown as a bare path, not as a header line: the
+// repository-wide sweep (`bug_1992_committed_subject_header_test.dart`)
+// forbids a machine-absolute path in ANY committed `composed against:`
+// header, and this doc must not model one it forbids.
 //
 // The header is a committed source file, so one developer's home directory
 // ends up in the repository: it is noise for every reader, it leaks the
