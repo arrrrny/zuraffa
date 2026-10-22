@@ -44,6 +44,8 @@ final class SnippetValidationIssue {
     required this.severity,
     required this.message,
     this.code,
+    this.uniqueName,
+    this.errorType,
     this.line,
   });
 
@@ -52,14 +54,38 @@ final class SnippetValidationIssue {
 
   /// Machine-readable class of the finding (`non_existent_api`,
   /// `undefined_getter`, `syntax_error`, ...).
+  ///
+  /// For an ANALYZER finding this is the diagnostic's DISPLAY name,
+  /// lower-cased — the analyzer's human-facing label. The analyzer renames
+  /// it freely (analyzer 14.6.0 replaced `undefined_getter` with
+  /// `undefined_instance_member_read`, issue #1980), so NEVER assert on
+  /// this key: use [uniqueName] / [errorType], which survive a rename.
   final String? code;
+
+  /// The analyzer's unique name for the diagnostic (`undefined_getter`,
+  /// `undefined_instance_member_read_not_found`) — the analyzer's own
+  /// identifier for it, distinct from the rename-prone display [code].
+  /// Null for findings that did not come from the analyzer.
+  final String? uniqueName;
+
+  /// The analyzer's diagnostic CLASS (`DiagnosticType.name`, e.g.
+  /// `COMPILE_TIME_ERROR`) — the error's kind, which survives every
+  /// rename of the diagnostic. The durable key for "which KIND of failure
+  /// is this". Null for findings that did not come from the analyzer.
+  final String? errorType;
 
   /// 1-based line inside the checked wrapper (best effort).
   final int? line;
 
   @override
-  String toString() =>
-      '[${code ?? severity.name}]${line != null ? ' line $line:' : ''} $message';
+  String toString() {
+    final label = code ?? severity.name;
+    // The analyzer's diagnostic CLASS rides along with the finding: the
+    // display name [code] is rename-prone, the class is the durable key
+    // (issue #1986). Rendered into the gate output a human reads.
+    final head = errorType == null ? label : '$label ($errorType)';
+    return '[$head]${line != null ? ' line $line:' : ''} $message';
+  }
 }
 
 /// The aggregate outcome of a validation pass.
@@ -232,6 +258,8 @@ final class SnippetCompileCheck {
           SnippetValidationIssue(
             severity: SnippetIssueSeverity.error,
             code: diagnostic.errorCode.name.toLowerCase(),
+            uniqueName: diagnostic.errorCode.uniqueName,
+            errorType: diagnostic.errorCode.type.name,
             line: lineInfo.getLocation(diagnostic.offset).lineNumber,
             message: diagnostic.message,
           ),

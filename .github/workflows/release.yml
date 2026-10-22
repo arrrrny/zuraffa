@@ -65,11 +65,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v1
+      # Issue #1986: the committed pubspec.lock resolves analyzer 14.6.0,
+      # whose SDK floor is Dart >= 3.13.0. This lane used Flutter 3.41.0
+      # (= Dart 3.11.0), so pub could NOT install the locked tree and
+      # silently re-resolved it — the pin was dropped exactly where a
+      # release is built. Use the same Flutter the flutter-smoke-gate above
+      # and CI use (3.47.x = Dart 3.13) so the locked tree installs.
+      - uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.41.0"
+          flutter-version: "3.47.x"
+          channel: stable
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.13.3"
 
-      - name: Install deps
+      - name: Install deps (enforce the committed lock)
+        # --enforce-lockfile: a drifted lock must fail the release LOUDLY
+        # instead of silently re-resolving to a newer analyzer (issue #1986).
+        run: dart pub get --enforce-lockfile --no-example
+      - name: Install deps (Flutter SDK resolution)
         run: flutter pub get
 
       - name: Template publish gate (bug 1198 — the loop is the referee)

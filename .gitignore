@@ -7,7 +7,12 @@
 !test/fixtures/slice_test_project/.dart_tool/package_config.json
 .idea/
 .packages
-pubspec.lock
+# Issue #1986: pubspec.lock is COMMITTED on purpose — it pins the resolved
+# dependency tree (notably `analyzer`) so CI stops resolving a fresh
+# analyzer 14.x on every run. Without it, every analyzer release lands on
+# master as an untested production change (the 14.6.0 diagnostic rename
+# broke master — issue #1980). Bump it deliberately:
+# `dart pub get --no-example && git add pubspec.lock`.
 .pub/
 # BUG-1188: a bare `apps/` rule is FORBIDDEN here — it excludes the parent
 # directory itself, and git cannot re-include paths under an excluded parent,
@@ -51,7 +56,6 @@ contracts
 /apps/*
 !apps/zikzak_demo/
 pubspec_overrides.yaml
-pubspec.lock
 .worktrees/
 # Benchmark baseline stores (test pollution; user projects keep their own)
 benchmarks/

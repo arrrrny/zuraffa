@@ -332,11 +332,23 @@ int subject_u_001() {
       final out = await runner.runCapturing(composeArgs(fx, id: 'A-001'));
 
       expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
-      expect(out, contains('outcome=runner-error'));
+      // Issue #1974: the missing composed subject is the doctor-grade
+      // owned-and-missing drift — a NAMED outcome, the doctor's drift line
+      // and the doctor's recovery, never a bare runner-error.
+      expect(out, contains('outcome=drift'));
       // The registry records the portable project-relative form
       // (issue #1397), and the error names that recorded artifact.
       expect(out, contains('lib/a_001_subject.dart'));
-      expect(out, contains('zfa tdd gen'));
+      expect(
+        out,
+        contains(
+          'drift: A-001: lib/a_001_subject.dart is recorded but missing from '
+          'disk',
+        ),
+      );
+      // A half-missing record still owns its test file — the doctor's
+      // prescription for that state is the full reset.
+      expect(out, contains('--> fix: zfa tdd reset ${fx.featureName}'));
     });
 
     test(
@@ -358,7 +370,9 @@ int subject_u_001() {
         ]);
 
         expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
-        expect(out, contains('outcome=runner-error'));
+        // Issue #1974: the missing composed subject is the named
+        // owned-and-missing drift, not an opaque runner-error.
+        expect(out, contains('outcome=drift'));
         expect(out, contains('missing subject file'));
         expect(out, contains('lib/a_001_subject.dart'));
         expect(
