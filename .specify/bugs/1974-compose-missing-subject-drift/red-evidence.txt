@@ -1,0 +1,64 @@
+RED evidence — zuraffa#1974 (pre-fix tree, master @ 14b86989)
+=============================================================
+
+Command
+-------
+
+    dart test --preset=all -j 2 \
+      test/plugins/tdd/commands/bug_1974_compose_missing_subject_drift_test.dart
+
+Result: 4 failed, 1 passed (the "healthy compose is unaffected" control).
+
+The compose output the failing assertions saw
+---------------------------------------------
+
+    zfa tdd compose: behavior A-001
+       feature: 1974-compose
+    zfa tdd compose: the registry record for behavior "A-001" points to a
+    missing subject file at "lib/a_001_subject.dart". Run `zfa tdd gen
+    A-001` to restore its artifacts.
+    compose: behavior=A-001 outcome=runner-error feature=1974-compose
+
+No `drift:` line. No `--> fix:` line. The outcome is the catch-all
+`runner-error`.
+
+The machine verdict on the same path (--json)
+---------------------------------------------
+
+    {"schema":"zuraffa.verdict.v1","command":"compose",
+     "feature":"1974-compose","verdict":"fail",
+     "exit_class":"runner-error","drifts":[],"details":{"behavior":"A-001"},
+     "timestamp":"2026-10-22T04:15:16.046594Z"}
+
+`drifts` is empty and there is no `fix` key — the verdict names neither
+the reason nor the recovery.
+
+Failing assertions
+------------------
+
+    00:02 +0 -3: #1974 — compose reports the doctor drift verdict the
+    machine verdict carries the drift AND the fix line [E]
+      Expected: 'drift'
+        Actual: 'runner-error'
+         Which: is different.
+                Expected: drift
+                  Actual: runner-err ...
+                          ^
+                 Differ at offset 0
+
+    00:04 +1 -4: Some tests failed.
+
+    Failing tests:
+      test/plugins/tdd/commands/bug_1974_compose_missing_subject_drift_test.dart:
+        #1974 — compose reports the doctor drift verdict a fully-gone record
+        prescribes the doctor's surgical repair
+      test/plugins/tdd/commands/bug_1974_compose_missing_subject_drift_test.dart:
+        #1974 — compose reports the doctor drift verdict a missing composed
+        subject names the drift and the doctor's reset prescription (the test
+        half still survives)
+      test/plugins/tdd/commands/bug_1974_compose_missing_subject_drift_test.dart:
+        #1974 — compose reports the doctor drift verdict the doctor and compose
+        agree on the SAME drift for the SAME file
+      test/plugins/tdd/commands/bug_1974_compose_missing_subject_drift_test.dart:
+        #1974 — compose reports the doctor drift verdict the machine verdict
+        carries the drift AND the fix line
