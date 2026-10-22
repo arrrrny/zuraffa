@@ -473,52 +473,50 @@ void main() {
       );
     });
 
-    test('E7: a receipted artifact that is GONE is reported — the doctor '
-        'may not disagree with the verify gate about a deleted artifact',
-        () async {
-      await seedQueriedFeature();
-      // The receipt names an artifact that no longer exists on disk.
-      const goneRelPath = 'lib/tdd/$driftedFeature/gone_subject.dart';
-      final certified = crypto.sha256
-          .convert(utf8.encode(certifiedBytes))
-          .toString();
-      await ReceiptStore(projectRoot: root.path).save(
-        GenerationReceipt(
-          command: 'tdd verify-red U1 --re-certify',
-          target: 'U1',
-          repro: 'zfa tdd verify-red U1 --re-certify',
-          at: DateTime.utc(2026, 10, 2),
-          generatorVersion: '7.2.0',
-          input: {'feature': driftedFeature, 'behavior': 'U1'},
-          files: [
-            GenerationReceiptFile(
-              path: goneRelPath,
-              action: 'create',
-              sha256: certified,
-              bytes: certifiedBytes.length,
-            ),
-          ],
-        ),
-      );
+    test(
+      'E7: a receipted artifact that is GONE is reported — the doctor '
+      'may not disagree with the verify gate about a deleted artifact',
+      () async {
+        await seedQueriedFeature();
+        // The receipt names an artifact that no longer exists on disk.
+        const goneRelPath = 'lib/tdd/$driftedFeature/gone_subject.dart';
+        final certified = crypto.sha256
+            .convert(utf8.encode(certifiedBytes))
+            .toString();
+        await ReceiptStore(projectRoot: root.path).save(
+          GenerationReceipt(
+            command: 'tdd verify-red U1 --re-certify',
+            target: 'U1',
+            repro: 'zfa tdd verify-red U1 --re-certify',
+            at: DateTime.utc(2026, 10, 2),
+            generatorVersion: '7.2.0',
+            input: {'feature': driftedFeature, 'behavior': 'U1'},
+            files: [
+              GenerationReceiptFile(
+                path: goneRelPath,
+                action: 'create',
+                sha256: certified,
+                bytes: certifiedBytes.length,
+              ),
+            ],
+          ),
+        );
 
-      final runner = CliRunner(exitOnCompletion: false);
-      final out = await runner.runCapturing(doctorArgs());
+        final runner = CliRunner(exitOnCompletion: false);
+        final out = await runner.runCapturing(doctorArgs());
 
-      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
-      expect(out, contains(goneRelPath), reason: out);
-      expect(
-        out,
-        contains('missing'),
-        reason:
-            'a receipted artifact that is gone is the same receipt-vs-disk '
-            'class the verify gate refuses the feature for:\n$out',
-      );
-      expect(
-        out,
-        isNot(contains('stores agree')),
-        reason: out,
-      );
-    });
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
+        expect(out, contains(goneRelPath), reason: out);
+        expect(
+          out,
+          contains('missing'),
+          reason:
+              'a receipted artifact that is gone is the same receipt-vs-disk '
+              'class the verify gate refuses the feature for:\n$out',
+        );
+        expect(out, isNot(contains('stores agree')), reason: out);
+      },
+    );
 
     test('E8: a generator receipt never prescribes its own id-less repro — '
         'the id-bearing re-certification transition is named', () async {
@@ -581,7 +579,9 @@ void main() {
       final certified = crypto.sha256
           .convert(utf8.encode(certifiedBytes))
           .toString();
-      final current = crypto.sha256.convert(utf8.encode(currentBytes)).toString();
+      final current = crypto.sha256
+          .convert(utf8.encode(currentBytes))
+          .toString();
 
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing(doctorArgs());
