@@ -82,12 +82,34 @@ void main() {
       // The diagnostic NAME moved with the analyzer: 14.5.x reports
       // `undefined_getter`, 14.6.0 renamed it `undefined_instance_member_read`
       // — the same "the member isn't defined for the type" failure class.
-      // The repo commits no lockfile, so CI resolves whichever analyzer 14.x
-      // is current — accept both names of that ONE error class.
+      // Asserting on the display NAME re-breaks master on the next rename
+      // (issue #1980 → #1981), so assert on the analyzer's error CLASS
+      // instead: the DiagnosticType survived that rename unchanged, and so
+      // does every future rename of the diagnostic.
+      //
+      // Filter by that class FIRST instead of taking `errors.single`: the
+      // analyzer may add a second error-severity diagnostic to this snippet
+      // over time, and `single` would then throw `StateError: Too many
+      // elements` instead of failing with a meaningful assertion.
+      final errors = result.errors
+          .where((e) => e.errorType == 'COMPILE_TIME_ERROR')
+          .toList();
       expect(
-        result.issues.map((i) => i.code),
-        contains(anyOf('undefined_getter', 'undefined_instance_member_read')),
+        errors,
+        isNotEmpty,
+        reason: 'the historical snippet must yield a compile-time error',
       );
+      final error = errors.first;
+      expect(
+        error.errorType,
+        'COMPILE_TIME_ERROR',
+        reason: 'the analyzer error CLASS — survives every diagnostic rename',
+      );
+      // The unique name stays exposed for diagnostics; its VALUE is not a
+      // contract (the analyzer REPLACED the diagnostic in 14.6.0 and no
+      // analyzer API guarantees a naming convention for it).
+      expect(error.uniqueName, isNotNull);
+      expect(error.uniqueName, isNotEmpty);
     }, timeout: const Timeout(Duration(minutes: 3)));
 
     test('U-1685-G2: the fixed render passes the REAL analyzer compile check '

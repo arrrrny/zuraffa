@@ -31,7 +31,12 @@ jobs:
         with:
           sdk: "3.13.3"
       - name: "Get dependencies"
-        run: dart pub get --no-example
+        # --enforce-lockfile (issue #1986): the committed pubspec.lock pins
+        # the analyzer version this lane's tests run against. A drifted lock
+        # must fail the lane LOUDLY instead of silently re-resolving to a
+        # newer analyzer (that silent re-resolve is what broke master on
+        # 14.6.0 — issue #1980).
+        run: dart pub get --enforce-lockfile --no-example
       - name: "Dart Analyze (pure Dart, no Flutter)"
         # Scoped to the root package (lib/ + test/). The root package is
         # pure Dart; zuraffa_flutter is a separate Flutter package and must
