@@ -171,7 +171,8 @@ class TddTimeoutFormatException implements Exception {
 ///
 /// The child has already been killed (SIGKILL on POSIX, TerminateProcess on
 /// Windows) and reaped when this is thrown; [output] carries whatever it
-/// wrote before the kill so the failure report stays actionable.
+/// wrote before the kill so the failure report stays actionable, and
+/// [exitCode] carries the exit code the OS gave the killed child.
 ///
 /// Spec 1529: [elapsed] is the child's ACTUAL wall-clock lifetime (the
 /// configured deadline is [timeout] — the two differ when scheduling
@@ -189,6 +190,7 @@ class ProcessTimeoutException implements Exception {
     required this.output,
     Duration? elapsed,
     this.descendantArgvs = const [],
+    this.exitCode,
   }) : elapsed = elapsed ?? timeout;
 
   final String executable;
@@ -210,6 +212,15 @@ class ProcessTimeoutException implements Exception {
 
   /// stdout + stderr captured before the kill.
   final String output;
+
+  /// The child's OBSERVED exit code, read after the kill — negative on
+  /// POSIX (the signal that killed it, e.g. -9 for SIGKILL) and a positive
+  /// `TerminateProcess` code on Windows. Null when the code was never
+  /// observed (a hand-constructed exception).
+  ///
+  /// The value is never reconstructed: a caller that reports an exit code
+  /// for a timed-out child reports the one the OS gave it.
+  final int? exitCode;
 
   /// The command line as it was invoked (post-resolution).
   String get commandDisplay => [executable, ...arguments].join(' ');
@@ -372,6 +383,7 @@ Future<ProcessResult> runTimed(
       output: '$stdoutText$stderrText',
       elapsed: stopwatch.elapsed,
       descendantArgvs: descendants,
+      exitCode: exitCode,
     );
   }
   return ProcessResult(process.pid, exitCode, stdoutText, stderrText);
