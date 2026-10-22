@@ -126,6 +126,15 @@ void main() {
         contains('package:tdd_fixture/${_libRel(fx.subjectPathOf('U-001'))}'),
       );
       expect(subject, contains('subject_u_001'));
+      // Issue #1983: the header names the anchor by its PACKAGE-relative
+      // path — the header is a committed source file, so the machine-
+      // absolute path would leak the developer's home directory into the
+      // repository.
+      expect(
+        subject,
+        contains('// composed against: U-001 (lib/u_001_subject.dart)'),
+      );
+      expect(subject, isNot(contains(fx.root.path)));
       // The anchor file itself is untouched, and no test file changed.
       expect(
         await File(fx.subjectPathOf('U-001')).readAsString(),
