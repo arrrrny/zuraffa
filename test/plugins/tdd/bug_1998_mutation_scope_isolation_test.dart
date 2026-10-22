@@ -43,6 +43,12 @@ void main() {
   const featureA = '001-purchase-store';
   const featureB = '002-subscription-error-vocabulary';
 
+  /// A feature whose registered subject path carries a character the
+  /// config writer XML-escapes — the scope guard must compare the
+  /// UNESCAPED path, or the run refuses its OWN scope.
+  const featureC = '003-rd-taxonomy';
+  const featureCSubject = 'r&d';
+
   /// Writes a feature's registry (`specs/<name>/tdd/artifacts.json`) with
   /// one registered subject per [subjectIds] — the registry the mutation
   /// scope is derived from.
@@ -99,6 +105,9 @@ done
 mkdir -p "\$out"
 echo "\$config" > "\$(dirname "\$out")/child-ran.txt"
 first=\$(sed -n 's/.*<file>\\(.*\\)<\\/file>.*/\\1/p' "\$config" | head -1)
+# A real mutation tool PARSES the XML, so the file it reports is the
+# unescaped path.
+first=\$(printf '%s' "\$first" | sed -e 's/&quot;/"/g' -e 's/&gt;/>/g' -e 's/&lt;/</g' -e 's/&amp;/\\&/g')
 cat > "\$out/mutation-test-report.md" <<EOF
 # Mutation report
 
@@ -238,6 +247,7 @@ Future<void> main(List<String> args) async {
     tmpDir = Directory.systemTemp.createTempSync('bug_1998_mutation_scope_');
     writeFeature(featureA, ['u1', 'u2']);
     writeFeature(featureB, ['u1', 'u2']);
+    writeFeature(featureC, [featureCSubject]);
     installFakeDart();
     originalPath = Platform.environment['PATH'] ?? '';
   });
@@ -346,6 +356,31 @@ Future<void> main(List<String> args) async {
         report['reason'],
         contains('registered subjects'),
         reason: 'the verdict must name the scope mismatch',
+      );
+    },
+  );
+
+  test(
+    "a subject path the config writer escaped still matches its own scope",
+    () async {
+      // The config writer XML-escapes every `<file>` entry, so this
+      // feature's subject is stored as `r&amp;d_subject.dart`. The scope
+      // guard compares the config's list against the run's OWN scope —
+      // comparing the escaped text would make the run refuse its own
+      // subjects and report `not_assessed` for a scope it never mutated.
+      final report = await runAudit(featureC);
+
+      expect(
+        childMarker(),
+        isNotNull,
+        reason: 'the mutation child must run on the feature\'s own scope',
+      );
+      expect(
+        report['gate'],
+        'fail_survived',
+        reason:
+            'an escaped path must not trip the scope guard; reason: '
+            '${report['reason']}',
       );
     },
   );

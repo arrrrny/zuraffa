@@ -1260,10 +1260,22 @@ String scopedMutationReportDir({
 
 /// The `<file>` entries a scoped mutation config lists (issue #1998) —
 /// the files the mutation child mutates.
+///
+/// The config writer XML-escapes every entry, so the extracted text is
+/// unescaped back to the plain path: a subject path carrying `&`, `<`,
+/// `>` or `"` must still compare equal to the registry's path.
 List<String> mutationConfigSubjectPaths(String configText) => RegExp(
   r'<file>(.*?)</file>',
   dotAll: true,
-).allMatches(configText).map((m) => m.group(1)!.trim()).toList();
+).allMatches(configText).map((m) => unescapeXml(m.group(1)!.trim())).toList();
+
+/// Undoes the XML escaping the mutation config writer applies to a
+/// `<file>` entry (issue #1998).
+String unescapeXml(String raw) => raw
+    .replaceAll('&quot;', '"')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&amp;', '&');
 
 /// True when the config's `<file>` list is EXACTLY [scopePaths]
 /// (issue #1998).
