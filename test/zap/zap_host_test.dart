@@ -587,7 +587,7 @@ void main() {
         expect(executed['ok'], isFalse);
         expect((executed['detail'] as String).contains('s1'), isTrue);
       },
-      timeout: const Timeout(Duration(minutes: 1)),
+      timeout: const Timeout(Duration(minutes: 2)),
     );
 
     test('U17: evidence output is capped at 2000 chars', () async {

@@ -10,6 +10,7 @@
 // summary line, the three exit classes (0 match / 1 differ / 2
 // runner-error), the named divergence report (`<entry> <step>: hang vs
 // complete` — the #744 shape), and scratch/worktree cleanup.
+@Tags(['spawn'])
 library;
 
 import 'dart:convert';

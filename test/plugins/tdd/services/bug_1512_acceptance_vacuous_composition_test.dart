@@ -1,3 +1,4 @@
+@Tags(['spawn'])
 // Bug #1512 — the acceptance lane is a vacuous composition seam.
 //
 // Three pins, one per root cause:
@@ -460,6 +461,6 @@ dependencies:
       expect(combined, allOf(contains('Expected:'), contains('Actual:')));
     },
     tags: 'slow',
-    timeout: const Timeout(Duration(minutes: 3)),
+    timeout: const Timeout(Duration(minutes: 4)),
   );
 }

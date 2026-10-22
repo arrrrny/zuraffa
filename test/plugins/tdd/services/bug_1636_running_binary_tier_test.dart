@@ -1,3 +1,6 @@
+@Tags(['spawn'])
+library;
+
 // Issue #1636 — `StepRunner.resolveEntrypoint` ordered the PATH tier (the
 // bug #690 system-binary lookup) BEFORE the running-executable tier. When
 // the driving process IS a compiled (non-VM) binary that is not on PATH —
@@ -28,7 +31,6 @@
 //   B5 — the cache-exe driver with a NON-executable PATH candidate: the
 //        running binary wins; the non-executable PATH candidate never
 //        wins (the test pins the outcome, not the tier order).
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

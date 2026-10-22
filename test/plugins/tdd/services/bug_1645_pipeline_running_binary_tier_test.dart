@@ -1,3 +1,6 @@
+@Tags(['spawn'])
+library;
+
 // Issue #1645 — `PipelineRunner._resolveEntrypoint` (the #665 chain behind
 // `tdd make`/`gen` spawns) ordered the PATH tier BEFORE any running-binary
 // tier. When the driving process IS a compiled (non-VM) binary whose
@@ -39,7 +42,6 @@
 //        resolvedExecutable (non-VM basename) routes through the
 //        `ensureCompiled` seam — the entrypoint is the returned artifact,
 //        never the raw source (the no-JIT seam is load-bearing).
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

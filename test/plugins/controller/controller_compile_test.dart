@@ -1,4 +1,4 @@
-@Tags(['flutter'])
+@Tags(['flutter', 'spawn'])
 library;
 
 import 'dart:io';
