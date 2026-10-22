@@ -86,17 +86,30 @@ void main() {
       // (issue #1980 → #1981), so assert on the analyzer's error CLASS
       // instead: the DiagnosticType survived that rename unchanged, and so
       // does every future rename of the diagnostic.
-      final error = result.errors.single;
+      //
+      // Filter by that class FIRST instead of taking `errors.single`: the
+      // analyzer may add a second error-severity diagnostic to this snippet
+      // over time, and `single` would then throw `StateError: Too many
+      // elements` instead of failing with a meaningful assertion.
+      final errors = result.errors
+          .where((e) => e.errorType == 'COMPILE_TIME_ERROR')
+          .toList();
+      expect(
+        errors,
+        isNotEmpty,
+        reason: 'the historical snippet must yield a compile-time error',
+      );
+      final error = errors.first;
       expect(
         error.errorType,
         'COMPILE_TIME_ERROR',
         reason: 'the analyzer error CLASS — survives every diagnostic rename',
       );
-      expect(
-        error.uniqueName,
-        matches(RegExp(r'^undefined_')),
-        reason: 'the undefined-member diagnostic family, by unique name',
-      );
+      // The unique name stays exposed for diagnostics; its VALUE is not a
+      // contract (the analyzer REPLACED the diagnostic in 14.6.0 and no
+      // analyzer API guarantees a naming convention for it).
+      expect(error.uniqueName, isNotNull);
+      expect(error.uniqueName, isNotEmpty);
     }, timeout: const Timeout(Duration(minutes: 3)));
 
     test('U-1685-G2: the fixed render passes the REAL analyzer compile check '

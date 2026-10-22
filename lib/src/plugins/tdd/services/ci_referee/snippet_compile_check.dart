@@ -78,8 +78,14 @@ final class SnippetValidationIssue {
   final int? line;
 
   @override
-  String toString() =>
-      '[${code ?? severity.name}]${line != null ? ' line $line:' : ''} $message';
+  String toString() {
+    final label = code ?? severity.name;
+    // The analyzer's diagnostic CLASS rides along with the finding: the
+    // display name [code] is rename-prone, the class is the durable key
+    // (issue #1986). Rendered into the gate output a human reads.
+    final head = errorType == null ? label : '$label ($errorType)';
+    return '[$head]${line != null ? ' line $line:' : ''} $message';
+  }
 }
 
 /// The aggregate outcome of a validation pass.

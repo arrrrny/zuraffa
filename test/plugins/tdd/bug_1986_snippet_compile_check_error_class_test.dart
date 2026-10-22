@@ -79,7 +79,20 @@ void main() {
       final result = await const SnippetCompileCheck().compileCheck(
         _buggySnippet,
       );
-      final error = result.errors.single;
+      // The analyzer may report MORE than one error-severity diagnostic for
+      // this snippet over time (a cascading diagnostic, a lint promoted to
+      // an error). Filter by the durable class FIRST, then assert on the
+      // match — `single` would throw `StateError: Too many elements`
+      // instead of failing with a meaningful assertion.
+      final errors = result.errors
+          .where((e) => e.errorType == 'COMPILE_TIME_ERROR')
+          .toList();
+      expect(
+        errors,
+        isNotEmpty,
+        reason: 'the snippet must yield at least one compile-time error',
+      );
+      final error = errors.first;
 
       // The error CLASS — unchanged by the 14.5.x → 14.6.0 rename and
       // unchanged by any future rename of the diagnostic.
@@ -89,16 +102,18 @@ void main() {
         reason: 'the analyzer error CLASS survives every diagnostic rename',
       );
 
-      // The analyzer's unique name for the undefined-member diagnostic.
-      // Both the 14.5.x (`undefined_getter`) and the 14.6.0+
-      // (`undefined_instance_member_read_not_found`) identifiers live in
-      // the analyzer's `undefined_*` family — the assertion holds across
-      // the rename instead of enumerating the names one by one.
+      // The analyzer's unique name stays exposed (it is genuinely useful
+      // for diagnostics) but its VALUE is not a contract: analyzer 14.6.0
+      // REPLACED the diagnostic rather than relabelling it, and no analyzer
+      // API guarantees any naming convention for the family. Assert that it
+      // is present and well-formed — never that it matches a name (or a
+      // name prefix): that is the coupling #1980/#1981 was about.
       expect(
         error.uniqueName,
-        matches(RegExp(r'^undefined_')),
-        reason: 'the undefined-member diagnostic family, by unique name',
+        isNotNull,
+        reason: 'the analyzer unique name is exposed for diagnostics',
       );
+      expect(error.uniqueName, isNotEmpty);
     }, timeout: const Timeout(Duration(minutes: 3)));
 
     // ---------------------------------------------------------------

@@ -46,6 +46,19 @@ dependencies:
   # every analyzer release land on master untested (14.6.0 replaced the
   # `undefined_getter` diagnostic and broke the build — issue #1980).
   # Bump deliberately: `dart pub get --no-example && git add pubspec.lock`.
+  #
+  # SDK FLOOR of the LOCK: the locked analyzer 14.6.0 declares
+  # `sdk: ^3.13.0`, so this repository's OWN lanes must run Dart >= 3.13.0
+  # (pubspec.lock -> sdks: dart: ">=3.13.0 <4.0.0"). CI pins Dart 3.13.3
+  # and resolves with `--enforce-lockfile`, so a drifted lock fails loudly
+  # instead of silently re-resolving (issue #1986 review). Bumping the lock
+  # therefore requires Dart >= 3.13.0 — run the bump on 3.13.x.
+  #
+  # The PUBLISHED package's own floor stays `environment: sdk: ^3.11.0` on
+  # purpose: pub IGNORES a dependency's lockfile, so a consumer on Dart
+  # 3.11/3.12 still resolves analyzer 14.5.x (its sdk floor is ^3.11.0)
+  # inside this same `^14.4.0` constraint — raising the published floor
+  # would break those consumers for a pin that does not reach them.
   analyzer: ^14.4.0
 
   # Sync plugin: hive_ce 2.20.0+ required for Box API used in SyncMetadataStore
