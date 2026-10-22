@@ -19,7 +19,14 @@
 ///   2. Requires certified-red evidence in `tdd/cycle-log.md` (make's
 ///      FR-001 precondition — composition implements a certified-red
 ///      behavior).
-///   3. Requires the subject artifact on disk (gen wrote it).
+///   3. Requires the subject artifact on disk (gen wrote it). A subject
+///      that is RECORDED but MISSING from disk is the doctor-grade
+///      owned-and-missing drift: the `drift:` line and the doctor's
+///      `-->` fix line are printed (the shared `MissingArtifactDrift`
+///      classifier — the same one `zfa tdd doctor` uses, so the two
+///      commands can never disagree about the same file) and the outcome
+///      is the named `drift`, never an opaque `runner-error` (issue
+///      #1974).
 ///   4. Discovers the feature's composable green unit subjects via
 ///      `CompositionTargets` (unit-kind test-list rows ∩ green cycle-log
 ///      evidence ∩ existing subject artifacts). Zero anchors →
@@ -52,6 +59,7 @@ import 'package:path/path.dart' as p;
 import '../services/artifact_registry.dart';
 import '../services/composition_targets.dart';
 import '../services/cycle_log_sections.dart';
+import '../services/missing_artifact_drift.dart';
 import '../services/tdd_generation_receipt.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -70,6 +78,12 @@ enum ComposeOutcome {
   // refusal naming the stale premise, never a runner-error the operator
   // cannot act on.
   staleEvidence('stale-evidence'),
+  // Issue #1974: the composed subject is RECORDED in the registry but
+  // MISSING from disk — the same owned-and-missing drift `zfa tdd doctor`
+  // diagnoses. It is a named state with a named recovery, never an opaque
+  // runner-error: the drift line and the doctor's `-->` fix line are
+  // printed and carried in the machine verdict.
+  drift('drift'),
   runnerError('runner-error');
 
   const ComposeOutcome(this.label);
@@ -215,16 +229,46 @@ class ComposeCommand extends Command<void> {
     try {
       resolvedCwd = await Directory(normalizedCwd).resolveSymbolicLinks();
       if (!await unresolvedSubjectFile.exists()) {
+        // Issue #1974: the missing composed subject is the doctor-grade
+        // owned-and-missing drift. Report its NAME and its recovery — the
+        // `drift:` line and the `-->` fix line `zfa tdd doctor` prints for
+        // the SAME file — instead of a bare runner-error that carries no
+        // reason and no recovery path.
+        final report = MissingArtifactDrift.classify(
+          records: await ArtifactRegistry(
+            featureDir: target.featureDir,
+          ).loadAll(reanchor: false),
+          projectRoot: normalizedCwd,
+        );
+        final prescription = MissingArtifactDrift.prescribe(
+          feature: target.featureName,
+          report: report,
+        );
+        // The classification can only come up empty for a registry whose
+        // raw recorded form points at a file that IS on disk — a state the
+        // doctor would not report either. Name the target's own missing
+        // artifact then, so a drift line is never missing from a drift.
+        final driftLines = report.drifts.isEmpty
+            ? [
+                '${record.behaviorId}: $recordedSubject is recorded but '
+                    'missing from disk',
+              ]
+            : report.drifts;
         print(
           'zfa tdd compose: the registry record for behavior '
           '"${record.behaviorId}" points to a missing subject file at '
-          '"$recordedSubject". Run `zfa tdd gen ${record.behaviorId}` to '
-          'restore its artifacts.',
+          '"$recordedSubject".',
         );
+        for (final drift in driftLines) {
+          print('  drift: $drift');
+        }
+        print('   --> fix: ${prescription.fix} — ${prescription.why}');
         _printSummary(
           behavior: record.behaviorId,
-          outcome: ComposeOutcome.runnerError,
+          outcome: ComposeOutcome.drift,
           feature: target.featureName,
+          drifts: driftLines,
+          fix: prescription.fix,
         );
         exitCode = 1;
         return;
@@ -692,6 +736,8 @@ $returnType $functionName() {$body}
     required String behavior,
     required ComposeOutcome outcome,
     required String feature,
+    List<String> drifts = const [],
+    String? fix,
   }) {
     print(
       'compose: behavior=$behavior outcome=${outcome.label} feature=$feature',
@@ -706,6 +752,11 @@ $returnType $functionName() {$body}
       }
       ..details['behavior'] = behavior
       ..feature = feature == 'unknown' ? null : feature;
+    // Issue #1974: the machine verdict carries the drift and its recovery
+    // — a verdict that names neither leaves the operator with the command
+    // that failed and nothing else.
+    if (drifts.isNotEmpty) _verdict.drifts.addAll(drifts);
+    if (fix != null && fix.isNotEmpty) _verdict.fix = fix;
   }
 }
 

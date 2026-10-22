@@ -1,0 +1,236 @@
+@Tags(['slow'])
+// Regression test for zuraffa#1974: `zfa tdd compose` on a MISSING composed
+// (the `slow` tier matches the sibling compose suite — same fixture).
+// subject must report the doctor's drift verdict — the NAMED drift line and
+// the doctor's `-->` fix line — instead of a bare `runner-error` that carries
+// no reason and no recovery path.
+//
+// The pre-fix symptom: the summary line was
+//   compose: behavior=A1 outcome=runner-error feature=<feature>
+// with no drift line and no `-->` fix line, so the recovery path was not
+// discoverable from the command itself.
+//
+// The contract asserted here:
+//   1. the drift line is the one `zfa tdd doctor <feature>` prints for the
+//      same file: `drift: <id>: <path> is recorded but missing from disk`;
+//   2. the `-->` fix line is the doctor's own prescription for that state
+//      (`zfa tdd doctor <feature> --repair` when the record is fully gone,
+//      `zfa tdd reset <feature>` when a surviving half keeps it);
+//   3. the machine verdict carries BOTH (the `drifts` and `fix` fields).
+library;
+
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/cli_runner.dart';
+
+import '../helpers/tdd_fixture.dart';
+
+/// The gen-shaped acceptance stub compose rewrites.
+String acceptanceStub(String id) =>
+    '''
+// GENERATED STUB — `zfa tdd gen $id`.
+library;
+
+/// Scenario runner for behavior $id.
+void subject_${id.toLowerCase().replaceAll('-', '_')}() =>
+    throw UnimplementedError('subject not implemented');
+''';
+
+/// A compiling anchor subject defining the default target symbol.
+String anchorSubject(String id) =>
+    '''
+library;
+
+int subject_${id.toLowerCase().replaceAll('-', '_')}() => 0;
+''';
+
+/// Seed the canonical compose fixture: an acceptance target certified red
+/// and one green unit with an existing subject file (the composition anchor).
+Future<void> seedComposeFixture(TddFixture fx) async {
+  await fx.seedTestList([
+    (
+      id: 'A-001',
+      description: 'the signup flow completes and the account is usable',
+      traces: 'FR-007',
+      state: 'PENDING',
+      kind: 'acceptance',
+    ),
+    (
+      id: 'U-001',
+      description: 'unit behavior backing A-001',
+      traces: 'FR-007',
+      state: 'PENDING',
+      kind: 'unit',
+    ),
+  ]);
+  await fx.seedCertifiedRed(
+    id: 'A-001',
+    description: 'the signup flow completes and the account is usable',
+    subjectContent: acceptanceStub('A-001'),
+  );
+  await fx.registerBehavior(id: 'U-001', description: 'unit behavior one');
+  await fx.seedGreenEvidence('U-001');
+  await File(fx.subjectPathOf('U-001')).writeAsString(anchorSubject('U-001'));
+}
+
+/// The last stdout line, parsed as the versioned verdict envelope.
+Map<String, dynamic> verdictMap(String out) {
+  final lines = out
+      .split('\n')
+      .map((l) => l.trim())
+      .where((l) => l.isNotEmpty)
+      .toList();
+  return jsonDecode(lines.last) as Map<String, dynamic>;
+}
+
+void main() {
+  late TddFixture fx;
+  final runner = CliRunner(exitOnCompletion: false);
+
+  List<String> composeArgs({String? id, String? feature, bool json = false}) {
+    final args = <String>['tdd', 'compose', '--project', fx.root.path];
+    if (json) args.add('--json');
+    if (feature != null) args.addAll(['--feature', feature]);
+    if (id != null) args.add(id);
+    return args;
+  }
+
+  setUp(() async {
+    fx = await TddFixture.create(featureName: '1974-compose');
+    await seedComposeFixture(fx);
+  });
+
+  tearDown(() {
+    fx.dispose();
+    exitCode = 0;
+  });
+
+  group('#1974 — compose reports the doctor drift verdict', () {
+    test('a missing composed subject names the drift and the doctor\'s '
+        'reset prescription (the test half still survives)', () async {
+      await File(fx.subjectPathOf('A-001')).delete();
+
+      final out = await runner.runCapturing(composeArgs(id: 'A-001'));
+
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
+      // The drift line is the one doctor prints for the same file.
+      expect(
+        out,
+        contains(
+          'drift: A-001: lib/a_001_subject.dart is recorded but missing '
+          'from disk',
+        ),
+        reason: out,
+      );
+      // A half-missing record keeps the heavier reset as its remedy.
+      expect(
+        out,
+        contains('--> fix: zfa tdd reset ${fx.featureName}'),
+        reason: out,
+      );
+      // The outcome is the NAMED drift, not an opaque runner-error.
+      expect(
+        out,
+        contains(
+          'compose: behavior=A-001 outcome=drift feature=${fx.featureName}',
+        ),
+        reason: out,
+      );
+    });
+
+    test(
+      'a fully-gone record prescribes the doctor\'s surgical repair',
+      () async {
+        await File(fx.subjectPathOf('A-001')).delete();
+        await File(fx.testPathOf('A-001')).delete();
+
+        final out = await runner.runCapturing(composeArgs(id: 'A-001'));
+
+        expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
+        expect(
+          out,
+          contains(
+            'drift: A-001: lib/a_001_subject.dart is recorded but missing '
+            'from disk',
+          ),
+          reason: out,
+        );
+        expect(
+          out,
+          contains('--> fix: zfa tdd doctor ${fx.featureName} --repair'),
+          reason: out,
+        );
+        expect(
+          out,
+          contains(
+            'compose: behavior=A-001 outcome=drift feature=${fx.featureName}',
+          ),
+          reason: out,
+        );
+      },
+    );
+
+    test('the machine verdict carries the drift AND the fix line', () async {
+      await File(fx.subjectPathOf('A-001')).delete();
+
+      final out = await runner.runCapturing(
+        composeArgs(id: 'A-001', json: true),
+      );
+
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
+      final v = verdictMap(out);
+      expect(v['verdict'], 'fail', reason: out);
+      expect(v['exit_class'], 'drift', reason: out);
+      expect(
+        (v['drifts'] as List).cast<String>(),
+        contains(
+          'A-001: lib/a_001_subject.dart is recorded but missing from disk',
+        ),
+        reason: out,
+      );
+      expect(v['fix'], 'zfa tdd reset ${fx.featureName}', reason: out);
+    });
+
+    test('the doctor and compose agree on the SAME drift for the SAME '
+        'file', () async {
+      await File(fx.subjectPathOf('A-001')).delete();
+
+      final composeOut = await runner.runCapturing(composeArgs(id: 'A-001'));
+      final doctorOut = await runner.runCapturing([
+        'tdd',
+        'doctor',
+        fx.featureName,
+        '--project',
+        fx.root.path,
+      ]);
+
+      final driftLine = RegExp(
+        r'drift: (A-001: .*missing from disk)',
+      ).firstMatch(composeOut)?.group(1);
+      expect(driftLine, isNotNull, reason: composeOut);
+      expect(doctorOut, contains(driftLine!), reason: doctorOut);
+
+      final fixLine = RegExp(
+        r'--> fix: (zfa tdd \S+)',
+      ).firstMatch(composeOut)?.group(1);
+      expect(fixLine, isNotNull, reason: composeOut);
+      expect(doctorOut, contains(fixLine!), reason: doctorOut);
+    });
+
+    test('a healthy compose is unaffected', () async {
+      final out = await runner.runCapturing(composeArgs(id: 'A-001'));
+
+      expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
+      expect(
+        out,
+        contains(
+          'compose: behavior=A-001 outcome=composed feature=${fx.featureName}',
+        ),
+        reason: out,
+      );
+      expect(out, isNot(contains('drift:')), reason: out);
+    });
+  });
+}

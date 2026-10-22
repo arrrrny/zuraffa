@@ -84,6 +84,7 @@ import '../services/generated_shape.dart';
 import '../services/journal.dart';
 import '../services/import_resolution.dart';
 import '../services/import_resolution_checker.dart';
+import '../services/missing_artifact_drift.dart';
 import '../services/run_state_store.dart';
 import '../services/verdict_emitter.dart';
 import '../models/verdict_envelope.dart';
@@ -341,73 +342,21 @@ class DoctorCommand extends Command<void> {
     // garbage-collects exactly those records (surgical, audit-logged);
     // a record that still owns a surviving half is never collected (GC
     // would orphan the survivor — reset remains its remedy).
-    final missingFiles = <String>[];
-    final relocatedRecords = <_RelocatedRecord>[];
-    // Issue #1495: per-record GC classification — a record is collectible
-    // only when BOTH recorded paths are genuinely missing (no relocation
-    // probe match, nothing on disk it owns).
-    final collectibleIds = <String>{};
-    final halfMissingIds = <String>{};
-    for (final record in records) {
-      // Records may be absolute (gen's default) or project-relative —
-      // resolve both against the project root (issue #912: the raw
-      // relative form resolved against the process CWD, flagging
-      // healthy files as missing when doctor ran from elsewhere).
-      final resolvedTest = p.isAbsolute(record.testPath)
-          ? p.normalize(record.testPath)
-          : p.normalize(p.join(cwd, record.testPath));
-      final resolvedSubject = p.isAbsolute(record.subjectPath)
-          ? p.normalize(record.subjectPath)
-          : p.normalize(p.join(cwd, record.subjectPath));
-      final missingTest = !File(resolvedTest).existsSync();
-      final missingSubject = !File(resolvedSubject).existsSync();
-      if (!missingTest && !missingSubject) continue;
-      final relocatedTest = missingTest
-          ? probeRelocatedArtifact(cwd, record.testPath)
-          : resolvedTest;
-      final relocatedSubject = missingSubject
-          ? probeRelocatedArtifact(cwd, record.subjectPath)
-          : resolvedSubject;
-      if (relocatedTest != null && relocatedSubject != null) {
-        relocatedRecords.add(
-          _RelocatedRecord(
-            behaviorId: record.behaviorId,
-            testPath: _displayPath(cwd, relocatedTest),
-            subjectPath: _displayPath(cwd, relocatedSubject),
-          ),
-        );
-        continue;
-      }
-      if (missingTest) {
-        missingFiles.add(
-          '${record.behaviorId}: ${_displayPath(cwd, resolvedTest)} is '
-          'recorded but missing from disk',
-        );
-      }
-      if (missingSubject) {
-        missingFiles.add(
-          '${record.behaviorId}: ${_displayPath(cwd, resolvedSubject)} is '
-          'recorded but missing from disk',
-        );
-      }
-      // Issue #1495 GC classification: both halves genuinely gone -> the
-      // record owns nothing on disk and is collectible; a surviving (or
-      // relocatable) half keeps the record un-collectible.
-      final testCollectible = missingTest && relocatedTest == null;
-      final subjectCollectible = missingSubject && relocatedSubject == null;
-      if (testCollectible && subjectCollectible) {
-        collectibleIds.add(record.behaviorId);
-      } else {
-        halfMissingIds.add(record.behaviorId);
-      }
-    }
-    if (missingFiles.isNotEmpty) {
-      drifts.addAll(missingFiles);
+    // Issue #1974: the classification lives in the shared
+    // `MissingArtifactDrift` service — `zfa tdd compose` reports the SAME
+    // drift line and the SAME prescription for the SAME file, so the two
+    // commands can never disagree about it.
+    final missing = MissingArtifactDrift.classify(
+      records: records,
+      projectRoot: cwd,
+    );
+    if (missing.drifts.isNotEmpty) {
+      drifts.addAll(missing.drifts);
       final repairMode = argResults?['repair'] as bool? ?? false;
-      if (repairMode && halfMissingIds.isEmpty) {
+      if (repairMode && missing.halfMissingIds.isEmpty) {
         // Issue #1495: the surgical repair — drop EVERY gone-file record,
         // keep every healthy record, touch no file on disk, audit-log.
-        final dropped = await registry.dropRecords(collectibleIds);
+        final dropped = await registry.dropRecords(missing.collectibleIds);
         await _auditRepair(featureDir, feature, dropped);
         final droppedIds = dropped.map((r) => r.behaviorId).toList()..sort();
         print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
@@ -435,28 +384,18 @@ class DoctorCommand extends Command<void> {
         exitCode = 0;
         return;
       }
-      final fix = repairMode && halfMissingIds.isNotEmpty
-          ? 'zfa tdd reset $feature'
-          : collectibleIds.isNotEmpty && halfMissingIds.isEmpty
-          ? 'zfa tdd doctor $feature --repair'
-          : 'zfa tdd reset $feature';
-      final why = repairMode
-          ? 'a half-missing record still owns a file on disk — collecting '
-                'it would orphan the survivor (issue #1495); the full reset '
-                'reconciles records AND owned artifacts'
-          : collectibleIds.isNotEmpty && halfMissingIds.isEmpty
-          ? 'drop the stale registry records only — the surgical '
-                'garbage-collect keeps every healthy record and touches no '
-                'file (issue #1495); `zfa tdd reset` remains the heavier '
-                'alternative'
-          : 'drop the stale registry records and owned artifacts, then '
-                're-drive from gen (resume cannot pass the ownership '
-                'preflight while records point at missing files)';
+      // Issue #1974: the prescription comes from the shared service, so
+      // compose prints the very same fix line for the very same state.
+      final prescription = MissingArtifactDrift.prescribe(
+        feature: feature,
+        report: missing,
+        repairMode: repairMode,
+      );
       print('zfa tdd doctor: feature $feature ($featureLabel/tdd)');
       for (final drift in drifts) {
         print('  drift: $drift');
       }
-      print('   --> fix: $fix — $why');
+      print('   --> fix: ${prescription.fix} — ${prescription.why}');
       _printVerdict(
         feature: feature,
         verdict: 'drift',
@@ -464,8 +403,8 @@ class DoctorCommand extends Command<void> {
         // on a half-missing record the fix is the reset command, so the
         // flag alone must not flip the machine-readable field (the same
         // state diagnosed without the flag reports 'reset').
-        prescription: fix.contains('--repair') ? 'repair' : 'reset',
-        fix: fix,
+        prescription: prescription.prescription,
+        fix: prescription.fix,
         drifts: drifts,
       );
       exitCode = 1;
@@ -477,8 +416,8 @@ class DoctorCommand extends Command<void> {
     // machine-absolute forms from another checkout. The migration rewrites
     // the recorded forms in place; `reset` would drop certified behaviors
     // over a path form.
-    if (relocatedRecords.isNotEmpty) {
-      for (final relocated in relocatedRecords) {
+    if (missing.relocated.isNotEmpty) {
+      for (final relocated in missing.relocated) {
         drifts.add(
           '${relocated.behaviorId}: the recorded machine-absolute path '
           'names a project root that is not on this machine, but the '
@@ -1256,21 +1195,4 @@ class DoctorCommand extends Command<void> {
       }),
     );
   }
-}
-
-/// One registry record whose every missing recorded path relocated (issue
-/// #1397): the machine-absolute form names a foreign project root, the
-/// artifacts sit at the same project-relative locations under the current
-/// root, so the record is form drift for `migrate-paths` — not a missing
-/// artifact for `reset`.
-class _RelocatedRecord {
-  const _RelocatedRecord({
-    required this.behaviorId,
-    required this.testPath,
-    required this.subjectPath,
-  });
-
-  final String behaviorId;
-  final String testPath;
-  final String subjectPath;
 }
