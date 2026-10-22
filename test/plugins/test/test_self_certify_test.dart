@@ -1,3 +1,21 @@
+// Issue #1994 — the `spawn` tag gives the real-analyzer group below the
+// loaded-host ceiling. The "real scoped dart analyze" group builds the
+// PRODUCTION `ProcessScopedAnalyzer`, which shells out to a real
+// `dart analyze` child: on a shared host under load the analyzer's cold
+// start alone exceeds that suite's own ceiling — it carried an explicit
+// 2-minute per-test timeout, so the root ceiling (then 2x, 60s) never
+// governed it — and the suite failed while passing in isolation. The tag
+// ceiling (8x = 240s, the `ffi` precedent #1678) governs instead of the
+// per-test constant.
+//
+// The tag sits on the GROUP, not on the file: only the two tests in that
+// group drive a real child. The rest of this file is in-process (verdict
+// formatting, machine-line parsing, an INJECTED analyzer) — with one
+// exception, A1 in the CLI integration group, whose `TestPlugin` builds the
+// default certifier and therefore a real `dart analyze` child; that single
+// test carries the tag itself. A file-wide tag would move every in-process
+// test from the 60s ceiling to 240s — a hung in-process test would then burn
+// four minutes before it fails.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -261,7 +279,6 @@ void main() {
         expect(cert.verdictLine, contains('--> fix:'));
         expect(cert.toJson()['errors'], isNotEmpty);
       },
-      timeout: const Timeout(Duration(minutes: 2)),
     );
 
     test('clean fixture certifies compile=pass', () async {
@@ -295,8 +312,8 @@ void main() {
       expect(cert!.compile, isTrue, reason: 'fixture compiles');
       expect(cert.errors, isEmpty);
       expect(cert.verdictLine, 'test: entity=Clean tests=0 compile=pass');
-    }, timeout: const Timeout(Duration(minutes: 2)));
-  });
+    });
+  }, tags: ['spawn']);
 
   group('TestCommand integration (A1/A2/A3 — behavioral)', () {
     late Directory workspace;
@@ -379,7 +396,11 @@ class FetchUserUseCase extends UseCase<User, NoParams> {
         );
         expect(result.files, isNotEmpty);
       },
-      timeout: const Timeout(Duration(minutes: 2)),
+      // A1 is the only test in this group that lets `TestPlugin` build its
+      // DEFAULT certifier, whose `ProcessScopedAnalyzer` shells out to a
+      // real `dart analyze` child — give it the `spawn` ceiling (8x). A2 and
+      // A3 inject a recording analyzer, so they stay on the root budget.
+      tags: ['spawn'],
     );
 
     test('A2 — injected pass analyzer keeps the command green', () async {
@@ -407,7 +428,7 @@ class FetchUserUseCase extends UseCase<User, NoParams> {
 
       expect(result.success, isTrue);
       expect(result.files, hasLength(1));
-    }, timeout: const Timeout(Duration(minutes: 2)));
+    });
 
     test('A3 — --json prints a parseable schema:1 envelope on stdout', () async {
       await writeCustomUseCase();

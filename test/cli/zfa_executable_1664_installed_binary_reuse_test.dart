@@ -1,3 +1,4 @@
+@Tags(['spawn'])
 /// Issue #1664 — the child binary resolution seam paid a one-time ~85s
 /// `dart compile exe` of the zfa CLI on the first refactor after every
 /// master bump, even when the driving process ran from a CURRENT installed

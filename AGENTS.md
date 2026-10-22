@@ -325,6 +325,31 @@ in every slow tier, each spinning up temp projects that run `dart pub get` +
 small agents. Reserve `--preset=all` for an explicit full-local baseline on a
 developer machine. See `test/README.md`. Use `dart analyze` on the files you touched.
 
+**Run the fast tier through `dart run tools/run_fast_suite.dart` — never with
+`-j 2` (issue #1994).** This repo's fast tier runs SERIAL for a correctness
+reason: `dart test` runs the suites as isolates of ONE process, so
+`Directory.current` and `dart:io exitCode` are process-global, and one suite's
+chdir window redirects every concurrent suite's relative-path I/O into its temp
+fixture. `dart_test.yaml` pins `concurrency: 1`, but a CLI `-j 2` overrides
+that pin SILENTLY (package/test: `concurrency => _concurrency ?? defaultConcurrency`).
+On a loaded shared host that silent override produced a fast suite that flaked
+(spawn ceilings, `pubspec.yaml not found` mid-setup) while every failing suite
+passed in isolation. The entrypoint pins `-j 1`, refuses a parallel request,
+and runs CI's `dart_core` lane (the bounded ~12-minute tier). The
+`spawn` tag (8x ceiling) covers the fast-tier suites that drive a real
+`dart analyze` child. The budget ladder behind it — root `4x` (120s),
+`spawn`/`e2e`/`ffi` at `8x` (240s) — is what keeps a spawn-heavy suite from
+being killed mid-setup. Details: `test/README.md` → "Loaded hosts: the serial
+fast lane and the budget ladder".
+
+Note the scope: the entrypoint makes the SANCTIONED path serial — a direct
+`dart test -j 2` does not go through it and is not intercepted. Run the fast
+tier through the entrypoint; do not pass `-j`.
+
+On a small/disposable agent, use `tools/run_tests_chunked.sh` instead: the
+entrypoint runs `dart test test`, which compiles the entire test tree's kernel
+into one cache that can reach ~6.5 GB (the warning below).
+
 Disk-safe runs on small/disposable agents: a single `dart test test` compiles
 the entire test tree's kernel into one cache that can reach ~6.5 GB
 (`.dart_tool/test/incremental_kernel.*` plus per-process
@@ -435,11 +460,19 @@ lever — and it must be passed every time:
 
 ```sh
 flutter test --concurrency=2
-dart test -j 2
 ```
 
-A repo whose `dart_test.yaml` carries `concurrency: 2` already defaults to it
-for `dart test`; pass the flag anyway when you override it, and never raise
-the number on a host that also runs the forklift pool. CI carries the same
-flags in `.github/workflows`.
+That cap is the **Flutter** test runner's. It says nothing about `dart test`:
+the Dart fast tier runs SERIAL by design (`dart_test.yaml`'s `concurrency: 1`
+is a CORRECTNESS requirement, and a CLI `-j` overrides it silently — issue
+#1994), so the sanctioned way to run it is the entrypoint, which owns the cap
+and refuses a parallel request:
+
+```sh
+dart run tools/run_fast_suite.dart
+```
+
+Never pass `-j` to the Dart fast tier, and never raise the Flutter number on
+a host that also runs the forklift pool. CI carries the same flags in
+`.github/workflows`.
 <!-- test-concurrency:end -->

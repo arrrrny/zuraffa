@@ -587,7 +587,11 @@ void main() {
         expect(executed['ok'], isFalse);
         expect((executed['detail'] as String).contains('s1'), isTrue);
       },
-      timeout: const Timeout(Duration(minutes: 1)),
+      // The `spawn` budget tag (8x, 240s) replaces the old explicit
+      // 2-minute override: an explicit `timeout:` outranks the tag in
+      // package:test, so the constant silently re-imposed the ceiling the
+      // tag exists to lift (issue #1994).
+      tags: ['spawn'],
     );
 
     test('U17: evidence output is capped at 2000 chars', () async {

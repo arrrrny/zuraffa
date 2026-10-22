@@ -26,6 +26,12 @@ and the tier to use for routine validation):
 dart test
 ```
 
+> **On this repo, run the fast tier through the entrypoint**:
+> `dart run tools/run_fast_suite.dart`. It pins the serial flag and refuses
+> a parallel request. See
+> [Loaded hosts: the serial fast lane](#loaded-hosts-the-serial-fast-lane-and-the-budget-ladder)
+> below for why a plain `dart test -j 2` is not safe here.
+
 Run a single slow tier (only when the user explicitly asks for one):
 
 ```bash
@@ -63,6 +69,142 @@ dart test test/core/result_test.dart
   machine (see `dart_test.yaml`).
 - Add the `slow` tag (plus the tier tag) to any new E2E / heavy test so it is
   excluded from the default run automatically.
+
+## Loaded hosts: the serial fast lane and the budget ladder
+
+Two properties of the fast tier are load-sensitive, and issue #1994 is the
+report that both of them bit on a shared host under load ~390:
+
+1. **The fast tier runs SERIAL — and that is a correctness requirement.**
+   `dart test` runs the suites as isolates of ONE process, so
+   `Directory.current` and `dart:io exitCode` are process-global. In a
+   parallel lane one suite's chdir window silently redirects every
+   concurrent suite's relative-path I/O into its temp fixture — the three
+   consecutive red master runs of #1632/#1682.
+   `dart_test.yaml` pins `concurrency: 1` for that reason, **but the pin
+   alone does not hold**: package:test resolves
+   `concurrency => _concurrency ?? defaultConcurrency`, so a CLI `-j 2`
+   overrides the config SILENTLY. The fleet-wide `dart test -j 2`
+   convention therefore broke the invariant without a word — and the
+   symptom is a fast suite that fails in ways that pass in isolation
+   (`pubspec.yaml not found` mid-setup, a sibling's tree read as yours).
+2. **The per-test ceiling is a fixed factor, and a cold child can outrun
+   it.** The root ceiling is `4x` (120s of package:test's 30s base) after
+   this change; at the time of #1994 it was `2x` (60s). A
+   fast-tier suite that drives a REAL external child — a `dart analyze`
+   subprocess — pays the analyzer's cold start inside that budget, and on
+   a loaded host the start alone exceeds it. The real-analyzer suite went
+   further and pinned its own ceiling with a 2-minute per-test constant,
+   so the root ceiling never governed it — the effective ceiling there was
+   120s, not 60s. The `ffi` lane already carries `8x` for exactly this
+   reason (#1678); the `spawn` tag (issue #1994) carries the same ceiling
+   for the fast-tier suites that drive a real child.
+
+### What to run
+
+```bash
+# the fast tier, serial, with the CI lane's tag selector
+dart run tools/run_fast_suite.dart
+
+# a subset, still serial
+dart run tools/run_fast_suite.dart test/core
+```
+
+The entrypoint pins `-j 1` explicitly (an implicit default is exactly what
+a fleet-wide `-j 2` overrides) and **refuses** a parallel request with the
+reason instead of inheriting one:
+
+```console
+$ dart run tools/run_fast_suite.dart -j 2
+run_fast_suite: REFUSING concurrency=2.
+...
+$ echo $?
+2
+```
+
+It also runs CI's `dart_core` lane (`--exclude-tags "flutter || e2e"`), so
+the local fast tier is the BOUNDED lane: CI measures it at ~12 minutes,
+while the whole-tree default run (`dart test`, which also pulls in the
+`e2e` temp-project suites) is what pushed a loaded host past a two-hour
+window in #1994.
+
+A **preset** is refused here: a preset carries its own selector
+configuration, and that configuration wins over the CLI's tag selectors
+(package/test), so it would replace the lane's `--exclude-tags` and take
+the run outside the bounded lane — the `all` preset re-admits the whole
+tree. Run a heavy tier directly with its own lane instead
+(`dart test --preset=regression`).
+
+> **On a small/disposable agent, use the chunked runner instead.** The
+> entrypoint runs `dart test test`, which compiles the whole test tree's
+> kernel into one cache that can reach ~6.5 GB — the same warning the
+> next section gives for a plain `dart test test`. Use
+> `tools/run_tests_chunked.sh` (kernel cache cleared between per-folder
+> chunks) when disk is tight.
+
+### The `spawn` tag
+
+A fast-tier suite that drives a real external child carries the `spawn`
+tag, which raises its ceiling to `8x` (240s — the `ffi` precedent). Put
+it on the group that drives the child, not on the whole file — a file-wide
+tag would move every in-process test in it from the 60s ceiling to 240s:
+
+```dart
+group('real scoped dart analyze (U3 real)', () {
+  // ...tests that build the PRODUCTION certifier...
+}, tags: ['spawn']);
+```
+
+A file-level annotation works too, and is the right choice when the whole
+file drives real children:
+
+```dart
+@Tags(['spawn'])
+library;
+```
+
+The tag is NOT a tier: it rides the default `slow` exclusion, so a
+`spawn`-tagged suite still runs in the fast tier (and in CI's
+`dart_core` lane) — it only gets the relaxed ceiling. The tier-integrity
+pin B10 (`test/tier_integrity_test.dart`) keeps the class honest: every
+fast-lane-eligible suite that reaches a real analyzer child through the
+lib must carry the tag — on the file or on the group.
+
+### The budget ladder
+
+The old 2x (60s) root ceiling killed spawn-heavy suites **mid-setup**: the
+suite left a half-created temp project behind, and the next test in the same
+file failed on the missing `pubspec.yaml` rather than on its own subject — a
+cascade that reads like a functional regression and is not one (every failing
+file passed in isolation on the same tree).
+
+Two budgets and one tag close that gap:
+
+| Knob | Value | Why |
+|------|-------|-----|
+| root `timeout` | `4x` (120s) | what the #1994 report verified on the loaded host (`dart test -j 2 --timeout 4x`) |
+| `spawn` tag | `8x` (240s) | two sequential 75s child guards plus slack — the `ffi` precedent (#1678) |
+| `e2e` tag | `8x` (240s) | same reason: real `dart pub get` / `dart test` / `analyze` children |
+
+`spawn` is orthogonal to the lane tags: `slow`/`e2e` decide *where* a suite
+runs, `spawn` only decides *how much wall-clock* it gets. Add it to any new
+fast-tier suite that launches an external process.
+
+Two traps worth knowing, both pinned by `test/tier_integrity_test.dart`
+(B11–B13):
+
+- **`-j/--concurrency` always wins.** The CLI value overrides this repo's
+  `concurrency: 1` in `dart_test.yaml`; there is no config-side hard cap.
+  That is why the fast tier is run through
+  `dart run tools/run_fast_suite.dart` (which owns the cap and refuses a
+  parallel request) — a direct `dart test -j 2` still overrides the pin and
+  runs two suites at once, and the budgets above are what keep such a run
+  honest under load.
+- **An explicit per-test `Timeout` overrides BOTH the tag and the root.** A
+  literal below the root ceiling silently re-creates the #1994 timeout for
+  that test; `B13` fails on one. Raise it, or route it through
+  `scaleDuration(...)` from `test/helpers/run_zfa_source.dart` so
+  `ZFA_TEST_TIMEOUT_SCALE` still reaches it.
 
 ## Slow machines: `ZFA_TEST_TIMEOUT_SCALE`
 
@@ -119,11 +261,12 @@ ZFA_TEST_TIMEOUT_SCALE=2 dart test test/feature_flags --preset=all
   unset and with a scaled value to prove the plumbing both ways).
 - Cloud/CI agents on modest runners can set the same variable in the job
   environment; the default (unset) behavior is unchanged everywhere.
-- Note that `dart_test.yaml` tag timeouts (`timeout: 2x` global, `4x` for
-  `slow`-tagged tests) are fixed factors that cannot read the environment;
-  suites outside `feature_flags` that rely on those ceilings and need more
-  headroom can pass an additional `--timeout xN` flag to `dart test`
-  (e.g. `--timeout x8`) alongside the scale variable.
+- Note that `dart_test.yaml`'s timeout factors are fixed and cannot read the
+  environment: `4x` globally and for `slow`-tagged tests, `8x` for `e2e`,
+  `spawn` and `ffi` tests. Suites outside `feature_flags` that rely on those
+  ceilings and need more headroom can pass an additional `--timeout xN` flag
+  to `dart test` alongside the scale variable — an `e2e`/`spawn`/`ffi` suite
+  only needs that when 240s is still too tight for it.
 
 ### Example: a slow CI host (issue #1623's shape)
 

@@ -1,3 +1,4 @@
+@Tags(['spawn'])
 // Bug #1985 — a killed mutation run must not inherit the previous
 // feature's report.
 //
@@ -235,7 +236,7 @@ Line 12 :
         reason: 'the exit code must be the observed one',
       );
       expect(report.existsSync(), isFalse);
-    }, timeout: const Timeout(Duration(minutes: 2)));
+    }, timeout: const Timeout(Duration(minutes: 4)));
 
     test('a report the child wrote is trusted even when the predecessor could '
         'not be removed', () async {

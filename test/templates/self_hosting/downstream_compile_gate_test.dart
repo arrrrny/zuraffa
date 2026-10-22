@@ -11,7 +11,7 @@
 // Tagged `flutter`: needs the Flutter SDK, so it runs in the CI flutter
 // lane (`flutter test --tags flutter`) and is excluded from the pure-Dart
 // lane (`dart test --exclude-tags flutter`).
-@Tags(['flutter'])
+@Tags(['flutter', 'spawn'])
 library;
 
 import 'dart:io';
