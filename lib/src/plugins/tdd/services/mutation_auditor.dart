@@ -993,13 +993,31 @@ class MutationAuditor {
     // the scoped config was already written by [_ensureScopedMutationConfig]
     // BEFORE the preflight (so a config failure returns NOT_ASSESSED
     // immediately); this phase only consumes it.
+    //
+    // Issue #1998: the config is written before the (multi-minute)
+    // preflight and read by the child afterwards, so the file on disk is
+    // re-read here and checked against THIS run's scope. A config that
+    // no longer lists the feature's registered subjects belongs to
+    // another run: mutating that run's files is never this run's
+    // business, so the audit refuses (NOT_ASSESSED) instead of
+    // publishing another feature's mutants.
+    final scopePaths = _relativeToWorkingDirectory(scope.subjectPaths);
+    final configText = await _readMutationConfig(configPath);
+    if (!mutationConfigMatchesScope(
+      configText: configText,
+      scopePaths: scopePaths,
+    )) {
+      throw MutationConfigError(
+        'the scoped mutation config at $configPath no longer lists this '
+        "feature's registered subjects --> fix: re-run the verify for "
+        'this feature (another run replaced the config)',
+      );
+    }
     final verifier = MutationVerifier(
       configPath: configPath,
-      outputDir: p.join(
-        workingDirectory,
-        '.dart_tool',
-        'zfa',
-        'tdd-verify-report',
+      outputDir: scopedMutationReportDir(
+        workingDirectory: workingDirectory,
+        featureDir: featureDir,
       ),
       workingDirectory: workingDirectory,
       timeout: _mutationTimeout,
@@ -1007,23 +1025,36 @@ class MutationAuditor {
     return verifier.run();
   }
 
+  /// Reads the scoped mutation config from disk (issue #1998). Throws
+  /// [MutationConfigError] when it cannot be read — an unreadable config
+  /// is never a scope this run may mutate.
+  Future<String> _readMutationConfig(String configPath) async {
+    try {
+      return await File(configPath).readAsString();
+    } on IOException catch (e) {
+      throw MutationConfigError(
+        'could not read the scoped mutation config at $configPath: $e',
+      );
+    }
+  }
+
   /// Writes the feature-scoped mutation_test config under
-  /// `.dart_tool/zfa/` and returns its absolute path (bug #924: called
-  /// BEFORE the preflight so a missing/unwritable config yields
-  /// `gate: not_assessed` without running any tests). Throws
-  /// [MutationConfigError] when the config cannot be created.
+  /// `.dart_tool/zfa/tdd-verify/<feature>/` and returns its absolute path
+  /// (bug #924: called BEFORE the preflight so a missing/unwritable
+  /// config yields `gate: not_assessed` without running any tests).
+  /// Throws [MutationConfigError] when the config cannot be created.
   /// Issue #1044: the mutant test command is built from [fileTemplate] —
   /// the same resolved runner the preflight used — so mutants re-run
   /// under the profile's runner.
+  /// Issue #1998: the path is PER FEATURE, not per project — two
+  /// features verified in the same project never share a config.
   Future<String> _ensureScopedMutationConfig(
     MutationScope scope,
     String fileTemplate,
   ) async {
-    final configPath = p.join(
-      workingDirectory,
-      '.dart_tool',
-      'zfa',
-      'tdd-verify-mutation.xml',
+    final configPath = scopedMutationConfigPath(
+      workingDirectory: workingDirectory,
+      featureDir: featureDir,
     );
     try {
       final configFile = File(configPath);
@@ -1168,6 +1199,87 @@ List<String> survivorsOutsideScope(
     }
   }
   return outside;
+}
+
+/// The slug a feature's scoped mutation artifacts live under (issue
+/// #1998): the feature directory's basename, sanitized to a
+/// filesystem-safe name.
+String mutationScopeSlug(String featureDir) {
+  final base = p.basename(p.normalize(featureDir));
+  final slug = base.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+  return slug.isEmpty ? 'feature' : slug;
+}
+
+/// The PER-FEATURE directory the scoped mutation config and its report
+/// live in (issue #1998).
+///
+/// Both used to sit at per-PROJECT paths —
+/// `.dart_tool/zfa/tdd-verify-mutation.xml` and
+/// `.dart_tool/zfa/tdd-verify-report/` — so two verify runs in the same
+/// project shared ONE config and ONE report. The config is written
+/// before the (multi-minute) preflight and read by the mutation child
+/// afterwards: a second run's config replaced the first's in that
+/// window, so the child mutated the OTHER feature's registered
+/// subjects, and every one of those mutants survived (this run's tests
+/// do not cover them). The published record then named another
+/// feature's `lib/tdd/<other-feature>/` survivors as this feature's
+/// gate. The report landing in the same shared place let a run publish
+/// another run's numbers.
+///
+/// Per-feature paths make that collision impossible: each feature owns
+/// its config and its report.
+String scopedMutationDir({
+  required String workingDirectory,
+  required String featureDir,
+}) => p.join(
+  workingDirectory,
+  '.dart_tool',
+  'zfa',
+  'tdd-verify',
+  mutationScopeSlug(featureDir),
+);
+
+/// The scoped mutation config path for [featureDir] (issue #1998) — the
+/// config `zfa tdd verify` writes and hands to the mutation child.
+String scopedMutationConfigPath({
+  required String workingDirectory,
+  required String featureDir,
+}) => p.join(
+  scopedMutationDir(workingDirectory: workingDirectory, featureDir: featureDir),
+  'mutation.xml',
+);
+
+/// The mutation report directory for [featureDir] (issue #1998).
+String scopedMutationReportDir({
+  required String workingDirectory,
+  required String featureDir,
+}) => p.join(
+  scopedMutationDir(workingDirectory: workingDirectory, featureDir: featureDir),
+  'report',
+);
+
+/// The `<file>` entries a scoped mutation config lists (issue #1998) —
+/// the files the mutation child mutates.
+List<String> mutationConfigSubjectPaths(String configText) => RegExp(
+  r'<file>(.*?)</file>',
+  dotAll: true,
+).allMatches(configText).map((m) => m.group(1)!.trim()).toList();
+
+/// True when the config's `<file>` list is EXACTLY [scopePaths]
+/// (issue #1998).
+///
+/// The check is the backstop for a config that was replaced between the
+/// write and the child's read: the child's scope must be the run's own
+/// registered subjects, never another feature's.
+bool mutationConfigMatchesScope({
+  required String configText,
+  required List<String> scopePaths,
+}) {
+  final inConfig = mutationConfigSubjectPaths(
+    configText,
+  ).map(normalizeScopePath).toSet();
+  final scope = scopePaths.map(normalizeScopePath).toSet();
+  return inConfig.length == scope.length && inConfig.containsAll(scope);
 }
 
 /// Normalizes a scope/report path for comparison: POSIX separators and no
