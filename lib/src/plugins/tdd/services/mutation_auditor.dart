@@ -20,6 +20,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -1001,6 +1002,13 @@ class MutationAuditor {
     // another run: mutating that run's files is never this run's
     // business, so the audit refuses (NOT_ASSESSED) instead of
     // publishing another feature's mutants.
+    //
+    // The check DETECTS a replaced config; it is not a lock. The child
+    // re-reads the same path, so a config replaced between this check
+    // and the child's read is still what the child mutates. The
+    // cross-feature case is structurally gone (each feature writes its
+    // OWN config path), so the residual window is two concurrent
+    // verifies of the SAME feature.
     final scopePaths = _relativeToWorkingDirectory(scope.subjectPaths);
     final configText = await _readMutationConfig(configPath);
     if (!mutationConfigMatchesScope(
@@ -1202,12 +1210,31 @@ List<String> survivorsOutsideScope(
 }
 
 /// The slug a feature's scoped mutation artifacts live under (issue
-/// #1998): the feature directory's basename, sanitized to a
-/// filesystem-safe name.
+/// #1998): the feature directory's basename plus a short digest of its
+/// FULL normalized path, sanitized to a filesystem-safe name.
+///
+/// The digest is what makes the isolation unconditional: two feature
+/// directories with the SAME basename (`specs/a/001-foo` and
+/// `specs/b/001-foo`) would otherwise share ONE config and ONE report —
+/// the very collision the per-feature paths remove. The basename keeps
+/// the directory browsable; the digest keeps it unique.
+///
+/// A basename that means "this directory" or "the parent directory" (`.`,
+/// `..`) never survives: joined as the last path segment it would move
+/// the scoped config out of `tdd-verify/<feature>/` and into the
+/// per-project `.dart_tool/zfa/` space.
 String mutationScopeSlug(String featureDir) {
-  final base = p.basename(p.normalize(featureDir));
+  final normalized = p.normalize(featureDir);
+  final digest = sha256
+      .convert(utf8.encode(normalized))
+      .toString()
+      .substring(0, 8);
+  final base = p.basename(normalized);
   final slug = base.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
-  return slug.isEmpty ? 'feature' : slug;
+  if (slug.isEmpty || slug == '.' || slug == '..') {
+    return 'feature-$digest';
+  }
+  return '$slug-$digest';
 }
 
 /// The PER-FEATURE directory the scoped mutation config and its report
@@ -1227,7 +1254,9 @@ String mutationScopeSlug(String featureDir) {
 /// another run's numbers.
 ///
 /// Per-feature paths make that collision impossible: each feature owns
-/// its config and its report.
+/// its config and its report. The directory name is the feature's slug
+/// (its basename plus a digest of its full path), so two features with
+/// the same basename never land in the same directory either.
 String scopedMutationDir({
   required String workingDirectory,
   required String featureDir,
@@ -1280,9 +1309,11 @@ String unescapeXml(String raw) => raw
 /// True when the config's `<file>` list is EXACTLY [scopePaths]
 /// (issue #1998).
 ///
-/// The check is the backstop for a config that was replaced between the
-/// write and the child's read: the child's scope must be the run's own
-/// registered subjects, never another feature's.
+/// The check DETECTS a config that was replaced between the write and
+/// the child's read: the child's scope must be the run's own registered
+/// subjects, never another feature's. It is a detection, not a lock —
+/// the child re-reads the path, so the residual window is two concurrent
+/// verifies of the SAME feature.
 bool mutationConfigMatchesScope({
   required String configText,
   required List<String> scopePaths,

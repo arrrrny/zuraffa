@@ -396,14 +396,16 @@ dart test                      # or: flutter test — the whole suite green
   (schema 1, `verdict: green|red|error`, behavior ids, counts, `stopped_at`).
 - `zfa tdd verify <feature>` runs the mutation audit over THAT feature's
   registered harness subjects only. It writes its own scoped config at
-  `.dart_tool/zfa/tdd-verify/<feature>/mutation.xml` — the `<file>` list is
-  the feature's `specs/<feature>/tdd/artifacts.json` subjects — and reads its
-  report from `.dart_tool/zfa/tdd-verify/<feature>/report/`. Both paths are
-  per feature on purpose: two features verified in the same project never
-  share a config or a report, so one feature's audit can never mutate or
-  publish another feature's mutants (issue #1998). Your package-root
-  `mutation-test.xml` is NOT read by this lane — that config is the
-  production-surface audit.
+  `.dart_tool/zfa/tdd-verify/<feature>-<id>/mutation.xml` — the `<file>` list
+  is the feature's `specs/<feature>/tdd/artifacts.json` subjects — and reads
+  its report from `.dart_tool/zfa/tdd-verify/<feature>-<id>/report/`. The
+  directory is the feature's name plus a short digest of its path (`<id>`),
+  so two features that share a name never share a directory either. Both
+  paths are per feature on purpose: two features verified in the same
+  project never share a config or a report, so one feature's audit can
+  never mutate or publish another feature's mutants (issue #1998). Your
+  package-root `mutation-test.xml` is NOT read by this lane — that config is
+  the production-surface audit.
 
 ## 7. When something misfires (the protocol)
 

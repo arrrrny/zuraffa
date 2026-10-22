@@ -2,13 +2,18 @@
 // Bug #1985 — a killed mutation run must not inherit the previous
 // feature's report.
 //
-// The mutation report path is per WORKING DIRECTORY
-// (`.dart_tool/zfa/tdd-verify-report/mutation-test-report.md`), not per
-// feature: the previous feature's verify run left its report there. A
-// mutation child that is killed at the deadline never rewrites the
-// report, so the stale file was parsed as this run's score — the
-// verification record published ANOTHER feature's numbers, with a
+// The mutation report path used to be per WORKING DIRECTORY
+// (`.dart_tool/zfa/tdd-verify-report/mutation-test-report.md`), so the
+// previous feature's verify run left its report where this run would
+// read its own. A mutation child that is killed at the deadline never
+// rewrites the report, so the stale file was parsed as this run's score
+// — the verification record published ANOTHER feature's numbers, with a
 // survivor list naming files outside its own scope.
+//
+// Since issue #1998 the path is per FEATURE
+// (`.dart_tool/zfa/tdd-verify/<feature>/report/`), so the leftover this
+// contract guards against is this feature's OWN earlier run: a killed
+// run still leaves a report behind that the next run must not publish.
 //
 // The contract pinned here:
 //   1. The stale report is removed BEFORE the mutation child starts.
@@ -55,7 +60,8 @@ Mutants timed out: 0
 Line 12 :
 ''';
 
-  const outputDir = '.dart_tool/zfa/tdd-verify-report';
+  const outputDir =
+      '.dart_tool/zfa/tdd-verify/002-subscription-error-vocabulary/report';
 
   setUp(() {
     tmpDir = Directory.systemTemp.createTempSync('bug_1985_mutation_stale_');
