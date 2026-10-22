@@ -10,9 +10,11 @@
 //
 // The tag sits on the GROUP, not on the file: only the two tests in that
 // group drive a real child. The rest of this file is in-process (verdict
-// formatting, machine-line parsing, an INJECTED analyzer, the CLI
-// integration group), and a file-wide tag would move every one of them
-// from the 60s ceiling to 240s — a hung in-process test would then burn
+// formatting, machine-line parsing, an INJECTED analyzer) — with one
+// exception, A1 in the CLI integration group, whose `TestPlugin` builds the
+// default certifier and therefore a real `dart analyze` child; that single
+// test carries the tag itself. A file-wide tag would move every in-process
+// test from the 60s ceiling to 240s — a hung in-process test would then burn
 // four minutes before it fails.
 import 'dart:async';
 import 'dart:convert';
@@ -394,6 +396,11 @@ class FetchUserUseCase extends UseCase<User, NoParams> {
         );
         expect(result.files, isNotEmpty);
       },
+      // A1 is the only test in this group that lets `TestPlugin` build its
+      // DEFAULT certifier, whose `ProcessScopedAnalyzer` shells out to a
+      // real `dart analyze` child — give it the `spawn` ceiling (8x). A2 and
+      // A3 inject a recording analyzer, so they stay on the root budget.
+      tags: ['spawn'],
     );
 
     test('A2 — injected pass analyzer keeps the command green', () async {

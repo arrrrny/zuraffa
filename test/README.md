@@ -29,7 +29,7 @@ dart test
 > **On this repo, run the fast tier through the entrypoint**:
 > `dart run tools/run_fast_suite.dart`. It pins the serial flag and refuses
 > a parallel request. See
-> [Loaded hosts: the serial fast lane](#loaded-hosts-the-serial-fast-lane)
+> [Loaded hosts: the serial fast lane](#loaded-hosts-the-serial-fast-lane-and-the-budget-ladder)
 > below for why a plain `dart test -j 2` is not safe here.
 
 Run a single slow tier (only when the user explicitly asks for one):
@@ -261,11 +261,12 @@ ZFA_TEST_TIMEOUT_SCALE=2 dart test test/feature_flags --preset=all
   unset and with a scaled value to prove the plumbing both ways).
 - Cloud/CI agents on modest runners can set the same variable in the job
   environment; the default (unset) behavior is unchanged everywhere.
-- Note that `dart_test.yaml` tag timeouts (`timeout: 2x` global, `4x` for
-  `slow`-tagged tests) are fixed factors that cannot read the environment;
-  suites outside `feature_flags` that rely on those ceilings and need more
-  headroom can pass an additional `--timeout xN` flag to `dart test`
-  (e.g. `--timeout x8`) alongside the scale variable.
+- Note that `dart_test.yaml`'s timeout factors are fixed and cannot read the
+  environment: `4x` globally and for `slow`-tagged tests, `8x` for `e2e`,
+  `spawn` and `ffi` tests. Suites outside `feature_flags` that rely on those
+  ceilings and need more headroom can pass an additional `--timeout xN` flag
+  to `dart test` alongside the scale variable — an `e2e`/`spawn`/`ffi` suite
+  only needs that when 240s is still too tight for it.
 
 ### Example: a slow CI host (issue #1623's shape)
 

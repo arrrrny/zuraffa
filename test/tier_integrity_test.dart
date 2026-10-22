@@ -937,15 +937,16 @@ final RegExp _explicitTimeoutRe = RegExp(
 /// The seconds in a `Duration(...)` argument list (`minutes: 4`), or null
 /// when it is not a plain minute/second/millisecond literal.
 int? _durationSeconds(String args) {
-  int? valueFor(String unit, int scale) {
-    final match = RegExp('$unit:\\s*(\\d+)').firstMatch(args);
-    return match == null ? null : int.parse(match.group(1)!) * scale;
+  // The `\b` keeps `seconds` from matching inside `milliseconds`.
+  int? valueFor(String unit) {
+    final match = RegExp('\\b$unit:\\s*(\\d+)').firstMatch(args);
+    return match == null ? null : int.parse(match.group(1)!);
   }
 
-  final minutes = valueFor('minutes', 60);
-  final seconds = valueFor('seconds', 1);
-  final millis = valueFor('milliseconds', 0);
-  final total = (minutes ?? 0) + (seconds ?? 0);
+  final minutes = valueFor('minutes');
+  final seconds = valueFor('seconds');
+  final millis = valueFor('milliseconds');
+  final total = (minutes ?? 0) * 60 + (seconds ?? 0);
   if (total > 0) return total;
   if (millis != null) return (millis / 1000).ceil();
   return null;
