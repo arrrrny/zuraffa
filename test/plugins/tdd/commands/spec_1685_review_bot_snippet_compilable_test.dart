@@ -79,7 +79,17 @@ void main() {
         isFalse,
         reason: 'the historical snippet must NOT compile',
       );
-      expect(result.issues.map((i) => i.code), contains('undefined_getter'));
+      // Issue #1980: the analyzer RENAMED this diagnostic in 14.6.0 —
+      // `undefined_getter` ("The getter '{0}' isn't defined for the type
+      // '{1}'.") became `undefined_instance_member_read` ("The member '{0}'
+      // isn't defined for the type '{1}'."). Same error class (the member does
+      // not exist on the type), different name, and this package resolves the
+      // analyzer fresh on every CI run (pubspec.lock is not committed), so the
+      // assertion must accept BOTH spellings of that one error class.
+      expect(
+        result.issues.map((i) => i.code),
+        contains(anyOf('undefined_getter', 'undefined_instance_member_read')),
+      );
     }, timeout: const Timeout(Duration(minutes: 3)));
 
     test('U-1685-G2: the fixed render passes the REAL analyzer compile check '
