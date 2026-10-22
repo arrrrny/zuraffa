@@ -109,9 +109,6 @@ class MutationConfigError implements Exception {
   String toString() => 'MutationConfigError: $reason';
 }
 
-/// The exit code a child killed with SIGKILL reports on POSIX (-9).
-const int _sigkillExitCode = -9;
-
 /// Thrown when the mutation child was KILLED — the deadline kill (bug #742)
 /// or any other signal death.
 ///
@@ -119,16 +116,21 @@ const int _sigkillExitCode = -9;
 /// NO score of its own. Publishing a number parsed from whatever report
 /// happens to be on disk would publish a PREVIOUS run's score (issue
 /// #1985), so a killed run is always reported as not-assessed, carrying
-/// the child's exit code.
+/// the child's exit code when the OS observed one.
 class MutationRunKilled implements Exception {
   MutationRunKilled(this.reason, {required this.exitCode});
 
   /// Human-readable reason — the audit report's `not_assessed_reason`.
   final String reason;
 
-  /// The child's exit code: negative on POSIX (the signal number that
-  /// killed it — e.g. -15 for SIGTERM, -9 for SIGKILL).
-  final int exitCode;
+  /// The child's OBSERVED exit code: negative on POSIX (the signal number
+  /// that killed it — e.g. -15 for SIGTERM, -9 for SIGKILL) and a positive
+  /// `TerminateProcess` code on Windows. Null when the code was never
+  /// observed — the reason then carries the diagnostics instead.
+  ///
+  /// The code is never reconstructed: a killed run reports the code the OS
+  /// gave the child.
+  final int? exitCode;
 
   @override
   String toString() => reason;
@@ -205,6 +207,13 @@ class MutationVerifier {
     // A run that is killed never rewrites it, so the stale file would be
     // parsed as this run's score. Remove it BEFORE the child starts: a
     // run that produces no report then finds no report at all.
+    //
+    // The predecessor's IDENTITY is snapshotted before the removal: when
+    // the removal FAILS (a read-only directory, permissions) the file on
+    // disk is untrusted, and only a report the child actually REWROTE
+    // may be parsed. The predecessor's fate decides what was on disk
+    // before the child, never whether the fresh report is usable.
+    final reportBefore = await _reportIdentity(reportPath);
     final staleRemoved = await _removeStaleReport(reportPath);
 
     final args = <String>[
@@ -242,9 +251,14 @@ class MutationVerifier {
 
     final reportFile = File(reportPath);
     final reportExists = await reportFile.exists();
-    // Issue #1985: only a report THIS run produced may be parsed. When a
-    // predecessor could not be removed, the file on disk is not ours.
-    final usableReport = reportExists && staleRemoved;
+    // Issue #1985: only a report THIS run produced may be parsed. The
+    // predecessor is gone (removed before the child started) — then any
+    // report on disk is ours. The predecessor could NOT be removed — then
+    // the report is ours only when the child REWROTE it (its identity
+    // changed); an untouched predecessor stays untrusted.
+    final reportAfter = await _reportIdentity(reportPath);
+    final usableReport =
+        reportExists && (staleRemoved || reportAfter != reportBefore);
     if (!usableReport && exitCode != 0) {
       throw MutationConfigError(
         'mutation_test exited with code $exitCode and produced no report. '
@@ -291,11 +305,15 @@ class MutationVerifier {
         // `dart` is resolved from PATH by the OS without a shell.
       );
     } on ProcessTimeoutException catch (e) {
+      // Issue #1985: the deadline kill (bug #742) means the child never
+      // finished, so it has no score of its own. The reason keeps the
+      // exception's FULL diagnostics — the command, the working directory
+      // and the output captured before the kill are the only clue an
+      // operator gets about a hung mutation run. The exit code is the one
+      // the OS gave the killed child, never a reconstructed one.
       throw MutationRunKilled(
-        'mutation run timed out: the ${e.timeout} deadline was reached and '
-        'the child was killed (SIGKILL) — no report was produced, so no '
-        'mutation score can be published',
-        exitCode: _sigkillExitCode,
+        'mutation run timed out: $e',
+        exitCode: e.exitCode,
       );
     }
   }
@@ -304,7 +322,8 @@ class MutationVerifier {
   ///
   /// Returns true when no untrusted predecessor remains — either there
   /// was none, or it was removed. A report that could NOT be removed is
-  /// a report this run must not claim, so the caller distrusts it.
+  /// a report this run must not claim, so the caller distrusts it — the
+  /// caller then trusts a report only when the child rewrote it.
   Future<bool> _removeStaleReport(String reportPath) async {
     try {
       final file = File(reportPath);
@@ -313,6 +332,23 @@ class MutationVerifier {
       return !await file.exists();
     } on IOException {
       return false;
+    }
+  }
+
+  /// The identity of the report file at [reportPath] — null when there is
+  /// no file there (issue #1985).
+  ///
+  /// The identity is what tells the predecessor's file apart from the one
+  /// the child wrote: a child that rewrote the report changes its
+  /// modified time (and usually its size), a child that never wrote
+  /// leaves it exactly as it was.
+  Future<_ReportIdentity?> _reportIdentity(String reportPath) async {
+    try {
+      final stat = await FileStat.stat(reportPath);
+      if (stat.type == FileSystemEntityType.notFound) return null;
+      return _ReportIdentity(stat.type, stat.modified, stat.size);
+    } on FileSystemException {
+      return null;
     }
   }
 
@@ -399,6 +435,31 @@ class _Counts {
   final int killed;
   final int survived;
   final int timeout;
+}
+
+/// The identity of the report file — enough to tell the predecessor's file
+/// apart from the one the child wrote (issue #1985).
+class _ReportIdentity {
+  const _ReportIdentity(this.type, this.modified, this.size);
+
+  /// The entity type at the report path (a file, normally).
+  final FileSystemEntityType type;
+
+  /// The last-modified time.
+  final DateTime modified;
+
+  /// The size in bytes.
+  final int size;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _ReportIdentity &&
+      other.type == type &&
+      other.modified == modified &&
+      other.size == size;
+
+  @override
+  int get hashCode => Object.hash(type, modified, size);
 }
 
 /// Extract the survived mutants (file + line) from a mutation_test v1.8+

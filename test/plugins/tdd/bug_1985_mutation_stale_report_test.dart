@@ -15,6 +15,13 @@
 //      `not_assessed` carrying the child's exit code.
 //   3. A survivor list naming a file outside the recorded scope means the
 //      report does not belong to this run — `not_assessed`, never a score.
+//   4. A child that outlives the deadline is killed and the verdict keeps
+//      the diagnostics bug #742 publishes (the command, the working
+//      directory, the output captured before the kill).
+//   5. A report the child actually wrote is trusted even when the
+//      predecessor's file could not be removed.
+//   6. `mutation_test` echoes the config's `<file>` text verbatim — the
+//      assumption the scope backstop rests on.
 library;
 
 import 'dart:io';
@@ -56,6 +63,12 @@ Line 12 :
   });
 
   tearDown(() {
+    // A test may leave the report directory read-only (the un-removable
+    // predecessor case) — restore write permission so the tree can go.
+    final reportDir = Directory(p.join(tmpDir.path, outputDir));
+    if (reportDir.existsSync()) {
+      Process.runSync('chmod', ['755', reportDir.path]);
+    }
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
 
@@ -114,11 +127,11 @@ Line 12 :
         );
 
         MutationResult? result;
+        Object? failure;
         try {
           result = await verifier.run();
-        } catch (_) {
-          // A failure to produce a report is an acceptable outcome; the
-          // assertions below pin that no score was inherited.
+        } catch (e) {
+          failure = e;
         }
 
         expect(
@@ -126,9 +139,21 @@ Line 12 :
           isFalse,
           reason: 'the stale report must be removed before the child starts',
         );
-        expect(result?.killedCount, isNot(77));
-        expect(result?.survivedCount, isNot(79));
-        expect(result?.survivors, isEmpty);
+        // A clean child that wrote no report is a run with NO score of
+        // its own — the assertions below pin that outcome exactly. A
+        // blanket catch would let an unrelated throw pass this test, so
+        // the failure is named and asserted.
+        expect(
+          failure,
+          isNull,
+          reason: 'a clean child that produced no report must not throw',
+        );
+        expect(result, isNotNull);
+        expect(result!.killedCount, 0);
+        expect(result.survivedCount, 0);
+        expect(result.timeoutCount, 0);
+        expect(result.reportPath, isNull);
+        expect(result.survivors, isEmpty);
       },
     );
 
@@ -163,6 +188,94 @@ Line 12 :
       expect(failure, isA<MutationRunKilled>());
       expect((failure! as MutationRunKilled).exitCode, -15);
       expect(report.existsSync(), isFalse);
+    });
+
+    test('a child that outlives the deadline is killed, and the verdict keeps '
+        'the captured diagnostics', () async {
+      final report = await writeStaleReport();
+      writeConfig();
+      // The child hangs: `exec` hands the process over to `sleep`, so the
+      // deadline kill lands on the real child.
+      final fakeDart = writeFakeDart(
+        '#!/bin/sh\necho "mutation run is warming up"\nexec sleep 30\n',
+        'fake-dart-hanging.sh',
+      );
+      final verifier = MutationVerifier(
+        configPath: 'mutation-test.xml',
+        outputDir: outputDir,
+        workingDirectory: tmpDir.path,
+        timeout: const Duration(seconds: 2),
+        dartBinary: fakeDart,
+      );
+
+      MutationResult? result;
+      Object? failure;
+      try {
+        result = await verifier.run();
+      } catch (e) {
+        failure = e;
+      }
+
+      expect(result, isNull, reason: 'a killed run has no score');
+      expect(failure, isA<MutationRunKilled>());
+      final killed = failure! as MutationRunKilled;
+      // The diagnostics bug #742 publishes must survive the conversion:
+      // the reason names the deadline, the command and the output the
+      // child produced before the kill.
+      expect(killed.reason, contains('mutation run timed out'));
+      expect(killed.reason, contains(fakeDart));
+      expect(killed.reason, contains('mutation run is warming up'));
+      // The exit code is the one the OS gave the killed child — never a
+      // reconstructed one (POSIX: the signal number; Windows: the
+      // TerminateProcess code).
+      expect(killed.exitCode, isNotNull);
+      expect(
+        killed.exitCode,
+        Platform.isWindows ? greaterThan(0) : -9,
+        reason: 'the exit code must be the observed one',
+      );
+      expect(report.existsSync(), isFalse);
+    }, timeout: const Timeout(Duration(minutes: 2)));
+
+    test('a report the child wrote is trusted even when the predecessor could '
+        'not be removed', () async {
+      writeConfig();
+      final report = await writeStaleReport();
+      // The predecessor cannot be deleted: its directory is read-only.
+      // The removal fails, so the file on disk starts out untrusted —
+      // but the child REWRITES it, and that report is this run's.
+      final reportDir = report.parent;
+      Process.runSync('chmod', ['500', reportDir.path]);
+      final freshReport = '''
+# Mutation report
+
+Mutants killed: 3
+Mutants survived: 1
+
+## Undetected mutations in file : lib/tdd/002-subscription-error-vocabulary/vocab.dart
+Line 7 :
+''';
+      final verifier = MutationVerifier(
+        configPath: 'mutation-test.xml',
+        outputDir: outputDir,
+        workingDirectory: tmpDir.path,
+        dartBinary: writeFakeDart(
+          '#!/bin/sh\nchmod 755 "${reportDir.path}"\n'
+              'cat > "${report.path}" <<\'REPORT\'\n${freshReport}REPORT\n',
+          'fake-dart-rewrites.sh',
+        ),
+      );
+
+      final result = await verifier.run();
+
+      expect(result.reportPath, report.path);
+      expect(result.killedCount, 3);
+      expect(result.survivedCount, 1);
+      expect(result.survivors, hasLength(1));
+      expect(
+        result.survivors.single.file,
+        'lib/tdd/002-subscription-error-vocabulary/vocab.dart',
+      );
     });
   });
 
@@ -269,5 +382,87 @@ Line 12 :
       expect(report.mutationScore, closeTo(0.9, 1e-9));
       expect(report.survivors, hasLength(1));
     });
+  });
+
+  group('the scope backstop — mutation_test echoes the config <file> text', () {
+    test(
+      'the parsed survivor names the config\'s <file> string exactly',
+      () async {
+        // A real, pub-resolved fixture: one subject and one WEAK test, so
+        // the mutant survives and the report carries a survivor line. This
+        // is the production shape of the report — the hand-built
+        // MutationResult above never exercises it.
+        final root = p.join(tmpDir.path, 'fixture');
+        Directory(root).createSync(recursive: true);
+        File(p.join(root, 'pubspec.yaml')).writeAsStringSync('''
+name: mutation_report_fixture
+environment:
+  sdk: ^3.11.0
+dev_dependencies:
+  test: ^1.25.0
+  mutation_test: ^1.8.0
+''');
+        File(p.join(root, 'lib', 'subject.dart'))
+          ..createSync(recursive: true)
+          ..writeAsStringSync('int add(int a, int b) => a + b;\n');
+        File(p.join(root, 'test', 'subject_test.dart'))
+          ..createSync(recursive: true)
+          ..writeAsStringSync('''
+import 'package:test/test.dart';
+import 'package:mutation_report_fixture/subject.dart' as s;
+
+void main() {
+  test('a weak scope test', () {
+    expect(s.add(0, 0), 0);
+  });
+}
+''');
+        final pubGet = await Process.run('dart', [
+          'pub',
+          'get',
+        ], workingDirectory: root);
+        expect(
+          pubGet.exitCode,
+          0,
+          reason: 'fixture pub get failed:\n${pubGet.stdout}\n${pubGet.stderr}',
+        );
+
+        // The scoped config the auditor writes — its `<file>` entry is the
+        // scope path, verbatim.
+        final config = buildScopedMutationConfig(
+          subjectPaths: ['lib/subject.dart'],
+          testPaths: ['test/subject_test.dart'],
+          fileTemplate: 'dart test {file}',
+        );
+        final configFileEntry = RegExp(
+          r'<file>(.*?)</file>',
+        ).firstMatch(config)!.group(1)!;
+        expect(configFileEntry, 'lib/subject.dart');
+        File(p.join(root, 'mutation-test.xml')).writeAsStringSync(config);
+
+        final verifier = MutationVerifier(
+          configPath: 'mutation-test.xml',
+          outputDir: 'mutation-report',
+          workingDirectory: root,
+          timeout: const Duration(minutes: 10),
+        );
+        final result = await verifier.run();
+
+        expect(
+          result.survivors,
+          isNotEmpty,
+          reason: 'the fixture must produce a survivor',
+        );
+        expect(result.survivors.map((s) => s.file).toSet(), {
+          configFileEntry,
+        }, reason: 'mutation_test must echo the config <file> text verbatim');
+        expect(
+          survivorsOutsideScope(result.survivors, [configFileEntry]),
+          isEmpty,
+          reason: 'a legitimate report must not trip the scope backstop',
+        );
+      },
+      timeout: const Timeout(Duration(minutes: 10)),
+    );
   });
 }

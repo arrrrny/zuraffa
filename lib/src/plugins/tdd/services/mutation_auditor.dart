@@ -691,6 +691,9 @@ class MutationAuditor {
       killedExitCode = e.exitCode;
     } on ProcessTimeoutException catch (e) {
       // Bug #742: the mutation run outlived its deadline and was killed.
+      // The production path converts the timeout into a MutationRunKilled
+      // (the verifier owns the kill), so this branch is the one an
+      // injected `runMutation` reaches — the same verdict either way.
       notAssessedReason = 'mutation run timed out: $e';
     } catch (e) {
       notAssessedReason = 'mutation audit failed: $e';
