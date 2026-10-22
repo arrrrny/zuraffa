@@ -646,9 +646,11 @@ class GenCommand extends Command<void> {
   }
 
   /// The batch's machine-readable JSON verdict — the FINAL stdout line
-  /// (the per-behavior verdicts print above it). Gated on [--json]
-  /// (VISION §5, issue #964): when the flag is absent, the text
-  /// `key=value` summary is the last line instead.
+  /// (the per-behavior verdicts print above it).
+  ///
+  /// Issue #1979: without [--json] the batch prints the human-readable
+  /// `key=value` summary AND THEN the raw JSON verdict — the recovery
+  /// commands' contract (bug #840), the shape `zfa tdd doctor` emits.
   void _printBatchVerdict({
     required String? feature,
     required int behaviors,
@@ -664,6 +666,22 @@ class GenCommand extends Command<void> {
         'regenerated=${counts['regenerated'] ?? 0} '
         'planned=${counts['planned'] ?? 0}'
         '${stoppedAt != null ? ' stopped_at=$stoppedAt' : ''}',
+      );
+      // Issue #1979: the raw JSON verdict — the LAST stdout line (bug
+      // #840's recovery-tooling contract).
+      print(
+        jsonEncode({
+          'command': 'gen',
+          'feature': ?feature,
+          'verdict': verdict,
+          'behaviors': behaviors,
+          'created': counts['created'] ?? 0,
+          'reused': counts['reused'] ?? 0,
+          'adopted': counts['adopted'] ?? 0,
+          'regenerated': counts['regenerated'] ?? 0,
+          'planned': counts['planned'] ?? 0,
+          if (stoppedAt != null) 'stopped_at': stoppedAt,
+        }),
       );
       return;
     }
@@ -1057,8 +1075,8 @@ class GenCommand extends Command<void> {
     // N+1's gen an FR-008 refusal against feature N's artifacts).
     final snakeId = _toSnakeCase(behavior.id);
     _validateFeatureSegment(featureName);
-    final testPath = '$cwd/test/tdd/$featureName/${snakeId}_test.dart';
-    final subjectPath = '$cwd/lib/tdd/$featureName/${snakeId}_subject.dart';
+    var testPath = '$cwd/test/tdd/$featureName/${snakeId}_test.dart';
+    var subjectPath = '$cwd/lib/tdd/$featureName/${snakeId}_subject.dart';
     // Issue #1574: the RECORD carries the portable project-relative POSIX
     // form — the same form run_driver_core.dart records (commit af40f686b).
     // Composing the record straight from the machine-absolute `cwd` leaked
@@ -1068,30 +1086,26 @@ class GenCommand extends Command<void> {
     // still being written. The absolute locals above stay the I/O form
     // (every writer, preflight stat and import anchor resolves against
     // them); only the recorded form changes.
-    final recordTestPath = p
-        .relative(testPath, from: cwd)
-        .replaceAll(r'\', '/');
-    final recordSubjectPath = p
-        .relative(subjectPath, from: cwd)
-        .replaceAll(r'\', '/');
-    // Bug #871: the composite third segment is the PURE description —
-    // the id is embedded exactly once (segment 2). The old
-    // `'$testPath::$id::$id — $description'` double-embed leaked an
-    // `<id> — ` prefix into every consumer that extracts the description
-    // segment, and the tdd planner's capitalized-trace fallback then
-    // captured the id as the entity name (`make A1` instead of
-    // `make Todo`). The generated test's name (BehaviorTestWriter) is
-    // the same pure description, so `--plain-name` matching agrees.
-    // Issue #1574: the first segment is the RELATIVE recorded form.
-    final runnableTestName =
-        '$recordTestPath::${behavior.id}::${behavior.description}';
+    //
+    // Issue #1979: the recorded form is composed AFTER the legacy-flat
+    // adoption below, because that path may re-point the pair at the
+    // flat layout — the record must carry the paths the pair really
+    // occupies.
+    late final String recordTestPath;
+    late final String recordSubjectPath;
+    late final String runnableTestName;
 
     // Issue #1805: refuse when the recorded artifacts.json entry for this
     // behavior id carries a different source_criterion than the plan's —
     // a positional U-id remap would otherwise regenerate the old behavior
     // under the id silently.
+    //
+    // Issue #1979: the prior record is hoisted out of the guard — the
+    // legacy-flat adoption below reads it (no prior record = the pair is
+    // unowned = adoptable).
+    ArtifactRecord? prior;
     try {
-      final prior = await ArtifactRegistry(
+      prior = await ArtifactRegistry(
         featureDir: featureDir,
       ).findRecord(behavior.id);
       // Issue #1388: only refuse on a true positional U-id remap — i.e. when
@@ -1114,11 +1128,77 @@ class GenCommand extends Command<void> {
           'the affected artifacts.json records and their test/subject '
           'pairs to the new ids, then re-run `zfa tdd plan $featureName`.',
         );
-        throw StateError('zfa tdd gen: criterion mismatch for ${behavior.id}');
+        // Issue #1979: the house pattern (spec 048) — a refusal signals
+        // through exitCode + return, so the machine-readable verdict
+        // stays the final stdout line (bug #840). The throw escaped the
+        // recovery contract: the command died with NO verdict line at
+        // all, so the recovery tooling could not read the refusal.
+        _printVerdict(
+          behaviorId: behavior.id,
+          verdict: 'refused',
+          reason:
+              'criterion mismatch — recorded criterion '
+              '"${prior.sourceCriterion}" (artifacts.json) != plan '
+              'criterion "${behavior.sourceCriterion}"',
+          featureName: featureName,
+          featureDisplay: featureDisplay,
+          kind: effectiveBehavior.kind.name,
+        );
+        exitCode = 1;
+        return 'refused';
       }
     } on Exception {
       // fail open on unreadable registry
     }
+
+    // Issue #1979: the LEGACY FLAT layout (the pre-#827 shape —
+    // `test/tdd/<id>_test.dart` + `lib/tdd/<id>_subject.dart`) is still
+    // what `zfa tdd doctor` scans, and the doctor's prescription for a
+    // flat orphan is `--adopt`. Adopt mode therefore also looks at the
+    // flat candidates: when the namespaced pair is absent, no registry
+    // record claims the behavior, and a flat candidate exists, the pair
+    // is adopted IN PLACE — the flat candidate's own directory, so the
+    // adopted half's relative subject import keeps resolving and the
+    // missing half is generated beside it (never in a second directory).
+    // Without this the doctor's prescription was a dead end: gen wrote a
+    // FRESH namespaced pair and left the orphan behind.
+    if (adopt && !dryRun && prior == null) {
+      final flatTestPath = '$cwd/test/tdd/${snakeId}_test.dart';
+      final flatSubjectPath = '$cwd/lib/tdd/${snakeId}_subject.dart';
+      final namespacedAbsent =
+          !File(testPath).existsSync() && !File(subjectPath).existsSync();
+      final flatPresent =
+          File(flatTestPath).existsSync() || File(flatSubjectPath).existsSync();
+      if (namespacedAbsent && flatPresent) {
+        testPath = flatTestPath;
+        subjectPath = flatSubjectPath;
+      }
+    }
+
+    // Issue #1574: the RECORD carries the portable project-relative POSIX
+    // form — the same form run_driver_core.dart records (commit af40f686b).
+    // Composing the record straight from the machine-absolute `cwd` leaked
+    // `/…` paths into committed registries (10 of 18 at the issue's census)
+    // and, in the `.specify/bugs/<slug>` lane, the registry's write-time
+    // canonicalization cannot relativize them — the #1397 corruption was
+    // still being written. The absolute locals above stay the I/O form
+    // (every writer, preflight stat and import anchor resolves against
+    // them); only the recorded form changes.
+    recordTestPath = p.relative(testPath, from: cwd).replaceAll(r'\', '/');
+    recordSubjectPath = p
+        .relative(subjectPath, from: cwd)
+        .replaceAll(r'\', '/');
+    // Bug #871: the composite third segment is the PURE description —
+    // the id is embedded exactly once (segment 2). The old
+    // `'$testPath::$id::$id — $description'` double-embed leaked an
+    // `<id> — ` prefix into every consumer that extracts the description
+    // segment, and the tdd planner's capitalized-trace fallback then
+    // captured the id as the entity name (`make A1` instead of
+    // `make Todo`). The generated test's name (BehaviorTestWriter) is
+    // the same pure description, so `--plain-name` matching agrees.
+    // Issue #1574: the first segment is the RELATIVE recorded form.
+    runnableTestName =
+        '$recordTestPath::${behavior.id}::${behavior.description}';
 
     // Issue #831: platform behaviors drive a platform channel through
     // the certified fake + committed scenario written by
@@ -1813,9 +1893,14 @@ class GenCommand extends Command<void> {
 
   /// Emit the machine-readable JSON verdict (bug #840): the LAST stdout
   /// line, parseable by the recovery tooling, with the adopted/created
-  /// split and the audit-log location for adopt runs. Gated on [--json]
-  /// (VISION §5, issue #964): when the flag is absent, the text
-  /// `key=value` summary is the last line instead.
+  /// split and the audit-log location for adopt runs.
+  ///
+  /// Issue #1979: without [--json] the command prints the human-readable
+  /// `key=value` summary AND THEN the raw JSON verdict — the recovery
+  /// commands' contract (bug #840's verification record: "every command's
+  /// final stdout line is a parseable JSON object"). `zfa tdd doctor`
+  /// already kept that shape; gen and reset had drifted to the text-only
+  /// summary, so the recovery tooling could not parse their verdict.
   ///
   /// Issue #969: under --json in SINGLE mode the verdict folds into the
   /// wrapper's envelope context (ONE final machine line); in --all batch
@@ -1850,6 +1935,26 @@ class GenCommand extends Command<void> {
         '${reason != null ? ' reason="$reason"' : ''}'
         '${adopted.isNotEmpty ? ' adopted=${adopted.length}' : ''}'
         '${created.isNotEmpty ? ' created=${created.length}' : ''}',
+      );
+      // Issue #1979: the raw JSON verdict — the LAST stdout line (bug
+      // #840's recovery-tooling contract, the shape `zfa tdd doctor`
+      // still emits). The text summary above stays for the human reader.
+      print(
+        jsonEncode({
+          'command': 'gen',
+          'feature': ?featureName,
+          'behavior': behaviorId,
+          'verdict': verdict,
+          'reason': ?reason,
+          'kind': ?kind,
+          if (golden) 'golden': true,
+          if (adopted.isNotEmpty) 'adopted': adopted,
+          if (created.isNotEmpty) 'created': created,
+          if ((adopted.isNotEmpty || repaired) && featureDisplay != null)
+            'audit_log': p.join(featureDisplay, 'tdd', 'audit.log'),
+          'golden_test': ?goldenTestPath,
+          'golden_fixtures': ?goldenFixturesDir,
+        }),
       );
       return;
     }
