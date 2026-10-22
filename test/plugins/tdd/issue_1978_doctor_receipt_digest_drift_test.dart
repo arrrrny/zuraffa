@@ -48,6 +48,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/core/project/receipt_store.dart';
+import 'package:zuraffa/src/core/project/test_receipt.dart';
 import 'package:zuraffa/src/plugins/tdd/services/receipt_preflight.dart';
 
 void main() {
@@ -139,6 +140,32 @@ void main() {
             action: 'update',
             sha256: certified,
             bytes: certifiedBytes.length,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A proof.v1 receipt that does NOT drift. Its presence activates the
+  /// receipt preflight's gate — the doctor's check is vacuous without a
+  /// proof.v1 receipt, exactly like the verify gate.
+  Future<void> seedHealthyReceipt() async {
+    const rel = 'lib/tdd/$queriedFeature/u1_subject.dart';
+    final bytes = '// $rel\n';
+    await ReceiptStore(projectRoot: root.path).save(
+      GenerationReceipt(
+        command: 'tdd make U1 --born-green',
+        target: 'U1',
+        repro: 'zfa tdd make U1 --born-green',
+        at: DateTime.utc(2026, 10, 2),
+        generatorVersion: '7.2.0',
+        input: {'feature': queriedFeature, 'behavior': 'U1'},
+        files: [
+          GenerationReceiptFile(
+            path: rel,
+            action: 'update',
+            sha256: crypto.sha256.convert(utf8.encode(bytes)).toString(),
+            bytes: bytes.length,
           ),
         ],
       ),
@@ -383,6 +410,191 @@ void main() {
         contains('zfa tdd make U1 --born-green'),
         reason:
             'the subject side is re-bound with the born-green transition:\n$out',
+      );
+    });
+
+    test('E6: a drifted test.v1 receipt is reported with the digests the '
+        'receipt DOES carry and its own regenerate command', () async {
+      await seedQueriedFeature();
+      await seedHealthyReceipt();
+
+      // The test plugin's receipt family (`test-*.json`, schema test.v1) —
+      // a SEPARATE document kind `ReceiptStore.loadAll` skips. The shared
+      // checker audits it, so the doctor must resolve it too: a drift
+      // line that says `receipt says unknown` states a digest the
+      // receipt does not have.
+      const testRelPath = 'test/unit/purchase_test.dart';
+      final testFile = File(p.join(root.path, testRelPath));
+      await testFile.parent.create(recursive: true);
+      await testFile.writeAsString(currentBytes);
+      final certified = crypto.sha256
+          .convert(utf8.encode(certifiedBytes))
+          .toString();
+      await TestReceiptStore(projectRoot: root.path).write(
+        TestReceipt(
+          entity: 'Purchase',
+          command: 'zfa test create --name Purchase',
+          at: DateTime.utc(2026, 10, 2),
+          tests: [
+            TestReceiptEntry(
+              name: 'the query works',
+              testPath: testRelPath,
+              method: 'get',
+              acceptancePath: 'success',
+              testSha256: certified,
+            ),
+          ],
+        ),
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(doctorArgs());
+
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
+      expect(out, contains(testRelPath), reason: out);
+      expect(
+        out,
+        isNot(contains('receipt says unknown')),
+        reason:
+            'the test.v1 receipt DOES carry the digest — the doctor must '
+            'not state one it does not have:\n$out',
+      );
+      expect(
+        out,
+        contains(certified.substring(0, 12)),
+        reason: 'the recorded digest must be the receipt\'s own:\n$out',
+      );
+      expect(
+        out,
+        contains('zfa test create --name Purchase'),
+        reason:
+            'the receipt\'s own regenerate command is the prescription — '
+            'the doctor must not fall back to an unrelated command:\n$out',
+      );
+    });
+
+    test('E7: a receipted artifact that is GONE is reported — the doctor '
+        'may not disagree with the verify gate about a deleted artifact',
+        () async {
+      await seedQueriedFeature();
+      // The receipt names an artifact that no longer exists on disk.
+      const goneRelPath = 'lib/tdd/$driftedFeature/gone_subject.dart';
+      final certified = crypto.sha256
+          .convert(utf8.encode(certifiedBytes))
+          .toString();
+      await ReceiptStore(projectRoot: root.path).save(
+        GenerationReceipt(
+          command: 'tdd verify-red U1 --re-certify',
+          target: 'U1',
+          repro: 'zfa tdd verify-red U1 --re-certify',
+          at: DateTime.utc(2026, 10, 2),
+          generatorVersion: '7.2.0',
+          input: {'feature': driftedFeature, 'behavior': 'U1'},
+          files: [
+            GenerationReceiptFile(
+              path: goneRelPath,
+              action: 'create',
+              sha256: certified,
+              bytes: certifiedBytes.length,
+            ),
+          ],
+        ),
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(doctorArgs());
+
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
+      expect(out, contains(goneRelPath), reason: out);
+      expect(
+        out,
+        contains('missing'),
+        reason:
+            'a receipted artifact that is gone is the same receipt-vs-disk '
+            'class the verify gate refuses the feature for:\n$out',
+      );
+      expect(
+        out,
+        isNot(contains('stores agree')),
+        reason: out,
+      );
+    });
+
+    test('E8: a generator receipt never prescribes its own id-less repro — '
+        'the id-bearing re-certification transition is named', () async {
+      await seedQueriedFeature();
+      // The `tdd compose` verb stamps an id-less repro ('zfa tdd
+      // compose') — a hint that cannot be pasted as-is.
+      const subjectRelPath = 'lib/tdd/$driftedFeature/u1_subject.dart';
+      final subject = File(p.join(root.path, subjectRelPath));
+      await subject.parent.create(recursive: true);
+      await subject.writeAsString(currentBytes);
+      final certified = crypto.sha256
+          .convert(utf8.encode(certifiedBytes))
+          .toString();
+      await ReceiptStore(projectRoot: root.path).save(
+        GenerationReceipt(
+          command: 'tdd compose',
+          target: 'U1',
+          repro: 'zfa tdd compose',
+          at: DateTime.utc(2026, 10, 2),
+          generatorVersion: '7.2.0',
+          input: {'feature': driftedFeature},
+          files: [
+            GenerationReceiptFile(
+              path: subjectRelPath,
+              action: 'update',
+              sha256: certified,
+              bytes: certifiedBytes.length,
+            ),
+          ],
+        ),
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(doctorArgs());
+
+      expect(CliRunner.lastDispatchedExitCode, isNot(0), reason: out);
+      expect(out, contains(subjectRelPath), reason: out);
+      expect(
+        out,
+        isNot(contains('zfa tdd compose')),
+        reason:
+            'the id-less repro cannot be pasted as-is, and re-driving a '
+            'generator over certified work destroys it (issue #1375):\n$out',
+      );
+      expect(
+        out,
+        contains('zfa tdd make U1 --born-green'),
+        reason:
+            'the subject side is re-bound with the born-green transition, '
+            'which carries the behavior id:\n$out',
+      );
+    });
+
+    test('E9: the drift line carries the digests the checker derived — the '
+        'recorded one and the one on disk', () async {
+      await seedQueriedFeature();
+      await seedDriftedArtifact();
+      await seedReceipt(repro: 'zfa tdd verify-red U1 --re-certify');
+
+      final certified = crypto.sha256
+          .convert(utf8.encode(certifiedBytes))
+          .toString();
+      final current = crypto.sha256.convert(utf8.encode(currentBytes)).toString();
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(doctorArgs());
+
+      expect(
+        out,
+        contains(certified.substring(0, 12)),
+        reason: 'the receipt\'s recorded digest must be reported:\n$out',
+      );
+      expect(
+        out,
+        contains(current.substring(0, 12)),
+        reason: 'the digest on disk must be reported:\n$out',
       );
     });
   });

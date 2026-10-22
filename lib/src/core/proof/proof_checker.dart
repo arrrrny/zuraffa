@@ -55,12 +55,34 @@ class ProofFinding {
   /// Unified-ish line diff (`-`/`+`/context lines) when computable.
   final String? diff;
 
+  /// The digest the receipt RECORDED for [path] — the "receipt says"
+  /// side of a drift report. Null for a finding that compares no
+  /// digests.
+  ///
+  /// Issue #1978: the checker already read every receipted file and
+  /// hashed it — a consumer that reports the drift (the doctor's
+  /// receipt-drift check) must not read and hash the same file again to
+  /// say what the receipt said. The digests ride the finding.
+  final String? recordedDigest;
+
+  /// The digest of the bytes ON DISK for [path] — the "disk has" side.
+  /// Null when the artifact is gone (a `deleted` finding).
+  final String? actualDigest;
+
+  /// The receipt's recorded action for [path] (`create`, `update`, ...).
+  /// Null when the receipt family has no action (the test plugin's
+  /// `test.v1` receipts).
+  final String? action;
+
   const ProofFinding({
     required this.kind,
     required this.path,
     required this.receipt,
     required this.detail,
     this.diff,
+    this.recordedDigest,
+    this.actualDigest,
+    this.action,
   });
 
   Map<String, dynamic> toJson() => {
@@ -218,6 +240,8 @@ class ProofChecker {
             detail:
                 'artifact reported by ${record.receipt.command} is '
                 'missing; reproduce with: ${record.receipt.repro}',
+            recordedDigest: entry.sha256,
+            action: entry.action,
           ),
         );
         continue;
@@ -238,6 +262,9 @@ class ProofChecker {
                 '(action: ${entry.action}); reproduce with: '
                 '${record.receipt.repro}',
             diff: diff,
+            recordedDigest: entry.sha256,
+            actualDigest: actual,
+            action: entry.action,
           ),
         );
       }
@@ -413,6 +440,7 @@ class ProofChecker {
               detail:
                   'receipted test is missing; regenerate with: '
                   '${receipt.command}',
+              recordedDigest: state.value.testSha256,
             ),
           );
           continue;
@@ -428,6 +456,8 @@ class ProofChecker {
                   'digest mismatch: receipt says ${_short(state.value.testSha256)}, '
                   'disk has ${_short(actual)}; regenerate with: '
                   '${receipt.command}',
+              recordedDigest: state.value.testSha256,
+              actualDigest: actual,
             ),
           );
         }
