@@ -56,6 +56,7 @@
 /// feature's registry owns.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -659,9 +660,15 @@ class ResetCommand extends Command<void> {
     return foreign;
   }
 
-  /// The machine-readable verdict (bug #840) — text when --json is
-  /// absent; the envelope details when it is set (issue #969: ONE
-  /// versioned machine line, never a second raw object).
+  /// The machine-readable verdict (bug #840) — the raw JSON verdict is the
+  /// LAST stdout line; the envelope details carry it under [--json]
+  /// (issue #969: ONE versioned machine line, never a second raw object).
+  ///
+  /// Issue #1979: without [--json] the command prints the human-readable
+  /// `key=value` summary AND THEN the raw JSON verdict — the recovery
+  /// commands' contract (bug #840's verification record: "every command's
+  /// final stdout line is a parseable JSON object"), the shape
+  /// `zfa tdd doctor` already emits.
   void _printVerdict({
     required String feature,
     required String verdict,
@@ -685,6 +692,30 @@ class ResetCommand extends Command<void> {
         ' foreign_files_kept=$foreignKept'
         ' entities_reverted=${revertedEntities.length}'
         ' receipts_pruned=${prunedReceipts.length}',
+      );
+      // Issue #1979: the raw JSON verdict — the LAST stdout line (bug
+      // #840's recovery-tooling contract).
+      print(
+        jsonEncode({
+          'command': 'reset',
+          'feature': feature,
+          'verdict': verdict,
+          'reason': ?reason,
+          'dropped_records': droppedRecords,
+          'foreign_files_kept': foreignKept,
+          if (droppedFiles.isNotEmpty) 'dropped_files': droppedFiles,
+          if (invalidatedBehaviors.isNotEmpty)
+            'invalidated_behaviors': invalidatedBehaviors,
+          if (deletedFiles.isNotEmpty) 'deleted_files': deletedFiles,
+          if (pathDrift.isNotEmpty) 'path_drift': pathDrift,
+          if (foreignOwnedLooking.isNotEmpty)
+            'foreign_owned_looking': foreignOwnedLooking,
+          if (invalidatedCaches.isNotEmpty)
+            'invalidated_caches': invalidatedCaches,
+          if (revertedEntities.isNotEmpty)
+            'reverted_entities': revertedEntities,
+          if (prunedReceipts.isNotEmpty) 'pruned_receipts': prunedReceipts,
+        }),
       );
       return;
     }
