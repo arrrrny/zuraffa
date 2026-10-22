@@ -69,7 +69,7 @@ void main() {
     });
 
     test('U-1685-G2: REAL analyzer compile check rejects the historical '
-        'snippet (the undefined-member error the issue reported)', () async {
+        'snippet (the analyzer\'s missing-member diagnostic)', () async {
       const buggy =
           "final _tmp = Directory.systemTemp.createTempSync('x_');\n"
           'addTearDown(_tmp.deleteRecursively);';
@@ -79,9 +79,18 @@ void main() {
         isFalse,
         reason: 'the historical snippet must NOT compile',
       );
-      // The diagnostic NAME moved with the analyzer: 14.5.x reports
-      // `undefined_getter`, 14.6.0 renamed it `undefined_instance_member_read`
-      // — the same "the member isn't defined for the type" failure class.
+      // Issue #1980: the analyzer RENAMED this diagnostic in 14.6.0 —
+      // `undefined_getter` ("The getter '{0}' isn't defined for the type
+      // '{1}'.") became `undefined_instance_member_read` ("The member '{0}'
+      // isn't defined for the type '{1}'."). Same error class (the member does
+      // not exist on the type), different name — and the analyzer version
+      // moves whenever the committed pubspec.lock is bumped (issue #1986),
+      // so the assertion must not pin either spelling.
+      //
+      // `undefined_getter` was REMOVED (not renamed-and-kept) in analyzer
+      // 14.6.0 — it only fires on analyzer <= 14.5.x, which a consumer's own
+      // dependency graph can still resolve under `analyzer: ^14.4.0`.
+      //
       // Asserting on the display NAME re-breaks master on the next rename
       // (issue #1980 → #1981), so assert on the analyzer's error CLASS
       // instead: the DiagnosticType survived that rename unchanged, and so

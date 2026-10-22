@@ -7,8 +7,9 @@
 /// `deleteRecursively` is not a member of `dart:io`'s `Directory` (only
 /// `delete({recursive})` / `deleteSync({recursive})`) and no extension in
 /// the snippet's reachable surface provides it. The suggestion landed as
-/// `undefined_getter` in the consumer's test suite. Two layers close that
-/// class of misfire:
+/// a missing-member error in the consumer's test suite (`undefined_getter`
+/// on analyzer <= 14.5.x, `undefined_instance_member_read` since 14.6.0 —
+/// see issue #1980). Two layers close that class of misfire:
 ///
 /// 1. [SnippetDenyList] — a static, curated scan for member names verified
 ///    to NOT exist in the snippet's reachable API surface. Pure string
@@ -18,9 +19,9 @@
 ///    under the gitignored `build/` path (inside the package, so this
 ///    package's own package config resolves the wrapper imports) and
 ///    resolved IN-PROCESS with `package:analyzer`. Any ERROR-severity
-///    diagnostic fails the check — which is exactly the `undefined_getter`
-///    class of failure the issue reports: a non-existent member cannot
-///    resolve in any context.
+///    diagnostic fails the check — which is exactly the missing-member class
+///    of failure the issue reports: a non-existent member cannot resolve in
+///    any context.
 ///
 /// The gate fails CLOSED: if the package context cannot be established,
 /// [SnippetCompileCheck.compileCheck] throws — a gate that silently passes
@@ -53,13 +54,13 @@ final class SnippetValidationIssue {
   final String message;
 
   /// Machine-readable class of the finding (`non_existent_api`,
-  /// `undefined_getter`, `syntax_error`, ...).
+  /// `undefined_instance_member_read`, `syntax_error`, ...).
   ///
-  /// For an ANALYZER finding this is the diagnostic's DISPLAY name,
-  /// lower-cased — the analyzer's human-facing label. The analyzer renames
-  /// it freely (analyzer 14.6.0 replaced `undefined_getter` with
-  /// `undefined_instance_member_read`, issue #1980), so NEVER assert on
-  /// this key: use [uniqueName] / [errorType], which survive a rename.
+  /// The spelling is the analyzer's own `errorCode.name` and it drifts
+  /// between analyzer releases (issue #1980) — the analyzer renamed
+  /// `undefined_getter` to `undefined_instance_member_read` in 14.6.0 — so
+  /// never key production logic on it and never assert on it: use
+  /// [uniqueName] / [errorType], which survive a rename (issue #1986).
   final String? code;
 
   /// The analyzer's unique name for the diagnostic (`undefined_getter`,

@@ -7,7 +7,7 @@
 /// `deleteRecursively` is NOT a member of `dart:io`'s `Directory` (which
 /// only has `delete({recursive})` / `deleteSync({recursive})`) and no
 /// extension in the snippet's reachable surface provides it. The posted
-/// snippet could not compile (`undefined_getter`).
+/// snippet could not compile (the analyzer's missing-member diagnostic).
 ///
 /// This catalog is the compilable source of truth: every template emits
 /// plain, verifiable dart:io calls — the same cleanup semantics with the
