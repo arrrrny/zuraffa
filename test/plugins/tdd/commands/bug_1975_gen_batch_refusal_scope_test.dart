@@ -27,8 +27,9 @@
 //   U5 — the JSON envelope accounts for EVERY target: the refused row,
 //        the skipped rows, and no `stopped_at` (the batch drove past the
 //        refusal).
-//   U6 — a HARD failure (a cross-feature ownership conflict) still stops
-//        the WHOLE batch — the refusal scoping never starves a hard stop.
+//   U6 — a HARD failure (an FR-008 ownership conflict on an unowned
+//        file) still stops the WHOLE batch — the refusal scoping never
+//        starves a hard stop.
 //
 // The fixture mirrors the issue's shape: two features in one project —
 // `001-purchase-store` (shipped: its pair exists, its subject progressed,
@@ -429,7 +430,7 @@ void main() {
     },
   );
 
-  test('U6: a HARD failure (a cross-feature ownership conflict) still '
+  test('U6: a HARD failure (an unowned-file ownership conflict) still '
       'stops the WHOLE batch', () async {
     // The shipped feature's SECOND row owns a file no registry record
     // owns — gen refuses it with the FR-008 ownership conflict, a HARD
