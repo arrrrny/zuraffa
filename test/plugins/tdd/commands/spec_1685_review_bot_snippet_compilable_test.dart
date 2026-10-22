@@ -69,7 +69,7 @@ void main() {
     });
 
     test('U-1685-G2: REAL analyzer compile check rejects the historical '
-        'snippet (undefined_getter, the issue\'s exact error)', () async {
+        'snippet (the analyzer\'s missing-member diagnostic)', () async {
       const buggy =
           "final _tmp = Directory.systemTemp.createTempSync('x_');\n"
           'addTearDown(_tmp.deleteRecursively);';
@@ -86,6 +86,11 @@ void main() {
       // not exist on the type), different name, and this package resolves the
       // analyzer fresh on every CI run (pubspec.lock is not committed), so the
       // assertion must accept BOTH spellings of that one error class.
+      //
+      // `undefined_getter` was REMOVED (not renamed-and-kept) in analyzer
+      // 14.6.0 — it only fires on analyzer <= 14.5.x, which this package can
+      // still resolve while `analyzer: ^14.4.0` stands. Drop the old spelling
+      // once the analyzer floor moves to 14.6.0.
       expect(
         result.issues.map((i) => i.code),
         contains(anyOf('undefined_getter', 'undefined_instance_member_read')),
