@@ -82,11 +82,20 @@ void main() {
       // The diagnostic NAME moved with the analyzer: 14.5.x reports
       // `undefined_getter`, 14.6.0 renamed it `undefined_instance_member_read`
       // — the same "the member isn't defined for the type" failure class.
-      // The repo commits no lockfile, so CI resolves whichever analyzer 14.x
-      // is current — accept both names of that ONE error class.
+      // Asserting on the display NAME re-breaks master on the next rename
+      // (issue #1980 → #1981), so assert on the analyzer's error CLASS
+      // instead: the DiagnosticType survived that rename unchanged, and so
+      // does every future rename of the diagnostic.
+      final error = result.errors.single;
       expect(
-        result.issues.map((i) => i.code),
-        contains(anyOf('undefined_getter', 'undefined_instance_member_read')),
+        error.errorType,
+        'COMPILE_TIME_ERROR',
+        reason: 'the analyzer error CLASS — survives every diagnostic rename',
+      );
+      expect(
+        error.uniqueName,
+        matches(RegExp(r'^undefined_')),
+        reason: 'the undefined-member diagnostic family, by unique name',
       );
     }, timeout: const Timeout(Duration(minutes: 3)));
 

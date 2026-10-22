@@ -35,6 +35,11 @@ test/fixtures/
 example/pubspec.lock
 examples/*/pubspec.lock
 
+# The root lockfile is committed on purpose (issue #1986 — it pins the
+# resolved analyzer version for CI), but a published LIBRARY must not ship
+# a lockfile: consumers resolve their own dependency tree.
+/pubspec.lock
+
 # Build artifacts
 /build/
 

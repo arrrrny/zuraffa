@@ -41,6 +41,11 @@ dependencies:
   # src/core/ast/* (ast_helper, file_parser, ast_modifier, node_finder), which
   # hard-import package:analyzer — every consumer compiles these sources, so a
   # dev_dependencies move would break consumers at compile time.
+  # Issue #1986: the RESOLVED analyzer version is pinned by the committed
+  # pubspec.lock (it is no longer gitignored) — the caret range alone let
+  # every analyzer release land on master untested (14.6.0 replaced the
+  # `undefined_getter` diagnostic and broke the build — issue #1980).
+  # Bump deliberately: `dart pub get --no-example && git add pubspec.lock`.
   analyzer: ^14.4.0
 
   # Sync plugin: hive_ce 2.20.0+ required for Box API used in SyncMetadataStore
