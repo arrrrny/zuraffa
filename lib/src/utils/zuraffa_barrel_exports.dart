@@ -143,7 +143,14 @@ class ZuraffaBarrelExports {
       var root = zuraffa['rootUri'] as String;
       if (root.startsWith('file://')) root = Uri.parse(root).toFilePath();
       if (!p.isAbsolute(root)) {
-        root = p.normalize(p.absolute(p.join(projectRoot, root)));
+        // package_config v2: a RELATIVE rootUri is anchored at the config
+        // file's own directory (`<project>/.dart_tool/`), not the project
+        // root — pub writes a path dep's `rootUri` (`"../../zuraffa"`)
+        // relative to it, so joining against the project root lands one
+        // directory too high and the barrel resolves to nothing: the #2008
+        // hide silently vanishes for path-dep users. Mirrors
+        // FrameworkExportSurface and PluginGate (#1690 §1).
+        root = p.normalize(p.absolute(p.join(projectRoot, '.dart_tool', root)));
       }
       final names = <String>{};
       _collectFromBarrel(p.join(root, 'lib', 'zuraffa.dart'), root, names, 0);

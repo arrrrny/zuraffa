@@ -48,41 +48,12 @@ void main() {
     String registrarPath() =>
         p.join(sandbox.path, 'lib', 'src', 'cache', 'hive_registrar.dart');
 
-    /// A generated-shaped registrar for an entity whose name collides
-    /// with a zuraffa core export (`DeviceInfo` is exported from the real
-    /// barrel at `src/device/device.dart`). The sandbox carries a
-    /// `pubspec.yaml` and a `.dart_tool/package_config.json` resolving
-    /// `zuraffa` to a fixture barrel that exports `DeviceInfo`, so the
-    /// refresh's barrel-export resolution (#2008 seeding) verifies the
-    /// hide list against a real surface — exactly what a hosted zuraffa
-    /// gives an app project.
-    Future<void> writeDeviceInfoFixture() async {
+    /// The app-side files every refresh fixture needs: the pubspec that
+    /// bounds the seed walk, the entity whose name can collide with a
+    /// core export, its cache entry point, and the generated-shaped
+    /// registrar the refresh rewrites.
+    Future<void> writeAppFixture() async {
       await write('pubspec.yaml', 'name: repro_2008\n');
-      await write('.dart_tool/package_config.json', '''
-{
-  "configVersion": 2,
-  "packages": [
-    {
-      "name": "zuraffa",
-      "rootUri": ".fixture_zuraffa",
-      "packageUri": "lib/",
-      "languageVersion": "3.0"
-    }
-  ]
-}
-''');
-      await write('.fixture_zuraffa/lib/zuraffa.dart', '''
-// Fixture barrel standing in for the hosted zuraffa package: exports the
-// core `DeviceInfo` an app entity can collide with (issue #2008). The
-// resolver walks EXPORT statements only, so the class lives behind one,
-// mirroring the real barrel (`export 'src/device/device.dart';`).
-export 'device_info.dart';
-''');
-      await write('.fixture_zuraffa/lib/device_info.dart', '''
-class DeviceInfo {
-  String get fixtureModel => '';
-}
-''');
       await write('lib/src/domain/entities/device_info/device_info.dart', '''
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 part 'device_info.zorphy.dart';
@@ -113,6 +84,47 @@ extension HiveRegistrar on HiveInterface {
   }
 }
 // END GENERATED
+''');
+    }
+
+    /// A generated-shaped registrar for an entity whose name collides
+    /// with a zuraffa core export (`DeviceInfo` is exported from the real
+    /// barrel at `src/device/device.dart`). The sandbox carries a
+    /// `pubspec.yaml` and a `.dart_tool/package_config.json` resolving
+    /// `zuraffa` to a fixture barrel that exports `DeviceInfo`, so the
+    /// refresh's barrel-export resolution (#2008 seeding) verifies the
+    /// hide list against a real surface — exactly what a hosted zuraffa
+    /// gives an app project. The fixture barrel sits under `.dart_tool/`
+    /// and its `rootUri` is RELATIVE to it — the package_config v2 anchor
+    /// (a path dep's `rootUri` is written relative to the config
+    /// directory, not the project root) — so the emission exercises the
+    /// spec-correct resolution base.
+    Future<void> writeDeviceInfoFixture() async {
+      await writeAppFixture();
+      await write('.dart_tool/package_config.json', '''
+{
+  "configVersion": 2,
+  "packages": [
+    {
+      "name": "zuraffa",
+      "rootUri": "fixture_zuraffa",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    }
+  ]
+}
+''');
+      await write('.dart_tool/fixture_zuraffa/lib/zuraffa.dart', '''
+// Fixture barrel standing in for the hosted zuraffa package: exports the
+// core `DeviceInfo` an app entity can collide with (issue #2008). The
+// resolver walks EXPORT statements only, so the class lives behind one,
+// mirroring the real barrel (`export 'src/device/device.dart';`).
+export 'device_info.dart';
+''');
+      await write('.dart_tool/fixture_zuraffa/lib/device_info.dart', '''
+class DeviceInfo {
+  String get fixtureModel => '';
+}
 ''');
     }
 
@@ -147,6 +159,87 @@ extension HiveRegistrar on HiveInterface {
         reason:
             'the generator-emitted hide clause must be accepted as '
             'generated shape (issue #2008)',
+      );
+    });
+
+    test('emits no combinator when the barrel surface is unresolvable '
+        '(no package_config.json)', () async {
+      // The other #1530 empty-safe outcome at this site: the seeded
+      // resolver finds no `package_config.json`, the hide list comes
+      // back EMPTY, and the barrel import must carry NO combinator at
+      // all — the legacy keep-all fallback would emit unverified names
+      // that fail the analyze gate with `undefined_hidden_name`.
+      await writeAppFixture();
+
+      final refreshed = await command.refreshHiveRegistrar(
+        projectRoot: sandbox.path,
+      );
+
+      expect(refreshed, isTrue);
+      final content = File(registrarPath()).readAsStringSync();
+      expect(
+        content,
+        contains("import 'package:zuraffa/zuraffa.dart';"),
+        reason:
+            'an unresolved surface must emit the bare import — a hide '
+            'would be unverified and an `undefined_hidden_name` warning '
+            '(issue #1530)',
+      );
+      expect(content, isNot(contains('hide ')));
+      expect(
+        BuildCommand.registrarIsHandAuthored(content),
+        isFalse,
+        reason: 'the bare import is generated shape (#1953)',
+      );
+    });
+
+    test('emits no combinator when the barrel does not export the entity '
+        'name', () async {
+      // The third barrelHide outcome at this site: the surface RESOLVES
+      // but the barrel does not export `DeviceInfo`, so the verified
+      // hide list is empty and the import must stay bare — a regression
+      // to the keep-all fallback (or a malformed `hide ;`) would fail
+      // the analyze gate here.
+      await writeAppFixture();
+      await write('.dart_tool/package_config.json', '''
+{
+  "configVersion": 2,
+  "packages": [
+    {
+      "name": "zuraffa",
+      "rootUri": "fixture_zuraffa",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    }
+  ]
+}
+''');
+      await write('.dart_tool/fixture_zuraffa/lib/zuraffa.dart', '''
+// A resolvable barrel that exports nothing named like the app entity.
+export 'other.dart';
+''');
+      await write('.dart_tool/fixture_zuraffa/lib/other.dart', '''
+class UnrelatedCore {}
+''');
+
+      final refreshed = await command.refreshHiveRegistrar(
+        projectRoot: sandbox.path,
+      );
+
+      expect(refreshed, isTrue);
+      final content = File(registrarPath()).readAsStringSync();
+      expect(
+        content,
+        contains("import 'package:zuraffa/zuraffa.dart';"),
+        reason:
+            'a name the barrel does not export must be dropped, leaving '
+            'no combinator at all (issue #1530)',
+      );
+      expect(content, isNot(contains('hide ')));
+      expect(
+        BuildCommand.registrarIsHandAuthored(content),
+        isFalse,
+        reason: 'the bare import is generated shape (#1953)',
       );
     });
   });
