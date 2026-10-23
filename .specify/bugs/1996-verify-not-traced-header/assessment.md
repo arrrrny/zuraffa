@@ -86,10 +86,14 @@ message names the header it wants:
 1. **`behavior_kind_trace.dart`** — parse the generator's own `// kind:`
    line (`parseDeclaredKind`) next to the taxonomy header. A test that
    carries it is TRACED by that declared kind (`unit`, `contract`, …) and
-   never lands in the not-traced bucket. A test with NO machine-readable
-   header at all stays not-traced, and its reason now names both
-   acceptable headers (`// scenario-assertions:` OR the generated
-   `// behavior_id:` / `// source_criterion:` / `// kind:` block).
+   never lands in the not-traced bucket — provided its leading header
+   block also carries `// behavior_id:` with the registry's exact id (a
+   truncated block, or an id naming another behavior, stays not-traced),
+   and a `// kind:` token the generator cannot emit stays not-traced with
+   the raw token preserved. A test with NO machine-readable header at all
+   stays not-traced, and its reason now names both acceptable headers
+   (`// scenario-assertions:` OR the generated `// behavior_id:` /
+   `// source_criterion:` / `// kind:` block).
 2. **`behavior_kind_trace.dart`** — `BehaviorKindTraceResult` carries
    `declaredKindByBehavior`; `declaredKindCounts` aggregates it;
    `detailsObject` ships it in the verdict envelope as
@@ -97,7 +101,7 @@ message names the header it wants:
 3. **`mutation_auditor.dart`** — the report's `## Behavior kinds` section
    lists a behavior traced by its declared kind as
    `- `U1` — unit (behavior kind)` and adds a
-   `- traced by behavior kind: unit=7, contract=4` count line, so a
+   `- traced by behavior kind: unit=7 contract=4` count line, so a
    feature without a widget behavior does not read as "nothing was
    traced".
 4. **`verify_command.dart`** — the stdout summary adds the

@@ -253,6 +253,13 @@ class BehaviorKindTrace {
         // taxonomy channel reports for an unknown token (FR-002), with
         // the raw token preserved.
         notTraced[r.behaviorId] = 'unknown declared kind token: $declaredKind';
+      } else if (declaredKind != null && headerId == null) {
+        // A block that lost its `// behavior_id:` line is INCOMPLETE, not
+        // a mismatch — the reason names the missing header line instead
+        // of reporting a null id.
+        notTraced[r.behaviorId] =
+            'incomplete header block in ${r.testPath}: '
+            '`// behavior_id:` line is missing';
       } else if (declaredKind != null && headerId != r.behaviorId) {
         // The header block is the only place the behavior↔file binding
         // can be verified (an `ArtifactRecord` carries no kind field), so

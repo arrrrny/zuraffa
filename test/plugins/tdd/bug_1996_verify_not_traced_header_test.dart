@@ -412,6 +412,22 @@ library;
             'behavior↔file binding can be verified — a block that lost it '
             'is incomplete, and an incomplete block is an honest absence',
       );
+      final reason = result.notTraced['U1'] ?? '';
+      expect(
+        reason,
+        contains('behavior_id'),
+        reason:
+            'the reason names the missing header line, so the report is '
+            'actionable',
+      );
+      expect(
+        reason,
+        isNot(contains('null')),
+        reason:
+            'a missing `// behavior_id:` line is a truncated block, not a '
+            'mismatch — the reason must never read "declares behavior_id '
+            'null"',
+      );
       expect(result.declaredKindByBehavior, isEmpty);
     });
 
