@@ -50,8 +50,9 @@ void main() {
           receiptFor('002-subscription-error-vocabulary'),
         );
 
-        // The collision: both features land on ONE path, so the second
-        // write overwrites the first feature's receipt.
+        // The two features MUST land on different paths, so neither
+        // write overwrites the other (issue #1997: before the fix both
+        // landed on ONE path and the second write destroyed the first).
         expect(first, isNot(second));
       },
     );
@@ -64,9 +65,9 @@ void main() {
         final first = await store.write(receiptFor('001-purchase-store'));
         await store.write(receiptFor('002-subscription-error-vocabulary'));
 
-        // The first feature's receipt is GONE — overwritten by the second
-        // feature's write (issue #1997: one feature's receipt overwrites
-        // another's).
+        // The first feature's receipt SURVIVES the second feature's write
+        // — each feature owns its own file now (issue #1997: one
+        // feature's receipt used to overwrite another's).
         expect(
           ContractBlockedReceipt.fromFile(first)?.feature,
           '001-purchase-store',
