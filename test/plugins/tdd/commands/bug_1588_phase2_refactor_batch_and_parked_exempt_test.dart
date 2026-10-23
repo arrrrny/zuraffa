@@ -664,7 +664,7 @@ coverage: 'dart test --coverage'
 /// `--suite-baseline` file, issue #922).
 String _baselineJson({required String capturedAt}) => jsonEncode({
   'command': 'dart test',
-  'CliRunner.lastDispatchedExitCode': 0,
+  'exitCode': 0,
   'failedTests': <String>[],
   'capturedAt': capturedAt,
   'parseable': true,
