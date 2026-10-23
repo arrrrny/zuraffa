@@ -124,6 +124,7 @@ coverage: 'dart test --coverage'
     String sourceCriterion = 'FR-007',
     String? testContent,
     String? testPath,
+    String? subjectPath,
     bool writeTestFile = true,
   }) async {
     final path = testPath ?? testPathOf(id);
@@ -132,7 +133,13 @@ coverage: 'dart test --coverage'
       await file.parent.create(recursive: true);
       await file.writeAsString(testContent ?? _redTest(description));
     }
-    final subjectPath = p.join(root.path, 'lib', '${_snake(id)}_subject.dart');
+    // The recorded subject path (issue #1007): the CONTRACT lane's seam
+    // lives under `lib/tdd/<feature>/` — the subject the contract test
+    // imports and `zfa tdd wire` rewrites — so a caller that seeded the
+    // real seam must be able to record THAT path instead of the flat
+    // default.
+    final recordedSubjectPath =
+        subjectPath ?? p.join(root.path, 'lib', '${_snake(id)}_subject.dart');
     _records.add({
       'behavior_id': id,
       'feature': featureName,
@@ -140,7 +147,7 @@ coverage: 'dart test --coverage'
       // The portable project-relative recorded form (issue #1397): the
       // canonical recorded form a post-fix gen writes.
       'test_path': _recordedForm(path),
-      'subject_path': _recordedForm(subjectPath),
+      'subject_path': _recordedForm(recordedSubjectPath),
       'runnable_test_name': '${_recordedForm(path)}::$id::$description',
       'test_ownership': 'created',
       'subject_ownership': 'created',
