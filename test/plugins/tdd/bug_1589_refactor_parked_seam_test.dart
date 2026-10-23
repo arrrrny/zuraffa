@@ -168,6 +168,12 @@ void main() {
       await baseline.writeAsString(
         jsonEncode({
           'command': 'dart test',
+          // The cache key is `exitCode` — the SuiteSnapshot field name
+          // `RunBaselineCache.read` requires. A blind rename in 898bc8b5
+          // rewrote it to `CliRunner.lastDispatchedExitCode` here, so the
+          // cache was unreadable, the absolute-green preflight applied
+          // (issue #922's fallback) and this suite's tolerance assertion
+          // failed. See https://github.com/arrrrny/zuraffa/issues/2005.
           'exitCode': 1,
           'failedTests': ['test/other/legacy_test.dart: legacy failure'],
           'capturedAt': '2026-09-13T00:00:00.000Z',

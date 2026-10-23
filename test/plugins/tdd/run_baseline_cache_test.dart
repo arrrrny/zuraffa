@@ -125,6 +125,12 @@ void main() {
       await cache.writeAsString(
         jsonEncode({
           'command': suiteSpy,
+          // The cache key is `exitCode` — the SuiteSnapshot field name
+          // `RunBaselineCache.read` requires. A blind rename in 898bc8b5
+          // rewrote it to `CliRunner.lastDispatchedExitCode` here, so the
+          // cache was unreadable and `make` fell back to the live suite
+          // run instead of reusing the cached baseline this suite pins.
+          // See https://github.com/arrrrny/zuraffa/issues/2005.
           'exitCode': 1,
           'failedTests': ['test/other_test.dart: other behavior red'],
           'capturedAt': '2026-09-01T00:00:00.000Z',
