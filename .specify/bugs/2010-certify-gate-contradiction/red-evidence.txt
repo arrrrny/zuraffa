@@ -1,0 +1,42 @@
+00:00 +0: loading test/plugins/mock/bug_2010_certify_gate_contradiction_test.dart
+00:00 +0: #2010 — a failed --certify gate is the run's single signal human mode: no ✅ Success banner, no (conforms) tail, no persisted receipt
+⚠️  mock-cert: the certification sandbox cannot resolve the zuraffa package root — no mock-cert.Product.json receipt written. The engine cert-gate (spec 1110) will refuse "Product" as uncertified until `zfa mock create Product --certify` runs in an environment that resolves the framework (a real CLI invocation or a project with the zuraffa dependency).
+00:01 +0 -1: #2010 — a failed --certify gate is the run's single signal human mode: no ✅ Success banner, no (conforms) tail, no persisted receipt [E]
+  Expected: not contains '✅ Success!'
+    Actual: '❌ mock certification: Product does not conform to ProductDataSource\n'
+              '--> fix: lib/src/data/datasources/product/product_datasource.dart:5:8 - Target of URI doesn\'t exist: \'package:zuraffa/zuraffa.dart\'. - uri_does_not_exist\n'
+              '✅ Success! Created/Modified:\n'
+              '  ✨ lib/src/data/mock/product_mock_data.dart\n'
+              '  ✨ lib/src/data/datasources/product/product_datasource.dart\n'
+              '  ✨ lib/src/data/datasources/product/product_mock_datasource.dart\n'
+              '  ✨ lib/src/di/simulation/product_simulation_datasource_di.dart\n'
+              '  ✨ lib/src/di/simulation/index.dart\n'
+              '📜 mock-certification: mock-cert:product@d0f7a2b9 (conforms) → .zfa/receipts/mock-product.json\n'
+              ''
+  a failed gate must not print the success banner
+  
+  package:matcher                                                        expect
+  test/plugins/mock/bug_2010_certify_gate_contradiction_test.dart 109:7  main.<fn>.<fn>
+  
+00:01 +0 -1: #2010 — a failed --certify gate is the run's single signal --json: the envelope says verdict fail / exit_class 1 with no receipt claim
+⚠️  mock-cert: the certification sandbox cannot resolve the zuraffa package root — no mock-cert.Product.json receipt written. The engine cert-gate (spec 1110) will refuse "Product" as uncertified until `zfa mock create Product --certify` runs in an environment that resolves the framework (a real CLI invocation or a project with the zuraffa dependency).
+❌ mock certification: Product does not conform to ProductDataSource
+--> fix: lib/src/data/datasources/product/product_datasource.dart:5:8 - Target of URI doesn't exist: 'package:zuraffa/zuraffa.dart'. - uri_does_not_exist
+00:02 +0 -2: #2010 — a failed --certify gate is the run's single signal --json: the envelope says verdict fail / exit_class 1 with no receipt claim [E]
+  Expected: VerdictKind:<VerdictKind.fail>
+    Actual: VerdictKind:<VerdictKind.pass>
+  the gate verdict is part of the machine contract — a failed gate can never ride a pass envelope
+  
+  package:matcher                                                        expect
+  test/plugins/mock/bug_2010_certify_gate_contradiction_test.dart 157:7  main.<fn>.<fn>
+  
+00:02 +0 -2: #2010 — a failed --certify gate is the run's single signal a PASSING gate keeps every existing surface, receipt included
+⚠️  mock-cert: the certification sandbox cannot resolve the zuraffa package root — no mock-cert.Product.json receipt written. The engine cert-gate (spec 1110) will refuse "Product" as uncertified until `zfa mock create Product --certify` runs in an environment that resolves the framework (a real CLI invocation or a project with the zuraffa dependency).
+00:02 +1 -2: Some tests failed.
+
+Failing tests:
+  test/plugins/mock/bug_2010_certify_gate_contradiction_test.dart: #2010 — a failed --certify gate is the run's single signal --json: the envelope says verdict fail / exit_class 1 with no receipt claim
+  test/plugins/mock/bug_2010_certify_gate_contradiction_test.dart: #2010 — a failed --certify gate is the run's single signal human mode: no ✅ Success banner, no (conforms) tail, no persisted receipt
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
