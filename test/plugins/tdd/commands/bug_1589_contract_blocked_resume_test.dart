@@ -651,6 +651,13 @@ Future<void> seedBlockedReceipt(
 
 /// Create the behavior's generated contract test (the seam file), mirroring
 /// the #827 namespaced layout. Returns the file's absolute path.
+///
+/// The seeded body is a WIREABLE contract seam (issue #1752): the
+/// single-line arrow-throw stub `zfa tdd wire` can rewrite. The previous
+/// placeholder (`void main() {}`) carried no arrow-throw at all, so
+/// `HandSurface.seamIsWireable` degraded the hand-surface hint to "the seam
+/// shape is not one `zfa tdd wire` can rewrite" and this suite's
+/// wire-command pins could never hold (issue #2004).
 String seedSeamFile(TddFixture fx, String behaviorId) {
   final snakeId = behaviorId.toLowerCase().replaceAll(
     RegExp(r'[^a-z0-9]+'),
@@ -660,7 +667,13 @@ String seedSeamFile(TddFixture fx, String behaviorId) {
     p.join(fx.root.path, 'test', 'tdd', fx.featureName, '${snakeId}_test.dart'),
   );
   file.createSync(recursive: true);
-  file.writeAsStringSync('// kind: contract\nvoid main() {}\n');
+  file.writeAsStringSync(
+    '// kind: contract\n'
+    '//\n'
+    '// The seam where the declared contract is implemented by hand — the\n'
+    '// shape `zfa tdd wire` can rewrite (issue #1752).\n'
+    "bool validateEmail(String email) => throw UnimplementedError('not implemented');\n",
+  );
   return file.path;
 }
 
