@@ -8,6 +8,14 @@
 
 ## Report (summarized)
 
+> **Update (fixes round)**: `master` advanced while this PR's fixes were
+> being written and landed a COMPETING fix for the same fixture staleness —
+> the single-line wireable body seeded into the generated contract TEST, the
+> shape the #2006 review rejected (the contract seam lives in the SUBJECT
+> file and carries the CONTRACT lane's shape). The artifact-pair seeding
+> this assessment recommends is what the PR carries; the merge resolves the
+> conflict in favour of it and keeps master's `takeExitCode` flake guard.
+
 `test/plugins/tdd/commands/bug_1589_contract_blocked_resume_test.dart` is red
 on `master`: 3 of its tests fail. The suite is tagged `@Tags(['slow'])`, and
 `dart_test.yaml` excludes `slow` from the default run, so CI's fast lane never
