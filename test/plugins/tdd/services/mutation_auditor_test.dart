@@ -434,4 +434,49 @@ void main() {
       expect(md, isNot(contains('Bearer ')));
     });
   });
+
+  group('the scoped mutation directory', () {
+    test('a traversal segment never escapes the scoped directory', () {
+      // A basename that means "the parent directory" would move the
+      // scoped config out of `tdd-verify/<feature>/` and into the
+      // per-project `.dart_tool/zfa/` space (issue #1998).
+      final scoped = p.join(tmpDir.path, '.dart_tool', 'zfa', 'tdd-verify');
+      for (final featureDir in ['..', '.']) {
+        expect(mutationScopeSlug(featureDir), isNot(featureDir));
+        expect(
+          p.isWithin(
+            scoped,
+            scopedMutationDir(
+              workingDirectory: tmpDir.path,
+              featureDir: featureDir,
+            ),
+          ),
+          isTrue,
+          reason: '$featureDir must not escape $scoped',
+        );
+      }
+    });
+
+    test('two feature dirs with the same basename never share a directory', () {
+      final a = scopedMutationDir(
+        workingDirectory: tmpDir.path,
+        featureDir: p.join('specs', 'a', '001-foo'),
+      );
+      final b = scopedMutationDir(
+        workingDirectory: tmpDir.path,
+        featureDir: p.join('specs', 'b', '001-foo'),
+      );
+      expect(a, isNot(b));
+      // The name stays browsable, the digest keeps it unique.
+      expect(p.basename(a), startsWith('001-foo-'));
+      // The same feature dir always lands in the same directory.
+      expect(
+        scopedMutationDir(
+          workingDirectory: tmpDir.path,
+          featureDir: p.join('specs', 'a', '001-foo'),
+        ),
+        a,
+      );
+    });
+  });
 }
