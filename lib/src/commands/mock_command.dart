@@ -133,6 +133,15 @@ class CreateMockCommand extends Command<void> {
           'members that would be lost — issue #1952)',
     );
     argParser.addFlag(
+      'overwrite-bodies',
+      negatable: false,
+      help:
+          'With --force, allow discarding hand-authored '
+          '<Entity>MockDataSource bodies (otherwise refused, naming the '
+          'members whose bodies would be replaced with generated stubs — '
+          'issue #2012)',
+    );
+    argParser.addFlag(
       'verbose',
       abbr: 'v',
       negatable: false,
@@ -232,6 +241,9 @@ class CreateMockCommand extends Command<void> {
       // Issue #1952: forwarded to the capability — the explicit opt-in that
       // lets a force run overwrite a hand-authored datasource interface.
       'overwriteInterface': results['overwrite-interface'] == true,
+      // Issue #2012: forwarded to the capability — the explicit opt-in that
+      // lets a force run discard hand-authored mock datasource bodies.
+      'overwriteBodies': results['overwrite-bodies'] == true,
       'verbose': verbose,
       'service': ?service,
       'domain': ?domain,

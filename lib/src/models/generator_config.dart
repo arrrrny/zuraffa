@@ -143,6 +143,12 @@ class GeneratorConfig {
   /// refused before the first write, naming the file and the lost members.
   final bool overwriteInterface;
 
+  /// Issue #2012: allows a `--force` run to discard hand-authored
+  /// `<Entity>MockDataSource` bodies, replacing them with the generated
+  /// stubs. Default false: such a run is refused before the first write,
+  /// naming the mock file and the hand-authored members.
+  final bool overwriteBodies;
+
   GeneratorConfig({
     required this.name,
     this.methods = const [],
@@ -224,6 +230,7 @@ class GeneratorConfig {
     this.verbose = false,
     this.revert = false,
     this.overwriteInterface = false,
+    this.overwriteBodies = false,
     required this.outputDir,
   }) : // Whitespace-padded multi-option tokens (`--usecases=login, logout`)
        // are trimmed once here so every downstream derivation (class refs,
@@ -330,6 +337,7 @@ class GeneratorConfig {
           : int.tryParse(json['sync_backoff_max_ms'].toString()) ?? 60000,
       generateMock: json['mock'] == true || json['generate_mock'] == true,
       overwriteInterface: json['overwrite_interface'] == true,
+      overwriteBodies: json['overwrite_bodies'] == true,
       engineSlice: json['engine'] == true || json['engine_slice'] == true,
       generateMockDataOnly:
           json['mock_data_only'] == true ||
@@ -472,6 +480,7 @@ class GeneratorConfig {
     bool? verbose,
     bool? revert,
     bool? overwriteInterface,
+    bool? overwriteBodies,
     String? outputDir,
   }) {
     return GeneratorConfig(
@@ -553,6 +562,7 @@ class GeneratorConfig {
       verbose: verbose ?? this.verbose,
       revert: revert ?? this.revert,
       overwriteInterface: overwriteInterface ?? this.overwriteInterface,
+      overwriteBodies: overwriteBodies ?? this.overwriteBodies,
       outputDir: outputDir ?? this.outputDir,
     );
   }
@@ -826,6 +836,7 @@ class GeneratorConfig {
     'sync_backoff_max_ms': syncBackoffMaxMs,
     'mock': generateMock,
     'overwrite_interface': overwriteInterface,
+    'overwrite_bodies': overwriteBodies,
     'engine_slice': engineSlice,
     'mock_data_only': generateMockDataOnly,
     'mock_json': generateMockJson,
