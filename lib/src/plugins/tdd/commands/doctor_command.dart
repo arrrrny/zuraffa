@@ -664,7 +664,7 @@ class DoctorCommand extends Command<void> {
           case BehaviorState.pending:
             backed = true;
           // Issue #1007: a BLOCKED contract-lane claim is backed by the
-          // blocked receipt (.zfa/receipts/contract-blocked.<id>.json),
+          // blocked receipt (.zfa/receipts/contract-blocked.<feature>.<id>.json),
           // never by red evidence — the doctor only checks the cycle-log
           // here, so the claim stands (the receipt's existence is the
           // verify-red command's own contract).

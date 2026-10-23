@@ -546,15 +546,16 @@ class MakeCommand extends Command<void> {
         record.behaviorId,
       );
       if (rowKindQuiet == BehaviorKind.contract) {
-        final receipt = ContractBlockedReceipt.fromFile(
-          ContractBlockedReceiptStore(
-            projectRoot: cwd,
-          ).pathFor(record.behaviorId),
-        );
-        final blockedAt = receipt == null
+        final blockedRead = ContractBlockedReceiptStore(projectRoot: cwd)
+            .readWithPath(
+              behaviorId: record.behaviorId,
+              feature: target.featureName,
+            );
+        final blockedAt = blockedRead == null
             ? null
-            : DateTime.tryParse(receipt.blockedAt);
-        if (blockedAt != null &&
+            : DateTime.tryParse(blockedRead.receipt.blockedAt);
+        if (blockedRead != null &&
+            blockedAt != null &&
             await _blockedWorldUnchangedSince(
               blockedAt,
               projectRoot: cwd,
@@ -571,13 +572,11 @@ class MakeCommand extends Command<void> {
             feature: target.featureName,
             behaviorId: record.behaviorId,
           );
+          // The path the receipt was READ from — a legacy (pre-#1997)
+          // receipt is adopted under its feature-less name, so the
+          // namespaced path is not always the file that answered.
           final receiptPath = p
-              .relative(
-                ContractBlockedReceiptStore(
-                  projectRoot: cwd,
-                ).pathFor(record.behaviorId),
-                from: cwd,
-              )
+              .relative(blockedRead.path, from: cwd)
               .replaceAll(r'\', '/');
           print(
             'zfa tdd make: behavior "${record.behaviorId}" is a BLOCKED '
