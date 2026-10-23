@@ -177,11 +177,13 @@ file: 'dart test {file}'
     final code = CliRunner.lastDispatchedExitCode;
     exitCode = 0;
     expect(code, 1, reason: out);
+    // Issue #1997: the receipt's file name carries the feature, so two
+    // features that declare the same behavior id never share a path.
     final receiptPath = p.join(
       tmp.path,
       '.zfa',
       'receipts',
-      'contract-blocked.A1.json',
+      'contract-blocked.004-login-ui.A1.json',
     );
     expect(File(receiptPath).existsSync(), isTrue, reason: out);
     // No red evidence for the contract lane.

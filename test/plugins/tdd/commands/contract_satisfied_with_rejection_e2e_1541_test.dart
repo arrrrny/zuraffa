@@ -318,7 +318,7 @@ bool validateEmail(String email) {
         tmp.path,
         '.zfa',
         'receipts',
-        'contract-blocked.A1.json',
+        'contract-blocked.004-login-ui.A1.json',
       );
       expect(File(receiptPath).existsSync(), isTrue, reason: out);
     } finally {

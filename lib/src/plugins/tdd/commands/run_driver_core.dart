@@ -994,8 +994,9 @@ class RunDriverCore {
           BehaviorState.blocked) {
         continue;
       }
-      final receipt = ContractBlockedReceipt.fromFile(
-        blockedReceiptStore.pathFor(row.id),
+      final receipt = blockedReceiptStore.read(
+        behaviorId: row.id,
+        feature: feature,
       );
       if (receipt == null) continue;
       _addParkedSeam(
@@ -2464,7 +2465,7 @@ class RunDriverCore {
         // CONTRACT test means the declared contract is unsatisfied, so
         // the behavior is parked at BLOCKED and make/refactor NEVER spawn
         // for it (the receipt lives at
-        // .zfa/receipts/contract-blocked.<id>.json — verify-red wrote
+        // .zfa/receipts/contract-blocked.<feature>.<id>.json — verify-red wrote
         // it). Resume re-enters at verify-red: once the implementation
         // satisfies the contract, the verdict flips (the unexpected-green
         // skip transitions the behavior on) and the cycle proceeds.
@@ -3601,11 +3602,9 @@ class RunDriverCore {
     if (seamPath != null) _parkedSeamPaths.add(seamPath);
     final output =
         attestedOutput ??
-        ContractBlockedReceipt.fromFile(
-          ContractBlockedReceiptStore(
-            projectRoot: projectRoot,
-          ).pathFor(behaviorId),
-        )?.outputExcerpt;
+        ContractBlockedReceiptStore(
+          projectRoot: projectRoot,
+        ).read(behaviorId: behaviorId, feature: feature)?.outputExcerpt;
     if (output != null && output.trim().isNotEmpty) {
       _parkedFailureIdentifiers.addAll(parseFailingTestNames(output));
     }
@@ -3668,9 +3667,9 @@ class RunDriverCore {
     required String featureDir,
     required String feature,
   }) async {
-    final receipt = ContractBlockedReceipt.fromFile(
-      ContractBlockedReceiptStore(projectRoot: projectRoot).pathFor(row.id),
-    );
+    final receipt = ContractBlockedReceiptStore(
+      projectRoot: projectRoot,
+    ).read(behaviorId: row.id, feature: feature);
     if (receipt == null) return null;
     final blockedAt = DateTime.tryParse(receipt.blockedAt);
     if (blockedAt == null) return null;

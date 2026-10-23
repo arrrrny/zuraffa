@@ -439,7 +439,7 @@ class VerifyRedCommand extends Command<void> {
     //     failure means the contract is UNSATISFIED — the opposite of
     //     honest-red evidence (which certifies the loop may proceed to
     //     make/GREEN). So: re-grade the verdict BLOCKED, write the
-    //     distinct receipt (contract-blocked.<id>.json), append NO red
+    //     distinct receipt (contract-blocked.<feature>.<id>.json), append NO red
     //     evidence, and exit non-zero — the run driver marks the
     //     behavior BLOCKED and the cycle cannot proceed to GREEN until
     //     the implementation satisfies the contract.
@@ -736,7 +736,7 @@ class VerifyRedCommand extends Command<void> {
   }
 
   /// Write the BLOCKED verdict's receipt (issue #1007):
-  /// `.zfa/receipts/contract-blocked.<id>.json`, schema
+  /// `.zfa/receipts/contract-blocked.<feature>.<id>.json`, schema
   /// `contract-blocked.v1`.
   Future<String> _writeBlockedReceipt({
     required String cwd,

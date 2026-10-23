@@ -48,7 +48,7 @@ enum BehaviorKind { acceptance, unit, widget, theme, ffi, platform, contract }
 /// or widget behavior (the TDD loop EXPECTS the failing test and proceeds
 /// to make/GREEN); BLOCKED refuses to proceed — the cycle cannot reach
 /// GREEN until the implementation satisfies the declared contract. The
-/// verdict carries its own receipt (`contract-blocked.<id>.json`) and the
+/// verdict carries its own receipt (`contract-blocked.<feature>.<id>.json`) and the
 /// corpus-economics gap ledger records the stop at the highest severity.
 enum BehaviorState { pending, blocked, red, green, mocked, done }
 

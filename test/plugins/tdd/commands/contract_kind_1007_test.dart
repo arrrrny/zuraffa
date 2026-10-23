@@ -14,7 +14,7 @@
 //      SCAFFOLD that enumerates the contract's cases (+ the contract
 //      seam subject);
 //   3. a failing contract test is a BLOCKED verdict (distinct from RED)
-//      with its own receipt (`contract-blocked.<id>.json`) — it blocks
+//      with its own receipt (`contract-blocked.<feature>.<id>.json`) — it blocks
 //      the cycle from proceeding to GREEN (the run driver parks the
 //      behavior at BLOCKED and stops with `result=blocked`);
 //   4. the corpus-economics gap ledger records contract-test failures
@@ -571,12 +571,12 @@ single: '$fakeRunner {file} --plain-name "{name}"'
       expect(out, isNot(contains('classification=assertion certified=true')));
       expect(takeExitCode(), 1, reason: out);
 
-      // The distinct receipt: contract-blocked.<id>.json.
+      // The distinct receipt: contract-blocked.<feature>.<id>.json.
       final receiptPath = p.join(
         tmp.path,
         '.zfa',
         'receipts',
-        'contract-blocked.A1.json',
+        'contract-blocked.004-login-ui.A1.json',
       );
       expect(File(receiptPath).existsSync(), isTrue, reason: out);
       final receipt =
