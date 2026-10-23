@@ -43,11 +43,17 @@ import 'package:zuraffa/src/plugins/tdd/services/entity_lookup.dart';
 
 import '../helpers/tdd_fixture.dart';
 
-/// Reads the process-global `dart:io CliRunner.lastDispatchedExitCode` and immediately resets it
-/// (the same suite-wide flake guard contract_kind_1007_test.dart uses).
+/// Reads the per-isolate `CliRunner.lastDispatchedExitCode` and resets it
+/// to 0, so a later assertion can never read a STALE exit code left behind
+/// by an earlier dispatch in this isolate.
+///
+/// The same suite-wide flake guard `contract_kind_1007_test.dart` uses:
+/// `CliRunner.lastDispatchedExitCode` is a Dart static — per-isolate
+/// storage; the PROCESS-GLOBAL one is `dart:io exitCode`, which
+/// `runCapturing` restores to its prior value when the dispatch unwinds.
 int takeExitCode() {
   final code = CliRunner.lastDispatchedExitCode;
-  exitCode = 0;
+  CliRunner.lastDispatchedExitCode = 0;
   return code;
 }
 
@@ -651,6 +657,16 @@ Future<void> seedBlockedReceipt(
 
 /// Create the behavior's generated contract test (the seam file), mirroring
 /// the #827 namespaced layout. Returns the file's absolute path.
+///
+/// The body is a WIREABLE contract seam (a single-line
+/// `=> throw UnimplementedError(...)`), because #1752 makes the hand-surface
+/// hint gate on the seam's shape: `HandSurface.seamIsWireable` only names
+/// the `zfa tdd wire` command for such a seam, and degrades to "the seam
+/// shape is not one `zfa tdd wire` can rewrite" for anything else. The
+/// previous placeholder body (`void main() {}`) was not wireable, so the
+/// hint degraded and this suite's three park-note assertions failed on a
+/// stale fixture — the same rot class as #2000. See
+/// https://github.com/arrrrny/zuraffa/issues/2004.
 String seedSeamFile(TddFixture fx, String behaviorId) {
   final snakeId = behaviorId.toLowerCase().replaceAll(
     RegExp(r'[^a-z0-9]+'),
@@ -660,7 +676,11 @@ String seedSeamFile(TddFixture fx, String behaviorId) {
     p.join(fx.root.path, 'test', 'tdd', fx.featureName, '${snakeId}_test.dart'),
   );
   file.createSync(recursive: true);
-  file.writeAsStringSync('// kind: contract\nvoid main() {}\n');
+  file.writeAsStringSync(
+    '// kind: contract\n'
+    'void validateEmail(String email) => '
+    "throw UnimplementedError('not implemented');\n",
+  );
   return file.path;
 }
 

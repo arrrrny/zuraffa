@@ -39,16 +39,15 @@ import 'package:zuraffa/src/plugins/tdd/services/test_list_reader.dart';
 import '../helpers/corpus_fixture.dart';
 import '../helpers/tdd_fixture.dart';
 
-/// Reads the per-isolate `CliRunner.lastDispatchedExitCode` and immediately
-/// resets it, so this suite never LEAKS a nonzero code into a
-/// concurrently-running suite's exit-code assertion
-/// (`CliRunner.lastDispatchedExitCode` is process-global across test
-/// isolates — the suite-wide flake hazard the eager reset shrinks).
+/// Reads the per-isolate `CliRunner.lastDispatchedExitCode` and resets it
+/// to 0, so a later assertion can never read a STALE exit code left behind
+/// by an earlier dispatch in this isolate.
 ///
-/// It reads the RUNNER'S snapshot, not `dart:io exitCode`: `runCapturing`
-/// restores the global `exitCode` to its prior value when the dispatch
-/// unwinds, so the dispatched command's status only survives in
-/// `lastDispatchedExitCode` (issue #2000).
+/// `CliRunner.lastDispatchedExitCode` is a Dart static — per-isolate
+/// storage (`lib/src/cli/cli_runner.dart:106-110`); the PROCESS-GLOBAL one
+/// is `dart:io exitCode`, which `runCapturing` restores to its prior value
+/// when the dispatch unwinds. The dispatched command's status therefore
+/// only survives in `lastDispatchedExitCode` (issue #2000).
 int takeExitCode() {
   final code = CliRunner.lastDispatchedExitCode;
   CliRunner.lastDispatchedExitCode = 0;
@@ -530,7 +529,7 @@ coverage: 'dart test --coverage'
       // e2e suite; the classifier consuming the transcript is real here).
       //
       // The assertion block is INDENTED, exactly as `dart test` prints it:
-      // the classifier only accepts an assertion report whose `Expected:`
+      // the classifier accepts an assertion report only when its `Expected:`
       // and `Actual:` labels sit on an indented line (a bare column-0
       // `Expected:` is not an assertion report — issue #2000).
       final fakeRunner = p.join(tmp.path, '.fake-contract-runner');

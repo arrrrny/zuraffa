@@ -34,11 +34,17 @@ import 'package:zuraffa/src/plugins/tdd/services/contract_blocked_receipt.dart';
 
 import '../helpers/tdd_fixture.dart';
 
-/// Reads the process-global `dart:io CliRunner.lastDispatchedExitCode` and immediately resets it
-/// (the same suite-wide flake guard contract_kind_1007_test.dart uses).
+/// Reads the per-isolate `CliRunner.lastDispatchedExitCode` and resets it
+/// to 0, so a later assertion can never read a STALE exit code left behind
+/// by an earlier dispatch in this isolate.
+///
+/// The same suite-wide flake guard `contract_kind_1007_test.dart` uses:
+/// `CliRunner.lastDispatchedExitCode` is a Dart static — per-isolate
+/// storage; the PROCESS-GLOBAL one is `dart:io exitCode`, which
+/// `runCapturing` restores to its prior value when the dispatch unwinds.
 int takeExitCode() {
   final code = CliRunner.lastDispatchedExitCode;
-  exitCode = 0;
+  CliRunner.lastDispatchedExitCode = 0;
   return code;
 }
 
