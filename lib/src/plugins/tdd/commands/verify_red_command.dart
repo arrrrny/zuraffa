@@ -334,6 +334,13 @@ class VerifyRedCommand extends Command<void> {
     // Issue #1778: re-bind the recorded runnable_test_name to a corrected
     // title found in the test file. Moved here (after profile + template
     // checks) so setup-error returns without writing artifacts.json.
+    // The #964 kind gate below must judge the RECORDED scenario, never
+    // the rebound title: copyWithRunnableTestName rewrites
+    // descriptionSegment — the gate's kind source — so gating on the
+    // rebound record would let a title-derived description certify a red
+    // that does not satisfy the recorded scenario (review of PR #2013).
+    // The rebound record still drives the run and the evidence.
+    final preRebindRecord = record;
     record = await _rebindRunnableTestNameIfNeeded(cwd, target, record);
 
     // ---------------------------------------------------------------
@@ -617,8 +624,11 @@ class VerifyRedCommand extends Command<void> {
       // Issue #964 kind gate: BEFORE evidence, the test's assertion
       // kinds must match the scenario verbs — a red from a presence
       // finder in a navigation scenario is honest but IRRELEVANT to
-      // the scenario (the certified lie of issue #964).
-      final kindGaps = await _certifyFinderKinds(cwd, record);
+      // the scenario (the certified lie of issue #964). Gated on the
+      // PRE-REBIND record: a rebind rewrote descriptionSegment, and the
+      // gate must judge the recorded scenario, not the rebound title
+      // (review of PR #2013).
+      final kindGaps = await _certifyFinderKinds(cwd, preRebindRecord);
       if (kindGaps == null) {
         print('   classification: ${RedClassification.kindMismatch.label}');
         print(
@@ -1010,9 +1020,18 @@ class VerifyRedCommand extends Command<void> {
       // multi-test branch trusts. Refusing it left the rebind
       // unsatisfiable: the mismatch remedy prescribed re-running the
       // command that just refused.
+      // Sole-title id check (review of PR #2013): the id must match as a
+      // WHOLE token — a bare substring lets behavior `U9` rebind a sole
+      // title written for `U90`, certifying another behavior's test as
+      // `U9`'s evidence. Boundaries are non-alphanumerics, so `U9` still
+      // matches `U9 — …` and `(U9)`; RegExp.escape keeps ids holding
+      // regex metacharacters literal.
       if (titles.length == 1 &&
           (recorded.contains(record.behaviorId) ||
-              titles.first.contains(record.behaviorId))) {
+              RegExp(
+                '(?<![A-Za-z0-9])${RegExp.escape(record.behaviorId)}'
+                '(?![A-Za-z0-9])',
+              ).hasMatch(titles.first))) {
         candidate = titles.first;
       } else if (titles.length > 1) {
         // Id-based binding: a title carrying the behavior id is the

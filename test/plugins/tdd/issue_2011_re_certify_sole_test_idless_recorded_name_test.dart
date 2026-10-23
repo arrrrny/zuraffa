@@ -203,5 +203,42 @@ void main() {
         equals('test/u9_test.dart::U9::$correctedTitle'),
       );
     });
+
+    test('A-2011c: a sole title carrying a NEAR-MISS id (U90) is never '
+        'rebound for behavior U9 — the id must match whole-token', () async {
+      // PR #2013 review: `titles.first.contains(record.behaviorId)` let a
+      // `U90 — …` sole title satisfy behavior U9's fallback, rebinding
+      // U9's record to a test titled for U90 and certifying it as U9
+      // evidence. The id must match as a whole token.
+      const nearMissTitle =
+          'U90 — the repository drives one provider query with the term, '
+          'limit and offset, returning a SearchPage, and delegates the '
+          'persistence seam to the data source';
+      await fx.registerBehavior(
+        id: 'U9',
+        description: recordedScenarioDescription,
+        testContent: soleTestWithCorrectedTitle('U9', nearMissTitle),
+      );
+      final subjectFile = File(fx.subjectPathOf('U9'));
+      await subjectFile.parent.create(recursive: true);
+      await subjectFile.writeAsString(throwingSubject('U9'));
+      final runner = CliRunner(exitOnCompletion: false);
+
+      final out = await runner.runCapturing(verifyRedArgs2011(fx, 'U9'));
+
+      expect(
+        CliRunner.lastDispatchedExitCode,
+        isNot(0),
+        reason: 'a title written for U90 is not U9 evidence: $out',
+      );
+      expect(out, contains('classification=test-name-mismatch'));
+      expect(out, isNot(contains('rebind: runnable_test_name updated')));
+      // The registry keeps the recorded name — nothing was rebound.
+      final record = await fx.registryRecordOf('U9');
+      expect(
+        record['runnable_test_name'],
+        equals('test/u9_test.dart::U9::$recordedScenarioDescription'),
+      );
+    });
   });
 }
