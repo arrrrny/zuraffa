@@ -1,4 +1,10 @@
-@Tags(['spawn'])
+@Tags(['e2e'])
+// The audit drives the PRODUCTION spawn path: a REAL `dart` child runs the
+// auditor script with a fake `dart` on its PATH. A real child makes this a
+// heavyweight suite in the #1632 fast-lane budget census's eyes (B5), so it
+// carries the `e2e` weight tag — off the dart_core fast lane, still run by a
+// direct `dart test <file>` and by `--preset=all`. `e2e` also carries the 8x
+// timeout ceiling the `spawn` tag gave this suite.
 // Bug #1998 — the verify run's mutation scope must be THIS feature's
 // registered subjects.
 //
