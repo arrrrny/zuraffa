@@ -394,8 +394,8 @@ dart test                      # or: flutter test — the whole suite green
   human gate.
 - Receipts: `tdd/04-engine-receipt.json`, `tdd/04-skin-receipt.json`
   (schema 1, `verdict: green|red|error`, behavior ids, counts, `stopped_at`).
-- `zfa tdd verify <feature>` runs the mutation audit over THAT feature's
-  registered harness subjects only. It writes its own scoped config at
+- `zfa tdd verify --feature <feature>` runs the mutation audit over THAT
+  feature's registered harness subjects only. It writes its own scoped config at
   `.dart_tool/zfa/tdd-verify/<feature>-<id>/mutation.xml` — the `<file>` list
   is the feature's `specs/<feature>/tdd/artifacts.json` subjects — and reads
   its report from `.dart_tool/zfa/tdd-verify/<feature>-<id>/report/`. The
