@@ -99,7 +99,7 @@ void main() {
         await featureBaseline.writeAsString(
           jsonEncode({
             'command': 'dart test',
-            'CliRunner.lastDispatchedExitCode': 0,
+            'exitCode': 0,
             'failedTests': <String>[],
             'capturedAt': '2026-09-11T13:24:43.000Z',
             'parseable': true,

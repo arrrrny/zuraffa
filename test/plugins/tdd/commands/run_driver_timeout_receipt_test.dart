@@ -219,7 +219,7 @@ Future<void> _seedCorpusBaseline(
   await file.writeAsString(
     jsonEncode({
       'command': _suiteSpyOf(fx),
-      'CliRunner.lastDispatchedExitCode': 0,
+      'exitCode': 0,
       'failedTests': <String>[],
       'capturedAt': '2026-09-01T00:00:00.000Z',
       'parseable': true,
