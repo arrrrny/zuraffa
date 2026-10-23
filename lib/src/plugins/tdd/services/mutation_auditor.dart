@@ -130,6 +130,7 @@ class MutationAuditReport {
     this.preflightScopeRan = const [],
     this.behaviorKindsByBehavior = const {},
     this.notTracedBehaviors = const {},
+    this.declaredKindByBehavior = const {},
   });
 
   /// The feature name (e.g. `044-test-tdd-generation`).
@@ -173,9 +174,17 @@ class MutationAuditReport {
   final Map<String, List<String>> behaviorKindsByBehavior;
 
   /// Behavior id -> the reason the behavior's kinds could not be traced
-  /// (missing test file, no scenario-assertions header, unknown kind
-  /// token). Honest absence — never silently dropped, never inferred.
+  /// (missing test file, no trace header, unknown kind token). Honest
+  /// absence — never silently dropped, never inferred.
   final Map<String, String> notTracedBehaviors;
+
+  /// Behavior id -> the DECLARED behavior kind (`unit`, `contract`, …)
+  /// read from the generator's own `// kind:` header (issue #1996).
+  ///
+  /// The behaviors whose generated test carries no
+  /// `// scenario-assertions:` header — the lanes the finder-kind
+  /// taxonomy does not cover. They ARE traced; this map says by what.
+  final Map<String, String> declaredKindByBehavior;
 
   /// Every survived mutant (bug #837): the per-mutant detail parsed from
   /// the mutation_test report, cited by file + line.
@@ -262,16 +271,33 @@ class MutationAuditReport {
       for (final k in BehaviorKindTrace.canonicalKinds) {
         buf.writeln('- $k: ${counts[k] ?? 0}');
       }
+      // Issue #1996: the finder-kind taxonomy is a widget-lane
+      // vocabulary. A unit/contract/acceptance behavior is traced by the
+      // DECLARED kind its generated test carries in the generator's own
+      // header block — the counts line says so, so a feature with no
+      // widget behavior does not read as "nothing was traced".
+      final declaredCounts = BehaviorKindTrace.declaredKindCounts(
+        declaredKindByBehavior,
+      );
+      if (declaredCounts.isNotEmpty) {
+        buf.writeln(
+          '- traced by behavior kind: '
+          '${declaredCounts.entries.map((e) => '${e.key}=${e.value}').join(' ')}',
+        );
+      }
       buf.writeln();
       for (final id in behaviorIds) {
         final kinds = behaviorKindsByBehavior[id];
         final notTracedReason = notTracedBehaviors[id];
+        final declaredKind = declaredKindByBehavior[id];
         if (notTracedReason != null) {
           buf.writeln('- `$id` — not traced: $notTracedReason');
-        } else if (kinds == null || kinds.isEmpty) {
-          buf.writeln('- `$id` — not traced');
-        } else {
+        } else if (kinds != null && kinds.isNotEmpty) {
           buf.writeln('- `$id` — ${kinds.join(', ')}');
+        } else if (declaredKind != null) {
+          buf.writeln('- `$id` — $declaredKind (behavior kind)');
+        } else {
+          buf.writeln('- `$id` — not traced');
         }
       }
     }
@@ -847,6 +873,7 @@ class MutationAuditor {
       preflightScopeRan: preflight.ranTestPaths,
       behaviorKindsByBehavior: kindTrace.kindsByBehavior,
       notTracedBehaviors: kindTrace.notTraced,
+      declaredKindByBehavior: kindTrace.declaredKindByBehavior,
     );
   }
 

@@ -339,6 +339,19 @@ class VerifyCommand extends Command<void> {
         ),
       );
     }
+    // Issue #1996: the behaviors the finder-kind taxonomy does not cover
+    // are traced by the DECLARED kind their generated test carries — the
+    // line says so, so a feature without a widget behavior does not read
+    // as "nothing was traced".
+    if (report.declaredKindByBehavior.isNotEmpty) {
+      final declared = BehaviorKindTrace.declaredKindCounts(
+        report.declaredKindByBehavior,
+      );
+      print(
+        'declared kinds: '
+        '${declared.entries.map((e) => '${e.key}=${e.value}').join(' ')}',
+      );
+    }
     // Issue #969: the gate label IS the exit class (shipped taxonomy).
     _verdict
       ..exitClass = report.gate.label
@@ -356,6 +369,7 @@ class VerifyCommand extends Command<void> {
       _verdict.details['behavior_kinds'] = BehaviorKindTrace.detailsObject(
         kindsByBehavior: report.behaviorKindsByBehavior,
         notTraced: report.notTracedBehaviors,
+        declaredKindByBehavior: report.declaredKindByBehavior,
       );
     }
 

@@ -1,0 +1,101 @@
+RED evidence — issue #1996
+========================
+
+Command (against the UNFIXED tree — `lib/` at commit 022f969c, the test file
+carrying only the assertions that use the pre-existing API):
+
+  dart test test/plugins/tdd/bug_1996_verify_not_traced_header_test.dart
+
+(The run below was captured from a temporary copy of that file, since the
+committed version also asserts the NEW `declaredKindByBehavior` API; the
+file name in the log is therefore the temporary copy's.)
+
+00:00 +0: loading test/plugins/tdd/bug_1996_verify_not_traced_header_test.dart
+00:00 +0: bug #1996: the generated header block is a trace source a generated unit-lane behavior is traced, not reported "not traced"
+00:00 +0 -1: bug #1996: the generated header block is a trace source a generated unit-lane behavior is traced, not reported "not traced" [E]
+  Expected: false
+    Actual: <true>
+  the generated test carries the machine-readable header block (behavior_id / source_criterion / kind) — it is traced, and the not-traced message must not demand a `// scenario-assertions:` header the unit lane never emits (issue #1996)
+  
+  package:matcher                                   expect
+  test/plugins/tdd/bug_1996_verify_not_traced_header_test.dart 97:9  main.<fn>.<fn>
+  
+00:00 +0 -1: bug #1996: the generated header block is a trace source the report lists the behavior as traced, not "not traced"
+00:00 +0 -2: bug #1996: the generated header block is a trace source the report lists the behavior as traced, not "not traced" [E]
+  Expected: not contains 'not traced'
+    Actual: '# TDD Verification — feature `1996-not-traced-header`\n'
+              '\n'
+              'Generated fresh by `zfa tdd verify --feature 1996-not-traced-header`.\n'
+              '\n'
+              '## Gate\n'
+              '\n'
+              '- gate: `pass`\n'
+              '\n'
+              '## Mutation buckets (FR-014)\n'
+              '\n'
+              '- killed: 3\n'
+              '- survived: 0\n'
+              '- timed_out: 0\n'
+              '\n'
+              '## Behavior scope (FR-018)\n'
+              '\n'
+              '- `U1` — traces: `FR-001`\n'
+              '\n'
+              '## Behavior kinds (issue #1376)\n'
+              '\n'
+              '- presence: 0\n'
+              '- absence: 0\n'
+              '- route-outcome: 0\n'
+              '- enabled-state: 0\n'
+              '- sequence: 0\n'
+              '\n'
+              '- `U1` — not traced: no scenario-assertions header in test/tdd/1996-not-traced-header/u1_test.dart\n'
+              '\n'
+              '## Restoration (FR-021)\n'
+              '\n'
+              '- restoration_verified: true\n'
+              '- restoration_scope_count: 1\n'
+              '- restoration_scope (subjects only, never tests):\n'
+              '  - `/var/folders/8p/30xfytr548l64k4bhtks_4dr0000gn/T/bug_1996_kind_trace_ifgh8Q/lib/tdd/1996-not-traced-header/U1_subject.dart`\n'
+              '\n'
+              '## Repro diagnostics (FR-020, non-sensitive)\n'
+              '\n'
+              '- runner_command: `dart run mutation_test`\n'
+              '- exit_code: 0\n'
+              '- elapsed_seconds: 1\n'
+              '- report_path: `/tmp/fake-report.md`\n'
+              '\n'
+              '## Mutation run\n'
+              '\n'
+              '- mutation_was_run: true\n'
+              '- mutation_score: 1.0000\n'
+              '\n'
+              '## Evidence binding (bug #837)\n'
+              '\n'
+              '- spec_hash: be16973557c6c459fe6bf8df8450242d81804059c8d493950785abc38e7a493c\n'
+              '- subject_hash: `/var/folders/8p/30xfytr548l64k4bhtks_4dr0000gn/T/bug_1996_kind_trace_ifgh8Q/lib/tdd/1996-not-traced-header/U1_subject.dart` e09f555c0bdf3ec63cd704b4bdb911fb0c00739b832f0268d01e22212838546b\n'
+              ''
+  a behavior whose generated test carries the header block is traced — reporting it "not traced" is the defect of issue #1996
+  
+  package:matcher                                    expect
+  test/plugins/tdd/bug_1996_verify_not_traced_header_test.dart 156:9  main.<fn>.<fn>
+  
+00:00 +0 -2: bug #1996: the generated header block is a trace source a test with NO machine-readable header stays not-traced and the message names the header it wants
+00:00 +0 -3: bug #1996: the generated header block is a trace source a test with NO machine-readable header stays not-traced and the message names the header it wants [E]
+  Expected: contains 'behavior_id'
+    Actual: 'no scenario-assertions header in test/tdd/1996-not-traced-header/u9_test.dart'
+     Which: does not contain 'behavior_id'
+  the message names the header block it wants (the generated `// behavior_id:` / `// source_criterion:` / `// kind:` block), so the reader is never asked for a header the generator cannot emit for this lane
+  
+  package:matcher                                    expect
+  test/plugins/tdd/bug_1996_verify_not_traced_header_test.dart 191:9  main.<fn>.<fn>
+  
+00:00 +0 -3: Some tests failed.
+
+Failing tests:
+  test/plugins/tdd/bug_1996_verify_not_traced_header_test.dart: bug #1996: the generated header block is a trace source a generated unit-lane behavior is traced, not reported "not traced"
+  test/plugins/tdd/bug_1996_verify_not_traced_header_test.dart: bug #1996: the generated header block is a trace source a test with NO machine-readable header stays not-traced and the message names the header it wants
+  test/plugins/tdd/bug_1996_verify_not_traced_header_test.dart: bug #1996: the generated header block is a trace source the report lists the behavior as traced, not "not traced"
+
+Consider enabling the flag chain-stack-traces to receive more detailed exceptions.
+For example, 'dart test --chain-stack-traces'.
