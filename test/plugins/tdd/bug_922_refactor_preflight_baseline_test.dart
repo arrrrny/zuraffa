@@ -46,7 +46,7 @@ void main() {
     await file.writeAsString(
       jsonEncode({
         'command': 'dart test',
-        'CliRunner.lastDispatchedExitCode': 1,
+        'exitCode': 1,
         'failedTests': failed,
         'capturedAt': '2026-09-02T00:00:00.000Z',
         'parseable': true,
