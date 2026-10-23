@@ -2,6 +2,16 @@ part of 'cache_builder.dart';
 
 extension CacheBuilderRegistrar on CacheBuilder {
   Future<void> _regenerateHiveRegistrar(GeneratorConfig config) async {
+    // Issue #2008: seed the barrel-export resolver from the project root
+    // so the barrel hide below is verified against the zuraffa this
+    // project actually resolves (the #942 mechanism, made empty-safe by
+    // #1530). The make flows seed via PluginManager.buildContext; the
+    // registrar's own regeneration paths (`zfa build`'s #1732 refresh,
+    // `zfa cache adapter`) reach this builder with no plugin context —
+    // an unseeded resolver yields an EMPTY hide list and re-emits the
+    // unhidden barrel import this fix exists to remove.
+    await _seedBarrelResolver(outputDir);
+
     final dirPath = path.join(outputDir, 'cache');
     final registrarPath = path.join(dirPath, 'hive_registrar.dart');
 
@@ -207,8 +217,23 @@ extension CacheBuilderRegistrar on CacheBuilder {
         )
         .toList();
 
+    // Issue #2008: the registrar references every adapter entity by bare
+    // name, so an entity whose name matches a zuraffa core export (e.g. an
+    // app `DeviceInfo` — the barrel exports its own `DeviceInfo`) makes
+    // the generated registrar fail the analyze gate with
+    // `ambiguous_import`. Hide the adapter entities' own symbols from the
+    // barrel, exactly as every other generated file does (#942); the
+    // filter drops names the barrel does not export, so an empty list
+    // emits no combinator at all.
+    final barrelHide =
+        adapterEntities
+            .expand((entity) => EntityUtils.barrelHideNames(entity))
+            .toSet()
+            .toList()
+          ..sort();
+
     final directives = [
-      Directive.import('package:zuraffa/zuraffa.dart'),
+      Directive.import('package:zuraffa/zuraffa.dart', hide: barrelHide),
       ...imports.map(Directive.import),
       Directive.part('hive_registrar.g.dart'),
     ];
@@ -276,6 +301,24 @@ extension CacheBuilderRegistrar on CacheBuilder {
         verbose: options.verbose,
         fileSystem: fileSystem,
       );
+    }
+  }
+
+  /// Walks up from [outputDir] to the nearest `pubspec.yaml` and seeds
+  /// [ZuraffaBarrelExports] with it — the same root walk
+  /// `_resolveProjectRoot` uses in the cache-adapter capability. A no-op
+  /// when no pubspec bounds the walk (the resolver then stays unseeded
+  /// and the emission carries no combinator, the #1530 empty-safe path).
+  Future<void> _seedBarrelResolver(String outputDir) async {
+    var dir = path.normalize(path.absolute(outputDir));
+    while (true) {
+      if (await fileSystem.exists(path.join(dir, 'pubspec.yaml'))) {
+        ZuraffaBarrelExports.seed(dir);
+        return;
+      }
+      final parent = path.dirname(dir);
+      if (parent == dir) return;
+      dir = parent;
     }
   }
 

@@ -8,8 +8,10 @@ import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
+import '../../../utils/entity_utils.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/zuraffa_barrel_exports.dart';
 import '../entity_location_resolver.dart';
 
 part 'cache_policy_builder.dart';
