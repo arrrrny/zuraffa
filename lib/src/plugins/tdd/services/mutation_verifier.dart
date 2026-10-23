@@ -202,11 +202,13 @@ class MutationVerifier {
     final outArg = p.join(cwd, outputDir);
     final reportPath = p.join(outArg, 'mutation-test-report.$reportFormat');
 
-    // Issue #1985: the report path is per WORKING DIRECTORY, not per
-    // feature — the previous feature's verify run left its report here.
-    // A run that is killed never rewrites it, so the stale file would be
-    // parsed as this run's score. Remove it BEFORE the child starts: a
-    // run that produces no report then finds no report at all.
+    // Issue #1985: a PREVIOUS run's report must never be parsed as this
+    // run's score. Since issue #1998 the report path is per FEATURE
+    // (`.dart_tool/zfa/tdd-verify/<feature>/report/`), so the leftover
+    // guarded against here is this feature's OWN earlier run: a run that
+    // is killed never rewrites it, and the stale file would be parsed as
+    // this run's score. Remove it BEFORE the child starts: a run that
+    // produces no report then finds no report at all.
     //
     // The predecessor's IDENTITY is snapshotted before the removal: when
     // the removal FAILS (a read-only directory, permissions) the file on
