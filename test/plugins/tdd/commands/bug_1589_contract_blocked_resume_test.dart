@@ -38,8 +38,11 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/plugins/tdd/models/behavior.dart';
 import 'package:zuraffa/src/plugins/tdd/services/contract_blocked_receipt.dart';
+import 'package:zuraffa/src/plugins/tdd/services/contract_test_writer.dart';
 import 'package:zuraffa/src/plugins/tdd/services/entity_lookup.dart';
+import 'package:zuraffa/src/plugins/tdd/services/hand_surface.dart';
 
 import '../helpers/tdd_fixture.dart';
 
@@ -89,11 +92,12 @@ void main() {
         ),
       ]);
       await fx.setStepOutcome('verify-red', 'contract:A1', 'blocked');
-      // The seam file the verdict ran against (the real verify-red writes
-      // the receipt beside it; the fixture seeds the seam so the stop can
-      // name the file that exists).
-      seedSeamFile(fx, 'contract:A1');
-      seedSeamFile(fx, 'contract:A2');
+      // The generated contract artifacts the verdict ran against (the real
+      // verify-red writes the receipt beside them; the fixture seeds them
+      // so the stop can name the file that exists): the contract SEAM
+      // subject and the contract test scaffold (issue #1007).
+      await seedContractArtifacts(fx, 'contract:A1');
+      await seedContractArtifacts(fx, 'contract:A2');
       // Issue #1625: the with-entity wire hint prints only when the traced
       // entity exists — these pins exercise the entity-present shape.
       seedEntity(fx, 'User');
@@ -102,6 +106,43 @@ void main() {
     tearDown(() {
       fx.dispose();
       exitCode = 0;
+    });
+
+    test('the seeded seam is the CONTRACT lane\'s shape — the wrapped '
+        'arrow-throw carrying the #1007 marker, in the subject file '
+        '(issue #2004)', () async {
+      // The contract seam lives in the SUBJECT file — the one `zfa tdd
+      // wire` rewrites (`record.subjectPath`) and the one
+      // `HandSurface.seamPathFor` resolves first (issue #1625) — and it
+      // carries the contract lane's OWN shape: the WRAPPED arrow-throw
+      // with the `CONTRACT SEAM (issue #1007)` provenance marker, the arm
+      // `seamIsWireable` reads as wireable (issue #1752). The old fixture
+      // seeded the unit lane's single-line arrow-throw into the generated
+      // contract TEST, so the contract arm stayed uncovered.
+      final seam = File(contractSubjectPath(fx, 'contract:A1'));
+      expect(seam.existsSync(), isTrue, reason: 'the seam subject is missing');
+      final raw = seam.readAsStringSync();
+      expect(raw, contains('CONTRACT SEAM (issue #1007)'), reason: raw);
+      expect(raw, contains(RegExp(r'=>\s*\n\s*throw')), reason: raw);
+      expect(
+        HandSurface.seamIsWireable(
+          projectRoot: fx.root.path,
+          seamPath: p.relative(
+            contractSubjectPath(fx, 'contract:A1'),
+            from: fx.root.path,
+          ),
+        ),
+        isTrue,
+        reason: raw,
+      );
+
+      // Every seam declares ITS OWN contract: `contract:A2` declares
+      // `login`, never `validateEmail`.
+      final a2 = File(
+        contractSubjectPath(fx, 'contract:A2'),
+      ).readAsStringSync();
+      expect(a2, contains('login('), reason: a2);
+      expect(a2, isNot(contains('validateEmail')), reason: a2);
     });
 
     test('the park note names the seam + the wire command with the traced '
@@ -118,12 +159,13 @@ void main() {
       ]);
 
       // THE fix: the blocked stop names the hand surface — where the
-      // declared contract is implemented (the seam file) and the command
-      // that implements it on the subject.
+      // declared contract is implemented (the contract SEAM subject, the
+      // file `zfa tdd wire` rewrites — issue #1625) and the command that
+      // implements it on the subject.
       expect(out, contains('hand surface:'), reason: out);
       expect(
         out,
-        contains('seam test/tdd/$feature/contract_a1_test.dart'),
+        contains('seam lib/tdd/$feature/contract_a1_subject.dart'),
         reason: out,
       );
       expect(
@@ -149,7 +191,7 @@ void main() {
       // The terminal resume instructions are followable as written.
       expect(
         out,
-        contains('seam test/tdd/$feature/contract_a1_test.dart'),
+        contains('seam lib/tdd/$feature/contract_a1_subject.dart'),
         reason: out,
       );
       expect(out, contains('zfa tdd wire contract:A1'), reason: out);
@@ -195,7 +237,7 @@ void main() {
           ),
         ]);
         await fx.setStepOutcome('verify-red', 'contract:A1', 'blocked');
-        seedSeamFile(fx, 'contract:A1');
+        await seedContractArtifacts(fx, 'contract:A1');
       });
 
       tearDown(() {
@@ -262,9 +304,9 @@ void main() {
           const Duration(hours: 1),
         );
         await seedBlockedReceipt(fx, 'contract:A1', verdictAt);
-        final seamPath = seedSeamFile(fx, 'contract:A1');
+        await seedContractArtifacts(fx, 'contract:A1');
         final before = verdictAt.subtract(const Duration(hours: 1));
-        File(seamPath).setLastModified(before);
+        backdateContractArtifacts(fx, 'contract:A1', before);
         File(fx.testListPath).setLastModified(before);
 
         fx.clearStepInvocations();
@@ -315,7 +357,8 @@ void main() {
         );
         await seedBlockedReceipt(fx, 'contract:A1', verdictAt);
         final before = verdictAt.subtract(const Duration(hours: 1));
-        File(seedSeamFile(fx, 'contract:A1')).setLastModifiedSync(before);
+        await seedContractArtifacts(fx, 'contract:A1');
+        backdateContractArtifacts(fx, 'contract:A1', before);
         File(fx.testListPath).setLastModifiedSync(before);
         await fx.seedRunState(
           states: {'contract:A1': 'blocked', 'U1': 'pending'},
@@ -370,6 +413,10 @@ void main() {
         // unconditionally — a genuine failure in whatever file it named
         // would then be tolerated by the phase-2 gate. The handoff is now
         // existence-gated, so an unattested seam contributes nothing.
+        //
+        // Issue #2004: BOTH generated artifacts go — the contract seam
+        // subject AND the contract test the verdict ran — so "no seam
+        // file on disk" is literally true.
         final verdictAt = DateTime.now().toUtc().subtract(
           const Duration(hours: 1),
         );
@@ -377,7 +424,8 @@ void main() {
         File(
           fx.testListPath,
         ).setLastModifiedSync(verdictAt.subtract(const Duration(hours: 1)));
-        File(seedSeamFile(fx, 'contract:A1')).deleteSync();
+        await seedContractArtifacts(fx, 'contract:A1');
+        removeContractArtifacts(fx, 'contract:A1');
         await fx.seedRunState(
           states: {'contract:A1': 'blocked', 'U1': 'pending'},
         );
@@ -412,15 +460,15 @@ void main() {
     setUp(() async {
       fx = await TddFixture.create(featureName: feature);
       // The parked contract's gen artifacts: the registry record + the
-      // seam test (the same shape a real parked run leaves on disk).
-      final seamPath = seedSeamFile(fx, 'contract:A1');
+      // seam subject and the contract test (the same shape a real parked
+      // run leaves on disk).
+      final artifacts = await seedContractArtifacts(fx, 'contract:A1');
       await fx.registerBehavior(
         id: 'contract:A1',
-        description:
-            'User.validateEmail(String email) -> bool (entity method '
-            'contract)',
+        description: contractDeclarations['contract:A1']!,
         sourceCriterion: 'User.validateEmail',
-        testPath: seamPath,
+        testPath: artifacts.testPath,
+        subjectPath: artifacts.subjectPath,
         writeTestFile: false,
       );
       await fx.seedTestList([
@@ -487,7 +535,7 @@ void main() {
       expect(out, contains('outcome=implement-seam-first'), reason: out);
       expect(
         out,
-        contains('seam test/tdd/$feature/contract_a1_test.dart'),
+        contains('seam lib/tdd/$feature/contract_a1_subject.dart'),
         reason: out,
       );
       expect(
@@ -569,9 +617,10 @@ void main() {
       // the pre-fix probe read absence as "unchanged" and prescribed
       // implementing a hand surface that is not on disk, where the driver's
       // equivalent probe re-drives instead.
-      File(
-        p.join(fx.root.path, 'test', 'tdd', feature, 'contract_a1_test.dart'),
-      ).deleteSync();
+      //
+      // The file that goes is the registry's recorded `test_path` — the
+      // generated contract test the #1544 watch set reads (issue #1007).
+      File(contractTestPath(fx, 'contract:A1')).deleteSync();
 
       final runner = CliRunner(exitOnCompletion: false);
       final out = await runner.runCapturing([
@@ -655,33 +704,152 @@ Future<void> seedBlockedReceipt(
   );
 }
 
-/// Create the behavior's generated contract test (the seam file), mirroring
-/// the #827 namespaced layout. Returns the file's absolute path.
+/// The contract behaviors' DECLARED contracts — the structured shape
+/// `zfa tdd plan` writes for a contract row
+/// (`<Interface>.<method>(<params>) -> <Return> (<category> contract)`).
 ///
-/// The body is a WIREABLE contract seam (a single-line
-/// `=> throw UnimplementedError(...)`), because #1752 makes the hand-surface
-/// hint gate on the seam's shape: `HandSurface.seamIsWireable` only names
-/// the `zfa tdd wire` command for such a seam, and degrades to "the seam
-/// shape is not one `zfa tdd wire` can rewrite" for anything else. The
-/// previous placeholder body (`void main() {}`) was not wireable, so the
-/// hint degraded and this suite's three park-note assertions failed on a
-/// stale fixture — the same rot class as #2000. See
-/// https://github.com/arrrrny/zuraffa/issues/2004.
-String seedSeamFile(TddFixture fx, String behaviorId) {
-  final snakeId = behaviorId.toLowerCase().replaceAll(
-    RegExp(r'[^a-z0-9]+'),
-    '_',
+/// The declarations live here, ONCE: the seeded artifacts are rendered
+/// FROM them, so a seam body can never claim a contract its behavior
+/// does not declare (issue #2004 review — the old fixture hardcoded
+/// `bool validateEmail(String email)` for every behavior, so
+/// `contract:A2`'s seam file declared a contract A2 does not declare).
+const Map<String, String> contractDeclarations = {
+  'contract:A1':
+      'User.validateEmail(String email) -> bool (entity method contract)',
+  'contract:A2':
+      'LoginController.login(String email, String password) -> '
+      'Result<bool, String> (controller contract)',
+};
+
+/// The two artifacts `zfa tdd gen` writes for a CONTRACT behavior
+/// (issue #1007): the contract SEAM (the subject the contract test
+/// imports — where the declared contract is implemented by hand and where
+/// `zfa tdd wire` rewrites it) and the contract TEST scaffold (the
+/// generated test that enumerates the contract's cases).
+class ContractArtifacts {
+  const ContractArtifacts({required this.subjectPath, required this.testPath});
+
+  /// The contract seam — `lib/tdd/<feature>/<snake>_subject.dart`. This is
+  /// the hand surface `HandSurface.seamPathFor` resolves FIRST (issue
+  /// #1625) and the file `zfa tdd wire` rewrites.
+  final String subjectPath;
+
+  /// The generated contract test scaffold —
+  /// `test/tdd/<feature>/<snake>_test.dart`. The file the blocked verdict
+  /// RAN (the failing suite the refactor gate tolerates).
+  final String testPath;
+}
+
+/// The contract seam path for [behaviorId] — the #1625 hand surface,
+/// `lib/tdd/<feature>/<snake>_subject.dart`.
+String contractSubjectPath(TddFixture fx, String behaviorId) => p.join(
+  fx.root.path,
+  'lib',
+  'tdd',
+  fx.featureName,
+  '${_snakeId(behaviorId)}_subject.dart',
+);
+
+/// The generated contract test path for [behaviorId] — the #827 namespaced
+/// layout, `test/tdd/<feature>/<snake>_test.dart`.
+String contractTestPath(TddFixture fx, String behaviorId) => p.join(
+  fx.root.path,
+  'test',
+  'tdd',
+  fx.featureName,
+  '${_snakeId(behaviorId)}_test.dart',
+);
+
+/// The behavior id's snake form — `contract:A1` -> `contract_a1`.
+String _snakeId(String behaviorId) =>
+    behaviorId.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+
+/// Seed the contract behavior's generated artifacts EXACTLY as `zfa tdd
+/// gen` writes them (issue #1007): the contract SEAM at
+/// `lib/tdd/<feature>/<snake>_subject.dart` and the contract TEST scaffold
+/// at `test/tdd/<feature>/<snake>_test.dart`.
+///
+/// Both artifacts are rendered by the PRODUCTION writers
+/// ([ContractSubjectWriter] / [ContractTestWriter]), so the fixture
+/// cannot drift from the artifact it stands for:
+///
+/// - the seam lives in the SUBJECT file — the file `zfa tdd wire` rewrites
+///   (`record.subjectPath`) and the file `HandSurface.seamPathFor`
+///   resolves first (issue #1625); the old fixture seeded the body into
+///   the generated contract TEST, which the wire command never opens
+///   (issue #2004 review);
+/// - the seam carries the CONTRACT lane's shape — the WRAPPED arrow-throw
+///   with the `CONTRACT SEAM (issue #1007)` provenance marker
+///   (`ContractSubjectWriter._render`), the one `seamIsWireable` reads as
+///   wireable (issue #1752); the old fixture seeded the UNIT lane's
+///   single-line arrow-throw, so the contract arm stayed uncovered;
+/// - the seam's signature comes from the behavior's OWN declaration, so
+///   `contract:A2` declares `login`, never `validateEmail`.
+///
+/// The test file keeps a loadable `main()` — the old seeded body dropped
+/// it, which left a `*_test.dart` that cannot even LOAD, exactly the
+/// unattested failure the `--parked-seam` refactor gate must not tolerate.
+Future<ContractArtifacts> seedContractArtifacts(
+  TddFixture fx,
+  String behaviorId,
+) async {
+  final description = contractDeclarations[behaviorId];
+  if (description == null) {
+    throw ArgumentError('no declared contract for $behaviorId');
+  }
+  final declaration = ContractDeclaration.parse(description);
+  if (declaration == null) {
+    throw ArgumentError('the declared contract for $behaviorId does not parse');
+  }
+  final behavior = Behavior(
+    id: behaviorId,
+    feature: fx.featureName,
+    kind: BehaviorKind.contract,
+    description: description,
+    sourceCriterion: declaration.qualifiedMethod,
+    target: '',
   );
-  final file = File(
-    p.join(fx.root.path, 'test', 'tdd', fx.featureName, '${snakeId}_test.dart'),
+  final artifacts = ContractArtifacts(
+    subjectPath: contractSubjectPath(fx, behaviorId),
+    testPath: contractTestPath(fx, behaviorId),
   );
-  file.createSync(recursive: true);
-  file.writeAsStringSync(
-    '// kind: contract\n'
-    'void validateEmail(String email) => '
-    "throw UnimplementedError('not implemented');\n",
+  await ContractSubjectWriter(
+    cwd: fx.root.path,
+  ).write(behavior: behavior, subjectPath: artifacts.subjectPath);
+  await ContractTestWriter(cwd: fx.root.path).write(
+    behavior: behavior,
+    testPath: artifacts.testPath,
+    subjectPath: artifacts.subjectPath,
   );
-  return file.path;
+  return artifacts;
+}
+
+/// Backdate a behavior's generated contract artifacts to [at].
+///
+/// The #1544 watch set reads the seam SUBJECT (it lives under `lib/`), so
+/// a freshly written subject reads as "the world changed" and the
+/// still-blocked skip never fires.
+void backdateContractArtifacts(TddFixture fx, String behaviorId, DateTime at) {
+  for (final path in [
+    contractSubjectPath(fx, behaviorId),
+    contractTestPath(fx, behaviorId),
+  ]) {
+    final file = File(path);
+    if (file.existsSync()) file.setLastModifiedSync(at);
+  }
+}
+
+/// Remove a behavior's generated contract artifacts — the "no seam file on
+/// disk" shape: the driver must never hand an unattested file to
+/// `--parked-seam`.
+void removeContractArtifacts(TddFixture fx, String behaviorId) {
+  for (final path in [
+    contractSubjectPath(fx, behaviorId),
+    contractTestPath(fx, behaviorId),
+  ]) {
+    final file = File(path);
+    if (file.existsSync()) file.deleteSync();
+  }
 }
 
 /// Create the generated entity file exactly where `zfa entity create`
