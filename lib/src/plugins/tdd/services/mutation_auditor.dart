@@ -282,7 +282,7 @@ class MutationAuditReport {
       if (declaredCounts.isNotEmpty) {
         buf.writeln(
           '- traced by behavior kind: '
-          '${declaredCounts.entries.map((e) => '${e.key}=${e.value}').join(', ')}',
+          '${declaredCounts.entries.map((e) => '${e.key}=${e.value}').join(' ')}',
         );
       }
       buf.writeln();

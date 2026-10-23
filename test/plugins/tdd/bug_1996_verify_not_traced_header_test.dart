@@ -299,5 +299,187 @@ library;
         );
       },
     );
+
+    test('a widget-lane test stays on the taxonomy path', () async {
+      final registry = ArtifactRegistry(featureDir: featureDir);
+      await registry.register(
+        record(
+          behaviorId: 'W1',
+          testPath: 'test/tdd/1996-not-traced-header/w1_test.dart',
+        ),
+      );
+      await writeTest(
+        'test/tdd/1996-not-traced-header/w1_test.dart',
+        '// GENERATED TEST — `zfa tdd gen W1` (spec 044-test-tdd-generation).\n'
+            '//\n'
+            '// behavior_id: W1\n'
+            '// source_criterion: FR-001\n'
+            '// kind: widget\n'
+            '// scenario-assertions: presence("t.auth.signIn")\n'
+            '// description: the sign-in button is present.\n'
+            'library;\n',
+      );
+
+      final result = await BehaviorKindTrace.trace(
+        featureDir: featureDir,
+        workingDirectory: tmpDir.path,
+      );
+
+      expect(
+        result.kindsByBehavior['W1'],
+        isNotEmpty,
+        reason: 'the widget lane is traced by the taxonomy',
+      );
+      expect(
+        result.declaredKindByBehavior,
+        isEmpty,
+        reason:
+            'the widget template emits BOTH headers, and the taxonomy is '
+            'the stricter channel — a widget behavior must never leak '
+            'into the declared-kind bucket (reordering the branches '
+            'would silently move it there)',
+      );
+      expect(result.notTraced, isEmpty);
+    });
+
+    test('an unknown `// kind:` token is not a trace', () async {
+      final registry = ArtifactRegistry(featureDir: featureDir);
+      await registry.register(
+        record(
+          behaviorId: 'U1',
+          testPath: 'test/tdd/1996-not-traced-header/u1_test.dart',
+        ),
+      );
+      await writeTest(
+        'test/tdd/1996-not-traced-header/u1_test.dart',
+        '// GENERATED TEST — `zfa tdd gen U1` (spec 044-test-tdd-generation).\n'
+            '//\n'
+            '// behavior_id: U1\n'
+            '// source_criterion: FR-001\n'
+            '// kind: unti\n'
+            'library;\n',
+      );
+
+      final result = await BehaviorKindTrace.trace(
+        featureDir: featureDir,
+        workingDirectory: tmpDir.path,
+      );
+
+      expect(
+        result.notTraced.containsKey('U1'),
+        isTrue,
+        reason:
+            'a token that is not one of the kinds the generator can emit '
+            'is not a kind — a typo must never make a behavior count as '
+            'TRACED with a nonsense kind',
+      );
+      expect(
+        result.notTraced['U1'],
+        contains('unknown declared kind token'),
+        reason: 'the raw token is preserved, like the taxonomy channel',
+      );
+      expect(result.notTraced['U1'], contains('unti'));
+      expect(result.declaredKindByBehavior, isEmpty);
+    });
+
+    test('a truncated header block stays not-traced', () async {
+      final registry = ArtifactRegistry(featureDir: featureDir);
+      await registry.register(
+        record(
+          behaviorId: 'U1',
+          testPath: 'test/tdd/1996-not-traced-header/u1_test.dart',
+        ),
+      );
+      await writeTest(
+        'test/tdd/1996-not-traced-header/u1_test.dart',
+        '// GENERATED TEST — `zfa tdd gen U1` (spec 044-test-tdd-generation).\n'
+            '//\n'
+            '// source_criterion: FR-001\n'
+            '// kind: unit\n'
+            'library;\n',
+      );
+
+      final result = await BehaviorKindTrace.trace(
+        featureDir: featureDir,
+        workingDirectory: tmpDir.path,
+      );
+
+      expect(
+        result.notTraced.containsKey('U1'),
+        isTrue,
+        reason:
+            'the `// behavior_id:` line is the only place the '
+            'behavior↔file binding can be verified — a block that lost it '
+            'is incomplete, and an incomplete block is an honest absence',
+      );
+      expect(result.declaredKindByBehavior, isEmpty);
+    });
+
+    test('a test file that declares another behavior id is not this '
+        "behavior's test", () async {
+      final registry = ArtifactRegistry(featureDir: featureDir);
+      await registry.register(
+        record(
+          behaviorId: 'U1',
+          testPath: 'test/tdd/1996-not-traced-header/u1_test.dart',
+        ),
+      );
+      await writeTest(
+        'test/tdd/1996-not-traced-header/u1_test.dart',
+        '// GENERATED TEST — `zfa tdd gen U2` (spec 044-test-tdd-generation).\n'
+            '//\n'
+            '// behavior_id: U2\n'
+            '// source_criterion: FR-001\n'
+            '// kind: unit\n'
+            'library;\n',
+      );
+
+      final result = await BehaviorKindTrace.trace(
+        featureDir: featureDir,
+        workingDirectory: tmpDir.path,
+      );
+
+      expect(
+        result.notTraced.containsKey('U1'),
+        isTrue,
+        reason:
+            'the header block is the only place the behavior↔file binding '
+            'can be verified (an artifact record carries no kind field) — a '
+            'swapped or stale artifact must not be attributed to this '
+            'behavior',
+      );
+      expect(result.notTraced['U1'], contains('behavior_id U2'));
+      expect(result.declaredKindByBehavior, isEmpty);
+    });
+
+    test('a `// kind:` comment in the test body is not the header', () async {
+      final registry = ArtifactRegistry(featureDir: featureDir);
+      await registry.register(
+        record(
+          behaviorId: 'U1',
+          testPath: 'test/tdd/1996-not-traced-header/u1_test.dart',
+        ),
+      );
+      await writeTest(
+        'test/tdd/1996-not-traced-header/u1_test.dart',
+        'void main() {}\n'
+            '// kind: unit\n',
+      );
+
+      final result = await BehaviorKindTrace.trace(
+        featureDir: featureDir,
+        workingDirectory: tmpDir.path,
+      );
+
+      expect(
+        result.notTraced.containsKey('U1'),
+        isTrue,
+        reason:
+            'the header block is the LEADING comment block the generator '
+            'stamps — a full-line `// kind:` comment in the test body is '
+            'prose, never a header',
+      );
+      expect(result.declaredKindByBehavior, isEmpty);
+    });
   });
 }

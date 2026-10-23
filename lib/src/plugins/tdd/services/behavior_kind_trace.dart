@@ -42,12 +42,24 @@
 /// reported "not traced" for a header the generator cannot emit on that
 /// lane (and never fixable in the consumer repo, where generated tests
 /// must not be hand-edited).
+///
+/// The block is read AS A UNIT, from the LEADING comment block of the
+/// generated test only: a `// kind:` comment in the test body is prose,
+/// never a header. A block that lost its `// behavior_id:` line is
+/// incomplete (an honest absence — the id is the only place the
+/// behavior↔file binding can be verified), an id that names another
+/// behavior is a swapped artifact, and a `// kind:` token that is not one
+/// of the kinds the generator can emit degrades to `not-traced` with the
+/// raw token preserved — the mirror image of the taxonomy channel's rule
+/// above (FR-002): a typo must never make a behavior count as TRACED with
+/// a nonsense kind.
 library;
 
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../models/behavior.dart';
 import 'artifact_registry.dart';
 
 class BehaviorKindTrace {
@@ -91,6 +103,25 @@ class BehaviorKindTrace {
     multiLine: true,
   );
 
+  /// The `// behavior_id:` line of the generator's own header block — the
+  /// behavior↔file binding, the ONLY place it can be verified (an
+  /// `ArtifactRecord` carries no kind field).
+  static final RegExp _behaviorIdLine = RegExp(
+    r'^//\s*behavior_id:\s*(\S+)\s*$',
+    multiLine: true,
+  );
+
+  /// The kinds the generator can declare (issue #1996) — derived from the
+  /// `BehaviorKind` enum so a new lane cannot drift out of sync.
+  ///
+  /// An unknown token is NOT a kind: it degrades to the `not-traced`
+  /// bucket with the raw token preserved, exactly like the taxonomy
+  /// channel's unknown token (FR-002). A typo (`// kind: unti`) must not
+  /// make a behavior count as TRACED with a nonsense kind.
+  static final Set<String> declaredKinds = {
+    for (final k in BehaviorKind.values) k.name,
+  };
+
   /// Parse every `// scenario-assertions:` header in [testContent].
   ///
   /// Returns `(kinds, unknownTokens)`: kinds = the canonical labels found
@@ -119,15 +150,57 @@ class BehaviorKindTrace {
     return (ordered, unknown.toList()..sort());
   }
 
+  /// The generator's own header block (issue #1996) — the LEADING run of
+  /// `//` comment lines at the top of the generated test.
+  ///
+  /// The block ends at the first line that is neither a comment nor blank,
+  /// so a full-line `// kind:` comment in the test BODY is prose, never a
+  /// header: only the block `zfa tdd gen` stamps declares the kind.
+  static String _leadingCommentBlock(String testContent) {
+    final block = StringBuffer();
+    for (final line in testContent.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) continue;
+      if (!trimmed.startsWith('//')) break;
+      block.writeln(trimmed);
+    }
+    return block.toString();
+  }
+
+  /// Parse the generator's own header block (issue #1996) AS A UNIT: the
+  /// `// behavior_id:` line and the `// kind:` line, both read from the
+  /// leading comment block of the generated test.
+  ///
+  /// Returns `(behaviorId, kind)`:
+  ///  - `behaviorId` — the `// behavior_id:` value, or null when the
+  ///    block does not carry it (a truncated block);
+  ///  - `kind` — the RAW `// kind:` token, or null when the block does
+  ///    not carry it. The token is returned verbatim (never filtered
+  ///    here) so the caller can report an unknown token honestly.
+  static (String? behaviorId, String? kind) parseHeaderBlock(
+    String testContent,
+  ) {
+    final block = _leadingCommentBlock(testContent);
+    return (
+      _behaviorIdLine.firstMatch(block)?.group(1),
+      _declaredKindLine.firstMatch(block)?.group(1),
+    );
+  }
+
   /// Parse the generator's own header block (issue #1996): the `// kind:`
   /// line `zfa tdd gen` stamps on every generated test.
   ///
   /// Returns the declared behavior kind (`unit`, `contract`, `widget`,
   /// `ffi`, `theme`, `platform`, `acceptance`) or null when the block is
-  /// absent — the honest absence the trace reports, never inferred.
+  /// absent, INCOMPLETE (no `// behavior_id:` line — the id is the only
+  /// place the behavior↔file binding can be verified, so a truncated
+  /// header is an honest absence) or carries a token that is not a kind.
+  ///
+  /// The honest absence the trace reports, never inferred.
   static String? parseDeclaredKind(String testContent) {
-    final match = _declaredKindLine.firstMatch(testContent);
-    return match?.group(1);
+    final (_, kind) = parseHeaderBlock(testContent);
+    if (kind == null || !declaredKinds.contains(kind)) return null;
+    return kind;
   }
 
   /// Trace the declared kinds of every registered behavior of a feature:
@@ -162,16 +235,35 @@ class BehaviorKindTrace {
       final exists = testFile.existsSync();
       final content = exists ? testFile.readAsStringSync() : '';
       final (kinds, unknown) = parseHeader(content);
-      final declaredKind = parseDeclaredKind(content);
+      final (headerId, declaredKind) = parseHeaderBlock(content);
       kindsByBehavior[r.behaviorId] = kinds;
       if (!exists) {
         notTraced[r.behaviorId] = 'test file missing: ${r.testPath}';
       } else if (unknown.isNotEmpty) {
         notTraced[r.behaviorId] =
             'unknown scenario-assertions kind token: ${unknown.join(', ')}';
-      } else if (kinds.isEmpty && declaredKind != null) {
+      } else if (kinds.isNotEmpty) {
+        // The taxonomy path (the widget lane): the behavior is traced by
+        // its `// scenario-assertions:` kinds, never by a declared kind —
+        // the widget template emits BOTH headers, and the taxonomy is the
+        // stricter of the two.
+      } else if (declaredKind != null &&
+          !declaredKinds.contains(declaredKind)) {
+        // An unknown token is not a kind: the same honest absence the
+        // taxonomy channel reports for an unknown token (FR-002), with
+        // the raw token preserved.
+        notTraced[r.behaviorId] = 'unknown declared kind token: $declaredKind';
+      } else if (declaredKind != null && headerId != r.behaviorId) {
+        // The header block is the only place the behavior↔file binding
+        // can be verified (an `ArtifactRecord` carries no kind field), so
+        // a file that declares another behavior's id is not this
+        // behavior's test.
+        notTraced[r.behaviorId] =
+            'test file declares behavior_id $headerId, '
+            'not ${r.behaviorId}';
+      } else if (declaredKind != null) {
         declaredKindByBehavior[r.behaviorId] = declaredKind;
-      } else if (kinds.isEmpty) {
+      } else {
         notTraced[r.behaviorId] =
             'no trace header in ${r.testPath}: expected a '
             '`// scenario-assertions:` header or the generated '
