@@ -1002,8 +1002,17 @@ class VerifyRedCommand extends Command<void> {
       // plausibly a (now-stale) test title — i.e. it carried the
       // behavior id. A recorded name that is a scenario description
       // (no id) must not be silently rebound to an unrelated sole
-      // title, or the kind gate (issue #964) loses its evidence.
-      if (titles.length == 1 && recorded.contains(record.behaviorId)) {
+      // title, or the kind gate (issue #964) loses its evidence —
+      // UNLESS the sole title itself carries the behavior id
+      // (issue #2011): a per-behavior file holds exactly one test, so
+      // gate 2 below (titles.length > 1) never runs, and the lone
+      // id-carrying title is the same unambiguous evidence the
+      // multi-test branch trusts. Refusing it left the rebind
+      // unsatisfiable: the mismatch remedy prescribed re-running the
+      // command that just refused.
+      if (titles.length == 1 &&
+          (recorded.contains(record.behaviorId) ||
+              titles.first.contains(record.behaviorId))) {
         candidate = titles.first;
       } else if (titles.length > 1) {
         // Id-based binding: a title carrying the behavior id is the
