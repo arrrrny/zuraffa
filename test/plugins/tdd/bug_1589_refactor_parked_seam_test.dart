@@ -168,7 +168,7 @@ void main() {
       await baseline.writeAsString(
         jsonEncode({
           'command': 'dart test',
-          'CliRunner.lastDispatchedExitCode': 1,
+          'exitCode': 1,
           'failedTests': ['test/other/legacy_test.dart: legacy failure'],
           'capturedAt': '2026-09-13T00:00:00.000Z',
           'parseable': true,

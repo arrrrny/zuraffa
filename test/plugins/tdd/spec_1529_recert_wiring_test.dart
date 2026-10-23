@@ -60,7 +60,7 @@ void main() {
     await cache.writeAsString(
       jsonEncode({
         'command': suiteSpy,
-        'CliRunner.lastDispatchedExitCode': 1,
+        'exitCode': 1,
         'failedTests': ['test/other_test.dart: other behavior red'],
         'capturedAt': '2026-09-01T00:00:00.000Z',
         'parseable': true,
