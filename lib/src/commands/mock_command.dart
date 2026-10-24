@@ -794,7 +794,12 @@ Future<void> _runMockGeneration({
       exitCode = 1;
       return;
     }
-    if (!dryRun) {
+    // Issue #2010: on the --certify path the receipt is written only
+    // after the gate passes — a failed gate must not leave a persisted
+    // receipt that claims conformance. Without --certify no gate runs,
+    // so the structural best-effort receipt keeps its write here; the
+    // enclosing !dryRun block is the only dry-run guard it needs.
+    if (!certify) {
       try {
         receiptPath = await MockCertificationService.writeReceipt(
           projectRoot: projectRoot,
@@ -817,12 +822,19 @@ Future<void> _runMockGeneration({
   // The --certify gate (issue #970 T004): structural conformance + scoped
   // dart analyze over the emitted mock files; drift → exit 1 with fix
   // lines naming the missing/incorrect members.
+  //
+  // Issue #2010: the gate verdict owns the run — a failure is the single
+  // signal (no success banner, no certification tail, no persisted
+  // receipt, no pass envelope), so the receipt is written only on the
+  // pass branch below.
+  var gateFailed = false;
   if (certify && certification != null) {
     final report = await MockCertifier().gate(
       certification: certification,
       projectRoot: projectRoot,
     );
     if (!report.passed) {
+      gateFailed = true;
       _emit(
         jsonMode,
         '❌ mock certification: $entity does not conform to '
@@ -833,6 +845,24 @@ Future<void> _runMockGeneration({
       }
       exitCode = 1;
     } else {
+      if (!dryRun) {
+        try {
+          receiptPath = await MockCertificationService.writeReceipt(
+            projectRoot: projectRoot,
+            entity: entity,
+            commandLine: commandLine,
+            certification: certification,
+            files: files,
+            capabilityName: capabilityName,
+            methodset: methods,
+          );
+        } catch (e) {
+          // Best-effort (issue #807 convention): the artifacts already
+          // exist, so a receipt failure degrades to a warning instead of
+          // failing the run.
+          _emit(jsonMode, '⚠️  Mock-certification receipt not written: $e');
+        }
+      }
       // Issue #1539: a crashed analyze on BOTH passes (retried once)
       // leaves the structural certification standing — the exit must not
       // contradict the persisted (conforms) receipt. The unverified
@@ -865,8 +895,14 @@ Future<void> _runMockGeneration({
     }
   }
 
+  // Issue #2010: the gate verdict is part of the failure contract — a
+  // failed gate is a failed run even when the structural conformance
+  // stands, so the `--json` envelope can never report `verdict: pass`
+  // for a gate the run just failed.
   final conformanceFailed =
-      generationFailed || (certification != null && !certification.conformance);
+      generationFailed ||
+      gateFailed ||
+      (certification != null && !certification.conformance);
   if (conformanceFailed) {
     exitCode = 1;
   }
@@ -893,10 +929,16 @@ Future<void> _runMockGeneration({
   final skipped = files.where((f) => f.action == 'skipped').toList();
   final deleted = files.where((f) => f.action == 'deleted').toList();
 
-  if (created.isNotEmpty ||
-      overwritten.isNotEmpty ||
-      updated.isNotEmpty ||
-      deleted.isNotEmpty) {
+  // Issue #2010 (and the #2014 review finding): ANY failed run has a
+  // single failure signal — the success banner must not print after a
+  // failed gate, a generation failure (#1927), or a structural DRIFT,
+  // all of which fold into `conformanceFailed` (and into `verdict:
+  // fail` in the envelope above).
+  if (!conformanceFailed &&
+      (created.isNotEmpty ||
+          overwritten.isNotEmpty ||
+          updated.isNotEmpty ||
+          deleted.isNotEmpty)) {
     print('✅ Success! Created/Modified:');
     for (final file in created) {
       print('  ✨ ${file.path}');
@@ -917,7 +959,7 @@ Future<void> _runMockGeneration({
       print('  ${file.path}');
     }
   }
-  if (certification != null) {
+  if (certification != null && !gateFailed) {
     print(
       '📜 mock-certification: ${certification.registryId} '
       '(${certification.conformance ? 'conforms' : 'DRIFT'})'

@@ -739,6 +739,56 @@ void main() {
       },
     );
 
+    test('the kind gate judges the RECORDED scenario after a sole-title '
+        'rebind (PR #2013 review)', () async {
+      // The #2011 rebind shape: the recorded runnable name is the id-less
+      // scenario description (route-outcome), the file's SOLE title
+      // carries the behavior id. copyWithRunnableTestName rewrites
+      // descriptionSegment — the gate's kind source — so gating on the
+      // rebound record would derive kinds from the verbless rebound
+      // title and CERTIFY this presence-only red. The gate must read the
+      // pre-rebind record.
+      await registerWidgetBehavior(
+        id: 'U9',
+        description: 'the app navigates to the route "deal_list"',
+        testContent: '''
+// GENERATED TEST — sole test whose title drifted to the id-prefixed form.
+//
+// kind: widget
+library;
+
+void main() {
+  testWidgets('U9 — the summary surface', (tester) async {
+    expect(find.text('deal_list'), findsOneWidget);
+  });
+}
+''',
+      );
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing([
+        'tdd',
+        'verify-red',
+        '--project',
+        fx.root.path,
+        'U9',
+      ]);
+
+      // The rebind DID fire — the record now names the drifted title.
+      final rebound = await fx.registryRecordOf('U9');
+      expect(
+        rebound['runnable_test_name'],
+        contains('U9 — the summary surface'),
+      );
+      expect(out, contains('rebind: runnable_test_name updated'));
+      // The gate judged the RECORDED route-outcome scenario, not the
+      // rebound title (whose prose derives no required classes and
+      // would have certified the presence-only red).
+      expect(out, contains('classification=kind-mismatch certified=false'));
+      expect(out, contains('route-outcome'));
+      expect(CliRunner.lastDispatchedExitCode, isNot(0));
+      expect(File(fx.cycleLogPath).existsSync(), isFalse);
+    });
+
     test('a widget record with no scenario source fails closed', () async {
       await registerWidgetBehavior(
         id: 'A4',
