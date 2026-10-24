@@ -398,7 +398,8 @@ class BuildCommand extends Command {
         '\n🛑 Refusing to refresh the Hive registrar: $registrarPath is '
         'hand-authored — it carries content the registrar generator never '
         'emits (a comment beyond the GENERATED markers, an import '
-        'combinator such as hide/show/as, a missing '
+        'combinator other than the barrel’s own generated #2008 hide '
+        'clause, a missing '
         "`part 'hive_registrar.g.dart';`, or a missing GENERATED wrap).",
       );
       print(
@@ -1314,13 +1315,15 @@ class BuildCommand extends Command {
   ///
   /// The generator's emission shape is exact: wrapped in
   /// `_generatedHeaderMarker` … `_generatedTrailerMarker`, import
-  /// directives without combinators, and always the
+  /// directives without combinators — except a single `hide` clause on
+  /// the `package:zuraffa/zuraffa.dart` barrel import the registrar
+  /// gained in #2008 (see [_isGeneratorBarrelHideLine]) — and always the
   /// `part 'hive_registrar.g.dart';` directive its merge logic and the
-  /// `.g.dart` flow are built around. Anything the generator never emits —
-  /// any other comment, a `hide`/`show`/`as` import combinator, a missing
-  /// part or marker wrap — means the file is hand-owned (the same ownership
-  /// principle as the `# zfa:generated` build.yaml header: edit anything
-  /// and you own the file).
+  /// `.g.dart` flow are built around. Anything else the generator never
+  /// emits — any other comment, any other `hide`/`show`/`as` combinator,
+  /// a missing part or marker wrap — means the file is hand-owned (the
+  /// same ownership principle as the `# zfa:generated` build.yaml header:
+  /// edit anything and you own the file).
   static bool registrarIsHandAuthored(String content) {
     final hasPart = RegExp(
       r"""^\s*part\s+['"]hive_registrar\.g\.dart['"]\s*;""",
@@ -1343,11 +1346,28 @@ class BuildCommand extends Command {
       final line = contentful[i];
       if (line.startsWith('//') || line.startsWith('/*')) return true;
       if (RegExp(r'^(?:import|export)\b.*\s(as|hide|show)\s').hasMatch(line)) {
-        return true;
+        // Issue #2008: the registrar generator now hides the adapter
+        // entities' own symbols from the barrel import it always emits
+        // (the #942 mechanism) — a `hide` clause on exactly
+        // `package:zuraffa/zuraffa.dart` is generated shape, not
+        // curation. Every other combinator (show/as, or any combinator
+        // on any other import or export, including the flutter barrel)
+        // remains content this generator never emits.
+        if (!_isGeneratorBarrelHideLine(line)) return true;
       }
     }
     return false;
   }
+
+  /// Issue #2008: the one combinator shape the registrar generator emits —
+  /// `import 'package:zuraffa/zuraffa.dart' hide A, B;` with a sorted
+  /// comma-separated identifier list and nothing else on the line.
+  static final RegExp _generatorBarrelHideLine = RegExp(
+    r"""^import\s+'package:zuraffa/zuraffa\.dart'\s+hide\s+[A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*\s*;\s*$""",
+  );
+
+  static bool _isGeneratorBarrelHideLine(String line) =>
+      _generatorBarrelHideLine.hasMatch(line);
 
   /// One build invocation result: the exit code plus the streamed
   /// stdout+stderr (echoed live AND captured, so the retry decision can
