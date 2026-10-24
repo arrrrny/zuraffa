@@ -339,7 +339,10 @@ class VerifyRedCommand extends Command<void> {
     // descriptionSegment — the gate's kind source — so gating on the
     // rebound record would let a title-derived description certify a red
     // that does not satisfy the recorded scenario (review of PR #2013).
-    // The rebound record still drives the run and the evidence.
+    // The rebound record still drives the run and the evidence. The
+    // rebind persists the original scenario (recorded_scenario), so the
+    // LATER invocations — which hold no pre-rebind record — gate on the
+    // same scenario through the record itself.
     final preRebindRecord = record;
     record = await _rebindRunnableTestNameIfNeeded(cwd, target, record);
 
@@ -1147,14 +1150,16 @@ class VerifyRedCommand extends Command<void> {
       r'^// description: (.*)$',
       multiLine: true,
     ).firstMatch(content);
-    final segments = record.runnableTestName.split('::');
-    final recordDescription = segments.length >= 3
-        ? record.descriptionSegment.trim()
-        : '';
+    // The gate's scenario source (review of PR #2013): the
+    // rebind-persisted recorded scenario when the record carries one,
+    // else the description segment — a #1778 rebind rewrites the
+    // segment to the corrected title, and judging the title let a
+    // presence-only red certify against a scenario that requires a
+    // route outcome. The legacy `// description:` header is the last
+    // fallback. `gateScenario` is null-or-non-empty by construction.
+    final recordScenario = record.gateScenario;
     final headerDescription = descriptionMatch?.group(1)?.trim() ?? '';
-    final description = recordDescription.isNotEmpty
-        ? recordDescription
-        : headerDescription;
+    final description = recordScenario ?? headerDescription;
     if (description.isEmpty) return null;
     final analysis = FinderTaxonomy.analyze(description);
     return FinderTaxonomy.unsatisfiedClasses(analysis, content);

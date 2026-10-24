@@ -676,6 +676,7 @@ class MigratePathsCommand extends Command<void> {
       subjectOwnership: record.subjectOwnership,
       createdAt: record.createdAt,
       genFingerprint: record.genFingerprint,
+      recordedScenario: record.recordedScenario,
     );
   }
 
@@ -700,6 +701,7 @@ class MigratePathsCommand extends Command<void> {
       subjectOwnership: record.subjectOwnership,
       createdAt: record.createdAt,
       genFingerprint: record.genFingerprint,
+      recordedScenario: record.recordedScenario,
     );
   }
 

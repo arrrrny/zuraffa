@@ -98,6 +98,18 @@ class ArtifactRecord {
   /// on the next created/regenerated record.
   final String? genFingerprint;
 
+  /// The behavior's ORIGINAL scenario description, persisted when a
+  /// #1778 rebind rewrites [runnableTestName] (review of PR #2013): a
+  /// rebind copies the corrected title into the composite, so the
+  /// description segment — the #964 kind gate's source — becomes the
+  /// title, and the next invocation would judge the title instead of
+  /// the recorded scenario (a presence-only red certifies against a
+  /// route-outcome scenario). The first invocation's in-memory
+  /// pre-rebind record protects only THAT run; this field is the
+  /// durable half. Null for records never rebound — the gate reads the
+  /// description segment as before.
+  final String? recordedScenario;
+
   const ArtifactRecord({
     required this.behaviorId,
     required this.feature,
@@ -109,6 +121,7 @@ class ArtifactRecord {
     required this.subjectOwnership,
     required this.createdAt,
     this.genFingerprint,
+    this.recordedScenario,
   });
 
   /// Copy with new ownership values (used for idempotent repeat).
@@ -126,6 +139,7 @@ class ArtifactRecord {
     subjectOwnership: subjectOwnership,
     createdAt: createdAt,
     genFingerprint: genFingerprint,
+    recordedScenario: recordedScenario,
   );
 
   /// Copy with a rebound `runnableTestName` (issue #1778): when a
@@ -143,6 +157,7 @@ class ArtifactRecord {
         subjectOwnership: subjectOwnership,
         createdAt: createdAt,
         genFingerprint: genFingerprint,
+        recordedScenario: recordedScenario,
       );
 
   /// Copy with the gen reuse fingerprint refreshed (issue #1388): gen
@@ -161,7 +176,43 @@ class ArtifactRecord {
         subjectOwnership: subjectOwnership,
         createdAt: createdAt,
         genFingerprint: genFingerprint,
+        recordedScenario: recordedScenario,
       );
+
+  /// Copy with the rebind-scope recorded scenario set or cleared
+  /// (review of PR #2013): the registry writes the PRE-rebind scenario
+  /// next to the rebound name so the #964 kind gate keeps judging the
+  /// recorded scenario on every later invocation.
+  ArtifactRecord copyWithRecordedScenario(String? recordedScenario) =>
+      ArtifactRecord(
+        behaviorId: behaviorId,
+        feature: feature,
+        sourceCriterion: sourceCriterion,
+        testPath: testPath,
+        subjectPath: subjectPath,
+        runnableTestName: runnableTestName,
+        testOwnership: testOwnership,
+        subjectOwnership: subjectOwnership,
+        createdAt: createdAt,
+        genFingerprint: genFingerprint,
+        recordedScenario: recordedScenario,
+      );
+
+  /// The scenario description the #964 kind gate certifies against
+  /// (review of PR #2013): the rebind-persisted [recordedScenario] when
+  /// present, else the [descriptionSegment] — null when the composite
+  /// carries no description segment, so the caller falls back to the
+  /// legacy test header instead of analyzing the bare behavior id
+  /// (which derives no assertion classes and would pass the gate
+  /// vacuously).
+  String? get gateScenario {
+    final persisted = recordedScenario?.trim();
+    if (persisted != null && persisted.isNotEmpty) return persisted;
+    final parts = runnableTestName.split('::');
+    if (parts.length < 3) return null;
+    final desc = descriptionSegment.trim();
+    return desc.isEmpty ? null : desc;
+  }
 
   /// Equality is by behavior id within a feature (FR-007).
   @override
@@ -182,7 +233,9 @@ class ArtifactRecord {
 
   /// Serializes to a JSON map (for `artifacts.json`). `gen_fingerprint`
   /// is emitted only when present — untouched legacy registries stay
-  /// byte-stable through load/save cycles (issue #1388).
+  /// byte-stable through load/save cycles (issue #1388). The same
+  /// opt-in discipline keeps `recorded_scenario` (PR #2013 review) out
+  /// of every never-rebounded record.
   Map<String, dynamic> toJson() => {
     'behavior_id': behaviorId,
     'feature': feature,
@@ -194,6 +247,7 @@ class ArtifactRecord {
     'subject_ownership': subjectOwnership.name,
     'created_at': createdAt,
     if (genFingerprint != null) 'gen_fingerprint': genFingerprint,
+    if (recordedScenario != null) 'recorded_scenario': recordedScenario,
   };
 
   /// Deserializes from a JSON map. Throws [FormatException] if the JSON
@@ -246,6 +300,11 @@ class ArtifactRecord {
       genFingerprint: json['gen_fingerprint'] == null
           ? null
           : requireString(json['gen_fingerprint'], 'gen_fingerprint'),
+      // Optional for the same reason (PR #2013 review): pre-rebind-scope
+      // registries carry no recorded_scenario.
+      recordedScenario: json['recorded_scenario'] == null
+          ? null
+          : requireString(json['recorded_scenario'], 'recorded_scenario'),
     );
   }
 
