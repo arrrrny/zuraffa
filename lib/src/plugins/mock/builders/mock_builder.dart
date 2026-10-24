@@ -230,7 +230,10 @@ class MockBuilder {
   /// never reach it, an append run keeps its append-or-replace contract,
   /// a revert run keeps the revert contract, enums and no-CRUD-surface
   /// targets return before the writer (#1037/#1747), and
-  /// `--overwrite-bodies` is the explicit opt-in.
+  /// `--overwrite-bodies` is the explicit opt-in. The `--init` lifecycle
+  /// stubs (`initialize`/`isInitialized`/`dispose`) are generator-owned and
+  /// never planned here, so their bodies stay outside this refusal — a
+  /// `--force` run replaces hand-edits to them without asking.
   Future<void> _refuseHandAuthoredMockBodies(GeneratorConfig config) async {
     if (config.generateMockDataOnly ||
         config.hasService ||
@@ -294,16 +297,17 @@ class MockBuilder {
       // guard's domain (it refused above when the interface declares it).
       final freshSource = planned[name];
       if (freshSource == null) continue;
-      final fresh = _memberShapeOf(helper.parseSource(freshSource).unit);
-      if (fresh == null) continue;
+      final freshUnit = helper.parseSource(freshSource).unit;
+      final fresh = _memberShapeOf(freshUnit);
+      final freshBody = _memberBodyOf(freshUnit);
+      if (fresh == null || freshBody == null) continue;
       final hand = (
         isGetter: member.isGetter,
         returns: member.returnType,
         params: member.parameters,
-        body: member.body,
       );
       if (!_shapesEqual(hand: hand, fresh: fresh)) continue;
-      if (member.body.toSource() != fresh.body.toSource()) {
+      if (member.body.toSource() != freshBody.toSource()) {
         handAuthored.add(name);
       }
     }
@@ -320,14 +324,14 @@ class MockBuilder {
   /// emission source. `SpecLibrary.emitSpec` wraps the member in a
   /// library, so a code_builder Method arrives as a top-level
   /// [FunctionDeclaration] (the declaration carries the return type and
-  /// getter-ness; its [FunctionExpression] the parameters and body), the
-  /// only shape an emitSpec output can have — class members are handled
-  /// through the same normalization for symmetry.
+  /// getter-ness; its [FunctionExpression] the parameters), the only
+  /// shape an emitSpec output can have — class members are handled
+  /// through the same normalization for symmetry. The member's body is
+  /// [_memberBodyOf]'s.
   static ({
     bool isGetter,
     TypeAnnotation? returns,
     FormalParameterList? params,
-    FunctionBody body,
   })?
   _memberShapeOf(CompilationUnit? unit) {
     if (unit == null) return null;
@@ -339,18 +343,29 @@ class MockBuilder {
           isGetter: node.isGetter,
           returns: node.returnType,
           params: function.parameters,
-          body: function.body,
         );
       }
-      final Object? member = declaration;
+      final Object member = declaration;
       if (member is MethodDeclaration) {
         return (
           isGetter: member.isGetter,
           returns: member.returnType,
           params: member.parameters,
-          body: member.body,
         );
       }
+    }
+    return null;
+  }
+
+  /// The body of the first method-like declaration in a single-member
+  /// emission source — the same member [_memberShapeOf] normalizes, so
+  /// the body comparison reads both sides' AST bodies directly.
+  static FunctionBody? _memberBodyOf(CompilationUnit? unit) {
+    if (unit == null) return null;
+    for (final declaration in unit.declarations) {
+      final AstNode node = declaration;
+      if (node is FunctionDeclaration) return node.functionExpression.body;
+      if (node is MethodDeclaration) return node.body;
     }
     return null;
   }
@@ -365,14 +380,12 @@ class MockBuilder {
       bool isGetter,
       TypeAnnotation? returns,
       FormalParameterList? params,
-      FunctionBody body,
     })
     hand,
     required ({
       bool isGetter,
       TypeAnnotation? returns,
       FormalParameterList? params,
-      FunctionBody body,
     })
     fresh,
   }) {
