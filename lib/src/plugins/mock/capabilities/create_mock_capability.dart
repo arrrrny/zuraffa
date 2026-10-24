@@ -79,6 +79,17 @@ class CreateMockCapability implements ZuraffaCapability {
             'interface (otherwise refused naming the lost members)',
         'default': false,
       },
+      // Issue #2012: an existing <Entity>MockDataSource carries member
+      // bodies — a --force run whose declared members match would replace
+      // hand-authored bodies with the generated no-op stubs. This flag is
+      // the explicit opt-in that allows the destructive body overwrite.
+      'overwriteBodies': {
+        'type': 'boolean',
+        'description':
+            'Allow --force to discard hand-authored <Entity>MockDataSource '
+            'bodies (otherwise refused naming the replaced members)',
+        'default': false,
+      },
       'verbose': {
         'type': 'boolean',
         'description': 'Enable verbose logging',
@@ -437,6 +448,9 @@ class CreateMockCapability implements ZuraffaCapability {
       // Issue #1952: the explicit opt-in that lets a force run overwrite a
       // hand-authored datasource interface.
       overwriteInterface: args['overwriteInterface'] == true,
+      // Issue #2012: the explicit opt-in that lets a force run discard
+      // hand-authored mock datasource bodies.
+      overwriteBodies: args['overwriteBodies'] == true,
       // Spec 1110: the --fail preset — the throwing twin of the
       // certified mock.
       failMock: args['fail'] == true,

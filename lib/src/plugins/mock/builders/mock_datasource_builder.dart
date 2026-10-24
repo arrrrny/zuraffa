@@ -703,6 +703,45 @@ class MockDataSourceBuilder {
   static (String, String?, String?) _parseMethodShape(String token) =>
       MethodShapeParser.parseMethodShape(token);
 
+  /// Issue #2012: the member bodies a fresh emission would write, keyed by
+  /// member name, rendered with the same [SpecLibrary.emitSpec] primitive
+  /// the append path splices with. The mock builder's `--force` pre-flight
+  /// compares these against the on-disk mock's member bodies to detect a
+  /// hand-authored body the overwrite would discard. Fail-open: a member
+  /// set the emission cannot produce (an unresolvable shape) comes back
+  /// empty — the real emission pass later in the run raises its own honest
+  /// error, so the pre-flight never fabricates a refusal from a planning
+  /// failure.
+  Future<Map<String, String>> plannedMemberSources(
+    GeneratorConfig config,
+  ) async {
+    final entityName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    final entitySnake = StringUtils.camelToSnake(entityName);
+    final interfaceMembers = await _loadInterfaceMembers(
+      entityName,
+      entitySnake,
+    );
+    try {
+      return {
+        for (final method in _generateMockDataSourceMethods(
+          config,
+          interfaceMembers: interfaceMembers,
+        ))
+          if (method.name != null) method.name!: specLibrary.emitSpec(method),
+      };
+    } catch (error) {
+      if (options.verbose) {
+        print(
+          '⚠️ Could not plan the fresh mock member bodies for $entityName: '
+          '$error',
+        );
+      }
+      return const {};
+    }
+  }
+
   Future<List<ParsedUseCaseInfo>> _loadInterfaceMembers(
     String entityName,
     String entitySnake,
