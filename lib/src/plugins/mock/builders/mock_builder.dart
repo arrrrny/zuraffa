@@ -1,5 +1,7 @@
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../core/ast/ast_helper.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/context/file_system.dart';
@@ -209,6 +211,204 @@ class MockBuilder {
     );
   }
 
+  /// Issue #2012: refuses a `--force` run whose fresh emission would
+  /// replace the body of an existing same-shape `<Entity>MockDataSource`
+  /// member with the generated stub — hand-authored semantics (a real
+  /// store mutation, a recorded request) that the structural
+  /// certification cannot see. Throws [StateError] naming the mock file
+  /// and the hand-authored members, before any file is written, so the
+  /// CLI exits non-zero and the tree stays byte-identical. An unmodified
+  /// generated mock (its bodies equal the fresh stubs) is never refused —
+  /// the #1418 idempotent regeneration holds — and a member whose type
+  /// shape the fresh emission itself changed is compared as a different
+  /// contract, not a body replacement. A shape migration the on-disk
+  /// interface does not carry yet reads as a same-shape replacement (the
+  /// pre-flight resolves against the same on-disk interface view the
+  /// #1952 guard reads) and is refused until `--overwrite-bodies` opts
+  /// in. Gated exactly like the
+  /// mock datasource writer's own fresh path: data-only and service runs
+  /// never reach it, an append run keeps its append-or-replace contract,
+  /// a revert run keeps the revert contract, enums and no-CRUD-surface
+  /// targets return before the writer (#1037/#1747), and
+  /// `--overwrite-bodies` is the explicit opt-in. The `--init` lifecycle
+  /// stubs (`initialize`/`isInitialized`/`dispose`) are generator-owned and
+  /// never planned here, so their bodies stay outside this refusal — a
+  /// `--force` run replaces hand-edits to them without asking.
+  Future<void> _refuseHandAuthoredMockBodies(GeneratorConfig config) async {
+    if (config.generateMockDataOnly ||
+        config.hasService ||
+        config.appendToExisting ||
+        !config.force ||
+        config.revert ||
+        config.overwriteBodies) {
+      return;
+    }
+    final entityName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    final entitySnake = StringUtils.camelToSnake(entityName);
+    final mockPath = path.join(
+      outputDir,
+      'data',
+      'datasources',
+      entitySnake,
+      '${entitySnake}_mock_datasource.dart',
+    );
+    if (!await fileSystem.exists(mockPath)) return;
+    // The fresh overwrite this guard arms for returns before it on these
+    // shapes (#1037/#1747) — refuse only where the writer can actually
+    // run.
+    final targetEntity = config.isCustomUseCase && config.returnsType != null
+        ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
+              config.name
+        : config.name;
+    if (EntityAnalyzer.isEnum(
+      targetEntity,
+      outputDir,
+      fileSystem: fileSystem,
+    )) {
+      return;
+    }
+    if (EntityAnalyzer.lacksCrudSurface(
+          targetEntity,
+          outputDir,
+          fileSystem: fileSystem,
+        ) &&
+        !EntityAnalyzer.hasDeclaredDataSourceInterface(
+          targetEntity,
+          outputDir,
+          fileSystem: fileSystem,
+        ) &&
+        EntityAnalyzer.methodsRequireCrudSurface(config.methods)) {
+      return;
+    }
+    final mockSource = await fileSystem.read(mockPath);
+    final helper = const AstHelper();
+    final unit = helper.parseSource(mockSource).unit;
+    if (unit == null) return;
+    final classNode = helper.findClass(unit, '${entityName}MockDataSource');
+    if (classNode == null) return;
+    final planned = await dataSourceBuilder.plannedMemberSources(config);
+    if (planned.isEmpty) return;
+    final handAuthored = <String>[];
+    for (final member in helper.findMethods(classNode)) {
+      final name = member.name.toString();
+      // A member the fresh emission does not plan is the issue #1952
+      // guard's domain (it refused above when the interface declares it).
+      final freshSource = planned[name];
+      if (freshSource == null) continue;
+      final freshUnit = helper.parseSource(freshSource).unit;
+      final fresh = _memberShapeOf(freshUnit);
+      final freshBody = _memberBodyOf(freshUnit);
+      if (fresh == null || freshBody == null) continue;
+      final hand = (
+        isGetter: member.isGetter,
+        returns: member.returnType,
+        params: member.parameters,
+      );
+      if (!_shapesEqual(hand: hand, fresh: fresh)) continue;
+      if (member.body.toSource() != freshBody.toSource()) {
+        handAuthored.add(name);
+      }
+    }
+    if (handAuthored.isEmpty) return;
+    throw StateError(
+      'Refusing to overwrite $mockPath: --force would replace the '
+      'hand-authored body of ${handAuthored.join(", ")} with generated '
+      'stubs (issue #2012). Pass --overwrite-bodies to discard the '
+      'hand-authored bodies explicitly.',
+    );
+  }
+
+  /// The shape of the first method-like declaration in a single-member
+  /// emission source. `SpecLibrary.emitSpec` wraps the member in a
+  /// library, so a code_builder Method arrives as a top-level
+  /// [FunctionDeclaration] (the declaration carries the return type and
+  /// getter-ness; its [FunctionExpression] the parameters), the only
+  /// shape an emitSpec output can have — class members are handled
+  /// through the same normalization for symmetry. The member's body is
+  /// [_memberBodyOf]'s.
+  static ({
+    bool isGetter,
+    TypeAnnotation? returns,
+    FormalParameterList? params,
+  })?
+  _memberShapeOf(CompilationUnit? unit) {
+    if (unit == null) return null;
+    for (final declaration in unit.declarations) {
+      final AstNode node = declaration;
+      if (node is FunctionDeclaration) {
+        final function = node.functionExpression;
+        return (
+          isGetter: node.isGetter,
+          returns: node.returnType,
+          params: function.parameters,
+        );
+      }
+      final Object member = declaration;
+      if (member is MethodDeclaration) {
+        return (
+          isGetter: member.isGetter,
+          returns: member.returnType,
+          params: member.parameters,
+        );
+      }
+    }
+    return null;
+  }
+
+  /// The body of the first method-like declaration in a single-member
+  /// emission source — the same member [_memberShapeOf] normalizes, so
+  /// the body comparison reads both sides' AST bodies directly.
+  static FunctionBody? _memberBodyOf(CompilationUnit? unit) {
+    if (unit == null) return null;
+    for (final declaration in unit.declarations) {
+      final AstNode node = declaration;
+      if (node is FunctionDeclaration) return node.functionExpression.body;
+      if (node is MethodDeclaration) return node.body;
+    }
+    return null;
+  }
+
+  /// Type-shape equality: the contract a body replacement must preserve —
+  /// getter-ness, return type, parameter count, parameter types.
+  /// Parameter NAMES are not part of the shape (the generated
+  /// `remove(String params)` and a hand-authored `remove(String id)` are
+  /// the same contract).
+  static bool _shapesEqual({
+    required ({
+      bool isGetter,
+      TypeAnnotation? returns,
+      FormalParameterList? params,
+    })
+    hand,
+    required ({
+      bool isGetter,
+      TypeAnnotation? returns,
+      FormalParameterList? params,
+    })
+    fresh,
+  }) {
+    if (hand.isGetter != fresh.isGetter) return false;
+    if (hand.returns?.toSource() != fresh.returns?.toSource()) return false;
+    final handParams = hand.params?.parameters ?? const <FormalParameter>[];
+    final freshParams = fresh.params?.parameters ?? const <FormalParameter>[];
+    if (handParams.length != freshParams.length) return false;
+    for (var i = 0; i < handParams.length; i++) {
+      if (_paramTypeSource(handParams[i]) != _paramTypeSource(freshParams[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static String? _paramTypeSource(FormalParameter parameter) {
+    if (parameter is RegularFormalParameter) return parameter.type?.toSource();
+    if (parameter is FieldFormalParameter) return parameter.type?.toSource();
+    if (parameter is SuperFormalParameter) return parameter.type?.toSource();
+    return null;
+  }
+
   /// Generates mock files for the given [config].
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (config.generateMockJson) {
@@ -235,6 +435,15 @@ class MockBuilder {
     // plugin already owns stays #1649's, and `--overwrite-interface` is the
     // explicit opt-in.
     await _refuseLostDeclaredMembers(config);
+
+    // Issue #2012: a `--force` run must not silently replace the
+    // hand-authored bodies of an existing `<Entity>MockDataSource` with the
+    // generated no-op stubs — the #1952 refusal above only arms when the
+    // member SET shrinks, so a matching seam used to sail through and the
+    // structural certification graded the behavior-regressed result green.
+    // Same pre-flight position, same gating, `--overwrite-bodies` is the
+    // explicit opt-in.
+    await _refuseHandAuthoredMockBodies(config);
 
     // Issue #1922: validate every arbitrary member shape BEFORE the first
     // write. The datasource-interface writer below used to run first, so a
