@@ -785,9 +785,9 @@ Future<void> _runMockGeneration({
     // Issue #2010: on the --certify path the receipt is written only
     // after the gate passes — a failed gate must not leave a persisted
     // receipt that claims conformance. Without --certify no gate runs,
-    // so the structural best-effort receipt keeps its write here (same
-    // !dryRun guard master had).
-    if (!certify && !dryRun) {
+    // so the structural best-effort receipt keeps its write here; the
+    // enclosing !dryRun block is the only dry-run guard it needs.
+    if (!certify) {
       try {
         receiptPath = await MockCertificationService.writeReceipt(
           projectRoot: projectRoot,
@@ -917,9 +917,12 @@ Future<void> _runMockGeneration({
   final skipped = files.where((f) => f.action == 'skipped').toList();
   final deleted = files.where((f) => f.action == 'deleted').toList();
 
-  // Issue #2010: a failed gate is the run's single failure signal — the
-  // success banner and the certification tail must not print after it.
-  if (!gateFailed &&
+  // Issue #2010 (and the #2014 review finding): ANY failed run has a
+  // single failure signal — the success banner must not print after a
+  // failed gate, a generation failure (#1927), or a structural DRIFT,
+  // all of which fold into `conformanceFailed` (and into `verdict:
+  // fail` in the envelope above).
+  if (!conformanceFailed &&
       (created.isNotEmpty ||
           overwritten.isNotEmpty ||
           updated.isNotEmpty ||
