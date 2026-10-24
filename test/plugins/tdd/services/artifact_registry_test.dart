@@ -309,6 +309,79 @@ void main() {
     });
   });
 
+  group('ArtifactRegistry — rebind persists the recorded scenario '
+      '(PR #2013 review)', () {
+    test('updateRunnableTestName stores the pre-rebind description as '
+        'recorded_scenario', () async {
+      await registry.register(sampleRecord());
+      final before = (await registry.loadAll()).single;
+      expect(before.descriptionSegment, 'asserts behavior');
+
+      await registry.updateRunnableTestName(
+        'B-003',
+        '${before.testPath}::B-003::B-003 — the rebound title',
+      );
+
+      final after = (await registry.loadAll()).single;
+      expect(after.runnableTestName, endsWith('::B-003 — the rebound title'));
+      expect(
+        after.recordedScenario,
+        'asserts behavior',
+        reason:
+            'the #964 kind gate judges the recorded scenario on every '
+            'invocation — the rebind must persist it or the next run '
+            'gates on the rebound title (PR #2013 review)',
+      );
+    });
+
+    test('a second rebind keeps the ORIGINAL scenario, not the '
+        'intermediate rebound title', () async {
+      await registry.register(sampleRecord());
+      await registry.updateRunnableTestName(
+        'B-003',
+        '$featureDir/tdd/b003_test.dart::B-003::B-003 — first title',
+      );
+      await registry.updateRunnableTestName(
+        'B-003',
+        '$featureDir/tdd/b003_test.dart::B-003::B-003 — second title',
+      );
+
+      final record = (await registry.loadAll()).single;
+      expect(
+        record.recordedScenario,
+        'asserts behavior',
+        reason:
+            'each rebind rewrites the description segment — overwriting '
+            'the stored scenario with the intermediate title would lose '
+            'the scenario just as surely as not storing it',
+      );
+    });
+
+    test('a record whose composite has no description segment stores '
+        'nothing — the bare behavior id is not a scenario', () async {
+      final idless = ArtifactRecord(
+        behaviorId: 'B-003',
+        feature: '044-test-tdd-generation',
+        sourceCriterion: 'FR-007',
+        testPath: '$featureDir/tdd/b003_test.dart',
+        subjectPath: '$featureDir/tdd/b003_subject.dart',
+        runnableTestName: '$featureDir/tdd/b003_test.dart::B-003',
+        testOwnership: Ownership.created,
+        subjectOwnership: Ownership.created,
+        createdAt: '2026-08-29T20:00:00Z',
+      );
+      await registry.register(idless);
+
+      await registry.updateRunnableTestName(
+        'B-003',
+        '$featureDir/tdd/b003_test.dart::B-003::B-003 — the rebound title',
+      );
+
+      final record = (await registry.loadAll()).single;
+      expect(record.recordedScenario, isNull);
+    });
+  });
+
   group('ArtifactRegistry — path-form normalization (issue #1397)', () {
     final relTest = 'test/tdd/044-test-tdd-generation/b003_test.dart';
     final relSubject = 'lib/tdd/044-test-tdd-generation/b003_subject.dart';

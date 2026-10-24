@@ -281,4 +281,126 @@ void main() {
       expect(cleared.toJson().containsKey('gen_fingerprint'), isFalse);
     });
   });
+
+  group('issue #2013 (review) — recorded_scenario survives a rebind', () {
+    // The PR #2013 review finding: a #1778 rebind rewrites
+    // `descriptionSegment` (the #964 kind gate's source), so the gate on
+    // the NEXT invocation judges the rebound title and can certify a
+    // presence-only red against a scenario that requires a route
+    // outcome. The record must persist the ORIGINAL scenario and hand
+    // the gate that stable value.
+
+    /// A REBOUND record: the runnable name carries the corrected title,
+    /// the original scenario rides in [recordedScenario].
+    ArtifactRecord withScenario(String? recordedScenario) => ArtifactRecord(
+      behaviorId: 'U9',
+      feature: '090-tdd-fixture',
+      sourceCriterion: 'FR-007',
+      testPath: 'test/u9_test.dart',
+      subjectPath: 'lib/u9_subject.dart',
+      runnableTestName: 'test/u9_test.dart::U9::U9 — the summary surface',
+      testOwnership: Ownership.created,
+      subjectOwnership: Ownership.created,
+      createdAt: '2026-08-29T20:00:00Z',
+      recordedScenario: recordedScenario,
+    );
+
+    const scenario = 'the app navigates to the route "deal_list"';
+
+    test('an absent recorded_scenario key decodes to null and toJson omits '
+        'it — legacy registries stay byte-stable', () {
+      final legacy = withScenario(null);
+      expect(legacy.recordedScenario, isNull);
+
+      final json = legacy.toJson();
+      expect(
+        json.containsKey('recorded_scenario'),
+        isFalse,
+        reason:
+            'a registry written before the rebind-scope field must '
+            'round-trip byte-for-byte through load/save cycles',
+      );
+      expect(jsonEncode(json), isNot(contains('recorded_scenario')));
+
+      final decoded = ArtifactRecord.fromJson(
+        jsonDecode(jsonEncode(json)) as Map<String, dynamic>,
+      );
+      expect(decoded.recordedScenario, isNull);
+      expect(jsonEncode(decoded.toJson()), jsonEncode(json));
+    });
+
+    test('a present scenario round-trips fromJson -> toJson unchanged', () {
+      final json = withScenario(scenario).toJson();
+      expect(json['recorded_scenario'], scenario);
+
+      final decoded = ArtifactRecord.fromJson(
+        jsonDecode(jsonEncode(json)) as Map<String, dynamic>,
+      );
+      expect(decoded.recordedScenario, scenario);
+      expect(jsonEncode(decoded.toJson()), jsonEncode(json));
+    });
+
+    test('every copier carries the scenario forward', () {
+      final rebound = withScenario(scenario);
+      final copiers = <String, ArtifactRecord Function(ArtifactRecord)>{
+        'copyWithOwnership': (r) => r.copyWithOwnership(
+          testOwnership: Ownership.reused,
+          subjectOwnership: Ownership.reused,
+        ),
+        'copyWithGenFingerprint': (r) => r.copyWithGenFingerprint('a' * 64),
+        'copyWithRunnableTestName': (r) =>
+            r.copyWithRunnableTestName('${r.testPath}::U9::next title'),
+        'copyWithRecordedScenario': (r) => r.copyWithRecordedScenario(scenario),
+      };
+      for (final entry in copiers.entries) {
+        final copied = entry.value(rebound);
+        expect(
+          copied.recordedScenario,
+          scenario,
+          reason:
+              '${entry.key} dropped recorded_scenario: a copy site that '
+              'forgets the OPTIONAL field still compiles, so the gate '
+              'loses the recorded scenario silently and reopens the '
+              'PR #2013 hole',
+        );
+      }
+    });
+
+    test('gateScenario prefers the persisted scenario over the rebound '
+        'description segment', () {
+      final rebound = withScenario(scenario);
+      // The precondition that makes the hole: the composite now carries
+      // the rebound title, not the scenario — and the #871 echo-strip
+      // parses the title's `<id> — ` prefix away, leaving prose with no
+      // scenario verb or literal.
+      expect(rebound.descriptionSegment, 'the summary surface');
+      expect(rebound.gateScenario, scenario);
+    });
+
+    test('gateScenario falls back to the description segment when no '
+        'scenario was persisted', () {
+      expect(withScenario(null).gateScenario, 'the summary surface');
+    });
+
+    test('gateScenario is null when the composite has no description '
+        'segment — the gate must not analyze the bare behavior id', () {
+      final idless = ArtifactRecord(
+        behaviorId: 'U9',
+        feature: '090-tdd-fixture',
+        sourceCriterion: 'FR-007',
+        testPath: 'test/u9_test.dart',
+        subjectPath: 'lib/u9_subject.dart',
+        runnableTestName: 'test/u9_test.dart::U9',
+        testOwnership: Ownership.created,
+        subjectOwnership: Ownership.created,
+        createdAt: '2026-08-29T20:00:00Z',
+      );
+      expect(idless.gateScenario, isNull);
+      expect(idless.descriptionSegment, 'U9');
+    });
+
+    test('gateScenario ignores a blank persisted scenario', () {
+      expect(withScenario('   ').gateScenario, 'the summary surface');
+    });
+  });
 }
