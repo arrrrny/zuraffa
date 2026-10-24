@@ -414,6 +414,15 @@ class ArtifactRegistry {
   /// corrected title without regenerating the artifact. A no-op when no
   /// record for the id exists. Writes through the same write-and-rename
   /// discipline as every other registry write.
+  ///
+  /// The rebind also persists the PRE-rebind scenario description as
+  /// `recorded_scenario` (review of PR #2013): copying the corrected
+  /// title into the composite rewrites the description segment — the
+  /// #964 kind gate's source — so the original scenario is stored
+  /// beside the rebound name and every later invocation gates on it,
+  /// not on the title. The FIRST rebind captures it; a later rebind
+  /// keeps the stored original, since each intermediate title is no
+  /// more the scenario than the last.
   Future<void> updateRunnableTestName(
     String behaviorId,
     String newRunnableTestName,
@@ -421,10 +430,17 @@ class ArtifactRegistry {
     final records = await _loadRecords();
     final index = records.indexWhere((r) => r.behaviorId == behaviorId);
     if (index < 0) return;
-    if (records[index].runnableTestName == newRunnableTestName) return;
-    records[index] = records[index].copyWithRunnableTestName(
-      newRunnableTestName,
-    );
+    final current = records[index];
+    if (current.runnableTestName == newRunnableTestName) return;
+    final parts = current.runnableTestName.split('::');
+    final persisted =
+        current.recordedScenario ??
+        (parts.length >= 3 ? current.descriptionSegment.trim() : null);
+    records[index] = current
+        .copyWithRecordedScenario(
+          persisted != null && persisted.isNotEmpty ? persisted : null,
+        )
+        .copyWithRunnableTestName(newRunnableTestName);
     await _writeRecords(records);
   }
 
@@ -515,6 +531,7 @@ class ArtifactRegistry {
       subjectOwnership: record.subjectOwnership,
       createdAt: record.createdAt,
       genFingerprint: record.genFingerprint,
+      recordedScenario: record.recordedScenario,
     );
   }
 
@@ -646,6 +663,7 @@ class ArtifactRegistry {
       subjectOwnership: record.subjectOwnership,
       createdAt: record.createdAt,
       genFingerprint: record.genFingerprint,
+      recordedScenario: record.recordedScenario,
     );
   }
 
