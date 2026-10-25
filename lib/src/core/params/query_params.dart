@@ -1,5 +1,6 @@
 import 'package:zorphy/zorphy.dart';
 
+import '../failure.dart';
 import 'converters/filter_converter.dart';
 import 'list_query_params.dart';
 import 'params.dart';
@@ -28,13 +29,65 @@ abstract class $QueryParams<T> implements $$Params {
 
 /// Extension to query a single entity from an iterable using QueryParams.
 extension QueryParamsExtension<T> on Iterable<T> {
-  /// Query a single entity matching the filter.
-  /// Throws if no entity matches.
+  /// Query a single entity matching the filter, or matching [QueryParams.params]
+  /// when no filter is set.
+  ///
+  /// A params-only query compares each entity's JSON view against the query's
+  /// params — the id lookup generated mock datasources rely on. Throws a
+  /// [NotFoundFailure] when nothing matches, when a params-only query cannot be
+  /// verified against an entity that exposes no JSON view, and on an empty
+  /// iterable — never a raw `StateError`, and never an arbitrary element. With
+  /// neither a filter nor params, the first element is returned.
   T query(QueryParams<T>? params) {
-    if (params?.filter == null) {
-      return first;
+    final filter = params?.filter;
+    final criteria = params?.params;
+
+    for (final item in this) {
+      if (filter != null) {
+        if (filter.matches(item)) return item;
+        continue;
+      }
+      if (criteria == null || criteria.isEmpty) return item;
+      final view = _jsonViewOf(item);
+      if (view != null &&
+          criteria.entries.every((entry) => view[entry.key] == entry.value)) {
+        return item;
+      }
     }
-    return where((item) => params!.filter!.matches(item)).first;
+
+    if (filter != null) {
+      _throwNotFound('matches the query filter ${filter.toJson()}');
+    }
+    if (criteria == null || criteria.isEmpty) {
+      _throwNotFound('is available for an unfiltered query');
+    }
+    _throwNotFound('matches the query params $criteria');
+  }
+
+  /// Throws the [NotFoundFailure] for a query that matched nothing, naming what
+  /// was searched so a miss is easy to triage from the log line alone.
+  Never _throwNotFound(String reason) => throw NotFoundFailure('No $T $reason');
+}
+
+/// The JSON view of [item] when it exposes one, or null when it cannot be
+/// compared by field.
+///
+/// Zorphy entities generate `toJsonLean()` as an instance method; `toJson()` is
+/// generated as an extension for entities (so it is only reachable for
+/// hand-written types that declare it as a method), hence the fallback.
+Map<dynamic, dynamic>? _jsonViewOf(Object? item) {
+  if (item is Map) return item;
+  final dynamic value = item;
+  try {
+    final view = value.toJsonLean();
+    return view is Map ? view : null;
+  } on NoSuchMethodError {
+    try {
+      final view = value.toJson();
+      return view is Map ? view : null;
+    } on NoSuchMethodError {
+      return null;
+    }
   }
 }
 

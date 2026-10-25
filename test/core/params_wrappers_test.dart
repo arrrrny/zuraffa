@@ -74,6 +74,91 @@ void main() {
       final result = entities.query(null);
       expect(result.name, 'Alice');
     });
+
+    test('query extension throws NotFoundFailure on empty iterable', () {
+      const entities = <_TestEntity>[];
+
+      expect(
+        () => entities.query(
+          const QueryParams<_TestEntity>(params: {'id': 'entity_1'}),
+        ),
+        throwsA(isA<NotFoundFailure>()),
+      );
+      expect(() => entities.query(null), throwsA(isA<NotFoundFailure>()));
+    });
+
+    test('query extension never returns a non-matching element for a '
+        'params-only query', () {
+      final entities = [
+        _JsonEntity(id: 'entity_1', name: 'Alice'),
+        _JsonEntity(id: 'entity_2', name: 'Bob'),
+      ];
+
+      expect(
+        () => entities.query(
+          const QueryParams<_JsonEntity>(params: {'id': 'entity_3'}),
+        ),
+        throwsA(isA<NotFoundFailure>()),
+      );
+    });
+
+    test('query extension matches params against the entity JSON view', () {
+      final entities = [
+        _JsonEntity(id: 'entity_1', name: 'Alice'),
+        _JsonEntity(id: 'entity_2', name: 'Bob'),
+      ];
+
+      final result = entities.query(
+        const QueryParams<_JsonEntity>(params: {'id': 'entity_2'}),
+      );
+
+      expect(result.name, 'Bob');
+    });
+
+    test('query extension throws NotFoundFailure when the filter matches '
+        'nothing', () {
+      const entities = [_TestEntity(name: 'Alice')];
+
+      final params = QueryParams<_TestEntity>(
+        filter: Eq(_TestEntityFields.name, 'Zoe'),
+      );
+
+      expect(() => entities.query(params), throwsA(isA<NotFoundFailure>()));
+    });
+
+    test('query extension returns the first element for an empty params map '
+        'or absent params', () {
+      const entities = [_TestEntity(name: 'Alice'), _TestEntity(name: 'Bob')];
+
+      expect(
+        entities.query(const QueryParams<_TestEntity>(params: {})).name,
+        'Alice',
+      );
+      expect(entities.query(const QueryParams<_TestEntity>()).name, 'Alice');
+    });
+
+    test('query extension returns the first of several filter matches', () {
+      const entities = [
+        _TestEntity(name: 'Alice', tag: 'first'),
+        _TestEntity(name: 'Alice', tag: 'second'),
+      ];
+
+      final result = entities.query(
+        QueryParams<_TestEntity>(filter: Eq(_TestEntityFields.name, 'Alice')),
+      );
+
+      expect(result.tag, 'first');
+    });
+
+    test('query extension matches params against a Zorphy toJsonLean view', () {
+      const entities = [_LeanEntity(id: 'id 1'), _LeanEntity(id: 'id 2')];
+
+      final result = entities.query(
+        const QueryParams<_LeanEntity>(params: {'id': 'id 1'}),
+      );
+
+      expect(result.id, 'id 1');
+    });
   });
 
   group('ListQueryParams', () {
@@ -293,7 +378,28 @@ void main() {
 
 class _TestEntity {
   final String name;
-  const _TestEntity({required this.name});
+  final String tag;
+
+  const _TestEntity({required this.name, this.tag = ''});
+}
+
+class _JsonEntity {
+  final String id;
+  final String name;
+
+  const _JsonEntity({required this.id, required this.name});
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name};
+}
+
+/// Mirrors a Zorphy entity: `toJsonLean()` is an instance method, `toJson()`
+/// is a generated extension (so unreachable through `dynamic`).
+class _LeanEntity {
+  final String id;
+
+  const _LeanEntity({required this.id});
+
+  Map<String, dynamic> toJsonLean() => {'id': id};
 }
 
 // Mock Fields class for testing
