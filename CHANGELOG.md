@@ -1,3 +1,13 @@
+## [Unreleased]
+
+### Changed
+- `Iterable<T>.query` fails closed (#2018): an empty iterable, an unmatched
+  filter, or a params-only query that matches nothing now throws
+  `NotFoundFailure` instead of returning an arbitrary element. Params-only
+  queries match the entity's JSON view (`toJsonLean()`/`toJson()`), so
+  `QueryParams(params: {'id': 'id 1'})` — the documented lookup — keeps
+  working.
+
 ## [7.2.0] - 2026-10-20
 
 ### Changed

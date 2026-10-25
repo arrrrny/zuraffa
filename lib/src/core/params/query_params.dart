@@ -56,19 +56,17 @@ extension QueryParamsExtension<T> on Iterable<T> {
     }
 
     if (filter != null) {
-      throw NotFoundFailure(
-        'No $T matches the query filter',
-        resourceType: '$T',
-      );
+      _throwNotFound('matches the query filter ${filter.toJson()}');
     }
     if (criteria == null || criteria.isEmpty) {
-      throw NotFoundFailure(
-        'No $T is available for an unfiltered query',
-        resourceType: '$T',
-      );
+      _throwNotFound('is available for an unfiltered query');
     }
-    throw NotFoundFailure('No $T matches the query params', resourceType: '$T');
+    _throwNotFound('matches the query params $criteria');
   }
+
+  /// Throws the [NotFoundFailure] for a query that matched nothing, naming what
+  /// was searched so a miss is easy to triage from the log line alone.
+  Never _throwNotFound(String reason) => throw NotFoundFailure('No $T $reason');
 }
 
 /// The JSON view of [item] when it exposes one, or null when it cannot be
