@@ -74,6 +74,57 @@ void main() {
       final result = entities.query(null);
       expect(result.name, 'Alice');
     });
+
+    test('query extension throws NotFoundFailure on empty iterable', () {
+      const entities = <_TestEntity>[];
+
+      expect(
+        () => entities.query(
+          const QueryParams<_TestEntity>(params: {'id': 'entity_1'}),
+        ),
+        throwsA(isA<NotFoundFailure>()),
+      );
+      expect(() => entities.query(null), throwsA(isA<NotFoundFailure>()));
+    });
+
+    test('query extension never returns a non-matching element for a '
+        'params-only query', () {
+      final entities = [
+        _JsonEntity(id: 'entity_1', name: 'Alice'),
+        _JsonEntity(id: 'entity_2', name: 'Bob'),
+      ];
+
+      expect(
+        () => entities.query(
+          const QueryParams<_JsonEntity>(params: {'id': 'entity_3'}),
+        ),
+        throwsA(isA<NotFoundFailure>()),
+      );
+    });
+
+    test('query extension matches params against the entity JSON view', () {
+      final entities = [
+        _JsonEntity(id: 'entity_1', name: 'Alice'),
+        _JsonEntity(id: 'entity_2', name: 'Bob'),
+      ];
+
+      final result = entities.query(
+        const QueryParams<_JsonEntity>(params: {'id': 'entity_2'}),
+      );
+
+      expect(result.name, 'Bob');
+    });
+
+    test('query extension throws NotFoundFailure when the filter matches '
+        'nothing', () {
+      const entities = [_TestEntity(name: 'Alice')];
+
+      final params = QueryParams<_TestEntity>(
+        filter: Eq(_TestEntityFields.name, 'Zoe'),
+      );
+
+      expect(() => entities.query(params), throwsA(isA<NotFoundFailure>()));
+    });
   });
 
   group('ListQueryParams', () {
@@ -294,6 +345,15 @@ void main() {
 class _TestEntity {
   final String name;
   const _TestEntity({required this.name});
+}
+
+class _JsonEntity {
+  final String id;
+  final String name;
+
+  const _JsonEntity({required this.id, required this.name});
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name};
 }
 
 // Mock Fields class for testing
