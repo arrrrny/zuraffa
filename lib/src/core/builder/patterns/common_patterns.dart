@@ -34,6 +34,7 @@ class CommonPatterns {
     GeneratorConfig config, {
     int depth = 1,
     bool includeDomain = true,
+    bool includeMissingEntityFallback = true,
     DiscoveryEngine? discovery,
     FileSystem? fileSystem,
   }) {
@@ -171,7 +172,11 @@ class CommonPatterns {
         }
       }
 
-      if (!found) {
+      // The fallback assumes the entity file exists somewhere the caller
+      // has not checked — the #2023 no-entity standalone path must NOT
+      // emit it (a custom --params/--returns signature has no backing
+      // entity file, so the import would reference a nonexistent file).
+      if (!found && includeMissingEntityFallback) {
         results.add('${prefix}domain/entities/$entitySnake/$entitySnake.dart');
       }
     }

@@ -103,6 +103,25 @@ class MakeCommand extends Command<void> {
     'sync',
   };
 
+  /// The id-dependent plugins that can generate WITHOUT a backing entity —
+  /// the only companions the #2023 standalone-usecase flip may ride with
+  /// (2025 review). Each entry has a no-entity generation path; `sqlite`,
+  /// `gql`, `api` and `sync` are excluded because their builders import
+  /// the entity file unconditionally, so a flipped run would emit imports
+  /// of a file that does not exist.
+  static const Set<String> _noEntityCompatiblePlugins = {
+    'usecase',
+    'repository',
+    'datasource',
+    'controller',
+    'presenter',
+    'service',
+    'provider',
+    'route',
+    'view',
+    'graphql',
+  };
+
   static const Set<String> _ignoredJsonOptionKeys = {
     'domainRoot',
     'domain-root',
@@ -666,6 +685,23 @@ class MakeCommand extends Command<void> {
     if (requestedPreset == 'module') {
       normalizedOptions['no-entity'] = true;
     }
+    // Issue #2023: a standalone use case that supplies its own --params and
+    // --returns carries the full signature and has no backing entity by
+    // design — treat it as --no-entity instead of demanding
+    // `zfa entity create` first. The flip MUST land here, before the
+    // #1185 default-methods injection below reads noEntityRequested: the
+    // same ordering the #1020 module preset flip above uses, so a flipped
+    // run can never inherit an injected method set. Non-engine only — the
+    // engine lane auto-creates its missing entity and keeps precedence in
+    // the #496 guard below.
+    if (!engineMode &&
+        _isStandaloneUsecaseRequest(explicitPluginIds, normalizedOptions) &&
+        !EntityFieldResolver.entityFileExists(
+          entityName: entityName,
+          projectRoot: manager.projectRoot,
+        )) {
+      normalizedOptions['no-entity'] = true;
+    }
     if (engineMode) {
       // The engine preset is implied by the mode token; the plan resolves
       // through the same PresetRegistry entry `--preset=engine` uses.
@@ -741,6 +777,9 @@ class MakeCommand extends Command<void> {
       } else if (engineMode) {
         await _createEngineEntity(entityName);
       } else {
+        // A standalone-usecase request never reaches this branch: the
+        // #2023 flip above marks it --no-entity before this guard reads
+        // noEntityRequested, so the guard is skipped for it entirely.
         throw MakeCommandException(
           'Cannot run `zfa make` for "$entityName": no entity source file '
           'was found. Create the entity first with '
@@ -1605,6 +1644,65 @@ class MakeCommand extends Command<void> {
     });
 
     return normalized;
+  }
+
+  /// Issue #2023: true when the request explicitly selects the `usecase`
+  /// generator AND supplies both its own `--params` and `--returns` types.
+  ///
+  /// Such a request is a standalone use case by design — it carries the
+  /// full signature itself and has no backing entity, so the #496
+  /// missing-entity guard must not demand `zfa entity create` first.
+  /// Explicit selection follows the same definition
+  /// [_explicitIdDependentPluginIds] uses — positional plugin args,
+  /// `--with` ids (CLI flag or `--from-json` config), explicitly passed
+  /// plugin flags (`--usecase`) and the `--service` implication — so the
+  /// `--with=usecase` spelling the #496 dead-end message itself recommends
+  /// qualifies too. A config-default-enabled usecase plugin never
+  /// qualifies (the #514 family), a method set still forces the
+  /// entity-CRUD reading (the CLI flag AND a `--from-json` config carrying
+  /// `methods:` — the latter lands in [normalizedOptions], invisible to
+  /// `wasParsed`), a request missing either type still fails loudly
+  /// like any other entity-backed run, and an explicit set carrying any
+  /// plugin without a no-entity generation path (see
+  /// [_noEntityCompatiblePlugins]) fails loudly too — its builders would
+  /// import the missing entity file.
+  bool _isStandaloneUsecaseRequest(
+    List<String> explicitPluginIds,
+    Map<String, dynamic> normalizedOptions,
+  ) {
+    // A --methods request is entity-CRUD shaped: the method set drives
+    // the entity generator, so params/returns must not mask it. Both
+    // spellings count — the CLI flag and a `methods:` key arriving via
+    // --from-json.
+    if (argResults?.wasParsed('methods') == true ||
+        normalizedOptions.containsKey('methods')) {
+      return false;
+    }
+    final explicit = _explicitIdDependentPluginIds(
+      explicitPluginIds,
+      normalizedOptions,
+    );
+    if (!explicit.contains('usecase')) return false;
+    // 2025 review: the flip is only safe when EVERY explicitly-requested
+    // id-dependent plugin can generate without a backing entity. A set
+    // carrying any plugin without a no-entity generation path (sqlite,
+    // gql, api, sync) keeps the #496 loud failure — its builders would
+    // import the missing entity file.
+    if (explicit.any((id) => !_noEntityCompatiblePlugins.contains(id))) {
+      return false;
+    }
+    // Same dual-source read the sibling checks use: an explicitly passed
+    // CLI flag wins, otherwise a --from-json config value applies.
+    String? optionValue(String name) =>
+        argResults!.options.contains(name) && argResults!.wasParsed(name)
+        ? argResults![name]?.toString()
+        : normalizedOptions[name]?.toString();
+    final params = optionValue('params');
+    final returns = optionValue('returns');
+    return params != null &&
+        params.isNotEmpty &&
+        returns != null &&
+        returns.isNotEmpty;
   }
 
   /// Spec 0973: resolves the repository plugin's emission plan for this
