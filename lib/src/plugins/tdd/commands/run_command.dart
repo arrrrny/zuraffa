@@ -7,7 +7,10 @@
 /// chains the two lanes over the SAME shared driver core
 /// ([RunDriverCore] — spec 049 semantics unchanged):
 ///
-/// 0. **Preflights** — three gates run before any step spawns: the
+/// 0. **Preflights** — four gates run before any step spawns: the
+///    project-wiring refusal (#2021 — no `.zfa.json` / `pubspec.yaml` /
+///    `dart_test.yaml` at the project root or any ancestor = the project
+///    is not Dart-wired, refused before the first side effect), the
 ///    dependency-overrides path gate (#1303), the routing-provenance
 ///    preflight (#1482 — a fallback-routed UNIT behavior has no derivable
 ///    assertion, so make refuses it vacuous-green; the gate names ALL
@@ -75,6 +78,7 @@ import '../services/feature_path_resolver.dart';
 import '../services/kernel_cache.dart';
 import '../services/lane_receipts.dart';
 import '../services/profile_preflight.dart';
+import '../services/project_wiring.dart';
 import '../services/routing_provenance_preflight.dart';
 import '../services/scratch_tmpdir.dart';
 import '../services/spec_parser.dart';
@@ -321,6 +325,97 @@ class RunCommand extends Command<void> {
     final featureDir = resolved.dir;
     final featureRef = resolved.ref;
     final zfaBin = argResults?['zfa-bin'] as String?;
+
+    // -----------------------------------------------------------------
+    // Issue #2021 preflight: the run loop is Dart-only — `tdd gen`
+    // emits `test/<feature>/<id>_test.dart` +
+    // `lib/<feature>/<id>_subject.dart` and the profile templates are
+    // `dart test` commands, so on a non-Dart project (a TypeScript
+    // repo) the run used to scaffold Dart artifacts into the repo root
+    // (plus `.dart_tool/zfa_tdd_cycle.pid`) and then die at verify-red
+    // on the missing `single:` template. Refuse BEFORE any side effect:
+    // the kernel sweep below writes the cycle pid, the #1528 baseline
+    // ensure can run `tdd init`, and the lanes generate. The wiring
+    // walk (ProjectWiring — `.zfa.json` / `pubspec.yaml` /
+    // `dart_test.yaml` at the root or ANY ancestor, mirroring
+    // ProjectRoot.find) keeps a monorepo worktree under a Dart
+    // workspace runnable; only a tree with no marker at all is refused.
+    // `--force` does NOT bypass this gate — it has nothing to force:
+    // the loop cannot run at all without Dart wiring.
+    // -----------------------------------------------------------------
+    final wiring = await ProjectWiring(projectRoot: projectRoot).check();
+    if (!wiring.ok) {
+      print(
+        'zfa tdd run: $kSetupErrorLabel — the project is not '
+        'zuraffa-wired: no ${kProjectWiringMarkers.join(', ')} at '
+        '$projectRoot or any ancestor (issue #2021).',
+      );
+      print(
+        ExitProtocol.fixLine(
+          'run `zfa tdd run` inside a Dart/zuraffa project — one whose '
+          'tree carries ${kProjectWiringMarkers.join(', ')} (the run '
+          'loop only generates Dart tests/subjects)',
+        ),
+      );
+      // The refusal is journaled preflight_red at the gate phase —
+      // zero steps spawned, the wiring miss named as the violation
+      // (the #1303/#1528/#1482 sibling preflights journal the same
+      // shape).
+      await _journalMeta(
+        featureDir: featureDir,
+        feature: feature,
+        startedAt: journalStartedAt,
+        gateState: 'preflight_red',
+        phase: 'gate',
+        result: kSetupErrorLabel,
+        violations: [
+          'project wiring: no ${kProjectWiringMarkers.join(', ')} at '
+              '$projectRoot or any ancestor (issue #2021)',
+        ],
+      );
+      print(
+        RunDriverCore.summaryLine(
+          label: label,
+          feature: feature,
+          result: kSetupErrorLabel,
+          counts: const {
+            'total': 0,
+            'pending': 0,
+            'red': 0,
+            'green': 0,
+            'done': 0,
+          },
+        ),
+      );
+      _verdict
+        ..exitClass = kSetupErrorLabel
+        ..outcome = VerdictOutcome.error
+        ..fix =
+            'run `zfa tdd run` inside a Dart/zuraffa project (one '
+            'carrying .zfa.json, pubspec.yaml, or dart_test.yaml)'
+        ..details['preflight'] = 'project wiring refused the run (issue #2021)'
+        ..details['classification'] = kSetupErrorLabel;
+      _verdict.explain = TddExplain(
+        command: 'run',
+        features: [feature],
+        lane:
+            'none — the project-wiring preflight refused before any lane '
+            'drove (preflight red, issue #2021)',
+        fixHints: [
+          'run `zfa tdd run` inside a Dart/zuraffa project (one carrying '
+              '.zfa.json, pubspec.yaml, or dart_test.yaml), then re-run',
+        ],
+        summary:
+            'Run stopped at the issue-#2021 preflight: the project has no '
+            '.zfa.json, pubspec.yaml, or dart_test.yaml at its root or any '
+            'ancestor, so it is not a Dart/zuraffa-wired project and the '
+            'run loop would only scaffold Dart artifacts into it. No step '
+            'was spawned and no receipt was written; the refusal is '
+            'journaled preflight_red in tdd/journal.json.',
+      );
+      exitCode = _exitStopped;
+      return;
+    }
 
     // -----------------------------------------------------------------
     // Issue #1507: the kernel sweep is a start-of-cycle obligation — the

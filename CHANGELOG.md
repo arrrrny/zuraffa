@@ -1,5 +1,14 @@
 ## [Unreleased]
 
+### Fixed
+- `zfa tdd run` refuses a non-wired project before generating anything (#2021):
+  with no `.zfa.json`, `pubspec.yaml`, or `dart_test.yaml` at the project root
+  or any ancestor, the run now stops up front — `not zuraffa-wired` refusal,
+  `result=setup-error`, exit 1, journaled `preflight_red`, zero step spawns —
+  instead of scaffolding Dart tests/subjects into a TypeScript repo and dying
+  at `verify-red`. The wiring walk fails open for monorepos (an ancestor
+  marker counts), so Dart worktrees under a workspace parent keep running.
+
 ### Changed
 - `Iterable<T>.query` fails closed (#2018): an empty iterable, an unmatched
   filter, or a params-only query that matches nothing now throws
