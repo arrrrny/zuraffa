@@ -15,34 +15,72 @@ class TestEntity {
 
 /// Native fake [SyncMetadataStore] backed by the test's in-memory [metaMap]
 /// (instead of a mocktail mock wired with `when(...).thenAnswer`).
+///
+/// Counts every awaited store call in [opCount] so tests can bound the
+/// metadata I/O a strategy issues (issue #2028: per-record I/O made a 2k
+/// backlog a ~6,000-op disk-bound push). One batched call (e.g. `putAll`)
+/// counts as one operation, mirroring a single box operation.
 class FakeSyncMetadataStore implements SyncMetadataStore {
   final Map<String, SyncMetadata> metaMap;
+
+  /// Awaited calls issued against this store since the last reset.
+  int opCount = 0;
+
   FakeSyncMetadataStore(this.metaMap);
 
   @override
-  Future<SyncMetadata?> get(String key) async => metaMap[key];
+  Future<SyncMetadata?> get(String key) async {
+    opCount++;
+    return metaMap[key];
+  }
 
   @override
   Future<void> put(String key, SyncMetadata metadata) async {
+    opCount++;
     metaMap[key] = metadata;
   }
 
   @override
-  Future<void> remove(String key) async => metaMap.remove(key);
+  Future<void> putAll(Map<String, SyncMetadata> entries) async {
+    opCount++;
+    metaMap.addAll(entries);
+  }
 
   @override
-  Future<List<String>> getKeysByStatus(SyncStatus status) async => metaMap
-      .entries
-      .where((e) => e.value.status == status)
-      .map((e) => e.key)
-      .toList();
+  Future<Map<String, SyncMetadata>> getByKeys(Iterable<String> keys) async {
+    opCount++;
+    return {
+      for (final key in keys)
+        if (metaMap[key] != null) key: metaMap[key]!,
+    };
+  }
 
   @override
-  Future<int> countByStatus(SyncStatus status) async =>
-      metaMap.values.where((m) => m.status == status).length;
+  Future<void> remove(String key) async {
+    opCount++;
+    metaMap.remove(key);
+  }
 
   @override
-  Future<void> clear() async => metaMap.clear();
+  Future<List<String>> getKeysByStatus(SyncStatus status) async {
+    opCount++;
+    return metaMap.entries
+        .where((e) => e.value.status == status)
+        .map((e) => e.key)
+        .toList();
+  }
+
+  @override
+  Future<int> countByStatus(SyncStatus status) async {
+    opCount++;
+    return metaMap.values.where((m) => m.status == status).length;
+  }
+
+  @override
+  Future<void> clear() async {
+    opCount++;
+    metaMap.clear();
+  }
 }
 
 void main() {
@@ -212,6 +250,85 @@ void main() {
         final status = await strategy.getSyncStatus('batch_$i');
         expect(status, equals(SyncStatus.synced));
       }
+    });
+
+    test('bounds the box after pushing a backlog beyond the cap', () async {
+      // Issue #2028: pushing a 2,025-record pending backlog issued four
+      // awaited reads and two awaited writes per record (~6,000 sequential
+      // box operations for the pass), making the push disk-bound instead of
+      // CPU-bound. The push must cost store operations proportional to the
+      // number of batches, not the number of records.
+      final backlogStrategy = PushOnlySyncStrategy<TestEntity>(
+        fetchLocal: (keys) async {
+          return keys
+              .map((k) => localStore[k])
+              .whereType<TestEntity>()
+              .toList();
+        },
+        createRemote: (entity) async {
+          createdRemote.add(entity);
+          return entity;
+        },
+        updateRemote: (entity) async {
+          updatedRemote.add(entity);
+          return entity;
+        },
+        deleteRemote: (key) async {
+          deletedRemote.add(key);
+        },
+        keyResolver: (entity) => entity.id,
+        metadataStore: metadataStore,
+        // Default batch size (50) — the configuration the issue's backlog
+        // was pushed with.
+        config: const SyncConfig(),
+      );
+
+      const backlogSize = 2025;
+      const batchSize = 50;
+      for (var i = 0; i < backlogSize; i++) {
+        final id = 'backlog_$i';
+        localStore[id] = TestEntity(id: id, name: 'Event $i');
+        await backlogStrategy.markPending(id, operation: SyncOperation.create);
+      }
+
+      // Only the push itself is under audit; the seeding writes are not.
+      metadataStore.opCount = 0;
+
+      await backlogStrategy.syncPending();
+
+      // Every record reached the remote and every status transition landed.
+      expect(createdRemote, hasLength(backlogSize));
+      expect(await backlogStrategy.getPendingCount(), equals(0));
+      final metadata = await metadataStore.get('backlog_0');
+      expect(metadata!.status, equals(SyncStatus.synced));
+
+      // Metadata I/O bound: one status scan + one partition snapshot, then
+      // two batched writes per batch (mark `syncing`, write `synced`), plus
+      // the two status counts of getPendingCount above. 2,025 records at the
+      // default batch size form 41 batches; the per-record implementation
+      // issues ~10k awaited calls here and cannot come near the bound.
+      final batchCount = (backlogSize / batchSize).ceil();
+      final bound = 2 * batchCount + 16;
+      expect(
+        metadataStore.opCount,
+        lessThanOrEqualTo(bound),
+        reason:
+            'pushing $backlogSize records issued ${metadataStore.opCount} '
+            'awaited metadata operations; expected <= $bound '
+            '(batched writes + one snapshot, not per-record I/O)',
+      );
+      // Floor: both batched transitions must actually happen — the pass
+      // costs one write per transition type per batch, so dropping either
+      // batched write (or batching away the whole pass) trips this.
+      expect(
+        metadataStore.opCount,
+        greaterThanOrEqualTo(2 * batchCount),
+        reason:
+            'pushing $backlogSize records issued ${metadataStore.opCount} '
+            'awaited metadata operations; expected >= ${2 * batchCount} '
+            '(one syncing mark + one synced write per batch across '
+            '$batchCount batches)',
+      );
     });
   });
 }

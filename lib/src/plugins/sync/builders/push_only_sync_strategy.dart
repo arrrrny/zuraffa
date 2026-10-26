@@ -119,12 +119,20 @@ class PushOnlySyncStrategy<T> extends SyncStrategy<T> with Loggable {
 
   /// Shared processing pipeline: partition keys into tombstones and live
   /// records, then process tombstones first, then live records in batches.
+  ///
+  /// The partition's metadata is taken from a single snapshot
+  /// ([SyncMetadataStore.getByKeys]) instead of one awaited read per record,
+  /// and the snapshot is handed down to [_syncBatch] so a pass over N
+  /// records does not round-trip through the box once per record (issue
+  /// #2028).
   Future<void> _processKeys(List<String> keys, CancelToken? cancelToken) async {
+    final metadataByKey = await _metadataStore.getByKeys(keys);
+
     final tombstoneKeys = <String>[];
     final liveKeys = <String>[];
 
     for (final key in keys) {
-      final metadata = await _metadataStore.get(key);
+      final metadata = metadataByKey[key];
       if (metadata != null && metadata.isTombstone) {
         tombstoneKeys.add(key);
       } else {
@@ -145,7 +153,7 @@ class PushOnlySyncStrategy<T> extends SyncStrategy<T> with Loggable {
       final batchEnd = (i + _config.batchSize).clamp(0, liveKeys.length);
       final batchKeys = liveKeys.sublist(i, batchEnd);
 
-      await _syncBatch(batchKeys, cancelToken);
+      await _syncBatch(batchKeys, metadataByKey, cancelToken);
     }
 
     logger.info('Sync processing complete');
@@ -164,28 +172,66 @@ class PushOnlySyncStrategy<T> extends SyncStrategy<T> with Loggable {
   }
 
   /// Sync a batch of live records: mark syncing, fetch local, push remote.
+  ///
+  /// Metadata I/O is batched: each status transition of the batch (`syncing`
+  /// marks, then `synced` results) is written with a single
+  /// [SyncMetadataStore.putAll], and per-record metadata comes from the
+  /// partition snapshot instead of per-record reads. A batch therefore costs
+  /// O(1) awaited store calls regardless of its size (issue #2028).
   Future<void> _syncBatch(
     List<String> batchKeys,
+    Map<String, SyncMetadata> metadataByKey,
     CancelToken? cancelToken,
   ) async {
-    // Mark all records in batch as syncing
+    // Mark all records in batch as syncing with a single box write.
+    final syncingUpdates = <String, SyncMetadata>{};
     for (final key in batchKeys) {
-      final metadata = await _metadataStore.get(key);
+      final metadata = metadataByKey[key];
       if (metadata != null) {
-        await _metadataStore.put(
-          key,
-          metadata.copyWith(status: SyncStatus.syncing),
-        );
+        syncingUpdates[key] = metadata.copyWith(status: SyncStatus.syncing);
       }
+    }
+    if (syncingUpdates.isNotEmpty) {
+      await _metadataStore.putAll(syncingUpdates);
     }
 
     // Fetch local entities for this batch
     final entities = await _fetchLocal(batchKeys);
 
-    // Push each entity to remote
+    // Push each entity to remote, collecting successful status transitions
+    // so they land in a single box write at the end of the batch.
+    final syncedUpdates = <String, SyncMetadata>{};
     for (final entity in entities) {
       cancelToken?.throwIfCancelled();
-      await _syncEntity(entity);
+      final key = _keyResolver(entity);
+      final metadata = metadataByKey[key];
+
+      if (metadata == null) {
+        logger.fine('Skipping record $key: no metadata');
+        continue;
+      }
+
+      try {
+        if (metadata.operation == SyncOperation.create) {
+          await _createRemote(entity);
+        } else {
+          await _updateRemote(entity);
+        }
+
+        // Success: fresh metadata, reset retry state
+        syncedUpdates[key] = SyncMetadata(
+          status: SyncStatus.synced,
+          operation: metadata.operation,
+          lastAttemptAt: DateTime.now(),
+        );
+        logger.fine('Synced record: $key');
+      } catch (e) {
+        logger.warning('Failed to sync record $key: $e');
+        await _handleFailure(key, e, metadata);
+      }
+    }
+    if (syncedUpdates.isNotEmpty) {
+      await _metadataStore.putAll(syncedUpdates);
     }
 
     // Handle keys whose entities were not found locally
@@ -198,39 +244,6 @@ class PushOnlySyncStrategy<T> extends SyncStrategy<T> with Loggable {
         );
         await _metadataStore.remove(key);
       }
-    }
-  }
-
-  /// Push a single entity to remote based on its recorded operation type.
-  Future<void> _syncEntity(T entity) async {
-    final key = _keyResolver(entity);
-    final metadata = await _metadataStore.get(key);
-
-    if (metadata == null) {
-      logger.fine('Skipping record $key: no metadata');
-      return;
-    }
-
-    try {
-      if (metadata.operation == SyncOperation.create) {
-        await _createRemote(entity);
-      } else {
-        await _updateRemote(entity);
-      }
-
-      // Success: fresh metadata, reset retry state
-      await _metadataStore.put(
-        key,
-        SyncMetadata(
-          status: SyncStatus.synced,
-          operation: metadata.operation,
-          lastAttemptAt: DateTime.now(),
-        ),
-      );
-      logger.fine('Synced record: $key');
-    } catch (e) {
-      logger.warning('Failed to sync record $key: $e');
-      await _handleFailure(key, e, metadata);
     }
   }
 
