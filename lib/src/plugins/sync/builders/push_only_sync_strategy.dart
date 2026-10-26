@@ -120,11 +120,11 @@ class PushOnlySyncStrategy<T> extends SyncStrategy<T> with Loggable {
   /// Shared processing pipeline: partition keys into tombstones and live
   /// records, then process tombstones first, then live records in batches.
   ///
-  /// The partition's metadata is taken from a single snapshot
-  /// ([SyncMetadataStore.getByKeys]) instead of one awaited read per record,
-  /// and the snapshot is handed down to [_syncBatch] so a pass over N
-  /// records does not round-trip through the box once per record (issue
-  /// #2028).
+  /// The partition reads its metadata in one snapshot
+  /// ([SyncMetadataStore.getByKeys]) instead of one awaited read per record.
+  /// That snapshot only classifies the keys: [_syncBatch] re-reads its own
+  /// batch, so a long pass can never push a status built from metadata that
+  /// is several batches old (issue #2028).
   Future<void> _processKeys(List<String> keys, CancelToken? cancelToken) async {
     final metadataByKey = await _metadataStore.getByKeys(keys);
 
@@ -153,7 +153,7 @@ class PushOnlySyncStrategy<T> extends SyncStrategy<T> with Loggable {
       final batchEnd = (i + _config.batchSize).clamp(0, liveKeys.length);
       final batchKeys = liveKeys.sublist(i, batchEnd);
 
-      await _syncBatch(batchKeys, metadataByKey, cancelToken);
+      await _syncBatch(batchKeys, cancelToken);
     }
 
     logger.info('Sync processing complete');
@@ -173,70 +173,95 @@ class PushOnlySyncStrategy<T> extends SyncStrategy<T> with Loggable {
 
   /// Sync a batch of live records: mark syncing, fetch local, push remote.
   ///
-  /// Metadata I/O is batched: each status transition of the batch (`syncing`
-  /// marks, then `synced` results) is written with a single
-  /// [SyncMetadataStore.putAll], and per-record metadata comes from the
-  /// partition snapshot instead of per-record reads. A batch therefore costs
-  /// O(1) awaited store calls regardless of its size (issue #2028).
+  /// The batch's metadata is re-read here instead of being reused blindly from
+  /// the pass snapshot, so a `markDeleted`/`syncFailed` that landed while
+  /// earlier batches ran is seen rather than overwritten by a status built
+  /// from stale metadata. One awaited read per batch keeps the batching win
+  /// while bounding the stale window to a single batch.
+  ///
+  /// Metadata I/O is batched: the `syncing` marks land in one
+  /// [SyncMetadataStore.putAll], and the batch's terminal transitions — both
+  /// `synced` results and the `failed`/`pending` retry updates, which used to
+  /// cost one awaited write per failed record — in another. That terminal
+  /// flush runs in a `finally`, so a cancellation after *k* successful pushes
+  /// still persists that completed prefix: `syncing` is never rescanned by any
+  /// pass, so a dropped write would strand those records unretried and
+  /// uncounted (issue #2028).
   Future<void> _syncBatch(
     List<String> batchKeys,
-    Map<String, SyncMetadata> metadataByKey,
     CancelToken? cancelToken,
   ) async {
-    // Mark all records in batch as syncing with a single box write.
+    final metadataByKey = await _metadataStore.getByKeys(batchKeys);
+
+    // Mark the batch's live records as syncing with a single box write.
+    // Tombstones created since the partition and untracked keys are left
+    // untouched — overwriting a tombstone with `syncing` would silently drop
+    // its pending remote delete.
     final syncingUpdates = <String, SyncMetadata>{};
     for (final key in batchKeys) {
       final metadata = metadataByKey[key];
-      if (metadata != null) {
+      if (metadata != null && !metadata.isTombstone) {
         syncingUpdates[key] = metadata.copyWith(status: SyncStatus.syncing);
       }
     }
-    if (syncingUpdates.isNotEmpty) {
-      await _metadataStore.putAll(syncingUpdates);
+    if (syncingUpdates.isEmpty) {
+      return;
     }
+    await _metadataStore.putAll(syncingUpdates);
 
     // Fetch local entities for this batch
     final entities = await _fetchLocal(batchKeys);
 
-    // Push each entity to remote, collecting successful status transitions
-    // so they land in a single box write at the end of the batch.
-    final syncedUpdates = <String, SyncMetadata>{};
-    for (final entity in entities) {
-      cancelToken?.throwIfCancelled();
-      final key = _keyResolver(entity);
-      final metadata = metadataByKey[key];
+    // Push each entity to remote, collecting every terminal status transition
+    // (`synced`, or the `failed`/`pending` result of a failure) so they land
+    // in a single box write at the end of the batch.
+    final statusUpdates = <String, SyncMetadata>{};
+    try {
+      for (final entity in entities) {
+        cancelToken?.throwIfCancelled();
+        final key = _keyResolver(entity);
+        final metadata = metadataByKey[key];
 
-      if (metadata == null) {
-        logger.fine('Skipping record $key: no metadata');
-        continue;
-      }
-
-      try {
-        if (metadata.operation == SyncOperation.create) {
-          await _createRemote(entity);
-        } else {
-          await _updateRemote(entity);
+        if (metadata == null || metadata.isTombstone) {
+          logger.fine('Skipping record $key: no live metadata');
+          continue;
         }
 
-        // Success: fresh metadata, reset retry state
-        syncedUpdates[key] = SyncMetadata(
-          status: SyncStatus.synced,
-          operation: metadata.operation,
-          lastAttemptAt: DateTime.now(),
-        );
-        logger.fine('Synced record: $key');
-      } catch (e) {
-        logger.warning('Failed to sync record $key: $e');
-        await _handleFailure(key, e, metadata);
+        try {
+          if (metadata.operation == SyncOperation.create) {
+            await _createRemote(entity);
+          } else {
+            await _updateRemote(entity);
+          }
+
+          // Success: fresh metadata, reset retry state
+          statusUpdates[key] = SyncMetadata(
+            status: SyncStatus.synced,
+            operation: metadata.operation,
+            lastAttemptAt: DateTime.now(),
+          );
+          logger.fine('Synced record: $key');
+        } catch (e) {
+          logger.warning('Failed to sync record $key: $e');
+          final failure = _failureMetadata(key, e, metadata);
+          if (failure != null) {
+            statusUpdates[key] = failure;
+          }
+        }
+      }
+    } finally {
+      // Flush even on cancellation: the records pushed so far are already on
+      // the remote, so their `synced` transitions must not be lost.
+      if (statusUpdates.isNotEmpty) {
+        await _metadataStore.putAll(statusUpdates);
       }
     }
-    if (syncedUpdates.isNotEmpty) {
-      await _metadataStore.putAll(syncedUpdates);
-    }
 
-    // Handle keys whose entities were not found locally
+    // Handle keys whose entities were not found locally. Only records this
+    // batch actually claimed are removed: a key that became a tombstone in
+    // the meantime keeps its metadata for the next pass.
     final fetchedKeys = entities.map(_keyResolver).toSet();
-    for (final key in batchKeys) {
+    for (final key in syncingUpdates.keys) {
       if (!fetchedKeys.contains(key)) {
         logger.warning(
           'Record $key was pending but not found in local storage; '
@@ -247,45 +272,59 @@ class PushOnlySyncStrategy<T> extends SyncStrategy<T> with Loggable {
     }
   }
 
-  /// Handle a sync failure: increment retry, apply backoff-aware status.
+  /// Compute the metadata a failed sync attempt leaves behind.
   ///
-  /// If retries are exhausted, marks the record as [SyncStatus.failed].
-  /// Otherwise, sets it back to [SyncStatus.pending] for the next cycle.
-  Future<void> _handleFailure(
+  /// Returns `null` when the record has no tracked metadata. This does not
+  /// write: batch callers collect the result and land it with one
+  /// [SyncMetadataStore.putAll], so a batch the remote rejects entirely costs
+  /// a single write instead of one per record (issue #2028).
+  ///
+  /// If retries are exhausted, the record is marked [SyncStatus.failed].
+  /// Otherwise it goes back to [SyncStatus.pending] for the next cycle.
+  SyncMetadata? _failureMetadata(
     String key,
-    Object error, [
-    SyncMetadata? existing,
-  ]) async {
-    final metadata = existing ?? await _metadataStore.get(key);
-    if (metadata == null) return;
+    Object error,
+    SyncMetadata? metadata,
+  ) {
+    if (metadata == null) return null;
 
     final newRetryCount = metadata.retryCount + 1;
     final now = DateTime.now();
     final errorMsg = error.toString();
 
     if (newRetryCount >= _config.maxRetries) {
-      await _metadataStore.put(
-        key,
-        metadata.copyWith(
-          status: SyncStatus.failed,
-          retryCount: newRetryCount,
-          lastAttemptAt: now,
-          lastError: errorMsg,
-        ),
-      );
       logger.warning(
         'Record $key marked as failed after $newRetryCount retries',
       );
-    } else {
-      await _metadataStore.put(
-        key,
-        metadata.copyWith(
-          status: SyncStatus.pending,
-          retryCount: newRetryCount,
-          lastAttemptAt: now,
-          lastError: errorMsg,
-        ),
+      return metadata.copyWith(
+        status: SyncStatus.failed,
+        retryCount: newRetryCount,
+        lastAttemptAt: now,
+        lastError: errorMsg,
       );
+    }
+    return metadata.copyWith(
+      status: SyncStatus.pending,
+      retryCount: newRetryCount,
+      lastAttemptAt: now,
+      lastError: errorMsg,
+    );
+  }
+
+  /// Handle a sync failure for a single record: increment retry, apply
+  /// backoff-aware status, persist it immediately.
+  ///
+  /// Used by the one-key-at-a-time tombstone path; batches use
+  /// [_failureMetadata] and flush their collected updates with one `putAll`.
+  Future<void> _handleFailure(
+    String key,
+    Object error, [
+    SyncMetadata? existing,
+  ]) async {
+    final metadata = existing ?? await _metadataStore.get(key);
+    final failure = _failureMetadata(key, error, metadata);
+    if (failure != null) {
+      await _metadataStore.put(key, failure);
     }
   }
 

@@ -1,4 +1,5 @@
 import 'package:test/test.dart';
+import 'package:zuraffa/src/core/cancel_token.dart';
 import 'package:zuraffa/src/core/sync_config.dart';
 import 'package:zuraffa/src/core/sync_metadata.dart';
 import 'package:zuraffa/src/core/sync_operation.dart';
@@ -297,25 +298,41 @@ void main() {
       await backlogStrategy.syncPending();
 
       // Every record reached the remote and every status transition landed.
+      // The statuses are read straight out of the fake map: a per-record
+      // `get` sweep would cost store operations of its own and blur the I/O
+      // bound asserted below, and checking a single record would let the rest
+      // sit stranded in `syncing` — `getPendingCount()` excludes `syncing`,
+      // so that failure would still read as 0 pending.
       expect(createdRemote, hasLength(backlogSize));
       expect(await backlogStrategy.getPendingCount(), equals(0));
-      final metadata = await metadataStore.get('backlog_0');
-      expect(metadata!.status, equals(SyncStatus.synced));
+      final notSynced = [
+        for (var i = 0; i < backlogSize; i++)
+          if (metadataStore.metaMap['backlog_$i']?.status != SyncStatus.synced)
+            'backlog_$i',
+      ];
+      expect(
+        notSynced,
+        isEmpty,
+        reason:
+            '${notSynced.length} of $backlogSize pushed records were left '
+            'unsynced (e.g. stranded in syncing): $notSynced',
+      );
 
       // Metadata I/O bound: one status scan + one partition snapshot, then
-      // two batched writes per batch (mark `syncing`, write `synced`), plus
-      // the two status counts of getPendingCount above. 2,025 records at the
-      // default batch size form 41 batches; the per-record implementation
-      // issues ~10k awaited calls here and cannot come near the bound.
+      // per batch one re-read of that batch's own keys plus two batched
+      // writes (mark `syncing`, write the terminal statuses), plus the two
+      // status counts of getPendingCount above. 2,025 records at the default
+      // batch size form 41 batches; the per-record implementation issues
+      // ~10k awaited calls here and cannot come near the bound.
       final batchCount = (backlogSize / batchSize).ceil();
-      final bound = 2 * batchCount + 16;
+      final bound = 3 * batchCount + 16;
       expect(
         metadataStore.opCount,
         lessThanOrEqualTo(bound),
         reason:
             'pushing $backlogSize records issued ${metadataStore.opCount} '
             'awaited metadata operations; expected <= $bound '
-            '(batched writes + one snapshot, not per-record I/O)',
+            '(per-batch reads and batched writes, not per-record I/O)',
       );
       // Floor: both batched transitions must actually happen — the pass
       // costs one write per transition type per batch, so dropping either
@@ -329,6 +346,62 @@ void main() {
             '(one syncing mark + one synced write per batch across '
             '$batchCount batches)',
       );
+    });
+
+    test('cancellation mid-batch persists the completed prefix', () async {
+      // Batching moved the `synced` write out of the per-record loop, so a
+      // cancel arriving mid-batch must still flush the records that were
+      // already pushed: `syncing` is never rescanned, so a dropped write
+      // strands them unretried and leaves getPendingCount under-reporting.
+      final cancelToken = CancelToken();
+      var pushes = 0;
+      final cancellingStrategy = PushOnlySyncStrategy<TestEntity>(
+        fetchLocal: (keys) async {
+          return keys
+              .map((k) => localStore[k])
+              .whereType<TestEntity>()
+              .toList();
+        },
+        createRemote: (entity) async {
+          pushes++;
+          if (pushes == 1) cancelToken.cancel();
+          return entity;
+        },
+        updateRemote: (entity) async => entity,
+        deleteRemote: (key) async {},
+        keyResolver: (entity) => entity.id,
+        metadataStore: metadataStore,
+        config: const SyncConfig(batchSize: 10, maxRetries: 3),
+      );
+
+      for (var i = 0; i < 3; i++) {
+        final id = 'cancel_$i';
+        localStore[id] = TestEntity(id: id, name: 'Event $i');
+        await cancellingStrategy.markPending(
+          id,
+          operation: SyncOperation.create,
+        );
+      }
+
+      await expectLater(
+        cancellingStrategy.syncPending(cancelToken: cancelToken),
+        throwsA(isA<CancelledException>()),
+      );
+
+      // The token was cancelled during the first push, so exactly one record
+      // reached the remote — and that one must not be left `syncing`.
+      expect(pushes, equals(1));
+      expect(
+        metadataStore.metaMap['cancel_0']?.status,
+        equals(SyncStatus.synced),
+      );
+      for (var i = 1; i < 3; i++) {
+        expect(
+          metadataStore.metaMap['cancel_$i']?.status,
+          equals(SyncStatus.syncing),
+          reason: 'cancel_$i was never pushed and must stay for the next pass',
+        );
+      }
     });
   });
 }

@@ -49,20 +49,23 @@ class SyncMetadataStore {
     await _box.putAll(entries);
   }
 
-  /// Snapshot metadata for [keys] in a single box read.
+  /// Snapshot metadata for [keys] in a single awaited call.
   ///
   /// Returns a map from key to metadata for every requested key present in
   /// the store; keys without tracked metadata are omitted from the result.
   /// Batch processors use this instead of N awaited [get] calls so a pass
   /// over N records does not round-trip through the box once per record
   /// (issue #2028).
+  ///
+  /// Only the requested keys are read: a full-box copy would rebuild every
+  /// frame in the keystore — including the `synced` entries this store never
+  /// prunes — so the cost here stays proportional to [keys], not to the box.
   Future<Map<String, SyncMetadata>> getByKeys(Iterable<String> keys) async {
-    final wanted = keys.toSet();
     final result = <String, SyncMetadata>{};
-    for (final entry in _box.toMap().entries) {
-      final key = entry.key;
-      if (key is String && wanted.contains(key)) {
-        result[key] = entry.value;
+    for (final key in keys) {
+      final metadata = _box.get(key);
+      if (metadata != null) {
+        result[key] = metadata;
       }
     }
     return result;
