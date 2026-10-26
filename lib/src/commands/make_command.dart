@@ -1665,8 +1665,8 @@ class MakeCommand extends Command<void> {
     // CLI flag wins, otherwise a --from-json config value applies.
     String? optionValue(String name) =>
         argResults!.options.contains(name) && argResults!.wasParsed(name)
-            ? argResults![name]?.toString()
-            : normalizedOptions[name]?.toString();
+        ? argResults![name]?.toString()
+        : normalizedOptions[name]?.toString();
     final params = optionValue('params');
     final returns = optionValue('returns');
     return params != null &&
