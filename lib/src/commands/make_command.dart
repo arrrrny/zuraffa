@@ -740,6 +740,11 @@ class MakeCommand extends Command<void> {
         // before the entity exists (the generation path auto-creates it).
       } else if (engineMode) {
         await _createEngineEntity(entityName);
+      } else if (_isStandaloneUsecaseRequest(explicitPluginIds)) {
+        // Issue #2023: a standalone use case that supplies its own
+        // --params/--returns has no backing entity by design — treat it
+        // as --no-entity instead of demanding `zfa entity create` first.
+        normalizedOptions['no-entity'] = true;
       } else {
         throw MakeCommandException(
           'Cannot run `zfa make` for "$entityName": no entity source file '
@@ -1605,6 +1610,28 @@ class MakeCommand extends Command<void> {
     });
 
     return normalized;
+  }
+
+  /// Issue #2023: true when the request explicitly selects the `usecase`
+  /// generator AND supplies both its own `--params` and `--returns` types.
+  ///
+  /// Such a request is a standalone use case by design — it carries the
+  /// full signature itself and has no backing entity, so the #496
+  /// missing-entity guard must not demand `zfa entity create` first.
+  /// Explicit selection only: a config-default-enabled usecase plugin
+  /// never qualifies (the #514 family), and a request missing either
+  /// type still fails loudly like any other entity-backed run.
+  bool _isStandaloneUsecaseRequest(List<String> explicitPluginIds) {
+    if (!explicitPluginIds.contains('usecase')) return false;
+    // A --methods request is entity-CRUD shaped: the method set drives
+    // the entity generator, so params/returns must not mask it.
+    if (argResults?.wasParsed('methods') == true) return false;
+    final params = argResults?['params']?.toString();
+    final returns = argResults?['returns']?.toString();
+    return params != null &&
+        params.isNotEmpty &&
+        returns != null &&
+        returns.isNotEmpty;
   }
 
   /// Spec 0973: resolves the repository plugin's emission plan for this

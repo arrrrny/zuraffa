@@ -145,6 +145,48 @@ class Product {
       );
     });
 
+    test('#2023 — a usecase request with its own --params/--returns needs no '
+        'entity', () async {
+      // The workspace fixture has a Product entity but no
+      // CompareVisibleListings entity, so the #496 guard would fire today.
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'make',
+        'CompareVisibleListings',
+        'usecase',
+        '--domain=listing',
+        '--params=VisibleListingBatch',
+        '--returns=VisibleListingComparison',
+        '--type=stream',
+        '--output',
+        outputDir,
+      ]);
+
+      expect(
+        output,
+        isNot(contains('no entity source file')),
+        reason:
+            'a standalone usecase that supplies its own --params/--returns '
+            'must not demand a backing entity (#2023). output:\n$output',
+      );
+      final usecaseFile = File(
+        path.join(
+          outputDir,
+          'domain',
+          'usecases',
+          'listing',
+          'compare_visible_listings_usecase.dart',
+        ),
+      );
+      expect(
+        usecaseFile.existsSync(),
+        isTrue,
+        reason: 'stream usecase should be generated. output:\n$output',
+      );
+    });
+
     test('supports --from-json for plan resolution', () async {
       final configFile = File(path.join(workspace.path, 'make_config.json'));
       await configFile.writeAsString(
