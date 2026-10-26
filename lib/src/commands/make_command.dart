@@ -103,6 +103,25 @@ class MakeCommand extends Command<void> {
     'sync',
   };
 
+  /// The id-dependent plugins that can generate WITHOUT a backing entity —
+  /// the only companions the #2023 standalone-usecase flip may ride with
+  /// (2025 review). Each entry has a no-entity generation path; `sqlite`,
+  /// `gql`, `api` and `sync` are excluded because their builders import
+  /// the entity file unconditionally, so a flipped run would emit imports
+  /// of a file that does not exist.
+  static const Set<String> _noEntityCompatiblePlugins = {
+    'usecase',
+    'repository',
+    'datasource',
+    'controller',
+    'presenter',
+    'service',
+    'provider',
+    'route',
+    'view',
+    'graphql',
+  };
+
   static const Set<String> _ignoredJsonOptionKeys = {
     'domainRoot',
     'domain-root',
@@ -1642,8 +1661,11 @@ class MakeCommand extends Command<void> {
   /// qualifies (the #514 family), a method set still forces the
   /// entity-CRUD reading (the CLI flag AND a `--from-json` config carrying
   /// `methods:` — the latter lands in [normalizedOptions], invisible to
-  /// `wasParsed`), and a request missing either type still fails loudly
-  /// like any other entity-backed run.
+  /// `wasParsed`), a request missing either type still fails loudly
+  /// like any other entity-backed run, and an explicit set carrying any
+  /// plugin without a no-entity generation path (see
+  /// [_noEntityCompatiblePlugins]) fails loudly too — its builders would
+  /// import the missing entity file.
   bool _isStandaloneUsecaseRequest(
     List<String> explicitPluginIds,
     Map<String, dynamic> normalizedOptions,
@@ -1661,6 +1683,14 @@ class MakeCommand extends Command<void> {
       normalizedOptions,
     );
     if (!explicit.contains('usecase')) return false;
+    // 2025 review: the flip is only safe when EVERY explicitly-requested
+    // id-dependent plugin can generate without a backing entity. A set
+    // carrying any plugin without a no-entity generation path (sqlite,
+    // gql, api, sync) keeps the #496 loud failure — its builders would
+    // import the missing entity file.
+    if (explicit.any((id) => !_noEntityCompatiblePlugins.contains(id))) {
+      return false;
+    }
     // Same dual-source read the sibling checks use: an explicitly passed
     // CLI flag wins, otherwise a --from-json config value applies.
     String? optionValue(String name) =>

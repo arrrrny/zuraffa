@@ -63,6 +63,19 @@ extension TestBuilderCustom on TestBuilder {
 
     for (final type in entityTypeSet) {
       final snake = StringUtils.camelToSnake(type);
+      // 2025 review: a no-entity standalone usecase carries custom
+      // --params/--returns signature types with no backing entity file.
+      // Only import the canonical entity path when the file actually
+      // exists — a hardcoded import of a nonexistent file would leave
+      // the generated test uncompilable.
+      final entityFilePath = path.join(
+        outputDir,
+        'domain',
+        'entities',
+        snake,
+        '$snake.dart',
+      );
+      if (!fileSystem.existsSync(entityFilePath)) continue;
       directives.add(
         Directive.import(
           'package:$packageName/src/domain/entities/$snake/$snake.dart',

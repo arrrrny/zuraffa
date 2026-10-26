@@ -346,6 +346,132 @@ class Product {
       );
     });
 
+    test('#2023 carve-out — an explicit sqlite companion still fails loudly '
+        'on a missing entity (2025 review)', () async {
+      // sqlite has no no-entity generation path (its builder imports the
+      // entity file unconditionally), so `usecase sqlite` must keep the
+      // #496 loud failure instead of flipping to --no-entity.
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'make',
+        'CompareVisibleListings',
+        'usecase',
+        'sqlite',
+        '--params=VisibleListingBatch',
+        '--returns=VisibleListingComparison',
+        '--output',
+        outputDir,
+      ]);
+
+      expect(
+        output,
+        contains('no entity source file'),
+        reason:
+            'an explicit set carrying a plugin without a no-entity path '
+            'must not flip to --no-entity. output:\n$output',
+      );
+    });
+
+    test('#2023 — a standalone stream usecase emits no nonexistent entity '
+        'imports (2025 review)', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'make',
+        'CompareVisibleListings',
+        'usecase',
+        '--domain=listing',
+        '--params=VisibleListingBatch',
+        '--returns=VisibleListingComparison',
+        '--type=stream',
+        '--output',
+        outputDir,
+      ]);
+
+      expect(output, isNot(contains('no entity source file')));
+      final usecaseFile = File(
+        path.join(
+          outputDir,
+          'domain',
+          'usecases',
+          'listing',
+          'compare_visible_listings_usecase.dart',
+        ),
+      );
+      expect(usecaseFile.existsSync(), isTrue);
+      final usecaseSource = usecaseFile.readAsStringSync();
+      expect(
+        usecaseSource,
+        isNot(contains('visible_listing_batch')),
+        reason:
+            'the custom --params type has no backing entity file, so the '
+            'generated usecase must not import it. source:\n$usecaseSource',
+      );
+      expect(
+        usecaseSource,
+        isNot(contains('visible_listing_comparison')),
+        reason:
+            'the custom --returns type has no backing entity file, so the '
+            'generated usecase must not import it. source:\n$usecaseSource',
+      );
+    });
+
+    test('#2023 — a standalone usecase with --test emits no nonexistent '
+        'entity imports (2025 review)', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'make',
+        'CompareVisibleListings',
+        'usecase',
+        'test',
+        '--domain=listing',
+        '--params=VisibleListingBatch',
+        '--returns=VisibleListingComparison',
+        '--type=stream',
+        '--output',
+        outputDir,
+      ]);
+
+      expect(output, isNot(contains('no entity source file')));
+      final testFile = File(
+        path.join(
+          workspace.path,
+          'test',
+          'domain',
+          'usecases',
+          'listing',
+          'compare_visible_listings_usecase_test.dart',
+        ),
+      );
+      expect(
+        testFile.existsSync(),
+        isTrue,
+        reason:
+            'the custom test scaffold should be generated. '
+            'output:\n$output',
+      );
+      final testSource = testFile.readAsStringSync();
+      expect(
+        testSource,
+        isNot(contains('domain/entities/visible_listing_batch')),
+        reason:
+            'the custom --params type has no backing entity file, so the '
+            'generated test must not import it. source:\n$testSource',
+      );
+      expect(
+        testSource,
+        isNot(contains('domain/entities/visible_listing_comparison')),
+        reason:
+            'the custom --returns type has no backing entity file, so the '
+            'generated test must not import it. source:\n$testSource',
+      );
+    });
+
     test('supports --from-json for plan resolution', () async {
       final configFile = File(path.join(workspace.path, 'make_config.json'));
       await configFile.writeAsString(

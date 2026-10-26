@@ -225,11 +225,16 @@ class StreamUseCaseGenerator {
       imports: [
         coreImport,
         ...dependencyImports,
+        // 2025 review: a no-entity standalone usecase carries custom
+        // --params/--returns signature types with no backing entity
+        // file — the missing-file fallback would import a path that
+        // does not exist. Entity files that DO exist still import.
         ...CommonPatterns.entityImports(
           [paramsType, returnsType],
           config,
           depth: 3,
           includeDomain: false,
+          includeMissingEntityFallback: !config.noEntity,
           fileSystem: fileSystem,
         ),
       ],
