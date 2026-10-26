@@ -422,8 +422,9 @@ class RunCommand extends Command<void> {
     // meta run's lanes spawn one dart test invocation per step, each
     // leaking a `$TMPDIR/dart_test.kernel.*` directory (51 GB / 869 dill
     // files in ~80 minutes on the reporter's machine), and this command
-    // had NO cleanup path of its own. Sweeping HERE — before the
-    // preflight gates and any lane step spawns — keeps a long TDD loop's
+    // had NO cleanup path of its own. Sweeping HERE — after the #2021
+    // project-wiring refusal, still before the remaining preflight
+    // gates and any lane step spawns — keeps a long TDD loop's
     // temp usage roughly flat; entries younger than [commandStartedAt]
     // are preserved for concurrent runners. Shared with `tdd refactor`
     // (which sweeps at its own cycle start and on the infra-retry path).

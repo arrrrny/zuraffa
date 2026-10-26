@@ -55,21 +55,33 @@ class ProjectWiringReport {
 /// the contract. Mirrors the other run preflights (`await ProjectWiring(
 /// projectRoot: ...).check()`).
 class ProjectWiring {
-  const ProjectWiring({required this.projectRoot});
+  const ProjectWiring({required this.projectRoot, this.stopBoundary});
 
   /// The resolved project root the walk starts from (inclusive).
   final String projectRoot;
 
-  /// Walks up from [projectRoot] to the filesystem root, returning the
-  /// first directory (inclusive) that carries any of
-  /// [kProjectWiringMarkers] as [ProjectWiringReport.ok]; the root itself
-  /// when no marker exists anywhere up the tree.
+  /// The last directory the walk examines, before it answers not-wired —
+  /// a test affordance that pins the walk inside a controlled temp root
+  /// so the verdict cannot depend on ambient markers above it (a stray
+  /// `pubspec.yaml` in `/tmp` or above would flip the honest walk-up).
+  /// Null — the default, and what production uses — walks all the way to
+  /// the filesystem root. A marker AT the boundary still counts.
+  final String? stopBoundary;
+
+  /// Walks up from [projectRoot] to [stopBoundary] (default: the
+  /// filesystem root), returning the first directory (inclusive) that
+  /// carries any of [kProjectWiringMarkers] as [ProjectWiringReport.ok];
+  /// not-wired when the walk reaches the stop boundary — or the
+  /// filesystem root — without finding a marker.
   Future<ProjectWiringReport> check() async {
     var current = Directory(p.normalize(p.absolute(projectRoot)));
     // A start path that no longer exists (removed temp dir) walks from
     // its parent, like `ProjectRoot.find` — marker files in ancestors
     // are still checked either way.
     if (!current.existsSync()) current = current.parent;
+    final boundary = stopBoundary == null
+        ? null
+        : p.normalize(p.absolute(stopBoundary!));
     while (true) {
       for (final marker in kProjectWiringMarkers) {
         if (File(p.join(current.path, marker)).existsSync()) {
@@ -79,6 +91,11 @@ class ProjectWiring {
             markerDir: current.path,
           );
         }
+      }
+      // The injected stop boundary is the last directory the walk
+      // examines (markers on it count) — stop here, not wired.
+      if (boundary != null && current.path == boundary) {
+        return const ProjectWiringReport.notWired();
       }
       final parent = current.parent;
       // Reached the filesystem root with no marker — not wired.

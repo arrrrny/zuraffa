@@ -45,13 +45,19 @@ void main() {
     test(
       'U-2021-1: no marker at the root or any ancestor → not wired',
       () async {
-        // The walk starts IN the temp dir and runs to the filesystem root:
-        // none of them carries a wiring marker (a TS repo's shape — the
+        // The walk starts IN the temp dir; the stop boundary pins it to
+        // the temp root (a marker AT the boundary would still count), so
+        // the verdict cannot be flipped by ambient wiring markers ABOVE
+        // the temp root (a stray pubspec.yaml in /tmp or above — the
+        // review's U-2021-1 robustness note). A TS repo's shape — the
         // #2021 raptorr repro had package.json, no .zfa.json / pubspec /
-        // dart_test.yaml).
-        final report = await ProjectWiring(projectRoot: temp.path).check();
+        // dart_test.yaml.
+        final report = await ProjectWiring(
+          projectRoot: temp.path,
+          stopBoundary: temp.path,
+        ).check();
 
-        expect(report.ok, isFalse, reason: 'no marker exists up the tree');
+        expect(report.ok, isFalse, reason: 'no marker inside the boundary');
         expect(report.marker, isNull);
         expect(report.markerDir, isNull);
       },
