@@ -187,6 +187,165 @@ class Product {
       );
     });
 
+    test('#2023 carve-out — --with=usecase qualifies as an explicit '
+        'standalone request', () async {
+      // --with=usecase is the spelling the #496 dead-end message itself
+      // recommends, so it must qualify the same way the positional token
+      // does (2025 review finding 1).
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'make',
+        'CompareVisibleListings',
+        '--with=usecase',
+        '--domain=listing',
+        '--params=VisibleListingBatch',
+        '--returns=VisibleListingComparison',
+        '--type=stream',
+        '--output',
+        outputDir,
+      ]);
+
+      expect(
+        output,
+        isNot(contains('no entity source file')),
+        reason:
+            '--with=usecase + params/returns must not demand a backing '
+            'entity. output:\n$output',
+      );
+      final usecaseFile = File(
+        path.join(
+          outputDir,
+          'domain',
+          'usecases',
+          'listing',
+          'compare_visible_listings_usecase.dart',
+        ),
+      );
+      expect(
+        usecaseFile.existsSync(),
+        isTrue,
+        reason: 'stream usecase should be generated. output:\n$output',
+      );
+    });
+
+    test('#2023 carve-out — a --from-json config carrying methods still '
+        'fails loudly on a missing entity', () async {
+      // `methods` is not in _ignoredJsonOptionKeys, so a from-json config
+      // lands it in normalizedOptions where wasParsed never sees it; the
+      // exclusion must consult both sources (2025 review finding 3).
+      final configFile = File(path.join(workspace.path, 'make_config.json'));
+      await configFile.writeAsString(
+        jsonEncode({
+          'name': 'CompareVisibleListings',
+          'methods': ['get', 'getList'],
+        }),
+      );
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'make',
+        'CompareVisibleListings',
+        'usecase',
+        '--params=VisibleListingBatch',
+        '--returns=VisibleListingComparison',
+        '--from-json',
+        configFile.path,
+        '--output',
+        outputDir,
+      ]);
+
+      expect(
+        output,
+        contains('no entity source file'),
+        reason:
+            'a config-supplied method set is entity-CRUD shaped: params/'
+            'returns must not mask the missing entity. output:\n$output',
+      );
+    });
+
+    test('#2023 carve-out — a usecase request with --methods still fails '
+        'loudly on a missing entity (#514 family)', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'make',
+        'CompareVisibleListings',
+        'usecase',
+        '--params=VisibleListingBatch',
+        '--returns=VisibleListingComparison',
+        '--methods=get,getList',
+        '--output',
+        outputDir,
+      ]);
+
+      expect(
+        output,
+        contains('no entity source file'),
+        reason:
+            'a --methods request is entity-CRUD shaped: params/returns must '
+            'not mask the missing entity (#514 family). output:\n$output',
+      );
+    });
+
+    test('#2023 carve-out — a usecase request missing --returns still fails '
+        'loudly on a missing entity', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'make',
+        'CompareVisibleListings',
+        'usecase',
+        '--params=VisibleListingBatch',
+        '--output',
+        outputDir,
+      ]);
+
+      expect(
+        output,
+        contains('no entity source file'),
+        reason:
+            'the carve-out needs BOTH --params and --returns; a request '
+            'missing either keeps the #496 loud failure. output:\n$output',
+      );
+    });
+
+    test('#2023 carve-out — a config-default-enabled usecase (no positional) '
+        'still fails loudly on a missing entity', () async {
+      // plugins.defaults must never count as explicit selection, exactly
+      // like the #514 family (2025 review finding 4).
+      await File(path.join(workspace.path, '.zfa.json')).writeAsString(
+        jsonEncode({
+          'plugins': {
+            'defaults': {'usecase': true},
+          },
+        }),
+      );
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'make',
+        'CompareVisibleListings',
+        '--params=VisibleListingBatch',
+        '--returns=VisibleListingComparison',
+        '--output',
+        outputDir,
+      ]);
+
+      expect(
+        output,
+        contains('no entity source file'),
+        reason:
+            'a config-default-enabled usecase plugin never qualifies as an '
+            'explicit standalone request (#514 family). output:\n$output',
+      );
+    });
+
     test('supports --from-json for plan resolution', () async {
       final configFile = File(path.join(workspace.path, 'make_config.json'));
       await configFile.writeAsString(
