@@ -40,6 +40,37 @@ class SyncMetadataStore {
     await _box.put(key, metadata);
   }
 
+  /// Insert or replace multiple metadata entries in a single box write.
+  ///
+  /// Batches the status transitions of a sync pass (e.g. marking a whole
+  /// batch `syncing`, then writing its `synced` results) into one
+  /// `Box.putAll` instead of one awaited `put` per record (issue #2028).
+  Future<void> putAll(Map<String, SyncMetadata> entries) async {
+    await _box.putAll(entries);
+  }
+
+  /// Snapshot metadata for [keys] in a single awaited call.
+  ///
+  /// Returns a map from key to metadata for every requested key present in
+  /// the store; keys without tracked metadata are omitted from the result.
+  /// Batch processors use this instead of N awaited [get] calls so a pass
+  /// over N records does not round-trip through the box once per record
+  /// (issue #2028).
+  ///
+  /// Only the requested keys are read: a full-box copy would rebuild every
+  /// frame in the keystore — including the `synced` entries this store never
+  /// prunes — so the cost here stays proportional to [keys], not to the box.
+  Future<Map<String, SyncMetadata>> getByKeys(Iterable<String> keys) async {
+    final result = <String, SyncMetadata>{};
+    for (final key in keys) {
+      final metadata = _box.get(key);
+      if (metadata != null) {
+        result[key] = metadata;
+      }
+    }
+    return result;
+  }
+
   /// Remove sync metadata for [key].
   ///
   /// Called after a successful remote delete (tombstone processed)

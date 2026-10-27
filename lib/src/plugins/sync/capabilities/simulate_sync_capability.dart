@@ -527,6 +527,14 @@ class _FakeBox implements Box<SyncMetadata> {
   }
 
   @override
+  Future<void> putAll(Map<dynamic, SyncMetadata> entries) async {
+    _map.addAll(entries.cast<String, SyncMetadata>());
+  }
+
+  @override
+  Map<dynamic, SyncMetadata> toMap() => Map<dynamic, SyncMetadata>.of(_map);
+
+  @override
   Iterable<dynamic> get keys => _map.keys;
 
   @override

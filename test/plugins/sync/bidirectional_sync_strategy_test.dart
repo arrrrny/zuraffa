@@ -29,6 +29,19 @@ class FakeSyncMetadataStore implements SyncMetadataStore {
   }
 
   @override
+  Future<void> putAll(Map<String, SyncMetadata> entries) async {
+    metaMap.addAll(entries);
+  }
+
+  @override
+  Future<Map<String, SyncMetadata>> getByKeys(Iterable<String> keys) async {
+    return {
+      for (final key in keys)
+        if (metaMap[key] != null) key: metaMap[key]!,
+    };
+  }
+
+  @override
   Future<void> remove(String key) async => metaMap.remove(key);
 
   @override
