@@ -234,7 +234,7 @@ packages:
     source: hosted
     version: "1.1.1"
   frontend_server_client:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       name: frontend_server_client
       sha256: "2b56423afc7651a81da53ed3a4f9f51e92572293f54d0d54e19b759f13714849"

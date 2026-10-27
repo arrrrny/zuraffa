@@ -1,6 +1,6 @@
 name: zikzak_share_handler
 description: Zuraffa-native share handler — share text, URLs, and files via the platform share sheet.
-version: 0.1.0
+version: 7.2.0
 publish_to: none
 
 environment:
@@ -13,3 +13,8 @@ dependencies:
 dev_dependencies:
   test: ^1.25.0
   lints: ^5.0.0
+
+# Fleet-wide xml policy: pin the override to the latest xml so graphs that
+# still transitively pull the abandoned minio (xml 6.x) resolve cleanly.
+dependency_overrides:
+  xml: 7.1.0

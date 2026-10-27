@@ -3,12 +3,12 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
-import 'package:minio/io.dart';
-import 'package:minio/minio.dart' as official;
+import 'package:zuraffa_minio/io.dart';
+import 'package:zuraffa_minio/minio.dart' as official;
 
 /// A lightweight S3-compatible client for MinIO operations.
 ///
-/// This is a thin wrapper around the official `minio` package that provides
+/// This is a thin wrapper around the maintained `zuraffa_minio` fork of `minio` that provides
 /// a simpler, Result-style API while preserving the same functionality.
 ///
 /// ## Usage

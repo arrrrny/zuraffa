@@ -117,3 +117,8 @@ dev_dependencies:
   # per mutant (which would be 2400+ test executions per mutant and would
   # not fit the rubric's "<10s per mutant" budget).
   mutation_test: ^1.8.0
+
+# Fleet-wide xml policy: pin the override to the latest xml so graphs that
+# still transitively pull the abandoned minio (xml 6.x) resolve cleanly.
+dependency_overrides:
+  xml: 7.1.0
