@@ -211,6 +211,194 @@ void main() {
         }
       });
 
+      test('a fenced example inside the item is documentation: the fence '
+          'is skipped, preserved verbatim, and the marker lands after the '
+          'post-fence continuation', () async {
+        final tmp = await _featureDir('''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 2030-ml
+
+## Layer Contracts
+
+**Function**:
+- `Total`: `compute() -> int`
+
+## Functional Requirements
+
+- **FR-001**: returns 42 when invoked with no args
+            traces: Total
+
+## Acceptance Scenarios
+
+1. **Given** the app whose display declares the
+   total-form cleaner, **When** the total is requested
+   mid-run, **Then** the total is computed:
+
+   ```
+   total = cart.total()
+   ```
+
+   and the total is logged.
+2. **Given** the app **When** it starts **Then** the page shows the form.
+''');
+        try {
+          final out = await _plan(tmp);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
+          final spec = await _readSpec(tmp);
+          final block = _scenarioBlockLines(spec, 1);
+          // The fence is documentation: skipped by the item walk, so it
+          // neither anchors nor breaks the item — the marker follows the
+          // item's post-fence continuation, never the fence itself.
+          expect(
+            block.where((l) => l.trim() == '```'),
+            hasLength(2),
+            reason: 'the fenced example is preserved verbatim',
+          );
+          final postFence = block.indexWhere(
+            (l) => l.contains('and the total is logged.'),
+          );
+          final markerIndex = block.indexWhere(
+            (l) => RegExp(r'^\s*\*\*Type\*\*:').hasMatch(l),
+          );
+          expect(postFence, greaterThan(-1));
+          expect(
+            markerIndex,
+            postFence + 1,
+            reason:
+                'the marker follows the COMPLETE item — the fenced span '
+                'and the blank lines around it are skipped, not anchors',
+          );
+          expect(block.where((l) => l.contains('**Type**:')), hasLength(1));
+        } finally {
+          tmp.deleteSync(recursive: true);
+        }
+      });
+
+      test(
+        'trailing NON-indented prose between the item and the next '
+        'heading belongs to the document: the marker lands before it',
+        () async {
+          final tmp = await _featureDir('''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 2030-ml
+
+## Layer Contracts
+
+**Function**:
+- `Total`: `compute() -> int`
+
+## Functional Requirements
+
+- **FR-001**: returns 42 when invoked with no args
+            traces: Total
+
+## Acceptance Scenarios
+
+1. **Given** the app whose display declares the
+   total-form cleaner, **When** the total is requested
+   mid-run, **Then** the total equals the sum of items.
+
+How to write a scenario: keep one behavior per row.
+
+## Edge Cases
+''');
+          try {
+            final out = await _plan(tmp);
+            expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
+            final spec = await _readSpec(tmp);
+            final lines = spec.split('\n');
+            final itemEnd = lines.indexWhere(
+              (l) => l.contains('the total equals the sum of items.'),
+            );
+            final markerIndex = lines.indexWhere(
+              (l) => RegExp(r'^\s*\*\*Type\*\*:').hasMatch(l),
+            );
+            final proseIndex = lines.indexWhere(
+              (l) => l.startsWith('How to write a scenario:'),
+            );
+            expect(itemEnd, greaterThan(-1));
+            expect(
+              markerIndex,
+              itemEnd + 1,
+              reason: 'the marker follows the item on its own line',
+            );
+            expect(
+              proseIndex,
+              greaterThan(markerIndex),
+              reason:
+                  'the non-indented section prose breaks the item — the '
+                  'marker must not absorb it into the scenario',
+            );
+          } finally {
+            tmp.deleteSync(recursive: true);
+          }
+        },
+      );
+
+      test('an issue-reference continuation (`#2030`) is prose, not a '
+          'heading: it stays inside the item and the marker after it '
+          'still parses', () async {
+        final tmp = await _featureDir('''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 2030-ml
+
+## Layer Contracts
+
+**Function**:
+- `Total`: `compute() -> int`
+
+## Functional Requirements
+
+- **FR-001**: returns 42 when invoked with no args
+            traces: Total
+
+## Acceptance Scenarios
+
+1. **Given** the issue tracker cross-links this spec,
+   #2030 and #1481 name the tracked regressions,
+   **When** the total is requested, **Then** it is the sum of items.
+2. **Given** the app **When** it starts **Then** the page shows the form.
+''');
+        try {
+          final out = await _plan(tmp);
+          // Both sides of the heading definition must agree: the emitter
+          // keeps the marker inside the item (no `#2030` break) and the
+          // parser keeps the block open through it — a disagreement
+          // would refuse the plan with a misplaced-marker error.
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
+          expect(out, contains('[declared: type marker'));
+          final spec = await _readSpec(tmp);
+          final block = _scenarioBlockLines(spec, 1);
+          final issueRef = block.indexWhere(
+            (l) => l.contains('#2030 and #1481'),
+          );
+          final itemEnd = block.indexWhere(
+            (l) => l.contains('it is the sum of items.'),
+          );
+          final markerIndex = block.indexWhere(
+            (l) => RegExp(r'^\s*\*\*Type\*\*:').hasMatch(l),
+          );
+          expect(issueRef, greaterThan(0));
+          expect(
+            itemEnd,
+            greaterThan(issueRef),
+            reason: 'the issue-reference continuation stays inside the item',
+          );
+          expect(
+            markerIndex,
+            itemEnd + 1,
+            reason:
+                'the marker follows the COMPLETE item — it was never '
+                'split before the `#2030` line',
+          );
+        } finally {
+          tmp.deleteSync(recursive: true);
+        }
+      });
+
       test('the migration stays idempotent on a multi-line item: one '
           're-run, one marker, no fallback', () async {
         final tmp = await _featureDir(_multiLineSpec);

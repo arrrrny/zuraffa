@@ -451,8 +451,11 @@ class SpecParser {
       }
       // Any markdown heading that is not a scenario header ends the
       // scenario block: a marker after `## Functional Requirements`
-      // belongs to no numbered scenario (round-2 review fix 5).
-      if (line.trimLeft().startsWith('#')) {
+      // belongs to no numbered scenario (round-2 review fix 5). An ATX
+      // heading only — an issue reference (`#2030`) in an item's
+      // continuation is prose, so a marker written after it (the
+      // emitter's end-of-item placement) stays inside the block.
+      if (_atxHeading.hasMatch(line)) {
         inScenario = false;
         inFrBlock = false;
         continue;
@@ -2302,7 +2305,7 @@ class SpecParser {
     final lines = md.split('\n');
     // The block walk: a scenario block STARTS at a Given-header line and
     // runs to the next header OR the next section heading (the FR walk's
-    // `_frBlockBoundary`), which CLOSES the block — no further prose
+    // `_atxHeading`), which CLOSES the block — no further prose
     // joins it until a new header starts a fresh one. The close matters
     // for the LAST block: everything after the final scenario
     // (Functional Requirements prose, non-functional sections, closure
@@ -2318,7 +2321,7 @@ class SpecParser {
         blocks.add([line]);
         closed = false;
       } else if (blocks.isNotEmpty && !closed) {
-        if (_frBlockBoundary.hasMatch(line)) {
+        if (_atxHeading.hasMatch(line)) {
           closed = true;
         } else {
           blocks.last.add(line);
@@ -2534,12 +2537,16 @@ class SpecParser {
   /// cannot disagree about where a block ends.
   static bool _endsFrBlock(String line) =>
       _frLine(line) != null ||
-      _frBlockBoundary.hasMatch(line) ||
+      _atxHeading.hasMatch(line) ||
       _scenarioHeader.hasMatch(line);
 
   /// Markdown ATX headings (`#`..`######`) — a new section starts, so
-  /// the FR block above it is over.
-  static final RegExp _frBlockBoundary = RegExp(r'^\s*#{1,6}(\s|$)');
+  /// the FR block above it is over. CommonMark requires whitespace or
+  /// end-of-line after the leading `#` run: an issue reference
+  /// (`#2030`) inside a block's continuation is prose, not a heading.
+  /// Shared by every walk that ends a block at a heading so they cannot
+  /// disagree about where a block ends.
+  static final RegExp _atxHeading = RegExp(r'^\s*#{1,6}(\s|$)');
 
   /// The `traces:` continuation line under an FR (feature 071, #1319) —
   /// one shared pattern so the binding scan and the attribution walk
@@ -2578,7 +2585,7 @@ class SpecParser {
         owner = fr.$1;
         continue;
       }
-      if (_frBlockBoundary.hasMatch(line) || _scenarioHeader.hasMatch(line)) {
+      if (_atxHeading.hasMatch(line) || _scenarioHeader.hasMatch(line)) {
         owner = null;
         continue;
       }

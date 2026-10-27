@@ -80,6 +80,17 @@ class SpecMarkerEmitter {
   /// A fenced code block boundary (``` … ```).
   static final RegExp _fenceLine = RegExp(r'^[ \t]*```');
 
+  /// A markdown ATX heading — CommonMark requires whitespace or
+  /// end-of-line after the leading `#` run, so an issue reference
+  /// (`#2030`) inside an item's continuation is prose, not a heading.
+  /// Must match the parser's own heading definition
+  /// (`SpecParser._atxHeading`) — a marker kept inside an item has to
+  /// stay inside the block the parser reads.
+  static final RegExp _atxHeading = RegExp(r'^\s*#{1,6}(\s|$)');
+
+  /// An item continuation line (any leading whitespace).
+  static final RegExp _indented = RegExp(r'[\t ]');
+
   /// Emit [markers] (behavior id → classified kind) into [specMd].
   /// Never throws on a spec without scenarios — an empty emission is
   /// the normal no-op result, not an error.
@@ -147,9 +158,11 @@ class SpecMarkerEmitter {
   /// after the item's LAST line, where the item is the markdown numbered
   /// item — the header plus its INDENTED continuation lines (issue
   /// #2030: speckit-format items wrap over several lines). The scan ends
-  /// the item at the next scenario header, a markdown heading, or the
-  /// first NON-indented line — trailing section prose (`How to write a
-  /// scenario:`) belongs to the document, not the item. Fenced spans are
+  /// the item at the next scenario header, a markdown heading (an ATX
+  /// heading — an issue reference like `#2030` is prose and stays inside
+  /// the item), or the first NON-indented line — trailing section prose
+  /// (`How to write a scenario:`) belongs to the document, not the item.
+  /// Fenced spans are
   /// skipped (a fenced example is documentation, and a fence left open
   /// at EOF can never anchor the marker inside it) and blank lines are
   /// skipped without anchoring. A one-line row anchors at its own
@@ -162,9 +175,9 @@ class SpecMarkerEmitter {
       if (_fenceLine.hasMatch(line)) fence = !fence;
       if (fence) continue;
       if (_scenarioHeader.hasMatch(line)) break;
-      if (line.trimLeft().startsWith('#')) break;
+      if (_atxHeading.hasMatch(line)) break;
       if (line.trim().isEmpty) continue;
-      if (!line.startsWith(RegExp(r'[\t ]'))) break;
+      if (!line.startsWith(_indented)) break;
       anchor = j;
     }
     return anchor + 1;
@@ -184,7 +197,7 @@ class SpecMarkerEmitter {
       final line = lines[i];
       if (_fenceLine.hasMatch(line)) fence = !fence;
       if (fence) continue;
-      if (_scenarioHeader.hasMatch(line) || line.trimLeft().startsWith('#')) {
+      if (_scenarioHeader.hasMatch(line) || _atxHeading.hasMatch(line)) {
         return false;
       }
       if (_markerLine.hasMatch(line)) return true;
