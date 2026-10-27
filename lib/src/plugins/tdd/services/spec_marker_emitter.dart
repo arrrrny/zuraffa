@@ -80,6 +80,17 @@ class SpecMarkerEmitter {
   /// A fenced code block boundary (``` … ```).
   static final RegExp _fenceLine = RegExp(r'^[ \t]*```');
 
+  /// A fenced span's CLOSING fence — the close half of the parser's
+  /// `_fencedCodeBlock` (`^[ \t]*```[ \t]*\r?$`): a bare ` ``` ` line
+  /// with nothing but whitespace around it. A TAGGED fence line
+  /// (` ```dart `) inside an open span is content, never a boundary —
+  /// the parser's lazy span runs past it, so treating it as the close
+  /// (a plain toggle) would anchor the emitted marker inside the
+  /// still-blanked span, where [SpecParser.parseScenarioTypeMarkers]
+  /// never reads it, and would hide the next scenario header from the
+  /// id walk.
+  static final RegExp _fenceCloseLine = RegExp(r'^[ \t]*```[ \t]*\r?$');
+
   /// A markdown ATX heading — CommonMark requires whitespace or
   /// end-of-line after the leading `#` run, so an issue reference
   /// (`#2030`) inside an item's continuation is prose, not a heading.
@@ -127,10 +138,16 @@ class SpecMarkerEmitter {
       }
       if (i == lines.length) break;
       final line = lines[i];
-      // Fence state flips BEFORE any matching so a line's own
+      // Fence state updates BEFORE any matching so a line's own
       // in-fence status is known (a ``` line is a boundary, never a
-      // scenario header).
-      if (_fenceLine.hasMatch(line)) inFence = !inFence;
+      // scenario header). The span rule mirrors the parser's
+      // [_fencedCodeBlock]: any ``` line opens a span, only a bare
+      // ``` closes it ([_fenceCloseLine]).
+      if (!inFence) {
+        if (_fenceLine.hasMatch(line)) inFence = true;
+      } else if (_fenceCloseLine.hasMatch(line)) {
+        inFence = false;
+      }
       out.add(line);
       if (!_scenarioHeader.hasMatch(line)) continue;
       // Document-wide id — the same raw-line numbering walk the
@@ -162,9 +179,10 @@ class SpecMarkerEmitter {
   /// heading — an issue reference like `#2030` is prose and stays inside
   /// the item), or the first NON-indented line — trailing section prose
   /// (`How to write a scenario:`) belongs to the document, not the item.
-  /// Fenced spans are
-  /// skipped (a fenced example is documentation, and a fence left open
-  /// at EOF can never anchor the marker inside it) and blank lines are
+  /// Fenced spans are skipped (a fenced example is documentation: any
+  /// ``` line opens a span, only a bare ``` closes it — a tagged
+  /// ` ```dart ` inside the example is content), and a fence left open
+  /// at EOF can never anchor the marker inside it. Blank lines are
   /// skipped without anchoring. A one-line row anchors at its own
   /// header — the #1186 placement.
   int _itemFlushIndex(List<String> lines, int headerIndex) {
@@ -172,7 +190,13 @@ class SpecMarkerEmitter {
     var anchor = headerIndex;
     for (var j = headerIndex + 1; j < lines.length; j++) {
       final line = lines[j];
-      if (_fenceLine.hasMatch(line)) fence = !fence;
+      // The parser-faithful span rule (see [_fenceCloseLine]): a
+      // tagged ``` line inside an open span is content, not a close.
+      if (!fence) {
+        if (_fenceLine.hasMatch(line)) fence = true;
+      } else if (_fenceCloseLine.hasMatch(line)) {
+        fence = false;
+      }
       if (fence) continue;
       if (_scenarioHeader.hasMatch(line)) break;
       if (_atxHeading.hasMatch(line)) break;
@@ -195,7 +219,13 @@ class SpecMarkerEmitter {
     var fence = headerInFence;
     for (var i = headerIndex + 1; i < lines.length; i++) {
       final line = lines[i];
-      if (_fenceLine.hasMatch(line)) fence = !fence;
+      // The parser-faithful span rule (see [_fenceCloseLine]): a
+      // tagged ``` line inside an open span is content, not a close.
+      if (!fence) {
+        if (_fenceLine.hasMatch(line)) fence = true;
+      } else if (_fenceCloseLine.hasMatch(line)) {
+        fence = false;
+      }
       if (fence) continue;
       if (_scenarioHeader.hasMatch(line) || _atxHeading.hasMatch(line)) {
         return false;

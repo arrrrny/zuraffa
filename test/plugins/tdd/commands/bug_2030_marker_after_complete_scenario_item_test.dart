@@ -275,6 +275,80 @@ void main() {
         }
       });
 
+      test('a TAGGED fence line inside the example (` ```dart `) is not a '
+          'closing fence: the marker lands outside the span the parser '
+          'blanks and still parses', () async {
+        final tmp = await _featureDir('''
+**Template Version**: `zuraffa-1.0`
+
+# Spec: 2030-ml
+
+## Layer Contracts
+
+**Function**:
+- `Total`: `compute() -> int`
+
+## Functional Requirements
+
+- **FR-001**: returns 42 when invoked with no args
+            traces: Total
+
+## Acceptance Scenarios
+
+1. **Given** the app whose display declares the
+   total-form cleaner, **When** the total is requested
+   mid-run, **Then** the total is computed:
+
+   ```text
+   the documented example shows a fenced snippet:
+   ```dart
+   total = cart.total()
+   ```
+
+   and the total is logged.
+2. **Given** the app **When** it starts **Then** the page shows the form.
+''');
+        try {
+          final out = await _plan(tmp);
+          expect(CliRunner.lastDispatchedExitCode, 0, reason: out);
+          // The parser closes the span only at a bare ``` line — a
+          // tagged ` ```dart ` inside the example is content. The
+          // emitter must agree: a marker written before the bare close
+          // sits inside the blanked span and is never read, leaving
+          // the scenario on the fallback forever.
+          expect(
+            out,
+            isNot(contains('[fallback:')),
+            reason:
+                'the marker was read as a declaration — a marker placed '
+                'inside the still-open fenced span would route via the '
+                'fallback on every run',
+          );
+          expect(out, contains('[declared: type marker'));
+          final spec = await _readSpec(tmp);
+          final lines = spec.split('\n');
+          final bareClose = lines.indexWhere(
+            (l) => RegExp(r'^\s*```\s*$').hasMatch(l),
+          );
+          final markerIndex = lines.indexWhere(
+            (l) => RegExp(r'^\s*\*\*Type\*\*:').hasMatch(l),
+          );
+          final postFence = lines.indexWhere(
+            (l) => l.contains('and the total is logged.'),
+          );
+          expect(bareClose, greaterThan(-1));
+          expect(
+            markerIndex,
+            postFence + 1,
+            reason:
+                'the marker follows the COMPLETE item — never anchored '
+                'at the tagged fence line, inside the blanked span',
+          );
+        } finally {
+          tmp.deleteSync(recursive: true);
+        }
+      });
+
       test(
         'trailing NON-indented prose between the item and the next '
         'heading belongs to the document: the marker lands before it',
