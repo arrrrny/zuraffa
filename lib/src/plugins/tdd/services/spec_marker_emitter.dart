@@ -12,9 +12,16 @@
 ///
 /// What is emitted: exactly one `   **Type**: <kind>` line per
 /// UNDECLARED scenario behavior that routed via the fallback, inserted
-/// directly after the scenario's `1. **Given**` header (inside the
+/// on its own line after the scenario's COMPLETE item — the
+/// `1. **Given**` header plus its wrapped continuation lines (issue
+/// #2030: speckit-format items span several lines, and a marker dropped
+/// directly after the header split the prose mid-sentence) — inside the
 /// scenario block, where [SpecParser.parseScenarioTypeMarkers] reads
-/// markers). Only scenario-emittable kinds (`acceptance`, `widget`)
+/// markers (the block stays open until the next numbered header or
+/// heading, so end-of-item is still a declared position). A one-line
+/// zuraffa-template row ends at its own header, so its marker directly
+/// follows it exactly as before. Only scenario-emittable kinds
+/// (`acceptance`, `widget`)
 /// migrate — a unit behavior's strict lane declaration is a contract
 /// trace no classifier can invent, so the FR fallback keeps its hint.
 ///
@@ -26,6 +33,8 @@
 ///   document-wide `A<n>` numbering, manual scenarios consuming a
 ///   number but emitting no row) so emitted ids align with the
 ///   behaviors actually derived;
+/// * item-faithful — the marker follows the COMPLETE scenario item,
+///   never the middle of a wrapped one (issue #2030);
 /// * fence-safe — a numbered `**Given**` example inside a fenced code
 ///   block is documentation: it still consumes its id (the parser's
 ///   raw walk derives from it) but never receives a marker, and an
@@ -71,6 +80,28 @@ class SpecMarkerEmitter {
   /// A fenced code block boundary (``` … ```).
   static final RegExp _fenceLine = RegExp(r'^[ \t]*```');
 
+  /// A fenced span's CLOSING fence — the close half of the parser's
+  /// `_fencedCodeBlock` (`^[ \t]*```[ \t]*\r?$`): a bare ` ``` ` line
+  /// with nothing but whitespace around it. A TAGGED fence line
+  /// (` ```dart `) inside an open span is content, never a boundary —
+  /// the parser's lazy span runs past it, so treating it as the close
+  /// (a plain toggle) would anchor the emitted marker inside the
+  /// still-blanked span, where [SpecParser.parseScenarioTypeMarkers]
+  /// never reads it, and would hide the next scenario header from the
+  /// id walk.
+  static final RegExp _fenceCloseLine = RegExp(r'^[ \t]*```[ \t]*\r?$');
+
+  /// A markdown ATX heading — CommonMark requires whitespace or
+  /// end-of-line after the leading `#` run, so an issue reference
+  /// (`#2030`) inside an item's continuation is prose, not a heading.
+  /// Must match the parser's own heading definition
+  /// (`SpecParser._atxHeading`) — a marker kept inside an item has to
+  /// stay inside the block the parser reads.
+  static final RegExp _atxHeading = RegExp(r'^\s*#{1,6}(\s|$)');
+
+  /// An item continuation line (any leading whitespace).
+  static final RegExp _indented = RegExp(r'[\t ]');
+
   /// Emit [markers] (behavior id → classified kind) into [specMd].
   /// Never throws on a spec without scenarios — an empty emission is
   /// the normal no-op result, not an error.
@@ -87,12 +118,36 @@ class SpecMarkerEmitter {
     final emitted = <String, BehaviorKind>{};
     var inFence = false;
     var aIdx = 0;
-    for (var i = 0; i < lines.length; i++) {
+    // Issue #2030: the marker for a scenario discovered at its header is
+    // HELD until the walk reaches the item's end — speckit-format items
+    // wrap over several lines, and writing at headerIndex+1 split the
+    // prose mid-sentence. At most one marker is pending: an item always
+    // ends at or before the next scenario header ([_itemFlushIndex]
+    // stops there), so the next header never overtakes it.
+    BehaviorKind? pendingKind;
+    String? pendingId;
+    var pendingFlushIndex = -1;
+    // Walk one past the last line so a marker anchored at EOF flushes.
+    for (var i = 0; i <= lines.length; i++) {
+      if (i == pendingFlushIndex) {
+        out.add('   **Type**: ${pendingKind!.name}');
+        emitted[pendingId!] = pendingKind;
+        pendingKind = null;
+        pendingId = null;
+        pendingFlushIndex = -1;
+      }
+      if (i == lines.length) break;
       final line = lines[i];
-      // Fence state flips BEFORE any matching so a line's own
+      // Fence state updates BEFORE any matching so a line's own
       // in-fence status is known (a ``` line is a boundary, never a
-      // scenario header).
-      if (_fenceLine.hasMatch(line)) inFence = !inFence;
+      // scenario header). The span rule mirrors the parser's
+      // [_fencedCodeBlock]: any ``` line opens a span, only a bare
+      // ``` closes it ([_fenceCloseLine]).
+      if (!inFence) {
+        if (_fenceLine.hasMatch(line)) inFence = true;
+      } else if (_fenceCloseLine.hasMatch(line)) {
+        inFence = false;
+      }
       out.add(line);
       if (!_scenarioHeader.hasMatch(line)) continue;
       // Document-wide id — the same raw-line numbering walk the
@@ -105,13 +160,51 @@ class SpecMarkerEmitter {
       // A marker anywhere in this block (outside fences) means the
       // scenario declares itself — never create a duplicate.
       if (_blockDeclaresMarker(lines, i, inFence)) continue;
-      out.add('   **Type**: ${kind.name}');
-      emitted[id] = kind;
+      pendingKind = kind;
+      pendingId = id;
+      pendingFlushIndex = _itemFlushIndex(lines, i);
     }
     if (emitted.isEmpty) {
       return MarkerEmissionResult(content: specMd, emitted: const {});
     }
     return MarkerEmissionResult(content: out.join('\n'), emitted: emitted);
+  }
+
+  /// The walk index at which a pending marker for the scenario whose
+  /// header sits at line [headerIndex] (0-based) must be written: right
+  /// after the item's LAST line, where the item is the markdown numbered
+  /// item — the header plus its INDENTED continuation lines (issue
+  /// #2030: speckit-format items wrap over several lines). The scan ends
+  /// the item at the next scenario header, a markdown heading (an ATX
+  /// heading — an issue reference like `#2030` is prose and stays inside
+  /// the item), or the first NON-indented line — trailing section prose
+  /// (`How to write a scenario:`) belongs to the document, not the item.
+  /// Fenced spans are skipped (a fenced example is documentation: any
+  /// ``` line opens a span, only a bare ``` closes it — a tagged
+  /// ` ```dart ` inside the example is content), and a fence left open
+  /// at EOF can never anchor the marker inside it. Blank lines are
+  /// skipped without anchoring. A one-line row anchors at its own
+  /// header — the #1186 placement.
+  int _itemFlushIndex(List<String> lines, int headerIndex) {
+    var fence = false;
+    var anchor = headerIndex;
+    for (var j = headerIndex + 1; j < lines.length; j++) {
+      final line = lines[j];
+      // The parser-faithful span rule (see [_fenceCloseLine]): a
+      // tagged ``` line inside an open span is content, not a close.
+      if (!fence) {
+        if (_fenceLine.hasMatch(line)) fence = true;
+      } else if (_fenceCloseLine.hasMatch(line)) {
+        fence = false;
+      }
+      if (fence) continue;
+      if (_scenarioHeader.hasMatch(line)) break;
+      if (_atxHeading.hasMatch(line)) break;
+      if (line.trim().isEmpty) continue;
+      if (!line.startsWith(_indented)) break;
+      anchor = j;
+    }
+    return anchor + 1;
   }
 
   /// Whether the scenario block starting at line [headerIndex] (0-based)
@@ -126,9 +219,15 @@ class SpecMarkerEmitter {
     var fence = headerInFence;
     for (var i = headerIndex + 1; i < lines.length; i++) {
       final line = lines[i];
-      if (_fenceLine.hasMatch(line)) fence = !fence;
+      // The parser-faithful span rule (see [_fenceCloseLine]): a
+      // tagged ``` line inside an open span is content, not a close.
+      if (!fence) {
+        if (_fenceLine.hasMatch(line)) fence = true;
+      } else if (_fenceCloseLine.hasMatch(line)) {
+        fence = false;
+      }
       if (fence) continue;
-      if (_scenarioHeader.hasMatch(line) || line.trimLeft().startsWith('#')) {
+      if (_scenarioHeader.hasMatch(line) || _atxHeading.hasMatch(line)) {
         return false;
       }
       if (_markerLine.hasMatch(line)) return true;
