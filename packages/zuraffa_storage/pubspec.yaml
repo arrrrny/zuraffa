@@ -8,7 +8,7 @@ environment:
 
 dependencies:
   # maintained fork of the abandoned minio package (xml 7 compatible)
-  zuraffa_minio: ^0.2.5
+  zuraffa_minio: ^7.2.0
   zuraffa:
     path: ../..
   logging: ^1.3.0
@@ -20,3 +20,5 @@ dev_dependencies:
 # still transitively pull the abandoned minio (xml 6.x) resolve cleanly.
 dependency_overrides:
   xml: 7.1.0
+  zuraffa_minio:
+    path: ../../../zuraffa_minio
