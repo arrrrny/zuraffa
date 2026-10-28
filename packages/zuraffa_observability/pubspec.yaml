@@ -1,6 +1,6 @@
 name: zuraffa_observability
 description: OpenTelemetry capability for Zuraffa — tracer, failure reporter, telemetry hook, and the simulation span capture (optional companion package; issue #1661).
-version: 7.2.0
+version: 7.3.0
 publish_to: none
 
 environment:

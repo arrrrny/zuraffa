@@ -1,6 +1,21 @@
-## [Unreleased]
+## [7.3.0] - 2026-10-28
 
 ### Fixed
+- `zfa tdd plan --migrate-spec` injects `**Type**` markers after the COMPLETE
+  scenario item, not after the header line (#2030): speckit-authored
+  `**Given/When/Then**` items span multiple lines and a marker written at
+  headerIndex+1 split the prose mid-sentence. Marker positions are computed
+  on the original lines in one walk and applied in a second pass; single-line
+  zuraffa-template rows keep their previous placement, and the emission stays
+  id-faithful and idempotent (regression test
+  `test/plugins/tdd/bug_2030_marker_after_complete_item_test.dart`).
+
+### Fleet
+- Mono-version release train: the whole zuraffa package family ships at the
+  same version (7.3.0), aligned by `scripts/update_fleet.sh` — every package
+  version, cross-family constraint, README install guide, and the
+  `dependency_overrides: xml: 7.1.0` policy move together.
+
 - `zfa tdd run` refuses a non-wired project before generating anything (#2021):
   with no `.zfa.json`, `pubspec.yaml`, or `dart_test.yaml` at the project root
   or any ancestor, the run now stops up front — `not zuraffa-wired` refusal,

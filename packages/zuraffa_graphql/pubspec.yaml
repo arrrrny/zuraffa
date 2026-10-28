@@ -1,6 +1,6 @@
 name: zuraffa_graphql
 description: GraphQL capability for Zuraffa — schema-driven datasource generation, gql documents, and the graphql client surface (optional companion package; issue #1661).
-version: 7.2.0
+version: 7.3.0
 publish_to: none
 
 environment:

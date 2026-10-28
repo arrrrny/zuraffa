@@ -1,6 +1,6 @@
 name: zuraffa
 description: AI first Clean Architecture Framework and CLI with Result types, UseCase patterns, Dependency Injection and MCP server for building type-safe, scalable apps with AI agents.
-version: 7.2.0
+version: 7.3.0
 homepage: https://zuraffa.com
 repository: https://github.com/arrrrny/zuraffa
 issue_tracker: https://github.com/arrrrny/zuraffa/issues
@@ -88,7 +88,9 @@ dependencies:
 # pin in the dependencies: block above, so removal is a no-op for resolution
 # and eliminates any path-override risk for CI. Do NOT reintroduce path:
 # overrides — CI has no sibling checkouts and every branch goes red when
-# they are present.
+# they are present. The ONLY override allowed here is the fleet-wide hosted
+# exact pin at the bottom of this file (`xml: 7.1.0`): it references no
+# sibling checkout, so CI resolves it from pub.dev like any other package.
 executables:
   zuraffa:
   zfa:
