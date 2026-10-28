@@ -33,7 +33,6 @@ import '../plugins/tdd/commands/run_engine_command.dart';
 import '../plugins/tdd/commands/run_skin_command.dart';
 import '../plugins/tdd/commands/split_command.dart';
 import '../plugins/tdd/commands/status_command.dart';
-import '../plugins/tdd/commands/theater_command.dart';
 import '../plugins/tdd/commands/verify_command.dart';
 import '../plugins/tdd/commands/verify_red_command.dart';
 import '../plugins/tdd/commands/verdicts_command.dart';
@@ -63,7 +62,6 @@ class TddCommand extends Command<void> {
     addSubcommand(StatusCommand(plugin));
     addSubcommand(ProveCommand(plugin));
     addSubcommand(ReplayCommand(plugin));
-    addSubcommand(TheaterCommand(plugin));
     addSubcommand(VerifyCommand(plugin));
     addSubcommand(VerdictsCommand(plugin));
     addSubcommand(MigratePathsCommand(plugin));

@@ -61,7 +61,9 @@ void main() async {
   test('A26 / FR-012 (extra): nocterm dependency is pinned and pubspec.lock '
       'has no resolved flutter package', () {
     final pubspec = File('$repoRoot/pubspec.yaml').readAsStringSync();
-    expect(pubspec, contains('nocterm: ^0.9.0'));
+    // zuraffa #393: the core no longer carries nocterm — the TUI runtime
+    // (and its nocterm pin) lives in the zuraffa_tui companion package.
+    expect(pubspec, isNot(contains('  nocterm:')));
 
     // pubspec.lock is the resolved dependency tree. If nocturn or any of
     // its transitive deps pulled in flutter, a `flutter:` package would

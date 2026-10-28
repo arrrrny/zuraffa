@@ -69,11 +69,11 @@ dependencies:
   # 020-skeleton-plugin: tar.gz export for bone artifacts (FR-006).
   archive: ^4.3.0
 
-  # TUI plugin (specs/017-tui-plugin): pure-Dart terminal UI engine.
-  # nocterm has NO package:flutter dependency (verified via pub.dev metadata).
-  # Any future Flutter-only rendering path MUST live in zuraffa_flutter, never
-  # in this pure-Dart TUI plugin path (FR-012).
-  nocterm: ^0.9.0
+  # The TUI RUNTIME (nocterm-based screens/widgets/theater) lives in the
+  # zuraffa_tui companion package (zuraffa #393): apps that never render a
+  # TUI must not inherit nocterm + its dependency tree. The `--with=tui`
+  # GENERATOR stays here (pure string emission, no nocterm import); the
+  # screens it emits import package:zuraffa_tui.
 
   # Issue #1112 (zfa skin drive): the CLI drives the live app's
   # debugTapAnchorJson seam over the Dart VM service. vm_service is

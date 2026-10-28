@@ -7,7 +7,8 @@
 /// * `<Entity>DetailScreen` — a detail screen bound to the entity's `get`
 ///   use case via [UseCaseResultBinding].
 ///
-/// Generated screens use only `package:zuraffa/...` and `package:nocterm/...`
+/// Generated screens use only `package:zuraffa/...`, `package:zuraffa_tui/...`
+/// and `package:nocterm/...`
 /// imports — never `package:flutter` (FR-012). They require zero manual
 /// wiring to run (SC-005): the generated screens auto-resolve their
 /// dependencies via `ZuraffaDIContainer`.
@@ -162,9 +163,9 @@ class TuiScreenGenerator {
 // specs/017-tui-plugin FR-011 / SC-005.
 
 import 'package:nocterm/nocterm.dart';
-import 'package:zuraffa/src/plugins/tui/core/stateful_screen.dart';
-import 'package:zuraffa/src/plugins/tui/di/tui_di_resolver.dart';
-import 'package:zuraffa/src/plugins/tui/binding/binding.dart';
+import 'package:zuraffa_tui/src/core/stateful_screen.dart';
+import 'package:zuraffa_tui/src/di/tui_di_resolver.dart';
+import 'package:zuraffa_tui/src/binding/binding.dart';
 import 'package:zuraffa/src/core/module/di_container.dart';
 import '../../domain/entities/$entitySnake/$entitySnake.dart';
 import '$listUseCaseImport';
@@ -250,11 +251,11 @@ class _${entity.name}ListScreenState
 // specs/017-tui-plugin FR-011 / SC-005.
 
 import 'package:nocterm/nocterm.dart';
-import 'package:zuraffa/src/plugins/tui/core/stateful_screen.dart';
-import 'package:zuraffa/src/plugins/tui/di/tui_di_resolver.dart';
-import 'package:zuraffa/src/plugins/tui/binding/binding.dart';
+import 'package:zuraffa_tui/src/core/stateful_screen.dart';
+import 'package:zuraffa_tui/src/di/tui_di_resolver.dart';
+import 'package:zuraffa_tui/src/binding/binding.dart';
 import 'package:zuraffa/src/core/module/di_container.dart';
-import 'package:zuraffa/src/plugins/tui/widgets/table.dart';
+import 'package:zuraffa_tui/src/widgets/table.dart';
 import '../../domain/entities/$entitySnake/$entitySnake.dart';
 import '$getUseCaseImport';
 

@@ -63,7 +63,7 @@ void main() {
       for (final file in files) {
         expect(file.content, isNotNull);
         expect(file.content!, contains('package:nocterm/nocterm.dart'));
-        expect(file.content!, contains('package:zuraffa/src/plugins/tui/'));
+        expect(file.content!, contains('package:zuraffa_tui/src/'));
         expect(
           file.content!.contains('package:flutter'),
           isFalse,

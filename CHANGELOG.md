@@ -1,5 +1,17 @@
 ## [7.3.0] - 2026-10-28
 
+### Removed
+- **nocterm is no longer a dependency of `zuraffa`** (issue #393, completes the
+  #1661 trim): the TUI runtime (screens, widgets, theme, key bindings, tty
+  guard, DI resolver, use-case bindings) and the `zfa tdd theater` replay TUI
+  moved to the new **`zuraffa_tui`** companion package. The `--with=tui` code
+  generator stays in core — it is pure string emission and imports no
+  nocterm — but the screens it emits now import `package:zuraffa_tui`, so
+  generated TUI projects add `zuraffa_tui: ^7.3.0` to their dependencies.
+  Consumers that only use the core (and every `zuraffa_session` consumer,
+  including `zikzak_inappwebview`) stop inheriting nocterm, `equatable ^2`
+  (which broke any app on equatable ^3), and ~25 transitive packages.
+
 ### Fixed
 - `zfa tdd plan --migrate-spec` injects `**Type**` markers after the COMPLETE
   scenario item, not after the header line (#2030): speckit-authored

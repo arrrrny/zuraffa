@@ -94,7 +94,7 @@ void main() {
         // Imports package:nocterm.
         expect(source, contains("import 'package:nocterm/nocterm.dart'"));
         // Imports zuraffa TUI plugin types.
-        expect(source, contains('package:zuraffa/src/plugins/tui/'));
+        expect(source, contains('package:zuraffa_tui/src/'));
       }
     });
 

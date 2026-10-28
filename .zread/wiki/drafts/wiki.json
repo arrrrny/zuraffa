@@ -1,0 +1,216 @@
+{
+  "id": "2026-10-20-113806",
+  "generated_at": "2026-10-20T08:38:06.232554Z",
+  "language": "en",
+  "pages": [
+    {
+      "slug": "1-overview",
+      "title": "Overview",
+      "file": "1-overview.md",
+      "section": "Get Started",
+      "level": "Beginner"
+    },
+    {
+      "slug": "2-quick-start",
+      "title": "Quick Start",
+      "file": "2-quick-start.md",
+      "section": "Get Started",
+      "level": "Beginner"
+    },
+    {
+      "slug": "3-installation-and-environment-setup",
+      "title": "Installation \u0026 Environment Setup",
+      "file": "3-installation-and-environment-setup.md",
+      "section": "Get Started",
+      "level": "Beginner"
+    },
+    {
+      "slug": "4-canonical-cli-workflow",
+      "title": "Canonical CLI Workflow",
+      "file": "4-canonical-cli-workflow.md",
+      "section": "Get Started",
+      "level": "Beginner"
+    },
+    {
+      "slug": "5-project-layout-and-fixed-architecture-root",
+      "title": "Project Layout \u0026 Fixed Architecture Root",
+      "file": "5-project-layout-and-fixed-architecture-root.md",
+      "section": "Get Started",
+      "level": "Beginner"
+    },
+    {
+      "slug": "6-configuration-and-project-memory",
+      "title": "Configuration \u0026 Project Memory",
+      "file": "6-configuration-and-project-memory.md",
+      "section": "Get Started",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "7-running-tests-and-local-ci",
+      "title": "Running Tests \u0026 Local CI",
+      "file": "7-running-tests-and-local-ci.md",
+      "section": "Get Started",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "8-architecture-overview",
+      "title": "Architecture Overview",
+      "file": "8-architecture-overview.md",
+      "section": "Deep Dive",
+      "group": "Core Architecture",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "9-code-generation-pipeline",
+      "title": "Code Generation Pipeline",
+      "file": "9-code-generation-pipeline.md",
+      "section": "Deep Dive",
+      "group": "Core Architecture",
+      "level": "Advanced"
+    },
+    {
+      "slug": "10-plugin-system-and-manifest",
+      "title": "Plugin System \u0026 Manifest",
+      "file": "10-plugin-system-and-manifest.md",
+      "section": "Deep Dive",
+      "group": "Core Architecture",
+      "level": "Advanced"
+    },
+    {
+      "slug": "11-entity-and-zorphy-model",
+      "title": "Entity \u0026 Zorphy Model",
+      "file": "11-entity-and-zorphy-model.md",
+      "section": "Deep Dive",
+      "group": "Core Architecture",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "12-domain-layer-and-use-cases",
+      "title": "Domain Layer \u0026 Use Cases",
+      "file": "12-domain-layer-and-use-cases.md",
+      "section": "Deep Dive",
+      "group": "Layered Architecture",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "13-data-layer-and-repositories",
+      "title": "Data Layer \u0026 Repositories",
+      "file": "13-data-layer-and-repositories.md",
+      "section": "Deep Dive",
+      "group": "Layered Architecture",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "14-presentation-layer-and-state",
+      "title": "Presentation Layer \u0026 State",
+      "file": "14-presentation-layer-and-state.md",
+      "section": "Deep Dive",
+      "group": "Layered Architecture",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "15-dependency-injection",
+      "title": "Dependency Injection",
+      "file": "15-dependency-injection.md",
+      "section": "Deep Dive",
+      "group": "Layered Architecture",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "16-tdd-and-spec-driven-loop",
+      "title": "TDD \u0026 Spec-Driven Loop",
+      "file": "16-tdd-and-spec-driven-loop.md",
+      "section": "Deep Dive",
+      "group": "Advanced Capabilities",
+      "level": "Advanced"
+    },
+    {
+      "slug": "17-proof-and-provenance",
+      "title": "Proof \u0026 Provenance",
+      "file": "17-proof-and-provenance.md",
+      "section": "Deep Dive",
+      "group": "Advanced Capabilities",
+      "level": "Advanced"
+    },
+    {
+      "slug": "18-mock-data-and-certification",
+      "title": "Mock Data \u0026 Certification",
+      "file": "18-mock-data-and-certification.md",
+      "section": "Deep Dive",
+      "group": "Advanced Capabilities",
+      "level": "Advanced"
+    },
+    {
+      "slug": "19-simulation-worlds",
+      "title": "Simulation Worlds",
+      "file": "19-simulation-worlds.md",
+      "section": "Deep Dive",
+      "group": "Advanced Capabilities",
+      "level": "Advanced"
+    },
+    {
+      "slug": "20-skin-and-ui-contracts",
+      "title": "Skin \u0026 UI Contracts",
+      "file": "20-skin-and-ui-contracts.md",
+      "section": "Deep Dive",
+      "group": "Advanced Capabilities",
+      "level": "Advanced"
+    },
+    {
+      "slug": "21-graphql-integration",
+      "title": "GraphQL Integration",
+      "file": "21-graphql-integration.md",
+      "section": "Deep Dive",
+      "group": "Integrations",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "22-offline-first-sync",
+      "title": "Offline-First Sync",
+      "file": "22-offline-first-sync.md",
+      "section": "Deep Dive",
+      "group": "Integrations",
+      "level": "Advanced"
+    },
+    {
+      "slug": "23-feature-flags",
+      "title": "Feature Flags",
+      "file": "23-feature-flags.md",
+      "section": "Deep Dive",
+      "group": "Integrations",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "24-agent-and-mcp-integration",
+      "title": "Agent \u0026 MCP Integration",
+      "file": "24-agent-and-mcp-integration.md",
+      "section": "Deep Dive",
+      "group": "Integrations",
+      "level": "Advanced"
+    },
+    {
+      "slug": "25-exit-codes-and-machine-verdicts",
+      "title": "Exit Codes \u0026 Machine Verdicts",
+      "file": "25-exit-codes-and-machine-verdicts.md",
+      "section": "Deep Dive",
+      "group": "Developer Experience",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "26-extending-with-custom-plugins-and-packages",
+      "title": "Extending with Custom Plugins \u0026 Packages",
+      "file": "26-extending-with-custom-plugins-and-packages.md",
+      "section": "Deep Dive",
+      "group": "Developer Experience",
+      "level": "Advanced"
+    },
+    {
+      "slug": "27-contribution-and-development-workflow",
+      "title": "Contribution \u0026 Development Workflow",
+      "file": "27-contribution-and-development-workflow.md",
+      "section": "Deep Dive",
+      "group": "Developer Experience",
+      "level": "Intermediate"
+    }
+  ]
+}
