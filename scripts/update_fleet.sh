@@ -180,14 +180,19 @@ ensure_publish_policy() {
 # --- check mode ---------------------------------------------------------------
 
 check_pubspec() {
-  local file="$1" name ver ok=0
+  local file="$1" repo_root="$2" name ver ok=0
   name=$(pkg_name "$file")
   ver=$(pkg_version "$file")
   [ "$ver" == "$VERSION" ] || { echo -e "  ${RED}version drift: $name $ver != $VERSION${NC}"; ok=1; }
   if grep -qE "^[[:space:]]*zuraffa:[[:space:]]*\^?[0-9]+\.[0-9]+\.[0-9]+" "$file"; then
     grep -qE "^[[:space:]]*zuraffa:[[:space:]]*\^$VERSION([[:space:]]|$)" "$file" || { echo -e "  ${RED}zuraffa constraint drift in $name${NC}"; ok=1; }
   fi
-  # xml override presence
+  # xml override presence — workspace MEMBERS are exempt: a pub workspace
+  # shares one resolution governed by the root, and pub rejects a member
+  # that overrides the same package its root overrides.
+  if is_workspace_member "$file" "$repo_root"; then
+    return $ok
+  fi
   if grep -q '^dependency_overrides:' "$file"; then
     python3 - "$file" <<'PY' || ok=1
 import re, sys
@@ -401,7 +406,7 @@ for repo in "${FLEET_REPOS[@]}"; do
   if [ "$MODE" == "check" ]; then
     while IFS= read -r rel; do
       file="$repo_root/$rel"
-      check_pubspec "$file" || FAILURES=$((FAILURES+1))
+      check_pubspec "$file" "$repo_root" || FAILURES=$((FAILURES+1))
     done < <(find_pkg_pubspecs "$repo_root")
     check_readme "$repo_root" || FAILURES=$((FAILURES+1))
     continue
