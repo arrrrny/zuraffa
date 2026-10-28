@@ -120,6 +120,10 @@ zuraffa_dashboard_ios|zuraffa_dashboard_platform_interface
 zuraffa_dashboard_macos|zuraffa_dashboard
 zuraffa_dashboard_macos|zuraffa_dashboard_platform_interface
 zuraffa_ffi|zuraffa
+zuraffa_ffi|zuraffa_ffi_platform
+zuraffa_ffi|zuraffa_ffi_android
+zuraffa_ffi|zuraffa_ffi_ios
+zuraffa_ffi|zuraffa_ffi_macos
 zuraffa_ffi_platform|zuraffa_ffi
 zuraffa_ffi_android|zuraffa_ffi
 zuraffa_ffi_android|zuraffa_ffi_platform
@@ -188,7 +192,15 @@ inv = [l.split('|') for l in sys.argv[1].strip().split('\n') if l.strip()]
 edges = [tuple(l.split('|')) for l in sys.argv[2].strip().split('\n') if l.strip()]
 names = [i[0] for i in inv]
 deps = {n: set() for n in names}
+# The zuraffa_ffi family is a dependency CYCLE (app <-> platform, app ->
+# adapters): ordering drops every intra-family edge — the family publishes
+# in inventory order (app, platform, android, ios, macos) and its
+# resolvability gates run deferred, after every member is up.
+FFI_FAMILY = {'zuraffa_ffi', 'zuraffa_ffi_platform', 'zuraffa_ffi_android',
+              'zuraffa_ffi_ios', 'zuraffa_ffi_macos'}
 for a, b in edges:
+    if a in FFI_FAMILY and b in FFI_FAMILY:
+        continue
     if a in deps:
         deps[a].add(b)
 order, done = [], set()
@@ -248,6 +260,12 @@ done <<< "$INVENTORY"
 FAILED=0
 PUBLISHED=0
 SKIPPED=0
+# Packages whose published form participates in a dependency CYCLE (the
+# zuraffa_ffi app <-> platform <-> adapters family): pub.dev can only
+# resolve them once every member is up, so their resolvability gates run
+# after the whole family is published.
+DEFER_GATES="${ZURAFFA_DEFER_GATES:-zuraffa_ffi zuraffa_ffi_platform zuraffa_ffi_android zuraffa_ffi_ios zuraffa_ffi_macos}"
+DEFERRED_PUBLISHED=()
 for pkg in $ORDER; do
   spec="${PUBSPEC_OF[$pkg]}"
   dir=$(dirname "$spec")
@@ -319,12 +337,27 @@ PY
   ) || { FAILED=1; break; }
 
   if [ "$DRY_ONLY" != "1" ]; then
-    echo -e "  ${YELLOW}waiting for $pkg $VERSION to be resolvable...${NC}"
-    wait_resolvable "$pkg" || { FAILED=1; break; }
-    echo -e "  ${GREEN}resolvable${NC}"
+    if [ -n "$DEFER_GATES" ] && grep -qxF "$pkg" <<< "$DEFER_GATES"; then
+      echo -e "  ${YELLOW}gate deferred (cyclic family) for $pkg${NC}"
+      DEFERRED_PUBLISHED+=("$pkg")
+    else
+      echo -e "  ${YELLOW}waiting for $pkg $VERSION to be resolvable...${NC}"
+      wait_resolvable "$pkg" || { FAILED=1; break; }
+      echo -e "  ${GREEN}resolvable${NC}"
+    fi
   fi
   PUBLISHED=$((PUBLISHED+1))
 done
+
+# Drain deferred gates: the cyclic family is fully published by now.
+if [ "$DRY_ONLY" != "1" ] && [ ${#DEFERRED_PUBLISHED[@]} -gt 0 ]; then
+  echo -e "${BLUE}=== draining deferred gates ===${NC}"
+  for pkg in "${DEFERRED_PUBLISHED[@]}"; do
+    echo -e "  ${YELLOW}waiting for $pkg $VERSION (deferred)...${NC}"
+    wait_resolvable "$pkg" || { FAILED=1; break; }
+    echo -e "  ${GREEN}resolvable: $pkg${NC}"
+  done
+fi
 
 if [ "$FAILED" == "1" ]; then
   echo -e "${RED}=== fleet publish INCOMPLETE — rerun publish_fleet.sh to resume (published so far: $PUBLISHED) ===${NC}"
