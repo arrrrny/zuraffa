@@ -290,10 +290,20 @@ PY
       # cannot pass for unpublished deps — note it and move on.
       echo -e "  ${YELLOW}deps not yet live (dry-run mode): $(echo $local_deps | tr '\n' ' ')${NC}"
     else
-      echo -e "  ${YELLOW}waiting for deps: $(echo $local_deps | tr '\n' ' ')${NC}"
+      # Deps participating in a dependency CYCLE (the zuraffa_ffi family)
+      # resolve only as a set — their gate runs deferred, after the whole
+      # family is up.
+      local blocking=""
       for d in $local_deps; do
-        wait_resolvable "$d" || { FAILED=1; break 2; }
+        if grep -qxF "$d" <<< "$DEFER_GATES"; then continue; fi
+        blocking="$blocking $d"
       done
+      if [ -n "$blocking" ]; then
+        echo -e "  ${YELLOW}waiting for deps:${NC}$blocking"
+        for d in $blocking; do
+          wait_resolvable "$d" || { FAILED=1; break 2; }
+        done
+      fi
     fi
   fi
 
