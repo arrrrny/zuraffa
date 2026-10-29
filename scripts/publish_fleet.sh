@@ -293,14 +293,14 @@ PY
       # Deps participating in a dependency CYCLE (the zuraffa_ffi family)
       # resolve only as a set — their gate runs deferred, after the whole
       # family is up.
-      local blocking=""
+      blocking_deps=""
       for d in $local_deps; do
         if grep -qxF "$d" <<< "$DEFER_GATES"; then continue; fi
-        blocking="$blocking $d"
+        blocking_deps="$blocking_deps $d"
       done
-      if [ -n "$blocking" ]; then
-        echo -e "  ${YELLOW}waiting for deps:${NC}$blocking"
-        for d in $blocking; do
+      if [ -n "$blocking_deps" ]; then
+        echo -e "  ${YELLOW}waiting for deps:${NC}$blocking_deps"
+        for d in $blocking_deps; do
           wait_resolvable "$d" || { FAILED=1; break 2; }
         done
       fi
