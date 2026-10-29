@@ -40,7 +40,7 @@ Future<void> main() async {
     });
 
     test('CLI_GUIDE.md does NOT contain "zfa generate"', () {
-      final content = readDoc('CLI_GUIDE.md');
+      final content = readDoc('docs/CLI_GUIDE.md');
       expect(
         content,
         isNot(contains('zfa generate')),
@@ -50,7 +50,7 @@ Future<void> main() async {
     });
 
     test('SKILL.md does NOT contain "zfa generate"', () {
-      final content = readDoc('SKILL.md');
+      final content = readDoc('docs/SKILL.md');
       expect(
         content,
         isNot(contains('zfa generate')),
@@ -69,7 +69,7 @@ Future<void> main() async {
     });
 
     test('CLI_GUIDE.md DOES contain "zfa make"', () {
-      final content = readDoc('CLI_GUIDE.md');
+      final content = readDoc('docs/CLI_GUIDE.md');
       expect(
         content,
         contains('zfa make'),

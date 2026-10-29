@@ -1,5 +1,14 @@
 # Zuraffa Documentation
 
+## Guides
+
+- [CLI Guide](CLI_GUIDE.md) - Every `zfa` command, flag, and workflow
+- [Caching](CACHING.md) - Cache tiers, invalidation, and offline behavior
+- [Publishing](PUBLISH.md) - Version bump and publish runbook for this repo
+- [Skill](SKILL.md) - Agent-facing skill definition for driving `zfa`
+- [Vision](VISION.md) - Project pillars and roadmap principles
+- [Insights](INSIGHTS.md) - Engineering insights and lessons learned
+
 ## TDD Workflow
 
 - [ZFA TDD Cycle — External Agent Guideline](zfa-tdd-guide.md) - From zero to a completed engine+skin TDD cycle: setup, spec authoring, plan, run, verify, misfire protocol

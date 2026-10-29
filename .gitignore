@@ -104,3 +104,13 @@ mutation-test-1693-report/
 
 # Provenance SBOM report (generated, machine-readable; issue #812).
 /provenance.report.json
+
+# Repo cleanup (2026-10-30): speckit working artifacts and generated reports
+# stay local. Durable records live in specs/<feature>/; .specify keeps only
+# its toolkit (templates/, scripts/, workflows/, extensions/, memory/, configs).
+/mutation-test.xml
+.specify/bugs/
+.specify/chores/
+.specify/reports/
+.specify/stats/
+.specify/grade/

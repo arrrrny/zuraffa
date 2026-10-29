@@ -48,7 +48,7 @@ does not rewrite existing non-Zuraffa Flutter packages or plugins, and
 `zfa doctor` reporting missing Zuraffa dependencies inside such a package
 is expected behavior. Rewriting a non-Zuraffa plugin stays hand-written
 work unless you file a feature request for that support. See the
-[CLI guide](CLI_GUIDE.md#scope-what-zfa-operates-on) for details.
+[CLI guide](docs/CLI_GUIDE.md#scope-what-zfa-operates-on) for details.
 
 ---
 
@@ -391,9 +391,9 @@ final sample = await ProductMockJson.loadSampleProduct();
 
 ## Learn more
 
-- `CLI_GUIDE.md`
+- `docs/CLI_GUIDE.md`
 - `AGENTS.md`
-- `SKILL.md`
+- `docs/SKILL.md`
 - `website/docs/intro.md`
 - `doc/MIGRATION_GUIDE.md`
 
@@ -402,7 +402,7 @@ final sample = await ProductMockJson.loadSampleProduct();
 Zuraffa builds zuraffa: every new generator plugin in this repo is born through
 `zfa tdd plan → run → verify` on its own dogfooding fixture, and CI proves it.
 The repo's own specs are the corpus; gaps found while self-hosting become
-generator issues immediately. See `VISION.md`, issue #804 (Pillar F), and issue
+generator issues immediately. See `docs/VISION.md`, issue #804 (Pillar F), and issue
 #821 for the roadmap and the first loop-built exhibit.
 
 Made with 🦒 and ⚡ by the Zuraffa project.

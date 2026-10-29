@@ -1,1 +1,0 @@
-../../../.specify/extensions/gym/.specify-dev/agent-commands/kimi/speckit-gym-gate/SKILL.md

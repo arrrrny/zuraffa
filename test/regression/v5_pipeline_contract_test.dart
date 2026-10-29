@@ -43,7 +43,7 @@ Future<void> main() async {
       const docs = <String>[
         'README.md',
         'AGENTS.md',
-        'SKILL.md',
+        'docs/SKILL.md',
         'website/docs/intro.md',
         'website/docs/features/mcp-server.md',
       ];
@@ -89,8 +89,8 @@ Future<void> main() async {
       final allFiles = <File>[
         fileAt('README.md'),
         fileAt('AGENTS.md'),
-        fileAt('CLI_GUIDE.md'),
-        fileAt('SKILL.md'),
+        fileAt('docs/CLI_GUIDE.md'),
+        fileAt('docs/SKILL.md'),
         fileAt('doc/index.html'),
         fileAt('website/static/landing.html'),
         fileAt('example/.zfa.json'),

@@ -31,7 +31,7 @@ Future<void> main() async {
 
   group('zfa scope docs (issue #477)', () {
     test('CLI_GUIDE.md scopes zfa to Zuraffa apps (#477)', () {
-      final content = readDoc('CLI_GUIDE.md');
+      final content = readDoc('docs/CLI_GUIDE.md');
       expect(
         content,
         contains('Zuraffa apps'),
@@ -44,7 +44,7 @@ Future<void> main() async {
 
     test('CLI_GUIDE.md states zfa does not rewrite non-Zuraffa packages '
         '(#477)', () {
-      final content = readDoc('CLI_GUIDE.md');
+      final content = readDoc('docs/CLI_GUIDE.md');
       expect(
         content,
         contains('does not rewrite existing non-Zuraffa'),
@@ -56,7 +56,7 @@ Future<void> main() async {
 
     test('CLI_GUIDE.md frames zfa doctor output in non-Zuraffa packages as '
         'expected (#477)', () {
-      final content = readDoc('CLI_GUIDE.md');
+      final content = readDoc('docs/CLI_GUIDE.md');
       expect(
         content,
         contains('not a malfunction of the CLI'),
@@ -69,7 +69,7 @@ Future<void> main() async {
 
     test('CLI_GUIDE.md routes plugin-rewrite support to a feature request '
         '(#477)', () {
-      final content = readDoc('CLI_GUIDE.md');
+      final content = readDoc('docs/CLI_GUIDE.md');
       expect(
         content,
         contains('file a feature request'),
