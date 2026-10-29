@@ -295,7 +295,7 @@ PY
       # family is up.
       blocking_deps=""
       for d in $local_deps; do
-        if grep -qxF "$d" <<< "$DEFER_GATES"; then continue; fi
+        case " $DEFER_GATES " in *" $d "*) continue ;; esac
         blocking_deps="$blocking_deps $d"
       done
       if [ -n "$blocking_deps" ]; then
@@ -347,7 +347,7 @@ PY
   ) || { FAILED=1; break; }
 
   if [ "$DRY_ONLY" != "1" ]; then
-    if [ -n "$DEFER_GATES" ] && grep -qxF "$pkg" <<< "$DEFER_GATES"; then
+    if [ -n "$DEFER_GATES" ] && case " $DEFER_GATES " in *" $pkg "*) true ;; *) false ;; esac; then
       echo -e "  ${YELLOW}gate deferred (cyclic family) for $pkg${NC}"
       DEFERRED_PUBLISHED+=("$pkg")
     else
