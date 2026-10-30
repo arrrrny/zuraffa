@@ -213,7 +213,8 @@ export 'src/core/artifact_publisher.dart'
     show ArtifactPublisher, ArtifactHook, ArtifactContext;
 
 /// UseCase Hook system — intercept any UseCase at pre/success/failure phases
-export 'src/core/hook.dart' show Hook, HookPhase, HookContext;
+export 'src/core/hook.dart'
+    show Hook, HookPhase, HookContext, HookErrorPolicy, HookVetoException;
 export 'src/core/hook_registry.dart' show HookRegistry;
 
 /// Failure hooks — backward-compatible layer delegating to ArtifactPublisher.
