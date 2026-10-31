@@ -15,9 +15,9 @@
 // EXPLICIT projectRoot and absolute outputDir (the bug_912 convention),
 // not `CliRunner -C <dir>` — the -C machinery swaps the process-global
 // CWD, which races other concurrent test isolates (see
-// cli_runner_cwd_hardening_test.dart; dart_test.yaml caps concurrency
-// at 2 precisely because suites share the process). The -C wiring
-// itself is pinned by the cwd-hardening suite.
+// cli_runner_cwd_hardening_test.dart; dart_test.yaml pins concurrency: 1
+// (serial by design) precisely because suites share the process). The -C
+// wiring itself is pinned by the cwd-hardening suite.
 library;
 
 import 'dart:async';
@@ -50,6 +50,14 @@ void main() {
   late CommandRunner<void> runner;
 
   setUp(() async {
+    // Reset the incoming process-global state before asserting it:
+    // `exitCode` is process-global and this suite shares one serial VM
+    // with every other suite (dart_test.yaml concurrency: 1 by design),
+    // so a preceding suite that pins a non-zero exit — e.g. a route-verify
+    // scenario asserting insufficient-input's exit 2 — leaves it dirty,
+    // and a successful create never writes it. The sc_001 test-start
+    // pattern, applied on arrival.
+    exitCode = 0;
     tempDir = await Directory.systemTemp.createTemp('spec971_t002_');
     projectRoot = tempDir.path;
     // A Flutter-flavored pubspec so route generation is not skipped by
