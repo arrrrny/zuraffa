@@ -15,9 +15,9 @@
 // EXPLICIT projectRoot and absolute outputDir (the bug_912 convention),
 // not `CliRunner -C <dir>` — the -C machinery swaps the process-global
 // CWD, which races other concurrent test isolates (see
-// cli_runner_cwd_hardening_test.dart; dart_test.yaml caps concurrency
-// at 2 precisely because suites share the process). The -C wiring
-// itself is pinned by the cwd-hardening suite.
+// cli_runner_cwd_hardening_test.dart; dart_test.yaml pins concurrency: 1
+// (serial by design) precisely because suites share the process). The -C
+// wiring itself is pinned by the cwd-hardening suite.
 library;
 
 import 'dart:async';
