@@ -26,6 +26,8 @@ import '../core/result.dart';
 /// - Built-in cancellation support via [CancelToken]
 /// - Automatic error wrapping and logging
 /// - Callable syntax for clean API
+/// - Blocking (awaited) pre hooks via [Hook.blocking] — ordering-critical
+///   side effects complete before [execute] begins (issue #2032)
 ///
 /// ## Example
 /// ```dart
@@ -74,17 +76,42 @@ abstract class UseCase<T, Params> with Loggable {
     // Shared metadata bag — hooks can write in pre, read in success/failure
     final hookMetadata = <String, dynamic>{};
 
-    HookRegistry.instance.dispatch(
-      HookContext(
-        useCaseName: '$runtimeType',
-        params: params,
-        timestamp: startTime,
-        traceId: traceCtx.traceId,
-        spanId: traceCtx.spanId,
-        metadata: hookMetadata,
-      ),
-      HookPhase.pre,
-    );
+    // Pre phase — blocking hooks (Hook.blocking) are awaited to completion
+    // BEFORE execute begins (issue #2032); non-blocking hooks keep the
+    // fire-and-forget contract above. A vetoing hook fails the call here:
+    // Failure(hookFailure) without running execute, without later phases
+    // (not reported to FailureReporterRegistry — the UseCase never ran).
+    // No success/failure dispatch on veto also means a hook that acquires
+    // a resource in pre (a telemetry span) never reaches its release phase
+    // — such hooks must self-release; see HookVetoException.
+    try {
+      await HookRegistry.instance.dispatchAwaited(
+        HookContext(
+          useCaseName: '$runtimeType',
+          params: params,
+          timestamp: startTime,
+          traceId: traceCtx.traceId,
+          spanId: traceCtx.spanId,
+          metadata: hookMetadata,
+        ),
+        HookPhase.pre,
+      );
+    } on HookVetoException catch (e) {
+      logger.warning(
+        '$runtimeType vetoed by blocking pre hook "${e.hookId}": '
+        '${e.failure}',
+      );
+      return Result.failure(e.failure);
+    } catch (e, stackTrace) {
+      // The pre dispatch must never take the UseCase down (the dispatch
+      // contract is never-throw); a synchronous shouldTrigger crash would
+      // have escaped call() entirely before dispatchAwaited existed.
+      logger.warning(
+        '$runtimeType pre hook dispatch failed unexpectedly: $e',
+        e,
+        stackTrace,
+      );
+    }
 
     try {
       // Check for cancellation before starting

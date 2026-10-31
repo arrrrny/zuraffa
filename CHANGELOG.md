@@ -1,3 +1,37 @@
+## [Unreleased]
+
+### Added
+- **Blocking (awaited) lifecycle hooks for the classic `UseCase` (issue
+  #2032)**: `Hook.blocking` (default `false`, honored only in the `pre`
+  phase) makes `UseCase.call` await the hook to completion BEFORE
+  `execute` begins; `Hook.blockingTimeout` abandons the wait (abandonment,
+  not cancellation — the hook's own future keeps running and its cleanup
+  stays its own responsibility); `Hook.onError` with
+  `HookErrorPolicy {continue_, veto}` decides whether a blocking hook's
+  failure is logged-and-proceeded (`continue_`, the default) or vetoes the
+  call (`veto` → `HookVetoException` → `Failure(hookFailure)`; `execute`
+  never runs and no later phase dispatches).
+  `HookRegistry.dispatchAwaited` runs blocking hooks sequentially in
+  priority order, each awaited (or abandoned at its timeout), degenerating
+  to plain `dispatch` when nothing blocking matches; non-blocking hooks
+  keep the fire-and-forget semantics everywhere else. A veto deliberately
+  skips the `success`/`failure` dispatches — a hook that acquires a
+  resource in `pre` (the telemetry span is the canonical example) must
+  release it itself on the veto path or not be paired with vetoing hooks.
+
+### Fixed
+- **Hook-dispatch containment (review of #2033)**: a throwing
+  `shouldTrigger` matcher is now contained per hook (warning log, reads
+  as "no match") in BOTH `HookRegistry.dispatch` and the new
+  `dispatchAwaited`, and `_fireAndForget` wraps `Hook.execute` in
+  `Future.sync` so a synchronously-throwing non-`async` override lands in
+  the existing `catchError` path instead of escaping. Previously one
+  broken matcher or sync-throwing hook silently disarmed every hook
+  ordered after it — including `HookErrorPolicy.veto` hooks — and a
+  throwing matcher could escape `UseCase.call` entirely from the
+  failure-phase dispatch. Regression tests pin both containments and that
+  a veto hook ordered after a broken hook still vetoes.
+
 ## [7.3.0] - 2026-10-28
 
 ### Removed

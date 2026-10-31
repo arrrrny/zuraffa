@@ -48,6 +48,42 @@ class _RecordingHook extends Hook {
   }
 }
 
+/// A hook whose [execute] is NOT async: a throw escapes synchronously at
+/// call time — before any `.catchError` can attach.
+class _SyncThrowHook extends Hook {
+  _SyncThrowHook(this.id);
+
+  @override
+  final String id;
+
+  @override
+  Future<void> execute(HookContext context, HookPhase phase) {
+    throw StateError('sync execute boom');
+  }
+}
+
+/// A blocking hook that always fails under [HookErrorPolicy.veto].
+class _VetoHook extends Hook {
+  _VetoHook(this.id, {this.priority = 0});
+
+  @override
+  final String id;
+
+  @override
+  final int priority;
+
+  @override
+  bool get blocking => true;
+
+  @override
+  HookErrorPolicy get onError => HookErrorPolicy.veto;
+
+  @override
+  Future<void> execute(HookContext context, HookPhase phase) async {
+    throw StateError('veto');
+  }
+}
+
 void main() {
   late HookRegistry registry;
 
@@ -258,5 +294,117 @@ void main() {
       expect(hook.calls[0].$1.metadata['test_key'], 'test_value');
       expect(hook.calls[1].$1.metadata['test_key'], 'test_value');
     });
+
+    test('dispatch contains a throwing shouldTrigger (no escape)', () async {
+      final broken = _RecordingHook(
+        id: 'broken-matcher',
+        triggerFilter: (_, _) {
+          throw StateError('matcher boom');
+        },
+      );
+      final healthy = _RecordingHook(id: 'healthy');
+      registry.register(broken);
+      registry.register(healthy);
+
+      final ctx = HookContext(
+        useCaseName: 'TestUseCase',
+        timestamp: DateTime.now(),
+      );
+
+      expect(() => registry.dispatch(ctx, HookPhase.pre), returnsNormally);
+      await Future.delayed(Duration(milliseconds: 10));
+
+      expect(broken.calls, isEmpty);
+      expect(
+        healthy.calls.length,
+        1,
+        reason: 'a broken matcher must not disarm the hook ordered after it',
+      );
+    });
+
+    test(
+      'dispatchAwaited contains a throwing shouldTrigger (no escape)',
+      () async {
+        final broken = _RecordingHook(
+          id: 'broken-matcher',
+          triggerFilter: (_, _) {
+            throw StateError('matcher boom');
+          },
+        );
+        registry.register(broken);
+
+        final ctx = HookContext(
+          useCaseName: 'TestUseCase',
+          timestamp: DateTime.now(),
+        );
+
+        // The contract: only HookVetoException ever propagates — a
+        // throwing matcher must not escape as a raw StateError.
+        await registry.dispatchAwaited(ctx, HookPhase.pre);
+
+        expect(broken.calls, isEmpty);
+      },
+    );
+
+    test(
+      'dispatchAwaited: a throwing matcher does not disarm a later veto hook',
+      () async {
+        registry.register(
+          _RecordingHook(
+            id: 'broken-matcher',
+            triggerFilter: (_, _) {
+              throw StateError('matcher boom');
+            },
+          ),
+        );
+        registry.register(_VetoHook('veto', priority: 10));
+
+        final ctx = HookContext(
+          useCaseName: 'TestUseCase',
+          timestamp: DateTime.now(),
+        );
+
+        expect(
+          () => registry.dispatchAwaited(ctx, HookPhase.pre),
+          throwsA(isA<HookVetoException>()),
+          reason: 'the veto hook ordered after the broken matcher still fires',
+        );
+      },
+    );
+
+    test(
+      'dispatch contains a synchronously-throwing execute (no escape)',
+      () async {
+        registry.register(_SyncThrowHook('sync-boom'));
+        final healthy = _RecordingHook(id: 'healthy');
+        registry.register(healthy);
+
+        final ctx = HookContext(
+          useCaseName: 'TestUseCase',
+          timestamp: DateTime.now(),
+        );
+
+        expect(() => registry.dispatch(ctx, HookPhase.pre), returnsNormally);
+        await Future.delayed(Duration(milliseconds: 10));
+
+        expect(healthy.calls.length, 1);
+      },
+    );
+
+    test(
+      'dispatchAwaited contains a synchronously-throwing execute (no escape)',
+      () async {
+        registry.register(_SyncThrowHook('sync-boom'));
+
+        final ctx = HookContext(
+          useCaseName: 'TestUseCase',
+          timestamp: DateTime.now(),
+        );
+
+        // Non-blocking branch: the sync throw must land in the
+        // fire-and-forget error path, not escape the dispatch.
+        await registry.dispatchAwaited(ctx, HookPhase.pre);
+      },
+    );
   });
 }
