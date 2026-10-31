@@ -52,11 +52,23 @@ void main() {
       final inventoryBody = _inventoryBody(content);
 
       // Layer 1: hermetic repo coverage. No fleet checkout needed, so CI
-      // can never silently lose the whole coverage layer.
+      // can never silently lose the whole coverage layer. The expected
+      // repository set is derived from update_fleet.sh's FLEET_REPOS so a
+      // repository added there is covered without touching this test.
+      final fleetRepos = _fleetReposFromUpdateScript(root);
+      expect(
+        fleetRepos,
+        isNotNull,
+        reason:
+            'could not parse FLEET_REPOS from scripts/update_fleet.sh - the '
+            'inventory coverage layer depends on that list; fix the parser '
+            'or the script rather than hardcoding the repos here.',
+      );
+      final repos = fleetRepos!;
       final inventoriedRepos = _rows(
         inventoryBody,
       ).map((row) => row.repo).toSet();
-      final missingRepos = _fleetRepos
+      final missingRepos = repos
           .where((r) => !inventoriedRepos.contains(r))
           .toList();
       expect(
@@ -70,7 +82,7 @@ void main() {
 
       final devRoot = _devRoot(root);
       final absent = [
-        for (final repo in _fleetRepos)
+        for (final repo in repos)
           if (!Directory('$devRoot/$repo').existsSync()) repo,
       ];
       if (absent.isNotEmpty) {
@@ -90,7 +102,11 @@ void main() {
         );
       }
 
-      final missing = _discoveredButNotInventoried(devRoot, inventoryBody);
+      final missing = _discoveredButNotInventoried(
+        devRoot,
+        inventoryBody,
+        repos,
+      );
       expect(
         missing,
         isEmpty,
@@ -117,6 +133,19 @@ void main() {
           '${row.name}: ${spec.path} - the publish step cds into '
           'dirname(path) and runs dart pub publish there, so this row '
           'would abort the fleet run.',
+        );
+        continue;
+      }
+      // The publish step publishes from dirname(path), so the pubspec found
+      // there must declare the name the inventory row carries - a row
+      // pointing at a sibling package's pubspec would publish the WRONG
+      // directory's package and silently skip the intended one.
+      final declaredName = _pkgName(spec.path);
+      if (declaredName != row.name) {
+        broken.add(
+          '${row.name}: ${spec.path} declares name: ${declaredName ?? "<none>"} '
+          '- the publish step publishes from dirname(path), so this row '
+          'would publish the wrong package (or none).',
         );
       }
     }
@@ -165,49 +194,57 @@ String _devRoot(String projectRoot) =>
     Platform.environment['ZURAFFA_DEV_ROOT'] ??
     Directory(projectRoot).parent.path;
 
-/// The fleet repos update_fleet.sh walks (FLEET_REPOS).
-const _fleetRepos = [
-  'zuraffa',
-  'zuraffa_flutter',
-  'zuraffa_ui',
-  'zuraffa_agent',
-  'zuraffa_code_editor',
-  'zuraffa_ffi',
-  'zuraffa_graphql',
-  'zuraffa_observability',
-  'zuraffa_storage',
-  'zuraffa_session',
-  'zuraffa_intents',
-  'zuraffa_minio',
-  'zuraffa_auth',
-  'zuraffa_dashboard',
-  'zuraffa_file_picker',
-  'zuraffa_inappwebview',
-  'zuraffa_ocr',
-  'zuraffa_permissions',
-  'zuraffa_purchase',
-  'zuraffa_subscriptions',
-  'zuraffa_notifications',
-  'zuraffa_tui',
-];
+/// The fleet repos update_fleet.sh walks, parsed from FLEET_REPOS in
+/// scripts/update_fleet.sh itself - a repository added to the fleet script
+/// is covered by these tests without this file being touched. Falls back to
+/// null only when the script is missing or malformed, which the caller
+/// reports as a failure (a silently-empty fleet list would void the whole
+/// coverage layer).
+List<String>? _fleetReposFromUpdateScript(String projectRoot) {
+  final script = File('$projectRoot/scripts/update_fleet.sh');
+  if (!script.existsSync()) return null;
+  final lines = script.readAsLinesSync();
+  final start = lines.indexOf('FLEET_REPOS=(');
+  if (start < 0) return null;
+  final repos = <String>[];
+  for (var i = start + 1; i < lines.length; i++) {
+    final line = lines[i].trim();
+    if (line == ')') break;
+    if (line.isEmpty || line.startsWith('#')) continue;
+    // One entry per line inside the array - strip any trailing comment.
+    final entry = line.split('#').first.trim();
+    if (entry.isNotEmpty) repos.add(entry);
+  }
+  return repos.isEmpty ? null : repos;
+}
 
 /// Replays the update_fleet.sh discovery walk against the fleet
 /// checkouts under devRoot and returns every discovered publishable
 /// package name that the inventory does not list.
-Set<String> _discoveredButNotInventoried(String devRoot, String inventoryBody) {
+Set<String> _discoveredButNotInventoried(
+  String devRoot,
+  String inventoryBody,
+  List<String> fleetRepos,
+) {
   final discovered = <String>{};
-  for (final repo in _fleetRepos) {
+  for (final repo in fleetRepos) {
     final repoRoot = Directory('$devRoot/$repo');
     if (!repoRoot.existsSync()) continue;
 
     final specs = <String>[];
-    // Root pubspec, guarded by the same name prefix the subdir loop
-    // enforces - a workspace root like FFI_WS is not a fleet member.
+    // Root pubspec. update_fleet.sh's discovery walk takes EVERY root
+    // pubspec unconditionally, so this replay mirrors that: a non-prefixed
+    // root is a fleet member only when its declared name matches the
+    // repository name (the `zuraffa` root qualifies; a workspace root like
+    // FFI_WS, whose pubspec name differs from its directory, does not).
     final rootSpec = File('${repoRoot.path}/pubspec.yaml');
     if (rootSpec.existsSync()) {
       final rootName = _pkgName(rootSpec.path);
-      if (rootName != null &&
-          (rootName.startsWith('zuraffa_') || rootName.startsWith('zikzak_'))) {
+      final isPrefixed =
+          rootName != null &&
+          (rootName.startsWith('zuraffa_') || rootName.startsWith('zikzak_'));
+      final isRepoNamed = rootName != null && rootName == repo;
+      if (isPrefixed || isRepoNamed) {
         specs.add(rootSpec.path);
       }
     }
