@@ -216,6 +216,13 @@ abstract class Hook {
   ///
   /// Honored ONLY in the `pre` phase of the classic `UseCase`: `success` and
   /// `failure` dispatch stays fire-and-forget regardless of this flag.
+  ///
+  /// A blocking `pre` hook also runs BEFORE the UseCase's cancellation
+  /// check: `UseCase.call` consults the `CancelToken` only after the
+  /// awaited dispatch returns, so a cancelled call still waits for the
+  /// hook. [HookContext] carries no `CancelToken` — a hook cannot observe
+  /// cancellation itself — which makes [blockingTimeout] the only bound on
+  /// that wait.
   bool get blocking => false;
 
   /// How long a [blocking] run may take before the registry abandons it and
@@ -232,7 +239,10 @@ abstract class Hook {
   /// - [HookErrorPolicy.veto]: `UseCase.call` returns
   ///   `Failure(hookFailure)` without running `execute`. Applies to a
   ///   [blockingTimeout] abandonment too: a vetoed hook that never completed
-  ///   must not land the result.
+  ///   must not land the result. A veto also skips the `success`/`failure`
+  ///   dispatches entirely — hooks that acquire a resource in `pre` and
+  ///   release it in a later phase (a telemetry span, say) must release it
+  ///   themselves on the veto path; see [HookVetoException].
   HookErrorPolicy get onError => HookErrorPolicy.continue_;
 
   @override
@@ -247,6 +257,19 @@ abstract class Hook {
 /// `UseCase.call` catches it and returns `Failure([failure])` WITHOUT
 /// running `execute` and without dispatching the `success`/`failure` phases
 /// — a veto proceeds no further.
+///
+/// ## Veto and resource-carrying hooks
+///
+/// Because a veto skips the `success`/`failure` phases, a hook that
+/// acquires a resource in `pre` and releases it in `success`/`failure`
+/// (the built-in telemetry span is the canonical example: started in
+/// `pre`, ended in `success`/`failure`) never reaches its release phase
+/// on a vetoed call. That is the deliberate tradeoff of "a veto proceeds
+/// no further": such a hook must release the resource itself (end the
+/// span on the veto path, or whenever it detects the veto condition) or
+/// must not be paired with vetoing hooks. The framework deliberately does
+/// NOT dispatch a synthetic `failure` phase for a veto — the "no later
+/// phases" semantics are pinned by tests (issue #2032).
 class HookVetoException implements Exception {
   /// The hook's failure, wrapped for the classic `Result<T, AppFailure>`
   /// contract. An [AppFailure] thrown by the hook passes through as-is;

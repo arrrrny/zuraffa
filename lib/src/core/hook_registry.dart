@@ -80,6 +80,27 @@ class HookRegistry {
     _logger.info('All hooks unregistered');
   }
 
+  /// Whether [hook] matches [context] for [phase].
+  ///
+  /// Contains a throwing [Hook.shouldTrigger] per hook: a broken matcher
+  /// logs a warning and reads as "no match", so it can never abort a
+  /// dispatch or silently disarm the hooks ordered after it (including
+  /// veto hooks). Shared by [dispatch] and [dispatchAwaited] so both
+  /// dispatches agree.
+  bool _matches(Hook hook, HookContext context, HookPhase phase) {
+    if (!hook.phases.contains(phase)) return false;
+    try {
+      return hook.shouldTrigger(context, phase);
+    } catch (e, stackTrace) {
+      _logger.warning(
+        'Hook "${hook.id}" shouldTrigger failed during $phase: $e',
+        e,
+        stackTrace,
+      );
+      return false;
+    }
+  }
+
   /// Dispatch a context + phase to all matching hooks.
   ///
   /// **Fire-and-forget**: never throws, never blocks the calling UseCase.
@@ -93,10 +114,7 @@ class HookRegistry {
     if (!isEnabled || _hooks.isEmpty) return;
 
     // Snapshot the hooks list to avoid concurrent modification issues
-    final matching = hooks.where((h) {
-      if (!h.phases.contains(phase)) return false;
-      return h.shouldTrigger(context, phase);
-    });
+    final matching = hooks.where((h) => _matches(h, context, phase));
 
     for (final hook in matching) {
       _fireAndForget(hook, context, phase);
@@ -119,6 +137,10 @@ class HookRegistry {
   ///   [HookErrorPolicy.continue_] logs and proceeds; [HookErrorPolicy.veto]
   ///   stops immediately by throwing [HookVetoException] (the UseCase turns
   ///   that into `Failure(hookFailure)` without running `execute`).
+  ///   A veto skips every later phase — no `success`/`failure` dispatch —
+  ///   so a hook that acquires a resource in `pre` and releases it in a
+  ///   later phase (the telemetry span is the canonical example) must
+  ///   release it itself on the veto path; see [HookVetoException].
   /// - Non-blocking hooks keep [dispatch]'s exact fire-and-forget semantics.
   /// - When [isEnabled] is `false`, no hooks are registered, or no matching
   ///   hook is blocking, this degenerates to [dispatch] (one completed-future
@@ -129,10 +151,7 @@ class HookRegistry {
     if (!isEnabled || _hooks.isEmpty) return;
 
     // Snapshot the hooks list to avoid concurrent modification issues
-    final matching = hooks.where((h) {
-      if (!h.phases.contains(phase)) return false;
-      return h.shouldTrigger(context, phase);
-    }).toList();
+    final matching = hooks.where((h) => _matches(h, context, phase)).toList();
 
     for (final hook in matching) {
       if (!hook.blocking) {
@@ -183,8 +202,15 @@ class HookRegistry {
   }
 
   /// Fire-and-forget launch — never lets a hook failure propagate.
+  ///
+  /// [Future.sync] wraps the [Hook.execute] call so a SYNCHRONOUS throw
+  /// from a non-`async` override (which happens before `.catchError`
+  /// could attach) becomes an async error the handler below catches.
   void _fireAndForget(Hook hook, HookContext context, HookPhase phase) {
-    hook.execute(context, phase).catchError((e, stackTrace) {
+    Future<void>.sync(() => hook.execute(context, phase)).catchError((
+      Object e,
+      StackTrace stackTrace,
+    ) {
       _logger.warning(
         'Hook "${hook.id}" failed during $phase: $e',
         e,

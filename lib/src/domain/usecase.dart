@@ -81,6 +81,9 @@ abstract class UseCase<T, Params> with Loggable {
     // fire-and-forget contract above. A vetoing hook fails the call here:
     // Failure(hookFailure) without running execute, without later phases
     // (not reported to FailureReporterRegistry — the UseCase never ran).
+    // No success/failure dispatch on veto also means a hook that acquires
+    // a resource in pre (a telemetry span) never reaches its release phase
+    // — such hooks must self-release; see HookVetoException.
     try {
       await HookRegistry.instance.dispatchAwaited(
         HookContext(

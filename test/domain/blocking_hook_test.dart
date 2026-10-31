@@ -550,5 +550,111 @@ void main() {
         expect(writes, ['done', 'open']);
       },
     );
+
+    test(
+      'a throwing shouldTrigger is contained; a veto hook after it still vetoes',
+      () async {
+        final events = <String>[];
+
+        HookRegistry.instance.register(
+          _ScriptedHook(
+            'broken-matcher',
+            blocking: true, // irrelevant — it never matches
+            matches: (_) {
+              throw StateError('matcher boom');
+            },
+            body: (context) async => events.add('broken-matcher-ran'),
+          ),
+        );
+        HookRegistry.instance.register(
+          _ScriptedHook(
+            'veto',
+            blocking: true,
+            priority: 10,
+            onError: HookErrorPolicy.veto,
+            body: (context) async => throw ServerFailure('vetoed'),
+          ),
+        );
+
+        final useCase = _WriteUseCase(() => events.add('execute'));
+        final result = await useCase('task-1');
+
+        expect(
+          result.isSuccess,
+          isFalse,
+          reason: 'the veto hook ordered after the broken matcher still fired',
+        );
+        expect(events, isNot(contains('execute')));
+        expect(events, isNot(contains('broken-matcher-ran')));
+      },
+    );
+
+    test('a synchronously-throwing execute is contained; a veto hook after it '
+        'still vetoes', () async {
+      final events = <String>[];
+
+      HookRegistry.instance.register(
+        _ScriptedHook(
+          'sync-boom',
+          // non-blocking on purpose: the fire-and-forget path must
+          // contain a synchronous throw from a non-async execute
+          body: (context) {
+            throw StateError('sync boom');
+          },
+        ),
+      );
+      HookRegistry.instance.register(
+        _ScriptedHook(
+          'veto',
+          blocking: true,
+          priority: 10,
+          onError: HookErrorPolicy.veto,
+          body: (context) async => throw ServerFailure('vetoed'),
+        ),
+      );
+
+      final useCase = _WriteUseCase(() => events.add('execute'));
+      final result = await useCase('task-1');
+
+      expect(
+        result.isSuccess,
+        isFalse,
+        reason: 'the veto hook ordered after the sync throw still fired',
+      );
+      expect(events, isNot(contains('execute')));
+    });
+
+    test('a veto skips subsequent blocking hooks', () async {
+      final events = <String>[];
+
+      HookRegistry.instance.register(
+        _ScriptedHook(
+          'veto',
+          blocking: true,
+          onError: HookErrorPolicy.veto,
+          body: (context) async => throw ServerFailure('no-go'),
+        ),
+      );
+      HookRegistry.instance.register(
+        _ScriptedHook(
+          'after-veto',
+          blocking: true,
+          priority: 10,
+          body: (context) async => events.add('after-veto-ran'),
+        ),
+      );
+
+      final useCase = _WriteUseCase(() => events.add('execute'));
+      final result = await useCase('task-1');
+
+      expect(result.isSuccess, isFalse);
+      expect(
+        events,
+        isNot(contains('after-veto-ran')),
+        reason:
+            'a veto stops the dispatch immediately — no later blocking hook',
+      );
+      expect(events, isNot(contains('execute')));
+    });
   });
 }
