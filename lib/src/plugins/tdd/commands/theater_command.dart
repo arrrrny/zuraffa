@@ -10,7 +10,7 @@
 ///
 /// The stub keeps the verb registered so an old invocation gets the
 /// migration message instead of that dump, and — per SPEC 917's "errors are
-/// an API" — still closes with the `zuraffa.verdict.v1` envelope under
+/// an API" — still closes with the canonical verdict envelope under
 /// `--json` (the golden row passes unchanged). It opens nothing and reads
 /// nothing: the successor command lives in the companion package.
 library;
