@@ -59,17 +59,18 @@ void main() {
         greaterThan(proseEnd),
         reason: 'the marker follows the complete item',
       );
-      expect(markerA1, lessThan(blank1),
-          reason: 'and hugs the item, before the separator');
+      expect(
+        markerA1,
+        lessThan(blank1),
+        reason: 'and hugs the item, before the separator',
+      );
       expect(
         proseEnd,
         greaterThan(header1),
         reason: 'the prose lines are untouched and stay after the header',
       );
       expect(
-        lines
-            .take(markerA1)
-            .any((l) => l.contains('declares the **Type**')),
+        lines.take(markerA1).any((l) => l.contains('declares the **Type**')),
         isFalse,
         reason: 'no marker may split the sentence mid-clause',
       );
@@ -89,7 +90,8 @@ void main() {
       });
       final lines = result.content.split('\n');
       final header1 = lines.indexOf(
-          '1. **Given** a wired project, **When** the plan runs, **Then** it routes.');
+        '1. **Given** a wired project, **When** the plan runs, **Then** it routes.',
+      );
       expect(lines[header1 + 1], '   **Type**: acceptance');
     });
 
@@ -118,10 +120,10 @@ void main() {
    spanning two lines, **Then** routed.
 ''';
       final first = emitter.emit(spec, {'A1': BehaviorKind.acceptance});
-      final second = emitter.emit(
-        first.content,
-        {'A1': BehaviorKind.acceptance, 'A2': BehaviorKind.acceptance},
-      );
+      final second = emitter.emit(first.content, {
+        'A1': BehaviorKind.acceptance,
+        'A2': BehaviorKind.acceptance,
+      });
       expect(second.emitted, isEmpty);
       expect(second.content, first.content);
     });
