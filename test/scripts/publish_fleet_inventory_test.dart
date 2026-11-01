@@ -273,7 +273,7 @@ Set<String> _discoveredButNotInventoried(
           .where((l) => l.startsWith('publish_to:'))
           .map((l) => l.substring('publish_to:'.length).trim())
           .firstOrNull;
-      if (publishTo != null && publishTo != 'none') continue;
+      if (publishTo == 'none') continue;
       discovered.add(name);
     }
   }

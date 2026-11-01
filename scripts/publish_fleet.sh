@@ -95,6 +95,7 @@ zuraffa_storage|zuraffa_storage|pubspec.yaml
 zuraffa_subscriptions|zuraffa_subscriptions|packages/zuraffa_subscriptions/pubspec.yaml
 zuraffa_tui|zuraffa_tui|pubspec.yaml
 zuraffa_ui|zuraffa_ui|pubspec.yaml
+vendure|zuraffa_vendure|pubspec.yaml
 EOF
 )
 
@@ -197,6 +198,7 @@ zuraffa_storage|zuraffa
 zuraffa_storage|zuraffa_minio
 zuraffa_subscriptions|zuraffa
 zuraffa_tui|zuraffa
+vendure|zuraffa
 EOF
 )
 
