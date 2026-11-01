@@ -254,13 +254,28 @@ class PluginScaffold {
       // Dev-only sibling resolution seams (issue #2038): gitignored
       // `pubspec_overrides.yaml` per package — a committed
       // `dependency_overrides` section would ship verbatim in the published
-      // archive (pub neither strips nor rejects it). The app-facing package
-      // depends on no family member, so it ships no seam at all; every
-      // sibling that does depend on it (and the framework, when
-      // `--zuraffa-path` is passed — FR-006/FR-013) resolves through its own.
+      // archive (pub neither strips nor rejects it). Every package that
+      // depends on a family member resolves its siblings through its own
+      // seam; the app-facing package depends on none, so it ships no seam
+      // unless `--zuraffa-path` is given (FR-006/FR-013) — its pubspec still
+      // declares the hosted zuraffa constraint, and the seam is what points
+      // it at the local checkout (zero sibling entries is valid YAML).
       for (final packageName in packageNames.skip(1))
         p.join('packages', packageName, 'pubspec_overrides.yaml'): _render(
           _overridesSeamTemplateFor(packageName, packageNames),
+          {...tokens, '@@ZURAFFA_PATH_ENTRY@@': zuraffaPathEntry},
+        ),
+      if (zuraffaPath != null)
+        p.join(
+          'packages',
+          packageNames.first,
+          'pubspec_overrides.yaml',
+        ): _render(
+          _overridesSeamTemplateFor(
+            packageNames.first,
+            packageNames,
+            includeSiblings: false,
+          ),
           {...tokens, '@@ZURAFFA_PATH_ENTRY@@': zuraffaPathEntry},
         ),
     };
@@ -487,13 +502,20 @@ pubspec_overrides.yaml
 
   /// The gitignored dev seam (issue #2038): sibling path overrides live
   /// here — never in the committed pubspec. [name] is the seam's own
-  /// package; it is filtered out of [family], and the app-facing package
-  /// (which depends on no family member) never gets a seam written at all.
-  static String _overridesSeamTemplateFor(String name, List<String> family) {
-    final siblings = [
-      for (final sibling in family)
-        if (sibling != name) '  $sibling:\n    path: ../$sibling\n',
-    ];
+  /// package; it is filtered out of [family]. A package with no family
+  /// siblings (the app-facing package) emits zero sibling entries, so its
+  /// seam carries only the `--zuraffa-path` framework override.
+  static String _overridesSeamTemplateFor(
+    String name,
+    List<String> family, {
+    bool includeSiblings = true,
+  }) {
+    final siblings = !includeSiblings
+        ? const <String>[]
+        : [
+            for (final sibling in family)
+              if (sibling != name) '  $sibling:\n    path: ../$sibling\n',
+          ];
     return '''
 # Local development only — resolve the family to this checkout.
 # pub does NOT strip overrides on publish: this file is gitignored and
@@ -883,12 +905,13 @@ set -e
 # (issue #1621): every family member that depends on a sibling gets a
 # gitignored pubspec_overrides.yaml pointing at it, so the whole family
 # resolves from this checkout. The app-facing package depends on no family
-# member, so it gets no seam at all. Committed dependency_overrides sections
-# would ship verbatim in the published archive — pub does NOT strip them
-# (issue #2038) — so the pubspecs themselves stay clean; the hosted
-# constraints in `dependencies:` stay untouched (FR-006/FR-013). Overrides
-# for packages outside the family (a `--zuraffa-path` checkout, for
-# instance) are preserved rather than replaced.
+# member, so this pass writes it no sibling seam; a seam the scaffold gave
+# it (`--zuraffa-path`) is left untouched. Committed dependency_overrides
+# sections would ship verbatim in the published archive — pub does NOT
+# strip them (issue #2038) — so the pubspecs themselves stay clean; the
+# hosted constraints in `dependencies:` stay untouched (FR-006/FR-013).
+# Overrides for packages outside the family (a `--zuraffa-path` checkout,
+# for instance) are preserved rather than replaced.
 
 GREEN='\033[0;32m'; NC='\033[0m'
 PACKAGES=(@@PKGS@@)
@@ -901,6 +924,13 @@ for pkg in "${PACKAGES[@]:1}"; do
     pubspec="packages/$pkg/pubspec.yaml"
     overrides="packages/$pkg/pubspec_overrides.yaml"
     [ -f "$pubspec" ] || continue
+    # The seam is gitignored and absent on a fresh clone/CI checkout. Touch
+    # it empty first: awk exits 2 on an unreadable input WITHOUT running END,
+    # so the missing-file case would otherwise fall through to a bare
+    # `dependency_overrides:` header and silently restore nothing (issue
+    # #2038, review of PR #2039). An empty input reaches END, which emits the
+    # full sibling section.
+    [ -f "$overrides" ] || : > "$overrides"
 
     # Write the dev seam as a gitignored pubspec_overrides.yaml: every
     # sibling gets a path override. A committed dependency_overrides section
@@ -949,7 +979,11 @@ for pkg in "${PACKAGES[@]:1}"; do
             if (in_ov) { flush(); section() }
             else if (!seen) { section() }
         }
-    ' "$overrides" 2>/dev/null > "$overrides.tmp" || printf 'dependency_overrides:\n' > "$overrides.tmp"
+    ' "$overrides" 2>/dev/null > "$overrides.tmp" || {
+        rm -f "$overrides.tmp"
+        echo "Failed to rebuild $overrides" >&2
+        exit 1
+    }
     mv "$overrides.tmp" "$overrides"
     echo -e "${GREEN}Restored dev overrides in $overrides${NC}"
 done

@@ -464,14 +464,6 @@ void main() {
           final seam = File(
             p.join(monorepo, 'packages', pkg, 'pubspec_overrides.yaml'),
           );
-          if (pkg == 'my_plugin') {
-            expect(
-              seam.existsSync(),
-              isFalse,
-              reason: 'the app-facing package has no siblings to override',
-            );
-            continue;
-          }
           final doc = loadYaml(seam.readAsStringSync()) as YamlMap;
           expect(
             ((doc['dependency_overrides'] as YamlMap)['zuraffa']
@@ -935,6 +927,9 @@ void main() {
 
       // Dev-time sibling resolution moves to the gitignored
       // pubspec_overrides.yaml seam (à la the workspace-root posture).
+      // B5 already asserts the no-committed-overrides half for every
+      // package; what B13 adds is the seam shape itself plus the
+      // .gitignore entry (review of PR #2039).
       for (final pkg in const [
         'my_plugin_platform',
         'my_plugin_android',
@@ -951,6 +946,11 @@ void main() {
         );
         final overrides = loadYaml(overridesFile.readAsStringSync()) as YamlMap;
         expect(overrides.containsKey('dependency_overrides'), isTrue);
+        expect(
+          (overrides['dependency_overrides'] as YamlMap).keys,
+          isNot(contains(pkg)),
+          reason: '$pkg never overrides itself',
+        );
       }
       final appSeam = File(
         p.join(monorepo, 'packages', 'my_plugin', 'pubspec_overrides.yaml'),
@@ -959,8 +959,8 @@ void main() {
         appSeam.existsSync(),
         isFalse,
         reason:
-            'the app-facing package has no siblings to override — '
-            'it ships no seam file at all (#2038)',
+            'no --zuraffa-path here: the app-facing package has no siblings '
+            'and no framework override — it ships no seam file at all (#2038)',
       );
       final gitignore = File(p.join(monorepo, '.gitignore')).readAsStringSync();
       expect(
@@ -998,31 +998,23 @@ void main() {
           // The override lives in the gitignored seam, not the pubspec. The
           // app-facing package has no siblings: its seam overrides only the
           // framework checkout.
-          final seamPath = p.join(
-            monorepo,
-            'packages',
-            pkg,
-            'pubspec_overrides.yaml',
+          final seamFile = File(
+            p.join(monorepo, 'packages', pkg, 'pubspec_overrides.yaml'),
           );
+          final seam = loadYaml(seamFile.readAsStringSync()) as YamlMap;
+          final overrides = seam['dependency_overrides'] as YamlMap;
           expect(
-            pubspecOf(monorepo, pkg).containsKey('dependency_overrides'),
-            isFalse,
-            reason: '$pkg must never commit the framework override (#2038)',
+            (overrides['zuraffa'] as YamlMap)['path'],
+            repoRoot,
+            reason: '$pkg framework override must point at the checkout',
           );
-          final seamFile = File(seamPath);
           if (pkg == 'my_plugin') {
             expect(
-              seamFile.existsSync(),
-              isFalse,
-              reason: 'the app-facing package has no siblings to override',
-            );
-          } else {
-            final seam = loadYaml(seamFile.readAsStringSync()) as YamlMap;
-            expect(
-              ((seam['dependency_overrides'] as YamlMap)['zuraffa']
-                  as YamlMap)['path'],
-              repoRoot,
-              reason: '$pkg framework override must point at the checkout',
+              overrides.keys.cast<String>().toSet(),
+              {'zuraffa'},
+              reason:
+                  'the app-facing package has no siblings — its seam carries '
+                  'only the framework override',
             );
           }
         }
@@ -1163,8 +1155,8 @@ void main() {
 
         // The restore writes the gitignored seam files; the pubspecs stay
         // clean (issue #2038). The app-facing package depends on no family
-        // member, so it never gets a seam file at all — not even from the
-        // restore pass.
+        // member, so the restore pass writes it no sibling seam — and this
+        // scaffold ran without --zuraffa-path, so it has no seam at all.
         final appSpec = pubspecOf(monorepo, 'my_plugin');
         expect(
           appSpec.containsKey('dependency_overrides'),
@@ -1176,7 +1168,7 @@ void main() {
             p.join(monorepo, 'packages', 'my_plugin', 'pubspec_overrides.yaml'),
           ).existsSync(),
           isFalse,
-          reason: 'the app-facing package has no siblings to override',
+          reason: 'no --zuraffa-path, no siblings: the app ships no seam',
         );
 
         // Hosted constraints stay declared (FR-006/FR-013).
@@ -1362,9 +1354,7 @@ void main() {
 
         for (final pkg in const ['my_plugin_platform', 'my_plugin_macos']) {
           // The overrides live in the gitignored seam after the restore —
-          // the pubspec itself stays clean (issue #2038). The app-facing
-          // package depends on no family member, so the restore writes it
-          // no seam at all.
+          // the pubspec itself stays clean (issue #2038).
           final spec = pubspecOf(monorepo, pkg);
           expect(
             spec.containsKey('dependency_overrides'),
@@ -1404,6 +1394,87 @@ void main() {
             reason: '$pkg must still link its siblings',
           );
         }
+      },
+    );
+    test(
+      'B12h: restore rebuilds the seams from scratch on a fresh clone',
+      () async {
+        final result = await scaffold();
+        final monorepo = result.rootPath;
+
+        // Fresh clone / CI checkout: the gitignored seam files do not exist
+        // at all. Deleting them explicitly makes the state unconditional.
+        for (final pkg in const [
+          'my_plugin',
+          'my_plugin_platform',
+          'my_plugin_android',
+          'my_plugin_ios',
+          'my_plugin_macos',
+        ]) {
+          final seam = File(
+            p.join(monorepo, 'packages', pkg, 'pubspec_overrides.yaml'),
+          );
+          if (seam.existsSync()) seam.deleteSync();
+        }
+
+        final restore = Process.runSync(
+          'bash',
+          [p.join('scripts', 'restore_dev_setup.sh')],
+          workingDirectory: monorepo,
+          stdoutEncoding: utf8,
+          stderrEncoding: utf8,
+        );
+        expect(
+          restore.exitCode,
+          0,
+          reason: 'restore failed: ${restore.stderr}${restore.stdout}',
+        );
+
+        // Every non-app package gets a full sibling section back — not a
+        // bare `dependency_overrides:` header, which is what the old
+        // missing-file fallback wrote while claiming success (PR #2039
+        // review). The app-facing package has no siblings and this scaffold
+        // ran without --zuraffa-path, so it still ships no seam.
+        for (final pkg in const [
+          'my_plugin_platform',
+          'my_plugin_android',
+          'my_plugin_ios',
+          'my_plugin_macos',
+        ]) {
+          final seam =
+              loadYaml(
+                    File(
+                      p.join(
+                        monorepo,
+                        'packages',
+                        pkg,
+                        'pubspec_overrides.yaml',
+                      ),
+                    ).readAsStringSync(),
+                  )
+                  as YamlMap;
+          final overrides = seam['dependency_overrides'] as YamlMap;
+          expect(
+            overrides.keys.cast<String>().where((k) => k != pkg),
+            containsAll(
+              [
+                'my_plugin',
+                'my_plugin_platform',
+                'my_plugin_android',
+                'my_plugin_ios',
+                'my_plugin_macos',
+              ].where((s) => s != pkg),
+            ),
+            reason: '$pkg must resolve every sibling from the checkout again',
+          );
+        }
+        expect(
+          File(
+            p.join(monorepo, 'packages', 'my_plugin', 'pubspec_overrides.yaml'),
+          ).existsSync(),
+          isFalse,
+          reason: 'no --zuraffa-path, no siblings: the app ships no seam',
+        );
       },
     );
   });
