@@ -259,7 +259,9 @@ explicitly (the `zuraffa-migrate` extension's verify command walks this list):
   `dart pub publish`.
 - Federated plugin: use the generated `PUBLISH.md` + `scripts/` (zikzak
   pipeline). In-family deps stay hosted constraints; sibling path resolution
-  lives under `dependency_overrides`, which pub strips on publish.
+  lives under `dependency_overrides` — dev-only, never committed (pub does
+  not strip overrides from the archive; the solver merely ignores them in
+  hosted packages).
 - Tag the migration as a **minor** (facade complete) — reserve **major** for
   when you delete the facades.
 

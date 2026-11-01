@@ -277,8 +277,11 @@ Every package analyzes, tests, and publish-dry-runs clean with zero manual
 edits. Adapters are pure Dart — the native transport is injected through
 the platform envelope, so no Flutter plugin boilerplate ships. In-family
 dependencies are hosted constraints; sibling path resolution lives under
-`dependency_overrides` (pub strips them on publish). Release flow: see the
-generated `PUBLISH.md`.
+`dependency_overrides` — dev-only, never committed: pub does NOT strip
+overrides from the archive (they persist in the published tarball; the
+solver merely ignores them in hosted packages), so a committed path
+override ships as polluted metadata. Release flow: see the generated
+`PUBLISH.md`.
 
 ## Quick reference
 

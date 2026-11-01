@@ -285,11 +285,13 @@ can_hosted_resolve() {
 
 
 # Ensure every cross-repo fleet constraint that pub.dev cannot satisfy at
-# $VERSION resolves against the sibling checkout (dev mode; overrides are
-# stripped on publish). Overrides only apply from the root package, so a
-# versioned constraint that arrives TRANSITIVELY through a same-repo path
-# dependency (adapter -> app package -> other-repo package) breaks the
-# adapter's own pub get — those transitive deps get an override here too.
+# $VERSION resolves against the sibling checkout (dev mode only — the
+# strip-before-push step removes these overrides; pub does NOT strip them
+# itself, they persist in the archive). Overrides only apply from the root
+# package, so a versioned constraint that arrives TRANSITIVELY through a
+# same-repo path dependency (adapter -> app package -> other-repo package)
+# breaks the adapter's own pub get — those transitive deps get an override
+# here too.
 fleet_deps_of() { # pubspec -> print fleet names it constrains (single-line)
   local file="$1" pkg
   for pkg in "${FLEET_PKG_NAMES[@]}"; do
