@@ -103,9 +103,9 @@ class PluginScaffold {
   ///   every package's `repository`/`issue_tracker` metadata (FR-012);
   ///   defaults to `arrrrny/<name>`.
   /// - [zuraffaPath], when given, resolves zuraffa from a local checkout
-  ///   via `dependency_overrides` while the hosted constraint stays
-  ///   declared — dev-only resolution that never leaks into a release
-  ///   (FR-006, FR-013).
+  ///   through a gitignored `pubspec_overrides.yaml` seam while the hosted
+  ///   constraint stays declared — dev-only resolution that never leaks
+  ///   into a release (FR-006, FR-013; issue #2038).
   /// - [zuraffaConstraint] pins the hosted zuraffa constraint explicitly
   ///   (e.g. `^6.2.2`); by default it resolves to the latest version
   ///   published on pub.dev. When pub.dev is unreachable the running CLI's
@@ -171,20 +171,18 @@ class PluginScaffold {
               'port behind an injected platform channel with federated adapters.',
     );
     // The hosted constraint is always declared; a local checkout resolves
-    // through dependency_overrides instead, so dev-only path resolution
-    // never leaks into a publish (FR-006, FR-013). The constraint itself
-    // tracks what pub.dev actually serves — not the CLI's (possibly
-    // pre-release) version const (issue #1615).
+    // through the gitignored seam instead, so dev-only path resolution
+    // never leaks into a publish (FR-006, FR-013, issue #2038). The
+    // constraint itself tracks what pub.dev actually serves — not the
+    // CLI's (possibly pre-release) version const (issue #1615).
     final zuraffaDep =
         '  zuraffa: ${await _resolveZuraffaConstraint(zuraffaConstraint)}';
     final zuraffaPathEntry = (zuraffaPath != null)
-        ? '  zuraffa:\n    path: $zuraffaPath\n'
-        : '';
-    final appOverrides = (zuraffaPath != null)
-        ? 'dependency_overrides:\n'
-              '  # Local development only — resolve zuraffa to this checkout;\n'
-              '  # stripped on publish.\n'
-              '$zuraffaPathEntry'
+        ? '  # Local development only — resolve zuraffa to this checkout.\n'
+              '  # pub does NOT strip overrides on publish: this section must\n'
+              '  # never be committed into a pubspec (issue #2038).\n'
+              '  zuraffa:\n'
+              '    path: $zuraffaPath\n'
         : '';
 
     final tokens = <String, String>{
@@ -198,8 +196,6 @@ class PluginScaffold {
       '@@CUSTOM_DESC@@': _singleLine(description ?? ''),
       '@@REPO@@': repoUrl,
       '@@ZURAFFA_DEP@@': zuraffaDep,
-      '@@APP_OVERRIDES@@': appOverrides,
-      '@@ZURAFFA_PATH_ENTRY@@': zuraffaPathEntry,
       '@@CORE_DESC@@':
           description ??
           'Shared channel-envelope core for the $name platform adapters: '
@@ -255,6 +251,18 @@ class PluginScaffold {
       // Adapter packages.
       for (final platform in platforms)
         ..._adapterPackageFiles(tokens, platform: platform),
+      // Dev-only sibling resolution seams (issue #2038): gitignored
+      // `pubspec_overrides.yaml` per package — a committed
+      // `dependency_overrides` section would ship verbatim in the published
+      // archive (pub neither strips nor rejects it). The app-facing package
+      // depends on no family member, so it ships no seam at all; every
+      // sibling that does depend on it (and the framework, when
+      // `--zuraffa-path` is passed — FR-006/FR-013) resolves through its own.
+      for (final packageName in packageNames.skip(1))
+        p.join('packages', packageName, 'pubspec_overrides.yaml'): _render(
+          _overridesSeamTemplateFor(packageName, packageNames),
+          {...tokens, '@@ZURAFFA_PATH_ENTRY@@': zuraffaPathEntry},
+        ),
     };
 
     final created = <String>[];
@@ -473,8 +481,26 @@ SOFTWARE.
 build/
 coverage/
 pubspec.lock
+pubspec_overrides.yaml
 .DS_Store
 ''';
+
+  /// The gitignored dev seam (issue #2038): sibling path overrides live
+  /// here — never in the committed pubspec. [name] is the seam's own
+  /// package; it is filtered out of [family], and the app-facing package
+  /// (which depends on no family member) never gets a seam written at all.
+  static String _overridesSeamTemplateFor(String name, List<String> family) {
+    final siblings = [
+      for (final sibling in family)
+        if (sibling != name) '  $sibling:\n    path: ../$sibling\n',
+    ];
+    return '''
+# Local development only — resolve the family to this checkout.
+# pub does NOT strip overrides on publish: this file is gitignored and
+# never archived (issue #2038).
+dependency_overrides:
+${siblings.join()}@@ZURAFFA_PATH_ENTRY@@''';
+  }
 
   static const String _specsReadmeTemplate = r'''
 # Specs
@@ -501,7 +527,7 @@ Spec-driven development records live here, one folder per feature
 - **Pre-publish**: `./scripts/prepare_for_publish.sh <version> [-f]` — creates the `publish-<version>` branch, bumps all package versions + in-family constraints, resolves the changelog (root CHANGELOG entry first, git-history generation as fallback), checks pub.dev status + stray path deps, commits. Asks for a commit message on a TTY; `-f` (or automation) takes the default
 - **Publish**: `./scripts/publish.sh` — per package in order: skips already-published, waits until every in-family dependency is on pub.dev AND pub-resolvable, then pub get → format → analyze → dry-run → publish; tags the release at the end (needs dart on PATH)
 - **Post-publish**: `./scripts/push_to_master.sh [-f]` — merges the publish branch to master, tags, pushes; `-f` auto-commits dirty trees and deletes the branch
-- **Restore dev**: `./scripts/restore_dev_setup.sh` — re-links the whole family via `dependency_overrides` (dev-only; pub strips overrides on publish)
+- **Restore dev**: `./scripts/restore_dev_setup.sh` — re-links the whole family via gitignored `pubspec_overrides.yaml` files (dev-only; committed `dependency_overrides` sections would ship in the archive — pub does NOT strip them, issue #2038)
 - **Revert**: `./scripts/revert_publish_changes.sh` — abandons a publish: back to master, deletes the publish branch, restores dev setup (interactive)
 
 ## Workflow
@@ -528,7 +554,7 @@ waited on until it is not just API-visible but actually resolvable by pub.
 
 ## Notes
 
-- Sibling `dependency_overrides` never need converting: pub strips them when publishing. `restore_dev_setup.sh` re-links the family for local development.
+- Committed `dependency_overrides` sections ship verbatim in the published archive (pub neither strips nor rejects them — issue #2038): keep them out of the pubspecs; `restore_dev_setup.sh` re-links the family through gitignored `pubspec_overrides.yaml` files for local development.
 - Sibling packages fail `dart pub publish --dry-run` until their hosted in-family dependencies exist on pub.dev — publish in order; `publish.sh` waits for each one and verifies resolvability, not just API presence.
 - pub.dev's new-package rate limit can block first publishes of a whole family at once — re-run `publish.sh` later; it is idempotent.
 ''';
@@ -624,9 +650,9 @@ for pkg in @@PKGS@@; do
     fi
 done
 
-# Path-dependency check: dependency_overrides entries are the dev-only
-# local-resolution seam (pub strips them on publish) and are expected; a
-# path dep OUTSIDE the overrides section would leak into the release.
+# Path-dependency check: a `pubspec_overrides.yaml` is the dev-only
+# local-resolution seam and is never archived; a path dep OUTSIDE the
+# overrides section would leak into the release (issue #2038).
 echo -e "${BLUE}=== Path-dependency check (overrides excluded) ===${NC}"
 PATH_PROBLEMS=0
 for pkg in @@PKGS@@; do
@@ -854,11 +880,14 @@ echo -e "${GREEN}Publish $VERSION merged to master and tagged.${NC}"
 #!/bin/bash
 set -e
 # Generated by `zfa package create-plugin` — restores full dev interlink
-# (issue #1621): every package gets a dependency_overrides section pointing
-# at every OTHER family package, so the whole family resolves from this
-# checkout. Pub strips overrides on publish, so this is dev-only state; the
-# hosted constraints in `dependencies:` stay untouched (FR-006/FR-013).
-# Overrides for packages outside the family (a `--zuraffa-path` checkout, for
+# (issue #1621): every family member that depends on a sibling gets a
+# gitignored pubspec_overrides.yaml pointing at it, so the whole family
+# resolves from this checkout. The app-facing package depends on no family
+# member, so it gets no seam at all. Committed dependency_overrides sections
+# would ship verbatim in the published archive — pub does NOT strip them
+# (issue #2038) — so the pubspecs themselves stay clean; the hosted
+# constraints in `dependencies:` stay untouched (FR-006/FR-013). Overrides
+# for packages outside the family (a `--zuraffa-path` checkout, for
 # instance) are preserved rather than replaced.
 
 GREEN='\033[0;32m'; NC='\033[0m'
@@ -868,13 +897,17 @@ FAMILY_ALT="${FAMILY_ALT%|}"
 ROOT_DIR="$(cd "$(dirname "$0")/.." >/dev/null 2>&1; pwd -P)"
 cd "$ROOT_DIR"
 
-for pkg in "${PACKAGES[@]}"; do
+for pkg in "${PACKAGES[@]:1}"; do
     pubspec="packages/$pkg/pubspec.yaml"
+    overrides="packages/$pkg/pubspec_overrides.yaml"
     [ -f "$pubspec" ] || continue
 
-    # Rebuild the overrides section: every sibling gets a path override, and
-    # non-family entries already there (a `--zuraffa-path` checkout, say) are
-    # carried over untouched.
+    # Write the dev seam as a gitignored pubspec_overrides.yaml: every
+    # sibling gets a path override. A committed dependency_overrides section
+    # would ship verbatim in the archive — pub does NOT strip it (issue
+    # #2038) — so the pubspec itself is never modified. Non-family entries
+    # already there (a `--zuraffa-path` checkout, say) are carried over
+    # untouched.
     awk -v family="$FAMILY_ALT" -v self="$pkg" '
         function flush() {
             if (name != "" && !(name in fam)) kept = kept entry
@@ -882,8 +915,7 @@ for pkg in "${PACKAGES[@]}"; do
         }
         function section() {
             print "dependency_overrides:"
-            print "  # Local development only - resolve the family to this checkout;"
-            print "  # stripped by pub on publish."
+            print "  # Local development only - resolve the family to this checkout."
             if (kept != "") printf "%s", kept
             for (i = 1; i <= n; i++) {
                 if (a[i] == self) continue
@@ -915,11 +947,11 @@ for pkg in "${PACKAGES[@]}"; do
         { print }
         END {
             if (in_ov) { flush(); section() }
-            else if (!seen) { print ""; section() }
+            else if (!seen) { section() }
         }
-    ' "$pubspec" > "$pubspec.tmp"
-    mv "$pubspec.tmp" "$pubspec"
-    echo -e "${GREEN}Restored dev overrides in $pkg${NC}"
+    ' "$overrides" 2>/dev/null > "$overrides.tmp" || printf 'dependency_overrides:\n' > "$overrides.tmp"
+    mv "$overrides.tmp" "$overrides"
+    echo -e "${GREEN}Restored dev overrides in $overrides${NC}"
 done
 
 echo "Run \`dart pub get\` in each package to refresh resolution."
@@ -1005,7 +1037,7 @@ dev_dependencies:
   lints: @@LINTS@@
   test: @@TEST@@
 
-@@APP_OVERRIDES@@repository: @@REPO@@
+repository: @@REPO@@
 issue_tracker: @@REPO@@/issues
 
 @@TOPICS@@''',
@@ -1565,12 +1597,6 @@ dev_dependencies:
   lints: @@LINTS@@
   test: @@TEST@@
 
-dependency_overrides:
-  # Local development only — resolve the app-facing package to this
-  # checkout; stripped on publish.
-  @@PKG@@:
-    path: ../@@PKG@@
-@@ZURAFFA_PATH_ENTRY@@
 repository: @@REPO@@
 issue_tracker: @@REPO@@/issues
 
@@ -1920,14 +1946,6 @@ dev_dependencies:
   lints: @@LINTS@@
   test: @@TEST@@
 
-dependency_overrides:
-  # Local development only — resolve the in-family siblings to this
-  # checkout; stripped on publish.
-  @@PKG@@:
-    path: ../@@PKG@@
-  @@PKG@@_platform:
-    path: ../@@PKG@@_platform
-@@ZURAFFA_PATH_ENTRY@@
 repository: @@REPO@@
 issue_tracker: @@REPO@@/issues
 

@@ -407,36 +407,29 @@ void main() {
     });
   });
 
-  group('PluginScaffold — B5 overrides placement (FR-006 / FR-013)', () {
+  group('PluginScaffold — B5 clean archives (issue #2038)', () {
     test(
-      'B5: siblings override by path only; hosted constraints stay in dependencies',
+      'B5: hosted lane ships NO overrides anywhere; siblings resolve hosted',
       () async {
         final result = await scaffold();
         final monorepo = result.rootPath;
 
-        final coreOverrides =
-            pubspecOf(monorepo, 'my_plugin_platform')['dependency_overrides']
-                as YamlMap?;
-        expect(coreOverrides, isNotNull);
-        expect(
-          (coreOverrides!['my_plugin'] as YamlMap)['path'],
-          '../my_plugin',
-        );
+        for (final pkg in const [
+          'my_plugin',
+          'my_plugin_platform',
+          'my_plugin_android',
+          'my_plugin_ios',
+          'my_plugin_macos',
+        ]) {
+          final spec = pubspecOf(monorepo, pkg);
+          expect(
+            spec.containsKey('dependency_overrides'),
+            isFalse,
+            reason: '$pkg must publish a clean pubspec (issue #2038)',
+          );
+        }
 
-        final adapterOverrides =
-            pubspecOf(monorepo, 'my_plugin_android')['dependency_overrides']
-                as YamlMap?;
-        expect(adapterOverrides, isNotNull);
-        expect(
-          (adapterOverrides!['my_plugin'] as YamlMap)['path'],
-          '../my_plugin',
-        );
-        expect(
-          (adapterOverrides['my_plugin_platform'] as YamlMap)['path'],
-          '../my_plugin_platform',
-        );
-
-        // Hosted in-family constraints still declared as dependencies (B2
+        // Hosted in-family constraints stay declared as dependencies (B2
         // asserts the values; here the placement pairing is what matters).
         final adapterDeps =
             pubspecOf(monorepo, 'my_plugin_android')['dependencies'] as YamlMap;
@@ -446,7 +439,7 @@ void main() {
     );
 
     test(
-      'B5b: --zuraffa-path pins the framework via overrides, hosted stays',
+      'B5b: --zuraffa-path resolves the framework via the gitignored seam',
       () async {
         final repoRoot = Directory.current.path;
         final result = await scaffold(zuraffaPath: repoRoot);
@@ -463,10 +456,26 @@ void main() {
             isA<String>(),
             reason: '$pkg keeps the hosted zuraffa constraint (FR-006)',
           );
-          final overrides = spec['dependency_overrides'] as YamlMap?;
-          expect(overrides, isNotNull, reason: '$pkg must override zuraffa');
           expect(
-            (overrides!['zuraffa'] as YamlMap)['path'],
+            spec.containsKey('dependency_overrides'),
+            isFalse,
+            reason: '$pkg must never commit the framework override (#2038)',
+          );
+          final seam = File(
+            p.join(monorepo, 'packages', pkg, 'pubspec_overrides.yaml'),
+          );
+          if (pkg == 'my_plugin') {
+            expect(
+              seam.existsSync(),
+              isFalse,
+              reason: 'the app-facing package has no siblings to override',
+            );
+            continue;
+          }
+          final doc = loadYaml(seam.readAsStringSync()) as YamlMap;
+          expect(
+            ((doc['dependency_overrides'] as YamlMap)['zuraffa']
+                as YamlMap)['path'],
             repoRoot,
             reason: '$pkg framework override must point at the checkout',
           );
@@ -901,6 +910,126 @@ void main() {
     );
   });
 
+  group('PluginScaffold — B13 clean archives (issue #2038)', () {
+    test('B13: hosted lane scaffolds NO dependency_overrides in any pubspec '
+        '(pub ships committed overrides verbatim)', () async {
+      final result = await scaffold();
+      final monorepo = result.rootPath;
+
+      for (final pkg in const [
+        'my_plugin',
+        'my_plugin_platform',
+        'my_plugin_android',
+        'my_plugin_ios',
+        'my_plugin_macos',
+      ]) {
+        final spec = pubspecOf(monorepo, pkg);
+        expect(
+          spec.containsKey('dependency_overrides'),
+          isFalse,
+          reason:
+              '$pkg must publish a clean pubspec — pub does NOT strip '
+              'dependency_overrides on publish (issue #2038)',
+        );
+      }
+
+      // Dev-time sibling resolution moves to the gitignored
+      // pubspec_overrides.yaml seam (à la the workspace-root posture).
+      for (final pkg in const [
+        'my_plugin_platform',
+        'my_plugin_android',
+        'my_plugin_ios',
+        'my_plugin_macos',
+      ]) {
+        final overridesFile = File(
+          p.join(monorepo, 'packages', pkg, 'pubspec_overrides.yaml'),
+        );
+        expect(
+          overridesFile.existsSync(),
+          isTrue,
+          reason: '$pkg ships a gitignored pubspec_overrides.yaml',
+        );
+        final overrides = loadYaml(overridesFile.readAsStringSync()) as YamlMap;
+        expect(overrides.containsKey('dependency_overrides'), isTrue);
+      }
+      final appSeam = File(
+        p.join(monorepo, 'packages', 'my_plugin', 'pubspec_overrides.yaml'),
+      );
+      expect(
+        appSeam.existsSync(),
+        isFalse,
+        reason:
+            'the app-facing package has no siblings to override — '
+            'it ships no seam file at all (#2038)',
+      );
+      final gitignore = File(p.join(monorepo, '.gitignore')).readAsStringSync();
+      expect(
+        gitignore,
+        contains('pubspec_overrides.yaml'),
+        reason: 'the dev seam must be gitignored or it ships again',
+      );
+    });
+
+    test(
+      'B13b: --zuraffa-path still resolves the framework via overrides',
+      () async {
+        final repoRoot = Directory.current.path;
+        final result = await scaffold(zuraffaPath: repoRoot);
+        final monorepo = result.rootPath;
+
+        for (final pkg in const [
+          'my_plugin',
+          'my_plugin_platform',
+          'my_plugin_android',
+          'my_plugin_ios',
+          'my_plugin_macos',
+        ]) {
+          final spec = pubspecOf(monorepo, pkg);
+          expect(
+            (spec['dependencies'] as YamlMap)['zuraffa'],
+            isA<String>(),
+            reason: '$pkg keeps the hosted zuraffa constraint (FR-006)',
+          );
+          expect(
+            spec.containsKey('dependency_overrides'),
+            isFalse,
+            reason: '$pkg must never commit the framework override (#2038)',
+          );
+          // The override lives in the gitignored seam, not the pubspec. The
+          // app-facing package has no siblings: its seam overrides only the
+          // framework checkout.
+          final seamPath = p.join(
+            monorepo,
+            'packages',
+            pkg,
+            'pubspec_overrides.yaml',
+          );
+          expect(
+            pubspecOf(monorepo, pkg).containsKey('dependency_overrides'),
+            isFalse,
+            reason: '$pkg must never commit the framework override (#2038)',
+          );
+          final seamFile = File(seamPath);
+          if (pkg == 'my_plugin') {
+            expect(
+              seamFile.existsSync(),
+              isFalse,
+              reason: 'the app-facing package has no siblings to override',
+            );
+          } else {
+            final seam = loadYaml(seamFile.readAsStringSync()) as YamlMap;
+            expect(
+              ((seam['dependency_overrides'] as YamlMap)['zuraffa']
+                  as YamlMap)['path'],
+              repoRoot,
+              reason: '$pkg framework override must point at the checkout',
+            );
+          }
+        }
+      },
+    );
+  });
+
   group('PluginScaffold — B12 zikzak publish pipeline (issue #1621)', () {
     test(
       'B12a: emits the five zikzak pipeline scripts, all executable',
@@ -1032,24 +1161,22 @@ void main() {
           reason: 'restore failed: ${restore.stderr}${restore.stdout}',
         );
 
-        // The app-facing package (no overrides at scaffold time) now
-        // overrides every sibling.
+        // The restore writes the gitignored seam files; the pubspecs stay
+        // clean (issue #2038). The app-facing package depends on no family
+        // member, so it never gets a seam file at all — not even from the
+        // restore pass.
         final appSpec = pubspecOf(monorepo, 'my_plugin');
-        final appOverrides = appSpec['dependency_overrides'] as YamlMap?;
         expect(
-          appOverrides,
-          isNotNull,
-          reason: 'app package must gain overrides',
+          appSpec.containsKey('dependency_overrides'),
+          isFalse,
+          reason: 'the app pubspec must stay clean (#2038)',
         );
-        expect(appOverrides!.keys.cast<String>().toSet(), {
-          'my_plugin_platform',
-          'my_plugin_android',
-          'my_plugin_ios',
-          'my_plugin_macos',
-        });
         expect(
-          (appOverrides['my_plugin_platform'] as YamlMap)['path'],
-          '../my_plugin_platform',
+          File(
+            p.join(monorepo, 'packages', 'my_plugin', 'pubspec_overrides.yaml'),
+          ).existsSync(),
+          isFalse,
+          reason: 'the app-facing package has no siblings to override',
         );
 
         // Hosted constraints stay declared (FR-006/FR-013).
@@ -1058,10 +1185,27 @@ void main() {
           startsWith('^'),
         );
 
-        // The platform core (already had an app override) now covers the
-        // adapters too, and its hosted app constraint is untouched.
+        // The platform core's seam covers the app + the adapters, and its
+        // hosted app constraint is untouched.
         final coreSpec = pubspecOf(monorepo, 'my_plugin_platform');
-        final coreOverrides = coreSpec['dependency_overrides'] as YamlMap;
+        expect(
+          coreSpec.containsKey('dependency_overrides'),
+          isFalse,
+          reason: 'the core pubspec must stay clean (#2038)',
+        );
+        final coreSeam =
+            loadYaml(
+                  File(
+                    p.join(
+                      monorepo,
+                      'packages',
+                      'my_plugin_platform',
+                      'pubspec_overrides.yaml',
+                    ),
+                  ).readAsStringSync(),
+                )
+                as YamlMap;
+        final coreOverrides = coreSeam['dependency_overrides'] as YamlMap;
         expect(
           coreOverrides.keys.cast<String>().toSet(),
           containsAll(['my_plugin', 'my_plugin_android']),
@@ -1216,21 +1360,34 @@ void main() {
           reason: 'restore failed: ${restore.stderr}${restore.stdout}',
         );
 
-        for (final pkg in const [
-          'my_plugin',
-          'my_plugin_platform',
-          'my_plugin_macos',
-        ]) {
-          final overrides =
-              pubspecOf(monorepo, pkg)['dependency_overrides'] as YamlMap?;
+        for (final pkg in const ['my_plugin_platform', 'my_plugin_macos']) {
+          // The overrides live in the gitignored seam after the restore —
+          // the pubspec itself stays clean (issue #2038). The app-facing
+          // package depends on no family member, so the restore writes it
+          // no seam at all.
+          final spec = pubspecOf(monorepo, pkg);
           expect(
-            overrides,
-            isNotNull,
-            reason: '$pkg must carry overrides after the restore',
+            spec.containsKey('dependency_overrides'),
+            isFalse,
+            reason: '$pkg pubspec must stay clean after the restore (#2038)',
           );
+          final seam =
+              loadYaml(
+                    File(
+                      p.join(
+                        monorepo,
+                        'packages',
+                        pkg,
+                        'pubspec_overrides.yaml',
+                      ),
+                    ).readAsStringSync(),
+                  )
+                  as YamlMap;
+          final overrides =
+              (seam['dependency_overrides'] as YamlMap?) ?? YamlMap.wrap({});
           // The --zuraffa-path checkout is not part of the family: it has to
           // survive the section rebuild.
-          final zuraffaOverride = overrides!['zuraffa'];
+          final zuraffaOverride = overrides['zuraffa'];
           expect(
             zuraffaOverride,
             isA<YamlMap>(),
