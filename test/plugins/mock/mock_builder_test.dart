@@ -938,4 +938,39 @@ class Product {
       );
     },
   );
+
+  test(
+    'issue #2040: presentation-only VPC generation emits mock data fixture under #770 contract',
+    () async {
+      final builder = MockBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
+
+      final config = GeneratorConfig(
+        name: 'Profile',
+        methods: const [],
+        generateMock: true,
+        generateVpcs: true,
+        generateView: true,
+        generatePresenter: true,
+        generateController: true,
+        generateState: true,
+        outputDir: outputDir,
+      );
+
+      final files = await builder.generate(config);
+
+      final mockDataFile = files.firstWhere((f) => f.type == 'mock_data');
+      expect(mockDataFile.action, isNot(equals('skipped')));
+      expect(
+        File('$outputDir/data/mock/profile_mock_data.dart').existsSync(),
+        isTrue,
+      );
+    },
+  );
 }
