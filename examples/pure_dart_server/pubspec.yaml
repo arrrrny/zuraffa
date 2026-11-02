@@ -1,6 +1,6 @@
 name: zuraffa_pure_dart_example
 description: Example pure Dart server/CLI using zuraffa without Flutter.
-version: 1.0.0
+version: 7.3.6
 publish_to: none
 
 environment:
@@ -10,3 +10,9 @@ dependencies:
   zuraffa:
     path: ../../
   logging: ^1.3.0
+
+# Fleet dev policy: xml pinned to the latest release; sibling fleet
+# checkouts resolve not-yet-published constraints locally.
+# dependency_overrides are stripped on publish.
+dependency_overrides:
+  xml: 7.1.0

@@ -1,7 +1,7 @@
 # Zuraffa-native package created by `zfa package create` (spec 025).
 name: notes_package
 description: "Spec 025 reference: one entity, one datasource, one usecase, one agent tool, module + registrar."
-version: 0.1.0
+version: 7.3.6
 publish_to: none
 
 environment:
@@ -16,3 +16,9 @@ dependencies:
 dev_dependencies:
   build_runner: ^2.15.2
   test: ^1.25.0
+
+# Fleet dev policy: xml pinned to the latest release; sibling fleet
+# checkouts resolve not-yet-published constraints locally.
+# dependency_overrides are stripped on publish.
+dependency_overrides:
+  xml: 7.1.0

@@ -1,6 +1,6 @@
 name: reference_package_app
 description: Spec 025 demo app — consumes examples/notes_package via its package module (auto-DI, lifecycle, namespaced agent tools).
-version: 0.1.0
+version: 7.3.6
 publish_to: none
 
 environment:
@@ -14,3 +14,9 @@ dependencies:
 
 dev_dependencies:
   test: ^1.25.0
+
+# Fleet dev policy: xml pinned to the latest release; sibling fleet
+# checkouts resolve not-yet-published constraints locally.
+# dependency_overrides are stripped on publish.
+dependency_overrides:
+  xml: 7.1.0
