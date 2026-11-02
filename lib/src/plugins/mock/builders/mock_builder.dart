@@ -522,7 +522,19 @@ class MockBuilder {
         // when there is a returns entity; otherwise skip with an honest
         // `skipped` action (like the primitive path) instead of writing a
         // phantom `*_mock_data.dart` for a non-existent entity.
-        if (config.isCustomUseCase) {
+        // Issue #2040: presentation-only VPC generation (e.g. `zfa make Profile
+        // view presenter controller state`) has `methods: []` which flags
+        // `config.isCustomUseCase` as true, but under the #770 contract an
+        // explicit mock request is never a silent no-op. When VPC presentation
+        // generation is requested, emit the mock data fixture instead of
+        // skipping it.
+        final isVpc =
+            config.generateVpcs ||
+            config.generateView ||
+            config.generatePresenter ||
+            config.generateController ||
+            config.generateState;
+        if (config.isCustomUseCase && !isVpc) {
           if (config.returnsType == null || config.returnsType!.isEmpty) {
             files.add(
               GeneratedFile(
@@ -535,6 +547,8 @@ class MockBuilder {
           } else {
             files.add(await dataBuilder.generateMockDataFile(dataConfig));
           }
+        } else {
+          files.add(await dataBuilder.generateMockDataFile(dataConfig));
         }
       } else if (EntityAnalyzer.isSealedEntity(
         targetEntity,
