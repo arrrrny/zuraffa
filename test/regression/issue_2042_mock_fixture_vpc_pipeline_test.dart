@@ -1,4 +1,4 @@
-@Tags(['regression'])
+@Tags(['regression', 'slow'])
 library;
 
 // Regression test for issue #2042.
