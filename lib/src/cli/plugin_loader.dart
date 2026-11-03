@@ -32,6 +32,7 @@ import '../plugins/skin/skin_plugin.dart';
 import '../plugins/strategy/strategy_plugin.dart';
 import '../plugins/module/module_plugin.dart';
 import '../plugins/mcp/mcp_plugin.dart';
+import '../plugins/tunnel/tunnel_plugin.dart';
 import '../plugins/cli/cli_plugin.dart' as cli_gen;
 import '../plugins/benchmark/benchmark_plugin.dart';
 import '../agent/plugin/agent_plugin.dart';
@@ -216,6 +217,9 @@ class PluginLoader {
       MethodAppendPlugin(outputDir: outputDir, options: options),
       ModuleGeneratorPlugin(outputDir: outputDir, options: options),
       McpPlugin(outputDir: outputDir, options: options),
+      // 1724-zuraffa-tunnel (issue #2045): wraps a local app port with a
+      // Cloudflare tunnel — runtime plugin, `zfa tunnel` run/status.
+      TunnelPlugin(outputDir: outputDir, options: options),
       // 018-cli-plugin: standardized CLI command generator (FR-011).
       // Pure-Dart; produces a StandardCommand subclass for an entity.
       cli_gen.CliGeneratorPlugin(outputDir: outputDir, options: options),
