@@ -169,6 +169,20 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       paramsType: context.data['params'],
       returnsType: context.data['returns'],
       useCaseType: context.data['type'] ?? 'usecase',
+      // Issue #2042: the CodeGenerator pipeline (zuraffa_flutter's entry
+      // point) hands the VPC flags to plugins through the context data —
+      // `GeneratorConfig.toJson()` emits them as 'vpcs'/'view'/'presenter'/
+      // 'controller'/'state' and the view/presenter/controller/route plugins
+      // read those exact keys. The mock plugin dropped them, so the five
+      // flags reached `MockBuilder`'s #2040 presentation-only guard as their
+      // `false` defaults and the mock data fixture stayed skipped on this
+      // path (a direct `MockBuilder` call carries the flags itself, which is
+      // why the #2040 regression test kept passing). Mirror the siblings.
+      generateVpcs: context.get<bool>('vpc') ?? context.data['vpcs'] == true,
+      generateView: context.data['view'] == true,
+      generatePresenter: context.data['presenter'] == true,
+      generateController: context.data['controller'] == true,
+      generateState: context.data['state'] == true,
     );
 
     return generate(config, context: context);
