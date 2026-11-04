@@ -49,6 +49,29 @@ class UpperCaseUseCase extends UseCase<String, GreetParams> {
       Future.value(params.name.toUpperCase());
 }
 
+class GreetersUseCase extends UseCase<List<Greeting>, GreetParams> {
+  @override
+  Future<List<Greeting>> execute(
+    GreetParams params,
+    CancelToken? cancelToken,
+  ) => Future.value([
+    Greeting('Hello, ${params.name}'),
+    Greeting('Hi, ${params.name}'),
+  ]);
+}
+
+class CountUseCase extends UseCase<int, GreetParams> {
+  @override
+  Future<int> execute(GreetParams params, CancelToken? cancelToken) =>
+      Future.value(params.name.length);
+}
+
+class FlagUseCase extends UseCase<bool, GreetParams> {
+  @override
+  Future<bool> execute(GreetParams params, CancelToken? cancelToken) =>
+      Future.value(params.name.isNotEmpty);
+}
+
 void main() {
   group('McpUseCaseTool', () {
     test('declares name/description from the registration', () {
@@ -155,6 +178,58 @@ void main() {
       final result = await tool.call({'name': 'ada'});
       expect(result.isError, isFalse);
       expect(result.text, 'ADA');
+    });
+
+    test(
+      'List<Entity> results round-trip as a JSON array through toJson',
+      () async {
+        final tool = McpUseCaseTool<List<Greeting>, GreetParams>(
+          useCase: GreetersUseCase(),
+          name: 'greeters',
+          description: 'd',
+          decode: GreetParams.fromJson,
+        );
+        final result = await tool.call({'name': 'Ada'});
+        expect(result.isError, isFalse);
+        expect(jsonDecode(result.text), [
+          {'message': 'Hello, Ada'},
+          {'message': 'Hi, Ada'},
+        ]);
+      },
+    );
+
+    test('num and bool results are JSON-encoded, never toString-ed', () async {
+      final count = McpUseCaseTool<int, GreetParams>(
+        useCase: CountUseCase(),
+        name: 'count',
+        description: 'd',
+        decode: GreetParams.fromJson,
+      );
+      final flag = McpUseCaseTool<bool, GreetParams>(
+        useCase: FlagUseCase(),
+        name: 'flag',
+        description: 'd',
+        decode: GreetParams.fromJson,
+      );
+      final countResult = await count.call({'name': 'ada'});
+      expect(countResult.isError, isFalse);
+      expect(countResult.text, '3');
+      final flagResult = await flag.call({'name': 'ada'});
+      expect(flagResult.isError, isFalse);
+      expect(flagResult.text, 'true');
+    });
+
+    test('a custom encode returning a List is JSON-serialized', () async {
+      final tool = McpUseCaseTool<Greeting, GreetParams>(
+        useCase: GreetUseCase(),
+        name: 'greet',
+        description: 'd',
+        decode: GreetParams.fromJson,
+        encode: (greeting) => [greeting.message, 'extra'],
+      );
+      final result = await tool.call({'name': 'Ada'});
+      expect(result.isError, isFalse);
+      expect(jsonDecode(result.text), ['Hello, Ada', 'extra']);
     });
   });
 

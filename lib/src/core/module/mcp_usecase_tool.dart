@@ -166,6 +166,16 @@ class McpUseCaseTool<T extends Object?, P extends Object?>
         if (encoded is Map<String, dynamic>) {
           return McpToolResult.ok(jsonEncode(encoded), data: encoded);
         }
+        // Lists (e.g. a `List<Entity>` result) and bare num/bool values
+        // are JSON-encodable — serialize them as JSON, never Dart's
+        // `toString` (`[Instance of 'X']` is not a round-trippable
+        // result). The toEncodable callback gives entity elements the
+        // same toJson seam the Map path uses.
+        if (encoded is List || encoded is num || encoded is bool) {
+          return McpToolResult.ok(
+            jsonEncode(encoded, toEncodable: (o) => (o as dynamic).toJson()),
+          );
+        }
         return McpToolResult.ok(encoded?.toString() ?? '');
       }, (failure) => McpToolResult.error(failure.toString()));
     } catch (e) {
@@ -176,14 +186,17 @@ class McpUseCaseTool<T extends Object?, P extends Object?>
   }
 
   /// Default result encoding: `toJson` when the value has one (the
-  /// Zorphy seam), else `toString`.
+  /// Zorphy seam), else the value itself when it is directly
+  /// JSON-encodable (a List result — the fold's jsonEncode pass handles
+  /// its elements), else `toString`.
   Object? _defaultEncode(T value) {
     try {
       final json = (value as dynamic).toJson();
       if (json is Map<String, dynamic>) return json;
     } on NoSuchMethodError {
-      // No toJson — fall through to toString.
+      // No toJson — fall through.
     }
+    if (value is List) return value;
     return value.toString();
   }
 }

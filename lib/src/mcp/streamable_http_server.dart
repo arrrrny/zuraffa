@@ -16,6 +16,14 @@
 //   - DELETE /mcp — session termination; sessions are not issued,
 //     so 405 as well.
 //
+// Exactly ONE JSON-RPC object per POST — batch arrays are rejected.
+// This is deliberate and spec-consistent: the 2025-03-26 revision the
+// transport implements REMOVED batching. `McpDispatcher.protocolVersion`
+// (2024-11-05) is the library-wide baseline constant shared with the
+// stdio/SSE transports, not a promise that batch requests are accepted
+// here — a 2024-11-05 client that batches on this transport gets a
+// parse-level 400, by design.
+//
 // Security (issue #2046):
 //   - Binds `127.0.0.1` by default; `bindAll: true` (for a tunnel /
 //     remote exposure) is refused unless an auth token is configured.
@@ -25,11 +33,24 @@
 //     on the machine, so the token gates loopback callers too.
 //   - Per-token tool allowlists ([McpAuth.isToolAllowed]) gate
 //     `tools/call` with the SSE server's -32000 error contract.
+//   - Browser-surface validation runs BEFORE the body is read:
+//     `Content-Type` must be `application/json` (a cross-origin
+//     `fetch` with `mode: 'no-cors'` can only send text/plain, so
+//     this forces the preflight this server answers 405), and in
+//     unauthenticated mode Origin/Host must be loopback (kills
+//     cross-origin POSTs and DNS rebinding — the SSE transport's
+//     `_isValidRequest` policy). With a token configured the bearer
+//     gate below authenticates every caller, so loopback enforcement
+//     is skipped, exactly as on the SSE transport.
+//   - The bearer token is checked before the request body is read and
+//     bodies are capped at [maxBodyBytes] — an unauthenticated or
+//     oversized caller can never buffer memory server-side.
 // ============================================================
 
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import '../core/module/mcp_dispatcher.dart';
 import '../core/module/mcp_tool_registry.dart';
@@ -70,6 +91,11 @@ class McpStreamableHttpServer {
   /// JSON-RPC error code for allowlist denial — matches the SSE
   /// server's contract.
   static const int errorNotPermitted = -32000;
+
+  /// Maximum accepted request body. 1 MiB is a generous ceiling for
+  /// every JSON-RPC method [McpDispatcher] knows — the cap exists so
+  /// no caller (authenticated or not) can pin memory with a huge POST.
+  static const int maxBodyBytes = 1 << 20;
 
   late final McpDispatcher _dispatcher;
   late final McpAuth _auth;
@@ -170,23 +196,17 @@ class McpStreamableHttpServer {
   }
 
   Future<void> _handlePost(HttpRequest request) async {
-    final body = await utf8.decoder.bind(request).join();
-
-    // Parse first so a 401 can echo the request id back.
-    Map<String, dynamic>? rpc;
-    Object? parseError;
-    try {
-      final decoded = jsonDecode(body);
-      if (decoded is Map<String, dynamic>) {
-        rpc = decoded;
-      } else {
-        parseError = 'expected a single JSON-RPC object';
-      }
-    } catch (e) {
-      parseError = e;
+    // Browser-surface validation before anything is read or parsed
+    // (see the class-level security notes).
+    if (!_isAcceptableRequest(request)) {
+      await _respond(request, HttpStatus.forbidden, 'Forbidden');
+      return;
     }
 
-    // Auth: the bearer token gates EVERY request when configured.
+    // Auth BEFORE the body is read: an unauthenticated caller must not
+    // be able to buffer memory server-side. The body (and with it the
+    // request id) is still unread here, so the 401 answers with a null
+    // id — the JSON-RPC shape for "id unknown".
     if (!_auth.validateHeader(request.headers.value('Authorization'))) {
       await _respondJson(
         request,
@@ -199,11 +219,45 @@ class McpStreamableHttpServer {
                 'Unauthorized: a valid bearer token is required for the '
                 'HTTP MCP transport',
           },
-          'id': rpc?['id'],
+          'id': null,
         },
         headers: {'WWW-Authenticate': 'Bearer'},
       );
       return;
+    }
+
+    // Body cap: reject a declared-oversize body before reading a byte;
+    // the streamed read below enforces the same cap for chunked
+    // bodies (which carry no Content-Length).
+    if (request.contentLength > maxBodyBytes) {
+      await _respond(
+        request,
+        HttpStatus.requestEntityTooLarge,
+        'Payload too large',
+      );
+      return;
+    }
+    final body = await _readBody(request);
+    if (body == null) {
+      await _respond(
+        request,
+        HttpStatus.requestEntityTooLarge,
+        'Payload too large',
+      );
+      return;
+    }
+
+    Map<String, dynamic>? rpc;
+    Object? parseError;
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        rpc = decoded;
+      } else {
+        parseError = 'expected a single JSON-RPC object';
+      }
+    } catch (e) {
+      parseError = e;
     }
 
     if (parseError != null) {
@@ -224,6 +278,15 @@ class McpStreamableHttpServer {
           request.headers.value('Authorization'),
         );
         if (!_auth.isToolAllowed(callerToken, toolName)) {
+          if (rpc['id'] == null) {
+            // A notification gets NO response object — JSON-RPC 2.0
+            // forbids replying to an id-less message, so an
+            // allowlist-denied notification follows the same 202 +
+            // no-body contract as the dispatch-null branch below.
+            request.response.statusCode = HttpStatus.accepted;
+            await request.response.close();
+            return;
+          }
           await _respondJson(request, HttpStatus.ok, {
             'jsonrpc': '2.0',
             'error': {
@@ -246,6 +309,78 @@ class McpStreamableHttpServer {
       return;
     }
     await _respondJson(request, HttpStatus.ok, response);
+  }
+
+  /// Validates request shape BEFORE the body is read or parsed — the
+  /// browser-surface defense, mirroring the SSE transport's
+  /// `_isValidRequest` policy:
+  ///
+  /// - `Content-Type` must be `application/json`. A cross-origin
+  ///   `fetch(..., {mode: 'no-cors'})` can only send CORS-safelisted
+  ///   types (text/plain), so requiring JSON forces the preflight —
+  ///   which this stateless server already answers 405.
+  /// - When NO token is configured (the default loopback posture, the
+  ///   one any web page the user visits can reach), Origin and Host
+  ///   must be loopback: that rejects cross-origin POSTs (foreign
+  ///   Origin) and DNS rebinding (foreign Host).
+  /// - With a token configured, the bearer gate below authenticates
+  ///   every caller, so loopback enforcement is skipped — the same
+  ///   policy the SSE transport documents.
+  bool _isAcceptableRequest(HttpRequest request) {
+    final contentType = request.headers.contentType;
+    if (contentType == null || contentType.mimeType != 'application/json') {
+      return false;
+    }
+    if (_auth.isEnabled) return true;
+    final origin = request.headers.value('Origin');
+    if (origin != null) {
+      final uri = Uri.tryParse(origin);
+      if (uri == null) return false;
+      if (!_isLoopbackHost(uri.host)) return false;
+    }
+    final hostHeader = request.headers.value('Host');
+    if (hostHeader != null && !_isLoopbackHost(_hostFromHeader(hostHeader))) {
+      return false;
+    }
+    return true;
+  }
+
+  /// Whether a host string is loopback: `localhost`, `127.0.0.1` or
+  /// `::1`, with IPv6 bracket forms normalized. Mirrors the SSE
+  /// transport's `_normalizeHost` shape.
+  bool _isLoopbackHost(String host) {
+    var lower = host.toLowerCase();
+    if (lower.startsWith('[') && lower.endsWith(']')) {
+      lower = lower.substring(1, lower.length - 1);
+    }
+    return lower == 'localhost' || lower == '127.0.0.1' || lower == '::1';
+  }
+
+  /// Host portion of a Host header value, port stripped and IPv6
+  /// bracket form preserved ("[::1]:8373" → "[::1]"). Mirrors the SSE
+  /// transport's `_extractHostFromHostHeader`.
+  String _hostFromHeader(String hostHeader) {
+    final trimmed = hostHeader.trim();
+    if (trimmed.startsWith('[')) {
+      final closeBracket = trimmed.indexOf(']');
+      if (closeBracket > 0) return trimmed.substring(0, closeBracket + 1);
+      return trimmed;
+    }
+    final colon = trimmed.indexOf(':');
+    return colon >= 0 ? trimmed.substring(0, colon) : trimmed;
+  }
+
+  /// Reads the request body under the [maxBodyBytes] cap. Returns
+  /// `null` when the body exceeds the cap — the caller answers 413
+  /// without buffering the rest. This is the chunked-body half of the
+  /// Content-Length fast path above.
+  Future<String?> _readBody(HttpRequest request) async {
+    final builder = BytesBuilder(copy: false);
+    await for (final chunk in request) {
+      builder.add(chunk);
+      if (builder.length > maxBodyBytes) return null;
+    }
+    return utf8.decode(builder.takeBytes());
   }
 
   Future<void> _respondJson(

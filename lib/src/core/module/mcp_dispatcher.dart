@@ -47,7 +47,14 @@ class McpDispatcher {
           'protocolVersion': protocolVersion,
           'serverInfo': {'name': serverName, 'version': serverVersion},
           'capabilities': {
-            'tools': {'listChanged': true},
+            // listChanged is `false` on purpose: enable/disable is the
+            // first runtime-mutable tool state, but no transport here
+            // has a server→client channel to push
+            // notifications/tools/list_changed on (POST-only Streamable
+            // HTTP least of all). Advertising it without ever emitting
+            // it strands caching clients on stale tool lists — declare
+            // it honestly until a push path exists (issue #2046).
+            'tools': {'listChanged': false},
           },
         });
       case 'tools/list':
