@@ -131,17 +131,19 @@ class BrandingWriter {
     );
     if (destDir.existsSync()) return; // already branded
     final sourceDir = Directory(_brandAssetsSource);
-    destDir.createSync(recursive: true);
     if (!sourceDir.existsSync()) {
       // Graceful degradation: the brand assets may not be checked out
-      // (e.g. minimal CI clone). The destination directory is still created
-      // (empty) so the pubspec.yaml entry written by _updatePubspecAssets is
-      // never dangling — a referenced-but-missing directory makes every
-      // flutter test fail with "unable to find directory entry in
-      // pubspec.yaml" (bug 735). Callers pass verbose:true to surface the
-      // missing source. See spec 053 edge case.
+      // (e.g. minimal CI clone). Nothing is copied, so nothing is created:
+      // git cannot track an empty directory, so a destination created empty
+      // here would dangle behind the pubspec.yaml entry in every fresh clone
+      // — the flutter tool fails there with "unable to find directory entry
+      // in pubspec.yaml" (issue 2050; the bug 735 empty-directory defense
+      // did not survive git). _updatePubspecAssets only injects the entry
+      // when at least one file was copied. Callers pass verbose:true to
+      // surface the missing source. See spec 053 edge case.
       return;
     }
+    destDir.createSync(recursive: true);
     await for (final entity in sourceDir.list()) {
       if (entity is File) {
         final destPath = p.join(destDir.path, p.basename(entity.path));
@@ -189,9 +191,12 @@ class BrandingWriter {
 
   /// Adds assets/zuraffa_app_icons/ to pubspec.yaml flutter assets section.
   ///
-  /// Defensive (bug 735): the referenced directory is created on disk before
-  /// the entry is injected, so a pubspec reference to assets/zuraffa_app_icons/
-  /// can never dangle — even if [_copyBrandAssetsToAssets] did not run.
+  /// The entry is injected only when at least one brand file was actually
+  /// copied into assets/zuraffa_app_icons/ (issue 2050): git cannot track an
+  /// empty directory, so an entry written for an empty one dangles in every
+  /// fresh clone of the target app — the flutter tool fails there with
+  /// "unable to find directory entry in pubspec.yaml" (the bug 735
+  /// empty-directory defense did not survive git).
   Future<void> _updatePubspecAssets(String projectRoot) async {
     final pubspecFile = File(p.join(projectRoot, 'pubspec.yaml'));
     if (!pubspecFile.existsSync()) return;
@@ -199,12 +204,17 @@ class BrandingWriter {
     var content = pubspecFile.readAsStringSync();
     if (content.contains('zuraffa_app_icons')) return; // already added
 
-    // Never write an entry that points at a missing directory: every
-    // flutter test fails with "unable to find directory entry in
-    // pubspec.yaml" until the directory exists (bug 735).
-    Directory(
+    // Never write an entry git cannot carry: an empty destination directory
+    // is untracked, so the committed pubspec line dangles in every fresh
+    // clone (issue 2050). Inject only when at least one brand file was
+    // actually copied.
+    final destDir = Directory(
       p.join(projectRoot, 'assets', 'zuraffa_app_icons'),
-    ).createSync(recursive: true);
+    );
+    final hasCopiedFiles =
+        destDir.existsSync() &&
+        destDir.listSync().any((entity) => entity is File);
+    if (!hasCopiedFiles) return;
 
     // Inject after "uses-material-design: true" — MERGING into an
     // existing `flutter: assets:` list when one is present. Appending a
