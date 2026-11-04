@@ -80,6 +80,11 @@ class McpDispatcher {
     if (tool == null) {
       return _error(id, -32602, 'Unknown tool: $name');
     }
+    // Disabled tools are hidden from tools/list (issue #2046); a call
+    // to one is rejected with the same invalid-params family.
+    if (!registry.isEnabled(name)) {
+      return _error(id, -32602, 'Tool is disabled: $name');
+    }
 
     final arguments = params['arguments'];
     if (arguments != null && arguments is! Map<String, dynamic>) {

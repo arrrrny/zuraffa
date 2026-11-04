@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../../mcp/sse_server.dart';
+import '../../mcp/streamable_http_server.dart';
 import 'di_container.dart';
 import 'mcp_stdio_server.dart';
 import 'mcp_tool.dart';
@@ -78,6 +79,25 @@ class McpServerPlugin extends ZuraffaPlugin {
   /// requests are denied tool calls when any allowlist is configured.
   final Map<String, Set<String>>? sseToolAllowlist;
 
+  /// If non-null, [onInit] automatically starts the Streamable HTTP
+  /// server (issue #2046) on the given port. Pair with [httpAuthToken]
+  /// for anything beyond loopback consumption.
+  final int? autoStartHttpPort;
+
+  /// Bearer token for the Streamable HTTP server. Forwarded to
+  /// [McpStreamableHttpServer] for both the auto-started and explicit
+  /// [serveHttp] servers. Required when the HTTP server binds
+  /// non-loopback.
+  final String? httpAuthToken;
+
+  /// Per-token tool allowlists forwarded to the Streamable HTTP
+  /// server (same shape as [sseToolAllowlist]).
+  final Map<String, Set<String>>? httpToolAllowlist;
+
+  /// When `true`, the Streamable HTTP server binds `0.0.0.0` instead
+  /// of the loopback default. Refused without [httpAuthToken].
+  final bool httpBindAll;
+
   /// Captured during [onInit] for later use by [serveStdio] /
   /// [serveSse] / [listTools]. `null` before bootstrap completes.
   ZuraffaDIContainer? _di;
@@ -87,6 +107,12 @@ class McpServerPlugin extends ZuraffaPlugin {
   /// tests can invoke `stop()` after `await plugin.serveSse(...)`.
   McpSseServer? _sseServer;
 
+  /// The [McpStreamableHttpServer] started by [serveHttp], or `null`
+  /// before a start (or after it has been stopped). Retained so
+  /// callers and tests can invoke `stop()` after
+  /// `await plugin.serveHttp(...)` returns.
+  McpStreamableHttpServer? _httpServer;
+
   McpServerPlugin({
     this.pluginId = 'mcp',
     List<McpTool>? tools,
@@ -95,6 +121,10 @@ class McpServerPlugin extends ZuraffaPlugin {
     this.sseAuthToken,
     this.maxSseConnections,
     this.sseToolAllowlist,
+    this.autoStartHttpPort,
+    this.httpAuthToken,
+    this.httpToolAllowlist,
+    this.httpBindAll = false,
   }) : tools = List<McpTool>.unmodifiable(tools ?? const []);
 
   @override
@@ -129,6 +159,8 @@ class McpServerPlugin extends ZuraffaPlugin {
       });
     } else if (autoStartSsePort != null) {
       await serveSse(port: autoStartSsePort!, authToken: sseAuthToken);
+    } else if (autoStartHttpPort != null) {
+      await serveHttp(port: autoStartHttpPort!);
     }
   }
 
@@ -186,6 +218,42 @@ class McpServerPlugin extends ZuraffaPlugin {
   /// running. Callers and tests can invoke `stop()` on the returned
   /// instance after `await plugin.serveSse(...)` returns.
   McpSseServer? get sseServer => _sseServer;
+
+  /// The [McpStreamableHttpServer] started by [serveHttp], or `null`
+  /// if none has been started (or after it has been stopped). Use
+  /// [McpStreamableHttpServer.isRunning] / [McpStreamableHttpServer.stop]
+  /// on the returned instance.
+  McpStreamableHttpServer? get httpServer => _httpServer;
+
+  /// Starts the Streamable HTTP MCP server (issue #2046) on [port].
+  /// Returns when the server is bound (not when it shuts down).
+  ///
+  /// Binds loopback by default; pass [bindAll: true] to expose the
+  /// server beyond loopback — refused unless an auth token is
+  /// configured (explicitly or via the plugin's [httpAuthToken]).
+  ///
+  /// Throws [StateError] if called before bootstrap.
+  Future<void> serveHttp({
+    int port = 8373,
+    String? authToken,
+    bool bindAll = false,
+    String serverName = 'zuraffa-app-mcp',
+    String serverVersion = '1.0.0',
+  }) async {
+    final di = _requireDi();
+    final reg = di.get<McpToolRegistry>();
+    final resolvedToken = authToken ?? httpAuthToken;
+    final http = McpStreamableHttpServer(
+      registry: reg,
+      serverName: serverName,
+      serverVersion: serverVersion,
+      authToken: resolvedToken,
+      tokenToolAllowlist: httpToolAllowlist,
+      bindAll: bindAll || httpBindAll,
+    );
+    _httpServer = http;
+    await http.start(port: port);
+  }
 
   /// Starts an SSE MCP server on [port]. Returns when the server
   /// is bound (not when it shuts down).

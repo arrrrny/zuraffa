@@ -623,6 +623,20 @@ export 'src/core/module/mcp_server_plugin.dart';
 export 'src/core/module/mcp_stdio_server.dart';
 export 'src/mcp/sse_server.dart' show McpSseServer;
 
+// ============================================================
+// zuraffa_mcp (issue #2046) — app-facing MCP server registrations
+// ============================================================
+
+/// Declarative MCP registration for app usecases: [McpUseCaseTool]
+/// adapts a `UseCase<T, Params>` (name, description, readonly vs
+/// mutating, per-tool enable/disable) with schemas built via
+/// [McpSchema] and params/results round-tripped through the Zorphy
+/// `fromJson`/`toJson` seam; [McpStreamableHttpServer] serves the
+/// same registry over Streamable HTTP (bearer-token gated, loopback
+/// by default).
+export 'src/core/module/mcp_usecase_tool.dart';
+export 'src/mcp/streamable_http_server.dart' show McpStreamableHttpServer;
+
 // ── Generic session plugin (spec #015) ────────────────────────────────
 // Pure-Dart session foundation shared by zuraffa and zuraffa_flutter:
 // presets, scoped container, portable serialization, pluggable

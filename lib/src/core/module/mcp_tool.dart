@@ -176,3 +176,18 @@ abstract class McpTool {
   /// never throw across the JSON-RPC boundary.
   Future<McpToolResult> call(Map<String, dynamic> arguments);
 }
+
+/// Opt-in contract marking an [McpTool] that declares its
+/// readonly/mutating classification (the Vendure MCP plugin
+/// convention, mirrored per issue #2046 so the fleet's MCP surfaces
+/// feel the same).
+///
+/// The registry emits MCP `tools/list` `annotations` (`readOnlyHint`,
+/// `destructiveHint`) only for tools implementing this — plain
+/// hand-written [McpTool]s carry no classification, so none is
+/// invented for them.
+abstract interface class McpReadonlyAwareTool {
+  /// Whether this tool only reads app state (never mutates it).
+  /// `false` means mutating — the conservative default.
+  bool get readonly;
+}
