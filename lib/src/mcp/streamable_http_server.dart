@@ -237,8 +237,26 @@ class McpStreamableHttpServer {
       );
       return;
     }
-    final body = await _readBody(request);
+    // A body that is not valid UTF-8 never reaches the JSON parser: it
+    // fails in _readBody's utf8.decode and gets the same parse-error
+    // contract as malformed JSON (400 + -32700, null id — the request
+    // id is unread), not the 500 internal-error handler.
+    String? body;
+    try {
+      body = await _readBody(request);
+    } on FormatException catch (e) {
+      await _respondJson(request, HttpStatus.badRequest, {
+        'jsonrpc': '2.0',
+        'error': {'code': -32700, 'message': 'Parse error: $e'},
+        'id': null,
+      });
+      return;
+    }
     if (body == null) {
+      // The body was oversize: after the drained 413 below the
+      // connection must not sit in keep-alive — closing it gives the
+      // client a clean EOF right after the status line.
+      request.response.persistentConnection = false;
       await _respond(
         request,
         HttpStatus.requestEntityTooLarge,
@@ -375,11 +393,27 @@ class McpStreamableHttpServer {
   /// without buffering the rest. This is the chunked-body half of the
   /// Content-Length fast path above.
   Future<String?> _readBody(HttpRequest request) async {
+    // Past the cap the remainder is DRAINED (discarded, never
+    // buffered) instead of cancelling the stream: an early return
+    // inside `await for` cancels mid-body, dart:io destroys the
+    // connection, and the 413 written afterwards never reaches the
+    // client (arrrrny/zuraffa#2051 — delivered only when the whole
+    // body happened to arrive before the cap fired). Memory stays
+    // bounded either way; the drain itself is capped so a client that
+    // keeps streaming past this slack is dropped mid-drain.
     final builder = BytesBuilder(copy: false);
+    var over = false;
+    var drained = 0;
     await for (final chunk in request) {
+      if (over) {
+        drained += chunk.length;
+        if (drained > maxBodyBytes) return null;
+        continue;
+      }
       builder.add(chunk);
-      if (builder.length > maxBodyBytes) return null;
+      if (builder.length > maxBodyBytes) over = true;
     }
+    if (over) return null;
     return utf8.decode(builder.takeBytes());
   }
 

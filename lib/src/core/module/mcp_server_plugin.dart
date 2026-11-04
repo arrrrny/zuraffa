@@ -165,6 +165,14 @@ class McpServerPlugin extends ZuraffaPlugin {
   }
 
   @override
+  Future<void> onDispose(ZuraffaDIContainer di) async {
+    // Engine shutdown must close the HTTP listener: unlike the stdio
+    // server (which dies with the process), a bound socket outlives the
+    // engine unless it is stopped here.
+    await _httpServer?.stop();
+  }
+
+  @override
   Map<String, ZuraffaRouteHandler> get routes => const {};
 
   /// Returns the live [McpToolRegistry] from the DI container.
@@ -232,7 +240,13 @@ class McpServerPlugin extends ZuraffaPlugin {
   /// server beyond loopback — refused unless an auth token is
   /// configured (explicitly or via the plugin's [httpAuthToken]).
   ///
-  /// Throws [StateError] if called before bootstrap.
+  /// Throws [StateError] if called before bootstrap, or while another
+  /// HTTP server started by this plugin is still running — a second
+  /// bind would orphan the first listener (it would keep serving with
+  /// its original token and allowlist, unreachable through
+  /// [httpServer]). A failed bind leaves the existing [httpServer]
+  /// reference untouched: the new server is retained only after a
+  /// successful start.
   Future<void> serveHttp({
     int port = 8373,
     String? authToken,
@@ -241,6 +255,14 @@ class McpServerPlugin extends ZuraffaPlugin {
     String serverVersion = '1.0.0',
   }) async {
     final di = _requireDi();
+    final running = _httpServer;
+    if (running != null && running.isRunning) {
+      throw StateError(
+        'serveHttp: an HTTP MCP server is already running on port '
+        '${running.port}. Call httpServer.stop() before starting '
+        'another.',
+      );
+    }
     final reg = di.get<McpToolRegistry>();
     final resolvedToken = authToken ?? httpAuthToken;
     final http = McpStreamableHttpServer(
@@ -251,8 +273,8 @@ class McpServerPlugin extends ZuraffaPlugin {
       tokenToolAllowlist: httpToolAllowlist,
       bindAll: bindAll || httpBindAll,
     );
-    _httpServer = http;
     await http.start(port: port);
+    _httpServer = http;
   }
 
   /// Starts an SSE MCP server on [port]. Returns when the server

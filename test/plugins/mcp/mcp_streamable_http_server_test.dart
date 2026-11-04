@@ -449,6 +449,42 @@ void main() {
       }
     });
 
+    test('answers a non-UTF-8 body with the 400 parse error', () async {
+      final server = await startServer();
+      try {
+        final client = HttpClient();
+        try {
+          // Valid Content-Length, invalid UTF-8 payload (a lone 0xFF
+          // continuation byte): utf8.decode throws before jsonDecode,
+          // so the response follows the parse-error contract (400,
+          // -32700, null id) — not the 500 internal-error handler.
+          final body = utf8.encode('{"jsonrpc":"2.0","id":1,"method":"ping"}');
+          final broken = <int>[
+            ...body.sublist(0, 12),
+            0xFF,
+            ...body.sublist(12),
+          ];
+          final request = await client.postUrl(
+            Uri.parse('http://127.0.0.1:${server.port}/mcp'),
+          );
+          request.headers.contentType = ContentType.json;
+          request.contentLength = broken.length;
+          request.add(broken);
+          final response = await request.close();
+          expect(response.statusCode, 400);
+          final decoded =
+              jsonDecode(await response.transform(utf8.decoder).join())
+                  as Map<String, dynamic>;
+          expect(decoded['error']['code'], -32700);
+          expect(decoded['id'], isNull);
+        } finally {
+          client.close(force: true);
+        }
+      } finally {
+        await server.stop();
+      }
+    });
+
     test(
       'rejects a declared-oversize body with 413 before reading it',
       () async {

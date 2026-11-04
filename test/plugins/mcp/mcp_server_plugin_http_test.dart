@@ -115,5 +115,73 @@ void main() {
         await server.stop();
       }
     });
+
+    test(
+      'serveHttp refuses a second start while a server is running',
+      () async {
+        final engine = ZuraffaEngine(di: freshDi())
+          ..register(McpServerPlugin(tools: [_EchoTool()]));
+        await engine.bootstrap();
+        final plugin = engine['mcp'] as McpServerPlugin;
+        await plugin.serveHttp(port: 0);
+        final first = plugin.httpServer!;
+        try {
+          expect(first.isRunning, isTrue);
+          await expectLater(plugin.serveHttp(port: 0), throwsStateError);
+          // The refused start must not disturb the running listener.
+          expect(identical(plugin.httpServer, first), isTrue);
+          expect(plugin.httpServer!.isRunning, isTrue);
+          expect(plugin.httpServer!.port, first.port);
+        } finally {
+          await first.stop();
+        }
+      },
+    );
+
+    test('a failed bind does not replace the httpServer reference', () async {
+      // An unrelated socket occupies a port; the plugin's first
+      // (already stopped) server satisfies the running-guard, so the
+      // second serveHttp reaches the bind and fails — and because the
+      // new server is retained only after a successful start, the
+      // failed instance must not replace the retained reference.
+      final squatter = await ServerSocket.bind('127.0.0.1', 0);
+      final occupied = squatter.port;
+      final engine = ZuraffaEngine(di: freshDi())
+        ..register(McpServerPlugin(tools: [_EchoTool()]));
+      await engine.bootstrap();
+      final plugin = engine['mcp'] as McpServerPlugin;
+      await plugin.serveHttp(port: 0);
+      final first = plugin.httpServer!;
+      await first.stop();
+      try {
+        expect(first.isRunning, isFalse);
+        await expectLater(
+          plugin.serveHttp(port: occupied),
+          throwsA(isA<SocketException>()),
+        );
+        expect(identical(plugin.httpServer, first), isTrue);
+        expect(plugin.httpServer!.isRunning, isFalse);
+        expect(plugin.httpServer!.port, isNull);
+      } finally {
+        await squatter.close();
+      }
+    });
+
+    test('engine.shutdown stops the auto-started HTTP server', () async {
+      final engine = ZuraffaEngine(di: freshDi())
+        ..register(
+          McpServerPlugin(
+            tools: [_EchoTool()],
+            autoStartHttpPort: 0,
+            httpAuthToken: 's3cret',
+          ),
+        );
+      await engine.bootstrap();
+      final server = (engine['mcp'] as McpServerPlugin).httpServer!;
+      expect(server.isRunning, isTrue);
+      await engine.shutdown();
+      expect(server.isRunning, isFalse);
+      expect(server.port, isNull);
+    });
   });
 }
