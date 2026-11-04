@@ -47,7 +47,14 @@ class McpDispatcher {
           'protocolVersion': protocolVersion,
           'serverInfo': {'name': serverName, 'version': serverVersion},
           'capabilities': {
-            'tools': {'listChanged': true},
+            // listChanged is `false` on purpose: enable/disable is the
+            // first runtime-mutable tool state, but no transport here
+            // has a server→client channel to push
+            // notifications/tools/list_changed on (POST-only Streamable
+            // HTTP least of all). Advertising it without ever emitting
+            // it strands caching clients on stale tool lists — declare
+            // it honestly until a push path exists (issue #2046).
+            'tools': {'listChanged': false},
           },
         });
       case 'tools/list':
@@ -79,6 +86,11 @@ class McpDispatcher {
     final tool = registry.find(name);
     if (tool == null) {
       return _error(id, -32602, 'Unknown tool: $name');
+    }
+    // Disabled tools are hidden from tools/list (issue #2046); a call
+    // to one is rejected with the same invalid-params family.
+    if (!registry.isEnabled(name)) {
+      return _error(id, -32602, 'Tool is disabled: $name');
     }
 
     final arguments = params['arguments'];

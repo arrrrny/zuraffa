@@ -20,6 +20,12 @@ class McpToolRegistry {
   // spell that out. Kept as a Map for the `values` iteration order.
   final Map<String, McpTool> _tools = <String, McpTool>{};
 
+  /// Names currently disabled via [disable] (issue #2046: per-tool
+  /// enable/disable). Disabled tools stay registered (so [find] still
+  /// resolves them) but are hidden from `tools/list` and rejected on
+  /// `tools/call`.
+  final Set<String> _disabled = <String>{};
+
   /// Registers a [tool]. Throws [StateError] if a tool with the same
   /// name is already registered (callers can pass `override: true`
   /// to replace an existing registration — useful in tests).
@@ -43,6 +49,19 @@ class McpToolRegistry {
   /// Looks up the tool registered under [name], or `null`.
   McpTool? find(String name) => _tools[name];
 
+  /// Disables the tool named [name] (issue #2046: per-tool
+  /// enable/disable). Idempotent; a name that is not registered is
+  /// recorded but has no observable effect until such a tool is
+  /// registered (it starts out disabled).
+  void disable(String name) => _disabled.add(name);
+
+  /// Re-enables the tool named [name]. Idempotent.
+  void enable(String name) => _disabled.remove(name);
+
+  /// Whether the tool named [name] is registered AND enabled.
+  bool isEnabled(String name) =>
+      _tools.containsKey(name) && !_disabled.contains(name);
+
   /// Transport-free tool invocation — the server-side half of the
   /// in-process bridge (the client half is dart_agent_core's
   /// `LocalMcpTransport`, which talks to the `LocalMcpHost` interface
@@ -58,6 +77,9 @@ class McpToolRegistry {
     if (tool == null) {
       return McpToolResult.error('Unknown tool: $name');
     }
+    if (!isEnabled(name)) {
+      return McpToolResult.error('Tool "$name" is disabled');
+    }
     try {
       return await tool.call(args);
     } catch (e, st) {
@@ -66,13 +88,16 @@ class McpToolRegistry {
     }
   }
 
-  /// All registered tools, in insertion order.
-  List<McpTool> get allTools =>
-      UnmodifiableListView<McpTool>(_tools.values.toList());
+  /// All registered, enabled tools, in insertion order (disabled tools
+  /// are hidden from the exposed surface — issue #2046). Use [find]
+  /// for the raw lookup that ignores the enabled gate.
+  List<McpTool> get allTools => UnmodifiableListView<McpTool>(
+    _tools.values.where((t) => isEnabled(t.name)).toList(),
+  );
 
-  /// All registered tool names, in insertion order.
+  /// All registered, enabled tool names, in insertion order.
   List<String> get toolNames =>
-      UnmodifiableListView<String>(_tools.keys.toList());
+      UnmodifiableListView<String>(_tools.keys.where(isEnabled).toList());
 
   /// Number of registered tools.
   int get length => _tools.length;
@@ -81,16 +106,31 @@ class McpToolRegistry {
   bool get isEmpty => _tools.isEmpty;
 
   /// Builds the MCP `tools/list` result list — one entry per
-  /// registered tool with `name`, `description`, `inputSchema`.
+  /// registered, enabled tool with `name`, `description`,
+  /// `inputSchema`, plus Vendure-style `annotations`
+  /// (`readOnlyHint`/`destructiveHint`) for tools that declare their
+  /// readonly/mutating classification via [McpReadonlyAwareTool]
+  /// (issue #2046). Disabled tools are hidden, not listed.
   List<Map<String, dynamic>> toolDefinitions() {
     return _tools.values
-        .map(
-          (t) => {
+        .where((t) => isEnabled(t.name))
+        .map((t) {
+          // McpReadonlyAwareTool is not a subtype of McpTool, so the
+          // is-check cannot promote t — the cast is the promotion.
+          final readonly = t is McpReadonlyAwareTool
+              ? (t as McpReadonlyAwareTool).readonly
+              : null;
+          return {
             'name': t.name,
             'description': t.description,
             'inputSchema': t.inputSchema,
-          },
-        )
+            if (readonly != null)
+              'annotations': {
+                'readOnlyHint': readonly,
+                'destructiveHint': !readonly,
+              },
+          };
+        })
         .toList(growable: false);
   }
 
