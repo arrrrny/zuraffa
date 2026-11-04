@@ -65,6 +65,13 @@ The wrapper spawns `cloudflared tunnel run --token <token>`. **The token is
 never printed or logged** — every output line is redacted (SC-005), and the
 credentials-file path is redacted the same way in named mode.
 
+**Scope caveat (token mode):** the public route comes from the Cloudflare
+dashboard ingress, which the CLI cannot verify locally — the FR-004 probe
+covers only the declared local origin (`--port`). Choosing token mode is the
+explicit acceptance that the dashboard ingress must point at that same
+declared origin (FR-009: exactly one local port). The success output prints
+this warning every time.
+
 ## Security
 
 - **Unauthenticated-endpoint guard (FR-004):** before exposing anything, the

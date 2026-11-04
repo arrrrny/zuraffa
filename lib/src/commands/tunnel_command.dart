@@ -206,7 +206,12 @@ class _TunnelRunCommand extends Command<void> {
       exitCode = ExitProtocol.failure;
       return;
     }
-    if (probeResult == EndpointProbeResult.unresponsive) {
+    // The unresponsive refusal honors the same override as the
+    // unauthenticated one: an intentionally unauthenticated endpoint that
+    // never answers a GET (e.g. an MCP streamable endpoint speaking POST
+    // only) is tunneled only under the operator's explicit acceptance.
+    if (probeResult == EndpointProbeResult.unresponsive &&
+        !config.allowUnauthenticated) {
       await _kill(appProcess);
       print(
         '❌ something IS listening on ${config.target}, but it never answered '
@@ -265,6 +270,18 @@ class _TunnelRunCommand extends Command<void> {
       '${url?.toString() ?? 'remotely-managed named tunnel (hostname is '
               'configured in the Cloudflare dashboard)'}',
     );
+    if (config.mode == TunnelMode.token) {
+      // Token mode's public route comes from the Cloudflare dashboard
+      // ingress, which the CLI cannot verify locally — the FR-004 probe
+      // above covered only the declared local origin. The operator accepted
+      // this by choosing token mode (spec: Assumptions); say so plainly.
+      print(
+        '   ⚠ token mode: the dashboard ingress is not locally verifiable — '
+        'the probe covered ${config.target} only. Confirm the dashboard '
+        'ingress points at ${config.target} (FR-009: exactly one local '
+        'port) before sharing the hostname.',
+      );
+    }
     print('   forwarding ${config.target} — ctrl-c to shut everything down.');
 
     // FR-008: one owner owns both lifetimes. The tunnel dies when the
@@ -285,20 +302,47 @@ class _TunnelRunCommand extends Command<void> {
     });
     // An injected interrupt (tests, embedders) or a real signal — watching
     // the OS signals here is what takes them off the VM's default kill.
+    // Subscriptions are retained and canceled in the finally below: an
+    // unsupported watcher (SIGTERM is unavailable on Windows) reports
+    // SignalException through the stream, and a Future.any loser left
+    // subscribed would otherwise outlive the shutdown it lost.
+    final signalSubs = <StreamSubscription<ProcessSignal>>[];
     final interrupt = _interrupt;
-    final stopSignal = interrupt != null
-        ? interrupt.future
-        : Future.any([
-            ProcessSignal.sigint.watch().first,
-            ProcessSignal.sigterm.watch().first,
-          ]);
-    final cause = await Future.any<_ShutdownCause>([
-      if (appProcess != null)
-        appExitedFirst.future.then((_) => _ShutdownCause.appExit),
-      stopSignal.then((_) => _ShutdownCause.interrupt),
-      failed.future,
-    ]);
-    await eventSub.cancel();
+    late final _ShutdownCause cause;
+    try {
+      final signalHit = Completer<void>();
+      if (interrupt == null) {
+        for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {
+          try {
+            final sub = signal.watch().listen(
+              (_) {
+                if (!signalHit.isCompleted) signalHit.complete();
+              },
+              onError: (Object error, StackTrace stack) {
+                if (error is! SignalException && !signalHit.isCompleted) {
+                  signalHit.completeError(error, stack);
+                }
+              },
+            );
+            signalSubs.add(sub);
+          } on SignalException {
+            // Signal not supported on this platform — ignore it.
+          }
+        }
+      }
+      final stopSignal = interrupt?.future ?? signalHit.future;
+      cause = await Future.any<_ShutdownCause>([
+        if (appProcess != null)
+          appExitedFirst.future.then((_) => _ShutdownCause.appExit),
+        stopSignal.then((_) => _ShutdownCause.interrupt),
+        failed.future,
+      ]);
+    } finally {
+      await eventSub.cancel();
+      for (final sub in signalSubs) {
+        await sub.cancel();
+      }
+    }
 
     if (cause == _ShutdownCause.tunnelFailed) {
       // The supervisor already killed cloudflared and recorded the failure
@@ -473,11 +517,18 @@ class _TunnelStatusCommand extends Command<void> {
       final response = await request.close().timeout(
         const Duration(seconds: 3),
       );
-      await response.drain<void>();
+      // Read the status before draining, then bound the drain: the tunneled
+      // app can answer a GET with a long-lived SSE stream, and an unbounded
+      // drain would hang `tunnel status` before it ever prints a verdict.
+      final status = response.statusCode;
+      await response.drain<void>().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {},
+      );
       // 530 = the Cloudflare edge reports NO active tunnel connector (error
       // 1033): the edge answered, not the tunneled app — a dead tunnel must
       // not report reachable.
-      return response.statusCode != 530;
+      return status != 530;
     } on Exception {
       return false;
     } finally {

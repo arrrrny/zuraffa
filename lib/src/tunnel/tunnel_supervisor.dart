@@ -438,7 +438,10 @@ class TunnelSupervisor {
   /// FR-009: the argv carries exactly the declared loopback origin — never
   /// a wildcard or a second port.
   List<String> _argsFor(TunnelConfig config) {
-    final origin = 'http://${config.host}:${config.port}';
+    // Build the origin from config.target, not raw host:port interpolation:
+    // Uri brackets an IPv6 host, so a validated bare `--host ::1` still
+    // produces a dialable origin (http://[::1]:8080, not http://::1:8080).
+    final origin = config.target.toString();
     switch (config.mode) {
       case TunnelMode.quick:
         return ['tunnel', '--url', origin, '--no-autoupdate'];

@@ -221,5 +221,6 @@ Lanes:
 - Quick-tunnel URLs are ephemeral by Cloudflare's design; durability is the named/token modes' job, and the docs say so.
 - The default scope is exactly the declared port forwarded to the loopback host — the tool never forwards a wildcard or a non-loopback bind.
 - Endpoint authentication is judged by the probe response (401/403 counts as challenged); apps with authz schemes invisible to a single probe can be force-marked by the override flag by an operator who understands the risk.
+- In token mode the public route comes from the Cloudflare dashboard ingress, which the CLI cannot verify locally. FR-004's probe and FR-009's single-port scope are therefore enforced on the declared local origin only; choosing token mode (FR-003) is the operator's explicit acceptance that the dashboard ingress must point at that same declared origin — the success output carries this caveat.
 - Backoff caps (and the health-window sizes) are bounded constants, not configurable, in v1.
 - The tunnel command is a long-running foreground process (like `zfa mcp serve`); daemonizing is out of scope.
